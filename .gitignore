@@ -1,0 +1,17 @@
+/dist/
+/tmp/
+/.cache/
+/node_modules/
+/web/node_modules/
+/web/dist/
+*.exe
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+.env.*
+*.key
+*.pem
+/runtime/
+/private/

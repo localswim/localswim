@@ -51,6 +51,9 @@ release qualification remain separate work.
   [independent review](docs/reviews/c01-contract-foundation-review.txt).
 - [Storage schema/open boundary](internal/store/open/README.md) and
   [corrected independent review](docs/reviews/s01-storage-foundation-review.txt).
+- [Atomic writer and outcome ledger](internal/store/writer/README.txt) and
+  [independent review](docs/reviews/s02-writer-outcome-review.txt), with explicit
+  authority/admission callbacks and commit uncertainty handling.
 - [Native setup/lifecycle core](internal/transport/setup/README.txt) and
   [independent review](docs/reviews/n01-native-setup-review.txt).
 - [Proposed public transport encodings](docs/contracts/transport-envelopes.txt)

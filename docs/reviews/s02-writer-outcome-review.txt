@@ -1,0 +1,83 @@
+S02 - FRESH INDEPENDENT WRITER AND OUTCOME REVIEW
+2026-10-26 | #0026 | Corrected review revision 2
+
+Verdict: PASS
+The corrected writer/outcome seam closes initial R1 and R2. No material finding
+remains within the authorized bounded S02 task. This reviewer authored none of
+the implementation, provider code or author tests. Initial findings and evidence
+remain preserved in s02-writer-outcome-review-r1-findings.txt.
+
+Closure
+- R1 CLOSED: Submit reads retained current evidence before new-submission gates.
+  A matching identity requires current OwnOutcome authority and never invokes
+  Submission, Admit or Apply; it can resolve with only the authority callback.
+  A new identity still requires Submission authority and executable callbacks.
+  OwnOutcome denial and unauthorized mismatch do not expose a terminal receipt.
+- R2 CLOSED: Lookup takes only route board/opId, query incarnation/version/hash
+  and independently authenticated actor. Current retained metadata supplies the
+  original command, target and preconditions to the trusted authority callback;
+  missing, corrupt or mismatching evidence supplies no operation metadata. No
+  original Intent, payload archive, fabricated payload or added wire field is
+  needed for compact lookup. Submit and post-submit reconciliation retain the
+  complete immutable comparison, including attempted attachment byte facts.
+
+Source basis
+Reviewed internal/store/writer/{writer.go,writer_windows_test.go,README.txt},
+internal/store/outcome/outcome.go and the root README against accepted slice01
+03/04/18 and corrected09/20/21, current C01/C02/C03 contracts and S01 schema/open
+boundaries. Private revisioned manifests retain exact source and evidence hashes.
+The final reviewed author files match the parent's corrected frozen snapshot;
+root README correctly describes this bounded library and links this review.
+
+Independent verification
+- Go 1.27.3 Windows/amd64, CGO=0, local toolchain, readonly module graph, qualified
+  module cache and fresh private test/cache/temp roots. Native suite passes twice:
+  eleven top-level tests and twelve subcases per repetition; zero mandatory skips.
+  Scoped go vet and whitespace checks pass.
+- Private adversarial overlay passes twice: seven top-level tests and two subcases
+  per repetition. The original distinct-purpose authority reproduction now passes.
+- Protocol-only compact attachment lookup succeeds after full intent/result and
+  operation-pin removal, closing and explicitly validating/reopening storage.
+  The originating Intent is out of scope. Original command, target, revisions and
+  byte facts survive; compact facts do not pin bytes, and the current attachment
+  still protects its bytes. Mutating copied callback metadata cannot alter a
+  receipt or a later lookup. Wrong actor/hash and missing identity expose no
+  stored metadata; current revocation refuses the exact retained receipt.
+- Additional overlays verify authority panic cleanup, pre-COMMIT panic rollback
+  with clean later reuse, cancellation during application, cancellation after
+  COMMIT with retained proof, and exhausted reader checkout causing one-way fencing.
+- Author/native tests independently rerun here cover durable refusal across reopen,
+  full/compact proofs, malformed descriptor and identity mismatches, source-only
+  and corrupt evidence, own-revocation recheck, atomic state/history/activity/blob/
+  receipt/reference/pin staging, serialized admission and actual reader-blocked
+  SQLite COMMIT. Injected application/before/after-COMMIT/rollback/readback failures
+  preserve unknown unless independently authorized exact evidence resolves it.
+
+Transaction and authority assessment
+BEGIN IMMEDIATE serializes evidence, preconditions and admission. Admission has
+only the SELECT seam; Apply stages its domain effects within the same transaction.
+The writer owns the board increment, checks affected-card revision results,
+validates exact retained results, inserts full receipts and attachment operation
+pins, audits storage consistency, and explicitly commits. SQL gates reject stacked
+statements and transaction control. Missing or malformed/corrupt/source evidence
+never becomes a NOT_COMMITTED claim or permission to replay.
+
+Callback and context failures trigger independent bounded rollback and lease
+cleanup. Unknown rollback/reconciliation fences writes. Explicit close and validated
+Existing reopen are required to resume; no retry or unfence shortcut is supplied.
+Authority is rechecked from current data for retained submit, lookup and fresh
+post-commit reconciliation, including an operation that revoked its own authority.
+
+Limits and handoff
+Trusted internal Go callbacks own live credential verification, policy, command
+admission and complete domain state/history/reference/activity/counter semantics.
+Their presence or a constructed actor is not authentication. They must close Rows,
+honor cancellation, avoid retained/concurrent seam use and external side effects;
+SQL timeouts cannot terminate arbitrary blocking Go code. This is not hostile
+plugin isolation or implemented G01/B01/A01/T01 domain/transport behavior.
+
+Fault hooks and native synthetic databases establish only the recorded cases.
+No native write/flush failure, crash, reboot, fsync/power-loss durability, browser,
+performance, other-platform or complete product qualification is claimed. Owner
+acceptance remains separate; only Terry controls Completed. Public MIT FOSS,
+UTF-8/LF/final newline, synthetic data only; no private operational data published.

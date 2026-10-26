@@ -1,0 +1,60 @@
+S02 - FRESH INDEPENDENT WRITER AND OUTCOME REVIEW
+2026-10-26 | #0026 | Initial review revision 1
+
+Verdict: CHANGES REQUIRED
+Two recovery-boundary issues remain in the initially frozen implementation.
+The reviewer authored none of the reviewed implementation or provider code.
+
+R1 - Medium: matching Submit has an extra authority gate
+Location: internal/store/writer/writer.go:204-211; README.txt API obligations.
+Submit calls Authority(Submission) before loading the existing receipt. With
+current OwnOutcome authority retained and Submission denied, Lookup returns the
+matching committed receipt while identical Submit returns FORBIDDEN. The accepted
+03 Atomic admission/outcomes contract resolves a matching terminal key under
+current read-own-outcome rights; new-submission entitlement must not precede that
+resolution. Load existing evidence first, authorize a match under OwnOutcome,
+and reserve Submission authority for a new operation. Preserve current identity,
+revocation, mismatch and absent-operation checks and add distinct-purpose tests.
+
+R2 - High: compact lookup cannot consume the accepted HTTP evidence
+Location: internal/store/writer/writer.go:386-390; outcome/outcome.go:21;
+docs/contracts/transport-envelopes.txt:108-112; writer/README.txt Lookup obligation.
+The public Lookup seam requires a complete frozen Intent, including the original
+payload, target and exact preconditions. The accepted GET operation endpoint has
+no body and supplies only board/op route identity plus incarnation/version/hash;
+actor comes from the current credential. After compaction, the original payload
+is unavailable in storage. An adapter cannot recover the required frozen Intent
+from that query and compact record. The compact test retains its original Intent
+in memory, so it does not exercise this accepted lookup path. Provide a read-only
+lookup descriptor matching the accepted route/query/current authenticated actor,
+validate the retained record and compare identity/version/hash, and preserve the
+complete immutable comparison for repeat Submit. Do not invent retained prose,
+a second payload archive or a changed wire contract to bridge this gap.
+
+Independent verification
+- Native Go 1.27.3 Windows/amd64, CGO=0, local toolchain, readonly module graph:
+  original suite passes twice, nine top-level tests and twelve subcases each;
+  zero mandatory skips. Scoped go vet passes.
+- Private overlays reproduce R1. Five other top-level probes pass: authority
+  panic cleanup (two subcases), cancellation during application, cancellation
+  after COMMIT with retained proof and explicit validated reopen, exhausted reader
+  checkout fencing, and a pre-COMMIT panic with clean later transaction reuse.
+- One initial probe incorrectly expected automatic write resumption after a
+  second authority panic during reconciliation. Corrected expectation confirms
+  conservative fencing; both attempts and their exact sources are preserved.
+- Existing native tests exercise actual reader-blocked COMMIT, serialized writers,
+  atomic staged state/history/activity/bytes/receipts/pins, durable refusal fencing,
+  full/compact current evidence, source exclusion and current own revocation.
+
+Boundaries and remaining work
+Trusted internal Go callbacks own command admission and domain effects; they are
+not hostile plugin isolation. SELECT and single-mutation guards block transaction
+control; callbacks must close rows, use seams sequentially within their lifetime,
+and honor cancellation. Their documented domain obligations are outside S02.
+Explicit cleanup, one-way fence and validated reopen are conservative. Fault hooks
+model errors; they do not qualify native write/flush failure, crash, reboot,
+power-loss durability, production authentication, browser or complete product use.
+Root README correctly links this bounded library and review, without claiming an
+integrated release. Correct R1/R2, preserve this initial review, and obtain fresh
+independent validation of the corrected source before handoff. Owner acceptance
+remains separate; only Terry controls Completed.

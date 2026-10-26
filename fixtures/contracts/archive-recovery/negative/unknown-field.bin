@@ -1,0 +1,13 @@
+{
+  "actorId": "00000000-0000-4000-8000-00000000000a",
+  "command": "history.clear",
+  "expectedCardRevision": null,
+  "expectedRevision": 5,
+  "incarnation": "00000000-0000-4000-8000-000000000002",
+  "input": {
+    "throughTime": "2026-10-01T00:00:00Z"
+  },
+  "opId": "00000000-0000-4000-8000-00000000001e",
+  "previewHash": "cb3b9e1c752f2955b91b5f108f4ae4cd8f7c1f08f60de6d62f17795015c1733f",
+  "target": null
+}

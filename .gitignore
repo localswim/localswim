@@ -15,3 +15,5 @@
 *.pem
 /runtime/
 /private/
+__pycache__/
+*.py[cod]

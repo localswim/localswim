@@ -1,0 +1,114 @@
+{
+  "binaryCases": [
+    {
+      "digestMismatch": true,
+      "expected": "reject",
+      "expectedByteFact": {
+        "byteLength": 10,
+        "sha256": "4ac9c84a00cf5c569835430fd5e4cb1a782d70806ee741822d600498b7460671"
+      },
+      "lengthMismatch": false,
+      "path": "negative/tampered-blob.bin"
+    },
+    {
+      "digestMismatch": true,
+      "expected": "reject",
+      "expectedByteFact": {
+        "byteLength": 10,
+        "sha256": "4ac9c84a00cf5c569835430fd5e4cb1a782d70806ee741822d600498b7460671"
+      },
+      "lengthMismatch": true,
+      "path": "negative/truncated-blob.bin"
+    }
+  ],
+  "futureArchiveCases": [
+    "missing COMPLETE or wrong manifest hash: incomplete/refuse restore",
+    "missing/extra/duplicate/case-aliased member: refuse restore",
+    "stored member local/central mismatch, traversal, symlink or compression: refuse restore",
+    "package/JSON/entry/depth/BLOB bounds exceeded: unsupported scope",
+    "receipt absent/incomplete/both locations/unreadable or target anchor mismatch: unknown",
+    "source outcome at fresh destination: unknown/source authority unavailable",
+    "confirm at expiresAt: terminal PREVIEW_EXPIRED if recorded; otherwise unknown",
+    "confirm recomputed using a new now: mismatch; original immutable preview time must be used"
+  ],
+  "jsonCases": [
+    {
+      "expected": "reject",
+      "path": "negative/duplicate-key.bin",
+      "reason": "duplicate JSON key"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/invalid-utf8.bin",
+      "reason": "invalid UTF-8"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/unpaired-surrogate.bin",
+      "reason": "invalid Unicode scalar"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/overflow.bin",
+      "reason": "unsafe integer overflow"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/fraction.bin",
+      "reason": "fractional number"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/negative.bin",
+      "reason": "negative number"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/bad-time.bin",
+      "reason": "noncanonical timestamp"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/unknown-field.bin",
+      "reason": "unknown confirm field"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/absent-null.bin",
+      "reason": "required null key absent"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/null-not-input.bin",
+      "reason": "required typed input null"
+    }
+  ],
+  "schemaVersion": 1,
+  "semanticCases": [
+    {
+      "expected": "reject",
+      "path": "negative/semantic/broken-committed-reference.json",
+      "predicate": "COMMITTED_REFERENCE"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/semantic/byte-facts-omitted.json",
+      "predicate": "BYTE_FACTS_CARDINALITY"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/semantic/byte-facts-substituted.json",
+      "predicate": "BYTE_FACTS_MAPPING"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/semantic/byte-facts-conflicting-length.json",
+      "predicate": "BYTE_LENGTH_CONFLICT"
+    },
+    {
+      "expected": "reject",
+      "path": "negative/semantic/nonbyte-command-facts.json",
+      "predicate": "BYTE_FACTS_CARDINALITY"
+    }
+  ]
+}

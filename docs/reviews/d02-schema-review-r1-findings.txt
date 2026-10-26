@@ -1,0 +1,120 @@
+SLICE01 D02 - FRESH INDEPENDENT ARCHIVE / RECOVERY SCHEMA REVIEW
+2026-10-25 | #0014 | Sol / High | Documentary review
+
+Verdict: CHANGES REQUIRED
+Three bounded corrections are required before this exact v1 encoding proposal is
+ready for owner acceptance. The reviewer authored none of the reviewed contract
+or fixtures. This review changes no source contract and grants no implementation,
+native qualification, activation or trust authority.
+
+Material findings
+
+R1 High - Refused targets need not denote an existing entity
+Location: docs/contracts/archive-recovery-schema.txt:194-228, especially 227-228;
+compare 140-150 and accepted03 Atomic admission and outcomes / accepted04 Errors.
+
+The requirement that ALL operation target references resolve a full entity,
+tombstone or historical fact excludes a legitimate retained NOT_COMMITTED result
+for an attempted mutation of a never-existing card or grant. Accepted admission
+records validation refusals, and NOT_FOUND is an accepted refusal. The attempted
+target remains part of the immutable fingerprint even though no target row ever
+existed. Manufacturing a tombstone would invent provenance and contradict :150.
+
+Correction criteria:
+- Distinguish an attempted NOT_COMMITTED target from a committed effect/reference.
+  Preserve its exact submitted UUID and terminal evidence without requiring a
+  fabricated entity, granting authority or weakening committed-reference checks.
+- Add exact full and compact NOT_FOUND examples with an unresolved attempted
+  target; show source-archive preservation after restore. Include a contrasting
+  broken committed-reference rejection. No runtime execution is required here.
+
+R2 Medium - The tampered-BLOB negative never reaches its digest check
+Location: fixtures/contracts/archive-recovery/verify_fixtures.py:180-189;
+negative/tampered-blob.bin; negative-cases.json case "blob hash mismatch".
+
+The verifier first parses EVERY negative as JSON. The raw Evidence B bytes raise
+JSONDecodeError at :181, so the tampered-BLOB branch at :187 is unreachable for
+this fixture. The reported eleven rejected cases therefore do not demonstrate
+the stated negative digest predicate. Independent raw-byte comparison confirms
+that these bytes differ from the protected note digest, but the supplied verifier
+does not perform that check on this case.
+
+Correction criteria:
+- Dispatch this binary case before JSON parsing and compare its raw bytes with
+  the declared note digest/length. Assert the intended mismatch explicitly.
+- Keep parser/schema negatives separate from binary negatives, preserving exact
+  binary bytes and the documentary-only qualification boundary.
+
+R3 Medium - Operation byteFacts lacks an exact semantic mapping
+Location: docs/contracts/archive-recovery-schema.txt:186-203,225-226,251-258;
+fixtures/contracts/archive-recovery/verify_fixtures.py:112-128.
+
+ByteFact has a precise shape/order and repeated lengths must agree, but no rule
+defines which facts an operation MUST retain. In particular, an otherwise valid
+full attachment.add can declare byteFacts=[] or an unrelated digest while its
+hashed canonical payload names the actual attachment digest/length. The protected
+union is then computed from the independent declaration. The present positive
+fixture happens to agree; neither the contract nor the verifier requires that
+agreement. A downstream implementer must invent this cross-field invariant.
+
+Correction criteria:
+- Specify exact byteFacts cardinality/content by accepted command. Bind
+  attachment.add facts to its canonical metadata and applicable result attachment;
+  define the retained compact/refused mapping and its non-pinning behavior.
+  State the empty mapping for commands with no byte evidence, or explicitly
+  explain any other accepted-source mapping.
+- Add documentary semantic negatives for omitted/substituted facts and conflicting
+  lengths. Preserve the distinction between historical digest facts and BLOB pins.
+
+Verified strengths and boundaries
+
+- Complete required key sets and explicit null rules; safe decimal integers,
+  UUID/timestamp shapes, second flooring, same-second identity/order and Unicode
+  preservation are stated. C matches accepted04/18 rather than adding a fingerprint.
+- Manifest inventory excludes manifest/COMPLETE; marker and payload hashes are
+  noncircular. Raw note bytes and the zero-byte BLOB have exact members. Package
+  ceilings, unsupported scope refusal and future hostile-ZIP/native gates remain.
+- Restore allocates a fresh incarnation, preserves historical provenance and
+  separates source outcomes from an empty new ledger. Historical actor/approval
+  and grant intent/result facts confer no active grant, token or lookup authority.
+- The receipt retains a compact source manifest and canonical prepared logical
+  inventory anchor. Source-transform validation precedes anchoring; later status
+  recomputes the destination projection without requiring the original ZIP. Phase,
+  incomplete/failure/unknown and later-activation limitations remain explicit.
+- Preview hash binds original immutable times, identity/revision, exact inventory,
+  policy and expiry. New confirmation recomputes against original preview time,
+  checks current rights/eligibility, preserves terminal refusal versus unknown,
+  and never turns current approval/lane/card revision into recovery administration.
+- Public text and binary intent are distinct. Root .gitattributes marks both *.bin
+  and extensionless fixture BLOB members binary, preserving exact source bytes.
+
+Fixture observation
+
+The full revision3 snapshot in package/history.json:11,18-20 references the empty
+attachment whose package/board.json:32 creation time is almost a month later.
+The prepared target inherits those values. This is an awkward ordinary chronology
+example; a wall-clock rollback is not explicitly excluded by the timestamp rules,
+so this observation alone is not an unconditional integrity finding. Prefer an
+ordinary consistent sequence or document the intended clock case. Timestamp order
+must not replace the specified revision/identity ordering or completeness evidence.
+
+Checks performed
+
+- Read implementation AGENTS.md, repository-layout decision, the complete D02
+  contract and fixture tree/scripts, and accepted sibling slice01 01,03-07,18-19,
+  D02 in 09-task-proposals.json,20-21. No legacy source or private records consulted.
+- Ran only the supplied documentary verifier: PASS, seven byte/hash vectors,
+  six payload entries and eleven negative rejections, subject to R2 above.
+- Independently read all fixture bytes and recomputed vector hashes/hex, canonical
+  preview hashes, five-minute expiry, COMPLETE, source-manifest anchors and every
+  prepared-target inventory length/hash/aggregate. Checked both raw BLOB lengths
+  and note contents, receipt variants, LF/UTF-8 text and the negative binary path.
+- Checked semantic source coverage and exact-field consistency separately from
+  those successful hash checks; R1/R3 are schema issues that hash equality cannot
+  resolve. The verifier is explicitly not a complete schema/product validator.
+
+No ZIP was published or parsed, database/browser/native recovery exercised,
+product built, tools installed, board accessed or trust changed. No crash, ACL,
+filesystem, driver, concurrency or power-loss qualification is claimed. Terry
+acceptance remains the gate after bounded correction and fresh re-review. Public
+MIT FOSS; no live data, credentials, private paths or worker rosters are reproduced.

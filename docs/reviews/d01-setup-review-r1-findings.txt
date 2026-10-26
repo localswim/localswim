@@ -1,0 +1,123 @@
+SLICE01 - FRESH INDEPENDENT D01 SETUP REVIEW
+2026-10-25 | Spike01 #0013 | Initial review
+
+Verdict: CHANGES REQUIRED
+Two bounded bootstrap/credential seams require a contract correction or an
+explicit accepted follow-up gate. The reviewer authored none of the inputs.
+This initial finding record must remain evidence if a later revision passes.
+
+Reviewed baseline
+docs/contracts/setup.txt, SHA-256:
+22242e3358eadc95ec482e78130560b724f9d8993e34b8767f7a6430f1aa1f58
+All setup.txt line references below identify that baseline, not later revisions.
+Also reviewed AGENTS.md, docs/decisions/repository-layout.txt, and accepted
+v2-architecture/docs/slice01/01,03,04,05,06,07,18,19, corrected 09 D01/N01/K03,
+20 and 21. Source references below use those document numbers and line numbers.
+
+R1 - Medium: separately issued board CLI credential has no callable lifecycle
+Location: setup.txt:87-90,208-214,309-326,337-339.
+Accepted basis: 05:18-25,34-44; 04:101-109; 18:30-46.
+
+- Native owner renewal is defined, but expressly does not regenerate board CLI
+  credentials. The journey proceeds from grant.create to a browser session code.
+  It never identifies how a CLI receives its separately issued 30-day credential,
+  or reauthenticates after ordinary expiry, credential-file loss or revocation.
+- Accepted 05 distinguishes a durable grant from a credential and says
+  reenrollment must not upgrade that grant. Accepted 18 makes grant.create a
+  ledgered mutation with immutable identity. Replaying that mutation to recover
+  a lost bearer is not a credential-reissue contract and cannot be inferred.
+- Consequence: normal CLI use and original-actor outcome lookup after 30 days
+  need a consequential implementation choice, despite the proposed freeze.
+
+Bounded closure criteria:
+- Define the issuance/reissue handoff for a PREEXISTING enabled grant, naming
+  the callable CLI/API or a separately owner-accepted contract dependency and
+  the implementation gate it controls. Keep protocol work with its proper
+  owner; no general installer or workspace scope is required.
+- State who authorizes issuance, exact installation/board/incarnation/actor/
+  grant binding, private token delivery/storage, expiry, current-right checks,
+  restart persistence and revocation. Specify whether reissue revokes previous
+  credentials and how lost/uncertain delivery is resolved without replaying
+  grant creation. Expired/lost bearer possession cannot itself confer authority.
+- Keep grant receipts/results as durable non-secret IDs; exclude bearer secrets
+  from fingerprints, operation outcomes, exports and recovery evidence. A grant
+  may be confirmed while delivery of its credential remains failed or unknown.
+- Add synthetic first issue, expired/lost token reissue, revoked grant refusal,
+  interrupted delivery and same-actor original-outcome lookup vectors. Issuance
+  must not change actor, broaden rights or rewrite immutable submitted evidence.
+
+R2 - Medium: native owner lacks defined lookup authority for its grant actions
+Location: setup.txt:199-205,309-315,337-339.
+Accepted basis: 03:51-58,68-75; 04:101-109; 05:18-32; 18:30-46.
+
+- The native owner has grant-admin only and no board grant. Accepted 03/04
+  requires current read-own-outcome authority to return terminal operation
+  evidence; accepted 18 includes grant.create/revoke in that ledger.
+- After the first grant.create response is lost, a new human grant belongs to
+  the selected grantee, not necessarily the native owner's ownerActorId.
+  Issuing that grantee a credential does not authorize the owner's original
+  operation lookup. The contract supplies neither an applicable current right
+  nor an explicit bounded denial/recovery decision for that native principal.
+- Consequence: the bootstrap journey cannot promise reconciliation of its own
+  lost administrative response. Inferring grant-admin as general board read or
+  silently giving the owner read-own-outcome would change accepted authority.
+
+Bounded closure criteria:
+- Resolve the authenticated native-owner lookup policy for its own grant
+  operations, with the appropriate accepted clarification. State exact board/
+  incarnation/actor/opId/fingerprint binding and current authority after owner
+  renewal; do not implicitly grant board read/write, approve or history-admin.
+- Alternatively identify an explicit accepted recovery-stop and gated decision,
+  including its availability cost. Never claim the missing grant response is
+  NOT_COMMITTED, infer success from a visible grant, or replay grant.create.
+- Add first-grant lost response, owner expiry/renewal before lookup, wrong actor/
+  fingerprint and denied-current-authority vectors. Lookups remain read-only;
+  missing/inaccessible evidence remains unknown. Coordinate this seam with R1.
+
+Assessed boundaries without further material finding
+- Grammar, canonical public identities, fixed native paths and versioned local
+  generation formats are concrete. Port 47443, key lifetimes and publication
+  protocol remain proposals for Terry, as setup.txt:11-17 states. Owner direction
+  supports one Go module and web/ package in the public implementation repository.
+- Exclusive dual-loopback binding, exact name/SNI/Host/Origin, local issuer pin,
+  manual trust enrollment/removal and qualified browser evidence are separated.
+  A successful init is neither port reservation nor browser trust proof.
+- Leaf expiry has a callable stopped/exclusive renewal and startup renewal path
+  (179-186). Native owner expiry has a callable same-actor native renewal,
+  independent of its expired bearer (208-214). These ordinary paths are not
+  deferred to a generic repair decision. Status distinguishes expiry from damage
+  (379-391), and no hot renewal or perpetual running availability is promised.
+- Owner-file/key corruption or loss is fenced rather than identity-regenerated
+  (208-214,269-276). Incomplete/ambiguous setup transactions preserve evidence and
+  stop for a scoped repair decision (253-267). This intentionally sacrifices
+  availability; it is not successful automatic recovery. Exact complete pending
+  candidates can be reconciled without minting another identity or bearer.
+- Issuer near-expiry, expiry, lost key or compromise deliberately stops the
+  installation for a separately accepted replacement/migration decision
+  (188-197). This can prevent original-authority lookup indefinitely; 341-345
+  preserves that uncertainty. Public-only trust removal remains callable when
+  secret material is unavailable (288-305). No root rotation, global revocation,
+  secure erasure or automatic adoption of old evidence is claimed.
+- Atomic generation selection, exclusion, retained retired credentials and
+  possible-effect outcome rules preserve coherent authority and honest unknowns.
+  The native primitives and durability qualification remain explicit future
+  evidence, rather than being certified by this documentary review.
+- Native Windows/amd64/local NTFS, private-at-creation ACLs, exact trust-store
+  membership, browser/profile behavior and fault evidence remain prerequisites.
+  Same-account cooperative assurance remains explicit; terminal confirmation is
+  neither hostile isolation nor proof that a human meaningfully reviewed work.
+
+Primary-source check and verification limits
+Checked RFC 6761 section 6.3 and Microsoft's system-store/access-control references.
+Their documentation supports special localhost handling, logical/physical store
+distinctions and creator-specified security descriptors; it does not qualify this
+browser, native ACL implementation, store cleanup or crash durability:
+https://www.rfc-editor.org/rfc/rfc6761.html#section-6.3
+https://learn.microsoft.com/en-us/windows/win32/seccrypto/system-store-locations
+https://learn.microsoft.com/en-us/windows/win32/secauthz/access-control-components
+
+Documentary source/reference checks and this review's UTF-8/LF/final-newline check
+only. No product tests/builds, runtime probes, installs, trust actions, grants,
+board access, v1 sources/tests/internal designs or real board data were used.
+No private operational records published. No clean-room, runtime/security,
+durability or qualification guarantee. Public MIT FOSS.

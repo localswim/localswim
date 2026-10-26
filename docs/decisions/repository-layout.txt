@@ -1,0 +1,23 @@
+REPOSITORY BOUNDARY - 2026-10-25
+
+Owner direction
+Terry approved a single repository for the Go and TypeScript implementation.
+The canonical public MIT repository is https://github.com/localswim/localswim.
+This retains the accepted Spike 01 single-module/single-web-package boundary.
+
+Layout and reason
+Go owns the service, CLI, domain admission and contract generator. The browser
+package lives under web/. Shared boundary declarations and embedded assets can
+change with their Go consumers in one reviewed commit and reproducible build.
+Backend and UI are separate responsibilities within this repository; no separate
+backend/UI repositories are required by the current plan.
+
+Scope
+Repository preparation is distinct from toolchain candidate selection, isolated
+qualification and product implementation. Initial contracts and candidate locks
+do not claim a qualified release. Existing accepted behavior and owner-controlled
+trust/bootstrap actions remain governed by the reviewed Spike 01 plan.
+
+Real board data, credentials, private worker rosters and local recovery records
+remain outside the public repository. Source text uses UTF-8/LF/final newline;
+synthetic binary fixtures retain exact bytes.

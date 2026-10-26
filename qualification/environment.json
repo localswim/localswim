@@ -1,0 +1,1049 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-25",
+  "scope": "Q01 candidate inventory and exact dependency locks only",
+  "status": "CANDIDATE_UNQUALIFIED",
+  "gates": {
+    "owner_acceptance": "pending",
+    "Q02": "not_run",
+    "Q03": "not_run",
+    "product_build": "not_run",
+    "native_qualification": "not_run",
+    "browser_qualification": "not_run"
+  },
+  "platform": {
+    "candidate": {
+      "os": "windows",
+      "arch": "amd64",
+      "filesystem": "NTFS"
+    },
+    "observed": {
+      "windows_version": "10.0.26200.9711",
+      "display_version": "25H2",
+      "edition": "Professional",
+      "filesystem": "NTFS"
+    },
+    "evidence": "Read-only OS version, CurrentBuildNumber/UBR registry values and volume filesystem inventory; no filesystem behavior qualification."
+  },
+  "toolchain": {
+    "go": {
+      "version": "1.27.3",
+      "license": "BSD-3-Clause",
+      "source": "https://go.dev/dl/go1.27.3.windows-amd64.zip",
+      "archive_sha256": "f26081f438319757f8a1b46d7d0b2c5ec7583d4038e485e0aa725cfde7885fff",
+      "availability": "Portable private candidate archive downloaded, official SHA256 matched; go version and dependency-only commands executed.",
+      "installed_observed_version": "1.25.1",
+      "selection": "Supported Go release patch; satisfies sqlite module Go >=1.26.0. Installed older Go is not the candidate."
+    },
+    "node": {
+      "version": "24.20.0",
+      "license": "MIT AND bundled third-party notices",
+      "source": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-win-x64.zip",
+      "archive_sha256": "6cac9ffbca8f6a47091e4b5c772e0606049c3871cb67d900c0cedde630e545ba",
+      "availability": "Installed node --version observed; official candidate archive hash inventoried, archive not downloaded and installed bytes not matched to archive."
+    },
+    "npm": {
+      "version": "12.0.2",
+      "license": "Artistic-2.0",
+      "source": "https://registry.npmjs.org/npm/-/npm-12.0.2.tgz",
+      "integrity": "sha512-uIXokLlBj6FpNUTQX1PmT5pz7BlIN9QlixX+zdaSNHsd0qUXsbDLr50xzY6Sw7cJVr0uzHKDOle0swmPW/p5Qw==",
+      "node_requirement": "^22.22.2 || ^24.15.0 || >=26.0.0",
+      "availability": "Installed npm --version observed; exact registry distribution integrity inventoried. Installed bytes not matched to registry tarball."
+    },
+    "typescript": {
+      "package": "typescript",
+      "version": "7.0.2",
+      "license": "Apache-2.0",
+      "cli": "tsc",
+      "native_package": "@typescript/typescript-win32-x64",
+      "native_version": "7.0.2",
+      "availability": "Released standard package and native optional dependency resolved into npm lock. No compiler or native binary execution; Q03 must qualify local tsc."
+    }
+  },
+  "sqlite": {
+    "binding": "modernc.org/sqlite",
+    "version": "v1.61.0",
+    "api": "database/sql",
+    "libc": "modernc.org/libc",
+    "libc_version": "v1.79.0",
+    "libc_match": "Exact version required by binding go.mod, also explicitly required in root go.mod.",
+    "bundled_sqlite_version": "3.54.1",
+    "bundled_sqlite_source_id": "2026-10-16 14:45:20 555e07ef33f69a0957d24d8e555b702464a131d6f1607f4c3c1e4551e8e6ca76",
+    "sqlite_license": "Public domain (upstream LICENSE-SQLITE)",
+    "documented_support": "CGo-free port; upstream documents windows/amd64.",
+    "source_compile_options": {
+      "status": "Source inventory only; runtime PRAGMA compile_options not observed.",
+      "source": "modernc.org/sqlite@v1.61.0/lib/sqlite_g_0000000000060000.go (__ccgo_ts1 first 57 strings) and sqlite_g_000000000006003f.go (_sqlite3azCompileOpt); windows build constraints",
+      "options": [
+        "ATOMIC_INTRINSICS=1",
+        "COMPILER=gcc-12-win32",
+        "DEFAULT_AUTOVACUUM",
+        "DEFAULT_CACHE_SIZE=-2000",
+        "DEFAULT_FILE_FORMAT=4",
+        "DEFAULT_JOURNAL_SIZE_LIMIT=-1",
+        "DEFAULT_MEMSTATUS=0",
+        "DEFAULT_MMAP_SIZE=0",
+        "DEFAULT_PAGE_SIZE=4096",
+        "DEFAULT_PCACHE_INITSZ=20",
+        "DEFAULT_RECURSIVE_TRIGGERS",
+        "DEFAULT_SECTOR_SIZE=4096",
+        "DEFAULT_SYNCHRONOUS=2",
+        "DEFAULT_WAL_AUTOCHECKPOINT=1000",
+        "DEFAULT_WAL_SYNCHRONOUS=2",
+        "DEFAULT_WORKER_THREADS=0",
+        "DIRECT_OVERFLOW_READ",
+        "DISABLE_INTRINSIC",
+        "ENABLE_COLUMN_METADATA",
+        "ENABLE_DBPAGE_VTAB",
+        "ENABLE_DBSTAT_VTAB",
+        "ENABLE_FTS5",
+        "ENABLE_GEOPOLY",
+        "ENABLE_MATH_FUNCTIONS",
+        "ENABLE_MEMORY_MANAGEMENT",
+        "ENABLE_OFFSET_SQL_FUNC",
+        "ENABLE_PREUPDATE_HOOK",
+        "ENABLE_RBU",
+        "ENABLE_RTREE",
+        "ENABLE_SESSION",
+        "ENABLE_SNAPSHOT",
+        "ENABLE_STAT4",
+        "ENABLE_UNLOCK_NOTIFY",
+        "LIKE_DOESNT_MATCH_BLOBS",
+        "MALLOC_SOFT_LIMIT=1024",
+        "MAX_ATTACHED=10",
+        "MAX_COLUMN=2000",
+        "MAX_COMPOUND_SELECT=500",
+        "MAX_DEFAULT_PAGE_SIZE=8192",
+        "MAX_EXPR_DEPTH=1000",
+        "MAX_FUNCTION_ARG=1000",
+        "MAX_LENGTH=1000000000",
+        "MAX_LIKE_PATTERN_LENGTH=50000",
+        "MAX_MMAP_SIZE=0x7fff0000",
+        "MAX_PAGE_COUNT=0xfffffffe",
+        "MAX_PAGE_SIZE=65536",
+        "MAX_SCHEMA=10000000",
+        "MAX_SQL_LENGTH=1000000000",
+        "MAX_TRIGGER_DEPTH=1000",
+        "MAX_VARIABLE_NUMBER=32766",
+        "MAX_VDBE_OP=250000000",
+        "MAX_WORKER_THREADS=8",
+        "MUTEX_NOOP",
+        "SOUNDEX",
+        "SYSTEM_MALLOC",
+        "TEMP_STORE=1",
+        "THREADSAFE=1"
+      ]
+    },
+    "runtime_compile_options": null,
+    "connection_settings_observed": null,
+    "qualification": "Q02 must verify actual SQLite version/options, CGo-free native build, connection settings and ownership/locking; source MUTEX_NOOP and THREADSAFE=1 do not establish connection safety."
+  },
+  "browser": {
+    "candidate": {
+      "name": "Chrome for Testing (Playwright Chromium)",
+      "version": "156.0.8078.4",
+      "revision": "1248",
+      "platform": "win64",
+      "runner": "@playwright/test",
+      "runner_version": "1.64.1",
+      "source": "https://cdn.playwright.dev/builds/cft/156.0.8078.4/win64/chrome-win64.zip",
+      "archive_sha256": "220021ecfdad08c116fc71a153e65e3861ba841c531afc4f7acc7bd5d44b41db",
+      "checksum_provenance": "Computed SHA256 of downloaded official Playwright archive; no independent publisher checksum was supplied or matched.",
+      "license": "Google Chrome executable terms plus Chromium/open-source component notices; external qualification tool only, not distributed with localswim.",
+      "license_source": "https://www.google.com/chrome/terms/",
+      "license_evidence": "Downloaded archive chrome-win64/ABOUT identifies Google Chrome, Google LLC copyright, Chromium/other open-source components and chrome://terms. Exact component credits require later browser inspection; not an MIT/FOSS-browser claim.",
+      "availability": "Archive downloaded privately for checksum inventory only; not extracted, installed or executed."
+    },
+    "profile": {
+      "id": "slice01-chromium-win64-r1",
+      "status": "planned_not_created",
+      "kind": "Fresh dedicated persistent profile in future private qualification workspace; never an existing user profile.",
+      "required_configuration": "Native Windows, pinned Chromium candidate, headed mode, no extensions; default security checks. Trusted HTTPS/bootstrap and explicit human consent remain separately scoped gates."
+    },
+    "observed_installed": [
+      {
+        "name": "Google Chrome",
+        "version": "155.0.8059.86"
+      },
+      {
+        "name": "Microsoft Edge",
+        "version": "156.0.4314.42"
+      }
+    ],
+    "observed_note": "Read-only executable version resources only; installed browsers are availability observations, not selected or qualified candidates."
+  },
+  "frozen_environment": {
+    "CGO_ENABLED": "0",
+    "GOOS": "windows",
+    "GOARCH": "amd64",
+    "GOTOOLCHAIN": "local",
+    "GOFLAGS": "-mod=readonly",
+    "note": "Required future command environment; Q01 used process-scoped candidate/cache variables only, no persistent PATH/config changes."
+  },
+  "manifests": [
+    {
+      "path": "go.mod",
+      "sha256": "5dfd8f468bc0fa34eaa1c6a64ca7ee3c59b12c943a991e1e78bec900e9d12ce1"
+    },
+    {
+      "path": "go.sum",
+      "sha256": "73d8f9e5776a31a8d5eb60d1cec809f56ba60ffdc13933ae5db6b12fd5c9e8e8"
+    },
+    {
+      "path": "web/package.json",
+      "sha256": "dc1e06eec516fa9e2d674aaa8afe1c0e3d5282187a29d316b2d9ee25bb27a4ce"
+    },
+    {
+      "path": "web/package-lock.json",
+      "sha256": "845a2b445fb06794c6ebc9df890d6ecbedd9b6623fcd827454eb6502856d57b4"
+    }
+  ],
+  "go_modules": [
+    {
+      "module": "github.com/dustin/go-humanize",
+      "version": "v1.1.0",
+      "sum": "h1:dbKTrvD0klcbBV/h4AWJdMuZogJACoMlvWIWZ5b2xWg=",
+      "go_mod_sum": "h1:hc1CvRkJMsgxqjmjMQF3QNRAZBwY8AXBAzKYoSX9sFI=",
+      "source": "https://proxy.golang.org/github.com/dustin/go-humanize/@v/v1.1.0.info",
+      "license_ids": [
+        "MIT"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "a973b4498c13eb74baa2a8e5c351426a6826f2fcdd909916dbe53ee2e755fd71"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "github.com/google/pprof",
+      "version": "v0.0.0-20261016150608-1facf8f91b50",
+      "sum": "h1:PlNWJRxu5APSV0pWqfIsZ0qt9OOGHSWfZQ4zvx+WgWs=",
+      "go_mod_sum": "h1:yUo1AMMpsPIDFGuwDK8nLcf8+vvAd5l2O6JDZ6hpwrM=",
+      "source": "https://proxy.golang.org/github.com/google/pprof/@v/v0.0.0-20261016150608-1facf8f91b50.info",
+      "license_ids": [
+        "Apache-2.0",
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "github.com/google/uuid",
+      "version": "v1.6.0",
+      "sum": "h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=",
+      "go_mod_sum": "h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=",
+      "source": "https://proxy.golang.org/github.com/google/uuid/@v/v1.6.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "0a8d61ed3cbfd5312326e8126c31ce9c627a283adc99131b56896d29ada04b2d"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "github.com/hashicorp/golang-lru/v2",
+      "version": "v2.0.7",
+      "sum": "h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=",
+      "go_mod_sum": "h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=",
+      "source": "https://proxy.golang.org/github.com/hashicorp/golang-lru/v2/@v/v2.0.7.info",
+      "license_ids": [
+        "MPL-2.0",
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "6c7088eb877b5d7e6e0e9d27e822ea25fcda2e83f9eba59bb5f1418a656796e0"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "github.com/mattn/go-isatty",
+      "version": "v0.0.24",
+      "sum": "h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=",
+      "go_mod_sum": "h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=",
+      "source": "https://proxy.golang.org/github.com/mattn/go-isatty/@v/v0.0.24.info",
+      "license_ids": [
+        "MIT"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "08eab1118c80885fa1fa6a6dd7303f65a379fcb3733e063d20d1bbc2c76e6fa1"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "github.com/ncruces/go-strftime",
+      "version": "v1.1.0",
+      "sum": "h1:vtPmPWMkb539RGV9WpWT9EwJGvrOCKvMNI4obWL47Hk=",
+      "go_mod_sum": "h1:yVaq7iwCN09vHRrKBrrflXT0M9tTMG2KmZ9Fj7xeG/g=",
+      "source": "https://proxy.golang.org/github.com/ncruces/go-strftime/@v/v1.1.0.info",
+      "license_ids": [
+        "MIT"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "38ae43959daf953a393a585b2988672cb65a5a541aca0d0be5e72595a0a16883"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "github.com/remyoudompheng/bigfft",
+      "version": "v0.0.0-20230129092748-24d4a6f8daec",
+      "sum": "h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=",
+      "go_mod_sum": "h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=",
+      "source": "https://proxy.golang.org/github.com/remyoudompheng/bigfft/@v/v0.0.0-20230129092748-24d4a6f8daec.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "dd26a7abddd02e2d0aba97805b31f248ef7835d9e10da289b22e3b8ab78b324d"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "golang.org/x/mod",
+      "version": "v0.42.0",
+      "sum": "h1:ICeL3t2L30ljSPHHxDnR4fqVcBt/zR2zJAb9juavmQg=",
+      "go_mod_sum": "h1:u5fzIrRInkL8MaO1cbRkUHT64v303YIT5KEqpNr7jRs=",
+      "source": "https://proxy.golang.org/golang.org/x/mod/@v/v0.42.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "golang.org/x/sync",
+      "version": "v0.24.0",
+      "sum": "h1:iqiDrGoDgyuvAKrhLQthUEzU/R378N78gXbBjxed7oA=",
+      "go_mod_sum": "h1:sUUOizhqBxiL6pEWpqNLUiaJn1ShEbZ6BBqskPbjZm0=",
+      "source": "https://proxy.golang.org/golang.org/x/sync/@v/v0.24.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "golang.org/x/sys",
+      "version": "v0.49.0",
+      "sum": "h1:XbzkgYJHdqh/8m2Uu0W/dQv8nktxx4BFHp1M0gROTXA=",
+      "go_mod_sum": "h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=",
+      "source": "https://proxy.golang.org/golang.org/x/sys/@v/v0.49.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "golang.org/x/tools",
+      "version": "v0.52.0",
+      "sum": "h1:ryxg4U63oaUYk7uOLTF37n43f4qgtGvqV4Ioit1BaEs=",
+      "go_mod_sum": "h1:ItcP5UNaVGG+Yc4eIYmaFLNJ4soEopkx5Y2d4lcEurs=",
+      "source": "https://proxy.golang.org/golang.org/x/tools/@v/v0.52.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/cc/v4",
+      "version": "v4.30.3",
+      "sum": "h1:aDq8gIX1X7+VFgO/JYYji6pLWL2H4tv3g8WatT3KCys=",
+      "go_mod_sum": "h1:OnovgIhbbMXMu1aISnJ0wvVD1KnW+cAUJkIrAWh+kVI=",
+      "source": "https://proxy.golang.org/modernc.org/cc/v4/@v/v4.30.3.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "1c77905db36f407e0fdb513f97f1f2a3f2282049ca273637841face982d5d003"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/ccgo/v4",
+      "version": "v4.37.0",
+      "sum": "h1:BAuJCUtIHIxFIYaFhqXIw5YaoMBlNCUlFovejHfMip4=",
+      "go_mod_sum": "h1:/8627VhwWtAbqUXmPORxFQU5SgLrAx2jl9seLw9GBhY=",
+      "source": "https://proxy.golang.org/modernc.org/ccgo/v4/@v/v4.37.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "343748b20da2ceb739c1ab7b85fe16f6fe4b67fad88fea40c5835a08383d8ffe"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/fileutil",
+      "version": "v1.4.0",
+      "sum": "h1:j6ZzNTftVS054gi281TyLjHPp6CPHr2KCxEXjEbD6SM=",
+      "go_mod_sum": "h1:EqdKFDxiByqxLk8ozOxObDSfcVOv/54xDs/DUHdvCUU=",
+      "source": "https://proxy.golang.org/modernc.org/fileutil/@v/v1.4.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "7dc07397727fc500d5ce768d724e4d555eee8fb7687f421fd40d72249868b0ca"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/gc/v2",
+      "version": "v2.6.5",
+      "sum": "h1:nyqdV8q46KvTpZlsw66kWqwXRHdjIlJOhG6kxiV/9xI=",
+      "go_mod_sum": "h1:YgIahr1ypgfe7chRuJi2gD7DBQiKSLMPgBQe9oIiito=",
+      "source": "https://proxy.golang.org/modernc.org/gc/v2/@v/v2.6.5.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "4719790df5e9d33b1cef3a67df8264fb1e3e7f54f3ca900c562e84a951de62d9"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/gc/v3",
+      "version": "v3.2.0",
+      "sum": "h1:/Y3LGDMQaoYf55PebP1qsZ5FDGgAZyG1RYKEHeQzh1o=",
+      "go_mod_sum": "h1:HFK/6AGESC7Ex+EZJhJ2Gni6cTaYpSMmU/cT9RmlfYY=",
+      "source": "https://proxy.golang.org/modernc.org/gc/v3/@v/v3.2.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "4719790df5e9d33b1cef3a67df8264fb1e3e7f54f3ca900c562e84a951de62d9"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/goabi0",
+      "version": "v0.2.0",
+      "sum": "h1:HvEowk7LxcPd0eq6mVOAEMai46V+i7Jrj13t4AzuNks=",
+      "go_mod_sum": "h1:CEFRnnJhKvWT1c1JTI3Avm+tgOWbkOu5oPA8eH8LnMI=",
+      "source": "https://proxy.golang.org/modernc.org/goabi0/@v/v0.2.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "6d33428c98f9d7113dfc86e17fca00f81aeaac33e02f79c8a5afafb0a5fd33c6"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/libc",
+      "version": "v1.79.0",
+      "sum": "h1:9Dvvv++bAMSkSuBzuOFAatbTV5OIoq6Y6FohmD3e7q8=",
+      "go_mod_sum": "h1:uT3kR61NsbeKJSLqq83GJwSnZMVLlSjyAz4DfTaBy1M=",
+      "source": "https://proxy.golang.org/modernc.org/libc/@v/v1.79.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "95ff867eb55a56935fa7492406cfa953fb7c13ca73f4c0a86ae05756b4605600"
+        },
+        {
+          "file": "LICENSE-3RD-PARTY.md",
+          "sha256": "f597097efe3d97021f89170746bd3a0fb9a8b6fb26b82043ed68a4e0283bee6c"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/mathutil",
+      "version": "v1.7.1",
+      "sum": "h1:GCZVGXdaN8gTqB1Mf/usp1Y/hSqgI2vAGGP4jZMCxOU=",
+      "go_mod_sum": "h1:4p5IwJITfppl0G4sUEDtCr4DthTaT47/N3aT6MhfgJg=",
+      "source": "https://proxy.golang.org/modernc.org/mathutil/@v/v1.7.1.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "bfa9bf72a72ca009fd62a8f84fca3dca67e51d93af96352723646599898b6cf5"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/memory",
+      "version": "v1.12.1",
+      "sum": "h1:nFMiWrpStgZczNl6XI9GnIk/rWhYIyHGUaR04pGbp9g=",
+      "go_mod_sum": "h1:/JP4VbVC+K5sU2wZi9bHoq2MAkCnrt2r98UGeSK7Mjw=",
+      "source": "https://proxy.golang.org/modernc.org/memory/@v/v1.12.1.info",
+      "license_ids": [
+        "BSD-3-Clause",
+        "LicenseRef-L5"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "59895e669f48f168b6b858358f6005779cdf40a265f7828813061b56af67b496"
+        },
+        {
+          "file": "LICENSE-GO",
+          "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067"
+        },
+        {
+          "file": "LICENSE-LOGO",
+          "sha256": "5ae5bee3072a841376451b48d8cfcec7188e10543926d5870828d36c8a750dc5"
+        },
+        {
+          "file": "LICENSE-MMAP-GO",
+          "sha256": "c2eba69f20d05414538c3a5df7694dde392e065ff70882e1625e90f5d6659fff"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/opt",
+      "version": "v0.2.0",
+      "sum": "h1:tGyef5ApycA7FSEOMraay9SaTk5zmbx7Tu+cJs4QKZg=",
+      "go_mod_sum": "h1:03fq9lsNfvkYSfxrfUhZCWPk1lm4cq4N+Bh//bEtgns=",
+      "source": "https://proxy.golang.org/modernc.org/opt/@v/v0.2.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "7a0dd90f1d1c8fa80d03c1806bdd8e4dca7285fae9b4a34f2c4a8a2552fdd77c"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/sortutil",
+      "version": "v1.2.1",
+      "sum": "h1:+xyoGf15mM3NMlPDnFqrteY07klSFxLElE2PVuWIJ7w=",
+      "go_mod_sum": "h1:7ZI3a3REbai7gzCLcotuw9AC4VZVpYMjDzETGsSMqJE=",
+      "source": "https://proxy.golang.org/modernc.org/sortutil/@v/v1.2.1.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "7bc9df688c16dd8e64463ec0ad66728730a0e1a70a1dbda3dcbcd8a9b45bfaab"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/sqlite",
+      "version": "v1.61.0",
+      "sum": "h1:sQi63oLQ9uquAUA4CzOisH35Q3pEszkPBuHM0tFL8CY=",
+      "go_mod_sum": "h1:f4gr5tbpx2umklaT/QVtbi/50hNdM+4ng+2zMo8KXJ0=",
+      "source": "https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "c6fe05491a60ae13bcd223088d2705e36dede24e5587226231d2459ada5c4822"
+        },
+        {
+          "file": "LICENSE-3RD-PARTY.md",
+          "sha256": "4194f8e7119be72babd499db4f6f1f7547e36e8a7bffcb2b9c8df241b8f1576a"
+        },
+        {
+          "file": "LICENSE-SQLITE",
+          "sha256": "8438c9c89b849131ead81d5435cb97fcf052df5b0b286dda8a2d4c29e6cb3fd0"
+        },
+        {
+          "file": "LICENSE-SQLITE_VEC",
+          "sha256": "6ce72bbe12d975bd5286e5ab0a064c069693300c47bccbc57bec18485f1621ea"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/strutil",
+      "version": "v1.2.1",
+      "sum": "h1:UneZBkQA+DX2Rp35KcM69cSsNES9ly8mQWD71HKlOA0=",
+      "go_mod_sum": "h1:EHkiggD70koQxjVdSBM3JKM7k6L0FbGE5eymy9i3B9A=",
+      "source": "https://proxy.golang.org/modernc.org/strutil/@v/v1.2.1.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "0f594b710bedb0335b15155204150cb1aac98e76144b52b852b43ce6a65eaaad"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    },
+    {
+      "module": "modernc.org/token",
+      "version": "v1.1.0",
+      "sum": "h1:Xl7Ap9dKaEs5kLoOQeQmPWevfnk/DM5qcLcYlA8ys6Y=",
+      "go_mod_sum": "h1:UGzOrNV1mAFSEB63lOFHIpNRUVMvYTc6yu1SMY/XTDM=",
+      "source": "https://proxy.golang.org/modernc.org/token/@v/v1.1.0.info",
+      "license_ids": [
+        "BSD-3-Clause"
+      ],
+      "license_files": [
+        {
+          "file": "LICENSE",
+          "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067"
+        }
+      ],
+      "license_evidence": "Downloaded module license files; upstream modernc.org/sqlite@v1.61.0 sbom.cdx.json where listed. Inventory is not a legal opinion or distribution notice bundle."
+    }
+  ],
+  "npm_packages": [
+    {
+      "package": "@playwright/test",
+      "version": "1.64.1",
+      "source": "https://registry.npmjs.org/@playwright/test/-/test-1.64.1.tgz",
+      "integrity": "sha512-IaYGml/nSOiZWROfPtuIL7neuu9qDOZ3TNvNljUIrhDMxiGTgPjzj/g9p9RxpS2tSepPDRY+UwAaEeiKtUvIAg==",
+      "license": "Apache-2.0",
+      "optional": false,
+      "os": [],
+      "cpu": []
+    },
+    {
+      "package": "@typescript/typescript-aix-ppc64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-aix-ppc64/-/typescript-aix-ppc64-7.0.2.tgz",
+      "integrity": "sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "aix"
+      ],
+      "cpu": [
+        "ppc64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-darwin-arm64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-darwin-arm64/-/typescript-darwin-arm64-7.0.2.tgz",
+      "integrity": "sha512-gowzar9MwS/aRWp6f3a4KUqzRjAZjOsmGNCM6LcTgXum+dBfgsBVMN+AgvOCCbguXyick6LJhpBszxMebJ8syA==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "cpu": [
+        "arm64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-darwin-x64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-darwin-x64/-/typescript-darwin-x64-7.0.2.tgz",
+      "integrity": "sha512-SZ9xZInqApNlNGc9s0W1VSsktYSOe9cFqNOIqmN1Gs8SmkjKZYFt017G4VwPxASInODuAdbTW7sXiFUf893RgA==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "cpu": [
+        "x64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-freebsd-arm64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-freebsd-arm64/-/typescript-freebsd-arm64-7.0.2.tgz",
+      "integrity": "sha512-W5NH4y/J0plIIS5b2xvTEkU7JFxyqdMAOgf+Ilhl0vHQXKO5dZoxd+C/jEtq56c4F3wk71RB4BMRQ2XdI+bwYQ==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ],
+      "cpu": [
+        "arm64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-freebsd-x64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-freebsd-x64/-/typescript-freebsd-x64-7.0.2.tgz",
+      "integrity": "sha512-UMGDx5sTpzNw3WiPebH7l90IWfJggEd+egHt/q6p7/Cm3zqoV7VxkGXt+3DxPIw8CcmvAB0j3sVVfbhX+M4Tpw==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ],
+      "cpu": [
+        "x64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-linux-arm",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-linux-arm/-/typescript-linux-arm-7.0.2.tgz",
+      "integrity": "sha512-gffT3xPz9sR7j/YJExkyPntrI0P2EP9XbOyWzth2/Gs0RstK+90RBcO0ncXoXy/beYll1SXw846Nf2zdnEz0QQ==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "cpu": [
+        "arm"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-linux-arm64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-linux-arm64/-/typescript-linux-arm64-7.0.2.tgz",
+      "integrity": "sha512-Qh4eU4/y3yDjnfjjyPYihMj5/ODIlmt+Bzu17OI+fiSRDW57QmU5SiN63exPRNJPKUzcc1INa1NXdrJ+MqHjUQ==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "cpu": [
+        "arm64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-linux-loong64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-linux-loong64/-/typescript-linux-loong64-7.0.2.tgz",
+      "integrity": "sha512-uEHck9i8hoAzXPiYRib1O7miOnz23SxIeVl6F4LXox+qov1K35jHcEW6VHKvZI+pyvl7fZEP4MCU5LYvIq1GuQ==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "cpu": [
+        "loong64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-linux-mips64el",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-linux-mips64el/-/typescript-linux-mips64el-7.0.2.tgz",
+      "integrity": "sha512-R4KvAMnE43W5Qeqb0Ly56O3mWMWIAgsMyz36DCaycd5nbg/9kzm0liw3JocfRqyJY0KPmzFjbswozXyW0DnIYA==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "cpu": [
+        "mips64el"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-linux-ppc64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-linux-ppc64/-/typescript-linux-ppc64-7.0.2.tgz",
+      "integrity": "sha512-DORx5b3sd/4S7eayxm4FQv+A7CrkUIGRaHiwI8oiHTAI1fAPWhF4J0vAlkC8biAlHSVVwxMQ3tjZ2/DVbnQiiA==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "cpu": [
+        "ppc64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-linux-riscv64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-linux-riscv64/-/typescript-linux-riscv64-7.0.2.tgz",
+      "integrity": "sha512-wf0jqEDOjrPRnKwYRyyJDRo11KMbvMFrU+q4zqKyChODBzvlkbhNQfKvLxQCcwTpdDaXSHZTVuh0JoCrKCUMHQ==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "cpu": [
+        "riscv64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-linux-s390x",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-linux-s390x/-/typescript-linux-s390x-7.0.2.tgz",
+      "integrity": "sha512-IkwJc3L7yhytWd/ewjyxNDfOmswCm9GWMJT/ue/dU4aZNbwZeYAetq42VyLmsmSjvoX7z74X6ZaYCtzAr0EuGw==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "cpu": [
+        "s390x"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-linux-x64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.0.2.tgz",
+      "integrity": "sha512-EYdf2cNg7rgCWJnxCdJ+F3V39O8ihb37eHAu1LK8oAFizgTQbPOK7zHHXbPt8rX24COqODXeI3sIf0fCXG7H/A==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "cpu": [
+        "x64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-netbsd-arm64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-netbsd-arm64/-/typescript-netbsd-arm64-7.0.2.tgz",
+      "integrity": "sha512-+polYF4MF04aPpO5FTkHran9yUQDSXqy5GiSDKpsll5jy3l3+g9QLhpf39T+ePtefhXLOGrLl0QIjkQP6VnelA==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "netbsd"
+      ],
+      "cpu": [
+        "arm64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-netbsd-x64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-netbsd-x64/-/typescript-netbsd-x64-7.0.2.tgz",
+      "integrity": "sha512-8YIT0EHM/3dq10ZOVF/A7pc/YSMtbcecct4rWtexrnSCHOPcpC2KTLXfTCR6vDpnSiY12heNb1GiN/wu+T/FyA==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "netbsd"
+      ],
+      "cpu": [
+        "x64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-openbsd-arm64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-openbsd-arm64/-/typescript-openbsd-arm64-7.0.2.tgz",
+      "integrity": "sha512-APT8+ClYnuYm1u9+kgGXoMj2VzWzcymwh2gNSQVySHfkRDGOTVkoWLjCmOQSaO+PoqQ57B0flRp9SA+7GnnkzQ==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "openbsd"
+      ],
+      "cpu": [
+        "arm64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-openbsd-x64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-openbsd-x64/-/typescript-openbsd-x64-7.0.2.tgz",
+      "integrity": "sha512-yX7s+Q0Dln0Dt9tEzZsAjXXR/+ytBM7AlglaqyeMPxQszJ1JhlJdZ6jLA+IzldHtflX81em7lDao1xXu+aRRkg==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "openbsd"
+      ],
+      "cpu": [
+        "x64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-sunos-x64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-sunos-x64/-/typescript-sunos-x64-7.0.2.tgz",
+      "integrity": "sha512-dLJDGaLZ1D4HPQn62u1n8mBDkJREwMsAkCdkwd4Ieqw+x3TUyTsqY0YiBCtE6H6OzzgGk3iuZ3vFWRS+E8/d1g==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "sunos"
+      ],
+      "cpu": [
+        "x64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-win32-arm64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-win32-arm64/-/typescript-win32-arm64-7.0.2.tgz",
+      "integrity": "sha512-Gyl1Vy6OsWesLzmq+EP0Fb7b4Nid5232AvcA2SFcdYreldpNtYFFofPjnt62y9hQy7VTaZp65ICJjuAQRaVcIQ==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "cpu": [
+        "arm64"
+      ]
+    },
+    {
+      "package": "@typescript/typescript-win32-x64",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-win32-x64/-/typescript-win32-x64-7.0.2.tgz",
+      "integrity": "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g==",
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "cpu": [
+        "x64"
+      ]
+    },
+    {
+      "package": "playwright",
+      "version": "1.64.1",
+      "source": "https://registry.npmjs.org/playwright/-/playwright-1.64.1.tgz",
+      "integrity": "sha512-HCrVhHr5QQuwYoswEUGTb7gGp522yflbv/ST8nF4sFWGuLjQCt17Q/EubpGGSNKYn1tsTCPZxqHhHCfVURu7UA==",
+      "license": "Apache-2.0",
+      "optional": false,
+      "os": [],
+      "cpu": []
+    },
+    {
+      "package": "playwright-core",
+      "version": "1.64.1",
+      "source": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.64.1.tgz",
+      "integrity": "sha512-BC4s8y6SEVA6Q1rSxZTto8hI1KUI3xXlHGZgvGqP4IqPdI/a6FX9H29IDNz7vKo9l21b6LfYosScPL6M3xxyDQ==",
+      "license": "Apache-2.0",
+      "optional": false,
+      "os": [],
+      "cpu": []
+    },
+    {
+      "package": "typescript",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz",
+      "integrity": "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==",
+      "license": "Apache-2.0",
+      "optional": false,
+      "os": [],
+      "cpu": []
+    }
+  ],
+  "source_evidence": [
+    {
+      "url": "https://www.google.com/chrome/terms/",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://googlechromelabs.github.io/chrome-for-testing/",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://go.dev/dl/?mode=json",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://go.dev/doc/devel/release",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.0.info",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.0.mod",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://pkg.go.dev/modernc.org/sqlite@v1.61.0",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://nodejs.org/dist/v24.20.0/SHASUMS256.txt",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/nodejs/node/v24.20.0/LICENSE",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://registry.npmjs.org/npm/12.0.2",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://registry.npmjs.org/typescript/7.0.2",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://github.com/microsoft/typescript-go",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://registry.npmjs.org/@playwright/test/1.64.1",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/microsoft/playwright/v1.64.1/packages/playwright-core/browsers.json",
+      "accessed_date": "2026-10-25"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/microsoft/playwright/v1.64.1/packages/playwright-core/src/server/registry/index.ts",
+      "accessed_date": "2026-10-25"
+    }
+  ],
+  "preparation_verification": {
+    "go": "go1.27.3 mod download -json all; mod verify: all modules verified; mod edit -fmt. Dependency inventory only, no source package, build, test or harness execution.",
+    "npm": "npm12.0.2 install --package-lock-only --ignore-scripts --no-audit --no-fund; no node_modules, lifecycle scripts, compiler or runner execution.",
+    "privacy": "Public manifest excludes host names, user paths, private tool/cache/profile paths, raw registry metadata and credentials.",
+    "remaining": "Fresh independent review and owner acceptance of candidate plan, then separately authorized Q02/Q03 isolated qualification; later browser/product qualification remains required."
+  }
+}

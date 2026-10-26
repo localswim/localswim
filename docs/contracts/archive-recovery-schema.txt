@@ -1,0 +1,459 @@
+SLICE01 D02 - EXACT ARCHIVE, RESTORE RECEIPT AND RECOVERY PREVIEW V1
+2026-10-25 | Schema proposal for owner acceptance; documentary fixture freeze
+
+Authority and boundary
+Accepted v2-architecture/docs/slice01/03,04,06,18 control behavior; 18 supersedes
+the fingerprint target omission and defers attachment detach/replacement. Read
+01,05,07,08,19 and corrected 09/20/21 for scope and qualification boundaries.
+This file selects encodings left open by those contracts, pending Terry acceptance.
+It supplies no product code, active grant, migration or additional recovery promise.
+One Go module and web/ TypeScript package share one public MIT FOSS repository.
+Fixtures are invented, with no real board, private recovery store or credential.
+Prior source exposure is disclosed; no isolated clean-room claim is made.
+
+Notation and common rules
+An object definition below lists its complete key set. Every key is REQUIRED,
+including nullable keys; '?' means nullable, never optional. Unknown/duplicate keys,
+missing keys, invalid UTF-8/Unicode (including unpaired surrogates), wrong types,
+unsupported enums/versions, nonfinite/fractional/negative/overflow numbers refuse.
+An explicitly documented request input omission is the sole exception. Arrays
+are present, including []; empty objects are {}. null is not an empty string,
+array, zero or absent field. No coercion, whitespace trimming or Unicode/line-ending
+normalization occurs. Text constraints from accepted04/06 remain in force.
+
+U = lowercase 8-4-4-4-12 hexadecimal UUID text, nonzero; this wire shape adds no
+generation-version requirement. H = exactly 64 lowercase hexadecimal SHA-256
+digits. N = integer 0..9007199254740991, decimal without leading zero or exponent;
+positive counters/revisions/tickets use 1..9007199254740991 unless noted otherwise.
+Booleans are JSON true/false. T = valid Gregorian UTC timestamp YYYY-MM-DDTHH:mm:ssZ,
+years 0001..9999, no fractional seconds, offset or leap second. New persisted
+record times floor the sampled UTC instant to a second, once per transaction.
+Expiry compares these stored seconds with the floored server instant; overflow
+refuses. Same-second records are distinct and ordered by the keys below, never
+by insertion timing. No timestamp alone identifies a record or proves completeness.
+
+Identity = {boardId:U,incarnation:U}. CardRef = {boardId:U,incarnation:U,cardId:U}.
+Origin means the historical authority identity, never an active destination grant.
+IDs of logical cards/comments/links/attachments/approvals/actors survive restore;
+storage incarnation FKs remap. Immutable row createdIn stays its original Identity.
+In a package, logical ID references resolve within its one board across its recorded
+lineage. An external CardRef stays source-qualified and must never be implicitly
+rebound to a restored incarnation. No cross-board domain mutation is added here.
+
+ENCODINGS (do not use a language's unspecified default JSON serializer)
+C(x), canonical bytes: recursively sort object keys by ASCII byte order (all schema
+keys are ASCII); no whitespace, BOM or trailing newline; UTF-8; preserve array order
+and Unicode scalars exactly. Escape quote/backslash as backslash-quote/backslash-
+backslash; U+0000..001F as lowercase six-character \u00xx; no other escapes,
+including no slash/HTML/non-ASCII escaping. Numbers follow N. This is accepted04's
+encoding, not a new fingerprint algorithm. C may encode a scalar in fixture vectors.
+
+R(x), readable bytes: same scalar escaping/key order as C, two ASCII spaces per
+indentation level, LF after each nonempty object's/array's opening delimiter and
+between members/elements, one space after colon, comma at prior line end, closing
+delimiter on a new line at parent indentation; empty {} and [] remain one line.
+Append exactly one LF after root. No trailing spaces/BOM/CR. JSON byte limits and
+hashes apply to R bytes, not decoded text. Hash(x)=lowercase SHA256 of exact bytes x.
+Input requests may have ordinary insignificant JSON whitespace/key order; decode
+strictly, then use C/R where specified. Archive JSON MUST equal its re-encoded R.
+Depth counts the root object/array as 1, each nested object/array adds 1; scalar
+members add 0. Maximum depth 32, checked before recursive allocation.
+
+ARCHIVE MEMBERS AND MANIFEST
+Only stored/uncompressed ZIP members, no directory entries, encryption, symlinks,
+hardlink indirection or alternate streams. Every local/central name, method, flags,
+CRC32 and actual size must agree. Reject duplicate names, case aliases, backslashes,
+absolute/drive/UNC names, dot segments, NUL, ZIP64 overflow or unsupported metadata
+that changes interpretation. The allowed names below are ASCII, case-sensitive.
+Readers use actual package byte length including all ZIP overhead/trailing bytes;
+reject trailing unparsed ZIP content or multi-disk packages. ZIP header timestamps
+and container layout are not canonicalized by D02; do not claim a ZIP byte hash is
+the manifest hash. A later ZIP implementation must qualify local/central parsing.
+
+Members in this order: manifest.json, board.json, history.json, activity.json,
+outcomes.json, blobs/sha256-H ordered by H, COMPLETE last. Manifest inventory uses
+path ASCII order (different from physical member order). Exact inventory = four
+payload JSON files plus exactly one raw member per distinct protected digest;
+manifest.json and COMPLETE are deliberately excluded to avoid circular hashing.
+COMPLETE is exactly 64 ASCII manifest-hash digits plus LF (65 bytes), not JSON.
+Its hash is Hash(R(manifest)); write it only after all payloads validate. Manifest
+Hash identifies content inventory, not trusted origin, remote-copy or crash safety.
+
+manifest.json = {formatVersion:1,schemaVersion:1,hashAlgorithm:"sha256",
+ source:Identity,revision:N,exportedAt:T,lineage:[Lineage],retention:Retention,
+ retentionVersion:N,coverage:Coverage,inventory:[Entry]}.
+Lineage = {identity:Identity,manifestSha256:H,revision:N}; prior restore sources only,
+deduplicate identical tuples; sort by boardId,incarnation,manifestSha256,revision.
+No invented hash for an original never-restored source; its lineage is [].
+Entry = {path:string,byteLength:N,sha256:H}; paths as above; unique sorted path.
+Retention = {historyDays:N,activityDays:N,outcomeDays:N}; each 1..3650.
+Initial policy is 90/365/180, retentionVersion=1; workflow policyVersion=1 is separate.
+
+Limits (inclusive): archive 150994944 bytes (144 MiB), 16384 members including
+manifest/COMPLETE, each JSON INCLUDING manifest <=33554432 bytes, sum of the five
+JSON members <=67108864 bytes, depth<=32. Each BLOB <=10485760 bytes; sum of
+distinct protected BLOB lengths <=67108864 bytes. Empty BLOBs count as members
+and inventory entries. Check declared and streamed sizes/counts before allocation,
+then actual sizes/hashes/CRC/EOF. No compressed-size heuristic replaces raw limits.
+Overflow/limit excess is unsupported scope; missing/tampered/extra bytes refuse
+completion. Export applies the same limits before offering a complete archive.
+
+PAYLOAD ROWS
+All four root payloads have schemaVersion:1. Identity/revision equal manifest source
+and revision. They represent one pinned read snapshot, including full earlier
+history, retained activity, full/compact terminal outcomes and provenance.
+Collection order is mandatory; reject duplicates and broken logical references.
+String ordering is UTF-8 byte order, U/H ASCII; numeric keys compare numerically.
+Nested reference-ID arrays are unique ascending UUID order, never insertion order.
+
+board.json = {schemaVersion:1,identity:Identity,revision:N,nextTicket:N,
+ policyVersion:1,retention:Retention,retentionVersion:N,coverage:Coverage,
+ actors:[Actor],cards:[Card],comments:[Comment],links:[Link],
+ attachments:[Attachment],approvals:[Approval],tombstones:[EntityTombstone]}.
+Actor = {actorId:U,kind:"human"|"automation",label:string,createdIn:Identity}.
+Historical labels only; no bearer, rights, enabled flag, grant/session/code table.
+Sort actors by actorId. Labels are preserved inert text, not authenticated claims.
+Card = {cardId:U,ticket:N,revision:N,title:string,description:string,priority:P,
+ lane:L,archived:boolean,currentApprovalId:U?,commentIds:[U],linkIds:[U],
+ attachmentIds:[U],createdIn:Identity}.
+P is P0..P5; L is exactly "Ready for Work","In Progress","Ready for Review",
+or "Completed". Sort cards by ticket then cardId. Tickets are positive and unique;
+nextTicket exceeds every allocated ticket, including retained tombstone facts.
+Card revision is positive; board revision may be 0 only for an empty new board.
+Comment = {commentId:U,cardId:U,actorId:U,text:string,createdAt:T,createdIn:Identity}.
+Sort comments by commentId. Comments are immutable; all current prose stays present.
+Link = {linkId:U,cardId:U,kind:"blocking"|"informational",target:CardRef,
+ active:boolean,createdAt:T,createdIn:Identity}.
+Sort links by linkId; cardId is owner/dependent, target is prerequisite/peer.
+Internal links target manifest.source; restore remaps only these internal targets.
+External inherited source references remain original CardRefs; they provide no
+destination execution approval. Do not create new external links in this slice.
+Attachment = {attachmentId:U,cardId:U,name:string,mediaLabel:string,
+ sha256:H,byteLength:N,createdAt:T,createdIn:Identity}.
+Sort attachments by attachmentId. Display name <=255 UTF-8 bytes, mediaLabel <=127
+ASCII bytes; digest is Hash(raw bytes), not a name/media label or base64 encoding.
+Approval = {approvalId:U,cardId:U,actorId:U,reviewedCardRevision:N,
+ reviewedBoardRevision:N,policyVersion:1,createdAt:T,createdIn:Identity}.
+Sort approvals by approvalId; historical facts persist after current invalidation.
+No authority to issue a fresh approval follows from a restored approval fact.
+
+EntityTombstone = {kind:"card"|"comment"|"link"|"attachment",
+ id:U,cardId:U,createdIn:Identity,actorId:U?,createdAt:T?,removedAt:T,
+ reason:"cleared"|"expired"}.
+Sort by kind,id. It preserves reference existence only, never current prose or byte
+pinning. actorId preserves a comment's creator, null for row kinds without a stored
+creator; createdAt preserves that row's time, null only for card rows. All Actor and
+Approval facts remain complete and never reduce to entity tombstones. A live/current
+reference must resolve a full entity, never a tombstone.
+Full historical snapshots must resolve their complete required entity data; a
+tombstone is allowed only where compact/tombstoned historical facts reference it.
+Do not manufacture tombstones for arbitrary missing rows to accept a broken package.
+
+history.json = {schemaVersion:1,identity:Identity,revision:N,records:[Snapshot]}.
+Snapshot = {origin:Identity,cardId:U,cardRevision:N,committedAt:T,actorId:U,
+ state:SnapshotState?,references:SnapshotReferences,removal:Removal?}.
+SnapshotState = {ticket:N,title:string,description:string,priority:P,lane:L,
+ archived:boolean,currentApprovalId:U?}.
+SnapshotReferences = {commentIds:[U],linkIds:[U],attachmentIds:[U],approvalIds:[U]}.
+Removal = {reason:"cleared"|"expired",removedAt:T,boardRevision:N}.
+Sort records by origin.boardId,origin.incarnation,cardId,cardRevision. A full earlier
+snapshot has state nonnull and removal=null; a removed snapshot has state=null and
+removal nonnull, retaining identity/time/attribution/references and approval facts.
+Current card fields do not occur as a second historical revision; snapshot revisions
+are earlier than current card revision. source-provenance snapshots keep origin.
+IDs resolve immutable full entities or, ONLY for removed records, entity tombstones.
+Historical immutable entity rows needed only by a removed record can be reduced to
+tombstones; current immutable rows and retained full snapshots retain complete data.
+
+activity.json = {schemaVersion:1,identity:Identity,revision:N,events:[Event]}.
+Event = {origin:Identity,eventId:N,actorId:U,opId:U?,type:string,
+ boardRevision:N,affected:[FactRef],at:T}.
+FactRef = {kind:"board"|"card"|"comment"|"link"|"attachment"|"approval"|"grant",
+ id:U,revision:N?}. Board fact id is boardId; no active grant row is required for a
+historical grant fact. Sort affected by kind,id,revision (null before integers).
+Sort events by origin.boardId,origin.incarnation,eventId. eventId positive, increasing
+within origin; gaps are not filled with synthetic events. type is a command from
+accepted04/18 or "recovery.expire"; every stored event remains attributable metadata,
+without copied prose. opId=null only for system expiry, actorId then identifies the
+attributed system principal label (no special rights are implied).
+
+outcomes.json = {schemaVersion:1,identity:Identity,revision:N,
+ operations:[Operation],sourceArchives:[SourceArchive]}.
+SourceArchive = {identity:Identity,operations:[Operation]}; sort by boardId,
+incarnation, unique identity not equal to current identity. Current operations all
+have origin=identity; source archive operations all have origin=their group identity.
+Do not merge source operations into the current ledger, even for equal opId.
+Operation = {origin:Identity,opId:U,actorId:U,fingerprintVersion:1,fingerprint:H,
+ command:string,target:Target,expectedRevision:N,expectedCardRevision:N?,
+ terminalClass:"COMMITTED"|"NOT_COMMITTED",code:string,terminalAt:T,
+ committedRevision:N?,committedCardRevision:N?,resultRefs:[FactRef],
+ byteFacts:[ByteFact],full:FullOutcome?,removal:Removal?}.
+Target=null|{cardId:U}|{grantId:U}, as accepted18 for the specific command.
+ByteFact={sha256:H,byteLength:N}; unique sorted sha256, length must agree everywhere.
+Exact operation mapping: attachment.add has exactly ONE ByteFact, copied from its
+canonical payload.sha256 and payload.byteLength; every other accepted command has
+byteFacts=[]. This applies to full/compact and COMMITTED/NOT_COMMITTED alike.
+For a full record, the fact MUST equal those two canonical intent fields. For a
+full COMMITTED attachment.add, full.result.attachmentId and the attachment FactRef
+MUST identify the same retained complete Attachment metadata, whose cardId equals
+target.cardId and full.result.cardId and whose sha256/byteLength equal the fact.
+Its resultRefs are exactly the attachment reference (revision=null) and card
+reference (revision=committedCardRevision). Retain that metadata while
+the full committed outcome survives; a tombstone alone cannot satisfy this check.
+A refused attachment has no resulting Attachment; its fact describes attempted
+bytes only. Compact records preserve the original fact unchanged when dropping
+full intent/result. Without full intent the digest cannot be recomputed from its
+fingerprint alone: compaction must copy this fact atomically, never infer it from
+current content. A compact/refused fact may name bytes never stored or no longer
+protected; require no BLOB or fabricated attachment for it. Equal digests across
+ANY attachment/fact/inventory always require equal lengths, including non-pinning
+facts. A compact COMMITTED attachment whose result Attachment metadata remains
+complete must still agree with that metadata; when only its allowed tombstone
+remains, preserve the original non-pinning fact without inventing missing bytes.
+Only the full COMMITTED case can add operation BLOB pins.
+Sort operations by opId. Compact facts above never expire; clearing never frees IDs.
+COMMITTED has committedRevision nonnull, code="OK"; committedCardRevision nonnull
+only for a card mutation. NOT_COMMITTED has both committed revisions null and no
+resultRefs; code is the recorded accepted command refusal code, not a later lookup
+failure. expectedCardRevision=null for create/grants/recovery; target follows18.
+FullOutcome = {intent:object,result:object}; exact retained canonical semantic intent
+and typed result from accepted04+18. Hash(C(intent)) MUST equal fingerprint, and
+intent identity/actor/command/target/preconditions MUST equal compact facts.
+The complete fingerprint envelope is fingerprintVersion,boardId,incarnation,opId,
+actorId,command,target,payload,expectedRevision,expectedCardRevision. Payload and
+result retain their accepted command types; D02 adds no competing intent encoder.
+For recovery confirm only, canonical payload={input:typedInput,previewHash:H}.
+Schema-optional command fields normalize to explicit null before C; omitted request
+edit fields mean no edit, as accepted04. No credential or transport framing enters
+intent. Matching terminal records resolve first under current original authority.
+Full records have removal=null; compact records have full=null,removal nonnull.
+Archive FullOutcome.result is the typed result object, not the entire transport
+envelope. Its exact COMMITTED variants by command are:
+card.create/card.edit/review-handoff -> {cardId:U};
+comment.add -> {cardId:U,commentId:U}; attachment.add -> {cardId:U,attachmentId:U};
+link.add/link.remove -> {cardId:U,linkId:U}; approve -> {cardId:U,approvalId:U};
+grant.create/grant.revoke -> {grantId:U};
+history.clear/retention.set -> {retentionVersion:N,coverageRevision:N}.
+NOT_COMMITTED result={error:{code:string,message:string,field:string?},
+ conflict:{incarnation:U,revision:N,cardRevision:N?,cardId:U?}?}.
+error.code equals compact code; conflict is nonnull only when stored conflict
+details are available, never freshly substituted current state. field=null when
+inapplicable. resultRefs contains the IDs/revisions of that typed result; recovery
+uses one board FactRef(id=boardId,revision=coverageRevision). Refusals have no resultRefs.
+The command enum is exactly card.create,card.edit,comment.add,attachment.add,link.add,
+link.remove,review-handoff,approve,grant.create,grant.revoke,history.clear,retention.set.
+This archive result normalization does not change transport success/failure classes.
+Full NOT_COMMITTED attachment byteFacts do not pin. Only full COMMITTED byteFacts,
+current attachment references and full-history attachment references pin BLOBs.
+COMMITTED targets, effect-bearing intent references and resultRefs must resolve a
+full entity, allowed tombstone or historical grant/board fact as applicable; retain
+the stricter complete Attachment metadata requirement above for full attachment
+outcomes. Missing committed references are integrity failure, never invented facts.
+NOT_COMMITTED target/payload identifiers are attempted references and need NOT have
+ever existed. Compact Operation retains its exact target, defined preconditions
+and defined compact facts, even for NOT_FOUND. All exact attempted payload
+identifiers remain available only while full intent is retained; compaction does
+not add payload fields or promise recovery of omitted payload identifiers from a
+fingerprint. Do not require or manufacture an entity, tombstone, historical grant
+fact or BLOB for an attempted reference. Refusals still have no resultRefs, and
+their authenticated actor/origin/identity/fingerprint remain bound. This exception
+applies only to attempted refused references, not current/history graph integrity
+or committed references. It survives sourceArchives relocation unchanged after
+restore; neither attempted IDs nor their receipts confer destination authority.
+Historical grant.create/revoke intent/result may preserve grantee/kind/rights as
+non-authoritative operation evidence. Excluded grants means live grant/session
+tables, enabled state and every secret, never redaction of a retained canonical
+intent into an unverifiable fingerprint. Restore NEVER reconstructs grants from it.
+
+Coverage = {historyFloor:T?,activityFloor:T?,outcomePayloadFloor:T?,gaps:[Gap]}.
+Gap = {origin:Identity,class:"history"|"activity"|"outcome_payload",
+ reason:"expired"|"cleared",fromExclusive:T?,throughInclusive:T,
+ recordedAt:T,boardRevision:N}.
+Sort gaps by origin.boardId,origin.incarnation,class,fromExclusive(null first),
+throughInclusive,reason,boardRevision,recordedAt; no duplicate complete tuples.
+Floors are monotonically advancing latest expiry cutoffs for the CURRENT origin;
+null means no recorded cutoff, never proof of complete history. Provenance floors
+are represented as gaps with their original origin. A gap is unavailable coverage
+over (fromExclusive,throughInclusive], with null meaning unbounded past. Gaps may
+overlap; retain recorded evidence, do not merge away reasons or source identity.
+Explicit clear uses null..throughTime for history/outcome_payload, never activity;
+expiry uses null..sampledTime-minus-policy-days per class. No removed row/prose is
+invented for an interval. Coverage is identical in board and manifest. history and
+outcome tombstones explain individually known removals; activity floors/gaps explain
+pruned events. No archive promises recovery of cleared/expired records.
+
+RAW BLOB INVENTORY AND RESTORE
+For each distinct pinned ByteFact H emit raw bytes at blobs/sha256-H, even length0.
+No newline, JSON, base64 or filename encoding is added. Hash/length refer to exactly
+those bytes; multiple references share one member. Compact-only/refused digests
+have no member unless another live/full pin protects that digest. Inventory MUST
+equal this protected union, not every historical digest fact. Active export snapshot
+pins protect live database bytes during export; this package includes only its own
+declared snapshot's protected union, not another concurrent export's extra inventory.
+
+Validate full archive before fresh offline restore publication: exact schema/order,
+references, coverage, bytes, safe ZIP metadata and all caps. Restore refuses an
+unsupported declared recovery scope rather than silently dropping it. Preserve source
+unchanged. Logical boardId/IDs/revisions persist; new incarnation differs from source
+and every lineage incarnation. Remap current storage FKs/internal link CardRefs only.
+Historical origin/createdIn/fingerprints remain unchanged. Current source operations
+move into a separately labeled sourceArchives group; inherited groups stay separate.
+The new destination ledger begins empty. No source receipt, historical rights, actor
+label or operation can classify original lookup at destination; return unknown/
+source-authority-unavailable under accepted04. Fresh human bootstrap is separate.
+
+Receipt file name is restore-receipt.json in NEWDIR.partial-REQUESTID, then NEWDIR.
+Only the native CLI sees paths; no path appears in exported/wire receipt content.
+Request IDs are U. Final and partial path construction, exclusive creation, no
+overwrite, symlink/junction exclusion and atomic publication need native evidence.
+Receipt = {receiptVersion:1,requestId:U,sourceManifest:manifest-object,
+ sourceManifestSha256:H,destination:Identity,targetInventory:TargetInventory?,
+ phase:Phase,result:ReceiptResult,
+ failureCode:string?,createdAt:T,updatedAt:T}.
+Phase="preparing"|"prepared"|"published"; ReceiptResult="incomplete"|"complete"|
+"failed". First receipt is created only after source validation and fresh destination
+incarnation allocation; earlier failure has no fabricated receipt. sourceManifest
+must hash under R to sourceManifestSha256. Request/source/destination/createdAt are
+immutable. preparing+incomplete: construction may be partial, targetInventory=null.
+prepared+incomplete:
+full destination validation succeeded but publication is not yet confirmed.
+published+complete: native post-publication validation succeeded. failureCode=null
+except result=failed, which has a stable nonempty local failure code; no complete
+receipt is downgraded because later output/delivery fails. updatedAt>=createdAt;
+phase monotone, same-second phase changes allowed. Prepared/published require a
+nonnull targetInventory; a failed preparing receipt retains null, a later failed
+receipt retains the already-fixed anchor. Interruption never manufactures
+a failed or complete receipt. No receipt alone proves flush/crash durability.
+
+TargetInventory={schemaVersion:1,entries:[Entry],entryCount:N,sha256:H}. Entries are
+the exact destination board/history/activity/outcomes R bytes and protected raw
+BLOBs, with the same path ordering and Entry rules as the archive inventory.
+entryCount equals entries.length; sha256=Hash(C(entries)). This is a logical prepared
+database anchor, not a hash of SQLite pages, files, credentials or receipt itself.
+During preparation, validate the complete source-to-destination transform, including
+fresh incarnation/remapped internal references and separate source outcomes. Then
+read the prepared destination under exclusive offline ownership, project the four
+documents defined above and raw BLOB union, and freeze their exact lengths/hashes.
+The new current-operation collection is empty; restored source records are in their
+sourceArchives group; source historical origin labels stay unchanged. Current-origin
+expiry floors reset to null and prior source floors become origin-qualified expired
+gaps, recordedAt=receipt.createdAt,boardRevision=source revision; existing source
+gaps persist. Destination lineage is sourceManifest.lineage plus the immediate
+source manifest tuple. No duplicate historical-prose sidecars are written.
+
+Status searches exact final and partial locations for requestId without mutating or
+replaying. Exactly one valid published+complete final destination, no competing
+matching partial, and complete native validation => confirmed/exit0. A verified
+terminal pre-publication failure with no published candidate => failed/exit1.
+Absent, incomplete, corrupt, inconsistent, inaccessible, wrong request, both-location
+ambiguity or validation failure => unknown/exit4; never infer source noncommit.
+Native validation checks destination schema/FKs/revisions/protected bytes, recomputes
+the targetInventory from the prepared logical records/BLOBs under exclusive offline
+ownership and compares identity/schema/count/every entry length/hash/aggregate hash.
+Exclude the receipt and native operational metadata from projection, never domain
+content. Source manifest/hash and the anchored target inventory remain distinct;
+the former describes the source, the latter verifies this prepared destination.
+The source-to-target transform validation is required before fixing the anchor;
+equal hashes alone cannot prove that the transform was correct. Inability to
+reproduce the prepared inventory means unknown, not success.
+Later activation/mutation makes this offline prepared-state verification inapplicable;
+it does not retroactively turn prior success into failed or authorize overwrite.
+
+Restore/status JSON envelope follows accepted04 exactly:
+{apiVersion:1,scope:"restore",outcome:"confirmed"|"failed"|"unknown",
+ result:{sourceIdentity:Identity?,sourceRevision:N?,destination:Identity?}}.
+Unknown source/destination facts use null, never guessed identities. Local diagnostics
+go to stderr, with no private path in shared logs. Receipt phase/result are evidence
+fields; the user-visible unknown outcome is a status conclusion, never a terminal
+operation class. A directory with a receipt but incomplete bytes is not restored.
+
+RECOVERY PREVIEW / CONFIRM
+Read+history-admin, human-only and absent by default, is required at BOTH calls;
+original outcome lookup additionally needs read-own-outcome. Preview is read-only,
+not an operation receipt or permission grant. Server derives actor from credential.
+POST BOARD/recovery/preview request exact keys:
+{incarnation:U,expectedRevision:N,command:RecoveryCommand,input:RecoveryInput}.
+RecoveryCommand="history.clear"|"retention.set".
+history.clear input={throughTime:T}; throughTime<=previewedAt, whole board, inclusive
+selection of full Snapshot.committedAt and full Operation.terminalAt, including
+source-provenance records. No current content or activity is selected by clear.
+retention.set input={historyDays:N,activityDays:N,outcomeDays:N}, all required 1..3650.
+Select immediately eligible full history/activity/full outcome payloads using each
+stored timestamp+days*86400<=previewedAt. Compact terminal facts never expire.
+The current policy, source origins and record IDs remain distinct.
+
+Preview response exact keys:
+{apiVersion:1,boardId:U,incarnation:U,actorId:U,expectedRevision:N,
+ retentionVersion:N,command:RecoveryCommand,input:RecoveryInput,previewedAt:T,
+ expiresAt:T,inventory:PreviewInventory,previewHash:H}.
+expiresAt=previewedAt+300 seconds. Confirm at serverTime>=expiresAt refuses.
+previewHash=Hash(C(response with ONLY previewHash removed)); no newline. No prose,
+grant rights, path, client draft or submitted evidence is returned by preview.
+The server retains the immutable response until expiry. A hash is not a credential.
+
+PreviewInventory = {history:[HistoryKey],activity:[ActivityKey],outcomes:[OutcomeKey],
+ counts:{historySnapshots:N,activityEvents:N,outcomePayloads:N},
+ bytes:{domainBefore:[ByteFact],domainAfter:[ByteFact],exportPinned:[ByteFact],
+ reclaimable:[ByteFact],domainBeforeBytes:N,domainAfterBytes:N,exportPinnedBytes:N,
+ reclaimableBytes:N},coverageGaps:[GapSelection],proposedFloors:Floors,
+ proposedRetention:Retention,proposedRetentionVersion:N,proposedBoardRevision:N}.
+HistoryKey={origin:Identity,cardId:U,cardRevision:N}; sort as Snapshot.
+ActivityKey={origin:Identity,eventId:N}; sort as Event.
+OutcomeKey={origin:Identity,opId:U}; sort origin.boardId,origin.incarnation,opId.
+GapSelection={origin:Identity,class:gap-class,reason:gap-reason,
+ fromExclusive:T?,throughInclusive:T}; sort as Gap without final metadata.
+Floors={historyFloor:T?,activityFloor:T?,outcomePayloadFloor:T?}.
+counts equal array lengths. Byte arrays are unique sorted sha256; sums must equal
+the corresponding byte totals. domainBefore/After are distinct protected digest
+sets before/after removing selected full-record pins, excluding concurrent exports.
+exportPinned is the current distinct active-export set; reclaimable = domainBefore
+minus (domainAfter union exportPinned). Selected compact/refused digests never add
+pins. A digest losing one reference but still protected is not reclaimable.
+proposedRetention equals input for retention.set, current policy for history.clear;
+proposedRetentionVersion increments only for retention.set. proposedBoardRevision
+is expectedRevision+1. For retention.set, each proposedFloor=max(current nonnull
+floor,previewedAt minus the proposed class day limit); a null current floor adds no
+lower bound. Record these cutoffs in the policy/pruning transaction even when no
+full record is newly eligible; they describe recovery limits, not invented rows.
+Clear leaves floors intact and records explicit gaps. coverageGaps includes each
+origin/class whose selected records lose coverage, using the selection cutoff;
+on commit add recordedAt=actual commit time and boardRevision=result revision.
+No selected records => no new gap, though retention policy still changes.
+
+Confirm exact wire keys (no actor supplied):
+{opId:U,incarnation:U,target:null,expectedRevision:N,expectedCardRevision:null,
+ command:RecoveryCommand,input:RecoveryInput,previewHash:H}.
+Its accepted18 canonical semantic payload is {input,previewHash}, NOT raw input;
+the other complete fingerprint fields stay accepted04/18. Server matches current
+credential actor, board/route, incarnation, command/input and original preview hash.
+Current rights and exact revision are checked under writer admission. Matching
+retained terminal identity resolves first, including after preview expiry.
+
+For a NEW identity, use current floored serverTime only to test expiry. Recompute
+selection, inventories, policy and hash against the ORIGINAL immutable previewedAt
+and expiresAt, not a new now. This prevents second-boundary timestamp/hash drift
+and newly eligible records entering the approved loss set. Re-read current pins,
+retentionVersion and exact revision; any difference changes inventory/hash and
+refuses atomically as NOT_COMMITTED. Rights changes never rely on preview rights.
+Confirm cannot accept a client-supplied inventory or extend expiry. Stale revision,
+expired/missing preview, mismatch or revoked permission changes no domain state;
+use accepted04 terminal refusal/unknown rules. Preview-specific stable refusal codes
+are PREVIEW_EXPIRED, PREVIEW_UNAVAILABLE and PREVIEW_MISMATCH; existing rights/
+revision/incarnation codes remain accepted04. An inability to record the refusal
+is unknown, not proof of noncommit. Confirmation returns accepted04's identity-bound
+terminal envelope; recovery result fields are {retentionVersion:N,coverageRevision:N},
+coverageRevision being the committed board revision. Card revision is null; no lane,
+currentApproval or card revision changes, even for Completed history. Activity and
+terminal outcome commit atomically with the recovery change. The new confirm outcome
+itself is not part of its own prior preview selection. No auto-confirm/replay exists.
+
+FIXTURE AND FUTURE EVIDENCE BOUNDARY
+fixtures/contracts/archive-recovery/ contains an exact synthetic package tree (not
+a ZIP), byte/canonical/preview/receipt vectors, negative inputs and a documentary
+verifier. The verifier checks fixture parsing, stable bytes, inventories, hashes,
+selection counts and encoding examples; it is not a product validator or ZIP/native
+qualification suite. It does not contact a board, install tools, build product code,
+modify trust, test ACLs or claim recovery/durability. Native ZIP/filesystem/SQLite,
+power-loss limits, live retention/export races, browser persistence and publication
+remain future A/S/K/W/V qualification tasks under accepted07 and corrected09/20.
+All public text is UTF-8/LF/final-newline; raw fixture bytes are deliberately exact.

@@ -1,0 +1,34 @@
+{
+  "actorId": "00000000-0000-4000-8000-00000000000a",
+  "byteFacts": [
+    {
+      "byteLength": 10,
+      "sha256": "4ac9c84a00cf5c569835430fd5e4cb1a782d70806ee741822d600498b7460671"
+    }
+  ],
+  "code": "NOT_FOUND",
+  "command": "grant.revoke",
+  "committedCardRevision": null,
+  "committedRevision": null,
+  "expectedCardRevision": null,
+  "expectedRevision": 2,
+  "fingerprint": "0440409b0bd9c558d87fa98375f66a6e5e990917be496847ee397f6bb9ee4858",
+  "fingerprintVersion": 1,
+  "full": null,
+  "opId": "00000000-0000-4000-8000-000000000029",
+  "origin": {
+    "boardId": "00000000-0000-4000-8000-000000000001",
+    "incarnation": "00000000-0000-4000-8000-000000000002"
+  },
+  "removal": {
+    "boardRevision": 4,
+    "reason": "cleared",
+    "removedAt": "2026-10-01T00:00:00Z"
+  },
+  "resultRefs": [],
+  "target": {
+    "grantId": "00000000-0000-4000-8000-00000000005b"
+  },
+  "terminalAt": "2026-09-01T00:00:00Z",
+  "terminalClass": "NOT_COMMITTED"
+}

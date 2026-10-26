@@ -1,0 +1,93 @@
+{
+  "notes": [
+    "All identities/content invented.",
+    "Binary canonical inputs intentionally have no final LF.",
+    "Empty raw BLOB is zero bytes; note.txt is Evidence A without LF.",
+    "Documentary parser/encoding checks do not qualify product/runtime behavior."
+  ],
+  "schemaVersion": 1,
+  "vectors": [
+    {
+      "byteLength": 8,
+      "hex": "7b227a223a5b5d7d",
+      "name": "absent",
+      "path": "canonical/absent.bin",
+      "sha256": "d66cd2519760ba47b9564b2750941cb5e71d26416869016f0db2927471769fc0",
+      "value": {
+        "z": []
+      }
+    },
+    {
+      "byteLength": 17,
+      "hex": "7b2261223a6e756c6c2c227a223a5b5d7d",
+      "name": "explicit-null",
+      "path": "canonical/explicit-null.bin",
+      "sha256": "4a5f379edec8bc869b14a1ec9823d8d00f027fd3814d923f615a27047ce7e072",
+      "value": {
+        "a": null,
+        "z": []
+      }
+    },
+    {
+      "byteLength": 85,
+      "hex": "7b2261223a302c226e223a393030373139393235343734303939312c227a223a5b2265cc81222c22c3a9222c22e99baa222c225c75303030645c7530303061222c225c225c5c5c75303030305c7530303039225d7d",
+      "name": "unicode-controls",
+      "path": "canonical/unicode-controls.bin",
+      "sha256": "d58ce002a97724b683cf3fae6ecc69df762fa6704697c7f31b8630ab234b8f64",
+      "value": {
+        "a": 0,
+        "n": 9007199254740991,
+        "z": [
+          "é",
+          "é",
+          "雪",
+          "\u000d\u000a",
+          "\"\\\u0000\u0009"
+        ]
+      }
+    },
+    {
+      "byteLength": 47,
+      "hex": "7b226172726179223a5b5d2c226f626a656374223a7b7d2c2274657874223a22222c2276616c7565223a6e756c6c7d",
+      "name": "empty",
+      "path": "canonical/empty.bin",
+      "sha256": "6782339123393eb9677eb171b1cb70d2466681a7e99ebc63e31801cb3d8c4704",
+      "value": {
+        "array": [],
+        "object": {},
+        "text": "",
+        "value": null
+      }
+    },
+    {
+      "byteLength": 3034,
+      "name": "manifest",
+      "path": "package/manifest.json",
+      "sha256": "dc7c2877a4a1777bf8cd4eb85a95115f6e53774e2b6df51317adf37a59fb430a"
+    },
+    {
+      "byteLength": 2032,
+      "name": "preview-hash-input",
+      "path": "preview-clear.hash-input.bin",
+      "sha256": "cb3b9e1c752f2955b91b5f108f4ae4cd8f7c1f08f60de6d62f17795015c1733f"
+    },
+    {
+      "byteLength": 450,
+      "name": "confirm-intent",
+      "path": "confirm-clear.canonical.bin",
+      "sha256": "6ac41606999c2988b8bb1fc80bd198e6ea6d1cdc9839a6714c38021f6302bf0d"
+    },
+    {
+      "byteLength": 520,
+      "name": "refusal-attachment-intent",
+      "path": "canonical/refusal-attachment-intent.bin",
+      "sha256": "0789ba12c7154fada35a296e46dbb73ebc8251d9e0d70db0555d0703b817456f"
+    },
+    {
+      "byteLength": 368,
+      "name": "refusal-grant-intent",
+      "path": "canonical/refusal-grant-intent.bin",
+      "sha256": "0440409b0bd9c558d87fa98375f66a6e5e990917be496847ee397f6bb9ee4858"
+    }
+  ]
+}

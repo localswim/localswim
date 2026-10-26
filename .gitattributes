@@ -3,3 +3,4 @@
 *.jpg binary
 *.zip binary
 *.bin binary
+fixtures/**/blobs/* binary

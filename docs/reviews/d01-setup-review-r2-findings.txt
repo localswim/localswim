@@ -1,0 +1,104 @@
+SLICE01 - INDEPENDENT D01 REVISION 2 RE-REVIEW
+2026-10-25 | Spike01 #0013 | Documentary review
+
+Verdict: CHANGES REQUIRED
+Revision 2 closes the original R1 lifecycle and R2 native-owner lookup findings.
+One remaining Medium credential-selection seam prevents a complete callable
+contract freeze. This reviewer authored none of the contract or corrections.
+
+Reviewed baseline and preserved evidence
+docs/contracts/setup.txt revision 2, SHA-256:
+07a52bbfcdb69d2e662e74f85e64946ac51a30be605b25e16c5d068785d40b60
+All setup.txt references below identify this exact revision.
+Initial review remains unchanged in d01-setup-review-r1-findings.txt, including
+its original source hash and findings. It remains historical evidence.
+Rechecked accepted slice01 03/04/05/18 and corrected 09 ownership for the changed
+seams; the initial review records the wider 01/03-07/18-21 authority assessment.
+
+Closure map
+R1 Medium | CLOSED for issuance/reissue/expiry/loss/delivery; new selection gap is R3 below.
+R2 Medium | CLOSED by explicit proposed policy clarification, pending Terry acceptance.
+R3 Medium | OPEN: ordinary board CLI has no callable credential selection rule.
+
+R1 closure: lifecycle is separate from durable domain outcomes
+- setup.txt:345-393 gives exact issue/revoke grammar, current native-owner
+  authorization, deliberate issue confirmation and exact existing enabled grant
+  binding. Issue/replace serializes with grant revocation and never alters actor,
+  kind, rights or the grant. Server-side current rights govern subsequent use.
+- 395-424 defines private file contents, private-at-creation ACLs, pre-dispatch
+  storage checks, flush/readback/publication and secret-free output/outcome rules.
+  Possible effects or uncertain delivery use credential unknown/exit4 rather
+  than a false grant or board-operation receipt.
+- 426-452 provides deliberate reissue after expiry/loss/unknown delivery, no token
+  retrieval or automatic retry, predecessor invalidation, restart persistence,
+  self-revocation and a durable local disabled marker for uncertain revocation.
+  Lost/expired board credentials cannot authorize their own replacement.
+- 454-467 preserves original actor/context/current lookup rights and excludes
+  bearer secrets/hashes from durable grant fingerprints/results, recovery,
+  activity and exports. Confirmed grant creation can coexist with failed or
+  unknown credential delivery. S11-S14 at 675-696 cover the required future cases.
+
+R2 closure: narrow native-owner administrative lookup
+- setup.txt:469-487 explicitly proposes an exception to accepted 03:51-58 and
+  04:101-109's board-grant lookup assumption. The CURRENT native owner may read
+  only its own retained grant.create/revoke outcomes, with exact original
+  installation/B/I/ownerActorId/opId/version/hash and retained command checks.
+- 489-509 gives a distinct --native-owner callable lookup, independent server
+  checks, active-hash/expiry validation and same-actor lookup after explicit native
+  owner renewal. Revoking the grantee does not erase the native owner's own
+  administrative receipt. No general board/card/history/export/approval right,
+  other-actor lookup, new actor or replay follows. S15/S16 at 697-707 cover lost
+  first-grant response, owner expiry/renewal and wrong-authority/context cases.
+- 19-25 and 511-544 expressly retain fresh review and Terry acceptance before
+  affected consumer code. This pass is not acceptance of the new entitlement.
+
+R3 - Medium: ordinary CLI cannot explicitly select its board credential
+Location: setup.txt:351-352,395-405,454-460,489-496.
+Accepted basis: slice01 04:17-33,101-109 and 05:25-44.
+
+- Credentials are now stored per installation/board/incarnation/grant, with more
+  than one actor/grant file possible. The contract says to load the exact file
+  and forbids implicit actor choice for original lookup, but provides no ordinary
+  board-command flag, private binding or explicit selection procedure that supplies
+  G. --grant is defined only for credential issue/revoke; --native-owner selects
+  the separate administrative capability. Accepted core CLI grammar uses --board.
+- For example, issue credentials for a human grant and an automation grant on
+  the same B/I, then invoke board read or operation read for the human's original
+  evidence. There is no callable way to choose the intended board credential.
+  Choosing the first/latest file risks unexpected actor attribution; refusing
+  ambiguity without any selection path leaves the ordinary journey unavailable.
+
+Bounded required correction:
+- Define the explicit selection grammar or private credential binding for ordinary
+  board commands, including which installation/B/I/G it resolves and what happens
+  when absent, ambiguous, expired, disabled, wrong-incarnation or unavailable.
+  A credential selector selects a credential; authenticated attribution remains
+  server-resolved. It must not be an actor claim or implicit native-owner fallback.
+- For original outcome lookup, require the selected credential's actor and exact
+  installation/origin/B/I to match immutable evidence, with current read-own-outcome.
+  Do not rewrite evidence, search another actor/installation automatically or replay.
+- Name its existing C01/K02/K03/P01 owners and D01 acceptance gate as applicable.
+  Add a two-actor/two-credential synthetic vector showing deliberate selection,
+  ambiguity refusal, wrong-actor unknown/denial and no authority fallback.
+
+Ownership, gates and retained assurance
+6c:511-544 assigns N01 native capability loading; C01 typed boundaries; G01/S02
+serialized auth/ledger admission; T01 credential/session routes; H01 secret-free
+grant adapters; K01 lookup adapter; K02/K03 native CLI; and P01 mounting. These
+are real existing owned directories from corrected 09, not inferred ghost work.
+Every affected seam explicitly waits for accepted revision 2 plus existing
+qualification/prerequisite/In Progress gates; N01 cannot claim integrated completion.
+One-worker scope excess requires rescoping before code.
+
+Prior nonblocking issuer/key-loss and interrupted-publication recovery-stops remain
+deliberate availability limits. Routine native-owner expiry and leaf expiry still
+have callable stopped renewal paths. Same-account cooperative assurance, manual
+trust/human-grant actions and immutable original-source uncertainty remain intact.
+No runtime or implicit trust-install authorization follows from this review.
+
+Verification
+Documentary source/line/ownership checks and UTF-8/no-BOM/LF/final-newline checks
+only. No source changes, product tests/builds, runtime probes, board access,
+installs, trust actions, grants, commits or pushes. No v1 sources/tests/internal
+designs, real board data or private operational records used or published.
+Native/browser/fault qualification remains future evidence. Public MIT FOSS.

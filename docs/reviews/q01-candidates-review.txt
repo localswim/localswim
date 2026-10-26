@@ -1,0 +1,92 @@
+Q01 - FRESH INDEPENDENT CANDIDATE REVIEW
+2026-10-25 | Spike 01 | Documentary and dependency-checksum review
+
+Verdict: PASS
+The exact candidate inventory and locks satisfy Q01's bounded scope. No material
+correction is required before owner acceptance. This reviewer authored none of
+the reviewed manifests, inventory or repository-boundary decision.
+
+This pass covers candidate selection and documentary consistency only. Every
+candidate remains CANDIDATE_UNQUALIFIED; Q02/Q03 and product/native/browser
+qualification have not passed. Owner acceptance remains pending.
+
+Reviewed basis
+- Accepted architecture 07-build-acceptance-evidence.txt, Q01 in corrected
+  09-task-proposals.json, and ownership clarifications 20/21 in v2-architecture.
+- go.mod, go.sum, web/package.json, web/package-lock.json and
+  qualification/environment.json; private preparation evidence inspected without
+  publishing its paths, raw inventory or operational details.
+- README.md, LICENSE, .gitignore, AGENTS.md and
+  docs/decisions/repository-layout.txt for the public repository boundary.
+
+Findings
+- None requiring correction. One Go module and a separate web package preserve
+  Go authority and the accepted monorepo boundary. Q01 dependency ownership is
+  respected: no package scripts or P02 launchers were introduced.
+- Go 1.27.3 is an official stable release. Its Windows/amd64 archive hash matches
+  both official metadata and the downloaded archive. go.mod requires 1.27.3;
+  there is no replacement or toolchain directive selecting another patch.
+  GOTOOLCHAIN=local and the remaining frozen environment are recorded explicitly.
+- modernc.org/sqlite v1.61.0 requires Go 1.26.0 and exactly libc v1.79.0;
+  the root module records the matching libc. The 25 observed Go modules have
+  50 exact module/go.mod checksum entries, all independently matched against
+  sum.golang.org. A separate portable Go 1.27.3 mod verify passed offline.
+- All 24 observed npm packages match official exact-version registry tarball,
+  integrity and license metadata. Root dependency pins match the lock. Released
+  TypeScript 7.0.2 exposes tsc and resolves its exact win32-x64 optional native
+  package; platform restrictions and remaining optional packages are retained.
+  Registry dependency entries duplicated as optional dependencies are correctly
+  represented as optional in npm's lock. No compiler execution is implied.
+- Node 24.20.0's Windows archive hash matches official SHASUMS256.txt. npm 12.0.2
+  integrity, Artistic-2.0 license and Node requirement match registry metadata;
+  the selected Node satisfies that requirement. Node's archive bundles another
+  npm version, so the separately pinned npm candidate remains significant.
+- Playwright 1.64.1 officially maps its chromium runner to Chrome for Testing
+  156.0.8078.4, revision 1248, and the recorded win64 archive URL. The downloaded
+  archive's SHA256 matches the manifest; its ABOUT entry identifies Google Chrome
+  and Chrome terms. The inventory correctly distinguishes this computed hash
+  from an independently published checksum and treats Chrome as an external
+  qualification tool under Google terms, not a redistributed MIT/FOSS asset.
+- All four manifest hashes and all 32 recorded Go license-file hashes match.
+  Official Go/Node license sources and npm license metadata support the stated
+  provenance. SQLite's BSD license, public-domain SQLite dedication, optional
+  MIT sqlite-vec and inherited notices remain available in the inventoried
+  upstream license files. This inventory is not a distribution notice bundle.
+- Read-only platform checks independently match Windows 10.0.26200.9711,
+  25H2 Professional and NTFS. These facts establish no filesystem behavior.
+  Public reviewed text is UTF-8 without BOM, LF and final-newline terminated.
+
+Mandatory downstream limits
+- Locked upstream source records SQLite 3.54.1 and the recorded source ID.
+  The 57 Windows source compile options match the inventory and its declared
+  compile-option array, including MUTEX_NOOP and THREADSAFE=1. These source facts
+  do not establish runtime options, mutex behavior or safe connection ownership.
+  Q02 must verify actual version/options, connection settings and locking under
+  the accepted native harness before any safety or compatibility claim.
+- Installed observations are not proof of matching official archive bytes.
+  Node/npm retain that explicit limitation. Browser availability and a downloaded
+  archive are not browser execution evidence; the dedicated profile is planned.
+- Exact candidate use, local native compiler behavior, clean reproducibility,
+  distribution notices and product qualification remain later evidence. No
+  source package imports, product builds/tests, SQLite/compiler/browser harness,
+  lifecycle scripts, browser binary or existing user profile were executed here.
+  No trust, human grants, global installation or persistent environment changed.
+
+Primary verification sources, accessed 2026-10-25
+- https://go.dev/dl/?mode=json
+- https://sum.golang.org/lookup/modernc.org/sqlite@v1.61.0
+- https://proxy.golang.org/modernc.org/sqlite/@v/v1.61.0.mod
+- https://raw.githubusercontent.com/golang/go/go1.27.3/LICENSE
+- https://nodejs.org/dist/index.json
+- https://nodejs.org/dist/v24.20.0/SHASUMS256.txt
+- https://raw.githubusercontent.com/nodejs/node/v24.20.0/LICENSE
+- https://registry.npmjs.org/npm/12.0.2
+- https://registry.npmjs.org/typescript/7.0.2
+- https://registry.npmjs.org/@typescript/typescript-win32-x64/7.0.2
+- https://registry.npmjs.org/@playwright/test/1.64.1
+- https://raw.githubusercontent.com/microsoft/playwright/v1.64.1/packages/playwright-core/browsers.json
+- https://raw.githubusercontent.com/microsoft/playwright/v1.64.1/packages/playwright-core/src/server/registry/index.ts
+- https://www.google.com/chrome/terms/
+
+No board access, v1 sources/tests/internal designs, commits or pushes were used.
+Owner-controlled acceptance and subsequent qualification gates remain unchanged.

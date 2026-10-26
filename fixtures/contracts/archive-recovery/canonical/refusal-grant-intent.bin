@@ -1,0 +1,1 @@
+{"actorId":"00000000-0000-4000-8000-00000000000a","boardId":"00000000-0000-4000-8000-000000000001","command":"grant.revoke","expectedCardRevision":null,"expectedRevision":2,"fingerprintVersion":1,"incarnation":"00000000-0000-4000-8000-000000000002","opId":"00000000-0000-4000-8000-000000000029","payload":{},"target":{"grantId":"00000000-0000-4000-8000-00000000005b"}}

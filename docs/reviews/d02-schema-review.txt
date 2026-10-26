@@ -1,0 +1,88 @@
+SLICE01 D02 - FRESH INDEPENDENT ARCHIVE / RECOVERY SCHEMA REVIEW
+2026-10-25 | #0014 | Sol / High | Corrected proposal closure
+
+Verdict: PASS
+All three initial findings are closed by the corrected contract and documentary
+fixtures. No material correction remains before Terry reviews this proposed exact
+v1 encoding freeze. The reviewer authored none of the contract or fixtures.
+Original CHANGES REQUIRED evidence remains unchanged in
+  docs/reviews/d02-schema-review-r1-findings.txt
+This pass does not replace its historical verdict or grant owner acceptance.
+
+Reviewed source anchor
+File: docs/contracts/archive-recovery-schema.txt
+SHA-256: bd8d6abc25a80845a7498b8c05bd3692130fcb804832c2d173bf3aa59a28fc19
+Includes the final compact-versus-full attempted-identifier clarification.
+
+Closure findings
+
+R1 High - CLOSED: honest attempted targets versus committed effects
+- Contract :248-262 permits a NOT_COMMITTED target/payload identifier never to
+  have existed, without manufacturing entities, tombstones, grant facts or bytes.
+  Committed references and current/history graph integrity retain their checks.
+- Compact records preserve their defined target, preconditions and compact facts;
+  arbitrary attempted payload identifiers survive only with retained full intent.
+  Compaction adds no fields or recovery promise based on an opaque fingerprint.
+- refusal-cases.json and canonical/refusal-{attachment,grant}-intent.bin bind a
+  full NOT_FOUND attachment attempt and compact NOT_FOUND grant-revoke attempt.
+  Independent checks found the attempted card absent, no fabricated tombstones,
+  no attempted-byte BLOB, exact canonical fingerprints/preconditions, and unchanged
+  rows in prepared-target/outcomes.json sourceArchives. The new ledger is empty.
+- negative/semantic/broken-committed-reference.json has a recomputable fingerprint
+  but unresolved committed target; its COMMITTED_REFERENCE predicate rejects it.
+
+R2 Medium - CLOSED: actual raw binary negative checks
+- verify_fixtures.py:258-269 dispatches binaryCases before the separate JSON loop.
+  It compares raw length/digest and asserts each expected mismatch explicitly.
+- Independent inspection confirms tampered-blob.bin has the expected length and
+  wrong digest; truncated-blob.bin has both wrong length and digest. These cases
+  exercise byte predicates rather than an incidental JSON parsing failure.
+
+R3 Medium - CLOSED: exact operation byteFacts mapping and pin classes
+- Contract :193-213 requires one attachment.add fact equal to canonical metadata,
+  zero facts for other commands, and complete matching attachment/result/reference
+  metadata for a full committed attachment operation. Repeated digest lengths
+  agree across pinning and non-pinning facts, metadata and inventory.
+- Compact facts copy atomically without inferring omitted intent from fingerprints.
+  Refused facts describe attempted bytes; compact/refused facts require neither
+  fabricated attachments nor BLOBs. Only full COMMITTED operation facts add pins.
+- operation_semantics (:58-111) checks the selected documentary predicates.
+  Five valid-JSON semantic negatives exercise broken committed references,
+  omitted/substituted attachment facts, conflicting lengths and nonbyte facts.
+  Independent checks confirmed each intended inconsistency, including valid
+  fingerprints where full intent is present, rather than trusting case labels.
+
+Previous nonblocking chronology observation - RESOLVED
+The empty attachment creation and referencing full snapshot now share the same
+second. No monotonic-clock promise or timestamp-based identity/order was added.
+
+Verification and retained boundaries
+
+- Supplied fixture-only verifier: PASS; nine byte/hash vectors, six payload entries,
+  two unresolved-target refusal positives, ten parser/schema, two binary and five
+  semantic negatives. No generator was run by this reviewer.
+- Independent checks without generator imports read all fixture bytes and verified
+  canonical vector bytes/hashes, COMPLETE/inventory, original-time preview hashes
+  and five-minute expiry, all receipt variants, prepared-target entry/aggregate
+  anchors, source relocation, byteFacts mappings and raw negative predicates.
+- Existing explicit-null/absent, safe-number, UUID, Unicode/scalar, timestamp,
+  ordering, clearing-floor/gap and source-provenance rules remain intact. The
+  manifest/COMPLETE hash remains noncircular and zero-byte BLOBs remain members.
+- Receipt evidence remains a compact source manifest plus prepared logical target
+  inventory anchor, with source-transform validation before anchoring and offline
+  status validation afterward. Missing/inconsistent/incomplete evidence is unknown;
+  later activation does not retroactively invalidate an earlier confirmed restore.
+- Preview/confirm still binds immutable original times, exact inventory, actor,
+  revision and expiry while checking current eligibility/rights. Terminal refusal
+  and unknown remain distinct; recovery changes no card approval, lane or revision.
+- Historical grants, actor/approval facts and source outcomes remain provenance,
+  never active destination authority or secrets. Compact evidence cannot erase
+  unresolved original-authority uncertainty. Public text is UTF-8/LF/final-newline;
+  binary fixture bytes retain their declared Git binary treatment.
+
+This is documentary encoding/consistency review, not a complete product validator
+or native hostile-ZIP, SQLite, filesystem, publication, ACL, concurrency, browser,
+crash or power-loss qualification. No product builds, installs, board access, trust
+changes or live recovery actions occurred. Those future evidence gates remain.
+Terry acceptance is still required; this pass marks no card Completed. Public MIT
+FOSS; no real data, credentials, private operational paths or rosters reproduced.

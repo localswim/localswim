@@ -1,0 +1,95 @@
+SLICE01 - INDEPENDENT D01 REVISION 3 RE-REVIEW
+2026-10-25 | Spike01 #0013 | Documentary review
+
+Verdict: PASS
+Revision 3 closes R1/R2 and re-review R3. No further material correction is
+required before Terry reviews this proposed contract freeze. The reviewer authored
+none of the contract or corrections. A review pass is not owner acceptance,
+implementation authorization, product completion or native/browser qualification.
+
+Reviewed baseline and preserved evidence
+docs/contracts/setup.txt revision 3, SHA-256:
+38281b50a1085946286f4017b0bf04c291ad9ec6c3c265ba14423ccbec609755
+All setup.txt references below identify this exact revision.
+Initial and revision 2 findings remain unchanged in
+  d01-setup-review-r1-findings.txt
+  d01-setup-review-r2-findings.txt
+Their historical CHANGES REQUIRED verdicts and original source hashes remain
+valid evidence; this current pass does not rewrite them into acceptance records.
+
+Closure map
+R1 Medium | CLOSED | setup.txt:349-471,759-780.
+R2 Medium | CLOSED | setup.txt:473-513,781-791.
+R3 Medium | CLOSED | setup.txt:555-628,792-802.
+Material findings remaining: none.
+
+R1: callable credential lifecycle and honest delivery
+- Section 6a defines explicit native-owner issue/reissue for a PREEXISTING enabled
+  grant, independent of grant.create. Exact installation/B/I/G/actor binding,
+  current rights, serialized revoke/issue races and predecessor replacement are
+  specified. Expired/lost board credentials cannot authorize replacement.
+- Private-at-creation storage, pre-dispatch checks, flush/atomic publication/readback,
+  secret-free output and unknown delivery are explicit. Normal restart persistence,
+  expiry/loss reissue and durable local disabling for uncertain self-revocation
+  have callable behavior. No automatic token retrieval, issue retry or grant replay.
+- Durable grant outcomes carry non-secret semantic/result facts only; bearer,
+  bearer hash, owner secret and login code stay outside canonical intent, terminal
+  receipts, recovery, activity and exports. Confirmed grant creation remains
+  distinct from failed/unknown subsequent credential delivery. S11-S14 trace this.
+
+R2: native owner's own grant-action outcome lookup
+- Section 6b explicitly proposes the narrow policy addition needed to bridge
+  accepted 03/04's board-grant lookup assumption. Current native authority permits
+  only retained grant.create/revoke by the SAME installation's stable ownerActorId.
+  It adds no general board/card/history/export/approval or other-actor access.
+- Exact original identity/hash/command, active hash and expiry are checked at each
+  lookup. Same-actor native owner renewal restores this bounded lookup path while
+  preserving original evidence. A revoked grantee does not erase the owner's own
+  receipt. Missing/denied/mismatching evidence stays unknown/exit4. S15/S16 cover it.
+
+R3: explicit ordinary credential selection
+- 555-587 requires --installation ID --board B --incarnation I --grant G for every
+  ordinary authenticated board command. Selectors resolve only the exact validated
+  private file and disabled marker; no enumeration, latest/default actor, profile,
+  environment choice or native-owner fallback. Input incarnation must match I.
+- The pinned session preflight resolves actor/scope server-side and must match
+  the selected file. Actual admission independently rechecks current token/grant
+  authority; preflight cannot authorize a revocation race or confer domain rights.
+- 589-608 distinguishes missing selectors, duplicate/contradictory flags, missing/
+  unsafe/expired/disabled/mismatching material and unavailable connection/storage.
+  New dispatch stops visibly, without issuing tokens or switching credentials.
+  Reads verify board/incarnation rather than silently adopting a restored context.
+- 610-628 overrides ordinary error exits for ORIGINAL operation reconciliation:
+  wrong actor/context, missing selector, expired/disabled/unavailable bearer, denied
+  current read-own-outcome or failed receipt lookup leaves original intent unknown/
+  exit4. Actor, installation/origin/B/I, opId, fingerprint/version and command/target
+  remain immutable. Native-owner lookup is a separate special grammar and never a
+  fallback. S17 exercises two human/automation actor credentials and all key refusals.
+
+Ownership, acceptance and assurance
+Section 6c:515-553 names actual existing owners for types, native capability loading,
+serialized auth/ledger admission, session/grant/lookup adapters, both CLI adapters
+and executable mounting. C01/K02/K03/P01 explicitly own the new selection rule;
+selector fields do not enter domain fingerprints. N01 alone cannot claim the
+integrated credential/lookup journey complete. Scope overflow stops for rescoping.
+
+Current revision acceptance is explicit before every affected consumer seam,
+including consumers absent from the older direct DAG. The primary reports the
+D01-to-C01 provider gate materialized while retaining C01's earlier prerequisites;
+this reviewer did not access the board. Existing qualification/prerequisite and
+In Progress gates remain. Terry retains acceptance and Completed control.
+
+Routine leaf/native-owner expiry retains callable stopped renewal. The previously
+reviewed issuer/key-loss and ambiguous-publication recovery-stops remain deliberate
+availability limits. Manual trust and human-grant bootstrap remain later explicit
+actions. Same-account cooperative assurance, immutable original-source uncertainty
+and no-replay behavior survive; no hostile isolation or proof of review is claimed.
+
+Verification
+Documentary source/line/ownership checks against accepted slice01 03/04/05/18 and
+corrected 09, plus retained initial authority review; UTF-8/no-BOM/LF/final-newline
+and source-hash checks only. No source changes, product tests/builds, probes,
+board access, installs, trust actions, grants, commits or pushes. No v1 sources/
+tests/internal designs, real board data or private operational records used or
+published. Native/browser/fault qualification remains future evidence.
+Public MIT FOSS.

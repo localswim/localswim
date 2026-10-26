@@ -1,0 +1,832 @@
+SLICE01 - NATIVE SETUP AND STATUS CONTRACT
+2026-10-25 | D01 revision 3 | Proposed freeze; owner acceptance required before N01
+
+Authority and decision boundary
+The accepted architecture's 05 Authority and transport / Grants and sessions and
+07 Minimal boundaries / Owner actions control. Accepted 18 adds human-only
+history-admin without changing this bootstrap. The accepted implementation packet
+09, corrected by 20/21, assigns this contract to D01 and its implementation to
+N01. One Go module and web/ package share one executable and public repository.
+
+Those sources select stable random installation hostname, fixed port, loopback
+HTTPS, local issuer, issuer-pinned CLI and a separate native owner grant-admin
+capability. They do not select the concrete grammar, file format, numeric port,
+crypto periods or interrupted-setup protocol below. All such choices below are
+one proposed decision set for Terry's acceptance; a review pass alone does not
+authorize N01 or make them accepted defaults. A necessary change returns for a
+bounded decision, rather than an implementer's consequential invention.
+
+Revision 2 closes the initial independent review's R1/R2 through sections 6a/6b:
+separately issued board CLI credentials and a narrowly scoped native-owner
+administrative outcome lookup entitlement. These are explicit proposed D01 policy
+clarifications, including the exception to 03/04's board-grant lookup assumption;
+they require fresh review and Terry acceptance before any affected consumer code.
+The original review/finding evidence remains unchanged. Section 6c assigns every
+adapter and admission seam to existing logical tasks; no new installer is implied.
+Revision 3 additionally closes re-review R3 through section 6d's explicit ordinary
+CLI credential selector and S17. All revision 2 policies and this selection rule
+remain proposed pending fresh review and Terry acceptance of the current revision;
+neither preserved finding report is rewritten or turned into an acceptance record.
+
+This is a callable contract, not an installer, service manager, daemon, workspace
+selector or product implementation. It installs nothing and executes no trust or
+grant action. Names below are synthetic or symbolic. No operational records,
+credentials, live boards or v1 source/tests/internal designs were consulted.
+Prior source exposure remains disclosed; no isolated clean-room certification.
+
+1. Native command grammar
+The executable name is localswim. These local commands need no --board and never
+infer one. Square brackets mean optional; alternatives are exclusive:
+
+  localswim [--json] setup init [--port PORT]
+  localswim [--json] setup status
+  localswim [--json] setup certificate renew --installation ID --issuer SHA256
+  localswim [--json] setup owner renew --installation ID --issuer SHA256
+  localswim [--json] setup trust enroll --installation ID --issuer SHA256
+  localswim [--json] setup trust remove --installation ID --issuer SHA256
+
+Flags may occur in any order after the executable, with exactly one occurrence
+each; no short flags, positional operands, aliases, environment overrides,
+--yes, stdin JSON, custom hostname, alternate config root or remote URL exists
+for these commands. --json changes output only. Unknown/missing/duplicate flags
+or extra operands fail before effects. PORT is ASCII decimal 1024..65535 with no
+sign, whitespace or leading zero; omitted selects 47443 on FIRST initialization.
+ID is lowercase canonical UUIDv4; SHA256 is 64 lowercase hex characters, the
+SHA-256 of the issuer certificate's exact DER bytes. Displayed values are public
+identity data, never a bearer. ID and SHA256 must match validated local material.
+
+init neither starts a server nor opens a browser, edits hosts/DNS/firewall,
+reserves a port permanently, installs root trust, creates a board or issues a
+board grant. It creates the native owner capability described in section 4.
+status is read-only: no network request, DNS lookup, bind, renewal, ACL repair or
+trust change. Renewal and trust enrollment require valid initialization and the
+local exclusive installation lock. Trust removal uses the public-only validation
+in section 6, so missing private material does not prevent retirement. All require
+the server to be stopped;
+they never terminate it. The later executable's normal stop lifecycle is outside
+this contract; the OS lock, rather than a recorded PID, establishes exclusion.
+
+trust enroll/remove are explicit later owner actions. They require a terminal
+on stdin even with --json, display installation, authority, issuer fingerprint,
+expiry, store scope and broad root-trust consequence on stderr, then require the
+single exact line "enroll ID SHA256" or "remove ID SHA256". EOF, cancellation or
+any other line refuses before the store mutation. There is no unattended bypass.
+This deliberate action is a cooperative control, not proof a human supplied it.
+Owner renewal likewise requires terminal line "renew-owner ID SHA256" after
+warning that the old native owner bearer will cease working. Certificate renewal
+does not require that terminal confirmation: it preserves identity and authority.
+
+2. Installation identity, authority and paths
+Proposed target: native Windows/amd64, current account, local NTFS. Other OS,
+architecture, filesystems, roaming/shared roots and browser profiles are
+unqualified; do not redirect or silently relax checks to make setup succeed.
+Resolve Windows' per-user LocalAppData known folder using the OS API, not a shell
+environment variable. Below, USERDATA means that folder, never a real user path.
+
+  ROOT = USERDATA/localswim/slice01
+  ROOT/install.lock                    OS-held exclusive ownership lock
+  ROOT/active.json                     committed generation selector
+  ROOT/generations/GEN/manifest.json    immutable generation descriptor
+  ROOT/generations/GEN/issuer.pem       one issuer CERTIFICATE PEM
+  ROOT/generations/GEN/issuer-key.pem   unencrypted PKCS#8 PRIVATE KEY PEM
+  ROOT/generations/GEN/server.pem       leaf then issuer CERTIFICATE PEMs
+  ROOT/generations/GEN/server-key.pem   unencrypted PKCS#8 PRIVATE KEY PEM
+  ROOT/generations/GEN/owner.json       native owner bearer, never output
+  ROOT/pending/TX/...                  incomplete/reconcilable generation
+
+GEN and TX are independently generated canonical UUIDv4 names, not supplied
+paths. No file path is read from manifest input; all names are fixed above.
+Other per-user CLI credentials and private recovery remain outside generations;
+their scopes/caps follow accepted 04/05 and are not reset by setup. No board path
+is stored or selected by setup. Public repositories, exports, restore packages,
+browser assets and recovery evidence exclude these setup files and secrets.
+
+First setup independently samples installationId and ownerActorId as UUIDv4 and
+16 random bytes from the OS cryptographic random source for a 32-character
+lowercase hex DNS label. hostname = LABEL.localhost; there is no owner label
+input. origin = "https://" + hostname + ":" + decimal port (always explicit).
+authority is hostname:port. These values remain fixed for this installation.
+installationId is neither boardId nor incarnation nor a certificate fingerprint.
+Changing the leaf certificate does not create an installation or board identity.
+
+Use only 127.0.0.1 and ::1 listeners at the selected port, never wildcard or a
+non-loopback address. Require exclusive binds for both families with IPv6-only
+on ::1. Failure of either bind refuses startup; no single-family, ephemeral-port,
+alternate-port or HTTP fallback. init checks both binds while holding its lock,
+then closes them before reporting; this is an observation, not a reservation.
+Every later server startup must bind again and apply exact Host/Origin rules
+from 05. CLI dialing connects directly to loopback with hostname as TLS SNI and
+name check, bypassing HTTP proxies; it does not trust a DNS answer for a remote
+destination. Browser .localhost handling remains a qualification obligation.
+No trailing-dot, localhost-only, IP-literal or alternate-host access is supported.
+
+Repeated init with no --port keeps the stored port, even when it is not 47443.
+A supplied differing --port returns CONFIG_CONFLICT; it never changes the origin.
+To choose another port, resolve that decision before first successful setup.
+Post-publication hostname/port changes and installation migration are outside
+Slice01; refuse them rather than abandon browser recovery at the old origin.
+
+3. Versioned material and validation
+All JSON files are UTF-8, no BOM, LF, final newline, no duplicate/unknown fields.
+Schema integers are safe nonnegative integers; schemaVersion is exactly 1.
+UUID and hash strings use the encodings in section 1; timestamps are UTC whole
+seconds YYYY-MM-DDTHH:MM:SSZ. Reject unsupported versions without migration.
+These are local formats, separate from apiVersion/fingerprintVersion=1.
+
+active.json has exactly {schemaVersion,generation,manifestSha256}. generation is
+GEN; manifestSha256 hashes the exact manifest.json bytes. manifest.json has:
+  schemaVersion, generation, installationId, ownerActorId, hostname, port,
+  createdAt, generationCreatedAt, issuerSha256, issuerNotBefore, issuerNotAfter,
+  leafSha256, leafNotBefore, leafNotAfter, ownerTokenSha256, ownerIssuedAt,
+  ownerExpiresAt, files
+files is an object with exactly issuer.pem, issuer-key.pem, server.pem,
+server-key.pem and owner.json as keys, each a lowercase SHA-256 file-byte hash.
+owner.json has exactly {schemaVersion,installationId,actorId,token,issuedAt,
+expiresAt}. token is unpadded base64url encoding of 32 independent random bytes;
+ownerTokenSha256 hashes the decoded 32 bytes. actorId equals ownerActorId.
+Manifest dates must equal decoded certificate/owner dates. createdAt never
+changes; generationCreatedAt describes this publication. PEMs contain only the
+declared block types/order, match their keys, signatures and configured names.
+Leaf fingerprint hashes the leaf DER, not server.pem. Validate all cross-file
+identity, times and hashes before use; hashes alone confer no confidentiality.
+
+ROOT and all descendants have an explicit protected DACL, with full control only
+for the current account SID and LocalSystem, inherited by new descendants; owner
+is the current account SID. Refuse null DACL, other allow ACEs, wrong owner,
+unverifiable ACLs, reparse points or unexpected files in a generation. Reject
+redirection through reparse points in the existing root chain. Do not repair an
+existing unsafe directory or take ownership implicitly. Current-account programs,
+administrators/privilege holders and code replacement are outside the protection
+claim. New secrets are private at creation, including temporary files, never
+created broadly readable and narrowed afterward. Do not pass bearers/private keys
+on argv, URLs, stdout/stderr, logs or recovery records. PEM private keys are
+plaintext under these ACLs; this is not encryption against same-account access.
+
+4. Keys, certificates and native owner capability
+Proposed key algorithm: independent ECDSA P-256 issuer and leaf keys, SHA-256
+certificate signatures, random nonzero 128-bit serials. issuer.pem is self-signed:
+critical CA basicConstraints with pathLen=0; critical keyUsage keyCertSign,cRLSign;
+no network AIA/CRL/OCSP URLs. Issuer subject CN is "localswim ID local issuer";
+leaf CN is hostname. Leaf has critical CA=false, keyUsage digitalSignature,
+extendedKeyUsage serverAuth and exactly one SAN dNSName=hostname, no wildcards,
+IPs, clientAuth or other DNS names. Subject labels are informational, not trust.
+Signer API accepts only the stored hostname and server-auth leaf template; it
+offers no arbitrary signing endpoint or command. A trusted root is nevertheless
+broad browser trust; software signing policy is not an OS-enforced name boundary.
+
+Times use the captured operation time T. Root notBefore=T-300 seconds and
+notAfter=T+3650*86400 seconds. Initial/new leaf notBefore=T-300 seconds and
+notAfter=min(T+30*86400, issuerNotAfter). Refuse issuing when less than 86400
+seconds of issuer validity remains. TLS minimum is 1.2 with normal certificate
+verification; TLS 1.3 may negotiate. No insecure-skip-verify mode, certificate
+warning bypass, online issuer download or HTTP downgrade exists.
+
+CLI trusts exactly the local manifest's issuer DER fingerprint, verifies leaf
+signature/chain, validity, hostname, EKU and loopback connection; system trust
+alone cannot replace its pin. A mismatching pin/name refuses before credentials
+or mutations are transmitted. Browsers must validate the chain/name in the
+qualified profile and explicitly enrolled trust. setup success does not establish
+that the browser trusts it. Root trust is not required for pinned native CLI use.
+
+setup certificate renew issues a fresh leaf key and certificate in a new generation,
+keeping installationId, ownerActorId, hostname, port, issuer and owner bearer.
+An expired leaf can be renewed if the issuer/key and other material validate.
+Normal server startup performs this same stopped/exclusive renewal when the leaf
+has <=7*86400 seconds remaining; if renewal fails it refuses startup. No hot
+certificate replacement is promised. A running process must refuse new TLS
+handshakes when its leaf expires; status must not imply perpetual availability.
+Renewal never enrolls trust, changes the root or broadens signing scope.
+
+Issuer key/certificate renewal or rotation is NOT automatic or supported by a
+Slice01 reset command. An expired/near-expiry issuer, lost/mismatched key or
+suspected compromise requires stop, explicit trust removal where possible, and
+a separately accepted replacement/migration plan. Do not silently create a new
+issuer under the old pin or hostname, treat leaf renewal as root renewal, delete
+old evidence, or declare original submissions not committed. The issuer is never
+copied by export/restore. Retirement removes trust by section 6; no setup command
+deletes the published keys, identity, board data or client evidence. Secure key
+erasure and global revocation are not claimed. A recovered exact backup can only
+be considered through a separately scoped recovery process, never auto-imported.
+
+The initial native owner capability is a separate random 256-bit bearer, bound to
+installationId and stable ownerActorId, expiring at T+30*86400 seconds. Its proposed
+authority is grant-admin plus the narrowly limited administrative read-own-outcome
+entitlement in section 6b: no general board read/write, approve or history-admin.
+Server
+resolves its administrative actor from validated local material and accepts only
+the active token hash; it never trusts a client actor claim. Native setup records
+no board actor/grant. Subsequent ledgered grant actions use the stored principal
+and the applicable board transaction contract. Bootstrap attribution expresses
+credential possession, not a meaningful-human-review claim.
+
+setup owner renew works with an expired old bearer, using native account/ACL/lock
+authority, not a remote bearer. It publishes a fresh bearer with the same owner
+actor and issuer, restarting the 30-day period. Old bearer becomes invalid as
+soon as the new generation is active; no overlap/grace period. It cannot repair
+missing/corrupt old material by inventing identity. It creates no board grant,
+does not broaden existing grants, and does not regenerate unrelated CLI tokens.
+Do not confuse this native owner capability with 30-day board CLI credentials.
+
+5. Initial, repeated and interrupted publication
+All actual setup mutations and the eventual server hold the same per-ROOT exclusive
+OS lock for their duration; startup holds it for server lifetime. Failure to
+acquire yields INSTALLATION_BUSY. PID/lock-file existence never proves ownership;
+an abandoned OS lock is reacquired normally, followed by complete validation.
+No PID killing or forced lock breaking is permitted. status may read while busy;
+it reads active selector, validates generation, then rereads selector, retrying
+once if changed; continued change returns unavailable, never mixed generations.
+Valid repeated init with no pending transaction uses that same coherent read
+protocol as a read-only no-op; it may succeed while the server holds the lock.
+Any actual initialization/publication takes the exclusive lock and rereads state
+before effects, refusing if another process initialized it differently meanwhile.
+
+Fresh init refuses nonempty unrecognized ROOT, unsafe ACLs or partial/foreign
+configuration. It creates private staging, selects identity once, writes all
+material and a complete descriptor, flushes each file, verifies bytes/ACLs/keys
+and checks both port binds. All random-source, write, flush, readback, validation
+or bind failures stop publication. A complete generation moves exclusively into
+generations/GEN; active.json is the final publication point. Flush/readback and
+atomic replacement/exclusive move must use the qualified native primitives.
+No claim of durable publication follows merely from rename or process success.
+
+Renewal similarly stages a complete generation; unchanged bytes are copied under
+private ACLs, never edited in the active generation. Publish a flushed/readback
+selector atomically; keep the prior generation for reconciliation. Old generations
+are never candidates selected by newest timestamp and are not active credentials.
+Only the validated selector chooses authority. Automatic cleanup/key deletion is
+deferred; retained retired owner bearer files remain account-private and server
+must reject their hashes. Setup may not silently roll back a published selector.
+
+Pending metadata at pending/TX/transaction.json has exactly schemaVersion,
+transactionId, operation (init|certificate.renew|owner.renew), priorGeneration
+(null for init), candidateGeneration and manifestSha256 (null until the complete
+candidate is verified). Write/flush this record before starting work and replace
+it only after candidate verification. Never resume an incomplete candidate by
+silently generating replacement identities, keys or owner credentials.
+
+On interruption, status reports pending plus the validated active generation if
+any. A repeated IDENTICAL command may reconcile one complete pending transaction:
+verify its hashes/ACLs, expected prior selector and requested identity/port, then
+finish publication of that exact candidate. Unpublished init candidates must pass
+both exclusive port binds again before publication. If selector names that exact
+candidate, confirm it after readback; do not renew again. If selector still names
+priorGeneration and the candidate is valid, finish once. Multiple pending records,
+missing/incomplete candidates, uncertain flush, bad hashes, unexpected selector,
+foreign material or conflicting command require SETUP_RECOVERY_REQUIRED. Preserve
+all files; no automatic rollback, deletion or best-effort regeneration. The next
+step is owner investigation of the named symbolic transaction and a separately
+scoped repair decision. This is an intentional safe stop, not completed recovery.
+After a reconciled publication, remove only its pending transaction metadata;
+if that cleanup fails, report pending cleanup and reconcile the same candidate on
+the next call. Do not report a second successful renewal for that cleanup.
+
+If no pending transaction exists, valid repeated init is a no-op. Validate all
+material, report current identity, trust and expiry; do not renew expired material
+implicitly. It need not rebind/check a port when already initialized, especially
+when the valid server holds it. Missing key/owner material, invalid certificates,
+unsupported schema and unsafe ACLs never count as "already initialized". Port
+occupied on first init is a refusal, with no publication; no claim another process
+is localswim based on its port. The user can retry the same complete candidate when
+the conflict ends, or make a separate explicit repair decision; no fallback port.
+
+6. Trust enrollment/removal and human bootstrap
+After explicit terminal confirmation, enroll adds only the exact issuer certificate
+to the current user's Windows Root store's writable local physical store. Do not
+change LocalMachine, group policy, enterprise roots, another account's store or a
+browser-specific store. Read back exact DER membership after the operation.
+Repeated enrollment of the identical certificate is idempotent after confirmation.
+Fingerprint/ID mismatch, inherited-only conflicting placement, store denial or
+unsupported browser trust behavior is visible; do not elevate or choose another
+store. A name match is insufficient; never replace a different certificate.
+
+remove requires the same identity-bound confirmation and deletes only exact DER
+membership in that writable current-user store; absence is an idempotent observed
+result. Removal validates the selector, manifest hash/ID and issuer.pem file hash,
+DER fingerprint and self-signature under safe ROOT ACLs. It does not require the
+issuer/leaf private key or owner bearer file, nor current certificate validity;
+expiry or missing secret material must not prevent removing intact public trust.
+If even that public identity cannot be established, it refuses with repair_decision;
+owner manual certificate-store investigation is required, never name-based deletion.
+It does not delete keys/configuration or claim the certificate is globally
+untrusted: policy/local-machine/other-profile copies, trust caches and existing TLS
+connections may survive. Report store membership, with browser trust unqualified
+until tested. Stop the server first and restart the qualified browser as required
+by its later recorded procedure; no guaranteed cache-purge behavior is asserted.
+An interrupted/failed store mutation is reconciled by exact local-store membership
+on retry; if the store cannot be inspected, outcome is unknown, never "removed".
+Status never infers browser trust merely from its own store read.
+
+Actual initial owner journey, for a later authorized qualification task:
+  1. init; inspect status and displayed installation/origin/issuer/expiry.
+  2. Owner explicitly invokes setup trust enroll with those ID/hash values.
+  3. Start the later executable; verify its exact HTTPS authority in the qualified
+     browser/profile without warning bypass. status alone cannot prove this.
+  4. Use K03's explicit terminal grant.create enrollment to choose actor, board,
+     kind and rights under exact board revision, then deliberately confirm them.
+     Its wire/CLI envelope remains accepted 04/18 and K03's scope; setup is not a
+     grant.create alias. Human grants may include approve/history-admin only when
+     explicitly chosen. Automation cannot hold approve, history-admin or
+     grant-admin. Deny absent rights, including on current-authorization lookup.
+  5. For native CLI use, owner explicitly invokes credential issue for that
+     PREEXISTING enabled grant as section 6a specifies. grant.create confirms only
+     the non-secret grant identity; it never returns a bearer. For browser use,
+     owner CLI requests a session code for a PREEXISTING grant: 128 random bits,
+     60 seconds, one use, bound to installation/grant/exact origin. Enter in the
+     HTTPS form, never a URL. Exchange yields a 256-bit browser bearer held only
+     in memory; server stores hashes. No code/bearer is emitted by setup/status.
+
+Browser sessions expire after 30 minutes idle or eight hours absolute; board CLI
+credentials after 30 days. Codes/sessions are invalidated on every server restart;
+CLI credentials remain valid only until expiry/revocation under current grants.
+Leaf/owner renewal and trust actions require a stopped server, so any resulting
+restart has those effects. Native owner renewal revokes the prior owner bearer
+only; issuer identity, board grants and board CLI credentials are not changed.
+Logout/revocation clears credentials/visible content while preserving private
+recovery for deliberate reauthentication. Local account access is no proof that
+automation is a human, and explicit confirmation cannot provide hostile
+same-account isolation or certify meaningful review.
+
+6a. Separately issued board CLI credential: proposed R1 closure
+Grant creation and credential issuance are separate actions. The following exact
+additional K03 CLI grammar applies; section 1's setup-only ban on operands does
+not apply to these board commands. UUIDs, flags and --json use the same parsing
+rules; --board is mandatory, with no inferred board, actor or incarnation:
+
+  localswim [--json] --board B credential issue --incarnation I --grant G
+  localswim [--json] --board B credential revoke --incarnation I --grant G
+
+issue authenticates using the CURRENT native owner bearer loaded privately by
+N01, never an expired/lost board bearer. It requires a terminal and exact line
+"issue-cli ID B I G" after displaying installation/origin/board/incarnation/grant,
+the fact that it replaces any previous CLI credential for G, and the 30-day expiry.
+EOF/nonterminal/cancellation refuses before dispatch; no --yes exists. The owner
+selects an already existing enabled grant; this creates no principal or grant and
+cannot alter its actor/kind/rights. A human or automation grant is eligible under
+its current allowed rights. No possession of an old/expired bearer authorizes
+issuance. Native owner expiry requires section 4's same-actor owner renew first.
+If the intended grant.create has an unknown response, reconcile its ORIGINAL
+operation through section 6b before taking the returned grantId into this flow;
+do not infer the grant identity from a similar visible entry or issue/replay a
+replacement grant to make bootstrap appear complete.
+
+API: POST /api/v1/session/cli-credentials with Authorization: Bearer OWNER,
+Content-Type application/json, exact request
+{installationId:ID,boardId:B,incarnation:I,grantId:G}. Enforce 05's configured
+Host, exact Origin when present, native absent-Origin rule, issuer pin and HTTPS;
+browser credentials cannot call it. Unknown/duplicate fields refuse. Native owner
+authentication and exact current board incarnation/enabled grant are resolved
+inside one serialized admission transaction with grant revocation. The response
+is HTTP 201 JSON with exactly apiVersion:1, installationId, boardId, incarnation,
+grantId, actorId, kind, rights, credentialId, issuedAt, expiresAt and token. rights
+is sorted unique current grant rights; kind/actorId are resolved from the grant.
+credentialId is UUIDv4; token is a fresh random 256-bit unpadded base64url bearer;
+issuedAt is transaction time and expiresAt=issuedAt+30*86400 seconds. Set
+Cache-Control: no-store. This response is secret transport to the native client,
+never its stdout/JSON envelope, a domain result or a recoverable grant receipt.
+
+Server persists only its hash and public credentialId/times/bindings, bound to the
+EXACT installationId/B/I/G/actorId and origin. In the issuance transaction replace
+all previous board CLI credentials for G with this single active CLI credential;
+there is no grace overlap. Browser sessions/codes and other grants' credentials
+are unaffected. This authentication-state change does not increment board/card
+revision, create a domain operation/opId/fingerprint, or change historical
+attribution. Serialize it with grant revocation/current enabled state. Tokens are
+opaque; authorization for every read, mutation and lookup consults the current
+grant/policy, not the rights copied to the issuance response. No widening follows
+from reissue. Scope mismatch, disabled/revoked grant or wrong incarnation refuses
+issuance, without enabling a grant or copying source/provenance grants.
+
+The native client validates every response binding and privately publishes exactly
+ROOT/cli/ID/B/I/G.json, with no path component derived from unvalidated input.
+Its exact file fields are schemaVersion:1 plus the response fields excluding
+apiVersion; the file includes token and must meet section 3's private-at-creation
+ACL, no-reparse, flush/atomic-replacement/readback requirements. It is outside
+generations and all recovery/evidence/exports. Prepare/validate private storage
+before dispatch; failure prevents issuance. After delivery, flush and verify the
+file before reporting local credential availability. Never print token, token
+hash, secret response body or credentials in diagnostics or evidence. The CLI
+loads the exact ID/B/I/G file, verifies bindings and TLS pin before using it;
+multiple actor/grant files never permit implicit actor choice for original lookup.
+
+CLI output is one secret-free envelope when --json:
+{apiVersion:1,scope:"credential",command:"issue"|"revoke",
+ outcome:"confirmed"|"refused"|"failed"|"unavailable"|"unknown",
+ result:null|{installationId,boardId,incarnation,grantId,actorId,credentialId,
+              issuedAt,expiresAt,locallyAvailable:boolean},
+ error:null|{code,message}}.
+Public fields unavailable after a lost response are null, not inferred. Exit 0
+requires verified local publication for issue. Use 1 for provably pre-dispatch
+local/invocation failure, 2 for authenticated refusal, 3 for provably pre-dispatch
+unavailability and 4 if issuance/revocation or local publication may have happened
+but its complete result is unverified. These outcomes describe credentials only.
+They cannot establish a grant command's COMMITTED/NOT_COMMITTED outcome.
+Pre-dispatch issue/revoke failures use INVOCATION_OR_IO, CONFIRMATION_REQUIRED,
+CONFIRMATION_REFUSED or UNAVAILABLE as applicable. API authentication/scope/grant
+refusals use accepted INVALID_INPUT/UNAUTHENTICATED/FORBIDDEN/NOT_FOUND/
+INCARNATION_CONFLICT categories, without any domain terminal receipt. A possibly
+transmitted credential request whose result is unverified uses
+CREDENTIAL_OUTCOME_UNKNOWN/exit4. Never print the secret HTTP response as an error.
+
+There is no token retrieval or automatic request retry. Lost response, cancellation
+after dispatch, wrong-response binding, local publication/flush failure or missing
+credential file leaves credential delivery unavailable/unknown and preserves
+every submitted board intent. A NEW deliberately confirmed issue may replace
+the possibly issued token using the SAME preexisting enabled G and same actor;
+it mints a new bearer and invalidates any predecessor, never replays grant.create
+or an uncertain board command. Refused/uncertain reissue does not prove an earlier
+bearer absent. If the native owner or original grant is unavailable, reissue stops;
+do not substitute a new grant/actor as a way to settle original uncertainty.
+
+Credentials survive normal server restart in private persistent authentication
+state until absolute expiry/revocation/replacement; restart still invalidates
+browser sessions/codes. Native owner/leaf renewal does not revoke board CLI tokens.
+Credential-file loss is handled by deliberate issue, not recreating a grant.
+An individual token can revoke itself using accepted DELETE /api/v1/session with
+that exact bearer. credential revoke loads G's file and uses that route; a
+private non-secret marker at ROOT/cli/ID/B/I/G.disabled must be flushed/readback
+BEFORE dispatch, disabling ordinary local use while the loaded bearer is used
+only for that revocation request. Marker failure prevents dispatch. A confirmed
+response removes that local credential file, leaving recovery intact. If its
+response is lost, report unknown and retain the disabled marker; never retry a
+board mutation or infer server revocation. A successful new issue atomically
+replaces the file then removes/flushes the disabled marker before reporting local
+availability; before complete success the marker always prevents local use.
+A lost/expired bearer need not be used to revoke it:
+native owner issue invalidates its predecessor. Ledgered grant.revoke additionally
+disables ALL use through G, including sessions and tokens, at transaction admission.
+
+The native owner cannot turn a reissued credential into read-own-outcome authority
+for a different actor. After issue, the original grant actor may reconcile an
+original submission only when its currently enabled grant includes the necessary
+read-own-outcome right and its original B/I/actor/opId/hash all match; other reads
+and operations still need their own current rights. Reissue never rewrites original
+evidence. Missing/expired/inaccessible outcomes remain unknown even with a valid
+new bearer; a restored incarnation's grant/token cannot query the source ledger.
+
+All ledgered grant.create/revoke fingerprints and durable terminal results contain
+only their accepted semantic fields, non-secret grant/actor/result IDs and facts.
+They never contain this bearer, its hash, a native owner secret or login code.
+No secret enters canonical intent, terminal outcomes, activity, immutable recovery
+evidence, exports or source-provenance receipts. A grant command can be COMMITTED
+while subsequent credential delivery is failed/unknown; display both separately.
+
+6b. Native owner administrative outcome lookup: proposed R2 closure
+Explicit policy addition: a CURRENT native owner bearer has read-own-outcome
+authority ONLY for ledgered grant.create/grant.revoke performed by that same
+installation's stable ownerActorId. This limited native entitlement is not a
+general board grant or an inference that grant-admin includes board read. It
+authorizes just the existing operation lookup route, not board/card/history reads,
+export, domain mutation, approval or history administration. Do not add unrestricted
+read-own-outcome to a board grant or create an administrative read bypass.
+
+Use accepted GET /api/v1/boards/B/operations/O with original incarnation,
+fingerprintVersion and fingerprint from immutable evidence. The server resolves
+actor from the current native bearer and requires exact installationId, original
+boardId/incarnation, ownerActorId, opId, fingerprint version/hash and retained
+command grant.create|grant.revoke. Check the native capability's active hash,
+expiry and installation on EVERY lookup. No current grantee bearer, grant table
+entry or visible similar grant substitutes for these conditions. A successful
+grant.revoke remains readable by its native owner even though G is disabled; that
+does not reactivate G. Never authorize another actor's operation or another command
+through this entitlement. Native owner has no general board read from this rule.
+
+Additional exact K02 CLI selection, distinct from ordinary board-credential lookup:
+  localswim [--json] --board B operation read O --evidence FILE --native-owner
+N01 privately loads the active owner bearer; FILE supplies original immutable
+identity/hash, never a bearer or authority. CLI verifies FILE actor=ownerActorId,
+installation/origin/B/I and command=grant.create|grant.revoke before networking;
+server performs independent checks and never trusts that local test as admission.
+This command uses accepted 04 operation envelopes, output/exit rules and never
+the credential envelope above. It is read-only and never resends the mutation.
+
+After native owner expiry, original grant lookup remains unknown/unavailable until
+explicit stopped native owner renew produces a current bearer for the SAME
+ownerActorId/installation. That renewal preserves the original operation's actor,
+fingerprint/preconditions and evidence; resuming lookup cannot grant-create again.
+If current owner authority is expired/replaced/invalid, authentication is denied;
+if actor/fingerprint/target/incarnation mismatches, OPERATION_MISMATCH or unknown
+cannot classify the original outcome. Missing, expired, corrupt or inaccessible
+evidence remains unknown/exit4. An exact retained COMMITTED/NOT_COMMITTED receipt
+alone resolves it. No response or denied current authority is proof of noncommit.
+Issuer/key corruption, unsupported root replacement and fenced native owner-file
+loss retain the earlier explicit recovery stop; they are not repaired by issuing
+a board credential or assigning original evidence to a new administrative actor.
+
+6c. Existing implementation owners and acceptance gates
+This revision proposes the following bounded responsibilities within existing
+owned directories; it executes none. Fresh review and Terry acceptance of D01
+revision 3 is an explicit prerequisite for each affected seam, even where the
+older task DAG did not name D01 directly. Acceptance does not authorize execution
+or bypass the other accepted Q/prerequisite/In Progress gates. If these bounded
+additions exceed a task's one-worker scope, stop and rescope before code.
+
+  N01 / internal/transport/setup/: native owner file/pin/identity loading and
+    same-actor expiry/renewal; expose that native client credential provider.
+  C01 / internal/contract/ and generated boundaries: typed credential wire/CLI
+    descriptors and section 6d selection/rejection rules; no bearer-bearing domain
+    receipt/fingerprint and no credential-selector fields in domain fingerprints.
+  G01 / internal/board/grants/: serialized current-grant credential issue/replace,
+    hash persistence/revocation/admission and narrow native-owner lookup policy.
+  S02 / internal/store/writer/ and outcome/: transaction/terminal-ledger access,
+    original identity checks; preserve the read-only lookup/fencing invariants.
+  T01 / internal/transport/session/ and https/: POST session/cli-credentials,
+    secret no-store response, owner authentication/origin boundary and accepted
+    DELETE session self-revocation. Credential state survives restart; browser
+    sessions/codes do not. No extra grant HTTP adapter is invented.
+  H01 / internal/transport/grantapi/: existing grant.create/revoke adapters return
+    non-secret durable IDs only and do not auto-issue/retrieve a credential.
+  K01 / internal/transport/boardapi/: existing operation GET adapter delegates the
+    narrow native entitlement and exact current-authority checks to G01/S02.
+  K02 / internal/transport/cli/core/ and evidence/: --native-owner operation lookup,
+    N01 provider, ordinary explicit credential selection/validation, original
+    evidence/context checks, accepted outcome/exit4 handling.
+  K03 / internal/transport/cli/admin/: credential issue/revoke, explicit terminal
+    issue confirmation, private publication/disabled-marker handling and separate
+    grant-versus-credential output, interoperable exact selection files for K02;
+    no replay or broader implicit enrollment.
+  P01 / cmd/localswim/: register those existing CLI/session/lookup adapters and
+    test their mounting with the existing grant adapter, without a parallel server.
+    Register section 6d's mandatory selector flags and fail contradictory/missing
+    credential choices before dispatch; no default credential/profile binding.
+
+G01/T01/K01/K02/K03/P01 acceptance tests must cover R1/R2 as applicable. N01 alone
+cannot claim the integrated credential or administrative lookup journey completed.
+
+6d. Ordinary authenticated CLI credential selection: proposed R3 closure
+For every ordinary BOARD-authenticated command in accepted 04/18, require this
+exact prefix, followed by its unchanged command/operands/input flags:
+
+  localswim [--json] --installation ID --board B --incarnation I --grant G COMMAND
+
+Examples:
+  localswim --installation ID --board B --incarnation I --grant G board read
+  localswim --installation ID --board B --incarnation I --grant G card read C
+  localswim --installation ID --board B --incarnation I --grant G card edit C --input FILE
+  localswim --installation ID --board B --incarnation I --grant G operation read O --evidence FILE
+
+COMMAND here denotes the existing accepted board/card/comment/link/attachment,
+export and recovery-administration grammar, not a new command named COMMAND.
+All four selectors are mandatory UUIDs with the existing lowercase canonical
+encoding. They may be ordered among themselves but occur once each, before the
+command; --json may also occur in that prefix. No --actor option exists. This
+explicit prefix extends accepted 04's --board grammar; it selects authentication
+material, not domain authority. Board-mutating input's incarnation must equal I;
+a differing input/route/evidence identity refuses rather than being overwritten.
+
+ID must equal the validated active local installationId, using that installation's
+unchanged origin/issuer pin. Resolve exactly ROOT/cli/ID/B/I/G.json and its exact
+G.disabled marker from section 6a, with no directory enumeration, first/latest
+file choice, default actor, environment choice, profile system or alternate root.
+Validate private ACLs/no reparse, schema, every stored ID/B/I/G binding, origin
+through the installation's fixed connection context and expiry before using it.
+The file's actorId is expected credential metadata, not a caller actor claim.
+Before each invocation's board dispatch, accepted GET /api/v1/session authenticates
+that selected bearer at the pinned origin and returns its server-derived actorId,
+grant scope and rights. Require returned actorId/B/I/G to match the validated file
+and selectors. Server continues independent token/grant/current-right checks on
+the actual read/mutation/lookup; session preflight cannot authorize a later race.
+
+Missing any selector is CREDENTIAL_SELECTION_REQUIRED before loading a credential,
+even if only one file exists; two available actors are never implicitly resolved.
+Repeated selector flags or --native-owner combined with any ordinary-only
+--installation/--incarnation/--grant selector are INVOCATION_OR_IO before networking.
+A missing file is CREDENTIAL_UNAVAILABLE;
+unreadable/unsafe/malformed material is CREDENTIAL_UNAVAILABLE or
+UNSAFE_LOCAL_MATERIAL as applicable. An expired file is CREDENTIAL_EXPIRED; a
+G.disabled marker is CREDENTIAL_DISABLED. A mismatching stored installation/B/I/G
+or returned session actor/scope is CREDENTIAL_CONTEXT_MISMATCH. Refuse new board
+dispatch with these visible errors (exit2 for missing/expired/disabled/mismatch,
+exit1 for invocation/local IO, exit3 for unavailable storage/connection). Never
+remove the marker, issue/reissue a token, switch grant/actor, search another
+incarnation or fall back to native owner as part of handling an error.
+
+Grant disabled/revoked, replaced credential or server-side expiry is an
+authentication/authorization refusal under current rights, even if local metadata
+looked current. Board reads must verify returned board identity/incarnation before
+presenting content as the selected current board; a different incarnation is a
+visible INCARNATION_CONFLICT. No current incarnation is silently adopted. This
+preflight/read refusal proves no unrelated or previously submitted intent outcome.
+
+For ordinary operation read, additionally require selected credential's validated
+AND server-derived actor plus exact installationId/origin/B/I to match the original
+immutable evidence; opId/fingerprint/version and original command/target also stay
+unchanged. Its current grant must supply read-own-outcome at lookup admission.
+Wrong actor/context, missing selector, expired/disabled/unavailable credential,
+denied current right, missing/mismatching original receipt or any failed lookup
+leaves the ORIGINAL submitted outcome unknown/exit4, with the concrete diagnostic.
+Do not rewrite evidence to match the selected grant, search another actor or use
+a credential from another installation/incarnation. Lookup never resends intent.
+Only an exact retained terminal receipt can resolve the original uncertainty.
+
+The separate --native-owner operation-read grammar in 6b selects only its narrow
+administrative entitlement and has no --installation/--incarnation/--grant flags;
+its original context is fixed by evidence and the current native installation.
+The local setup commands, native-owner grant administration, credential issue/
+revoke and session-code bootstrap retain their explicit special authentication
+contracts, and offline restore/status require no board credential. They are not
+fallbacks for an ordinary command. C01/K02/K03/P01 ownership is specified in 6c;
+no affected consumer may code this proposed policy before current D01 acceptance.
+
+7. Immutable recovery context and source uncertainty
+Setup never reads, clears, edits, rekeys, submits or classifies client evidence.
+Every submitted record retains original installationId AND exact origin plus
+boardId/incarnation/actorId/opId, fingerprint version/hash, target, content and
+preconditions from 04/05/18. Renewal changes only connection certificate material;
+it cannot alter that original identity. Reauthentication must bind the same actor,
+installation, board and incarnation, use current rights and lookup the original
+fingerprint. Absence, expiry, denial or mismatch remains unknown. Never replay.
+
+Changed root/hostname/port, a newly initialized installation or separately restored
+incarnation does not adopt old records. Do not find a similar board by title or
+use archived source outcomes as live proof. Inability to connect to the original
+issuer/origin leaves original-source uncertainty visible. A confirmed setup or
+certificate renewal is no evidence about any board operation's commit status.
+Draft copying into new context, if later authorized, is a deliberate new action;
+immutable submitted evidence is never transformed into editable/retry intent.
+
+8. Status, JSON, errors and exit honesty
+--json writes exactly one envelope plus LF to stdout; diagnostics/prompts go to
+stderr without secrets, usernames, real paths, card prose or token-bearing URLs.
+Human output states setup outcome, installation/origin when known, pending state,
+expiry and required next action. Public fingerprints are allowed; no bearer, PEM
+private key, login code or ownerTokenSha256 is output. Malformed on-disk content
+must not be echoed in diagnostics. Paths use ROOT/GEN/TX symbolic labels only.
+
+Envelope fields are exactly apiVersion:1, scope:"setup", command, outcome,
+result, error. command is init|status|certificate.renew|owner.renew|trust.enroll|
+trust.remove, or null for unparseable invocation; outcome is confirmed|refused|
+unavailable|unknown|failed. error is null or {code,message}; result is null or:
+  state: absent|initialized|pending|invalid
+  changed: boolean
+  installationId: ID|null
+  origin: string|null
+  issuerSha256: SHA256|null
+  issuerExpiresAt: timestamp|null
+  leafExpiresAt: timestamp|null
+  ownerExpiresAt: timestamp|null
+  localMaterial: valid|invalid|unavailable|absent
+  pendingTransaction: UUID|null
+  exclusiveLock: free|busy|unavailable
+  port: {value:integer|null, observation:unchecked|both_bound_then_released}
+  currentUserRoot: present|absent|unavailable|unchecked
+  browserTrust: "unqualified"
+  nextAction: none|initialize|owner_trust_enrollment|renew_leaf|renew_owner|
+              issuer_replacement_decision|stop_server|investigate_pending|
+              repair_decision|inspect_trust_store
+
+These fields are present even when null. state invalid never exposes partially
+validated identity; use nulls. status reports absent with localMaterial absent,
+or initialized only after complete validation; pending can have a valid active
+identity. It reads local store membership when identity validates, otherwise
+unchecked; store access failure is unavailable, not absent. expiry is not damage:
+initialized can need renew_leaf/renew_owner/issuer_replacement_decision. status
+does not check server health, available port, browser trust or board availability.
+Use issuer_replacement_decision when issuer validity remaining is <86400 seconds,
+renew_leaf when leaf remaining is <=7*86400 seconds, and renew_owner when owner
+expiry is <=observation time. A future notBefore is a visible time-validity refusal
+for connection/use; status reports repair_decision and never moves system time.
+If several actions apply, choose repair/pending first, issuer replacement second,
+leaf third, owner fourth, trust last. Show other issues in human diagnostics.
+
+Exit/outcome contract:
+  0 confirmed: status observation completed, valid init no-op or fully readback
+    publication/store membership. Status 0 does not mean service/browser ready.
+  1 failed: invocation/local IO failure with no possible publication/store effect.
+  2 refused: rejected configuration/identity/confirmation/ACL/conflict/unsupported
+    format or validity policy; no possible new publication/store effect.
+  3 unavailable: lock, OS capability, port or store unavailable before effects,
+    or status cannot produce a coherent observation; never a health assertion.
+  4 unknown: publication/store effect may have occurred but cannot be verified.
+
+Codes: INVOCATION_OR_IO (1); CONFIG_CONFLICT, IDENTITY_MISMATCH,
+UNSAFE_LOCAL_MATERIAL, UNSUPPORTED_VERSION, CONFIRMATION_REQUIRED,
+CONFIRMATION_REFUSED, ISSUER_REPLACEMENT_REQUIRED (2); INSTALLATION_BUSY,
+PORT_UNAVAILABLE, PLATFORM_UNQUALIFIED, TRUST_STORE_UNAVAILABLE,
+STATUS_UNAVAILABLE (3); SETUP_OUTCOME_UNKNOWN (4). SETUP_RECOVERY_REQUIRED is 2
+only if no publication could have occurred; otherwise 4. A failure after possible
+effect cannot be reduced to 1/2/3 by a misleading exception/HTTP status. Flush
+failure before a final selector attempt preserves a pending candidate and is
+local failed; uncertain final publication is unknown until reconciliation.
+setup status may return confirmed with pending/invalid state when that state was
+coherently observed; the corresponding mutating command still refuses/unknowns.
+These are setup outcomes, never COMMITTED/NOT_COMMITTED board receipts.
+
+9. Concrete future vectors and acceptance evidence
+The following are required synthetic cases, not executed results. N01 unit/fault
+fixtures and later native/browser qualification must retain expected/actual
+observations, platform/pins/source revision and fresh non-author review.
+
+S01 Fresh: empty private ROOT, both loopback families usable, default port free.
+Expect one stable random hostname, port 47443, identity/keys/owner capability,
+confirmed publication; root absent from trust, no board/grant/server/browser.
+init --port 48123 instead fixes 48123; subsequent omitted port retains 48123.
+S02 Repeat: same stored config, even when server holds its port. No new key,
+identity or bearer; result.changed=false. Explicit differing
+port refuses. A typo/duplicate flag is exit1 before any material is created.
+S03 Port: first init can bind IPv4 but IPv6 conflicts, or another process takes
+either port. Refuse 3, retain complete candidate if generated, publish nothing,
+never choose another port. Later actual serve rebind conflict also refuses.
+S04 ACL/material: inherited broad ACE, reparse root, foreign owner, unsupported
+schema, mismatched key/cert, changed manifest or missing owner file. Refuse/fence;
+do not import, repair, rotate, take ownership or print offending secret contents.
+S05 Interrupt: stop after private creation, after candidate flush, before selector,
+after selector and before cleanup. Incomplete candidate requires investigation;
+complete candidate reconciles exact ID/key/token once. Unknown selector remains
+exit4. Reader never combines old manifest with new owner token. Process kill
+helps demonstrate these cases but cannot prove power-loss safety.
+S06 Renewal: leaf near expiry/expired with valid root; same installation/origin/pin
+and actor, new leaf key/hash, old owner bearer unchanged. Invalid/expired issuer
+or missing issuer key stops and asks replacement decision; no reset/new issuer.
+Native owner renewal requires typed terminal confirmation, changes its token
+once, keeps actor, invalidates old owner bearer, preserves board grants/evidence.
+S07 Trust: nonterminal invocation fails before change; wrong ID/hash refuses;
+correct explicit enrollment/removal reads back exact local-user membership;
+repeats are idempotent. Wrong same-name root is untouched. Inherited/machine/
+policy copies and store-access failures never produce a global-untrusted claim.
+S08 TLS/browser: browser profile without trusted root fails, wrong authority/SNI,
+cross-origin/null Origin and unpinned replacement server fail without bypass.
+Native CLI pin succeeds without system trust only when name/chain/time/loopback
+all validate. Browser loopback resolution and actual root adoption require real
+qualified browser evidence, independent of status or documentation.
+S09 Restart/recovery: submit then disconnect, stop/renew/restart/reload/login;
+codes/sessions are invalid, existing CLI credentials retain current-right checks.
+Lookup original immutable context; committed/not_committed alone resolves it.
+New installation/port/issuer/restored incarnation never rekeys or settles old
+submissions, even when visible prose matches. Missing evidence stays unknown.
+S10 Honesty: unavailable status/store/lock, uncertain selector/store write and
+cleanup failure use distinct outcomes. JSON is one versioned secret-free envelope.
+No setup success implies browser readiness, qualified storage or a saved card.
+S11 R1 first issue: grant.create is confirmed with grantId G and no bearer in its
+fingerprint/terminal result. Explicit native-owner credential issue for enabled G
+delivers the only secret response into the private file; public output/evidence
+has no bearer/hash. Native CLI authenticates as G's unchanged actor with exactly
+current rights. Browser-session issuance is a separate action.
+S12 R1 expiry/loss: remove the synthetic local token file or advance beyond its
+30-day expiry, preserving submitted evidence. Current native owner explicitly
+issues again for the SAME enabled G; predecessor token is denied, actor/rights/
+origin/B/I are unchanged. With current read-own-outcome, the new bearer can look
+up that actor's original operation/hash; it never submits it again. A different
+actor's new grant or restored incarnation cannot stand in for the old identity.
+S13 R1 revoked/racing G: credential issuance races ledgered grant.revoke under
+shared admission. If revoke wins, issue refuses; if issue wins, revoke prevents
+any subsequent use. Reissue never enables G or expands automation rights. Normal
+restart preserves CLI credential hashes/expiry while invalidating browser codes/
+sessions. An explicit credential self-revoke disables local use before dispatch;
+lost response stays unknown and does not permit local ordinary token reuse.
+S14 R1 delivery: lose issuance response after token hash persistence, or fail
+local readback/publication/disabled-marker cleanup. Report credential unknown/
+unavailable separately from confirmed grant creation. No token retrieval or
+automatic issue/grant.create retry occurs. A deliberately confirmed NEW issue
+replaces the unknown bearer, then verified private publication allows local use.
+S15 R2 first-grant response loss: native owner ledgered grant.create dispatch
+loses its response. --native-owner operation read uses the original B/I/owner
+actor/opId/hash and current native entitlement; an exact retained terminal receipt
+resolves it. Similar visible grants, grantee credentials and rejected fresh lookup
+requests never establish noncommit or authorize replay.
+S16 R2 expired/renewed owner: original owner token expires before lookup. Lookup
+is unknown/exit4; explicit stopped same-actor native owner renew then restart
+permits only its own grant.create/revoke lookup. Wrong actor/fingerprint/target,
+wrong incarnation, obsolete owner token, unavailable native material or an attempt
+to read another command stays unknown/denied. No board/card/history/export/approve
+access follows, and no original evidence/fingerprint is rewritten.
+S17 R3 two actors: issue credentials for human G1/actor A1 and automation G2/actor
+A2 on the SAME installation/B/I. An ordinary command with no full selector prefix
+refuses before dispatch despite both files being present; duplicate --grant G1 /
+--grant G2 is an invocation error, never first/latest choice. Explicit G1 selects
+only A1's credential; explicit G2 selects only A2's. Server session/admission
+resolves the actor and current rights. Lookup of A1's immutable submitted evidence
+with G2 remains unknown/exit4, without changing evidence, searching G1 or falling
+back to native owner. Deliberate G1 selection plus matching original context and
+current read-own-outcome may resolve an exact retained receipt. Repeat with G1
+expired, missing, disabled, wrong-incarnation and inaccessible: no alternate token
+or native-owner fallback; original outcome stays unknown until properly reconciled.
+
+Qualification assumptions and sources
+RFC 6761 section 6.3 specifies special localhost-name handling [P1]; it does not
+qualify the selected browser/profile/resolver. Microsoft describes current-user
+and machine certificate stores, including combined physical-store views [P2];
+exact writable membership, inherited copies and cache behavior need native checks.
+Windows security descriptors/DACLs govern object access [P3]; merely creating a
+file or being its owner is not evidence its effective ACL meets this contract.
+
+Native evidence must demonstrate private-at-creation ACLs, exclusive dual binds,
+lock exclusion, file flush/readback/publication and interruption reconciliation
+on the pinned Windows/NTFS environment. Browser evidence must demonstrate exact
+hostname/port/origin, local trust action, TLS refusal, session restart and original
+identity recovery. Availability metadata and mocks cannot substitute for it.
+Clock rollback/large skew requires visible certificate-time refusal; no disabled
+time validation. Local issuer signing restrictions, trust-store removal and ACLs
+do not promise hostile same-account security, forensic erasure, global revocation
+or power-loss/eviction immunity. No qualification has been performed by D01.
+
+Architecture references are in v2-architecture/docs/slice01/: 01 acceptance
+examples 1/4/5; 03 Identity / Atomic admission / Fingerprint; 04 Routes / Errors;
+05 Authority / Grants / Private recovery / Interaction; 07 Evidence / Owner
+actions; 18 R1/R2; corrected 09 D01/N01; 20/21 acceptance gates. These public
+documents remain historical authority; this proposal fills only D01's setup seam.
+[P1] https://www.rfc-editor.org/rfc/rfc6761.html#section-6.3
+[P2] https://learn.microsoft.com/en-us/windows/win32/seccrypto/system-store-locations
+[P3] https://learn.microsoft.com/en-us/windows/win32/secauthz/access-control-components
+
+Public MIT FOSS, UTF-8/LF/final newline. Documentary checks and primary-source
+reading only; no product tests/builds, probes, installs, trust changes or grants.

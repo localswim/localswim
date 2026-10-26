@@ -1,0 +1,153 @@
+{
+  "createdAt": "2026-10-25T12:00:00Z",
+  "destination": {
+    "boardId": "00000000-0000-4000-8000-000000000001",
+    "incarnation": "00000000-0000-4000-8000-000000000004"
+  },
+  "failureCode": null,
+  "phase": "published",
+  "receiptVersion": 1,
+  "requestId": "00000000-0000-4000-8000-00000000001f",
+  "result": "complete",
+  "sourceManifest": {
+    "coverage": {
+      "activityFloor": null,
+      "gaps": [
+        {
+          "boardRevision": 4,
+          "class": "outcome_payload",
+          "fromExclusive": null,
+          "origin": {
+            "boardId": "00000000-0000-4000-8000-000000000001",
+            "incarnation": "00000000-0000-4000-8000-000000000002"
+          },
+          "reason": "cleared",
+          "recordedAt": "2026-10-01T00:00:00Z",
+          "throughInclusive": "2026-09-01T00:00:00Z"
+        },
+        {
+          "boardRevision": 4,
+          "class": "history",
+          "fromExclusive": null,
+          "origin": {
+            "boardId": "00000000-0000-4000-8000-000000000001",
+            "incarnation": "00000000-0000-4000-8000-000000000003"
+          },
+          "reason": "cleared",
+          "recordedAt": "2026-10-01T00:00:00Z",
+          "throughInclusive": "2026-09-01T00:00:00Z"
+        },
+        {
+          "boardRevision": 2,
+          "class": "outcome_payload",
+          "fromExclusive": null,
+          "origin": {
+            "boardId": "00000000-0000-4000-8000-000000000001",
+            "incarnation": "00000000-0000-4000-8000-000000000003"
+          },
+          "reason": "expired",
+          "recordedAt": "2026-10-01T00:00:00Z",
+          "throughInclusive": "2026-09-01T00:00:00Z"
+        }
+      ],
+      "historyFloor": null,
+      "outcomePayloadFloor": null
+    },
+    "exportedAt": "2026-10-25T12:00:00Z",
+    "formatVersion": 1,
+    "hashAlgorithm": "sha256",
+    "inventory": [
+      {
+        "byteLength": 870,
+        "path": "activity.json",
+        "sha256": "a2f66e252f997c2790a1cd6bbbb32cbb2de6230f1585f298c22f02bfbf7981f3"
+      },
+      {
+        "byteLength": 10,
+        "path": "blobs/sha256-4ac9c84a00cf5c569835430fd5e4cb1a782d70806ee741822d600498b7460671",
+        "sha256": "4ac9c84a00cf5c569835430fd5e4cb1a782d70806ee741822d600498b7460671"
+      },
+      {
+        "byteLength": 0,
+        "path": "blobs/sha256-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "byteLength": 4155,
+        "path": "board.json",
+        "sha256": "104c475ac73c6dab0a9874e241bdd3286a07689df225bf317223f693f3bed32f"
+      },
+      {
+        "byteLength": 2362,
+        "path": "history.json",
+        "sha256": "38452f5160832c2219ad29ff1c7d34679a3bb22db99cb20b6388ac17b9269c82"
+      },
+      {
+        "byteLength": 7809,
+        "path": "outcomes.json",
+        "sha256": "6af65668c4d7a7f15fd67efa24efb2245059d0166c9ff93db94e1f2b79a8da0e"
+      }
+    ],
+    "lineage": [
+      {
+        "identity": {
+          "boardId": "00000000-0000-4000-8000-000000000001",
+          "incarnation": "00000000-0000-4000-8000-000000000003"
+        },
+        "manifestSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "revision": 2
+      }
+    ],
+    "retention": {
+      "activityDays": 365,
+      "historyDays": 90,
+      "outcomeDays": 180
+    },
+    "retentionVersion": 1,
+    "revision": 5,
+    "schemaVersion": 1,
+    "source": {
+      "boardId": "00000000-0000-4000-8000-000000000001",
+      "incarnation": "00000000-0000-4000-8000-000000000002"
+    }
+  },
+  "sourceManifestSha256": "dc7c2877a4a1777bf8cd4eb85a95115f6e53774e2b6df51317adf37a59fb430a",
+  "targetInventory": {
+    "entries": [
+      {
+        "byteLength": 870,
+        "path": "activity.json",
+        "sha256": "98d94ff739a33b5d3f06befe4f09bd36ed16fa1fa73bc8fd82a5d7f227e88461"
+      },
+      {
+        "byteLength": 10,
+        "path": "blobs/sha256-4ac9c84a00cf5c569835430fd5e4cb1a782d70806ee741822d600498b7460671",
+        "sha256": "4ac9c84a00cf5c569835430fd5e4cb1a782d70806ee741822d600498b7460671"
+      },
+      {
+        "byteLength": 0,
+        "path": "blobs/sha256-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "byteLength": 4155,
+        "path": "board.json",
+        "sha256": "5e39c2ab12c9777ca27c40e46e093b5cb9dee7cdfd63aa630055970feda24769"
+      },
+      {
+        "byteLength": 2362,
+        "path": "history.json",
+        "sha256": "fb09835d740b222a4f8531ce44e2c54bead36eb6a5af88e10dede8730918a80b"
+      },
+      {
+        "byteLength": 8743,
+        "path": "outcomes.json",
+        "sha256": "172a7e94ddb06d771a6bc9cc184b35010007bbe8511dd238e035886112c667f8"
+      }
+    ],
+    "entryCount": 6,
+    "schemaVersion": 1,
+    "sha256": "332aaf49df9098a9194ec702f30d282e79b1f4e203856448713c231375dc398e"
+  },
+  "updatedAt": "2026-10-25T12:00:00Z"
+}

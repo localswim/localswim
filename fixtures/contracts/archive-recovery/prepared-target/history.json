@@ -1,0 +1,86 @@
+{
+  "identity": {
+    "boardId": "00000000-0000-4000-8000-000000000001",
+    "incarnation": "00000000-0000-4000-8000-000000000004"
+  },
+  "records": [
+    {
+      "actorId": "00000000-0000-4000-8000-00000000000a",
+      "cardId": "00000000-0000-4000-8000-00000000000b",
+      "cardRevision": 3,
+      "committedAt": "2026-09-02T00:00:00Z",
+      "origin": {
+        "boardId": "00000000-0000-4000-8000-000000000001",
+        "incarnation": "00000000-0000-4000-8000-000000000002"
+      },
+      "references": {
+        "approvalIds": [],
+        "attachmentIds": [
+          "00000000-0000-4000-8000-00000000000e"
+        ],
+        "commentIds": [
+          "00000000-0000-4000-8000-00000000000c"
+        ],
+        "linkIds": []
+      },
+      "removal": null,
+      "state": {
+        "archived": false,
+        "currentApprovalId": null,
+        "description": "First draft",
+        "lane": "Ready for Work",
+        "priority": "P3",
+        "ticket": 1,
+        "title": "Alpha 雪"
+      }
+    },
+    {
+      "actorId": "00000000-0000-4000-8000-00000000000a",
+      "cardId": "00000000-0000-4000-8000-00000000000b",
+      "cardRevision": 1,
+      "committedAt": "2026-09-01T00:00:00Z",
+      "origin": {
+        "boardId": "00000000-0000-4000-8000-000000000001",
+        "incarnation": "00000000-0000-4000-8000-000000000003"
+      },
+      "references": {
+        "approvalIds": [],
+        "attachmentIds": [],
+        "commentIds": [],
+        "linkIds": []
+      },
+      "removal": {
+        "boardRevision": 4,
+        "reason": "cleared",
+        "removedAt": "2026-10-01T00:00:00Z"
+      },
+      "state": null
+    },
+    {
+      "actorId": "00000000-0000-4000-8000-00000000000a",
+      "cardId": "00000000-0000-4000-8000-00000000000b",
+      "cardRevision": 2,
+      "committedAt": "2026-09-01T00:00:00Z",
+      "origin": {
+        "boardId": "00000000-0000-4000-8000-000000000001",
+        "incarnation": "00000000-0000-4000-8000-000000000003"
+      },
+      "references": {
+        "approvalIds": [],
+        "attachmentIds": [],
+        "commentIds": [
+          "00000000-0000-4000-8000-00000000000c"
+        ],
+        "linkIds": []
+      },
+      "removal": {
+        "boardRevision": 4,
+        "reason": "cleared",
+        "removedAt": "2026-10-01T00:00:00Z"
+      },
+      "state": null
+    }
+  ],
+  "revision": 5,
+  "schemaVersion": 1
+}

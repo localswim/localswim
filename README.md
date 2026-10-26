@@ -57,6 +57,9 @@ release qualification remain separate work.
 - [Grant admission foundation](internal/board/grants/README.txt) and
   [independent review](docs/reviews/g01-grant-admission-review.txt), with an
   [owner attribution proposal](docs/decisions/native-owner-attribution-bootstrap-proposal-2026-10-26.txt).
+- [Durable credential and native-owner service](internal/board/credentials/README.txt)
+  and [independent review](docs/reviews/g02-credential-service-review.txt), including
+  explicit first-owner attribution and current credential verification.
 - [Native setup/lifecycle core](internal/transport/setup/README.txt) and
   [independent review](docs/reviews/n01-native-setup-review.txt).
 - [Proposed public transport encodings](docs/contracts/transport-envelopes.txt)
@@ -80,7 +83,9 @@ These libraries do not yet constitute the integrated application or complete
 service/CLI/bootstrap/browser/recovery qualification.
 
 The [credential decomposition](docs/decisions/credential-admission-decomposition-2026-10-26.txt)
-retains the real credential service as G02 after its private persistence provider
-and owner-accepted attribution proposal. A verifier interface alone is not
-completed authentication. The new physical layout 2 rejects layout 1 without
-migration; logical API/archive versions remain 1.
+records the G01/S04/G02 boundaries. The
+[credential composition](docs/decisions/credential-service-composition-2026-10-26.txt)
+records G02's service and its native lease ownership. HTTP/browser delivery,
+terminal confirmation/private files and integrated qualification remain separate
+consumer work. Physical layout 2 rejects layout 1 without migration; logical
+API/archive versions remain 1.

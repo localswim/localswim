@@ -124,7 +124,7 @@ func TestTitleUnicodeScalarAudit(t *testing.T) {
 }
 
 func TestPhysicalLayoutTwoRefusedWithoutWrites(t *testing.T) {
-	// Undo only this unreleased correction to build the preceding exact layout.
+	// Undo the Unicode correction in the preserved physical layout-3 DDL.
 	// Neither Existing nor any production path translates an existing database.
 	p := privateDir(t)
 	g, err := acquirePath(p, true)
@@ -146,7 +146,7 @@ func TestPhysicalLayoutTwoRefusedWithoutWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	execute(t, c, "BEGIN IMMEDIATE")
-	for _, statement := range schema.Statements() {
+	for _, statement := range physicalThreeStatements(t) {
 		statement = strings.ReplaceAll(statement, "schema_version INTEGER NOT NULL DEFAULT 3 CHECK(schema_version=3)", "schema_version INTEGER NOT NULL DEFAULT 2 CHECK(schema_version=2)")
 		statement = previousTitleLength(statement)
 		execute(t, c, statement)
@@ -158,6 +158,7 @@ func TestPhysicalLayoutTwoRefusedWithoutWrites(t *testing.T) {
 	c.Close()
 	db.Close()
 	g.close()
+	filesBefore := legacyFiles(t, p)
 	before, err := os.ReadFile(filepath.Join(p, "board.sqlite"))
 	if err != nil {
 		t.Fatal(err)
@@ -182,6 +183,9 @@ func TestPhysicalLayoutTwoRefusedWithoutWrites(t *testing.T) {
 	}
 	if sha256.Sum256(before) != sha256.Sum256(after) || !reflect.DeepEqual(inventory, afterInventory) {
 		t.Fatal("layout two refusal changed bytes or directory inventory")
+	}
+	if !reflect.DeepEqual(filesBefore, legacyFiles(t, p)) {
+		t.Fatal("layout two refusal changed a file")
 	}
 }
 

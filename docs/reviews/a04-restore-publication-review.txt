@@ -1,0 +1,82 @@
+A04 separate restore/publication independent review
+2026-10-26 | Revision 2 | PASS
+
+Outcome
+- No open findings in the reviewed separate native library boundary. The initial
+  status-repair finding is resolved; its original report remains preserved in
+  a04-restore-publication-review-r1-findings.txt.
+- Whole A03 validation precedes construction and the first receipt. Restore uses
+  a fresh incarnation, preserves logical IDs/revisions/provenance/fingerprints,
+  remaps current storage references/internal CardRefs, and isolates inherited
+  outcomes from the empty destination current ledger and active authority tables.
+- Independent expected logical documents agree byte-for-byte with actual native
+  projection. The receipt anchors the exact sorted four-document/protected-BLOB
+  inventory, count and aggregate hash. Source-manifest identity/hash remains
+  distinct; post-publication native validation is required before completion.
+
+Physical parity and observation
+- Approved physical layout 4 retains declared inherited groups, including empty
+  groups, independently of lineage. Projection uses their union with actual
+  non-current operation origins. Nested restore/export preserves separate groups;
+  an empty current ledger does not manufacture a new source group.
+- Coverage retains all distinct complete tuples, including fromExclusive,
+  recordedAt and revision 0. Null-safe uniqueness rejects only exact duplicates.
+  Native expiry and retention.set followed by authenticated export and a later-
+  second restore preserve both the original gap and derived source-floor gap.
+- Logical archive/API/fingerprint/receipt versions remain 1. Physical layouts
+  1/2/3 refuse without migration or changed fixture bytes/inventories.
+- Existing-only InspectExisting holds real native read-access file pins and
+  exclusive ownership, audits schema/settings in an actual mode=ro/query_only
+  transaction, and exposes a lifetime-bounded SELECT facet. Cleanup closes rows
+  and rolls back without a live-export pin registry, writer checkout or BLOB GC.
+- Original orphan regression now stays unknown on repetition with all evidence
+  retained. Valid, malformed, tampered, incomplete, missing-lock, sidecar and
+  cancelled status cases preserve complete file inventories and bytes. Missing
+  operational files are never recreated; activation makes offline checking
+  inapplicable and returns unknown.
+
+Native ownership and conclusions
+- Private request-qualified sibling ownership spans construction, no-overwrite
+  NTFS rename and final validation. The descendant root guard closes only under
+  that lease, then reopens with native file identity checks. Independent child
+  processes cannot enter on either side of publication.
+- Source files remain unchanged. Existing destinations, competing rename targets,
+  overlap, unsupported aliases, reparse traversal, hardlinks and invalid ACLs
+  refuse. The trusted adapter must supply every known protected live/source root.
+- Only validated complete final evidence confirms/0. Verified pre-publication
+  failure yields failed/1; incomplete, inaccessible, corrupt, conflicting or
+  uncertain evidence stays unknown/4. Interruption and flush/rename uncertainty
+  cannot manufacture completion; later output failure cannot downgrade completion.
+- Historical receipts, actor labels and rights confer no destination authority.
+  Source-authority lookup remains unavailable. Fresh human bootstrap and later
+  activation remain separate explicit owner actions.
+
+Independent verification
+- Go 1.27.3 Windows/amd64, CGO=0, local toolchain, readonly modules and frozen
+  offline cache; each command used a fresh retained source snapshot/runtime/log.
+- Current archive/store suite: 124 top-level passes, 307 including subtests/seeds,
+  seven packages with tests, zero failures/skips. Archive/store vet passed.
+- Original mutation probe: one pass. Additional independent publication probes:
+  three top-level passes, including 13 candidate classes checked twice, complete
+  transform/anchor comparison, and child exclusion before/after rename.
+- Additional independent inspection probes: two passes covering URI-escaped path
+  selection, actual DeleteFile exclusion, forbidden SQL, panic cleanup, expired
+  rows/facets and cancellation. All six independent top-level probes passed.
+- The 35-file combined freeze plus root README/composition decision stayed stable;
+  accepted provider sources match the recorded baseline. Public text format and
+  exact source/provider/report hashes are recorded in private review evidence.
+
+Retained attempts and limits
+- An initial combined review run had one harness failure: its A03 fixture parent
+  was absent. Its log/runtime/source remain retained; a fresh corrected run passed.
+  Initial status-mutation failure and rejected attribute-only handoff evidence
+  remain historical. Early unsnapshotted source trees are not reconstructed or
+  represented as original snapshots. No failed attempt was overwritten as passing.
+- Synthetic native fault injection is evidence for the tested boundaries, not
+  arbitrary reboot/power-loss safety. Full product dispatch/root qualification,
+  executable composition and sustained fuzzing remain later work.
+- No live board, real credential/grant, trust, installation, listener, UI,
+  dependency install, migration or activation was used. Same-account hostile
+  modification and administrator access remain outside the private ACL boundary.
+
+Primary integration and Terry's owner-controlled acceptance remain separate.

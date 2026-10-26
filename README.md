@@ -75,6 +75,9 @@ release qualification remain separate work.
   and [independent review](docs/reviews/a02-export-snapshot-review.txt).
 - [Offline archive validation](internal/archive/validate/README.txt) and
   [independent review](docs/reviews/a03-offline-package-review.txt).
+- [Separate native restore and status](internal/archive/restore/README.txt),
+  [publication guards](internal/archive/publication/README.txt) and
+  [independent review](docs/reviews/a04-restore-publication-review.txt).
 - [HTTP export delivery](internal/transport/exportapi/README.txt) and
   [independent review](docs/reviews/h02-http-export-review.txt).
 - [Board, history, lookup and recovery HTTP adapters](internal/transport/boardapi/README.txt)
@@ -88,6 +91,9 @@ release qualification remain separate work.
 - [Board forms and request outcomes](web/src/board/README.txt) and
   [independent review](docs/reviews/w02-board-interaction-review.txt), with
   [archive/client evidence boundaries](docs/decisions/archive-client-evidence-composition-2026-10-26.txt).
+- [Recovery, session and archive controls](web/src/recovery-ui/README.txt) and
+  [independent review](docs/reviews/w03-recovery-attachment-review.txt), with
+  [restore and recovery UI boundaries](docs/decisions/restore-recovery-ui-composition-2026-10-26.txt).
 - [Grant HTTP adapters](internal/transport/grantapi/README.txt) and
   [independent review](docs/reviews/h01-grant-http-review.txt), using the
   [shared provider facades](docs/decisions/workflow-grant-provider-facades-2026-10-26.txt).
@@ -121,6 +127,7 @@ records the G01/S04/G02 boundaries. The
 [credential composition](docs/decisions/credential-service-composition-2026-10-26.txt)
 records G02's service and its native lease ownership. HTTP/browser delivery,
 terminal confirmation/private files and integrated qualification remain separate
-consumer work. Physical layout 3 includes the accepted-Unicode title constraint
-correction and rejects older layouts without migration; logical
-API/archive versions remain 1.
+consumer work. Physical layout 4 retains the accepted-Unicode title constraint
+correction and adds exact inherited outcome-group and recovery-gap representation.
+Older physical layouts are refused without migration; logical API/archive versions
+remain 1.

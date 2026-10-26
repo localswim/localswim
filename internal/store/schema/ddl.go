@@ -6,7 +6,7 @@ const ddl = `CREATE TABLE board (
  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
  board_id TEXT NOT NULL CHECK({{u:board_id}}),
  incarnation TEXT NOT NULL UNIQUE CHECK({{u:incarnation}}),
- schema_version INTEGER NOT NULL DEFAULT 3 CHECK(schema_version=3),
+ schema_version INTEGER NOT NULL DEFAULT 4 CHECK(schema_version=4),
  revision INTEGER NOT NULL DEFAULT 0 CHECK({{n:revision}}),
  next_ticket INTEGER NOT NULL DEFAULT 1 CHECK({{p:next_ticket}}),
  next_event INTEGER NOT NULL DEFAULT 1 CHECK({{p:next_event}}),
@@ -229,12 +229,14 @@ CREATE TABLE activity (
  FOREIGN KEY(incarnation,actor_id) REFERENCES actor(incarnation,actor_id), CHECK((op_id IS NULL)=(type='recovery.expire'))
 ) STRICT;
 CREATE TABLE coverage_gap (
+ gap_id INTEGER PRIMARY KEY,
  incarnation TEXT NOT NULL REFERENCES board(incarnation), origin_board TEXT NOT NULL CHECK({{u:origin_board}}), origin_incarnation TEXT NOT NULL CHECK({{u:origin_incarnation}}),
  class TEXT NOT NULL CHECK(class IN ('history','activity','outcome_payload')), reason TEXT NOT NULL CHECK(reason IN ('cleared','expired')),
  from_exclusive TEXT CHECK(from_exclusive IS NULL OR {{t:from_exclusive}}), through_inclusive TEXT NOT NULL CHECK({{t:through_inclusive}}),
- recorded_at TEXT NOT NULL CHECK({{t:recorded_at}}), board_revision INTEGER NOT NULL CHECK({{p:board_revision}}),
- PRIMARY KEY(incarnation,origin_board,origin_incarnation,class,reason,through_inclusive,board_revision), CHECK(from_exclusive IS NULL OR from_exclusive<=through_inclusive)
+ recorded_at TEXT NOT NULL CHECK({{t:recorded_at}}), board_revision INTEGER NOT NULL CHECK({{n:board_revision}}),
+ CHECK(from_exclusive IS NULL OR from_exclusive<=through_inclusive)
 ) STRICT;
+CREATE UNIQUE INDEX coverage_gap_complete_tuple ON coverage_gap(incarnation,origin_board,origin_incarnation,class,reason,coalesce(from_exclusive,''),through_inclusive,recorded_at,board_revision);
 CREATE TABLE recovery_preview (
  incarnation TEXT NOT NULL REFERENCES board(incarnation), preview_hash TEXT NOT NULL CHECK({{h:preview_hash}}), actor_id TEXT NOT NULL,
  expected_revision INTEGER NOT NULL CHECK({{n:expected_revision}}), retention_version INTEGER NOT NULL CHECK({{p:retention_version}}),
@@ -243,6 +245,13 @@ CREATE TABLE recovery_preview (
  PRIMARY KEY(incarnation,preview_hash), FOREIGN KEY(incarnation,actor_id) REFERENCES actor(incarnation,actor_id),
  CHECK(unixepoch(expires_at)-unixepoch(previewed_at)=300)
 ) STRICT;
+CREATE TABLE source_archive_group (
+ incarnation TEXT NOT NULL REFERENCES board(incarnation), origin_board TEXT NOT NULL CHECK({{u:origin_board}}), origin_incarnation TEXT NOT NULL CHECK({{u:origin_incarnation}}),
+ PRIMARY KEY(incarnation,origin_board,origin_incarnation)
+) STRICT;
+CREATE TRIGGER source_archive_group_origin BEFORE INSERT ON source_archive_group BEGIN SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM board WHERE incarnation=NEW.incarnation AND board_id=NEW.origin_board AND incarnation<>NEW.origin_incarnation) THEN RAISE(ABORT,'source archive group identity mismatch') END; END;
+CREATE TRIGGER source_archive_group_immutable BEFORE UPDATE ON source_archive_group BEGIN SELECT RAISE(ABORT,'source archive group identity is immutable'); END;
+CREATE TRIGGER source_archive_group_retained BEFORE DELETE ON source_archive_group BEGIN SELECT RAISE(ABORT,'source archive group identity is retained'); END;
 CREATE TABLE lineage (
  incarnation TEXT NOT NULL REFERENCES board(incarnation), source_board TEXT NOT NULL CHECK({{u:source_board}}), source_incarnation TEXT NOT NULL CHECK({{u:source_incarnation}}),
  manifest_sha256 TEXT NOT NULL CHECK({{h:manifest_sha256}}), revision INTEGER NOT NULL CHECK({{n:revision}}),

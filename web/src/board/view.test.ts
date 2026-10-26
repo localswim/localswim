@@ -5,14 +5,14 @@ import { prepare } from "../api/boundary";
 import type { BoardCommand } from "../api/boundary";
 import { BoardView } from "./view";
 
-export async function mountSyntheticBoard(boardInput: BoardRead, sessionInput: SessionRead, qualified = true) {
+export async function mountSyntheticBoard(boardInput: BoardRead, sessionInput: SessionRead, qualified = true, databaseName = "w02-test-" + crypto.randomUUID()) {
   const board = structuredClone(boardInput), session = structuredClone(sessionInput);
   const auth: SessionRead = { ...session, grant: { ...sessionInput.grant, rights: ["approve", "comment", "create", "edit", "read", "read-own-outcome", "review-handoff"] } };
   const installationId = "00000000-0000-4000-8000-000000000090";
   const state = { mode: "commit", mutations: 0, lookups: 0, releases: [] as (() => void)[], wire: [] as string[], readUnavailable: false, terminals: new Map<string, Terminal>() };
   const client = await BoardClient.open({ installationId, profileId: "synthetic-only", credential: () => "synthetic-ephemeral-token",
     ...(qualified ? { qualification: { installationId, profileId: "synthetic-only", strictDurabilityQualified: true as const, evidenceReference: "synthetic browser component test only" } } : {}),
-    databaseName: "w02-test-" + crypto.randomUUID(),
+    databaseName,
     fetch: (async (url, init) => {
       const path = String(url), json = (value: unknown, status = 200): Response => new Response(JSON.stringify(value), { status });
       if (path === "/api/v1/session") return json(auth);

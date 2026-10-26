@@ -1,0 +1,66 @@
+W03 RECOVERY, SESSION AND ATTACHMENT INDEPENDENT REVIEW
+2026-10-26 | Revision 1 | CHANGES REQUIRED
+
+Outcome
+- One open material finding: W03-R1-01.
+- All-private recovery discard can report success before a previously queued
+  sibling editor write resumes and recreates private recovery. RecoveryView
+  awaits only its own queue; composed admin, attachment and board editors retain
+  separate pending persistence. The independent actual DOM/IndexedDB reproduction
+  holds completion of one durable admin save, queues a second pre-clear edit,
+  completes all-private discard, then releases the old save. One draft reappears.
+
+Required correction
+- Drain or invalidate pre-clear writes across composed editor queues before
+  reporting all-private discard success. Cancel pre-clear late private views.
+- Preserve visible input, original identity, immutable submission evidence and
+  deliberately new post-clear edits. Re-review the corrected combined source.
+
+Verification
+- Fresh source-only strict compilation passed: Node 24.20.0, TypeScript 7.0.2.
+- Independently reran 223 API assertions, all 15 W02 regressions and all 24 W03
+  author scenarios using actual DOM/IndexedDB in headless Chrome 155.0.8059.86.
+- Independent adversarial probes: 14 passed, one failed as described above.
+  Checks cover default qualification refusal, complete durable readback,
+  credential replacement while pending, raw-byte/caller snapshot isolation,
+  HTTP error terminal uncertainty, original actor lookup, exchange epochs,
+  immutable download facts, binary headers/body/hash and trusted export bounds.
+- All 105 selected schema definitions/transitive references exactly match the
+  accepted generated logical schema; all original 68 definitions are unchanged.
+- Seventy-three accepted provider source files match tracked base 70f87b4.
+  Active A04 physical-layout correction files are excluded from this baseline.
+- All 16 frozen W03 files and the parent composition documents were hash-bound.
+
+Evidence integrity
+- Every current compile/runtime used a new private source snapshot and fresh
+  output tree. Altered historical W02 compiled trees were not used.
+- The disclosed W03 API runtime incident does not prove historical compiled
+  byte identity; reconstructed outputs are not treated as historical evidence.
+- Initial source, probes, failed result and detailed private findings are retained.
+
+Limits
+- Synthetic route-fulfilled HTTPS component evidence with real DOM/IndexedDB.
+- No product-profile qualification, real TLS/backend/CLI interoperability,
+  native durability/power-loss, eviction, trust, real board or credential claim.
+- Export trusts the authenticated H02 complete body; offers bytes only. No
+  browser archive-domain validator, restore, path, receipt or verified-save claim.
+
+Reviewed source SHA-256
+web/src/api/boundary.test.ts 6032c08252faaac6771afe997363006815f305fa85733def128268cc1b300669
+web/src/api/boundary.ts dbab880a313f186131a63fc693028c9667d56b0b5d05b7f424f227b837179740
+web/src/api/client.ts 5a9110cdc4649fe70168a21ec33b9172200d6d2ccf2baa7688844f42e4bec7fb
+web/src/api/README.txt c7948f1825b7a37393b37b3a39ecf5627d05e536d8a3cd9b358c5634ee6adf43
+web/src/api/schema-data.ts 3049421bc37947e5e0a3c268c760ffeee1ee59ef2eccad43a7bb73d5341f2347
+web/src/api/w03-client.test.ts 6b3d649441311437387071a3ab4dd949c7954137df491eb22b521ed650b5eb8e
+web/src/api/w03-session.ts 32e7b3e86dfbb15f863ae76de1a35d92dd771fcd94619bcb2bfb891034fc3db6
+web/src/archive-ui/README.txt c0873b58aa6fa8b387285013f911f98837fdee116c2ee1c735254cafc0356571
+web/src/archive-ui/view.ts 27d98f1daf9092a240805b26bd7c16c247e527f1111e57ced10e8ef43e61a120
+web/src/board/view.ts 68a8b071051b3659c6c19e626f5c8e97fc058d5386f96c6a9d6b2dc379074ad0
+web/src/recovery-ui/admin.ts 5189ad8a30710237518b9c2f215122840dfd7aea6df2acfa952102ff4973ed82
+web/src/recovery-ui/README.txt cb18f93ea74adaa5fa603c1a52088255468bc0228fa9af47b4957a53b5632da4
+web/src/recovery-ui/view.ts 2d92dffe71f6730d08e76ed34d3d6eedf27903725d6603b1c68041f6a73145f4
+web/src/session-ui/README.txt ce49560b6e6829abaf142cb95b9fc0402778f2ff21054c5ef6c7f3d8d8f9e6f9
+web/src/session-ui/view.ts 152ebf6d23c168bdc9f3ffcb1fa1e18553ec4f85056bd12eb85957c1dde4b783
+web/src/session-ui/workspace.ts ef10d0214a13eaef5bf5639602ea0ea23c7c5fe16cd32410ac0b07b8931d2d40
+README.md 48d836f1ca43f4a23d074e4b7a52fcd0ed9c1a635858d03fd36ccac8c0577382
+docs/decisions/restore-recovery-ui-composition-2026-10-26.txt 65e85ee58916f3c5e1471e83d1f6b4d6c28a333076663451de31e7707129e90e

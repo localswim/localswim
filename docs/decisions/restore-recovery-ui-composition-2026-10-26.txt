@@ -1,0 +1,63 @@
+SEPARATE RESTORE AND RECOVERY UI COMPOSITION
+2026-10-26 | A04/W03 | Accepted contract follow-through
+
+A04 validates a whole untrusted package before native destination construction.
+It preserves logical IDs, revisions and historical provenance while allocating a
+fresh incarnation and isolating inherited operations from the new current ledger.
+No grant, credential, session or native ownership capability is restored. Fresh
+human bootstrap and later activation remain separate explicit actions.
+
+The receipt stays at NEWDIR/restore-receipt.json; physical SQLite files live in
+NEWDIR/data/. This preserves the exact receipt location and the existing S01 data
+directory inventory. Private request-qualified sibling ownership spans candidate
+construction, no-overwrite rename and post-publication validation. The descendant
+root guard is released for Windows rename only while that sibling lease remains
+held, then reopened at the final location. Status opens existing guards only;
+missing material, corruption, inaccessible or ambiguous candidates remain unknown.
+
+The bounded offline projection facade supplies SELECT-only logical rows to an
+already exclusively owned native reader transaction. It supplies no online export
+permission or transform proof. Ordinary A02 export still requires current G01
+read/export authority in its actual pinned snapshot. Restore independently checks
+the source-to-target transform and exact prepared logical inventory before fixing
+the receipt anchor; status rechecks the complete anchor without repair or replay.
+No receipt or process-interruption test proves native power-loss durability.
+
+Physical layout 4 parity correction
+
+The approved correction preserves explicit inherited source-outcome group identity
+independently of operation rows or lineage, including empty groups. Projection
+uses the union of declared groups and actual non-current operation origins; it
+never invents a lineage hash or group. The private recovery-gap key now retains
+every distinct complete D02 tuple, including fromExclusive and recordedAt, with
+null-safe exact uniqueness. Converting a retained expiry floor therefore preserves
+both the earlier native gap and the new source-floor gap when their times differ.
+
+Physical layouts 1, 2 and 3 are refused without writes, migration or adoption.
+Logical archive, API, fingerprint and receipt versions remain 1. No historical
+origin, operation fingerprint, permission, credential or publication rule changes.
+Unsupported scope must still fail before construction rather than discard facts.
+
+W03 composes recovery/session/archive controls with the same W02 client, concrete
+prepared verifier and W01 persistence. Attachment and recovery mutations retain
+their original immutable identity before dispatch and use the same terminal proof
+rules. Logout or revoked authority clears credentials and visible content while
+retaining private recovery. Reauthentication never rekeys old evidence or silently
+applies a retained draft to a newer editor. Local discard and server history clear
+remain distinct explicit actions; unresolved discard requires its own warning.
+Clear-all coordinates queued persistence in the actual origin/database/installation
+domain across live workspace clients, not just one view. Earlier writes are drained
+before success; later deliberate input remains a separate generation.
+
+Human recovery administration checks current read/history-admin authority, exact
+preview identity/revision/hash and immutable expiry before explicit confirmation.
+Attachment bytes are captured and verified against declared digest/length before
+dispatch; download bytes are checked before offering. Export offers a completely
+received trusted H02 body, never a verified local save, path or mutation receipt.
+Browser restore is absent. A public board-view observer reuses existing committed
+receipt staleness logic without replacing input, refreshing bases or taking focus.
+
+Actual DOM/IndexedDB and private native/TLS fixtures qualify their stated component
+behavior only. Product profile qualification, executable composition and native
+activation remain later gates. No real board, credential, human grant or issuer
+trust is changed by this work.

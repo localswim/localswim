@@ -1,0 +1,42 @@
+A04 separate restore/publication independent review
+2026-10-26 | Revision 1 | CHANGES REQUIRED
+
+Scope
+- Review the separate native restore, receipt and status boundary, the offline
+  projection facade and Terry-approved physical-layout-4 parity extension.
+- Logical archive, API, fingerprint and receipt versions remain 1. The extension
+  adds exact inherited group identities and complete null-safe coverage-gap tuples;
+  older physical layouts refuse without migration.
+
+Open finding A04-R1: status repairs a malformed candidate
+- High severity. Status promises observation without database repair or replay.
+- restore/native.go:204 projectStore acquires the S03 export snapshot. Its deferred
+  Close reaches recovery/pins.go:188, which may reclaim unprotected BLOB rows.
+  The projection rejects an unexpected BLOB before returning, but cleanup still
+  deletes that evidence from the retained candidate.
+- A fresh independent native test restored a synthetic authenticated source,
+  added a correctly hashed unprotected BLOB, closed all fixture leases, and hashed
+  the complete destination-parent inventory. First Status returned unknown/4 and
+  changed data/board.sqlite. Repeated Status returned confirmed/0 after repair.
+- Replace the offline verification path with one exclusive caller-owned reader
+  transaction and SELECT-only protected-union/projection checks. Cleanup must not
+  reclaim bytes or mutate a rejected candidate. Preserve online S03 semantics.
+- Add native byte/inventory preservation checks for valid, incomplete, malformed
+  and tampered candidates, including repeated status after an unknown result.
+
+Verification and evidence limits
+- One fresh native Windows/amd64 independent probe ran on Go 1.27.3, CGO=0,
+  local toolchain, readonly modules and frozen offline cache. It failed with the
+  mutation and subsequent false confirmation above; no test skipped.
+- The 30-file combined source freeze plus root documentation remained unchanged
+  during the probe. The original source snapshot, overlay, failing log, exact
+  hashes and synthetic runtime are retained in private review evidence.
+- This report does not complete whole A04 acceptance. Combined provider/consumer
+  qualification must resume after a corrected source freeze, including the
+  existing parity, ownership, inventory, interruption and source-isolation tests.
+- Historical author failed attempts remain historical. Early unsnapshotted source
+  trees are not reconstructed or claimed as original. This review does not infer
+  power-loss safety, full root native qualification, real activation or bootstrap.
+
+No live board, credential, trust, installation, network listener or UI was used.
+Integration and owner-controlled acceptance remain with the primary and Terry.

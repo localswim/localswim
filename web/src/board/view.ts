@@ -4,6 +4,8 @@ import type { BoardCommand, Value } from "../api/boundary";
 import { BoardClient } from "../api/client";
 import type { OriginalOutcome } from "../api/client";
 import type { Context } from "../recovery/types";
+import { recoveryCoordinator } from "../recovery-ui/coordination";
+import type { RecoveryCoordinator } from "../recovery-ui/coordination";
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = ""): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag); node.textContent = text; return node;
@@ -15,7 +17,7 @@ type Editor = {
   id: string; revision: number; command: BoardCommand; context: Context; base: BoardRead;
   card: Card | undefined; fields: Record<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
   form: HTMLFormElement; recovery: HTMLElement; save: HTMLButtonElement; composing: boolean;
-  sequence: number; queue: Promise<void>; submitted: boolean;
+  sequence: number; submitted: boolean;
 };
 
 // DOM-only view. Every prose-bearing field is rendered as inert text.
@@ -35,7 +37,13 @@ export class BoardView {
   private readonly outcomeNodes = new Map<string, HTMLElement>();
   private destroyed = false;
   private generation = 0;
+  private readonly persistence: RecoveryCoordinator;
+  private readonly stopPersistence: () => void;
   constructor(private readonly root: HTMLElement, readonly client: BoardClient, readonly boardId: string) {
+    this.persistence = recoveryCoordinator(client);
+    this.stopPersistence = this.persistence.subscribe(() => {
+      if (this.editor) { this.editor.sequence++; this.editor.recovery.textContent = "Private discard pending; visible input retained. Later deliberate edits are saved after the boundary."; }
+    });
     this.heading.tabIndex = -1;
     this.readState.setAttribute("role", "status");
     this.outcomes.setAttribute("aria-label", "Original operation outcomes");
@@ -47,7 +55,7 @@ export class BoardView {
   }
   async open(): Promise<void> { await this.refresh(); }
   // Owning session adapter invokes on logout/revocation; it preserves private data.
-  destroy(): void { this.destroyed = true; this.generation++; this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
+  destroy(): void { this.destroyed = true; this.stopPersistence(); this.generation++; this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
   async refresh(): Promise<void> {
     const generation = ++this.generation;
     try {
@@ -102,7 +110,7 @@ export class BoardView {
     const recovery = element("p", "Recovery pending"); recovery.setAttribute("role", "status");
     const editor: Editor = { id: crypto.randomUUID(), revision: 0, command, context, base, card,
       fields: {}, form, recovery, save: button("Save", () => { void this.save(editor); }), composing: false,
-      sequence: 0, queue: Promise.resolve(), submitted: false };
+      sequence: 0, submitted: false };
     const title = element("h2", command + " · original board revision " + base.result.revision + (card ? ", card revision " + card.revision : ""));
     form.append(title, element("p", "Board " + context.boardId + " · actor " + context.actorId));
     const field = (name: string, value: string, choices?: string[]): void => {
@@ -136,17 +144,17 @@ export class BoardView {
     return input;
   }
   private persist(editor: Editor): void {
-    const sequence = ++editor.sequence;
+    const sequence = ++editor.sequence, generation = this.persistence.generation;
     // Prose and original non-secret base only; no credential/session DTO enters storage.
     const input = JSON.stringify({ command: editor.command, target: editor.card ? { cardId: editor.card.cardId } : null,
       expectedRevision: editor.base.result.revision, expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor) });
     editor.recovery.textContent = "Recovery pending";
-    editor.queue = editor.queue.then(async () => {
+    void this.persistence.persist(async () => {
       try {
         const result = await this.client.recovery.saveDraft({ context: editor.context, draftId: editor.id, expectedRevision: editor.revision, input });
         editor.id = result.draft.draftId; editor.revision = result.draft.revision;
-        if (sequence === editor.sequence) editor.recovery.textContent = result.state === "forked" ? "Recovery saved as a separate draft after a conflict." : "Recovery saved privately.";
-      } catch { if (sequence === editor.sequence) editor.recovery.textContent = "Recovery failed; input remains here. Dispatch requires verified recovery storage."; }
+        if (!this.destroyed && generation === this.persistence.generation && sequence === editor.sequence) editor.recovery.textContent = result.state === "forked" ? "Recovery saved as a separate draft after a conflict." : "Recovery saved privately.";
+      } catch { if (!this.destroyed && generation === this.persistence.generation && sequence === editor.sequence) editor.recovery.textContent = "Recovery failed; input remains here. Dispatch requires verified recovery storage."; }
     });
   }
   private async save(editor: Editor): Promise<void> {
@@ -156,8 +164,6 @@ export class BoardView {
     const request = JSON.parse(JSON.stringify({ opId: crypto.randomUUID(), incarnation: editor.context.incarnation,
       target: editor.card ? { cardId: editor.card.cardId } : null, expectedRevision: editor.base.result.revision,
       expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor) })) as MutationRequest;
-    await editor.queue;
-    if (this.destroyed) return;
     const announce = (outcome: OriginalOutcome): void => {
       this.records.set(outcome.opId, outcome);
       if (this.destroyed) return;
@@ -167,7 +173,20 @@ export class BoardView {
       if (outcome.conflict || outcome.state === "not_committed") void this.currentText(editor);
       this.updateSave();
     };
-    await this.client.submit({ command: editor.command, request, draftId: editor.id, context: editor.context }, announce);
+    await this.persistence.admit(async evidenceReady => {
+      if (this.destroyed) return;
+      return this.client.submit({ command: editor.command, request, draftId: editor.id, context: editor.context }, outcome => {
+        if (outcome.state === "pending" || outcome.state === "unsent") evidenceReady();
+        announce(outcome);
+      });
+    });
+  }
+  // Compose other views' shared-client outcomes without replacing an editor,
+  // refreshing its base or taking focus. This is presentation, not proof.
+  observeOutcome(outcome: OriginalOutcome): void {
+    if (this.destroyed) return;
+    this.reflectCommitted(outcome);
+    this.updateSave();
   }
   private reflectCommitted(outcome: OriginalOutcome): void {
     if (outcome.state !== "committed") return;

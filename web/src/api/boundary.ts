@@ -1,4 +1,4 @@
-import type { MutationRequest, Terminal } from "../../generated/transport/contracts";
+import type { Confirmation, MutationRequest, Terminal } from "../../generated/transport/contracts";
 import type { BoundaryVerifier, PreparedEvidence, Context } from "../recovery/types";
 import { schemas } from "./schema-data";
 
@@ -111,43 +111,47 @@ export function validate(name: string, value: Value): void {
   if (!schemas[name] || !check(value, schemas[name])) invalid();
 }
 export const commands = {
+  "attachment.add": "AttachmentAdd", "history.clear": "HistoryClear", "retention.set": "RetentionSet",
   "card.create": "CardCreate", "card.edit": "CardEdit", "comment.add": "CommentAdd",
   "link.add": "LinkAdd", "link.remove": "LinkRemove", "review-handoff": "ReviewHandoff", "approve": "Approve",
 } as const;
-export type BoardCommand = keyof typeof commands;
-function request(command: BoardCommand, value: Value): ObjectValue {
+export type PreparedCommand = keyof typeof commands;
+export type BoardCommand = Exclude<PreparedCommand, "attachment.add" | "history.clear" | "retention.set">;
+const recoveryCommand = (command: PreparedCommand): boolean => command === "history.clear" || command === "retention.set";
+function request(command: PreparedCommand, value: Value): ObjectValue {
   validate("mutation:Request" + commands[command], value);
   const r = object(value), input = object(r.input!);
   if (!Object.hasOwn(r, "expectedCardRevision")) invalid();
-  if (command === "card.create" ? r.expectedCardRevision !== null : typeof r.expectedCardRevision !== "number" || r.expectedCardRevision < 1) invalid();
+  if (recoveryCommand(command) ? r.expectedCardRevision !== null || r.target !== null || r.command !== command : command === "card.create" ? r.expectedCardRevision !== null : typeof r.expectedCardRevision !== "number" || r.expectedCardRevision < 1) invalid();
   const bytes = (x: Value): number => new TextEncoder().encode(String(x)).length;
   if (input.title !== undefined && (typeof input.title !== "string" || !nonblank(input.title) || [...input.title].length > 200)) invalid();
   if (input.description !== undefined && bytes(input.description) > 65536) invalid();
   if (input.text !== undefined && (typeof input.text !== "string" || !nonblank(input.text) || bytes(input.text) > 65536)) invalid();
   return r;
 }
-function semantic(command: BoardCommand, r: ObjectValue, c: Context): Value {
+function semantic(command: PreparedCommand, r: ObjectValue, c: Context): Value {
   if (r.incarnation !== c.incarnation) invalid();
   const payload = { ...object(r.input!) };
   for (const k of command === "card.create" ? ["priority"] : command === "card.edit" ? ["title", "description", "priority", "lane"] : []) payload[k] ??= null;
   return { fingerprintVersion: 1, boardId: c.boardId, incarnation: c.incarnation, actorId: c.actorId,
-    opId: r.opId!, command, target: r.target!, payload, expectedRevision: r.expectedRevision!, expectedCardRevision: r.expectedCardRevision! };
+    opId: r.opId!, command, target: r.target!, payload: recoveryCommand(command) ? { input: payload, previewHash: r.previewHash! } : payload, expectedRevision: r.expectedRevision!, expectedCardRevision: r.expectedCardRevision! };
 }
 export async function sha256(s: string): Promise<string> {
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map(n => n.toString(16).padStart(2, "0")).join("");
 }
-export async function prepare(command: BoardCommand, wire: MutationRequest, context: Context, draftId: string): Promise<PreparedEvidence> {
+export async function prepare(command: PreparedCommand, wire: MutationRequest | Confirmation, context: Context, draftId: string): Promise<PreparedEvidence> {
   const requestBytes = JSON.stringify(wire), r = request(command, parse(requestBytes));
   const canonicalBytes = canonical(semantic(command, r, context));
   return Object.freeze({ context: Object.freeze({ ...context }), draftId, command, requestBytes, canonicalBytes,
-    fingerprintVersion: 1, fingerprint: await sha256(canonicalBytes), attachment: null });
+    fingerprintVersion: 1, fingerprint: await sha256(canonicalBytes), attachment: command === "attachment.add" ? structuredClone(wire.input) as PreparedEvidence["attachment"] : null });
 }
 // Concrete verifier configured on the same W01 store used for dispatch.
 export const boardBoundaryVerifier: BoundaryVerifier = {
   async prepared(e, received) {
     try {
-      if (!Object.hasOwn(commands, e.command) || e.attachment !== null) return false;
-      const command = e.command as BoardCommand, r = request(command, parse(e.requestBytes));
+      if (!Object.hasOwn(commands, e.command)) return false;
+      const command = e.command as PreparedCommand, r = request(command, parse(e.requestBytes));
+      if (command === "attachment.add" ? canonical(e.attachment as unknown as Value) !== canonical(r.input!) : e.attachment !== null) return false;
       return canonical(r) === canonical(parse(JSON.stringify(received))) && e.canonicalBytes === canonical(semantic(command, r, e.context));
     } catch { return false; }
   },
@@ -156,14 +160,24 @@ export const boardBoundaryVerifier: BoundaryVerifier = {
       if (!Object.hasOwn(commands, e.command)) return false;
       const value = parse(JSON.stringify(terminal));
       const suffix = terminal.outcome === "committed" ? "Committed" : "Notcommitted";
-      validate("transport:Terminal" + commands[e.command as BoardCommand] + suffix + (terminal.retention === "full" ? "Full" : "Compact"), value);
+      validate("transport:Terminal" + commands[e.command as PreparedCommand] + suffix + (terminal.retention === "full" ? "Full" : "Compact"), value);
       // W01 separately checks all original identity, target and precondition fields.
-      if (terminal.command !== e.command || terminal.byteFacts.length !== 0) return false;
+      if (terminal.command !== e.command) return false;
+      if (e.command === "attachment.add") {
+        if (!e.attachment || terminal.byteFacts.length !== 1 || terminal.byteFacts[0]!.sha256 !== e.attachment.sha256 || terminal.byteFacts[0]!.byteLength !== e.attachment.byteLength) return false;
+      } else if (terminal.byteFacts.length !== 0) return false;
       if (terminal.outcome === "not_committed") return terminal.revision === null && terminal.cardRevision === null && terminal.resultRefs.length === 0 && terminal.code !== "OK" && !!terminal.code && (terminal.retention === "compact" || terminal.result.error.code === terminal.code);
-      if (terminal.code !== "OK" || terminal.revision !== terminal.expectedRevision + 1 || terminal.cardRevision === null || terminal.cardRevision < 1) return false;
+      if (terminal.code !== "OK" || terminal.revision !== terminal.expectedRevision + 1) return false;
+      if (recoveryCommand(e.command as PreparedCommand)) {
+        if (terminal.cardRevision !== null || terminal.resultRefs.length !== 1) return false;
+        const ref = terminal.resultRefs[0]!;
+        if (ref.kind !== "board" || ref.id !== e.context.boardId || ref.revision !== terminal.revision) return false;
+        return terminal.retention === "compact" || ("coverageRevision" in terminal.result && terminal.result.coverageRevision === terminal.revision && terminal.result.retentionVersion >= 1);
+      }
+      if (terminal.cardRevision === null || terminal.cardRevision < 1) return false;
       if (terminal.target && (terminal.expectedCardRevision === null || terminal.cardRevision !== terminal.expectedCardRevision + 1)) return false;
-      const extra: Partial<Record<BoardCommand, string>> = { "comment.add": "comment", "link.add": "link", "link.remove": "link", "approve": "approval" };
-      const kinds = ["card", ...(extra[e.command as BoardCommand] ? [extra[e.command as BoardCommand]!] : [])];
+      const extra: Partial<Record<PreparedCommand, string>> = { "attachment.add": "attachment", "comment.add": "comment", "link.add": "link", "link.remove": "link", "approve": "approval" };
+      const kinds = ["card", ...(extra[e.command as PreparedCommand] ? [extra[e.command as PreparedCommand]!] : [])];
       if (terminal.resultRefs.length !== kinds.length || new Set(terminal.resultRefs.map(r => r.kind)).size !== kinds.length) return false;
       for (const ref of terminal.resultRefs) {
         if (!kinds.includes(ref.kind)) return false;

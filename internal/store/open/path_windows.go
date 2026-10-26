@@ -31,6 +31,14 @@ func (g *pathGuard) close() error {
 }
 
 func acquirePath(dir string, create bool) (*pathGuard, error) {
+	return acquirePathMode(dir, create, false)
+}
+
+func acquireInspectionPath(dir string) (*pathGuard, error) {
+	return acquirePathMode(dir, false, true)
+}
+
+func acquirePathMode(dir string, create, inspect bool) (*pathGuard, error) {
 	if !safePath(dir) {
 		return nil, errors.New("unsupported storage path")
 	}
@@ -97,7 +105,16 @@ func acquirePath(dir string, create bool) (*pathGuard, error) {
 			return nil, errors.New("storage requires recovery or has unknown files")
 		}
 	}
-	lock, e := openHandle(filepath.Join(dir, "board.lock"), windows.GENERIC_READ|windows.GENERIC_WRITE|windows.READ_CONTROL, 0, windows.OPEN_ALWAYS, sa, false)
+	lockAccess, lockDisposition := uint32(windows.GENERIC_READ|windows.GENERIC_WRITE|windows.READ_CONTROL), uint32(windows.OPEN_ALWAYS)
+	dbAccess := uint32(windows.GENERIC_READ | windows.GENERIC_WRITE | windows.READ_CONTROL)
+	if inspect {
+		// Existing-only inspection never creates an exclusion file. Real data
+		// access (not attribute-only access) makes omitted delete sharing bind.
+		lockAccess, lockDisposition = windows.GENERIC_READ|windows.READ_CONTROL, windows.OPEN_EXISTING
+		dbAccess = windows.GENERIC_READ | windows.READ_CONTROL
+		sa = nil
+	}
+	lock, e := openHandle(filepath.Join(dir, "board.lock"), lockAccess, 0, lockDisposition, sa, false)
 	if e != nil {
 		return nil, errors.New("storage exclusion unavailable")
 	}
@@ -109,7 +126,7 @@ func acquirePath(dir string, create bool) (*pathGuard, error) {
 	if create {
 		disposition = windows.CREATE_NEW
 	}
-	h, e := openHandle(g.path, windows.GENERIC_READ|windows.GENERIC_WRITE|windows.READ_CONTROL, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, disposition, sa, false)
+	h, e := openHandle(g.path, dbAccess, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, disposition, sa, false)
 	if e != nil {
 		return nil, errors.New("storage database unavailable or already exists")
 	}

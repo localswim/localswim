@@ -12,6 +12,12 @@ that reader before board content is projected. All metadata, current references,
 full/removed history, retained activity, compact/full terminal operations, source
 archives, lineage and protected BLOB bytes come from the same pinned revision.
 Current grants, sessions, credentials and machine paths never become archive rows.
+Source groups are the sorted identity union of explicit source_archive_group
+rows and noncurrent operation origins. Empty declared groups survive independently
+of lineage; lineage alone never invents a group. Complete coverage-gap tuples,
+including distinct fromExclusive and recordedAt values, remain separate logical
+facts. Physical layout 4's surrogate gap identity is never projected; logical
+archive, API and fingerprint versions remain 1.
 
 S03 owns registry/domain-pin acquisition before A02 receives the snapshot. A02
 adds no global domain-pin population policy and claims no total-process memory

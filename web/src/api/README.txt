@@ -27,7 +27,7 @@ The structural schema snapshot in schema-data.ts is extracted from the generated
 mutation, transport and archive schemas, including transitive references. It is
 boundary validation, not another domain/admission model. When the contract changes,
 compare every selected definition and reference with its generated source before
-updating this snapshot. Boundary tests compare all seven supported commands with
+updating this snapshot. Boundary tests compare all ten supported commands with
 accepted independent semantic-byte vectors; Go contract fixtures remain authoritative.
 
 Terminal handling binds the original context/opId/hash/command/target/preconditions
@@ -42,3 +42,38 @@ Synthetic component tests use a fresh isolated profile and an explicitly synthet
 qualification assertion. They establish local DOM/IndexedDB behavior and accepted
 byte-vector correspondence, not product browser qualification, TLS/session/backend
 security, real CLI interoperability, native durability or power-loss safety.
+
+W03 follow-through uses this same prepared verifier and RecoveryStore for
+attachment.add, history.clear and retention.set. Recovery confirmation retains
+payload={input,previewHash}; card revision/target remain null. Exact full/compact
+board result references and attachment raw byte facts remain bound to original
+metadata. Retained terminal proof is accepted only with HTTP 200/201 for initial
+dispatch and HTTP 200 for lookup; HTTP errors retain uncertainty.
+
+preview validates the exact standalone generated D02 response, original actor,
+board/incarnation, command/input/revision and complete canonical preview hash.
+The detached preview is held only in memory. Confirmation rechecks current human
+history-admin and board revision before freezing that exact original intent.
+Loading an earlier recovery submission still permits lookup only.
+
+submitAttachment copies raw ArrayBuffer bytes before its first await, checks
+10 MiB, exact length and SHA-256, then freezes metadata through W01 before one
+multipart dispatch. The body has exactly metadata/application-json and
+file/application-octet-stream parts. Framing and raw bytes never enter semantic
+intent or private recovery records. Caller changes cannot change submitted bytes.
+Download checks current authenticated metadata and complete raw length/hash
+before returning bytes. Export checks exact generated preconditions and receives
+the trusted authenticated H02 body with exact MIME, no content encoding, declared
+and streamed length and 144 MiB bound. This is no second browser archive-domain
+validator. The UI may offer these complete bytes; it cannot verify a local save.
+
+openSessionClient owns its bearer in an ephemeral closure. Exact one-use code
+exchange sends only {code} in the JSON body, validates the no-store secret
+response, then independently reads the bearer-bound session and complete grant.
+No code or bearer is returned to UI, persisted or included in a URL. An epoch
+fences exchange completion after clearing/logout. logout captures its bearer,
+clears authority and notifies views synchronously, then makes one best-effort
+bodyless DELETE; only exact SessionRevoked confirms presented-token revocation.
+401/403 clears current authority. Local clearing never classifies an original
+mutation. Reauthentication does not rewrite a retained original context or
+replace its operation ID, and a different actor/scope cannot look it up.

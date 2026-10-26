@@ -1,0 +1,77 @@
+W03 RECOVERY, SESSION AND ATTACHMENT INDEPENDENT REVIEW
+2026-10-26 | Revision 2 | PASS
+
+Outcome
+- No open material findings. W03-R1-01 is resolved.
+- Main-board, recovery, admin and attachment editors register draft persistence
+  and initial evidence admission in a shared FIFO for the actual origin, database
+  and installation. Clear drains earlier work; later deliberate edits wait behind
+  the atomic clear/readback and remain recoverable. Original bases/input/focus
+  remain intact. A pending network response does not indefinitely hold the FIFO.
+- Earlier delayed private reads, file processing and admin reads cannot recreate
+  discarded private metadata. Cancel/logout prevents unadmitted clear; admitted
+  storage may finish and a stopped/failed completion remains unverified.
+- Client options and copied qualification are captured before database opening,
+  binding the coordination domain to the actual store despite caller mutation.
+
+Verification
+- Fresh source-only strict compilation passed: Node 24.20.0, TypeScript 7.0.2.
+- Independently reran all 223 API assertions and all 61 author browser scenarios:
+  15 W02 regressions, 5 recovery, 19 integrated and 22 discard-barrier scenarios.
+  Actual DOM/IndexedDB and real transaction-completion delivery were exercised.
+- All 24 independent adversarial scenarios passed. The original delayed admin
+  completion plus queued second edit now prevents early clear success and leaves
+  no recreated draft after completion. Additional checks cover barrier ordering,
+  rejected writes/cancellation, same-domain clients versus unrelated databases,
+  options/qualification snapshots, lost private originals, late terminal/network
+  outcomes, post-clear recovery, visible newer input and editor focus.
+- Independent byte/auth checks include raw caller snapshots, durable readback
+  failure, credential replacement while pending, terminal-looking HTTP errors,
+  original actor binding, exchange races, canonical S128/S256 trailing bits,
+  malformed secret/cache/time/grant responses and binary header/hash/length limits.
+- All 105 selected definitions/transitive references exactly match the accepted
+  generated logical schema; all original 68 definitions remain unchanged.
+- Seventy-two accepted provider files retain their verified accepted hashes.
+  The changed board test is now reviewed W03 input. Active A04 physical-layout
+  correction paths are excluded from this accepted-provider baseline.
+- All 18 reviewed source files and both parent documents match the final freeze.
+
+Evidence integrity
+- Current verification compiled only the new private source snapshot and used
+  fresh output/log/result paths. No altered historical compiled tree was used.
+- The initial public review, original source, finding and failing reproduction
+  remain preserved. The earlier disclosed API runtime incident does not establish
+  historical compiled-byte identity; reconstructed outputs are not such proof.
+
+Limits
+- Coordination covers registered live clients/views in one JS workspace. Other
+  browser tabs/realms are not globally write-fenced. The warning explains that
+  currently stored records are cleared and other tabs/later edits may store again.
+- Synthetic route-fulfilled HTTPS with actual DOM/IndexedDB is component evidence.
+  No V02 product-profile, actual TLS/backend/CLI interoperability, native
+  durability/power-loss, eviction, real board, credential or trust qualification.
+- Export trusts the authenticated H02 complete body and offers bytes only. No
+  duplicate browser archive-domain validator, restore, path, mutation receipt
+  or verified local-save claim. No IDB schema, permission or server-policy change.
+
+Reviewed source SHA-256
+web/src/api/boundary.test.ts 6032c08252faaac6771afe997363006815f305fa85733def128268cc1b300669
+web/src/api/boundary.ts dbab880a313f186131a63fc693028c9667d56b0b5d05b7f424f227b837179740
+web/src/api/client.ts 512d092ea1cbb8ad56cea90d01747d921e38a42202b3113b3ab89aa25173505f
+web/src/api/README.txt c7948f1825b7a37393b37b3a39ecf5627d05e536d8a3cd9b358c5634ee6adf43
+web/src/api/schema-data.ts 3049421bc37947e5e0a3c268c760ffeee1ee59ef2eccad43a7bb73d5341f2347
+web/src/api/w03-client.test.ts 6b3d649441311437387071a3ab4dd949c7954137df491eb22b521ed650b5eb8e
+web/src/api/w03-session.ts 32e7b3e86dfbb15f863ae76de1a35d92dd771fcd94619bcb2bfb891034fc3db6
+web/src/archive-ui/README.txt b3e4c31e543cf99e0fbbd11768ef2e5846b12faac3ec2504cf2f1205e7d7f60b
+web/src/archive-ui/view.ts 13e1452b8322ce304655b21c8726094b66cb53ec88c08e2c97a392e6f1bc6520
+web/src/board/view.test.ts c89d2f54ed0dd3c5d98a1d84943e6b6ec1306658df857da682083715c75bff46
+web/src/board/view.ts 063085d717ab64ec6b58144932c6887b50b16de8a31072121c2a3e6a2f9210b0
+web/src/recovery-ui/admin.ts fa60b71c08613e25409292df890612e4aaf25c69ec9c4a27722770ccebe42950
+web/src/recovery-ui/coordination.ts 409ff436b7c224ade17413070fb6cef70297cd0021e55c3a7593bbc64d2b2c40
+web/src/recovery-ui/README.txt 40cb2c0ea67f20ebc97d389df1eb1fa25c5084efa9d6e84bedf862d1c0c95bd9
+web/src/recovery-ui/view.ts d37b95174196f4963ff30acba70526f33184d700748dabeee707debd26992469
+web/src/session-ui/README.txt 289a16346cea45f63dfa7e4c6c39c577d74fb4869e6e0174a1a3928936f757b2
+web/src/session-ui/view.ts 152ebf6d23c168bdc9f3ffcb1fa1e18553ec4f85056bd12eb85957c1dde4b783
+web/src/session-ui/workspace.ts ef10d0214a13eaef5bf5639602ea0ea23c7c5fe16cd32410ac0b07b8931d2d40
+README.md 48d836f1ca43f4a23d074e4b7a52fcd0ed9c1a635858d03fd36ccac8c0577382
+docs/decisions/restore-recovery-ui-composition-2026-10-26.txt d3ba6cb93ff490cd0fa3fa88e6d06ed0ad6df5688f77a051a9ffacca557f9cbf

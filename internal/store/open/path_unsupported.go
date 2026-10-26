@@ -10,3 +10,6 @@ func (*pathGuard) close() error { return nil }
 func acquirePath(string, bool) (*pathGuard, error) {
 	return nil, errors.New("storage platform unqualified")
 }
+func acquireInspectionPath(string) (*pathGuard, error) {
+	return nil, errors.New("storage platform unqualified")
+}

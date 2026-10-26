@@ -169,7 +169,7 @@ func TestCreateOpenSettingsAndIdentity(t *testing.T) {
 		if e := c.QueryRowContext(ctx(t), "SELECT schema_version FROM board").Scan(&layout); e != nil {
 			t.Fatal(e)
 		}
-		if e := c.QueryRowContext(ctx(t), "PRAGMA user_version").Scan(&user); e != nil || layout != schema.Version || user != schema.Version || schema.Version != 3 {
+		if e := c.QueryRowContext(ctx(t), "PRAGMA user_version").Scan(&user); e != nil || layout != schema.Version || user != schema.Version || schema.Version != 4 {
 			t.Fatal("physical layout markers mismatch")
 		}
 		if e := configure(ctx(t), c, false, false); e != nil {
@@ -421,8 +421,8 @@ func TestCredentialAuditCurrentBinding(t *testing.T) {
 }
 
 func TestPhysicalLayoutOneRefusedWithoutWrites(t *testing.T) {
-	// Construct the exact immediately preceding S01 physical layout by undoing
-	// only S04's bounded DDL additions. This is a synthetic fixture, never migration.
+	// Reconstruct layout 1 from preserved layout-3 DDL by undoing S04's
+	// additions and the Unicode CHECK correction. This is a synthetic fixture.
 	p := privateDir(t)
 	g, err := acquirePath(p, true)
 	if err != nil {
@@ -443,7 +443,7 @@ func TestPhysicalLayoutOneRefusedWithoutWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	execute(t, c, "BEGIN IMMEDIATE")
-	for _, statement := range schema.Statements() {
+	for _, statement := range physicalThreeStatements(t) {
 		if strings.HasPrefix(statement, "CREATE TABLE cli_credential ") || strings.HasPrefix(statement, "CREATE TRIGGER cli_credential_") {
 			continue
 		}
@@ -459,6 +459,7 @@ func TestPhysicalLayoutOneRefusedWithoutWrites(t *testing.T) {
 	c.Close()
 	db.Close()
 	g.close()
+	filesBefore := legacyFiles(t, p)
 	before, err := os.ReadFile(filepath.Join(p, "board.sqlite"))
 	if err != nil {
 		t.Fatal(err)
@@ -472,6 +473,15 @@ func TestPhysicalLayoutOneRefusedWithoutWrites(t *testing.T) {
 	}
 	if sha256.Sum256(before) != sha256.Sum256(after) {
 		t.Fatal("layout one refusal changed database bytes")
+	}
+	filesAfter := legacyFiles(t, p)
+	if len(filesBefore) != len(filesAfter) {
+		t.Fatal("layout one refusal changed inventory")
+	}
+	for name, digest := range filesBefore {
+		if filesAfter[name] != digest {
+			t.Fatal("layout one refusal changed a file")
+		}
 	}
 }
 

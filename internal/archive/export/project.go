@@ -136,21 +136,29 @@ func project(r writer.Read, id A.Identity, revision A.Number) (b A.Board, h A.Hi
 		return
 	}
 	budget.document = 0
+	var identities []A.Identity
+	identities, err = collection[A.Identity](r, &budget, "SELECT json_object('boardId',origin_board,'incarnation',origin_incarnation) value FROM (SELECT origin_board,origin_incarnation FROM source_archive_group UNION SELECT origin_board,origin_incarnation FROM operation WHERE current_ledger=0) ORDER BY origin_board,origin_incarnation")
+	if err != nil {
+		return
+	}
+	groups := map[A.Identity]int{}
+	for _, identity := range identities {
+		groups[identity] = len(o.SourceArchives)
+		o.SourceArchives = append(o.SourceArchives, A.SourceArchive{Identity: identity, Operations: []A.Operation{}})
+	}
 	var ops []A.Operation
 	ops, err = collection[A.Operation](r, &budget, operationQuery)
 	if err != nil {
 		return
 	}
-	groups := map[A.Identity]int{}
 	for _, op := range ops {
 		if op.Origin == id {
 			o.Operations = append(o.Operations, op)
 		} else {
 			index, ok := groups[op.Origin]
 			if !ok {
-				index = len(o.SourceArchives)
-				groups[op.Origin] = index
-				o.SourceArchives = append(o.SourceArchives, A.SourceArchive{Identity: op.Origin, Operations: []A.Operation{}})
+				err = fmt.Errorf("source archive group unavailable")
+				return
 			}
 			o.SourceArchives[index].Operations = append(o.SourceArchives[index].Operations, op)
 		}

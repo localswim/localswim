@@ -1,7 +1,7 @@
-# Version-three physical relational layout
+# Version-four physical relational layout
 
-`Version`, `PRAGMA user_version` and `board.schema_version` are 3. Existing
-physical layouts 1 and 2 are refused without writes, migration or adoption. This is an
+`Version`, `PRAGMA user_version` and `board.schema_version` are 4. Existing
+physical layouts 1, 2 and 3 are refused without writes, migration or adoption. This is an
 unreleased storage change; API, logical archive and fingerprint versions stay 1.
 
 The schema identifies a board and one storage incarnation. Every relation carries
@@ -72,6 +72,22 @@ archive entries by origin and `current_ledger`; a partial unique index protects
 current `(incarnation, opId)` identity. Source rows cannot enter that ledger by
 setting the flag or reusing a source opId. No terminal identity can be overwritten
 or deleted. Full payload deletion precedes recording compaction metadata.
+
+`source_archive_group` independently retains every declared inherited group
+identity, including empty groups. Its storage-incarnation FK and identity guards
+require the same logical board and a noncurrent incarnation, matching C03. Group
+identity is immutable and retained; it carries no invented manifest hash. A02
+projects the sorted union of these identities and noncurrent operation origins.
+Lineage facts neither create groups nor establish group membership.
+
+`coverage_gap.gap_id` is a private physical surrogate and never enters an archive.
+A unique expression index preserves the complete logical tuple, including
+`from_exclusive` and `recorded_at`. NULL `from_exclusive` normalizes to an empty
+sentinel for duplicate detection; timestamp CHECKs forbid an actual empty value.
+Distinct complete tuples remain separate, including overlapping intervals and
+otherwise identical gaps recorded at different times.
+Gap board revisions use C03's Number range, including zero; they are evidence
+metadata and do not allocate or increment a board revision.
 
 Only COMMITTED targets/results carry entity/grant existence obligations. A refused
 target may never have existed. Its attempted digest/length needs no fabricated

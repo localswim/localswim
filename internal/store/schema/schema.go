@@ -1,4 +1,4 @@
-// Package schema defines the version-three physical storage layout. Admission, canonical
+// Package schema defines the version-four physical storage layout. Admission, canonical
 // wire validation, retention execution and domain transactions belong to callers.
 package schema
 
@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const Version = 3
+const Version = 4
 const ApplicationID = 0x4c535731 // LSW1
 const MaxInteger int64 = 9007199254740991
 
@@ -241,6 +241,7 @@ func Validate(ctx context.Context, c *sql.Conn, id Identity) error {
 // S02/S03 must preserve them at their transaction boundary. These checks do not
 // substitute for canonical-intent, authorization, workflow or archive validation.
 var consistencyChecks = []string{
+	`SELECT count(*) FROM source_archive_group g JOIN board b USING(incarnation) WHERE g.origin_board<>b.board_id OR g.origin_incarnation=b.incarnation`,
 	`SELECT count(*) FROM cli_credential c WHERE NOT EXISTS(SELECT 1 FROM board b WHERE b.board_id=c.board_id AND b.incarnation=c.incarnation) OR NOT EXISTS(SELECT 1 FROM grant_record g WHERE g.incarnation=c.incarnation AND g.grant_id=c.grant_id AND g.actor_id=c.actor_id)`,
 	`SELECT count(*) FROM entity e WHERE (e.removed_at IS NULL) <> CASE e.kind WHEN 'card' THEN EXISTS(SELECT 1 FROM card x WHERE x.incarnation=e.incarnation AND x.card_id=e.entity_id) WHEN 'comment' THEN EXISTS(SELECT 1 FROM comment x WHERE x.incarnation=e.incarnation AND x.comment_id=e.entity_id) WHEN 'link' THEN EXISTS(SELECT 1 FROM link x WHERE x.incarnation=e.incarnation AND x.link_id=e.entity_id) WHEN 'attachment' THEN EXISTS(SELECT 1 FROM attachment x WHERE x.incarnation=e.incarnation AND x.attachment_id=e.entity_id) WHEN 'approval' THEN EXISTS(SELECT 1 FROM approval x WHERE x.incarnation=e.incarnation AND x.approval_id=e.entity_id) END`,
 	`SELECT count(*) FROM card c JOIN board b USING(incarnation) WHERE c.revision>b.revision OR b.revision=0`,

@@ -1,6 +1,6 @@
 # Storage ownership boundary
 
-This package is the version-three physical schema/open boundary. It uses the Q02 qualified
+This package is the version-four physical schema/open boundary. It uses the Q02 qualified
 `database/sql` binding on native Windows/amd64 and a fixed local NTFS drive.
 It does not implement domain admission, permissions, outcome reconciliation,
 history clearing, restore, HTTP or CLI behavior.
@@ -16,9 +16,24 @@ leaves its synthetic or real partial files in place for separately scoped recove
 Neither API deletes a file, migrates schema, overwrites a DB, or switches an
 existing database to DELETE mode.
 
-The unreleased physical layout is 3 in the schema inventory, board metadata and
-SQLite user version. Layouts 1 and 2 are refused without modifying database bytes; there
-is no migration. API, logical archive and fingerprint versions remain 1. Private
+`InspectExisting(ctx, directory, identity, callback)` is the offline inspection
+entrypoint. Both fixed files must already exist. It reuses the same private
+native ACL, reparse, hard-link, ancestor and exclusive lock checks, opening only
+existing files and holding real data-read handles without delete sharing.
+SQLite opens with `mode=ro`, audited settings and `query_only=ON`. Exact layout,
+identity, integrity and relational audits precede the callback in one bounded
+actual read transaction. The callback receives only Query/Scan for single SELECTs;
+no connection escapes, and retained facets/rows expire when inspection ends.
+Missing files, sidecars and unsupported state refuse without creation, repair,
+garbage collection or database mutation. Inspection establishes neither online
+authorization nor a complete logical/native archive-inventory proof; its caller
+must retain wider offline ownership and perform that proof inside the callback.
+
+The unreleased physical layout is 4 in the schema inventory, board metadata and
+SQLite user version. Layouts 1, 2 and 3 are refused without modifying database bytes;
+there is no migration. API, logical archive and fingerprint versions remain 1. The
+layout preserves explicit inherited outcome groups independently of operations or
+lineage and enforces null-safe uniqueness of complete recovery-gap tuples. Private
 CLI credential hash/public metadata survives close/reopen in this layout. G02
 owns issuance, replacement, self-revocation and authentication; metadata storage
 alone confers no authority. Logical exports and restore must exclude these rows.

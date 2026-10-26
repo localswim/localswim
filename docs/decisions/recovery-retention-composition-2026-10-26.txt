@@ -1,0 +1,37 @@
+RECOVERY, RETENTION AND EXPORT PIN COMPOSITION
+2026-10-26 | S03 | Accepted D02/18 behavior follow-through
+
+S03 owns coherent read-only recovery previews, immutable preview evidence,
+confirmation through S02, persisted-policy expiry, coverage/tombstone handling
+and protected-byte accounting. C03 owns the exact DTO/canonical/hash boundary.
+G01/G02 own current authority; explicit clear/policy administration requires
+ordinary human read plus history-admin, with read-own-outcome for reconciliation.
+Native owner, automation, assignment or a constructed principal adds no right.
+
+Confirmation resolves prior matching terminal identity first through S02. A new
+confirmation rechecks current authority/revision, immutable original preview time
+and inventory/hash, expiry and active export pins. It never samples a replacement
+preview time to reinterpret the owner's confirmed inventory. Refusal is durable
+NOT_COMMITTED without domain effects; uncertain evidence never means noncommit.
+
+Successful clear/policy change updates board state once and preserves current
+card revision, lane, priority and approval, including Completed cards. Pruning
+preserves compact outcome identity/attribution/references and retained approval
+facts; no arbitrary missing entity is repaired with a fake tombstone. Current,
+full history, full committed outcomes and active exports protect distinct bytes;
+compact/refused facts alone do not pin them. Logical removal is not secure erasure.
+
+Export snapshot admission and recovery use writer-before-registry lock order.
+Confirmation acquires its registry guard inside S02 admission, after writer
+ownership, and retains it through completion. Export closes its reader before
+waiting on registry/writer cleanup so a recovery COMMIT waiting on that reader
+can finish. Last-export orphan cleanup is serialized housekeeping, not a domain
+revision or operation. A02 still owns actual snapshot/package/stream execution.
+
+Policy expiry is an explicit trusted internal maintenance entry, not a public
+credential or authority inferred from a grant. It requires configured legitimate
+existing automation attribution and its expected label; absent verification fails
+closed. It creates no fake actor or grant and cannot substitute a human/native
+principal. P01 later composes the scheduler and attribution. HTTP/CLI/UI adapters,
+real export/restore, hostile-process and power-loss qualification remain separate.
+All component evidence uses private synthetic state, never a live board cleanup.

@@ -1,0 +1,77 @@
+S03 - FRESH INDEPENDENT RECOVERY AND RETENTION REVIEW
+2026-10-26 | #0030 | Bounded component review
+
+Verdict: PASS
+No material finding remains in the reviewed S03 scope. This reviewer authored
+none of the implementation, provider code or author tests. The nine reviewed
+files match the frozen review input and remained unchanged during verification.
+
+Source and authority
+Reviewed internal/store/recovery, the root README and the recovery composition
+decision against accepted slice01 03/06/18, corrected 09/20/21, D02's exact
+recovery contract, current C01/C03/D03 contracts, physical schema 3, S02 and
+G01/G02 authority boundaries. Private manifests retain exact source/probe/log
+hashes and the source snapshot. Public source contains no private runtime state.
+
+Findings and invariants
+- Preview uses a coherent actual read-only SQLite transaction and current
+  ordinary read plus human history-admin authority. Native owner, automation,
+  assignment and historical labels provide no substitute authority. The cache
+  retains copied canonical response bytes; returned DTOs cannot mutate it.
+- A single UTC whole-second sample defines preview time and exactly 300-second
+  expiry. New confirmation rechecks current authority/revision/pins and compares
+  the original input, actor, route, retention version, time and exact hash.
+  Original-time recomputation cannot add newly eligible records during the TTL.
+- S02 resolves matching full or compact receipts before preview/cache/command
+  gates, using current own-outcome rights and original immutable identity.
+  Durable refusals change no domain state. Failed COMMIT/readback/rollback stays
+  unknown unless exact retained evidence resolves it; no automatic retry occurs.
+- Inclusive board-wide clear removes full history/outcome prose, including source
+  provenance, and selects neither current content nor activity. Policy shrink
+  immediately applies all three persisted limits. Floors remain monotonic; gaps
+  identify selected origin/class and actual removal time/revision. Compact
+  identities, references, actor/approval/byte facts and ticket allocation survive.
+  Only known compacted references permit metadata tombstones. Current card
+  revisions, Completed lanes, priorities, approvals and policyVersion survive.
+- Expire requires an explicit trusted internal verifier and an existing current
+  automation actor with its exact legitimate label. Missing attribution fails
+  closed. It applies persisted policy, creates no actor/grant or fake operation,
+  and fences uncertain maintenance completion. Production scheduling is separate.
+- One registry per actual Store serializes protected current/full-history/full-
+  committed-outcome/export unions. Compact and refused facts do not pin bytes.
+  Distinct 10/64 MiB bounds, zero-byte entries and length agreement are preserved.
+  Confirm acquires its cancellable guard after S02 writer admission and retains
+  it through cleanup/reconciliation. Preview takes the guard before a reader.
+  Export Close releases its reader before writer/registry cleanup; final orphan
+  collection preserves concurrent new references and adds no domain evidence.
+  Failed cleanup conservatively retains pins; uncertainty fences the Store.
+
+Independent verification
+- Go 1.27.3 Windows/amd64, CGO=0, local toolchain, readonly modules and frozen
+  dependency cache. Fresh private cache/temp/synthetic database roots were used.
+  The unmodified native suite passed 44 cases, zero skips; scoped vet passed.
+- A fresh combined overlay run passed 57 cases: the same 44 plus 13 independent
+  adversarial cases, zero skips. Overlay-aware vet passed. No provider or schema
+  source was modified to run these probes.
+- Additional probes cover all three original retention cutoffs at the last TTL
+  second, single UTC sampling, compact cacheless own-only confirmation replay,
+  export-pin disappearance, closing export versus a new current pin, queued
+  revocation, canceled guard admission, maintenance panic/missing actor, timestamp
+  overflow, held guard during actual S02 post-COMMIT receipt reconciliation and
+  rollback uncertainty. Existing native cases also exercise real reader-blocked
+  SQLite COMMIT, two-reader/queued-export races, last-pin collection, source/full
+  outcome metadata, quotas, preview mutation and current/approval preservation.
+- Initial private overlay evidence is preserved. Its sole failure was a reviewer
+  assertion expecting a writable Store after canceled reconciliation; S02 correctly
+  fences that uncertainty. The corrected probe requires UNKNOWN, fence and guard
+  release. No implementation correction was required.
+
+Integration and evidence limits
+A01 must use this Store's registry and CheckQuota while owning the writer/guard
+through cleanup. A02 must use the real snapshot and establish current export
+authority inside it. P01 must configure trusted maintenance attribution. These
+are consumer obligations, not implemented adapters, archive IO or a scheduler.
+Synthetic verifiers do not qualify production credential cryptography. No live
+board, native trust, human bootstrap, credentials or grants were changed. This
+review does not establish integrated product, hostile-process or power-loss
+qualification. Prior exposure is disclosed; no isolated clean-room claim is made.

@@ -65,6 +65,9 @@ release qualification remain separate work.
   [accepted no-change policy](docs/decisions/card-edit-no-change-policy-2026-10-26.txt).
 - [Link, handoff and approval admission](internal/board/workflow/README.txt)
   and [independent review](docs/reviews/b02-workflow-review.txt).
+- [Recovery preview, retention and byte pins](internal/store/recovery/README.txt)
+  and [independent review](docs/reviews/s03-recovery-retention-review.txt), with
+  [composition boundaries](docs/decisions/recovery-retention-composition-2026-10-26.txt).
 - [Private browser recovery store](web/src/recovery/README.txt) and
   [independent review](docs/reviews/w01-private-recovery-review.txt), with explicit
   prepared-boundary and qualified-profile dispatch gates.

@@ -33,6 +33,24 @@ const cardTwo = "40000000-0000-0000-0000-000000000002"
 const missingID = "40000000-0000-0000-0000-000000000099"
 const opID = "50000000-0000-0000-0000-000000000001"
 const hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+const credentialGrant = "60000000-0000-0000-0000-000000000001"
+const credentialInstallation = "70000000-0000-4000-8000-000000000001"
+const credentialID = "80000000-0000-4000-8000-000000000001"
+const credentialOrigin = "https://0123456789abcdef0123456789abcdef.localhost:47443"
+
+// Only synthetic digest-shaped fixtures are stored; no bearer is generated here.
+const credentialInsert = `INSERT INTO cli_credential(incarnation,board_id,grant_id,actor_id,installation_id,origin,credential_id,credential_hash,issued_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?)`
+
+func credentialArgs() []any {
+	return []any{incarnation, boardID, credentialGrant, actorID, credentialInstallation, credentialOrigin, credentialID, strings.Repeat("a", 64), "2026-10-26T12:00:00Z", "2026-11-25T12:00:00Z"}
+}
+
+func seedCredentialGrant(t *testing.T, c *sql.Conn) {
+	t.Helper()
+	execute(t, c, "INSERT INTO actor VALUES(?,?,?,?,?,?)", incarnation, actorID, "human", "Synthetic credential actor", boardID, incarnation)
+	execute(t, c, "INSERT INTO grant_fact VALUES(?,?)", incarnation, credentialGrant)
+	execute(t, c, "INSERT INTO grant_record VALUES(?,?,?,1)", incarnation, credentialGrant, actorID)
+}
 
 var identity = schema.Identity{BoardID: boardID, Incarnation: incarnation}
 
@@ -147,6 +165,13 @@ func seed(t *testing.T, c *sql.Conn) {
 func TestCreateOpenSettingsAndIdentity(t *testing.T) {
 	s, p := newStore(t)
 	withWriter(t, s, func(c *sql.Conn) {
+		var layout, user int
+		if e := c.QueryRowContext(ctx(t), "SELECT schema_version FROM board").Scan(&layout); e != nil {
+			t.Fatal(e)
+		}
+		if e := c.QueryRowContext(ctx(t), "PRAGMA user_version").Scan(&user); e != nil || layout != schema.Version || user != schema.Version || schema.Version != 2 {
+			t.Fatal("physical layout markers mismatch")
+		}
 		if e := configure(ctx(t), c, false, false); e != nil {
 			t.Fatal(e)
 		}
@@ -206,6 +231,247 @@ func TestRelationalConstraintsAndOverflow(t *testing.T) {
 		execute(t, c, "UPDATE board SET revision=9007199254740991")
 		refused(t, c, "UPDATE board SET revision=revision+1")
 	})
+}
+
+func TestCredentialMetadataConstraints(t *testing.T) {
+	s, _ := newStore(t)
+	withWriter(t, s, func(c *sql.Conn) {
+		seedCredentialGrant(t, c)
+		for _, tc := range []struct {
+			name   string
+			column int
+			value  any
+			code   int
+			reason string
+		}{
+			{"wrong-incarnation", 0, cardTwo, 1811, "credential current board mismatch"},
+			{"wrong-board", 1, cardTwo, 1811, "credential current board mismatch"},
+			{"missing-grant", 2, missingID, 1811, "credential requires enabled current grant"},
+			{"wrong-actor", 3, cardTwo, 1811, "credential requires enabled current grant"},
+			{"installation-v1", 4, actorID, 275, "CHECK constraint failed"},
+			{"installation-variant", 4, "70000000-0000-4000-7000-000000000001", 275, "CHECK constraint failed"},
+			{"installation-uppercase", 4, "AAAAAAAA-0000-4000-8000-000000000001", 275, "CHECK constraint failed"},
+			{"installation-nul", 4, credentialInstallation + "\x00suffix", 275, "CHECK constraint failed"},
+			{"origin-http", 5, strings.Replace(credentialOrigin, "https:", "http:", 1), 275, "CHECK constraint failed"},
+			{"origin-alternate-host", 5, strings.Replace(credentialOrigin, ".localhost:", ".examplexx:", 1), 275, "CHECK constraint failed"},
+			{"origin-path", 5, credentialOrigin + "/", 275, "CHECK constraint failed"},
+			{"origin-nul", 5, credentialOrigin + "\x00suffix", 275, "CHECK constraint failed"},
+			{"origin-port-leading-zero", 5, strings.Replace(credentialOrigin, "47443", "047443", 1), 275, "CHECK constraint failed"},
+			{"origin-port-low", 5, strings.Replace(credentialOrigin, "47443", "1023", 1), 275, "CHECK constraint failed"},
+			{"origin-port-high", 5, strings.Replace(credentialOrigin, "47443", "65536", 1), 275, "CHECK constraint failed"},
+			{"credential-v1", 6, actorID, 275, "CHECK constraint failed"},
+			{"credential-variant", 6, "80000000-0000-4000-7000-000000000001", 275, "CHECK constraint failed"},
+			{"credential-nul", 6, credentialID + "\x00suffix", 275, "CHECK constraint failed"},
+			{"hash-short", 7, strings.Repeat("a", 63), 275, "CHECK constraint failed"},
+			{"hash-uppercase", 7, strings.Repeat("A", 64), 275, "CHECK constraint failed"},
+			{"hash-not-hex", 7, strings.Repeat("z", 64), 275, "CHECK constraint failed"},
+			{"hash-nul", 7, strings.Repeat("a", 64) + "\x00suffix", 275, "CHECK constraint failed"},
+			{"issued-null", 8, nil, 1299, "NOT NULL constraint failed"},
+			{"issued-nul", 8, "2026-10-26T12:00:00Z\x00suffix", 275, "CHECK constraint failed"},
+			{"issued-subseconds", 8, "2026-10-26T12:00:00.1Z", 275, "CHECK constraint failed"},
+			{"issued-invalid-date", 8, "2026-02-30T12:00:00Z", 275, "CHECK constraint failed"},
+			{"issued-offset", 8, "2026-10-26T12:00:00+00:00", 275, "CHECK constraint failed"},
+			{"expiry-short", 9, "2026-11-25T11:59:59Z", 275, "CHECK constraint failed"},
+			{"expiry-long", 9, "2026-11-25T12:00:01Z", 275, "CHECK constraint failed"},
+			{"expiry-backward", 9, "2026-10-25T12:00:00Z", 275, "CHECK constraint failed"},
+			{"expiry-invalid", 9, "2026-11-31T12:00:00Z", 275, "CHECK constraint failed"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				a := credentialArgs()
+				a[tc.column] = tc.value
+				constraint(t, c, tc.code, tc.reason, credentialInsert, a...)
+			})
+		}
+		// A historical existence fact is never current grant authority.
+		execute(t, c, "INSERT INTO grant_fact VALUES(?,?)", incarnation, missingID)
+		a := credentialArgs()
+		a[2] = missingID
+		constraint(t, c, 1811, "credential requires enabled current grant", credentialInsert, a...)
+		execute(t, c, "UPDATE grant_record SET enabled=0")
+		constraint(t, c, 1811, "credential requires enabled current grant", credentialInsert, credentialArgs()...)
+		execute(t, c, "UPDATE grant_record SET enabled=1")
+		execute(t, c, credentialInsert, credentialArgs()...)
+		// A second credential cannot overlap, even with a different installation.
+		a = credentialArgs()
+		a[4], a[6], a[7] = "70000000-0000-4000-8000-000000000002", "80000000-0000-4000-8000-000000000002", strings.Repeat("b", 64)
+		constraint(t, c, 1555, "UNIQUE constraint failed", credentialInsert, a...)
+		// Current metadata is immutable; replacement/revocation must be explicit.
+		for _, q := range []string{"UPDATE cli_credential SET credential_hash=credential_hash", "UPDATE cli_credential SET actor_id='" + cardTwo + "'", "UPDATE cli_credential SET origin=origin", "UPDATE cli_credential SET expires_at='2026-11-26T12:00:00Z'"} {
+			constraint(t, c, 1811, "replace credential through explicit delete and insert", q)
+		}
+		execute(t, c, "INSERT INTO actor VALUES(?,?,?,?,?,?)", incarnation, cardTwo, "automation", "Synthetic other actor", boardID, incarnation)
+		constraint(t, c, 787, "FOREIGN KEY constraint failed", "UPDATE grant_record SET actor_id=?", cardTwo)
+		constraint(t, c, 787, "FOREIGN KEY constraint failed", "DELETE FROM grant_record")
+		// Unique public ID and hash also hold across different grants.
+		execute(t, c, "INSERT INTO grant_record VALUES(?,?,?,1)", incarnation, missingID, cardTwo)
+		a = credentialArgs()
+		a[2], a[3], a[7] = missingID, cardTwo, strings.Repeat("b", 64)
+		constraint(t, c, 2067, "UNIQUE constraint failed", credentialInsert, a...)
+		a[6], a[7] = "80000000-0000-4000-8000-000000000002", strings.Repeat("a", 64)
+		constraint(t, c, 2067, "UNIQUE constraint failed", credentialInsert, a...)
+		// Revocation preserves the record and permits a normal restart audit.
+		execute(t, c, "UPDATE grant_record SET enabled=0 WHERE grant_id=?", credentialGrant)
+		if err := schema.Validate(ctx(t), c, identity); err != nil {
+			t.Fatal("disabled grant metadata must remain valid")
+		}
+	})
+}
+
+func TestCredentialRestartReplacementAndRevocation(t *testing.T) {
+	s, p := newStore(t)
+	withWriter(t, s, func(c *sql.Conn) {
+		seedCredentialGrant(t, c)
+		execute(t, c, credentialInsert, credentialArgs()...)
+	})
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s2, err := Existing(ctx(t), p, identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	withWriter(t, s2, func(c *sql.Conn) {
+		var a [10]string
+		if err := c.QueryRowContext(ctx(t), "SELECT incarnation,board_id,grant_id,actor_id,installation_id,origin,credential_id,credential_hash,issued_at,expires_at FROM cli_credential").Scan(&a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6], &a[7], &a[8], &a[9]); err != nil {
+			t.Fatal(err)
+		}
+		for n, want := range credentialArgs() {
+			if a[n] != want {
+				t.Fatal("restart lost exact credential metadata")
+			}
+		}
+		// Rollback after deleting the old credential cannot lose that credential.
+		execute(t, c, "BEGIN IMMEDIATE")
+		execute(t, c, "DELETE FROM cli_credential WHERE incarnation=? AND grant_id=?", incarnation, credentialGrant)
+		bad := credentialArgs()
+		bad[9] = "2026-11-26T12:00:00Z"
+		constraint(t, c, 275, "CHECK constraint failed", credentialInsert, bad...)
+		execute(t, c, "ROLLBACK")
+		var n int
+		if err := c.QueryRowContext(ctx(t), "SELECT count(*) FROM cli_credential WHERE credential_id=?", credentialID).Scan(&n); err != nil || n != 1 {
+			t.Fatal("rollback lost predecessor")
+		}
+		execute(t, c, "BEGIN IMMEDIATE")
+		execute(t, c, "DELETE FROM cli_credential WHERE incarnation=? AND grant_id=?", incarnation, credentialGrant)
+		a2 := credentialArgs()
+		a2[6], a2[7] = "80000000-0000-4000-8000-000000000002", strings.Repeat("b", 64)
+		execute(t, c, credentialInsert, a2...)
+		execute(t, c, "COMMIT")
+		if err := c.QueryRowContext(ctx(t), "SELECT count(*) FROM cli_credential WHERE credential_id=?", credentialID).Scan(&n); err != nil || n != 0 {
+			t.Fatal("replacement retained predecessor")
+		}
+		// Authentication metadata must not create domain revisions or history.
+		for _, q := range []string{"SELECT revision FROM board", "SELECT next_ticket-1 FROM board", "SELECT next_event-1 FROM board", "SELECT count(*) FROM card", "SELECT count(*) FROM operation", "SELECT count(*) FROM activity"} {
+			if err := c.QueryRowContext(ctx(t), q).Scan(&n); err != nil || n != 0 {
+				t.Fatal("credential metadata changed domain state")
+			}
+		}
+		execute(t, c, "DELETE FROM cli_credential WHERE credential_id=?", a2[6])
+		if err := c.QueryRowContext(ctx(t), "SELECT count(*) FROM cli_credential").Scan(&n); err != nil || n != 0 {
+			t.Fatal("credential revocation did not remove active metadata")
+		}
+		for _, q := range []string{"SELECT count(*) FROM actor", "SELECT count(*) FROM grant_fact", "SELECT count(*) FROM grant_record WHERE enabled=1"} {
+			if err := c.QueryRowContext(ctx(t), q).Scan(&n); err != nil || n != 1 {
+				t.Fatal("credential revocation changed grant attribution")
+			}
+		}
+		if err := schema.Validate(ctx(t), c, identity); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestCredentialAuditCurrentBinding(t *testing.T) {
+	s, p := newStore(t)
+	withWriter(t, s, func(c *sql.Conn) {
+		seedCredentialGrant(t, c)
+		// Synthetic corruption bypasses the insert guard, then restores its exact
+		// inventory. FKs remain satisfied: open must also audit current board scope.
+		var guard string
+		if err := c.QueryRowContext(ctx(t), "SELECT sql FROM sqlite_schema WHERE name='cli_credential_current'").Scan(&guard); err != nil {
+			t.Fatal(err)
+		}
+		execute(t, c, "DROP TRIGGER cli_credential_current")
+		a := credentialArgs()
+		a[1] = cardTwo
+		execute(t, c, credentialInsert, a...)
+		execute(t, c, guard)
+		if err := schema.Validate(ctx(t), c, identity); err == nil || err.Error() != "storage relational consistency check failed" {
+			t.Fatalf("current credential binding audit: %v", err)
+		}
+	})
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(filepath.Join(p, "board.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Existing(ctx(t), p, identity); err == nil || err.Error() != "storage relational consistency check failed" {
+		t.Fatalf("existing credential binding audit: %v", err)
+	}
+	after, err := os.ReadFile(filepath.Join(p, "board.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sha256.Sum256(before) != sha256.Sum256(after) {
+		t.Fatal("credential audit changed database bytes")
+	}
+}
+
+func TestPhysicalLayoutOneRefusedWithoutWrites(t *testing.T) {
+	// Construct the exact immediately preceding S01 physical layout by undoing
+	// only S04's bounded DDL additions. This is a synthetic fixture, never migration.
+	p := privateDir(t)
+	g, err := acquirePath(p, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := pool(g.path, false)
+	if err != nil {
+		g.close()
+		t.Fatal(err)
+	}
+	c, err := db.Conn(ctx(t))
+	if err != nil {
+		db.Close()
+		g.close()
+		t.Fatal(err)
+	}
+	if err := configure(ctx(t), c, false, true); err != nil {
+		t.Fatal(err)
+	}
+	execute(t, c, "BEGIN IMMEDIATE")
+	for _, statement := range schema.Statements() {
+		if strings.HasPrefix(statement, "CREATE TABLE cli_credential ") || strings.HasPrefix(statement, "CREATE TRIGGER cli_credential_") {
+			continue
+		}
+		statement = strings.ReplaceAll(statement, "schema_version INTEGER NOT NULL DEFAULT 2 CHECK(schema_version=2)", "schema_version INTEGER NOT NULL DEFAULT 1 CHECK(schema_version=1)")
+		statement = strings.ReplaceAll(statement, " UNIQUE(incarnation,grant_id,actor_id),", "")
+		execute(t, c, statement)
+	}
+	execute(t, c, "INSERT INTO board(singleton,board_id,incarnation) VALUES(1,?,?)", boardID, incarnation)
+	execute(t, c, "INSERT INTO policy(incarnation) VALUES(?)", incarnation)
+	execute(t, c, fmt.Sprintf("PRAGMA application_id=%d; PRAGMA user_version=1", schema.ApplicationID))
+	execute(t, c, "COMMIT")
+	c.Close()
+	db.Close()
+	g.close()
+	before, err := os.ReadFile(filepath.Join(p, "board.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Existing(ctx(t), p, identity); err == nil || err.Error() != "unsupported storage user_version" {
+		t.Fatalf("layout one refusal: %v", err)
+	}
+	after, err := os.ReadFile(filepath.Join(p, "board.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sha256.Sum256(before) != sha256.Sum256(after) {
+		t.Fatal("layout one refusal changed database bytes")
+	}
 }
 
 func TestTypedLinkUniqueness(t *testing.T) {

@@ -1,0 +1,127 @@
+G01 FOUNDATION AND FIRST-OWNER PROPOSAL - FRESH INDEPENDENT REVIEW
+2026-10-26 | #0027 | Sol / High | Review revision 2
+
+Verdict
+PASS FOR THE OWNER-APPROVED BOUNDED FOUNDATION AND DECISION PROPOSAL ONLY.
+Current grant/rights admission and ledger callbacks are valid under their required
+trusted-verifier preconditions. The first-owner attribution proposal is sound for
+Terry's policy review. Terry acceptance is still required before implementation;
+this review does not grant that acceptance or authorize dependent execution.
+
+Real credential service and first-owner bootstrap remain UNIMPLEMENTED in G01.
+Original R1/R2 findings remain G02 implementation/qualification obligations.
+No complete authentication, integrated first grant or product qualification passes.
+
+Approved scope and preserved evidence
+Terry directly approved the S04/G02 split and eligible provider work on 2026-10-26.
+G01 retains bounded admission plus the first-owner policy proposal. S04 supplies
+private physical credential persistence; G02 retains D01's mandatory durable
+credential service, native composition and accepted attribution implementation.
+G02 requires accepted G01/proposal, S04, N01 and C02. B01/T01/H01 additionally wait
+for accepted G02; other gates remain and only Terry controls Completed.
+
+The original broader-scope report is preserved unchanged as
+g01-grant-admission-review-r1-findings.txt. Private revision-1 inputs, probes, logs,
+hashes and receipts are untouched. The revised verdict reflects owner-approved
+scope, not a retroactive claim that missing runtime behavior passed.
+
+Authority and source
+Accepted slice01 03/05/18, corrected 09/20/21, current D01 6a/6b/6c, D03 transport,
+S01 schema, S02 writer/outcome and N01 lease/provider requirements were assessed.
+Unchanged Go/test base is 5e1ec89d55905a7e4a294f7a0843c9831530c1c8. Three grants
+Go/test hashes match revision 1. Seven frozen inputs cover those files, final
+package/root README files and both 2026-10-26 credential/attribution decisions.
+All seven remained stable. Text has LF and a final newline.
+
+Public MIT FOSS; synthetic fixtures only. Prior exposure is disclosed; this is
+not independently isolated clean-room certification. No v1 source was copied.
+
+Retained runtime gaps
+R1: G02 must implement real serialized issue/replace/hash persistence/revocation/
+admission and native-provider composition over accepted S04. No production
+Verifier is supplied here. Callback success cannot establish bearer authentication.
+T01 HTTP/session delivery and K03 consent/private files do not replace G02's duty.
+
+R2: an empty S01 board lacks the ACTING native owner attribution required by
+grants.go:88, so its first native grant still refuses. New GRANTEE creation is
+already atomic in successful grant.create and is not the missing obligation.
+S02 checks revisions/Admit before Apply and must retain NOT_COMMITTED with an
+actor FK (schema/ddl.go:172); Apply-only insertion cannot cover first refusals.
+Revision-1 fresh-board and stale/denied probes retain this evidence unchanged.
+
+First-owner proposal assessment
+The proposal supplies a coherent G02 design for that gap. Explicit preparation
+before S02 Submit is limited to deliberately requested, strictly parsed native
+grant.create/revoke. Setup/open, read/lookup, credential issuance and session code
+issuance cannot invoke it. Only the current-provider-authenticated stable owner
+is registered; caller-selected actors, invented grants or kind changes refuse.
+Existing legitimate human provenance/label is preserved. Grantee insertion stays
+inside the successful ledgered command.
+
+The caller holds the CURRENT validated N01 installation service lifetime lease
+before preparation and through Submit. Native lease precedes board writer leases;
+there is no second or reversed acquisition. A stale snapshot or ActiveTokenMatches
+alone is insufficient. Preparation checks exact installation/origin/board/
+incarnation and frozen actor=ownerActorId in its explicit serialized transaction.
+
+Only attribution metadata may change: no board/card revision, activity, policy,
+operation, grant, credential or rights. This explicit metadata exception and
+two-transaction policy require Terry acceptance. A surviving actor after an
+interruption proves no grant result, privilege or human at the keyboard.
+
+Bounded COMMIT/ROLLBACK and exact actor-only readback distinguish known refusal
+with established rollback from uncertain preparation. Both stop before Submit;
+unestablished cleanup/recovery fences writes until explicit recovery establishes
+storage. Actor readback never proves a grant outcome. S02 rechecks current
+authority/revisions; no cached authorization or replay follows preparation.
+Expiry/current time/authentication failure can deny Submit; later requests under
+a renewed generation revalidate. This preserves the lease's renewal exclusion.
+
+The proposal addresses successful and first stale/denied attribution without
+broadening native privileges or changing terminal/unknown semantics. Its G02
+tests must cover first success/durable refusal, invalid/expired exact bindings,
+kind/provenance conflicts, races/faults, unchanged domain/rights state and absence
+of registration on prohibited paths. No proposal runtime behavior is implemented.
+
+Foundation checks retained from revision 1
+- Every Authority/Admit/Require rechecks verifier plus current actor/grant/rights,
+  exact binding and time. No implied rights; automation cannot gain approve,
+  history-admin or grant-admin, even through synthetic stored corruption.
+- Submission and own-outcome are independent. Missing current read-own-outcome
+  can deny response after commit; retained receipts need no command re-admission.
+  Revocation can commit while subsequent authority denies receipt readback.
+- Native authority covers only its own exact retained grant.create/revoke
+  metadata/current identity, including compact evidence. It gives no ordinary
+  board/read/export/history/approve, other-actor or source-incarnation authority.
+- Copied routes/metadata, exact targets, board CAS/null card revision, immutable
+  grantee kind, one activity/counter advance and historical fact retention hold.
+  Domain refusal/overflow checks and both serialized revoke/admit orders pass.
+
+Actual verification and revision-2 boundary
+Runtime evidence is CARRIED FORWARD for unchanged grants Go/test source; it was
+not rerun during this documentary revision and predates S04's changed provider.
+S04 and the final coherent batch require their separate fresh review/integration
+evidence; this review infers no provider compatibility from those earlier runs.
+
+Windows/amd64 Go1.27.3, CGO=0, local toolchain, readonly modules, offline frozen
+module cache and private caches/native fixture roots produced:
+- Native count=2: exit0, ten unique top-level tests, 20 top-level and 96 subtest
+  passes, zero skips.
+- Fresh independent overlay: exit0, nine top-level and two subtest passes,
+  including probes explicitly confirming R2 rather than claiming completion.
+- go vet ./internal/board/grants: exit0.
+
+New documentary checks assessed final proposal/decomposition/package/root prose,
+scope, prerequisites, historical integrity, seven stable hashes and text format.
+No provider files form part of this seven-file approval. Exact source SHA256 and
+carried test references are in private g01-review-r2.json; r1 receipts remain.
+
+Limits and handoff
+Synthetic verifier tests do not qualify production bearer/native integration,
+durable issue/replace/revoke/restart state, session/code lifecycle, HTTP/CLI/browser
+behavior, actual enrollment/consent/trust, hostile same-account isolation,
+crash/flush/power-loss safety or complete native/product behavior.
+
+Review changed only its reports/private evidence. No implementation/provider/
+schema, live board, runtime credential, setup/trust, card, commit, push or agent
+spawn action occurred. Bounded PASS supports Terry's G01/proposal review only.

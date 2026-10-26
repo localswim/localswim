@@ -1,4 +1,8 @@
-# Version-one relational layout
+# Version-two physical relational layout
+
+`Version`, `PRAGMA user_version` and `board.schema_version` are 2. Existing
+physical layout 1 is refused without writes, migration or adoption. This is an
+unreleased storage change; API, logical archive and fingerprint versions stay 1.
 
 The schema identifies a board and one storage incarnation. Every relation carries
 that storage incarnation, including restored historical rows. `origin_board` and
@@ -30,6 +34,29 @@ link, attachment or approval merely because that entity exists.
 and `grant_right` alone store active grant state. Restore may preserve grant facts
 without creating grants. Grant policy and forbidden automation authority are G01
 admission responsibilities; actor attribution is retained independently.
+
+`cli_credential` stores private persistent authentication metadata only: the
+bearer's SHA-256, public UUIDv4 credential ID, UTC whole-second issue/expiry times,
+and exact installation/origin/board/incarnation/grant/actor bindings. No bearer,
+rights snapshot, browser session or login code is stored. Installation IDs are
+UUIDv4; origins have D01's canonical HTTPS random-hex `.localhost` hostname and
+explicit decimal port 1024..65535. Expiry is exactly 30*86400 seconds after issue.
+Metadata is immutable; explicit delete plus insert replaces a grant's sole row
+inside the caller's serialized transaction. Credential IDs and hashes are unique
+across grants. A composite FK binds the current grant's exact actor; a historical
+`grant_fact` alone cannot support a credential. Inserts require an enabled current
+grant and the current board/incarnation. Open audits those logical bindings.
+Disabling a grant preserves its credential metadata and remains valid on open;
+every authorization must independently consult the grant's current enabled state.
+
+G02 owns the real issue/replace/self-revoke/verifier service under the S01 writer
+lease, serialized with grant revocation. It must compare the configured exact
+installation/origin and current time, generate/hash the random bearer, authenticate
+the native owner, and check current grant/policy. This storage boundary neither
+establishes configured installation identity nor authenticates a hash-shaped value.
+Credential writes produce no board/card revision, operation or activity. These
+private rows survive normal close/reopen but are excluded from logical archives
+and source grant restoration; future archive code must explicitly omit them.
 
 `operation` keeps exact compact terminal identity, target/preconditions, result
 tokens and removal metadata. `operation_full` holds retained semantic intent/result

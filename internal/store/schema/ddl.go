@@ -6,7 +6,7 @@ const ddl = `CREATE TABLE board (
  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
  board_id TEXT NOT NULL CHECK({{u:board_id}}),
  incarnation TEXT NOT NULL UNIQUE CHECK({{u:incarnation}}),
- schema_version INTEGER NOT NULL DEFAULT 1 CHECK(schema_version=1),
+ schema_version INTEGER NOT NULL DEFAULT 2 CHECK(schema_version=2),
  revision INTEGER NOT NULL DEFAULT 0 CHECK({{n:revision}}),
  next_ticket INTEGER NOT NULL DEFAULT 1 CHECK({{p:next_ticket}}),
  next_event INTEGER NOT NULL DEFAULT 1 CHECK({{p:next_event}}),
@@ -35,7 +35,19 @@ CREATE TABLE grant_fact (
 CREATE TABLE grant_record (
  incarnation TEXT NOT NULL REFERENCES board(incarnation), grant_id TEXT NOT NULL CHECK({{u:grant_id}}),
  actor_id TEXT NOT NULL, enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
- PRIMARY KEY(incarnation,grant_id), FOREIGN KEY(incarnation,grant_id) REFERENCES grant_fact(incarnation,grant_id), FOREIGN KEY(incarnation,actor_id) REFERENCES actor(incarnation,actor_id)
+ PRIMARY KEY(incarnation,grant_id), UNIQUE(incarnation,grant_id,actor_id), FOREIGN KEY(incarnation,grant_id) REFERENCES grant_fact(incarnation,grant_id), FOREIGN KEY(incarnation,actor_id) REFERENCES actor(incarnation,actor_id)
+) STRICT;
+CREATE TABLE cli_credential (
+ incarnation TEXT NOT NULL, board_id TEXT NOT NULL CHECK({{u:board_id}}),
+ grant_id TEXT NOT NULL, actor_id TEXT NOT NULL,
+ installation_id TEXT NOT NULL CHECK({{v4:installation_id}}),
+ origin TEXT NOT NULL CHECK(length(CAST(origin AS BLOB))=length(origin) AND length(origin) BETWEEN 55 AND 56 AND substr(origin,1,8)='https://' AND substr(origin,9,32) NOT GLOB '*[^0-9a-f]*' AND substr(origin,41,11)='.localhost:' AND substr(origin,52) NOT GLOB '*[^0-9]*' AND CAST(substr(origin,52) AS INTEGER) BETWEEN 1024 AND 65535 AND CAST(CAST(substr(origin,52) AS INTEGER) AS TEXT)=substr(origin,52)),
+ credential_id TEXT NOT NULL UNIQUE CHECK({{v4:credential_id}}),
+ credential_hash TEXT NOT NULL UNIQUE CHECK(length(CAST(credential_hash AS BLOB))=64 AND {{h:credential_hash}}),
+ issued_at TEXT NOT NULL CHECK(length(CAST(issued_at AS BLOB))=20 AND {{t:issued_at}}), expires_at TEXT NOT NULL CHECK(length(CAST(expires_at AS BLOB))=20 AND {{t:expires_at}}),
+ PRIMARY KEY(incarnation,grant_id),
+ FOREIGN KEY(incarnation,grant_id,actor_id) REFERENCES grant_record(incarnation,grant_id,actor_id),
+ CHECK(unixepoch(expires_at)-unixepoch(issued_at)=2592000)
 ) STRICT;
 CREATE TABLE grant_right (
  incarnation TEXT NOT NULL, grant_id TEXT NOT NULL,
@@ -262,6 +274,8 @@ CREATE TRIGGER digest_blob_length BEFORE INSERT ON blob BEGIN SELECT CASE WHEN E
 CREATE TRIGGER digest_attachment_length BEFORE INSERT ON attachment BEGIN SELECT CASE WHEN EXISTS(SELECT 1 FROM byte_fact WHERE incarnation=NEW.incarnation AND sha256=NEW.sha256 AND byte_length<>NEW.byte_length) OR EXISTS(SELECT 1 FROM blob WHERE incarnation=NEW.incarnation AND sha256=NEW.sha256 AND byte_length<>NEW.byte_length) OR EXISTS(SELECT 1 FROM attachment WHERE incarnation=NEW.incarnation AND sha256=NEW.sha256 AND byte_length<>NEW.byte_length) THEN RAISE(ABORT,'digest length disagreement') END; END;
 CREATE TRIGGER blob_immutable BEFORE UPDATE ON blob BEGIN SELECT RAISE(ABORT,'immutable content-addressed bytes'); END;
 CREATE TRIGGER grant_fact_retained BEFORE DELETE ON grant_fact BEGIN SELECT RAISE(ABORT,'historical grant fact retained'); END;
+CREATE TRIGGER cli_credential_current BEFORE INSERT ON cli_credential BEGIN SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM board WHERE board_id=NEW.board_id AND incarnation=NEW.incarnation) THEN RAISE(ABORT,'credential current board mismatch') END; SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM grant_record WHERE incarnation=NEW.incarnation AND grant_id=NEW.grant_id AND actor_id=NEW.actor_id AND enabled=1) THEN RAISE(ABORT,'credential requires enabled current grant') END; END;
+CREATE TRIGGER cli_credential_immutable BEFORE UPDATE ON cli_credential BEGIN SELECT RAISE(ABORT,'replace credential through explicit delete and insert'); END;
 CREATE TRIGGER actor_retained BEFORE DELETE ON actor BEGIN SELECT RAISE(ABORT,'historical actor retained'); END;
 CREATE TRIGGER byte_fact_retained BEFORE DELETE ON byte_fact BEGIN SELECT RAISE(ABORT,'compact byte fact retained'); END;
 CREATE TRIGGER operation_reference_retained BEFORE DELETE ON operation_reference BEGIN SELECT RAISE(ABORT,'compact result reference retained'); END;

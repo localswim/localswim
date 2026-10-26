@@ -1,0 +1,69 @@
+NATIVE OWNER ATTRIBUTION BOOTSTRAP - PROPOSAL
+2026-10-26 | G01/G02 | Terry acceptance required before implementation
+
+Problem and authority
+D01 deliberately keeps native setup outside board actors/grants. S01 initializes
+board/policy only. A first native grant command therefore has no board actor row
+for its verified owner. G01's current checks refuse it; merely adding the owner in
+Apply cannot support a stale/denied first command because S02 records its durable
+NOT_COMMITTED outcome before Apply, with a required actor FK.
+This is missing attribution composition, not permission to invent a principal.
+
+Proposed boundary
+G02 provides an explicit native-grant preparation step before S02 Submit. It runs
+only for a deliberately requested, strictly parsed grant.create or grant.revoke;
+never during setup, store open, reads/lookups, credential issuance or session code
+issuance. K03 retains terminal consent; T01/H01 retain transport authentication and
+Host/Origin rules. No meaningful-human-review proof is inferred.
+
+The caller holds the current validated N01 installation service lifetime lease
+before preparation and through the subsequent Submit. Lock order is that native
+lease first, then each S01 writer lease; never acquire them in reverse order.
+Preparation does not acquire a second native lease inside an existing handler.
+The lifetime exclusion prevents stopped native renewal/generation replacement;
+a loaded owner snapshot or ActiveTokenMatches alone is insufficient.
+
+Under S01 writer exclusion and an explicit transaction, preparation reloads and
+verifies the current N01 native owner capability and its installation/origin. It
+checks the exact current selected board/incarnation and frozen actor=ownerActorId.
+It may register only that authenticated owner actor as attribution metadata, using
+kind human, inert label "native owner" and current board/incarnation provenance.
+The native capability is the declared administrative principal; kind is not proof
+of a human at the keyboard and grants no approve or other board right.
+
+If that actor already exists with the expected kind, preserve it and its original
+provenance/label; do not rewrite historical facts. A conflicting existing kind or
+identity refuses without repair. Never register a caller-selected actor, change an
+actor kind, fabricate a grant, or enable/widen any grant. G01 still creates a new
+grantee only within the successful ledgered grant transaction.
+
+Registration is explicit bootstrap/attribution metadata, not a domain mutation:
+it changes no board/card revision, policy, lane, activity, operation or credential.
+An interrupted attempt may leave only that legitimate actor fact. This does not
+prove any grant command committed or supply rights. Repeated preparation is
+idempotent and cannot select a different actor or installation implicitly.
+
+Preparation uses bounded explicit COMMIT/ROLLBACK and readback of only the exact
+actor attribution fact. Known refusal with established rollback stops before
+Submit without implying a grant result or requiring a recovery fence. Uncertain
+preparation also stops before Submit; do not retry or report a grant result.
+Unestablished cleanup/recovery fences writes. A separate explicit recovery path
+must establish storage before resumption. After successful preparation, S02 still
+rechecks current authority and current revisions in its own serialized transaction;
+the earlier check supplies no cached authorization. Expiry, current time or failed
+current authentication can deny submission even if an attribution fact exists.
+Later requests under a renewed native generation must revalidate that generation.
+
+Acceptance and remaining gates
+This proposal allows first-command refusal metadata to reference a real verified
+owner without silently creating authority. It is not implemented by the G01
+foundation or S04 table addition. G02 waits for Terry acceptance of this proposal
+with G01, accepted S04/N01/C02, and the approved durable credential service scope.
+Existing API/archive/fingerprint versions and terminal/unknown rules are unchanged.
+
+G02 must test fresh native first success; first stale/denied durable refusal;
+absent/wrong/expired owner and installation/origin/incarnation mismatch; conflicting
+actor kinds; copied historical provenance; preparation/submit races and faults;
+no privilege/revision/activity effect from registration; and no registration on
+reads, setup or credential issuance. Synthetic fixtures only. Native end-to-end
+qualification remains later work; no live actor/grant/trust action is performed.

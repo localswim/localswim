@@ -1,6 +1,6 @@
 # Storage ownership boundary
 
-This package is the version-one schema/open boundary. It uses the Q02 qualified
+This package is the version-two physical schema/open boundary. It uses the Q02 qualified
 `database/sql` binding on native Windows/amd64 and a fixed local NTFS drive.
 It does not implement domain admission, permissions, outcome reconciliation,
 history clearing, restore, HTTP or CLI behavior.
@@ -15,6 +15,13 @@ stored relational reference is silently adopted or repaired. Failed creation
 leaves its synthetic or real partial files in place for separately scoped recovery.
 Neither API deletes a file, migrates schema, overwrites a DB, or switches an
 existing database to DELETE mode.
+
+The unreleased physical layout is 2 in the schema inventory, board metadata and
+SQLite user version. Layout 1 is refused without modifying database bytes; there
+is no migration. API, logical archive and fingerprint versions remain 1. Private
+CLI credential hash/public metadata survives close/reopen in this layout. G02
+owns issuance, replacement, self-revocation and authentication; metadata storage
+alone confers no authority. Logical exports and restore must exclude these rows.
 
 The directory and main file must have a protected DACL with exactly current-user
 and LocalSystem full-control ACEs, current-user ownership, and private inheritance
@@ -69,6 +76,9 @@ a skipped run is not S01 evidence or qualification. The tests exercise storage
 constraints, exact identity/layout/settings, tombstone preservation, attempted
 refusals, provenance isolation, zero-byte pins, negative path/ACL cases, journal
 ACLs, actual cross-process lock exclusion, separate reader blocking and rollback.
+Credential cases verify exact metadata persistence, immutable bindings, one row
+per grant, exact 30-day expiry, disabled-grant preservation, current-grant FKs,
+explicit replacement/revocation and no domain revision/operation/activity changes.
 They do not prove product transactions, restart recovery, interrupted creation,
 write/flush faults, hostile security, OS reboot, fsync/power-loss durability,
 performance, browser behavior or other platforms/filesystems. Later native

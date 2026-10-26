@@ -54,6 +54,9 @@ release qualification remain separate work.
 - [Atomic writer and outcome ledger](internal/store/writer/README.txt) and
   [independent review](docs/reviews/s02-writer-outcome-review.txt), with explicit
   authority/admission callbacks and commit uncertainty handling.
+- [Grant admission foundation](internal/board/grants/README.txt) and
+  [independent review](docs/reviews/g01-grant-admission-review.txt), with an
+  [owner attribution proposal](docs/decisions/native-owner-attribution-bootstrap-proposal-2026-10-26.txt).
 - [Native setup/lifecycle core](internal/transport/setup/README.txt) and
   [independent review](docs/reviews/n01-native-setup-review.txt).
 - [Proposed public transport encodings](docs/contracts/transport-envelopes.txt)
@@ -75,3 +78,9 @@ core in the aggregate contract generator. The
 records the explicit concrete adapter and remaining live-store qualification.
 These libraries do not yet constitute the integrated application or complete
 service/CLI/bootstrap/browser/recovery qualification.
+
+The [credential decomposition](docs/decisions/credential-admission-decomposition-2026-10-26.txt)
+retains the real credential service as G02 after its private persistence provider
+and owner-accepted attribution proposal. A verifier interface alone is not
+completed authentication. The new physical layout 2 rejects layout 1 without
+migration; logical API/archive versions remain 1.

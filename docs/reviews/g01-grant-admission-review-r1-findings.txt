@@ -1,0 +1,107 @@
+G01 CURRENT GRANT ADMISSION - FRESH INDEPENDENT REVIEW
+2026-10-26 | Partial #0027 | Sol / High | Review revision 1
+
+Verdict
+PARTIAL FOUNDATION VALID WITH STATED TRUSTED-VERIFIER PRECONDITIONS.
+CARD INCOMPLETE: this is not full G01 PASS, Ready for Review, prerequisite
+acceptance or permission to execute dependent work.
+
+The implemented current-grant admission and ledgered grant callbacks passed the
+targeted native synthetic checks. No additional authority bypass was found in
+that bounded implementation. Two accepted journey obligations remain unfinished.
+Passing probes that demonstrate those gaps do not establish product completion.
+
+Authority and reviewed source
+- Accepted slice01 03/05/18, corrected implementation packet 09 and 20/21;
+  current D01 setup.txt sections 6a/6b/6c, D03 transport envelopes, S01 schema,
+  S02 writer/outcome and N01 current native-owner provider requirements.
+- Base HEAD 5e1ec89d55905a7e4a294f7a0843c9831530c1c8; review inputs are the
+  frozen grants.go, mutation.go, grants_windows_test.go and README.txt.
+  All four hashes matched the frozen snapshot and stayed unchanged during review.
+- Public MIT FOSS; synthetic fixtures only. Prior exposure is disclosed; this is
+  not independently isolated clean-room certification. No v1 source was copied.
+
+Acceptance gaps
+R1 - Durable credential service missing.
+D01 setup.txt:528 assigns G01 serialized current-grant credential issue/replace,
+hash persistence/revocation/admission. The present package supplies a Verifier
+callback but no production implementation, durable credential state, issue/
+replace/self-revoke service or restart validation. S01 has no credential table
+and rejects unrecognized schema objects. Pure callback success cannot establish
+actual bearer authentication. This documented gap blocks full G01 acceptance.
+
+R2 - First native-owner attribution has no accepted implementation seam.
+D01 setup.txt:218 explicitly says native setup records no board actor/grant;
+setup.txt:324 requires later explicit terminal grant.create enrollment. S01
+schema.Initialize creates only board and policy. grants.go:88 requires the acting
+actor to exist before native-owner admission, so an actual empty S01 board cannot
+receive its first native-owner grant.create, even with a synthetic verified
+current native capability. No actor, grant, revision or receipt is created.
+
+The missing actor is the ACTING native owner, not the new grantee: mutation.go:152
+already inserts an explicitly selected new grantee and its grant atomically.
+Inserting the acting owner only in Apply would not finish the accepted journey:
+S02 checks revisions/admission before Apply and must retain NOT_COMMITTED too;
+the operation actor foreign key applies to refusals (schema/ddl.go:172).
+Independent stale-revision and admission-refusal probes on an empty board confirm
+that merely allowing native Authority would leave those outcomes unknown with no
+durable receipt. Authority/Admit currently have only read access.
+
+No already-accepted G01-local initialization API was found. Minimum missing seam:
+an explicitly authorized, current-native-provider-authenticated owner attribution
+registration before the first refusal-capable ledger write, with defined scope,
+transaction/atomicity, revision and failure behavior. The accepted first-owner
+journey cannot be silently deferred or declared complete. This review authorizes
+no invented actor, fake grant, broader provider/schema edit or bootstrap policy.
+Any decomposition or changed ownership requires its explicit owner decision.
+
+Verified foundation behavior
+- Every Authority, Admit and Require invokes the trusted verifier again and
+  reloads current board/incarnation, actor kind, exact enabled grant and rights.
+  Binding/time failures refuse. Human and automation rights have no implied
+  privileges; automation cannot gain approve/history-admin/grant-admin, including
+  through synthetically corrupted stored rights.
+- Submission and own-outcome are distinct: command authority can commit while
+  absent read-own-outcome denies its response. With current read-own-outcome,
+  retained exact receipts remain readable after command rights are removed;
+  new commands are refused. Revoking the submitting grant can commit while
+  subsequent current-authority readback refuses.
+- Native entitlement is limited to its own grant.create/revoke metadata, current
+  installation/origin/actor, and current source incarnation. No ordinary board
+  read/export/history/approve or arbitrary actor receipt authority is conferred.
+  Full and compact retained outcomes enforce exact identity; missing/unrelated
+  metadata, wrong fingerprints and source-incarnation substitution do not settle
+  the original operation. Metadata passed to authority is copied from storage.
+- Create/revoke callbacks bind copied route scope and exact target, retain exact
+  board CAS/null card revision, preserve grantee kind and historical facts, and
+  produce one activity event/counter advance per successful mutation. Refusals
+  leave domain revisions/activity/grants unchanged. Overflow refuses durably.
+- Native serialized revoke/admit tests exercise both orders. Admission after
+  revoke is denied; admission before revoke may commit even if later readback
+  loses authority. No replay or inferred noncommit is used.
+
+Actual verification
+Windows/amd64 Go1.27.3, CGO_ENABLED=0, GOTOOLCHAIN=local, -mod=readonly;
+qualified frozen module cache, network module lookup disabled, fresh private
+GOCACHE/GOTMPDIR and explicit S01_TEST_ROOT/G01_TEST_ROOT outside public repo.
+
+- go test -count=2 -timeout=120s -v ./internal/board/grants: exit 0;
+  10 unique top-level tests, 20 top-level passes, 96 subtest passes, zero skips.
+- Fresh independent Go overlay: exit 0; nine top-level passes and two subtest
+  passes. Includes explicit probes confirming R2, current rights/verification,
+  read versus submission, route/metadata copies, immutable grantee kind,
+  repeated revoke/history preservation, event overflow and session time edges.
+- go vet ./internal/board/grants: exit 0.
+
+Limits and handoff
+Synthetic verifier callbacks exercise admission contracts, not production token
+hash verification or actual N01 live integration. No credential persistence,
+issuance/replacement/revocation restart qualification, session/code lifecycle,
+HTTP Host/Origin, browser/CLI runtime, actual human enrollment/confirmation,
+issuer trust installation, hostile same-account isolation, crash/flush/power-loss
+durability or complete product/native qualification is established here.
+
+Review changed only its reports/private probes and evidence. No implementation,
+provider/schema, runtime credential, live board, setup/trust, card, dependency,
+commit or push action was performed. Keep #0027 visibly incomplete; neither this
+review nor a proposed decomposition changes accepted G01 scope or owner gates.

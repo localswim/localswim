@@ -1,4 +1,4 @@
-// Package schema defines the version-one storage layout. Admission, canonical
+// Package schema defines the version-two physical storage layout. Admission, canonical
 // wire validation, retention execution and domain transactions belong to callers.
 package schema
 
@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const Version = 1
+const Version = 2
 const ApplicationID = 0x4c535731 // LSW1
 const MaxInteger int64 = 9007199254740991
 
@@ -89,6 +89,8 @@ func expand(s string) string {
 		switch p[0] {
 		case "u":
 			x = "(length(" + c + ")=36 AND substr(" + c + ",9,1)='-' AND substr(" + c + ",14,1)='-' AND substr(" + c + ",19,1)='-' AND substr(" + c + ",24,1)='-' AND length(replace(" + c + ",'-',''))=32 AND replace(" + c + ",'-','') NOT GLOB '*[^0-9a-f]*' AND " + c + "<>'00000000-0000-0000-0000-000000000000')"
+		case "v4":
+			x = "(" + expand("{{u:"+c+"}}") + " AND length(CAST(" + c + " AS BLOB))=36 AND substr(" + c + ",15,1)='4' AND substr(" + c + ",20,1) IN ('8','9','a','b'))"
 		case "n":
 			x = "(typeof(" + c + ")='integer' AND " + c + " BETWEEN 0 AND 9007199254740991)"
 		case "p":
@@ -227,6 +229,7 @@ func Validate(ctx context.Context, c *sql.Conn, id Identity) error {
 // S02/S03 must preserve them at their transaction boundary. These checks do not
 // substitute for canonical-intent, authorization, workflow or archive validation.
 var consistencyChecks = []string{
+	`SELECT count(*) FROM cli_credential c WHERE NOT EXISTS(SELECT 1 FROM board b WHERE b.board_id=c.board_id AND b.incarnation=c.incarnation) OR NOT EXISTS(SELECT 1 FROM grant_record g WHERE g.incarnation=c.incarnation AND g.grant_id=c.grant_id AND g.actor_id=c.actor_id)`,
 	`SELECT count(*) FROM entity e WHERE (e.removed_at IS NULL) <> CASE e.kind WHEN 'card' THEN EXISTS(SELECT 1 FROM card x WHERE x.incarnation=e.incarnation AND x.card_id=e.entity_id) WHEN 'comment' THEN EXISTS(SELECT 1 FROM comment x WHERE x.incarnation=e.incarnation AND x.comment_id=e.entity_id) WHEN 'link' THEN EXISTS(SELECT 1 FROM link x WHERE x.incarnation=e.incarnation AND x.link_id=e.entity_id) WHEN 'attachment' THEN EXISTS(SELECT 1 FROM attachment x WHERE x.incarnation=e.incarnation AND x.attachment_id=e.entity_id) WHEN 'approval' THEN EXISTS(SELECT 1 FROM approval x WHERE x.incarnation=e.incarnation AND x.approval_id=e.entity_id) END`,
 	`SELECT count(*) FROM card c JOIN board b USING(incarnation) WHERE c.revision>b.revision OR b.revision=0`,
 	`SELECT count(*) FROM ticket t JOIN board b USING(incarnation) WHERE t.ticket>=b.next_ticket`,

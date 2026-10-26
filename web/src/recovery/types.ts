@@ -1,6 +1,6 @@
 // Private local recovery storage. These are client records, never authority.
-import type { Command, RequestAttachmentAdd } from "../../generated/contracts";
-import type { MutationRequest, Terminal } from "../../generated/transport/contracts";
+import type { Command, RequestAttachmentAdd } from "../../generated/contracts.js";
+import type { MutationRequest, Terminal } from "../../generated/transport/contracts.js";
 
 export type Context = Readonly<{
   installationId: string;

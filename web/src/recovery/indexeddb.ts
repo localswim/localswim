@@ -1,5 +1,5 @@
-import { RecoveryError } from "./types";
-import type { Changes, RecoveryDriver, Snapshot } from "./types";
+import { RecoveryError } from "./types.js";
+import type { Changes, RecoveryDriver, Snapshot } from "./types.js";
 
 const stores = ["drafts", "submissions", "statuses"] as const;
 

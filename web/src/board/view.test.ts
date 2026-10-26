@@ -1,9 +1,9 @@
 // Synthetic fixture only. This assertion never qualifies a product profile.
-import type { BoardRead, SessionRead, Terminal } from "../../generated/transport/contracts";
-import { BoardClient } from "../api/client";
-import { prepare } from "../api/boundary";
-import type { BoardCommand } from "../api/boundary";
-import { BoardView } from "./view";
+import type { BoardRead, SessionRead, Terminal } from "../../generated/transport/contracts.js";
+import { BoardClient } from "../api/client.js";
+import { prepare } from "../api/boundary.js";
+import type { BoardCommand } from "../api/boundary.js";
+import { BoardView } from "./view.js";
 
 export async function mountSyntheticBoard(boardInput: BoardRead, sessionInput: SessionRead, qualified = true, databaseName = "w02-test-" + crypto.randomUUID()) {
   const board = structuredClone(boardInput), session = structuredClone(sessionInput);

@@ -1,7 +1,7 @@
-import type { ExchangeSecret, SessionRead } from "../../generated/transport/contracts";
-import { canonical, parse, validate } from "./boundary";
-import { BoardClient } from "./client";
-import type { ClientOptions } from "./client";
+import type { ExchangeSecret, SessionRead } from "../../generated/transport/contracts.js";
+import { canonical, parse, validate } from "./boundary.js";
+import { BoardClient } from "./client.js";
+import type { ClientOptions } from "./client.js";
 
 export type SessionAccess = Readonly<{
   client: BoardClient;

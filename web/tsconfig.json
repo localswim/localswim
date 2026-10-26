@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noEmitOnError": true,
+    "rootDir": "src",
+    "outDir": "dist/js",
+    "sourceMap": false,
+    "inlineSourceMap": false,
+    "declaration": false,
+    "newLine": "lf",
+    "types": []
+  },
+  "files": [
+    "src/app.ts",
+    "src/api/boundary.ts",
+    "src/api/client.ts",
+    "src/api/schema-data.ts",
+    "src/api/w03-session.ts",
+    "src/archive-ui/view.ts",
+    "src/board/view.ts",
+    "src/recovery/indexeddb.ts",
+    "src/recovery/store.ts",
+    "src/recovery/types.ts",
+    "src/recovery-ui/admin.ts",
+    "src/recovery-ui/coordination.ts",
+    "src/recovery-ui/view.ts",
+    "src/session-ui/view.ts",
+    "src/session-ui/workspace.ts"
+  ]
+}

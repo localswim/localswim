@@ -1,6 +1,6 @@
-import type { Confirmation, MutationRequest, Terminal } from "../../generated/transport/contracts";
-import type { BoundaryVerifier, PreparedEvidence, Context } from "../recovery/types";
-import { schemas } from "./schema-data";
+import type { Confirmation, MutationRequest, Terminal } from "../../generated/transport/contracts.js";
+import type { BoundaryVerifier, PreparedEvidence, Context } from "../recovery/types.js";
+import { schemas } from "./schema-data.js";
 
 type ObjectValue = { [key: string]: Value };
 export type Value = null | boolean | number | string | Value[] | ObjectValue;

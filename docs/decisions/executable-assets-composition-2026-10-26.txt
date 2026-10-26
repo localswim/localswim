@@ -1,0 +1,33 @@
+EXECUTABLE AND DETERMINISTIC ASSETS COMPOSITION
+2026-10-26 | P01 | Approved runtime binding follow-through
+
+One executable delegates the accepted core/admin/archive CLI libraries and serves
+the existing T01/K01/A01/H01/H02 adapters. Explicit runtime configuration supplies
+private paths and expected identities without changing mandatory credential
+selectors. Existing storage is opened, never silently created or bootstrapped.
+Current native/credential authority, evidence and domain admission remain owned
+by their existing libraries. The executable owns only composition and lifetime.
+
+Receive-only HTTPS completion lets composition detect unexpected listener exit;
+it supplies no domain outcome or source authority. Shutdown and cancellation must
+preserve transport/handler/native/store ownership order. The protected-root accessor
+returns the actual manager-selected native path for local inventory only; it is
+not an alternative root choice, existence proof or public metadata field.
+
+Canonical relative .js import specifiers keep one ES-module instance for shared
+recovery coordination. Their mechanical source/test changes do not change domain
+logic or schema. Deterministic staging verifies declared inputs, emitted output,
+compiler/config/contract bindings and exact bundle hashes. Runtime verifies the
+embedded manifest; missing, stale, altered or extra material fails closed. Inline
+scripts, third-party modules, credentials, private records and source maps are absent.
+
+Only the validated native installation ID is added to root/index response headers;
+the embedded body remains exact. Browser startup gets principal/domain scope from
+actual session exchange. Qualification stays absent by default. A trusted later
+profile proof is not equivalent to a config flag or a synthetic fixture assertion.
+
+Private native roots, pinned TLS and isolated actual DOM/IndexedDB tests establish
+their component claims. Product activation, clean build distribution,
+positive interactive-console/browser profile qualification and native power-loss
+claims remain bounded by their separately staged tasks. No live installation,
+trust action, human grant, credential issue, login or activation occurs in this work.

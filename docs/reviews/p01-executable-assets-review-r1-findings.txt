@@ -1,0 +1,28 @@
+P01 FRESH REVIEW INITIAL FINDINGS
+2026-10-26 | #0042 | Executable freeze r1 and assets/entry freeze r1
+
+- P01-R1-01: Evidence runtime selection can overlap an active owned layout.
+  cmd/localswim/main.go passes configured evidenceDirectory directly to the
+  evidence store without excluding the current N01 ROOT or configured board.
+  The accepted store creates evidence.lock before checking foreign inventory.
+  A later refusal can therefore leave an extra file in an owned native/store
+  tree and invalidate that layout. The author independently raised this same
+  concern before the next final freeze; reviewer confirmed the source trace.
+- Required correction: reject unsafe composition overlap before evidence-store
+  construction or any write. Verify actual private native/board targets remain
+  byte/inventory unchanged, including child/parent aliases and ordinary lookup
+  uncertainty behavior. Keep accepted evidence/provider implementation intact.
+- P01-R1-02: Empty query strings produce asset module aliases.
+  internal/assets/assets.go rejects nonempty RawQuery but does not reject
+  URL.ForceQuery. Independent fresh private tests show /js/app.js? and
+  /js/recovery-ui/coordination.js? both return 200. An empty query is part of
+  module URL identity, so the coordinator can acquire another module instance.
+- Required correction: reject ForceQuery with the other noncanonical asset
+  paths, add empty-query route negatives and regenerate the bound manifest.
+  Recheck determinism, readonly checks and exact browser module graph.
+- Overall P01 result remains CHANGES REQUIRED pending correction, final source
+  freeze and fresh combined native/binary qualification.
+- Review infrastructure failures are preserved privately: initial overlong
+  Chrome profile path, denied direct junction creation and aggregate result
+  filename collision. A native directory symlink probe refused safely, and all
+  browser subprocesses passed with a shorter unique profile.

@@ -1,12 +1,12 @@
-import type { BoardRead } from "../../generated/transport/contracts";
-import type { ExportRequest } from "../../generated/transport/contracts";
-import type { RequestAttachmentAdd } from "../../generated/contracts";
-import { BoardClient } from "../api/client";
-import type { OriginalOutcome } from "../api/client";
-import type { Context } from "../recovery/types";
-import { button, element } from "../recovery-ui/view";
-import { recoveryCoordinator } from "../recovery-ui/coordination";
-import type { RecoveryCoordinator } from "../recovery-ui/coordination";
+import type { BoardRead } from "../../generated/transport/contracts.js";
+import type { ExportRequest } from "../../generated/transport/contracts.js";
+import type { RequestAttachmentAdd } from "../../generated/contracts.js";
+import { BoardClient } from "../api/client.js";
+import type { OriginalOutcome } from "../api/client.js";
+import type { Context } from "../recovery/types.js";
+import { button, element } from "../recovery-ui/view.js";
+import { recoveryCoordinator } from "../recovery-ui/coordination.js";
+import type { RecoveryCoordinator } from "../recovery-ui/coordination.js";
 
 export interface ArchiveClient extends BoardClient {
   submitAttachment(intent: Readonly<{ context: Context; draftId: string; request: RequestAttachmentAdd; bytes: ArrayBuffer }>, announce: (outcome: OriginalOutcome) => void): Promise<OriginalOutcome>;

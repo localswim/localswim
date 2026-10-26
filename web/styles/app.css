@@ -1,0 +1,13 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.5; }
+body { margin: 0; }
+main { max-width: 78rem; margin: auto; padding: 1.5rem; }
+section { margin-block: 1rem; }
+button, input, select, textarea { font: inherit; }
+button, input, select { margin: .25rem; padding: .5rem; }
+textarea { display: block; width: min(100%, 60rem); min-height: 8rem; }
+button { cursor: pointer; }
+button:disabled { cursor: default; }
+:focus-visible { outline: 3px solid Highlight; outline-offset: 3px; }
+label { display: inline-block; margin-block: .25rem; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+[role="status"], [role="alert"] { border-inline-start: .25rem solid currentColor; padding-inline-start: .75rem; }

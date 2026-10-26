@@ -127,6 +127,15 @@ records the explicit concrete adapter and remaining live-store qualification.
 These libraries do not yet constitute the integrated application or complete
 service/CLI/bootstrap/browser/recovery qualification.
 
+The [thin executable](cmd/localswim/README.txt) composes the existing service and
+CLI adapters using [explicit runtime bindings](docs/contracts/runtime-bindings.txt).
+[Declared embedded assets](internal/assets/README.txt) are staged and checked by
+[assetstage](cmd/assetstage/README.txt). See the
+[P01 independent review](docs/reviews/p01-executable-assets-review.txt) and
+[composition boundaries](docs/decisions/executable-assets-composition-2026-10-26.txt).
+Package-script wiring, two clean distribution builds and product qualification
+remain separately gated work.
+
 The [credential decomposition](docs/decisions/credential-admission-decomposition-2026-10-26.txt)
 records the G01/S04/G02 boundaries. The
 [credential composition](docs/decisions/credential-service-composition-2026-10-26.txt)

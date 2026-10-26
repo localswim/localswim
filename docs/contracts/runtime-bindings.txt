@@ -1,0 +1,60 @@
+P01 NATIVE RUNTIME AND BROWSER BOOTSTRAP BINDING
+2026-10-26 | Approved composition interface | Logical versions unchanged
+
+Invocation
+  localswim serve --config FILE
+  localswim --config FILE EXISTING-CLI-PREFIX-AND-COMMAND
+
+The root --config pair occurs once before existing CLI arguments and is removed
+before delegation. Existing ordinary installation/board/incarnation/grant selectors
+remain mandatory. Config selects private runtime dependencies, never an actor,
+credential, right or replacement incarnation. Setup commands may omit it and retain
+exact D01 syntax. Non-setup commands require it; serve has no JSON success stream.
+
+FILE is bounded at 64 KiB, strict UTF-8 JSON with exactly:
+{configVersion:1,installationId:UUIDv4,
+ board:null|{boardId:UUID,incarnation:UUID,directory:absolute-path},
+ evidenceDirectory:absolute-path,protectedRoots:[absolute-path,...]}
+
+The local file must already exist, be regular, non-reparse and non-hardlinked.
+Paths are safe normalized absolute native paths. Unknown/duplicate keys, malformed
+data and unsupported values refuse; contents and private paths are not echoed.
+There are no credentials, rights, alternative native ROOT or qualification fields.
+The installation ID must match the current validated N01 context. No environment,
+working-directory, default config or file-list search supplies missing choices.
+
+Serve requires nonnull board and opens EXISTING S01 storage with the exact supplied
+board/incarnation/directory. It creates no DB, attribution, grant or bootstrap.
+Unsupported, missing, unsafe, mismatched or fenced storage refuses. Native source
+and transport use the validated stable stored port only. Unexpected completion
+fences/closes the source; shutdown closes transport and active work before the
+session/native/store lifetimes. No second server/admission model or port fallback.
+
+Protected inventory is explicit source/live/private trees, not a filesystem scan.
+Always include the actual validated N01 ROOT and evidenceDirectory, and configured
+board.directory when present. Offline restore/status allow null board and derive
+identities only from validated archive/receipt evidence. Protected inventory must
+still be supplied, even when not serving. Unsafe/overlapping destinations refuse.
+Config paths never appear in public responses or shared logs. Original lookup
+config/selector/local failures retain exit4 and original uncertainty.
+
+Browser bootstrap
+Only GET / and GET /index.html include X-Localswim-Installation containing the
+active validated installation UUID. The verified embedded HTML body is unchanged.
+No new JSON endpoint, domain board/incarnation, principal, grant, right, private
+path or secret is disclosed. Existing HTTPS/Host/no-CORS/CSP boundaries apply.
+
+External entry uses a same-origin root GET, omitted credentials, no-store cache
+and redirect refusal; invalid/missing metadata remains inert unavailable. Actual
+session exchange supplies actor/grant/board/incarnation. No code/bearer enters URL,
+bootstrap/config or persisted metadata. Default profileId is unqualified with NO
+qualification assertion, so mutation recovery/dispatch refuses. The exported
+trusted mount API can consume later V02's actual installation/profile-bound proof;
+no config/query flag enables positive qualification.
+
+Assets and evidence
+Canonical .js module specifiers have one identity, without duplicate aliases.
+Only declared HTML/CSS/production JS enters the verified embedded bundle. P02 owns
+package scripts; Q04 owns actual two-clean-build verification. Native owner actions,
+trust, human grants, credential issue, browser login and activation remain explicit
+later actions; implementation acceptance authorizes none of them.

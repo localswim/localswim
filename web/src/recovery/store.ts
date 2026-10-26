@@ -1,9 +1,9 @@
-import type { MutationRequest, Terminal } from "../../generated/transport/contracts";
+import type { MutationRequest, Terminal } from "../../generated/transport/contracts.js";
 import type {
   BoundaryVerifier, Changes, ClearAcknowledgement, Context, Draft, PreparedEvidence,
   ProfileQualification, RecoveryDriver, Snapshot, Submission, TerminalStatus,
-} from "./types";
-import { RecoveryError } from "./types";
+} from "./types.js";
+import { RecoveryError } from "./types.js";
 
 export const DAY = 86_400_000;
 export const DRAFT_LIMIT = 20;

@@ -1,11 +1,11 @@
-import type { BoardRead, MutationRequest, SessionRead } from "../../generated/transport/contracts";
-import type { Card } from "../../generated/archive/contracts";
-import type { BoardCommand, Value } from "../api/boundary";
-import { BoardClient } from "../api/client";
-import type { OriginalOutcome } from "../api/client";
-import type { Context } from "../recovery/types";
-import { recoveryCoordinator } from "../recovery-ui/coordination";
-import type { RecoveryCoordinator } from "../recovery-ui/coordination";
+import type { BoardRead, MutationRequest, SessionRead } from "../../generated/transport/contracts.js";
+import type { Card } from "../../generated/archive/contracts.js";
+import type { BoardCommand, Value } from "../api/boundary.js";
+import { BoardClient } from "../api/client.js";
+import type { OriginalOutcome } from "../api/client.js";
+import type { Context } from "../recovery/types.js";
+import { recoveryCoordinator } from "../recovery-ui/coordination.js";
+import type { RecoveryCoordinator } from "../recovery-ui/coordination.js";
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = ""): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag); node.textContent = text; return node;

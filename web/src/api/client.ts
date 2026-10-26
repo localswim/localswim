@@ -1,13 +1,13 @@
-import type { Confirmation, Preview, PreviewRequest } from "../../generated/archive/contracts";
-import type { RequestAttachmentAdd } from "../../generated/contracts";
-import type { ExportRequest } from "../../generated/transport/contracts";
-import type { BoardRead, CardRead, MutationRequest, SessionRead, Terminal } from "../../generated/transport/contracts";
-import { openRecoveryDatabase } from "../recovery/indexeddb";
-import { RecoveryStore } from "../recovery/store";
-import type { Context, PreparedEvidence, ProfileQualification, RecoveryDriver } from "../recovery/types";
-import { RecoveryError } from "../recovery/types";
-import { boardBoundaryVerifier, canonical, object, parse, prepare, sha256, validate } from "./boundary";
-import type { BoardCommand, PreparedCommand, Value } from "./boundary";
+import type { Confirmation, Preview, PreviewRequest } from "../../generated/archive/contracts.js";
+import type { RequestAttachmentAdd } from "../../generated/contracts.js";
+import type { ExportRequest } from "../../generated/transport/contracts.js";
+import type { BoardRead, CardRead, MutationRequest, SessionRead, Terminal } from "../../generated/transport/contracts.js";
+import { openRecoveryDatabase } from "../recovery/indexeddb.js";
+import { RecoveryStore } from "../recovery/store.js";
+import type { Context, PreparedEvidence, ProfileQualification, RecoveryDriver } from "../recovery/types.js";
+import { RecoveryError } from "../recovery/types.js";
+import { boardBoundaryVerifier, canonical, object, parse, prepare, sha256, validate } from "./boundary.js";
+import type { BoardCommand, PreparedCommand, Value } from "./boundary.js";
 
 export type OriginalOutcome = Readonly<{
   opId: string;

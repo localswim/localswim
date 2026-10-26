@@ -1,6 +1,6 @@
-import type { SessionRead } from "../../generated/transport/contracts";
-import { BoardClient } from "../api/client";
-import { button, element } from "../recovery-ui/view";
+import type { SessionRead } from "../../generated/transport/contracts.js";
+import { BoardClient } from "../api/client.js";
+import { button, element } from "../recovery-ui/view.js";
 
 // Secret exchange and validation live in the shared provider. UI receives only
 // current, non-secret scope/actor facts and a memory-only credential lifecycle.

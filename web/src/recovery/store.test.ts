@@ -1,10 +1,10 @@
 // Synthetic fixtures only. This suite is callable in an isolated browser page.
 // Its narrow verifier is a TEST DOUBLE, not a shipped canonical/schema provider.
-import type { MutationRequest, Terminal } from "../../generated/transport/contracts";
-import type { BoundaryVerifier, Changes, Context, PreparedEvidence, ProfileQualification, RecoveryDriver, Snapshot } from "./types";
-import { RecoveryError } from "./types";
-import { IndexedDBDriver, openRecoveryDatabase } from "./indexeddb";
-import { DAY, DRAFT_BYTES, DRAFT_LIMIT, RecoveryStore, SUBMISSION_BYTES, UNRESOLVED_LIMIT, recordBytes } from "./store";
+import type { MutationRequest, Terminal } from "../../generated/transport/contracts.js";
+import type { BoundaryVerifier, Changes, Context, PreparedEvidence, ProfileQualification, RecoveryDriver, Snapshot } from "./types.js";
+import { RecoveryError } from "./types.js";
+import { IndexedDBDriver, openRecoveryDatabase } from "./indexeddb.js";
+import { DAY, DRAFT_BYTES, DRAFT_LIMIT, RecoveryStore, SUBMISSION_BYTES, UNRESOLVED_LIMIT, recordBytes } from "./store.js";
 
 const id = (n: number): string => `10000000-0000-0000-0000-${n.toString(16).padStart(12, "0")}`;
 const base: Context = { installationId: id(1), boardId: id(2), incarnation: id(3), actorId: id(4) };

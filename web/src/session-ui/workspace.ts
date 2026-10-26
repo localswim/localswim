@@ -1,11 +1,11 @@
-import type { SessionRead } from "../../generated/transport/contracts";
-import type { OriginalOutcome } from "../api/client";
-import { BoardView } from "../board/view";
-import { RecoveryView, element } from "../recovery-ui/view";
-import { RecoveryAdminView } from "../recovery-ui/admin";
-import type { RecoveryAdminClient } from "../recovery-ui/admin";
-import { ArchiveView } from "../archive-ui/view";
-import type { ArchiveClient } from "../archive-ui/view";
+import type { SessionRead } from "../../generated/transport/contracts.js";
+import type { OriginalOutcome } from "../api/client.js";
+import { BoardView } from "../board/view.js";
+import { RecoveryView, element } from "../recovery-ui/view.js";
+import { RecoveryAdminView } from "../recovery-ui/admin.js";
+import type { RecoveryAdminClient } from "../recovery-ui/admin.js";
+import { ArchiveView } from "../archive-ui/view.js";
+import type { ArchiveClient } from "../archive-ui/view.js";
 
 // Composition stays separate from entry/assets. No automatic original lookup,
 // recovery confirmation, attachment replay, export, restore, or native bootstrap.

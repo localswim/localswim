@@ -1,9 +1,9 @@
-import { BoardClient } from "../api/client";
-import type { OriginalOutcome } from "../api/client";
-import type { Context } from "../recovery/types";
-import type { Inventory } from "../recovery/store";
-import { recoveryCoordinator } from "./coordination";
-import type { RecoveryCoordinator } from "./coordination";
+import { BoardClient } from "../api/client.js";
+import type { OriginalOutcome } from "../api/client.js";
+import type { Context } from "../recovery/types.js";
+import type { Inventory } from "../recovery/store.js";
+import { recoveryCoordinator } from "./coordination.js";
+import type { RecoveryCoordinator } from "./coordination.js";
 
 export function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = ""): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag); node.textContent = text; return node;

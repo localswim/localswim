@@ -1,0 +1,66 @@
+P01 EXECUTABLE AND ASSETS FRESH INDEPENDENT REVIEW
+2026-10-26 | #0042 | PASS | P01-E fresh review r4
+
+Outcome
+- PASS for the frozen bounded P01 composition candidate. No open findings.
+- The final 62 owned source/output files match the combined input snapshot.
+  Parent documentation and accepted provider sources are independently hash-bound
+  in the private receipt. Source remained stable throughout qualification.
+- Existing provider logic, data and logical schemas remain unchanged. The 17
+  preexisting TypeScript changes are exactly relative import suffixes to .js.
+
+Resolved initial findings
+- P01-R1-01: Runtime evidence selection now refuses equal, ancestor and descendant
+  overlap with actual N01 ROOT or the configured board before command/evidence
+  effects. Metadata-only canonical native ancestor pins reject junction and 8.3
+  aliases and remain held through the invocation. Protected publication inventory
+  retains its explicit meaning. Actual private tests preserve byte/inventory/lock
+  state, produce no HTTP attempts and retain original-lookup failure exit4.
+- P01-R1-02: The asset handler now rejects empty queries through ForceQuery as well
+  as nonempty queries and escaped paths. The independent failing reproducer now
+  passes for root/index and app/coordinator modules. Manifest regeneration binds
+  the corrected handler. Initial findings and failed evidence remain preserved.
+
+Executable and native verification
+- Fresh immutable candidate compilation, ordinary tests and vet passed. The
+  production build rejects the private qualification sentinel without an overlay.
+- A freshly built private-overlay executable passed 25 tagged native PASS records
+  without skips. Actual 8.3 alias refusal was exercised, alongside native junction,
+  hardlink, installation mismatch and all eight evidence overlap/alias shapes.
+- Both configured ports passed pinned TLS, actual protected-credential CLI reads,
+  current adapter authentication/rights, session exchange/revocation and native/
+  source exclusion. Startup creates no actor, grant, credential or absent board.
+- Cancellation, unexpected transport completion, fencing, joined handlers, shutdown
+  and restart passed. Owned hidden child CTRL_BREAK produced exit0 and released
+  native/source locks. No reviewer listener or child remains active.
+- Only canonical GET root/index carries active validated installation metadata;
+  verified HTML bytes are unchanged. Query/escaped/missing/API/wrong-method paths
+  do not carry it. Accepted HEAD asset behavior remains intact.
+
+Assets and browser verification
+- Fresh strict TypeScript CLI output and the exact root bundle passed declared
+  staging/checks. Separate roots produced identical bytes. Check preserved every
+  bundle hash and mtime; an input changed during compilation was refused.
+- Missing/stale/extra/private/tampered inputs/output and linked ancestor failures
+  passed. Runtime manifest/inventory verification precedes serving. Only declared
+  HTML/CSS/production JS is public, under restrictive external-script CSP.
+- Seven preserved DOM/IndexedDB regression harnesses passed after fresh provider
+  compilation. Their source and emitted body bytes remain unchanged in the final
+  candidate. A fresh final exact-bundle Chrome bootstrap test also passed.
+- Invalid/missing/redirected bootstrap metadata remains inert. Valid installation
+  metadata mounts literal unqualified without proof. Actual exchange derives
+  principal/domain scope. Missing proof causes zero mutation dispatch/submission;
+  prose is inert, and logout/reload clear visible authority without replay.
+
+Evidence integrity and limits
+- Unique source-before/runtime/log/result paths preserve initial browser profile,
+  aggregate filename and sandbox-native failures. The final host-native attempt
+  used the same frozen candidate, a fresh binary and a separate synthetic root.
+- The manifest binds TSC/native compiler/library and declared source/config/
+  contract/output bytes. Node version/hash is private candidate-tool provenance.
+- Evidence uses synthetic private roots/data/automation grants/credentials, actual
+  local pinned TLS and actual headless Chrome DOM/IndexedDB. No live user ROOT,
+  trust enrollment, human grant, product login or activation occurred.
+- P02 scripts, Q04 clean distribution/two-clean-build proof, V02 product profile
+  qualification, positive interactive-console qualification, power-loss safety
+  and hostile same-account guarantees remain separately gated work.

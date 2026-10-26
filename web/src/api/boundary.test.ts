@@ -1,7 +1,7 @@
-import { boardBoundaryVerifier, canonical, parse, prepare, validate } from "./boundary";
-import type { BoardCommand } from "./boundary";
-import type { MutationRequest } from "../../generated/transport/contracts";
-import type { Context } from "../recovery/types";
+import { boardBoundaryVerifier, canonical, parse, prepare, validate } from "./boundary.js";
+import type { BoardCommand } from "./boundary.js";
+import type { MutationRequest } from "../../generated/transport/contracts.js";
+import type { Context } from "../recovery/types.js";
 
 export async function runBoundaryVectors(vectors: readonly { command: BoardCommand; wire: string; semantic: string }[]): Promise<number> {
   let passed = 0;

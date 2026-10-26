@@ -1,4 +1,4 @@
-import type { BoardClient } from "../api/client";
+import type { BoardClient } from "../api/client.js";
 
 // Live clients in the same origin/database/installation clear domain share this
 // FIFO, including separately mounted views and boards. Register work at the

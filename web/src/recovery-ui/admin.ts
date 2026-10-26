@@ -1,12 +1,12 @@
-import type { BoardRead, SessionRead } from "../../generated/transport/contracts";
-import type { Confirmation, Preview, PreviewRequest } from "../../generated/archive/contracts";
-import { BoardClient } from "../api/client";
-import type { OriginalOutcome } from "../api/client";
-import type { Context } from "../recovery/types";
-import { canonical, parse } from "../api/boundary";
-import { recoveryCoordinator } from "./coordination";
-import type { RecoveryCoordinator } from "./coordination";
-import { button, check, element } from "./view";
+import type { BoardRead, SessionRead } from "../../generated/transport/contracts.js";
+import type { Confirmation, Preview, PreviewRequest } from "../../generated/archive/contracts.js";
+import { BoardClient } from "../api/client.js";
+import type { OriginalOutcome } from "../api/client.js";
+import type { Context } from "../recovery/types.js";
+import { canonical, parse } from "../api/boundary.js";
+import { recoveryCoordinator } from "./coordination.js";
+import type { RecoveryCoordinator } from "./coordination.js";
+import { button, check, element } from "./view.js";
 
 // Composition supplies the concrete W02 provider; there is no UI credential,
 // alternate verifier, or permissive mutation default.

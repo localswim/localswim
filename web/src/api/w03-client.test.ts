@@ -1,8 +1,8 @@
-import type { Confirmation, MutationRequest, SessionRead, Terminal } from "../../generated/transport/contracts";
-import type { Context } from "../recovery/types";
-import { boardBoundaryVerifier, canonical, parse, prepare, validate } from "./boundary";
-import type { PreparedCommand, Value } from "./boundary";
-import { openSessionClient } from "./w03-session";
+import type { Confirmation, MutationRequest, SessionRead, Terminal } from "../../generated/transport/contracts.js";
+import type { Context } from "../recovery/types.js";
+import { boardBoundaryVerifier, canonical, parse, prepare, validate } from "./boundary.js";
+import type { PreparedCommand, Value } from "./boundary.js";
+import { openSessionClient } from "./w03-session.js";
 
 function assert(value: unknown, message: string): asserts value { if (!value) throw Error(message); }
 export async function runW03Boundary(vectors: readonly { command: PreparedCommand; semantic: string; terminal: Terminal }[]): Promise<number> {

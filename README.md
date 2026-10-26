@@ -58,13 +58,16 @@ release qualification remain separate work.
 - [Archive/preview/receipt contract library](internal/contract/archive/README.txt)
   and [independent review](docs/reviews/c03-archive-contract-review.txt), including
   Go-owned generated schema/declarations and shared history-reference helpers.
+- [Public transport contract library](internal/contract/transport/README.txt)
+  and [independent review](docs/reviews/c02-transport-contract-review.txt), covering
+  terminal/read/refusal and session/credential boundaries with shared archive rows.
 - The explicit Windows physical CurrentUser Root provider is described in the
   [native setup library](internal/transport/setup/README.txt) and its
   [independent provider review](docs/reviews/n02-windows-trust-provider-review.txt).
 
 The [contract decomposition](docs/decisions/contract-foundation-decomposition-2026-10-25.txt)
-retains the transport DTO bundle as explicit provider work. The archive bundle
-now joins the aggregate contract generator. The
+records the bounded transport and archive DTO bundles. Both now join the mutation
+core in the aggregate contract generator. The
 [native trust-provider boundary](docs/decisions/native-trust-provider-boundary-2026-10-25.txt)
 records the explicit concrete adapter and remaining live-store qualification.
 These libraries do not yet constitute the integrated application or complete

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/localswim/localswim/internal/contract/archive"
+	"github.com/localswim/localswim/internal/contract/transport"
 )
 
 func TestCheckDoesNotWrite(t *testing.T) {
@@ -30,7 +31,7 @@ func TestCheckDoesNotWrite(t *testing.T) {
 	}
 }
 
-func TestArchiveBundleAndNonwritingCheck(t *testing.T) {
+func TestProviderBundlesAndNonwritingCheck(t *testing.T) {
 	root := t.TempDir()
 	if err := run(root, false); err != nil {
 		t.Fatal(err)
@@ -39,12 +40,19 @@ func TestArchiveBundleAndNonwritingCheck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"schemas/archive/contracts.schema.json", "web/generated/archive/contracts.d.ts"} {
+	transportFiles, err := transport.GeneratedFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range transportFiles {
+		want[name] = data
+	}
+	for _, name := range []string{"schemas/archive/contracts.schema.json", "web/generated/archive/contracts.d.ts", "schemas/transport/contracts.schema.json", "web/generated/transport/contracts.d.ts"} {
 		t.Run(name, func(t *testing.T) {
 			path := filepath.Join(root, filepath.FromSlash(name))
 			got, err := os.ReadFile(path)
 			if err != nil || len(want[name]) == 0 || !bytes.Equal(got, want[name]) {
-				t.Fatal("aggregate archive output missing or different")
+				t.Fatal("aggregate provider output missing or different")
 			}
 			if err := os.Remove(path); err != nil {
 				t.Fatal(err)
@@ -59,10 +67,10 @@ func TestArchiveBundleAndNonwritingCheck(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := run(root, true); err == nil {
-				t.Fatal("archive drift passed check")
+				t.Fatal("provider drift passed check")
 			}
 			if got, err := os.ReadFile(path); err != nil || string(got) != "drift\n" {
-				t.Fatal("check rewrote archive output")
+				t.Fatal("check rewrote provider output")
 			}
 			if err := run(root, false); err != nil {
 				t.Fatal(err)

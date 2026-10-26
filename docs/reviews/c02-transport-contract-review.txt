@@ -1,0 +1,64 @@
+C02 public transport contract review
+2026-10-26 | #0052 | Revision 2 | PASS
+
+Reviewed scope and authority
+- Accepted D03 transport-envelopes.txt, D01 setup.txt and D02 archive-recovery-
+  schema.txt control the exact DTO boundaries; accepted C01/C03 remain providers.
+- Reviewed internal/contract/transport, generated transport schema/declarations,
+  aggregate cmd/contractgen integration/tests, root README and decomposition
+  follow-through. No implementation author overlap or implementation edits.
+- Scope is pure DTO, scalar/structural and reference validation. No new authority,
+  domain/admission policy, HTTP/multipart, database or native runtime is included.
+
+Findings and corrections
+- Initial F1: BoardRead accepted a same-current-identity link to an absent card.
+  The corrected BoardView check resolves those targets against its complete
+  current card collection. Independent probes confirm full targets, inherited and
+  foreign identities, and single-card projection scope retain their boundaries.
+- Initial F2: transport README now uses existing consumer identifiers and
+  distinguishes supplied in-memory byte checks from streaming/hash/native work.
+- Initial findings and original source/probe evidence remain preserved separately
+  in c02-transport-contract-review-r1-findings.txt and the private r1 receipt.
+- No unresolved material findings remain in the reviewed bounded scope.
+
+Verification
+- Pinned Windows amd64 Go 1.27.3, CGO_ENABLED=0, GOTOOLCHAIN=local and
+  GOFLAGS=-mod=readonly; pinned Node 24.20.0 and TypeScript 7.0.2.
+- All 60 accepted D03 positive and 20 negative catalog fixtures pass, including
+  exact readable bytes. All twelve canonical intent bytes/fingerprints remain
+  unchanged through FreezeMutation's required null/positive precondition seam.
+- Independent overlay: 153 passing leaves, counted separately from the catalog.
+  These cover all 48 terminal command/outcome/retention combinations, every
+  required field on the four source terminal variants, refusal opId omission/null,
+  unknown proof limits, secret encoding/rights, credential/export boundaries,
+  current/history references and the corrected link projection scopes.
+- Both the tagged native test and a separate compiler probe pass. The separate
+  probe compiles checked-in declarations against all 60 accepted fixtures and
+  all 48 terminal variants, with rejection and discriminator narrowing checks.
+- Aggregate generator -check passes. Generator integration tests independently
+  cover missing/drifted provider artifacts without rewriting them.
+- Static schema inspection resolves all 249 references and checks 48 terminal
+  variants, twelve mutation refinements, required-null fields, absent-or-UUID
+  refusal opId, secret annotations and path-free export destination.
+- Reviewed source hashes match the corrected frozen snapshot and remain stable
+  through verification. C01/C03 provider sources/outputs and fixtures are unchanged.
+  Text conventions and scoped diff checks pass. Detailed receipts remain private.
+
+Assessment and limits
+Terminal identities, command targets/preconditions, revisions, retained references,
+full typed results, compact null/removal rules and refusal-code binding are checked
+structurally. Matching text/hash or echoed opId supplies no terminal authenticity.
+Current authority, immutable original evidence and dispatch context remain required;
+lookup/possible-submission uncertainty cannot become proof of original noncommit.
+
+Secret transport bodies reject ordinary JSON marshaling and public rendering;
+default/debug formatting is redacted. Explicit MarshalEphemeral remains an opt-in
+for validated ephemeral transport only. Deliberate extraction/conversion and unsafe
+caller-written diagnostic text remain outside those presentation guards.
+
+An actual JSON Schema runtime validator was unavailable in existing local Python/
+Node dependencies; none was installed. Schema verification above is static, not
+runtime JSON Schema conformance. Generated schemas and TypeScript are advisory:
+strict Go lexical, semantic/reference checks and authenticated caller context remain
+required. This PASS does not qualify auth, HTTP/multipart, storage, ZIP/native IO,
+crash/power-loss behavior, browser runtime or integrated product acceptance.

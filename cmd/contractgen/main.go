@@ -13,6 +13,7 @@ import (
 
 	"github.com/localswim/localswim/internal/contract"
 	"github.com/localswim/localswim/internal/contract/archive"
+	"github.com/localswim/localswim/internal/contract/transport"
 )
 
 func main() {
@@ -37,16 +38,25 @@ func run(root string, check bool) error {
 	if e != nil {
 		return e
 	}
-	for name, data := range archiveFiles {
-		if filepath.IsAbs(name) || filepath.ToSlash(filepath.Clean(name)) != name ||
-			strings.Contains(name, "\\") ||
-			!(strings.HasPrefix(name, "schemas/archive/") || strings.HasPrefix(name, "web/generated/archive/")) {
-			return fmt.Errorf("invalid archive output: %s", name)
+	transportFiles, e := transport.GeneratedFiles()
+	if e != nil {
+		return e
+	}
+	for _, bundle := range []struct {
+		name string
+		data map[string][]byte
+	}{{"archive", archiveFiles}, {"transport", transportFiles}} {
+		for name, data := range bundle.data {
+			if filepath.IsAbs(name) || filepath.ToSlash(filepath.Clean(name)) != name ||
+				strings.Contains(name, "\\") ||
+				!(strings.HasPrefix(name, "schemas/"+bundle.name+"/") || strings.HasPrefix(name, "web/generated/"+bundle.name+"/")) {
+				return fmt.Errorf("invalid %s output: %s", bundle.name, name)
+			}
+			if _, exists := files[name]; exists {
+				return fmt.Errorf("duplicate generated output: %s", name)
+			}
+			files[name] = data
 		}
-		if _, exists := files[name]; exists {
-			return fmt.Errorf("duplicate generated output: %s", name)
-		}
-		files[name] = data
 	}
 	names := make([]string, 0, len(files))
 	for n := range files {

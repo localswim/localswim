@@ -1,0 +1,32 @@
+C02 public transport contract review - initial findings
+2026-10-26 | #0052 | Revision 1 | CHANGES REQUIRED
+
+F1 - Unresolved current internal link target
+internal/contract/transport/references.go checks a link's owner membership but
+does not check Link.Target against BoardView's complete current card collection.
+An independent overlay adds a correctly owned current informational link whose
+target has the current board/incarnation and an absent cardId. Decode[BoardRead]
+accepts this inconsistent projection.
+
+Accepted D03 section 5 reuses D02 exact row/reference rules. D02 requires a live
+current reference to resolve a full entity; the accepted C03 document validator
+already checks same-current-identity link targets against full current cards.
+Apply closure where the complete card set is available (BoardView). Preserve
+inherited/external identity references and single-card CardView projection scope.
+
+F2 - Documentation precision
+The transport README should refer only to materialized consumer task identifiers,
+and distinguish C03's supplied in-memory byte checks from transport streaming/hash
+IO and package/native integrity work owned by later consumers.
+
+Verification before correction
+- Pinned Go 1.27.3, Node 24.20.0 and TypeScript 7.0.2 focused tests pass.
+- All 60 accepted positive and 20 negative D03 fixtures pass; all twelve original
+  canonical intent/hash anchors remain unchanged.
+- Aggregate generation check and missing/drift nonwriting tests pass.
+- Independent adversarial overlay has 101 leaves; only F1 fails.
+- Reviewed source hashes match the frozen author snapshot and remain stable.
+
+This review covers pure DTO and structural/reference boundaries. It establishes
+no authentication, terminal authenticity, HTTP, native IO or product qualification.
+Initial evidence is preserved privately; corrections require a distinct re-review.

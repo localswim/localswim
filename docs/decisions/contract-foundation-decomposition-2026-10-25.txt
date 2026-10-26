@@ -44,3 +44,17 @@ HistoryRead consumers must reuse archive.Rows and ValidateHistoryReferences.
 C02 transport DTO implementation remains required. Archive helpers do not perform
 ZIP/streaming/native publication, database retention or authority decisions;
 A03/A04/S03 retain those responsibilities and their qualification gates.
+
+C02 implementation follow-through
+The transport bundle supplies the accepted D03 terminal/refusal/unknown/read and
+session/credential/export boundary types. It reuses C01 command/result semantics
+and C03 shared rows/reference validation. Its generated schema/declarations join
+the same aggregate generator and nonwriting missing/drift checks.
+Public mutation adapters use C02's D03 wire refinement before the shared freezer:
+expectedCardRevision is present and null for non-card scope, positive for existing
+card requests. This preserves the accepted transport boundary and input omissions.
+Ephemeral code/token responses require explicit secret serialization; public
+rendering and semantic fingerprints do not acquire those bodies. Validation does
+not authenticate a terminal result, grant authority, establish dispatch state or
+implement current credential/session admission. S02/G01/T01 and later adapters
+retain those runtime responsibilities and owner-acceptance gates.

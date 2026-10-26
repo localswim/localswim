@@ -1,0 +1,92 @@
+S01 - FRESH INDEPENDENT STORAGE FOUNDATION REVIEW
+2026-10-25 | #0011 | Sol / High | Corrected source closure
+
+Verdict: PASS WITHIN S01 SCOPE
+All three initial findings are closed. Fresh non-author source inspection and
+independent native reruns found no remaining material correction. Terry's review
+and acceptance remain separate gates. Original CHANGES REQUIRED evidence remains
+unchanged in docs/reviews/s01-storage-foundation-review-r1-findings.txt.
+
+R1 High - CLOSED: exact schema inventory
+- schema.go:146 uses GLOB 'sqlite_*', which treats the reserved underscore
+  literally. Legal sqliteXunexpected is included and rejected by the audit.
+- open_windows_test.go:610 checks the exact layout-mismatch error, failed Existing
+  refusal and unchanged main-database SHA-256. The original independent private
+  legal-lookalike reproduction now passes on corrected source.
+
+R2 High - CLOSED: operation byte facts match protected attachment bytes
+- ddl.go:196-210 gives byte_fact a digest/length-qualified unique key and binds
+  operation_blob_pin to that same operation fact with a deferred composite FK.
+  Existing Attachment/BLOB FKs remain. Symmetric insert guards at :248-249
+  reject a disagreement when the counterpart exists; schema.go:238 audits it.
+- open_windows_test.go:686 checks digest mismatch trigger code 1811 and its
+  specific reason, missing deferred fact COMMIT code 787, matching fact-first
+  and pin-first staging, and both current/source ledgers. Explicit COMMIT succeeds
+  after matching staging; compact facts survive release of pins/full payload/BLOBs.
+- Refused/compact facts gain no BLOB FK or fabricated-entity requirement. The
+  existing absent-target/absent-byte refusal positive remains passing.
+- The original independent fact/pin mismatch reproduction now passes.
+
+R3 Medium - CLOSED: historical references preserve card ownership
+- ddl.go:139-145 includes card_id in the historical typed entity FK;
+  schema.go:235 also audits ownership. This protects full and removed snapshots.
+- open_windows_test.go:637 checks actual FK code 787 and reason for cross-card
+  comment/link/attachment/approval references. Same-card full references validate;
+  removed-history references retain correct ownership, including tombstones.
+  Approval facts remain full. The independent cross-card reproduction now passes.
+
+Independent checks
+- Re-inspected all material source/test/documentation changes against preserved
+  original source. Reviewed the author's preserved-original regression run:
+  legal lookalike audit and expected FK/trigger predicates fail for the intended
+  accepted-invalid-data reasons. Author corrections copied no reviewer tests.
+- Native Go 1.27.3 windows/amd64, fixed local NTFS, CGO_ENABLED=0,
+  GOTOOLCHAIN=local, GOFLAGS=-mod=readonly; verified Q01 dependency cache and new
+  private synthetic fixture roots, with private build/temp caches.
+- go test -count=1 -timeout=90s -v ./internal/store/schema ./internal/store/open:
+  PASS, 17 top-level tests once, zero failures/skips. Schema SQL is exercised by
+  the open-package native tests; schema has no separate test file.
+- go vet ./internal/store/schema ./internal/store/open: PASS.
+- Original private review overlay: four test groups PASS, zero failures/skips.
+  Besides the three original reproductions, this checks actual FK787/CHECK275,
+  panic transaction rollback/connection reuse and canceled callback refusal.
+- Full native rerun includes path/ACL/header/identity/schema refusal, journal
+  privacy, actual cross-process handle exclusion, junction/hardlink/rename
+  rejection, separate reader-blocked COMMIT rollback/reuse, writer bounds/fence,
+  retained references, zero-byte BLOBs, 10 MiB object cap and distinct 64 MiB cap.
+- Native junction fixture execution used the same narrowly scoped host boundary;
+  no global setting, privilege installation, trust, grant, unrelated process
+  termination or recursive cleanup was performed. No public source was edited
+  by this reviewer. Complete source/tool/fixture/log hashes remain private.
+
+Corrected source anchors
+Paths below are relative to internal/store/.
+- schema/ddl.go SHA256:
+  4e12f8fafd85c90221df1987b71ae052452f8499ce9953b4637cdfd202f69268
+- schema/schema.go SHA256:
+  b284154eaef67e1adb0a7bd8d3eefc77e184709cc8ed2f8987e68339e7bb8c94
+- open/open_windows_test.go SHA256:
+  293b87798e81b7a222d4ce880994535dfad6d0971e8aa2df99aaba4da73012f3
+- Unchanged open/open.go SHA256:
+  85f8d5e43d90feb6c328f144e76260fbea5ad2eb860940f6b94dbdfce36ed1c4
+- Unchanged go.mod / go.sum SHA256:
+  e4884af04b03465b486bccd0f2e8c031d575b5d3ddbf20a6db64ab7fb84f3629
+  73d8f9e5776a31a8d5eb60d1cec809f56ba60ffdc13933ae5db6b12fd5c9e8e8
+Exact sqlite v1.61.0 / libc v1.79.0 pins remain unchanged.
+
+Scope and retained limits
+Basis remains accepted slice01 03/06/07/18, corrected packet09, final D02 archive
+schema/review and Q02 qualification README/evidence/fresh review. C01/N01 are
+separate providers. Schema/open/physical-connection ownership does not implement
+S02 admission/outcome reconciliation, S03 retention, authority resolution or
+archive validation. json_valid and relational checks do not prove canonical
+intent/result semantics. Failed COMMIT remains UNKNOWN at the product boundary.
+
+Protected current-user/System directory/main-file DACLs and private inherited
+journal ACEs are narrower than D01 setup ROOT certification. Callback connection
+escape remains a trusted caller contract. No race detector with CGO=0, hostile
+same-account process, product fault/restart recovery, fsync/power-loss durability,
+browser behavior, performance or other platform/filesystem is qualified here.
+
+Public MIT FOSS; UTF-8/LF/final newline. No real boards, credentials, private paths,
+identities, raw logs or v1 source/tests/internal designs are included.

@@ -1,0 +1,1227 @@
+{
+  "$comment": "Validate the selected route's $defs entry. This schema is not permission admission. Strict JSON decoding rejects duplicate keys, invalid Unicode and nondecimal numbers before schema validation.",
+  "$defs": {
+    "RefusalResult": {
+      "additionalProperties": false,
+      "properties": {
+        "conflict": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "cardId": {
+                  "anyOf": [
+                    {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "cardRevision": {
+                  "anyOf": [
+                    {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "incarnation": {
+                  "not": {
+                    "const": "00000000-0000-0000-0000-000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                "revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "cardId",
+                "cardRevision",
+                "incarnation",
+                "revision"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "field": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "field",
+            "message"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "conflict",
+        "error"
+      ],
+      "type": "object"
+    },
+    "RequestApprove": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedCardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": false,
+          "properties": {
+            "policyVersion": {
+              "maximum": 1,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "policyVersion"
+          ],
+          "type": "object"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "cardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardId"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "expectedCardRevision",
+        "expectedRevision",
+        "incarnation",
+        "input",
+        "opId",
+        "target"
+      ],
+      "type": "object"
+    },
+    "RequestAttachmentAdd": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedCardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": false,
+          "properties": {
+            "byteLength": {
+              "maximum": 10485760,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "mediaLabel": {
+              "maxLength": 127,
+              "pattern": "^[\\x00-\\x7f]*$",
+              "type": "string"
+            },
+            "name": {
+              "type": "string",
+              "x-max-utf8-bytes": 255
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "byteLength",
+            "mediaLabel",
+            "name",
+            "sha256"
+          ],
+          "type": "object"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "cardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardId"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "expectedCardRevision",
+        "expectedRevision",
+        "incarnation",
+        "input",
+        "opId",
+        "target"
+      ],
+      "type": "object"
+    },
+    "RequestCardCreate": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedCardRevision": {
+          "type": "null"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": "string",
+              "x-max-utf8-bytes": 65536
+            },
+            "priority": {
+              "enum": [
+                "P0",
+                "P1",
+                "P2",
+                "P3",
+                "P4",
+                "P5"
+              ],
+              "type": "string"
+            },
+            "title": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string",
+              "x-nonblank": true
+            }
+          },
+          "required": [
+            "description",
+            "title"
+          ],
+          "type": "object"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "target": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "expectedRevision",
+        "incarnation",
+        "input",
+        "opId",
+        "target"
+      ],
+      "type": "object"
+    },
+    "RequestCardEdit": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedCardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": "string",
+              "x-max-utf8-bytes": 65536
+            },
+            "lane": {
+              "enum": [
+                "In Progress"
+              ],
+              "type": "string"
+            },
+            "priority": {
+              "enum": [
+                "P0",
+                "P1",
+                "P2",
+                "P3",
+                "P4",
+                "P5"
+              ],
+              "type": "string"
+            },
+            "title": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string",
+              "x-nonblank": true
+            }
+          },
+          "required": [],
+          "type": "object"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "cardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardId"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "expectedCardRevision",
+        "expectedRevision",
+        "incarnation",
+        "input",
+        "opId",
+        "target"
+      ],
+      "type": "object"
+    },
+    "RequestCommentAdd": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedCardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string",
+              "x-max-utf8-bytes": 65536,
+              "x-nonblank": true
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "cardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardId"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "expectedCardRevision",
+        "expectedRevision",
+        "incarnation",
+        "input",
+        "opId",
+        "target"
+      ],
+      "type": "object"
+    },
+    "RequestGrantCreate": {
+      "additionalProperties": false,
+      "properties": {
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "expectedCardRevision": {
+          "type": "null"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": false,
+          "properties": {
+            "granteeActorId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "human",
+                "automation"
+              ],
+              "type": "string"
+            },
+            "rights": {
+              "items": {
+                "enum": [
+                  "approve",
+                  "attach",
+                  "comment",
+                  "create",
+                  "edit",
+                  "export",
+                  "grant-admin",
+                  "history-admin",
+                  "read",
+                  "read-own-outcome",
+                  "restore",
+                  "review-handoff"
+                ],
+                "type": "string"
+              },
+              "type": "array",
+              "uniqueItems": true,
+              "x-order": "ASCII ascending"
+            }
+          },
+          "required": [
+            "granteeActorId",
+            "kind",
+            "rights"
+          ],
+          "type": "object"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "target": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "boardId",
+        "expectedRevision",
+        "incarnation",
+        "input",
+        "opId",
+        "target"
+      ],
+      "type": "object"
+    },
+    "RequestGrantRevoke": {
+      "additionalProperties": false,
+      "properties": {
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "expectedCardRevision": {
+          "type": "null"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "grantId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "grantId"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "boardId",
+        "expectedRevision",
+        "incarnation",
+        "input",
+        "opId",
+        "target"
+      ],
+      "type": "object"
+    },
+    "RequestHistoryClear": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "enum": [
+            "history.clear"
+          ],
+          "type": "string"
+        },
+        "expectedCardRevision": {
+          "type": "null"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": false,
+          "properties": {
+            "throughTime": {
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+              "type": "string",
+              "x-year-minimum": 1
+            }
+          },
+          "required": [
+            "throughTime"
+          ],
+          "type": "object"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "previewHash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "target": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "command",
+        "expectedCardRevision",
+        "expectedRevision",
+        "incarnation",
+        "input",
+        "opId",
+        "previewHash",
+        "target"
+      ],
+      "type": "object"
+    },
+    "RequestLinkAdd": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedCardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "blocking",
+                "informational"
+              ],
+              "type": "string"
+            },
+            "targetCardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "targetCardId"
+          ],
+          "type": "object"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "cardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardId"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "expectedCardRevision",
+        "expectedRevision",
+        "incarnation",
+        "input",
+        "opId",
+        "target"
+      ],
+      "type": "object"
+    },
+    "RequestLinkRemove": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedCardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": false,
+          "properties": {
+            "linkId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "linkId"
+          ],
+          "type": "object"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "cardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardId"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "expectedCardRevision",
+        "expectedRevision",
+        "incarnation",
+        "input",
+        "opId",
+        "target"
+      ],
+      "type": "object"
+    },
+    "RequestRetentionSet": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "enum": [
+            "retention.set"
+          ],
+          "type": "string"
+        },
+        "expectedCardRevision": {
+          "type": "null"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": false,
+          "properties": {
+            "activityDays": {
+              "maximum": 3650,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "historyDays": {
+              "maximum": 3650,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "outcomeDays": {
+              "maximum": 3650,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "activityDays",
+            "historyDays",
+            "outcomeDays"
+          ],
+          "type": "object"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "previewHash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "target": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "command",
+        "expectedCardRevision",
+        "expectedRevision",
+        "incarnation",
+        "input",
+        "opId",
+        "previewHash",
+        "target"
+      ],
+      "type": "object"
+    },
+    "RequestReviewHandoff": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedCardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "cardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardId"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "expectedCardRevision",
+        "expectedRevision",
+        "incarnation",
+        "input",
+        "opId",
+        "target"
+      ],
+      "type": "object"
+    },
+    "ResultApprove": {
+      "additionalProperties": false,
+      "properties": {
+        "approvalId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "cardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "approvalId",
+        "cardId"
+      ],
+      "type": "object"
+    },
+    "ResultAttachmentAdd": {
+      "additionalProperties": false,
+      "properties": {
+        "attachmentId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "cardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "attachmentId",
+        "cardId"
+      ],
+      "type": "object"
+    },
+    "ResultCardCreate": {
+      "additionalProperties": false,
+      "properties": {
+        "cardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cardId"
+      ],
+      "type": "object"
+    },
+    "ResultCardEdit": {
+      "additionalProperties": false,
+      "properties": {
+        "cardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cardId"
+      ],
+      "type": "object"
+    },
+    "ResultCommentAdd": {
+      "additionalProperties": false,
+      "properties": {
+        "cardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "commentId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cardId",
+        "commentId"
+      ],
+      "type": "object"
+    },
+    "ResultGrantCreate": {
+      "additionalProperties": false,
+      "properties": {
+        "grantId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "grantId"
+      ],
+      "type": "object"
+    },
+    "ResultGrantRevoke": {
+      "additionalProperties": false,
+      "properties": {
+        "grantId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "grantId"
+      ],
+      "type": "object"
+    },
+    "ResultHistoryClear": {
+      "additionalProperties": false,
+      "properties": {
+        "coverageRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "retentionVersion": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "coverageRevision",
+        "retentionVersion"
+      ],
+      "type": "object"
+    },
+    "ResultLinkAdd": {
+      "additionalProperties": false,
+      "properties": {
+        "cardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "linkId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cardId",
+        "linkId"
+      ],
+      "type": "object"
+    },
+    "ResultLinkRemove": {
+      "additionalProperties": false,
+      "properties": {
+        "cardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "linkId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cardId",
+        "linkId"
+      ],
+      "type": "object"
+    },
+    "ResultRetentionSet": {
+      "additionalProperties": false,
+      "properties": {
+        "coverageRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "retentionVersion": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "coverageRevision",
+        "retentionVersion"
+      ],
+      "type": "object"
+    },
+    "ResultReviewHandoff": {
+      "additionalProperties": false,
+      "properties": {
+        "cardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cardId"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slice01 mutation request boundaries"
+}

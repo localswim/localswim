@@ -1,0 +1,16 @@
+{
+  "actorId": "00000000-0000-4000-8000-00000000000a",
+  "apiVersion": 1,
+  "boardId": "00000000-0000-4000-8000-000000000001",
+  "error": {
+    "code": "OUTCOME_UNKNOWN",
+    "field": null,
+    "message": "Synthetic"
+  },
+  "fingerprint": "387c71749af2b0b982014ae1a55224037b0472821654ab52ce2c833d02a030ae",
+  "fingerprintVersion": 1,
+  "incarnation": "00000000-0000-4000-8000-000000000002",
+  "opId": "00000000-0000-4000-8000-00000000000f",
+  "outcome": "unknown",
+  "revision": 5
+}

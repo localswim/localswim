@@ -1,0 +1,15 @@
+{
+  "expectedCardRevision": 3,
+  "expectedRevision": 4,
+  "incarnation": "00000000-0000-4000-8000-000000000002",
+  "input": {
+    "byteLength": 10,
+    "mediaLabel": "text/plain",
+    "name": "note.txt",
+    "sha256": "4ac9c84a00cf5c569835430fd5e4cb1a782d70806ee741822d600498b7460671"
+  },
+  "opId": "00000000-0000-4000-8000-00000000000f",
+  "target": {
+    "cardId": "00000000-0000-4000-8000-00000000000b"
+  }
+}

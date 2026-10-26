@@ -1,0 +1,89 @@
+S01 - FRESH INDEPENDENT STORAGE FOUNDATION REVIEW
+2026-10-25 | #0011 | Sol / High | CHANGES REQUIRED
+
+Outcome
+Three reproducible storage validation defects require correction. The author
+created none of this review or its private supplemental tests. Scope is schema,
+open and physical connection ownership; this review grants no product recovery,
+admission, retention, archive or durability qualification.
+
+R1 High - Legal extra schema objects escape the exact-layout audit
+- internal/store/schema/schema.go:146 excludes names with LIKE 'sqlite_%'.
+  The underscore is a wildcard. A legal CREATE TABLE sqliteXunexpected(x INTEGER)
+  succeeds, and Validate accepts the resulting unsupported layout.
+- Correct the reserved-prefix filter to match the literal sqlite_ prefix, or
+  inventory all supported objects explicitly. Add a legal lookalike-object
+  regression and verify failed Existing leaves database bytes unchanged.
+- Private TestReviewHiddenLayoutRejected reproduces the acceptance. This concerns
+  schema identity, not hostile same-process isolation or later domain admission.
+
+R2 High - A committed attachment's byte fact can disagree with its protected bytes
+- internal/store/schema/ddl.go:246 validates a pin against Attachment, but not
+  against its operation's byte_fact. schema.go:238 performs the same incomplete
+  audit; its global digest-length check does not compare different digests.
+- A full COMMITTED attachment.add with byte_fact digest A and an operation pin
+  protecting Attachment/BLOB digest B passes both insert and Validate. Both facts
+  can have length zero, and B's stored bytes can have the correct SHA-256.
+- Bind that operation's digest/length fact to its full committed attachment pin
+  in transaction-completeness validation and appropriate insert constraints.
+  Add a mismatching-digest regression. Preserve refused/compact facts' freedom
+  from BLOB FKs or fabricated entities; no JSON canonical decoder is requested.
+- Private TestReviewOperationByteFactPinMismatchRejected reproduces acceptance.
+  This violates D02 archive-recovery-schema.txt:193-213's relational byte mapping.
+
+R3 Medium - Full historical references can belong to another card
+- internal/store/schema/ddl.go:139-144 keys revision_reference to a snapshot and
+  entity existence, omitting the entity's card ownership. The consistency audit
+  at schema.go:229 checks tombstone/full availability but not ownership.
+- A full snapshot of card A can reference card B's full comment; insert and
+  Validate both succeed. Current references correctly include ownership in FKs.
+- Bind historical reference card_id to entity.card_id, including retained
+  tombstones, or equivalently audit it. Cover comments, links, attachments and
+  approvals; keep valid same-card full and removed-history cases passing.
+- Private TestReviewCrossCardHistoryRejected reproduces the full-comment case.
+
+Actual verification
+- Read all nine S01 source/documentation files, author evidence, accepted slice01
+  03/06/07/18, corrected packet09, final D02 archive schema/review, and Q02
+  qualification README/evidence/fresh review. C01/N01 remain separate providers.
+- Independent native Go 1.27.3 windows/amd64, fixed local NTFS, CGO_ENABLED=0,
+  GOTOOLCHAIN=local, GOFLAGS=-mod=readonly, verified Q01 module cache, fresh private
+  build/temp/fixture roots. Exact sqlite v1.61.0 / libc v1.79.0 pins are unchanged.
+- go test -count=1 -timeout=90s -v ./internal/store/schema ./internal/store/open:
+  PASS, 14 top-level tests once, zero skips. Schema has no separate test file;
+  its SQL constraints are exercised by native open-package tests.
+- go vet ./internal/store/schema ./internal/store/open: PASS.
+- Four private overlay test groups: one passes actual SQLite FK code 787 and
+  safe-integer CHECK code 275, panic rollback/connection reuse and canceled
+  callback refusal. Three regression groups fail on the defects above.
+- The full native run exercised junction/hardlink/rename rejection through the
+  narrowly scoped host boundary; no installation, trust or global privilege
+  change, unrelated process termination or recursive cleanup was performed.
+- Original refused helper open_windows_test.go:121 accepts any SQL error. The
+  supplemental checks inspect actual codes; permanent regression checks should
+  assert the intended constraint or semantic reason rather than incidental errors.
+
+Reviewed anchors
+- schema/ddl.go SHA256:
+  7351262c3790f2e900752947502e9806982222d251c2f44d9ab6c0f7aeb65535
+- schema/schema.go SHA256:
+  31690d5eaf2e03fdfd5f13c6a22ce9160c481e71807651d5c8cd19df4c7fc905
+- open/open.go SHA256:
+  85f8d5e43d90feb6c328f144e76260fbea5ad2eb860940f6b94dbdfce36ed1c4
+- go.mod / go.sum SHA256:
+  e4884af04b03465b486bccd0f2e8c031d575b5d3ddbf20a6db64ab7fb84f3629
+  73d8f9e5776a31a8d5eb60d1cec809f56ba60ffdc13933ae5db6b12fd5c9e8e8
+- Complete source/tool/fixture/log hashes and command receipts remain private.
+
+Boundaries retained
+Protected current-user/System directory and main-file DACLs, private journal
+inheritance, handle-backed exclusion, identity/header checks, explicit SQL leases,
+separate reader-blocked COMMIT rollback, 10 MiB BLOB and distinct 64 MiB protected
+quota checks were inspected and exercised. These are narrower than D01 setup ROOT
+certification. Callback connection escape is a trusted caller contract. No race
+detector, product fault/restart/power-loss durability, hostile same-account process,
+other platform/filesystem or domain admission claim follows. Failed COMMIT remains
+unknown at the product boundary; S02 owns outcome reconciliation and fencing policy.
+
+Public MIT FOSS; UTF-8/LF/final newline. No real boards, credentials, private paths,
+identities, raw logs or v1 source/tests/internal designs are included.

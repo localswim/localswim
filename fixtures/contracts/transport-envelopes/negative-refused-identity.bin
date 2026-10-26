@@ -1,0 +1,12 @@
+{
+  "actorId": "00000000-0000-4000-8000-00000000000a",
+  "apiVersion": 1,
+  "conflict": null,
+  "error": {
+    "code": "OPERATION_MISMATCH",
+    "field": "expectedRevision",
+    "message": "Synthetic stale revision"
+  },
+  "opId": "00000000-0000-4000-8000-00000000000f",
+  "outcome": "refused"
+}

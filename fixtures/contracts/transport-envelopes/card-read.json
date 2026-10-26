@@ -1,0 +1,163 @@
+{
+  "apiVersion": 1,
+  "result": {
+    "actors": [
+      {
+        "actorId": "00000000-0000-4000-8000-00000000000a",
+        "createdIn": {
+          "boardId": "00000000-0000-4000-8000-000000000001",
+          "incarnation": "00000000-0000-4000-8000-000000000003"
+        },
+        "kind": "human",
+        "label": "Synthetic reviewer 雪"
+      }
+    ],
+    "approvals": [],
+    "attachments": [
+      {
+        "attachmentId": "00000000-0000-4000-8000-00000000000d",
+        "byteLength": 10,
+        "cardId": "00000000-0000-4000-8000-00000000000b",
+        "createdAt": "2026-10-01T00:00:00Z",
+        "createdIn": {
+          "boardId": "00000000-0000-4000-8000-000000000001",
+          "incarnation": "00000000-0000-4000-8000-000000000002"
+        },
+        "mediaLabel": "text/plain",
+        "name": "note.txt",
+        "sha256": "4ac9c84a00cf5c569835430fd5e4cb1a782d70806ee741822d600498b7460671"
+      },
+      {
+        "attachmentId": "00000000-0000-4000-8000-00000000000e",
+        "byteLength": 0,
+        "cardId": "00000000-0000-4000-8000-00000000000b",
+        "createdAt": "2026-09-02T00:00:00Z",
+        "createdIn": {
+          "boardId": "00000000-0000-4000-8000-000000000001",
+          "incarnation": "00000000-0000-4000-8000-000000000002"
+        },
+        "mediaLabel": "application/octet-stream",
+        "name": "empty.bin",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "card": {
+      "archived": false,
+      "attachmentIds": [
+        "00000000-0000-4000-8000-00000000000d",
+        "00000000-0000-4000-8000-00000000000e"
+      ],
+      "cardId": "00000000-0000-4000-8000-00000000000b",
+      "commentIds": [
+        "00000000-0000-4000-8000-00000000000c"
+      ],
+      "createdIn": {
+        "boardId": "00000000-0000-4000-8000-000000000001",
+        "incarnation": "00000000-0000-4000-8000-000000000003"
+      },
+      "currentApprovalId": null,
+      "description": "Reviewed é\u000d\u000a\"quote\" \\ path",
+      "lane": "Ready for Work",
+      "linkIds": [],
+      "priority": "P3",
+      "revision": 4,
+      "ticket": 1,
+      "title": "Alpha 雪"
+    },
+    "comments": [
+      {
+        "actorId": "00000000-0000-4000-8000-00000000000a",
+        "cardId": "00000000-0000-4000-8000-00000000000b",
+        "commentId": "00000000-0000-4000-8000-00000000000c",
+        "createdAt": "2026-09-01T00:00:00Z",
+        "createdIn": {
+          "boardId": "00000000-0000-4000-8000-000000000001",
+          "incarnation": "00000000-0000-4000-8000-000000000003"
+        },
+        "text": "Synthetic check"
+      }
+    ],
+    "coverage": {
+      "activityFloor": null,
+      "gaps": [
+        {
+          "boardRevision": 4,
+          "class": "outcome_payload",
+          "fromExclusive": null,
+          "origin": {
+            "boardId": "00000000-0000-4000-8000-000000000001",
+            "incarnation": "00000000-0000-4000-8000-000000000002"
+          },
+          "reason": "cleared",
+          "recordedAt": "2026-10-01T00:00:00Z",
+          "throughInclusive": "2026-09-01T00:00:00Z"
+        },
+        {
+          "boardRevision": 4,
+          "class": "history",
+          "fromExclusive": null,
+          "origin": {
+            "boardId": "00000000-0000-4000-8000-000000000001",
+            "incarnation": "00000000-0000-4000-8000-000000000003"
+          },
+          "reason": "cleared",
+          "recordedAt": "2026-10-01T00:00:00Z",
+          "throughInclusive": "2026-09-01T00:00:00Z"
+        },
+        {
+          "boardRevision": 2,
+          "class": "outcome_payload",
+          "fromExclusive": null,
+          "origin": {
+            "boardId": "00000000-0000-4000-8000-000000000001",
+            "incarnation": "00000000-0000-4000-8000-000000000003"
+          },
+          "reason": "expired",
+          "recordedAt": "2026-10-01T00:00:00Z",
+          "throughInclusive": "2026-09-01T00:00:00Z"
+        }
+      ],
+      "historyFloor": null,
+      "outcomePayloadFloor": null
+    },
+    "historyReferences": [
+      {
+        "available": true,
+        "cardId": "00000000-0000-4000-8000-00000000000b",
+        "cardRevision": 3,
+        "committedAt": "2026-09-02T00:00:00Z",
+        "origin": {
+          "boardId": "00000000-0000-4000-8000-000000000001",
+          "incarnation": "00000000-0000-4000-8000-000000000002"
+        }
+      },
+      {
+        "available": false,
+        "cardId": "00000000-0000-4000-8000-00000000000b",
+        "cardRevision": 1,
+        "committedAt": "2026-09-01T00:00:00Z",
+        "origin": {
+          "boardId": "00000000-0000-4000-8000-000000000001",
+          "incarnation": "00000000-0000-4000-8000-000000000003"
+        }
+      },
+      {
+        "available": false,
+        "cardId": "00000000-0000-4000-8000-00000000000b",
+        "cardRevision": 2,
+        "committedAt": "2026-09-01T00:00:00Z",
+        "origin": {
+          "boardId": "00000000-0000-4000-8000-000000000001",
+          "incarnation": "00000000-0000-4000-8000-000000000003"
+        }
+      }
+    ],
+    "identity": {
+      "boardId": "00000000-0000-4000-8000-000000000001",
+      "incarnation": "00000000-0000-4000-8000-000000000002"
+    },
+    "links": [],
+    "revision": 5
+  },
+  "scope": "card"
+}

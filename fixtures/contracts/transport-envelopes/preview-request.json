@@ -1,0 +1,8 @@
+{
+  "command": "history.clear",
+  "expectedRevision": 5,
+  "incarnation": "00000000-0000-4000-8000-000000000002",
+  "input": {
+    "throughTime": "2026-10-01T00:00:00Z"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "apiVersion": 1,
+  "conflict": {
+    "cardId": "00000000-0000-4000-8000-00000000000b",
+    "cardRevision": 4,
+    "incarnation": "00000000-0000-4000-8000-000000000002",
+    "revision": 5
+  },
+  "error": {
+    "code": "REVISION_CONFLICT",
+    "field": "expectedRevision",
+    "message": "Synthetic stale revision"
+  },
+  "opId": "00000000-0000-4000-8000-00000000000f",
+  "outcome": "refused"
+}

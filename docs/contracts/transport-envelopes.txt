@@ -1,0 +1,384 @@
+SLICE01 D03 - PUBLIC TRANSPORT ENVELOPE FREEZE
+2026-10-25 | #0051 | Revision 1 | Proposed encodings; owner acceptance required
+
+Authority and scope
+Accepted sibling v2-architecture/docs/slice01/01,03,04,05,18,19 and corrected
+09/20/21 control behavior. Current implementation setup.txt D01 revision 3 and
+archive-recovery-schema.txt D02, each with its PASS review, control their exact
+families. The parent's acceptance record, not those documents' historical proposal
+headers or review verdicts, establishes acceptance. This D03 is a NEW proposed
+encoding decision set. Terry must accept it before C02 or affected consumer code.
+The current C01 provider is incomplete public transport breadth; it is neither
+D03 authority nor a prerequisite for this documentary decision.
+
+Every exact NEW field/key/null choice below is proposed, even when implementing
+accepted behavior. This completes missing outer encodings; it does not silently
+claim earlier example shorthand supplied them. On acceptance, these exact shapes
+supersede only 04's schematic outer examples and optional error-field shorthand.
+The existing mutation input semantics, complete18 fingerprint, D01 exact secret
+issue/secret-free CLI shapes, D02 preview/receipt/result shapes and authority rules
+remain unchanged. This file creates no new grant/right, retention/default/no-op
+policy, workflow, query/search/workspace, pagination, replay or native guarantee.
+Private setup/status/config/credential FILE DTOs remain N01-owned, not C02 types.
+Public MIT FOSS; invented fixtures only; no live boards, real secrets or v1 sources.
+Prior exposure is disclosed; no isolated clean-room certification is claimed.
+
+1. Common notation, decoded structure and wire bytes
+An object below lists its COMPLETE keys; all are REQUIRED unless explicitly
+marked ABSENT-OR-U. '?' means nullable, NEVER optional. Arrays include [] and
+empty inputs {}. No additional envelope keys such as success,data,requestId,status,
+httpStatus or transport actor claims may appear. HTTP status is outside the body.
+Unknown/duplicate keys, invalid UTF-8/BOM, invalid Unicode scalars, missing keys,
+wrong types, unsupported version/enum, depth>32 and invalid number lexemes refuse.
+JSON accepts insignificant whitespace/key order; fixtures use D02 R bytes (UTF-8,
+LF, sorted ASCII keys, final LF). Hashes use D02 C bytes WITHOUT a final LF. No
+normalization/trimming of text, Unicode or original line endings takes place.
+N=decimal integer 0..9007199254740991, no sign, exponent, fraction or leading zero;
+positive counters/card revisions/tickets are >=1, board revision may be 0 on an
+empty new board. U=nonzero lowercase canonical 8-4-4-4-12 UUID; general domain U
+adds no generation-version requirement. Installation/credential Uv4 follow D01.
+H=64 lowercase hexadecimal SHA-256 digits. T=valid Gregorian UTC whole-second
+YYYY-MM-DDTHH:mm:ssZ, years0001..9999, no leap second/offset/fraction. Newly sampled
+persisted times floor UTC once per transaction; same-second events remain distinct.
+Identity={boardId:U,incarnation:U}. Target=null|{cardId:U}|{grantId:U}, selected
+by command18. Error={code:string,message:string,field:string?}; code is a stable
+nonempty category and message nonempty inert diagnostic text, never proof. field
+is a dotted schema field path or null. No stack, paths, token/hash, prose echo,
+private recovery handle or arbitrary internal exception in Error. The existing
+D01 credential CLI Error has ONLY code,message; do not insert field there.
+Conflict={incarnation:U,revision:N,cardRevision:N?,cardId:U?}, EXACT D02 shape;
+cardId/cardRevision are both null for board-only conflict, both nonnull for an
+existing-card conflict when available. A missing target can use null/null. No
+current prose is embedded. Derive current read route from returned cardId and the
+selected board; use an authenticated current read to expose current text. Preserve
+input and original evidence. A changed incarnation requires deliberate action;
+never silently adopt it or read an old card as though it belonged to a new board.
+
+Rights=sorted unique ASCII array from approve,attach,comment,create,edit,export,
+grant-admin,history-admin,read,read-own-outcome,restore,review-handoff. Order is
+lexicographic; no implied rights. Automation cannot receive approve,grant-admin
+or history-admin. kind is human|automation; server resolves actor/kind/rights.
+Domain/retained row types, sort orders, byte limits, references and nullable fields
+below reuse D02's EXACT definitions, not an independent transport domain model.
+This is a type reference, not permission for C02 to implement archive validation.
+
+2. Route/body map and semantic identity
+BOARD=/api/v1/boards/{boardId}; all route IDs are U. No trailing route alternative,
+actor query, implicit board or optional revision substitutes are introduced.
+Methods/routes are the accepted04/18 routes, including these complete mutations:
+POST BOARD/cards -> card.create, target=null
+PATCH BOARD/cards/C -> card.edit, target={cardId:C}
+POST BOARD/cards/C/comments -> comment.add, target={cardId:C}
+POST BOARD/cards/C/attachments -> attachment.add, target={cardId:C}
+POST BOARD/cards/C/link-add -> link.add, target={cardId:C}
+POST BOARD/cards/C/link-remove -> link.remove, target={cardId:C}
+POST BOARD/cards/C/review-handoff -> review-handoff, target={cardId:C}
+POST BOARD/cards/C/approve -> approve, target={cardId:C}
+POST /api/v1/grants -> grant.create, target=null
+DELETE /api/v1/grants/G -> grant.revoke, target={grantId:G}
+POST BOARD/recovery/confirm -> history.clear|retention.set, target=null
+
+Ordinary card wire keys are exactly {opId:U,incarnation:U,target:Target,
+expectedRevision:N,expectedCardRevision:N?,input:typed-command-input}.
+Create requires expectedCardRevision=null; existing card requires positive value.
+Grant wire adds required boardId:U to those keys; create board scope comes from
+validated request, revoke scope from the stored grant. Grant card revision=null.
+Recovery confirm EXACT D02 keys are {opId,incarnation,target,expectedRevision,
+expectedCardRevision,command,input,previewHash}; do not add boardId/apiVersion/actor.
+The recovery canonical payload is {input,previewHash}, not just input.
+All other typed command inputs and optional omissions are accepted04/18 and C01's
+bounded catalog; no transport default enters the fingerprint. In particular,
+create description is required (empty valid), priority omission stays omitted on
+wire and normalizes null in frozen intent, edit omissions mean unchanged.
+
+Attachment transport is multipart/form-data with EXACT two parts named metadata
+and file, one each, no extras. metadata has Content-Type application/json and is
+the normal attachment command JSON <=16384 bytes. file is raw bytes <=10485760,
+Content-Type application/octet-stream; any multipart filename is ignored and never
+authoritative (input.name supplies inert display name). Reject duplicate parts,
+extra parts, encoded/decoded byte disagreement or incomplete final boundary.
+The sha256/length must describe exact raw file bytes before writer admission.
+Multipart framing/part headers/file path/bearer are not semantic intent. These
+part names/shape restrictions are proposed D03 encodings of accepted06 transport.
+
+Server independently derives route board/target, registered method/command and
+credential actor. Complete frozen canonical intent keys are EXACTLY accepted18:
+{fingerprintVersion:1,boardId,incarnation,opId,actorId,command,target,payload,
+expectedRevision,expectedCardRevision}. No transport/credential/selectors/secret
+appear there. For lookup use GET BOARD/operations/O with EXACT query parameters
+incarnation=U&fingerprintVersion=1&fingerprint=H, each once, no body; query order
+is immaterial. Actor derives from CURRENT credential. Target/command/preconditions
+are bound by original fingerprint and retained record, not a newly selected card.
+Credentials/prose never go in a URL. These query values are public identity/hash
+metadata, not a bearer or permission. Lookup performs no mutation and no replay.
+
+3. Identity-bound terminal transport variants
+TerminalCommon keys (all required):
+ apiVersion:1, outcome:"committed"|"not_committed", boardId:U,incarnation:U,
+ opId:U,actorId:U,fingerprintVersion:1,fingerprint:H,command:Command,target:Target,
+ expectedRevision:N,expectedCardRevision:N?,terminalAt:T,code:string,
+ revision:N?,cardRevision:N?,retention:"full"|"compact",resultRefs:[FactRef],
+ byteFacts:[ByteFact],result:object?,removal:Removal?
+Command is exactly the twelve accepted mutations in section2. FactRef,ByteFact,
+Removal and sorting are EXACT D02. Code/result/refs/time/preconditions are stored
+terminal facts; NEVER substitute a later current state or lookup error. No intent
+or credential is returned. Fingerprint and complete identity must match immutable
+submission evidence and independently authenticated original actor/current rights.
+Structural validity or a matching text/hash alone is not terminal authenticity.
+
+Discriminator | revision/cardRevision | code | result | refs | removal
+committed/full | recorded committed board/card-or-null | OK | typed D02 committed result | stored | null
+committed/compact | same recorded revisions | OK | null | stored | stored Removal
+not_committed/full | null/null | original refusal | exact D02 RefusalResult | [] | null
+not_committed/compact | null/null | original refusal | null | [] | stored Removal
+
+Create has a positive committed cardRevision; every existing-card mutation does
+also. Grant/recovery committed cardRevision is null. CardRef/result IDs must agree
+with target and command. Full committed result shapes are EXACT D02 section
+FullOutcome.result, including recovery {retentionVersion,coverageRevision}.
+Full RefusalResult={error:Error,conflict:Conflict?}; error.code=code. Compact cannot
+invent pruned error messages/conflicts, full input or recovery result fields; stored
+compact resultRefs and byteFacts remain available and non-pinning under D02.
+Removing a full result never frees operation identity or changes terminal class.
+This explicit compact wrapper preserves definitive terminal proof without promising
+reconstruction of pruned full data. Future UI labels missing full detail unavailable.
+
+HTTP committed is 201 for newly created card/comment/attachment/link/grant and 200
+for other commits; repeated matching terminal receipts and ALL operation lookups
+use 200. These exact new-creation status choices are proposed encodings within
+accepted04's 200/201 class. All retained not_committed responses use HTTP200,
+including revision/permission/preview refusals. Return only after successful terminal
+COMMIT/readback per authority; inability to establish a terminal result is unknown.
+CLI terminal committed exit0; terminal not_committed exit2. Full/compact affects
+detail availability, not the definitive class. No automatic replay/fresh opId.
+
+4. Unknown and nonterminal refusal
+KnownIdentityUnknown={apiVersion:1,outcome:"unknown",boardId:U,incarnation:U,
+ opId:U,actorId:U,fingerprintVersion:1,fingerprint:H,error:Error}.
+These identity fields are original immutable evidence, not a claim a row exists.
+No command/result/revision/terminalAt/retention/conflict may appear. OUTCOME_UNKNOWN
+is the ordinary error; SOURCE_AUTHORITY_UNAVAILABLE labels source-incarnation
+lookup at restored destination. HTTP503 for server uncertainty; HTTP200 for a
+successful lookup that finds no classifiable original evidence. CLI exit4 in BOTH.
+Server cannot invent a trusted actor/hash before authentication/validation; use the
+following refusal instead, and client retains original uncertainty separately.
+
+NonterminalRefusal={apiVersion:1,outcome:"refused",error:Error,conflict:Conflict?,
+ opId:ABSENT-OR-U}. opId is OMITTED when unavailable; explicit null is INVALID.
+When present it is a parsed request/route echo, NEVER identity proof. Other identity,
+fingerprint,command,result,terminalAt and revision fields are absent. This family
+serves unauthenticated, prevalidation, wrong-origin, read and local failures as well
+as refusals concerning lookup. It is never a retained NOT_COMMITTED record.
+conflict is null unless safe current conflict details are available. A conflict
+response cannot substitute later state into a stored RefusalResult. If disclosure
+is unauthorized, do not reveal current identity/revisions/text; use null.
+
+HTTP | nonterminal code/category | ordinary read/provably-unsent CLI exit
+400 INVALID_INPUT (syntax/schema/version/route mismatch) | 2
+401 UNAUTHENTICATED | 2
+403 FORBIDDEN (including origin/current permission denial) | 2
+404 NOT_FOUND | 2
+409 REVISION_CONFLICT / INCARNATION_CONFLICT / OPERATION_MISMATCH | 2
+413 INPUT_TOO_LARGE | 2
+503 UNAVAILABLE | 3 (only before submission/read)
+no HTTP INVOCATION_OR_IO | 1 (provably before dispatch)
+
+An adapter MAY emit refused/HTTP4xx without a terminal record when authentication,
+strict decode or complete semantic identity cannot be established. Once authority
+can record an identity-bound terminal refusal it uses section3; if recording is
+uncertain it cannot assert noncommit. HTTP4xx, error.code, echoed opId, conflict,
+missing row, cancel, restart or absent current effect never proves noncommit.
+For EVERY lookup failure (including local selector/evidence failures), or a mutation
+that may have transmitted without exact terminal proof, CLI exit4 overrides the
+ordinary table. A client with valid original evidence may synthesize the exact
+KnownIdentityUnknown plus the concrete error (e.g. UNAUTHENTICATED, OPERATION_MISMATCH,
+CREDENTIAL_DISABLED), preserving original actor/hash. With no validated complete
+original identity, JSON emits NonterminalRefusal with the concrete error and exit4;
+it cannot manufacture KnownIdentityUnknown fields. The exit and dispatch context
+must be retained by caller; refused is never evidence of original noncommit.
+Read/local invocation errors have no opId unless one was parsed. --json emits one
+envelope and LF, no prose; diagnostics are stderr. Never dump unsafe received bodies.
+
+5. Reads: exact current and retained-history projections
+HTTP200/CLI exit0 bodies, including CLI --json, are exactly:
+BoardRead={apiVersion:1,scope:"board",result:BoardView}.
+BoardView={identity:Identity,revision:N,policyVersion:1,retention:Retention,
+ retentionVersion:N,coverage:Coverage,actors:[Actor],cards:[Card],comments:[Comment],
+ links:[Link],attachments:[Attachment],approvals:[Approval]}.
+CardRead={apiVersion:1,scope:"card",result:CardView}.
+CardView={identity:Identity,revision:N,card:Card,actors:[Actor],comments:[Comment],
+ links:[Link],attachments:[Attachment],approvals:[Approval],
+ historyReferences:[HistoryReference],coverage:Coverage}.
+HistoryReference={origin:Identity,cardId:U,cardRevision:N,committedAt:T,
+ available:boolean}; available=(D02 Snapshot.state!=null). Sort as D02 Snapshot.
+CardView includes current immutable rows referenced by this card and attribution/
+approval actors; it is not an alternative card model. BoardView includes current
+rows and the Actor/Approval facts required by their references; no active grant,
+session/token, nextTicket allocator, outcome ledger or tombstone internals.
+
+HistoryRead={apiVersion:1,scope:"history",result:HistoryView}.
+HistoryView={identity:Identity,revision:N,cardId:U,cardRevision:N,coverage:Coverage,
+ records:[Snapshot],actors:[Actor],comments:[Comment],links:[Link],
+ attachments:[Attachment],approvals:[Approval],tombstones:[EntityTombstone]}.
+GET BOARD/cards/C/history returns earlier records for that logical C, including
+source-provenance origins after restore. cardRevision is the current card revision;
+records never include a duplicate of current state. Include exactly the immutable
+rows/facts needed by the returned records, and their actors, with D02's full-versus-
+tombstoned reference rules. Empty records is a successful observed empty collection
+with coverage, never a replacement for failed/unavailable history. A removed row
+has state=null/removal nonnull; gaps/floors label unavailable coverage. Null floor
+alone is not a completeness claim. No history window/search/pagination is added.
+All D02 row types/ordering remain exact, including Card.priority versus archived.
+Read views are one coherent snapshot; revision is that snapshot's board revision.
+
+GET BOARD, GET BOARD/cards/C and GET history require current read authority. Check
+requested installation/board/incarnation against current response before presenting
+as current. Failure uses NonterminalRefusal and no fabricated result/empty arrays.
+Current-read transport has no stale flag: UI may retain a separately labeled stale
+previous successful view on error, never transform it into a fresh server response.
+GET BOARD/attachments/A returns authorized exact raw bytes, Content-Type
+application/octet-stream and Content-Disposition attachment; no JSON success wrapper,
+server path, executable inline rendering or automatic replay. Errors BEFORE stream
+use NonterminalRefusal; interrupted bytes are unavailable, never complete content.
+
+6. Session and credential PUBLIC boundaries
+Retain accepted05 Host/exact-Origin/Sec-Fetch-Site, JSON, bearer, no-CORS/no-cookie
+and CSP rules. CLI absent Origin applies only to its authorized native credentials;
+no header confers actor authority. JSON secret success responses below require
+Cache-Control: no-store and must not enter logs/evidence/results/exports or stdout.
+S128=22-character canonical unpadded base64url of exactly16 random bytes;
+S256=43-character canonical unpadded base64url of exactly32 random bytes. Decode
+and re-encode identically (reject padding/noncanonical trailing bits). Production
+uses OS cryptographic random bytes; fixtures' zero bytes are NOT runtime secrets.
+
+GET /api/v1/session -> HTTP200 SessionRead={apiVersion:1,actorId:U,kind:Kind,
+ grant:{grantId:U,boardId:U,incarnation:U,rights:Rights}}.
+This is the current board credential's scope/actor, not a principal-selector input.
+No native-owner board-scope fiction: its special entitlement is checked on the
+specific grant-action lookup; ordinary SessionRead is for board credentials.
+
+POST /api/v1/session/codes (current grant-admin native bootstrap): exact request
+{installationId:Uv4,boardId:U,incarnation:U,grantId:U}; server binds configured
+origin and existing enabled grant. HTTP201 exact response {apiVersion:1,
+ installationId:Uv4,boardId:U,incarnation:U,grantId:U,actorId:U,code:S128,
+ issuedAt:T,expiresAt:T}. expiresAt=issuedAt+60 seconds. No opId/fingerprint or
+board/card revision change; code is single-use, invalidated on restart. This new
+request/response spelling is a proposed encoding, not a new enrollment policy.
+
+POST /api/v1/session/exchange exact request {code:S128}; exact Origin and JSON.
+HTTP200 exact response {apiVersion:1,token:S256,session:SessionRead,issuedAt:T,
+ idleExpiresAt:T,expiresAt:T}. Initially idleExpiresAt=issuedAt+1800 seconds and
+expiresAt=issuedAt+28800 seconds; ongoing use obeys accepted idle/absolute limits.
+The nested SessionRead includes its own apiVersion:1; no wrapper hash is defined.
+Bearer stays only in browser memory. Code never goes in URL or recovery. No cookie.
+DELETE /api/v1/session authenticates exact presented board bearer; no request body.
+HTTP200 exact success {apiVersion:1,scope:"session",outcome:"revoked"}; this means
+presented credential revoked, not grant revoked or unrelated intent noncommit.
+A failed/expired/absent credential gets NonterminalRefusal; lost response remains
+unverified revocation. Restart invalidates browser sessions/codes, not D01 board
+CLI credentials. Session routes have no durable domain receipt/lookup/replay.
+
+POST /api/v1/session/cli-credentials uses D01 EXACT request
+{installationId:Uv4,boardId:U,incarnation:U,grantId:U}, current native owner bearer.
+HTTP201 secret response EXACT D01 keys {apiVersion:1,installationId:Uv4,boardId:U,
+ incarnation:U,grantId:U,actorId:U,kind:Kind,rights:Rights,credentialId:Uv4,
+ issuedAt:T,expiresAt:T,token:S256}; expiresAt=issuedAt+2592000 seconds. No outer
+D03 wrapping and no opId. It issues/replaces only the selected enabled grant's
+credential, not the grant. Retain D01's serialized rights/scope/revocation rules.
+Secret issue/exchange/code success bodies are ephemeral transport only; NEVER
+canonical semantic fingerprints, retained outcomes, recovery records or exports.
+Failures use NonterminalRefusal; do not print a rejected secret response.
+
+D01 secret-free CLI envelope remains EXACT, without a D03 wrapper:
+{apiVersion:1,scope:"credential",command:"issue"|"revoke",
+ outcome:"confirmed"|"refused"|"failed"|"unavailable"|"unknown",
+ result:null|{installationId:Uv4?,boardId:U?,incarnation:U?,grantId:U?,actorId:U?,
+ credentialId:Uv4?,issuedAt:T?,expiresAt:T?,locallyAvailable:boolean},
+ error:null|{code:string,message:string}}.
+This explicitly spells D01's unavailable public-field null rule. result=null when
+no validated public response facts exist; never reconstruct unknown IDs/times from
+an earlier issuance. confirmed issue requires all public fields nonnull, locally-
+available=true and verified private publication; confirmed revoke may retain known
+facts but locallyAvailable=false. Other results never claim locallyAvailable=true
+unless verified; uncertainty after possible publication is unknown/exit4.
+Outcome/exit: confirmed0, failed1 before-dispatch IO, refused2, unavailable3 only
+provably before dispatch, unknown4 after possible issue/revoke/publication. Error
+null on confirmed; nonnull otherwise. D01's diagnostic categories remain unchanged.
+No token/hash/owner secret/code or private local path in this envelope.
+
+7. CLI selectors, public invocation errors and original proof
+Ordinary prefix EXACT D01:
+ localswim [--json] --installation ID --board B --incarnation I --grant G COMMAND
+Selectors all mandatory, once, prefix-only; --json may be in prefix. Never infer a
+file/actor/default. Server-derived GET session actor/B/I/G must equal selected
+validated file and original evidence when reconciling. No --actor flag. Selectors
+are authentication context, NEVER mutation payload/fingerprint/public file DTOs.
+Native-owner original grant lookup EXACT D01:
+ localswim [--json] --board B operation read O --evidence FILE --native-owner
+No --installation/--incarnation/--grant with --native-owner. The current owner
+provider resolves original installation/origin/owner actor from evidence/local
+material. It cannot read general board/card/history or other-actor/domain outcomes.
+Setup, native grant administration, issue/revoke, code bootstrap and offline restore
+retain their special contracts; they are never fallback ordinary selectors.
+
+D01 diagnostics before NEW board dispatch use NonterminalRefusal with null conflict:
+ CREDENTIAL_SELECTION_REQUIRED / CREDENTIAL_EXPIRED / CREDENTIAL_DISABLED /
+ CREDENTIAL_CONTEXT_MISMATCH -> exit2;
+ INVOCATION_OR_IO (including duplicates/contradictory flags) -> exit1;
+ CREDENTIAL_UNAVAILABLE or UNSAFE_LOCAL_MATERIAL -> exit1 for local IO/unsafe
+ material, exit3 for unavailable storage/connection as D01 directs.
+No effects/credential issue or searching another grant follows a selector failure.
+For ORIGINAL operation lookup every such failure remains exit4, section4. Exact
+retained proof may resolve only B/I/actor/opId/version/hash/preconditions/target
+matching original immutable intent under CURRENT read-own-outcome, or D01's narrow
+same-installation/current-native-owner own grant.create/revoke entitlement. No
+sourceArchives destination authority or expired/renewed different actor substitute.
+
+8. D02 preview/receipt and export composition (no hash changes)
+POST BOARD/recovery/preview request and HTTP200 response are EXACT D02 standalone
+objects. NO D03 read/result wrapper, outcome/scope key or added actor claim surrounds
+preview. CLI recovery preview --json emits that identical object. Preview errors
+are NonterminalRefusal; preview is read-only, not terminal proof/permission.
+Hash inventory remains exactly D02 C(response removing ONLY previewHash); there
+is no outer object to accidentally enter it. Confirm uses section3 terminal
+variants and D02 typed results; its full stored result remains the inner object.
+D02 restore receipt, TargetInventory and offline status validation stay EXACT and
+remain C03/A03 owned. No HTTP restore route or authority is added. Offline restore/
+status --json emits the existing standalone D02 envelope, unwrapped:
+{apiVersion:1,scope:"restore",outcome:"confirmed"|"failed"|"unknown",
+ result:{sourceIdentity:Identity?,sourceRevision:N?,destination:Identity?}}.
+Exits0/1/4 per D02; source/destination unknown fields are null. Receipt phase is
+not an operation outcome and no wrapper changes a manifest/inventory hash.
+
+POST BOARD/exports exact request {incarnation:U,expectedRevision:N,input:{}}.
+HTTP200 success is application/zip stored-only D02 archive, no JSON wrapper/server
+path/operation receipt. Browser after offering complete download emits its local
+public status {apiVersion:1,scope:"export",outcome:"offered",
+ result:{sourceIdentity:Identity,sourceRevision:N,destination:null}}.
+CLI --json after verified no-overwrite local publication emits same shape with
+outcome:"confirmed", destination:null. Export destination is ALWAYS null in this
+public envelope because it is a local file path, not a restored Identity; human
+stdout/stderr may identify the deliberately chosen local destination. Failed/
+unknown delivery uses outcome:"failed"|"unknown" with sourceIdentity/sourceRevision
+nullable if unverified and destination:null; exits1/4. Browser offered is never
+verified delivery. Prestream authenticated revision/right refusal uses section4
+and exit2; read-unavailable before streaming exit3. No fabricated opId or fingerprint.
+A truncated/invalid streamed package is failed if conclusively rejected, unknown
+when local delivery/publication may have happened but remains unverified. Export
+failures never downgrade a committed save. No automatic re-export/restore/replay.
+
+9. Fixture and implementation handoff
+fixtures/contracts/transport-envelopes/ owns exact synthetic R wire bodies,
+C semantic bytes/hash anchor, HTTP/CLI case metadata and negative byte/shape cases.
+The documentary verifier checks declared schemas/variants, byte lengths/hashes,
+status/exit mapping, source fingerprints and secret-boundary examples. It is not a
+product validator and does not qualify authentication, native IO, HTTP/multipart,
+SQLite, archives, concurrent admission, browser persistence or crash/power-loss.
+C02 can implement these outer families from C01 primitives after both are accepted;
+C03 owns exact D02 structures and A03 owns package/native integrity. Shared row
+DTO definitions must agree with D02; do not introduce a second browser domain model.
+Owner acceptance is required for this whole encoding set, particularly compact
+terminal wrappers, read projections, multipart names, session-code/exchange DTOs,
+strict required nullable refusal fields and path-free export destination=null.
+No unresolved behavior is delegated to a consumer to invent. Any newly discovered
+consequential policy question returns for a bounded owner decision before code.

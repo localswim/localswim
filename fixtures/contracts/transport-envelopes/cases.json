@@ -1,0 +1,753 @@
+{
+  "negative": [
+    {
+      "byteLength": 1244,
+      "family": "terminal",
+      "path": "negative-terminal-secret.bin",
+      "reason": "unknown typed result key",
+      "sha256": "38fa1b16693fb5b058c30d67e3ec3c4171217daa1e86649d7057d32189fe6d4b"
+    },
+    {
+      "byteLength": 1187,
+      "family": "terminal",
+      "path": "negative-committed-no-revision.bin",
+      "reason": "committed revision required",
+      "sha256": "8928d3b78a5765ccad9782c3d3071ae69072b76134eb93537e0d2d17ba9c2030"
+    },
+    {
+      "byteLength": 1277,
+      "family": "terminal",
+      "path": "negative-compact-result.bin",
+      "reason": "pruned full result cannot be invented",
+      "sha256": "def2c34f1472be64f1764ce1d17c538bfb84064ad9b4ff59ad42def0c8350e24"
+    },
+    {
+      "byteLength": 1155,
+      "family": "terminal",
+      "path": "negative-missing-key.bin",
+      "reason": "required key absent",
+      "sha256": "7609cd39e5899e34cafacc648b1cea08afe4ef4f7edac272188cd466ea8afcfa"
+    },
+    {
+      "byteLength": 209,
+      "family": "refused",
+      "path": "negative-opid-null.bin",
+      "reason": "optional opId absent or U, never null",
+      "sha256": "c9445050e40894cd6a11f8f41a911ba303b4837dc1286388254d256040d9a003"
+    },
+    {
+      "byteLength": 296,
+      "family": "refused",
+      "path": "negative-refused-identity.bin",
+      "reason": "refused cannot imply terminal identity",
+      "sha256": "6a62007aa92d5f3e7b4d6ee1053d1f2fab890caae99b9fdc86c07a45bb61a5c8"
+    },
+    {
+      "byteLength": 483,
+      "family": "unknown",
+      "path": "negative-unknown-revision.bin",
+      "reason": "unknown cannot carry committed revision",
+      "sha256": "f8219a5342e8c0a6486498e0b7046c93e35c255792060bf21af44a8da57e4283"
+    },
+    {
+      "byteLength": 32,
+      "family": "strict-json",
+      "path": "negative-duplicate.bin",
+      "reason": "strict decoded bytes",
+      "sha256": "5eac07a01de6f884011d484be72287964f81f96c644838701505ac2200252434"
+    },
+    {
+      "byteLength": 23,
+      "family": "strict-json",
+      "path": "negative-overflow.bin",
+      "reason": "strict decoded bytes",
+      "sha256": "fb2b296a8d19c749711c334bf4fa2005dbd48439e79093cc9a10bd5085c86044"
+    },
+    {
+      "byteLength": 10,
+      "family": "strict-json",
+      "path": "negative-exponent.bin",
+      "reason": "strict decoded bytes",
+      "sha256": "1d86eaa0333a084debfd772f4192ea8048ea8e7260ca804b693c0644d4464f24"
+    },
+    {
+      "byteLength": 10,
+      "family": "strict-json",
+      "path": "negative-invalid-utf8.bin",
+      "reason": "strict decoded bytes",
+      "sha256": "a23333a1f647c223709ce1c650c08e6defca1eac6f3dd11f7fd3e29c5f40d970"
+    },
+    {
+      "byteLength": 15,
+      "family": "strict-json",
+      "path": "negative-surrogate.bin",
+      "reason": "strict decoded bytes",
+      "sha256": "87bd744f2328dbd7d3fcc4875b37b852b5c0344c8cb81f88a831af826207845c"
+    },
+    {
+      "byteLength": 6,
+      "family": "strict-json",
+      "path": "negative-bom.bin",
+      "reason": "strict decoded bytes",
+      "sha256": "ec2f00596f643c3181e6f3c6bfb64bb07cf8994f019df013681c886bee0d8b6a"
+    },
+    {
+      "byteLength": 1184,
+      "family": "terminal",
+      "path": "negative-uuid-uppercase.bin",
+      "reason": "canonical UUID",
+      "sha256": "b6530515639f24dd17824ed7714920be7358c26b07fe015a895478d08cae2d0b"
+    },
+    {
+      "byteLength": 1184,
+      "family": "terminal",
+      "path": "negative-invalid-time.bin",
+      "reason": "Gregorian date",
+      "sha256": "34cb5dfd325fa23e5e06f271aa2c39dea3bd7fb227b36034bcbc304e3c861d56"
+    },
+    {
+      "byteLength": 342,
+      "family": "session-read",
+      "path": "negative-right-order.bin",
+      "reason": "sorted rights",
+      "sha256": "b3b795b7a444867a4fb12a735d2817717c03977b9f3374a6a787e6af2c78fddf"
+    },
+    {
+      "byteLength": 324,
+      "family": "session-read",
+      "path": "negative-automation-approve.bin",
+      "reason": "forbidden kind/right combination",
+      "sha256": "b5bfae831f2fb63160989e2670e463f31bdc3bd080ad4a37146b40ad63b942a5"
+    },
+    {
+      "byteLength": 412,
+      "family": "code-secret",
+      "path": "negative-secret-padding.bin",
+      "reason": "unpadded canonical secret",
+      "sha256": "f0c18f676a6e8e889830158364eeb62b40b152c1a68dea929ee6f8b7c7151886"
+    },
+    {
+      "byteLength": 5946,
+      "family": "read",
+      "path": "negative-history-extra-attachment.bin",
+      "reason": "history attachment reference set",
+      "sha256": "f1cadf2af84bd610e8482c58c81487edbaf83527dd548deeff350c217b91eac5"
+    },
+    {
+      "byteLength": 4892,
+      "family": "read",
+      "path": "negative-history-missing-attachment.bin",
+      "reason": "history attachment reference set",
+      "sha256": "fc2b0d5b12dfa116c47f9193d760cb5a432f7b9a8a3cc2441b21f9b46a06c259"
+    }
+  ],
+  "positive": [
+    {
+      "byteLength": 1184,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "terminal-source-00.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "06ae1d849f707aba2dd8c319016b818fb934d59c96bc02bc6739487766d506f0",
+      "sourceOperation": "00000000-0000-4000-8000-00000000000f"
+    },
+    {
+      "byteLength": 413,
+      "exit": null,
+      "family": "request",
+      "http": null,
+      "path": "request-attachment.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "2ef07b9fcd83a5ed61d6df4f3f4ed9e4179d6f00f705c64001bebb3d26a30a85"
+    },
+    {
+      "byteLength": 963,
+      "exit": 2,
+      "family": "terminal",
+      "http": 200,
+      "path": "terminal-source-01.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "7ffdf30e82b31c2d4c04fae0510dc4d6122db50bcedc0aed9d941c9df018f4bb",
+      "sourceOperation": "00000000-0000-4000-8000-000000000010"
+    },
+    {
+      "byteLength": 1015,
+      "exit": 2,
+      "family": "terminal",
+      "http": 200,
+      "path": "terminal-source-02.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "7e7634ef7227f6e7c837d689a4166b11100f13e49ea7f287dbd98880d32f1f39",
+      "sourceOperation": "00000000-0000-4000-8000-000000000028"
+    },
+    {
+      "byteLength": 835,
+      "exit": 2,
+      "family": "terminal",
+      "http": 200,
+      "path": "terminal-source-03.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "f10e9d0301a70bd1bfe93f102ea05799beda98b88ff53d698cc933709a16f602",
+      "sourceOperation": "00000000-0000-4000-8000-000000000029"
+    },
+    {
+      "byteLength": 1163,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "terminal-committed-compact.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "5e855b67fd6c1263247c9bc38af1955703f8491e6753418273d559290fa490f4"
+    },
+    {
+      "byteLength": 832,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "command-card-create.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "fd9f6d278f72a1a9433ea9f404b2d5c301269c0d6e036c07fded317f68475409"
+    },
+    {
+      "byteLength": 881,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "command-card-edit.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "44f84053c5c1f7dd5710462e41374ab7698cb30d8efb6c184e9d0a3e6ace5af9"
+    },
+    {
+      "byteLength": 1053,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "command-comment-add.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "d8ceee641dd74a984f5338b6776e2305ca7cdf1a04288c9ceb26f1c7e23a34a3"
+    },
+    {
+      "byteLength": 1184,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "command-attachment-add.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "fed40b862f4dde51139d3eb5f4eeb773c6fdd57a7f20d15f1263af623deb6945"
+    },
+    {
+      "byteLength": 1044,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "command-link-add.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "423ffae14be209e18b86e86fb454a1e245de80a28e6662ba2ddc77212fba737a"
+    },
+    {
+      "byteLength": 1047,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "command-link-remove.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "2523449c430a1d57635dea93b575b7098df706b3f915eeb2d2c176644a377610"
+    },
+    {
+      "byteLength": 886,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "command-review-handoff.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "108671da2a388a58191be1ac0720645dcb974f67d97c320914e006641dce3da4"
+    },
+    {
+      "byteLength": 1051,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "command-approve.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "8072500197100a7e346f84483dcbf36b133f3ca353691bdad18f936614762f89"
+    },
+    {
+      "byteLength": 841,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "command-grant-create.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "67a44f34d1896061c1cff5dd319ded14f5d9c0bfe14abb08aba7ef9b5404f0a8"
+    },
+    {
+      "byteLength": 896,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "command-grant-revoke.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "d424f2790f5ca430d6c2be7dd4c95b5bf825a120c9e7c0c4d1952621bb1dfac2"
+    },
+    {
+      "byteLength": 838,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "command-history-clear.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "04b74cba4d6faa5a4670a9d4362f239cdc7a49874bdac2766c42cc306b7755cc"
+    },
+    {
+      "byteLength": 838,
+      "exit": 0,
+      "family": "terminal",
+      "http": 200,
+      "path": "command-retention-set.json",
+      "proof": true,
+      "secretTransport": false,
+      "sha256": "08cdf51eb98b4f34c9062612791cdf2a4af61c5ef0a56735e4b66f1ef38e647b"
+    },
+    {
+      "byteLength": 172,
+      "exit": 2,
+      "family": "refused",
+      "http": 401,
+      "path": "unauthenticated.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "5793b62473b9804e29a4a31be2ca206ce4d6b743a1519877331c3a65868c54f3"
+    },
+    {
+      "byteLength": 170,
+      "exit": 2,
+      "family": "refused",
+      "http": 400,
+      "path": "invalid-input.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "0eebafdf34e9533f4106a5d56072c1ba51a98a58647ad5fed4d133342028ddcf"
+    },
+    {
+      "byteLength": 166,
+      "exit": 2,
+      "family": "refused",
+      "http": 403,
+      "path": "forbidden.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "f43750683c841ed517cf80ab1f92f58287e6f24136441d69a133d072ec5b1282"
+    },
+    {
+      "byteLength": 166,
+      "exit": 2,
+      "family": "refused",
+      "http": 404,
+      "path": "not-found.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "6e50f8f0acb93a83e3a2f89c9b0d82ca06fa8cbbd3409cf3e2c21bd36fb95cb7"
+    },
+    {
+      "byteLength": 172,
+      "exit": 2,
+      "family": "refused",
+      "http": 413,
+      "path": "oversize.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "4a66db6ccb48bc26e9d374dd1a04b0c754634c179a6f50e59748802932cb6e61"
+    },
+    {
+      "byteLength": 168,
+      "exit": 3,
+      "family": "refused",
+      "http": 503,
+      "path": "unavailable-read.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "dc8226508852f31e2af52deac759a3e2b03cf88108b6d0dbb5cc490aa76589db"
+    },
+    {
+      "byteLength": 173,
+      "exit": 1,
+      "family": "refused",
+      "http": null,
+      "path": "local-io.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "3651405593a401098b044616f40f190061850751de3807d96b14d12d570d5a61"
+    },
+    {
+      "byteLength": 186,
+      "exit": 2,
+      "family": "refused",
+      "http": null,
+      "path": "selector-required.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "7cf38722ebecc542191bfb78071d98586d41335794e01cba26107803269f334d"
+    },
+    {
+      "byteLength": 397,
+      "dispatch": "possibly-sent",
+      "exit": 4,
+      "family": "refused",
+      "http": 409,
+      "path": "conflict-no-proof.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "124c99a0b138ac5ffc07f4f5c02adaac6b82b4e283776e16d5a6078f1b8a3ee7"
+    },
+    {
+      "byteLength": 243,
+      "dispatch": "lookup",
+      "exit": 4,
+      "family": "refused",
+      "http": 409,
+      "path": "lookup-mismatch-no-proof.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "07342ed4470344d5c1ab6857d627a22b5a9216ef5bee543da6c99fdfe492be8b"
+    },
+    {
+      "byteLength": 485,
+      "exit": 4,
+      "family": "unknown",
+      "http": 503,
+      "path": "unknown.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "efc1e5f2ccfb2107f8b0d52f84a07ae35c393611c2f15b922997e53385bc6d46"
+    },
+    {
+      "byteLength": 485,
+      "exit": 4,
+      "family": "unknown",
+      "http": 200,
+      "path": "lookup-missing.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "efc1e5f2ccfb2107f8b0d52f84a07ae35c393611c2f15b922997e53385bc6d46"
+    },
+    {
+      "byteLength": 485,
+      "exit": 4,
+      "family": "unknown",
+      "http": null,
+      "path": "lookup-denied.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "7a95278f647130f356b45d693911166f62971f997b7236e9ac88ddea404b4bda"
+    },
+    {
+      "byteLength": 498,
+      "exit": 4,
+      "family": "unknown",
+      "http": 200,
+      "path": "source-authority.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "41bfa63acaedf1cd7c05bf7f93822d57c4135f365f948669a8f7c56f38a8e142"
+    },
+    {
+      "byteLength": 4419,
+      "exit": 0,
+      "family": "read",
+      "http": 200,
+      "path": "board-read.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "19271372477460268f0ff4694ac94bbc4eec8078a3fe32697f3f46908a85cba7"
+    },
+    {
+      "byteLength": 5233,
+      "exit": 0,
+      "family": "read",
+      "http": 200,
+      "path": "card-read.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "ea4b434eb8481abe811ba6ab8eff661974d6f6ee524619de8c343fd0915659b1"
+    },
+    {
+      "byteLength": 5428,
+      "exit": 0,
+      "family": "read",
+      "http": 200,
+      "path": "history-read.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "3ab93091240373eb33116507c69db44764b9db9b7eadd7bf2b176daab4197091"
+    },
+    {
+      "byteLength": 342,
+      "exit": 0,
+      "family": "session-read",
+      "http": 200,
+      "path": "session-read.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "3edd497646df7cf97bb07387e85092676249ad751ba30e517644145ef116ea41"
+    },
+    {
+      "byteLength": 226,
+      "exit": null,
+      "family": "request",
+      "http": null,
+      "path": "code-request.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "15686caef869e9b574787341ac63c8605f84237678c85ad4e4583d8a3547b21b"
+    },
+    {
+      "byteLength": 226,
+      "exit": null,
+      "family": "request",
+      "http": null,
+      "path": "credential-issue-request.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "15686caef869e9b574787341ac63c8605f84237678c85ad4e4583d8a3547b21b"
+    },
+    {
+      "byteLength": 564,
+      "exit": null,
+      "family": "credential-secret",
+      "http": 201,
+      "path": "credential-secret.json",
+      "proof": false,
+      "secretTransport": true,
+      "sha256": "db973e0e5eb01e291479178322fe4f812fa4c124b421dfe233a868287ab8032d"
+    },
+    {
+      "byteLength": 411,
+      "exit": null,
+      "family": "code-secret",
+      "http": 201,
+      "path": "code-secret.json",
+      "proof": false,
+      "secretTransport": true,
+      "sha256": "7ec8cc6a45948bbe96768f41c84e1eb7cc3969f933bf6fea24ca182d4105457b"
+    },
+    {
+      "byteLength": 39,
+      "exit": null,
+      "family": "request",
+      "http": null,
+      "path": "exchange-request.json",
+      "proof": false,
+      "secretTransport": true,
+      "sha256": "e452fafca5d089abe30650718a8a73b3ca2c4e5e5d776c2b640938d610f9eb3b"
+    },
+    {
+      "byteLength": 582,
+      "exit": null,
+      "family": "exchange-secret",
+      "http": 200,
+      "path": "exchange-secret.json",
+      "proof": false,
+      "secretTransport": true,
+      "sha256": "917e2a9383be192753429bba863b2d951a73500583a99c1707a747569d9ae9c8"
+    },
+    {
+      "byteLength": 68,
+      "exit": 0,
+      "family": "session-revoked",
+      "http": 200,
+      "path": "session-revoked.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "814e5be52e7ef5997cfee406cfc4795761b0257c47d98667e30a11b5c912976e"
+    },
+    {
+      "byteLength": 587,
+      "exit": 0,
+      "family": "credential-cli",
+      "http": null,
+      "path": "credential-cli-confirmed.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "c1ca45095d7a7a836c37a158c45e6f9a24d41de36a782ec24c71a20d9230f049"
+    },
+    {
+      "byteLength": 203,
+      "exit": 2,
+      "family": "credential-cli",
+      "http": null,
+      "path": "credential-cli-refused.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "bf811eefbac1682b5d619375ffcc12912d4450889667bdc176fe4af1c0b31841"
+    },
+    {
+      "byteLength": 209,
+      "exit": 1,
+      "family": "credential-cli",
+      "http": null,
+      "path": "credential-cli-failed.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "cbccb8db6e3fa8e7f275b7cf1577f1841b127ddb515619e8d74a0daa6f1b9476"
+    },
+    {
+      "byteLength": 209,
+      "exit": 3,
+      "family": "credential-cli",
+      "http": null,
+      "path": "credential-cli-unavailable.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "af796483561c067b76809689fd65fd9a06767625434712ee3b93b852c9c2e0af"
+    },
+    {
+      "byteLength": 220,
+      "exit": 4,
+      "family": "credential-cli",
+      "http": null,
+      "path": "credential-cli-unknown.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "d57ba4ba55b85107348fb81910715fba65a90b8af6fad3299951d079e1e0b7cd"
+    },
+    {
+      "byteLength": 589,
+      "exit": 0,
+      "family": "credential-cli",
+      "http": null,
+      "path": "credential-cli-revoke.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "e2910d4c86f73feddc60b2d9ada49102fd25df4370099d6a8f6205c4c91e8626"
+    },
+    {
+      "byteLength": 2926,
+      "exit": 0,
+      "family": "preview",
+      "http": 200,
+      "path": "preview.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "962c44edd4011562bf74cde00e8ebc40e0e74f9c1e7dcaa31936559872cd738b"
+    },
+    {
+      "byteLength": 175,
+      "exit": null,
+      "family": "request",
+      "http": null,
+      "path": "preview-request.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "bf3be4da4e6a3b1c46f51d38377b4ae92b776b6adc781dec7def4ebea6f916a2"
+    },
+    {
+      "byteLength": 360,
+      "exit": null,
+      "family": "request",
+      "http": null,
+      "path": "confirm-request.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "85adfe27cb9a764b7095c90c8ab4c60a25027878a95fcf8130c609a32390adb1"
+    },
+    {
+      "byteLength": 406,
+      "exit": 0,
+      "family": "restore",
+      "http": null,
+      "path": "restore-confirmed.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "d4609d2c7c4e6c0863ec86e8bf9baf004d4275a2065b19b475cb11b06687a469"
+    },
+    {
+      "byteLength": 167,
+      "exit": 4,
+      "family": "restore",
+      "http": null,
+      "path": "restore-unknown.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "fedb2ae26b2de23050a4ca112cf9f4c819800f6375c4ae35ccfb06faff7dafe7"
+    },
+    {
+      "byteLength": 166,
+      "exit": 1,
+      "family": "restore",
+      "http": null,
+      "path": "restore-failed.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "08be9e7a16bb06951f49d04e9fcb33fcff4723934a9a8a89401bb942b7ab38ce"
+    },
+    {
+      "byteLength": 100,
+      "exit": null,
+      "family": "request",
+      "http": null,
+      "path": "export-request.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "a5729be0bb5118e76b490cc7be2e3507bade022e2f96c21f6c523459c09560c8"
+    },
+    {
+      "byteLength": 283,
+      "exit": null,
+      "family": "export",
+      "http": null,
+      "path": "export-offered.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "e3ea5be03811bca28046aa9ae60e6e5bcfb93a0c34af19e5fb8c67f77d7a109d"
+    },
+    {
+      "byteLength": 285,
+      "exit": 0,
+      "family": "export",
+      "http": null,
+      "path": "export-confirmed.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "d44407e35732f2690ebee5a0a3d5a41cbd0448100b6f213fc59fcd4498cddd45"
+    },
+    {
+      "byteLength": 165,
+      "exit": 1,
+      "family": "export",
+      "http": null,
+      "path": "export-failed.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "d51f3bfcea0c012a9524e22fb5f52f0f3711d2918f0c3c2b5150c32c86f0b8de"
+    },
+    {
+      "byteLength": 166,
+      "exit": 4,
+      "family": "export",
+      "http": null,
+      "path": "export-unknown.json",
+      "proof": false,
+      "secretTransport": false,
+      "sha256": "3287ba3aa6ca2bf7379c0c8646ce3c1454b5dd335539d1bd228cee934b9bf1da"
+    }
+  ],
+  "schemaVersion": 1
+}

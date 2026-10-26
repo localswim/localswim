@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "conflict": null,
+  "error": {
+    "code": "INVALID_INPUT",
+    "field": null,
+    "message": "Synthetic diagnostic"
+  },
+  "outcome": "refused"
+}

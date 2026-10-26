@@ -1,0 +1,31 @@
+{
+  "actorId": "00000000-0000-4000-8000-00000000000a",
+  "apiVersion": 1,
+  "boardId": "00000000-0000-4000-8000-000000000001",
+  "byteFacts": [],
+  "cardRevision": null,
+  "code": "OK",
+  "command": "grant.create",
+  "expectedCardRevision": null,
+  "expectedRevision": 5,
+  "fingerprint": "3dbd5ab3748b624b71e0af1131761fc68db10a53d9ed67bbddbc7534d3201aab",
+  "fingerprintVersion": 1,
+  "incarnation": "00000000-0000-4000-8000-000000000002",
+  "opId": "00000000-0000-4000-8000-0000000000d0",
+  "outcome": "committed",
+  "removal": null,
+  "result": {
+    "grantId": "00000000-0000-4000-8000-000000000050"
+  },
+  "resultRefs": [
+    {
+      "id": "00000000-0000-4000-8000-000000000050",
+      "kind": "grant",
+      "revision": null
+    }
+  ],
+  "retention": "full",
+  "revision": 6,
+  "target": null,
+  "terminalAt": "2026-10-25T00:00:00Z"
+}

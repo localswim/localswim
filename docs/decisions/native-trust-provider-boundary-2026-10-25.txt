@@ -1,0 +1,18 @@
+NATIVE TRUST PROVIDER BOUNDARY - 2026-10-25
+
+N01 completes the bounded native material/lifecycle and injected trust-planning
+core. It does not contain a linked concrete writable physical CurrentUser Root
+adapter. That is unfinished implementation, not merely a request for owner action.
+
+N02 is the explicit provider follow-up after accepted N01/D01. It supplies fixed
+store/current-account selection and exact issuer DER/hash membership/add/removal
+with the accepted owner plan/confirmation. No LocalMachine/store fallback, broad
+subject deletion, leaf import, implicit enrollment or new authority is permitted.
+Native nonpersistent memory-store/injected tests can exercise primitives without
+changing live trust. Actual user-store mutation/browser evidence retains its
+separate explicit owner-action and qualification gates.
+
+K03/P01 composition and V02 integrated trust/browser evidence require that
+concrete provider. N01 alone does not claim complete D01 commands or the later
+remote credential/session/lookup journey. Earlier native, source and owner gates
+remain; no accepted behavior is dropped or silently declared implemented.

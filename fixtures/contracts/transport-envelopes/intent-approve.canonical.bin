@@ -1,0 +1,1 @@
+{"actorId":"00000000-0000-4000-8000-00000000000a","boardId":"00000000-0000-4000-8000-000000000001","command":"approve","expectedCardRevision":4,"expectedRevision":5,"fingerprintVersion":1,"incarnation":"00000000-0000-4000-8000-000000000002","opId":"00000000-0000-4000-8000-0000000000cf","payload":{"policyVersion":1},"target":{"cardId":"00000000-0000-4000-8000-00000000000b"}}

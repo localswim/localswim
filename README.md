@@ -44,3 +44,21 @@ native SQLite, compiler, browser, filesystem and product qualification evidence.
 These results cover the documented isolated Windows samples. Owner acceptance
 still gates the dependent product tasks; product recovery, browser, fault and
 release qualification remain separate work.
+
+## Foundation libraries
+
+- [Mutation/canonical contract core](internal/contract/README.txt) and
+  [independent review](docs/reviews/c01-contract-foundation-review.txt).
+- [Storage schema/open boundary](internal/store/open/README.md) and
+  [corrected independent review](docs/reviews/s01-storage-foundation-review.txt).
+- [Native setup/lifecycle core](internal/transport/setup/README.txt) and
+  [independent review](docs/reviews/n01-native-setup-review.txt).
+- [Proposed public transport encodings](docs/contracts/transport-envelopes.txt)
+  and [corrected independent review](docs/reviews/d03-transport-envelope-review.txt).
+
+The [contract decomposition](docs/decisions/contract-foundation-decomposition-2026-10-25.txt)
+retains the transport/archive DTO bundles as explicit provider work. The
+[native trust-provider boundary](docs/decisions/native-trust-provider-boundary-2026-10-25.txt)
+retains the concrete writable CurrentUser Root adapter as unfinished code.
+These libraries do not yet constitute the integrated application or complete
+service/CLI/bootstrap/browser/recovery qualification.

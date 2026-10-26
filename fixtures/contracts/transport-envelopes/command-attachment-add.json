@@ -1,0 +1,44 @@
+{
+  "actorId": "00000000-0000-4000-8000-00000000000a",
+  "apiVersion": 1,
+  "boardId": "00000000-0000-4000-8000-000000000001",
+  "byteFacts": [
+    {
+      "byteLength": 10,
+      "sha256": "4ac9c84a00cf5c569835430fd5e4cb1a782d70806ee741822d600498b7460671"
+    }
+  ],
+  "cardRevision": 5,
+  "code": "OK",
+  "command": "attachment.add",
+  "expectedCardRevision": 4,
+  "expectedRevision": 5,
+  "fingerprint": "888c545f2a07a911624ac4529bf70bb27eea37d44f40ebb19e8b8b9ac9a49fe3",
+  "fingerprintVersion": 1,
+  "incarnation": "00000000-0000-4000-8000-000000000002",
+  "opId": "00000000-0000-4000-8000-0000000000cb",
+  "outcome": "committed",
+  "removal": null,
+  "result": {
+    "attachmentId": "00000000-0000-4000-8000-00000000012f",
+    "cardId": "00000000-0000-4000-8000-00000000000b"
+  },
+  "resultRefs": [
+    {
+      "id": "00000000-0000-4000-8000-00000000012f",
+      "kind": "attachment",
+      "revision": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000000b",
+      "kind": "card",
+      "revision": 5
+    }
+  ],
+  "retention": "full",
+  "revision": 6,
+  "target": {
+    "cardId": "00000000-0000-4000-8000-00000000000b"
+  },
+  "terminalAt": "2026-10-25T00:00:00Z"
+}

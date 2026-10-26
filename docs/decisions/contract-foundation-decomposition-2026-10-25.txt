@@ -1,0 +1,37 @@
+CONTRACT FOUNDATION DECOMPOSITION - 2026-10-25
+
+Bounded scope
+C01 implements the twelve mutation inputs, strict decoded structure, independently
+resolved route/actor binding, canonical full-target intent/hash, exact retained
+result objects and deterministic request/result schema/declaration generation.
+This is a provider foundation, not complete public transport/archive DTO coverage.
+Original accepted behavior and privacy/authority/unknown-outcome rules remain.
+
+Retained work
+- D03 freezes exhaustive public transport outcome/refusal/lookup/conflict/read/
+  session/credential-envelope encodings from accepted behavior. Exact outer field,
+  null and proof rules require explicit owner review before their implementation.
+- C02 implements that accepted public transport DTO bundle using C01 primitives.
+- C03 implements the accepted D02 archive/preview/receipt DTO bundle using C01.
+  Structural/field invariants are distinct from later package-wide/native archive
+  integrity, publication, database mutation or authority decisions.
+- Native setup and private local-material file DTOs remain N01-owned; they are not
+  duplicated into the shared public contract library.
+
+Ordering and composition
+C03 waits for accepted C01/D02 and provides the shared D02 row definitions and
+pure in-memory structural/reference helpers. C02 waits for accepted C01/D03/C03,
+so HistoryRead and related projections reuse those exact row types. Their package,
+schema and generated-declaration subtrees are disjoint. The primary integrates
+the shared generator entrypoint after bundle handoffs; independent reviews must
+cover the aggregate drift check. Native ZIP/filesystem/package integrity remains
+A03/A04 work. No second browser domain model is created.
+
+Consumers must wait for their required complete DTO providers. S02 and the
+transport/read/lookup/session/CLI/browser consumers use C02; recovery/archive
+consumers use C03. Existing provider, positive qualification, owner acceptance and
+In Progress gates are retained. Scoped dependent work stays Ready for Work.
+
+This decomposition preserves one-worker bounds and visible unfinished work.
+It neither adopts new envelope choices nor claims complete application readiness,
+product equivalence, browser/native trust or release qualification.

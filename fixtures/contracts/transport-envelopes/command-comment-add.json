@@ -1,0 +1,39 @@
+{
+  "actorId": "00000000-0000-4000-8000-00000000000a",
+  "apiVersion": 1,
+  "boardId": "00000000-0000-4000-8000-000000000001",
+  "byteFacts": [],
+  "cardRevision": 5,
+  "code": "OK",
+  "command": "comment.add",
+  "expectedCardRevision": 4,
+  "expectedRevision": 5,
+  "fingerprint": "70ae75e43bcec7bd8820b69329150df152ba37777f1876bcfaac8b4901d05d6c",
+  "fingerprintVersion": 1,
+  "incarnation": "00000000-0000-4000-8000-000000000002",
+  "opId": "00000000-0000-4000-8000-0000000000ca",
+  "outcome": "committed",
+  "removal": null,
+  "result": {
+    "cardId": "00000000-0000-4000-8000-00000000000b",
+    "commentId": "00000000-0000-4000-8000-00000000012e"
+  },
+  "resultRefs": [
+    {
+      "id": "00000000-0000-4000-8000-00000000000b",
+      "kind": "card",
+      "revision": 5
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000012e",
+      "kind": "comment",
+      "revision": null
+    }
+  ],
+  "retention": "full",
+  "revision": 6,
+  "target": {
+    "cardId": "00000000-0000-4000-8000-00000000000b"
+  },
+  "terminalAt": "2026-10-25T00:00:00Z"
+}

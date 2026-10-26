@@ -1,0 +1,102 @@
+SLICE01 - FRESH INDEPENDENT N01 NATIVE SETUP REVIEW
+2026-10-25 | N01 | Bounded implementation review
+
+Verdict: PASS within the native material and injected trust-core scope below.
+No material correction was found in that scope. This reviewer authored none of
+the eight reviewed setup files. This pass is separate from owner acceptance,
+Completed, complete D01 command delivery and product/native-browser qualification.
+
+Baseline and authority
+Reviewed all files in internal/transport/setup/: manager_windows.go, material.go,
+native_windows.go, README.txt, setup_windows_test.go, trust_windows.go, types.go
+and unsupported.go. Exact source hashes and independent command/test evidence
+are retained privately; no operational paths, identities or logs are published.
+
+Basis: accepted D01 revision 3, docs/contracts/setup.txt SHA-256
+38281b50a1085946286f4017b0bf04c291ad9ec6c3c265ba14423ccbec609755;
+passing d01-setup-review.txt and preserved initial/revision-2 finding records;
+repository-layout.txt; accepted architecture 05/07/18 and corrected 09/20/21.
+Earlier Q02/Q03 passes are isolated qualification, not product evidence. Current
+D03/C02/C03 follow-up gates retain broader wire/DTO integration responsibilities.
+
+Qualified implementation boundary
+- Init, Status, RenewCertificate and RenewOwner are callable library operations.
+  ReadContext/LoadNativeOwner expose validated installation/origin/issuer context
+  and a separate native owner capability; no board grant or domain right follows.
+- Manager coherently reads selector/generation/selector, preserves fixed identity
+  and exact pending candidates, and fences incomplete, ambiguous and uncertain
+  recovery. Reconciliation never invents a replacement identity/token or selects
+  by timestamp. Retired generations remain private; only the selector is current.
+- material.go validates versioned JSON/PEM, file hashes and cross-file identities,
+  real P256 keys/correspondence, self-signed issuer and exact server leaf scope,
+  dates, name, pin and lifetimes. Renewal preserves the issuer and authority;
+  issuer/key loss and replacement remain explicit stops.
+- native_windows.go creates protected current-account/System descriptors before
+  writing, checks owner/security/file metadata through handles, rejects aliases,
+  reparses and file hardlinks, and holds non-delete-shared directory ancestry.
+  The OS-held installation lock excludes another process. Both loopback address
+  families require exclusive binds; a successful probe releases both sockets.
+- AcquireServer keeps the lifetime exclusion and uses stopped renewal at the
+  accepted threshold. Its TLS config refuses new expired/future-leaf handshakes.
+  The consumer must apply it, bind both loopbacks and enforce Host/Origin rules.
+- NativeOwner copies secret/context state, refuses JSON and redacts fmt. Its
+  matcher checks a snapshot; consumers must obtain current authority under the
+  service lease. An obsolete cached snapshot is not current authorization.
+  Old connection/evidence contexts remain unchanged by later publication.
+
+Independent verification
+Pinned native Windows/amd64 Go 1.27.3, CGO_ENABLED=0, GOTOOLCHAIN=local and
+GOFLAGS=-mod=readonly; frozen module cache and fresh private review cache/NTFS
+fixture containers. go.mod/go.sum and accepted contract hashes stayed unchanged.
+
+- go test -count=1 -v ./internal/transport/setup: PASS, zero skipped tests.
+  Real ACL inspection, flush/readback/publication, cross-process lock exclusion,
+  dual-family conflict checks and actual synthetic junction/hardlink refusal ran.
+  Real x509 verification includes wrong name/pin and rehashed forbidden scope.
+- Additional private test overlay: PASS. Independently checks both renewal kinds
+  interrupted after candidate completion; retry selects the exact saved manifest
+  bytes, preserves the old context, and denies the predecessor through the newly
+  loaded owner. Also checks pointer JSON refusal, fmt redaction, null selector
+  rejection and no-effect mismatching-identity refusals.
+- go vet ./internal/transport/setup: PASS, no diagnostics. All eight reviewed
+  files and this report pass UTF-8/no-BOM/LF/final-newline validation.
+
+The first review sandbox run failed while creating the synthetic junction fixture;
+it is preserved as failure evidence. The narrow host rerun used fresh review-only
+roots and passed the actual native fixtures. That initial failure is not counted
+as a successful refusal test. No native scenario was skipped to obtain the pass.
+
+Injected coverage and precise unfinished provider
+Checkpoint failures, synthetic clocks/random failures, metadata vectors and the
+fake TrustStore are injected evidence. PlanTrust/ApplyTrust test exact terminal
+confirmation, public identity binding, idempotent membership, uncertain effects
+and public-only removal after private-key loss/expiry. These tests never access a
+live certificate store and establish no browser adoption or physical-store result.
+
+types.go:220-227 and trust_windows.go:34-39 provide an injected TrustStore only.
+The concrete provider for membership/enrollment/removal of exact issuer DER in
+the writable local physical CurrentUser Root store is NOT implemented here.
+That provider must distinguish inherited/policy/machine copies and read back exact
+local membership. This is unfinished implementation, not merely an owner action.
+No existing downstream task is asserted to contain that missing implementation;
+it must be explicitly scoped/owned before full D01 trust-command completion.
+The bounded pass above covers planning/core behavior with an injected provider.
+P01 owns executable composition; terminal grammar/warnings/confirmation adapters
+and wiring remain downstream work before actual setup commands are complete.
+Executing live enrollment/removal additionally requires the explicit later owner
+action and qualified environment. No such action occurred in this review.
+
+Limits and handoff
+G01/T01/H01/K01/K02/K03/P01 retain admission, authentication, CLI credential
+delivery/selection, sessions and original administrative outcome integration.
+N01 does not complete that journey. Read/current-origin context is not an
+authenticated grant; native owner possession is not proof of human review.
+
+No real setup root, production material, human grant, browser, board, persistent
+host configuration, live trust enrollment/removal or service was touched. No v1
+source/tests/internal design was used. No hostile same-account isolation,
+forensic erasure, all-boundary crash suite, race-detector run, process-kill or
+power-loss durability qualification is claimed. Returned cleanup errors attempt
+to preserve exact pending metadata; simultaneous cleanup/retention failure remains
+an investigation stop. No whole HTTP/auth/DTO or release qualification follows.
+Public MIT FOSS; UTF-8, LF, final newline.

@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "outcome": "unknown",
+  "result": {
+    "destination": null,
+    "sourceIdentity": null,
+    "sourceRevision": null
+  },
+  "scope": "export"
+}

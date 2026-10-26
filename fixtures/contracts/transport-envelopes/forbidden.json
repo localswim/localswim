@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "conflict": null,
+  "error": {
+    "code": "FORBIDDEN",
+    "field": null,
+    "message": "Synthetic diagnostic"
+  },
+  "outcome": "refused"
+}

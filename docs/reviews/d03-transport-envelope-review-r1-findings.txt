@@ -1,0 +1,95 @@
+SLICE01 D03 - FRESH INDEPENDENT TRANSPORT ENVELOPE REVIEW
+2026-10-25 | #0051 | Documentary review
+
+Verdict: CHANGES REQUIRED
+One bounded fixture/projection correction remains before owner review of this
+proposed encoding freeze. The contract's history projection is precise, but its
+handed-off positive fixture contains an unrelated current attachment. This
+reviewer authored none of the reviewed contract, generator or fixtures.
+
+Reviewed source anchor
+docs/contracts/transport-envelopes.txt revision 1, SHA-256:
+649cb1a2cffcaa36ae9754d85d93e6542ca63db4e02d62221a13883740e9d5d4
+All 95 files in fixtures/contracts/transport-envelopes/ were read independently;
+together with the contract these are the 96 reviewed handoff files. Source
+authority includes accepted sibling v2-architecture/docs/slice01/01,03,04,05,06,
+18,19 and corrected 09/20/21; current setup.txt revision 3 and its PASS review;
+archive-recovery-schema.txt and its PASS review; internal/contract/README.txt;
+and contract-foundation-decomposition-2026-10-25.txt.
+
+R1 Medium - positive history fixture violates its exact projection
+Locations:
+- transport-envelopes.txt:223-227 requires exactly the immutable rows/facts needed
+  by returned earlier snapshots, with the D02 full-versus-tombstone rules.
+- fixtures/contracts/transport-envelopes/history-read.json:18-29 includes the
+  current note.txt attachment, although no returned Snapshot.references names it.
+  The full earlier snapshot references only the empty attachment at :31-42;
+  the two removed snapshots contain no attachment references.
+- make_fixtures.py:84 copies every current board attachment into HistoryView.
+  verify_fixtures.py:136-139 checks only outer read keys/identity/revision, so its
+  passing result does not detect this projection mismatch.
+
+Required bounded correction:
+- Build the history collection from the returned records' exact reference union,
+  including required full rows, permitted tombstones and attribution/approval
+  actors. Keep current-only attachments in board/card views, where applicable.
+- Correct this fixture and its cases.json byte/hash anchor. Add a documentary
+  semantic check/negative for an unreferenced history row so generation cannot
+  silently restore the mismatch. Preserve D02 source fixture bytes unchanged.
+- Return the corrected handoff for independent re-review. No new read capability,
+  retention policy, pagination or source-contract change is needed for R1.
+
+Contract findings otherwise
+- Sections 1-4 bind required/null/absent distinctions, complete original identity,
+  twelve command result families, full/compact terminal classes, original stored
+  error/conflict facts and non-pinning retained byte/result references. Compaction
+  does not promise missing payload identifiers or reconstructed result detail.
+- HTTP refusal, echoed opId, missing lookup evidence and current conflict metadata
+  never prove original noncommit. Mutation uncertainty and every failed original
+  lookup preserve exit4; ordinary read/provably-unsent exits remain distinct.
+  Current rights and D01's narrow same-owner grant-action lookup remain required.
+- Sections 6-7 preserve ordinary explicit selectors, separately issued board
+  credentials, native-owner scope, bootstrap and secret delivery. No new right,
+  broad native read or fallback grant selection follows from these DTOs. Secret
+  response examples remain ephemeral; canonical intents/durable/public read and
+  terminal examples contain no credential fields.
+- Section 8 keeps D02 preview/confirm/restore/status objects and hash inputs exact.
+  Preview has no outer wrapper; manifest and target-inventory anchors remain
+  separate. Export ZIP success, browser offered and verified CLI publication stay
+  distinct; destination=null does not expose a local path or create authority.
+- The read projections select D02 row types without promising search, pagination
+  or workspace behavior. C01 stays a bounded provider. C02 owns public transport,
+  C03 owns archive/preview/receipt breadth and N01 owns private local-material FILE
+  DTOs. Referencing row types confers no archive validation or runtime authority.
+
+Verification
+- Supplied DOC-ONLY verify_fixtures.py: PASS, 60 positive and 18 negative fixtures.
+  The verifier was run without importing or running the generator.
+- Independent byte/JSON checks read every handoff fixture, verify all declared
+  lengths/digests and R bytes, original D02 terminal field mappings and twelve
+  canonical command intent hashes/identity bindings. All twelve committed result
+  families and the common full/compact refusal transformations were inspected.
+- Each of the eighteen negative files was checked for its intended defect:
+  secret result key, missing revision/key, invented compact result, null opId,
+  refused identity, unknown revision, duplicate key, overflow/exponent, invalid
+  UTF-8/scalar/BOM/UUID/date, rights ordering, automation approval and padded code.
+  Rejection labels were not treated as evidence of the underlying predicate.
+- Independent unchanged-byte checks cover preview, preview/confirm requests and
+  D02 confirmed/unknown restore envelopes; the preview hash is recomputed from
+  canonical response bytes with only previewHash removed. Independent history
+  reference-union checking identifies R1: one extra attachment, none missing.
+- Text UTF-8/no-BOM/LF/final-newline and exact binary anchoring checks passed.
+
+Acceptance and evidence limits
+All new outer encoding choices remain proposals requiring Terry's acceptance
+before C02 or affected consumer code. This review is not that acceptance and
+marks no card Completed. Correcting R1 cannot bypass prerequisite/In Progress
+gates, current authorization, explicit human grants or trust enrollment.
+
+Documentary synthetic evidence only. The fixture verifier is deliberately partial;
+it is not an exhaustive product request/read validator or HTTP/multipart/auth,
+SQLite/native publication, archive, browser, crash or power-loss qualification.
+No product source/tests were changed or executed; no board access/mutation,
+real private content, v1 sources/tests/internal design, installs, trust changes,
+human grants, commits or pushes occurred. Public MIT FOSS; prior exposure remains
+disclosed and no isolated clean-room certification is claimed.

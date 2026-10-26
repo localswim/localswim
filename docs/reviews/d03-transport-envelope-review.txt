@@ -1,0 +1,92 @@
+SLICE01 D03 - INDEPENDENT CORRECTION RE-REVIEW
+2026-10-25 | #0051 | Documentary review
+
+Verdict: PASS
+R1 is closed. The corrected history fixture contains exactly the attachment
+required by its returned snapshots, and two semantic negatives guard extra/missing
+attachment rows. No further material correction remains before Terry reviews the
+proposed encoding freeze. This reviewer authored none of the source corrections.
+
+Reviewed source and preserved evidence
+docs/contracts/transport-envelopes.txt revision 1, SHA-256:
+649cb1a2cffcaa36ae9754d85d93e6542ca63db4e02d62221a13883740e9d5d4
+The contract is byte-identical to the initial reviewed version; correction changes
+fixture/projection evidence only. Initial CHANGES REQUIRED evidence remains in
+docs/reviews/d03-transport-envelope-review-r1-findings.txt. This pass does not
+rewrite that historical verdict or establish owner acceptance.
+
+Authority remains accepted sibling v2-architecture/docs/slice01/01,03,04,05,06,
+18,19 and corrected 09/20/21; current setup.txt revision 3 and its PASS review;
+archive-recovery-schema.txt and its PASS review; internal/contract/README.txt;
+and contract-foundation-decomposition-2026-10-25.txt. Accepted D01/D02 source
+hashes match the hashes in their passing reviews.
+
+R1 Medium - CLOSED
+- transport-envelopes.txt:223-227 still requires exactly the immutable rows/facts
+  needed by returned earlier snapshots, preserving D02 full/tombstone rules.
+- make_fixtures.py:85-86 now selects attachments from returned history references.
+  history-read.json retains the required empty attachment and omits the unrelated
+  current note attachment; board/card fixtures remain unchanged.
+- verify_fixtures.py:140-147 checks the complete attachment reference union,
+  duplicate/disjoint full/tombstone IDs and full metadata for full snapshots.
+- negative-history-extra-attachment.bin and negative-history-missing-attachment.bin
+  are valid JSON with otherwise unchanged HistoryView fields. Independent set
+  checks confirm exactly one extra or one missing attachment respectively.
+  Both fail specifically with "history attachment reference set"; the verifier
+  requires that exact rejection, rather than accepting an incidental parse error.
+- cases.json records corrected positive and negative byte/hash anchors. Independent
+  comparison with the preserved initial snapshot found 91 original fixture files
+  unchanged, four bounded changes and only the two intended new negative files.
+  No read policy, capability, retention rule or encoding choice changed.
+
+Retained contract conclusions
+- Required/null/absent distinctions, all twelve command result families and the
+  full/compact terminal variants bind complete original identity, actor, target,
+  fingerprint and preconditions. Stored refusal/conflict and byte/result facts
+  cannot be replaced by current state or reconstructed from pruned payloads.
+- HTTP refusal, echoed opId, current conflict details, missing lookup evidence,
+  cancellation and restart never prove original noncommit. Every failed original
+  lookup and possibly transmitted mutation without exact terminal proof stays
+  exit4. Current rights and D01's narrow own grant-action entitlement still govern.
+- Ordinary explicit selectors, current session scope, bootstrap, issued credential
+  delivery and native-owner lookup remain separate. No broader native read,
+  default actor, fallback grant or new right follows from these DTOs. Ephemeral
+  secret responses stay outside fingerprints, durable outcomes and recovery.
+- D02 preview/confirm/restore/status bytes and hash inventories remain exact;
+  preview has no outer wrapper, and source manifest/target inventory remain
+  distinct anchors. ZIP success, browser offered and verified CLI publication
+  stay distinct. Public destination=null neither exposes a path nor grants rights.
+- Read projections reuse D02 rows without adding search, pagination or workspace
+  semantics. C01 remains bounded; C03 provides exact D02 rows/archive/preview/
+  receipt types before C02 consumes them. Shared structural validation does not
+  establish A03 package/native integrity, publication or authority. N01 retains
+  private local-material FILE DTO ownership; no second browser model is implied.
+
+Verification
+- Supplied DOC-ONLY verifier: PASS, 60 positive and 20 negative fixtures.
+  No generator was run or imported by this reviewer.
+- Independent checks read all 97 current fixture files and verify declared byte
+  lengths/digests, R bytes, original D02 terminal mappings and twelve canonical
+  command hashes/identity bindings. All twelve committed result families and
+  the common full/compact refusal shapes remain consistent.
+- The initial eighteen negatives retain their independently checked defects;
+  the two new semantic negatives were inspected and rejected by their intended
+  predicate. Secret shape/boundary, proof/exit, compact-result, strict JSON,
+  safe integer, Unicode, UUID, timestamp and rights distinctions remain intact.
+- Preview and preview/confirm requests plus confirmed/unknown restore envelopes
+  remain byte-identical to D02. Preview hashing removes only previewHash and uses
+  canonical bytes without an outer object. UTF-8/no-BOM/LF/final-newline and exact
+  binary anchoring checks passed.
+
+Acceptance and limits
+Terry must accept the complete proposed encoding set before C02 or affected
+consumer implementation. This review grants no acceptance, execution authority,
+Completed transition, human grant or trust action; prerequisite and In Progress
+gates remain. The fixture verifier is partial documentary evidence, not a product
+request/read validator or authentication/HTTP/multipart, SQLite, native IO,
+archive, browser, crash or power-loss qualification.
+
+No product source/tests were changed or executed; no board access/mutation,
+real private content, v1 sources/tests/internal design, installs, trust changes,
+human grants, commits or pushes occurred. Public MIT FOSS; prior exposure remains
+disclosed and no isolated clean-room certification is claimed.

@@ -1,0 +1,33 @@
+{
+  "actorId": "00000000-0000-4000-8000-00000000000a",
+  "apiVersion": 1,
+  "boardId": "00000000-0000-4000-8000-000000000001",
+  "byteFacts": [],
+  "cardRevision": 5,
+  "code": "OK",
+  "command": "card.edit",
+  "expectedCardRevision": 4,
+  "expectedRevision": 5,
+  "fingerprint": "78a152bb85905ec7d9b1844f0f5ac960bbdcdc1f7ce72f71b6191e5ce7d8f3e2",
+  "fingerprintVersion": 1,
+  "incarnation": "00000000-0000-4000-8000-000000000002",
+  "opId": "00000000-0000-4000-8000-0000000000c9",
+  "outcome": "committed",
+  "removal": null,
+  "result": {
+    "cardId": "00000000-0000-4000-8000-00000000000b"
+  },
+  "resultRefs": [
+    {
+      "id": "00000000-0000-4000-8000-00000000000b",
+      "kind": "card",
+      "revision": 5
+    }
+  ],
+  "retention": "full",
+  "revision": 6,
+  "target": {
+    "cardId": "00000000-0000-4000-8000-00000000000b"
+  },
+  "terminalAt": "2026-10-25T00:00:00Z"
+}

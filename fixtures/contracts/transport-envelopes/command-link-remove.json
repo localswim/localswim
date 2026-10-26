@@ -1,0 +1,39 @@
+{
+  "actorId": "00000000-0000-4000-8000-00000000000a",
+  "apiVersion": 1,
+  "boardId": "00000000-0000-4000-8000-000000000001",
+  "byteFacts": [],
+  "cardRevision": 5,
+  "code": "OK",
+  "command": "link.remove",
+  "expectedCardRevision": 4,
+  "expectedRevision": 5,
+  "fingerprint": "fec66dc0c66d1a2cb210f4aa265964c48d25f7896e9bd48dfd83b7fa26440b0d",
+  "fingerprintVersion": 1,
+  "incarnation": "00000000-0000-4000-8000-000000000002",
+  "opId": "00000000-0000-4000-8000-0000000000cd",
+  "outcome": "committed",
+  "removal": null,
+  "result": {
+    "cardId": "00000000-0000-4000-8000-00000000000b",
+    "linkId": "00000000-0000-4000-8000-00000000005b"
+  },
+  "resultRefs": [
+    {
+      "id": "00000000-0000-4000-8000-00000000000b",
+      "kind": "card",
+      "revision": 5
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000005b",
+      "kind": "link",
+      "revision": null
+    }
+  ],
+  "retention": "full",
+  "revision": 6,
+  "target": {
+    "cardId": "00000000-0000-4000-8000-00000000000b"
+  },
+  "terminalAt": "2026-10-25T00:00:00Z"
+}

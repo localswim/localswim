@@ -1,0 +1,16 @@
+{
+  "apiVersion": 1,
+  "outcome": "confirmed",
+  "result": {
+    "destination": {
+      "boardId": "00000000-0000-4000-8000-000000000001",
+      "incarnation": "00000000-0000-4000-8000-000000000004"
+    },
+    "sourceIdentity": {
+      "boardId": "00000000-0000-4000-8000-000000000001",
+      "incarnation": "00000000-0000-4000-8000-000000000002"
+    },
+    "sourceRevision": 5
+  },
+  "scope": "restore"
+}

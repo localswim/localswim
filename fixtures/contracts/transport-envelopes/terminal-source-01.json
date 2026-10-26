@@ -1,0 +1,34 @@
+{
+  "actorId": "00000000-0000-4000-8000-00000000000a",
+  "apiVersion": 1,
+  "boardId": "00000000-0000-4000-8000-000000000001",
+  "byteFacts": [
+    {
+      "byteLength": 10,
+      "sha256": "3a89063eb8a83838583a4f9790105344e5aa8558ce57edb145080b880fd1f1b8"
+    }
+  ],
+  "cardRevision": null,
+  "code": "REVISION_CONFLICT",
+  "command": "attachment.add",
+  "expectedCardRevision": 1,
+  "expectedRevision": 2,
+  "fingerprint": "2222222222222222222222222222222222222222222222222222222222222222",
+  "fingerprintVersion": 1,
+  "incarnation": "00000000-0000-4000-8000-000000000002",
+  "opId": "00000000-0000-4000-8000-000000000010",
+  "outcome": "not_committed",
+  "removal": {
+    "boardRevision": 4,
+    "reason": "cleared",
+    "removedAt": "2026-10-01T00:00:00Z"
+  },
+  "result": null,
+  "resultRefs": [],
+  "retention": "compact",
+  "revision": null,
+  "target": {
+    "cardId": "00000000-0000-4000-8000-00000000000b"
+  },
+  "terminalAt": "2026-09-01T00:00:00Z"
+}

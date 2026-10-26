@@ -1,0 +1,37 @@
+{
+  "actorId": "00000000-0000-4000-8000-00000000000a",
+  "apiVersion": 1,
+  "boardId": "00000000-0000-4000-8000-000000000001",
+  "byteFacts": [
+    {
+      "byteLength": 12,
+      "sha256": "b68565cf5699273f6a21847b3fe44726374cbd6c3bfdc829527f1db2a0504341"
+    }
+  ],
+  "cardRevision": null,
+  "code": "NOT_FOUND",
+  "command": "attachment.add",
+  "expectedCardRevision": 1,
+  "expectedRevision": 5,
+  "fingerprint": "0789ba12c7154fada35a296e46dbb73ebc8251d9e0d70db0555d0703b817456f",
+  "fingerprintVersion": 1,
+  "incarnation": "00000000-0000-4000-8000-000000000002",
+  "opId": "00000000-0000-4000-8000-000000000028",
+  "outcome": "not_committed",
+  "removal": null,
+  "result": {
+    "conflict": null,
+    "error": {
+      "code": "NOT_FOUND",
+      "field": "target.cardId",
+      "message": "Synthetic target never existed"
+    }
+  },
+  "resultRefs": [],
+  "retention": "full",
+  "revision": null,
+  "target": {
+    "cardId": "00000000-0000-4000-8000-00000000005a"
+  },
+  "terminalAt": "2026-10-02T00:00:00Z"
+}

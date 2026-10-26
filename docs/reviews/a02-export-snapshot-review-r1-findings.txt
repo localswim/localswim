@@ -1,0 +1,34 @@
+A02 EXPORT SNAPSHOT REVIEW - INITIAL FINDINGS
+2026-10-26 | A02-E | CHANGES REQUIRED
+
+F1 - Medium: cleared link tombstones prevent export
+
+The tombstone projection in internal/archive/export/project.go copies the physical
+entity.creator_id into every EntityTombstone.actorId. Workflow link creation stores
+that creator, while D02/C03 requires actorId=null for a link tombstone. Only comment
+tombstones expose their creator in that archive field.
+
+Reproduction uses the real synthetic card/workflow/recovery services:
+- Create two cards and add an informational link between them.
+- Remove the link and confirm a board-wide history.clear through its terminal time.
+- The valid compacted link retains its physical creator and removal metadata.
+- Prepare refuses the whole export with archive row: tombstone attribution.
+
+Required correction:
+- Map actorId from creator_id only for comment tombstones; emit null otherwise.
+- Retain the link's creation time, origin, identity and removal information.
+- Add a regression covering normal link removal, clearing and successful export.
+
+Other review observations
+- Sixteen ordinary tests and focused vet passed without skipped cases.
+- Eight valid independent adversarial cases passed, including exact 32 MiB JSON
+  acceptance and one-byte-over refusal, source/current equal operation IDs,
+  full source refusal evidence, non-pinning digest-length disagreement, retained
+  comment tombstones, readable-size/depth preflight and every output cut position.
+- Initial private probe-only fixture mistakes were retained and corrected before
+  the confirmed reproduction; they are not implementation findings.
+
+The six original A02 input files remained hash-identical during this review.
+This is component evidence using invented private stores. It establishes no HTTP,
+CLI, browser, restore, native publication or power-loss qualification.
+Public MIT FOSS; UTF-8, LF and one final newline.

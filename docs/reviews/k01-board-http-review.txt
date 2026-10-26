@@ -1,0 +1,64 @@
+K01 BOARD HTTP ADAPTER - FRESH INDEPENDENT REVIEW
+2026-10-26 | Bounded component review
+
+Verdict: PASS
+No material finding remains in the reviewed K01 scope. The eight frozen inputs
+match the reviewed source. Parent composition documentation is included in the
+private hash receipt. This reviewer authored no implementation or author tests.
+
+Reviewed boundary
+
+- Exact board/card/history reads, original outcome lookup, card mutation dispatch
+  and recovery preview/confirm use accepted D03/C02/C03 envelopes. H01 grants,
+  A01 attachment bytes, H02 export delivery and executable mounting stay separate.
+- Shared T01 HTTPS/session checks and current G01/G02 authentication precede
+  ordinary access. The native-owner lookup branch delegates to guarded G02's
+  original grant-outcome authority; it confers no ordinary board privilege.
+- Route-selected board/card/command and credential-derived actor enter shared
+  intent freezing. B01/B02/S02 retain rights, workflow, revisions, NO_CHANGE,
+  durable refusal, receipt-first replay and uncertainty. Lookup never executes.
+- Read authorization and projections share one actual SQLite reader transaction.
+  Current revisions remain separate from historical origin, time and revision.
+  Full/removed snapshots, known references, tombstones and coverage use shared
+  validation; malformed data or cleanup failure cannot produce partial success.
+  Link registry creator provenance is not exposed as comment-only tombstone actor.
+- The bounded S02 extension reports successful external lookup execution only
+  after reader cleanup. Internal LookupCompleted is excluded from JSON, changes
+  no terminal/domain evidence and never proves noncommit. Completed unresolved
+  lookup returns HTTP200; SQL/readback/cleanup uncertainty returns HTTP503.
+  Source-incarnation mismatch retains original known-identity unknown evidence.
+- Recovery caches are credential-scoped and retain concurrent actual previews
+  through their immutable expiry. Confirm traffic cannot extend retention. Fresh
+  service construction after cache loss still enters S02 before preview admission,
+  preserving retained full/compact receipt resolution under current authority.
+
+Independent verification
+
+- Fresh ordinary adapter/writer execution: 53 PASS records, zero skips/failures.
+  Tagged native adapter execution: 39 PASS records, zero skips/failures, including
+  real issuer-pinned loopback HTTPS and shared native/store/authentication services.
+- Three additional private overlay probes pass: failed reader cleanup suppresses
+  successful-lookup metadata and fences writes; authority panic stays unknown;
+  failed readback does not leak a retained terminal, while a later independent
+  lookup resolves that unchanged terminal. Overlay and original sources remain
+  distinct, with no implementation changes made for review.
+- Missing private-root overlay fails compilation at the qualification sentinel.
+  Scoped tagged vet and diff whitespace checks pass. The initial sandbox socket
+  refusal remains preserved separately from successful scoped host qualification.
+- Existing cases reproduce fresh201/replay200, stale/malformed/route-target
+  refusal, NO_CHANGE, source/compact outcomes, current rights/native scope,
+  browser/revocation boundaries, history provenance/tombstones, and recovery
+  receipt-first new-handler replay with Completed content/approval preserved.
+- Go1.27.3 Windows/amd64, CGO disabled, local toolchain, readonly/offline frozen
+  dependencies and fresh private synthetic fixtures. Frozen inputs, accepted
+  provider sources and module locks were checked against their bound baselines.
+  The original S02 tests/README are unchanged; private receipts retain hashes.
+
+Limits
+
+This is synthetic component evidence, not integrated product, browser storage,
+CLI/UI, trust enrollment, real human grant, archive/restore or power-loss
+qualification. No live installation, board, credential or trust store was used.
+Fault injection establishes error handling rather than native crash durability.
+CGO-disabled runs do not provide race instrumentation. Owner acceptance and later
+composition/qualification gates remain separate; only the owner controls Completed.

@@ -1,0 +1,69 @@
+A02 EXPORT SNAPSHOT AND STORED ZIP REVIEW
+2026-10-26 | A02-E | PASS
+
+Outcome
+Fresh non-author review passes the corrected export component. No open findings.
+The initial link-tombstone finding and failed reproduction remain preserved in
+a02-export-snapshot-review-r1-findings.txt. Its corrected regression passes through
+the actual card, workflow, recovery, export and shared archive-contract services.
+
+Authority and scope
+Reviewed internal/archive/export against accepted architecture 03/04/06/18/20,
+the exact archive-recovery-schema.txt, shared C03 contracts, S03 registry/pin
+ownership, the root README and export-board-http composition decision. This review
+covers preparation, SQL projection, bounded staging and stored ZIP construction.
+
+Findings and closure
+- F1 closed: physical link creator metadata no longer becomes archive actorId.
+  Only comment tombstones expose creator_id there. Normal link removal followed
+  by confirmed clearing remains exportable; source link/comment origins, comment
+  attribution, creation times and removal facts remain intact.
+- Prepare requires a trusted verifier and exact source identity/revision. The
+  real G01 read/export check uses the same actual S03 reader before projection.
+  This internal callback boundary supplies no default authentication or rights.
+- Current rows, complete and removed snapshots, retained activity, terminal facts,
+  separate source outcomes, lineage and raw BLOBs share one pinned revision.
+  Full COMMITTED outcomes can protect bytes; compact/refused facts cannot add pins.
+  Equal digests still require equal lengths across every fact and inventory row.
+- Shared C03 validation binds exact document shapes, ordering, provenance, graph,
+  readable JSON lengths/hashes and the declared protected union. Declared/actual
+  BLOB lengths are checked before fetching bytes; raw SHA-256 is checked afterward.
+  Missing, changed or length-corrupt protected bytes refuse preparation and fence.
+- Preparation closes the reader before releasing pins. A cleanup failure withholds
+  Prepared. Successful preparation leaves private bytes without a reader or lease;
+  output and a Writer retaining or changing its arguments cannot mutate that state.
+- Stored members use agreeing local/central sizes, flags, names and CRCs, without
+  descriptors or ZIP64. COMPLETE is last and binds the exact manifest R-byte hash.
+  Write/finalization failure or cancellation never confirms completed delivery.
+
+Verification
+Windows/amd64 Go 1.27.3, CGO disabled, local toolchain, read-only module resolution
+and the frozen dependency cache. Private synthetic stores; no listening port.
+- Fresh ordinary package run: 17 passed, zero failed, zero skipped.
+- Fresh independent private-overlay run: 11 passed, zero failed, zero skipped.
+- Focused go vet passed. Scoped public text passed UTF-8/LF/one-final-newline checks.
+- Independent probes exercised full refused attempted bytes, full retained source
+  refusal evidence, source/current equal operation IDs, non-pinning length conflict,
+  removed comment attribution and ordinary removed-link clearing/export.
+- Boundary probes accepted exactly 32 MiB board JSON and rejected one byte more;
+  emitted exactly 16,384 members with valid distinct BLOBs; and staged/wrote a real
+  64 MiB protected union containing 10 MiB objects. Member excess, per-JSON/aggregate
+  budgets, exact package-size arithmetic and depth 32/33 boundaries were checked.
+- Two hundred deterministic nested-value probes matched preflight to shared R
+  encoding. Every cut position of a valid six-member archive refused and lacked a complete ZIP;
+  invalid Writer counts, short writes, mutable Writers and cancellation were checked.
+- Actual concurrent clearing preserved one older export revision and compacted
+  later exports. SQL collection preflight refused oversized metadata before driver
+  row-text retrieval. Exact inventory/raw empty/deduplicated bytes and header/COMPLETE
+  assertions passed. Reviewed source and composition documents stayed hash-stable.
+
+Limits
+S03 owns registry/domain-pin acquisition before A02 staging. Its existing provider
+boundary remains unchanged; this review claims no total-process memory bound or
+new global pin-population limit. Provider source bindings identify consumed bytes;
+they do not expand this component review into fresh provider qualification.
+
+This evidence does not qualify hostile-ZIP validation, restore, HTTP/CLI/browser
+delivery, native file publication, application activation or power-loss durability.
+No real board, credential, grant, certificate trust or user interface was accessed.
+Public MIT FOSS; UTF-8, LF and one final newline.

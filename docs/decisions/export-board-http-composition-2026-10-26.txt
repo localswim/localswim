@@ -1,0 +1,43 @@
+EXPORT SNAPSHOT AND BOARD HTTP COMPOSITION
+2026-10-26 | A02/K01 | Accepted contract follow-through
+
+A02 owns archive generation; K01 owns board/card/history reads, original outcome
+lookup, card mutations and recovery preview/confirmation routes. H01 retains grant
+routes, A01 attachment routes and H02 export delivery. P01 later mounts these
+components in the executable. No component handoff establishes product activation.
+
+Export preparation must use S03's shared per-Store registry and actual pinned
+reader transaction. Source identity/revision and current export rights must be
+checked in that same snapshot before any output. A trusted adapter must supply
+the real credential-bound G01 read/export check; a manifest or callback argument
+never authenticates a request. HTTP and CLI consumers retain their own current
+authority, route, precondition and delivery obligations.
+
+The package describes one source revision, with exact D02/C03 readable JSON,
+inventory and raw protected BLOB union. Compact or refused byte facts preserve
+evidence without independently pinning bytes. Another export's extra pins protect
+the database but do not expand this package's declared inventory. Stored ZIP,
+member/byte/JSON/depth limits and COMPLETE remain the accepted contract. Validation
+or interrupted delivery cannot manufacture a complete archive or verified save.
+
+K01 borrows the existing credential/session/HTTPS lifetimes and calls the existing
+admission and recovery services. Projections use one actual authorized reader
+snapshot and the exact public DTOs. Historical origin, full/compact availability,
+coverage and current card revision remain distinct. Reads never reconstruct
+missing provenance or promote historical rights to current authority.
+
+Mutation transport resolves the independent route and current credential actor,
+then freezes the shared semantic intent. S02 alone owns identity/CAS processing,
+terminal evidence and uncertainty. Lookup never executes a command or rewrites
+the original identity. Internal successful-lookup metadata distinguishes HTTP200
+for a completed unresolved read from HTTP503 for storage/readback/cleanup failure.
+It changes no public body or evidence class and never proves noncommit. The same
+S02 lookup path supplies this distinction; there is no adapter-side ledger query.
+Recovery preview is read-only and grants no authority;
+confirmation retains S03's original immutable preview, current rights, exact
+revision and receipt-first rules. The accepted NO_CHANGE policy remains binding.
+
+Qualification uses synthetic SQLite stores, private overlays and isolated native
+roots. No actual board, credential, human enrollment or issuer trust is changed.
+Executable composition, offline validation/restore, CLI/browser delivery and native
+power-loss qualification remain their separate accepted stages.

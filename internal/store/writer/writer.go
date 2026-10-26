@@ -139,6 +139,9 @@ type Result struct {
 	Terminal *T.Terminal
 	Unknown  *T.KnownIdentityUnknown
 	Refused  *T.NonterminalRefusal
+	// LookupCompleted reports only successful lookup execution and reader cleanup.
+	// It is neither outcome proof nor authorization, and never enters public JSON.
+	LookupCompleted bool `json:"-"`
 }
 type Engine struct {
 	store *S.Store
@@ -468,6 +471,9 @@ func (e *Engine) lookup(ctx context.Context, k LookupIdentity, original *A.Opera
 			return err
 		}
 		if err := identity(ctx, c, o); err != nil {
+			if !errors.Is(err, errSourceAuthority) {
+				return err
+			}
 			result = identityUnknown(o, err)
 			return nil
 		}
@@ -509,6 +515,9 @@ func (e *Engine) lookup(ctx context.Context, k LookupIdentity, original *A.Opera
 			e.store.Fence()
 		}
 		return u
+	}
+	if !reconcile {
+		result.LookupCompleted = true
 	}
 	return result
 }

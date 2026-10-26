@@ -71,6 +71,11 @@ release qualification remain separate work.
 - [Attachment storage and forced downloads](internal/board/attachments/README.txt)
   and [independent review](docs/reviews/a01-attachment-adapter-review.txt), with
   [byte/transport composition](docs/decisions/attachment-byte-composition-2026-10-26.txt).
+- [Pinned export snapshots and stored ZIP output](internal/archive/export/README.txt)
+  and [independent review](docs/reviews/a02-export-snapshot-review.txt).
+- [Board, history, lookup and recovery HTTP adapters](internal/transport/boardapi/README.txt)
+  and [independent review](docs/reviews/k01-board-http-review.txt), with
+  [export and HTTP composition](docs/decisions/export-board-http-composition-2026-10-26.txt).
 - [Private browser recovery store](web/src/recovery/README.txt) and
   [independent review](docs/reviews/w01-private-recovery-review.txt), with explicit
   prepared-boundary and qualified-profile dispatch gates.

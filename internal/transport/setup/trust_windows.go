@@ -38,10 +38,10 @@ func (m *Manager) PlanTrust(operation, id, pin string) (out TrustPlan, err error
 	return TrustPlan{InstallationID: id, Authority: mat.context().Authority, IssuerSHA256: pin, ExpiresAt: stamp(mat.issuer.NotAfter), StoreScope: "CurrentUser Root writable local physical store", Consequence: "Root trust is broad browser trust; other stores, profiles, caches and existing connections may retain trust.", ConfirmationLine: operation + " " + id + " " + pin, issuerDER: append([]byte(nil), mat.issuer.Raw...), operation: operation}, nil
 }
 
-// ApplyTrust executes only through the injected TrustStore. No native store
-// implementation is linked into setup; qualification must supply the deliberately
-// approved current-user physical-store adapter later. Terminal confirmation is a
-// cooperative owner control, not proof of a human or meaningful review.
+// ApplyTrust executes only through the injected TrustStore after confirmation
+// and exact plan revalidation. NewWithWindowsCurrentUserRoot explicitly supplies
+// the fixed physical-store provider; New(nil) leaves it unavailable. Terminal
+// confirmation is a cooperative owner control, not proof of meaningful review.
 func (m *Manager) ApplyTrust(plan TrustPlan, c Confirmation) Response {
 	command := "trust." + plan.operation
 	r := emptyResult()

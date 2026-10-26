@@ -1,5 +1,6 @@
 // Package setup implements the accepted native setup material lifecycle.
-// It does not start services, select boards, issue board credentials or install trust.
+// It does not start services, select boards or issue board credentials.
+// Trust changes require explicit provider composition and confirmed ApplyTrust.
 package setup
 
 import (
@@ -217,8 +218,10 @@ func confirm(c Confirmation, expected string) error {
 	return nil
 }
 
-// TrustStore is deliberately injected. This package supplies no live mutation
-// implementation; actual CurrentUser Root owner actions remain qualification work.
+// TrustStore is deliberately injected. New(nil) has no store; the explicit
+// NewWithWindowsCurrentUserRoot constructor supplies the fixed Windows provider
+// without opening it. Manager.ApplyTrust retains the plan/confirmation gate.
+// Actual CurrentUser Root owner actions remain separate qualification work.
 // Membership must inspect the writable local physical current-user Root store.
 type TrustStore interface {
 	Membership(der []byte) (bool, error)

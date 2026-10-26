@@ -35,3 +35,12 @@ In Progress gates are retained. Scoped dependent work stays Ready for Work.
 This decomposition preserves one-worker bounds and visible unfinished work.
 It neither adopts new envelope choices nor claims complete application readiness,
 product equivalence, browser/native trust or release qualification.
+
+C03 implementation follow-through
+The archive/preview/receipt bundle now supplies those Go rows and pure structural,
+ownership/reference and protected-byte helpers. Its schema and TypeScript output
+join C01 through cmd/contractgen; -check covers both bundles without writing.
+HistoryRead consumers must reuse archive.Rows and ValidateHistoryReferences.
+C02 transport DTO implementation remains required. Archive helpers do not perform
+ZIP/streaming/native publication, database retention or authority decisions;
+A03/A04/S03 retain those responsibilities and their qualification gates.

@@ -16,3 +16,15 @@ K03/P01 composition and V02 integrated trust/browser evidence require that
 concrete provider. N01 alone does not claim complete D01 commands or the later
 remote credential/session/lookup journey. Earlier native, source and owner gates
 remain; no accepted behavior is dropped or silently declared implemented.
+
+N02 implementation follow-through
+The explicit NewWithWindowsCurrentUserRoot constructor now supplies that provider
+without opening a store. New(nil) remains unavailable. Manager.ApplyTrust retains
+the displayed-plan/confirmation and exact-current-identity gates. The private
+provider selects PHYSICAL_W CurrentUser Root\.Default with OPEN_EXISTING and
+ENUM_ARCHIVED (READONLY for membership), refuses impersonation/account changes,
+uses exact DER plus SHA-256, adds only with ADD_NEW and removes exact copies.
+Native MEMORY-store and injected failure tests cover resource ownership and
+uncertainty. They do not execute the production physical-store opener or qualify
+real user-store persistence, root prompts or browser trust. K03/P01 command
+composition and V02 owner-action/browser qualification remain later work.

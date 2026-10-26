@@ -9,8 +9,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/localswim/localswim/internal/contract"
+	"github.com/localswim/localswim/internal/contract/archive"
 )
 
 func main() {
@@ -30,6 +32,21 @@ func run(root string, check bool) error {
 	files, e := contract.GeneratedFiles()
 	if e != nil {
 		return e
+	}
+	archiveFiles, e := archive.GeneratedFiles()
+	if e != nil {
+		return e
+	}
+	for name, data := range archiveFiles {
+		if filepath.IsAbs(name) || filepath.ToSlash(filepath.Clean(name)) != name ||
+			strings.Contains(name, "\\") ||
+			!(strings.HasPrefix(name, "schemas/archive/") || strings.HasPrefix(name, "web/generated/archive/")) {
+			return fmt.Errorf("invalid archive output: %s", name)
+		}
+		if _, exists := files[name]; exists {
+			return fmt.Errorf("duplicate generated output: %s", name)
+		}
+		files[name] = data
 	}
 	names := make([]string, 0, len(files))
 	for n := range files {

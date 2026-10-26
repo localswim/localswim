@@ -25,8 +25,12 @@ Public entry points
   must apply that config, dual exclusive loopback binds and exact Host/Origin rules.
 - PlanTrust exposes the required public warning/confirmation context. ApplyTrust
   accepts only an injected physical-current-user-store adapter after confirmation.
-  This package links no live trust-store implementation. A nil adapter reports
-  membership unavailable. Removal validates intact public identity even after key
+  NewWithWindowsCurrentUserRoot explicitly composes the fixed Windows provider
+  without opening a store or enrolling anything; New(nil) leaves membership
+  unavailable. The provider selects only writable physical CurrentUser
+  Root\.Default, includes archived exact copies, refuses impersonation/account
+  changes, and compares issuer SHA-256 plus DER. Writes require ApplyTrust's
+  confirmation and revalidated plan. Removal validates public identity after key
   loss/expiry and never pretends that public-only validation proves private health.
 
 Publication and intentional stops
@@ -47,12 +51,15 @@ GOTOOLCHAIN=local and GOFLAGS=-mod=readonly:
 Tests use private synthetic installations beneath the OS test temporary directory;
 N01_TEST_ROOT optionally selects an external test-artifact container only. The
 production library never reads that variable. No test touches the real setup root,
-certificate store, browser, real board, human grant or persistent configuration.
+live certificate store, browser, real board, human grant or persistent configuration.
 
 Native tests exercise ACL/security-descriptor inspection, flushed/readback files,
 generation/selector publication, same-process and child-process exclusion, exclusive
 dual-family loopback bind observations, and real crypto/x509 validation. Injected
 checkpoints cover interruptions/unknowns; fake-store cases cover trust boundaries.
+N02 exercises native nonpersistent MEMORY-store operations, exact membership,
+duplicates/archived copies, add/removal and context ownership; injected selectors
+verify the fixed physical-store flags without opening that production store.
 The default execution sandbox denied initial hardlink fixture creation (Win32
 error 5); that failure remains private evidence. A focused authorized host run
 subsequently created synthetic NTFS junction/hardlink fixtures and demonstrated

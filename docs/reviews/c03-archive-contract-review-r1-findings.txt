@@ -1,0 +1,48 @@
+C03 / #0053 - FRESH INDEPENDENT ARCHIVE CONTRACT REVIEW
+2026-10-25 | Initial findings; changes required
+
+Scope
+Fresh non-author review of D02 typed contracts, C/R encoders, pure graph seams,
+generated schema/TypeScript and aggregate contractgen integration. Accepted D02,
+C01 canonical intent/result descriptors and D03 HistoryRead govern this review.
+No source/fixture edits, board writes, commits, children or real data were used.
+
+Findings reproduced
+- F1: Exact HistoryRead accepts an unrelated card-kind tombstone even with empty
+  records. references.go:117-188 builds exact needed sets only for immutable entity
+  kinds; card tombstones escape the extra-row check. D03 section 5 requires exactly
+  the rows/facts needed by returned records. Reject unused card tombstones.
+- F2: Compact COMMITTED comment/link/approval result references can resolve metadata
+  owned by a different card. references.go:442-523 checks existence generally but
+  checks ownership only inside the full-result branch (attachment has a separate
+  stronger check). Compacting must preserve command/target/result ownership.
+  Reproduced comment.add with target A and retained comment owned by B.
+- F3: A current active internal link may target a card tombstone. The target check
+  in references.go:358-363 always permits tombstones. D02 requires live/current
+  references to resolve full entities. Distinguish retained historical references
+  from current link references and refuse the latter's tombstoned target.
+- F4: PreviewBytes permits domainAfter to add a digest absent domainBefore.
+  semantic.go:349-392 checks lengths/sums/reclaimable but not the removal-only
+  subset invariant. D02 defines these sets before/after removing selected pins;
+  domainAfter must be a subset, with matching lengths.
+
+- F5: Canonical/Readable silently repair invalid Go UTF-8 inside fixed-size arrays.
+  decode.go:75-122 validates strings, maps, structs and slices but omits arrays.
+  A [1]string containing byte 0xff, directly or nested in a map, is marshaled to
+  a replacement scalar and accepted. Add array recursion before Marshal.
+- F6: ValidateOperationReferences lacks complete standalone input validation.
+  references.go:543-562 does not validate board/current Card values, row board
+  provenance, operation actor membership, or live-card/tombstone collisions.
+  Five independent probes reproduce each acceptance. The exported helper/README
+  states no prevalidated-input assumption; its supplied Rows are already validated.
+  Apply consistent strict input/scope checks before resolving operation facts.
+Independent reproduction
+Private overlay TestFreshReviewAdversarial has four failing regression assertions;
+the existing archive suite passed in that same run. Qualified Go 1.27.3,
+GOTOOLCHAIN=local, CGO_ENABLED=0, GOFLAGS=-mod=readonly and private caches were used.
+Initial source hashes and full probe output remain private under
+artifacts/2026-10-25-slice-01/c03-review-r1/. Parent owns correction and re-review.
+
+Boundary
+These are pure boundary defects, not ZIP, filesystem, SQLite, authentication,
+retention execution, publication, browser or crash-durability qualifications.

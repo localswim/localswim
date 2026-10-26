@@ -1,0 +1,56 @@
+C03 / #0053 - FRESH INDEPENDENT ARCHIVE CONTRACT REVIEW
+2026-10-25 | PASS - bounded contract provider only
+
+Result
+All six initial findings were corrected and independently re-reviewed. No material
+finding remains in the reviewed C03 scope. The original findings and failing
+synthetic probes are retained separately; this report does not replace that history.
+
+Reviewed scope
+- Exact D02 shared rows, archive documents, recovery preview/confirm, receipt,
+  target inventory and restore/status families; required nullable fields, ordering,
+  safe numbers/timestamps and strict JSON/Unicode behavior.
+- C/R byte encodings and C01 canonical intent/typed-result reuse; command binding,
+  source/current ledger separation, provenance, ownership, coverage/tombstones,
+  full-versus-removed availability and byteFacts pin/nonpin consistency.
+- Go-owned archive schema/TypeScript output and aggregate cmd/contractgen missing/
+  drift checks. Native private-file DTOs remain N01-owned; C02 must reuse Rows and
+  ValidateHistoryReferences for the D03 HistoryRead projection.
+
+Closed findings
+- F1: Exact history now sweeps every registered kind, rejecting unrelated card
+  tombstones (references.go:160; corrections_test.go:24).
+- F2: Compact committed result ownership is checked before the retained-full
+  branch, including allowed tombstones (references.go:446; corrections_test.go:66).
+- F3: Current internal link targets require complete cards; retained historical-only
+  link references retain their allowed tombstone behavior (references.go:285,357;
+  corrections_test.go:150).
+- F4: Preview domainAfter must be a removal-only subset of domainBefore; independent
+  export pins remain valid (semantic.go:378; corrections_test.go:191).
+- F5: Scalar validation descends into Go arrays before Marshal, rejecting invalid
+  UTF-8 and floating-point arrays (decode.go:104; corrections_test.go:222).
+- F6: The standalone operation seam validates supplied board/cards, operation scope,
+  row provenance, actor membership and live-card/tombstone collisions
+  (references.go:557; corrections_test.go:243).
+
+Independent verification
+- Fresh Go package and aggregate generator tests: 55 passing cases, no skips.
+- Original independent overlays: 12 passing cases covering all 11 adversarial
+  assertions that failed against the preserved initial source snapshot.
+- Actual pinned native TS7 declaration check and tagged Go suite: 56 passing cases,
+  no skips. Accepted D02 fixtures and expected declaration errors were compiled.
+- go vet, aggregate contractgen -check and git diff --check passed. Aggregate tests
+  verify that checks refuse both missing and drifted outputs without rewriting them.
+- Qualified Windows/amd64 Go 1.27.3, Node 24.20.0 and TypeScript 7.0.2;
+  GOTOOLCHAIN=local, CGO_ENABLED=0, GOFLAGS=-mod=readonly, private caches/runtime.
+- Final before/after source hashes were identical. Private c03-review-r2 receipt
+  records exact source/output/cmdgen hashes, tools, commands and detailed logs.
+
+Limits
+This pass covers pure contracts and projections. It establishes no ZIP/header/
+streaming parser qualification, source-to-destination transformation, native path,
+filesystem/SQLite/retention transaction, authentication/authority, publication,
+concurrency, browser equivalence or crash-durability guarantee. A03/A04/S03 and
+other accepted consumer gates remain in force; owner acceptance remains separate.
+Fresh non-author reviewer; no implementation/fixture changes, board writes,
+commits, subagents, installs, trust changes or real data were used.

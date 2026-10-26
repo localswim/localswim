@@ -1,0 +1,77 @@
+SLICE01 - FRESH INDEPENDENT N02 WINDOWS TRUST PROVIDER REVIEW
+2026-10-25 | N02 / #0054 | Bounded implementation review
+
+Verdict: PASS. No material implementation finding remains. This reviewer authored
+none of the provider, shipped tests or integration documentation. Owner acceptance
+and Completed remain separate; this pass does not qualify live trust or browsers.
+
+Scope and authority
+Reviewed windows_store.go and windows_store_test.go against accepted D01 revision 3
+(docs/contracts/setup.txt), the N02 provider scope and existing PlanTrust/ApplyTrust.
+Reviewed the updated types.go/ApplyTrust comments, setup README, root README and
+native-trust-provider-boundary decision follow-through for consistency. Historical
+N01 review/boundary evidence remains intact. Exact hashes and logs are private.
+
+Implementation findings
+- Explicit NewWithWindowsCurrentUserRoot composes the private provider without a
+  certificate-store open. New(nil) stays unavailable. The manager retains exact
+  identity/plan revalidation, terminal confirmation and stopped-server exclusion.
+- Fixed PHYSICAL_W CurrentUser Root\.Default selection uses OPEN_EXISTING and
+  ENUM_ARCHIVED; membership adds READONLY. No caller account/store/flags override,
+  alternate-store fallback, key/leaf import or automatic enrollment is exposed.
+- OS-thread pinning and PID/process-SID binding refuse all thread impersonation
+  and recheck account identity before/after store operations. This is cooperative
+  account binding, with no hostile same-account isolation claim.
+- Membership checks SHA-256 AND exact DER in the selected physical store, including
+  archived copies. Fresh encoded-only contexts and ADD_NEW avoid replacing another
+  certificate. Removal retains every exact duplicate separately until enumeration
+  finishes, then deletes only those retained contexts.
+- Consuming enumeration and deletion ownership matches Microsoft API contracts.
+  Failure paths free remaining references and close the store once. Possible-effect
+  add/delete, account/readback or cleanup failures stay unknown; pre-effect store
+  failures remain unavailable. Exact membership on explicit retry reconciles state.
+
+Independent verification
+Pinned native Windows/amd64 Go 1.27.3, CGO_ENABLED=0, GOTOOLCHAIN=local and
+GOFLAGS=-mod=readonly; frozen module cache, fresh private build/temp/fixture paths.
+The accepted go.mod/go.sum and D01 contract hashes stayed unchanged.
+
+- Focused provider suite: PASS, 14 top-level tests plus 11 subtests; zero skips.
+  Native APIs operate only on nonpersistent MEMORY stores and synthetic issuers.
+  Covers exact/duplicate/archived membership, preservation of unrelated DER,
+  actual ADD_NEW duplicate refusal, consuming ownership and native impersonation.
+- Independent private test overlay: PASS, 3 top-level tests and 8 adversarial
+  subcases; zero skips. Adds account change before effect, creation denial,
+  effect-dependent cleanup error classification, partial deletion, post-delete
+  inspection denial and concurrent exact re-addition. All opens remain MEMORY.
+- Full setup suite: PASS on the scoped host rerun, 35 top-level tests plus
+  27 subtests; zero skips. Actual synthetic junction/hardlink fixtures ran.
+- go vet ./internal/transport/setup: PASS. Reviewed public files and this report
+  pass UTF-8/no-BOM/LF/final-newline checks. Documentation accurately separates
+  implemented provider availability from later command/product qualification.
+
+The initial full-suite sandbox run failed at native synthetic junction creation;
+that failed run is retained privately and is not counted as a passing refusal.
+A narrow host rerun used fresh private fixtures and passed the full suite.
+
+Primary API basis
+- learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certopenstore
+- learn.microsoft.com/en-us/windows/win32/seccrypto/system-store-locations
+- learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certenumcertificatesinstore
+- learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certdeletecertificatefromstore
+- learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certaddcertificatecontexttostore
+- learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certclosestore
+- learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openthreadtoken
+
+Limits and handoff
+The production PHYSICAL opener was source-reviewed and its literal selector was
+intercepted by tests; it was never executed. MEMORY/injected results do not prove
+actual writable CurrentUser Root behavior, inherited/policy placement, persistence,
+root prompts, caches or browser adoption. K03/P01 still own command composition;
+V02 still owns separately authorized live owner-action/browser qualification.
+
+No live certificate store, native production setup root, real board, credential,
+human grant, browser or persistent host configuration was accessed or changed.
+No v1 source/tests/internal designs, race-detector evidence, power-loss result,
+hostile-process isolation or meaningful-human-review proof is claimed.
+Public MIT FOSS; UTF-8, LF, final newline.

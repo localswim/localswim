@@ -1,0 +1,70 @@
+K02 CORE CLI AND IMMUTABLE EVIDENCE - FRESH INDEPENDENT REVIEW
+2026-10-26 | Revision 2 | Bounded component review
+
+Verdict: PASS
+
+No material finding remains in the reviewed K02 scope. The sixteen implementation
+inputs match the corrected frozen review source. Accepted provider sources and
+module locks remain unchanged. Parent composition documentation is hash-bound.
+This reviewer authored no implementation or author tests.
+
+Corrected findings
+
+- F1: human board labels now expose only independently validated canonical
+  identity or fixed fallback text. Nonprinting remote diagnostic codes are
+  escaped at stderr without changing exact terminal JSON or outcome proof.
+- F2: UUID token validation now checks the original spelling through the shared
+  canonical UUID validator. It interprets no extra JSON escape layer. Invalid
+  selectors and positional IDs stop before credential or evidence loading.
+- The original failing independent probes pass against the corrected source.
+  Initial findings, negative controls and superseded review evidence remain
+  preserved separately.
+
+Verified boundary
+
+- Explicit installation/board/incarnation/grant selection, current session actor
+  and scope matching, pinned original context, original-only lookup and narrow
+  native-owner own-grant lookup remain distinct from executable composition.
+- Frozen canonical identity, original wire and route provenance precede dispatch.
+  Publication uses private-at-creation ACLs, exclusive creation, native locking,
+  flush and independent readback. Storage refusal prevents mutation dispatch.
+- Exact authenticated matching terminal proof alone closes original uncertainty.
+  HTTP refusal, redirects, missing rows, malformed responses and late/canceled
+  bodies do not establish noncommit or authorize replay or another operation ID.
+- The 100 unresolved and 8 MiB shared limits reserve 512 bytes per resolution.
+  All four full/compact committed/not_committed marker forms fit. Native probes
+  verify pending-record accounting, read/resolution/expiry lock exclusion,
+  failed marker flush/readback preservation, no overwrite and alias refusal.
+- Resolved evidence expires only through the explicit seven-day API. Unresolved
+  and incomplete evidence remains retained without automatic expiry.
+- Missing providers fail closed. The actual current credential-file and disabled
+  marker provider, executable registration and reviewed authenticated transport
+  facade remain explicit K03/P01 composition checkpoints.
+
+Independent verification
+
+- Fresh ordinary suite: 220 PASS records. Actual host issuer-pinned loopback
+  HTTPS and NTFS suite: 228 PASS records, zero failures/skips. The complete
+  journey ran against the corrected final source and strict private decoder.
+- Missing root-overlay compilation guard and tagged vet pass. The private overlay
+  changes only synthetic root resolution and adds its qualification sentinel.
+- Additional listener-free adversarial probes: 34 PASS records, zero failures
+  or skips. Expanded matrices exercise 160 rejected-token context cells, 68
+  nonprinting terminal-code/mode/lookup cells and six native lookup token cases.
+- Original HTTP status/no-retry, late response, immutable alias, mandatory/
+  repeated/late-selector and storage-cap probes pass. Exact JSON and exit4 lookup
+  uncertainty are preserved. All dynamic human labels and diagnostic sinks were
+  inspected; status-persistence warnings use fixed text.
+- Initial private test-only enum-cast and required-newline scan failures remain
+  preserved separately from corrected successful runs. Detailed private evidence
+  binds source, providers, probe code, runner and this public report by SHA-256.
+- Go1.27.3 Windows/amd64, CGO disabled, local toolchain, readonly/offline frozen
+  dependencies. Port 47443 was released after the actual TLS suite completed.
+
+Limits
+
+Synthetic component evidence only. No real installation, board, credential,
+human grant or trust store was used. Native flush/readback does not prove hardware
+power-loss safety. CGO-disabled execution supplies no race instrumentation.
+Integrated executable, browser and product qualification retain their separate
+gates. Owner acceptance remains separate; only the owner controls Completed.

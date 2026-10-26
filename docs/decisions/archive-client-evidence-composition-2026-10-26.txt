@@ -1,0 +1,48 @@
+ARCHIVE VALIDATION AND CLIENT EVIDENCE COMPOSITION
+2026-10-26 | A03/H02/K02/W02 | Accepted contract follow-through
+
+A03 validates an untrusted package before any destination construction. Exact
+stored ZIP interpretation, physical member order, local/central agreement,
+complete package length, D02 limits, readable JSON, inventory, references and raw
+hashes all matter. A matching manifest hash establishes content consistency; it
+authenticates no origin. Validated bytes establish neither restore publication
+nor native crash durability. A04 retains separate destination and receipt duties.
+
+H02 supplies only the accepted export route. T01 authenticates the request, and
+the A02 verifier rechecks current ordinary read/export authority in the actual
+pinned reader snapshot with exact source identity and revision. Every pre-stream
+refusal precedes ZIP headers or bytes. A02 owns generation; H02 owns HTTP delivery.
+A failed stream cannot acquire a JSON success trailer, operation receipt, server
+path or claim of a verified browser save. P01 later mounts the route.
+
+K02 separates local invocation and source selection from a frozen mutation.
+Installation/board/incarnation/grant selectors and current server session identity
+must agree. An explicit trusted credential/connection provider is mandatory;
+missing configuration has no permissive default. K03 retains credential-file and
+administrative composition, P01 executable entry and P02 script wiring.
+
+Private semantic evidence must be exclusively written, flushed and read back
+before dispatch. It binds the original actor, operation, fingerprint, preconditions
+and route without credentials. Local paths remain private. Lookup uses the saved
+original identity and current original authority, never a reconstructed command.
+Public JSON remains one exact D03 envelope with its contextual exit status.
+Evidence publication failure before dispatch differs from loss of a response
+after possible transmission; neither a later refusal nor absent state proves an
+original noncommit. No automatic retry or new operation ID resolves uncertainty.
+
+W02 owns explicit forms, inert prose rendering, keyboard/focus behavior and
+request outcomes. Current text, unsaved draft, immutable submitted evidence,
+stale state and unavailable detail remain distinct. The concrete prepared-boundary
+verifier and W01 persistence protect the exact request before dispatch; current
+server authorization and semantic admission still belong to Go.
+
+Profile qualification is an explicit trusted composition gate. A component test
+profile cannot qualify the product profile, and missing qualification cannot be
+replaced by a default true value. V02 retains actual browser qualification. W03
+retains reload/logout, recovery administration and attachment/export controls;
+P01 retains application mounting and verified asset composition.
+
+Fault tests, private native roots, synthetic TLS and isolated DOM/IndexedDB probes
+establish their documented component behavior only. No real board, human grant,
+runtime credential or issuer trust is changed. CLI/browser product delivery,
+native restore/publication and complete integrated qualification remain separate.

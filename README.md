@@ -73,12 +73,21 @@ release qualification remain separate work.
   [byte/transport composition](docs/decisions/attachment-byte-composition-2026-10-26.txt).
 - [Pinned export snapshots and stored ZIP output](internal/archive/export/README.txt)
   and [independent review](docs/reviews/a02-export-snapshot-review.txt).
+- [Offline archive validation](internal/archive/validate/README.txt) and
+  [independent review](docs/reviews/a03-offline-package-review.txt).
+- [HTTP export delivery](internal/transport/exportapi/README.txt) and
+  [independent review](docs/reviews/h02-http-export-review.txt).
 - [Board, history, lookup and recovery HTTP adapters](internal/transport/boardapi/README.txt)
   and [independent review](docs/reviews/k01-board-http-review.txt), with
   [export and HTTP composition](docs/decisions/export-board-http-composition-2026-10-26.txt).
 - [Private browser recovery store](web/src/recovery/README.txt) and
   [independent review](docs/reviews/w01-private-recovery-review.txt), with explicit
   prepared-boundary and qualified-profile dispatch gates.
+- [Core CLI and immutable local evidence](internal/transport/cli/core/README.txt)
+  and [independent review](docs/reviews/k02-cli-evidence-review.txt).
+- [Board forms and request outcomes](web/src/board/README.txt) and
+  [independent review](docs/reviews/w02-board-interaction-review.txt), with
+  [archive/client evidence boundaries](docs/decisions/archive-client-evidence-composition-2026-10-26.txt).
 - [Grant HTTP adapters](internal/transport/grantapi/README.txt) and
   [independent review](docs/reviews/h01-grant-http-review.txt), using the
   [shared provider facades](docs/decisions/workflow-grant-provider-facades-2026-10-26.txt).

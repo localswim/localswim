@@ -1,0 +1,38 @@
+K02 CORE CLI AND EVIDENCE - FRESH REVIEW FINDINGS R1
+2026-10-26 | Bounded component review
+
+Verdict: CHANGES REQUIRED
+
+F1 - Invalid selector text reaches human terminal output
+
+- core/run.go formats q.selected.BoardID directly into the human outcome line,
+  including when parsing rejected that selector. An invalid --board value with
+  ESC and newline characters is emitted verbatim and can forge terminal lines.
+- Emit only validated canonical selected identity or a fixed inert placeholder
+  on invocation errors. Never render rejected selector bytes in diagnostics.
+- Independent synthetic invalid-selector control-text probe reproduces this.
+  JSON mode remains a single safe envelope in this case.
+
+F2 - UUID selector validation decodes an extra escape layer
+
+- core/invocation.go uuid builds a JSON string by concatenating unescaped CLI
+  text. A literal backslash-u escape for the first UUID character is decoded
+  into a valid UUID instead of being rejected as noncanonical selector text.
+- The escaped board selector reaches Provider.Open and receives a context
+  mismatch, rather than failing invocation validation before source loading.
+- Validate the original token as a lowercase canonical UUID without interpreting
+  escape sequences. Cover board, incarnation, grant and positional IDs.
+- Independent missing/repeated/late-selector cases pass; the literal escaped
+  selector case reproduces this defect.
+
+Other verification completed
+
+- Final frozen source: actual issuer-pinned loopback TLS and NTFS suite passes
+  46 records, with zero failures/skips; missing-overlay compile gate and vet pass.
+- Independent HTTP status/redirect refusal, late-body cancellation and immutable
+  evidence alias probes pass. No retry or false noncommit was observed.
+- Additional native storage probes remain in progress. This report records
+  findings before correction; it is not a final acceptance report.
+
+Synthetic component evidence only. No real installation, board, credential,
+grant or trust store was used. No power-loss or integrated product claim.

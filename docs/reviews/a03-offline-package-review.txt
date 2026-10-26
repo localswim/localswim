@@ -1,0 +1,79 @@
+A03 OFFLINE PACKAGE VALIDATOR - INDEPENDENT REVIEW
+2026-10-26 | Verdict: PASS | Open findings: none
+
+Reviewed scope
+- internal/archive/validate/ only, against the exact D02 archive contract,
+  accepted C03 document validation and accepted A02 export behavior.
+- Read consumes the actual bounded input through EOF, validates the complete
+  package, then returns an opaque snapshot. No destination construction,
+  filesystem publication, restore, origin authentication or trust action exists
+  in the validator. The zero-value handle cannot supply validated content.
+
+Container and content findings
+- The parser independently reads central and local headers, sorts central
+  records by physical offsets, and requires a contiguous local stream followed
+  by the complete central directory and EOCD. Prefixes, gaps, trailing content,
+  duplicate offsets/names, unsafe names, directories, links, alternate streams,
+  descriptors, encryption, compression, ZIP64 and multi-disk forms refuse.
+- Every member's name, flags, method, CRC and stored/actual length must agree.
+  Unsupported interpretation metadata refuses. Reader versions are bounded;
+  creator version, timestamps and supported inert advisory fields confer no
+  content authority. Physical member order differs from inventory path order.
+- Reordered central records, differing local/central timestamps, bounded inert
+  comments, embedded EOCD signatures and qualified timestamp-only UT/NTFS extras
+  remain valid. The manifest digest covers readable manifest bytes, never ZIP
+  layout, timestamps or a canonicalized container.
+- Declared counts and payload sizes are bounded before payload decoding; actual
+  bytes, CRC, inventory lengths/hashes and COMPLETE are checked. C03 strictly
+  checks R bytes, schema, Unicode, depth, logical references, provenance,
+  coverage, source outcomes, all digest-length facts and the protected byte union.
+- Reader buffers never become retained package buffers. Member/name accessors
+  return copies and Manifest decodes a fresh object. IO errors, cancellation,
+  malformed counts and repeated no-progress reads return no usable handle.
+
+Verification
+- Go 1.27.3, Windows/amd64, CGO disabled, local toolchain, readonly module mode,
+  frozen module cache and network-disabled module resolution.
+- Focused test run: 201 passing named results, zero failures and zero skips,
+  including 60 existing results and 141 independent review results. Counts include
+  parent tests, subtests and deterministic fuzz seeds; no fuzz campaign is claimed.
+- Focused go vet passed. No full-repository tests or listeners were started.
+- Accepted A02 Prepare/Write produced an actual native synthetic package and
+  validated successfully. Independent binary production and mutation also used
+  its exact saved bytes; no authored ZIP producer served as the review oracle.
+- Independent probes covered every member's local/central interpretation fields,
+  every truncation of the small package, comments with ambiguous EOCD signatures,
+  unsupported metadata, duplicate/unsafe names, order, prefix/trailing content,
+  retained reader buffers, accessor aliases and EOF cancellation/errors.
+- Rehashed rich packages still refused broken references, foreign provenance,
+  inconsistent coverage, source-operation origin mismatch, wrong BLOB names and
+  conflicting non-pinning byte-fact lengths. Negative byte fixtures refused.
+- Actual stored JSON and BLOB payloads passed their inclusive per-member and
+  aggregate container limits; +1 refused. Existing tests cover inclusive raw-input
+  buffering at 144 MiB and +1, member parsing at 16,384 and +1, declared caps,
+  overflow and decoder depth 32 and +1. Boundary-only containers do not claim
+  semantically valid large board snapshots.
+
+Limits and composition
+Limits are inclusive: 150994944 actual input bytes; 16384 members; 33554432 bytes
+per JSON; 67108864 JSON aggregate; 10485760 bytes per BLOB; 67108864 protected
+BLOB aggregate; depth 32. Buffering is bounded by archive scope, not by a total
+process-memory or runtime guarantee. An arbitrary blocking Reader remains the
+caller's responsibility. Native source ownership, destination transformation,
+receipt/publication, crash safety and product qualification remain separate.
+
+Reviewed source SHA-256
+internal/archive/validate/validate.go
+95c12ceab5b2a60ee1e2308e94e1b3e7b0f6caddfe532dfea5255d9036688ae9
+internal/archive/validate/zip.go
+5a450e352e98d3b7cf441f9c498b3e90177ac0de8eaa410e1eea0049d74265b0
+internal/archive/validate/validate_test.go
+68ab40ec9f411604066b9504d576431ea41cdbe8611550b8c67d4fc794659ff0
+internal/archive/validate/native_windows_test.go
+83ed5588068a65400bb7af1e7242f7e5d7f7892aca5319ab2f6602109297643f
+internal/archive/validate/README.txt
+8f233a12154ee463b84d652bb87b6a253b39bb329f531efff2a8339386b6331b
+
+The accompanying private receipt binds the accepted provider closure, root README,
+shared archive/client composition decision and actual package bytes. No provider
+source change was required. Owner acceptance and later integration remain separate.

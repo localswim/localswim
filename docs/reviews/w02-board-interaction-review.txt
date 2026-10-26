@@ -1,0 +1,52 @@
+W02 BOARD INTERACTION INDEPENDENT REVIEW
+2026-10-26 | Revision 2 | PASS
+
+Outcome
+- No open material findings. Both revision 1 findings are resolved.
+- Exact Go Unicode White_Space semantics apply to schema and command validation.
+  U+0085 is blank, U+FEFF remains nonblank, and stored prose is never normalized.
+- Initial and lookup committed receipts share stale-state handling. Older reads
+  require an explicit refresh; authenticated same-incarnation reads at or beyond
+  the committed revision stay usable. Receipts retain editor input, base and focus.
+
+Verification
+- Strict TypeScript compilation passed with Node 24.20.0 and TypeScript 7.0.2.
+- All 15 author scenarios independently passed in fresh headless Chromium profiles
+  using actual IndexedDB and DOM, including 147 whitespace parity cases.
+- All 18 independent scenarios passed; all three revision 1 failed expectations
+  passed against the corrected source. Revision 1 findings and failures remain.
+- Independent checks covered 20 malformed parser cases, 6 semantic cases and 111
+  terminal identity/fact/full/compact cases across the seven supported commands.
+- Recovery-open failure preserves reads and refuses dispatch. Failed evidence
+  readback refuses dispatch. Actual immutable IndexedDB evidence precedes fetching
+  a mutation. Actor changes refuse initial submission and original lookup.
+- Caller mutation, cancellation, late responses, explicit Enter/Space, logical
+  focus restoration and heading fallback passed. Receipt races preserve newer
+  views/drafts/focus, retain unavailable/stale state, distinguish incarnations and
+  suppress visible late announcements after destroy.
+- All 68 selected schema definitions and transitive references exactly matched
+  the accepted generated provider source; no schema snapshot drift was found.
+
+Evidence binding
+- Accepted provider baseline: 3ea95d5441aad81a334de06e865f5f4f4b3a1005.
+- All eight corrected owned files matched the frozen input before and after
+  verification. Parent composition documents matched their revision 1 hashes.
+- The original frozen source and public findings report remain hash-verified.
+
+Limits
+- Route-fulfilled synthetic HTTPS and synthetic API fixture changes; actual DOM and IndexedDB exercised.
+- Product qualification remains absent by default and fail-closed. Synthetic qualification does not qualify a product browser profile.
+- No real backend/CLI interoperability, product TLS/authentication, native power-loss/eviction durability, trust enrollment, real board changes or real credentials.
+- Application entry/assets, packaging and W03 lifecycle/recovery-admin/attachment/export controls retain separate ownership.
+
+Reviewed source SHA-256
+web/src/api/boundary.test.ts 6032c08252faaac6771afe997363006815f305fa85733def128268cc1b300669
+web/src/api/boundary.ts 8ab9d034fe39665562e2b92697791e65897453dcd75cda3685271412efce122d
+web/src/api/client.ts bd5ba7f3b15bf8293f9ff0c92c0bac5657ebb5cad3411c4c5bc95841119fddd4
+web/src/api/README.txt 6c9c851d95a1a45ec98f44bd1e7ffe90b3d957387b457ea341703927e803a0f7
+web/src/api/schema-data.ts 862bc6fea3f1b0e541ec669284cf57b1c4b3c9bbb2658e335184b5971c2e0b1d
+web/src/board/README.txt 2572f02cf6267212ea4601d5e93127ddfd7e0906b13154f65d054a176c1347ad
+web/src/board/view.test.ts 2cfeb765d368a5189d1d92296144ec68ef8ab1b3a72ea1d942ab1c71605c6910
+web/src/board/view.ts 568bba12781be0b2ae15cf230ed0badf16a6b10e84f63743fac7733c62aea7d6
+README.md 8048553ceb73ea51c74d0fe9490226063df3d28b97198c5958fb46423d7b031a
+docs/decisions/archive-client-evidence-composition-2026-10-26.txt c46b96079d9192ede9d5dd876663225f2e8181860c33d6de37b666902230a53f

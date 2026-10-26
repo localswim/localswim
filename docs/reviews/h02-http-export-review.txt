@@ -1,0 +1,63 @@
+H02 HTTP EXPORT ADAPTER REVIEW
+2026-10-26 | H02-E | PASS
+
+Outcome
+Fresh non-author review passes the five frozen exportapi files. No open findings.
+Owned source, tracked accepted providers and parent composition documents stayed
+hash-stable. Independent probes did not change implementation or provider files.
+
+Authority and scope
+Reviewed accepted architecture 04/05/06/18/20, exact D03 transport and D02 archive
+contracts, the root README and both export/HTTP and archive/client composition
+decisions. T01, G01/G02, S03 and A02 retain their accepted authority and lifecycle
+boundaries. Executable route mounting remains P01; client save controls remain W03.
+
+Findings
+- Only the exact POST board exports route and incarnation/expectedRevision/input
+  envelope are accepted. Encoded aliases, query semantics, duplicate/unknown fields,
+  malformed Unicode/numbers, extra actor/path/operation fields and oversized bodies
+  refuse. Errors are exact path-free D03 nonterminal refusals before ZIP headers.
+- T01 authenticates the credential; its current projection selects board/actor.
+  The route independently selects board. A02 checks exact source identity/revision,
+  then reauthenticates current ordinary read and export rights through G01 using
+  the actual pinned reader. Cached session rights supply no snapshot authority.
+  Revocation after the earlier current projection still refuses preparation.
+- A02 alone constructs the stored ZIP. Exact inventory, raw binary content,
+  COMPLETE digest and byte length survive HTTP delivery. Same-length corrupted
+  protected bytes refuse before Content-Disposition, ZIP headers or ZIP bytes.
+- Successful delivery uses application/zip with a valid inert attachment filename.
+  Failed, zero, partial, short and cancelled output aborts with ErrAbortHandler.
+  Actual pinned TLS truncation is observable as an incomplete response/invalid ZIP.
+  No JSON success/trailer, operation receipt, destination path or verified local
+  save claim is produced. Export failure cannot change confirmed board saves.
+
+Verification
+Windows/amd64 Go 1.27.3, CGO disabled, local toolchain, module-readonly and frozen
+offline dependencies. Private synthetic native roots; no issuer trust installed.
+- Ordinary package replay: 15 PASS records, zero failures/skips; ordinary vet passed.
+- Independent strict MIME-parser probe against actual delivery: one PASS, zero skips.
+- Fresh scoped host native replay: 27 PASS records, zero failures/skips; tagged vet
+  passed. Includes CLI/browser authority, preconditions, rights/revocation races,
+  stored ZIP/COMPLETE, binary integrity and real pinned TLS response truncation.
+- Two independent native probes passed, zero failures/skips: malformed route/body
+  and missing credentials, corruption before streaming, and a foreign-installation
+  credential. Missing root-only overlay failed compilation on the required sentinel;
+  the explicit overlay compiled. Public text and gofmt checks passed.
+- The sandbox native attempt retained 26 PASS records and one socket10013 failure.
+  Its original log and metadata, the author's original socket failure and an initial
+  reviewer harness expectation error remain preserved in the private hash receipt.
+  The suspected filename issue was disproved by the passing actual-header probe;
+  it required no implementation correction.
+
+Limits
+Accepted A02/D02 ceilings remain 150994944 archive bytes, 16384 members, 33554432
+bytes per JSON document, 67108864 aggregate JSON bytes, depth 32, 10485760 bytes
+per BLOB and 67108864 distinct protected BLOB bytes. H02's request body cap is
+4096 bytes. Provider hashes bind consumed code; this is no fresh qualification of
+every provider limit or a total-process memory bound.
+
+This evidence covers the synthetic HTTP component. It does not establish product
+activation, browser save UX, verified local file publication, offline validation or
+restore, human enrollment, hostile-network qualification or power-loss durability.
+No real board, runtime credential, human grant, issuer trust or UI was accessed.
+Public MIT FOSS; UTF-8, LF and one final newline.

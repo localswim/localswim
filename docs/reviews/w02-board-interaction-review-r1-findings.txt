@@ -1,0 +1,41 @@
+W02 BOARD INTERACTION INDEPENDENT REVIEW
+2026-10-26 | Revision 1 | CHANGES REQUIRED
+
+Scope
+- Explicit board forms, keyboard/focus, prepared evidence and original outcomes.
+- Accepted provider baseline: 3ea95d5441aad81a334de06e865f5f4f4b3a1005.
+- Frozen eight-file W02 input remained stable during this review.
+
+Findings
+- W02-R1-01 (medium): JS trim changes C01 x-nonblank semantics.
+  web/src/api/boundary.ts:82,119,121. U+0085-only title passes browser preparation although accepted C01 strings.TrimSpace rejects it. U+FEFF-only title is refused although C01 accepts it. Schema nonblank and repeated request checks must use the accepted Unicode whitespace set without normalizing stored prose.
+- W02-R1-02 (medium): Committed lookup leaves older board labeled current.
+  web/src/board/view.ts:185,187. Cancel pending wait, then lookup original committed operation before the late POST response arrives. Callback stores outcome but does not mark old board stale. A new editor can open against the old revision while read-state remains Current. Apply committed-state handling to lookup while retaining original editor/base/draft/focus and no retry.
+
+Verification
+- Strict TypeScript compilation passed with the pinned compiler.
+- All 10 author scenarios independently passed in a fresh headless Chromium profile.
+- All 68 selected schema definitions matched accepted generated sources exactly.
+- 14 additional review scenarios: 11 passed, 3 failed expectations covering the two findings.
+- Passing probes include 20 malformed parser cases, 6 semantic cases, 111 terminal
+  identity/fact/full/compact cases, recovery-open/readback denial, pre-dispatch actual
+  IndexedDB evidence, changed actor, immutable caller input and Enter/Space/focus.
+
+Limits
+- Synthetic API/HTTPS route fulfillment only; actual DOM and IndexedDB exercised.
+- Qualification absent by default remains fail-closed; synthetic qualification does not qualify product V02.
+- No real backend/CLI interoperability, product authentication/TLS, native power-loss durability, entry/assets or W03 lifecycle claim.
+
+Reviewed W02 source SHA-256
+web/src/api/boundary.test.ts df37d49abfc06e7a8b3ed235f5b56803cb190425f11b8b7ea69bfd4cd9005039
+web/src/api/boundary.ts 4a8c27451f0b208447c119bf7b9baea79c1104fa8eddb4c5a405efeb53e53b3c
+web/src/api/client.ts bd5ba7f3b15bf8293f9ff0c92c0bac5657ebb5cad3411c4c5bc95841119fddd4
+web/src/api/README.txt c5a481c5e86ed7c4cf7aa8b1fc7406b32ccf77073439b6ed6e96a53175f2c3da
+web/src/api/schema-data.ts 862bc6fea3f1b0e541ec669284cf57b1c4b3c9bbb2658e335184b5971c2e0b1d
+web/src/board/README.txt fe1c85e149872be36976a73fb5972b1da20d50e30db8b101ae5d3e750880629a
+web/src/board/view.test.ts 2cfeb765d368a5189d1d92296144ec68ef8ab1b3a72ea1d942ab1c71605c6910
+web/src/board/view.ts 09697bcfb3ac4076f110f060860454d4443f7bdd52f31231ad788850ac723104
+
+Composition source SHA-256
+README.md 8048553ceb73ea51c74d0fe9490226063df3d28b97198c5958fb46423d7b031a
+docs/decisions/archive-client-evidence-composition-2026-10-26.txt c46b96079d9192ede9d5dd876663225f2e8181860c33d6de37b666902230a53f

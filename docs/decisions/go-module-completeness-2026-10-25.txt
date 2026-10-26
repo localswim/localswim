@@ -1,0 +1,26 @@
+GO MODULE COMPLETENESS ADDENDUM - 2026-10-25
+
+The accepted Q01 candidate inventory remains the historical candidate snapshot.
+The first real SQLite import exposed eight required indirect declarations under
+Go's readonly module mode. This correction declares already-locked dependencies;
+no selected module version, toolchain version or go.sum checksum changes.
+
+Accepted candidate go.mod SHA256: 5dfd8f468bc0fa34eaa1c6a64ca7ee3c59b12c943a991e1e78bec900e9d12ce1
+Qualification go.mod SHA256: e4884af04b03465b486bccd0f2e8c031d575b5d3ddbf20a6db64ab7fb84f3629
+Unchanged go.sum SHA256: 73d8f9e5776a31a8d5eb60d1cec809f56ba60ffdc13933ae5db6b12fd5c9e8e8
+
+Added indirect declarations
+- github.com/dustin/go-humanize v1.1.0
+- github.com/google/uuid v1.6.0
+- github.com/mattn/go-isatty v0.0.24
+- github.com/ncruces/go-strftime v1.1.0
+- github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec
+- golang.org/x/sys v0.49.0
+- modernc.org/mathutil v1.7.1
+- modernc.org/memory v1.12.1
+
+The original LIMITED_NOT_QUALIFIED evidence is retained. Q02 must now run its
+native harness against the complete frozen graph; Q03 reruns with the same final
+module input. Fresh independent reviewers assess both evidence and this repair.
+This bookkeeping repair establishes no native, compiler or product qualification.
+No prior accepted record is rewritten and no version-selection authority is implied.

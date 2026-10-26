@@ -1,0 +1,14 @@
+import type { Sample } from "./sample.js";
+const accepted: Sample = { label: "雪é😀", count: 9007199254740991, note: null };
+if (accepted.count !== 9007199254740991) throw new Error("number mismatch");
+// A bounded runtime sample validator, not domain validation or schema equivalence.
+function valid(x: unknown): boolean {
+  if (typeof x !== "object" || x === null || Array.isArray(x)) return false;
+  const v = x as Record<string, unknown>;
+  return Object.keys(v).every(k => ["label", "count", "note"].includes(k)) &&
+    typeof v.label === "string" && typeof v.count === "number" &&
+    Number.isSafeInteger(v.count) && v.count >= 0 &&
+    (!("note" in v) || v.note === null || typeof v.note === "string");
+}
+const vectors: unknown[] = VECTORS;
+console.log(JSON.stringify({ label: accepted.label, results: vectors.map(valid) }));

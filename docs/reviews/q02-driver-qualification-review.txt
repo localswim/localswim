@@ -1,0 +1,103 @@
+Q02 - FRESH INDEPENDENT DRIVER QUALIFICATION REVIEW
+2026-10-25 | #0023 | PASS WITHIN ISOLATED SCOPE; OWNER ACCEPTANCE PENDING
+
+Outcome
+Fresh non-author source review and an independent native execution of the
+unchanged documented runner passed. No blocking source or evidence finding.
+This qualifies only the exact synthetic binding/connection behavior below.
+It does not qualify the product or approve dependent work on the owner's behalf.
+
+Reviewed basis and identity
+- Accepted slice01 contracts 03, 06 and 07; packet 09/Q02 and clarifications
+  20/21; repository AGENTS.md; qualification/environment.json.
+- All qualification/driver files, including retained initial manifest limitation,
+  author evidence and README; module-completeness addendum and root manifests.
+- main_windows.go SHA256:
+  1ea7dc11dadc7c3f981f8a3cf58ebabcedf219f8590b4236fadc35c9b2e4a3a0
+- run.ps1 SHA256:
+  478d9a7da545caf1150e4a407917ef652bd4ec2522012d143bbd3bcd717d0d4a
+- README.md SHA256:
+  971e7cb5cfd1d689a0563e7760902671dad27b7765ec68e0ac4e6d96c303456e
+- Public evidence-r1.json SHA256:
+  34acd9719ebd1d5951e2ca563049f6f38d1e87777d77aa1952a4216501e04482
+  Its private author copy matches exactly. The independent sanitized rerun
+  evidence has the same digest: source, fixture and reported results agree.
+  Independent runtime databases and build/run receipts remain private.
+
+Manifest repair
+Independently compared the retained original manifest with the current file:
+exactly eight indirect requirements were added, none removed or version-changed.
+All eight were already in Q01's frozen 25-module graph. The current go.mod is
+e4884af04b03465b486bccd0f2e8c031d575b5d3ddbf20a6db64ab7fb84f3629;
+go.sum remains 73d8f9e5776a31a8d5eb60d1cec809f56ba60ffdc13933ae5db6b12fd5c9e8e8.
+The runner's readonly full selected-graph comparison passed, as did module
+verification. No -mod=mod bypass or dependency/toolchain substitution occurred.
+The original LIMITED_NOT_QUALIFIED evidence remains historical evidence.
+
+Independent native rerun
+Used a fresh private runtime root outside public source, the verified Q01 cache,
+installed native Go 1.27.3 and PowerShell 7.6.9. Runtime/cache/source ancestors
+had no reparse points. No recursive cleanup, unrelated process termination,
+global install or persistent environment change was used.
+
+From repository root, through the explicitly selected PowerShell 7 engine:
+  ./qualification/driver/run.ps1 -RuntimeRoot <fresh-private-root> -ModuleCache <verified-Q01-cache> -Repeats 3
+
+The runner fixes GOTOOLCHAIN=local, CGO_ENABLED=0, GOOS=windows, GOARCH=amd64,
+GOFLAGS=-mod=readonly, and private build/temp caches. Its exact subcommands are
+recorded in qualification/driver/evidence-r1.json and documented in README.md.
+Native module verification, vet, trimpath/buildvcs=false build, and the invalid
+repeat-bound negative check passed. gofmt reported no source formatting change.
+Source/environment/manifest hashes matched the reviewed evidence after the run;
+the independent executable hash also matched the author's executable hash.
+
+Every one of three isolated children completed within its 25-second watchdog:
+- Go1.27.3/windows-amd64, local NTFS, sqlite v1.61.0 and libc v1.79.0;
+  SQLite 3.54.1 and exact frozen source ID; all 57 compile options matched.
+- Five physical connections/repetition: FK=1, DELETE, FULL=2, read_uncommitted=0,
+  locking=normal, busy_timeout=150 ms, and actual invalid-FK rejection code 787.
+- All seven assertion groups passed, including writer exclusion/rollback/retry,
+  separate pinned scalar/binary/zero-byte-BLOB inventory, reader-blocked COMMIT
+  retry after release, second blocked-COMMIT rollback and same-connection reuse,
+  six competing writer rounds, exact final count 14, integrity/FK/journal checks
+  and clean reopen. No journal remained. All final synthetic database hashes were
+  b9e6dce251b58da4b0c6fc7f534b675407f8549ab40266c898c9c55986485ad5.
+
+Assertion and ownership review
+main_windows.go:159-229 leases and checks every initial physical connection;
+398-426 checks the fresh reopened connection. Foreign-key and BUSY assertions
+inspect sqlite.Error codes, rather than accepting arbitrary errors. Transactions
+and pinned snapshots establish the tested contention interval; no sleep/timing
+threshold supplies correctness. Missing/failed/invalid child results fail the run.
+
+main_windows.go:232-364 retains explicit transaction ownership on leased sql.Conn.
+Concurrent calls use different physical connections; no global application mutex,
+Raw call or overlapping application call on one connection hides the boundary.
+BEGIN IMMEDIATE/COMMIT/ROLLBACK are explicit SQL. Busy COMMIT retry/rollback and
+connection reuse are real assertions; they do not establish sql.Tx.Commit failure
+semantics. Clean exit and private fixture abandonment contain assertion failures;
+the watchdog targets only each freshly spawned synthetic child.
+
+Reviewed the verified locked binding's doc.go:156-177, conn.go:109-123 and
+Windows-selected lib/mutex.go:5-95,218-299. They document inherited connection
+state and the concurrent-Raw prohibition, request SQLITE_OPEN_FULLMUTEX, install
+custom mutex callbacks and implement Go-backed lock/try/unlock operations.
+Observed MUTEX_NOOP alone is neither a safety proof nor a reason to disregard
+these callbacks. FULLMUTEX protects SQLite internals; it does not protect driver
+per-connection state before SQLite's mutex. The harness respects that distinction.
+
+Host observation and limits
+An initial Windows PowerShell 5.1 attempt passed verify/vet/build but stopped
+safely at run.ps1:57: expected negative-case stderr becomes NativeCommandError
+under ErrorActionPreference=Stop. It never reached native repetitions or wrote
+PASS. Reproduction here is demonstrated with PowerShell 7.6.9; broader shell-host
+compatibility is unqualified. No harness-source workaround was applied.
+
+DELETE mode permits the reserved writer alongside the pinned reader but blocks
+commit until reader release; this is the accepted separate-reader/writer model,
+not evidence of continuously committing writes during a long export. No race
+detector was run with CGO=0. No universal race safety, cross-process locking,
+product schema/admission/export/recovery, write/flush faults, fsync guarantee,
+OS reboot, power loss, filesystem durability or throughput is qualified.
+No product suite, v1 sources/tests/internal designs, real board data, issuer trust
+or human grants were used. Public MIT FOSS; UTF-8/LF; private data remains private.

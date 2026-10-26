@@ -1,0 +1,83 @@
+{
+  "builds": [
+    {
+      "accepted.js": "c00a68a57a84bb18db01577308b55a706e7f1c0c52e87a43ad80da7d7c236103",
+      "sample.d.ts": "9891fe5d377b920ab5e10f2e95c3804bd54bb54f7815a29c5413c2f81ba9dbd0",
+      "sample.exe": "d436a56ef3233a31df27a4624a709cbcbb5ff388559bc1f933610305781e0cfb",
+      "sample.schema.json": "41e9b9636b4b619caaf0a36ef60432d204e37ee3fcfc1a4efee850d8f2bc8500"
+    },
+    {
+      "accepted.js": "c00a68a57a84bb18db01577308b55a706e7f1c0c52e87a43ad80da7d7c236103",
+      "sample.d.ts": "9891fe5d377b920ab5e10f2e95c3804bd54bb54f7815a29c5413c2f81ba9dbd0",
+      "sample.exe": "d436a56ef3233a31df27a4624a709cbcbb5ff388559bc1f933610305781e0cfb",
+      "sample.schema.json": "41e9b9636b4b619caaf0a36ef60432d204e37ee3fcfc1a4efee850d8f2bc8500"
+    }
+  ],
+  "environment": {
+    "CGO_ENABLED": "0",
+    "GOARCH": "amd64",
+    "GOFLAGS": "-mod=readonly",
+    "GOOS": "windows",
+    "GOTOOLCHAIN": "local"
+  },
+  "go": "go1.27.3",
+  "node": "24.20.0",
+  "npm": "12.0.2",
+  "status": "PASS_ISOLATED_SAMPLE_ONLY",
+  "tool_sha256": {
+    "node.exe": "5c976096e04e5c2c1f091938926234cc9fbebfe9787ddd149351b3b0ecc707b5",
+    "npm-cli.js": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+    "go.exe": "83b7ba66215e696414fa49462d0db2da4f4cf15c7bebd42f0b189fa04866999d",
+    "tsc.exe": "f9ecfbdc93753d2c972d66a8d0d75f5bd737fd4a5f88b422d9091ea282bcb2c7",
+    "typescript-cli-launcher": "2219f428a7e55aaf1f7ad85b9b0f0cf5078aeb76ccc9a7c6036c92d48f492ffd"
+  },
+  "typescript": "7.0.2",
+  "vectors": 13,
+  "recorded_date": "2026-10-25",
+  "scope": "Isolated synthetic compiler/embed harness only; independent review and owner acceptance pending",
+  "archive_provenance": {
+    "node_sha256": "6cac9ffbca8f6a47091e4b5c772e0606049c3871cb67d900c0cedde630e545ba",
+    "node_sha256_matched_environment": true,
+    "node_url": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-win-x64.zip",
+    "npm_sha512_integrity_matched_environment": true,
+    "npm_url": "https://registry.npmjs.org/npm/-/npm-12.0.2.tgz"
+  },
+  "manifest_sha256": {
+    "go.mod": "e4884af04b03465b486bccd0f2e8c031d575b5d3ddbf20a6db64ab7fb84f3629",
+    "web/package-lock.json": "845a2b445fb06794c6ebc9df890d6ecbedd9b6623fcd827454eb6502856d57b4",
+    "go.sum": "73d8f9e5776a31a8d5eb60d1cec809f56ba60ffdc13933ae5db6b12fd5c9e8e8",
+    "web/package.json": "dc1e06eec516fa9e2d674aaa8afe1c0e3d5282187a29d316b2d9ee25bb27a4ce"
+  },
+  "source_sha256": {
+    "qualification/compiler/rejected.ts.txt": "0803b534e2ee13af5757e26f4f5120dc0881d13ec23cbe89a78c7f23f5dd72d8",
+    "qualification/compiler/sample.ts.txt": "4c36f44585dc8f8cbfbb62e248e60c90b505920812f650db3c9dc45367c5d880",
+    "qualification/compiler/expected/sample.schema.json": "41e9b9636b4b619caaf0a36ef60432d204e37ee3fcfc1a4efee850d8f2bc8500",
+    "qualification/compiler/compiler_test.go": "8bba15867af7986108bc7ed66890254c0dc9cb8a69576072ff6837b79910e508",
+    "qualification/compiler/main.go": "afb29782e36240fa60d4a98f761f0b83d3d19c71b13eb05f61c688a5b73feba8",
+    "qualification/compiler/README.txt": "21d9494d60e4d498d0502d50c2e98e7e2b85ae52c1479cd2f82e01362e8a3ce8",
+    "qualification/compiler/expected/sample.d.ts": "9891fe5d377b920ab5e10f2e95c3804bd54bb54f7815a29c5413c2f81ba9dbd0"
+  },
+  "checks": [
+    "exact local versions and native binary",
+    "golden schema/declaration regeneration",
+    "strict noEmit check with no output",
+    "five rejected assignments and noEmitOnError",
+    "13 expected Go/JS vector outcomes and Unicode output bytes",
+    "two clean temp build asset/executable hash equality",
+    "stale embedded bytes fail runtime",
+    "missing asset fails build with specific diagnostic"
+  ],
+  "limits": [
+    "No application/schema equivalence or domain validation qualification",
+    "No product reproducibility or distribution build",
+    "No browser/SQLite/runtime operational qualification",
+    "Shared Go cache; isolated two-tree sample determinism only"
+  ],
+  "module_context": {
+    "change": "Eight already-locked indirect declarations added; exact module versions and go.sum unchanged",
+    "addendum_sha256": "17184823782f23ef6b13357713810e55d20c39dfe2d1ae513de1b63d61cad624",
+    "addendum": "docs/decisions/go-module-completeness-2026-10-25.txt",
+    "tested_go_mod_sha256": "e4884af04b03465b486bccd0f2e8c031d575b5d3ddbf20a6db64ab7fb84f3629",
+    "candidate_go_mod_sha256": "5dfd8f468bc0fa34eaa1c6a64ca7ee3c59b12c943a991e1e78bec900e9d12ce1"
+  }
+}

@@ -1,0 +1,83 @@
+Q03 - FRESH INDEPENDENT COMPILER QUALIFICATION REVIEW
+2026-10-25 | Spike01 #0024
+
+Verdict: PASS - isolated synthetic sample only.
+No material correction is required for this bounded Q03 handoff. This reviewer
+authored none of the harness, golden fixtures or author evidence.
+
+Basis
+- Reviewed qualification/compiler/ in full, root manifests/locks and historical
+  qualification/environment.json; current author results and final rerun context.
+- Applied accepted architecture 04/07, 09 Q03/Q03-E and 20/21: isolated compiler
+  qualification precedes affected product work; later product gates remain.
+- Independently executed:
+  go test -count=1 -v -tags=nativecompilerqualification ./qualification/compiler
+  One mandatory native test passed, with no skipped case. A separate run lacking
+  Q03_NODE failed explicitly; missing setup was never converted into a pass.
+
+Source and environment reconciliation
+- Tested go.mod SHA256:
+  e4884af04b03465b486bccd0f2e8c031d575b5d3ddbf20a6db64ab7fb84f3629
+  Historical Q01 go.mod SHA256 remains:
+  5dfd8f468bc0fa34eaa1c6a64ca7ee3c59b12c943a991e1e78bec900e9d12ce1
+- Independently checked the completeness addendum: exactly eight new indirect
+  declarations already existed at the same versions in Q01's locked inventory.
+  Go/SQLite/libc selections and go.sum/web manifest/lock bytes are unchanged.
+  No historical manifest hash is represented as the current module hash.
+- Native Windows/amd64, installed default Go 1.27.3; GOTOOLCHAIN=local,
+  CGO_ENABLED=0, GOOS=windows, GOARCH=amd64, GOFLAGS=-mod=readonly.
+  Installed go.exe bytes matched the accepted official ZIP entry after independently
+  checking the archive SHA256. Node 24.20.0 and npm 12.0.2 were explicitly invoked
+  from freshly extracted private distributions, after checking official archive
+  SHA256/SHA512 pins. Installed/default Node/npm availability was kept distinct.
+- Fresh private npm ci used the frozen lock with ignore-scripts/no-audit/no-fund.
+  The initial network attempt failed DNS; an offline replay succeeded using copied
+  cache content independently checked against lock SHA512 for all five applicable
+  packages, including TypeScript 7.0.2 and its win32-x64 native optional package.
+  The local launcher resolves that exact native tsc.exe; all five executable/entry
+  hashes matched results.json. No older compiler or compiler API was substituted.
+
+Verification findings
+- main.go:23 deterministically emits descriptor-owned schema/declaration bytes.
+  Golden bytes, independently expected schema shape, required versus optional/null,
+  unknown-key refusal and safe integer bounds all matched. No generated runtime
+  oracle was used to decide expected acceptance (compiler_test.go:19, sample.ts.txt).
+- Independently derived all 13 expected Go/actual emitted-JavaScript outcomes and
+  checked exact non-ASCII, combining and astral codepoints. This is a finite sample
+  comparison between explicit validators, not a schema engine equivalence proof.
+- compiler_test.go:157 runs the real native CLI with strict,
+  exactOptionalPropertyTypes, noEmitOnError and ES2022 modules. Both --noEmit checks
+  left no assets output. Each rejected compilation produced exactly the five
+  intended line diagnostics: TS2322, TS2741, TS2322, TS2375, TS2353; rejected.js
+  was absent. Failures were checked for their intended reasons.
+- Two fresh distinct source trees agreed on generated schema/declaration, emitted
+  JavaScript and native executable hashes. This replay used a fresh private Go
+  cache; the harness also permits shared caches. Neither run proves cold-cache
+  product reproducibility. Both binaries verified the three declared asset hashes.
+- compiler_test.go:213 stale-asset binaries independently returned hash-mismatch
+  exit 5. Missing declared assets failed build specifically for the accepted.js
+  embed pattern; no missing.exe was produced (compiler_test.go:221).
+- File writes and the single asset deletion stayed in newly created private
+  children. No recursive source cleanup exists. Artifacts were retained privately.
+  Commands use exec.Command without individual child deadlines; the standard Go
+  test deadline applies, and this review additionally bounded the replay to 180s.
+  Successful replay does not qualify hung-child or interrupted-run cleanup.
+- All reviewed source, golden, manifest/lock and environment bytes stayed unchanged
+  through replay. Public harness inputs passed UTF-8/LF/final-newline checks; public
+  results contain sanitized names/hashes rather than private paths or credentials.
+
+Result identity
+Both clean builds and author results agreed on:
+- accepted.js SHA256:
+  c00a68a57a84bb18db01577308b55a706e7f1c0c52e87a43ad80da7d7c236103
+- sample.exe SHA256:
+  d436a56ef3233a31df27a4624a709cbcbb5ff388559bc1f933610305781e0cfb
+Detailed replay commands, tool/source hashes and reconciliation evidence are private.
+
+Boundary and remaining gates
+This qualifies only the recorded synthetic Go generator/released TS7/native embed
+sample on the exact Windows pins. It establishes no application/product schema,
+wire/canonical equivalence, duplicate-key/invalid-Unicode contract, product build,
+release/distribution, browser, SQLite behavior, domain admission or operational
+qualification. C01/P01/P02/Q04 and later native/browser acceptance remain required.
+Fresh review does not constitute Terry's acceptance or permission to mark Completed.

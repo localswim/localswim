@@ -1,0 +1,6 @@
+import type { Sample } from "./sample.js";
+const wrongType: Sample = { label: 3, count: 1 };
+const missing: Sample = { label: "x" };
+const nullRequired: Sample = { label: null, count: 0 };
+const optionalUndefined: Sample = { label: "x", count: 0, note: undefined };
+const unknown: Sample = { label: "x", count: 0, extra: true };

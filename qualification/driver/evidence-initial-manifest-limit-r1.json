@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "task": "Q02",
+  "recorded_date": "2026-10-25",
+  "status": "LIMITED_NOT_QUALIFIED",
+  "source_base_revision": "dffa32b0de4a2d363d37026c5b6245c47f0ba3bf",
+  "go_version": "go version go1.27.3 windows/amd64",
+  "environment": {
+    "GOTOOLCHAIN": "local",
+    "CGO_ENABLED": "0",
+    "GOOS": "windows",
+    "GOARCH": "amd64",
+    "GOFLAGS": "-mod=readonly"
+  },
+  "checks": {
+    "module_verify": "PASS",
+    "build": "FAIL_BEFORE_COMPILATION",
+    "vet": "FAIL_BEFORE_COMPILATION",
+    "native_behavior": "NOT_RUN",
+    "format_and_script_parser": "PASS"
+  },
+  "failure": "Go requires eight existing exact-version indirect module requirements; -mod=readonly prevented manifest updates.",
+  "required_next_action": "Primary integrator must reconcile root manifest completeness within scope and retain exact accepted versions/checksums, then rerun qualification/driver/run.ps1 and fresh independent review.",
+  "required_indirect_modules": [
+    "github.com/dustin/go-humanize v1.1.0",
+    "github.com/google/uuid v1.6.0",
+    "github.com/mattn/go-isatty v0.0.24",
+    "github.com/ncruces/go-strftime v1.1.0",
+    "github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec",
+    "golang.org/x/sys v0.49.0",
+    "modernc.org/mathutil v1.7.1",
+    "modernc.org/memory v1.12.1"
+  ],
+  "pins_unchanged": true,
+  "source_sha256": {
+    "go.mod": "5dfd8f468bc0fa34eaa1c6a64ca7ee3c59b12c943a991e1e78bec900e9d12ce1",
+    "go.sum": "73d8f9e5776a31a8d5eb60d1cec809f56ba60ffdc13933ae5db6b12fd5c9e8e8",
+    "qualification/environment.json": "034c99004161bf3510bc5d2e173f50283797ad7c184703c608766904aaa83cf1",
+    "qualification/driver/main_windows.go": "1ea7dc11dadc7c3f981f8a3cf58ebabcedf219f8590b4236fadc35c9b2e4a3a0",
+    "qualification/driver/run.ps1": "b60a71b255895f71abb9c271e72ce81f64769f27c94063d7f12a400cc90949fe",
+    "qualification/driver/README.md": "e4d848f16c6ce96e86b5a2411f9074b1496287bbf94428103d8e97355b4273b5"
+  },
+  "limitations": [
+    "No actual runtime PRAGMA, connection, concurrency, snapshot, clean reopen, recovery or power-loss qualification exists yet.",
+    "No alternative module file or mod=mod bypass was used.",
+    "Source and runner await compilation, native execution and fresh independent review."
+  ]
+}

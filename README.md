@@ -30,3 +30,17 @@ the repository. Tests use synthetic fixtures.
 These proposed freezes require owner acceptance before their dependent tasks.
 Candidate integrity and documentary fixture checks are distinct from the later
 native SQLite, compiler, browser, filesystem and product qualification evidence.
+
+## Isolated qualification
+
+- [SQLite connection harness](qualification/driver/README.md) and its
+  [independent native review](docs/reviews/q02-driver-qualification-review.txt).
+  The recorded runner host is PowerShell 7.6.9; see its replay boundary and limits.
+- [Go/TypeScript/embed harness](qualification/compiler/README.txt) and its
+  [independent native review](docs/reviews/q03-compiler-qualification-review.txt).
+- [Module completeness addendum](docs/decisions/go-module-completeness-2026-10-25.txt)
+  records required indirect declarations without changing selected versions or checksums.
+
+These results cover the documented isolated Windows samples. Owner acceptance
+still gates the dependent product tasks; product recovery, browser, fault and
+release qualification remain separate work.

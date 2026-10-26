@@ -11,7 +11,7 @@ import (
 	A "github.com/localswim/localswim/internal/contract/archive"
 )
 
-var models = []any{Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}}
+var models = []any{Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}}
 
 // GeneratedFiles is pure and returns disjoint paths for the common generator.
 // Shared D02 rows reference the C03 artifact; command results reference C01.
@@ -27,6 +27,9 @@ func GeneratedFiles() (map[string][]byte, error) {
 		}
 		if t == reflect.TypeFor[ExportStatus]() {
 			s, declaration = exportDeclaration()
+		}
+		if t == reflect.TypeFor[SessionCodeCLI]() {
+			s, declaration = sessionCodeDeclaration()
 		}
 		defs[t.Name()] = s
 		fmt.Fprintf(&ts, "export type %s = %s;\n\n", t.Name(), declaration)

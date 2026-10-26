@@ -88,6 +88,11 @@ release qualification remain separate work.
   prepared-boundary and qualified-profile dispatch gates.
 - [Core CLI and immutable local evidence](internal/transport/cli/core/README.txt)
   and [independent review](docs/reviews/k02-cli-evidence-review.txt).
+- [Administrative CLI](internal/transport/cli/admin/README.txt),
+  [attachment/archive commands](internal/transport/cli/archive/README.txt) and
+  [independent review](docs/reviews/k03-admin-archive-cli-review.txt), using the
+  [approved CLI bindings](docs/contracts/k03-cli-bindings.txt) and
+  [shared provider composition](docs/decisions/admin-archive-cli-composition-2026-10-26.txt).
 - [Board forms and request outcomes](web/src/board/README.txt) and
   [independent review](docs/reviews/w02-board-interaction-review.txt), with
   [archive/client evidence boundaries](docs/decisions/archive-client-evidence-composition-2026-10-26.txt).

@@ -30,38 +30,15 @@ func parse(args []string) (q invocation, code string, exit int) {
 			q.lookup = true
 		}
 	}
-	seen := map[string]bool{}
-	i := 0
-	for i < len(args) && strings.HasPrefix(args[i], "--") {
-		k := args[i]
-		if seen[k] {
-			return q, "INVOCATION_OR_IO", 1
-		}
-		seen[k] = true
-		i++
-		if k == "--json" {
-			q.json = true
-			continue
-		}
-		if k != "--installation" && k != "--board" && k != "--incarnation" && k != "--grant" {
-			return q, "INVOCATION_OR_IO", 1
-		}
-		if i >= len(args) {
-			return q, "INVOCATION_OR_IO", 1
-		}
-		v := args[i]
-		i++
-		switch k {
-		case "--installation":
-			q.selected.InstallationID = v
-		case "--board":
-			q.selected.BoardID = v
-		case "--incarnation":
-			q.selected.Incarnation = v
-		case "--grant":
-			q.selected.GrantID = v
-		}
+	p, err := ParsePrefix(args)
+	q.selected, q.json = p.Selected, p.JSON
+	if err != nil {
+		code, exit := failure(err)
+		return q, code, exit
 	}
+	seen := p.seen
+	args = p.Args
+	i := 0
 	if i+2 > len(args) {
 		return q, "INVOCATION_OR_IO", 1
 	}
@@ -120,14 +97,9 @@ func parse(args []string) (q invocation, code string, exit int) {
 		}
 		i++
 	}
-	if q.selected.BoardID == "" || (!q.native && (q.selected.InstallationID == "" || q.selected.Incarnation == "" || q.selected.GrantID == "")) {
-		return q, "CREDENTIAL_SELECTION_REQUIRED", 2
-	}
-	if q.native && (q.selected.InstallationID != "" || q.selected.Incarnation != "" || q.selected.GrantID != "") {
-		return q, "INVOCATION_OR_IO", 1
-	}
-	if !uuid(q.selected.BoardID) || (!q.native && (!v4(q.selected.InstallationID) || !uuid(q.selected.Incarnation) || !uuid(q.selected.GrantID))) {
-		return q, "INVOCATION_OR_IO", 1
+	if err := ValidateSelectors(q.selected, q.native); err != nil {
+		code, exit := failure(err)
+		return q, code, exit
 	}
 	if (q.command != "" && q.input == "") || (q.lookup && q.file == "") {
 		return q, "INVOCATION_OR_IO", 1

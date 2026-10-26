@@ -1,0 +1,85 @@
+K03 ADMINISTRATIVE AND ARCHIVE CLI FRESH INDEPENDENT REVIEW
+2026-10-26 | PASS for the bounded library adapter | No open findings
+
+The final candidate implements the accepted D01/D02/D03 bindings and approved
+K03 clarification. Review binds all 78 candidate inputs plus the root README
+and CLI composition decision. Their hashes stayed stable through verification.
+All 421 other tracked accepted inputs stayed unchanged from the accepted HEAD.
+Executable registration, packaging and complete product qualification remain
+the separately staged work described by the composition decision.
+
+K03-R1 is corrected and independently rechecked. Confirmation now requires one
+complete byte-counted display, including scope/loss information and challenge,
+before reading input. Zero/partial output, output errors and cancellation refuse
+before evidence, credential publication or administrative effects. The original
+finding and pre-correction evidence remain preserved in the r1 findings review.
+
+Reviewed behavior
+
+- Setup delegates the exact D01 grammar and native lifecycle. Authentication has
+  explicit selectors and no implicit actor, credential search or owner fallback.
+- Exact private credential paths use native protected creation, pins, alias/link
+  checks and per-credential exclusion. Ordinary access coexists with the server
+  lease and remains independent of owner-bearer expiry. Publication failure cannot
+  silently restore ordinary use.
+- Self-revoke captures the enabled bearer once, binds its current session, then
+  durably marks it disabled before one DELETE. A preexisting marker preserves
+  uncertainty without another session GET. Lost results retain the marker.
+- Grant and recovery commands share immutable evidence, readback and one domain
+  dispatch. Human enrollment and the original recovery preview require their
+  exact terminal challenges. Original lookup never resubmits an operation;
+  unproven domain outcomes and lookup failures remain unknown.
+- Credential/code issue use separate typed native-owner paths and strict response
+  binding. Secrets stay in private callbacks/native storage or the private console
+  channel. Public SessionCodeCLI contains no secret or private-path field.
+- Upload freezes metadata and raw bytes before evidence/network waits. Download
+  checks observed immutable digest/length and native flush/readback/no-overwrite
+  publication. Its BoardRead JSON is metadata; invocation context and exit status
+  communicate local delivery.
+- Export freezes one observed revision, sends one request, validates the whole A03
+  package and then publishes locally. Offline restore/status delegate unchanged
+  A04 behavior, including request-reference delivery before effects. Later output
+  loss preserves completed publication and reports delivery uncertainty.
+- The exact stored D01 port controls pinned TLS. Default 47443 and explicit 48443
+  both passed actual private native integration; different-origin evidence cannot
+  query or rebind an original operation.
+
+Fresh verification
+
+Counts are top-level tests / all passing test cases, including repeated ordinary
+coverage inside native suites; they are not counts of distinct product journeys.
+
+- Ordinary CLI packages and four private independent probes: 52 / 349.
+- Native credential/filesystem and alias checks: 9 / 13.
+- Native administration, protected credentials and recovery: 20 / 97.
+- Native attachment/archive and offline publication: 13 / 13.
+- Native core/evidence, default and explicit custom port: 37 / 260.
+- Transport contracts, pinned declarations and generator tests: 17 / 288.
+
+All passed with zero skips. Missing-overlay builds failed at the required compiled
+sentinels. Fresh probes independently covered incomplete prompts, post-presentation
+output loss, secret encoder refusal, domain-refusal uncertainty, wrong-origin and
+missing-evidence lookup fences, native capability limits and response size caps.
+Go vet, generated-file drift, exact preservation of 94 old transport definitions
+and TypeScript declarations, all 105 selected browser definitions, public UTF-8/LF
+format and diff whitespace checks passed. No accepted-provider drift was observed.
+
+Verification used pinned Windows amd64 Go 1.27.3, CGO disabled, readonly offline
+modules, Node 24.20.0 and TypeScript 7.0.2. Every attempt used a fresh private
+runtime and preserved source/probe receipts. Sandbox-denied hardlink/junction
+fixtures, the initial missing compiler environment and a reviewer-probe import
+failure remain recorded; subsequent fresh complete runs passed.
+
+Evidence limits
+
+Actual positive interactive CONOUT$/ConPTY presentation remains UNQUALIFIED.
+The native pipe-refusal path is real; successful presentation and human challenge
+input use synthetic callbacks, including when connected to the actual private
+TLS service. This satisfies the bounded library verification scope and does not
+establish meaningful human review, browser login or product console qualification.
+
+Only synthetic boards, private compiled root overlays, fake trust and synthetic
+credentials/codes were used. No actual installation, live trust enrollment, real
+grant or application activation was touched. Native NTFS flush/readback and fault
+tests do not establish power-loss/all-crash safety, secure erasure or hostile
+same-account isolation. Owner acceptance and later product gates remain separate.

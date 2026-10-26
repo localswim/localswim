@@ -1,0 +1,111 @@
+K03 CLI bindings clarification
+
+This addendum records the approved CLI bindings for D03. Existing HTTP requests,
+CodeSecret, D02 archive objects, permissions, fingerprint and receipt definitions
+are unchanged. Logical apiVersion, archiveVersion and fingerprintVersion stay 1.
+This adds no route, right, grant, storage schema, trust action or domain receipt.
+The bindings do not authorize live enrollment, code issue or application setup.
+
+Grant administration
+
+Ordinary current grant-admin credentials use this exact selector prefix:
+  [--json] --installation ID --board B --incarnation I --grant G
+The commands are:
+  ORDINARY-PREFIX grant create --input FILE
+  ORDINARY-PREFIX grant revoke TARGET --input FILE
+Explicit native-owner administration uses:
+  [--json] --board B grant create --input FILE --native-owner
+  [--json] --board B grant revoke TARGET --input FILE --native-owner
+
+Never infer native ownership or fall back to it. The chosen prefix/route and
+exact D03 grant wire must match; current server admission remains authoritative.
+Human grant.create requires an actual terminal. Show independently bound
+operator/installation/origin, board/incarnation, grantee actor/kind and exact
+rights as inert escaped text. Require exactly:
+  enroll-human ID B I ACTOR RIGHTS
+RIGHTS is the canonical comma-joined sorted rights array. EOF, cancellation,
+nonterminal or mismatch refuses before evidence dispatch. There is no --yes.
+Automation restrictions remain unchanged. Grant public output retains the exact
+existing terminal/refusal/unknown family.
+
+Original recovery preview
+
+  ORDINARY-PREFIX recovery preview --input REQUEST
+  ORDINARY-PREFIX recovery confirm --input CONFIRMATION --preview PREVIEW
+
+REQUEST and CONFIRMATION are the unchanged exact D02 objects. PREVIEW is the
+unmodified standalone response captured from the earlier preview command; it
+adds no wrapper, bearer or authority. Validate exact schema/hash/identity/actor/
+input/revision/expiry and match CONFIRMATION.previewHash. Never fetch a replacement
+preview or replace its hash during confirm. Show original losses, inventory,
+hash and expiry inertly; require an actual terminal and exactly:
+  confirm-recovery ID B I PREVIEWHASH
+Only then persist shared immutable evidence and dispatch once. The server still
+rechecks current rights/revision/cache/expiry. Exact retained receipts can resolve
+before preview admission. Unknown operations use original lookup only.
+
+Private browser login code
+
+  [--json] --board B session code --incarnation I --grant G
+
+Use only the current validated native owner and a preexisting enabled grant.
+Require an actual terminal. Show installation/origin/B/I/G and the 60-second,
+one-use consequence, then require exactly:
+  issue-code ID B I G
+Require a usable private console sink before requesting a code. Write the code
+once through the native interactive-console handle, never stdout/stderr, URL,
+file, clipboard, log, ordinary result or recovery evidence. Stdout redirection
+does not redirect this channel. Nonterminal or unavailable console refuses before
+issue. Tests use synthetic in-memory sinks; they do not issue real login codes.
+An invalid response binding or partial/failed console delivery is unknown. Do not
+retry or repeat presentation. Presentation does not prove browser login.
+
+The new Go-owned SessionCodeCLI is a CLI-only secret-free envelope:
+  apiVersion: 1
+  scope: "session-code"
+  command: "issue"
+  outcome: "presented" | "refused" | "failed" | "unavailable" | "unknown"
+  result: null | SessionCodeResult
+  error: null | CredentialError {code: string, message: string}
+
+All keys are required. SessionCodeResult has exactly installationId (UUIDv4 or
+null), boardId/incarnation/grantId/actorId (UUID or null), issuedAt/expiresAt
+(UTC timestamp or null) and presented (boolean). Unavailable facts remain null;
+never guess them. Known timestamps use whole-second UTC; when both are known,
+expiresAt is exactly issuedAt plus 60 seconds. Presented requires all metadata
+known, presented=true and error=null; it means a complete private console write.
+Other outcomes require a nonempty diagnostic and cannot set presented=true.
+No code, hash, bearer, token, credential ID or private path field is available.
+Diagnostics must be inert public text without secrets or private paths. Go
+validation owns cross-field and scalar checks; TypeScript declarations are
+advisory. JSON output is one validated envelope plus one final LF.
+
+Exit status:
+  0: presented
+  1: provably pre-dispatch invocation, console or local failure
+  2: authenticated refusal
+  3: provably pre-dispatch unavailability
+  4: possibly issued, unverified response or unverified console presentation
+
+Attachment, export and restore
+
+attachment download A --destination NEW binds the accepted raw GET route.
+Authenticated current BoardRead supplies immutable digest/length. Verify bytes,
+flush, read back and publish without overwrite before exit 0. JSON is only that
+exact observed BoardRead metadata; invocation context and exit status communicate
+local delivery. This is no new wrapper or file-content proof. Never print binary.
+
+export create --destination NEW.zip uses one authenticated current board read to
+freeze identity/revision, then one exact H02 request. Changed state refuses;
+never reread/retry automatically. Validate the whole A03 package and exact source/
+revision before native local publication. ExportStatus is unchanged; destination
+stays null.
+
+restore create generates a fresh request UUID and writes only the inert nonsecret
+diagnostic RESTORE_REQUEST UUID to stderr before native construction/publication.
+Failure to deliver that reference prevents effects. It is no receipt or proof.
+Existing D02 stdout and restore status grammar stay unchanged. Output failure
+after verified publication never deletes or downgrades the completed local result.
+
+Authority: approved K03 clarification, following accepted D03/D02/A03/H02 and K02
+shared facade/native credential storage. This document binds CLI behavior only.

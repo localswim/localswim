@@ -7,7 +7,7 @@ import (
 	"errors"
 	"net/url"
 	"regexp"
-	"strings"
+	"strconv"
 	"time"
 
 	"github.com/localswim/localswim/internal/contract"
@@ -56,7 +56,12 @@ type Identity struct {
 func validContext(c Context) bool {
 	ok := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`).MatchString(c.InstallationID)
 	u, err := url.Parse(c.Origin)
-	return ok && err == nil && u.Scheme == "https" && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == "" && u.Port() == "47443" && strings.HasSuffix(u.Hostname(), ".localhost") && strings.Count(u.Hostname(), ".") == 1 && u.Hostname() != ".localhost"
+	if !ok || err != nil {
+		return false
+	}
+	port, err := strconv.Atoi(u.Port())
+	host := u.Hostname()
+	return err == nil && port >= 1024 && port <= 65535 && u.Port() == strconv.Itoa(port) && u.Scheme == "https" && u.Opaque == "" && u.User == nil && u.Path == "" && u.RawPath == "" && u.RawQuery == "" && !u.ForceQuery && u.Fragment == "" && u.RawFragment == "" && regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.localhost$`).MatchString(host) && u.Host == host+":"+strconv.Itoa(port) && c.Origin == "https://"+u.Host
 }
 
 // Freeze uses the shared D03/C01 validator; caller supplies an authenticated actor.

@@ -32,16 +32,18 @@ Provider.NativeOwner must load the current N01 owner source for that original
 installation. Neither method may issue credentials, bootstrap attribution, select
 another grant or substitute a different actor. The actual credential-file provider
 and executable registration remain K03/P01 work; this package supplies no default.
-Raw request dispatch remains package-private. Downstream attachment/export/admin
-composition needs an explicit reviewed authenticated transport facade; it must not
-create a weaker independent transport or implicit credential default to bypass it.
+The shared authenticated Client facade composes downstream attachment/export/admin
+calls with this same pinned transport, selector/session binding and evidence path.
 
 NewBoardConnection composes validated N01 connection material with validated
 credential metadata and an ephemeral bearer. NewNativeOwnerConnection accepts the
 typed current N01 owner source. TLS trusts only that installation's validated
-issuer, checks the original hostname, and dials the fixed exclusive loopback port
-directly. There is no proxy, system-root substitution, HTTP downgrade, redirect,
-certificate-warning bypass or automatic HTTP replay. Returned connection objects
+issuer, checks the original hostname, and dials the exact N01-validated stored
+port directly on loopback. First setup defaults to 47443; an explicitly chosen
+stored port in 1024..65535 remains fixed for that installation. There is no CLI
+port override, search or fallback. There is no proxy, system-root substitution,
+HTTP downgrade, redirect, certificate-warning bypass or automatic HTTP replay.
+Returned connection objects
 refuse JSON serialization and redact ordinary formatting.
 
 Before each ordinary invocation's board request, GET /api/v1/session authenticates
@@ -104,3 +106,66 @@ delivery. Native fixtures never install trust or touch real boards/credentials.
 Process interruption and flush/readback do not prove power-loss durability. Product
 credential-file selection, executable composition and broader release qualification
 retain their separate gates. Public source uses synthetic fixtures only.
+
+K03 authenticated facade
+Open validates mandatory canonical selectors, explicitly injected current private
+credentials and the exact GET session actor/B/I/G before exposing a Client.
+Context and Metadata are value copies; Close is idempotent and releases transport
+plus an optional credential lifetime callback supplied to NewBoardConnection.
+ParsePrefix and ValidateSelectors share K02 prefix-only, once-only raw UUID rules
+with subcommand parsers; absent selectors never select a credential implicitly.
+
+Request permits only selected-board reads, recovery preview and export. It returns
+bounded exact bytes with copied response headers (maximum 144 MiB), rejects
+content encoding, truncated declared lengths and cancellation, and cannot bypass
+immutable mutation dispatch. Consumers still validate exact DTO, binary media,
+disposition, identity, digest and archive integrity before local delivery.
+Dispatch and DispatchAttachment reuse K02's Freeze, private Save and independent
+Load/readback, one HTTP attempt, exact terminal classification and separate
+resolution marker. Attachment bytes are bounded, snapshotted and length/hash
+checked before evidence publication; only frozen metadata and those exact bytes
+enter the two-part multipart body. A fresh attachment/grant creation may return
+201; lookup and retained receipts still require 200. No transport/admission/schema
+or semantic fingerprint algorithm changes. Outcome contains only public validated
+terminal/refusal/unknown envelopes plus the exit, never a bearer or private error.
+
+OpenCurrent requires separate explicit NativeCurrentProvider injection, without
+ordinary credential fallback. Native clients can dispatch only grant.create and
+grant.revoke and reconcile only their own original grant records. They cannot
+read general boards/cards/history/export or dispatch history/card mutations.
+IssueCredential and IssueCode accept typed exact requests and invoke an explicit
+in-memory consumer only after strict scoped D03 decode and no-store validation.
+They expose no raw success body or public Outcome. A strictly decoded refusal
+with the exact expected 4xx status/code stays refused;
+malformed, mismatched, 5xx, lost or post-publication failures stay unknown, without
+retry. This exception is confined to credential/code issuance; ledgered mutations
+and original lookups still require exact terminal proof. Callbacks must not
+log/serialize secrets or call back into that Client. Secret delivery grammar and
+native storage publication remain separately authorized composition work.
+
+Credential self-revocation
+RevokeCredential requires an ordinary Client already bound by Open's GET session.
+It spends that Client, calls the supplied exact local credential disable callback,
+then sends the same captured bearer once with DELETE /api/v1/session, an empty
+zero-byte body and Content-Type application/json as required by the shared T01
+write boundary. An empty object is never substituted.
+The callback must flush/read back the disabled marker before success; it must not
+reenter the Client. An unclassified callback failure stays unknown; a fixed
+Failure may preserve a proven local class. Cancellation before network dispatch
+stays unavailable; after possible transmission only exact HTTP200 SessionRevoked
+confirms. A strictly decoded current-credential refusal with the exact expected
+4xx status/category returns refused while the local disabled marker remains.
+Malformed/foreign/unexpected responses, 5xx, disconnect and late cancellation stay
+unknown. This credential-action classification supplies no original-domain proof.
+No retry, extra GET, ordinary use or private mutation evidence publication
+follows on that spent Client. Its secret-free Metadata remains available for the
+D01 CredentialCLI result. Native owner clients cannot self-revoke board credentials.
+CONFIRMATION_REQUIRED and CONFIRMATION_REFUSED retain their fixed public diagnostic
+categories; no supplied confirmation text or unsafe response enters output.
+
+Configured-port conformance preserves the evidence format/version and original
+installation/origin identity. Canonical explicit ports are accepted across the
+N01 range; authority, hostname/SNI and pinned issuer still match exactly. The
+native fixture also verifies an explicitly initialized nondefault port, private
+evidence publication, commit-disconnect and original lookup without replay, plus
+rejection of evidence carrying a different original origin.

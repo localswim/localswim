@@ -1991,6 +1991,851 @@
     "RestoreStatus": {
       "$ref": "../archive/contracts.schema.json#/$defs/Status"
     },
+    "SessionCodeCLI": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "apiVersion": {
+              "const": 1,
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "command": {
+              "enum": [
+                "issue"
+              ],
+              "type": "string"
+            },
+            "error": {
+              "type": "null"
+            },
+            "outcome": {
+              "const": "presented"
+            },
+            "result": {
+              "additionalProperties": false,
+              "properties": {
+                "actorId": {
+                  "not": {
+                    "const": "00000000-0000-0000-0000-000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                "boardId": {
+                  "not": {
+                    "const": "00000000-0000-0000-0000-000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                "expiresAt": {
+                  "format": "date-time",
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                  "type": "string",
+                  "x-year-minimum": 1
+                },
+                "grantId": {
+                  "not": {
+                    "const": "00000000-0000-0000-0000-000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                "incarnation": {
+                  "not": {
+                    "const": "00000000-0000-0000-0000-000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                "installationId": {
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                "issuedAt": {
+                  "format": "date-time",
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                  "type": "string",
+                  "x-year-minimum": 1
+                },
+                "presented": {
+                  "const": true
+                }
+              },
+              "required": [
+                "actorId",
+                "boardId",
+                "expiresAt",
+                "grantId",
+                "incarnation",
+                "installationId",
+                "issuedAt",
+                "presented"
+              ],
+              "type": "object"
+            },
+            "scope": {
+              "enum": [
+                "session-code"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "apiVersion",
+            "command",
+            "error",
+            "outcome",
+            "result",
+            "scope"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "apiVersion": {
+              "const": 1,
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "command": {
+              "enum": [
+                "issue"
+              ],
+              "type": "string"
+            },
+            "error": {
+              "$ref": "#/$defs/CredentialError"
+            },
+            "outcome": {
+              "const": "refused"
+            },
+            "result": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "actorId": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "boardId": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "expiresAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                          "type": "string",
+                          "x-year-minimum": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "grantId": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "incarnation": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "installationId": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "issuedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                          "type": "string",
+                          "x-year-minimum": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "presented": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "actorId",
+                    "boardId",
+                    "expiresAt",
+                    "grantId",
+                    "incarnation",
+                    "installationId",
+                    "issuedAt",
+                    "presented"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scope": {
+              "enum": [
+                "session-code"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "apiVersion",
+            "command",
+            "error",
+            "outcome",
+            "result",
+            "scope"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "apiVersion": {
+              "const": 1,
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "command": {
+              "enum": [
+                "issue"
+              ],
+              "type": "string"
+            },
+            "error": {
+              "$ref": "#/$defs/CredentialError"
+            },
+            "outcome": {
+              "const": "failed"
+            },
+            "result": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "actorId": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "boardId": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "expiresAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                          "type": "string",
+                          "x-year-minimum": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "grantId": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "incarnation": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "installationId": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "issuedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                          "type": "string",
+                          "x-year-minimum": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "presented": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "actorId",
+                    "boardId",
+                    "expiresAt",
+                    "grantId",
+                    "incarnation",
+                    "installationId",
+                    "issuedAt",
+                    "presented"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scope": {
+              "enum": [
+                "session-code"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "apiVersion",
+            "command",
+            "error",
+            "outcome",
+            "result",
+            "scope"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "apiVersion": {
+              "const": 1,
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "command": {
+              "enum": [
+                "issue"
+              ],
+              "type": "string"
+            },
+            "error": {
+              "$ref": "#/$defs/CredentialError"
+            },
+            "outcome": {
+              "const": "unavailable"
+            },
+            "result": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "actorId": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "boardId": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "expiresAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                          "type": "string",
+                          "x-year-minimum": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "grantId": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "incarnation": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "installationId": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "issuedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                          "type": "string",
+                          "x-year-minimum": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "presented": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "actorId",
+                    "boardId",
+                    "expiresAt",
+                    "grantId",
+                    "incarnation",
+                    "installationId",
+                    "issuedAt",
+                    "presented"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scope": {
+              "enum": [
+                "session-code"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "apiVersion",
+            "command",
+            "error",
+            "outcome",
+            "result",
+            "scope"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "apiVersion": {
+              "const": 1,
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "command": {
+              "enum": [
+                "issue"
+              ],
+              "type": "string"
+            },
+            "error": {
+              "$ref": "#/$defs/CredentialError"
+            },
+            "outcome": {
+              "const": "unknown"
+            },
+            "result": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "actorId": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "boardId": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "expiresAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                          "type": "string",
+                          "x-year-minimum": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "grantId": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "incarnation": {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "installationId": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "issuedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                          "type": "string",
+                          "x-year-minimum": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "presented": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "actorId",
+                    "boardId",
+                    "expiresAt",
+                    "grantId",
+                    "incarnation",
+                    "installationId",
+                    "issuedAt",
+                    "presented"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scope": {
+              "enum": [
+                "session-code"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "apiVersion",
+            "command",
+            "error",
+            "outcome",
+            "result",
+            "scope"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SessionCodeResult": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "anyOf": [
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "boardId": {
+          "anyOf": [
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expiresAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+              "type": "string",
+              "x-year-minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "grantId": {
+          "anyOf": [
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "incarnation": {
+          "anyOf": [
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "installationId": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "issuedAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+              "type": "string",
+              "x-year-minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "presented": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "actorId",
+        "boardId",
+        "expiresAt",
+        "grantId",
+        "incarnation",
+        "installationId",
+        "issuedAt",
+        "presented"
+      ],
+      "type": "object"
+    },
     "SessionGrant": {
       "additionalProperties": false,
       "properties": {

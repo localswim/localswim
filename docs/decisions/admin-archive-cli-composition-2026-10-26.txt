@@ -1,0 +1,50 @@
+ADMINISTRATIVE AND ARCHIVE CLI COMPOSITION
+2026-10-26 | K03 | Approved binding follow-through
+
+K03 is a library adapter. P01 retains executable registration and P02 package
+scripts. Ordinary selectors remain explicit and exact; no working-directory,
+environment, file-list, actor or native-owner fallback selects authentication.
+The shared core facade reuses the validated N01 issuer/hostname/stored port,
+current server session, immutable K02 evidence and exact result classification.
+An explicitly configured D01 port stays fixed; no runtime port search occurs.
+
+Native credential files stay at the exact D01 tuple path outside generations and
+recovery. The shared N01 facade reuses private native filesystem checks and a
+per-credential lease without taking the server's global root lock for ordinary
+reads. A disabled file cannot supply ordinary use. Explicit revocation captures
+its validated bearer before disabling, binds the current session, then flushes
+the marker before one bodyless JSON DELETE. The client is spent afterward; lost
+results retain the marker and uncertainty. A preexisting marker cannot authorize
+a new ordinary preflight. Issue/reissue and grant creation remain separate acts.
+
+Grant and recovery commands use the same semantic freezing/evidence engine as
+core mutations. Human enrollment shows exact scope/actor/rights and requires its
+selected terminal challenge. Recovery confirmation requires the original preview
+artifact and matching input/hash/revision/expiry, displays its losses and obtains
+deliberate confirmation. It never refreshes a preview or invents a new operation
+to settle uncertainty. Current server admission rechecks all rights and state.
+
+Session code issuance is a special native-owner action for a preexisting grant.
+It requires the selected terminal challenge and a usable private console channel
+before requesting a code. Code bytes never enter stdout/stderr, JSON status,
+files, clipboard, logs or recovery. The additive SessionCodeCLI envelope contains
+only validated public metadata. Presented means console write, not successful
+login or saved work. Credential delivery/console failure cannot classify a board
+operation, and no automatic issue/retry retrieves a lost secret.
+
+Attachment upload snapshots bytes and binds metadata before durable evidence and
+multipart dispatch. Download verifies immutable length/hash before no-overwrite
+local publication; its JSON BoardRead is observed metadata, while exit status and
+invocation context describe local delivery. Raw binary is never terminal output.
+Export freezes one authenticated observed revision, sends one exact H02 request,
+validates the complete A03 package and publishes locally without overwrite.
+Offline restore/status delegate A04. The nonsecret restore request UUID is emitted
+before native effects so later status can address it; it is not a receipt.
+Completed file/restore publication is not undone by later output delivery failure.
+
+Existing HTTP endpoints, rights and semantic intents are unchanged. The new CLI
+status is additive at logical version 1; physical layout remains 4. Actual trust,
+human grant, credential issue, bootstrap and activation remain explicit later
+user actions. Component tests use private native roots, fake trust and synthetic
+console presentation. They do not prove meaningful human review, actual positive
+interactive-console presentation, full product qualification or power-loss safety.

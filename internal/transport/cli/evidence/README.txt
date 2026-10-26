@@ -10,6 +10,14 @@ semantic bytes and fingerprint. It contains no bearer, login code or credential.
 Decode rejects incomplete, corrupt, unsupported or mismatching records instead of
 manufacturing missing original identity. Byte/identity access returns owned copies.
 
+Origin is an exact canonical HTTPS single-label .localhost authority with the
+N01 installation's explicit stored port in 1024..65535 (first-setup default47443).
+No omitted/leading-zero port, userinfo, path, query, fragment or hostname alias is
+adopted. This validation supports accepted explicit setup ports; it changes no
+private field/version or semantic fingerprint. Current native installation and
+original origin equality remain the authenticated consumer's mandatory check;
+evidence validation alone neither selects a connection nor grants authority.
+
 The semantic identity includes board, incarnation, operation, authenticated actor,
 command, target, payload and exact preconditions. MatchesTerminal compares the
 entire original identity and fingerprint. Evidence alone proves neither authority,

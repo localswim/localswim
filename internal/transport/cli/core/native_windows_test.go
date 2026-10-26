@@ -87,6 +87,9 @@ func nativeContext(t *testing.T) context.Context {
 	return ctx
 }
 func newNative(t *testing.T) *nativeRun {
+	return newNativeAtPort(t, nil)
+}
+func newNativeAtPort(t *testing.T, port *int) *nativeRun {
 	t.Helper()
 	if os.Getenv("K02_NATIVE_OVERLAY") != "1" {
 		t.Fatal("explicit private overlay required")
@@ -105,7 +108,7 @@ func newNative(t *testing.T) *nativeRun {
 		t.Fatal("compiled root-only overlay sentinel required")
 	}
 	m, e := setup.New(nil)
-	if e != nil || m.Init(nil).Exit != 0 {
+	if e != nil || m.Init(port).Exit != 0 {
 		t.Fatal("synthetic native material unavailable")
 	}
 	owner, e := m.LoadNativeOwner()

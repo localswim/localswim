@@ -1,0 +1,34 @@
+declare const status: T.SessionCodeCLI;
+if (status.outcome === 'presented') {
+  const knownTime: string = status.result.issuedAt;
+  const presented: true = status.result.presented;
+  const noError: null = status.error;
+} else {
+  const error: T.CredentialError = status.error;
+  if (status.result !== null) {
+    const notPresented: false = status.result.presented;
+    const unknownTime: string | null = status.result.issuedAt;
+  }
+}
+// @ts-expect-error scope is the exact CLI family
+const wrongScope: T.SessionCodeCLI = {...fixture0, scope: 'session'};
+// @ts-expect-error command is issue only
+const wrongCommand: T.SessionCodeCLI = {...fixture0, command: 'revoke'};
+// @ts-expect-error presented needs known metadata
+const noResult: T.SessionCodeCLI = {...fixture0, result: null};
+// @ts-expect-error presented metadata cannot have null actor
+const unknownActor: T.SessionCodeCLI = {...fixture0, result: {...fixture0.result, actorId: null}};
+// @ts-expect-error presented must mean a complete console write
+const falsePresented: T.SessionCodeCLI = {...fixture0, result: {...fixture0.result, presented: false}};
+// @ts-expect-error unknown status cannot claim complete presentation
+const unknownPresented: T.SessionCodeCLI = {...fixture1, result: {...fixture1.result, presented: true}};
+// @ts-expect-error non-presented outcomes require a diagnostic
+const unknownNoError: T.SessionCodeCLI = {...fixture1, error: null};
+// @ts-expect-error secrets have no top-level field
+const secret: T.SessionCodeCLI = {...fixture0, code: 'synthetic'};
+// @ts-expect-error secrets have no metadata field
+const resultSecret: T.SessionCodeCLI = {...fixture0, result: {...fixture0.result, code: 'synthetic'}};
+// @ts-expect-error credential IDs do not belong to session code status
+const credentialID: T.SessionCodeCLI = {...fixture0, result: {...fixture0.result, credentialId: 'synthetic'}};
+// @ts-expect-error required nullable metadata keys cannot be omitted
+const missingTime: T.SessionCodeResult = {installationId:null,boardId:null,incarnation:null,grantId:null,actorId:null,issuedAt:null,presented:false};

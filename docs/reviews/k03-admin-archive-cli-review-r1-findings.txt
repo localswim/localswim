@@ -1,0 +1,29 @@
+K03 fresh independent review - initial finding
+2026-10-26 | CHANGES REQUIRED | Review continues
+
+Finding K03-R1: incomplete confirmation prompt can authorize effects.
+
+internal/transport/cli/admin/setup.go confirmation checks fmt.Fprintf's error
+but not its byte count. An output writer returning zero bytes and nil error
+therefore permits the exact typed challenge even though none of the required
+identity, scope, rights or loss information was shown. This shared gate protects
+human grant enrollment, recovery confirmation, credential/code issue and setup
+owner/trust confirmation. Require complete prompt delivery before reading or
+accepting the challenge, and verify every affected command remains pre-effect
+on short output.
+
+An independent private compiled test reproduced the fault against source SHA256
+754196077d5e69aee58999bc781f8bf87f4d55e94ddb009619f9dd53a961a4cf.
+The precise source receipt and pre-correction test are retained privately;
+this provisional review does not qualify the whole K03 candidate.
+
+Native credential publication, lease coexistence, expiry independence, marker
+ordering, cross-process exclusion, aliases and protected ACL tests passed in a
+fresh host run using only a private compiled root overlay. The first sandbox
+run's denied hardlink/junction fixtures remain preserved. Contract declaration
+verification initially lacked required pinned environment variables; that failed
+attempt remains preserved and will be rerun in a fresh runtime.
+
+Actual positive interactive-console/ConPTY presentation remains unqualified;
+native pipe refusal and synthetic successful console callbacks are separate
+evidence. No actual installation, trust enrollment or human credential is used.

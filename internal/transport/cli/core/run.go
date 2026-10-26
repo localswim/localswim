@@ -1,12 +1,10 @@
 package core
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"strconv"
 	"unicode"
@@ -39,7 +37,7 @@ func refused(code string, exit int, original *evidence.Record) result {
 }
 func safeCode(code string) string {
 	switch code {
-	case "INVOCATION_OR_IO", "CREDENTIAL_SELECTION_REQUIRED", "CREDENTIAL_EXPIRED", "CREDENTIAL_DISABLED", "CREDENTIAL_CONTEXT_MISMATCH", "CREDENTIAL_UNAVAILABLE", "UNSAFE_LOCAL_MATERIAL", "UNAVAILABLE", "INVALID_INPUT", "INPUT_TOO_LARGE", "UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH", "OUTCOME_UNKNOWN", "SOURCE_AUTHORITY_UNAVAILABLE":
+	case "INVOCATION_OR_IO", "CREDENTIAL_SELECTION_REQUIRED", "CREDENTIAL_EXPIRED", "CREDENTIAL_DISABLED", "CREDENTIAL_CONTEXT_MISMATCH", "CREDENTIAL_UNAVAILABLE", "UNSAFE_LOCAL_MATERIAL", "UNAVAILABLE", "INVALID_INPUT", "INPUT_TOO_LARGE", "UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH", "OUTCOME_UNKNOWN", "SOURCE_AUTHORITY_UNAVAILABLE", "CONFIRMATION_REQUIRED", "CONFIRMATION_REFUSED":
 		return code
 	}
 	return "UNAVAILABLE"
@@ -181,78 +179,33 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 		return refused("CREDENTIAL_UNAVAILABLE", 3, original)
 	}
 	var c *Connection
+	var client *Client
 	var e error
 	if q.native {
 		c, e = r.Provider.NativeOwner(ctx, *original)
+		client = &Client{c: c}
+		if e == nil && (c == nil || c.do == nil || !c.native) {
+			e = &Failure{"CREDENTIAL_CONTEXT_MISMATCH", 2}
+		}
 	} else {
-		c, e = r.Provider.Open(ctx, q.selected)
+		client, e = Open(ctx, r.Provider, q.selected)
+		if client != nil {
+			c = client.c
+		}
 	}
 	if e != nil {
+		if client != nil {
+			client.Close()
+		}
 		code, exit := failure(e)
 		return refused(code, exit, original)
 	}
-	if c == nil || c.do == nil || c.native != q.native {
-		return refused("CREDENTIAL_CONTEXT_MISMATCH", 2, original)
-	}
-	if c.close != nil {
-		defer c.close()
-	}
-	if !q.native {
-		if c.metadata.Selected != q.selected {
-			return refused("CREDENTIAL_CONTEXT_MISMATCH", 2, original)
-		}
-		status, b, e := c.request(ctx, "GET", "/api/v1/session", nil)
-		if e != nil {
-			return refused("UNAVAILABLE", 3, original)
-		}
-		s, err := T.Decode[T.SessionRead](b)
-		if status != 200 || err != nil {
-			return classifyReadFailure(status, b, original)
-		}
-		if string(s.ActorID) != c.metadata.ActorID || string(s.Grant.BoardID) != q.selected.BoardID || string(s.Grant.Incarnation) != q.selected.Incarnation || string(s.Grant.GrantID) != q.selected.GrantID {
-			return refused("CREDENTIAL_CONTEXT_MISMATCH", 2, original)
-		}
-	}
+	defer client.Close()
 	if original != nil {
-		i := original.Identity()
-		ec := original.Context()
-		if ec != c.context || i.ActorID != c.metadata.ActorID || (!q.native && (i.Incarnation != q.selected.Incarnation || ec.InstallationID != q.selected.InstallationID)) {
-			return refused("CREDENTIAL_CONTEXT_MISMATCH", 4, original)
-		}
-		query := url.Values{"incarnation": {i.Incarnation}, "fingerprintVersion": {"1"}, "fingerprint": {original.Fingerprint()}}
-		status, b, err := c.request(ctx, "GET", q.path+"?"+query.Encode(), nil)
-		if err != nil {
-			return refused("UNAVAILABLE", 4, original)
-		}
-		return r.mark(classifyMutation(status, b, *original, true), *original, stderr)
+		return client.lookupRecord(ctx, r.Evidence, *original, stderr).r
 	}
 	if q.command != "" {
-		x, err := evidence.Freeze(c.context, contract.ResolvedRoute{Command: q.command, BoardID: q.selected.BoardID, TargetID: q.id}, contract.AuthenticatedActor{ActorID: c.metadata.ActorID}, wire)
-		if err != nil {
-			return refused("INVALID_INPUT", 2, nil)
-		}
-		if x.Identity().Incarnation != q.selected.Incarnation {
-			return refused("CREDENTIAL_CONTEXT_MISMATCH", 2, nil)
-		}
-		if r.Evidence == nil {
-			return refused("UNSAFE_LOCAL_MATERIAL", 1, nil)
-		}
-		path, err := r.Evidence.Save(x)
-		if err != nil {
-			return refused("INVOCATION_OR_IO", 1, nil)
-		}
-		verified, err := r.Evidence.Load(path)
-		if err != nil || !bytes.Equal(verified.Bytes(), x.Bytes()) {
-			return refused("INVOCATION_OR_IO", 1, nil)
-		}
-		if ctx.Err() != nil {
-			return refused("UNAVAILABLE", 3, nil)
-		}
-		status, b, err := c.request(ctx, q.method, q.path, bytes.NewReader(x.Wire()))
-		if err != nil {
-			return refused("OUTCOME_UNKNOWN", 4, &x)
-		}
-		return r.mark(classifyMutation(status, b, x, false), x, stderr)
+		return client.Dispatch(ctx, r.Evidence, contract.ResolvedRoute{Command: q.command, BoardID: q.selected.BoardID, TargetID: q.id}, wire, stderr).r
 	}
 	status, b, err := c.request(ctx, q.method, q.path, nil)
 	if err != nil {
@@ -327,7 +280,7 @@ func classifyMutation(status int, b []byte, original evidence.Record, lookup boo
 	if status == 200 || (!lookup && status == 201) {
 		t, e := T.Decode[T.Terminal](b)
 		if e == nil && original.MatchesTerminal(t) {
-			if status == 201 && (t.Outcome != "committed" || (t.Command != "card.create" && t.Command != "comment.add" && t.Command != "link.add")) {
+			if status == 201 && (t.Outcome != "committed" || (t.Command != "card.create" && t.Command != "comment.add" && t.Command != "link.add" && t.Command != "attachment.add" && t.Command != "grant.create")) {
 				return refused("OUTCOME_UNKNOWN", 4, &original)
 			}
 			if t.Outcome == "committed" {

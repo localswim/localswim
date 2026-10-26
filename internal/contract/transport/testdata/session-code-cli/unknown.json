@@ -1,0 +1,17 @@
+{
+  "apiVersion": 1,
+  "command": "issue",
+  "error": {"code": "UNVERIFIED", "message": "Presentation is unverified"},
+  "outcome": "unknown",
+  "result": {
+    "actorId": null,
+    "boardId": null,
+    "expiresAt": null,
+    "grantId": null,
+    "incarnation": null,
+    "installationId": null,
+    "issuedAt": null,
+    "presented": false
+  },
+  "scope": "session-code"
+}

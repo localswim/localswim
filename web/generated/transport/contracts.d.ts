@@ -296,6 +296,99 @@ export type ExportStatus = {
   readonly scope: "export";
 };
 
+export type SessionCodeResult = {
+  readonly actorId: string | null;
+  readonly boardId: string | null;
+  readonly expiresAt: string | null;
+  readonly grantId: string | null;
+  readonly incarnation: string | null;
+  readonly installationId: string | null;
+  readonly issuedAt: string | null;
+  readonly presented: boolean;
+};
+
+export type SessionCodeCLI = {
+  readonly apiVersion: 1;
+  readonly command: "issue";
+  readonly error: null;
+  readonly outcome: "presented";
+  readonly result: {
+  readonly actorId: string;
+  readonly boardId: string;
+  readonly expiresAt: string;
+  readonly grantId: string;
+  readonly incarnation: string;
+  readonly installationId: string;
+  readonly issuedAt: string;
+  readonly presented: true;
+};
+  readonly scope: "session-code";
+} | {
+  readonly apiVersion: 1;
+  readonly command: "issue";
+  readonly error: CredentialError;
+  readonly outcome: "refused";
+  readonly result: {
+  readonly actorId: string | null;
+  readonly boardId: string | null;
+  readonly expiresAt: string | null;
+  readonly grantId: string | null;
+  readonly incarnation: string | null;
+  readonly installationId: string | null;
+  readonly issuedAt: string | null;
+  readonly presented: false;
+} | null;
+  readonly scope: "session-code";
+} | {
+  readonly apiVersion: 1;
+  readonly command: "issue";
+  readonly error: CredentialError;
+  readonly outcome: "failed";
+  readonly result: {
+  readonly actorId: string | null;
+  readonly boardId: string | null;
+  readonly expiresAt: string | null;
+  readonly grantId: string | null;
+  readonly incarnation: string | null;
+  readonly installationId: string | null;
+  readonly issuedAt: string | null;
+  readonly presented: false;
+} | null;
+  readonly scope: "session-code";
+} | {
+  readonly apiVersion: 1;
+  readonly command: "issue";
+  readonly error: CredentialError;
+  readonly outcome: "unavailable";
+  readonly result: {
+  readonly actorId: string | null;
+  readonly boardId: string | null;
+  readonly expiresAt: string | null;
+  readonly grantId: string | null;
+  readonly incarnation: string | null;
+  readonly installationId: string | null;
+  readonly issuedAt: string | null;
+  readonly presented: false;
+} | null;
+  readonly scope: "session-code";
+} | {
+  readonly apiVersion: 1;
+  readonly command: "issue";
+  readonly error: CredentialError;
+  readonly outcome: "unknown";
+  readonly result: {
+  readonly actorId: string | null;
+  readonly boardId: string | null;
+  readonly expiresAt: string | null;
+  readonly grantId: string | null;
+  readonly incarnation: string | null;
+  readonly installationId: string | null;
+  readonly issuedAt: string | null;
+  readonly presented: false;
+} | null;
+  readonly scope: "session-code";
+};
+
 export type TerminalCardCreateCommittedFull = {
   readonly actorId: string;
   readonly apiVersion: 1;

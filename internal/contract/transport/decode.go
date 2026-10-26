@@ -19,6 +19,7 @@ var enums = map[string][]string{
 	"BoardScope": {"board"}, "CardScope": {"card"}, "HistoryScope": {"history"}, "SessionScope": {"session"}, "RevokedOutcome": {"revoked"},
 	"CredentialScope": {"credential"}, "CredentialCommand": {"issue", "revoke"}, "CredentialOutcome": {"confirmed", "refused", "failed", "unavailable", "unknown"},
 	"ExportScope": {"export"}, "ExportOutcome": {"confirmed", "offered", "failed", "unknown"},
+	"SessionCodeScope": {"session-code"}, "SessionCodeCommand": {"issue"}, "SessionCodeOutcome": {"presented", "refused", "failed", "unavailable", "unknown"},
 }
 var rights = []string{"approve", "attach", "comment", "create", "edit", "export", "grant-admin", "history-admin", "read", "read-own-outcome", "restore", "review-handoff"}
 var v4RE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
@@ -261,6 +262,14 @@ func walk(v reflect.Value) error {
 			}
 		} else if x.Error == nil {
 			return fmt.Errorf("credential diagnostic required")
+		}
+	case SessionCodeCLI:
+		if e := sessionCodeCLI(x); e != nil {
+			return e
+		}
+	case SessionCodeResult:
+		if e := sessionCodeResult(x); e != nil {
+			return e
 		}
 	case ExportStatus:
 		if x.Result.Destination != nil {

@@ -68,6 +68,9 @@ release qualification remain separate work.
 - [Recovery preview, retention and byte pins](internal/store/recovery/README.txt)
   and [independent review](docs/reviews/s03-recovery-retention-review.txt), with
   [composition boundaries](docs/decisions/recovery-retention-composition-2026-10-26.txt).
+- [Attachment storage and forced downloads](internal/board/attachments/README.txt)
+  and [independent review](docs/reviews/a01-attachment-adapter-review.txt), with
+  [byte/transport composition](docs/decisions/attachment-byte-composition-2026-10-26.txt).
 - [Private browser recovery store](web/src/recovery/README.txt) and
   [independent review](docs/reviews/w01-private-recovery-review.txt), with explicit
   prepared-boundary and qualified-profile dispatch gates.

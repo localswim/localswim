@@ -1,0 +1,33 @@
+A01 ATTACHMENT ADAPTER: SECOND INDEPENDENT FINDING
+2026-10-26 | Review revision 2 | Changes required
+
+F1 is corrected: Upload.Reader now exposes only Read through a private named
+cursor field. Independent copy/mutation tests preserve both bytes and store health.
+
+F2 (material): Buffer gives the final private allocation to its source Reader.
+
+- internal/board/attachments/upload.go:21 calls io.ReadFull(r, b). A source Reader
+  can retain b and change the Upload after Buffer returns and after Add verifies
+  its SHA-256. The output-reader correction does not seal this input callback.
+- A source retaining its supplied destination violates the normal io.Reader
+  convention, just as F1's hostile Writer violated io.Writer's convention. The
+  required opaque immutable Upload boundary must not expose its final storage to
+  either callback direction.
+- Independent deterministic reproduction retained the source destination, then
+  changed "good" to "evil" during current credential verification. Reusing a
+  healthy stored digest falsely fenced the store as persistent integrity damage.
+  The reproduced input source hash was stable throughout the failing test.
+
+Required correction: read through bounded temporary scratch storage and copy
+into the final private allocation. Keep the one-file buffer bound, avoid a second
+whole-file allocation, and independently verify retained-source mutation before
+and during Add for new and reused digests.
+
+Other revision 2 evidence remains valid for its tested scope:
+
+- Ordinary attachment/recovery tests: 84 passing cases, zero skipped; vet passed.
+- Independent adversarial cases: 12 passes across two repetitions, zero skipped.
+- The F2 regression failed as expected and remains separate evidence.
+- Final acceptance requires the correction and fresh independent validation.
+
+No product activation, live board operation or power-loss qualification is claimed.

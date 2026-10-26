@@ -1,0 +1,63 @@
+A01 ATTACHMENT STORAGE AND HTTP ADAPTER: INDEPENDENT REVIEW
+2026-10-26 | Final review revision 3 | PASS
+
+No material findings remain in the reviewed A01 scope. This review covers the
+frozen attachment service, bounded multipart adapter, forced download route and
+new candidate-quota facade, plus the README and byte-composition decision.
+Accepted provider code remains unchanged, including all nine existing S03 files.
+
+Corrections verified
+
+- F1: Upload.Reader originally exposed bytes.Reader.WriterTo, allowing a hostile
+  destination Writer to mutate verified storage. The final private cursor exposes
+  only Read. Independent mutation/cursor checks preserve upload bytes and healthy
+  new-digest and existing-digest writes.
+- F2: Buffer originally handed its final allocation to an external source Reader.
+  The final implementation reads through 4 KiB scratch storage and copies into
+  its single bounded private file allocation. Retained source destinations cannot
+  change returned or already verified uploads. No second whole-file copy is added.
+- Both original findings and failed reproductions are preserved separately in
+  a01-attachment-adapter-r1-findings.txt and a01-attachment-adapter-r2-findings.txt.
+
+Contract and composition checks
+
+- S02 alone owns serialized transaction/receipt processing. Add co-commits bytes,
+  immutable association/entity, references/pins, original prior snapshot provenance,
+  approval invalidation, card/board revisions and activity. Missing prior provenance
+  rolls back to unknown; Completed/refused requests have no attachment effects.
+- Matching own-outcome receipts skip mutable admission and the pin guard. A fresh
+  HTTP 201 requires the newly created attachment ID in the final committed receipt;
+  retained committed replay returns 200 without another attachment.
+- The shared per-store guard follows writer admission and survives cleanup and
+  reconciliation. Candidate facts join current/full-history/full-committed/export
+  protections, with distinct digest accounting, inclusive 10/64 MiB limits and
+  zero-byte membership. Quota refusal remains distinct from inconsistent facts.
+- Exact two-part raw multipart bounds, complete digest/length checks, encoded/extra
+  part refusals and first-terminal-boundary/tail checks precede writer checkout.
+  Fragmented literal prefixes and hidden buffered epilogues were independently
+  tested. Filenames never select paths or semantic identity.
+- Downloads recheck ordinary read authority and bytes in one actual reader
+  snapshot before headers. Forced octet-stream attachment disposition, inert names,
+  nosniff and no encoding preserve arbitrary control/quote/non-ASCII display names
+  without reflecting them into headers. T01 and real current credentials remain
+  mandatory; native ownership and attach rights provide no ordinary read bypass.
+
+Independent verification
+
+- Ordinary attachment/recovery suite: 88 passing cases, zero skipped.
+- Private adversarial overlays: 22 passing cases over two repetitions; zero skipped.
+- Native mounted/parser/TLS suite plus independent download probe: 39 passing cases,
+  zero skipped. Issuer-pinned loopback HTTPS exercised chunked raw upload and
+  byte-exact download.
+- Ordinary and native vet passed. The absent-overlay sentinel failed compilation
+  as required. Initial sandbox socket10013 failure and synthetic corruption-fixture
+  setup failure remain recorded; the host run and corrected fixture passed.
+- Frozen source hashes were stable. Synthetic roots, fixtures, overlays, caches
+  and detailed receipts remain private. No production native-root resolver,
+  credentials, trust installation, live board or UI control was used.
+
+Basis: accepted Slice01 03/04/06/18, the exact D02/D03 and C01/C02/C03 contracts,
+and the existing S01/S02/G01/G02/T01/S03/B01 provider seams. This is isolated
+synthetic qualification of the scoped adapter. Executable/product composition,
+detach/replacement, export/restore delivery and native power-loss qualification
+remain outside this review. Owner acceptance and Completed remain separate.

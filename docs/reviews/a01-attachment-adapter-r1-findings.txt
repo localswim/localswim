@@ -1,0 +1,35 @@
+A01 ATTACHMENT ADAPTER: INITIAL INDEPENDENT FINDINGS
+2026-10-26 | Review revision 1 | Changes required
+
+F1 (material): Upload.Reader exposes mutable verified storage.
+
+- internal/board/attachments/upload.go:33 returns a *bytes.Reader as io.Reader.
+  Its additional io.WriterTo method passes the underlying byte slice directly to
+  a caller-supplied Writer. A Writer can change the Upload's private storage.
+- internal/board/attachments/attachments.go:88 verifies SHA-256 before S02 writer
+  checkout. That guarantee no longer holds if a previously obtained reader leaks
+  the slice while Add waits or performs current credential verification.
+- Independent synthetic reproduction: create a valid stored "good" BLOB; prepare
+  another valid upload of "good"; change its backing slice to "evil" through
+  Reader's WriterTo during current credential verification. Existing-digest byte
+  comparison fences the healthy store as purported persistent integrity damage.
+- For a new digest, S02's final schema hash validation prevented corrupt commit
+  in the initial probe. This does not preserve the advertised immutable Upload
+  contract or prevent a healthy existing-digest store from being fenced.
+
+Required correction: return a reader that never hands its backing storage to
+caller-controlled code. Preserve the bounded upload and avoid another complete
+file buffer. Add a regression covering reader interfaces and post-verification
+reuse; rerun the affected tests and independent validation.
+
+Other evidence at this revision:
+
+- Ordinary attachment/recovery suite: 79 passing cases, zero skipped.
+- Fragmented literal boundary-prefix and hidden buffered epilogue matrix passed
+  after correcting the review probe's invalid terminal-delimiter payload.
+- Initial probe files/logs are retained; the corrected probe is a separate
+  revision. No parser defect is asserted from the invalid initial payload.
+- Native qualification remains in progress. This report is not final acceptance.
+
+Existing provider source was not edited by the reviewer. No product activation,
+live board operation or power-loss qualification is claimed.

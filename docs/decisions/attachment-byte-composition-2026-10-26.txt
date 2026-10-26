@@ -1,0 +1,35 @@
+ATTACHMENT BYTES AND TRANSPORT COMPOSITION
+2026-10-26 | A01 | Accepted 06/18 and D03 behavior follow-through
+
+A01 owns immutable attachment association/BLOB co-commit and exact upload/download
+transport, not detach/replacement, exports, restore or client evidence dispatch.
+C02/C01 freeze independently resolved route/actor metadata; transport framing,
+filenames, credentials and raw bytes are not semantic fingerprint fields.
+
+The exact two-part bounded upload is completely read and its raw SHA-256/length
+verified before writer admission. Unsupported encodings or incomplete framing
+cannot be normalized into a successful request. The inert display name never
+selects a server path. Existing digest reuse requires matching length AND bytes;
+known stored integrity damage is not erased or rewritten to manufacture success.
+
+S02 owns identity-first exact current receipts, revisions, COMMIT/reconciliation
+and refusal fencing. G01/G02 current rights and T01's transport boundary remain
+mandatory. New attachment effects preserve the complete original prior snapshot
+through B01's shared facade, update immutable/current/history/op protection,
+invalidate current approval and co-commit the one activity/owner-card revision.
+Completed cards remain immutable. A lost response never authorizes re-upload.
+
+Active A01 owns only a new recovery/attachment_access candidate-quota facade;
+existing S03 source stays unchanged. Under the same shared per-Store pin guard,
+candidate digests join current/full-history/full-committed/export protected bytes
+before any insert. Existing helpers retain exact equal-hash length checks and
+inclusive 10/64 MiB limits, including zero-byte membership and duplicate reuse.
+Writer precedes pin guard, held through transaction cleanup and readback.
+
+Downloads require current read authority and one coherent reader snapshot. Exact
+stored metadata/hash/bytes are verified before success headers/content. Replies
+force application/octet-stream attachment disposition with inert names; no JSON
+success wrapper, server path or executable inline interpretation exists.
+Interruption remains unavailable/incomplete. No HTTP error or absent attachment
+proves an original save did not commit. Native/TLS tests use synthetic roots;
+full browser/product and power-loss qualification remain later work.

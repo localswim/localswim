@@ -563,7 +563,7 @@
     "web/generated/transport/contracts.d.ts": "78830dcc468087ee90a546419143ca6b4f4e5bd9a63c1cc73e5316583316154c",
     "web/index.html": "3ee9dcffccde6acbab9ba0323af53dde9e9fe16ec3fa0d8a2fe0c20e89cc96c4",
     "web/package-lock.json": "845a2b445fb06794c6ebc9df890d6ecbedd9b6623fcd827454eb6502856d57b4",
-    "web/package.json": "dc1e06eec516fa9e2d674aaa8afe1c0e3d5282187a29d316b2d9ee25bb27a4ce",
+    "web/package.json": "58bd73ac1d4d1f009c1c74839480aceddccfee63926e1e5cd44785134e14015e",
     "web/src/api/boundary.ts": "3a75b4d4f5346a237bf4ff98c16578f35fac7f0c71b24421fa6875727d9383a6",
     "web/src/api/client.ts": "4eb7c31e942d9f9855fc46560cd9ce48ef4f5dd3082456076949c630a9c0e5d3",
     "web/src/api/schema-data.ts": "3049421bc37947e5e0a3c268c760ffeee1ee59ef2eccad43a7bb73d5341f2347",

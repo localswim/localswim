@@ -1,0 +1,48 @@
+P02 PACKAGE SCRIPTS FRESH INDEPENDENT REVIEW
+2026-10-26 | #0048 | PASS | P02-E fresh review r1
+
+Outcome
+- PASS for bounded package-script and launcher wiring. No open findings.
+- The frozen package, five script/documentation files, manifest, root README
+  and composition decision remained unchanged during independent verification.
+  Private receipts bind every owned file and accepted provider source by SHA-256.
+- Dependency selections and package-lock bytes match the accepted input.
+  Only the package.json input digest changed in the asset manifest; embedded
+  public HTML, CSS and all 15 JavaScript modules remain byte-identical.
+
+Contract and implementation review
+- Check/build invoke the exact installed, locked local TypeScript CLI with
+  -p tsconfig.json. Check adds --noEmit; build adds --noEmitOnError and uses the
+  existing declared dist/js tree. Compiler failures and missing/mismatched tools
+  propagate failure without PATH, npx, download or compiler-API fallback.
+- The pinned local Playwright CLI loads the V02-owned run.mjs using test --config
+  and JSON reporting. This implements the accepted bounded dispatch interface.
+  V02 retains mandatory suite inventory, completeness assertions and product
+  browser/profile evidence. P02 introduces no V02 suites or alternate protocol.
+- Launcher arguments cannot filter collection. Missing configuration/runner,
+  failed execution, malformed/empty reports, zero tests, skipped/failed/incomplete
+  results, failed retries and inconsistent totals fail. Execution and output are
+  bounded. Passing synthetic cases establish wiring alone.
+
+Independent verification
+- All seven checked-in script tests passed with zero failures or skips using
+  Node 24.20.0, npm 12.0.2, TypeScript 7.0.2 and Playwright 1.64.1.
+- Actual npm check emitted nothing. Actual npm build produced exactly the 15
+  declared JavaScript modules, each matching the embedded bundle digest.
+  Actual qualification:browser refused the absent V02 configuration as required.
+- Additional private probes passed for invalid/extra modes, root-lock mismatch,
+  wrong installed package name, escaping/absolute CLI bins, null/invalid/nested
+  reports, empty test lists, failed retry history, inconsistent result totals,
+  absent result status, nonzero runner exit, output limit and extra browser args.
+  A synthetic completed-report positive control passed.
+- Each attempt used a fresh private source snapshot, tool/dependency copy and
+  separate logs/results. The initial harness reporter-format assertion stopped
+  after seven passing tests; that attempt remains preserved. A fresh explicit
+  TAP run completed all checks without changing product source.
+
+Limits
+- This review qualifies P02 wiring only. Q04 owns the frozen actual build
+  sequence and two-clean-build distribution proof. V01/V02 own native and actual
+  browser/session/private-recovery qualification and mandatory coverage evidence.
+- No live installation, issuer trust change, human grant, login or activation
+  occurred. Prior accepted evidence remains historical and bounded.

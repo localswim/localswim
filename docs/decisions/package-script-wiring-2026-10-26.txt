@@ -1,0 +1,27 @@
+P02 PACKAGE SCRIPT AND LAUNCHER COMPOSITION
+2026-10-26 | Bounded script wiring | Dependency pins unchanged
+
+The accepted Q01 dependency inventory and P01 executable/assets form the input.
+P02 owns web/package.json scripts and web/scripts. The check/build commands invoke
+the exact locked local TypeScript CLI with -p tsconfig.json. Check adds --noEmit;
+build uses the declared production staging tree and noEmitOnError. No compiler
+API, bundler, package download or global/PATH compiler fallback is introduced.
+
+The qualification:browser launcher uses the exact local pinned Playwright runner.
+It loads qualification/browser/run.mjs through test --config with JSON reporting.
+That V02-owned file is the configuration/entry; V02 owns mandatory suite inventory,
+completeness assertions and the actual browser/profile journey. Missing runner or
+configuration, malformed/empty report, zero tests, skipped/failing/incomplete cases
+or unsuccessful execution fail. Synthetic launcher tests prove wiring only.
+An absent V02 configuration remains a failing qualification command.
+
+Dependency and devDependency selections and package-lock bytes remain unchanged.
+P01 assetstage binds package.json as an input, so script edits require deterministic
+manifest regeneration. This updates the package input hash only: declared public
+HTML, stylesheet and JavaScript bytes, generator and provider logic stay unchanged.
+No schema, domain admission, credential, runtime bootstrap or qualification policy
+changes are introduced. Earlier accepted evidence remains historical and bounded.
+
+Q04 owns the actual frozen build sequence and two-clean-build distribution proof.
+V01/V02 own native and browser product qualification. No live installation, trust
+enrollment, human grant, login or activation is performed by this task.

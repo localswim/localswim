@@ -133,8 +133,11 @@ CLI adapters using [explicit runtime bindings](docs/contracts/runtime-bindings.t
 [assetstage](cmd/assetstage/README.txt). See the
 [P01 independent review](docs/reviews/p01-executable-assets-review.txt) and
 [composition boundaries](docs/decisions/executable-assets-composition-2026-10-26.txt).
-Package-script wiring, two clean distribution builds and product qualification
-remain separately gated work.
+The [web package scripts](web/scripts/README.txt) provide locked compiler and
+pinned browser-launcher wiring. See the
+[P02 independent review](docs/reviews/p02-package-scripts-review.txt) and
+[script boundaries](docs/decisions/package-script-wiring-2026-10-26.txt).
+Two clean distribution builds and product qualification remain separately gated.
 
 The [credential decomposition](docs/decisions/credential-admission-decomposition-2026-10-26.txt)
 records the G01/S04/G02 boundaries. The

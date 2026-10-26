@@ -60,6 +60,12 @@ release qualification remain separate work.
 - [Durable credential and native-owner service](internal/board/credentials/README.txt)
   and [independent review](docs/reviews/g02-credential-service-review.txt), including
   explicit first-owner attribution and current credential verification.
+- [Card command admission](internal/board/cards/README.txt) and
+  [independent review](docs/reviews/b01-card-admission-review.txt), with the
+  [accepted no-change policy](docs/decisions/card-edit-no-change-policy-2026-10-26.txt).
+- [Session and HTTPS boundary](internal/transport/session/README.txt) and
+  [independent review](docs/reviews/t01-https-session-review.txt), including the
+  [session provider adapter](docs/decisions/session-native-scope-adapter-2026-10-26.txt).
 - [Native setup/lifecycle core](internal/transport/setup/README.txt) and
   [independent review](docs/reviews/n01-native-setup-review.txt).
 - [Proposed public transport encodings](docs/contracts/transport-envelopes.txt)
@@ -87,5 +93,6 @@ records the G01/S04/G02 boundaries. The
 [credential composition](docs/decisions/credential-service-composition-2026-10-26.txt)
 records G02's service and its native lease ownership. HTTP/browser delivery,
 terminal confirmation/private files and integrated qualification remain separate
-consumer work. Physical layout 2 rejects layout 1 without migration; logical
+consumer work. Physical layout 3 includes the accepted-Unicode title constraint
+correction and rejects older layouts without migration; logical
 API/archive versions remain 1.

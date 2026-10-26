@@ -1,0 +1,74 @@
+B01 CARD COMMAND ADMISSION - CORRECTED INDEPENDENT REVIEW
+2026-10-26 | Revision 2
+
+Verdict: PASS for the corrected B01 component and bounded inherited storage fix.
+No unresolved finding remains within this review scope. Owner acceptance and the
+primary integration gate remain separate from this component review.
+
+Initial finding and owner policy
+- Initial R1 is resolved: accepted U+0000 titles now commit through native S01/S02
+  for create and edit, preserving current and prior snapshot bytes exactly.
+  The initial CHANGES REQUIRED report remains unchanged in
+  b01-card-admission-review-r1-findings.txt; it is not rewritten as a pass.
+- The owner-selected no-change policy is implemented: empty/identical edits and
+  redundant current In Progress alone yield durable NOT_COMMITTED / NO_CHANGE.
+  Domain state, approval, history, revisions and event/ticket counters stay intact.
+  Exact refusal replay remains fenced after a later real edit.
+- Redundant In Progress with a real scalar change commits once. Actual start alone
+  performs prerequisite admission. Exact values, whitespace, Unicode composition
+  and line endings retain their meaning. Rights, stale-revision and Completed
+  refusals keep precedence. The accepted policy is recorded in
+  docs/decisions/card-edit-no-change-policy-2026-10-26.txt.
+
+Source and transaction review
+- Scope is create/edit/comment and Ready for Work -> In Progress. No B02 graph,
+  handoff, approval, archive, reopen or assignee implementation is introduced.
+- Independently resolved route scope is compared with the frozen typed intent.
+  G01 supplies live credential/current grant checks in the S02 writer snapshot;
+  retained source metadata never supplies current authority.
+- Exact board/card revisions prevent silent overwrite. P3 creation, unique UUID/
+  persistent ticket allocation, safe counter refusal, attributed immutable comments,
+  one revision/event/terminal effect and exact duplicate receipts were checked.
+- Prior full scalar state, comment/link/attachment/approval references and attachment
+  pins are captured atomically before mutation. Current approval clears for real
+  mutations; historical facts remain. Snapshot origin, actor and timestamp come
+  from exactly one retained COMMITTED operation and exact card result reference,
+  including compact source provenance. Missing/ambiguous provenance rolls back.
+- Direct active blocking prerequisites require nonarchived Completed cards, current
+  human approval of the pre-approval card revision and current policy. Unrelated
+  board revision changes do not invalidate approval. Informational/inactive links
+  do not gate start; automation, stale or absent approval and archive refuse.
+
+Unicode storage correction and compatibility
+- Physical layout 3 coherently updates the schema constant, board metadata, SQLite
+  user version and explanatory documentation. API/archive/fingerprint versions
+  remain 1. Older layouts are refused without migration or adoption.
+- The title CHECK counts JSON-quoted content after reducing encoded backslashes
+  first, then quote/control escapes, to one scalar each; outer quotes are excluded.
+  This preserves literal escape text and avoids SQLite NUL truncation.
+- An independent 12,577-string native corpus matched Go Unicode-scalar counts,
+  covering all ASCII controls, NUL, quote/backslash adjacency, literal escape text,
+  combining/astral/maximum scalars and varied lengths. Native 200/201 bounds,
+  exact stored bytes, reopening and integrity-audit refusal also passed.
+- Exact earlier layouts 1 and 2 were generated from retained historical schema
+  sources. The corrected native Existing path refused both with database bytes
+  and directory inventories unchanged. These were synthetic stores only.
+
+Verification and limits
+- Go 1.27.3 windows/amd64, CGO=0, local toolchain, module-readonly and offline frozen
+  dependency cache; fresh private cache/tmp/fixture roots. Native test run:
+  176 cases passed (65 cards, 88 storage-open, 23 writer), zero failures/skips.
+  Focused go vet passed. Two separate historical-DDL generation checks passed.
+- All 16 reviewed source/policy/root-README files stayed byte-identical to the
+  recorded corrected boundary. Source manifests, probes, logs and failed harness
+  attempts remain private. The earlier long-path/junction fixture attempt is
+  preserved and does not supply product findings or passing qualification.
+- Tests use real S01/S02/G01 with test-only verifier identity. Production consumers
+  must supply G02's real verifier. No live board, credential enrollment or trust
+  installation was used. No browser/HTTP, restore execution, native power-loss,
+  hostile security or whole-product qualification is claimed.
+
+Authority: accepted slice01 examples 1-3 and data/command/target contracts, corrected
+bounded task packet, owner no-change decision and authorized inherited R1 repair.
+Fresh non-author review. Prior exposure is disclosed; no isolated clean-room
+certification is claimed. Public MIT FOSS, UTF-8/LF/final newline.

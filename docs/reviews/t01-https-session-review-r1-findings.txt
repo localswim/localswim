@@ -1,0 +1,20 @@
+T01 HTTPS AND SESSION BOUNDARY - INITIAL INDEPENDENT FINDING
+2026-10-26 | Frozen input r1
+
+Verdict: CHANGES REQUIRED for reliable verification. One test finding is open.
+
+F1 - Idle-expiry assertion uses the previous session's creation time
+
+Location: internal/transport/session/native_windows_test.go, the final idle
+expiry assertion in TestNativeExpirySlidingEntropyAndScope.
+
+The test creates a second browser bearer, but checks expiry at the first bearer's
+start plus 30 minutes. Real native code issuance can cross a wall-clock second.
+Then the second bearer correctly remains valid at that older time and the test
+fails. The independent host rerun reproduced this on one of two executions.
+The other session cases and both executions of the HTTPS cases passed.
+
+Use the second bearer's own recorded issuance/idle-expiry instant for its exact
+boundary assertion. Preserve the original evidence and rerun frozen-source
+qualification after correction. No runtime authentication defect is established
+by this finding; a passing run alone does not resolve the timing-dependent test.

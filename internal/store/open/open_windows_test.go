@@ -169,7 +169,7 @@ func TestCreateOpenSettingsAndIdentity(t *testing.T) {
 		if e := c.QueryRowContext(ctx(t), "SELECT schema_version FROM board").Scan(&layout); e != nil {
 			t.Fatal(e)
 		}
-		if e := c.QueryRowContext(ctx(t), "PRAGMA user_version").Scan(&user); e != nil || layout != schema.Version || user != schema.Version || schema.Version != 2 {
+		if e := c.QueryRowContext(ctx(t), "PRAGMA user_version").Scan(&user); e != nil || layout != schema.Version || user != schema.Version || schema.Version != 3 {
 			t.Fatal("physical layout markers mismatch")
 		}
 		if e := configure(ctx(t), c, false, false); e != nil {
@@ -447,7 +447,8 @@ func TestPhysicalLayoutOneRefusedWithoutWrites(t *testing.T) {
 		if strings.HasPrefix(statement, "CREATE TABLE cli_credential ") || strings.HasPrefix(statement, "CREATE TRIGGER cli_credential_") {
 			continue
 		}
-		statement = strings.ReplaceAll(statement, "schema_version INTEGER NOT NULL DEFAULT 2 CHECK(schema_version=2)", "schema_version INTEGER NOT NULL DEFAULT 1 CHECK(schema_version=1)")
+		statement = strings.ReplaceAll(statement, "schema_version INTEGER NOT NULL DEFAULT 3 CHECK(schema_version=3)", "schema_version INTEGER NOT NULL DEFAULT 1 CHECK(schema_version=1)")
+		statement = previousTitleLength(statement)
 		statement = strings.ReplaceAll(statement, " UNIQUE(incarnation,grant_id,actor_id),", "")
 		execute(t, c, statement)
 	}

@@ -1,0 +1,68 @@
+T01 HTTPS AND SESSION BOUNDARY - INDEPENDENT REVIEW
+2026-10-26 | Corrected frozen input r2, review r2
+
+Verdict: PASS within the accepted T01 component scope. F1 is corrected.
+
+The expiry test now binds each assertion to the newly issued bearer's own
+timestamps and checks just-before and exact idle/absolute boundaries. Production
+authentication code is unchanged by this correction. The initial finding remains
+in t01-https-session-review-r1-findings.txt; a separate deterministic probe crosses
+a real wall-clock second and verifies the new bearer's own exact idle edge.
+
+Reviewed boundary
+
+- G02's owned N01 source lifetime, TLS configuration and native-before-board
+  ordering; nonblocking availability/CLI checks under existing board leases.
+- Native-owner code issuance for an existing enabled grant, serialized with
+  revocation and without creating/replacing a CLI credential or durable fact.
+  The callback scope carries bindings/time, without browser authority or rights.
+- Hashed single-use 128-bit codes, hashed 256-bit browser bearers, exact bindings,
+  60-second codes, 30-minute sliding idle and eight-hour absolute session expiry.
+  G01 rechecks current grant, actor and rights; restart clears browser registries
+  while durable CLI credentials retain their separate lifecycle.
+- Exact C02 session/code/exchange/CLI delivery/self-revocation DTOs and routes;
+  exact Host and presented Origin, browser-write/exchange Origin and JSON,
+  same-origin Fetch metadata for absent-Origin browser GET, and actual CLI
+  verification before the native absent-Origin exception. No native self-revoke.
+- Generic consumers receive authenticated browser/CLI context and preserve exact
+  lookup queries for later adapter validation. Dedicated native consumers receive
+  transport checks only and must authenticate through guarded G02 methods before
+  reads/effects. Bearer shape creates no principal or ordinary native privilege.
+- Exclusive IPv4 and IPv6-only loopback TLS at the stored port, atomic bind
+  cleanup, no HTTP fallback, current certificate/lifetime guards, bounded request
+  handling, no-store replies, no cookie/CORS authority, fixed inert diagnostics,
+  same-origin CSP and denied framing. Parent README/adapter decision match scope.
+
+Independent verification
+
+- Corrected frozen source passed two native executions: 24 transport/session and
+  48 adapter PASS records, with zero failures/skips. Ordinary executions produced
+  10 and 6 PASS records. Ordinary/tagged vet passed for both scoped boundaries.
+- Five independent probes passed three executions each: partial second-family
+  bind releases the first and permits restart; plaintext cannot reach the API;
+  retained TLS configuration refuses after native closure; duplicate/forged
+  headers, path/query aliases, absent-Origin writes and cookie-only authority refuse while
+  exact generic lookup queries survive; concurrent exact self-revocation leaves
+  a distinct bearer valid; crossed-second idle boundaries use their own bearer.
+- Reproduced single-use races, current rights/disabled grants, restart and CLI
+  replacement/self-revoke behavior. Adapter tests cover callback/fault refusal,
+  serialized revocation and no durable change; caller reservation cleanup was
+  inspected for every unsuccessful publication return.
+- Private resolver-only N01 overlay and compiled private-root sentinel, with real
+  native crypto/ACL/lifetime and store providers. Missing overlay fails compilation;
+  an environment marker alone cannot construct a production-root fixture.
+- Go1.27.3 Windows/amd64, CGO disabled, local toolchain and readonly/offline frozen
+  modules in a private review runtime. All 14 T01 files, parent documentation,
+  provider3 sources and module locks were stable. Existing G02 source is unchanged.
+  Initial sandbox socket refusal and the reproduced F1 failure remain preserved
+  separately from the successful corrected-source host qualification.
+
+Limits
+
+This is synthetic component evidence. Browser profiles, physical trust enrollment,
+terminal confirmation/private credential publication, executable composition and
+domain/grant/export adapters remain their later gates. Only private synthetic
+roots and boards were initialized; no live installation, trust store, grant or
+credential was accessed. CGO-disabled concurrency tests do not establish race
+instrumentation, power-loss safety, secure erasure or complete product qualification.
+Owner acceptance remains separate. Initial evidence is retained unchanged.

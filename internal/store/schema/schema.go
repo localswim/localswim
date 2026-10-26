@@ -1,4 +1,4 @@
-// Package schema defines the version-two physical storage layout. Admission, canonical
+// Package schema defines the version-three physical storage layout. Admission, canonical
 // wire validation, retention execution and domain transactions belong to callers.
 package schema
 
@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const Version = 2
+const Version = 3
 const ApplicationID = 0x4c535731 // LSW1
 const MaxInteger int64 = 9007199254740991
 
@@ -87,6 +87,18 @@ func expand(s string) string {
 		c := p[1]
 		var x string
 		switch p[0] {
+		case "l":
+			// JSON quoting exposes NUL without truncation. Collapse escaped
+			// backslashes first so literal escape text cannot become an escape.
+			// The remaining JSON escapes each represent one Unicode scalar.
+			x = "json_quote(" + c + ")"
+			for _, escape := range []string{`\\`, `\"`, `\b`, `\f`, `\n`, `\r`, `\t`} {
+				x = "replace(" + x + ",'" + escape + "','x')"
+			}
+			for scalar := 0; scalar < 32; scalar++ {
+				x = "replace(" + x + ",'" + fmt.Sprintf(`\u%04x`, scalar) + "','x')"
+			}
+			x = "(length(" + x + ")-2)"
 		case "u":
 			x = "(length(" + c + ")=36 AND substr(" + c + ",9,1)='-' AND substr(" + c + ",14,1)='-' AND substr(" + c + ",19,1)='-' AND substr(" + c + ",24,1)='-' AND length(replace(" + c + ",'-',''))=32 AND replace(" + c + ",'-','') NOT GLOB '*[^0-9a-f]*' AND " + c + "<>'00000000-0000-0000-0000-000000000000')"
 		case "v4":

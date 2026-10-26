@@ -6,7 +6,7 @@ const ddl = `CREATE TABLE board (
  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
  board_id TEXT NOT NULL CHECK({{u:board_id}}),
  incarnation TEXT NOT NULL UNIQUE CHECK({{u:incarnation}}),
- schema_version INTEGER NOT NULL DEFAULT 2 CHECK(schema_version=2),
+ schema_version INTEGER NOT NULL DEFAULT 3 CHECK(schema_version=3),
  revision INTEGER NOT NULL DEFAULT 0 CHECK({{n:revision}}),
  next_ticket INTEGER NOT NULL DEFAULT 1 CHECK({{p:next_ticket}}),
  next_event INTEGER NOT NULL DEFAULT 1 CHECK({{p:next_event}}),
@@ -75,7 +75,7 @@ CREATE TABLE ticket (
 ) STRICT;
 CREATE TABLE card (
  incarnation TEXT NOT NULL, card_id TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'card' CHECK(kind='card'),
- revision INTEGER NOT NULL CHECK({{p:revision}}), title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 200),
+ revision INTEGER NOT NULL CHECK({{p:revision}}), title TEXT NOT NULL CHECK({{l:title}} BETWEEN 1 AND 200),
  description TEXT NOT NULL CHECK(length(CAST(description AS BLOB))<=65536),
  priority TEXT NOT NULL DEFAULT 'P3' CHECK(priority IN ('P0','P1','P2','P3','P4','P5')),
  lane TEXT NOT NULL DEFAULT 'Ready for Work' CHECK(lane IN ('Ready for Work','In Progress','Ready for Review','Completed')),

@@ -1,7 +1,7 @@
-# Version-two physical relational layout
+# Version-three physical relational layout
 
-`Version`, `PRAGMA user_version` and `board.schema_version` are 2. Existing
-physical layout 1 is refused without writes, migration or adoption. This is an
+`Version`, `PRAGMA user_version` and `board.schema_version` are 3. Existing
+physical layouts 1 and 2 are refused without writes, migration or adoption. This is an
 unreleased storage change; API, logical archive and fingerprint versions stay 1.
 
 The schema identifies a board and one storage incarnation. Every relation carries
@@ -10,6 +10,13 @@ that storage incarnation, including restored historical rows. `origin_board` and
 IDs follow the frozen lowercase nonzero UUID shape; counters use exact SQLite
 integers up to 9007199254740991. `STRICT`, NOT NULL, CHECK, PK, unique, typed and
 incarnation-qualified FKs are part of the layout, not optional application hints.
+
+Card title bounds count 1..200 Unicode scalars, including every U+0000. The
+CHECK counts JSON-quoted text after collapsing encoded backslashes, quotes and
+controls to one scalar each, then removes the two outer quotes. Encoded
+backslashes collapse first so literal escape text stays literal. This avoids
+SQLite's plain text length stopping at NUL; the stored title remains byte-exact.
+Go admission continues to own valid Unicode and nonblank-title policy.
 
 Board defaults are revision 0, next ticket/event 1, policy version 1, retention
 90/365/180 days and retention version 1. Cards default P3 and Ready for Work.

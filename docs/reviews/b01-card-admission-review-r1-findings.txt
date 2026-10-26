@@ -1,0 +1,46 @@
+B01 CARD COMMAND ADMISSION - INITIAL INDEPENDENT REVIEW
+2026-10-26
+
+Verdict: CHANGES REQUIRED. This is an initial, partial review of the frozen
+candidate. It is not a readiness pass or owner acceptance.
+
+R1 - Medium: accepted leading-NUL titles cannot be saved
+- internal/store/schema/ddl.go:78 checks SQLite length(title). SQLite text length
+  stops at U+0000, while internal/contract/descriptor.go:159 counts Unicode scalars.
+- A card.create title consisting of U+0000 followed by Snow is valid under the
+  accepted text contract and freezes successfully. Through the real native
+  S01/S02/G01 composition it returns UNKNOWN instead of COMMITTED. The fresh
+  synthetic store retains revision 0 and no cards, history, activity or operations.
+- Correct the storage/admission mismatch while retaining accepted Unicode text;
+  do not invent a new input restriction. Re-review the inherited storage boundary
+  and add a regression through create and edit before readiness handoff.
+
+Accepted no-change policy still requires correction and fresh review
+- Owner direction now requires durable NOT_COMMITTED / NO_CHANGE for empty and
+  identical edits, including a redundant current In Progress lane. A real scalar
+  change with redundant In Progress must commit. Rights, revisions and Completed
+  refusal retain precedence. No-change must preserve domain/history/activity and
+  approval state.
+- The initial candidate commits empty/identical scalar edits and refuses redundant
+  In Progress. It therefore does not implement the newly accepted policy.
+
+Independent evidence and scope
+- The native overlay run reports 31 passing test cases, one failing Unicode
+  subcase (and its parent aggregate), zero skips; focused go vet passes.
+- Passing coverage includes the 20 author cases plus exact comment receipts and
+  result references, attributed activity, original revision actor/time, immutable
+  prior state/reference/pin preservation, simultaneous stale edits, mismatch,
+  ambiguous provenance rollback, valid maximum counters, automation/noncompleted
+  prerequisite refusal and approval surviving unrelated board revisions.
+- Four frozen B01 source files remained byte-identical throughout the run.
+  Initial source, probes, failed fixture/build attempts and native logs are retained
+  privately. Earlier probe fixture mistakes are not product findings.
+- No source implementation, provider, schema, dependency or live board was changed
+  by this review. Synthetic verifier identity is test-only; current rights use G01.
+  This is not browser, HTTP, production credential, restore execution, power-loss
+  or whole-product qualification. No issuer trust or human grants were installed.
+
+Authority: accepted slice01 scope examples 1-3, data/command contracts, target seam,
+corrected bounded task packet, and existing C01/C02/C03/S01/S02/S04/G01 providers.
+The author is not this reviewer. Prior exposure is disclosed; no isolated
+clean-room certification is claimed. Public MIT FOSS, UTF-8/LF/final newline.

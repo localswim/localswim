@@ -1,6 +1,6 @@
 # Storage ownership boundary
 
-This package is the version-two physical schema/open boundary. It uses the Q02 qualified
+This package is the version-three physical schema/open boundary. It uses the Q02 qualified
 `database/sql` binding on native Windows/amd64 and a fixed local NTFS drive.
 It does not implement domain admission, permissions, outcome reconciliation,
 history clearing, restore, HTTP or CLI behavior.
@@ -16,8 +16,8 @@ leaves its synthetic or real partial files in place for separately scoped recove
 Neither API deletes a file, migrates schema, overwrites a DB, or switches an
 existing database to DELETE mode.
 
-The unreleased physical layout is 2 in the schema inventory, board metadata and
-SQLite user version. Layout 1 is refused without modifying database bytes; there
+The unreleased physical layout is 3 in the schema inventory, board metadata and
+SQLite user version. Layouts 1 and 2 are refused without modifying database bytes; there
 is no migration. API, logical archive and fingerprint versions remain 1. Private
 CLI credential hash/public metadata survives close/reopen in this layout. G02
 owns issuance, replacement, self-revocation and authentication; metadata storage

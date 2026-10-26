@@ -1,0 +1,20 @@
+CARD EDIT NO-CHANGE POLICY
+2026-10-26 | Terry explicitly selected refusal of no-change edits
+
+After current authorization, complete identity, exact board/card revisions and
+Completed-card checks, card.edit with no effective field change records durable
+NOT_COMMITTED with code NO_CHANGE. Empty input and exactly identical supplied
+fields are included. Board/card revisions, history, activity, current approval and
+domain state remain unchanged; the attributable terminal refusal fences delayed
+same-identity writes. This policy does not apply to distinct new comments/cards.
+
+Requested In Progress that is already current is redundant. Alone it is
+NO_CHANGE; with another real valid field change it commits normally. Only an
+actual Ready for Work -> In Progress transition checks blocking prerequisites.
+Omitted values remain unchanged. Compare exact text/Unicode without trimming or
+normalization. A mixed valid edit with any effective change commits once, retains
+the prior revision and invalidates current approval under the existing rules.
+
+Permission, stale, Completed and invalid-input rules retain their precedence.
+No automatic replay, rebasing, fresh operation identity or silent overwrite is
+introduced. Existing C01 fingerprints and API/archive versions are unchanged.

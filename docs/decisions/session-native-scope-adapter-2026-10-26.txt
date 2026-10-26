@@ -1,0 +1,28 @@
+T01 SESSION PROVIDER ADAPTER
+2026-10-26 | Necessary current T01 integration; existing G02 source preserved
+
+T01 needs current native-owner/enabled-grant scope for issuing an ephemeral
+browser code, without issuing/replacing a CLI credential or exporting a generic
+native admission bypass. The active T01 scope owns new credentials/session_access
+source/tests. Existing Completed G02 source stays byte-identical.
+
+WithBrowserGrant validates the exact native capability and selected current
+enabled grant under the owned native lifetime and S01 writer exclusion, then
+invokes only the in-memory code publication callback. BrowserGrantScope contains
+plain bindings/time, not a ready authenticated browser credential or rights.
+T01 still verifies code/session hashes, current grant and every expiry/revocation.
+Callback failure/uncertainty supplies no success; undelivered reservations are
+cleaned by the caller. It creates no CLI credential, actor, grant or domain fact.
+
+VerifyCLI exposes current credential identity in the supplied snapshot; the
+caller rechecks G01/current scope/rights. Active is a nonblocking lifetime predicate,
+not authentication. Both avoid blocking lifecycle admission while a board lease
+is already held. The G02 native-before-board ordering and closed lifetime guards
+remain; no new schema, protocol, right or provider principal is introduced.
+
+Dedicated native HTTP boundaries enforce transport restrictions only and confer
+no principal or ordinary rights. The dedicated G02 operation must independently
+authenticate before effects. Ordinary boundaries classify actual CLI/browser
+credentials before applying absent-Origin rules. Session routes reject query
+parameters; general domain adapters retain their own exact query validation.
+Public secrets remain explicit no-store transport only, never URLs/cookies/logs.

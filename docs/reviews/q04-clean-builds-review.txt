@@ -1,0 +1,56 @@
+Q04 - TWO CLEAN DISTRIBUTION BUILDS: INDEPENDENT REVIEW
+2026-10-26
+
+Verdict: PASS for the recorded Windows/amd64 build-reproducibility scope.
+No open findings remain. The initial reporting precision finding is preserved
+in q04-clean-builds-review-r1-findings.txt and resolved in the final evidence.
+
+Reviewed source and evidence
+- qualification/build/inputs.json binds the 557-file source archive at accepted
+  commit a73d731a8ca60815529435099233a963bfd76280, exact official tool archives,
+  dependency inventories and the unchanged locks/configuration.
+- Both independent clean source trees executed the complete S07 sequence through
+  the final Go build, including actual npm ci, check and build. All command exits
+  and retained log hashes agree with the recorded successful execution.
+- Each ordinary Go suite includes all 34 packages: 30 tested packages and four
+  explicitly identified packages without test files. Each records 1,370 passing
+  test cases, zero failed tests and zero skipped tests. Serial scheduling, fresh
+  execution, JSON recording and timeout flags do not exclude any ./... package.
+- All 40 recorded generated/schema/embedded-asset/emitted-JavaScript/executable
+  hashes match the actual files in both trees. All archived source bytes remain
+  unchanged before and after execution.
+
+Independent reproduction
+- A third extraction of the archived source passed offline module download and
+  go mod verify, fresh npm ci, contractgen check, npm check/build, assetstage check
+  and the final Go build. Its 40 output hashes match both original builds.
+- A separate final executable build with an initially empty private compiler
+  cache independently produced SHA-256
+  361b8486242e5a1b204a6a8632295653015af428cd69b5518be330ac129b10d4.
+  Build metadata confirms trimpath, CGO_ENABLED=0, Windows/amd64 and GOAMD64=v1.
+- Complete extracted Go/Node/npm tool inventories match their exact pinned
+  archives. Module checksums and recorded license-file hashes verify against
+  actual archived inputs. All five installed npm packages match locked versions
+  and integrity-protected cache content and retain their license files.
+- The complete ordinary suites were not repeated during review: both original
+  uncached JSON streams were independently checked, and a separate go list ./...
+  agrees with their complete package sets.
+
+Evidence correction and stability
+The final report distinguishes zero skipped tests from four no-test packages.
+That reporting-only correction changed no release input, command or output.
+The release source remained stable through replay; the final report candidate
+remained stable throughout its final audit. The report/documentation commit is
+distinct from the tested release-source commit.
+
+Limits
+Original builds used separate source/npm installations and private cache copies
+with shared verified dependency/compiler-cache inputs. They are not cold-cache
+qualification. The additional empty-compiler-cache reproduction does not change
+that description or qualify dependency downloads from empty caches.
+
+This verifies the exact recorded Windows/amd64 candidate on local NTFS. Ordinary
+Go tests execute on real Windows; separate V01-V04/native/browser qualification,
+live installation/trust/grant/login/activation, owner actions and power-loss
+safety remain outside this evidence. No browser candidate was executed and no
+release was activated or published by this task.

@@ -1,0 +1,13 @@
+Q04 - INITIAL CLEAN-BUILD REVIEW FINDING
+2026-10-26
+
+Finding: distinguish skipped tests from packages without test files.
+The ordinary Go JSON streams each contain 1,370 passing test cases and zero
+skipped tests. Four included packages report Go's package-level skip event with
+the explicit [no test files] result. The initial public wording did not state
+this distinction clearly enough.
+
+Resolution: the revised public README and results.json identify zero test skips
+and list all four no-test packages. All 34 packages remain included. This was
+an evidence presentation correction; release source, commands and outputs are
+unchanged, so no build or suite repeat was required.

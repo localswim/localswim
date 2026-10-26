@@ -137,7 +137,10 @@ The [web package scripts](web/scripts/README.txt) provide locked compiler and
 pinned browser-launcher wiring. See the
 [P02 independent review](docs/reviews/p02-package-scripts-review.txt) and
 [script boundaries](docs/decisions/package-script-wiring-2026-10-26.txt).
-Two clean distribution builds and product qualification remain separately gated.
+The [two clean distribution builds](qualification/build/README.txt) reproduce the
+recorded frozen source, generated files, assets and executable; see the
+[Q04 independent review](docs/reviews/q04-clean-builds-review.txt).
+Product/native/browser qualification remains separately gated.
 
 The [credential decomposition](docs/decisions/credential-admission-decomposition-2026-10-26.txt)
 records the G01/S04/G02 boundaries. The

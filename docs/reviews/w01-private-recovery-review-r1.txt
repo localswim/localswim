@@ -1,0 +1,35 @@
+W01 private draft and submission storage review
+
+Revision r1: changes required before handoff.
+
+- R1-F1: accepted evidence can exhaust the 8 MiB allowance and prevent its
+  matching terminal classification from appending. Reserve bounded terminal
+  capacity during submission admission and re-review the correction. The initial
+  finding is preserved in w01-private-recovery-review-r1-findings.txt.
+- Pinned TypeScript 7.0.2 strict compilation passed. A fresh isolated Chromium
+  155.0.8059.86 profile reran the author suite: 15 actual IndexedDB cases and
+  eight separately labeled fault/seam cases passed.
+- Eight additional actual IndexedDB probes covered two-connection cap races,
+  duplicate insertion and reopen, malformed Unicode/envelopes and nested secret
+  fields, verifier failure, old terminal timestamps, contradictory terminal
+  races, and byte-cap saturation. Seven passed their expected behavior; the
+  saturated-cap probe reproduced R1-F1.
+- The five frozen recovery sources match the review-input manifest. The review
+  changed no implementation, generated contract, dependency, package lock or
+  backend source.
+
+Scope and limits
+
+The module imports generated Go boundary types and requires a trusted prepared
+and terminal verifier. Missing providers or installation/profile qualification
+refuse dispatch readiness. Production verifier composition and product profile
+qualification remain consumer work; the test assertions do not satisfy them.
+
+Chromium supplied real origin IndexedDB through route-fulfilled synthetic static
+assets. No real board, account, user browser profile or network service was used.
+This does not demonstrate TLS, UI/session integration, platform power-loss safety,
+eviction immunity or same-account confidentiality. Private recovery remains
+advisory plaintext and does not establish backend outcomes or authority.
+
+Detailed commands, hashes, probe sources and results remain private integration
+evidence. No recovery contents or credentials belong in public artifacts.

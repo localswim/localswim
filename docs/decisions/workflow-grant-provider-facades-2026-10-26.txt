@@ -1,0 +1,35 @@
+WORKFLOW AND GRANT PROVIDER FACADES
+2026-10-26 | B02/H01 integration
+
+Active B02 owns new cards/workflow_access source/tests. Its thin exported snapshot
+functions call B01's existing capture/preserve implementation, retaining exact
+original revision provenance, references, approval facts and protected bytes.
+The current revision advances before preserving the prior snapshot; current
+reference collections change afterward. This is not a second history model.
+
+Active H01 owns new credentials/grant_access source/tests. Authenticated native
+snapshot access holds the current native lifetime before a query-only S01 reader
+snapshot, verifies the actual current owner before callback/read/actor derivation,
+and exposes no generic native admission or rights. Callbacks are bounded trusted
+internal readers, not hostile plugins or client actor proof.
+
+Observed native grant submission reuses G02's private envelope/preparation/current
+admission helpers and S02. Its creation response flag requires actual Apply plus
+the final committed result/facts matching that invocation's generated grant ID.
+A prelookup miss or Apply alone cannot distinguish a rolled-back attempt from a
+different-ID receipt committed during reconciliation. Matching retained results
+remain HTTP 200; a new verified grant creation uses 201. Existing B01/G02 source
+stays unchanged, with no schema, right, wire format or credential issuance change.
+
+Grant HTTP adapters classify the one presented bearer through actual current
+ordinary verifiers or actual native authentication. Origin/header/token shape
+cannot select a trusted mode or substitute a credential. T01 transport checks
+and G01/G02/S02 current authority remain mandatory; original lookup remains the
+existing K01/G02/S02 journey, not a new H01 route.
+
+The private IndexedDB component stores prepared immutable evidence and matching
+verified observations through required boundary/qualified-profile providers.
+It performs neither browser domain admission nor automatic dispatch/replay.
+W02 supplies its prepared producer/consumer integration; V02 still qualifies
+supported production profiles. Actual isolated IndexedDB evidence is distinct
+from fault-adapter tests and from storage power-loss/eviction guarantees.

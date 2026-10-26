@@ -1,0 +1,63 @@
+H01 GRANT HTTP ADAPTER - INDEPENDENT REVIEW
+2026-10-26 | Frozen input r1 | H01-E
+
+Verdict: PASS within the accepted H01 component scope.
+
+The adapter implements only POST /api/v1/grants and DELETE
+/api/v1/grants/{grantId}. C02 supplies strict decoding and credential-derived
+actor binding. Create requires null target; revoke independently resolves the
+stored grant's board and requires exact route/body target equality. G01/S02
+retain current authority, exact board revision, null card revision and outcomes.
+
+Reviewed boundary
+
+- T01's common TLS/Host/Origin/preflight/media boundary precedes dispatch.
+  The single presented bearer is classified through actual current ordinary
+  verification or actual current native-owner verification. A header or token
+  shape supplies no principal, replacement credential or administrative rights.
+- Ordinary browser/CLI requests recheck current grant/actor/rights in G01/S02.
+  Revoked callers cannot recover retained receipts; automation cannot gain
+  approve, grant-admin or history-admin. Native ordinary-read rights remain absent.
+- The new native snapshot facade holds the native lifetime before a bounded
+  query-only S01 reader; actual current owner verification precedes callback,
+  actor derivation and scope reads. Callback errors survive successful cleanup.
+  Trusted internal callbacks must close Rows and retain no snapshot or seam.
+- Observed native submission reuses G02's private preparation/admission and S02.
+  HTTP 201 requires this invocation's successful Apply and the exact generated
+  grant result/reference in the final full committed receipt. Apply alone or a
+  prelookup miss supplies no freshness proof after rollback/reconciliation.
+- Matching full/compact receipts, revocations and terminal refusals use 200.
+  Preterminal refusals remain distinct; known-identity uncertainty preserves
+  exact original metadata. Wrong source, hash, denial or missing evidence never
+  proves original noncommit or permits replay. H01 adds no lookup endpoint.
+- Root README and provider-facade decision match these component boundaries.
+
+Independent verification
+
+- Go 1.27.3 Windows/amd64, CGO disabled, local toolchain and readonly/offline
+  frozen modules; fresh private cache/tmp/fixture roots and synthetic boards.
+- Ordinary grantapi/credentials count=2 passed 60 records; scoped vet passed.
+  Missing private-root overlay failed compilation at its required sentinel.
+- Tagged native count=2 passed 134 records, zero failures/skips; tagged vet passed.
+  Real N01 cryptography/ACL/lifetime and S01/S02 providers ran through a private
+  resolver-only overlay, including the issuer-pinned loopback HTTPS round trip.
+- Eight additional top-level probes cover unauthenticated stored-target oracles,
+  mounted numeric/field/target strictness, ordinary mode and current-right checks,
+  unprivileged credential refusal with exact retained evidence, original-source
+  identity binding, active native-material invalidation, canceled/closed lifetime,
+  callback panic cleanup and SELECT-only reader restrictions.
+- All eight source/test files, parent README/decision and seven existing provider
+  files remained stable; text passed UTF-8, LF and single-final-newline checks.
+- Initial private probe evidence is preserved. One probe incorrectly expected
+  HTTP 403 instead of an identity-bound terminal permission refusal. The corrected
+  probe verifies HTTP 200/FORBIDDEN, one refusal ledger record, no grant effect and
+  exact retained replay. This required no implementation change.
+
+Limits
+
+This is synthetic component evidence. P01 still owns executable mounting; K01
+owns lookup routes; K03 owns explicit human terminal consent/enrollment. No live
+installation, trust store, grant or credential was used. Fault/concurrency tests
+do not establish power-loss safety, race-instrumented execution, hostile-site or
+same-account isolation, meaningful human review or full product qualification.
+Owner acceptance remains separate; original logs, probes and hashes are retained.

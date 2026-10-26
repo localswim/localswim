@@ -1,0 +1,73 @@
+B02 LINKS, HANDOFF AND APPROVAL - INDEPENDENT REVIEW
+2026-10-26 | Revision 1
+
+Verdict: PASS for the bounded B02 workflow component and shared snapshot facade.
+No unresolved finding remains in this scope. Primary integration and owner
+acceptance remain separate gates.
+
+Admission and graph behavior
+- Independently resolved board, incarnation and owner-card routes are captured
+  by value and compared with frozen typed intent. Link targets remain peers or
+  prerequisites in the same board incarnation; they do not supply route authority.
+- Real G01 credential/current-right checks compose with the real S01/S02 writer.
+  Frozen callbacks do not cache grants. Removed rights, revoked/replaced grants,
+  automation approval and native-owner ordinary workflow authority are denied.
+- Self-links and new active blocking cycles refuse; informational cycles are
+  permitted. Active typed pairs are unique. Duplicate adds yield
+  LINK_ALREADY_EXISTS; inactive/noncurrent removals yield NOT_FOUND. Wrong-owner
+  removal refuses. Removal retains the immutable historical link identity, while
+  re-adding a removed pair allocates a new identity.
+- Informational and removed links never gate start. Direct blocking prerequisites
+  still require nonarchived Completed cards with current human approval under
+  B01's existing admission. No priority propagation or assignment policy is added.
+
+Approval and transaction behavior
+- Handoff admits only In Progress -> Ready for Review with its current right; it
+  creates neither an approval fact nor approval authority. Approval admits only
+  Ready for Review -> Completed for a current human with approve authority.
+- Approval records the exact reviewed pre-approval card and board revisions and
+  current policy version, advances the card once and installs the new approval.
+  Other real card mutations clear current approval and retain historical facts.
+  Completed remains immutable. Handoff/approval preserve the archived flag;
+  archived prerequisites do not satisfy start admission.
+- Policy version 1 remains frozen by C01 and schema 3. Unsupported policy input
+  and physical policy changes are refused; no policy migration is introduced.
+- Exact board/card revisions, current admission, full prior snapshots, prior
+  comment/link/attachment/approval references and byte pins are preserved in the
+  serialized transaction before current graph references change. Snapshot origin,
+  actor and time come from unique retained COMMITTED metadata, including compact
+  source provenance. Missing/ambiguous provenance fails closed and rolls back.
+- The new cards snapshot facade delegates to the existing private B01 core. It
+  adds scope/state validation without duplicating snapshot or pinning logic.
+- Each success changes only the owner card once and produces one board revision,
+  attributable activity event and committed receipt. Terminal refusals preserve
+  domain state, approval, graph, history and counters. Exact retained refusal
+  replay cannot later mutate the graph. Counter limits and post-effect rollback
+  behavior were checked through the actual providers.
+
+Verification and limits
+- Go 1.27.3 windows/amd64, CGO=0, local toolchain, readonly module mode and offline
+  frozen dependencies; fresh private cache/tmp/native fixture roots.
+- Native workflow/cards tests passed twice: 196 cases, zero failures/skips.
+  Independent overlay probes passed twice: 32 cases, zero failures/skips. Focused
+  go vet passed for production tests and the independent overlay.
+- Independent probes checked copied routes, native-owner denial for all four
+  commands, fixed-policy admission, revoked/replaced grants, removed rights,
+  unchanged peer revisions and exact per-command event/receipt/history counts.
+- All six candidate files and the recorded shared providers, root guidance and
+  module files remained byte-identical throughout verification. The final root
+  README links and applicable B02 facade decision were separately read and bound
+  to the final evidence after the primary's documentation update.
+  Initial probe attempts that violated frozen schema guards are preserved as
+  harness failures, together with their corrected probes; they are not product
+  findings or passing qualification evidence.
+- Synthetic native S01/S02/G01 fixtures use a test-only credential verifier.
+  Production composition must supply the real G02 verifier. No live board,
+  credential enrollment, issuer trust, actual owner grant or network listener
+  was used. No browser/HTTP/CLI composition, restore execution, native power-loss,
+  hostile security or whole-product qualification is claimed.
+
+Authority: accepted slice01 data, command, target and task clarifications; current
+bounded B02 task scope and accepted provider contracts. Fresh non-author review.
+Prior exposure is disclosed; no isolated clean-room certification is claimed.
+Public MIT FOSS, UTF-8/LF/final newline.

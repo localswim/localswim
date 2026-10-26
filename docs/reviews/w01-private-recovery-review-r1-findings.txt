@@ -1,0 +1,24 @@
+W01 private recovery review - initial findings r1
+
+Outcome: changes required before handoff.
+
+R1-F1 | P2 | Preserve room for terminal classification at the byte cap
+
+- Location: web/src/recovery/store.ts:216 and :255.
+- freezeSubmission accepts immutable evidence whose complete stored row consumes
+  all 8 MiB. appendTerminal then counts its new status against the same allowance
+  and refuses the matching verified classification with capacity.
+- A fresh Chromium IndexedDB probe accepted exactly 8,388,608 bytes, then
+  reproduced this refusal. Inventory retained the operation as unknown. With no
+  other records to clear or expire, the original evidence cannot become resolved
+  without discarding it; unresolved records never expire automatically.
+- Accepted slice01/05 applies the cap to new submissions and requires matching
+  terminal status to append separately. Capacity admission must preserve room for
+  the eventual bounded terminal status, including concurrent unresolved records.
+- Add coverage for terminal resolution at saturated capacity and for competing
+  submissions consuming reserved space. Preserve immutable evidence, the total
+  byte bound, and unresolved records; do not solve this by silent eviction.
+
+Evidence: private review r1 browser results and independent probe source retained
+by the integration owner. This finding uses synthetic input and actual Chromium
+IndexedDB, with a synthetic trusted verifier and qualification assertion.

@@ -1,0 +1,41 @@
+W01 private draft and submission storage review
+
+Revision r2: pass for the bounded component scope; R1-F1 closed.
+
+- Submission admission now charges every retained record's worst-case terminal
+  status against the unchanged 8 MiB limit. The reservation remains charged
+  throughout resolved retention. Verified terminal append consumes that space
+  without a second admission-cap refusal; immutable submitted evidence remains
+  unchanged. Physical storage failures still fail visibly.
+- Fresh Chromium 155.0.8059.86 isolated-profile verification passed 36 cases:
+  26 actual IndexedDB cases and ten separately labeled fault/seam cases. This
+  includes the author suite's 16 actual and ten fault/seam cases, plus ten
+  independent actual IndexedDB probes. TypeScript 7.0.2 strict compilation passed.
+- Independent probes exercised exact reserved-cap acceptance and one-byte
+  refusal, both classifications with full/compact retention, maximum safe local
+  clock width and fixed-width UTC timestamp, immutable readback, cross-connection
+  count/byte races, concurrent terminal append, and reservation release through
+  inclusive expiry and warned explicit clearing. The saturated-cap case that
+  failed in r1 now resolves within the byte bound.
+- The five frozen recovery sources match the r2 manifest. Root README and the
+  provider-facade decision correctly retain prepared-boundary and qualified-
+  profile consumer gates. The review changed no implementation, generated
+  contract, dependency, package lock or backend source.
+
+Scope and limits
+
+The component imports generated Go boundary types and requires a trusted
+prepared/terminal verifier plus installation/profile qualification before
+dispatch readiness. W02 producer/consumer composition and V02 production profile
+qualification remain required. Synthetic test assertions do not satisfy them.
+No dispatch, automatic replay, browser domain admission or credential lifecycle
+implementation is supplied here. Private recovery remains advisory plaintext.
+
+Chromium supplied actual origin IndexedDB through route-fulfilled synthetic
+static assets. No real board, account, user browser profile or network service
+was used. These results do not qualify TLS, UI/session integration, platform
+power-loss behavior, eviction immunity or same-account confidentiality.
+
+Initial findings and r1 summary are retained in the sibling r1 review files.
+Exact commands, hashes, probes and results remain private integration evidence.
+No recovery contents or credentials belong in public artifacts.

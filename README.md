@@ -63,6 +63,14 @@ release qualification remain separate work.
 - [Card command admission](internal/board/cards/README.txt) and
   [independent review](docs/reviews/b01-card-admission-review.txt), with the
   [accepted no-change policy](docs/decisions/card-edit-no-change-policy-2026-10-26.txt).
+- [Link, handoff and approval admission](internal/board/workflow/README.txt)
+  and [independent review](docs/reviews/b02-workflow-review.txt).
+- [Private browser recovery store](web/src/recovery/README.txt) and
+  [independent review](docs/reviews/w01-private-recovery-review.txt), with explicit
+  prepared-boundary and qualified-profile dispatch gates.
+- [Grant HTTP adapters](internal/transport/grantapi/README.txt) and
+  [independent review](docs/reviews/h01-grant-http-review.txt), using the
+  [shared provider facades](docs/decisions/workflow-grant-provider-facades-2026-10-26.txt).
 - [Session and HTTPS boundary](internal/transport/session/README.txt) and
   [independent review](docs/reviews/t01-https-session-review.txt), including the
   [session provider adapter](docs/decisions/session-native-scope-adapter-2026-10-26.txt).

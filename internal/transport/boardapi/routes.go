@@ -24,7 +24,7 @@ var ErrUnavailable = errors.New("board transport unavailable")
 type Handler struct {
 	store    *S.Store
 	native   *credentials.Service
-	sessions *session.Service
+	sessions session.Access
 	boundary *H.Handler
 	guarded  http.Handler
 	mu       sync.Mutex

@@ -1,0 +1,59 @@
+L02 LOCALHOST RUNTIME INDEPENDENT REVIEW
+2026-10-27 | #0058 | PASS
+Reviewer: Independent runtime reviewer
+
+Outcome
+- PASS for the bounded localhost runtime and joined application composition.
+  No open material findings. All 51 frozen production, test, documentation and
+  asset files remained byte-identical through the final verification.
+- Browser UI and CLI use the same numeric IPv4 loopback HTTP service. The normal
+  entry requires an explicit data directory and exposes no TLS/setup, owner,
+  actor-selection or remote-listener branch. Legacy constructors remain isolated.
+
+Authority and storage review
+- Every ordinary domain adapter requires the transport boundary before dispatch.
+  Exact Host/Origin, browser header/media, strict raw-cookie and mixed-channel
+  checks precede live credential resolution. Human cookies are host-only,
+  installation-namespaced, HttpOnly and SameSite=Strict. Private CLI metadata
+  supplies only automation capability; the CLI also verifies the live bot session.
+- Existing G01/S02 admission rechecks current credentials, durable actor kind,
+  grant enablement and rights inside the supplied SQLite transaction. No ordinary
+  route mints human/admin authority or lets automation approve/reach Completed.
+- Existing store/writer ownership, SQLite settings and atomic domain/history/
+  outcome/BLOB behavior remain. Bootstrap persists identities/grants without a
+  schema change; reopen preserves them and rotates ephemeral capabilities.
+  Partial initialization and interrupted-store refusal are preserved without
+  implicit repair or migration. Unavailable service never becomes a SQL fallback.
+- Closing admission is serialized with request accounting before shutdown/wait;
+  admitted work drains before authority, store and root ownership are released.
+  Immutable operation evidence, UNKNOWN and single-attempt dispatch remain shared.
+
+Findings resolved and independently rechecked
+- Malformed duplicate session cookies now refuse before selecting authority;
+  explicit bootstrap can still replace a well-formed stale cookie.
+- The base board GET reaches its authenticated adapter, with safe route indexes.
+- A handler delayed until after transport shutdown cannot enter the released
+  runtime. The closing gate also preserves already admitted request draining.
+- Unchanged independent actual-HTTP probes pass for the cookie correction,
+  bot/browser base-board reads, unauthenticated refusal and delayed handler entry.
+  Initial failures and later corrections remain preserved in private evidence.
+
+Joined verification
+- The ordinary Go suite plus an explicit archive-root package supplement produced
+  1,409 unique passing test cases, zero failed or skipped cases. The supplement
+  replaces the initially skipped archive publication package; the original run
+  remains preserved. Vet, generated-contract and embedded-asset checks passed.
+- One joined native/browser smoke case passed against embedded production modules,
+  the actual backend and built CLI: automatic human-cookie/strict-IDB readiness,
+  browser save, CLI read/create, UI refresh/reconnect/reload without mutation replay,
+  and service close/reopen preserving both saves while rotating capabilities.
+- Separate frontend review remains bound to the final eight frontend source files.
+  Browser-only synthetic-server probes retain their narrower evidence label.
+
+Limits
+- This is Windows amd64 L02 composition evidence with fresh synthetic data and an
+  ordinary account-private runtime. It is not complete V02 browser qualification,
+  V03 backup/restored-copy qualification or V04 clean-build/release qualification.
+- No physical power-loss proof, hostile same-account isolation, complete V1 parity,
+  certificate enrollment or authority-transfer qualification is claimed. Earlier
+  release hashes and legacy evidence do not qualify this changed executable.

@@ -47,6 +47,7 @@ type Connection struct {
 	context       evidence.Context
 	metadata      CredentialMetadata
 	native        bool
+	local         bool
 	do            func(*http.Request) (*http.Response, error)
 	close         func()
 	authorization string

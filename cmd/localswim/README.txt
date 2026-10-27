@@ -1,4 +1,8 @@
-P01 executable composition
+Current normal entry: see LOCAL.txt for the L02 loopback HTTP browser/CLI path.
+No old setup, code or --config command is registered by main. The P01 composition
+below is preserved as a legacy component description and isolated test fixture.
+
+Historical P01 executable composition
 
 routes.go mounts the accepted T01, K01, A01, H01 and H02 handlers. Selection
 never cleans paths, redirects, changes a method or retries another adapter.

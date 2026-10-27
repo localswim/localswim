@@ -146,7 +146,7 @@ func TestNativeUnsafeEvidenceOwnershipRefusal(t *testing.T) {
 			before := ownershipInventory(t, root, f.selected.Directory)
 			wire, _ := json.Marshal(map[string]any{"incarnation": testInc, "opId": "50000000-0000-0000-0000-000000000002", "target": nil, "expectedRevision": 1, "expectedCardRevision": nil, "input": map[string]any{"title": "synthetic", "description": "private fixture"}})
 			var out, diagnostic bytes.Buffer
-			exit := run(f.ctx, []string{"--config", path, "--json", "--installation", selected.InstallationID, "--board", selected.BoardID, "--incarnation", selected.Incarnation, "--grant", selected.GrantID, "card", "create", "--input", "-"}, bytes.NewReader(wire), &out, &diagnostic)
+			exit := runLegacy(f.ctx, []string{"--config", path, "--json", "--installation", selected.InstallationID, "--board", selected.BoardID, "--incarnation", selected.Incarnation, "--grant", selected.GrantID, "card", "create", "--input", "-"}, bytes.NewReader(wire), &out, &diagnostic)
 			if exit != 1 || requests.Load() != 0 {
 				t.Error("unsafe evidence config reached HTTP or effects")
 			}
@@ -266,7 +266,7 @@ func TestNativeConfigObjectSafetyAndInstallationBinding(t *testing.T) {
 		t.Fatal("mismatch fixture unavailable")
 	}
 	var out, diagnostic bytes.Buffer
-	if run(f.ctx, []string{"serve", "--config", path}, nil, &out, &diagnostic) != 2 {
+	if runLegacy(f.ctx, []string{"serve", "--config", path}, nil, &out, &diagnostic) != 2 {
 		t.Fatal("config installation mismatch accepted")
 	}
 	if strings.Contains(out.String(), path) || strings.Contains(diagnostic.String(), path) {
@@ -282,7 +282,7 @@ func TestNativeConfigObjectSafetyAndInstallationBinding(t *testing.T) {
 	if os.WriteFile(path, raw, 0600) != nil {
 		t.Fatal("absent-source fixture unavailable")
 	}
-	if run(f.ctx, []string{"serve", "--config", path}, nil, io.Discard, io.Discard) != 3 {
+	if runLegacy(f.ctx, []string{"serve", "--config", path}, nil, io.Discard, io.Discard) != 3 {
 		t.Fatal("absent source accepted")
 	}
 	if _, e := os.Stat(c.Board.Directory); !os.IsNotExist(e) {

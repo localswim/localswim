@@ -1,3 +1,6 @@
+import { openLocalSession } from "./api/local-session.js";
+import { isLocalOrigin } from "./api/client.js";
+import { LocalSessionView } from "./session-ui/local-view.js";
 import { openSessionClient } from "./api/w03-session.js";
 import { SessionView } from "./session-ui/view.js";
 import { SessionWorkspace } from "./session-ui/workspace.js";
@@ -43,7 +46,50 @@ function unavailable(root) {
     root.replaceChildren(heading, status);
 }
 async function bootstrap(root) {
-    unavailable(root);
+    if (!isLocalOrigin())
+        unavailable(root);
+    else {
+        const status = document.createElement("p");
+        status.setAttribute("role", "status");
+        status.textContent = "Connecting to local service and checking private recovery storage…";
+        root.replaceChildren(status);
+    }
+    if (isLocalOrigin()) {
+        let access;
+        try {
+            access = await openLocalSession();
+            if (mounted.has(root)) {
+                access.clear();
+                access.client.close();
+                return;
+            }
+            const view = new LocalSessionView(root, access), local = access;
+            const application = Object.freeze({ destroy() {
+                    view.destroy();
+                    local.clear();
+                    local.client.close();
+                    if (mounted.get(root) === application)
+                        mounted.delete(root);
+                } });
+            mounted.set(root, application);
+        }
+        catch {
+            access?.clear();
+            access?.client.close();
+            if (!mounted.has(root)) {
+                root.replaceChildren();
+                const heading = document.createElement("h1"), status = document.createElement("p"), retry = document.createElement("button");
+                heading.textContent = "Localswim";
+                status.setAttribute("role", "status");
+                status.textContent = "Local service connection unavailable. Start the service and reconnect. No board action was submitted.";
+                retry.type = "button";
+                retry.textContent = "Reconnect local service";
+                retry.addEventListener("click", () => { retry.disabled = true; void bootstrap(root); });
+                root.append(heading, status, retry);
+            }
+        }
+        return;
+    }
     if (location.protocol !== "https:")
         return;
     try {

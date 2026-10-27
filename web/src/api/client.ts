@@ -22,6 +22,8 @@ export type ClientOptions = Readonly<{
   profileId: string;
   // Trusted composition supplies V02's actual profile proof. Absent means refusal.
   qualification?: ProfileQualification;
+  // In local-cookie mode this is a nonsecret connection generation, never a cookie.
+  transport?: "local-cookie";
   credential: () => string | undefined;
   authenticationUnavailable?: (credential: string) => void;
   fetch?: typeof fetch;
@@ -41,16 +43,17 @@ export class BoardClient {
   static async open(options: ClientOptions): Promise<BoardClient> {
     const selected: ClientOptions = Object.freeze({ ...options,
       ...(options.qualification ? { qualification: Object.freeze({ ...options.qualification }) } : {}) });
-    let driver: RecoveryDriver & { close(): void };
+    let driver: RecoveryDriver & { close(): void }, recoveryStorageAvailable = true;
     try { driver = await openRecoveryDatabase(globalThis.indexedDB, selected.databaseName); }
     catch {
+      recoveryStorageAvailable = false;
       // Recovery denial refuses mutations; independently authenticated reads work.
       driver = { read: async () => { throw new RecoveryError("unavailable"); },
         commit: async () => { throw new RecoveryError("unavailable"); }, close: () => {} };
     }
-    return new BoardClient(selected, driver);
+    return new BoardClient(selected, driver, recoveryStorageAvailable);
   }
-  private constructor(private readonly options: ClientOptions, private readonly driver: RecoveryDriver & { close(): void }) {
+  private constructor(private readonly options: ClientOptions, private readonly driver: RecoveryDriver & { close(): void }, readonly recoveryStorageAvailable: boolean) {
     this.recoveryDomain = JSON.stringify([location.origin, options.databaseName ?? "localswim-private-recovery-v1", options.installationId]);
     this.fetcher = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.recovery = new RecoveryStore(driver, options.installationId,
@@ -62,10 +65,11 @@ export class BoardClient {
     return "/api/v1/boards/" + boardId;
   }
   private async raw(path: string, init: RequestInit = {}): Promise<Response> {
-    if (location.protocol !== "https:") throw Error("HTTPS required");
+    const local = this.options.transport === "local-cookie";
+    if (local ? !isLocalOrigin() : location.protocol !== "https:") throw Error("Invalid service origin");
     const credential = this.options.credential(); if (!credential) throw Error("Authentication unavailable");
-    const response = await this.fetcher(path, { ...init, credentials: "omit", cache: "no-store", redirect: "error",
-      headers: { "Authorization": "Bearer " + credential, ...(typeof init.body === "string" ? { "Content-Type": "application/json" } : {}) } });
+    const response = await this.fetcher(path, { ...init, credentials: local ? "same-origin" : "omit", cache: "no-store", redirect: "error",
+      headers: { ...(local ? { "X-Localswim-Client": "browser" } : { "Authorization": "Bearer " + credential }), ...(typeof init.body === "string" ? { "Content-Type": "application/json" } : {}) } });
     if (response.status === 401 || response.status === 403) this.options.authenticationUnavailable?.(credential);
     return response;
   }
@@ -259,4 +263,10 @@ export class BoardClient {
 
 async function digestBytes(bytes: ArrayBuffer): Promise<string> {
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(n => n.toString(16).padStart(2, "0")).join("");
+}
+
+// Explicitly separated from the retained HTTPS component transport.
+export function isLocalOrigin(): boolean {
+  return location.protocol === "http:" && location.hostname === "127.0.0.1" &&
+    !!location.port && Number(location.port) >= 1024 && Number(location.port) <= 65535;
 }

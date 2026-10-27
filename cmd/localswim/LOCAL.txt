@@ -1,0 +1,43 @@
+localswim - ordinary local application entry
+
+One Go executable serves embedded TypeScript assets and the board API on numeric
+IPv4 loopback HTTP. Its CLI uses the same service, SQLite and domain admission.
+
+  localswim serve --data DIR [--port PORT]
+  localswim --data DIR [--json] board read
+  localswim --data DIR [--json] card read CARD-UUID
+  localswim --data DIR [--json] card create --input FILE
+  localswim --data DIR [--json] card edit CARD-UUID --input FILE
+  localswim --data DIR [--json] comment add CARD-UUID --input FILE
+
+Input files retain the existing typed mutation envelope and exact revision/opId
+rules. --input - reads standard input. Other ordinary core commands retain their
+typed grammar; attachment/export uses the existing bounded file adapter. No actor
+or grant selection is needed: validated private metadata supplies the automation
+context, and GET session independently checks actual actor/grant/board/incarnation.
+
+First serve creates only the explicitly selected data directory, one private board
+and configured local human/bot identities. Later starts reopen them. New directories
+default to port8792; omitted port reuses the stored port on reopen. A conflicting
+port, occupied endpoint, second writer, malformed/partial existing store or unsafe
+path refuses visibly rather than falling back or repairing data. Relative paths
+resolve once; UNC/device/network targets are refused. No LAN/TLS switch is exposed.
+
+Open the printed http://127.0.0.1:PORT/ address. The browser automatically obtains
+its human cookie and measures actual strict-IDB completion/readback before recovery
+dispatch. CLI obtains only automation capability. Server admission enforces current
+rights; request fields, assignment or alternate commands cannot make a bot approve
+or reach Completed. Reconnect never resubmits a mutation. Original lookup preserves
+UNKNOWN when unavailable.
+
+Private identity/service files sit beside board/ storage and cli-evidence/.
+Service metadata is a credential, never printable status/export. CLI requires the
+service; no SQLite write fallback exists. Shutdown drains work before closing the
+writer and removes live metadata. Old --config/setup/grant/credential/code entry
+is unregistered. runLegacy/old TLS constructors remain only for isolated legacy
+tests; no normal-command fallback or user certificate enrollment is provided.
+
+L02 local composition smoke does not replace full V02 browser, V03 backup or V04
+clean-build qualification. The l02_native entry test requires explicit L02_TEST_ROOT,
+L02_NODE, L02_BROWSER and L02_BINARY; absent inputs fail rather than skip. It uses
+fresh synthetic data and the pinned headless test browser, never personal data.

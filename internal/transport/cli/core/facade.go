@@ -102,7 +102,7 @@ func Open(ctx context.Context, p Provider, selected Selectors) (*Client, error) 
 		r := classifyReadFailure(status, b, nil)
 		return nil, &Failure{diagnostic(r.value), r.exit}
 	}
-	if string(s.ActorID) != c.metadata.ActorID || string(s.Grant.BoardID) != selected.BoardID || string(s.Grant.Incarnation) != selected.Incarnation || string(s.Grant.GrantID) != selected.GrantID {
+	if string(s.ActorID) != c.metadata.ActorID || string(s.Grant.BoardID) != selected.BoardID || string(s.Grant.Incarnation) != selected.Incarnation || string(s.Grant.GrantID) != selected.GrantID || c.local && s.Kind != "automation" {
 		cl.Close()
 		return nil, &Failure{"CREDENTIAL_CONTEXT_MISMATCH", 2}
 	}

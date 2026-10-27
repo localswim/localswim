@@ -1,0 +1,38 @@
+Local browser composition - L02
+
+Normal startup at http://127.0.0.1:PORT/ automatically bootstraps the configured
+human cookie session. POST /api/v1/local/bootstrap sends {}, JSON, same-origin
+credentials and X-Localswim-Client: browser. Its exact public envelope and current
+SessionRead are validated; the independent session GET must agree. No token is
+returned to the UI or stored in drafts. The local BoardClient transport never
+adds Authorization. HTTPS code-exchange composition remains a legacy explicit
+component mode, separate from the normal local entry.
+
+Recovery readiness is automatic. A dedicated origin-private IndexedDB profile
+record is keyed by origin and installation. A stable nonsecret profile UUID and
+fresh probe must survive strict readwrite transaction COMPLETE and a separate
+readonly transaction COMPLETE/readback. Only that measured result supplies the
+RecoveryStore readiness assertion. Each submitted original still uses the real
+recovery driver's strict transaction completion/readback before dispatch.
+This establishes browser storage behavior, not physical power-loss durability.
+
+If browser storage denies or relaxes strict writes, reads remain available and
+submission refuses before transmission. Caller input remains editable. A late
+HTTP result or timeout cannot manufacture a confirmed save. Original immutable
+operation evidence and UNKNOWN classification stay bound to installation,
+board/incarnation and actor. The connection generation is nonsecret and fences
+credential changes without rewriting original records.
+
+Reconnect re-establishes only the live cookie channel, validates the same persisted
+installation/board/incarnation/actor/grant and independently checks session facts.
+It never replays a mutation or performs original outcome lookup. The workspace
+stays mounted so visible input and UNKNOWN evidence survive reconnect. A different
+identity refuses reconnect and requires deliberate reload. Advanced history and
+retention administration are absent from this local workspace; board history,
+attachments, export and basic private recovery remain.
+
+Verification: local-session.test.ts is an isolated synthetic component smoke using
+real browser IndexedDB and mocked HTTP replies. It checks measured stable profile
+identity, installation separation, relaxed/denied storage refusal, exact bootstrap,
+cookie/header transport, UNKNOWN retention and no replay on credential rotation.
+It is L02 smoke, not full V02 UI/CLI/server interoperability or power-loss evidence.

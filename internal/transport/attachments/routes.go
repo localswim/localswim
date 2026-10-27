@@ -24,7 +24,7 @@ var ErrUnavailable = errors.New("attachment transport unavailable")
 
 type Handler struct {
 	service  *B.Service
-	sessions *session.Service
+	sessions session.Access
 	guarded  http.Handler
 }
 

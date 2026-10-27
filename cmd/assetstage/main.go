@@ -20,7 +20,7 @@ import (
 )
 
 var production = []string{
-	"app", "api/boundary", "api/client", "api/schema-data", "api/w03-session", "archive-ui/view", "board/view", "recovery/indexeddb", "recovery/store", "recovery/types", "recovery-ui/admin", "recovery-ui/coordination", "recovery-ui/view", "session-ui/view", "session-ui/workspace",
+	"app", "api/boundary", "api/client", "api/local-session", "api/schema-data", "api/w03-session", "archive-ui/view", "board/view", "recovery/indexeddb", "recovery/local-readiness", "recovery/store", "recovery/types", "recovery-ui/admin", "recovery-ui/coordination", "recovery-ui/view", "session-ui/local-view", "session-ui/view", "session-ui/workspace",
 }
 var static = []string{"index.html", "styles/app.css"}
 var bindings = []string{

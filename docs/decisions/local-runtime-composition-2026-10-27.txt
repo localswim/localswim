@@ -1,0 +1,56 @@
+L02 - LOCALHOST RUNTIME COMPOSITION
+2026-10-27 | Implements the owner-directed V1-style local architecture reset
+
+Normal entry
+localswim serve --data DIR [--port PORT] creates/reopens one explicit local board.
+Browser UI and localswim --data DIR ordinary CLI commands share its loopback-only
+HTTP service. Installation/board/incarnation/actors/grants survive reopen; live
+credentials and epoch rotate. No N01 ROOT, issuer, enrollment, login-code, native
+delegation or manually approved browser profile is required. Previous TLS command
+composition is not a normal dispatch branch; legacy isolated constructors retain
+their original behavior, without TLS-to-HTTP fallback or an owner CLI selector.
+
+Authority
+Local authority resolves cookies/private bot capability and supplies the existing
+G01 verifier. G01 reads durable actor kind/grant enablement/rights inside S02's
+transaction; HTTP prechecks never cache commit permission. Normal routes omit grant
+administration, code exchange and retention administration. Human approval remains
+explicit and revision-bound; automation cannot approve/reach Completed. Local CLI
+also rejects a human session even if its selectors match.
+
+Bootstrap issues/reuses a host-only installation-namespaced HttpOnly SameSite=Strict
+human cookie and returns nonsecret identity/session metadata. Browser fetches use
+same-origin credentials and custom header; mutations require exact Origin. Host,
+path/media, raw-cookie syntax and mixed-authentication checks precede channel
+selection. Explicit bootstrap can replace a well-formed stale cookie after restart;
+malformed/duplicate cookie syntax refuses instead of being silently dropped by a
+permissive parser. No credentials/private paths enter logs, URLs, exports or drafts.
+
+Storage and lifetime
+Existing S01 connection ownership, foreign keys, rollback journal, FULL sync and
+S02 atomic domain/history/outcome/BLOB transactions are reused. Physical layout4
+and logical contracts are unchanged; HTTP origins are not inserted in the old TLS
+CLI-credential table. No implicit migration/repair or weaker durability setting is
+added. Interrupted-journal safe refusal remains. Private identity/service files
+stay outside strict board/ inventory. Startup refuses unknown partial state rather
+than replacing identities. Account-private publication/exclusion and request
+draining bound lifetime. Service metadata holds only current bot authority, not
+health proof. CLI pins numeric loopback/origin and refuses proxies/redirect/replay.
+
+Browser recovery
+Normal entry performs actual strict-IDB write COMPLETE and independent readback,
+persisting nonsecret profile identity per origin/installation. Denied/relaxed/failed
+storage cannot manufacture readiness; unavailable recovery retains input and refuses
+affected dispatch. Cookie stays outside JS recovery records. Opaque connection epoch
+fences stale results. Reconnect retains editors/immutable originals without submitting
+or looking up an operation. Advanced legacy administration is hidden on this path.
+
+Evidence limits
+L02 targeted tests use actual Windows local HTTP/SQLite lifetime and headless browser
+composition with synthetic data. Separate frontend probes use real IndexedDB and
+synthetic HTTP and are labeled accordingly. Joined entry smoke uses embedded product
+modules, actual backend and built CLI and checks committed state across reopen.
+No physical power-loss, hostile same-account isolation, full V1 parity or complete
+V02/V03/V04 release qualification follows. Earlier Q04 hashes cover original source.
+Failed attempts remain private evidence; fresh independent review covers authority,
+SQL/recovery/concurrency and final composition before owner handoff.

@@ -7,8 +7,9 @@ The current [localhost scope reset](docs/decisions/localhost-scope-reset-2026-10
 returns V2 to the V1 product baseline: both browser UI and CLI use the same
 loopback-only HTTP Go service, backed by SQLite. TLS, certificate enrollment and
 manual login/delegation ceremonies are outside V2. Human/bot approval boundaries
-and SQLite durability remain. This direction still needs implementation; earlier
-HTTPS/setup documentation below describes the preserved historical path.
+and SQLite durability remain. The [local runtime](docs/decisions/local-runtime-composition-2026-10-27.txt)
+implements ordinary startup; complete browser/archive/release qualification still
+follows. Earlier HTTPS/setup documentation below describes legacy components.
 
 The Go service, CLI, domain rules and contract generator live in one Go module.
 The browser is a separate TypeScript package under `web/`; the executable will

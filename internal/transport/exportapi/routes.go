@@ -17,7 +17,7 @@ var ErrUnavailable = errors.New("export transport unavailable")
 
 type Handler struct {
 	store    *S.Store
-	sessions *session.Service
+	sessions session.Access
 	guarded  http.Handler
 }
 

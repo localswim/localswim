@@ -10,17 +10,20 @@ export class SessionWorkspace {
     recovery;
     admin;
     archive;
-    constructor(root, client, session) {
+    constructor(root, client, session, options = {}) {
         this.root = root;
         const board = element("section"), recovery = element("section"), admin = element("section"), archive = element("section");
         root.replaceChildren(board, recovery, admin, archive);
         this.board = new BoardView(board, client, session.grant.boardId);
         const observe = (outcome) => this.board.observeOutcome(outcome);
         this.recovery = new RecoveryView(recovery, client, observe);
-        this.admin = new RecoveryAdminView(admin, client, session.grant.boardId, observe);
+        if (!options.local)
+            this.admin = new RecoveryAdminView(admin, client, session.grant.boardId, observe);
+        else
+            admin.remove();
         this.archive = new ArchiveView(archive, client, session.grant.boardId, observe);
         void this.board.open();
         void this.recovery.open();
     }
-    destroy() { this.board.destroy(); this.recovery.destroy(); this.admin.destroy(); this.archive.destroy(); this.root.replaceChildren(); }
+    destroy() { this.board.destroy(); this.recovery.destroy(); this.admin?.destroy(); this.archive.destroy(); this.root.replaceChildren(); }
 }

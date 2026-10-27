@@ -54,6 +54,9 @@ type Identity struct {
 }
 
 func validContext(c Context) bool {
+	if ValidLocalContext(c) {
+		return true
+	}
 	ok := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`).MatchString(c.InstallationID)
 	u, err := url.Parse(c.Origin)
 	if !ok || err != nil {
@@ -62,6 +65,24 @@ func validContext(c Context) bool {
 	port, err := strconv.Atoi(u.Port())
 	host := u.Hostname()
 	return err == nil && port >= 1024 && port <= 65535 && u.Port() == strconv.Itoa(port) && u.Scheme == "https" && u.Opaque == "" && u.User == nil && u.Path == "" && u.RawPath == "" && u.RawQuery == "" && !u.ForceQuery && u.Fragment == "" && u.RawFragment == "" && regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.localhost$`).MatchString(host) && u.Host == host+":"+strconv.Itoa(port) && c.Origin == "https://"+u.Host
+}
+
+// ValidLocalContext recognizes only the ordinary application's canonical numeric
+// IPv4 loopback origin. Context is attribution/evidence, never authentication.
+func ValidLocalContext(c Context) bool {
+	if !regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`).MatchString(c.InstallationID) {
+		return false
+	}
+	u, err := url.Parse(c.Origin)
+	if err != nil {
+		return false
+	}
+	port, err := strconv.Atoi(u.Port())
+	return err == nil && port >= 1024 && port <= 65535 &&
+		u.Scheme == "http" && u.Host == "127.0.0.1:"+strconv.Itoa(port) &&
+		u.Opaque == "" && u.User == nil && u.Path == "" && u.RawPath == "" &&
+		u.RawQuery == "" && !u.ForceQuery && u.Fragment == "" && u.RawFragment == "" &&
+		c.Origin == "http://"+u.Host
 }
 
 // Freeze uses the shared D03/C01 validator; caller supplies an authenticated actor.

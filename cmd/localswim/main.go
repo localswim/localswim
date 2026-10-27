@@ -24,9 +24,9 @@ func main() {
 	os.Exit(exit)
 }
 
-// run only composes owned providers. All command grammar, confirmation, secret
-// handling and admission remain with the existing runners and current source.
-func run(ctx context.Context, args []string, in io.Reader, out, diagnostic io.Writer) int {
+// runLegacy preserves the earlier TLS composition for isolated legacy tests.
+// main dispatches only run, the ordinary loopback HTTP application entry.
+func runLegacy(ctx context.Context, args []string, in io.Reader, out, diagnostic io.Writer) int {
 	if ctx == nil || ctx.Err() != nil {
 		return entryFailure(args, out, diagnostic, "UNAVAILABLE", 3)
 	}

@@ -24,6 +24,7 @@ var production = []string{
 }
 var static = []string{"index.html", "styles/app.css"}
 var bindings = []string{
+	".node-version", "qualification/toolchain/current.json",
 	"web/tsconfig.json", "web/package.json", "web/package-lock.json", "web/generated/contracts.d.ts", "web/generated/archive/contracts.d.ts", "web/generated/transport/contracts.d.ts", "cmd/assetstage/main.go", "internal/assets/assets.go",
 	"cmd/contractgen/main.go", "internal/contract/descriptor.go", "internal/contract/generate.go", "internal/contract/archive/generate.go", "internal/contract/transport/generate.go", "internal/contract/transport/session_code_generate.go",
 	"go.mod", "go.sum", "schemas/mutation-requests.schema.json", "schemas/archive/contracts.schema.json", "schemas/transport/contracts.schema.json",

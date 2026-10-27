@@ -80,10 +80,10 @@ func TestNativeCompilerHarness(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if strings.TrimSpace(string(run(work, false, node, "--version"))) != "v24.20.0" {
+	if strings.TrimSpace(string(run(work, false, node, "--version"))) != "v26.12.1" {
 		t.Fatal("wrong Node")
 	}
-	if strings.TrimSpace(string(run(work, false, node, npm, "--version"))) != "12.0.2" {
+	if strings.TrimSpace(string(run(work, false, node, npm, "--version"))) != "12.2.1" {
 		t.Fatal("wrong npm")
 	}
 	if strings.TrimSpace(string(run(work, false, node, tsc, "--version"))) != "Version 7.0.2" {
@@ -228,7 +228,7 @@ func TestNativeCompilerHarness(t *testing.T) {
 	if !bytes.Equal(a, b) {
 		t.Fatal("clean harness outputs differ")
 	}
-	result := map[string]any{"status": "PASS_ISOLATED_SAMPLE_ONLY", "builds": builds, "vectors": len(expected), "go": runtime.Version(), "node": "24.20.0", "npm": "12.0.2", "typescript": "7.0.2", "environment": map[string]string{"GOTOOLCHAIN": os.Getenv("GOTOOLCHAIN"), "GOFLAGS": os.Getenv("GOFLAGS"), "GOOS": os.Getenv("GOOS"), "GOARCH": os.Getenv("GOARCH"), "CGO_ENABLED": os.Getenv("CGO_ENABLED")}}
+	result := map[string]any{"status": "PASS_ISOLATED_SAMPLE_ONLY", "builds": builds, "vectors": len(expected), "go": runtime.Version(), "node": "26.12.1", "npm": "12.2.1", "typescript": "7.0.2", "environment": map[string]string{"GOTOOLCHAIN": os.Getenv("GOTOOLCHAIN"), "GOFLAGS": os.Getenv("GOFLAGS"), "GOOS": os.Getenv("GOOS"), "GOARCH": os.Getenv("GOARCH"), "CGO_ENABLED": os.Getenv("CGO_ENABLED")}}
 	toolHashes := map[string]string{}
 	for _, path := range []string{goBin, node, npm, tsc, filepath.Join(filepath.Dir(tsc), "..", "..", "@typescript", "typescript-win32-x64", "lib", "tsc.exe")} {
 		b, e := os.ReadFile(path)

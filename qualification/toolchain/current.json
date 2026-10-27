@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "observedDate": "2026-10-27",
+  "status": "PINNED_CURRENT_JS_SELECTION",
+  "scope": "Current JavaScript build/test toolchain; application remains self-contained Go",
+  "node": {
+    "version": "26.12.1",
+    "archiveSHA256": "b3efd5c70cba3308ed46e7e699a9b8aac075bbc6b027fcb39c84c31acc25e2b4",
+    "executableSHA256": "1c63f1417e2e26d83ca9a9ec1d548524ab1305bc7209d90ebca56257ff0d84ed",
+    "source": "https://nodejs.org/dist/v26.12.1/node-v26.12.1-win-x64.zip",
+    "ltsToday": false,
+    "scheduledLTS": "2026-10-28"
+  },
+  "npm": {
+    "version": "12.2.1",
+    "integrity": "sha512-bKCmFRVT/BB+YPEYbZwQ1XUI3N5t4xKSpU1MxOjo7z3iWzKBJ0ZXRC1xFdEN+TC7N5TdywaBzf2dMXGJq/e2PQ==",
+    "archiveSHA256": "228bd64aaef23270dbdbd2cf3d5ef5c467602ef38c4066246cef1984adab9a67",
+    "source": "https://registry.npmjs.org/npm/-/npm-12.2.1.tgz"
+  },
+  "directDependencies": {
+    "typescript": {
+      "version": "7.0.2",
+      "integrity": "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==",
+      "source": "https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz"
+    },
+    "@playwright/test": {
+      "version": "1.64.1",
+      "integrity": "sha512-IaYGml/nSOiZWROfPtuIL7neuu9qDOZ3TNvNljUIrhDMxiGTgPjzj/g9p9RxpS2tSepPDRY+UwAaEeiKtUvIAg==",
+      "source": "https://registry.npmjs.org/@playwright/test/-/test-1.64.1.tgz"
+    }
+  },
+  "nativeCompiler": {
+    "version": "7.0.2",
+    "integrity": "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g=="
+  },
+  "baseline": "qualification/environment.json preserves original Q01 inventory and historical pins; current JS consumers use web/package.json and this record",
+  "sources": [
+    "https://nodejs.org/dist/index.json",
+    "https://raw.githubusercontent.com/nodejs/Release/main/schedule.json",
+    "https://registry.npmjs.org/npm/latest",
+    "https://registry.npmjs.org/typescript/latest",
+    "https://registry.npmjs.org/@playwright/test/latest"
+  ],
+  "globalPATHChanged": false,
+  "finalReleaseQualified": false
+}

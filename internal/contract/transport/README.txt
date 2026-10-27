@@ -73,7 +73,7 @@ fixtures, anchor their bytes/hashes and roundtrip exact R bytes. Additional case
 exercise required fields, strict scalars, targets/results/references, secret
 exclusion/expiry, current/history dependencies and all 12 original semantic hash
 anchors. The tagged nativecompilerqualification test requires absolute C02_NODE,
-C02_TSC and a new private C02_WORK; it runs pinned Node 24.20.0 and TypeScript
+C02_TSC and a new private C02_WORK; it runs pinned Node 26.12.1 and TypeScript
 7.0.2 against all 60 fixtures plus type rejection/discriminator narrowing cases.
 Use the accepted fixed Go 1.27.3 toolchain, CGO_ENABLED=0, GOTOOLCHAIN=local and
 GOFLAGS=-mod=readonly. No manifests, locks or tool installations are changed.

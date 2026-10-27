@@ -7,7 +7,7 @@ source and failed evidence remain private; no trust or login action is required.
 The exact staged command is npm --prefix web run qualification:browser.
 V02_RUN_MANIFEST names the private localfixture prepare.py schemaVersion 2 manifest.
 The manifest pins the fresh synthetic runtime path, owned fixture/application,
-Chrome for Testing 156 and Playwright 1.64.1 under Node 24.20.0. No authority or
+Chrome for Testing 156 and Playwright 1.64.1 under Node 26.12.1. No authority or
 profile-readiness boolean is accepted. The normal application alone creates its
 cookie session and measures strict IndexedDB completion/readback readiness.
 

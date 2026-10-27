@@ -9,7 +9,7 @@ explicit, small and independently written in TypeScript for bounded comparisons.
 Neither declaration types nor JSON Schema alone validate runtime data.
 
 Run
-Use native Windows/amd64, Go 1.27.3, Node 24.20.0, npm 12.0.2 and released
+Use native Windows/amd64, Go 1.27.3, Node 26.12.1, npm 12.2.1 and released
 TypeScript 7.0.2 with @typescript/typescript-win32-x64 7.0.2. All paths supplied
 below must be absolute. Use a fresh private work directory, outside this source.
 

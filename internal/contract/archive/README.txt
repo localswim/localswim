@@ -55,7 +55,7 @@ decoding remains necessary for duplicate keys, number lexemes, Unicode and depth
 Go semantic/reference validation remains necessary after schema/type checking.
 TypeScript declarations are advisory and do not validate runtime objects.
 
-Actual TS7 declaration check: supply absolute C03_NODE (Node 24.20.0), C03_TSC
+Actual TS7 declaration check: supply absolute C03_NODE (Node 26.12.1), C03_TSC
 (TS7 7.0.2 launcher) and a NEW private C03_WORK directory. With qualified native
 Windows/amd64 Go 1.27.3, GOTOOLCHAIN=local, CGO_ENABLED=0, GOFLAGS=-mod=readonly:
   go test -count=1 -tags=nativecompilerqualification ./internal/contract/archive

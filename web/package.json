@@ -5,10 +5,10 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": "24.20.0",
-    "npm": "12.0.2"
+    "node": "26.12.1",
+    "npm": "12.2.1"
   },
-  "packageManager": "npm@12.0.2",
+  "packageManager": "npm@12.2.1",
   "scripts": {
     "check": "node scripts/tsc.mjs check",
     "build": "node scripts/tsc.mjs build",

@@ -19,7 +19,7 @@ function privateDirectory(path, fresh = false) {
   if (!(rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel))) throw Error('Synthetic private directory must be outside public source');
 }
 export function readRun() {
-  if (process.platform !== 'win32' || process.arch !== 'x64' || process.versions.node !== '24.20.0') throw Error('Pinned Windows/amd64 Node environment required');
+  if (process.platform !== 'win32' || process.arch !== 'x64' || process.versions.node !== '26.12.1') throw Error('Pinned Windows/amd64 Node environment required');
   const path = canonical(process.env.V02_RUN_MANIFEST, false), bytes = readFileSync(path);
   if (bytes.length > 65_536 || bytes[0] === 0xef) throw Error('Invalid qualification manifest');
   const run = JSON.parse(bytes.toString('utf8'));

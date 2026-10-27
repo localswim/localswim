@@ -37,7 +37,7 @@ func TestNativeTypeScriptCanonical(t *testing.T) {
 		}
 		return b
 	}
-	if strings.TrimSpace(string(run(node, "--version"))) != "v24.20.0" {
+	if strings.TrimSpace(string(run(node, "--version"))) != "v26.12.1" {
 		t.Fatal("Node pin mismatch")
 	}
 	if !strings.Contains(string(run(node, tsc, "--version")), "7.0.2") {

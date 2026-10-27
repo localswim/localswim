@@ -1,0 +1,39 @@
+JS BUILDCHAIN REFRESH - FRESH INDEPENDENT REVIEW
+2026-10-27 | #0062 | PASS
+
+Outcome
+- No material findings in the bounded JavaScript toolchain refresh.
+- Node 26.12.1 and npm 12.2.1 are consistently selected by active build and
+  qualification inputs. TypeScript 7.0.2 and Playwright 1.64.1 already match
+  current stable registry metadata; their exact locks and native compiler stay.
+- The application remains self-contained Go. No global runtime installation,
+  personal profile, issuer trust or domain behavior is changed by this work.
+
+Review
+- All 21 frozen source hashes match. The lock changes only root engine pins.
+- Official acquisition metadata, Node archive/executable SHA256 and npm tarball
+  SHA512/SHA256 independently match the selected artifacts. Safe archive paths
+  and upstream license files were checked. The private runtime preserves the
+  bundled npm separately and uses verified npm through its normal shims.
+- Current metadata correctly identifies Node 26 as Current on this date, with
+  LTS scheduled for 2026-10-28. Historical qualification records remain intact.
+- Active compiler/browser guards require Node 26.12.1. Asset staging binds the
+  current selection and package inputs without changing embedded program bytes.
+
+Verification evidence inspected
+- npm clean install, strict check/build, generated-contract and asset checks pass.
+- All 10 script tests pass with zero failures or skipped tests.
+- Native compiler/contracts: 360 passed, zero skipped tests, with current pins.
+- Ordinary Go tests: 1,426 unique passed tests, zero failed or skipped tests;
+  vet passes. Four package-level no-test events are not skipped test cases.
+- Initial native path-length fixture failures remain preserved. A fresh run of
+  the affected grants package with an explicit short test root replaces that
+  package's earlier result; no source correction or exclusion was required.
+- Actual pinned-browser run: 20 mandatory cases pass, zero skipped, unexpected
+  or flaky cases, and no runner errors. Launcher and teardown checks pass;
+  source hashes remain unchanged before and after the run.
+
+Boundary
+- This fresh non-author review inspects implementation and execution evidence;
+  it does not claim a duplicate full test run by the reviewer.
+- Owner acceptance and final integrated V04 qualification remain separate.

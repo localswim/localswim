@@ -43,7 +43,7 @@ func TestNativeDeclarations(t *testing.T) {
 		}
 		return b
 	}
-	if strings.TrimSpace(string(run("--version"))) != "v24.20.0" || !strings.Contains(string(run(tsc, "--version")), "7.0.2") {
+	if strings.TrimSpace(string(run("--version"))) != "v26.12.1" || !strings.Contains(string(run(tsc, "--version")), "7.0.2") {
 		t.Fatal("native pins")
 	}
 	for _, generate := range []func() (map[string][]byte, error){contract.GeneratedFiles, A.GeneratedFiles, GeneratedFiles} {

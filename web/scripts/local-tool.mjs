@@ -9,6 +9,9 @@ export function localTool(name, bin) {
   const read = path => JSON.parse(readFileSync(path, 'utf8'));
   const manifest = read(resolve(webRoot, 'package.json'));
   const lock = read(resolve(webRoot, 'package-lock.json'));
+  if (process.versions.node !== manifest.engines?.node) {
+    throw new Error('Use the exact Node version declared by web/package.json and .node-version');
+  }
   const version = manifest.devDependencies?.[name];
   if (!/^\d+\.\d+\.\d+$/.test(version ?? '') ||
       lock.packages?.['']?.devDependencies?.[name] !== version ||

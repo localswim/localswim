@@ -27,6 +27,11 @@ with Unix-style LF and a final newline; binary fixture bytes remain exact.
 Real boards, credentials and private operational/recovery records stay outside
 the repository. Tests use synthetic fixtures.
 
+The current [JavaScript build/test toolchain](qualification/toolchain/README.txt)
+uses Node26.12.1 and npm12.2.1, with TypeScript7.0.2 and Playwright1.64.1.
+These are development/qualification tools; the packaged Go application remains
+self-contained. Earlier qualification records retain their original tool pins.
+
 ## Spike 01 preparation
 
 - [Native setup and credential contract](docs/contracts/setup.txt), with its

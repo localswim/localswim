@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 const require = createRequire(resolve(import.meta.dirname, '../../../web/package.json'));
 const { chromium, expect } = require('@playwright/test');
 const pin = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../qualification/environment.json'), 'utf8')).browser.candidate;
-if (process.versions.node !== '24.20.0' || !/^http:\/\/127\.0\.0\.1:[1-9][0-9]*$/.test(process.env.L02_ORIGIN ?? '')) throw Error('Pinned local smoke inputs required');
+if (process.versions.node !== '26.12.1' || !/^http:\/\/127\.0\.0\.1:[1-9][0-9]*$/.test(process.env.L02_ORIGIN ?? '')) throw Error('Pinned local smoke inputs required');
 const browser = await chromium.launch({ executablePath: process.env.L02_BROWSER, headless: true });
 const watchdog = setTimeout(() => { void browser.close(); }, 120_000);
 const context = await browser.newContext();

@@ -48,7 +48,7 @@ generic JSON Schema tools do not enforce. TypeScript types are advisory and do
 not validate runtime data. No second browser domain model is emitted.
 
 Native canonical reference
-Supply absolute C01_NODE (qualified Node 24.20.0), C01_TSC (qualified TS7 7.0.2
+Supply absolute C01_NODE (qualified Node 26.12.1), C01_TSC (qualified TS7 7.0.2
 launcher) and a NEW private C01_WORK directory. Under qualified Windows/amd64 Go
 1.27.3 with GOTOOLCHAIN=local, CGO_ENABLED=0 and GOFLAGS=-mod=readonly:
   go test -count=1 -tags=nativecompilerqualification ./internal/contract ./cmd/contractgen

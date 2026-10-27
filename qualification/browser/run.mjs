@@ -16,12 +16,15 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   retries: 0,
+  // One fixture owns one fresh runtime/profile. Stop on the first failure;
+  // a replacement worker must never adopt or overwrite that failed attempt.
+  // Final coverage still requires every frozen case to pass with zero skips.
   maxFailures: 1,
-  timeout: 30_000,
+  timeout: 90_000,
   expect: { timeout: 8_000 },
   forbidOnly: true,
   outputDir: resolve(run.artifactDirectory, 'playwright-output'),
   globalTeardown: resolve(here, 'lib/final-evidence.mjs'),
-  preserveOutput: 'never',
+  preserveOutput: 'failures-only',
   use: { trace: 'off', video: 'off', screenshot: 'off' },
 });

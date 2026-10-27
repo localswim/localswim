@@ -1,14 +1,15 @@
 {
-  "schemaVersion": 1,
-  "scope": "V02 pinned real Windows browser/session/private recovery",
+  "schemaVersion": 2,
+  "revision": "local-r1",
+  "scope": "Actual local HTTP product DOM and built CLI on one synthetic runtime",
   "required": [
-    "V02-TLS-01", "V02-PROFILE-01", "V02-SESSION-01", "V02-ORIGIN-01",
-    "V02-AUTOMATION-01", "V02-REVOCATION-01", "V02-IDB-01", "V02-QUOTA-01",
-    "V02-TABS-01", "V02-LOGOUT-01", "V02-CLEAR-01", "V02-KEYBOARD-01",
-    "V02-IME-01", "V02-LATE-01", "V02-RELOAD-01", "V02-UNKNOWN-01",
-    "V02-LOSS-01", "V02-INCARNATION-01", "V02-RETENTION-01", "V02-PRIVACY-01",
-    "V02-RESTART-01", "V02-CANCEL-01", "V02-INACCESSIBLE-01"
+    "V02-LOCAL-01", "V02-SHARED-01", "V02-WORKFLOW-01", "V02-ASSIGNMENT-01",
+    "V02-RELATIONS-01", "V02-AUTHORITY-01", "V02-CONFLICT-01", "V02-INPUT-01",
+    "V02-KEYBOARD-01", "V02-IME-01", "V02-LATE-01", "V02-RELOAD-01",
+    "V02-RESTART-01", "V02-UNKNOWN-01", "V02-IDB-01", "V02-QUOTA-01",
+    "V02-TABS-01", "V02-CLEAR-01", "V02-BYTES-01", "V02-PRIVACY-01"
   ],
   "missingOrSkippedRequiredCase": "FAIL",
-  "qualificationStatus": "INCOMPLETE_NATIVE_DELEGATION_AND_FULL_RUN_PENDING"
+  "qualificationStatus": "FROZEN_BEFORE_LOCAL_EXECUTION",
+  "faultEvidence": "Post-handler delivery overlay, CDP IME/quota, explicit IDB factory denial are labeled; no physical durability claim."
 }

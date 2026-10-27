@@ -1,58 +1,46 @@
-V02 pinned browser qualification - incomplete
+V02 - Actual local browser and CLI qualification
 
-This source stages actual Windows browser/session/private-recovery qualification.
-It currently establishes no V02 pass. The exact test issuer and synthetic human
-grant were enrolled through owner actions. Fresh native terminal delegation is
-still required before the full session/recovery run. Real data and personal profiles
-are excluded. No certificate-warning bypass or mock-only qualification is allowed.
+Authority: accepted 22-localhost-scope-reset and companion task map. This replaces
+the historical TLS, code/delegation and manually asserted profile matrix. Historical
+source and failed evidence remain private; no trust or login action is required.
 
-The exact staged command is:
-  npm --prefix web run qualification:browser
+The exact staged command is npm --prefix web run qualification:browser.
+V02_RUN_MANIFEST names the private localfixture prepare.py schemaVersion 2 manifest.
+The manifest pins the fresh synthetic runtime path, owned fixture/application,
+Chrome for Testing 156 and Playwright 1.64.1 under Node 24.20.0. No authority or
+profile-readiness boolean is accepted. The normal application alone creates its
+cookie session and measures strict IndexedDB completion/readback readiness.
 
-P02 loads run.mjs as the pinned Playwright configuration. A canonical private
-V02_RUN_MANIFEST must bind the prepared fixture, issuer/origin/identities, pinned
-browser executable and private profile/ACL record. Missing inputs, zero tests,
-skipped mandatory cases or execution failure fail. inventory.json enumerates the
-required case IDs. Repeated tests do not turn an incomplete matrix into a pass.
+inventory.json freezes the 20 required case identifiers before execution. Each
+required case uses the normal HTTP entry and actual DOM controls, plus the built
+CLI for shared authoritative state. The assignment case intentionally fails if
+its accepted user-facing product control is missing. API-only probes are used
+for denial/admission, never to replace a missing positive UI behavior.
 
-Qualification-only native fixture code lives in native/. Its exact issuer,
-rights and terminal-action packet must be reviewed before the owner enrolls trust
-or creates a human grant. Actual terminal confirmation is not replaced by a test
-callback or --yes. Trust removal remains an explicit later owner action.
+The worker owns one fixture process over bounded stdin/stdout NDJSON. It starts
+fresh DataDir/profile paths, verifies live identities and hashes, releases faults
+and closes both browser and fixture. There are no HTTP control endpoints, CA,
+personal profile, real board, enrollment, code issuance or synthetic application
+mounts. Post-handler socket loss/delay are explicit qualification overlay faults.
+CDP IME and quota tests and the explicit IDB factory-denial test are labeled.
+The native quota component probe is distinct from actual DOM refusal evidence.
+These tests do not prove physical power-loss durability or meaningful review.
 
-The product's default entry remains unqualified. A trusted test composition may
-supply a profile-bound proof only after actual strict-durability transaction
-completion and independent readback in the pinned profile/origin. Positive proof
-does not follow from feature detection or a manifest boolean. All fault injection,
-CDP interaction, native ACL checks and physical durability limits must be labeled.
-No physical power-loss, hostile same-account or meaningful-human-review proof is
-claimed. V04 owns integrated root dispatch and later qualification reconciliation.
+Source/inventory hashes are frozen before startup. Per-case private JSON binds
+status, retry, errors, duration, manifest, inventory, source and binary hashes.
+Startup and owned teardown records are mandatory. final-evidence.mjs requires all
+20 passing records, zero retries and successful teardown. Its coverage file is
+explicitly not a final verdict: P02 must retain and validate final Playwright JSON
+and its exit, including suite/global teardown errors. Missing input, zero or
+skipped required cases, nonzero exit and teardown failures cannot pass.
 
-Preparation checkpoint
-- All 23 mandatory cases collect with the frozen runner; collection is not execution.
-- Independent static reviews cover the browser harness and native fixture. The
-  fixture requires a real console and an exact, fully displayed delegation line.
-- A read-only preflight used the actual pinned browser, private profile and product
-  bootstrap. Trusted TLS 1.3, strict IndexedDB transaction completion followed by
-  independent identical readback, and a native QuotaExceededError were observed.
-  This preflight performed no login, code exchange or board mutation.
-- The first quota probe failed and remains preserved. A separately recorded probe
-  confirmed the CDP quota override, waited for the browser cache interval and used
-  incompressible data. The later observation does not establish a unique cause for
-  the earlier failure. The suite labels CDP fault injection explicitly.
-- Native profile auditing accepts only the reviewed, pinned browser's exact named
-  network-sandbox capability and restrictive execute-deny forms in narrow child
-  scopes. The profile root and other native private-file predicates remain strict.
-  No ACL repair was used to make the audit pass.
-- The earlier generic qualified-startup refusal has no proven historical cause.
-  Fixed stage categories improve future diagnosis without recording input, codes,
-  bearer values, file paths or raw errors.
+The first case failure stops execution. This preserves the original failure and
+prevents replacement workers from attempting to adopt the used runtime/profile.
+Failed Playwright output is preserved under playwright-output; each failed case
+record points to that directory and P02's final-playwright.json error details.
+Remaining unexecuted cases still fail mandatory coverage; fail-fast is not a pass.
 
-Remaining acceptance
-1. The owner starts the reviewed same-identity fixture in a fresh host console and
-   personally enters its unchanged native delegation challenge.
-2. Execute the exact staged command with all 23 mandatory cases, no skipped cases,
-   no retries, successful teardown and private profile/log/URL audits.
-3. Review fresh executed evidence independently, then stop the owned fixture and
-   complete the exact owner-confirmed test-issuer removal.
-results.json records this incomplete checkpoint; it is not a positive run verdict.
+Every attempt needs a new preparation directory. Never overwrite a failed run,
+reuse its DataDir/profile, filter out a mandatory case, or classify component-only
+checks as a positive product journey. A worker failure may prevent later cases;
+that is an incomplete failed attempt, never coverage or a pass.

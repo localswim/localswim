@@ -1,0 +1,76 @@
+V02 LOCAL HTTP BROWSER AND CLI - INDEPENDENT EXECUTED-EVIDENCE REVIEW
+2026-10-27 | Revision 1 | PASS FOR THE BOUNDED 20-CASE LOCAL SCOPE
+
+Outcome
+- No open material findings in the reviewed fixture, frozen journeys or final
+  executed evidence. All 20 required cases passed in one complete staged run.
+- The exact command was npm --prefix web run qualification:browser. The actual
+  launcher and Playwright child both exited 0. The retained raw final report has
+  no global, suite or result errors; no retries, skips, flaky or unexpected cases.
+- This verdict covers the accepted localhost V02 matrix. It is not final release
+  qualification, complete V1 parity or proof of meaningful human review.
+
+Actual product coverage
+- The browser used ordinary local HTTP entry, automatic configured human-cookie
+  bootstrap and measured IndexedDB readiness. The built CLI used its ordinary
+  automation channel against the same synthetic board/service. No test mount or
+  invented positive profile qualification replaced normal product entry.
+- Passing journeys cover shared state, P3 default, lane workflow, explicit current
+  human approval, bot approval/completion/authority refusal, actual actor-UUID
+  assignment and relationship controls, stale conflict and retained invalid input.
+- Keyboard focus/Enter, labeled CDP IME, delayed real response/newer input, reload,
+  restart/reconnect, IDB refusal, labeled quota exhaustion, two tabs and explicit
+  private recovery discard all passed. Attachment upload and browser/CLI download
+  preserved exact binary bytes. Privacy/text-safe rendering checks passed.
+
+Original outcome and no replay
+- The reload case reached Original outcome unknown after truncation of the real
+  response body, then reloaded and looked up the original immutable operation by
+  GET with its original fingerprint. Handler submission count remained exactly
+  one above the initial count, and exactly one card existed afterward.
+- The stop-wait/restart case retained the original submission and fingerprint,
+  reconnected to the same board identity and used the original GET lookup. Its
+  handler count also remained exactly one above baseline. Stored immutable
+  submissions were unchanged; no replacement mutation settled uncertainty.
+- These assertions are in the frozen passed cases. No automatic product replay
+  or transparent additional handler invocation was accepted as a pass.
+
+Fixture and evidence review
+- A qualification-only private overlay wraps the actual production HTTP handler.
+  Delays retain its real response. The truncation fault copies actual status and
+  headers, supplies captured body byte length, flushes framing, then closes the
+  socket before body delivery. It invents no body, positive result or authority.
+- Mechanical tests require the real status/header/length, zero delivered body,
+  unexpected EOF and one handler invocation. Native startup, delayed-response
+  preservation, restart/barrier draining, EOF, strict control and missing-overlay
+  refusal evidence passed. The real runtime admission/storage gates remain.
+- The raw final JSON contains exactly the 20 frozen inventory IDs, once each,
+  with one passed result and retry 0. Every private case record agrees with the
+  final report and its manifest, inventory, source and executable hashes.
+- Startup and successful owned browser/fixture teardown share the manifest
+  binding. Fixture exit was 0 with no diagnostic output; live service metadata
+  was removed. Final coverage records alone were not treated as a final verdict.
+- Preparation's exact source inventories before/after are equal. Every copied
+  and current Go/module/embedded-asset input matches; re-enumeration finds no
+  addition or removal. The overlay is exactly the handler wrap/private hook.
+  Application, fixture and browser binary hashes match the actual run manifest.
+- Earlier failed attempts and filtered archived-build diagnostics remain retained
+  with their original limits. They are not combined into this complete-run pass.
+
+Reviewed environment and boundaries
+- Windows/amd64; Go 1.27.3, Node 24.20.0, Playwright 1.64.1 and pinned Chrome for
+  Testing 156.0.8078.4. One worker, retries 0, repeat 1 and no case filter.
+- Fresh private synthetic DataDir/profile; no real board, personal profile, issuer,
+  trust installation, login-code/delegation ceremony or manual readiness assertion.
+- Response delivery, CDP IME/quota and IDB factory denial are labeled faults.
+  Completion/readback and process/socket tests do not prove physical power-loss
+  safety, browser eviction durability or hostile same-account isolation.
+- Backup/restored-copy evidence has its own V03 review. V04 integration and final
+  independent release review remain separate gates; owner acceptance is separate.
+
+Evidence SHA-256
+Frozen inventory bfdbac6cfb089885cfebd2f2f028efa422e474a6f55e5940b5a77e0746de949c
+Frozen journey source 17647d0744392dc399b5d185ce9b4dd4ebcc018d485a2428a06bc08e6ac83202
+Application binary 3b289e746a5431c7b2203ec059af1a6fa0cb2a91731c09d798284c222fab56d5
+Qualification fixture 036d184e20e137348cf49bf4f3534244ec357a7ebf9d98b9820eaec2432b09c7
+Browser executable 7f08161bbeb2853ffe1780a9ded4985087f52efb9725d7d8207aabdd42f7cfb9

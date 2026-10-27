@@ -1,56 +1,46 @@
 {
-  "schemaVersion": 1,
-  "status": "INCOMPLETE",
-  "fullQualificationPass": false,
-  "mandatoryCasesRegistered": 23,
-  "fullMandatoryRunExecuted": false,
-  "preparation": {
-    "browserHarnessIndependentStaticReview": "PASS_STATIC_PREPARATION_ONLY",
-    "nativeFixtureIndependentReview": "PASS_PREPARATION_ONLY",
-    "nativeFixtureTestsIncludingSubtests": 34,
-    "nativeFixtureTestSkips": 0,
-    "nativeMissingOverlaySentinelRefusal": "PASS",
-    "nativeFixtureVet": "PASS"
-  },
-  "partialReadOnlyPreflight": {
-    "status": "PASS_PARTIAL_PROFILE_PREFLIGHT_ONLY",
-    "browser": "Chrome for Testing 156.0.8078.4",
+  "schemaVersion": 2,
+  "suite": "V02-local-HTTP-browser-CLI",
+  "status": "PASS_BOUNDED_LOCAL_QUALIFICATION",
+  "fullQualificationPass": true,
+  "fullReleaseQualified": false,
+  "mandatoryCasesRegistered": 20,
+  "mandatoryCasesPassed": 20,
+  "skips": 0,
+  "retries": 0,
+  "launcherExit": 0,
+  "childExit": 0,
+  "suiteErrors": 0,
+  "inventoryRevision": "local-r1",
+  "manifestSHA256": "57e678c6fed6ea8b1e9f4ab322b063063457c2f4bf5d54403c83b496ba70815d",
+  "sourceSHA256": "17647d0744392dc399b5d185ce9b4dd4ebcc018d485a2428a06bc08e6ac83202",
+  "applicationSHA256": "3b289e746a5431c7b2203ec059af1a6fa0cb2a91731c09d798284c222fab56d5",
+  "fixtureSHA256": "036d184e20e137348cf49bf4f3534244ec357a7ebf9d98b9820eaec2432b09c7",
+  "environment": {
+    "os": "Windows amd64",
+    "browser": "Chrome for Testing156.0.8078.4",
     "playwright": "1.64.1",
-    "trustedTLS": "TLS 1.3",
-    "strictIndexedDBCompletionThenIndependentIdenticalReadback": "PASS",
-    "nativeQuotaExceededErrorObserved": true,
-    "quotaFaultInjection": "CDP override; confirmed active; 31-second cache wait; incompressible 8 MiB probe",
-    "earlierFailedQuotaAttemptPreserved": true,
-    "uniqueCauseOfEarlierQuotaFailureEstablished": false,
-    "loginOrCodeExchange": false,
-    "boardMutation": false,
-    "ownedBootstrapAndBrowserStopped": true
+    "node": "24.20.0"
   },
-  "closedProfileAudit": {
-    "status": "PASS_BOUNDED_PROFILE_PRIVACY_ONLY",
-    "directories": 65,
-    "files": 219,
-    "exactNamedNetworkSandboxCapabilityACEs": 37,
-    "restrictiveFileExecuteDenyACEs": 9,
-    "aclRepairPerformed": false,
-    "hostileSameAccountIsolationClaimed": false
+  "execution": {
+    "exactCommand": "npm --prefix web run qualification:browser",
+    "actualNormalProductDOMAndCLI": true,
+    "automaticCookieAndMeasuredIDB": true,
+    "ownedBrowserAndFixtureTeardown": true,
+    "sourceInventoryBinaryBoundCaseRecords": true,
+    "originalLookupWithoutReplay": true
   },
-  "historicalQualifiedStartupFailure": {
-    "cause": "UNRESOLVED",
-    "completeDelegationLineVisibleInOwnerScreenshot": true,
-    "fixedSecretFreeStageDiagnosticsPrepared": true
-  },
-  "remaining": [
-    "Fresh actual-console owner delegation for the reviewed same-identity fixture",
-    "Exact staged 23-case browser run with no skipped cases or retries and successful teardown",
-    "Full private profile, log and URL audits",
-    "Fresh independent review of executed mandatory evidence",
-    "Stop fixture and complete exact owner-confirmed issuer removal"
+  "independentReview": "PASS; review.txt",
+  "failedAttempts": "Preserved privately; component/filtered diagnostic passes were never promoted to full qualification.",
+  "faultLabels": [
+    "Private post-handler actual-response body truncation/delay overlay",
+    "CDP IME and quota",
+    "Explicit IDB denial/inaccessibility probes"
   ],
   "limits": [
-    "Static checks and partial preflight do not qualify session or recovery behavior",
-    "No certificate-warning bypass, personal browser profile or mock-only positive journey",
-    "No physical power-loss or meaningful-human-review proof",
-    "Product default remains unqualified; integrated root dispatch belongs to V04"
+    "Bounded V02 local synthetic journey only; V04 release integration and owner acceptance remain",
+    "No real board, personal profile or trust/enrollment action",
+    "No physical power-loss or hostile same-account isolation claim",
+    "No full V1 parity or meaningful-human-review proof"
   ]
 }

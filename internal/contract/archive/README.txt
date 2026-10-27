@@ -72,3 +72,13 @@ authenticate an actor, grant rights, confirm publication or prove crash durabili
 Preview selection/admission must recheck current state/rights and use immutable
 original preview times. This bundle does not execute selection or confirmation.
 Public MIT FOSS, synthetic fixtures only; no real data, credentials or v1 sources.
+
+Assignment compatibility
+Card and retained SnapshotState accept optional ownerId: UUID or null. Omission
+and null mean unassigned; canonical encoding omits nil values, preserving legacy
+logical-v1 archive bytes that omitted assignment. Assigned values must resolve to
+a board actor, including exact history read actor rows. Explicit ownerId edits
+retain null in frozen intent; omission retains the current assignment and is
+kept absent in the fingerprint. Older decoders reject assignment-bearing rows;
+this extension does not claim they can read newly assigned cards. Actor facts
+remain provenance and never import current grants or authority on restore.

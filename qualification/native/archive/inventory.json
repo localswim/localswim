@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "suite": "V03-local-archive",
+  "required": [
+    "V03-01-readable-consistent-export",
+    "V03-02-restored-local-bootstrap",
+    "V03-03-refusal-no-overwrite",
+    "V03-04-interrupted-publication-status",
+    "V03-05-original-unknown-preserved",
+    "V03-06-source-unchanged"
+  ],
+  "limits": ["Synthetic Windows NTFS and loopback HTTP", "No power-loss certification", "No advanced retention or source-ledger administration"]
+}

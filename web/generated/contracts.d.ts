@@ -7,6 +7,7 @@ export type RequestCardCreate = {
   readonly incarnation: string;
   readonly input: {
   readonly description: string;
+  readonly ownerId?: (string | null);
   readonly priority?: "P0" | "P1" | "P2" | "P3" | "P4" | "P5";
   readonly title: string;
 };
@@ -25,6 +26,7 @@ export type RequestCardEdit = {
   readonly input: {
   readonly description?: string;
   readonly lane?: "In Progress";
+  readonly ownerId?: (string | null);
   readonly priority?: "P0" | "P1" | "P2" | "P3" | "P4" | "P5";
   readonly title?: string;
 };

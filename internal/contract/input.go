@@ -9,16 +9,32 @@ import (
 // Optional fields stay nil to preserve omission; admission applies the accepted
 // create priority default without changing the original immutable intent.
 type CommandInput interface{ commandInput() }
+
+// OwnerInput preserves omission versus explicit null (unassignment).
+type OwnerInput struct {
+	Present bool
+	Value   *string
+}
+
+func (o *OwnerInput) UnmarshalJSON(b []byte) error {
+	o.Present = true
+	return json.Unmarshal(b, &o.Value)
+}
+func (o OwnerInput) IsZero() bool                 { return !o.Present }
+func (o OwnerInput) MarshalJSON() ([]byte, error) { return json.Marshal(o.Value) }
+
 type CreateInput struct {
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	Priority    *string `json:"priority"`
+	OwnerID     OwnerInput `json:"ownerId,omitzero"`
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Priority    *string    `json:"priority"`
 }
 type EditInput struct {
-	Title       *string `json:"title"`
-	Description *string `json:"description"`
-	Priority    *string `json:"priority"`
-	Lane        *string `json:"lane"`
+	OwnerID     OwnerInput `json:"ownerId,omitzero"`
+	Title       *string    `json:"title"`
+	Description *string    `json:"description"`
+	Priority    *string    `json:"priority"`
+	Lane        *string    `json:"lane"`
 }
 type CommentInput struct {
 	Text string `json:"text"`

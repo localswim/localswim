@@ -2,16 +2,21 @@ import { spawnSync } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { localTool, webRoot } from './local-tool.mjs';
+import { prepareBrowserReport } from './browser-report.mjs';
 
 // V02 owns this Playwright configuration and its mandatory suite inventory.
 // This launcher proves dispatch and completion only, not journey completeness.
+let capture, childExit = null, childSignal = null;
 try {
   if (process.argv.length !== 2) throw new Error('Browser qualification accepts no launcher arguments');
   const config = resolve(webRoot, '../qualification/browser/run.mjs');
   if (!statSync(config).isFile()) throw new Error('Missing V02 browser configuration');
+  capture = prepareBrowserReport(process.env.V02_RUN_MANIFEST, resolve(webRoot, '..'));
   const result = spawnSync(process.execPath, [
     localTool('@playwright/test', 'playwright'), 'test', '--config', config, '--reporter=json',
   ], { cwd: webRoot, encoding: 'utf8', timeout: 300_000, maxBuffer: 8 * 1024 * 1024 });
+  childExit = result.status; childSignal = result.signal;
+  capture?.save(result.stdout ?? '');
   if (result.error || result.signal || result.status !== 0) {
     throw new Error('Pinned browser runner failed or did not complete');
   }
@@ -40,8 +45,11 @@ try {
       report.stats?.flaky !== 0 || report.stats?.skipped !== 0) {
     throw new Error('Browser tests are missing, skipped, failed or incomplete');
   }
+  capture?.finish({ status: 'PASSED_LAUNCHER_CHECKS', launcherExit: 0, childExit, childSignal, tests: tests.length });
   console.log(`Browser runner completed ${tests.length} tests; V02 owns mandatory coverage evidence.`);
 } catch (error) {
+  try { capture?.finish({ status: 'FAILED', launcherExit: 1, childExit, childSignal }); }
+  catch { /* An unwritable verdict is also failure; never infer qualification. */ }
   console.error(`Browser qualification refused: ${error.message}`);
   process.exitCode = 1;
 }

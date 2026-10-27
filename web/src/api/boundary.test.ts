@@ -19,8 +19,8 @@ export async function runBoundaryVectors(vectors: readonly { command: BoardComma
     let refused = false; try { parse(text); } catch { refused = true; }
     if (!refused) throw Error("Invalid JSON accepted"); passed++;
   }
-  const value = parse('{"a":"雪\\r\\n\\t\\u0000\\\"\\\\"}');
-  if (canonical(value) !== '{"a":"雪\\u000d\\u000a\\u0009\\u0000\\\"\\\\"}') throw Error("Control canonicalization mismatch");
+  const value = parse('{"a":"é›ª\\r\\n\\t\\u0000\\\"\\\\"}');
+  if (canonical(value) !== '{"a":"é›ª\\u000d\\u000a\\u0009\\u0000\\\"\\\\"}') throw Error("Control canonicalization mismatch");
   let refused = false; try { validate("transport:SessionRead", parse('{"apiVersion":1}')); } catch { refused = true; }
   if (!refused) throw Error("Incomplete session accepted");
   return passed + 2;
@@ -62,6 +62,26 @@ export async function runWhitespaceParity(): Promise<number> {
     const evidence = await prepare(command, wire, context, crypto.randomUUID());
     if (JSON.parse(evidence.canonicalBytes).payload[command === "comment.add" ? "text" : "title"] !== mixed) throw Error("Whitespace normalized");
     passed++;
+  }
+  return passed;
+}
+
+// Assignment is responsibility only; omission and explicit unassignment must hash differently.
+export async function runAssignmentParity(): Promise<number> {
+  const context: Context = { installationId: "00000000-0000-4000-8000-000000000090", boardId: "00000000-0000-4000-8000-000000000001", incarnation: "00000000-0000-4000-8000-000000000002", actorId: "00000000-0000-4000-8000-000000000003" };
+  let passed = 0;
+  for (const command of ["card.create", "card.edit"] as const) {
+    const fingerprints = new Set<string>();
+    for (const ownerId of [undefined, null, context.actorId]) {
+      const input = { ...(command === "card.create" ? { title: "Synthetic", description: "" } : {}), ...(ownerId === undefined ? {} : { ownerId }) };
+      const request = { opId: "00000000-0000-4000-8000-000000000006", incarnation: context.incarnation, expectedRevision: 5,
+        expectedCardRevision: command === "card.create" ? null : 4, target: command === "card.create" ? null : { cardId: "00000000-0000-4000-8000-00000000000b" }, input } as MutationRequest;
+      const evidence = await prepare(command, request, context, crypto.randomUUID());
+      const semantic = JSON.parse(evidence.canonicalBytes);
+      if (Object.hasOwn(semantic.payload, "ownerId") !== (ownerId !== undefined) || semantic.actorId !== context.actorId || semantic.payload.ownerId !== ownerId || !await boardBoundaryVerifier.prepared(evidence, request)) throw Error("Assignment boundary mismatch");
+      fingerprints.add(evidence.fingerprint); passed++;
+    }
+    if (fingerprints.size !== 3) throw Error("Assignment omission/null collision");
   }
   return passed;
 }

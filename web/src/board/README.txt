@@ -43,3 +43,9 @@ view.test.ts supplies an explicitly synthetic fixture for actual headless compon
 tests using production IndexedDB and the concrete prepared verifier. A synthetic
 qualification assertion is test-only. API-fixture cross-direction changes do not
 claim the later real browser/CLI/backend acceptance journey or product qualification.
+
+Assignee uses actual board.result.actors IDs, with a plain Unassigned option.
+Cards and current-text comparisons display the assignment. Create/edit capture
+UUID or null in the same immutable draft and request as title/priority; refresh
+and conflicts retain the original editor and selected assignment. Responsibility
+does not affect the authenticated actor or permit approval.

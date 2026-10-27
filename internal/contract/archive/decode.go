@@ -145,13 +145,22 @@ func shape(t reflect.Type, v any, path, format string) error {
 				return shape(reflect.TypeFor[UUID](), x, path+"."+k, "")
 			}
 		}
-		if len(m) != t.NumField() {
-			return fmt.Errorf("%s: missing or unknown field", path)
+		known := map[string]bool{}
+		for _, f := range fields(t) {
+			known[fieldName(f)] = true
+		}
+		for n := range m {
+			if !known[n] {
+				return fmt.Errorf("%s: unknown field", path)
+			}
 		}
 		for _, f := range fields(t) {
 			n := fieldName(f)
 			x, ok := m[n]
 			if !ok {
+				if optionalField(f) {
+					continue
+				}
 				return fmt.Errorf("%s.%s: required", path, n)
 			}
 			if e := shape(f.Type, x, path+"."+n, f.Tag.Get("validate")); e != nil {

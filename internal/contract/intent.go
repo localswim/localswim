@@ -78,8 +78,10 @@ func Freeze(wire []byte, route ResolvedRoute, actor AuthenticatedActor) (Intent,
 		}
 	}
 	payload := m["input"].(map[string]any)
+	// Assignment omission retains current ownership; explicit null clears it.
+	// Preserve that distinction without changing legacy fingerprints.
 	for k, f := range d.Input.Fields {
-		if _, ok := payload[k]; !ok && f.Optional {
+		if _, ok := payload[k]; !ok && f.Optional && k != "ownerId" {
 			payload[k] = nil
 		}
 	}

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "suite": "V03-local-archive",
+  "status": "PASS_STAGED_INDEPENDENTLY_REVIEWED",
+  "requiredInventory": "inventory.json",
+  "executedPass": true,
+  "evidenceId": "v03-local-host-r4",
+  "requiredPassed": 6,
+  "outerPassRecords": 14,
+  "interruptionChildPassRecords": 4,
+  "failures": 0,
+  "skips": 0,
+  "rootPrivacy": "Protected current-user and SYSTEM full-control ACL verified before fresh native attempt creation",
+  "negativeControls": [
+    "Missing fixture root fails",
+    "Unsafe fixture root fails",
+    "Missing child overlay cannot execute the required child test"
+  ],
+  "badInputValidation": "Disjoint source-parent/destination paths; exact BLOB corruption and unsafe member ZIP each fail with exit 1; missing input remains unknown with exit 4; all three preserve files",
+  "review": "Fresh independent review PASS; see review.txt. V04 integration and owner acceptance remain separate.",
+  "limits": [
+    "Synthetic Windows NTFS and loopback HTTP only",
+    "No physical power-loss proof",
+    "V04 integrated dispatch/build and owner acceptance remain"
+  ],
+  "qualificationSourceObservation": "Runtime/case input hashes observed during final run and after; no source edits during execution; not represented as prelaunch hashes."
+}

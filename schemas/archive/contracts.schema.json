@@ -401,6 +401,20 @@
           "uniqueItems": true,
           "x-order": "ASCII ascending"
         },
+        "ownerId": {
+          "anyOf": [
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "priority": {
           "enum": [
             "P0",
@@ -1475,6 +1489,20 @@
               "type": "string",
               "x-max-utf8-bytes": 65536
             },
+            "ownerId": {
+              "anyOf": [
+                {
+                  "not": {
+                    "const": "00000000-0000-0000-0000-000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "priority": {
               "anyOf": [
                 {
@@ -1597,6 +1625,20 @@
                   "enum": [
                     "In Progress"
                   ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "ownerId": {
+              "anyOf": [
+                {
+                  "not": {
+                    "const": "00000000-0000-0000-0000-000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
                   "type": "string"
                 },
                 {
@@ -3570,6 +3612,20 @@
             "Completed"
           ],
           "type": "string"
+        },
+        "ownerId": {
+          "anyOf": [
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "priority": {
           "enum": [

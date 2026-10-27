@@ -1,4 +1,4 @@
-// Package schema defines the version-four physical storage layout. Admission, canonical
+// Package schema defines the version-five physical storage layout. Admission, canonical
 // wire validation, retention execution and domain transactions belong to callers.
 package schema
 
@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const Version = 4
+const Version = 5
 const ApplicationID = 0x4c535731 // LSW1
 const MaxInteger int64 = 9007199254740991
 

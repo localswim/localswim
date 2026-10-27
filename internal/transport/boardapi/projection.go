@@ -73,16 +73,20 @@ func project(r writer.Read, q route) (any, error) {
 	if e != nil {
 		return nil, e
 	}
-	e = rows(r, `SELECT c.card_id,t.ticket,c.revision,c.title,c.description,c.priority,c.lane,c.archived,c.current_approval_id,e.origin_board,e.origin_incarnation FROM card c JOIN ticket t USING(incarnation,card_id) JOIN entity e ON e.incarnation=c.incarnation AND e.kind='card' AND e.entity_id=c.card_id WHERE c.incarnation=? ORDER BY t.ticket,c.card_id`, []any{inc}, func(rs *sql.Rows) error {
+	e = rows(r, `SELECT c.card_id,t.ticket,c.revision,c.title,c.description,c.priority,c.lane,c.archived,c.current_approval_id,c.owner_id,e.origin_board,e.origin_incarnation FROM card c JOIN ticket t USING(incarnation,card_id) JOIN entity e ON e.incarnation=c.incarnation AND e.kind='card' AND e.entity_id=c.card_id WHERE c.incarnation=? ORDER BY t.ticket,c.card_id`, []any{inc}, func(rs *sql.Rows) error {
 		var c A.Card
-		var approval sql.NullString
+		var approval, owner sql.NullString
 		var archived int
-		e := rs.Scan(&c.CardID, &c.Ticket, &c.Revision, &c.Title, &c.Description, &c.Priority, &c.Lane, &archived, &approval, &c.CreatedIn.BoardID, &c.CreatedIn.Incarnation)
+		e := rs.Scan(&c.CardID, &c.Ticket, &c.Revision, &c.Title, &c.Description, &c.Priority, &c.Lane, &archived, &approval, &owner, &c.CreatedIn.BoardID, &c.CreatedIn.Incarnation)
 		if q.card != "" && string(c.CardID) != q.card {
 			return e
 		}
 		c.Archived = archived != 0
 		c.CurrentApprovalID = uuidPtr(approval)
+		c.OwnerID = uuidPtr(owner)
+		if q.kind != "history" && c.OwnerID != nil {
+			p.actors[*c.OwnerID] = true
+		}
 		c.CommentIDs = []A.UUID{}
 		c.LinkIDs = []A.UUID{}
 		c.AttachmentIDs = []A.UUID{}
@@ -127,6 +131,18 @@ func project(r writer.Read, q route) (any, error) {
 			}
 		}
 	}
+	if q.kind == "board" {
+		if e = rows(r, `SELECT actor_id FROM actor WHERE incarnation=?`, []any{inc}, func(rs *sql.Rows) error {
+			var id A.UUID
+			if e := rs.Scan(&id); e != nil {
+				return e
+			}
+			p.actors[id] = true
+			return nil
+		}); e != nil {
+			return nil, e
+		}
+	}
 	if e = p.entities(r, inc); e != nil {
 		return nil, e
 	}
@@ -164,6 +180,9 @@ func (p *projection) history(r writer.Read, inc, card string) error {
 				return e
 			}
 			s.State = &v
+			if v.OwnerID != nil {
+				p.actors[*v.OwnerID] = true
+			}
 		} else {
 			if !removed.Valid || !reason.Valid || !revision.Valid {
 				return ErrUnavailable

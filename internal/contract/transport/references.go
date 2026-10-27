@@ -48,6 +48,12 @@ func current(identity A.Identity, cards []A.Card, actors []A.Actor, comments []A
 	required := map[key]A.UUID{}
 	found := map[key]bool{}
 	for _, c := range cards {
+		if c.OwnerID != nil {
+			if _, ok := actorIDs[*c.OwnerID]; !ok {
+				return fmt.Errorf("card assignee missing")
+			}
+			neededActors[*c.OwnerID] = true
+		}
 		for kind, ids := range map[string][]A.UUID{"comment": c.CommentIDs, "link": c.LinkIDs, "attachment": c.AttachmentIDs} {
 			for _, id := range ids {
 				k := key{kind, id}

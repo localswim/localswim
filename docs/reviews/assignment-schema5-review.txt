@@ -1,0 +1,83 @@
+ASSIGNMENT AND PHYSICAL LAYOUT5 - INDEPENDENT REVIEW
+2026-10-27 | Revision 3 | PASS WITHIN SOURCE/NATIVE/COMPONENT SCOPE
+
+Outcome
+- No open material findings in the reviewed assignment correction.
+- A presentation encoding defect found in the intermediate accessibility edit
+  is resolved. Final BoardView bytes equal the previously reviewed source with
+  exactly one ASCII aria-label insertion; existing UTF-8 glyphs are preserved.
+- This review does not establish complete V02 browser/CLI qualification. That
+  required inventory remains incomplete and has its own final execution gate.
+
+Transactional assignment and authority
+- Optional ownerId selects an existing actor in the current incarnation. The
+  membership check runs after current grants admission inside the writer
+  transaction; a nullable composite foreign key enforces the stored reference.
+- Omitted create input is unassigned; omitted edit input retains ownership;
+  explicit null clears it. Redundant owner-only edits refuse NO_CHANGE.
+- Stale revisions, current permissions, Completed protection and normal write
+  admission still apply. Assignment changes share card/board revision, activity,
+  immutable outcome and previous-state history. Current approval is invalidated
+  while the previous owner and approval facts remain in retained history.
+- Assignment does not select caller identity, mint grants or confer human,
+  approval, administration or Completed authority.
+
+Projection, archive and compatibility
+- Current and historical projections include assignee actor facts. Boundary
+  validation rejects unresolved owners, including historical snapshot owners.
+- Export and restore preserve current owner and retained snapshot state. The
+  common card snapshot path also serves workflow, links and attachments.
+- Omitted ownerId retains legacy canonical intent/fingerprint bytes. Explicit
+  null remains distinct from omission when an edit clears the assignment.
+- Logical archive version 1 accepts omitted ownerId as unassigned and canonically omits
+  nil owner values. Old readers are not claimed to support new assigned rows.
+- Physical schema Version, user_version and board.schema_version are all 5.
+  Existing layout4 is refused without writes, migration or adoption. Its refusal
+  fixture uses the complete preserved layout4 DDL, and verifies unchanged file
+  contents/inventory. Earlier layout3 fixtures and evidence remain preserved.
+
+UI and accessibility
+- Assignee offers actual existing actor UUID values and Unassigned. It sends
+  UUID or explicit null through ordinary draft/submission processing and renders
+  actor labels as inert text. Conflict and refresh preserve caller input/base.
+- Explicit field aria-labels keep option text out of control names. The pinned
+  browser component probe verifies one exact Assignee control and one exact
+  priority control, actor UUID/empty option values and P0-P5 priority values.
+- No fabricated recovery qualification, authority or alternate application mount
+  was added to the product path by this correction.
+
+Verification and evidence binding
+- Fresh independent Go contract, archive-contract and transport-contract tests
+  passed. Focused native assignment, reopen, admission, foreign-key and complete
+  layout4 refusal tests passed using fresh synthetic private paths.
+- Reviewed author native tests and synthetic browser component evidence passed;
+  strict TypeScript/component compilation and the final pinned exact-label probe
+  passed. Component evidence is not a full product browser journey.
+- All 35 final owned source hashes matched their reviewed freeze. The 34 files
+  outside BoardView are unchanged from the independently reviewed core revision.
+  The final BoardView source is byte-exact to that revision plus the one intended
+  accessibility insertion. Intermediate failed source/evidence remains retained.
+- Readable export and runnable restored-copy qualification has separate evidence
+  and independent review; it is not inferred from the restore transform test.
+
+Limits
+- The full required V02 inventory has not passed. Partial DOM/CLI attempts and
+  component successes cannot replace its final report, required case records,
+  successful owned teardown and fresh independent execution-evidence review.
+- New embedded assets need their own verified source/bundle binding. A later
+  presentation-only asset rebuild does not retroactively change the executable
+  or bundle recorded by an earlier native/restore run.
+- No physical power-loss durability, hostile same-account isolation, real-data
+  migration, complete V1 parity or final release qualification is claimed.
+
+Selected reviewed source SHA-256
+internal/board/cards/cards.go abcb6cc7ef5f2208f8171506cdd6529443b0594c77e09525bc5bd9b17870e401
+internal/board/cards/snapshot.go 91ec49afc125797a1d74d719c7492c5a731fd087e91382905b8cae05159293e3
+internal/contract/input.go 95fc6264ead8724b49e2f9f15bbc3ccb31c76ca87ca02351528fd6032471aa51
+internal/contract/intent.go 739f113793e67db46418c99949339abb624296943fef72d1375aeda84ce6ce7e
+internal/store/schema/ddl.go 28f8c5f2dec7de99c7eb77fc141f32e1e94688eeafbc24005c0eda14d782017f
+internal/store/schema/schema.go cb5f3e907f2e608b2567623531bbb27a69f81b79beed6fb554a80d75cf154f5f
+internal/transport/boardapi/projection.go 93c1bfb43fd10e1e2525c99141a1d91e35a751fde0bf0c4075d49a90d265e0e2
+internal/archive/export/project.go 82102e313ff44ec29e7d314c73dc1850584ddba36cdef05b48bf9dedf3160fe5
+internal/archive/restore/native.go b2baa0768c39c2a95b626c83d69214622f355066d84943280bdca8123ceeded7
+web/src/board/view.ts 500fdebaf0b54dfacd949a92e223cc3005a6d757f8aa49bf33e37ac6daa48175

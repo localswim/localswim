@@ -1,7 +1,7 @@
-# Version-four physical relational layout
+# Version-five physical relational layout
 
-`Version`, `PRAGMA user_version` and `board.schema_version` are 4. Existing
-physical layouts 1, 2 and 3 are refused without writes, migration or adoption. This is an
+`Version`, `PRAGMA user_version` and `board.schema_version` are 5. Existing
+physical layouts 1, 2, 3 and 4 are refused without writes, migration or adoption. This is an
 unreleased storage change; API, logical archive and fingerprint versions stay 1.
 
 The schema identifies a board and one storage incarnation. Every relation carries
@@ -125,3 +125,7 @@ fixed transitions, Completed protection, blocking-cycle admission, whitespace/
 Unicode validation, timestamps sampled once per transaction, approval invalidation,
 retention preview hashes and all terminal outcome decisions remain in Go. Schema
 tests/open validation confer no domain, recovery or durability qualification.
+
+Assignment is a nullable card.owner_id referencing the same incarnation actor.
+It records responsibility only and grants no authority. Existing layout 4 is
+refused before any write; no migration or old fixture relabeling is supported.

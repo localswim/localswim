@@ -127,6 +127,12 @@ func (r *registry) history(records []Snapshot, current map[UUID]Positive, exact 
 			return fmt.Errorf("snapshot actor")
 		}
 		actors[s.ActorID] = true
+		if s.State != nil && s.State.OwnerID != nil {
+			if !r.actors[*s.State.OwnerID] {
+				return fmt.Errorf("snapshot assignee")
+			}
+			actors[*s.State.OwnerID] = true
+		}
 		revision, ok := current[s.CardID]
 		if !ok {
 			return fmt.Errorf("snapshot card")
@@ -289,6 +295,9 @@ func ValidateDocuments(m Manifest, b Board, h History, a Activity, o Outcomes) (
 		}
 		if c.CreatedIn.BoardID != b.Identity.BoardID || c.Ticket >= b.NextTicket {
 			return nil, fmt.Errorf("card provenance/allocator")
+		}
+		if c.OwnerID != nil && !r.actors[*c.OwnerID] {
+			return nil, fmt.Errorf("card assignee")
 		}
 		cards[c.CardID] = c
 		current[c.CardID] = c.Revision

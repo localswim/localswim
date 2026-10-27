@@ -496,7 +496,7 @@ func operation(o Operation) error {
 	} else {
 		input := map[string]any{}
 		for k, v := range payload {
-			if f, ok := desc.Input.Fields[k]; ok && f.Optional && v == nil {
+			if f, ok := desc.Input.Fields[k]; ok && f.Optional && v == nil && k != "ownerId" {
 				continue
 			}
 			input[k] = v

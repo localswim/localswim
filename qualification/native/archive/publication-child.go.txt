@@ -1,0 +1,91 @@
+//go:build windows && amd64
+
+package publication
+
+import (
+	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
+	A "github.com/localswim/localswim/internal/contract/archive"
+	"os"
+	"path/filepath"
+	"reflect"
+	"testing"
+	"time"
+)
+
+// This additional test file is overlaid into the existing publication package.
+// It calls its existing fault seam; no production source or behavior is replaced.
+func TestV03PublicationInterrupt(t *testing.T) {
+	root, source, protected := os.Getenv("V03_CHILD_ROOT"), os.Getenv("V03_CHILD_SOURCE"), os.Getenv("V03_CHILD_PROTECTED")
+	if !filepath.IsAbs(root) || !filepath.IsAbs(source) || !filepath.IsAbs(protected) {
+		t.Fatal("explicit child inputs required")
+	}
+	inventory := func(root string) map[string]string {
+		out := map[string]string{}
+		e := filepath.WalkDir(root, func(p string, d os.DirEntry, e error) error {
+			if e != nil {
+				return e
+			}
+			rel, _ := filepath.Rel(root, p)
+			if d.IsDir() {
+				out[rel+"/"] = "directory"
+				return nil
+			}
+			b, e := os.ReadFile(p)
+			if e != nil {
+				return e
+			}
+			out[rel] = fmt.Sprintf("%x", sha256.Sum256(b))
+			return nil
+		})
+		if e != nil {
+			t.Fatal("inventory failed")
+		}
+		return out
+	}
+	for j, stage := range []string{"after-preparing", "before-rename", "after-rename"} {
+		t.Run(stage, func(t *testing.T) {
+			request := A.UUID(fmt.Sprintf("10000000-0000-4000-8000-%012d", j+1))
+			destination := filepath.Join(root, fmt.Sprint("int", j))
+			reached := false
+			response := restoreWithFault(context.Background(), Request{SourceArchive: source, Destination: destination, RequestID: request, ProtectedRoots: []string{protected}}, time.Now, func(got string) error {
+				if got == stage {
+					reached = true
+					return errors.New("synthetic interruption")
+				}
+				return nil
+			})
+			if !reached || response.Exit != 4 || response.Status.Outcome != "unknown" {
+				t.Fatal("interruption not reached or inaccurately classified")
+			}
+			before := inventory(root)
+			for k := 0; k < 2; k++ {
+				got := Status(context.Background(), destination, request)
+				if got.Exit != 4 || got.Status.Outcome != "unknown" {
+					t.Fatal("incomplete publication incorrectly settled")
+				}
+			}
+			if !reflect.DeepEqual(before, inventory(root)) {
+				t.Fatal("status mutated interrupted candidate")
+			}
+			partial := destination + ".partial-" + string(request)
+			if stage == "after-rename" {
+				if _, e := os.Stat(destination); e != nil {
+					t.Fatal("published incomplete destination not preserved")
+				}
+				if _, e := os.Stat(partial); !os.IsNotExist(e) {
+					t.Fatal("unexpected partial")
+				}
+			} else {
+				if _, e := os.Stat(partial); e != nil {
+					t.Fatal("partial not preserved")
+				}
+				if _, e := os.Stat(destination); !os.IsNotExist(e) {
+					t.Fatal("premature publication")
+				}
+			}
+		})
+	}
+}

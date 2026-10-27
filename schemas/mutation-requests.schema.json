@@ -272,6 +272,20 @@
               "type": "string",
               "x-max-utf8-bytes": 65536
             },
+            "ownerId": {
+              "anyOf": [
+                {
+                  "not": {
+                    "const": "00000000-0000-0000-0000-000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "priority": {
               "enum": [
                 "P0",
@@ -348,6 +362,20 @@
                 "In Progress"
               ],
               "type": "string"
+            },
+            "ownerId": {
+              "anyOf": [
+                {
+                  "not": {
+                    "const": "00000000-0000-0000-0000-000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "priority": {
               "enum": [

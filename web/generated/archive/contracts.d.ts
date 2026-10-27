@@ -16,6 +16,7 @@ export type IntentCardCreate = {
   readonly opId: string;
   readonly payload: {
   readonly description: string;
+  readonly ownerId?: (string | null);
   readonly priority: ("P0" | "P1" | "P2" | "P3" | "P4" | "P5" | null);
   readonly title: string;
 };
@@ -34,6 +35,7 @@ export type IntentCardEdit = {
   readonly payload: {
   readonly description: (string | null);
   readonly lane: ("In Progress" | null);
+  readonly ownerId?: (string | null);
   readonly priority: ("P0" | "P1" | "P2" | "P3" | "P4" | "P5" | null);
   readonly title: (string | null);
 };
@@ -322,6 +324,7 @@ export type Card = {
   readonly description: string;
   readonly lane: "Ready for Work" | "In Progress" | "Ready for Review" | "Completed";
   readonly linkIds: ReadonlyArray<string>;
+  readonly ownerId?: string | null;
   readonly priority: "P0" | "P1" | "P2" | "P3" | "P4" | "P5";
   readonly revision: number;
   readonly ticket: number;
@@ -403,6 +406,7 @@ export type SnapshotState = {
   readonly currentApprovalId: string | null;
   readonly description: string;
   readonly lane: "Ready for Work" | "In Progress" | "Ready for Review" | "Completed";
+  readonly ownerId?: string | null;
   readonly priority: "P0" | "P1" | "P2" | "P3" | "P4" | "P5";
   readonly ticket: number;
   readonly title: string;

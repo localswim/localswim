@@ -114,6 +114,7 @@ type Card struct {
 	Priority          Priority `json:"priority"`
 	Lane              Lane     `json:"lane"`
 	Archived          bool     `json:"archived"`
+	OwnerID           *UUID    `json:"ownerId,omitempty"`
 	CurrentApprovalID *UUID    `json:"currentApprovalId"`
 	CommentIDs        []UUID   `json:"commentIds"`
 	LinkIDs           []UUID   `json:"linkIds"`
@@ -191,6 +192,7 @@ type SnapshotState struct {
 	Priority          Priority `json:"priority"`
 	Lane              Lane     `json:"lane"`
 	Archived          bool     `json:"archived"`
+	OwnerID           *UUID    `json:"ownerId,omitempty"`
 	CurrentApprovalID *UUID    `json:"currentApprovalId"`
 }
 type SnapshotReferences struct {

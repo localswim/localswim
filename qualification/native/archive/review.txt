@@ -1,0 +1,52 @@
+V03 independent review - 2026-10-27
+
+Result: PASS_INDEPENDENT_V03_LOCAL_ARCHIVE.
+Fresh non-author Sol / High review found no remaining material finding in the
+corrected suite and actual synthetic Windows NTFS/local HTTP evidence.
+
+Evidence reviewed
+- v03-local-host-r4: all six frozen required IDs, fourteen outer case passes and
+  four interruption-child passes; zero failures/skips; narrow vet passed.
+- Actual application CLI restore/status, usable normal restored bootstrap,
+  readable current/history assignment, exact binary/zero-byte attachments,
+  restored edit/restart, source capability refusal and source UNKNOWN preservation.
+- Corrected corrupt/unsafe ZIP cases reach validation and require failed/exit1;
+  missing input stays unknown/exit4. No-overwrite/protected-path cases preserve
+  files. The earlier source-parent-guard coverage error and run are retained.
+- Repeated normal/native status checks preserve inventories. The private child
+  overlay adds only a bounded test file and reaches three real publication phases;
+  it replaces no production source and includes a missing-overlay control.
+- At the original r4 review audit, all 301 product/command/module files and
+  355 inventory entries, including embedded assets, matched the executed inputs.
+- Original source/archive hashes matched; final selected ports and owned
+  application processes were released.
+
+Binding and limits
+Qualification hashes were first observed during the active run, then checked
+after completion. This is not represented as a prelaunch observation. The author
+reported no edits after launch; reviewed runtime/case inputs remained unchanged.
+At that initial review, only README/results metadata and this report had changed.
+
+Actual application SHA256:
+b6309d96b004c0d701fca69605835618db3d7440b25716230f0be27c849d0ffb
+
+This is bounded synthetic execution evidence, not physical power-loss proof or
+source-ledger transfer. No V1 data, real board, trust/enrollment or advanced
+retention action was exercised. V04 integration and owner acceptance remain.
+
+Presentation compatibility addendum - 2026-10-27
+The reviewed native result and application SHA256 above remain the original r4
+execution. No new native execution or current-binary hash is claimed.
+
+After that run, the embedded board view repaired the displayed middle-dot and
+arrow glyphs. Independent comparison with the saved old asset confirmed its hash
+matches the tested r4 input; applying only those two exact text replacements
+produces byte-equivalent current JavaScript. The rebuilt manifest changes only
+the source board/view.ts digest and generated js/board/view.js digest.
+
+Comparison against all 355 tested product input entries found only the generated
+board/view.js and manifest changed. All Go, command, module and qualification
+runtime/case inputs remain unchanged. Fresh TypeScript, asset-stage consistency
+and asset tests passed. This supports retaining the bounded archive/restore
+result across this presentation change; it does not make the current 355 entries
+byte-identical to the tested inputs or qualify a newly built executable.

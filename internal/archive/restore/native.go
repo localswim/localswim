@@ -396,7 +396,7 @@ func (p *Prepared) insert(ctx context.Context, c *sql.Conn) error {
 		}
 	}
 	for _, v := range p.board.Cards {
-		if e := put("card", "incarnation,card_id,revision,title,description,priority,lane,archived,current_approval_id", i, v.CardID, v.Revision, v.Title, v.Description, v.Priority, v.Lane, v.Archived, v.CurrentApprovalID); e != nil {
+		if e := put("card", "incarnation,card_id,revision,title,description,priority,lane,archived,current_approval_id,owner_id", i, v.CardID, v.Revision, v.Title, v.Description, v.Priority, v.Lane, v.Archived, v.CurrentApprovalID, v.OwnerID); e != nil {
 			return e
 		}
 	}

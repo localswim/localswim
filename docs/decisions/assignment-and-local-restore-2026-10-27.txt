@@ -1,0 +1,63 @@
+LOCAL ASSIGNMENT AND USABLE RESTORED COPIES
+2026-10-27 | Required V1-style outcomes found during V02/V03 verification
+
+Assignment
+Card ownerId is an optional nullable reference to an existing board actor. Omitted
+create input remains unassigned; omitted edit input preserves the owner; explicit
+null clears it. Membership is checked inside current transactional admission.
+True owner changes share card/board revision, history, activity and approval
+invalidation. Redundant owner-only edits refuse NO_CHANGE. Owner is not caller
+identity and cannot grant approval, administration or Completed authority.
+
+Current and retained snapshots, projections, readable export and restore preserve
+assignment plus referenced actor facts. Legacy logical archives omitting ownerId
+decode as unassigned. Existing omitted-owner canonical fingerprints stay unchanged;
+explicit null and omission remain distinct where editing semantics require it.
+The UI offers Assignee with actual actor UUID values and Unassigned, displays the
+owner, and retains keyboard/IME, draft/conflict and stale-response behavior. Explicit
+accessible field labels keep option text out of control names.
+
+Physical SQLite layout5 adds the nullable owner reference and FK. Old layouts,
+including4, refuse without writes or migration. Logical API/archive versions stay1
+with the optional field. Existing real data is not imported, adopted or rewritten.
+Earlier layout4 evidence retains its original source/platform limits.
+
+Explicit local restore
+  localswim restore --source FILE --data NEWDIR [--port PORT] [--json]
+  localswim restore-status --data DIR --request-id UUID [--json]
+
+The CLI emits RESTORE_REQUEST UUID before creation effects. It uses existing
+validated, no-overwrite native publication into NEWDIR/data. After confirmed
+publication, the explicit adapter pins/locks that destination, opens exact restored
+identity with S01, and creates fresh configured human/bot actors and grants in one
+transaction. No current source authority is imported. It publishes a private
+completion record and local identity last. A failure/ambiguity remains UNKNOWN
+with retained files and no automatic repair, replay, adoption or overwrite.
+
+Private runtime metadata version2 binds restoredRequestId and selects data/;
+ordinary version1 roots still select board/. Normal serve validates the completion
+marker before mutable open and automatically supplies normal local channels.
+Installation/incarnation separate the restored copy from original uncertainty.
+Source assignment may retain a historical actor UUID without granting it rights.
+
+Local restore-status uses existing-only local.lock, receipt hash/identity/marker
+bindings and query-only native inspection of the offline store and bootstrap
+references. It creates no file, resumes nothing and makes no source-operation
+noncommit claim. Native A04 pristine status is inapplicable after grant activation;
+local completion evidence is checked separately, including after legitimate edits.
+An active/unavailable store or incomplete evidence stays unknown. Trusted protected
+source roots, executable directory, reparse/alias checks and no-overwrite remain.
+The existing native source-archive-parent exclusion also remains; select a separate
+destination rather than a descendant of that archive input directory.
+
+Verification boundaries
+The V03 staged suite drives actual local HTTP export, readable board/history and
+bytes, runnable restore/restart and the built CLI. It checks assigned current and
+historical owner references, invalid ZIP rejection through actual validation,
+source preservation, original UNKNOWN isolation and interruption/status. Private
+fault overlays add only a test file to the existing native fault seam; they do not
+replace production behavior. Source-hash observation timing is recorded honestly.
+V02 normal DOM/CLI qualification has its own required inventory and final verdict.
+No physical power-loss, hostile same-account isolation, full V1 parity or final
+release qualification follows from component checks. V04 and final independent
+review remain required after owner acceptance of the bounded cards.

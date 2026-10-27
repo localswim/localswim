@@ -11,7 +11,8 @@ import (
 )
 
 // Type is the single validation/generation descriptor. A missing optional field
-// is permitted on wire and becomes null only in frozen semantic payloads.
+// is permitted on wire. Legacy optional fields become null in frozen semantic
+// payloads; ownerId preserves omission because explicit null clears assignment.
 type Type struct {
 	Kind     string
 	Nullable bool
@@ -34,6 +35,7 @@ func number(min, max uint64) *Type      { return &Type{Kind: "integer", Min: min
 func text(format string) *Type          { return &Type{Kind: "string", Format: format} }
 
 var uuid = text("uuid")
+var nullableUUID = &Type{Kind: "string", Format: "uuid", Nullable: true}
 var digest = text("sha256")
 var revision = number(0, MaxInteger)
 var priority = enum("P0", "P1", "P2", "P3", "P4", "P5")
@@ -55,8 +57,8 @@ type CommandDescriptor struct {
 func Commands() []CommandDescriptor {
 	empty := obj(map[string]Field{})
 	commands := []CommandDescriptor{
-		{"card.create", "none", "POST", "/api/v1/boards/{boardId}/cards", obj(map[string]Field{"title": req(text("title")), "description": req(text("prose")), "priority": opt(priority)}), false},
-		{"card.edit", "card", "PATCH", "/api/v1/boards/{boardId}/cards/{cardId}", obj(map[string]Field{"title": opt(text("title")), "description": opt(text("prose")), "priority": opt(priority), "lane": opt(enum("In Progress"))}), false},
+		{"card.create", "none", "POST", "/api/v1/boards/{boardId}/cards", obj(map[string]Field{"title": req(text("title")), "description": req(text("prose")), "priority": opt(priority), "ownerId": opt(nullableUUID)}), false},
+		{"card.edit", "card", "PATCH", "/api/v1/boards/{boardId}/cards/{cardId}", obj(map[string]Field{"title": opt(text("title")), "description": opt(text("prose")), "priority": opt(priority), "lane": opt(enum("In Progress")), "ownerId": opt(nullableUUID)}), false},
 		{"comment.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/comments", obj(map[string]Field{"text": req(text("comment"))}), false},
 		{"attachment.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/attachments", obj(map[string]Field{"name": req(text("attachment-name")), "mediaLabel": req(text("media-label")), "byteLength": req(number(0, 10485760)), "sha256": req(digest)}), false},
 		{"link.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/link-add", obj(map[string]Field{"kind": req(enum("blocking", "informational")), "targetCardId": req(uuid)}), false},

@@ -35,3 +35,10 @@ repository. Fixtures create fresh synthetic SQLite stores with private ACLs and
 use the real S01/S02/G01 providers with an explicitly test-only snapshot verifier.
 They do not establish native power-loss, browser, transport or production service
 qualification. Production composition must supply G02's real verifier.
+
+Assignment
+ownerId optionally selects an existing actor in the current board incarnation.
+Create omission/null is unassigned. Edit omission retains ownership; null clears
+it. Membership, stale revision, current rights and no-change checks run inside
+the current writer transaction. Assignment shares normal revision/history and
+approval invalidation and never changes authenticated actor, rights or workflow.

@@ -6,7 +6,7 @@ const ddl = `CREATE TABLE board (
  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
  board_id TEXT NOT NULL CHECK({{u:board_id}}),
  incarnation TEXT NOT NULL UNIQUE CHECK({{u:incarnation}}),
- schema_version INTEGER NOT NULL DEFAULT 4 CHECK(schema_version=4),
+ schema_version INTEGER NOT NULL DEFAULT 5 CHECK(schema_version=5),
  revision INTEGER NOT NULL DEFAULT 0 CHECK({{n:revision}}),
  next_ticket INTEGER NOT NULL DEFAULT 1 CHECK({{p:next_ticket}}),
  next_event INTEGER NOT NULL DEFAULT 1 CHECK({{p:next_event}}),
@@ -80,7 +80,9 @@ CREATE TABLE card (
  priority TEXT NOT NULL DEFAULT 'P3' CHECK(priority IN ('P0','P1','P2','P3','P4','P5')),
  lane TEXT NOT NULL DEFAULT 'Ready for Work' CHECK(lane IN ('Ready for Work','In Progress','Ready for Review','Completed')),
  archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)), current_approval_id TEXT,
+ owner_id TEXT CHECK(owner_id IS NULL OR {{u:owner_id}}),
  approval_kind TEXT NOT NULL DEFAULT 'approval' CHECK(approval_kind='approval'),
+ FOREIGN KEY(incarnation,owner_id) REFERENCES actor(incarnation,actor_id),
  PRIMARY KEY(incarnation,card_id), FOREIGN KEY(incarnation,kind,card_id) REFERENCES entity(incarnation,kind,entity_id),
  FOREIGN KEY(incarnation,card_id) REFERENCES ticket(incarnation,card_id),
  FOREIGN KEY(incarnation,card_id,current_approval_id) REFERENCES approval(incarnation,card_id,approval_id) DEFERRABLE INITIALLY DEFERRED

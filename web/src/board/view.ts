@@ -80,7 +80,7 @@ export class BoardView {
     for (const card of this.board!.result.cards) {
       const article = element("article");
       article.append(element("h2", "#" + card.ticket + " " + card.title), element("p", card.cardId),
-        element("p", card.description), element("p", card.priority + " · " + card.lane + " · card revision " + card.revision));
+        element("p", card.description), element("p", "Assignee: " + this.assignee(card.ownerId, this.board!.result.actors)), element("p", card.priority + " · " + card.lane + " · card revision " + card.revision));
       for (const comment of this.board!.result.comments.filter(c => c.cardId === card.cardId)) article.append(element("p", comment.actorId + ": " + comment.text));
       for (const link of this.board!.result.links.filter(l => l.cardId === card.cardId && l.active)) {
         article.append(element("p", link.kind + " → " + link.target.cardId + " · " + link.linkId));
@@ -98,6 +98,11 @@ export class BoardView {
       const replacement = [...this.cards.querySelectorAll<HTMLButtonElement>("button")].find(n => n.dataset.focusKey === focused);
       (replacement ?? this.heading).focus();
     }
+  }
+  private assignee(id: string | null | undefined, actors: BoardRead["result"]["actors"]): string {
+    if (!id) return "Unassigned";
+    const actor = actors.find(a => a.actorId === id);
+    return actor ? actor.label + " (" + id + ")" : id;
   }
   private blocked(): boolean { return [...this.records.values()].some(r => r.state === "pending" || r.state === "unknown"); }
   private updateSave(): void {
@@ -117,7 +122,7 @@ export class BoardView {
       const label = element("label", name + " ");
       const control = choices ? element("select") : name === "description" || name === "text" ? element("textarea") : element("input");
       if (control instanceof HTMLSelectElement) for (const choice of choices!) { const option = element("option", choice); option.value = choice; control.append(option); }
-      control.name = name; control.value = value; editor.fields[name] = control;
+      control.name = name; control.setAttribute("aria-label", name === "ownerId" ? "Assignee" : name); control.value = value; editor.fields[name] = control;
       control.addEventListener("input", () => this.persist(editor));
       control.addEventListener("change", () => this.persist(editor));
       label.append(control); form.append(label);
@@ -125,6 +130,10 @@ export class BoardView {
     if (start) field("lane", "In Progress", ["In Progress"]);
     else if (command === "card.create" || command === "card.edit") {
       field("title", card?.title ?? ""); field("description", card?.description ?? ""); field("priority", card?.priority ?? "P3", ["P0", "P1", "P2", "P3", "P4", "P5"]);
+      field("ownerId", card?.ownerId ?? "", ["", ...base.result.actors.map(a => a.actorId)]);
+      const assignee = editor.fields["ownerId"] as HTMLSelectElement;
+      assignee.parentElement!.firstChild!.textContent = "Assignee ";
+      for (const option of assignee.options) option.textContent = this.assignee(option.value, base.result.actors);
     } else if (command === "comment.add") field("text", "");
     else if (command === "link.add") { field("kind", "blocking", ["blocking", "informational"]); field("targetCardId", ""); }
     else if (command === "link.remove") field("linkId", "");
@@ -140,7 +149,7 @@ export class BoardView {
   }
   private input(editor: Editor): Record<string, Value> {
     const input: Record<string, Value> = {};
-    for (const [name, field] of Object.entries(editor.fields)) input[name] = name === "policyVersion" ? Number(field.value) : field.value;
+    for (const [name, field] of Object.entries(editor.fields)) input[name] = name === "policyVersion" ? Number(field.value) : name === "ownerId" && field.value === "" ? null : field.value;
     return input;
   }
   private persist(editor: Editor): void {
@@ -224,7 +233,8 @@ export class BoardView {
       const read = await this.client.card(editor.context.boardId, editor.card.cardId);
       if (this.destroyed || this.editor !== editor) return;
       host.replaceChildren(element("h2", "Current confirmed text · board revision " + read.result.revision),
-        element("p", read.result.card.title), element("p", read.result.card.description));
+        element("p", read.result.card.title), element("p", read.result.card.description),
+        element("p", "Assignee: " + this.assignee(read.result.card.ownerId, read.result.actors)));
       for (const comment of read.result.comments) host.append(element("p", comment.actorId + ": " + comment.text));
       host.append(element("p", "Your editor retains its original base. Read the current board, then deliberately open a new editor to reconcile."));
     } catch { if (!this.destroyed && this.editor === editor) host.replaceChildren(element("p", "Current text unavailable; editor input retained.")); }

@@ -81,7 +81,7 @@ export class BoardView {
         this.cards.replaceChildren();
         for (const card of this.board.result.cards) {
             const article = element("article");
-            article.append(element("h2", "#" + card.ticket + " " + card.title), element("p", card.cardId), element("p", card.description), element("p", card.priority + " · " + card.lane + " · card revision " + card.revision));
+            article.append(element("h2", "#" + card.ticket + " " + card.title), element("p", card.cardId), element("p", card.description), element("p", "Assignee: " + this.assignee(card.ownerId, this.board.result.actors)), element("p", card.priority + " · " + card.lane + " · card revision " + card.revision));
             for (const comment of this.board.result.comments.filter(c => c.cardId === card.cardId))
                 article.append(element("p", comment.actorId + ": " + comment.text));
             for (const link of this.board.result.links.filter(l => l.cardId === card.cardId && l.active)) {
@@ -100,6 +100,12 @@ export class BoardView {
             const replacement = [...this.cards.querySelectorAll("button")].find(n => n.dataset.focusKey === focused);
             (replacement ?? this.heading).focus();
         }
+    }
+    assignee(id, actors) {
+        if (!id)
+            return "Unassigned";
+        const actor = actors.find(a => a.actorId === id);
+        return actor ? actor.label + " (" + id + ")" : id;
     }
     blocked() { return [...this.records.values()].some(r => r.state === "pending" || r.state === "unknown"); }
     updateSave() {
@@ -130,6 +136,7 @@ export class BoardView {
                     control.append(option);
                 }
             control.name = name;
+            control.setAttribute("aria-label", name === "ownerId" ? "Assignee" : name);
             control.value = value;
             editor.fields[name] = control;
             control.addEventListener("input", () => this.persist(editor));
@@ -143,6 +150,11 @@ export class BoardView {
             field("title", card?.title ?? "");
             field("description", card?.description ?? "");
             field("priority", card?.priority ?? "P3", ["P0", "P1", "P2", "P3", "P4", "P5"]);
+            field("ownerId", card?.ownerId ?? "", ["", ...base.result.actors.map(a => a.actorId)]);
+            const assignee = editor.fields["ownerId"];
+            assignee.parentElement.firstChild.textContent = "Assignee ";
+            for (const option of assignee.options)
+                option.textContent = this.assignee(option.value, base.result.actors);
         }
         else if (command === "comment.add")
             field("text", "");
@@ -171,7 +183,7 @@ export class BoardView {
     input(editor) {
         const input = {};
         for (const [name, field] of Object.entries(editor.fields))
-            input[name] = name === "policyVersion" ? Number(field.value) : field.value;
+            input[name] = name === "policyVersion" ? Number(field.value) : name === "ownerId" && field.value === "" ? null : field.value;
         return input;
     }
     persist(editor) {
@@ -286,7 +298,7 @@ export class BoardView {
             const read = await this.client.card(editor.context.boardId, editor.card.cardId);
             if (this.destroyed || this.editor !== editor)
                 return;
-            host.replaceChildren(element("h2", "Current confirmed text · board revision " + read.result.revision), element("p", read.result.card.title), element("p", read.result.card.description));
+            host.replaceChildren(element("h2", "Current confirmed text · board revision " + read.result.revision), element("p", read.result.card.title), element("p", read.result.card.description), element("p", "Assignee: " + this.assignee(read.result.card.ownerId, read.result.actors)));
             for (const comment of read.result.comments)
                 host.append(element("p", comment.actorId + ": " + comment.text));
             host.append(element("p", "Your editor retains its original base. Read the current board, then deliberately open a new editor to reconcile."));

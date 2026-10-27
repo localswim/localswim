@@ -230,3 +230,24 @@ func publish(p string, b []byte, replace bool) error {
 	}
 	return nil
 }
+
+// Status must never create a missing exclusion file.
+func lockExistingRoot(root string) (func(), error) {
+	f, e := openPrivate(filepath.Join(root, "local.lock"), windows.GENERIC_READ, windows.OPEN_EXISTING, 0)
+	if e != nil {
+		return nil, e
+	}
+	return func() { _ = f.Close() }, nil
+}
+func readPrivateBounded(p string, limit int64) ([]byte, error) {
+	f, e := openPrivate(p, windows.GENERIC_READ, windows.OPEN_EXISTING, windows.FILE_SHARE_READ)
+	if e != nil {
+		return nil, e
+	}
+	defer f.Close()
+	b, e := io.ReadAll(io.LimitReader(f, limit+1))
+	if e != nil || int64(len(b)) > limit {
+		return nil, errLocal
+	}
+	return b, nil
+}

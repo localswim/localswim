@@ -98,11 +98,14 @@ func run(ctx context.Context, args []string, in io.Reader, out, diagnostic io.Wr
 	if ctx == nil || ctx.Err() != nil {
 		return entryFailure(args, out, diagnostic, "UNAVAILABLE", 3)
 	}
+	if handled, exit := runLocalRestore(ctx, args, in, out, diagnostic); handled {
+		return exit
+	}
 	if len(args) == 1 && args[0] == "--help" {
 		if out == nil {
 			return 1
 		}
-		_, e := fmt.Fprintln(out, "Localswim: localhost swimlanes\n  localswim serve --data DIR [--port PORT]\n  localswim --data DIR [--json] board read\n  localswim --data DIR [--json] card COMMAND ...\nBrowser and CLI share the local service. No setup, login codes or TLS enrollment.")
+		_, e := fmt.Fprintln(out, "Localswim: localhost swimlanes\n  localswim serve --data DIR [--port PORT]\n  localswim --data DIR [--json] board read\n  localswim --data DIR [--json] card COMMAND ...\n  localswim restore --source FILE --data NEWDIR [--port PORT] [--json]\n  localswim restore-status --data DIR --request-id UUID [--json]\nBrowser and CLI share the local service. No setup, login codes or TLS enrollment.")
 		if e != nil {
 			return 1
 		}

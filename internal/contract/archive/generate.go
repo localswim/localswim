@@ -43,6 +43,9 @@ func fields(t reflect.Type) []reflect.StructField {
 	sort.Slice(a, func(i, j int) bool { return fieldName(a[i]) < fieldName(a[j]) })
 	return a
 }
+func optionalField(f reflect.StructField) bool {
+	return strings.Contains(f.Tag.Get("json"), ",omitempty")
+}
 func fieldName(f reflect.StructField) string { return strings.Split(f.Tag.Get("json"), ",")[0] }
 func schemaType(t reflect.Type, inline bool, format string) map[string]any {
 	if t.Kind() == reflect.Pointer {
@@ -69,7 +72,9 @@ func schemaType(t reflect.Type, inline bool, format string) map[string]any {
 			} else {
 				p[n] = schemaType(f.Type, false, f.Tag.Get("validate"))
 			}
-			r = append(r, n)
+			if !optionalField(f) {
+				r = append(r, n)
+			}
 		}
 		m = map[string]any{"type": "object", "properties": p, "required": r, "additionalProperties": false}
 		if t == reflect.TypeFor[Preview]() || t == reflect.TypeFor[PreviewRequest]() || t == reflect.TypeFor[Confirmation]() {
@@ -165,7 +170,11 @@ func tsType(t reflect.Type, inline bool) string {
 			if name := rawName(t, f); name != "" {
 				fieldType = name
 			}
-			fmt.Fprintf(&b, "  readonly %s: %s;\n", fieldName(f), fieldType)
+			optional := ""
+			if optionalField(f) {
+				optional = "?"
+			}
+			fmt.Fprintf(&b, "  readonly %s%s: %s;\n", fieldName(f), optional, fieldType)
 		}
 		b.WriteString("}")
 		return b.String()
@@ -235,7 +244,7 @@ func generateCommandObjects(defs map[string]any, ts *strings.Builder) {
 		payload := d.Input
 		f := map[string]contract.Field{}
 		for k, field := range payload.Fields {
-			if field.Optional {
+			if field.Optional && k != "ownerId" {
 				n := *field.Type
 				n.Nullable = true
 				field.Type = &n

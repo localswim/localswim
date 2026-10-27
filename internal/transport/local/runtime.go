@@ -48,15 +48,16 @@ func (c ClientInfo) GoString() string           { return c.String() }
 func (ClientInfo) MarshalJSON() ([]byte, error) { return nil, errLocal }
 
 type identity struct {
-	Version        int    `json:"version"`
-	InstallationID string `json:"installationId"`
-	BoardID        string `json:"boardId"`
-	Incarnation    string `json:"incarnation"`
-	HumanID        string `json:"humanId"`
-	BotID          string `json:"botId"`
-	HumanGrant     string `json:"humanGrant"`
-	BotGrant       string `json:"botGrant"`
-	Port           int    `json:"port"`
+	Version           int    `json:"version"`
+	RestoredRequestID string `json:"restoredRequestId,omitempty"`
+	InstallationID    string `json:"installationId"`
+	BoardID           string `json:"boardId"`
+	Incarnation       string `json:"incarnation"`
+	HumanID           string `json:"humanId"`
+	BotID             string `json:"botId"`
+	HumanGrant        string `json:"humanGrant"`
+	BotGrant          string `json:"botGrant"`
+	Port              int    `json:"port"`
 }
 type metadata struct {
 	Identity identity `json:"identity"`
@@ -100,7 +101,7 @@ func decode(b []byte, v any) error {
 	return nil
 }
 func (i identity) valid() bool {
-	if i.Version != 1 || i.Port < 1024 || i.Port > 65535 || !uuidV4(i.InstallationID) {
+	if (i.Version != 1 && i.Version != 2) || (i.Version == 1 && i.RestoredRequestID != "") || (i.Version == 2 && !schema.ValidUUID(i.RestoredRequestID)) || i.Port < 1024 || i.Port > 65535 || !uuidV4(i.InstallationID) {
 		return false
 	}
 	ids := []string{i.InstallationID, i.BoardID, i.Incarnation, i.HumanID, i.BotID, i.HumanGrant, i.BotGrant}
@@ -239,7 +240,7 @@ func Start(ctx context.Context, o Options) (*Runtime, error) {
 		if o.Port == 0 {
 			o.Port = 8792
 		}
-		id = identity{1, uuid(), uuid(), uuid(), uuid(), uuid(), uuid(), uuid(), o.Port}
+		id = identity{Version: 1, InstallationID: uuid(), BoardID: uuid(), Incarnation: uuid(), HumanID: uuid(), BotID: uuid(), HumanGrant: uuid(), BotGrant: uuid(), Port: o.Port}
 		fresh = true
 		if privateDir(filepath.Join(o.DataDir, "board")) != nil {
 			return nil, errLocal
@@ -247,12 +248,19 @@ func Start(ctx context.Context, o Options) (*Runtime, error) {
 	} else if decode(b, &id) != nil || !id.valid() || o.Port != 0 && id.Port != o.Port {
 		return nil, errLocal
 	}
+	boardDir := filepath.Join(o.DataDir, "board")
+	if id.Version == 2 {
+		if _, e := restoreEvidence(o.DataDir, id, id.RestoredRequestID); e != nil {
+			return nil, errLocal
+		}
+		boardDir = filepath.Join(o.DataDir, "data")
+	}
 	var store *S.Store
 	sid := schema.Identity{BoardID: id.BoardID, Incarnation: id.Incarnation}
 	if fresh {
-		store, e = S.Create(ctx, filepath.Join(o.DataDir, "board"), sid)
+		store, e = S.Create(ctx, boardDir, sid)
 	} else {
-		store, e = S.Existing(ctx, filepath.Join(o.DataDir, "board"), sid)
+		store, e = S.Existing(ctx, boardDir, sid)
 	}
 	if e != nil {
 		return nil, e

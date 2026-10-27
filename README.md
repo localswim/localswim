@@ -9,7 +9,9 @@ loopback-only HTTP Go service, backed by SQLite. TLS, certificate enrollment and
 manual login/delegation ceremonies are outside V2. Human/bot approval boundaries
 and SQLite durability remain. The [local runtime](docs/decisions/local-runtime-composition-2026-10-27.txt)
 implements ordinary startup; complete browser/archive/release qualification still
-follows. Earlier HTTPS/setup documentation below describes legacy components.
+follows. [Assignment and runnable local restore](docs/decisions/assignment-and-local-restore-2026-10-27.txt)
+complete required V1-style outcomes with explicit qualification limits. Earlier
+HTTPS/setup documentation below describes legacy components.
 
 The Go service, CLI, domain rules and contract generator live in one Go module.
 The browser is a separate TypeScript package under `web/`; the executable will
@@ -158,9 +160,9 @@ Browser, archive and root-dispatch qualification remain separately gated.
 The [credential decomposition](docs/decisions/credential-admission-decomposition-2026-10-26.txt)
 records the G01/S04/G02 boundaries. The
 [credential composition](docs/decisions/credential-service-composition-2026-10-26.txt)
-records G02's service and its native lease ownership. HTTP/browser delivery,
+records G02's historical service and its native lease ownership. HTTP/browser delivery,
 terminal confirmation/private files and integrated qualification remain separate
-consumer work. Physical layout 4 retains the accepted-Unicode title constraint
-correction and adds exact inherited outcome-group and recovery-gap representation.
-Older physical layouts are refused without migration; logical API/archive versions
-remain 1.
+consumer work for that legacy path. Current physical layout5 adds nullable card
+assignment while retaining accepted Unicode and outcome/gap representation.
+Older layouts, including4, are refused without migration. Logical API/archive
+versions remain1 with optional ownerId compatibility.

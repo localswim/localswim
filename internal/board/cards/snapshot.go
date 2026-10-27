@@ -13,9 +13,13 @@ import (
 func loadSnapshot(r writer.Read, e envelope, id string) (A.SnapshotState, error) {
 	var s A.SnapshotState
 	var archived int
-	var approval sql.NullString
-	err := r.Scan(`SELECT t.ticket,c.title,c.description,c.priority,c.lane,c.archived,c.current_approval_id FROM card c JOIN ticket t USING(incarnation,card_id) WHERE c.incarnation=? AND c.card_id=?`, []any{e.Incarnation, id}, &s.Ticket, &s.Title, &s.Description, &s.Priority, &s.Lane, &archived, &approval)
+	var approval, owner sql.NullString
+	err := r.Scan(`SELECT t.ticket,c.title,c.description,c.priority,c.lane,c.archived,c.current_approval_id,c.owner_id FROM card c JOIN ticket t USING(incarnation,card_id) WHERE c.incarnation=? AND c.card_id=?`, []any{e.Incarnation, id}, &s.Ticket, &s.Title, &s.Description, &s.Priority, &s.Lane, &archived, &approval, &owner)
 	s.Archived = archived != 0
+	if owner.Valid {
+		id := A.UUID(owner.String)
+		s.OwnerID = &id
+	}
 	if approval.Valid {
 		a := A.UUID(approval.String)
 		s.CurrentApprovalID = &a

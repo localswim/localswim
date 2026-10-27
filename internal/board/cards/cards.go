@@ -26,13 +26,22 @@ type envelope struct {
 	BoardID, Incarnation, ActorID string
 	Command                       contract.Command
 	Target                        *contract.Target
-	Payload                       struct{ Title, Description, Priority, Lane, Text *string }
+	Payload                       struct {
+		Title, Description, Priority, Lane, Text *string
+		OwnerID                                  contract.OwnerInput `json:"ownerId"`
+	}
 }
 
 func decode(i contract.Intent) (envelope, error) {
 	var e envelope
 	err := json.Unmarshal(i.CanonicalBytes(), &e)
 	return e, err
+}
+func sameOwner(a *string, b *A.UUID) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == string(*b)
 }
 func deny(code string) *T.RefusalResult {
 	return &T.RefusalResult{Error: T.Error{Code: code, Message: "Mutation refused"}}
@@ -71,6 +80,15 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 		if d, err := s.grants.Admit(ctx, r, i); d != nil || err != nil {
 			return d, err
 		}
+		if e.Payload.OwnerID.Present && e.Payload.OwnerID.Value != nil {
+			var exists int
+			if err := r.Scan("SELECT count(*) FROM actor WHERE incarnation=? AND actor_id=?", []any{e.Incarnation, *e.Payload.OwnerID.Value}, &exists); err != nil {
+				return nil, err
+			}
+			if exists != 1 {
+				return deny("INVALID_INPUT"), nil
+			}
+		}
 		var event, ticket uint64
 		if err := r.Scan("SELECT next_event,next_ticket FROM board WHERE singleton=1", nil, &event, &ticket); err != nil {
 			return nil, err
@@ -94,7 +112,7 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 			if err != nil {
 				return nil, err
 			}
-			changed := false
+			changed := e.Payload.OwnerID.Present && !sameOwner(e.Payload.OwnerID.Value, current.OwnerID)
 			for _, f := range []struct {
 				supplied *string
 				current  string
@@ -165,7 +183,7 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 			if err = exec("INSERT INTO ticket(incarnation,ticket,card_id) VALUES(?,?,?)", e.Incarnation, ticket, id); err != nil {
 				return writer.Effect{}, err
 			}
-			if err = exec("INSERT INTO card(incarnation,card_id,revision,title,description,priority) VALUES(?,?,1,?,?,?)", e.Incarnation, id, *e.Payload.Title, *e.Payload.Description, priority); err != nil {
+			if err = exec("INSERT INTO card(incarnation,card_id,revision,title,description,priority,owner_id) VALUES(?,?,1,?,?,?,?)", e.Incarnation, id, *e.Payload.Title, *e.Payload.Description, priority, e.Payload.OwnerID.Value); err != nil {
 				return writer.Effect{}, err
 			}
 		} else {
@@ -185,6 +203,11 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 				return writer.Effect{}, err
 			}
 			if e.Command == "card.edit" {
+				if e.Payload.OwnerID.Present {
+					if err = exec("UPDATE card SET owner_id=? WHERE incarnation=? AND card_id=?", e.Payload.OwnerID.Value, e.Incarnation, id); err != nil {
+						return writer.Effect{}, err
+					}
+				}
 				for _, f := range []struct {
 					column string
 					value  *string

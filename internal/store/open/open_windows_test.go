@@ -169,7 +169,7 @@ func TestCreateOpenSettingsAndIdentity(t *testing.T) {
 		if e := c.QueryRowContext(ctx(t), "SELECT schema_version FROM board").Scan(&layout); e != nil {
 			t.Fatal(e)
 		}
-		if e := c.QueryRowContext(ctx(t), "PRAGMA user_version").Scan(&user); e != nil || layout != schema.Version || user != schema.Version || schema.Version != 4 {
+		if e := c.QueryRowContext(ctx(t), "PRAGMA user_version").Scan(&user); e != nil || layout != schema.Version || user != schema.Version || schema.Version != 5 {
 			t.Fatal("physical layout markers mismatch")
 		}
 		if e := configure(ctx(t), c, false, false); e != nil {

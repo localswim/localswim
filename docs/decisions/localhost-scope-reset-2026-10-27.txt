@@ -1,0 +1,45 @@
+V2 LOCALHOST SCOPE RESET
+2026-10-27 | Owner direction | Required implementation, not implemented behavior
+
+V2 is the V1-style local board product on a cleaner Go/TypeScript/SQLite
+architecture. Browser UI and CLI both connect to the same loopback-only HTTP Go
+service. LAN/public listeners and TLS are outside V2. Keep SQLite durability,
+shared domain admission and explicit human-only approval/Completed authority.
+The name means "localhost swimlanes". Loopback-only browser and CLI behavior is
+a V2 product boundary with rejection tests, not an optional remote deployment mode.
+
+The authoritative current scope and remaining-task overlay are:
+https://github.com/localswim/v2-architecture/blob/main/docs/slice01/22-localhost-scope-reset.txt
+https://github.com/localswim/v2-architecture/blob/main/docs/slice01/22-localhost-task-map.json
+
+Normal startup must create/reopen the local board and configured human/bot
+channels automatically. Browser sessions and CLI automation credentials require
+no CA installation, human grant enrollment, login-code copy, native fixture
+delegation or special manual browser-profile qualification. The CLI remains an
+HTTP client of the same authoritative local service; it does not bypass writer
+ownership or select human authority.
+
+L02 replaces normal setup/serve/client composition and HTTPS-only context
+validation as needed. Server-resolved channel identity, exact local Host/Origin,
+ordinary private metadata, revision admission and clear reconnect/error handling
+remain. Preserve operation identity, UNKNOWN and no automatic mutation replay.
+Update browser recovery readiness in the normal product composition; do not
+enable it with an invented true flag or weaken SQLite synchronization settings.
+
+Completed provider/domain work and original evidence remain historical. Existing
+TLS/setup/session/code libraries are not the required future V2 startup workflow.
+The current executable has not yet been changed to implement this reset. Earlier
+Q04 builds and partial V02 preflight do not qualify the changed local release.
+
+V02 validates actual local browser/CLI behavior, V03 simple local backup/export,
+V04 complete
+dispatch and rebuilt source, and R01 independent integrated evidence. Workspace,
+monitor and remaining V1 parity need separately scoped backlog before a complete
+V1-parity claim. Existing approved lane/priority policy remains in force.
+Advanced retention administration and inherited source-ledger recovery archives
+are outside the remaining spike, even where component code already exists.
+
+The legacy V02 TLS fixture is retired. Its old delegation terminal is no longer
+the next step. Exact issuer cleanup is a separate one-time private owner action
+and does not block local implementation. Preserve old test stores/results; no
+certificate, grant, runtime or production source changes occur in this decision.

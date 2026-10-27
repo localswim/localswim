@@ -3,6 +3,13 @@
 Fresh Go and TypeScript implementation of localswim, beginning with Spike 01.
 This repository is under development; no qualified product release is claimed.
 
+The current [localhost scope reset](docs/decisions/localhost-scope-reset-2026-10-27.txt)
+returns V2 to the V1 product baseline: both browser UI and CLI use the same
+loopback-only HTTP Go service, backed by SQLite. TLS, certificate enrollment and
+manual login/delegation ceremonies are outside V2. Human/bot approval boundaries
+and SQLite durability remain. This direction still needs implementation; earlier
+HTTPS/setup documentation below describes the preserved historical path.
+
 The Go service, CLI, domain rules and contract generator live in one Go module.
 The browser is a separate TypeScript package under `web/`; the executable will
 serve its verified embedded assets. Shared contracts and assets change together.

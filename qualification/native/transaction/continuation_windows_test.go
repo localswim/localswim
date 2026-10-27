@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -86,26 +87,34 @@ func TestV01RemainingNativeMatrix(t *testing.T) {
 		}
 	}
 	var providers []v01Hash
-	if json.Unmarshal(v01Providers, &providers) != nil || len(providers) != 247 {
+	if json.Unmarshal(v01Providers, &providers) != nil || len(providers) == 0 {
 		t.Fatal("provider inventory required")
 	}
 	verify := func(root string) {
 		t.Helper()
-		actual := 0
+		var paths []string
 		e := filepath.WalkDir(filepath.Join(root, "internal"), func(p string, d os.DirEntry, e error) error {
 			if e != nil {
 				return e
 			}
 			if !d.IsDir() {
-				actual++
+				rel, err := filepath.Rel(root, p)
+				if err != nil {
+					return err
+				}
+				paths = append(paths, filepath.ToSlash(rel))
 			}
 			return nil
 		})
-		if e != nil || actual != len(providers) {
+		sort.Strings(paths)
+		if e != nil || len(paths) != len(providers) {
 			t.Fatal("provider inventory differs")
 		}
-		for _, row := range providers {
-			b, e := os.ReadFile(filepath.Join(root, row.Path))
+		for i, row := range providers {
+			if row.Path != paths[i] || (i > 0 && providers[i-1].Path >= row.Path) {
+				t.Fatal("provider path set differs or is not unique sorted")
+			}
+			b, e := os.ReadFile(filepath.Join(root, filepath.FromSlash(row.Path)))
 			if e != nil || v01Digest(b) != row.SHA256 {
 				t.Fatal("frozen provider bytes differ")
 			}
@@ -255,7 +264,7 @@ func TestV01RemainingNativeMatrix(t *testing.T) {
 		t.Fatal("mandatory native child matrix failed; immutable attempt retained")
 	}
 	verify(module)
-	t.Logf("seven mandatory continuation cases passed; three private overlays and 247 provider hashes verified")
+	t.Logf("seven mandatory continuation cases passed; three private overlays and %d complete provider hashes verified", len(providers))
 }
 
 func mustV01Read(t *testing.T, p string) []byte {

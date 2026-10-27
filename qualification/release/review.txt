@@ -1,0 +1,70 @@
+V04 FINAL LOCAL RELEASE VERIFICATION - INDEPENDENT REVIEW
+2026-10-27 | Independent Sol / High | PASS within V04 scope
+
+Outcome
+No material findings remain in the reviewed V04 dispatch or release evidence.
+The native entry reaches the required real transaction/archive suites. The final
+browser command passes all 20 local cases. Two clean builds of the frozen source
+produce the same complete 47-file output set and executable used by that browser.
+This is the V04 handoff review; R01 integrated product review and owner acceptance
+remain separate.
+
+Reviewed change
+- Root native dispatch invokes only transaction and archive, with the same native
+  tag, count=1, JSON reporting and bounded subprocess/test timeouts; no recursion.
+- Exact mandatory coverage is enforced: V01 outer 8 and continuation child 7;
+  V03 outer 14 and interruption child 4, including all six archive inventory rows
+  and seven refusal subtests. Child exit failures, zero/missing/duplicate/failed/
+  skipped mandatory results reject. Missing configuration fails before execution.
+- The refreshed provider manifest checks all 275 current internal files as an
+  exact sorted unique path set with SHA256 bytes before/after, including the
+  isolated continuation module. The existing provider/fault semantics and original
+  V01 results/reviews retain their historical scope.
+- The unsupported native branch fails explicitly. Its Linux branch was compiled
+  for coverage, not executed; successful unsupported-platform execution is not
+  claimed.
+
+Execution and independent verification
+- Actual root command passed:
+    go test -tags=nativequalification ./qualification/native
+  Retained real outer/nested reports, source-before files, immutable attempt and
+  before/after bindings support the reported coverage. All 330 native source
+  bindings match the final source and remain identical before/after execution.
+- Private independent parser probes remove each required outer result and V01
+  continuation child terminal, and inject skip/failure, malformed JSON, duplicate
+  package success and invalid inventories. Every negative rejects. These probes
+  are parser evidence only.
+- Actual browser command passed under Node26.12.1/npm12.2.1:
+    npm --prefix web run qualification:browser
+  All 20 current mandatory IDs pass once, with no retries/skips/flaky results or
+  final suite errors. Launcher/child exits are zero; browser closes and owned
+  fixture exits zero without stderr. Current journey inputs and binary hashes
+  match retained evidence. The runtime and browser profile are fresh.
+- Both independently extracted 663-file source trees used fresh compiler caches,
+  npm cache directories and node_modules. Dependency verification, generators,
+  TypeScript check/build, assets check, ordinary Go tests/vet and application
+  builds passed with Go1.27.3, Node26.12.1, npm12.2.1, TS7.0.2 and Playwright1.64.1.
+  Each ordinary Go suite passed 1428 tests with zero skipped tests.
+- Independent comparison verifies every declared schema, generated declaration,
+  schema data module, emitted browser module, embedded asset and executable:
+  all 47 output paths and hashes agree, and both source trees remain byte-stable.
+  An earlier build under a restricted execution token failed native permission
+  checks; its attempt remains retained and is excluded from positive evidence.
+
+Frozen source archive SHA256
+45644250d618289835ccb35ab3dceb242a69541a9ce3d58895578e4d0e0e5d03
+
+Application SHA256, identical in both clean builds and actual final browser run
+c66d66dcad448ca0999cc93e87057ec8a6d81fb56468340e744da354d9cdb20f
+
+Limits
+- Synthetic Windows amd64/local NTFS, loopback HTTP and ordinary private files.
+  Native execution reused a populated compiled cache; the separate product build
+  pair used fresh compiler caches. Historical Q04 hashes are not current proof.
+- Process termination and injected SQL/evidence faults establish only their
+  recorded boundaries and safe refusal. No physical power-loss, successful
+  hot-journal recovery or hostile same-account isolation claim is made.
+- Missing original evidence stays UNKNOWN. A restored copy cannot settle it.
+- No live V1 data import/cutover, personal profile, trust enrollment, LAN/TLS,
+  advanced retention/source-ledger transfer or full V1 parity qualification.
+- Detailed synthetic reports, fixture paths and provenance remain private.

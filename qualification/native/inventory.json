@@ -1,0 +1,51 @@
+{
+  "transaction": [
+    "TestConcurrentWritersAndDurableRefusal",
+    "TestExplicitFenceRequiresValidatedReopen",
+    "TestNativeCommitBusyRollsBackWholeCardHistory",
+    "TestNativeCommittedProcessTerminationAndRestart",
+    "TestNativePrivateEvidenceACLAndReadback",
+    "TestNativeSQLiteFullRollsBackAttachmentBytes",
+    "TestRevocationSerializesBeforeQueuedWriter",
+    "TestV01RemainingNativeMatrix"
+  ],
+  "transactionChild": [
+    "TestV01AutomaticReadbackFence",
+    "TestV01AutomaticRollbackFence",
+    "TestV01CLIFlushRefusal",
+    "TestV01CLILostResponseRestartLookup",
+    "TestV01CLIReadbackRefusal",
+    "TestV01PrecommitTermination",
+    "TestV01RootRefusal"
+  ],
+  "archive": [
+    "TestV03LocalArchive",
+    "TestV03LocalArchive/V03-01-readable-consistent-export",
+    "TestV03LocalArchive/V03-02-restored-local-bootstrap",
+    "TestV03LocalArchive/V03-03-refusal-no-overwrite",
+    "TestV03LocalArchive/V03-04-interrupted-publication-status",
+    "TestV03LocalArchive/V03-05-original-unknown-preserved",
+    "TestV03LocalArchive/V03-06-source-unchanged",
+    "TestV03LocalArchive/V03-03-refusal-no-overwrite/missing",
+    "TestV03LocalArchive/V03-03-refusal-no-overwrite/corrupt",
+    "TestV03LocalArchive/V03-03-refusal-no-overwrite/unsafe-member",
+    "TestV03LocalArchive/V03-03-refusal-no-overwrite/existing-directory",
+    "TestV03LocalArchive/V03-03-refusal-no-overwrite/existing-file",
+    "TestV03LocalArchive/V03-03-refusal-no-overwrite/protected-source",
+    "TestV03LocalArchive/V03-03-refusal-no-overwrite/unsafe-path"
+  ],
+  "archiveChild": [
+    "TestV03PublicationInterrupt",
+    "TestV03PublicationInterrupt/after-preparing",
+    "TestV03PublicationInterrupt/before-rename",
+    "TestV03PublicationInterrupt/after-rename"
+  ],
+  "archiveRows": [
+    "V03-01-readable-consistent-export",
+    "V03-02-restored-local-bootstrap",
+    "V03-03-refusal-no-overwrite",
+    "V03-04-interrupted-publication-status",
+    "V03-05-original-unknown-preserved",
+    "V03-06-source-unchanged"
+  ]
+}

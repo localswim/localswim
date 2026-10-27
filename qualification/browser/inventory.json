@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
-  "revision": "local-r1",
+  "revision": "local-r2-dependency-advisory",
   "scope": "Actual local HTTP product DOM and built CLI on one synthetic runtime",
   "required": [
     "V02-LOCAL-01", "V02-SHARED-01", "V02-WORKFLOW-01", "V02-ASSIGNMENT-01",
-    "V02-RELATIONS-01", "V02-AUTHORITY-01", "V02-CONFLICT-01", "V02-INPUT-01",
+    "V02-RELATIONS-01", "V02-DEPENDENCY-01", "V02-AUTHORITY-01", "V02-CONFLICT-01", "V02-INPUT-01",
     "V02-KEYBOARD-01", "V02-IME-01", "V02-LATE-01", "V02-RELOAD-01",
     "V02-RESTART-01", "V02-UNKNOWN-01", "V02-IDB-01", "V02-QUOTA-01",
     "V02-TABS-01", "V02-CLEAR-01", "V02-BYTES-01", "V02-PRIVACY-01"

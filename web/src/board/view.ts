@@ -6,6 +6,7 @@ import type { OriginalOutcome } from "../api/client.js";
 import type { Context } from "../recovery/types.js";
 import { recoveryCoordinator } from "../recovery-ui/coordination.js";
 import type { RecoveryCoordinator } from "../recovery-ui/coordination.js";
+import { dependencyAdvisory } from "./advisory.js";
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = ""): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag); node.textContent = text; return node;
@@ -85,6 +86,14 @@ export class BoardView {
       for (const link of this.board!.result.links.filter(l => l.cardId === card.cardId && l.active)) {
         article.append(element("p", link.kind + " → " + link.target.cardId + " · " + link.linkId));
       }
+      const advisory = dependencyAdvisory(this.board!, card);
+      const pressure = element("section"), prerequisites = element("section");
+      pressure.setAttribute("aria-label", "Dependency pressure");
+      prerequisites.setAttribute("aria-label", "Prerequisites/readiness");
+      for (const fact of advisory.pressure) pressure.append(element("p", fact));
+      for (const fact of advisory.prerequisites) prerequisites.append(element("p", fact));
+      prerequisites.append(element("p", advisory.summary));
+      article.append(pressure, prerequisites);
       for (const [label, command] of [["Edit card", "card.edit"], ["Add comment", "comment.add"], ["Add link", "link.add"], ["Remove link", "link.remove"], ["Start work", "card.edit"], ["Review handoff", "review-handoff"], ["Approve", "approve"]] as const) {
         const control = button(label, () => this.edit(command, card, label === "Start work"));
         control.dataset.focusKey = card.cardId + ":" + label;

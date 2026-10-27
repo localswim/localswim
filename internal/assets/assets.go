@@ -95,7 +95,7 @@ func verified(source fs.FS) (map[string][]byte, error) {
 var declared = map[string]bool{
 	"index.html": true, "styles/app.css": true,
 	"js/app.js": true, "js/api/boundary.js": true, "js/api/client.js": true, "js/api/local-session.js": true, "js/api/schema-data.js": true, "js/api/w03-session.js": true,
-	"js/archive-ui/view.js": true, "js/board/view.js": true, "js/recovery/indexeddb.js": true, "js/recovery/local-readiness.js": true, "js/recovery/store.js": true, "js/recovery/types.js": true,
+	"js/archive-ui/view.js": true, "js/board/advisory.js": true, "js/board/view.js": true, "js/recovery/indexeddb.js": true, "js/recovery/local-readiness.js": true, "js/recovery/store.js": true, "js/recovery/types.js": true,
 	"js/recovery-ui/admin.js": true, "js/recovery-ui/coordination.js": true, "js/recovery-ui/view.js": true, "js/session-ui/local-view.js": true, "js/session-ui/view.js": true, "js/session-ui/workspace.js": true,
 }
 

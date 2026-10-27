@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "qualification": "Dependency advisory correction",
+  "date": "2026-10-27",
+  "status": "PASS_CORRECTIVE_CANDIDATE",
+  "ticket": 63,
+  "addressesFinding": "R01-PRODUCT-01",
+  "sourceBase": "7438125a91eb32650b323d6f4dffc77aea506a08",
+  "testedSourceFiles": 674,
+  "testedSourceManifestSHA256": "81d05ca3d13485bd81672114042c52350576e5dea91709c2f2e895368b091702",
+  "testedSourceStable": true,
+  "applicationSHA256": "be950e941ef671599510f8236494b338dab6d6f164156f66b71f88f4c949ef3c",
+  "composition": {
+    "browser": "Normal loopback HTTP DOM",
+    "cli": "Normal local CLI; readable advisory on ordinary board read",
+    "data": "One fresh synthetic SQLite board",
+    "apiSchemaChanged": false,
+    "databaseLayoutChanged": false,
+    "jsonCLIEnvelopeChanged": false,
+    "admissionChanged": false
+  },
+  "checks": {
+    "ordinaryGoTestPassEvents": 1444,
+    "ordinarySkippedTests": 0,
+    "contracts": "PASS",
+    "typescriptCheck": "PASS",
+    "typescriptBuild": "PASS",
+    "embeddedAssetsStageAndCheck": "PASS",
+    "moduleVerify": "PASS",
+    "vet": "PASS",
+    "candidateBuild": "PASS",
+    "browserRequired": 21,
+    "browserPassed": 21,
+    "browserRetries": 0,
+    "browserSkipped": 0,
+    "browserErrors": 0,
+    "fullPrior20CasesRetained": true,
+    "newMandatoryCase": "V02-DEPENDENCY-01",
+    "browserAndFixtureTeardown": "PASS",
+    "browserBinaryMatchesCandidate": true
+  },
+  "acceptance": [
+    "P3 prerequisite Alpha remains P3 when P0 dependent Beta is linked and unlinked.",
+    "Normal browser and ordinary CLI show incoming direct dependent pressure separately from assigned priority.",
+    "Beta names Alpha and visibly awaits human acceptance while Alpha is Ready for Review.",
+    "Actual premature start returns PREREQUISITE_NOT_APPROVED with board revision and lane unchanged.",
+    "Explicit human approval, then refresh, changes prerequisite satisfaction without automatically starting Beta.",
+    "A deliberate Beta start succeeds after approval; unlink clears incoming pressure.",
+    "Foreign/missing targets and stale/missing/automation/policy-mismatched approval facts do not establish readiness.",
+    "Only active blocking links contribute; advisory state confers no authority."
+  ],
+  "failedAttemptDisposition": "Initial candidate inventory and fixture-preparation failures retained and excluded. Missing runtime asset declaration corrected; separate new candidate checks and fresh browser attempt passed.",
+  "review": "../../docs/reviews/dependency-advisory-review.txt",
+  "limits": [
+    "Corrective candidate qualification only; fresh R02 final closure/release assessment on #0064 remains after owner acceptance.",
+    "Existing R01 CHANGES_REQUIRED and previous release/native evidence remain historical and unchanged.",
+    "No new two-clean-build comparison or full native transaction/archive dispatch is claimed here.",
+    "Storage and authoritative admission implementation unchanged; execution checks remain in Go.",
+    "No deployment, real-board import/cutover, full V1 parity, physical power-loss or hostile-account proof.",
+    "Frozen tools recorded for this execution; no new latest-version assertion."
+  ],
+  "recordedTools": {
+    "go": "1.27.3",
+    "node": "26.12.1",
+    "npm": "12.2.1",
+    "typescript": "7.0.2",
+    "playwright": "1.64.1"
+  },
+  "ownerControlsCompleted": true,
+  "finalR02": "NOT_PERFORMED",
+  "sourceObservation": "Working-tree source frozen after generated assets staged, before candidate tests/build and browser execution. Later additions are review/qualification metadata only."
+}

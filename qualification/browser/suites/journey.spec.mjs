@@ -1,7 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
-import { test, expect, scenario, requireInventory, cli, board, request, mutate, createEditor, createCard, cardArticle, refresh, save, recoveryRows, control } from '../lib/browser.mjs';
+import { test, expect, scenario, requireInventory, cli, board, boardText, request, mutate, createEditor, createCard, cardArticle, refresh, save, recoveryRows, control } from '../lib/browser.mjs';
 
 const stats = fixture => control(fixture, { op: 'status' });
 const status = (page, text) => page.getByRole('status').filter({ hasText: text });
@@ -80,6 +80,91 @@ scenario('V02-RELATIONS-01', 'DOM add/remove relationships and CLI reads preserv
   // CurrentBoard contains active relationships; removed history is a separate read.
   expect(current.cards.find(row => row.cardId === first.cardId).linkIds).not.toContain(link.linkId);
   expect(current.links.some(row => row.linkId === link.linkId && row.active)).toBe(false);
+});
+
+scenario('V02-DEPENDENCY-01', 'normal DOM and ordinary CLI show pressure and accepted prerequisites without changing priority', async ({ app, run }) => {
+  const alpha = await createCard(app, run, 'Alpha ' + randomUUID()), beta = await createCard(app, run, 'Beta ' + randomUUID());
+  const fact = (card, priority, lane) => '#' + card.ticket + ' ' + card.title + ' (' + priority + '; ' + lane + ')';
+  const pressure = card => cardArticle(app, card).getByRole('region', { name: 'Dependency pressure', exact: true });
+  const prerequisites = card => cardArticle(app, card).getByRole('region', { name: 'Prerequisites/readiness', exact: true });
+  const cliCard = (text, card, priority, lane) => {
+    const heading = '\n' + fact(card, priority, lane) + '\n', start = text.indexOf(heading);
+    expect(start, 'Ordinary CLI must expose a readable card heading').toBeGreaterThanOrEqual(0);
+    const next = text.indexOf('\n#', start + heading.length);
+    return text.slice(start + 1, next < 0 ? undefined : next);
+  };
+  const capture = stage => {
+    const text = boardText(run);
+    writeFileSync(resolve(run.artifactDirectory, 'V02-DEPENDENCY-01-' + stage + '-ordinary-cli.txt'), text, { flag: 'wx' });
+    return text;
+  };
+  await cardArticle(app, beta).getByRole('button', { name: 'Edit card', exact: true }).click();
+  await app.getByLabel('priority', { exact: true }).selectOption('P0'); await save(app); await refresh(app);
+  // The dependent owns the blocking link; its target is the prerequisite.
+  await cardArticle(app, beta).getByRole('button', { name: 'Add link', exact: true }).click();
+  await app.getByLabel('kind', { exact: true }).selectOption('blocking');
+  await app.getByLabel('targetCardId', { exact: true }).fill(alpha.cardId); await save(app); await refresh(app);
+  let current = board(run);
+  const link = current.links.find(row => row.cardId === beta.cardId && row.target.cardId === alpha.cardId && row.kind === 'blocking' && row.active);
+  expect(link).toBeTruthy();
+  expect(current.cards.find(row => row.cardId === alpha.cardId).priority).toBe('P3');
+  await expect(cardArticle(app, alpha).getByText(/^P3 · Ready for Work · card revision /)).toBeVisible();
+  await expect(pressure(alpha)).toContainText('Dependency pressure: ' + fact(beta, 'P0', 'Ready for Work'));
+  await expect(pressure(beta)).toHaveText('Dependency pressure: none.');
+  await expect(prerequisites(alpha)).toContainText('Prerequisites/readiness: none.');
+  const linkedText = capture('linked');
+  expect(linkedText).toContain(fact(alpha, 'P3', 'Ready for Work'));
+  expect(linkedText).toContain('Dependency pressure: ' + fact(beta, 'P0', 'Ready for Work'));
+  expect(linkedText).toContain('Prerequisites/readiness: ' + fact(alpha, 'P3', 'Ready for Work'));
+
+  await cardArticle(app, alpha).getByRole('button', { name: 'Start work', exact: true }).click(); await save(app); await refresh(app);
+  await cardArticle(app, alpha).getByRole('button', { name: 'Review handoff', exact: true }).click(); await save(app); await refresh(app);
+  const awaiting = 'Prerequisites/readiness: ' + fact(alpha, 'P3', 'Ready for Review') + ' — awaiting human acceptance (not satisfied)';
+  await expect(prerequisites(beta)).toContainText(awaiting);
+  await expect(cardArticle(app, alpha).getByText(/^P3 · Ready for Review · card revision /)).toBeVisible();
+  expect(capture('awaiting')).toContain(awaiting);
+  current = board(run); const beforeStart = current.revision;
+  await cardArticle(app, beta).getByRole('button', { name: 'Start work', exact: true }).click();
+  const refusalResponse = app.waitForResponse(value => value.request().method() === 'PATCH' && new URL(value.url()).pathname.endsWith('/cards/' + beta.cardId));
+  await app.getByRole('button', { name: 'Save', exact: true }).click();
+  const refusal = await (await refusalResponse).json();
+  expect(refusal).toMatchObject({ outcome: 'not_committed', code: 'PREREQUISITE_NOT_APPROVED' });
+  await expect(status(app, 'Definitive noncommit').first()).toBeVisible();
+  current = board(run); expect(current.revision).toBe(beforeStart);
+  expect(current.cards.find(row => row.cardId === beta.cardId).lane).toBe('Ready for Work');
+  expect(current.cards.find(row => row.cardId === alpha.cardId).priority).toBe('P3');
+
+  // Clicking Approve opens a human editor; only deliberate Save accepts Alpha.
+  await refresh(app); await cardArticle(app, alpha).getByRole('button', { name: 'Approve', exact: true }).click();
+  expect(board(run).cards.find(row => row.cardId === alpha.cardId).lane).toBe('Ready for Review');
+  await save(app); current = board(run);
+  const accepted = current.cards.find(row => row.cardId === alpha.cardId), approval = current.approvals.find(row => row.approvalId === accepted.currentApprovalId);
+  expect(accepted.lane).toBe('Completed'); expect(accepted.priority).toBe('P3'); expect(approval).toBeTruthy();
+  expect(current.actors.find(row => row.actorId === approval.actorId).kind).toBe('human');
+  await refresh(app);
+  await expect(cardArticle(app, alpha).getByText(/^P3 · Completed · card revision /)).toBeVisible();
+  const satisfied = 'Prerequisites/readiness: ' + fact(alpha, 'P3', 'Completed') + ' — satisfied';
+  await expect(prerequisites(beta)).toContainText(satisfied);
+  await expect(prerequisites(beta)).toContainText('Prerequisites satisfied (advisory; server rechecks at deliberate start).');
+  expect(capture('accepted')).toContain(satisfied);
+  // Refreshing the advisory never starts Beta automatically.
+  expect(board(run).cards.find(row => row.cardId === beta.cardId).lane).toBe('Ready for Work');
+  await cardArticle(app, beta).getByRole('button', { name: 'Start work', exact: true }).click(); await save(app); await refresh(app);
+  expect(board(run).cards.find(row => row.cardId === beta.cardId).lane).toBe('In Progress');
+  await expect(pressure(alpha)).toContainText(fact(beta, 'P0', 'In Progress'));
+  await cardArticle(app, beta).getByRole('button', { name: 'Remove link', exact: true }).click();
+  await app.getByLabel('linkId', { exact: true }).fill(link.linkId); await save(app); await refresh(app);
+  current = board(run);
+  expect(current.links.some(row => row.linkId === link.linkId && row.active)).toBe(false);
+  expect(current.cards.find(row => row.cardId === alpha.cardId).priority).toBe('P3');
+  await expect(pressure(alpha)).toHaveText('Dependency pressure: none.');
+  await expect(prerequisites(beta)).toContainText('Prerequisites/readiness: none.');
+  const unlinkedText = capture('unlinked');
+  expect(unlinkedText).toContain(fact(alpha, 'P3', 'Completed'));
+  expect(cliCard(unlinkedText, alpha, 'P3', 'Completed')).toContain('Dependency pressure: none.');
+  expect(cliCard(unlinkedText, beta, 'P0', 'In Progress')).toContain('Prerequisites/readiness: none.');
+  expect(unlinkedText).not.toContain('Dependency pressure: ' + fact(beta, 'P0', 'In Progress'));
+  expect(unlinkedText).not.toContain('Prerequisites/readiness: ' + fact(alpha, 'P3', 'Completed'));
 });
 
 scenario('V02-AUTHORITY-01', 'actual automation denies approve and every completion or human-authority bypass', async ({ app, run }) => {

@@ -79,6 +79,15 @@ export function cli(run, args, input, expectedExit = 0) {
   try { return JSON.parse(result.stdout); } catch { throw Error('Actual CLI JSON unavailable'); }
 }
 export const board = run => cli(run, ['board', 'read']).result;
+// Ordinary product output, without --json. Fixed read-only command and bounded
+// capture keep this separate from the typed JSON mutation/admission helper.
+export function boardText(run) {
+  const result = spawnSync(run.applicationBinary, ['--data', run.dataDirectory, 'board', 'read'], {
+    encoding: 'utf8', windowsHide: true, timeout: 30_000, maxBuffer: 4 * 1024 * 1024,
+  });
+  if (result.error || result.signal || result.status !== 0 || !result.stdout.trim()) throw Error('Actual ordinary CLI board read unavailable');
+  return result.stdout;
+}
 export function request(run, card, input, current = board(run)) {
   const actual = card ? current.cards.find(row => row.cardId === card.cardId) : undefined;
   return { opId: randomUUID(), incarnation: current.identity.incarnation, target: actual ? { cardId: actual.cardId } : null,

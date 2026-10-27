@@ -113,6 +113,14 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 	if n, err := stdout.Write(b); err != nil || n != len(b) {
 		return outputFailure(out.exit, q)
 	}
+	if !q.json && out.exit == 0 {
+		if board, ok := out.value.(T.BoardRead); ok {
+			text := boardAdvisory(board.Result)
+			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
+				return outputFailure(out.exit, q)
+			}
+		}
+	}
 	if stderr != nil && out.exit != 0 {
 		_, _ = fmt.Fprintf(stderr, "%s\n", diagnostic(out.value))
 	}

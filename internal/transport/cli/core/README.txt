@@ -83,6 +83,15 @@ the outcome and selected board, followed by the same readable facts. Output fail
 after a possible save exits 4.
 An invalid human-output board selector is replaced by the inert label unavailable;
 rejected selector text never reaches the terminal outcome line or diagnostics.
+Ordinary board read appends separate Dependency pressure and Prerequisites/readiness
+lines derived only from that complete validated current snapshot. Direct active
+blocking links identify dependents and prerequisites with their assigned priority,
+lane and archived state; priorities never change. A prerequisite is satisfied only
+with current human approval under the current policy and reviewed card revision.
+Foreign/missing targets stay unsatisfied; review handoff awaits human acceptance.
+These facts are advisory: the server rechecks a deliberate start, including its
+other admission rules. Use board read for dependency advisory; card read lacks the
+complete context. JSON output retains exactly the existing transport envelope.
 Nonprinting characters in received diagnostic codes are escaped for stderr;
 ordinary safe codes stay readable and the exact JSON/proof fields are unchanged.
 

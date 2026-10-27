@@ -96,3 +96,35 @@ export async function runAssignmentEditorProbe(boardInput: BoardRead, sessionInp
     return 7;
   } finally { mounted.view.destroy(); mounted.client.close(); }
 }
+
+// Actual DOM rendering with synthetic transport; current product journey is separate.
+export async function runDependencyViewProbe(boardInput: BoardRead, sessionInput: SessionRead): Promise<number> {
+  const input = structuredClone(boardInput), identity = input.result.identity;
+  const alpha = { ...input.result.cards[0]!, ticket: 1, title: "Alpha <img src=x onerror=alert(1)>", priority: "P3" as const, lane: "Ready for Review" as const, currentApprovalId: null, revision: 4, archived: false };
+  const beta = { ...alpha, cardId: "00000000-0000-4000-8000-000000000063", ticket: 2, title: "Beta", priority: "P0" as const, lane: "Ready for Work" as const };
+  Object.assign(input.result, { cards: [alpha, beta], links: [{ active: true, cardId: beta.cardId, target: { ...identity, cardId: alpha.cardId }, kind: "blocking", linkId: "00000000-0000-4000-8000-000000000064", createdIn: identity, createdAt: "2026-10-01T00:00:00Z" }], approvals: [] });
+  const mounted = await mountSyntheticBoard(input, sessionInput);
+  let checks = 0;
+  const check = (condition: boolean, message: string): void => { if (!condition) throw Error(message); checks++; };
+  const articles = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('section[aria-label="Cards"] > article')];
+  try {
+    check(articles()[0]!.querySelector('[aria-label="Dependency pressure"]')!.textContent!.includes("Dependency pressure: #2 Beta (P0; Ready for Work)"), "Pressure section missing");
+    check(articles()[1]!.querySelector('[aria-label="Prerequisites/readiness"]')!.textContent!.includes("awaiting human acceptance (not satisfied)"), "RFR readiness missing");
+    check(document.querySelector("img") === null && document.body.textContent!.includes(alpha.title), "Advisory prose executed markup");
+    const edit = articles()[1]!.querySelector<HTMLButtonElement>("button")!; edit.click();
+    const title = document.querySelector<HTMLInputElement>('input[name="title"]')!;
+    title.value = "Keep my draft"; title.dispatchEvent(new Event("input", { bubbles: true }));
+    const currentAlpha = mounted.board.result.cards[0]!, human = mounted.board.result.actors.find(actor => actor.kind === "human")!;
+    Object.assign(currentAlpha, { lane: "Completed", currentApprovalId: "00000000-0000-4000-8000-000000000065", revision: 5 });
+    Object.assign(mounted.board.result, { approvals: [{ approvalId: currentAlpha.currentApprovalId, cardId: alpha.cardId, actorId: human.actorId, policyVersion: mounted.board.result.policyVersion, reviewedCardRevision: 4, reviewedBoardRevision: mounted.board.result.revision, createdIn: identity, createdAt: "2026-10-01T00:00:00Z" }] });
+    await mounted.view.refresh();
+    check(articles()[1]!.textContent!.includes("Prerequisites satisfied (advisory; server rechecks at deliberate start)."), "Accepted refresh not reflected");
+    check(title === document.querySelector('input[name="title"]') && title.value === "Keep my draft", "Advisory refresh replaced draft");
+    mounted.state.readUnavailable = true; await mounted.view.refresh();
+    check(document.body.textContent!.includes("Unavailable; displayed board is stale.") && articles()[1]!.textContent!.includes("Prerequisites satisfied"), "Stale disclosure or old view lost");
+    mounted.state.readUnavailable = false; Object.assign(mounted.board.result, { links: [] }); await mounted.view.refresh();
+    check(articles()[0]!.textContent!.includes("Dependency pressure: none.") && currentAlpha.priority === "P3", "Unlink retained pressure or changed priority");
+    check(mounted.state.mutations === 0, "Advisory performed a mutation");
+    return checks;
+  } finally { mounted.view.destroy(); mounted.client.close(); }
+}

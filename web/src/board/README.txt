@@ -49,3 +49,17 @@ Cards and current-text comparisons display the assignment. Create/edit capture
 UUID or null in the same immutable draft and request as title/priority; refresh
 and conflicts retain the original editor and selected assignment. Responsibility
 does not affect the authenticated actor or permit approval.
+
+Each ordinary board card separately shows Dependency pressure (direct incoming
+active blocking dependents with their assigned priority and lane) and
+Prerequisites/readiness (direct outgoing active blocking targets). Priority is
+never changed or scored. Informational and removed links do not contribute.
+Only an exact current board/incarnation target resolves; unavailable or foreign
+targets remain unsatisfied. Archived targets and targets without a current human
+approval matching the current policy and preceding card revision are unsatisfied,
+including Ready for Review targets awaiting human acceptance.
+
+These facts use the complete validated board read. Refresh updates them and failed
+reads retain the existing stale disclosure. A satisfied prerequisite display does
+not establish permission or card-lane eligibility; the server rechecks every
+deliberate start. Card-only current-text reads do not derive board-wide readiness.

@@ -1,0 +1,91 @@
+DEPENDENCY ADVISORY CORRECTION - INDEPENDENT REVIEW
+2026-10-27 | Verdict: PASS_CORRECTIVE_CANDIDATE
+
+Outcome and boundary
+The bounded #0063 correction satisfies its pressure/readiness acceptance checks.
+No material unresolved finding remains in this correction's reviewed source and
+execution evidence. This is a corrective candidate handoff, not R02 final closure,
+release approval or owner acceptance. #0064 remains the separate final assessment.
+The original R01 CHANGES_REQUIRED report and prior release/native evidence remain
+unchanged historical records; this review does not replace their verdicts.
+
+Source review
+- Accepted scope01 example6 and scope22 retain assigned priority and separately
+  displayed dependency pressure/readiness. The correction follows that boundary.
+- Ordinary board reads expose incoming direct active blocking dependents and
+  outgoing prerequisite acceptance separately. Alpha's assigned P3 is preserved;
+  Beta's P0 is a displayed fact, never a score or automatic priority escalation.
+- Go CLI and browser derivation require exact current board/incarnation targets.
+  Foreign or missing targets remain unavailable/not satisfied. Current acceptance
+  requires a nonarchived Completed target, matching current approval/card, human
+  actor, current policy and reviewed card revision equal to target revision - 1.
+- Satisfied prerequisites confer no permission or automatic execution. Go retains
+  authoritative start admission. JSON CLI, domain, HTTP/API, contracts, storage,
+  archive and recovery/UNKNOWN behavior are unchanged.
+- Browser prose uses textContent; existing stale disclosure, retained editor/base,
+  deliberate refresh and focus behavior remain. CLI advisory escapes terminal
+  controls and applies only to successful complete ordinary BoardRead output.
+  Partial card reads and unavailable reads do not invent prerequisite readiness.
+- Source anchors: internal/transport/cli/core/{advisory.go,run.go};
+  web/src/board/{advisory.ts,view.ts}; internal/board/cards/cards.go:132-145;
+  qualification/browser/suites/journey.spec.mjs:85-167.
+
+Integration finding and correction
+- Review identified that asset staging included the new board/advisory module
+  while the runtime's exact embedded allowlist omitted it. This prevented bundle
+  verification. The initial candidate failed its embedded inventory test.
+- internal/assets/assets.go:98 now declares js/board/advisory.js consistently
+  with cmd/assetstage/main.go:23. New candidate execution passed that inventory
+  test, all ordinary tests and asset stage/check; the actual browser then loaded
+  and exercised the changed module. The finding is corrected and verified.
+- Initial candidate/preparation failures remain retained and excluded. They are
+  not counted as successful execution or relabeled as a passing attempt.
+
+Executed evidence independently checked
+- The complete ordinary test stream has 1,444 unique passed tests, zero failed
+  or skipped tests and 32 passed packages. Contract generation, TypeScript
+  check/build, asset stage/check, vet, module verification and candidate build
+  exited zero. These checks used a populated compiler cache, not two clean builds.
+- Raw final Playwright JSON contains all 21 mandatory cases, each exactly once
+  and passing, with zero retries, skipped, flaky, unexpected or suite errors.
+  Per-case source/inventory/binary bindings agree; launcher and child exited zero.
+  Browser closed and owned fixture exited zero with zero stderr bytes.
+- V02-DEPENDENCY-01 performs actual normal DOM actions and reads the built ordinary
+  CLI. It verifies P3 Alpha/P0 Beta blocking direction and incoming pressure,
+  RFR awaiting human acceptance, actual PREREQUISITE_NOT_APPROVED before acceptance
+  with board/lane unchanged, deliberate human approval, refreshed satisfaction
+  without automatic start, deliberate Beta start and unlink clearing pressure.
+- Four retained ordinary CLI captures independently agree on the same card/link
+  identities, priority preservation, lane sequence, human approval policy/revision
+  and displayed facts. All prior 20 required journey cases remain mandatory.
+- Focused boundary tests cover active/kind, archive, foreign identity, approval
+  actor/card/pointer/policy/revision, exact JSON and partial/unavailable reads.
+  Synthetic component evidence is distinguished from actual product execution.
+
+Source and binary binding
+- Executed base: 7438125a91eb32650b323d6f4dffc77aea506a08 plus this correction.
+  All 674 candidate source hashes match before/after and reviewed current bytes.
+  The source archive has exactly those 674 unique matching file members. It was
+  captured after execution and checked against the preexecution source manifest.
+- Source-manifest SHA256:
+  81d05ca3d13485bd81672114042c52350576e5dea91709c2f2e895368b091702
+- Source-archive SHA256:
+  0a3a7a39e7596ae6227c951af32e15f50442142b8ec8b123aced890db7723337
+- Candidate and actual browser application SHA256:
+  be950e941ef671599510f8236494b338dab6d6f164156f66b71f88f4c949ef3c
+- All 21 embedded assets and manifest input hashes match. Browser preparation's
+  266 observed build inputs and seven journey input bindings match current inputs.
+- Later qualification/dependency-advisory/{README.txt,results.json} and this review
+  are metadata additions, excluded from the executed source set. Their candidate
+  claims agree with retained evidence. See qualification/dependency-advisory.
+
+Limits and handoff
+- This reviewer inspected source and raw retained execution evidence; no duplicate
+  broad test run or independent clean-build/native dispatch was performed here.
+- Synthetic Windows amd64/loopback evidence does not prove physical power-loss
+  durability, hostile-account isolation, meaningful human review, live cutover,
+  deployment, complete V1 parity or final release qualification.
+- Prior exposure is disclosed; this is not isolated clean-room certification.
+- #0063 is ready for owner review of this bounded correction. #0064 must perform
+  fresh final closure/release assessment after the prerequisite acceptance gate.
+  Only the owner controls Completed.

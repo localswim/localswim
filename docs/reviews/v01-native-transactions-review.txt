@@ -1,0 +1,107 @@
+V01 NATIVE TRANSACTIONS - FRESH INDEPENDENT FULL REVIEW
+2026-10-26
+
+Verdict: PASS for the staged V01 native transaction/fault/recovery scope, with
+the explicit evidence limits below. No open correctness or security finding.
+This review does not execute V04's root native dispatch, qualify browser or live
+installation journeys, or establish physical power-loss durability.
+
+Reviewed source and independent execution
+
+- Frozen provider base: 687ca9be73ffb9be1fce0673a4dcf934005db774.
+  All 247 original provider files and go.mod/go.sum match the accepted hashes.
+  No product provider, schema, module lock or default release source changed.
+- Original seven-case source SHA256:
+  8d0aa3aacadb8b1e02eb048a5e3798e6743689baf744690e211bd56dd66dee64.
+  Corrected continuation child source SHA256:
+  3415915e7973cef7cb2a31b7c3e70e1ead360d9f5c9dc4bd6087b4226fa6a481.
+- Fresh private roots and isolated build cache, native Windows/amd64 on fixed
+  local NTFS, Windows 25H2 build 26200.9711, exact qualified Go 1.27.3,
+  CGO_ENABLED=0, GOTOOLCHAIN=local and GOFLAGS=-mod=readonly.
+- Command: go test -json -count=1 -tags=nativequalification
+  ./qualification/native/transaction
+- Independent result: exit 0; all eight outer tests pass, including the original
+  seven cases and continuation orchestrator. All seven continuation child cases
+  pass. Zero failures and zero skips. These are fourteen native cases, with the
+  orchestrator counted separately in the outer total.
+- The 256 copied source-before hashes, three original/replacement overlay hashes,
+  compiled child source and retained baseline/main-file hashes were independently
+  checked. Qualified executable/module inputs and immutable attempts are retained.
+- Fresh missing-root control: exit 1, eight failures, no passes or skips, and no
+  native fixture directory. Fresh unsupported Windows/386 control: exit 1 with
+  its explicit unsupported-platform failure, no passes or skips. Their refusal
+  paths are unchanged by the corrected precommit case.
+- Both reserved test ports have no remaining listener after the full execution.
+
+F1 resolved: validated interrupted restart follows S01/S03
+
+- The first continuation expected a successful reopen after terminating a real
+  pre-COMMIT transaction. A retained journal makes S01 refuse before SQLite.
+  That failed attempt, its source freeze and all forensic bytes remain preserved.
+- The approved continuation says "validated restart"; successful recovery and
+  complete rollback were stronger test/design interpretations. Accepted S03
+  permits failed restart, UNKNOWN and unavailable writes pending recovery.
+  The recorded interpretation corrects the test without changing providers or
+  adding a recovery policy. The initial findings report remains historical.
+- The corrected independent case records valid counts/prose, closes storage and
+  captures the baseline main file before launching its child. The child stages
+  real card/current/history/outcome work, reaches the existing before-COMMIT
+  timing barrier and is terminated abnormally through the native process API.
+- The main database exactly equals the closed baseline bytes, the journal stays,
+  and three Existing calls return the specific pre-SQLite recovery refusal.
+  Every refusal preserves complete file inventory and bytes. Independent byte
+  reads confirm the retained main file matches the baseline artifact.
+- No store is admitted, so no authoritative lookup or subsequent write occurs.
+  The original remains unresolved UNKNOWN. This proves preserved main-file bytes
+  and safe refusal for this fixture, not recovered rollback, successful journal
+  recovery, NOT_COMMITTED, post-recovery lookup or restored write admission.
+- Successful postcommit restart and real busy/FULL rollback remain separately
+  executed evidence. S01's pending-recovery limit remains visible and unchanged.
+
+Fault, CLI and security evidence
+
+- Original native cases retain concurrent exact-revision writers, revocation-first
+  admission, reader-blocked COMMIT, independently verified SQLITE_FULL (13),
+  protected account/System ACLs, evidence readback and postcommit process restart.
+  Replay checks preserve terminal class and counts; complete receipt-byte equality
+  and confirmed waiter-lock sequencing are not asserted.
+- Existing direct per-Engine before-COMMIT/rollback and after-COMMIT/readback fault
+  callbacks automatically produce UNKNOWN and fence further writers. Exact fault
+  counts, denied writes, close/validated reopen and original outcomes are checked.
+  These are labeled injections on real native SQL components, not HTTP faults.
+- Actual CLI pending-evidence preparation observes a native read-only Sync errno5
+  from a separately owned probe, injected once at the evidence flush boundary.
+  The provider retains and normally closes its own writable handle. Readback
+  corruption is separately injected. Both paths retain exact pending/caller bytes,
+  dispatch zero mutation requests and preserve board effects.
+- Missing original evidence and a real native sharing violation (32) produce exit4
+  refusal with no board lookup. Access restoration retains exact original bytes.
+- Actual pinned HTTPS commits once, disconnects before response delivery and yields
+  CLI UNKNOWN with original identity/fingerprint/evidence. Listener, session,
+  native lifetime and validated SQL restart precede one original GET resolving
+  COMMITTED. No replay, replacement operation or second effect is observed.
+- Exactly three private overlays replace only nativeRoot or append accessors for
+  existing per-instance callbacks. There is no factory/global fault injection.
+  Immutable exact per-case roots, compiled sentinel and ProtectedRoot equality
+  precede setup material creation; SourceRoot uses the same guarded resolver.
+  Missing/unapproved selectors refuse, with no live/default root fallback.
+- The identical uninstrumented child fails compilation on the three specific
+  missing symbols. It is never executed. All original providers remain unchanged.
+- Nonempty actual CLI stdout/stderr and pinned HTTPS response envelopes exclude
+  tested real credential bearers and synthetic code/path/SID markers. The code
+  canary is rejected input, not a live code-presentation journey. No server-log
+  sink or whole-product secrecy claim follows; retained evidence/payload files
+  and valid requested business data are outside diagnostic secrecy assertions.
+- The accepted redacted-logs evidence row is covered by those actual streams
+  plus a static no-leak audit: CLI refusal output uses fixed categories, HTTPS
+  refusals use fixed messages and the server diagnostic sink is io.Discard.
+  Neither a server-log-sink exercise nor a live code-presentation journey is
+  added as a V01 acceptance requirement or claimed as executed evidence.
+- Synthetic native-owner material and automation grants are fixture authority.
+  No physical trust provider, real user ROOT/board, human enrollment, login,
+  activation or UI was used. No product-writable-handle/device failure, reboot,
+  hostile same-account guarantee or hardware/power-loss durability is claimed.
+
+The staged evidence satisfies the accepted V01 scope with these limits. Journal
+recovery remains separately scoped; this review does not authorize it or waive
+any dependent execution or owner acceptance gate.

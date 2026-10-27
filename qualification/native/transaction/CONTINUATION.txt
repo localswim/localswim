@@ -1,0 +1,87 @@
+V01 one additional bounded execution: full matrix executed
+
+The complete corrected staged command passed. Seven original cases passed
+unchanged; all seven private continuation child cases passed, with no skips.
+Fresh independent continuation review remains required before V01 handoff.
+
+Passed continuation evidence
+
+- A real child reaches the existing before-COMMIT barrier after staging card
+  current/history/receipt effects, then terminates abnormally through the native
+  process API. The main database bytes exactly match the separately captured
+  closed valid baseline, including its counts/prose record. The journal remains.
+  Three Existing calls refuse before SQLite, with complete inventory and bytes
+  unchanged around every attempt. No store is admitted; original outcome remains
+  unresolved UNKNOWN with no lookup, recovered rollback, successful hot-journal
+  reopen or resumed-write claim. This is validated safe-refusal restart.
+- Before-commit plus rollback errors, and after-commit plus readback errors,
+  exercise existing per-Engine callbacks. Exact boundary counts are checked.
+  UNKNOWN automatically fences the real native store; another write refuses.
+  Close plus validated reopen restores writes. The original absent receipt
+  remains UNKNOWN or the exact retained identity resolves COMMITTED.
+- The actual CLI pending-evidence boundary observes native readonly-file Sync
+  ERROR_ACCESS_DENIED (5), injected once through the existing flush callback.
+  A separately owned probe outside admitted evidence inventory generates that
+  actual primitive error. The provider keeps its original writable handle and
+  closes it normally. Exact pending/caller bytes survive, zero mutation requests
+  reach HTTPS and board effects remain unchanged. This is boundary injection,
+  not product-writable-handle, device, hardware or durability failure evidence.
+- Existing independent-readback corruption injection likewise refuses dispatch
+  while retaining exact pending/caller bytes and unchanged board effects.
+- Actual pinned private TLS commits once, disconnects before response delivery,
+  and returns CLI exit4 with original identity/fingerprint/evidence. Listener,
+  session, native lifetime and validated SQL store restart precede one original
+  GET lookup. It resolves COMMITTED without another mutation, replacement
+  identity, replay, new original evidence or state-count changes.
+- Missing final original evidence and an actual native exclusive sharing
+  violation (32) return exit4 refusal with zero board lookups. Original bytes
+  survive access restoration. Pending files cannot manufacture final evidence.
+- Nonempty actual CLI stdout/stderr and pinned HTTPS response envelopes are
+  captured and checked for real credential bearer, synthetic code marker,
+  private fixture path and SID markers. The code marker is rejected input/route
+  data; no session-code presentation journey is claimed. Intentionally retained
+  evidence/payload files and valid requested business data are outside diagnostic
+  secrecy claims. The HTTPS provider's own diagnostic sink remains io.Discard;
+  the captures cover its actual response envelopes, not a server log sink.
+- Missing and unapproved private-root selectors refuse before a native setup
+  manager exists. No default/live/current-directory root fallback is available.
+
+Precommit restart interpretation and retained limit
+
+The first attempt's failed successful-reopen expectation and its source freeze
+remain preserved. Review corrected that expectation to accepted S01/S03 behavior:
+Existing refuses a journal before opening SQLite and the original may remain
+UNKNOWN pending recovery. The corrected case proves exact baseline main-file
+bytes and repeated byte-preserving safe refusal; it does not open original
+forensic state through SQLite or manufacture a noncommit/lookup result.
+
+Frozen internal/store/open/path_windows.go:98-105 still admits only board.sqlite
+and board.lock. No exported hot-journal recovery capability was selected. No
+fourth overlay, journal deletion, implicit recovery, guard bypass or provider
+edit occurs. Successful clean postcommit restart and real busy/FULL rollback
+remain distinct rows. Pending recovery after interrupted precommit is a visible
+contract limit, not evidence of recovered rollback or write resumption.
+
+Isolation and claims
+
+All 247 original provider bytes, exact module locks and the qualified Go
+executable are hash-checked. A private copied module is built with exactly three
+overlays: immutable exact-root resolver plus compiled sentinel; per-Engine
+existing fault accessor; root-checked existing evidence callback accessor.
+The identical child without overlays first fails on all three missing symbols,
+including undefined setup.V01QualificationRoot. It never executes uninstrumented.
+Overlay map, original/replacement bytes, child source/executable and selected
+canonical roots are bound in retained private evidence before child execution.
+ProtectedRoot equality precedes Init; SourceRoot remains under the same resolver.
+
+Private synthetic setup/native-owner material and automation grants are fixture
+authority only. No physical trust provider, human enrollment, login, activation,
+live board, production root API, provider factory, schema or module change occurs.
+The Engine accessor is used only on caller-owned direct component instances;
+no injected Engine fault through HTTP is claimed. Reserved TLS port 47443 was
+used; both reserved ports were released after execution.
+
+No physical power loss, OS reboot, storage device failure, hardware durability
+or hostile same-account guarantee is established. Original subset claims remain
+bounded: revocation-first admission, no confirmed waiter-lock sequencing and
+terminal-class/state-count resubmission checks rather than receipt-byte equality.

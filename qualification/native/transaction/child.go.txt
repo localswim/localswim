@@ -1,0 +1,826 @@
+//go:build nativequalification && windows && amd64
+
+package transaction
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"crypto/tls"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/localswim/localswim/internal/board/credentials"
+	"github.com/localswim/localswim/internal/board/grants"
+	"github.com/localswim/localswim/internal/contract"
+	A "github.com/localswim/localswim/internal/contract/archive"
+	T "github.com/localswim/localswim/internal/contract/transport"
+	S "github.com/localswim/localswim/internal/store/open"
+	"github.com/localswim/localswim/internal/store/writer"
+	"github.com/localswim/localswim/internal/transport/boardapi"
+	core "github.com/localswim/localswim/internal/transport/cli/core"
+	"github.com/localswim/localswim/internal/transport/cli/evidence"
+	H "github.com/localswim/localswim/internal/transport/https"
+	"github.com/localswim/localswim/internal/transport/session"
+	"github.com/localswim/localswim/internal/transport/setup"
+	"golang.org/x/sys/windows"
+)
+
+func v01Report(t *testing.T, v any) {
+	t.Helper()
+	b, e := json.MarshalIndent(v, "", "  ")
+	if e != nil {
+		t.Fatal("report encoding failed")
+	}
+	p := filepath.Join(os.Getenv("V01_CHILD_RESULTS"), t.Name()+".json")
+	f, e := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if e != nil {
+		t.Fatal("immutable case report unavailable")
+	}
+	n, e := f.Write(append(b, '\n'))
+	ce := f.Close()
+	if e != nil || ce != nil || n != len(b)+1 {
+		t.Fatal("case report write failed")
+	}
+}
+
+func v01OpenFixture(t *testing.T, path string) *fixture {
+	t.Helper()
+	s, e := S.Existing(ctx(t), path, identity)
+	if e != nil {
+		t.Fatal("validated child reopen failed")
+	}
+	g, e := grants.New(installation, origin, func(_ context.Context, r writer.Read, n time.Time) (grants.Credential, error) {
+		var a string
+		e := r.Scan("SELECT actor_id FROM grant_record WHERE grant_id=?", []any{grant}, &a)
+		return grants.Credential{InstallationID: installation, Origin: origin, BoardID: board, Incarnation: inc, ActorID: a, GrantID: grant, Mode: "cli", IssuedAt: n.Add(-time.Minute), ExpiresAt: n.Add(time.Hour)}, e
+	})
+	if e != nil {
+		t.Fatal("private verifier unavailable")
+	}
+	return &fixture{s: s, e: writer.New(s), g: g, path: path}
+}
+
+func TestV01PrecommitTermination(t *testing.T) {
+	if os.Getenv("V01_PRECOMMIT_CHILD") == "1" {
+		p := os.Getenv("V01_CHILD_BOARD")
+		anchor := os.Getenv("V01_NATIVE_ROOT")
+		if !filepath.IsAbs(p) || filepath.Clean(p) != p || !strings.HasPrefix(p, anchor+`\`) {
+			t.Fatal("private child store required")
+		}
+		f := v01OpenFixture(t, p)
+		id := text(t, f.s, "SELECT card_id FROM card")
+		f.e.V01QualificationFault(func(stage string) error {
+			if stage == "before-commit" {
+				if _, e := os.Stdout.Write([]byte("R")); e != nil {
+					return errors.New("checkpoint unavailable")
+				}
+				select {}
+			}
+			return nil
+		})
+		f.e.Submit(ctx(t), freeze(t, "card.edit", id, 1, 1, 2, map[string]any{"description": "Precommit private replacement"}), cb(f, id))
+		t.Fatal("precommit barrier returned")
+	}
+	f := newFixture(t)
+	create(t, f, 1)
+	baselineCounts := counts(t, f.s)
+	baselineProse := text(t, f.s, "SELECT description FROM card")
+	if baselineProse != "First draft" || baselineCounts["revision"] != 1 || baselineCounts["card"] != 1 || baselineCounts["operation"] != 1 {
+		t.Fatal("valid pre-child baseline differs")
+	}
+	if f.s.Close() != nil {
+		t.Fatal("fixture close failed")
+	}
+	baseline := v01FileInventory(t, f.path)
+	if len(baseline) != 2 || len(baseline["board.sqlite"]) == 0 || baseline["board.lock"] == nil {
+		t.Fatal("closed baseline inventory differs")
+	}
+	baselineHash := fmt.Sprintf("%x", sha256.Sum256(baseline["board.sqlite"]))
+	v01CaseArtifact(t, "-baseline-db.bin", baseline["board.sqlite"])
+	baselineRecord, e := json.MarshalIndent(map[string]any{"closedValidatedBaseline": true, "databaseSHA256": baselineHash, "fileInventory": v01InventoryHashes(baseline), "counts": baselineCounts, "prose": baselineProse}, "", "  ")
+	if e != nil {
+		t.Fatal("baseline encoding failed")
+	}
+	v01CaseArtifact(t, "-baseline.json", append(baselineRecord, '\n'))
+	cmd := exec.Command(os.Args[0], "-test.run=^TestV01PrecommitTermination$")
+	cmd.Env = append(os.Environ(), "V01_PRECOMMIT_CHILD=1", "V01_CHILD_BOARD="+f.path)
+	stdout, e := cmd.StdoutPipe()
+	if e != nil {
+		t.Fatal("child pipe failed")
+	}
+	cmd.Stderr = cmd.Stdout
+	if cmd.Start() != nil {
+		t.Fatal("native precommit child failed")
+	}
+	t.Cleanup(func() {
+		if cmd.ProcessState == nil {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}
+	})
+	ready := make(chan bool, 1)
+	go func() { var b [1]byte; n, e := stdout.Read(b[:]); ready <- n == 1 && e == nil && b[0] == 'R' }()
+	select {
+	case ok := <-ready:
+		if !ok {
+			t.Fatal("precommit checkpoint absent")
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("precommit timeout")
+	}
+	if cmd.Process.Kill() != nil {
+		t.Fatal("owned native termination failed")
+	}
+	waitErr := cmd.Wait()
+	var exited *exec.ExitError
+	if !errors.As(waitErr, &exited) || cmd.ProcessState == nil || !cmd.ProcessState.Exited() || cmd.ProcessState.Success() || cmd.ProcessState.ExitCode() == 0 {
+		t.Fatal("native termination was not abnormal")
+	}
+	interrupted := v01FileInventory(t, f.path)
+	if len(interrupted) != 3 || len(interrupted["board.sqlite-journal"]) == 0 || !bytes.Equal(interrupted["board.sqlite"], baseline["board.sqlite"]) || !bytes.Equal(interrupted["board.lock"], baseline["board.lock"]) {
+		t.Fatal("interrupted source byte preservation or retained journal differs")
+	}
+	// S01 refuses journal-bearing state before SQLite. S03 permits this failed
+	// restart with unresolved UNKNOWN pending recovery. Never open the original
+	// through SQLite, remove its journal, manufacture a lookup, or admit writes.
+	const refusals = 3
+	for n := 0; n < refusals; n++ {
+		beforeRefusal := v01FileInventory(t, f.path)
+		v01SameInventory(t, interrupted, beforeRefusal)
+		s, err := S.Existing(ctx(t), f.path, identity)
+		if s != nil {
+			_ = s.Close()
+			t.Fatal("journal-bearing restart unexpectedly admitted a store")
+		}
+		if err == nil || err.Error() != "storage requires recovery or has unknown files" {
+			t.Fatal("expected pre-SQLite journal refusal absent")
+		}
+		v01SameInventory(t, beforeRefusal, v01FileInventory(t, f.path))
+	}
+	v01Report(t, map[string]any{"termination": "real abnormal native process kill at injected before-COMMIT barrier", "checkpointObserved": true, "restart": "validated safe refusal before SQLite; journal requires separately scoped recovery", "refusalAttempts": refusals, "completeInventoryBytesUnchanged": true, "closedBaselineDatabaseSHA256": baselineHash, "mainDatabaseBytesEqualBaseline": true, "retainedInventory": v01InventoryHashes(interrupted), "staged": "card current/history/receipt", "originalOutcome": "unresolved UNKNOWN; authoritative evidence inaccessible", "originalLookup": "not performed: no store admitted", "recoveredRollback": false, "successfulReopen": false, "resumedWrites": false, "limit": "main-file byte preservation and safe restart refusal; no post-kill relational lookup or hot-journal recovery claim"})
+}
+
+func v01CaseArtifact(t *testing.T, suffix string, b []byte) {
+	t.Helper()
+	p := filepath.Join(os.Getenv("V01_CHILD_RESULTS"), t.Name()+suffix)
+	f, e := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if e != nil {
+		t.Fatal("immutable baseline artifact unavailable")
+	}
+	n, e := f.Write(b)
+	ce := f.Close()
+	if e != nil || ce != nil || n != len(b) {
+		t.Fatal("baseline artifact write failed")
+	}
+}
+
+func v01FileInventory(t *testing.T, dir string) map[string][]byte {
+	t.Helper()
+	entries, e := os.ReadDir(dir)
+	if e != nil {
+		t.Fatal("complete source inventory unavailable")
+	}
+	inventory := map[string][]byte{}
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() {
+			t.Fatal("unexpected source inventory type")
+		}
+		b, e := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if e != nil {
+			t.Fatal("complete source bytes unavailable")
+		}
+		inventory[entry.Name()] = b
+	}
+	return inventory
+}
+
+func v01SameInventory(t *testing.T, before, after map[string][]byte) {
+	t.Helper()
+	if len(before) != len(after) {
+		t.Fatal("safe refusal changed source inventory")
+	}
+	for name, b := range before {
+		other, ok := after[name]
+		if !ok || !bytes.Equal(b, other) {
+			t.Fatal("safe refusal changed source bytes")
+		}
+	}
+}
+
+func v01InventoryHashes(inventory map[string][]byte) map[string]any {
+	result := map[string]any{}
+	for name, b := range inventory {
+		result[name] = map[string]any{"bytes": len(b), "sha256": fmt.Sprintf("%x", sha256.Sum256(b))}
+	}
+	return result
+}
+
+func v01AutomaticFence(t *testing.T, mode string) {
+	t.Helper()
+	f := newFixture(t)
+	id := create(t, f, 1)
+	before := counts(t, f.s)
+	i := freeze(t, "card.edit", id, 1, 1, 2, map[string]any{"description": "Uncertain replacement"})
+	seen := map[string]int{}
+	f.e.V01QualificationFault(func(stage string) error {
+		seen[stage]++
+		if (mode == "rollback" && (stage == "before-commit" || stage == "rollback")) || (mode == "readback" && (stage == "after-commit" || stage == "readback")) {
+			return errors.New("private injected uncertainty")
+		}
+		return nil
+	})
+	r := f.e.Submit(ctx(t), i, cb(f, id))
+	f.e.V01QualificationFault(nil)
+	if r.Unknown == nil || r.Terminal != nil {
+		t.Fatal("uncertainty inferred terminal")
+	}
+	for _, stage := range map[string][]string{"rollback": {"before-commit", "rollback"}, "readback": {"after-commit", "readback"}}[mode] {
+		if seen[stage] != 1 {
+			t.Fatal("required fault boundary count differs")
+		}
+	}
+	if l, e := f.s.Writer(ctx(t)); !errors.Is(e, S.ErrFenced) {
+		if l != nil {
+			_ = l.Close()
+		}
+		t.Fatal("automatic fence admitted writer")
+	}
+	if f.e.Submit(ctx(t), freeze(t, "card.edit", id, 1, 1, 3, map[string]any{"description": "Fenced attempted write"}), cb(f, id)).Unknown == nil {
+		t.Fatal("fenced write inferred outcome")
+	}
+	if f.s.Close() != nil {
+		t.Fatal("fenced store close failed")
+	}
+	reopened := v01OpenFixture(t, f.path)
+	f.s = reopened.s
+	f.e = reopened.e
+	f.g = reopened.g
+	if mode == "rollback" {
+		unchanged(t, f.s, before)
+		if lookup(t, f, i).Unknown == nil {
+			t.Fatal("rollback absence inferred noncommit")
+		}
+	} else {
+		terminal(t, lookup(t, f, i), "committed")
+		if text(t, f.s, "SELECT description FROM card") != "Uncertain replacement" || scalar(t, f.s, "SELECT count(*) FROM operation") != 2 || scalar(t, f.s, "SELECT count(*) FROM card_revision") != 1 {
+			t.Fatal("committed uncertainty changed atomic effects")
+		}
+	}
+	stable := counts(t, f.s)
+	lookup(t, f, i)
+	unchanged(t, f.s, stable)
+	rev := uint64(scalar(t, f.s, "SELECT revision FROM board"))
+	cr := uint64(scalar(t, f.s, "SELECT revision FROM card"))
+	terminal(t, f.e.Submit(ctx(t), freeze(t, "card.edit", id, rev, cr, 4, map[string]any{"description": "Validated reopen write"}), cb(f, id)), "committed")
+	v01Report(t, map[string]any{"mode": mode, "boundaryCounts": seen, "unknown": true, "automaticFence": true, "writeDeniedUntilValidatedCloseReopen": true, "originalLookup": map[bool]string{true: "unknown", false: "committed"}[mode == "rollback"], "claim": "existing per-Engine fault injection with real native SQL and restart"})
+}
+func TestV01AutomaticRollbackFence(t *testing.T) { v01AutomaticFence(t, "rollback") }
+func TestV01AutomaticReadbackFence(t *testing.T) { v01AutomaticFence(t, "readback") }
+
+type v01Provider struct {
+	manager  *setup.Manager
+	metadata core.CredentialMetadata
+	token    T.SecretToken
+}
+
+func (p *v01Provider) Open(_ context.Context, s core.Selectors) (*core.Connection, error) {
+	if s != p.metadata.Selected {
+		return nil, errors.New("selection unavailable")
+	}
+	c, e := p.manager.ReadContext()
+	if e != nil {
+		return nil, e
+	}
+	return core.NewBoardConnection(c, p.metadata, p.token)
+}
+func (p *v01Provider) NativeOwner(context.Context, evidence.Record) (*core.Connection, error) {
+	return nil, errors.New("native owner substitution forbidden")
+}
+
+type v01TLS struct {
+	m                                  *setup.Manager
+	s                                  *S.Store
+	n                                  *credentials.Service
+	sessions                           *session.Service
+	server                             *H.Server
+	boardHandler                       http.Handler
+	sessionHandler                     http.Handler
+	provider                           *v01Provider
+	ev                                 *evidence.WindowsStore
+	runner                             core.Runner
+	root, evidenceRoot, boardPath      string
+	lost                               atomic.Bool
+	mutations, lookups                 atomic.Int32
+	mu                                 sync.Mutex
+	httpOutput                         bytes.Buffer
+	cliOutput                          bytes.Buffer
+	cliDiagnostics                     bytes.Buffer
+	token, ownerToken, codeMarker, sid string
+	committed                          chan bool
+}
+
+func v01CaseRoot(t *testing.T) string {
+	t.Helper()
+	p := v01CaseRoots[t.Name()]
+	anchor := os.Getenv("V01_NATIVE_ROOT")
+	if p == "" || !filepath.IsAbs(p) || filepath.Clean(p) != p || !strings.HasPrefix(p, anchor+`\`) || len(p) > 220 {
+		t.Fatal("allowlisted case root required")
+	}
+	t.Setenv("V01_CASE_ROOT", p)
+	sentinel, e := setup.V01QualificationRoot()
+	if e != nil || sentinel != p {
+		t.Fatal("compiled root sentinel differs")
+	}
+	return p
+}
+
+func newV01TLS(t *testing.T) *v01TLS {
+	t.Helper()
+	root := v01CaseRoot(t)
+	m, e := setup.New(nil)
+	if e != nil {
+		t.Fatal("private manager unavailable")
+	}
+	p, e := m.ProtectedRoot()
+	if e != nil || p != root {
+		t.Fatal("protected root mismatch before Init")
+	}
+	port := 47443
+	if m.Init(&port).Exit != 0 {
+		t.Fatal("private synthetic setup failed")
+	}
+	owner, e := m.LoadNativeOwner()
+	if e != nil {
+		t.Fatal("private owner unavailable")
+	}
+	f := &v01TLS{m: m, root: root, evidenceRoot: root + "-evidence", ownerToken: strings.TrimPrefix(owner.Authorization(), "Bearer "), codeMarker: "v01-private-code-marker", committed: make(chan bool, 1)}
+	u, e := windows.GetCurrentProcessToken().GetTokenUser()
+	if e != nil {
+		t.Fatal("private account unavailable")
+	}
+	f.sid = u.User.Sid.String()
+	dir := privateDir(t)
+	f.boardPath = dir
+	f.s, e = S.Create(ctx(t), dir, identity)
+	if e != nil {
+		t.Fatal("private TLS board unavailable")
+	}
+	t.Cleanup(func() { f.close(t) })
+	f.start(t)
+	f.ev, e = evidence.NewWindowsStore(f.evidenceRoot)
+	if e != nil {
+		t.Fatal("private evidence constructor failed")
+	}
+	// Fixture authority is only a private synthetic automation grant.
+	wire, _ := json.Marshal(map[string]any{"opId": op(91), "boardId": board, "incarnation": inc, "target": nil, "expectedRevision": 0, "expectedCardRevision": nil, "input": map[string]any{"granteeActorId": actor, "kind": "automation", "rights": []string{"create", "read", "read-own-outcome"}}})
+	i, e := T.FreezeMutation(wire, contract.ResolvedRoute{Command: "grant.create", BoardID: board}, contract.AuthenticatedActor{ActorID: f.n.Context().OwnerActorID})
+	if e != nil {
+		t.Fatal("private automation intent failed")
+	}
+	r := f.n.SubmitNative(ctx(t), T.SecretToken(f.ownerToken), i, grants.Route{BoardID: board, Incarnation: inc})
+	if r.Result == nil {
+		t.Fatal("automation fixture result missing")
+	}
+	term := terminal(t, *r.Result, "committed")
+	var grantID string
+	for _, ref := range term.ResultRefs {
+		if ref.Kind == "grant" {
+			grantID = string(ref.ID)
+		}
+	}
+	if grantID == "" {
+		t.Fatal("automation grant missing")
+	}
+	issued := f.n.Issue(ctx(t), T.SecretToken(f.ownerToken), T.CredentialIssueRequest{InstallationID: T.UUIDv4(f.n.Context().InstallationID), BoardID: A.UUID(board), Incarnation: A.UUID(inc), GrantID: A.UUID(grantID)})
+	b, e := issued.MarshalEphemeral()
+	if e != nil {
+		t.Fatal("synthetic credential issuance failed")
+	}
+	secret, e := T.Decode[T.CredentialSecret](b)
+	if e != nil {
+		t.Fatal("synthetic credential shape failed")
+	}
+	expires, e := time.Parse("2006-01-02T15:04:05Z", string(secret.ExpiresAt))
+	if e != nil {
+		t.Fatal("credential lifetime failed")
+	}
+	f.token = string(secret.Token)
+	f.provider = &v01Provider{m, core.CredentialMetadata{Selected: core.Selectors{InstallationID: f.n.Context().InstallationID, BoardID: board, Incarnation: inc, GrantID: grantID}, ActorID: actor, ExpiresAt: expires}, secret.Token}
+	f.runner = core.Runner{Provider: f.provider, Evidence: f.ev}
+	return f
+}
+
+func (f *v01TLS) start(t *testing.T) {
+	t.Helper()
+	var e error
+	// SourceRoot internally constructs New(nil), still guarded by the overlay.
+	if root, e := setup.V01QualificationRoot(); e != nil || root != f.root {
+		t.Fatal("source root guard failed")
+	}
+	f.n, e = credentials.SourceRoot(f.s)
+	if e != nil {
+		t.Fatal("private native source unavailable")
+	}
+	f.sessions, e = session.New(f.s, f.n)
+	if e != nil {
+		t.Fatal("private sessions unavailable")
+	}
+	f.boardHandler, e = boardapi.New(f.s, f.n, f.sessions)
+	if e != nil {
+		t.Fatal("private board API unavailable")
+	}
+	f.sessionHandler, e = H.New(f.n, f.sessions)
+	if e != nil {
+		t.Fatal("private HTTPS routes unavailable")
+	}
+	f.server, e = H.Listen(ctx(t), f.n, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" && !strings.HasPrefix(r.URL.Path, "/api/v1/session") {
+			f.mutations.Add(1)
+		}
+		if r.Method == "GET" && strings.Contains(r.URL.Path, "/operations/") {
+			f.lookups.Add(1)
+		}
+		capture := httptest.NewRecorder()
+		if strings.HasPrefix(r.URL.Path, "/api/v1/session") {
+			f.sessionHandler.ServeHTTP(capture, r)
+		} else {
+			f.boardHandler.ServeHTTP(capture, r)
+		}
+		f.mu.Lock()
+		f.httpOutput.Write(capture.Body.Bytes())
+		f.mu.Unlock()
+		if r.Method != "GET" && f.lost.Swap(false) {
+			h, ok := w.(http.Hijacker)
+			if !ok {
+				f.committed <- false
+				return
+			}
+			c, _, e := h.Hijack()
+			if e != nil {
+				f.committed <- false
+				return
+			}
+			_ = c.Close()
+			f.committed <- capture.Code == 201
+			return
+		}
+		for k, values := range capture.Header() {
+			for _, v := range values {
+				w.Header().Add(k, v)
+			}
+		}
+		w.WriteHeader(capture.Code)
+		_, _ = w.Write(capture.Body.Bytes())
+	}))
+	if e != nil {
+		t.Fatal("exclusive pinned private TLS unavailable")
+	}
+}
+func (f *v01TLS) stop(t *testing.T) {
+	t.Helper()
+	if f.server != nil {
+		c, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		e := f.server.Shutdown(c)
+		cancel()
+		if e != nil {
+			t.Error("TLS shutdown failed")
+		}
+		f.server = nil
+	}
+	if f.sessions != nil {
+		f.sessions.Close()
+		f.sessions = nil
+	}
+	if f.n != nil {
+		f.n.Close()
+		f.n = nil
+	}
+}
+func (f *v01TLS) close(t *testing.T) {
+	f.stop(t)
+	if f.s != nil {
+		if f.s.Close() != nil {
+			t.Error("TLS board close failed")
+		}
+		f.s = nil
+	}
+}
+func (f *v01TLS) args(cmd ...string) []string {
+	s := f.provider.metadata.Selected
+	return append([]string{"--json", "--installation", s.InstallationID, "--board", s.BoardID, "--incarnation", s.Incarnation, "--grant", s.GrantID}, cmd...)
+}
+func (f *v01TLS) wire(t *testing.T, n int) []byte {
+	t.Helper()
+	b, e := json.Marshal(map[string]any{"opId": op(n), "incarnation": inc, "target": nil, "expectedRevision": 1, "expectedCardRevision": nil, "input": map[string]any{"title": "Synthetic transaction", "description": "Private retained input"}})
+	if e != nil {
+		t.Fatal("wire unavailable")
+	}
+	return b
+}
+func (f *v01TLS) call(t *testing.T, want int, wire []byte, args ...string) []byte {
+	t.Helper()
+	var out, diag bytes.Buffer
+	x := f.runner.Run(ctx(t), f.args(args...), bytes.NewReader(wire), &out, &diag)
+	f.cliOutput.Write(out.Bytes())
+	f.cliDiagnostics.Write(diag.Bytes())
+	if x != want {
+		t.Fatalf("CLI exit %d want %d", x, want)
+	}
+	return append([]byte{}, out.Bytes()...)
+}
+func (f *v01TLS) record(t *testing.T, wire []byte) evidence.Record {
+	t.Helper()
+	c := f.n.Context()
+	r, e := evidence.Freeze(evidence.Context{InstallationID: c.InstallationID, Origin: c.Origin}, contract.ResolvedRoute{Command: "card.create", BoardID: board}, contract.AuthenticatedActor{ActorID: actor}, wire)
+	if e != nil {
+		t.Fatal("original evidence freeze failed")
+	}
+	return r
+}
+
+func (f *v01TLS) redaction(t *testing.T) map[string]any {
+	t.Helper()
+	// Actual private HTTPS diagnostic: pinned TLS, authenticated GET, unsafe
+	// route marker. These are synthetic secrets/identifiers, never owner data.
+	c, e := f.m.ReadContext()
+	if e != nil {
+		t.Fatal("pinned context unavailable")
+	}
+	cfg, e := c.TLSConfig()
+	if e != nil {
+		t.Fatal("pin unavailable")
+	}
+	tr := &http.Transport{TLSClientConfig: cfg, DialContext: func(c context.Context, _ string, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(c, "tcp4", fmt.Sprintf("127.0.0.1:%d", 47443))
+	}}
+	defer tr.CloseIdleConnections()
+	request, e := http.NewRequestWithContext(ctx(t), "GET", c.Origin+"/api/v1/boards/"+board+"/"+f.codeMarker+"-"+f.sid, nil)
+	if e != nil {
+		t.Fatal("private diagnostic request unavailable")
+	}
+	request.Header.Set("Authorization", "Bearer "+f.token)
+	response, e := (&http.Client{Transport: tr}).Do(request)
+	if e != nil {
+		t.Fatal("actual pinned diagnostic unavailable")
+	}
+	b, e := io.ReadAll(io.LimitReader(response.Body, 65536))
+	ce := response.Body.Close()
+	if e != nil || ce != nil || response.StatusCode < 400 || len(b) == 0 {
+		t.Fatal("actual HTTPS diagnostic missing")
+	}
+	var refused T.NonterminalRefusal
+	if json.Unmarshal(b, &refused) != nil || refused.Outcome != "refused" {
+		t.Fatal("HTTPS diagnostic did not refuse safely")
+	}
+	// Invalid JSON reaches the actual CLI parser; it contains all markers and
+	// must produce a nonempty fixed-category diagnostic without dispatch.
+	invalid := []byte("{" + f.token + f.ownerToken + f.codeMarker + f.root + f.sid)
+	f.call(t, 2, invalid, "card", "create", "--input", "-")
+	f.mu.Lock()
+	httpBytes := append([]byte{}, f.httpOutput.Bytes()...)
+	f.mu.Unlock()
+	httpBytes = append(httpBytes, b...)
+	streams := map[string][]byte{"cli-stdout": f.cliOutput.Bytes(), "cli-stderr": f.cliDiagnostics.Bytes(), "https-envelopes": httpBytes}
+	for _, stream := range streams {
+		if len(stream) == 0 {
+			t.Fatal("empty output cannot prove redaction")
+		}
+		for _, marker := range []string{f.token, f.ownerToken, f.codeMarker, f.root, f.evidenceRoot, f.sid} {
+			if marker != "" && bytes.Contains(stream, []byte(marker)) {
+				t.Fatal("private marker escaped actual output")
+			}
+		}
+	}
+	for name, b := range streams {
+		p := filepath.Join(os.Getenv("V01_CHILD_RESULTS"), t.Name()+"-"+name+".txt")
+		file, e := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if e != nil {
+			t.Fatal("capture unavailable")
+		}
+		_, e = file.Write(b)
+		ce := file.Close()
+		if e != nil || ce != nil {
+			t.Fatal("capture failed")
+		}
+	}
+	return map[string]any{"streams": []string{"actual CLI stdout", "actual CLI stderr", "actual private pinned HTTPS response envelopes"}, "credentialBearer": "used in real session/board requests", "codeMarker": "synthetic marker in rejected HTTPS route and invalid CLI JSON; no live/session-code presentation", "privatePathSID": "invalid CLI input and rejected HTTPS route", "nonempty": true, "secretMarkersAbsent": true, "excludes": "intentionally retained evidence and payload files; valid requested business data is allowed", "tlsMinVersion": cfg.MinVersion == tls.VersionTLS12}
+}
+
+func v01CLIStorageRefusal(t *testing.T, mode string) {
+	f := newV01TLS(t)
+	before := counts(t, f.s)
+	wire := f.wire(t, 11)
+	original := f.record(t, wire)
+	savedBytes := original.Bytes()
+	calls := 0
+	var nativeErr syscall.Errno
+	if mode == "flush" {
+		// The probe is outside the evidence directory's admitted inventory.
+		probe := filepath.Join(privateDir(t), "native-sync-probe")
+		w, e := os.OpenFile(probe, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
+		if e != nil {
+			t.Fatal("native probe create failed")
+		}
+		if _, e = w.Write([]byte("owned synthetic primitive")); e != nil {
+			_ = w.Close()
+			t.Fatal("native probe write failed")
+		}
+		if w.Sync() != nil || w.Close() != nil {
+			t.Fatal("native writable Sync baseline failed")
+		}
+		e = f.ev.V01QualificationCallbacks(f.evidenceRoot, func(providerFile *os.File) error {
+			calls++
+			if calls != 1 {
+				return errors.New("unexpected second flush callback")
+			}
+			if providerFile == nil {
+				t.Fatal("provider handle missing")
+			}
+			ro, e := os.Open(probe)
+			if e != nil {
+				t.Fatal("readonly probe unavailable")
+			}
+			actual := ro.Sync()
+			ce := ro.Close()
+			if ce != nil || !errors.As(actual, &nativeErr) || nativeErr != windows.ERROR_ACCESS_DENIED {
+				t.Fatal("exact native readonly Sync errno5 unavailable")
+			}
+			return actual
+		}, nil)
+		if e != nil {
+			t.Fatal("root-checked flush callback unavailable")
+		}
+	} else {
+		if f.ev.V01QualificationCallbacks(f.evidenceRoot, nil, func(string) ([]byte, error) { calls++; return []byte("private corrupt readback"), nil }) != nil {
+			t.Fatal("root-checked readback callback unavailable")
+		}
+	}
+	f.call(t, 1, wire, "card", "create", "--input", "-")
+	if f.ev.V01QualificationCallbacks(f.evidenceRoot, nil, nil) != nil || calls != 1 {
+		t.Fatal("callback count/clear differs")
+	}
+	if mode == "flush" && nativeErr != 5 {
+		t.Fatal("required native errno absent")
+	}
+	pending := filepath.Join(f.evidenceRoot, op(11)+".json.pending")
+	b, e := os.ReadFile(pending)
+	if e != nil || !bytes.Equal(b, savedBytes) || !bytes.Equal(original.Bytes(), savedBytes) {
+		t.Fatal("failed preparation destroyed original/partial evidence")
+	}
+	if _, e = os.Stat(filepath.Join(f.evidenceRoot, op(11)+".json")); !errors.Is(e, os.ErrNotExist) {
+		t.Fatal("failed pending evidence was published")
+	}
+	if f.mutations.Load() != 0 {
+		t.Fatal("failed evidence dispatched mutation")
+	}
+	unchanged(t, f.s, before)
+	// Loading a pending original as final is forbidden and remains uncertainty.
+	u := f.call(t, 4, nil, "operation", "read", op(11), "--evidence", pending)
+	var refusal T.NonterminalRefusal
+	if json.Unmarshal(u, &refusal) != nil || refusal.Outcome != "refused" {
+		t.Fatal("unavailable original claimed terminal")
+	}
+	if f.mutations.Load() != 0 || f.lookups.Load() != 0 {
+		t.Fatal("unreadable original reached board dispatch")
+	}
+	unchanged(t, f.s, before)
+	report := map[string]any{"mode": mode, "callbackCount": calls, "nativeErrno": uint32(nativeErr), "mutationRequests": 0, "retainedPendingBytesExact": true, "retainedCallerBytesExact": true, "boardEffects": false, "claim": map[bool]string{true: "native readonly-handle Sync errno5 injected at evidence flush boundary; provider owns original writable handle", false: "existing independent-readback corruption injection"}[mode == "flush"], "redaction": f.redaction(t)}
+	if f.mutations.Load() != 0 {
+		t.Fatal("diagnostics dispatched mutation")
+	}
+	v01Report(t, report)
+}
+func TestV01CLIFlushRefusal(t *testing.T)    { v01CLIStorageRefusal(t, "flush") }
+func TestV01CLIReadbackRefusal(t *testing.T) { v01CLIStorageRefusal(t, "readback") }
+
+func TestV01CLILostResponseRestartLookup(t *testing.T) {
+	f := newV01TLS(t)
+	wire := f.wire(t, 12)
+	original := f.record(t, wire)
+	originalBytes := original.Bytes()
+	f.lost.Store(true)
+	u := f.call(t, 4, wire, "card", "create", "--input", "-")
+	unknown, e := T.Decode[T.KnownIdentityUnknown](u)
+	if e != nil || string(unknown.OpID) != original.Identity().OpID || string(unknown.Fingerprint) != original.Fingerprint() {
+		t.Fatal("lost response changed original identity")
+	}
+	select {
+	case ok := <-f.committed:
+		if !ok {
+			t.Fatal("disconnect was not after product commit")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("commit/disconnect checkpoint absent")
+	}
+	path := filepath.Join(f.evidenceRoot, original.Identity().OpID+".json")
+	b, e := os.ReadFile(path)
+	if e != nil || !bytes.Equal(b, originalBytes) {
+		t.Fatal("lost response original evidence changed")
+	}
+	if f.mutations.Load() != 1 || scalar(t, f.s, "SELECT count(*) FROM card") != 1 || scalar(t, f.s, "SELECT revision FROM board") != 2 {
+		t.Fatal("lost response did not commit once")
+	}
+	if _, e = os.Stat(path + ".resolved"); !errors.Is(e, os.ErrNotExist) {
+		t.Fatal("unknown original forged resolution")
+	}
+	before := counts(t, f.s)
+	// Actual listener, session, native material lifetime and SQL store restart.
+	f.stop(t)
+	if f.s.Close() != nil {
+		t.Fatal("restart close failed")
+	}
+	f.s, e = S.Existing(ctx(t), f.boardPath, identity)
+	if e != nil {
+		t.Fatal("validated TLS store reopen failed")
+	}
+	f.start(t)
+	unchanged(t, f.s, before)
+	// Missing/unavailable final original cannot become a not_committed result.
+	missing := f.call(t, 4, nil, "operation", "read", original.Identity().OpID, "--evidence", path+"-missing")
+	var absent T.NonterminalRefusal
+	if json.Unmarshal(missing, &absent) != nil || absent.Outcome != "refused" || f.lookups.Load() != 0 {
+		t.Fatal("missing original manufactured lookup or noncommit")
+	}
+	// Actual native exclusive sharing makes the final original inaccessible.
+	h, e := windows.CreateFile(windows.StringToUTF16Ptr(path), windows.GENERIC_READ, 0, nil, windows.OPEN_EXISTING, 0, 0)
+	if e != nil {
+		t.Fatal("exclusive original evidence handle unavailable")
+	}
+	_, readErr := os.ReadFile(path)
+	var accessErr syscall.Errno
+	if !errors.As(readErr, &accessErr) || accessErr != windows.ERROR_SHARING_VIOLATION {
+		_ = windows.CloseHandle(h)
+		t.Fatal("native original read refusal absent")
+	}
+	f.call(t, 4, nil, "operation", "read", original.Identity().OpID, "--evidence", path)
+	if windows.CloseHandle(h) != nil {
+		t.Fatal("exclusive original handle cleanup failed")
+	}
+	if f.lookups.Load() != 0 {
+		t.Fatal("inaccessible original dispatched lookup")
+	}
+	b, e = os.ReadFile(path)
+	if e != nil || !bytes.Equal(b, originalBytes) {
+		t.Fatal("inaccessible original source changed")
+	}
+	resolved := f.call(t, 0, nil, "operation", "read", original.Identity().OpID, "--evidence", path)
+	receipt, e := T.Decode[T.Terminal](resolved)
+	if e != nil || receipt.Outcome != "committed" || string(receipt.OpID) != original.Identity().OpID || string(receipt.Fingerprint) != original.Fingerprint() {
+		t.Fatal("original GET did not resolve exact committed identity")
+	}
+	if f.mutations.Load() != 1 || f.lookups.Load() != 1 {
+		t.Fatal("lookup replayed or replaced original operation")
+	}
+	unchanged(t, f.s, before)
+	b, e = os.ReadFile(path)
+	if e != nil || !bytes.Equal(b, originalBytes) {
+		t.Fatal("resolution changed original evidence")
+	}
+	entries, e := os.ReadDir(f.evidenceRoot)
+	if e != nil {
+		t.Fatal("evidence inventory unavailable")
+	}
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".json") && entry.Name() != original.Identity().OpID+".json" {
+			t.Fatal("replacement evidence operation created")
+		}
+	}
+	redaction := f.redaction(t)
+	if f.mutations.Load() != 1 {
+		t.Fatal("redaction check dispatched mutation")
+	}
+	v01Report(t, map[string]any{"commitRequests": 1, "lookupGETs": 1, "connectionLoss": "after real product commit before response delivery", "restart": "listener/session/native lifetime/validated SQL reopen", "originalBytesPreserved": true, "identityFingerprintPreserved": true, "replay": false, "replacementOperation": false, "missingInaccessibleOriginal": "exit4 refusal; zero board lookup; native sharing errno32; source bytes retained", "redaction": redaction})
+}
+
+func TestV01RootRefusal(t *testing.T) {
+	for _, p := range []string{"", filepath.Join(os.Getenv("V01_NATIVE_ROOT"), "not-allowlisted")} {
+		t.Setenv("V01_CASE_ROOT", p)
+		if _, e := setup.V01QualificationRoot(); e == nil {
+			t.Fatal("invalid root sentinel accepted")
+		}
+		if m, e := setup.New(nil); e == nil || m != nil {
+			t.Fatal("invalid root reached native manager")
+		}
+		if p != "" {
+			if _, e := os.Stat(p); !errors.Is(e, os.ErrNotExist) {
+				t.Fatal("invalid root created material")
+			}
+		}
+	}
+	v01Report(t, map[string]any{"missingSelector": "refused before native constructor", "unapprovedSelector": "refused before native constructor", "fallback": false, "physicalTrustProvider": false})
+}

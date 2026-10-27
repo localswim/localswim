@@ -1,0 +1,990 @@
+[
+  {
+    "path": "internal\\archive\\export\\a04_parity_windows_test.go",
+    "sha256": "14f200fb84643d4f418f948403764578c658414588050a26491b710223cbf0a2"
+  },
+  {
+    "path": "internal\\archive\\export\\a04_zero_gap_windows_test.go",
+    "sha256": "738eb391e5a7d89bbe8e94450b13f06507ac9991b96c55e93ae5d8531990ce74"
+  },
+  {
+    "path": "internal\\archive\\export\\export_test.go",
+    "sha256": "fa077d13fa37490d6b76c9572fccf44f5958f4a37cbb212e76897b60d7bba93f"
+  },
+  {
+    "path": "internal\\archive\\export\\export.go",
+    "sha256": "231666670389904aa128a1b1883d7cfd9a874d50240f74e64154d6cf4bbd18ee"
+  },
+  {
+    "path": "internal\\archive\\export\\native_windows_test.go",
+    "sha256": "edfb005c46935a06de1dcb563a2e0b423123eeae6a6bdf2398c96c62294fc3d0"
+  },
+  {
+    "path": "internal\\archive\\export\\offline_access.go",
+    "sha256": "4c146a8d0cab00e26848ca7cf9f62ccbd6c1273b881d332a1faabee47e1ec3a7"
+  },
+  {
+    "path": "internal\\archive\\export\\project.go",
+    "sha256": "d30cb596442fe8a4b1c8df3266891170ec11c81da284527648dcefde8f6b57db"
+  },
+  {
+    "path": "internal\\archive\\export\\README.txt",
+    "sha256": "fa64397ed946d84e1c3de212fb72e050fdb55aa3d7bf93c402c1fce86372fe54"
+  },
+  {
+    "path": "internal\\archive\\export\\size.go",
+    "sha256": "17e0b4ae612a65c983f493df2d831403a9d772d3f095b89d57e19a5c8d10ae09"
+  },
+  {
+    "path": "internal\\archive\\publication\\native_windows_test.go",
+    "sha256": "615a56fb0fb827fec13d72bac08f1a3a6a8c21aeeb649b2a2a699ab60b9b8f77"
+  },
+  {
+    "path": "internal\\archive\\publication\\native_windows.go",
+    "sha256": "064c85b98c31198c0834f26086f78b707b77c9265435e3b93a961b660892fc98"
+  },
+  {
+    "path": "internal\\archive\\publication\\parity_windows_test.go",
+    "sha256": "5eaeb3c3affcf9977995867d9ced172d2905fb5e574e1ed4fee40f303bf1b948"
+  },
+  {
+    "path": "internal\\archive\\publication\\publication.go",
+    "sha256": "d972a31cc3ad14f05749fe90b8ce1c23bae53d4bac0f69490504bb644b0e1cd3"
+  },
+  {
+    "path": "internal\\archive\\publication\\README.txt",
+    "sha256": "d9399cf04c2130d62c1f334fb7e67ef56d9df4aee00edd63e349cf8d70dc5cb3"
+  },
+  {
+    "path": "internal\\archive\\publication\\status_readonly_windows_test.go",
+    "sha256": "fe92f11696925592a7896c555ed1185d340ad798770cc2291436b0f0c1e29b1c"
+  },
+  {
+    "path": "internal\\archive\\publication\\unsupported.go",
+    "sha256": "e3c38b66c324ad01dc48788d21f7ff3cf5f89b294436a7cb839c9a0e8909d50e"
+  },
+  {
+    "path": "internal\\archive\\restore\\native.go",
+    "sha256": "f538fd2cde34d379c56ead6a0cf8a33bc38770c2f11006c8d4eeb052ee7a9e71"
+  },
+  {
+    "path": "internal\\archive\\restore\\README.txt",
+    "sha256": "f9a4bf6ce65d09d141ecb29849318b52d982ccc1366bd781d5d4a80a29f90342"
+  },
+  {
+    "path": "internal\\archive\\restore\\restore_test.go",
+    "sha256": "276548a8cd4e2a47941af433009e1bd600ef60d3939cbabd1b66d8b644dfe793"
+  },
+  {
+    "path": "internal\\archive\\restore\\restore.go",
+    "sha256": "4b974aba5e711caad06a86a36219b5182b5161640a6cd76d83f5dba47983f08c"
+  },
+  {
+    "path": "internal\\archive\\validate\\native_windows_test.go",
+    "sha256": "83ed5588068a65400bb7af1e7242f7e5d7f7892aca5319ab2f6602109297643f"
+  },
+  {
+    "path": "internal\\archive\\validate\\README.txt",
+    "sha256": "8f233a12154ee463b84d652bb87b6a253b39bb329f531efff2a8339386b6331b"
+  },
+  {
+    "path": "internal\\archive\\validate\\validate_test.go",
+    "sha256": "68ab40ec9f411604066b9504d576431ea41cdbe8611550b8c67d4fc794659ff0"
+  },
+  {
+    "path": "internal\\archive\\validate\\validate.go",
+    "sha256": "95c12ceab5b2a60ee1e2308e94e1b3e7b0f6caddfe532dfea5255d9036688ae9"
+  },
+  {
+    "path": "internal\\archive\\validate\\zip.go",
+    "sha256": "5a450e352e98d3b7cf441f9c498b3e90177ac0de8eaa410e1eea0049d74265b0"
+  },
+  {
+    "path": "internal\\assets\\assets_test.go",
+    "sha256": "410f07d0aebc76fe67abde59585c4733e50960d5eea0ae6cfcefc225bc74122a"
+  },
+  {
+    "path": "internal\\assets\\assets.go",
+    "sha256": "bc395876a6b529ce2d6a83f3f0457ccc6971f01a5b0c2a327ba06f400e857955"
+  },
+  {
+    "path": "internal\\assets\\bundle\\index.html",
+    "sha256": "3ee9dcffccde6acbab9ba0323af53dde9e9fe16ec3fa0d8a2fe0c20e89cc96c4"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\api\\boundary.js",
+    "sha256": "69cd747b58a3378d91b9092d22e2eab2fdb67e3434b1a41192636907514a36dd"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\api\\client.js",
+    "sha256": "f5de8ba7f9d820576b31850a11034389b900006d1a27258e57693b6112cf959e"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\api\\schema-data.js",
+    "sha256": "725da07738bacf52ac7db86cb4200991fdd2c2f3aaaea3ecacdda9482ea7e8c5"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\api\\w03-session.js",
+    "sha256": "40f73cb0a7e2850485d75b45c23d9e674e09211b575dd060fddf194c6e73eba9"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\app.js",
+    "sha256": "9a5c80be883adc8e02b547574fb8021a9a3feb35ebe7d6674c6bbb2f417e5888"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\archive-ui\\view.js",
+    "sha256": "86bf16c25b648178c546147c0acc40808f6a457226a7b8facbba03979de1ee1b"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\board\\view.js",
+    "sha256": "315dddae0ca9322ce030fbf748df27d796226df569caa9c8e3e3e60b8442f544"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\recovery-ui\\admin.js",
+    "sha256": "512e6aee825161926f4bb9763a83fe13160e7ae569c262b3eb9ab0add9b3faad"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\recovery-ui\\coordination.js",
+    "sha256": "e047612fb22dacbdb748fe8b155bbd8e3bc4140b325639258cbb88cc7bbef7c7"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\recovery-ui\\view.js",
+    "sha256": "9840474a81367a2ad668a636a438a38ac3209a199bac7a1f88d59162424fec60"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\recovery\\indexeddb.js",
+    "sha256": "660f589d875fd4646a3604f451c2f129f79b7a85db49f60265c221b857b4c533"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\recovery\\store.js",
+    "sha256": "5d4322e335c72f9e9321ab0a579ddbfb026ce70c178e971bd2c8930db39bc922"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\recovery\\types.js",
+    "sha256": "a9993eded00fbcf75ca94f8c88ed27fe0a2ec4ec0c10ae7bfb3991acf3ccc192"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\session-ui\\view.js",
+    "sha256": "43c156a3692108c95dff5a6dd91d368d66f13406687f53fd816eccce01f742c5"
+  },
+  {
+    "path": "internal\\assets\\bundle\\js\\session-ui\\workspace.js",
+    "sha256": "7276adce7d8dca310165231dba4f340db757fc2542b0ac2faebdf63d601b27d3"
+  },
+  {
+    "path": "internal\\assets\\bundle\\manifest.json",
+    "sha256": "fb5942b520c0711efe82d44986bae9d0b0f83da4475ce9996e78512cde227687"
+  },
+  {
+    "path": "internal\\assets\\bundle\\styles\\app.css",
+    "sha256": "ebb00e2056c4e9e71167d8ecfae516dadc3ca7c8eea7c71e3bd64fd329a987e8"
+  },
+  {
+    "path": "internal\\assets\\README.txt",
+    "sha256": "417cc447aa9b830d7ab3dcf6890dd0a66433108189fb68cea136908f21ab587a"
+  },
+  {
+    "path": "internal\\board\\attachments\\attachments_windows_test.go",
+    "sha256": "7150ab4eb85047492525f51a90c16a2443ccd730aa0b663d221c5e1c585bc96b"
+  },
+  {
+    "path": "internal\\board\\attachments\\attachments.go",
+    "sha256": "e7e6184f374905c9505bd2e9158a109e092753c8c2812a0588c0c78d7241a5b0"
+  },
+  {
+    "path": "internal\\board\\attachments\\download.go",
+    "sha256": "f1af3d30828fb8e211ea8c4dce2d2e2d0d3fbe6796f8e9ed43754a543df388dd"
+  },
+  {
+    "path": "internal\\board\\attachments\\README.txt",
+    "sha256": "35fc68f7d03f43ac1f5737272b7901144daf6d140a620437600adae5e69b4cd0"
+  },
+  {
+    "path": "internal\\board\\attachments\\upload_test.go",
+    "sha256": "79bea45075cf57d7f7184ad624003bf9830c96a72b31faaef6c6e9b76f19dac3"
+  },
+  {
+    "path": "internal\\board\\attachments\\upload.go",
+    "sha256": "67fec696ef82b87535dca66279d989343cc6545bb89212860dadacefff38c345"
+  },
+  {
+    "path": "internal\\board\\cards\\cards_windows_test.go",
+    "sha256": "a47279c7c5fa7acd7f88d218b5a0ff740acf9c655f8216d7b75d5d6fbf867c39"
+  },
+  {
+    "path": "internal\\board\\cards\\cards.go",
+    "sha256": "e6ed81c3ac58bc1199c8acf6f8bf9487792cb10710590dc4bb5781611f475ca2"
+  },
+  {
+    "path": "internal\\board\\cards\\README.txt",
+    "sha256": "5300ef75727551140db2203268ba3f792f7186ba11ac31280b920cdcfc4518fa"
+  },
+  {
+    "path": "internal\\board\\cards\\snapshot.go",
+    "sha256": "23c04c5287b41a0d8136a13299f9992bb944ae344cd906f1216e8fca3a0b7050"
+  },
+  {
+    "path": "internal\\board\\cards\\workflow_access_test.go",
+    "sha256": "c0e163d75cb9341f8660f69a33ebd223c0a7411f608b81e64db34c11f748e02e"
+  },
+  {
+    "path": "internal\\board\\cards\\workflow_access_windows_test.go",
+    "sha256": "e97bd6906650f83d34d4409ec55ae0a8b25659ba5dd0e0b382abea729be42ef7"
+  },
+  {
+    "path": "internal\\board\\cards\\workflow_access.go",
+    "sha256": "00fbcea7b521d4163ee50138b2e7dd33d94dae6b918c4e96a0f26cb4a683a5c0"
+  },
+  {
+    "path": "internal\\board\\credentials\\credentials_windows_test.go",
+    "sha256": "86d2f0730fe6c81ab89afaddbef5f8c4f1c0b30e0f2d4619aec0a83b76f97e65"
+  },
+  {
+    "path": "internal\\board\\credentials\\grant_access_native_test.go",
+    "sha256": "56bb73c82346b25a08e601e67bcff78b6f593b766bc75450d587afd81df00db5"
+  },
+  {
+    "path": "internal\\board\\credentials\\grant_access_test.go",
+    "sha256": "7348c9249508962f4ec232f17f89742a2f23ce298ca022ae3eb1ec6356756b86"
+  },
+  {
+    "path": "internal\\board\\credentials\\grant_access.go",
+    "sha256": "4df4047464b3db9d7b6d33a938c3d865e274f68c9041984156bc42e5e7306b66"
+  },
+  {
+    "path": "internal\\board\\credentials\\native.go",
+    "sha256": "0ac8c997c05b512a6f0a336c5e921276244aface409c6ee10eae1864a1f76233"
+  },
+  {
+    "path": "internal\\board\\credentials\\README.txt",
+    "sha256": "6637e0cb40a1569718a6fac8199a0251bfac764763d0525fa25561be6058d93e"
+  },
+  {
+    "path": "internal\\board\\credentials\\service_test.go",
+    "sha256": "36a08524e5c498ab5c65ae43cfe393228e2868fc8550605d0def64ea2ce8b3fd"
+  },
+  {
+    "path": "internal\\board\\credentials\\service.go",
+    "sha256": "ab75b99f1457e4be9a488fc7a1cf25534a6a38a659431cf1cc88f6c5176a3bc6"
+  },
+  {
+    "path": "internal\\board\\credentials\\session_access_native_test.go",
+    "sha256": "c79e7fa34d257d322b3d75c2ce4c3b082013a603f8836782e000c899b33a1be3"
+  },
+  {
+    "path": "internal\\board\\credentials\\session_access_test.go",
+    "sha256": "12ff6d0767f9b2e1e6109f903bf72d066bb09be0555a7272c6555b14a86a567a"
+  },
+  {
+    "path": "internal\\board\\credentials\\session_access.go",
+    "sha256": "6c132a2cfe4ebef08753f549da94b79aa34c96a7ca3f8926aaca126ae63059af"
+  },
+  {
+    "path": "internal\\board\\grants\\grants_windows_test.go",
+    "sha256": "92f5743af1c14f6369e9be05bd711d1eb2ac84af920d46069ca8016563df13cc"
+  },
+  {
+    "path": "internal\\board\\grants\\grants.go",
+    "sha256": "9982aa9c091c58e294aa2c3cd9dc2704e6e070485c7ca5a131148b45a65ecd04"
+  },
+  {
+    "path": "internal\\board\\grants\\mutation.go",
+    "sha256": "9bd18a9bc2ff8b7556cd5607563e7198e30b14c4e64ad3863cd62cb52d4d2daf"
+  },
+  {
+    "path": "internal\\board\\grants\\README.txt",
+    "sha256": "89638da85c784411f6eb864e038cf1e459cf486eb4cbaf952723b508f1b98696"
+  },
+  {
+    "path": "internal\\board\\workflow\\README.txt",
+    "sha256": "7ecc2a4cc511685c3e775ad16cc24d49df9417ff59d67f664a66d78a12127ad9"
+  },
+  {
+    "path": "internal\\board\\workflow\\workflow_windows_test.go",
+    "sha256": "b4dbdaea8cf2d4e68971814480f70591a8566845984fc365101a97fcef667a6f"
+  },
+  {
+    "path": "internal\\board\\workflow\\workflow.go",
+    "sha256": "6c2912b992d61955dfb2584908c0779675df071bdd9920e76a150c589615b70f"
+  },
+  {
+    "path": "internal\\contract\\archive\\archive_test.go",
+    "sha256": "30925cad222460da7241d1a257354aa756cffe8b1dfd4b0f57b77bb96217bf77"
+  },
+  {
+    "path": "internal\\contract\\archive\\corrections_test.go",
+    "sha256": "5b429a7ea7a9c8fec92e5c24b546c22dbb1e7308014ed0629bceb92cee6a7a68"
+  },
+  {
+    "path": "internal\\contract\\archive\\decode.go",
+    "sha256": "ea59986e042e1583ad5e39c162d8c7dbfbffd3ac512e983fb1e439eb142ec69f"
+  },
+  {
+    "path": "internal\\contract\\archive\\generate.go",
+    "sha256": "8b0a73c23f9e941494d814021039f968547cdf8975334d29894ea642b342efda"
+  },
+  {
+    "path": "internal\\contract\\archive\\native_test.go",
+    "sha256": "94a4eb944ab06868e47e72df91e6e2fb2ba45034b446f11f74db000df0ca5a71"
+  },
+  {
+    "path": "internal\\contract\\archive\\README.txt",
+    "sha256": "92cb6a6a1b9e5ea396ac62ecd1ced9a97386d7462e3d93849cc1f25305d21d10"
+  },
+  {
+    "path": "internal\\contract\\archive\\references.go",
+    "sha256": "60f3a0340f592cb6170873e0385300fcc0ec46ad43b01882b0db14c738ef5b34"
+  },
+  {
+    "path": "internal\\contract\\archive\\semantic.go",
+    "sha256": "94bfc5b81cebbc9ebfd18b8ab27764e91faae165ff21359cde7a483c4a4e8106"
+  },
+  {
+    "path": "internal\\contract\\archive\\types.go",
+    "sha256": "879929ce1912a6f1a49a2a0e2317dbbe2b2c8ba1f5cbc131107f88d4a42eaed3"
+  },
+  {
+    "path": "internal\\contract\\contract_test.go",
+    "sha256": "eaad3f07cddd7a0ca755d8228bf5cf7f8b24546c9ed3da341fe478841c79856c"
+  },
+  {
+    "path": "internal\\contract\\descriptor.go",
+    "sha256": "21b6b9b9fce1d60fb10c00ea530e9d70032966d16d57078567355bd8f15ffec6"
+  },
+  {
+    "path": "internal\\contract\\generate.go",
+    "sha256": "e269512d29add0fa4de7ef62332107a40465676c9a872106d920b28ee6c7b27c"
+  },
+  {
+    "path": "internal\\contract\\input.go",
+    "sha256": "7c656e3211d9a2538c8138962ff08b1108f0e6f3bd932230e2959e9ac5de6cee"
+  },
+  {
+    "path": "internal\\contract\\intent.go",
+    "sha256": "7f69ac281b4c73062ee32cc889eae14f1b2ee26c171f1ea9cdcabd32e48029ae"
+  },
+  {
+    "path": "internal\\contract\\json.go",
+    "sha256": "ad1c802368b476d2e8645f57a0fcf8e1ed49dccebf7ecc09a81d1ade1bb6041d"
+  },
+  {
+    "path": "internal\\contract\\native_test.go",
+    "sha256": "fa389bc111885028c8f3a07d5702d623ec3107999b1fd3a1435c7b0c7b38ec08"
+  },
+  {
+    "path": "internal\\contract\\README.txt",
+    "sha256": "20ad72e416556aa7fc4bb0e6b8fbbf4bcad3379a2613fcb4c5c95336bade4dcd"
+  },
+  {
+    "path": "internal\\contract\\result.go",
+    "sha256": "9597835c1fc35fc2bfce672abc1a0816435a2d6975aea8bf9e7e0af8808107f0"
+  },
+  {
+    "path": "internal\\contract\\testdata\\canonical.ts",
+    "sha256": "08108313dd1ed415bb47b637aacf52d20a28658cdbbc37d1b8175274ecc20b76"
+  },
+  {
+    "path": "internal\\contract\\transport\\decode.go",
+    "sha256": "599abe7d34f237b875d98d99e093e78979d69376f51b932d01d70c9ef7f26dee"
+  },
+  {
+    "path": "internal\\contract\\transport\\encode.go",
+    "sha256": "8cdec53ed351ac0c81a4a29b058ac4a60bcd475adc07b4e196823ef5d7366aeb"
+  },
+  {
+    "path": "internal\\contract\\transport\\generate.go",
+    "sha256": "a47e5e3364b7e98b29bf6b212a9715ec005158228b10e391116b703ff904423f"
+  },
+  {
+    "path": "internal\\contract\\transport\\mutation.go",
+    "sha256": "7fc360c092d72921967fd6b564bbd5128bbb67216277769d63248e0d1f8838e6"
+  },
+  {
+    "path": "internal\\contract\\transport\\native_test.go",
+    "sha256": "273313c28083fb94ab7d45ccaed31dd0c3f34f22d024c4b44a6e9d0820fda681"
+  },
+  {
+    "path": "internal\\contract\\transport\\README.txt",
+    "sha256": "46e74a4c71c4de5dac933dd906c2667bbe562c37216e2e4730b8cc50d0d37de7"
+  },
+  {
+    "path": "internal\\contract\\transport\\references.go",
+    "sha256": "7a6a37b2be2616a70840039fe82b6ed45b140319bd83a54c882c2d815093fe29"
+  },
+  {
+    "path": "internal\\contract\\transport\\session_code_cli_test.go",
+    "sha256": "06b5225faf0556681b3d882cf4a6ac917c7a109b576a67cd344e42926be1de61"
+  },
+  {
+    "path": "internal\\contract\\transport\\session_code_cli.go",
+    "sha256": "a386ac52df202a858aa4b30609f74f80f6301115db59cad565c0cad20e23c908"
+  },
+  {
+    "path": "internal\\contract\\transport\\session_code_generate.go",
+    "sha256": "4db999f347ac46cae813f5ab97471a8e38439d4b11dfe39182205109451ded27"
+  },
+  {
+    "path": "internal\\contract\\transport\\session_code_native_test.go",
+    "sha256": "06c1e92a4735edb755d538cc6ae5c2c2437b898c9cb8a4423eb6d494976eacc4"
+  },
+  {
+    "path": "internal\\contract\\transport\\testdata\\session-code-cli\\literal-types.ts.txt",
+    "sha256": "65f76557e542b63e8af08b09941866eb5d8297e0e545f01b4af3c51025d9902e"
+  },
+  {
+    "path": "internal\\contract\\transport\\testdata\\session-code-cli\\presented.json",
+    "sha256": "94be2d384943e010d641d14a36c8fdec6db4e419b22ffde70297b048c89fc580"
+  },
+  {
+    "path": "internal\\contract\\transport\\testdata\\session-code-cli\\unavailable.json",
+    "sha256": "b94902fd197c1b5377060c3b9fd3ea1af309bcaebeb7971bd7c2d291fb2119ab"
+  },
+  {
+    "path": "internal\\contract\\transport\\testdata\\session-code-cli\\unknown.json",
+    "sha256": "354b605644976d3ab49d86a83265b0bafdbefcce5614b16b0f0692a2fc5396dc"
+  },
+  {
+    "path": "internal\\contract\\transport\\transport_test.go",
+    "sha256": "53f55c11178aba245f1ca238f2e467e8c5638eb7117d1e5b5fc68fa1b23d0e50"
+  },
+  {
+    "path": "internal\\contract\\transport\\types.go",
+    "sha256": "919cbe5b688fbfafd03274935c4e4fc1beeacf46828d72a50c2c2ba44dccacd0"
+  },
+  {
+    "path": "internal\\store\\open\\a04_parity_windows_test.go",
+    "sha256": "ee0db9fff435c1b6ea2ca105b267856a8b8e6fd8929f0d19399f80963171b203"
+  },
+  {
+    "path": "internal\\store\\open\\b01_unicode_windows_test.go",
+    "sha256": "37f1d3e746e23ea79f5bc29f2a6f732a6996e5d45def1248e2b0aa84ccb5fe39"
+  },
+  {
+    "path": "internal\\store\\open\\inspect_test.go",
+    "sha256": "6071a2d3285d4338a502a7197d7758bc1c1b725a846b47e9853747bf130e2bf6"
+  },
+  {
+    "path": "internal\\store\\open\\inspect_windows_test.go",
+    "sha256": "6a9202033943d1d87a3f632bb8baceb6320e9927598c81c51864ac0b256aa5f9"
+  },
+  {
+    "path": "internal\\store\\open\\inspect.go",
+    "sha256": "ac9e1097d4ec9f643c43a36c912d86678deb9bbfa930effa5f64646b3734cd69"
+  },
+  {
+    "path": "internal\\store\\open\\inventory.go",
+    "sha256": "5fae2b4a2056b0fa05b7bc22d1ccef9a951dc8ae2dab00c386715fae36676c49"
+  },
+  {
+    "path": "internal\\store\\open\\open_windows_test.go",
+    "sha256": "2b9aacb6d51f4f106ccc32b46f518316f4edc697ff4e83d1295b32b8042c3d70"
+  },
+  {
+    "path": "internal\\store\\open\\open.go",
+    "sha256": "85f8d5e43d90feb6c328f144e76260fbea5ad2eb860940f6b94dbdfce36ed1c4"
+  },
+  {
+    "path": "internal\\store\\open\\path_unsupported.go",
+    "sha256": "f00ae7707ea2bfcdbb0f00baaaba9547087578296c420b0e74b9f1ffddf02237"
+  },
+  {
+    "path": "internal\\store\\open\\path_windows.go",
+    "sha256": "9f4b99382d1c762767b7fc7d63ddf6108995da7ebad11b5c4bc227cc0889ba8e"
+  },
+  {
+    "path": "internal\\store\\open\\README.md",
+    "sha256": "e58b3db3dab1217ac576db527d82dc4fc32300b34a266eb84a1db875ee0702c4"
+  },
+  {
+    "path": "internal\\store\\open\\testdata\\layout3-statements.json",
+    "sha256": "6e58c589d1846551134b03de3a5a11726ed8d118f7974010456c422655588742"
+  },
+  {
+    "path": "internal\\store\\outcome\\outcome.go",
+    "sha256": "a65403e996259cf2998f65f1dfb8bb469d26165ddaebcb572192ca2f3cb23d4b"
+  },
+  {
+    "path": "internal\\store\\recovery\\access.go",
+    "sha256": "8e7bfb6a3948e0197ec6f98e7502ee34ce3715d24a6ed8917950f888976589b9"
+  },
+  {
+    "path": "internal\\store\\recovery\\attachment_access_windows_test.go",
+    "sha256": "4e1ab525cb5bc54fa2ea897fa422e5bd61097719ad65be1f4feabef46a08e3bb"
+  },
+  {
+    "path": "internal\\store\\recovery\\attachment_access.go",
+    "sha256": "4e27b3f18d3ea2a12aa5903de19203f89cf5d281db711f474270ea6e906310a5"
+  },
+  {
+    "path": "internal\\store\\recovery\\expiry.go",
+    "sha256": "86ac5a930bac0ab6c9005a1c0cdbdd5b8a4c3b416ca8225bd239819947d24412"
+  },
+  {
+    "path": "internal\\store\\recovery\\pins_windows_test.go",
+    "sha256": "77b8193d09f5880e68cba7fc90f59bd39a6e915d9c8cf39895cfe4ba7d32ef83"
+  },
+  {
+    "path": "internal\\store\\recovery\\pins.go",
+    "sha256": "c7752ec05028b8d8a5578c0fb23b4c96d12cf535d677316b2e5a82f9cd78c862"
+  },
+  {
+    "path": "internal\\store\\recovery\\prune.go",
+    "sha256": "7fc502995b086868bd8cf8c0fb8d113b202ccf99df427f4777284f9209185e5e"
+  },
+  {
+    "path": "internal\\store\\recovery\\README.txt",
+    "sha256": "ff37a7fa20fb2c9db0a6418f98e31da5294e8039b431693369459e56450b34f4"
+  },
+  {
+    "path": "internal\\store\\recovery\\recovery_windows_test.go",
+    "sha256": "b822ec9f80e8dbb4324023277e6581a3805572fce36b4eff1fb7cef016fe5836"
+  },
+  {
+    "path": "internal\\store\\recovery\\selection.go",
+    "sha256": "1f90739e75d6ebf5d60a10e406555d5f9187dc4801ce71c0536952184b7fa9f8"
+  },
+  {
+    "path": "internal\\store\\recovery\\service.go",
+    "sha256": "52a00ce19184c877ddc86cd946fae7be4b204cc9bb76d604ed26f2d442189739"
+  },
+  {
+    "path": "internal\\store\\schema\\ddl.go",
+    "sha256": "ecc1f6c6ccb29e1d1d9285b1779b54df5f9b7369933aac47788bf27e6d2bde63"
+  },
+  {
+    "path": "internal\\store\\schema\\README.md",
+    "sha256": "65dcd57826818077ed9ef7d1d272cf94eaa1fd342b5bf7582b94b54bcb73f6e7"
+  },
+  {
+    "path": "internal\\store\\schema\\schema.go",
+    "sha256": "f15bdb625068ba4004c943efc8a7b8e235cfae904c4f7cee5adad1a691278f0a"
+  },
+  {
+    "path": "internal\\store\\writer\\lookup_access_windows_test.go",
+    "sha256": "b4fbc25467c48efd3ff81cefbbfe613f45f7e91d4e728588a1d5abb1a39a6666"
+  },
+  {
+    "path": "internal\\store\\writer\\README.txt",
+    "sha256": "d77fff3744e57fae4e249f9bc2721528c32bcbc1f36ee2ba36a26b03865dd6e6"
+  },
+  {
+    "path": "internal\\store\\writer\\writer_windows_test.go",
+    "sha256": "bf7a5f5834ff158ca2193178a7a02575c23e33bcf7ecd2e45b1473fd9accafca"
+  },
+  {
+    "path": "internal\\store\\writer\\writer.go",
+    "sha256": "a4adb3e26ce85213bf5a18028400c4f9e378bb9c89c798cc6898e90f6de580ff"
+  },
+  {
+    "path": "internal\\transport\\attachments\\multipart_test.go",
+    "sha256": "e05c29a824dac6738f5350fae3e85e842360977e4daca31c356722956fcd9225"
+  },
+  {
+    "path": "internal\\transport\\attachments\\multipart.go",
+    "sha256": "7278327141d2395b8086341f8ca25cf0030876524403ac2d51022e26a0176869"
+  },
+  {
+    "path": "internal\\transport\\attachments\\native_windows_test.go",
+    "sha256": "18ea2f5d4285a7c8646028f2f5d45705b738a1374cc34571de0587743ae2bd1d"
+  },
+  {
+    "path": "internal\\transport\\attachments\\README.txt",
+    "sha256": "7a9cae53fa23d5d88ef29a32c8eff002cc01bdbcedcc859deb8c709a4c9eddb2"
+  },
+  {
+    "path": "internal\\transport\\attachments\\routes.go",
+    "sha256": "20c760814df8c862f5577aab7b4c1497f528530000c01f6b2f12e876e5d408eb"
+  },
+  {
+    "path": "internal\\transport\\boardapi\\handlers.go",
+    "sha256": "8fd56e9bd58648d8e93d8453d483dcf716b77b239f11652eb37951a033279c84"
+  },
+  {
+    "path": "internal\\transport\\boardapi\\native_windows_test.go",
+    "sha256": "2ba47ea50b34219a0612bebfc341fbb48d6f955c098aa7268b1e52fb411f2795"
+  },
+  {
+    "path": "internal\\transport\\boardapi\\projection.go",
+    "sha256": "9cb2e816524ea50141aaf974c219e1b86365394b14e94233f6997c3f9a3bc3c8"
+  },
+  {
+    "path": "internal\\transport\\boardapi\\README.txt",
+    "sha256": "3222236139201803411abcbdc7a4569de81a9a2256fdbd45dfd2866c2dbd4f36"
+  },
+  {
+    "path": "internal\\transport\\boardapi\\routes_test.go",
+    "sha256": "3a7ae7b4c29539f182af4600ac8b065e38c7eb2ebf9e7c8dd77be7e67a2a0d89"
+  },
+  {
+    "path": "internal\\transport\\boardapi\\routes.go",
+    "sha256": "7cccce17d2069b2bda01be8d6f1228c690487a01831c062c795c9ff635470102"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\code_console_unsupported.go",
+    "sha256": "91d7cfd2c6568d5bd1662e9baaebcba9a0b49a4da239a7c5d9e0fcc326012219"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\code_console_windows.go",
+    "sha256": "5132ea4f2eb3dac2ac597b2214673e135a5665852a7e1d64fc879c7ac2919eff"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\code.go",
+    "sha256": "c62c7c241f3cd3ba40bfe1de89735ab0ca99a5c8d41e0c75dedeaef734b5137a"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\confirmation_test.go",
+    "sha256": "9f4e02dc66782bb144f9a6253ec220b34872f3e2f76fd0710a83b723c7230aea"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\console_unsupported.go",
+    "sha256": "501884dfe37aaea2a4c869d2f09b9daa24a3f5b91a151e88ffd7016d466d341d"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\console_windows_test.go",
+    "sha256": "8e3b052135a7db0a7bf02f88a9fea5f1ebd58814426a900f986fed1d2d525b3e"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\console_windows.go",
+    "sha256": "bba0f257e62e4c8af7b95ff54bf8e07493d66cba7125b5e418accbd0d12998b1"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\credential.go",
+    "sha256": "aa2335f19bfea0715ccc6f8719d5d051ad67c53d8fac33e305f7025c243ba32c"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\native_windows_test.go",
+    "sha256": "2573045b46d15e0bc37ee9290822fb265b77c6984eddb7880206a5c08aba407b"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\preview_test.go",
+    "sha256": "7a8380924ba4b0d61244548416fe6d5caafac42ca0a93dcbb53a8a2ee77778df"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\preview.go",
+    "sha256": "55b7275a00a18de498ccaaabdf1ee67411e42222e36ae5b2e720c3407a55bf8c"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\provider.go",
+    "sha256": "7792b2a372ae65009b66aab74ca8d05209d2a5c4e0e927face9f5bb70e008d66"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\README.txt",
+    "sha256": "3c0b95fbed04f55f2befe6c010f4a340122a3748cccbea6987eba23802889516"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\run_test.go",
+    "sha256": "78d2480546e1b2fe773001d34106d1713499ea969e8833d4929d64a220914143"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\run.go",
+    "sha256": "ee375d04d0a03f2d1918ac8c3fc562f8a93a9792b6bb4c7e45b8810677fd7c14"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\setup_test.go",
+    "sha256": "f03181a4bb0c0591b8972ef57bfcd377f370a924be9544248e9a6911b35d9a02"
+  },
+  {
+    "path": "internal\\transport\\cli\\admin\\setup.go",
+    "sha256": "fbdf768afeb5b738581c651636c3a939cff57acfe80c37656747a012b4c59028"
+  },
+  {
+    "path": "internal\\transport\\cli\\archive\\invocation.go",
+    "sha256": "965ab47a3f0677856d8249e3bfb2575f1a1b31ae5d492954ede7dbb00b5e04ce"
+  },
+  {
+    "path": "internal\\transport\\cli\\archive\\local_unsupported.go",
+    "sha256": "5e38d1e4bc20e716c33a35c87ad17ca436f0360f8d36e7c8d57c2dd9b48849a8"
+  },
+  {
+    "path": "internal\\transport\\cli\\archive\\local_windows_test.go",
+    "sha256": "f59f0837e2e6ef0339b0844a4c22df5f8b15cdd8791f8e641d46710b9e315a6f"
+  },
+  {
+    "path": "internal\\transport\\cli\\archive\\local_windows.go",
+    "sha256": "956ed563ea7d0e8c8048af53d7cdef7a2a812032f30f94a3409f877d9629d9c0"
+  },
+  {
+    "path": "internal\\transport\\cli\\archive\\local.go",
+    "sha256": "7e4dd48b70a38bc8ea3b61304dff067c40d7b460413740903613b3282cba2193"
+  },
+  {
+    "path": "internal\\transport\\cli\\archive\\native_transport_test.go",
+    "sha256": "ae38a5a7703dd679602255d4d6f66ef599c82941cf7547c97dbde38aef0122a7"
+  },
+  {
+    "path": "internal\\transport\\cli\\archive\\offline.go",
+    "sha256": "331e56f16bacdc2afd1377d0f1ffb12535df53602ef11ca4223270855258e90b"
+  },
+  {
+    "path": "internal\\transport\\cli\\archive\\protocol_test.go",
+    "sha256": "181a9004bd7665988e1818eb7d3edd3fd0cc3a35099b0fb269d0fec4a7e087ab"
+  },
+  {
+    "path": "internal\\transport\\cli\\archive\\protocol.go",
+    "sha256": "5c404c4db77e2ef178449f5e15758cc9639674593d02c1c69c815e2e2a9923fb"
+  },
+  {
+    "path": "internal\\transport\\cli\\archive\\README.txt",
+    "sha256": "60ef3caaf58d155f778ece9ad2703cc2265cf1913b438a45fbdec423d0c15c50"
+  },
+  {
+    "path": "internal\\transport\\cli\\archive\\run.go",
+    "sha256": "7720cdb9ad38e79b3cfea27212bf4934fa7022a0f053a9b9b04b14de9a07cfb0"
+  },
+  {
+    "path": "internal\\transport\\cli\\archive\\transfer.go",
+    "sha256": "4cc62893f18526bf0eb2a5e7d96e8b06cf16d588b66751be43aa2bf6b39fcc5d"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\configured_port_native_windows_test.go",
+    "sha256": "2bfdd9c9ab0162af84063d8f330458a9052903da211b6f5e9537844f71894e4f"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\configured_port_test.go",
+    "sha256": "fd66189244cc97aa3bc719bdd640b64ae0ec803f8db185ce0772e25390b45ba1"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\connection.go",
+    "sha256": "7c6c1fffce736dd34a1d1c2c96947a5469a37167e71da949cc2fe3975ea7704d"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\diagnostics_test.go",
+    "sha256": "67173b59df466d218391b30e6f3a4eb595740f8790488b46a9205fc82420091c"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\facade_test.go",
+    "sha256": "f65bae7e0a683c52092b0aa774f558a35d6be827c37966ea45eef8f09cd278ac"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\facade.go",
+    "sha256": "a6a06e39d888410632bd2857f99a89424a8e8a1c56f7566690abcb1819285cc9"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\identity_tokens_test.go",
+    "sha256": "a233937d854c495cbed020f193145579e91e9c17ef89dd4516c319a0e5ca9cf9"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\invocation.go",
+    "sha256": "d2a3699063af79ace3ffbb826ccc47852512964ca7ca65504312d96f5b474bf0"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\native_windows_test.go",
+    "sha256": "b8d8570138d3603132ccbc868df18a3225aaf526e3c1bc0990c72642159a710a"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\outcomes_test.go",
+    "sha256": "8045e0d3c5e15d46291bdf6284aa11a0b12e894a463901998e458bbb52e7fcea"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\prefix.go",
+    "sha256": "046074eb5a853a3ebfb533b8cc36c8178d5123a2e169c4f3e70a841e91b37d35"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\README.txt",
+    "sha256": "9f9279ec9c9d1fe86178eea813115b86287cf9eb26dcfb17ee04bdc90a0f389b"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\revocation_native_windows_test.go",
+    "sha256": "63d115868a1f73df1387a931310ffc44e22dc34dbb0b94b2d97f64d2fbd18937"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\revocation_test.go",
+    "sha256": "1fdd4162b2c9dfa4b8b20a50bd25f236bec2db33abe04a6b5794e322629ec8dd"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\run_test.go",
+    "sha256": "d710a040dcd754e9a8452107f31cdb1131bffb6a38934ca52e44147c726e33b1"
+  },
+  {
+    "path": "internal\\transport\\cli\\core\\run.go",
+    "sha256": "b764c9945067a530b713d2d7a6e8282998e96a90719c52aad73ee1725aa43636"
+  },
+  {
+    "path": "internal\\transport\\cli\\evidence\\context_port_test.go",
+    "sha256": "af7ff5638daf1e2ad38c0d85fb4343beda2e13b58f8408136aa2de5a483973e9"
+  },
+  {
+    "path": "internal\\transport\\cli\\evidence\\evidence_test.go",
+    "sha256": "742790405effeb4027584dc2a6ec4faf0d7d2978c3fa999aee764c7fd31b51fe"
+  },
+  {
+    "path": "internal\\transport\\cli\\evidence\\evidence.go",
+    "sha256": "fa21bc14250528845a5a38687abce2b5b88adb6f03cd67acce6d73bb4f7c473d"
+  },
+  {
+    "path": "internal\\transport\\cli\\evidence\\native_windows_test.go",
+    "sha256": "5b9ddec605d7315430784cb7d66d2c0b86977797d06458f6cd03efb373af8958"
+  },
+  {
+    "path": "internal\\transport\\cli\\evidence\\native_windows.go",
+    "sha256": "d8b6b10aa8a8889f17c9603770b01b11b82f7589a5e40ea0e2d2c8a911aae54d"
+  },
+  {
+    "path": "internal\\transport\\cli\\evidence\\README.txt",
+    "sha256": "b20c4aa12d0faee4b8d80c4f5f801f52ab68ae67bdf15f6dd347f997c25c6b7e"
+  },
+  {
+    "path": "internal\\transport\\cli\\evidence\\store_unsupported.go",
+    "sha256": "6d741a03cf2e4a2d91de89d9e23fd469dbe4260249131a4fb043fcddca10ef71"
+  },
+  {
+    "path": "internal\\transport\\cli\\evidence\\store_windows.go",
+    "sha256": "e790bf5a756f55acac5cb77866b541bb79c8de2e6f69177fdab173d7b7f5b105"
+  },
+  {
+    "path": "internal\\transport\\exportapi\\handlers.go",
+    "sha256": "c9ffffe687842925cf406f8f341a74f760d289505d2e4dd9bc23bd489ed0aad7"
+  },
+  {
+    "path": "internal\\transport\\exportapi\\native_windows_test.go",
+    "sha256": "725a2428a9d3cb6e4d88b5b3a3c2ec381e4f6b9037751d2943590bc2fc20d9e7"
+  },
+  {
+    "path": "internal\\transport\\exportapi\\README.txt",
+    "sha256": "f2e1dcc93d878318d254777cd6b062e7ba623f7dc1374e33ab64c54107d0491b"
+  },
+  {
+    "path": "internal\\transport\\exportapi\\routes_test.go",
+    "sha256": "c83783471d3046340f530725f95d6a11325da1a69869e161dc09f6a570101fa5"
+  },
+  {
+    "path": "internal\\transport\\exportapi\\routes.go",
+    "sha256": "ad37b9d88a86c08f1a6751d8355df94e6445ddf31655ba5a2b3b34af7c3f5902"
+  },
+  {
+    "path": "internal\\transport\\grantapi\\handlers.go",
+    "sha256": "11f17b9cd0b07d710da1fb111d439f0fc6e204495566de2d42a57efbb7c163b3"
+  },
+  {
+    "path": "internal\\transport\\grantapi\\native_windows_test.go",
+    "sha256": "eae87f853e46c65e8fe10016620c26441c7e2a4cdcd1cdf1a08579b493dd09bf"
+  },
+  {
+    "path": "internal\\transport\\grantapi\\README.txt",
+    "sha256": "56a171410d47389deb5477022993fab1079ae5d29233a5b49a60c8d504ba7c86"
+  },
+  {
+    "path": "internal\\transport\\grantapi\\routes_test.go",
+    "sha256": "daaf0d9cac813377f55f9ba2c70e3c79aa9c2a8e28910009b67bcd7d243d43df"
+  },
+  {
+    "path": "internal\\transport\\grantapi\\routes.go",
+    "sha256": "a3ff23a114d73dd08c1bb47e4d4c2d6a0d408f9e43fa8b3d4ea4ddeb65620ab9"
+  },
+  {
+    "path": "internal\\transport\\https\\handler_test.go",
+    "sha256": "f72e61f8186b23853f927e91b77cb8939c3f642bc87c8d905c7dd194769fb961"
+  },
+  {
+    "path": "internal\\transport\\https\\handler.go",
+    "sha256": "0273dcd836afea29e38e09fbc6bb0e039d4b314d8b3e5287aa2e712d19a63c0a"
+  },
+  {
+    "path": "internal\\transport\\https\\listen_unsupported.go",
+    "sha256": "27310c8d6443efa0b890359f9da9488769f98ddae5d2bf5de0244237b95b4e7b"
+  },
+  {
+    "path": "internal\\transport\\https\\listen_windows.go",
+    "sha256": "b2c9867e929ce12e7cadcba30465d967aba74f93fedd24f74e7fdb1230f9b431"
+  },
+  {
+    "path": "internal\\transport\\https\\native_windows_test.go",
+    "sha256": "08daab15c24b3030e41ab351d668f0368e4cb5a5a70f35ed439779a0f8b97742"
+  },
+  {
+    "path": "internal\\transport\\https\\README.txt",
+    "sha256": "82dc202f7ced5efc75444c96d36901c074059816412d6cbc3ab093d505d63d73"
+  },
+  {
+    "path": "internal\\transport\\https\\server_access.go",
+    "sha256": "09c519eef420bf5e16701b0fe8ada0c0e2b0f293a1b9e972ac5fdd6dbf34cdf6"
+  },
+  {
+    "path": "internal\\transport\\https\\server.go",
+    "sha256": "c68b186a7bc926bbbc1e5c74be6647c4ea9a062209055ae58c8e24b617d04399"
+  },
+  {
+    "path": "internal\\transport\\session\\native_windows_test.go",
+    "sha256": "5d40856db6869b23f5dc9722874d3383b4ab412d787e4d2b4ef3b90b89a1a649"
+  },
+  {
+    "path": "internal\\transport\\session\\README.txt",
+    "sha256": "f185206b52a097b701da1d178296582f5c794bdad07d6c22d228dce1c3bcf11a"
+  },
+  {
+    "path": "internal\\transport\\session\\session_test.go",
+    "sha256": "e3c7f5228e8f8d278aab2af4abf16533194ee5dd6e570f0963df23cb53969d69"
+  },
+  {
+    "path": "internal\\transport\\session\\session.go",
+    "sha256": "e6407a0fa7dccdd029f348c2e651252784d8cd3ef885b1efb6fcb1ae88f80a2a"
+  },
+  {
+    "path": "internal\\transport\\setup\\composition_access_unsupported.go",
+    "sha256": "a65bd689eb204dc294a2945583a263a64a279ee9880fc904e062f1d65ef73602"
+  },
+  {
+    "path": "internal\\transport\\setup\\composition_access_windows.go",
+    "sha256": "a8e816a7cac44bfccdb7d48f90830f2b29027bd91d37bc3bee1b7cc593398f64"
+  },
+  {
+    "path": "internal\\transport\\setup\\credential_access_README.txt",
+    "sha256": "65a898e6411ce606d39656fb9999b8186b039f32bc7ef6d843e561658350d6fc"
+  },
+  {
+    "path": "internal\\transport\\setup\\credential_access_unsupported.go",
+    "sha256": "5cbd2e974743ece22def7fb69c48de542d34bce6c48cf948a0caea2080baaa30"
+  },
+  {
+    "path": "internal\\transport\\setup\\credential_access_windows_test.go",
+    "sha256": "72d69431816ffff8b46b3456100949e056067a64d3cb44f761fdaa8d86bb8c47"
+  },
+  {
+    "path": "internal\\transport\\setup\\credential_access_windows.go",
+    "sha256": "520df515d8817dded5b9c3359863954cc2c7fe94cca0f1256c42e6cc337b3e79"
+  },
+  {
+    "path": "internal\\transport\\setup\\credential_access.go",
+    "sha256": "5dc4a6473bb6b2e837e9715c5652d7560d6042482cba61dd6ad88e346ff4c25f"
+  },
+  {
+    "path": "internal\\transport\\setup\\manager_windows.go",
+    "sha256": "113859500b79aeb47c435afcc3bf4592178a903a4a6e63a54a69eb06bf96fc98"
+  },
+  {
+    "path": "internal\\transport\\setup\\material.go",
+    "sha256": "d6e42a8882be9e24f778baf608163d13537a4b8aee5c41d568332d06509664d3"
+  },
+  {
+    "path": "internal\\transport\\setup\\native_windows.go",
+    "sha256": "c31a3eec3eec2c9aaaffbd7dd111a8c2e796440b0c180ef7e6803f6ad96c223d"
+  },
+  {
+    "path": "internal\\transport\\setup\\README.txt",
+    "sha256": "8b71c988df5d177674244a0c562d0980852abf7af6942f4ef09cb3430ba11b1f"
+  },
+  {
+    "path": "internal\\transport\\setup\\setup_windows_test.go",
+    "sha256": "cc5127eb47939360aaa50dfd995dcc1ca474033d2a6aec49a8ee4bbbd1fe3a39"
+  },
+  {
+    "path": "internal\\transport\\setup\\trust_windows.go",
+    "sha256": "04e757c2d4a36e033ec5ed34ef95454e6081fe88fb64c8627d844efea7bc812f"
+  },
+  {
+    "path": "internal\\transport\\setup\\types.go",
+    "sha256": "fd28e521bc95fed4f8c967bedba959abd1306b248384abb9281d85c485884f68"
+  },
+  {
+    "path": "internal\\transport\\setup\\unsupported.go",
+    "sha256": "9460b72ef8380e526fb8d9eb366ca5dc6e48bdc350745125d8317775d3b04cb2"
+  },
+  {
+    "path": "internal\\transport\\setup\\windows_store_test.go",
+    "sha256": "8bc077c6cf5ccac1ed90fe1aa84845e32af211a79a5701f3567123972ef380a0"
+  },
+  {
+    "path": "internal\\transport\\setup\\windows_store.go",
+    "sha256": "c4ea5cdc548d33dc1704b8db559641f7ee4c7bac13c8a67ababcc854d19587c5"
+  }
+]

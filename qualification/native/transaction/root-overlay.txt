@@ -1,0 +1,9 @@
+func nativeRoot() (string, error) {
+	p := os.Getenv("V01_CASE_ROOT")
+	if !filepath.IsAbs(p) || filepath.Clean(p) != p { return "", fail("PLATFORM_UNQUALIFIED", 3) }
+	switch p {
+V01_ALLOWED_CASES
+	default: return "", fail("PLATFORM_UNQUALIFIED", 3)
+	}
+}
+func V01QualificationRoot() (string, error) { return nativeRoot() }

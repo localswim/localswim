@@ -140,7 +140,12 @@ pinned browser-launcher wiring. See the
 The [two clean distribution builds](qualification/build/README.txt) reproduce the
 recorded frozen source, generated files, assets and executable; see the
 [Q04 independent review](docs/reviews/q04-clean-builds-review.txt).
-Product/native/browser qualification remains separately gated.
+The [staged native transaction/fault suite](qualification/native/transaction/README.txt)
+records real Windows cases and labeled private fault injections; see the
+[V01 independent review](docs/reviews/v01-native-transactions-review.txt). Interrupted
+precommit restart safely refuses the retained journal and preserves UNKNOWN;
+automatic hot-journal recovery is outside the current storage contract.
+Browser, archive and root-dispatch qualification remain separately gated.
 
 The [credential decomposition](docs/decisions/credential-admission-decomposition-2026-10-26.txt)
 records the G01/S04/G02 boundaries. The

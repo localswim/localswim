@@ -1,0 +1,8 @@
+
+// Private qualification accessor: no factory/default/global state changes.
+func (s *WindowsStore) V01QualificationCallbacks(root string, flush func(*os.File) error, readback func(string) ([]byte, error)) error {
+	if s == nil || s.fs == nil || !filepath.IsAbs(root) || filepath.Clean(root) != root || root != s.fs.root { return ErrUnavailable }
+	s.fs.flushFile = flush
+	s.fs.readback = readback
+	return nil
+}

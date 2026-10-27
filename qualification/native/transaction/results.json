@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "V01-E",
+  "qualificationStatus": "PASS_STAGED_V01_NATIVE_MATRIX",
+  "suiteStatus": "PASS_NATIVE_MATRIX",
+  "sourceBase": "687ca9be73ffb9be1fce0673a4dcf934005db774",
+  "testSourceSHA256": "8d0aa3aacadb8b1e02eb048a5e3798e6743689baf744690e211bd56dd66dee64",
+  "platform": {
+    "os": "Windows",
+    "arch": "amd64",
+    "version": "10.0.26200.9711",
+    "displayVersion": "25H2",
+    "edition": "Professional",
+    "filesystem": "fixed local NTFS"
+  },
+  "inputs": {
+    "go": "1.27.3",
+    "sqliteBinding": "modernc.org/sqlite v1.61.0",
+    "libc": "modernc.org/libc v1.79.0",
+    "CGO_ENABLED": "0",
+    "GOTOOLCHAIN": "local",
+    "GOOS": "windows",
+    "GOARCH": "amd64",
+    "GOFLAGS": "-mod=readonly"
+  },
+  "command": "go test -json -count=1 -tags=nativequalification ./qualification/native/transaction",
+  "stagedInterface": "go test -tags=nativequalification ./qualification/native/transaction",
+  "nativePasses": 14,
+  "skips": 0,
+  "tests": [
+    "TestConcurrentWritersAndDurableRefusal",
+    "TestRevocationSerializesBeforeQueuedWriter",
+    "TestNativeCommitBusyRollsBackWholeCardHistory",
+    "TestNativeSQLiteFullRollsBackAttachmentBytes",
+    "TestExplicitFenceRequiresValidatedReopen",
+    "TestNativePrivateEvidenceACLAndReadback",
+    "TestNativeCommittedProcessTerminationAndRestart"
+  ],
+  "coverage": [
+    {
+      "row": "concurrent writers and revocation",
+      "status": "PASS_BOUNDED",
+      "limit": "Original real writer/revocation-first admission evidence unchanged; no confirmed waiter-lock sequencing or receipt-byte equality assertion."
+    },
+    {
+      "row": "postcommit restart and process termination",
+      "status": "PASS_BOUNDED",
+      "limit": "Original real postcommit process termination and validated reopen; no physical power-loss proof."
+    },
+    {
+      "row": "precommit process termination and validated restart",
+      "status": "PASS_SAFE_REFUSAL",
+      "limit": "Closed valid main DB exactly preserved after real before-COMMIT kill; journal retained; three Existing refusals preserve every inventory byte. Original stays unresolved UNKNOWN. No successful reopen, lookup, recovered rollback or resumed writes claimed."
+    },
+    {
+      "row": "write and commit failures",
+      "status": "PASS_BOUNDED",
+      "limit": "Original verified SQLITE_FULL (13) and reader-blocked COMMIT; no device failure claim."
+    },
+    {
+      "row": "no partial current history outcomes BLOBs",
+      "status": "PASS_BOUNDED",
+      "limit": "Original real busy/FULL rollback relational/BLOB counts; uncertainty recovery checks; precommit main DB byte equality plus safe refusal preserves forensic state without post-kill SQLite lookup or hot-journal recovery."
+    },
+    {
+      "row": "automatic UNKNOWN and fencing",
+      "status": "PASS",
+      "limit": "Existing per-Engine before-commit/rollback and after-commit/readback injections. Exact fault boundary counts, UNKNOWN, denied writers and validated close/reopen original lookup."
+    },
+    {
+      "row": "private ACL and readback",
+      "status": "PASS",
+      "limit": "Original protected account/System ACL and exact native readback; additional native sharing errno32 makes original inaccessible without dispatch or source loss."
+    },
+    {
+      "row": "native primitive flush boundary injection",
+      "status": "PASS_LABELED_INJECTION",
+      "limit": "Separately owned readonly-file Sync produces errno5 once outside admitted evidence inventory; original provider writable handle remains owned. No product-writable-handle/device/hardware failure claim."
+    },
+    {
+      "row": "CLI flush and independent readback refusal",
+      "status": "PASS",
+      "limit": "Actual CLI plus real evidence store; zero mutation requests, exact retained pending/caller bytes and unchanged board effects; existing callback injections labeled."
+    },
+    {
+      "row": "CLI lost response and original lookup",
+      "status": "PASS",
+      "limit": "Real pinned TLS commit/disconnect; listener/session/native/validated SQL restart; one original GET, one total mutation, original bytes/identity/fingerprint retained, no replay or replacement operation."
+    },
+    {
+      "row": "redacted actual CLI and HTTPS output",
+      "status": "PASS_BOUNDED",
+      "limit": "Nonempty actual CLI stdout/stderr and actual pinned HTTPS response envelopes. Real credential bearer plus synthetic rejected code/path/SID markers checked. No session-code presentation or server diagnostic-log sink claim; intentionally retained evidence/payload files and valid requested data excluded."
+    }
+  ],
+  "negativeControl": {
+    "case": "missing V01_NATIVE_ROOT",
+    "status": "EXPECTED_FAILURE",
+    "nativeCaseFailures": 7,
+    "skips": 0,
+    "continuation": "PASS: missing-overlay build requires all three specific symbols; missing and unapproved root selectors refuse before manager construction."
+  },
+  "reviewStatus": "PASS_STAGED_V01_NATIVE_MATRIX",
+  "portsUsed": [
+    47443
+  ],
+  "limits": [
+    "Full native matrix executed and freshly independently reviewed for staged V01 scope only.",
+    "No provider, schema, dependency, lock or production ROOT changes.",
+    "S01 still refuses journal-bearing state before SQLite; original remains unresolved UNKNOWN pending separately scoped recovery. No hot-journal recovery, authoritative post-kill lookup or resumed-write claim.",
+    "No physical trust provider, human enrollment, login, activation or live installation.",
+    "No device failure, physical power loss, OS reboot, hostile same-account or hardware durability claim.",
+    "Exactly three private overlays; direct Engine faults are not claimed through HTTP.",
+    "Original subset review applies only to its original frozen subset."
+  ],
+  "retainedEarlierAttempts": [
+    "Runner setup path error: no native test executed.",
+    "Compile error: no native test executed.",
+    "Earlier subset passes preserved separately.",
+    "First continuation required unsupported successful hot-journal reopen; failed attempt, journal and source freeze retained; reviewed safe-refusal expectation correction executed in a fresh attempt."
+  ],
+  "review": "docs/reviews/v01-native-transactions-review.txt",
+  "originalSubset": {
+    "sourceUnchanged": true,
+    "nativePasses": 7,
+    "review": "docs/reviews/v01-native-transactions-subset-review-r1.txt",
+    "reviewAppliesOnlyToOriginalSubset": true
+  },
+  "continuation": {
+    "childCases": 7,
+    "passes": 7,
+    "failures": 0,
+    "skips": 0,
+    "tests": [
+      {
+        "name": "TestV01PrecommitTermination",
+        "status": "PASS"
+      },
+      {
+        "name": "TestV01AutomaticRollbackFence",
+        "status": "PASS"
+      },
+      {
+        "name": "TestV01AutomaticReadbackFence",
+        "status": "PASS"
+      },
+      {
+        "name": "TestV01CLIFlushRefusal",
+        "status": "PASS"
+      },
+      {
+        "name": "TestV01CLIReadbackRefusal",
+        "status": "PASS"
+      },
+      {
+        "name": "TestV01CLILostResponseRestartLookup",
+        "status": "PASS"
+      },
+      {
+        "name": "TestV01RootRefusal",
+        "status": "PASS"
+      }
+    ],
+    "outerCommand": {
+      "exit": 0,
+      "originalCasePasses": 7,
+      "orchestratorPasses": 1
+    },
+    "providerHashesUnchanged": 247,
+    "privateOverlays": 3,
+    "missingOverlayGuard": "all three missing symbols; including undefined setup.V01QualificationRoot; no uninstrumented execution",
+    "capabilityStop": false,
+    "precommitRestart": {
+      "status": "PASS_SAFE_REFUSAL",
+      "closedValidBaseline": "main DB bytes/hash plus count/prose record captured before child",
+      "termination": "observed before-COMMIT checkpoint and abnormal native process kill",
+      "mainDatabaseBytesEqualBaseline": true,
+      "retainedJournal": true,
+      "repeatedRefusals": 3,
+      "completeInventoryBytesUnchanged": true,
+      "originalOutcome": "unresolved UNKNOWN: no store admitted; no authoritative lookup",
+      "successfulReopen": false,
+      "recoveredRollback": false,
+      "resumedWrites": false,
+      "limit": "S01 pending recovery; no SQLite opening original forensic state, sidecar deletion, guard bypass or hot-journal recovery"
+    },
+    "preservedEarlierFailure": "First continuation expected successful hot-journal reopen; retained unchanged. Corrected within the same approved batch to accepted safe-refusal/UNKNOWN restart."
+  },
+  "continuationSource": [
+    {
+      "path": "child.go.txt",
+      "sha256": "3415915e7973cef7cb2a31b7c3e70e1ead360d9f5c9dc4bd6087b4226fa6a481"
+    },
+    {
+      "path": "CONTINUATION.txt",
+      "sha256": "279a1e54b1e7061420a2cfcc5f377768fd7299618b53052ebb8cdc6ce0030aba"
+    },
+    {
+      "path": "continuation_windows_test.go",
+      "sha256": "4377bf37939d52d63534e6a44ad945c4533392fbfc7987fbab9424bb6cdf2a16"
+    },
+    {
+      "path": "evidence-overlay.txt",
+      "sha256": "4eff03f1cbfcbcf937125f7efe947da10fd1dd403bbf454d3e7db9a6ec0438e4"
+    },
+    {
+      "path": "native_windows_test.go",
+      "sha256": "8d0aa3aacadb8b1e02eb048a5e3798e6743689baf744690e211bd56dd66dee64"
+    },
+    {
+      "path": "providers.json",
+      "sha256": "6e79098b4c069564bb79a896ee00fe4d6171627a62111b88520c0aa2f19daf96"
+    },
+    {
+      "path": "README.txt",
+      "sha256": "50c9909f1215741b061eb70652d29ab19c906f692fcfb8bdb8b4625d9014b3d1"
+    },
+    {
+      "path": "root-overlay.txt",
+      "sha256": "47a6ae755078294a2390257297512ba28e72c49b0df9e01adbb530d09831ac9e"
+    },
+    {
+      "path": "unsupported_test.go",
+      "sha256": "e0541d3c9c2bf1532a32d5533950a0c7f1da273ea58b4b7a73bff9b1510cc66f"
+    },
+    {
+      "path": "writer-overlay.txt",
+      "sha256": "d2d1147aa8a94c28489682ebb3d89ebe8026f3f9510181c56f5eec22521262aa"
+    }
+  ],
+  "verification": {
+    "outerVet": "PASS",
+    "instrumentedChildVet": "PASS",
+    "defaultReleaseMatchesQ04": true,
+    "defaultReleaseSHA256": "361b8486242e5a1b204a6a8632295653015af428cd69b5518be330ac129b10d4",
+    "activated": false
+  }
+}

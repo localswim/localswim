@@ -1,0 +1,93 @@
+V01 NATIVE TRANSACTIONS - FRESH INDEPENDENT SUBSET REVIEW
+2026-10-26
+
+Bounded verdict: PASS_BOUNDED_SUBSET.
+Qualification verdict: V01_INCOMPLETE / INCOMPLETE_MANDATORY_COVERAGE.
+Seven passing native tests do not qualify V01 or authorize downstream claims.
+
+Reviewed source
+- Provider base: 687ca9be73ffb9be1fce0673a4dcf934005db774.
+- qualification/native/transaction/native_windows_test.go SHA-256:
+  8d0aa3aacadb8b1e02eb048a5e3798e6743689baf744690e211bd56dd66dee64.
+- All 247 frozen provider hashes remain unchanged before and after review.
+  go.mod/go.sum also match the provider base; no product/schema/lock edits.
+- Final metadata revision r2 narrows the replay and waiter descriptions without
+  changing either Go test source. Reviewed README.txt SHA-256:
+  747a48dac41643b122243e4d82ca68e391fceb5c50fc7a9e3d0a3aeb5156f010;
+  results.json SHA-256:
+  e65f3b58bfe08faa19e9c7d0b6a0d61a8f0d45f0fd7df0d0af4accd7157b4e73.
+- Reviewed the staged suite, provider paths it exercises, accepted V01 task
+  and S07 evidence rules. V04 retains the root native dispatch.
+
+Independent execution
+- Exact Go 1.27.3, Windows/amd64 10.0.26200.9711, fixed local NTFS;
+  CGO_ENABLED=0, GOTOOLCHAIN=local, GOFLAGS=-mod=readonly.
+- Command: go test -json -count=1 -tags=nativequalification
+  ./qualification/native/transaction
+- Fresh private fixture/build/temp roots: 7 PASS, 0 FAIL, 0 SKIP.
+  Source-before, runtime, logs and result directories existed before execution.
+- Missing V01_NATIVE_ROOT: expected 7 FAIL, 0 PASS, 0 SKIP.
+- A prior reviewer runner supplied mixed path separators: all seven canonical
+  root guards refused before fixture creation. That failed attempt is retained;
+  only the normalized fresh-root attempt is counted as native passing evidence.
+- Separate read-only inspection of six retained synthetic databases passed
+  integrity/FK checks and expected state, revisions, receipts and comments.
+  The failed-attachment database has no BLOB, attachment or byte/pin facts.
+- No listener is used; assigned ports were clear after execution.
+
+What the seven tests establish
+- ConcurrentWritersAndDurableRefusal (line 279): two product writer submissions
+  yield one committed create and one retained refusal. Original identities
+  resolve; resubmission preserves outcome class and relational counts.
+- RevocationSerializesBeforeQueuedWriter (line 317): product revocation holds
+  the writer while another goroutine starts; its later admission is forbidden.
+  The start signal precedes Submit, so actual waiter contention is not proved.
+- NativeCommitBusyRollsBackWholeCardHistory (line 351): an independent SQLite
+  reader holds a real lock; edit staging succeeds but COMMIT cannot complete.
+  Result/absent lookup remain UNKNOWN; current prose and 19 table counts plus
+  board revision remain unchanged. A distinct later edit commits.
+- NativeSQLiteFullRollsBackAttachmentBytes (line 395): max_page_count produces
+  independently checked SQLITE_FULL (13), then the product attachment path
+  returns UNKNOWN with unchanged state/counts. The product result intentionally
+  conceals the SQLite error; exact product errno is not directly asserted.
+- ExplicitFenceRequiresValidatedReopen (line 443): explicit Fence refuses writes
+  and validated reopen retains state. This is not automatic uncertainty fencing.
+- NativePrivateEvidenceACLAndReadback (line 468): actual CREATE_NEW, flush and
+  independent readback retain semantic identity; native owner/protected-DACL
+  inspection sees exactly account/System full access. Duplicate save and load
+  after a deliberately unsafe ACL refuse.
+- NativeCommittedProcessTerminationAndRestart (line 552): a separate child is
+  killed after confirmed create/edit COMMIT. Reopen preserves current/prior
+  prose and receipts. A later comment survives restart; lookup adds no effect.
+
+Mandatory coverage still missing
+- A flush-error path and its whole-state/evidence consequences. Successful
+  FlushFileBuffers is exercised; flush failure is not.
+- Automatic fencing after uncertain rollback/cleanup/readback, including
+  refusal of subsequent writes until validated recovery.
+- A separately exercised inaccessible/unreadable original-evidence path.
+  Absent lookup UNKNOWN and explicit fenced writes cover narrower conditions.
+- Interrupted precommit/hot-journal recovery; the child is killed after COMMIT.
+- Actual pinned CLI predispatch flush/readback refusal and no-dispatch proof.
+- Actual pinned CLI commit/lost-response/restart/original-evidence lookup,
+  retaining exact original identity without replay or a second effect.
+- Whole-path product/CLI/HTTPS redaction evidence. Clean test-runner output
+  alone cannot establish product-log redaction.
+- Real credential/pinned-HTTPS composition for these journeys. Invented
+  credential verifiers exercise G01 current rights/S02 admission, not G02.
+
+Interpretation and boundary
+- Refusal replay checks validated outcome class and unchanged counts; it does
+  not compare complete receipt bytes. Count comparisons do not prove equality
+  of every cell in every table. Current prose/history have separate assertions.
+- SQLite's native database-size-limit failure is not host disk exhaustion or
+  device I/O failure. Process termination is not OS restart or power-loss proof.
+  No blanket physical hardware-fault qualification is added by this review.
+- Accepted S07 permits clearly labeled injected faults alongside genuine native
+  filesystem/process evidence. Injection cannot be relabeled as native failure
+  or replace the required filesystem/process/CLI journey evidence.
+- No real user root/board, trust enrollment, human grant, login, activation,
+  UI or provider change was used. Fixtures have synthetic authority only.
+- No open correctness/security finding prevents retaining this bounded subset.
+  Missing mandatory rows still stop full V01 qualification. Further private
+  overlay/instrumentation work requires its own scoped owner decision.

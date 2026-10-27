@@ -1,0 +1,3 @@
+
+// Private qualification accessor: one caller-owned Engine's existing callback.
+func (e *Engine) V01QualificationFault(f func(string) error) { e.fault = f }

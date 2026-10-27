@@ -1,0 +1,129 @@
+R02 INDEPENDENT FINAL CANDIDATE AND CLOSURE REVIEW
+2026-10-27 | Independent integrated reviewer
+Verdict: PASS
+
+Outcome
+R01-PRODUCT-01 is closed. The normal board and ordinary CLI now show direct
+dependency pressure and prerequisite acceptance separately while preserving
+assigned priority. The accepted display/gating scenario and all applicable
+final-candidate checks are supported. No material unresolved finding remains
+within accepted Spike 01 and the current one-board localhost scope.
+
+Authority and independence
+- Accepted architecture 01-scope-acceptance.txt examples 1-7 and current
+  22-localhost-scope-reset.txt/task map control, together with owner policy.
+  One Go service owns SQLite writes and serves browser/CLI over numeric IPv4
+  loopback HTTP. TLS/LAN, enrollment, login codes and manual profile approval
+  are outside the normal workflow. No retired ceremony is reinstated here.
+- This reviewer authored neither the product/correction, its earlier reviews,
+  nor final release execution. Source and raw retained reports were independently
+  inspected. A separate fresh native evidence review was reconciled. This is
+  evidence review; it is not a claim that this author ran another broad suite.
+- This publication adds new closure reports and refreshes the current native
+  provider inventory. Original R01 CHANGES_REQUIRED, correction and earlier
+  native/release reports and evidence, including failures, remain unchanged.
+  Prior source exposure is disclosed; no isolated clean-room claim.
+
+R01-PRODUCT-01 corrective acceptance
+- Actual V02-DEPENDENCY-01 creates Alpha P3 and Beta P0 through normal DOM
+  controls. Beta owns the active blocking link to Alpha. Alpha separately
+  displays Beta's direct pressure; Beta names Alpha as its prerequisite.
+- Alpha's review handoff leaves Beta Ready for Work awaiting human acceptance.
+  Deliberate premature start returns PREREQUISITE_NOT_APPROVED with unchanged
+  board revision and Beta lane. Ready for Review does not release the gate.
+- Opening Approve does not accept Alpha; deliberate human Save does. Refresh
+  then shows current satisfied prerequisites while Beta remains Ready for Work.
+  A deliberate start succeeds. Removing the link clears pressure/readiness;
+  Alpha stays P3 throughout. Four ordinary CLI snapshots agree on the same
+  identities, priority/lane sequence, current human approval and displayed facts.
+- Source confirms direct active blocking links only and exact board/incarnation
+  targets. Missing/foreign targets and archived or noncurrent approvals remain
+  unsatisfied. Human actor, current policy and preceding card revision must
+  match. Synthetic component tests cover missing/stale/automation/foreign facts;
+  they are separate from actual-browser evidence. No transitive score is added.
+- Advisory rendering mutates no priority, permission or lane. Browser text is
+  inert; CLI text escapes terminal controls. Failed reads disclose stale state.
+  Go checks actual current authority/revisions and prerequisite acceptance in
+  the serialized write transaction for every deliberate start.
+- Sources: web/src/board/{advisory.ts,view.ts};
+  internal/transport/cli/core/{advisory.go,run.go};
+  internal/board/cards/cards.go:133; qualification/browser/suites/journey.spec.mjs.
+
+Retained accepted outcomes
+- Examples 1-2: selected current board, attributable browser/CLI operations,
+  stable references and shared revisions are supported. The actual 21-case run
+  covers DOM create/comment and CLI edit/read/history, assignment and denials.
+  A separate narrow supplement uses the actual clean-built CLI for one normal
+  create/edit/comment each, with bot attribution, stable references, P3, current
+  revisions and earlier committed history. Its fresh normal-runtime fixture
+  has an inactive delivery wrapper; no browser or new rebuild is claimed there.
+- Example 3: actual stale save retains original input/base, exposes current
+  text and refuses the conflicting write without silent fresh-intent retry.
+- Examples 4-5: committed CLI/API history, editable unsent drafts and immutable
+  original submissions remain distinct. Strict IndexedDB completion/readback
+  precedes dispatch. Storage denial retains input. Actual lost response/reload,
+  restart/reconnect, two tabs, late response and explicit clearing are covered.
+  Original lookup uses the original identity/context/fingerprint; missing
+  evidence remains UNKNOWN and reconnect/restart never authorizes replay.
+- Example 6 is closed by the corrective scenario above. Example 7 is supported
+  by readable consistent export, exact binary/zero-byte attachments, restored
+  current/history references and assignment, fresh local identity/bootstrap,
+  no-overwrite refusals and truthful interrupted-publication status. A restored
+  copy neither imports source authority nor settles an original source UNKNOWN.
+- Browser committed-history browsing is absent and remains nonblocking #0060.
+  Example 4 specifies no client; private RecoveryView is never called committed
+  history. Other V1 parity backlog stays explicit in scope22.
+
+Current source, actual execution and reproducibility
+- Execution base: 14655c3218aff86726d4966990a889e4dd6865c7 plus only the refreshed
+  native transaction provider inventory. All 677 frozen source files match the
+  executed archive/current bytes. New closure metadata is added after execution.
+  The 278-entry inventory exactly binds all current internal paths/hashes.
+- Compared with the accepted correction's 674-file browser freeze, only that
+  qualification inventory and three later review/qualification metadata files
+  differ. Normal product, schema, module, web and embedded inputs are exact.
+- Raw final Playwright JSON has all 21 mandatory cases passing exactly once;
+  zero retry, skip, flaky, unexpected or suite error. Per-case/source/inventory/
+  binary bindings agree. Launcher/child and owned browser/fixture teardown pass.
+  Exact executable equality below establishes retained-browser applicability;
+  this report does not relabel the reused browser run as a new execution.
+- Fresh exact native root dispatch passes three root checks, transaction 8
+  outer/7 child and archive 14 outer/4 child. All six archive inventory rows and
+  seven refusal branches pass; no missing/failed/skipped required case. Before/
+  after source bindings and copied provider files match the frozen current set.
+- Native evidence distinguishes real SQLite contention/FULL, private OS files,
+  process termination and normal local archive behavior from injected rollback,
+  readback, evidence-flush and publication boundaries. Precommit journal bytes
+  are retained; validated reopening safely refuses with unresolved UNKNOWN.
+  No successful hot-journal recovery or device/power-loss claim follows.
+- Two separate fresh source trees each pass 1,444 unique ordinary Go tests,
+  zero failed/skipped tests, module verification, contracts, TypeScript check/
+  build, staged embedded-asset check and vet. Every actual output was hashed;
+  complete 49-path sets agree, including schemas/declarations/modules/assets/EXE.
+  Both complete 677-file sources remain exact after checks/build.
+- Runner records establish fresh compiler caches, node_modules and outputs.
+  Offline Go modules are shared/verified; a populated offline npm seed is copied
+  separately per build. These are not fresh network downloads or independently
+  observed initial directory-creation events. Native compiler cache is populated.
+- Recorded execution tools: Go 1.27.3, Node 26.12.1, npm 12.2.1, TypeScript 7.0.2,
+  Playwright 1.64.1, Chrome for Testing 156.0.8078.4. No latest-version assertion.
+- Frozen source archive SHA256:
+  ae08187aa95d4d73180310a8dbeb11334378cefd046bb7bc50726148d23deb31
+- Application SHA256, exact across browser, both clean builds and CLI supplement:
+  be950e941ef671599510f8236494b338dab6d6f164156f66b71f88f4c949ef3c
+
+Proof limits and handoff
+- Synthetic Windows amd64, fixed local NTFS and loopback only. No physical
+  power-loss, successful interrupted-journal repair, hostile same-account
+  isolation or meaningful human-review proof. Attribution is granted identity.
+- No deployment, live V1 import/cutover, full V1 parity, remote backup, inherited
+  source ledger/authority transfer or advanced retention certification. Legacy
+  TLS component-test seams are exercised by current native qualification as
+  bounded component evidence, not normal-use requirements. Older execution
+  records remain historical.
+- P3 remains the default ticket priority. The original P2 finding severity
+  did not raise corrective ticket priority. Ready for Review is review handoff;
+  dependencies and human acceptance still govern execution readiness.
+- This is the bounded R02 qualification/closure conclusion, not owner release
+  approval. Fresh validation of these frozen reports is a separate publication
+  gate. Only the owner controls Completed and final product acceptance.

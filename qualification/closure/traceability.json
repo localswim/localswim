@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "review": "R02",
+  "status": "PASS",
+  "authority": {
+    "retainedAcceptance": "v2-architecture/docs/slice01/01-scope-acceptance.txt",
+    "currentScope": "v2-architecture/docs/slice01/22-localhost-scope-reset.txt",
+    "currentTaskMap": "v2-architecture/docs/slice01/22-localhost-task-map.json",
+    "localDecision": "docs/decisions/localhost-scope-reset-2026-10-27.txt",
+    "ownerPolicies": [
+      "P3 default",
+      "Assigned priority retained",
+      "Ready for Work may retain prerequisites",
+      "RFR handoff does not imply human acceptance",
+      "Human-only approval/Completed"
+    ]
+  },
+  "examples": [
+    {
+      "example": 1,
+      "outcome": "Selected same board/current read; unavailable or stale is visible",
+      "status": "SUPPORTED_BOUNDED",
+      "source": [
+        "web/src/board/view.ts",
+        "cmd/localswim/local_entry.go",
+        "internal/transport/boardapi/projection.go"
+      ],
+      "evidence": [
+        "V02-LOCAL-01",
+        "V02-SHARED-01",
+        "Normal CLI positive supplement"
+      ],
+      "limit": "One synthetic board; no workspace/discovery parity claim."
+    },
+    {
+      "example": 2,
+      "outcome": "Attributable browser and normal CLI create/edit/comment; stable references and shared current revisions",
+      "status": "SUPPORTED_BOUNDED",
+      "source": [
+        "web/src/board/view.ts",
+        "internal/transport/cli/core/run.go",
+        "internal/transport/cli/core/local.go",
+        "cmd/localswim/local_entry.go",
+        "internal/transport/local/authority.go"
+      ],
+      "evidence": [
+        "V02-SHARED-01",
+        "V02-ASSIGNMENT-01",
+        "V02-AUTHORITY-01",
+        "Normal CLI positive create/edit/comment/read/history supplement"
+      ],
+      "limit": "The 21-case run covers DOM create/comment and CLI edit/read/history; narrow separate CLI supplement covers positive CLI create/comment. Shared browser projection/source supplies interoperability interpretation; no new browser run is claimed."
+    },
+    {
+      "example": 3,
+      "outcome": "Stale edit conflicts; original input/base retained and current text exposed for deliberate reconciliation",
+      "status": "SUPPORTED_BOUNDED",
+      "source": [
+        "web/src/board/view.ts",
+        "web/src/api/client.ts"
+      ],
+      "evidence": [
+        "V02-CONFLICT-01",
+        "V02-TABS-01"
+      ],
+      "limit": "Recorded stale-write scenarios; no offline mutation queue or silent fresh-intent retry."
+    },
+    {
+      "example": 4,
+      "outcome": "Committed history, unsent editable drafts and immutable original submissions remain distinct",
+      "status": "SUPPORTED_BOUNDED_WITH_UX_LIMIT",
+      "source": [
+        "internal/transport/boardapi/projection.go",
+        "web/src/recovery/store.ts",
+        "web/src/recovery-ui/view.ts"
+      ],
+      "evidence": [
+        "V02-SHARED-01",
+        "V02-RELOAD-01",
+        "Native archive restored history",
+        "Normal CLI committed-history supplement"
+      ],
+      "limit": "Committed history is available through CLI/API. Browser committed-history browsing remains absent/nonblocking #0060; private recovery is not committed history. Example4 specifies no client.",
+      "nonblockingBrowserHistoryBacklog": 60
+    },
+    {
+      "example": 5,
+      "outcome": "Original-identity lookup, UNKNOWN/no replay and honest recovery-storage limits across loss/reload/restart",
+      "status": "SUPPORTED_BOUNDED",
+      "source": [
+        "web/src/recovery/indexeddb.ts",
+        "web/src/recovery/local-readiness.ts",
+        "web/src/recovery/store.ts",
+        "web/src/api/client.ts",
+        "web/src/api/local-session.ts",
+        "internal/store/writer/writer.go"
+      ],
+      "evidence": [
+        "V02-RELOAD-01",
+        "V02-RESTART-01",
+        "V02-UNKNOWN-01",
+        "V02-IDB-01",
+        "V02-QUOTA-01",
+        "V02-LATE-01",
+        "V02-TABS-01",
+        "V02-CLEAR-01",
+        "Current transaction outer/child matrix"
+      ],
+      "limit": "Actual strict browser completion/readback and bounded process/injected/native boundaries; no physical power-loss or successful hot-journal recovery proof."
+    },
+    {
+      "example": 6,
+      "outcome": "Assigned P3 retained; direct pressure and acceptance/readiness displayed separately; RFR does not release execution",
+      "status": "SUPPORTED_BOUNDED",
+      "source": [
+        "web/src/board/advisory.ts",
+        "web/src/board/view.ts",
+        "internal/transport/cli/core/advisory.go",
+        "internal/transport/cli/core/run.go",
+        "internal/board/cards/cards.go"
+      ],
+      "evidence": [
+        "V02-DEPENDENCY-01",
+        "Four retained ordinary CLI snapshots",
+        "Synthetic advisory boundary probes",
+        "V02-AUTHORITY-01"
+      ],
+      "limit": "Advisory snapshot only; Go rechecks current authority/revisions/acceptance at deliberate start. Direct active blocking links only; no transitive scoring.",
+      "closedFinding": "R01-PRODUCT-01",
+      "correctiveTicket": 63,
+      "closureTicket": 64
+    },
+    {
+      "example": 7,
+      "outcome": "Readable consistent export, exact attachments, separate truthful restored copy and preserved original UNKNOWN",
+      "status": "SUPPORTED_BOUNDED",
+      "source": [
+        "internal/archive/export/export.go",
+        "internal/archive/validate/validate.go",
+        "internal/archive/restore/restore.go",
+        "internal/archive/publication/native_windows.go",
+        "internal/transport/local/restore.go"
+      ],
+      "evidence": [
+        "V02-BYTES-01",
+        "Current six native archive rows and seven refusal branches",
+        "Current four publication-interruption child terminals"
+      ],
+      "limit": "Restored local authority/identity is fresh. No source-ledger transfer, remote backup, inherited authority, full historical reconstruction or successful interrupted-publication completion claim."
+    }
+  ],
+  "crossCutting": {
+    "localBoundary": [
+      "cmd/localswim/local_entry.go",
+      "internal/transport/local/http.go",
+      "internal/transport/local/runtime.go"
+    ],
+    "authority": [
+      "internal/transport/local/authority.go",
+      "internal/board/grants",
+      "internal/board/workflow/workflow.go"
+    ],
+    "storage": [
+      "internal/store/open/open.go",
+      "internal/store/writer/writer.go"
+    ],
+    "buildAndExecution": [
+      "qualification/native/nativequalification_test.go",
+      "qualification/native/report.go",
+      "qualification/browser/suites/journey.spec.mjs",
+      "qualification/browser/lib/browser.mjs",
+      "qualification/toolchain/current.json"
+    ],
+    "currentEvidence": "results.json",
+    "historicalR01": "../review/review.txt",
+    "acceptedCorrection": "../dependency-advisory/results.json"
+  },
+  "proofLimits": [
+    "Synthetic Windows amd64/fixed local NTFS/loopback only.",
+    "No physical power-loss, successful hot-journal recovery, hostile same-account isolation or meaningful-human-review proof.",
+    "No deployment, full V1 parity, live import/cutover, remote backup, inherited source-ledger/authority transfer or advanced retention certification.",
+    "Prior source exposure disclosed; no isolated clean-room certification.",
+    "Browser run reused after exact source/asset and final-binary equivalence; not a newly executed browser matrix.",
+    "Narrow CLI supplement has no browser execution and uses an unchanged normal-runtime fixture with inactive delivery wrapper.",
+    "Fresh build cache/root creation is recorded by the runner, not independently observed before execution; offline npm seed copied and Go modules shared/verified.",
+    "Native uses a populated compiler cache; injected boundaries are distinct from hardware/device failures.",
+    "Owner acceptance and Completed remain separate."
+  ],
+  "ownerControlsCompleted": true,
+  "reportAcceptanceIsOwnerProductAcceptance": false
+}

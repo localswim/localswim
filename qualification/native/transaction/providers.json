@@ -109,7 +109,7 @@
   },
   {
     "path": "internal/assets/assets.go",
-    "sha256": "1751f2062733321e4653ef09ef61c16f0e7840395143af209a4de80e7d883f40"
+    "sha256": "731f35bc5c759b4db1fd9345220cf59571c390e3d5735040534ed83eef6773a0"
   },
   {
     "path": "internal/assets/assets_test.go",
@@ -148,8 +148,12 @@
     "sha256": "86bf16c25b648178c546147c0acc40808f6a457226a7b8facbba03979de1ee1b"
   },
   {
+    "path": "internal/assets/bundle/js/board/advisory.js",
+    "sha256": "35d464d8046febd0011e518e31c1896b2a20c22768946164d4e00bf58332b3f1"
+  },
+  {
     "path": "internal/assets/bundle/js/board/view.js",
-    "sha256": "fd0a237f72c91aa4af9637725731ee465687f55be4b549347bae44c89bf346dd"
+    "sha256": "8617615b742ed662948d0fbdd05bed5f3c792d7674c227bd04d3fbe85f5101ce"
   },
   {
     "path": "internal/assets/bundle/js/recovery-ui/admin.js",
@@ -193,7 +197,7 @@
   },
   {
     "path": "internal/assets/bundle/manifest.json",
-    "sha256": "430406767a08b1dcce4670ef92b262c11024ed4a590c25c2d8588773aac448ad"
+    "sha256": "f19ffa2152a679140b29e4bcb6ec865471502bf806b944427971cbc7610edd7f"
   },
   {
     "path": "internal/assets/bundle/styles/app.css",
@@ -781,7 +785,15 @@
   },
   {
     "path": "internal/transport/cli/core/README.txt",
-    "sha256": "9f9279ec9c9d1fe86178eea813115b86287cf9eb26dcfb17ee04bdc90a0f389b"
+    "sha256": "899da28e4f42171fa5f2309d880019f0081b4266f20031d141afcea99e1ab63f"
+  },
+  {
+    "path": "internal/transport/cli/core/advisory.go",
+    "sha256": "13131b9b69601fe19f36a05243946353af5fbc46b70c816da660949d10741482"
+  },
+  {
+    "path": "internal/transport/cli/core/advisory_test.go",
+    "sha256": "fe2243afd8a2e9d334e1c285b42e0c630969b256974f3a51ed8e1580789332a9"
   },
   {
     "path": "internal/transport/cli/core/configured_port_native_windows_test.go",
@@ -845,7 +857,7 @@
   },
   {
     "path": "internal/transport/cli/core/run.go",
-    "sha256": "b764c9945067a530b713d2d7a6e8282998e96a90719c52aad73ee1725aa43636"
+    "sha256": "9c2b97d219d60a328b7261e874b1241d6496e1fb6adc066a501305c938f0f31e"
   },
   {
     "path": "internal/transport/cli/core/run_test.go",

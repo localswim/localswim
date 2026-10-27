@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "status": "INCOMPLETE",
+  "fullQualificationPass": false,
+  "mandatoryCasesRegistered": 23,
+  "fullMandatoryRunExecuted": false,
+  "preparation": {
+    "browserHarnessIndependentStaticReview": "PASS_STATIC_PREPARATION_ONLY",
+    "nativeFixtureIndependentReview": "PASS_PREPARATION_ONLY",
+    "nativeFixtureTestsIncludingSubtests": 34,
+    "nativeFixtureTestSkips": 0,
+    "nativeMissingOverlaySentinelRefusal": "PASS",
+    "nativeFixtureVet": "PASS"
+  },
+  "partialReadOnlyPreflight": {
+    "status": "PASS_PARTIAL_PROFILE_PREFLIGHT_ONLY",
+    "browser": "Chrome for Testing 156.0.8078.4",
+    "playwright": "1.64.1",
+    "trustedTLS": "TLS 1.3",
+    "strictIndexedDBCompletionThenIndependentIdenticalReadback": "PASS",
+    "nativeQuotaExceededErrorObserved": true,
+    "quotaFaultInjection": "CDP override; confirmed active; 31-second cache wait; incompressible 8 MiB probe",
+    "earlierFailedQuotaAttemptPreserved": true,
+    "uniqueCauseOfEarlierQuotaFailureEstablished": false,
+    "loginOrCodeExchange": false,
+    "boardMutation": false,
+    "ownedBootstrapAndBrowserStopped": true
+  },
+  "closedProfileAudit": {
+    "status": "PASS_BOUNDED_PROFILE_PRIVACY_ONLY",
+    "directories": 65,
+    "files": 219,
+    "exactNamedNetworkSandboxCapabilityACEs": 37,
+    "restrictiveFileExecuteDenyACEs": 9,
+    "aclRepairPerformed": false,
+    "hostileSameAccountIsolationClaimed": false
+  },
+  "historicalQualifiedStartupFailure": {
+    "cause": "UNRESOLVED",
+    "completeDelegationLineVisibleInOwnerScreenshot": true,
+    "fixedSecretFreeStageDiagnosticsPrepared": true
+  },
+  "remaining": [
+    "Fresh actual-console owner delegation for the reviewed same-identity fixture",
+    "Exact staged 23-case browser run with no skipped cases or retries and successful teardown",
+    "Full private profile, log and URL audits",
+    "Fresh independent review of executed mandatory evidence",
+    "Stop fixture and complete exact owner-confirmed issuer removal"
+  ],
+  "limits": [
+    "Static checks and partial preflight do not qualify session or recovery behavior",
+    "No certificate-warning bypass, personal browser profile or mock-only positive journey",
+    "No physical power-loss or meaningful-human-review proof",
+    "Product default remains unqualified; integrated root dispatch belongs to V04"
+  ]
+}

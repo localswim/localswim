@@ -1,0 +1,151 @@
+R01 INDEPENDENT INTEGRATED PRODUCT AND EVIDENCE REVIEW
+2026-10-27 | Independent integrated reviewer
+Verdict: CHANGES_REQUIRED
+
+Outcome
+One P2 finding remains: the normal board does not separately show incoming
+dependency pressure or prerequisite readiness. This is an accepted Spike 01
+outcome, not deferred full V1 parity. The reviewed authority, storage, recovery,
+archive and release evidence have no other material unresolved finding within
+this review's scope. Passing their recorded matrices does not close this gap.
+
+Authority and source
+- Current authority is v2-architecture/docs/slice01/22-localhost-scope-reset.txt
+  and 22-localhost-task-map.json, retaining 01-scope-acceptance.txt examples 1-7
+  and explicit owner policy. Conflicting historical TLS/enrollment ceremony is
+  retired; historical decisions, completed work and failures remain preserved.
+- Frozen implementation: aa67724ed11feb7221d581142c62bcd29cd2ced8; all 665
+  selected file hashes independently match. The executed source archive has 663
+  exact members. Final source adds only qualification/release/results.json and
+  review.txt; no product, test, build input or embedded asset bytes changed.
+- Executed source archive SHA256:
+  45644250d618289835ccb35ab3dceb242a69541a9ce3d58895578e4d0e0e5d03
+- Prior source exposure is disclosed; this is no isolated clean-room claim.
+
+P2 R01-PRODUCT-01: Missing separate dependency pressure/readiness display
+- Requirement: accepted01 approved defaults and example6 require preserving
+  assigned priority while separately showing dependency pressure/readiness.
+  Scope22 explicitly retains that owner policy.
+- Trigger: Alpha remains P3 while urgent Beta depends on Alpha. Alpha is handed
+  off to Ready for Review; Beta remains Ready for Work awaiting acceptance.
+- Observed by independent static trace: web/src/board/view.ts:79-93 displays
+  priority/lane and outgoing link kind/target/link references. It has no incoming
+  dependent-pressure or unmet-prerequisite/readiness presentation. BoardClient
+  reads and current projection do not add that advisory presentation.
+- Source: internal/transport/boardapi/projection.go:50-100 and
+  web/src/api/client.ts:89-108. The server correctly rejects premature start at
+  internal/board/cards/cards.go:133-145 until current human-approved Completed
+  prerequisites satisfy its checks. Execution protection is not the missing part.
+- Evidence gap: V02-RELATIONS-01, journey.spec.mjs:70-83, checks link add/remove
+  and P3 preservation. It does not check incoming pressure, urgent dependents or
+  the readiness distinction between review handoff and accepted completion.
+- Required correction: present basic, separate advisory pressure/readiness using
+  the current board's relationships and current acceptance state. Keep assigned
+  priority unchanged and authoritative execution admission in Go. No transitive
+  scoring policy or general workflow engine is requested.
+- Corrective acceptance: browser/CLI reads agree on Alpha P3, urgent Beta and the
+  active blocking link. The normal board visibly identifies Beta's pressure on
+  Alpha and Beta awaiting Alpha's acceptance while Alpha is Ready for Review.
+  Deliberate premature start is refused. After explicit human approval of Alpha,
+  refresh shows changed readiness and deliberate Beta start succeeds. Removing
+  the relationship removes pressure while Alpha stays P3. Run these assertions
+  in required product qualification and obtain fresh independent review.
+
+Retained product outcomes
+- Examples1-2: both normal clients select the same board and share attributable
+  read/create/edit/comment, assignment, stable references and current revisions.
+  Failed reads disclose unavailable/stale state instead of a current empty board.
+- Example3: stale edits conflict; original input/base remain available and current
+  server text is exposed for deliberate reconciliation. No fresh-intent retry.
+- Example4: retained committed text is available through CLI/API history; unsent
+  editable drafts and immutable original submissions are distinct private records.
+  Browser committed-history browsing is absent. This is a nonblocking UX followup:
+  example4 names no client; both-client scope expressly names read/create/edit/
+  comment. Private RecoveryView must not be described as server history.
+- Example5: strict IndexedDB completion and independent readback occur before
+  dispatch readiness. Storage denial retains input; original lookup uses the
+  original identity/context/fingerprint. Reconnect/reload/restart do not replay;
+  missing evidence remains UNKNOWN. Late replies, two tabs and explicit clearing
+  have bounded actual-browser coverage.
+- Example6: assigned P3 and the prerequisite execution gate are preserved; the
+  separate advisory presentation is incomplete as R01-PRODUCT-01 records.
+- Example7: readable consistent export and exact attachment-byte recovery,
+  separate restored-copy identity/bootstrap, no overwrite and truthful interrupted
+  status are supported. A restored copy cannot settle original source UNKNOWN.
+- traceability.json maps each example to source, evidence and limitations.
+
+Local authority and storage
+- Normal startup/CLI/browser share numeric IPv4 loopback HTTP and the same SQLite
+  board. The normal route has no TLS, enrollment, login-code, fixture delegation,
+  special profile approval, LAN or remote-user dependency.
+- Exact Host/Origin and non-simple browser request checks protect the local path.
+  Browser human cookie and account-private CLI bot capability remain separate;
+  malformed/mixed channels refuse. Restart rotates ephemeral credentials.
+- Every admitted write resolves current actor kind/rights and revisions inside
+  the serialized SQL transaction. Assignment is data, not actor authority. Bot
+  cannot approve, mint human/admin authority or reach Completed through alternate
+  routes. Human approval remains an explicit action against current revisions.
+- SQLite foreign keys, rollback journal, FULL synchronization, transaction-scoped
+  admission, lifetime writer ownership and atomic history/outcome/BLOB effects
+  remain. Failed rollback/readback fences writes; interrupted journals safely
+  refuse reopening. Status uses existing-only locks and read-only inspection.
+- Source anchors: internal/transport/local/{http,runtime,authority,restore}.go;
+  internal/board/{grants,cards,workflow}; internal/store/{open,writer};
+  internal/archive/{export,validate,restore,publication}.
+
+Reviewed execution and reproducibility
+- This is source/evidence review, not a new broad runtime execution. Four fresh
+  non-author area reviews were reconciled; their material conclusions were traced
+  against source and retained evidence. The product finding was independently
+  confirmed rather than accepted solely from another review's verdict.
+- Actual final normal-browser report has all 20 required cases passing once:
+  zero retries, skipped, flaky, unexpected or suite errors. Launcher/child and
+  owned fixture teardown are successful. Its binary matches both clean builds.
+- Actual native dispatch has all eight transaction outer tests and seven child
+  tests, 14 archive outer tests and four child tests, all six archive inventory
+  rows and seven refusal subtests. Missing/failed/skipped results fail dispatch.
+  Fault injection is distinguished from actual SQL/process/browser observations.
+- Independently parsed complete ordinary streams from both clean builds: 1,428
+  unique passed tests each, zero failed or skipped tests. Four package-level
+  no-test events are not skipped required cases. Every actual output was hashed:
+  all 47 declared outputs agree between builds and the recorded output set.
+- Application SHA256:
+  c66d66dcad448ca0999cc93e87057ec8a6d81fb56468340e744da354d9cdb20f
+- Current recorded tools: Go1.27.3, Node26.12.1, npm12.2.1, TypeScript7.0.2 and
+  Playwright1.64.1. Tool pins, lock integrity, retained licenses, source archives,
+  native provider bindings and before/after observations were independently
+  audited. This records the selected evidence, not a new latest-version claim.
+- Historical Q01/Q04/V01/component evidence and original failed attempts remain
+  historical. The failed restricted-token build and filtered diagnostics are
+  excluded from positive final evidence. Historical hashes do not qualify the
+  changed executable. See qualification/release, browser, native and toolchain.
+
+Corrective handoff
+- #0063: Show dependency pressure and readiness without changing assigned priority.
+- #0064: R02 independently closes R01-PRODUCT-01 after #0063 correction evidence.
+- Both followups are P3 (Normal), Ready for Work with their recorded dependencies.
+  P2 is the review finding severity; it does not change the owner's P3 ticket
+  default. This review performs no corrective implementation.
+- Browser-history UX is recorded on the broader parity backlog #0060.
+- Accepting the R01 review report does not accept the product or close its open
+  finding. R02 must assess the corrective acceptance against fresh evidence.
+
+Proof limits and followup boundary
+- Synthetic Windows amd64/local NTFS/loopback only. Process termination, fault
+  boundaries and safe refusal do not prove physical power loss, successful hot-
+  journal recovery, hostile same-account isolation or meaningful human review.
+- Native execution reused a populated compiled cache; the product build pair used
+  fresh compiler caches/node_modules and separately copied offline npm caches.
+  Cache/directory creation is supported by retained runner/completion records;
+  reviewers did not independently observe directory creation before execution.
+- V03 source observation was active-run plus after, not prelaunch; an unchanged-
+  source attestation and exact current native-input comparison bound that claim.
+- No deployment, V1 import/cutover, full V1 parity, remote backup, inherited source
+  ledger/authority transfer or advanced retention certification is established.
+- V1 workspace/Attention/discovery/pins, broader search/hierarchy/archive UX,
+  attachment/cover UX, monitor/alerts, live updates and optional publishing remain
+  explicit backlog in scope22. They are not silently removed requirements.
+- Browser committed-history UX and dated documentary wording merit bounded
+  maintenance followups. Neither adds an unsupported blocking requirement.
+- Owner review/approval and control of Completed remain separate. This report
+  authorizes no product fixes, reopening of accepted work or release acceptance.

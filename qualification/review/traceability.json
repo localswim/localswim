@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "review": "R01",
+  "status": "CHANGES_REQUIRED",
+  "sourceBase": "aa67724ed11feb7221d581142c62bcd29cd2ced8",
+  "authority": {
+    "retainedAcceptance": "v2-architecture/docs/slice01/01-scope-acceptance.txt",
+    "currentScope": "v2-architecture/docs/slice01/22-localhost-scope-reset.txt",
+    "currentTaskMap": "v2-architecture/docs/slice01/22-localhost-task-map.json",
+    "localDecision": "docs/decisions/localhost-scope-reset-2026-10-27.txt",
+    "r01Acceptance": [
+      "Trace V1 slice and explicit owner policies",
+      "Support human/bot, SQLite and recovery claims",
+      "Normal path has no TLS/remote/enterprise dependency",
+      "Keep deferred V1 parity and proof limits explicit"
+    ]
+  },
+  "examples": [
+    {
+      "example": 1,
+      "outcome": "Same selected board/current read; visible unavailable or stale state",
+      "status": "SUPPORTED_BOUNDED",
+      "source": [
+        "web/src/board/view.ts:55",
+        "cmd/localswim/local_entry.go",
+        "internal/transport/boardapi/projection.go:50"
+      ],
+      "evidence": [
+        "qualification/browser/suites/journey.spec.mjs: V02-LOCAL-01 and V02-SHARED-01",
+        "qualification/browser/results.json",
+        "qualification/release/review.txt"
+      ],
+      "limit": "One synthetic board; no multi-board workspace parity claim."
+    },
+    {
+      "example": 2,
+      "outcome": "Shared attributable create/edit/comment and stable references; no authority gained by changing client",
+      "status": "SUPPORTED_BOUNDED",
+      "source": [
+        "web/src/board/view.ts:112",
+        "internal/transport/cli/core",
+        "internal/transport/local/runtime.go",
+        "internal/board/grants"
+      ],
+      "evidence": [
+        "qualification/browser/suites/journey.spec.mjs: V02-SHARED-01, V02-ASSIGNMENT-01 and V02-AUTHORITY-01",
+        "qualification/release/review.txt"
+      ],
+      "limit": "Cooperative trusted-account authority, not attested human review."
+    },
+    {
+      "example": 3,
+      "outcome": "Conflicts retain original input/base and expose current text without silent retry",
+      "status": "SUPPORTED_BOUNDED",
+      "source": [
+        "web/src/board/view.ts:112",
+        "web/src/board/view.ts:228",
+        "web/src/api/client.ts:142"
+      ],
+      "evidence": [
+        "qualification/browser/suites/journey.spec.mjs: V02-CONFLICT-01",
+        "qualification/browser/results.json"
+      ],
+      "limit": "Explicit recorded stale-write scenario; no offline mutation queue."
+    },
+    {
+      "example": 4,
+      "outcome": "Committed history, editable unsent drafts and immutable submitted evidence remain distinct",
+      "status": "SUPPORTED_BOUNDED_WITH_UX_LIMIT",
+      "source": [
+        "internal/transport/boardapi/projection.go:150",
+        "internal/transport/boardapi/projection.go:193",
+        "web/src/recovery/store.ts:138",
+        "web/src/recovery/store.ts:185",
+        "web/src/recovery-ui/view.ts:83"
+      ],
+      "evidence": [
+        "qualification/native/archive/native_windows_test.go: restored history assertions",
+        "qualification/browser/suites/journey.spec.mjs: reload/draft/original lookup cases",
+        "qualification/native/archive/review.txt"
+      ],
+      "limit": "CLI/API provide committed history. Browser committed-history controls are absent; private recovery is not committed history. Example4 does not specify a client.",
+      "browserHistoryParityBacklog": 60
+    },
+    {
+      "example": 5,
+      "outcome": "Original identity lookup after response loss/restart; UNKNOWN stays unknown; no replay; storage failure disclosed",
+      "status": "SUPPORTED_BOUNDED",
+      "source": [
+        "web/src/recovery/indexeddb.ts:43",
+        "web/src/recovery/local-readiness.ts:19",
+        "web/src/recovery/store.ts:212",
+        "web/src/api/client.ts:142",
+        "web/src/api/client.ts:248",
+        "web/src/api/local-session.ts:42"
+      ],
+      "evidence": [
+        "qualification/browser/suites/journey.spec.mjs: RELOAD/RESTART/UNKNOWN/IDB/QUOTA/TABS/CLEAR cases",
+        "qualification/native/transaction/results.json",
+        "qualification/release/review.txt"
+      ],
+      "limit": "Actual browser completion/readback and recorded process/fault boundaries; no physical power-loss proof."
+    },
+    {
+      "example": 6,
+      "outcome": "Assigned priority retained; pressure/readiness separate; review handoff does not release prerequisite execution",
+      "status": "CHANGES_REQUIRED",
+      "source": [
+        "web/src/board/view.ts:79",
+        "internal/transport/boardapi/projection.go:50",
+        "internal/board/cards/cards.go:133"
+      ],
+      "evidence": [
+        "qualification/browser/suites/journey.spec.mjs:70 V02-RELATIONS-01"
+      ],
+      "finding": "R01-PRODUCT-01",
+      "limit": "P3 preservation and server gate are supported; separate advisory pressure/readiness is absent and its accepted scenario is uncovered.",
+      "correctiveFollowup": 63,
+      "freshClosureReviewFollowup": 64
+    },
+    {
+      "example": 7,
+      "outcome": "Readable consistent export, exact bytes and separate truthful restored copy without inherited source authority",
+      "status": "SUPPORTED_BOUNDED",
+      "source": [
+        "internal/archive/export/export.go:73",
+        "internal/archive/validate/validate.go:158",
+        "internal/archive/restore/restore.go:50",
+        "internal/archive/publication/native_windows.go:419",
+        "internal/transport/local/restore.go:38"
+      ],
+      "evidence": [
+        "qualification/native/archive/native_windows_test.go: all six V03 rows",
+        "qualification/native/archive/review.txt",
+        "qualification/browser/suites/journey.spec.mjs: BYTES case",
+        "qualification/release/review.txt"
+      ],
+      "limit": "Fresh local authority; original UNKNOWN remains separate. No source-ledger transfer, remote backup or full historical reconstruction claim."
+    }
+  ],
+  "crossCutting": {
+    "localBoundary": [
+      "cmd/localswim/local_entry.go",
+      "internal/transport/local/http.go:34",
+      "internal/transport/local/runtime.go:311"
+    ],
+    "authority": [
+      "internal/transport/local/authority.go",
+      "internal/board/grants",
+      "internal/board/workflow/workflow.go:108"
+    ],
+    "transactionDurability": [
+      "internal/store/open/open.go:144",
+      "internal/store/writer/writer.go:211"
+    ],
+    "toolchainAndSource": [
+      "qualification/toolchain/current.json",
+      "qualification/release/results.json",
+      "qualification/release/review.txt"
+    ],
+    "v1ParityBacklog": [
+      "docs/decisions/localhost-scope-reset-2026-10-27.txt",
+      "v2-architecture/docs/slice01/22-localhost-task-map.json: deferredV1Parity"
+    ]
+  },
+  "proofLimits": [
+    "Synthetic Windows amd64/local NTFS/loopback only.",
+    "No fresh broad runtime suite executed by integrated reviewer.",
+    "No physical power-loss, successful hot-journal recovery, hostile same-account isolation or meaningful-human-review proof.",
+    "No deployment/release acceptance, full V1 parity, live V1 import/cutover, remote backup or inherited authority/source-ledger transfer.",
+    "V03 source observation active-run plus after; not prelaunch.",
+    "Native cache populated; separate product builds used fresh compiler caches/node_modules and separately copied offline npm caches.",
+    "Prior source exposure disclosed; no isolated clean-room certification."
+  ],
+  "reportAcceptanceIsProductAcceptance": false
+}

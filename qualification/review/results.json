@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "review": "R01",
+  "date": "2026-10-27",
+  "reviewerRole": "independent integrated reviewer",
+  "status": "CHANGES_REQUIRED",
+  "sourceBase": "aa67724ed11feb7221d581142c62bcd29cd2ced8",
+  "selectedSourceFiles": 665,
+  "selectedSourceHashMismatches": 0,
+  "executedSourceFiles": 663,
+  "executedSourceArchiveSHA256": "45644250d618289835ccb35ab3dceb242a69541a9ce3d58895578e4d0e0e5d03",
+  "postexecutionDelta": [
+    "qualification/release/results.json",
+    "qualification/release/review.txt"
+  ],
+  "productOrBuildInputChangedAfterExecution": false,
+  "applicationSHA256": "c66d66dcad448ca0999cc93e87057ec8a6d81fb56468340e744da354d9cdb20f",
+  "materialFindings": [
+    {
+      "id": "R01-PRODUCT-01",
+      "severity": "P2",
+      "status": "OPEN",
+      "title": "Separate dependency pressure and readiness are absent from the normal board",
+      "method": "Independent static trace of exact frozen source",
+      "authority": [
+        "v2-architecture/docs/slice01/01-scope-acceptance.txt:19",
+        "v2-architecture/docs/slice01/01-scope-acceptance.txt:65",
+        "v2-architecture/docs/slice01/22-localhost-scope-reset.txt:34"
+      ],
+      "source": [
+        "web/src/board/view.ts:79",
+        "web/src/api/client.ts:89",
+        "internal/transport/boardapi/projection.go:50",
+        "internal/board/cards/cards.go:133"
+      ],
+      "evidenceGap": "V02-RELATIONS-01 covers link add/remove and unchanged P3, without incoming urgency/readiness or handoff-versus-acceptance assertions.",
+      "requiredCorrection": "Show basic separate advisory incoming dependency pressure and prerequisite acceptance readiness; retain assigned priority and authoritative server admission.",
+      "correctiveAcceptance": [
+        "Show urgent dependent pressure while prerequisite remains P3.",
+        "Show dependent awaiting prerequisite acceptance while prerequisite is Ready for Review.",
+        "Refuse deliberate premature start.",
+        "After explicit human prerequisite approval, refresh readiness and allow deliberate start.",
+        "Remove pressure after unlink without changing P3.",
+        "Run required actual product assertions and obtain fresh independent review."
+      ],
+      "implementationFollowup": 63,
+      "freshClosureReviewFollowup": 64
+    }
+  ],
+  "areaDispositions": {
+    "authorityStorage": "PASS_WITHIN_SCOPE",
+    "recoveryArchive": "PASS_WITHIN_SCOPE",
+    "evidenceRelease": "PASS_WITHIN_RECORDED_MATRIX",
+    "productScope": "CHANGES_REQUIRED"
+  },
+  "reviewedExecution": {
+    "freshRuntimeExecutedByIntegratedReviewer": false,
+    "browser": {
+      "requiredPassed": 20,
+      "retry": 0,
+      "skipped": 0,
+      "flaky": 0,
+      "unexpected": 0,
+      "suiteErrors": 0
+    },
+    "native": {
+      "transactionOuter": 8,
+      "transactionChild": 7,
+      "archiveOuter": 14,
+      "archiveChild": 4,
+      "archiveRows": 6,
+      "refusalSubtests": 7,
+      "requiredFailuresOrSkips": 0
+    },
+    "cleanBuilds": {
+      "count": 2,
+      "ordinaryUniquePassedEach": 1428,
+      "ordinaryFailedTests": 0,
+      "ordinarySkippedTests": 0,
+      "completeActualOutputCount": 47,
+      "outputPathsAndHashesEqual": true
+    }
+  },
+  "recordedToolchain": {
+    "go": "1.27.3",
+    "node": "26.12.1",
+    "npm": "12.2.1",
+    "typescript": "7.0.2",
+    "playwright": "1.64.1"
+  },
+  "nonblockingObservations": [
+    "Browser committed-history browsing absent; CLI/API history fulfills the client-unspecified recovery class. Private RecoveryView is not server history.",
+    "Dated component documentation has pending-qualification/layout wording; current reports must be read with chronology and declared limits."
+  ],
+  "proofLimits": [
+    "Synthetic Windows amd64/local NTFS/loopback only.",
+    "No fresh broad runtime suite executed by integrated reviewer.",
+    "No physical power-loss, successful hot-journal recovery, hostile same-account isolation or meaningful-human-review proof.",
+    "No deployment/release acceptance, full V1 parity, live V1 import/cutover, remote backup or inherited authority/source-ledger transfer.",
+    "V03 source observation active-run plus after; not prelaunch.",
+    "Native cache populated; separate product builds used fresh compiler caches/node_modules and separately copied offline npm caches.",
+    "Prior source exposure disclosed; no isolated clean-room certification."
+  ],
+  "releaseAccepted": false,
+  "ownerControlsCompleted": true,
+  "correctiveImplementationAuthorizedByThisReview": false,
+  "followups": [
+    {
+      "ticket": 63,
+      "priority": "P3",
+      "purpose": "Correct dependency pressure/readiness presentation",
+      "currentLane": "Ready for Work",
+      "dependenciesRetained": true
+    },
+    {
+      "ticket": 64,
+      "priority": "P3",
+      "purpose": "R02 fresh independent closure against corrective evidence",
+      "currentLane": "Ready for Work",
+      "dependenciesRetained": true
+    }
+  ],
+  "browserHistoryParityBacklog": 60,
+  "reportAcceptanceIsProductAcceptance": false
+}

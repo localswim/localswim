@@ -43,6 +43,8 @@ export class BoardClient {
   private readonly fetcher: typeof fetch;
   private readonly origin: string;
   private closed = false;
+  private readonly commitObservers = new Set<() => void>();
+  onCommitted(callback: () => void): () => void { this.commitObservers.add(callback); return () => { this.commitObservers.delete(callback); }; }
   private readonly previews = new Map<string, Preview>();
   private readonly inFlight = new Set<string>();
   static async open(options: ClientOptions): Promise<BoardClient> {
@@ -74,7 +76,7 @@ export class BoardClient {
     this.recovery = new RecoveryStore(driver, options.installationId,
       options.profileId, boardBoundaryVerifier, options.qualification);
   }
-  close(): void { this.closed = true; this.driver.close(); }
+  close(): void { this.closed = true; this.commitObservers.clear(); this.driver.close(); }
   private path(boardId: string): string {
     if (!uuid.test(boardId) || boardId === "00000000-0000-0000-0000-000000000000") throw Error("Invalid board identity");
     if (this.options.selection && boardId !== this.options.selection.boardId) throw Error("Selected board mismatch");
@@ -164,6 +166,7 @@ export class BoardClient {
       if (!allowTerminal) return unknown();
       const terminal = value as unknown as Terminal;
       const status = await this.recovery.appendTerminal(evidence.context, opId, terminal);
+      if (status.outcome === "committed" && !this.closed) for (const callback of this.commitObservers) { try { callback(); } catch { /* Observers do not change original proof. */ } }
       return { opId, state: status.outcome, evidence, terminal, message: status.outcome === "committed" ? "Confirmed saved." : "Definitive noncommit. Reconcile current text before a deliberate new submission." };
     } catch { return unknown(); }
   }

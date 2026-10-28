@@ -1,0 +1,69 @@
+M01.07 ordinary workspace chooser and browser navigation
+2026-10-28
+
+The normal workspace entry now presents the configured projects/boards and their
+supported Attention. Selection uses the accepted private-view controller; switching
+does not reload the page, reconstruct editors or choose a default board.
+
+Shell and routes
+- The homepage chooser and flat Other sidebar show readable project/board labels,
+  known zero versus unknown/not-configured counts, availability and observation age.
+  Server ordering remains authoritative; polling or time alone does not resort
+  labels locally. Empty projects are described only with matching metadata revision.
+- Normal links, sidebar keys and /board/<project>/<board> deep links select explicit
+  keys. Modified/native links can open a new browsing context. Unknown targets stay
+  unavailable without selecting a neighboring or remembered board.
+- The sidebar uses keyed rows; updates preserve the editor root and focused row.
+  Arrow/Home/End and activation keys are scoped to sidebar navigation and do not
+  capture typing in editors. Collapse/width preferences are bounded window-local
+  state, separate from board input and future shared pin preferences.
+- App composition preserves M01.05's single 20-second initial acquisition budget,
+  late cleanup, retained actual views, private-write navigation gates and own-window
+  reload references. Back/Forward and explicit links use the same controller gate.
+
+Refresh and authority
+The browser uses strict Go-generated Projects/Catalog schemas, exact workspace
+identity and same-origin workspace cookies. Response bodies are bounded; redirects,
+wrong identities and stale connection generations refuse. No capability is displayed.
+
+Visible windows poll every five seconds and react to focus/visibility, deliberate
+Refresh/Retry and validated local committed outcomes. Projects then Catalog form one
+in-flight pipeline. Triggers coalesce; a queued follow-up waits while hidden, and
+reconnect/disposal generation fences prevent late publication. Listeners/timers are
+released without creating overlapping aborted/replacement reads.
+
+A full transport failure preserves clearly labeled last observations, keeping
+healthy board navigation usable. New per-board unknown/unavailable results replace
+old facts, and explicit workspace authority/identity loss clears unsafe metadata.
+Known zero is never manufactured from failure or unsupported categories.
+
+Healthy Refresh boards triggers GET reads only. Deliberate recovery from unavailable
+metadata can renew its cookie; selected board access is renewed only when needed.
+An unseen restart may first reveal expired authority, then offer deliberate Retry.
+Neither path resubmits mutations or automatically looks up originals. Only a valid,
+persisted committed terminal result triggers the local commit observer; throwing
+observers cannot change the already classified operation outcome.
+
+Implementation boundaries
+WorkspaceShell owns only metadata/chooser/sidebar DOM and a controller-exclusive
+editor root. WorkspaceCatalogRefresh owns its single read pipeline and trusted last
+snapshot. WindowBoardController owns routes, history, private views and input gates.
+Their composition supplies the ordinary user journey without a new framework,
+global current-board server state, event bus, schema change or pin implementation.
+
+Evidence and remaining work
+Strict/component tests exercise labels/keys/count states, generation/authority
+loss, visibility, history races, committed proof observers and initial loading.
+Normal compiled executable/Chrome/CLI proof seeds three boards in two projects,
+then uses actual chooser/sidebar/editor controls for positive journeys: exact edits,
+deep links, Back/Forward, keyboard/rapid selection, shared-context window isolation,
+automatic browser/CLI refresh and native outage/restart. Delay/denial/refusal/cache
+faults are separately labeled supplements; they do not replace missing UI behavior.
+Native forwarding in those supplements preserves the browser's Origin proof.
+
+This is M01.07 implementation and scoped evidence, not final joined M01 acceptance.
+Shared pins/preferences remain M01.08, joined qualification M01.09, and independent
+demo/candidate/report validation M01.10. No real import/cutover, broader workflow,
+new account/trust ceremony or power-loss guarantee is introduced. Existing attachment
+forms remain memory-only and require submission/discard before leaving. Private
+runtime data, credentials, run scripts and evidence remain outside the public repo.

@@ -24,7 +24,7 @@ export async function openWorkspaceSession(workspaceId, fetcher = globalThis.fet
     };
     const initial = await bootstrapWorkspace();
     let marker = initial.epoch + ":" + crypto.randomUUID(), generation = 0;
-    const callbacks = new Set();
+    const callbacks = new Set(), connected = new Set();
     const clear = () => { marker = undefined; generation++; for (const callback of callbacks) {
         try {
             callback();
@@ -43,6 +43,12 @@ export async function openWorkspaceSession(workspaceId, fetcher = globalThis.fet
         if (generation !== started)
             throw Error("Workspace connection changed");
         marker = next.epoch + ":" + crypto.randomUUID();
+        for (const callback of connected) {
+            try {
+                callback();
+            }
+            catch { /* Observers do not supply authority. */ }
+        }
         return next;
     };
     const resolve = async (projectKey, boardKey) => {
@@ -57,6 +63,7 @@ export async function openWorkspaceSession(workspaceId, fetcher = globalThis.fet
         return result;
     };
     return Object.freeze({ initial: Object.freeze({ ...initial }), resolve, reconnect, clear,
+        onConnected(callback) { connected.add(callback); return () => { connected.delete(callback); }; },
         onUnavailable(callback) { callbacks.add(callback); return () => { callbacks.delete(callback); }; },
         async openBoard(selection) {
             current();

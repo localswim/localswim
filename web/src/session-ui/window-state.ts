@@ -1,6 +1,7 @@
 import type { Context } from "../recovery/types.js";
 
 export type EditorReference = Readonly<{ context: Context; draftId: string }>;
+export type SidebarLayout = Readonly<{ collapsed: boolean; width: number }>;
 export type PrivateViewState = { editor?: EditorReference; recovery?: EditorReference; scrollX?: number; scrollY?: number; focusPath?: number[]; selection?: [number | null, number | null] };
 const storageKey = "localswim.window.v1", uuid = /^[0-9a-f-]{36}$/;
 
@@ -11,13 +12,17 @@ export class WindowState {
   readonly id: string;
   private readonly boards: Record<string, PrivateViewState> = {};
   private readonly storage: Storage | undefined;
+  private layout: SidebarLayout = { collapsed: false, width: 280 };
   constructor(storage?: Storage, navigationType = performance.getEntriesByType("navigation")[0] && (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming).type) {
     try { this.storage = storage ?? globalThis.sessionStorage; } catch { this.storage = undefined; }
-    let retained: { id?: unknown; boards?: unknown } | undefined;
+    let retained: { id?: unknown; boards?: unknown; layout?: { collapsed?: unknown; width?: unknown } } | undefined;
     try {
       const text = this.storage?.getItem(storageKey);
       if (text && text.length <= 65536 && (navigationType === "reload" || navigationType === "back_forward")) retained = JSON.parse(text);
     } catch { /* Memory remains usable when window-local storage refuses. */ }
+    if (retained?.layout && typeof retained.layout.collapsed === "boolean" && typeof retained.layout.width === "number" && Number.isFinite(retained.layout.width)) {
+      this.layout = { collapsed: retained.layout.collapsed, width: Math.min(420, Math.max(220, Math.round(retained.layout.width))) };
+    }
     this.id = typeof retained?.id === "string" && uuid.test(retained.id) ? retained.id : crypto.randomUUID();
     if (retained?.boards && typeof retained.boards === "object" && !Array.isArray(retained.boards)) {
       for (const [key, value] of Object.entries(retained.boards).slice(0, 256)) {
@@ -32,14 +37,25 @@ export class WindowState {
         }
       }
     }
-    try { this.storage?.setItem(storageKey, JSON.stringify({ id: this.id, boards: this.boards })); } catch { /* Memory identity remains valid for this lifetime. */ }
+    try { this.storage?.setItem(storageKey, JSON.stringify({ id: this.id, boards: this.boards, layout: this.layout })); } catch { /* Memory identity remains valid for this lifetime. */ }
+  }
+  get sidebarLayout(): SidebarLayout { return { ...this.layout }; }
+  setSidebarLayout(layout: SidebarLayout): void {
+    if (typeof layout.collapsed !== "boolean" || !Number.isFinite(layout.width)) return;
+    this.layout = { collapsed: layout.collapsed, width: Math.min(420, Math.max(220, Math.round(layout.width))) };
+    // Layout is advisory UI state. A storage failure never disables the shell or
+    // claims that private editor references have been durably saved.
+    try { this.persist(); } catch { /* Keep the layout for this window lifetime. */ }
+  }
+  private persist(): void {
+    const text = JSON.stringify({ id: this.id, boards: this.boards, layout: this.layout });
+    if (!this.storage || text.length > 65536 || Object.keys(this.boards).length > 256) throw Error("Window recovery index unavailable");
+    this.storage.setItem(storageKey, text);
+    if (this.storage.getItem(storageKey) !== text) throw Error("Window recovery index unverified");
   }
   get(key: string): PrivateViewState { return structuredClone(this.boards[key] ?? {}); }
   put(key: string, state: PrivateViewState): void {
     this.boards[key] = structuredClone(state);
-    const text = JSON.stringify({ id: this.id, boards: this.boards });
-    if (!this.storage || text.length > 65536 || Object.keys(this.boards).length > 256) throw Error("Window recovery index unavailable");
-    this.storage.setItem(storageKey, text);
-    if (this.storage.getItem(storageKey) !== text) throw Error("Window recovery index unverified");
+    this.persist();
   }
 }

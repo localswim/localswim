@@ -10,8 +10,9 @@ export interface WorkspaceConnection {
   openBoard(selection: WorkspaceResolve): Promise<Access>;
   reconnect?(): Promise<unknown>;
 }
+export type RouteStatus = Readonly<{ requestedPath: string; activePath?: string; phase: "loading" | "ready" | "unavailable" | "blocked"; message?: string }>;
 type Retained = { root: HTMLElement; view: LocalSessionView; access: Access; key: string;
-  readiness: Promise<void>;
+  readiness: Promise<void>; stopCommit: () => void;
   focus?: HTMLElement; selection?: readonly [number | null, number | null]; scroll: readonly [number, number];
   offsets: Array<readonly [HTMLElement, number, number]> };
 const slug = "[a-z0-9]+(?:-[a-z0-9]+)*";
@@ -30,6 +31,20 @@ export class WindowBoardController {
   private index = 0;
   private reverting = false;
   private historyGeneration = 0;
+  private navigationGeneration = 0;
+  private routeStatus: RouteStatus = { requestedPath: location.pathname, phase: "loading" };
+  private readonly routeObservers = new Set<(status: RouteStatus) => void>();
+  private readonly commitObservers = new Set<() => void>();
+  subscribe(callback: (status: RouteStatus) => void): () => void {
+    this.routeObservers.add(callback); callback(this.routeStatus);
+    return () => { this.routeObservers.delete(callback); };
+  }
+  onCommitted(callback: () => void): () => void { this.commitObservers.add(callback); return () => { this.commitObservers.delete(callback); }; }
+  get status(): RouteStatus { return this.routeStatus; }
+  private report(status: RouteStatus): void {
+    this.routeStatus = Object.freeze(status);
+    for (const callback of this.routeObservers) { try { callback(this.routeStatus); } catch { /* Presentation cannot change navigation. */ } }
+  }
   readonly windowId: string;
   constructor(private readonly root: HTMLElement, private readonly connection: WorkspaceConnection,
     private readonly state = new WindowState()) {
@@ -51,6 +66,7 @@ export class WindowBoardController {
         button("Discard unpersisted input in retained views", () => { this.discardUnpersistedInput(); notice.remove(); }));
       this.root.append(notice);
     }
+    this.report({ ...this.routeStatus, phase: "blocked", message: "Save or explicitly discard unpersisted private input before navigating." });
     return false;
   }
   async reconnect(): Promise<void> { this.generation++; await this.connection.reconnect?.(); }
@@ -61,21 +77,43 @@ export class WindowBoardController {
   private readonly popState = (event: PopStateEvent): void => {
     if (this.reverting) { this.reverting = false; return; }
     const target = event.state;
-    if (!target || target.localswimWindow !== this.windowId || !Number.isInteger(target.index)) return;
+    if (!target || target.localswimWindow !== this.windowId || !Number.isInteger(target.index)) {
+      // An entry lacking our index cannot safely provide a compensating delta.
+      // Keep private input and restore the current app URL instead of silently
+      // allowing a same-document history entry to bypass its lifetime guard.
+      history.replaceState({ localswimWindow: this.windowId, index: this.index }, "", this.routeStatus.activePath ?? "/");
+      return;
+    }
     const previous = this.index;
     const generation = ++this.historyGeneration;
     void this.navigate(location.pathname, false).then(ok => {
       if (generation !== this.historyGeneration) return;
       if (ok) this.index = target.index;
-      else { this.reverting = true; history.go(previous - target.index); }
+      else if (previous !== target.index) { this.reverting = true; history.go(previous - target.index); }
+      else history.replaceState({ localswimWindow: this.windowId, index: this.index }, "", this.routeStatus.activePath ?? "/");
     });
   };
-  async navigate(path: string, push = true): Promise<boolean> {
+  async retryRequested(reconnect = true): Promise<boolean> {
+    const path = this.routeStatus.requestedPath, navigation = this.navigationGeneration;
+    if (reconnect) { try { await this.reconnect(); } catch { /* Resolve renders unavailable deliberately. */ } }
+    if (navigation !== this.navigationGeneration || this.destroyed) return false;
+    return this.navigate(path, false, true);
+  }
+  async navigate(path: string, push = true, renewBoard = false): Promise<boolean> {
+    if (this.destroyed) return false;
+    const navigation = ++this.navigationGeneration;
+    if (push) this.historyGeneration++;
+    this.report({ requestedPath: path, ...(this.routeStatus.activePath ? { activePath: this.routeStatus.activePath } : {}), phase: "loading" });
     const route = boardRoute(path);
-    if (path !== "/" && !route) throw Error("Invalid board route");
-    const allowed = route ? await this.select(route[0], route[1]) : await this.showPendingShell();
+    const allowed = route ? await this.select(route[0], route[1], renewBoard) : await this.showPendingShell(path);
+    if (navigation !== this.navigationGeneration || this.destroyed) return false;
     if (allowed) {
-      if (push && location.pathname !== path) history.pushState({ localswimWindow: this.windowId, index: ++this.index }, "", path);
+      if (push && location.pathname !== path) {
+        const entry = history.state;
+        if (entry?.localswimWindow === this.windowId && Number.isInteger(entry.index)) this.index = entry.index;
+        history.pushState({ localswimWindow: this.windowId, index: ++this.index }, "", path);
+      }
+      this.report({ requestedPath: path, activePath: path, phase: this.routeStatus.phase === "unavailable" ? "unavailable" : "ready" });
     }
     return allowed;
   }
@@ -123,11 +161,12 @@ export class WindowBoardController {
     for (const [node, x, y] of view.offsets) { node.scrollLeft = x; node.scrollTop = y; }
     window.scrollTo(...view.scroll);
   }
-  async select(projectKey: string, boardKey: string): Promise<boolean> {
+  async select(projectKey: string, boardKey: string, renewBoard = false): Promise<boolean> {
     if (this.destroyed || !boardRoute("/board/" + projectKey + "/" + boardKey)) return false;
     const generation = ++this.generation;
-    if (!await this.flushPrivateInput()) return this.blocked();
+    const persisted = await this.flushPrivateInput();
     if (generation !== this.generation || this.destroyed) return false;
+    if (!persisted) return this.blocked();
     let access: Access | undefined;
     const deadline = Date.now() + 20_000;
     try {
@@ -137,6 +176,7 @@ export class WindowBoardController {
       const identity = selected.member.identity;
       const key = [identity.installationId, identity.boardId, identity.incarnation].join(":");
       let retained = this.views.get(key);
+      const existed = !!retained;
       if (!retained) {
         access = await this.bounded(this.connection.openBoard(selected), deadline, late => { late.clear(); late.client.close(); });
         if (generation !== this.generation || this.destroyed) { access.clear(); access.client.close(); return false; }
@@ -145,7 +185,8 @@ export class WindowBoardController {
           ...(previous.recovery ? { recovery: previous.recovery } : {}),
           checkpoint: reference => this.state.put(key, { ...this.state.get(key), editor: reference }),
           recoveryCheckpoint: reference => this.state.put(key, { ...this.state.get(key), recovery: reference }) });
-        retained = { root: host, view, access, key, readiness: Promise.resolve(), scroll: [previous.scrollX ?? 0, previous.scrollY ?? 0], offsets: [] };
+        const stopCommit = access.client.onCommitted?.(() => { for (const callback of this.commitObservers) { try { callback(); } catch {} } }) ?? (() => {});
+        retained = { stopCommit, root: host, view, access, key, readiness: Promise.resolve(), scroll: [previous.scrollX ?? 0, previous.scrollY ?? 0], offsets: [] };
         this.views.set(key, retained);
         access = undefined; // The retained view now owns cleanup, including timeout.
         const candidate = retained;
@@ -154,43 +195,54 @@ export class WindowBoardController {
           // Initialization lifetime belongs to the view, not whichever navigation
           // first requested it. All concurrent selectors see this same failure.
           if (this.views.get(key) === candidate) {
-            this.views.delete(key); view.destroy(); candidate.access.clear(); candidate.access.client.close();
+            this.views.delete(key); candidate.stopCommit(); view.destroy(); candidate.access.clear(); candidate.access.client.close();
           }
           throw error;
         });
         void candidate.readiness.catch(() => {});
       }
       await this.bounded(retained.readiness, deadline);
+      if (renewBoard && existed) await this.bounded(retained.access.reconnect(), deadline);
       if (!retained.focus) {
         const previous = this.state.get(key);
         let focus: Element | undefined = retained.root;
         for (const index of previous.focusPath ?? []) focus = focus?.children[index];
         if (previous.focusPath && focus instanceof HTMLElement) { retained.focus = focus; retained.selection = previous.selection; }
       }
-      if (!await this.flushPrivateInput()) return this.blocked();
+      const persisted = await this.flushPrivateInput();
       if (generation !== this.generation || this.destroyed) return false;
+      if (!persisted) return this.blocked();
       this.root.querySelector('[data-private-navigation="blocked"]')?.remove();
       if (this.active !== retained) { this.suspend(); this.attach(retained); }
       return true;
     } catch {
       if (access && ![...this.views.values()].some(v => v.access === access)) { access.clear(); access.client.close(); }
       if (generation !== this.generation || this.destroyed) return false;
-      if (!await this.flushPrivateInput()) return this.blocked();
-      this.suspend(); this.root.replaceChildren(element("h1", "Localswim"), element("p", "Selected board unavailable. Retained private views and original outcomes remain with their source board. Retry deliberately; no board action was submitted."), button("Retry selected board", () => { void this.reconnect().then(() => this.select(projectKey, boardKey)).catch(() => {}); }));
+      const persisted = await this.flushPrivateInput();
+      if (generation !== this.generation || this.destroyed) return false;
+      if (!persisted) return this.blocked();
+      this.report({ ...this.routeStatus, phase: "unavailable" });
+      this.suspend(); this.root.replaceChildren(element("h1", "Localswim"), element("p", "Selected board unavailable. Retained private views and original outcomes remain with their source board. Retry deliberately; no board action was submitted."), button("Retry selected board", () => { void this.retryRequested().catch(() => {}); }));
       return true;
     }
   }
-  async showPendingShell(): Promise<boolean> {
+  async showPendingShell(path = "/"): Promise<boolean> {
     const generation = ++this.generation;
-    if (!await this.flushPrivateInput()) return this.blocked();
+    const persisted = await this.flushPrivateInput();
     if (generation !== this.generation || this.destroyed) return false;
-    this.suspend(); this.root.replaceChildren(element("h1", "Localswim workspace"), element("p", "Workspace connected. Board chooser and sidebar are pending M01.07. Open an explicit registered board route to use its private view."));
+    if (!persisted) return this.blocked();
+    this.suspend();
+    if (path === "/") this.root.replaceChildren();
+    else {
+      this.report({ ...this.routeStatus, phase: "unavailable" });
+      this.root.replaceChildren(element("h1", "Selected board unavailable"), element("p", "This route does not identify a registered board. Choose an explicit board from the workspace."));
+    }
     return true;
   }
   destroy(): void {
-    this.destroyed = true; this.generation++;
+    this.destroyed = true; this.generation++; this.navigationGeneration++; this.routeObservers.clear(); this.commitObservers.clear();
     window.removeEventListener("beforeunload", this.beforeUnload); window.removeEventListener("popstate", this.popState);
-    for (const retained of this.views.values()) { retained.view.destroy(); retained.access.clear(); retained.access.client.close(); }
+    for (const retained of this.views.values()) { retained.stopCommit(); retained.view.destroy(); retained.access.clear(); retained.access.client.close(); }
     this.views.clear(); this.active = undefined; this.root.replaceChildren();
   }
 }

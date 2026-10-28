@@ -163,3 +163,18 @@ export async function runWorkspaceSessionSmoke(): Promise<number> {
   } finally { aa?.clear(); bb?.clear(); aa?.client.close(); bb?.client.close(); access.clear(); }
   return passed;
 }
+
+
+export async function runWorkspaceConnectionObserverProbe(): Promise<number> {
+  const workspaceId = crypto.randomUUID(), epoch = crypto.randomUUID();
+  let malformed = false, connected = 0, unavailable = 0;
+  const fetcher: typeof fetch = async input => reply(String(input) === "/api/v1/runtime-mode" ? { apiVersion: 1, mode: "workspace", workspaceId }
+    : malformed ? { apiVersion: 1, workspaceId, epoch, mode: "automation" } : { apiVersion: 1, workspaceId, epoch, mode: "human" });
+  const access = await openWorkspaceSession(workspaceId, fetcher);
+  const stop = access.onConnected(() => { connected++; }); access.onUnavailable(() => { unavailable++; });
+  assert(connected === 0 && unavailable === 0, "Observer subscription invented a reconnect");
+  await access.reconnect(); assert(Number(connected) === 1 && Number(unavailable) === 1, "Validated reconnect did not announce replacement generation");
+  malformed = true; await refuses(() => access.reconnect()); assert(Number(connected) === 1 && Number(unavailable) === 2, "Invalid reconnect published connected authority");
+  stop(); malformed = false; await access.reconnect(); assert(Number(connected) === 1 && Number(unavailable) === 3, "Unsubscribed observer was called");
+  access.clear(); return 4;
+}

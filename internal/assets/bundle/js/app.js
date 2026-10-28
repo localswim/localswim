@@ -7,6 +7,9 @@ import { SessionWorkspace } from "./session-ui/workspace.js";
 import { readRuntimeMode } from "./api/runtime.js";
 import { openWorkspaceSession } from "./api/workspace-session.js";
 import { WindowBoardController } from "./session-ui/window-controller.js";
+import { createWorkspaceCatalogClient } from "./api/catalog.js";
+import { WorkspaceCatalogRefresh } from "./workspace-ui/refresh.js";
+import { WorkspaceShell } from "./workspace-ui/view.js";
 import { WindowState } from "./session-ui/window-state.js";
 const mounted = new WeakMap();
 const connections = new WeakMap();
@@ -57,9 +60,15 @@ export async function connectLocalApplication(root, fetcher = globalThis.fetch.b
     let local;
     let workspace;
     let controller, view;
+    let shell, refresh;
+    let stopRoute, stopCommit;
     let closed = false;
     const cleanup = () => {
+        stopRoute?.();
+        stopCommit?.();
+        refresh?.dispose();
         controller?.destroy();
+        shell?.destroy();
         view?.destroy();
         local?.clear();
         local?.client.close();
@@ -76,7 +85,33 @@ export async function connectLocalApplication(root, fetcher = globalThis.fetch.b
             if (runtime.mode === "workspace") {
                 workspace = await openWorkspaceSession(runtime.workspaceId, guarded);
                 current();
-                controller = new WindowBoardController(stage, workspace);
+                const state = new WindowState();
+                let retrying = false;
+                const retry = async () => {
+                    if (retrying || closed || !controller || !refresh)
+                        return;
+                    retrying = true;
+                    try {
+                        const selectedUnavailable = controller.status.phase === "unavailable", requestedPath = controller.status.requestedPath;
+                        if (selectedUnavailable || refresh.snapshot.phase === "unavailable") {
+                            await refresh.reconnect();
+                            if (!closed && selectedUnavailable && controller.status.phase === "unavailable" && controller.status.requestedPath === requestedPath)
+                                await controller.retryRequested(false);
+                        }
+                        else
+                            refresh.trigger();
+                    }
+                    catch { /* Both refresh and selection publish their own unavailable state. */ }
+                    finally {
+                        retrying = false;
+                    }
+                };
+                shell = new WorkspaceShell(stage, { navigate: path => controller?.navigate(path) ?? Promise.resolve(false), retry: () => { void retry(); },
+                    layout: state.sidebarLayout, layoutChanged: layout => state.setSidebarLayout(layout) });
+                controller = new WindowBoardController(shell.editorRoot, workspace, state);
+                stopRoute = controller.subscribe(status => shell?.setRouteStatus(status));
+                refresh = new WorkspaceCatalogRefresh(createWorkspaceCatalogClient(workspace, guarded), { onChange: snapshot => shell?.setCatalog(snapshot) });
+                stopCommit = controller.onCommitted(() => refresh?.trigger());
                 await controller.navigate(location.pathname, false);
                 current();
             }
@@ -108,8 +143,10 @@ export async function connectLocalApplication(root, fetcher = globalThis.fetch.b
         }
         root.replaceChildren(stage);
         mounted.set(root, application);
-        if (controller)
+        if (controller) {
             controller.activate();
+            refresh?.start();
+        }
         else
             view?.activate();
         return application;

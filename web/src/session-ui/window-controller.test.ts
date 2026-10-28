@@ -132,6 +132,7 @@ export async function runPrivateWindowProbe(boardA: BoardRead, sessionA: Session
     async openBoard(selected: WorkspaceResolve) { return access(selected.member.boardKey === "a" ? a : b); },
   };
   const controller = new WindowBoardController(host, connection, new WindowState(storage, "navigate"));
+  let commits = 0; controller.onCommitted(() => { commits++; });
   const settle = async (test: () => boolean): Promise<void> => {
     for (let i = 0; i < 250; i++) { if (test()) return; await new Promise(resolve => setTimeout(resolve, 20)); }
     throw Error("Private view probe did not settle");
@@ -155,9 +156,12 @@ export async function runPrivateWindowProbe(boardA: BoardRead, sessionA: Session
     check(document.activeElement === original && original.selectionStart === 2 && original.selectionEnd === 5, "Switch lost focus or text selection");
     a.state.mode = "late"; button("Save").click();
     await settle(() => a.state.releases.length === 1);
+    check(commits === 0, "Pending optimistic save triggered committed refresh");
     await controller.navigate("/board/test/b", false);
     a.state.releases[0]!();
     await settle(() => a.state.terminals.size === 1);
+    await settle(() => commits === 1);
+    check(commits === 1, "Validated detached A commit did not trigger exactly one workspace refresh");
     await new Promise(resolve => setTimeout(resolve, 50));
     check(!host.textContent!.includes("Confirmed saved.") && !host.querySelector('input[name="title"]'), "Late A completion painted B");
     await controller.navigate("/board/test/a", false);
@@ -172,4 +176,77 @@ export async function runPrivateWindowProbe(boardA: BoardRead, sessionA: Session
     check(await controller.navigate("/board/test/a", false), "Explicit discard did not release navigation guard");
     return checks;
   } finally { controller.destroy(); }
+}
+
+
+// Route state and browser history are exercised with actual retained DOM/IDB.
+export async function runWorkspaceNavigationProbe(boardA: BoardRead, sessionA: SessionRead, boardB: BoardRead, sessionB: SessionRead): Promise<number> {
+  const a = await mountSyntheticBoard(boardA, sessionA), b = await mountSyntheticBoard(boardB, sessionB); a.view.destroy(); b.view.destroy();
+  const host = document.createElement("main"); document.body.replaceChildren(host);
+  const storage = new MemoryStorage();
+  const state = new WindowState(storage, "navigate");
+  state.setSidebarLayout({ collapsed: true, width: 900 });
+  let checks = 0;
+  const check = (value: boolean, message: string): void => { if (!value) throw Error(message); checks++; };
+  check(state.sidebarLayout.collapsed && state.sidebarLayout.width === 420, "Layout bound was not enforced");
+  const reloaded = new WindowState(storage, "reload");
+  check(reloaded.id === state.id && reloaded.sidebarLayout.collapsed && reloaded.sidebarLayout.width === 420, "Reload lost window layout/identity");
+  check(!new WindowState(storage, "navigate").sidebarLayout.collapsed, "New window adopted opener layout");
+  storage.fail = true; state.setSidebarLayout({ collapsed: false, width: 1 });
+  check(!state.sidebarLayout.collapsed && state.sidebarLayout.width === 220, "Denied layout persistence disabled memory UI"); storage.fail = false;
+  let release: (() => void) | undefined, waiting = false;
+  const connection = {
+    async resolve(projectKey: string, boardKey: string): Promise<WorkspaceResolve> {
+      if (boardKey === "slow") { waiting = true; await new Promise<void>(resolve => { release = resolve; }); throw Error("Late unavailable response"); }
+      if (boardKey === "unknown") throw Error("Unregistered selected board");
+      const fixture = boardKey === "a" ? a : b;
+      return { apiVersion: 1, workspaceId: "00000000-0000-4000-8000-000000000091", configRevision: 1, member: {
+        projectKey, boardKey, label: boardKey, availability: "ready", memberEpoch: "00000000-0000-4000-8000-000000000092",
+        identity: { installationId: "00000000-0000-4000-8000-000000000090", ...fixture.board.result.identity } } };
+    },
+    async openBoard(selected: WorkspaceResolve) {
+      const fixture = selected.member.boardKey === "a" ? a : b;
+      return { client: fixture.client, initial: fixture.auth, recoveryReady: true, clear(): void {}, onUnavailable(): () => void { return () => {}; }, reconnect: () => fixture.client.session() };
+    },
+  };
+  const oldState = history.state, oldURL = location.href;
+  const traverse = async (direction: "back" | "forward"): Promise<void> => {
+    const event = new Promise<void>(resolve => window.addEventListener("popstate", () => resolve(), { once: true })); history[direction](); await event;
+  };
+  let controller = new WindowBoardController(host, connection, state);
+  const settle = async (test: () => boolean): Promise<void> => { for (let i = 0; i < 200; i++) { if (test()) return; await new Promise(resolve => setTimeout(resolve, 5)); } throw Error("Navigation did not settle"); };
+  try {
+    check(await controller.navigate("/"), "Root chooser navigation refused");
+    check(host.childElementCount === 0 && controller.status.activePath === "/", "Root selected a default board");
+    await controller.navigate("/board/test/a");
+    const aRoot = host.firstElementChild;
+    const pending = controller.navigate("/board/test/slow"); await settle(() => waiting);
+    check(controller.status.phase === "loading" && controller.status.requestedPath === "/board/test/slow" && controller.status.activePath === "/board/test/a" && host.firstElementChild === aRoot, "Loading replaced active view or hid requested route");
+    await controller.navigate("/board/test/b"); const bRoot = host.firstElementChild; release!();
+    check(!await pending && controller.status.activePath === "/board/test/b" && host.firstElementChild === bRoot && location.pathname === "/board/test/b", "Late old navigation repainted or changed history");
+    await controller.navigate("/board/test/unknown");
+    check(controller.status.phase === "unavailable" && controller.status.activePath === "/board/test/unknown" && host.textContent!.includes("Selected board unavailable"), "Unknown board fell back to a healthy board");
+    await controller.navigate("/board/test/a");
+    check(host.firstElementChild === aRoot, "Unavailable route destroyed retained A view");
+    await controller.navigate("/bad/route");
+    check(controller.status.phase === "unavailable" && controller.status.activePath === "/bad/route", "Malformed route selected a board or threw outside shell");
+    await controller.navigate("/board/test/a"); await controller.navigate("/board/test/b");
+    const originalFlush = controller.flushPrivateInput.bind(controller); controller.flushPrivateInput = async () => false;
+    check(!await controller.navigate("/") && controller.status.phase === "blocked" && controller.status.activePath === "/board/test/b" && host.firstElementChild === bRoot && location.pathname === "/board/test/b", "Blocked root navigation detached private view");
+    await traverse("back"); await settle(() => controller.status.phase === "blocked" && location.pathname === "/board/test/b");
+    check(host.firstElementChild === bRoot, "Denied Back lost retained view");
+    controller.flushPrivateInput = originalFlush;
+    await traverse("back"); await settle(() => controller.status.activePath === "/board/test/a");
+    check(host.firstElementChild === aRoot, "Back did not restore actual A DOM");
+    await traverse("forward"); await settle(() => controller.status.activePath === "/board/test/b");
+    check(host.firstElementChild === bRoot, "Forward did not restore actual B DOM");
+    // Recreate only the controller lifetime to model a same-window reload. The
+    // original history index must survive even while private persistence refuses.
+    controller.destroy(); controller = new WindowBoardController(host, connection, new WindowState(storage, "reload"));
+    await controller.navigate(location.pathname, false); controller.flushPrivateInput = async () => false;
+    await traverse("back"); await settle(() => controller.status.phase === "blocked" && location.pathname === "/board/test/b");
+    check(controller.windowId === state.id && controller.status.activePath === "/board/test/b", "Reload history bypassed private navigation guard");
+    check(a.state.mutations === 0 && b.state.mutations === 0 && a.state.lookups === 0 && b.state.lookups === 0, "Route navigation submitted or looked up an original");
+    return checks;
+  } finally { release?.(); controller.destroy(); history.replaceState(oldState, "", oldURL); }
 }

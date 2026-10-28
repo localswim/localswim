@@ -15,6 +15,8 @@ export class BoardClient {
     fetcher;
     origin;
     closed = false;
+    commitObservers = new Set();
+    onCommitted(callback) { this.commitObservers.add(callback); return () => { this.commitObservers.delete(callback); }; }
     previews = new Map();
     inFlight = new Set();
     static async open(options) {
@@ -52,7 +54,7 @@ export class BoardClient {
         this.fetcher = options.fetch ?? globalThis.fetch.bind(globalThis);
         this.recovery = new RecoveryStore(driver, options.installationId, options.profileId, boardBoundaryVerifier, options.qualification);
     }
-    close() { this.closed = true; this.driver.close(); }
+    close() { this.closed = true; this.commitObservers.clear(); this.driver.close(); }
     path(boardId) {
         if (!uuid.test(boardId) || boardId === "00000000-0000-0000-0000-000000000000")
             throw Error("Invalid board identity");
@@ -172,6 +174,13 @@ export class BoardClient {
                 return unknown();
             const terminal = value;
             const status = await this.recovery.appendTerminal(evidence.context, opId, terminal);
+            if (status.outcome === "committed" && !this.closed)
+                for (const callback of this.commitObservers) {
+                    try {
+                        callback();
+                    }
+                    catch { /* Observers do not change original proof. */ }
+                }
             return { opId, state: status.outcome, evidence, terminal, message: status.outcome === "committed" ? "Confirmed saved." : "Definitive noncommit. Reconcile current text before a deliberate new submission." };
         }
         catch {

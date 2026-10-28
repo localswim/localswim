@@ -11,6 +11,7 @@ export type WorkspaceSessionAccess = Readonly<{
   reconnect(): Promise<WorkspaceBootstrap>;
   clear(): void;
   onUnavailable(callback: () => void): () => void;
+  onConnected(callback: () => void): () => void;
 }>;
 const key = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 function selectedKeys(projectKey: string, boardKey: string): string {
@@ -33,7 +34,7 @@ export async function openWorkspaceSession(workspaceId: string, fetcher: typeof 
   };
   const initial = await bootstrapWorkspace();
   let marker: string | undefined = initial.epoch + ":" + crypto.randomUUID(), generation = 0;
-  const callbacks = new Set<() => void>();
+  const callbacks = new Set<() => void>(), connected = new Set<() => void>();
   const clear = (): void => { marker = undefined; generation++; for (const callback of callbacks) { try { callback(); } catch {} } };
   const current = (expected?: string): string => {
     if (!marker || location.origin !== origin || (expected !== undefined && marker !== expected)) throw Error("Workspace connection unavailable");
@@ -44,6 +45,7 @@ export async function openWorkspaceSession(workspaceId: string, fetcher: typeof 
     const next = await bootstrapWorkspace();
     if (generation !== started) throw Error("Workspace connection changed");
     marker = next.epoch + ":" + crypto.randomUUID();
+    for (const callback of connected) { try { callback(); } catch { /* Observers do not supply authority. */ } }
     return next;
   };
   const resolve = async (projectKey: string, boardKey: string): Promise<WorkspaceResolve> => {
@@ -55,6 +57,7 @@ export async function openWorkspaceSession(workspaceId: string, fetcher: typeof 
     return result;
   };
   return Object.freeze({ initial: Object.freeze({ ...initial }), resolve, reconnect, clear,
+    onConnected(callback: () => void): () => void { connected.add(callback); return () => { connected.delete(callback); }; },
     onUnavailable(callback: () => void): () => void { callbacks.add(callback); return () => { callbacks.delete(callback); }; },
     async openBoard(selection: WorkspaceResolve): Promise<LocalSessionAccess> {
       current(); const selected = structuredClone(selection);

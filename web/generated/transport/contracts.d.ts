@@ -389,6 +389,39 @@ export type SessionCodeCLI = {
   readonly scope: "session-code";
 };
 
+export type StandaloneRuntimeMode = {
+  readonly apiVersion: 1;
+  readonly mode: "standalone";
+};
+
+export type WorkspaceRuntimeMode = {
+  readonly apiVersion: 1;
+  readonly mode: "workspace";
+  readonly workspaceId: string;
+};
+
+export type BoardBootstrapRequest = {
+  readonly apiVersion: 1;
+  readonly incarnation: string;
+  readonly installationId: string;
+};
+
+export type LocalBootstrap = {
+  readonly apiVersion: 1;
+  readonly boardId: string;
+  readonly epoch: string;
+  readonly incarnation: string;
+  readonly installationId: string;
+  readonly session: SessionRead;
+};
+
+export type WorkspaceBootstrap = {
+  readonly apiVersion: 1;
+  readonly epoch: string;
+  readonly mode: "human";
+  readonly workspaceId: string;
+};
+
 export type TerminalCardCreateCommittedFull = {
   readonly actorId: string;
   readonly apiVersion: 1;
@@ -1568,6 +1601,8 @@ export type RequestHistoryClear = Omit<Mutation.RequestHistoryClear, 'expectedCa
 export type RequestRetentionSet = Omit<Mutation.RequestRetentionSet, 'expectedCardRevision'> & { readonly expectedCardRevision: null };
 
 export type MutationRequest = RequestCardCreate | RequestCardEdit | RequestCommentAdd | RequestAttachmentAdd | RequestLinkAdd | RequestLinkRemove | RequestReviewHandoff | RequestApprove | RequestGrantCreate | RequestGrantRevoke | RequestHistoryClear | RequestRetentionSet;
+
+export type RuntimeMode = StandaloneRuntimeMode | WorkspaceRuntimeMode;
 
 export type PreviewRequest = Archive.PreviewRequest;
 export type Preview = Archive.Preview;

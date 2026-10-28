@@ -1,6 +1,34 @@
 {
   "$comment": "Select a $defs entry. Strict Go decoding and cross-field/reference checks are required. Structure is never terminal authenticity. Secret bodies are ephemeral only; no HTTP, auth, storage, multipart or native implementation.",
   "$defs": {
+    "BoardBootstrapRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "installationId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "incarnation",
+        "installationId"
+      ],
+      "type": "object"
+    },
     "BoardRead": {
       "additionalProperties": false,
       "properties": {
@@ -1645,6 +1673,51 @@
       ],
       "type": "object"
     },
+    "LocalBootstrap": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "epoch": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "installationId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "session": {
+          "$ref": "#/$defs/SessionRead"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "boardId",
+        "epoch",
+        "incarnation",
+        "installationId",
+        "session"
+      ],
+      "type": "object"
+    },
     "MutationRequest": {
       "anyOf": [
         {
@@ -1990,6 +2063,16 @@
     },
     "RestoreStatus": {
       "$ref": "../archive/contracts.schema.json#/$defs/Status"
+    },
+    "RuntimeMode": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/StandaloneRuntimeMode"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceRuntimeMode"
+        }
+      ]
     },
     "SessionCodeCLI": {
       "oneOf": [
@@ -2952,6 +3035,28 @@
         "apiVersion",
         "outcome",
         "scope"
+      ],
+      "type": "object"
+    },
+    "StandaloneRuntimeMode": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "standalone"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "mode"
       ],
       "type": "object"
     },
@@ -9844,6 +9949,65 @@
         "revision",
         "target",
         "terminalAt"
+      ],
+      "type": "object"
+    },
+    "WorkspaceBootstrap": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "epoch": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "human"
+          ],
+          "type": "string"
+        },
+        "workspaceId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "epoch",
+        "mode",
+        "workspaceId"
+      ],
+      "type": "object"
+    },
+    "WorkspaceRuntimeMode": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "workspace"
+          ],
+          "type": "string"
+        },
+        "workspaceId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "mode",
+        "workspaceId"
       ],
       "type": "object"
     }

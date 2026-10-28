@@ -91,7 +91,23 @@ func Open(ctx context.Context, p Provider, selected Selectors) (*Client, error) 
 		cl.Close()
 		return nil, &Failure{"CREDENTIAL_CONTEXT_MISMATCH", 2}
 	}
-	status, b, err := c.request(ctx, http.MethodGet, "/api/v1/session", nil)
+	if c.workspaceID != "" {
+		status, body, err := c.request(ctx, http.MethodGet, "/api/v1/runtime-mode", nil)
+		if err != nil {
+			cl.Close()
+			return nil, &Failure{"UNAVAILABLE", 3}
+		}
+		mode, err := T.Decode[T.WorkspaceRuntimeMode](body)
+		if status != http.StatusOK || err != nil || string(mode.WorkspaceID) != c.workspaceID {
+			cl.Close()
+			return nil, &Failure{"CREDENTIAL_CONTEXT_MISMATCH", 2}
+		}
+	}
+	sessionPath := "/api/v1/session"
+	if c.sessionPath != "" {
+		sessionPath = c.sessionPath
+	}
+	status, b, err := c.request(ctx, http.MethodGet, sessionPath, nil)
 	if err != nil {
 		cl.Close()
 		return nil, &Failure{"UNAVAILABLE", 3}

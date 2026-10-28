@@ -15,6 +15,7 @@ import (
 )
 
 var enums = map[string][]string{
+	"StandaloneMode": {"standalone"}, "WorkspaceMode": {"workspace"}, "WorkspaceHumanMode": {"human"},
 	"TerminalOutcome": {"committed", "not_committed"}, "RetentionClass": {"full", "compact"}, "RefusedOutcome": {"refused"}, "UnknownOutcome": {"unknown"},
 	"BoardScope": {"board"}, "CardScope": {"card"}, "HistoryScope": {"history"}, "SessionScope": {"session"}, "RevokedOutcome": {"revoked"},
 	"CredentialScope": {"credential"}, "CredentialCommand": {"issue", "revoke"}, "CredentialOutcome": {"confirmed", "refused", "failed", "unavailable", "unknown"},
@@ -190,6 +191,10 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case LocalBootstrap:
+		if x.Session.Grant.BoardID != x.BoardID || x.Session.Grant.Incarnation != x.Incarnation || x.Session.Kind != "human" {
+			return fmt.Errorf("bootstrap session context")
+		}
 	case UUIDv4:
 		if !v4RE.MatchString(string(x)) {
 			return fmt.Errorf("invalid UUIDv4")

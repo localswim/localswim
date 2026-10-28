@@ -1,0 +1,51 @@
+M01.02 workspace runtime bridge
+2026-10-28
+
+The local transport now supports listener-free independent board engines behind
+one numeric IPv4 loopback host. Standalone serve --data uses the same engine.
+The accepted M01.01 contract is the integration authority:
+https://github.com/localswim/v2-architecture/blob/818757fdb9015e446f5e260c47f90860dafac52e/docs/decisions/workspace-contract-2026-10-27.txt
+
+Delivered boundary
+- OpenEngine requires the registered durable tuple when reopening an existing
+  member. A missing expected member is refused without creating its data root.
+- WorkspaceHost owns one listener and dispatches immutable BoardID selections.
+  Attach transfers engine lifetime only on success. Member acquisition and drain
+  occur outside the host bookkeeping mutex. No mutable current board is stored.
+- Board bootstrap/session routes and credentials are scoped to the selected
+  durable tuple. A separate workspace capability permits only its own handler
+  channel; it supplies no board actor/grant or approval authority.
+- Strict version-two member rendezvous advertises the effective host origin while
+  retaining the identity and standalone port. The updated --data CLI verifies the
+  live workspace UUID, derives the selected session route and checks its scope.
+  Legacy standalone metadata and the historical TLS client remain distinct.
+- Closing stops admission and drains admitted handlers before authority/store
+  release. Cleanup preserves foreign-epoch metadata and retains ownership on
+  unresolved cleanup failure. It does not terminate another writer.
+- Go-owned runtime-mode and bootstrap DTOs generate strict schema/declarations.
+  The aggregate generator also owns the browser schema map and its drift check.
+
+Cookie-path correction for owner review with M01.02
+The accepted proposal specified Path=/api/v1/boards/{boardId}/. The existing board
+read is GET /api/v1/boards/{boardId}; a cookie jar excludes the proposed cookie
+from that exact route. The implementation uses Path=/api/v1/boards/{boardId}
+instead. Cookie path-segment matching covers that exact board and descendants,
+without matching another board. Domain API paths remain unchanged. A real cookie
+jar regression covers automatic selection, rather than manually attaching the
+cookie. Accepting M01.02 adopts this bounded correction; the original accepted
+contract commit remains preserved.
+
+Integration responsibilities
+M01.03 must own the private workspace root, persistent registry, expected tuples,
+configuration revision and bounded host rendezvous before starting this host.
+M01.04 supplies workspace CLI selection. M01.05 and later packages consume the
+runtime discriminator, compose window state and deliver workspace navigation,
+catalog and pins. The bridge alone is not a finished workspace application.
+
+Verification limits
+Synthetic Windows/loopback tests cover independent boards, scoped authority,
+identity/port preservation, real cookie selection, native ownership/drain and
+actual built --data CLI compatibility. Existing standalone browser smoke remains
+a compatibility check. These are component/integration evidence, not the later
+joined M01 qualification, real-data adoption or power-loss certification. Private
+runtime data, credentials and execution reports stay outside this repository.

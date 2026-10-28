@@ -17,6 +17,20 @@ import (
 // accepts a native owner nor falls back from the separately pinned TLS path.
 // Open still derives the current actor/grant from the real service before use.
 func NewLocalBoardConnection(c evidence.Context, m CredentialMetadata, token T.SecretToken, onClose ...func()) (*Connection, error) {
+	return newLocalBoardConnection(c, m, token, "", onClose...)
+}
+
+// NewLocalWorkspaceBoardConnection uses only a validated workspace identity as a
+// mode selector. The session route is derived from the selected BoardID, never
+// accepted as a metadata URL. Open still verifies the live actor and full scope.
+func NewLocalWorkspaceBoardConnection(c evidence.Context, m CredentialMetadata, token T.SecretToken, workspaceID string, onClose ...func()) (*Connection, error) {
+	if !v4(workspaceID) {
+		return nil, &Failure{"CREDENTIAL_CONTEXT_MISMATCH", 2}
+	}
+	return newLocalBoardConnection(c, m, token, workspaceID, onClose...)
+}
+
+func newLocalBoardConnection(c evidence.Context, m CredentialMetadata, token T.SecretToken, workspaceID string, onClose ...func()) (*Connection, error) {
 	if !evidence.ValidLocalContext(c) || m.Selected.InstallationID != c.InstallationID ||
 		!uuid(m.Selected.BoardID) || !uuid(m.Selected.Incarnation) || !uuid(m.Selected.GrantID) ||
 		!uuid(m.ActorID) || !time.Now().Before(m.ExpiresAt) {
@@ -51,6 +65,10 @@ func NewLocalBoardConnection(c evidence.Context, m CredentialMetadata, token T.S
 			}
 		})
 	}
-	return &Connection{context: c, metadata: m, local: true, do: client.Do, close: close,
+	sessionPath := "/api/v1/session"
+	if workspaceID != "" {
+		sessionPath = "/api/v1/boards/" + m.Selected.BoardID + "/session"
+	}
+	return &Connection{context: c, metadata: m, local: true, sessionPath: sessionPath, workspaceID: workspaceID, do: client.Do, close: close,
 		authorization: "Bearer " + string(token)}, nil
 }

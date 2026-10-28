@@ -2,13 +2,67 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/localswim/localswim/internal/contract/archive"
 	"github.com/localswim/localswim/internal/contract/transport"
 )
+
+func TestBrowserSchemasAreGeneratedAndReferencesResolve(t *testing.T) {
+	root := t.TempDir()
+	if err := run(root, false); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "web/src/api/schema-data.ts")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, content, found := strings.Cut(string(body), " = ")
+	var definitions map[string]any
+	if !found || json.Unmarshal([]byte(strings.TrimSuffix(content, ";\n")), &definitions) != nil {
+		t.Fatal("browser schema map missing")
+	}
+	for _, name := range []string{"transport:RuntimeMode", "transport:BoardBootstrapRequest", "transport:LocalBootstrap", "transport:WorkspaceBootstrap", "archive:Identity", "mutation:RequestCardCreate"} {
+		if definitions[name] == nil {
+			t.Fatal("browser boundary omitted: " + name)
+		}
+	}
+	var check func(any)
+	check = func(value any) {
+		switch value := value.(type) {
+		case []any:
+			for _, child := range value {
+				check(child)
+			}
+		case map[string]any:
+			for name, child := range value {
+				if name == "$ref" {
+					ref, ok := child.(string)
+					if !ok || definitions[ref] == nil {
+						t.Fatal("unresolved browser schema reference")
+					}
+				} else {
+					check(child)
+				}
+			}
+		}
+	}
+	check(definitions)
+	if err := os.WriteFile(path, []byte("stale browser schema\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := run(root, true); err == nil {
+		t.Fatal("browser schema drift accepted")
+	}
+	if got, _ := os.ReadFile(path); string(got) != "stale browser schema\n" {
+		t.Fatal("check overwrote browser schema")
+	}
+}
 
 func TestCheckDoesNotWrite(t *testing.T) {
 	root := t.TempDir()

@@ -39,8 +39,27 @@ type Options struct {
 }
 type ClientInfo struct {
 	InstallationID, Origin, BoardID, Incarnation, ActorID, GrantID, Epoch string
+	WorkspaceID                                                           string
 	Port                                                                  int
 	Token                                                                 T.SecretToken
+}
+
+// SessionPath is derived solely from validated rendezvous mode and BoardID.
+// Metadata never supplies an arbitrary URL or route.
+func (c ClientInfo) SessionPath() string {
+	if c.WorkspaceID != "" {
+		return "/api/v1/boards/" + c.BoardID + "/session"
+	}
+	return "/api/v1/session"
+}
+
+type BoardIdentity struct{ InstallationID, BoardID, Incarnation string }
+type EngineOptions struct {
+	DataDir          string
+	Port             int
+	Origin           string
+	WorkspaceID      string
+	ExpectedIdentity *BoardIdentity
 }
 
 func (ClientInfo) String() string               { return "local connection [redacted]" }
@@ -65,9 +84,23 @@ type metadata struct {
 	Origin   string   `json:"origin"`
 	BotToken string   `json:"botToken"`
 }
+type workspaceMetadata struct {
+	MetadataVersion int                   `json:"metadataVersion"`
+	Identity        identity              `json:"identity"`
+	Epoch           string                `json:"epoch"`
+	Origin          string                `json:"origin"`
+	BotToken        string                `json:"botToken"`
+	Host            workspaceMetadataHost `json:"host"`
+}
+type workspaceMetadataHost struct {
+	Mode        string `json:"mode"`
+	WorkspaceID string `json:"workspaceId"`
+}
 
-func (m metadata) String() string   { return "local metadata [redacted]" }
-func (m metadata) GoString() string { return m.String() }
+func (m metadata) String() string            { return "local metadata [redacted]" }
+func (m metadata) GoString() string          { return m.String() }
+func (workspaceMetadata) String() string     { return "workspace member metadata [redacted]" }
+func (m workspaceMetadata) GoString() string { return m.String() }
 func uuid() string {
 	var b [16]byte
 	if _, e := rand.Read(b[:]); e != nil {
@@ -136,15 +169,55 @@ func ReadClient(dataDir string) (ClientInfo, error) {
 	if decode(b, &id) != nil || !id.valid() {
 		return out, errLocal
 	}
-	b, e = readPrivate(filepath.Join(dataDir, "service.json"))
+	b, e = readPrivateBounded(filepath.Join(dataDir, "service.json"), 64<<10)
 	if e != nil {
 		return out, e
 	}
-	var m metadata
-	if decode(b, &m) != nil || m.Identity != id || m.Origin != origin(id.Port) || !uuidV4(m.Epoch) || !validToken(m.BotToken) {
+	m, workspaceID, e := decodeMetadata(b)
+	if e != nil || m.Identity != id {
 		return out, errLocal
 	}
-	return ClientInfo{InstallationID: id.InstallationID, Origin: m.Origin, BoardID: id.BoardID, Incarnation: id.Incarnation, ActorID: id.BotID, GrantID: id.BotGrant, Epoch: m.Epoch, Port: id.Port, Token: T.SecretToken(m.BotToken)}, nil
+	return ClientInfo{InstallationID: id.InstallationID, Origin: m.Origin, BoardID: id.BoardID, Incarnation: id.Incarnation, ActorID: id.BotID, GrantID: id.BotGrant, Epoch: m.Epoch, Port: id.Port, Token: T.SecretToken(m.BotToken), WorkspaceID: workspaceID}, nil
+}
+
+// decodeMetadata accepts two exact tagged alternatives, including required keys.
+func decodeMetadata(b []byte) (metadata, string, error) {
+	bad := func() (metadata, string, error) { return metadata{}, "", errLocal }
+	v, e := contract.DecodeJSON(b)
+	if e != nil {
+		return bad()
+	}
+	obj, ok := v.(map[string]any)
+	if !ok {
+		return bad()
+	}
+	var m metadata
+	workspaceID := ""
+	if _, tagged := obj["metadataVersion"]; tagged {
+		var w workspaceMetadata
+		if len(obj) != 6 || decode(b, &w) != nil || w.MetadataVersion != 2 || w.Host.Mode != "workspace" || !uuidV4(w.Host.WorkspaceID) || !canonicalOrigin(w.Origin) {
+			return bad()
+		}
+		m = metadata{w.Identity, w.Epoch, w.Origin, w.BotToken}
+		workspaceID = w.Host.WorkspaceID
+	} else {
+		if len(obj) != 4 || decode(b, &m) != nil || m.Origin != origin(m.Identity.Port) {
+			return bad()
+		}
+	}
+	if !m.Identity.valid() || !uuidV4(m.Epoch) || !validToken(m.BotToken) {
+		return bad()
+	}
+	return m, workspaceID, nil
+}
+
+func canonicalOrigin(s string) bool {
+	const prefix = "http://127.0.0.1:"
+	if !strings.HasPrefix(s, prefix) {
+		return false
+	}
+	p, e := strconv.Atoi(strings.TrimPrefix(s, prefix))
+	return e == nil && p >= 1024 && p <= 65535 && s == origin(p)
 }
 func validToken(s string) bool {
 	b, e := base64.RawURLEncoding.Strict().DecodeString(s)
@@ -152,61 +225,143 @@ func validToken(s string) bool {
 }
 
 type Runtime struct {
-	id                        identity
-	epoch, root               string
-	store                     *S.Store
-	auth                      *authority
-	server                    *http.Server
-	listener                  net.Listener
-	done                      chan struct{}
-	once                      sync.Once
-	reqMu                     sync.Mutex
-	closing                   bool
-	requests                  sync.WaitGroup
-	closeErr                  error
-	release                   func()
-	assets                    http.Handler
-	board, attachment, export http.Handler
+	id                           identity
+	epoch, root                  string
+	effectiveOrigin, workspaceID string
+	store                        *S.Store
+	auth                         *authority
+	server                       *http.Server
+	listener                     net.Listener
+	done                         chan struct{}
+	closeMu                      sync.Mutex
+	closed                       bool
+	reqMu                        sync.Mutex
+	closing                      bool
+	requests                     sync.WaitGroup
+	closeErr                     error
+	storeCloseErr                error
+	release                      func()
+	assets                       http.Handler
+	board, attachment, export    http.Handler
 }
 
-func (r *Runtime) Origin() string        { return origin(r.id.Port) }
+func (r *Runtime) Origin() string { return r.effectiveOrigin }
+func (r *Runtime) Identity() BoardIdentity {
+	return BoardIdentity{r.id.InstallationID, r.id.BoardID, r.id.Incarnation}
+}
 func (r *Runtime) Done() <-chan struct{} { return r.done }
 func (r *Runtime) Close() error {
-	r.once.Do(func() {
-		// Close admission before Shutdown: a net/http handler may be scheduled
-		// after Shutdown/Close returns. Its entry must not Add after Wait or
-		// touch authority/storage after their lifetime has been released.
-		r.reqMu.Lock()
-		r.closing = true
-		r.reqMu.Unlock()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		e := r.server.Shutdown(ctx)
+	r.closeMu.Lock()
+	defer r.closeMu.Unlock()
+	if r.closed {
+		return r.closeErr
+	}
+	// Close admission before Shutdown: a net/http handler may be scheduled
+	// after Shutdown/Close returns. Its entry must not Add after Wait or
+	// touch authority/storage after their lifetime has been released.
+	r.reqMu.Lock()
+	r.closing = true
+	r.reqMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var e error
+	if r.server != nil {
+		e = r.server.Shutdown(ctx)
 		if e != nil {
 			_ = r.server.Close()
 		}
-		r.requests.Wait()
-		r.auth.close()
-		// Metadata removal happens while the exclusive root lock is still held.
-		rm := os.Remove(filepath.Join(r.root, "service.json"))
-		if errors.Is(rm, os.ErrNotExist) {
-			rm = nil
-		}
-		r.closeErr = errors.Join(e, rm, r.store.Close())
-		r.release()
-		close(r.done)
-	})
+	}
+	r.requests.Wait()
+	r.auth.close()
+	// Metadata removal happens while the exclusive root lock is still held.
+	rm := r.removeMetadata()
+	if rm != nil {
+		return errors.Join(e, rm)
+	}
+	if r.storeCloseErr != nil {
+		return r.storeCloseErr
+	}
+	if se := r.store.Close(); se != nil {
+		r.storeCloseErr = errors.Join(e, se)
+		return r.storeCloseErr
+	}
+	r.closeErr = e
+	r.release()
+	r.closed = true
+	close(r.done)
 	return r.closeErr
 }
 
+func (r *Runtime) removeMetadata() error {
+	p := filepath.Join(r.root, "service.json")
+	b, e := readPrivateBounded(p, 64<<10)
+	if e != nil {
+		if _, se := os.Lstat(p); errors.Is(se, os.ErrNotExist) {
+			return nil
+		}
+		return errLocal
+	}
+	m, workspaceID, e := decodeMetadata(b)
+	if e != nil {
+		return e
+	}
+	if m.Epoch != r.epoch || m.Identity != r.id || m.Origin != r.Origin() || workspaceID != r.workspaceID {
+		return nil
+	}
+	return os.Remove(p)
+}
+
+// validateIdentity rechecks durable identity under the pinned root at selected
+// dispatch. Replacement never remaps a registered member or reuses authority.
+func (r *Runtime) validateIdentity() bool {
+	b, e := readPrivate(filepath.Join(r.root, "identity.json"))
+	var id identity
+	return e == nil && decode(b, &id) == nil && id == r.id
+}
+
 func Start(ctx context.Context, o Options) (*Runtime, error) {
+	r, e := openEngine(ctx, EngineOptions{DataDir: o.DataDir, Port: o.Port}, o.Assets)
+	if e != nil {
+		return nil, e
+	}
+	r.listener, e = net.Listen("tcp4", "127.0.0.1:"+strconv.Itoa(r.id.Port))
+	if e != nil {
+		return nil, errors.Join(errLocal, r.Close())
+	}
+	r.server = newServer(r)
+	go func() { _ = r.server.Serve(r.listener); _ = r.Close() }()
+	r.watch(ctx)
+	return r, nil
+}
+
+// OpenEngine acquires one independent board without opening a listener. The
+// caller supplies the canonical effective host context; persistent port remains
+// the standalone default and is never rewritten for workspace membership.
+func OpenEngine(ctx context.Context, o EngineOptions) (*Runtime, error) {
+	if !uuidV4(o.WorkspaceID) || !canonicalOrigin(o.Origin) {
+		return nil, errLocal
+	}
+	r, e := openEngine(ctx, o, nil)
+	if e == nil {
+		r.watch(ctx)
+	}
+	return r, e
+}
+
+func newServer(handler http.Handler) *http.Server {
+	return &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384}
+}
+
+func openEngine(ctx context.Context, o EngineOptions, assets http.Handler) (*Runtime, error) {
 	if ctx == nil || ctx.Err() != nil || !safeDir(o.DataDir) {
 		return nil, errLocal
 	}
 	if o.Port != 0 && (o.Port < 1024 || o.Port > 65535) {
 		return nil, errLocal
 	}
-	release, e := pinRoot(o.DataDir, true)
+	// Registered members must already exist. A missing expected root must not
+	// create even a new exclusion file, much less initialize replacement bytes.
+	release, e := pinRoot(o.DataDir, o.ExpectedIdentity == nil)
 	if e != nil {
 		return nil, e
 	}
@@ -226,6 +381,9 @@ func Start(ctx context.Context, o Options) (*Runtime, error) {
 	b, e := readPrivate(filepath.Join(o.DataDir, "identity.json"))
 	fresh := false
 	if e != nil {
+		if o.ExpectedIdentity != nil {
+			return nil, errLocal
+		}
 		// Only a truly uninitialized root may initialize. Failed/partial stores and
 		// unknown metadata are preserved for explicit investigation, never adopted.
 		entries, er := os.ReadDir(o.DataDir)
@@ -246,6 +404,12 @@ func Start(ctx context.Context, o Options) (*Runtime, error) {
 			return nil, errLocal
 		}
 	} else if decode(b, &id) != nil || !id.valid() || o.Port != 0 && id.Port != o.Port {
+		return nil, errLocal
+	}
+	if !fresh && o.WorkspaceID != "" && o.ExpectedIdentity == nil {
+		return nil, errLocal
+	}
+	if o.ExpectedIdentity != nil && *o.ExpectedIdentity != (BoardIdentity{id.InstallationID, id.BoardID, id.Incarnation}) {
 		return nil, errLocal
 	}
 	boardDir := filepath.Join(o.DataDir, "board")
@@ -293,7 +457,11 @@ func Start(ctx context.Context, o Options) (*Runtime, error) {
 	if e != nil {
 		return nil, e
 	}
-	r := &Runtime{id: id, epoch: uuid(), root: o.DataDir, store: store, done: make(chan struct{}), release: cleanup, assets: o.Assets}
+	effectiveOrigin := o.Origin
+	if o.WorkspaceID == "" {
+		effectiveOrigin = origin(id.Port)
+	}
+	r := &Runtime{id: id, epoch: uuid(), root: o.DataDir, store: store, done: make(chan struct{}), release: cleanup, assets: assets, effectiveOrigin: effectiveOrigin, workspaceID: o.WorkspaceID}
 	r.auth = newAuthority(store, id, r.Origin(), bot)
 	r.board, e = boardapi.NewAuthenticated(store, r.auth, r)
 	if e != nil {
@@ -307,20 +475,20 @@ func Start(ctx context.Context, o Options) (*Runtime, error) {
 	if e != nil {
 		return nil, e
 	}
-	// Binding failure never changes to an alternate address or ephemeral port.
-	r.listener, e = net.Listen("tcp4", "127.0.0.1:"+strconv.Itoa(id.Port))
-	if e != nil {
-		return nil, errLocal
+	var rendezvous any = metadata{id, r.epoch, r.Origin(), string(bot)}
+	if o.WorkspaceID != "" {
+		rendezvous = workspaceMetadata{2, id, r.epoch, r.Origin(), string(bot), workspaceMetadataHost{"workspace", o.WorkspaceID}}
 	}
-	r.server = &http.Server{Handler: r, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384}
-	b, e = json.Marshal(metadata{id, r.epoch, r.Origin(), string(bot)})
+	b, e = json.Marshal(rendezvous)
 	if e != nil || publish(filepath.Join(o.DataDir, "service.json"), b, true) != nil {
-		r.listener.Close()
 		return nil, errLocal
 	}
 	ok = true
 	storeOK = true
-	go func() { _ = r.server.Serve(r.listener); _ = r.Close() }()
+	return r, nil
+}
+
+func (r *Runtime) watch(ctx context.Context) {
 	go func() {
 		select {
 		case <-ctx.Done():
@@ -328,7 +496,6 @@ func Start(ctx context.Context, o Options) (*Runtime, error) {
 		case <-r.done:
 		}
 	}()
-	return r, nil
 }
 
 func initialize(ctx context.Context, store *S.Store, id identity) (err error) {

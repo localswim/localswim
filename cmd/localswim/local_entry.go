@@ -87,7 +87,12 @@ func (p localCLIProvider) Open(ctx context.Context, selected core.Selectors) (*c
 	if actual != selected {
 		return nil, &core.Failure{Code: "CREDENTIAL_CONTEXT_MISMATCH", Exit: 2}
 	}
-	return core.NewLocalBoardConnection(evidence.Context{InstallationID: info.InstallationID, Origin: info.Origin}, core.CredentialMetadata{Selected: actual, ActorID: info.ActorID, ExpiresAt: time.Now().Add(time.Hour)}, info.Token)
+	connectionContext := evidence.Context{InstallationID: info.InstallationID, Origin: info.Origin}
+	metadata := core.CredentialMetadata{Selected: actual, ActorID: info.ActorID, ExpiresAt: time.Now().Add(time.Hour)}
+	if info.WorkspaceID != "" {
+		return core.NewLocalWorkspaceBoardConnection(connectionContext, metadata, info.Token, info.WorkspaceID)
+	}
+	return core.NewLocalBoardConnection(connectionContext, metadata, info.Token)
 }
 
 func (p localCLIProvider) NativeOwner(context.Context, evidence.Record) (*core.Connection, error) {

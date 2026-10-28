@@ -11,7 +11,7 @@ import (
 	A "github.com/localswim/localswim/internal/contract/archive"
 )
 
-var models = []any{Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}}
+var models = []any{Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}}
 
 // GeneratedFiles is pure and returns disjoint paths for the common generator.
 // Shared D02 rows reference the C03 artifact; command results reference C01.
@@ -36,6 +36,8 @@ func GeneratedFiles() (map[string][]byte, error) {
 	}
 	terminalDeclarations(defs, &ts)
 	mutationDeclarations(defs, &ts)
+	defs["RuntimeMode"] = map[string]any{"oneOf": []any{map[string]any{"$ref": "#/$defs/StandaloneRuntimeMode"}, map[string]any{"$ref": "#/$defs/WorkspaceRuntimeMode"}}}
+	ts.WriteString("export type RuntimeMode = StandaloneRuntimeMode | WorkspaceRuntimeMode;\n\n")
 	for own, other := range map[string]string{"PreviewRequest": "PreviewRequest", "Preview": "Preview", "Confirmation": "Confirmation", "RestoreStatus": "Status"} {
 		defs[own] = map[string]any{"$ref": "../archive/contracts.schema.json#/$defs/" + other}
 	}

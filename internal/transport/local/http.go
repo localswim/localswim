@@ -1,12 +1,12 @@
 package local
 
 import (
-	"encoding/json"
 	"io"
 	"mime"
 	"net/http"
 	"strings"
 
+	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
 	H "github.com/localswim/localswim/internal/transport/https"
 )
@@ -29,11 +29,26 @@ func headers(w http.ResponseWriter) {
 	w.Header().Set("Referrer-Policy", "no-referrer")
 }
 func (r *Runtime) cookieName() string {
+	if r.workspaceID != "" {
+		return "localswim_" + strings.ReplaceAll(r.id.InstallationID+"_"+r.id.BoardID+"_"+r.id.Incarnation, "-", "") + "_session"
+	}
 	return "localswim_" + strings.ReplaceAll(r.id.InstallationID, "-", "") + "_session"
 }
+func (r *Runtime) boardPath() string { return "/api/v1/boards/" + r.id.BoardID + "/" }
+func (r *Runtime) cookiePath() string {
+	if r.workspaceID != "" {
+		// RFC cookie path matching includes the exact board resource and its
+		// slash-delimited descendants, without matching another board prefix.
+		return strings.TrimSuffix(r.boardPath(), "/")
+	}
+	return "/"
+}
 func (r *Runtime) boundary(w http.ResponseWriter, q *http.Request) bool {
+	return requestBoundary(w, q, r.Origin())
+}
+func requestBoundary(w http.ResponseWriter, q *http.Request, origin string) bool {
 	headers(w)
-	if q.TLS != nil || q.Host != strings.TrimPrefix(r.Origin(), "http://") || q.URL.IsAbs() || q.URL.RawPath != "" || q.URL.Fragment != "" || q.URL.ForceQuery {
+	if q.TLS != nil || q.Host != strings.TrimPrefix(origin, "http://") || q.URL.IsAbs() || q.URL.RawPath != "" || q.URL.Fragment != "" || q.URL.ForceQuery {
 		refuse(w, 400, "INVALID_INPUT")
 		return false
 	}
@@ -41,7 +56,7 @@ func (r *Runtime) boundary(w http.ResponseWriter, q *http.Request) bool {
 		refuse(w, 403, "FORBIDDEN")
 		return false
 	}
-	if len(q.Header.Values("Origin")) > 0 && !exact(q, "Origin", r.Origin()) {
+	if len(q.Header.Values("Origin")) > 0 && !exact(q, "Origin", origin) {
 		refuse(w, 403, "FORBIDDEN")
 		return false
 	}
@@ -173,9 +188,16 @@ func (r *Runtime) bootstrap(w http.ResponseWriter, q *http.Request) {
 		refuse(w, 400, "INVALID_INPUT")
 		return
 	}
-	b, e := io.ReadAll(http.MaxBytesReader(w, q.Body, 128))
+	b, e := io.ReadAll(http.MaxBytesReader(w, q.Body, 1024))
 	var empty struct{}
-	if e != nil || decode(b, &empty) != nil || strings.TrimSpace(string(b)) != "{}" {
+	valid := e == nil
+	if r.workspaceID == "" {
+		valid = valid && decode(b, &empty) == nil && strings.TrimSpace(string(b)) == "{}"
+	} else {
+		selected, de := T.Decode[T.BoardBootstrapRequest](b)
+		valid = valid && de == nil && string(selected.InstallationID) == r.id.InstallationID && string(selected.Incarnation) == r.id.Incarnation
+	}
+	if !valid {
 		refuse(w, 400, "INVALID_INPUT")
 		return
 	}
@@ -197,17 +219,15 @@ func (r *Runtime) bootstrap(w http.ResponseWriter, q *http.Request) {
 		refuse(w, 401, "UNAUTHENTICATED")
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: r.cookieName(), Value: string(t), Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode})
-	out := struct {
-		APIVersion     int           `json:"apiVersion"`
-		InstallationID string        `json:"installationId"`
-		BoardID        string        `json:"boardId"`
-		Incarnation    string        `json:"incarnation"`
-		Epoch          string        `json:"epoch"`
-		Session        T.SessionRead `json:"session"`
-	}{1, r.id.InstallationID, r.id.BoardID, r.id.Incarnation, r.epoch, view}
+	out := T.LocalBootstrap{APIVersion: 1, InstallationID: T.UUIDv4(r.id.InstallationID), BoardID: A.UUID(r.id.BoardID), Incarnation: A.UUID(r.id.Incarnation), Epoch: T.UUIDv4(r.epoch), Session: view}
+	b, e = T.Readable(out)
+	if e != nil {
+		refuse(w, 503, "UNAVAILABLE")
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: r.cookieName(), Value: string(t), Path: r.cookiePath(), HttpOnly: true, SameSite: http.SameSiteStrictMode})
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(out)
+	_, _ = w.Write(b)
 }
 func (r *Runtime) ServeHTTP(w http.ResponseWriter, q *http.Request) {
 	r.reqMu.Lock()
@@ -223,11 +243,23 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, q *http.Request) {
 	if !r.boundary(w, q) {
 		return
 	}
-	if q.URL.Path == "/api/v1/local/bootstrap" {
+	if r.workspaceID != "" && !r.validateIdentity() {
+		refuse(w, 503, "UNAVAILABLE")
+		return
+	}
+	if q.URL.Path == "/api/v1/runtime-mode" && r.workspaceID == "" {
+		runtimeMode(w, q, T.StandaloneRuntimeMode{APIVersion: 1, Mode: "standalone"})
+		return
+	}
+	bootstrapPath, sessionPath := "/api/v1/local/bootstrap", "/api/v1/session"
+	if r.workspaceID != "" {
+		bootstrapPath, sessionPath = r.boardPath()+"local/bootstrap", r.boardPath()+"session"
+	}
+	if q.URL.Path == bootstrapPath {
 		r.bootstrap(w, q)
 		return
 	}
-	if q.URL.Path == "/api/v1/session" {
+	if q.URL.Path == sessionPath {
 		r.Wrap(http.HandlerFunc(func(w http.ResponseWriter, q *http.Request) {
 			if q.Method != "GET" || q.URL.RawQuery != "" {
 				refuse(w, 405, "INVALID_INPUT")
@@ -256,7 +288,7 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, q *http.Request) {
 	}
 	if strings.HasPrefix(q.URL.Path, "/api/") {
 		p := strings.Split(q.URL.Path, "/")
-		if len(p) >= 5 && p[1] == "api" && p[2] == "v1" && p[3] == "boards" {
+		if len(p) >= 5 && p[1] == "api" && p[2] == "v1" && p[3] == "boards" && p[4] == r.id.BoardID {
 			switch {
 			case len(p) >= 6 && p[5] == "exports":
 				r.export.ServeHTTP(w, q)
@@ -279,4 +311,23 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, q *http.Request) {
 		return
 	}
 	r.assets.ServeHTTP(w, q)
+}
+
+func runtimeMode(w http.ResponseWriter, q *http.Request, mode any) {
+	if q.Method != "GET" || q.URL.RawQuery != "" {
+		refuse(w, 405, "INVALID_INPUT")
+		return
+	}
+	b, e := io.ReadAll(http.MaxBytesReader(w, q.Body, 1))
+	if e != nil || len(b) != 0 {
+		refuse(w, 400, "INVALID_INPUT")
+		return
+	}
+	b, e = T.Readable(mode)
+	if e != nil {
+		refuse(w, 503, "UNAVAILABLE")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(b)
 }

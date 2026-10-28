@@ -52,6 +52,14 @@ grant must equal the selected validated metadata. The server still rechecks curr
 rights and revocation on the actual request. Reads verify the returned selected
 identity and card reference before exposing content. No new incarnation is adopted.
 
+The explicit localhost composition also accepts a validated workspace-member
+rendezvous. It first checks the live /api/v1/runtime-mode workspace UUID, then
+derives /api/v1/boards/{selectedBoardId}/session and verifies the same actor,
+grant and durable tuple. Session paths are not supplied by metadata or CLI input.
+Standalone localhost and the historical pinned TLS path keep /api/v1/session.
+The --data evidence directory and its original origin binding remain unchanged;
+moving a board to another origin does not rebind or replay old originals.
+
 Evidence, outcomes and output
 Mutations freeze their independently selected route and authenticated actor using
 the shared semantic contract. The evidence store must exclusively publish, flush

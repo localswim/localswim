@@ -48,6 +48,8 @@ type Connection struct {
 	metadata      CredentialMetadata
 	native        bool
 	local         bool
+	sessionPath   string
+	workspaceID   string
 	do            func(*http.Request) (*http.Response, error)
 	close         func()
 	authorization string

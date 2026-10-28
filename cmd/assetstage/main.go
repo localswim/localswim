@@ -31,6 +31,7 @@ var bindings = []string{
 	"internal/contract/input.go", "internal/contract/intent.go", "internal/contract/json.go", "internal/contract/result.go",
 	"internal/contract/archive/types.go", "internal/contract/archive/semantic.go", "internal/contract/archive/references.go", "internal/contract/archive/decode.go",
 	"internal/contract/transport/types.go", "internal/contract/transport/mutation.go", "internal/contract/transport/encode.go", "internal/contract/transport/decode.go", "internal/contract/transport/references.go", "internal/contract/transport/session_code_cli.go",
+	"internal/contract/transport/local.go",
 }
 
 type manifest struct {

@@ -44,6 +44,12 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, q *http.Request) {
 	}
 	path := q.URL.Path
 	switch {
+	case path == "/api/v1/workspace/catalog" && q.Method == "GET":
+		if q.URL.RawQuery != "" {
+			r.refusal(w, 400, "INVALID_INPUT")
+			return
+		}
+		respond(w, 200, r.catalog(q.Context(), L.WorkspaceChannel(q.Context())))
 	case path == "/api/v1/workspace/projects" && q.Method == "GET":
 		if q.URL.RawQuery != "" {
 			r.refusal(w, 400, "INVALID_INPUT")

@@ -22,6 +22,8 @@ export class ArchiveView {
     editor;
     generation = 0;
     destroyed = false;
+    suspended = false;
+    deferred = new Map();
     unresolved = false;
     exportPending = false;
     downloads = new Set();
@@ -50,6 +52,14 @@ export class ArchiveView {
     }
     destroy() { this.destroyed = true; this.stopPersistence(); this.generation++; for (const controller of this.downloads)
         controller.abort(); this.downloads.clear(); this.editor = undefined; this.context = undefined; this.base = undefined; this.root.replaceChildren(); }
+    get canLeave() { return !this.editor || this.editor.persisted === this.editor.sequence && this.editor.submitted; }
+    async flushPrivateInput() { await this.persistence.settled(); return this.canLeave; }
+    discardInput() { if (this.editor)
+        this.editor.selection++; this.editor = undefined; this.editorHost.replaceChildren(); }
+    suspend() { this.suspended = true; this.generation++; for (const controller of this.downloads)
+        controller.abort(); this.downloads.clear(); }
+    resume() { this.suspended = false; const callbacks = [...this.deferred.values()]; this.deferred.clear(); for (const render of callbacks)
+        render(); }
     update() {
         this.attachButton.disabled = !this.context || !this.mayAttach || this.unresolved || this.destroyed;
         this.exportButton.disabled = !this.context || !this.mayExport || this.destroyed || this.exportPending;
@@ -91,6 +101,10 @@ export class ArchiveView {
         this.update();
     }
     edit() {
+        if (!this.canLeave) {
+            this.status.textContent = "Keep attachment input until private metadata is saved and the file is submitted, or explicitly discard it. File bytes exist only in memory.";
+            return;
+        }
         if (!this.context || !this.base || !this.mayAttach || this.unresolved || this.destroyed)
             return;
         const card = this.base.result.cards.find(c => c.cardId === this.cards.value);
@@ -101,7 +115,7 @@ export class ArchiveView {
         media.value = "application/octet-stream";
         status.setAttribute("role", "status");
         const editor = { context: structuredClone(this.context), base: structuredClone(this.base), cardId: card.cardId, cardRevision: card.revision,
-            draftId: crypto.randomUUID(), draftRevision: 0, sequence: 0, name, media, file,
+            draftId: crypto.randomUUID(), draftRevision: 0, sequence: 0, persisted: -1, name, media, file,
             raw: undefined, facts: undefined, status, save: button("Attach once", () => { void this.save(editor); }), composing: false, submitted: false, selection: 0 };
         form.addEventListener("submit", event => event.preventDefault());
         form.append(element("h3", "Attachment · original card " + card.cardId + " revision " + card.revision + " · original board revision " + this.base.result.revision));
@@ -110,14 +124,15 @@ export class ArchiveView {
             label.append(input);
             form.append(label);
         }
-        name.addEventListener("input", () => this.persist(editor));
-        media.addEventListener("input", () => this.persist(editor));
+        const changed = () => { editor.submitted = false; this.persist(editor); this.update(); };
+        name.addEventListener("input", changed);
+        media.addEventListener("input", changed);
         file.addEventListener("change", () => { void this.capture(editor); });
         form.addEventListener("compositionstart", () => { editor.composing = true; this.update(); });
-        form.addEventListener("compositionend", () => { editor.composing = false; this.persist(editor); this.update(); });
+        form.addEventListener("compositionend", () => { editor.composing = false; changed(); });
         form.addEventListener("keydown", event => { if (event.isComposing && event.key === "Enter")
             event.preventDefault(); });
-        form.append(status, editor.save, element("p", "After a lost response, use the original operation lookup. Reload never uploads bytes or creates a replacement operation."));
+        form.append(status, editor.save, button("Discard current attachment input", () => this.discardInput()), element("p", "Attachment input is retained in this window. Finish submission or explicitly discard it before leaving, even when private metadata was saved. File bytes exist only in memory. Forced reload cannot restore the attachment editor or selected file bytes. After a lost response, use the original operation lookup. Reload never uploads bytes or creates a replacement operation."));
         this.editor = editor;
         this.editorHost.replaceChildren(form);
         this.persist(editor);
@@ -125,6 +140,7 @@ export class ArchiveView {
         name.focus();
     }
     async capture(editor) {
+        editor.submitted = false;
         const selection = ++editor.selection, file = editor.file.files?.[0], persistenceGeneration = this.persistence.generation;
         editor.raw = undefined;
         editor.facts = undefined;
@@ -171,6 +187,8 @@ export class ArchiveView {
                 const saved = await this.client.recovery.saveDraft({ context: editor.context, draftId: editor.draftId, expectedRevision: editor.draftRevision, input });
                 editor.draftId = saved.draft.draftId;
                 editor.draftRevision = saved.draft.revision;
+                if (generation === this.persistence.generation && sequence === editor.sequence)
+                    editor.persisted = sequence;
                 if (!this.destroyed && generation === this.persistence.generation && this.editor === editor && sequence === editor.sequence)
                     editor.status.textContent = "Recovery saved privately. File bytes are not stored in recovery.";
             }
@@ -198,6 +216,12 @@ export class ArchiveView {
         const announce = (outcome) => {
             if (this.destroyed)
                 return;
+            if (outcome.state === "unsent")
+                editor.submitted = false;
+            if (this.suspended) {
+                this.deferred.set(request.opId, () => announce(outcome));
+                return;
+            }
             if (settled && outcome.state !== "committed" && outcome.state !== "not_committed")
                 return;
             if (outcome.state === "committed" || outcome.state === "not_committed")

@@ -13,10 +13,23 @@ export class BoardClient {
     // Capture the actual store scope before callers can mutate their options.
     get recoveryDomainKey() { return this.recoveryDomain; }
     fetcher;
+    origin;
+    closed = false;
     previews = new Map();
     inFlight = new Set();
     static async open(options) {
+        if (options.transport === "local-cookie") {
+            const selected = options.selection;
+            if (!selected || (selected.mode !== "standalone" && selected.mode !== "workspace"))
+                throw Error("Local selection required");
+            validate("transport:BoardBootstrapRequest", parse(JSON.stringify({ apiVersion: 1, installationId: options.installationId, incarnation: selected.incarnation })));
+            for (const identity of [selected.boardId, selected.actorId, selected.grantId]) {
+                if (!uuid.test(identity) || identity === "00000000-0000-0000-0000-000000000000")
+                    throw Error("Invalid selected identity");
+            }
+        }
         const selected = Object.freeze({ ...options,
+            ...(options.selection ? { selection: Object.freeze({ ...options.selection }) } : {}),
             ...(options.qualification ? { qualification: Object.freeze({ ...options.qualification }) } : {}) });
         let driver, recoveryStorageAvailable = true;
         try {
@@ -34,40 +47,73 @@ export class BoardClient {
         this.options = options;
         this.driver = driver;
         this.recoveryStorageAvailable = recoveryStorageAvailable;
+        this.origin = location.origin;
         this.recoveryDomain = JSON.stringify([location.origin, options.databaseName ?? "localswim-private-recovery-v1", options.installationId]);
         this.fetcher = options.fetch ?? globalThis.fetch.bind(globalThis);
         this.recovery = new RecoveryStore(driver, options.installationId, options.profileId, boardBoundaryVerifier, options.qualification);
     }
-    close() { this.driver.close(); }
+    close() { this.closed = true; this.driver.close(); }
     path(boardId) {
         if (!uuid.test(boardId) || boardId === "00000000-0000-0000-0000-000000000000")
             throw Error("Invalid board identity");
+        if (this.options.selection && boardId !== this.options.selection.boardId)
+            throw Error("Selected board mismatch");
         return "/api/v1/boards/" + boardId;
     }
-    async raw(path, init = {}) {
+    connection() {
         const local = this.options.transport === "local-cookie";
-        if (local ? !isLocalOrigin() : location.protocol !== "https:")
+        if (this.closed || location.origin !== this.origin || (local ? !isLocalOrigin() : location.protocol !== "https:"))
             throw Error("Invalid service origin");
         const credential = this.options.credential();
         if (!credential)
             throw Error("Authentication unavailable");
+        return credential;
+    }
+    sameConnection(credential) {
+        if (this.connection() !== credential)
+            throw Error("Connection changed");
+    }
+    selectedContext(context) {
+        const selected = this.options.selection;
+        if (context.installationId !== this.options.installationId || (selected &&
+            (context.boardId !== selected.boardId || context.incarnation !== selected.incarnation || context.actorId !== selected.actorId)))
+            throw Error("Selected context mismatch");
+    }
+    async raw(path, init = {}) {
+        const local = this.options.transport === "local-cookie", credential = this.connection();
         const response = await this.fetcher(path, { ...init, credentials: local ? "same-origin" : "omit", cache: "no-store", redirect: "error",
             headers: { ...(local ? { "X-Localswim-Client": "browser" } : { "Authorization": "Bearer " + credential }), ...(typeof init.body === "string" ? { "Content-Type": "application/json" } : {}) } });
         if (response.status === 401 || response.status === 403)
             this.options.authenticationUnavailable?.(credential);
-        return response;
+        try {
+            this.sameConnection(credential);
+            if (response.redirected)
+                throw Error("Unexpected redirect");
+        }
+        catch (error) {
+            await response.body?.cancel().catch(() => { });
+            throw error;
+        }
+        return { response, credential };
     }
     async call(path, init = {}) {
-        const response = await this.raw(path, init);
-        const value = parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(await response.arrayBuffer()));
+        const { response, credential } = await this.raw(path, init);
+        const bytes = await response.arrayBuffer();
+        this.sameConnection(credential);
+        const value = parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes));
         return { response, value };
     }
     async session() {
-        const { response, value } = await this.call("/api/v1/session");
+        const selected = this.options.selection;
+        const path = selected?.mode === "workspace" ? this.path(selected.boardId) + "/session" : "/api/v1/session";
+        const { response, value } = await this.call(path, { signal: AbortSignal.timeout(20_000) });
         if (!response.ok)
             throw Error("Authentication unavailable");
         validate("transport:SessionRead", value);
         const session = value;
+        if (selected && (session.kind !== "human" || session.actorId !== selected.actorId || session.grant.grantId !== selected.grantId ||
+            session.grant.boardId !== selected.boardId || session.grant.incarnation !== selected.incarnation))
+            throw Error("Selected session mismatch");
         if (session.kind === "automation" && session.grant.rights.some(r => ["approve", "history-admin", "grant-admin"].includes(r)))
             throw Error("Invalid session rights");
         return session;
@@ -80,6 +126,8 @@ export class BoardClient {
         const board = value;
         if (board.result.identity.boardId !== boardId)
             throw Error("Board identity mismatch");
+        if (this.options.selection && board.result.identity.incarnation !== this.options.selection.incarnation)
+            throw Error("Selected incarnation mismatch");
         return board;
     }
     async card(boardId, cardId) {
@@ -92,14 +140,20 @@ export class BoardClient {
         const card = value;
         if (card.result.identity.boardId !== boardId || card.result.card.cardId !== cardId)
             throw Error("Card identity mismatch");
+        if (this.options.selection && card.result.identity.incarnation !== this.options.selection.incarnation)
+            throw Error("Selected incarnation mismatch");
         return card;
     }
     context(board, session) {
         const identity = board.result.identity;
         if (session.grant.boardId !== identity.boardId || session.grant.incarnation !== identity.incarnation)
             throw Error("Session scope mismatch");
-        return Object.freeze({ installationId: this.options.installationId, boardId: identity.boardId,
+        const context = Object.freeze({ installationId: this.options.installationId, boardId: identity.boardId,
             incarnation: identity.incarnation, actorId: session.actorId });
+        this.selectedContext(context);
+        if (this.options.selection && (session.kind !== "human" || session.grant.grantId !== this.options.selection.grantId))
+            throw Error("Selected grant mismatch");
+        return context;
     }
     async classify(evidence, value, allowTerminal = true) {
         const original = object(parse(evidence.requestBytes)), opId = String(original.opId);
@@ -146,6 +200,7 @@ export class BoardClient {
         let evidence;
         let dispatchCredential;
         try {
+            this.selectedContext(intent.context);
             const credential = this.options.credential();
             dispatchCredential = credential;
             const session = await this.session();
@@ -225,7 +280,7 @@ export class BoardClient {
     }
     async binary(path, type, maximum, init) {
         const credential = this.options.credential();
-        const response = await this.raw(path, init);
+        const { response, credential: presented } = await this.raw(path, init);
         const length = response.headers.get("Content-Length");
         if (response.status !== 200 || response.headers.get("Content-Type") !== type || response.headers.has("Content-Encoding") || !length || !/^(0|[1-9][0-9]*)$/.test(length) || Number(length) > maximum || !/^attachment(?:;|$)/.test(response.headers.get("Content-Disposition") ?? "")) {
             await response.body?.cancel();
@@ -246,6 +301,7 @@ export class BoardClient {
                     throw Error("Download too large");
                 chunks.push(value);
             }
+            this.sameConnection(presented);
             if (size !== expected || init.signal?.aborted || !credential || this.options.credential() !== credential)
                 throw Error("Incomplete download");
         }
@@ -285,9 +341,11 @@ export class BoardClient {
         return this.binary(this.path(boardId) + "/exports", "application/zip", 150994944, { method: "POST", body: JSON.stringify(request), signal });
     }
     async lookup(context, opId) {
+        context = structuredClone(context);
         const credential = this.options.credential();
         const unknown = { opId, state: "unknown", message: "Original outcome unavailable; do not resubmit." };
         try {
+            this.selectedContext(context);
             const submission = await this.recovery.loadSubmission(context, opId);
             if (!submission)
                 return unknown;

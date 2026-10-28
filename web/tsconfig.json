@@ -19,6 +19,8 @@
     "src/api/boundary.ts",
     "src/api/client.ts",
     "src/api/local-session.ts",
+    "src/api/runtime.ts",
+    "src/api/workspace-session.ts",
     "src/api/schema-data.ts",
     "src/api/w03-session.ts",
     "src/archive-ui/view.ts",
@@ -32,6 +34,8 @@
     "src/recovery-ui/view.ts",
     "src/session-ui/view.ts",
     "src/session-ui/local-view.ts",
-    "src/session-ui/workspace.ts"
+    "src/session-ui/workspace.ts",
+    "src/session-ui/window-state.ts",
+    "src/session-ui/window-controller.ts"
   ]
 }

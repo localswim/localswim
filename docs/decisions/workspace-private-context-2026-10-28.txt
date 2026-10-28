@@ -1,0 +1,64 @@
+M01.05 board-scoped browser context and private view lifetime
+2026-10-28
+
+Browser connections now select the runtime mode before bootstrap. Standalone
+operation remains available. Workspace metadata and selected-board cookie channels
+remain separate; selected clients bind the full installation/board/incarnation,
+actor/grant and connection generation. No mutable default board is introduced.
+
+Connection and view ownership
+- Generated Go schemas validate mode, bootstrap and resolution bodies. Wrong keys,
+  tuples, epochs or actor/grant facts refuse. Local-cookie clients require an
+  explicit selection and cannot address another board even if its cookie exists.
+- Every request captures its connection generation. Late headers, bodies and
+  denials cannot become a new connection's result or clear its live generation.
+  Reconnect renews workspace metadata and the original board tuple without replay
+  or automatic original-operation lookup; the mounted client/view stays stable.
+- One 20-second initial acquisition budget covers mode, metadata, selected open,
+  board/private hydration and publication. Cancellation, late cleanup and detached
+  staging prevent an expired attempt from replacing Retry. Successful acquisition
+  clears that timer without invalidating the connected client.
+- WindowBoardController retains actual detached views and editor nodes by their
+  full context. Switching back restores editor/base, selection, focus and scroll.
+  Read, mutation and recovery generations keep A's callbacks/classifications with
+  A while B is active. Suspension does not destroy the editor as a persistence trick.
+
+Window references and immutable originals
+WindowState stores bounded nonsecret references and geometry in window-local
+storage. Prose, command fields and bases use existing RecoveryStore draft.input;
+there is no recovery schema or retention migration. Reload/back-forward retain
+the window identity; a new browsing context gets a new identity, including an
+opener whose storage was cloned. Same-board windows have distinct draft IDs and
+never automatically attach another window's active input or selection.
+
+Reload restores the selected board editor and private recovery copy, including
+lane-only Start work intent. Unchanged hydration does not rewrite the draft or
+refresh its retention. A matching submitted original is restored as UNKNOWN;
+replacement Save stays gated until deliberate source-bound resolution permits it.
+Immutable originals retain their context, origin, operation ID and fingerprint.
+
+Failed private persistence retains memory input and blocks destructive app/history
+navigation until saved or explicitly discarded. Browser unload uses its native
+warning. Forced reload, unavailable storage and suppressed warnings cannot provide
+a lossless durable-recovery guarantee.
+
+Existing attachment input joins the lifetime guard. Its actual File/input node is
+retained across suspension, and late download/export/outcome presentation is fenced.
+The attachment editor remains memory-only as a form: finish submission or explicitly
+discard it before leaving, even if metadata was separately persisted. Forced reload
+does not promise to restore the selected file or form. No new attachment persistence
+format, own-form hydration or later attachment feature is added.
+
+Integration and evidence boundary
+app.ts branches before bootstrap and supports selected direct routes. The workspace
+root remains an honest minimal entry; M01.07 owns the ordinary chooser/sidebar and
+must use this controller's navigation gate. M01.08 owns shared pin preferences.
+
+Real executable/Chrome/CLI/IndexedDB component checks exercise shared-context windows,
+opener cloning, reload/focus, exact editor retention, late native responses, pending
+original reload, deliberate lookup, restart and denied persistence/history guards.
+Normal positive Save uses native HTTP without a response double. Labeled native
+response delays and storage-denial injections supplement that positive path.
+Separate browser component probes use real DOM/IDB with deterministic transports.
+These are M01.05 boundary proofs, not the later joined workspace qualification or
+a new power-loss claim. Private fixtures, capabilities and reports stay private.

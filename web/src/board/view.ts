@@ -7,6 +7,8 @@ import type { Context } from "../recovery/types.js";
 import { recoveryCoordinator } from "../recovery-ui/coordination.js";
 import type { RecoveryCoordinator } from "../recovery-ui/coordination.js";
 import { dependencyAdvisory } from "./advisory.js";
+import { commands, parse, validate } from "../api/boundary.js";
+import type { EditorReference } from "../session-ui/window-state.js";
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = ""): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag); node.textContent = text; return node;
@@ -18,7 +20,7 @@ type Editor = {
   id: string; revision: number; command: BoardCommand; context: Context; base: BoardRead;
   card: Card | undefined; fields: Record<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
   form: HTMLFormElement; recovery: HTMLElement; save: HTMLButtonElement; composing: boolean;
-  sequence: number; submitted: boolean;
+  sequence: number; submitted: boolean; persisted: number; start: boolean;
 };
 
 // DOM-only view. Every prose-bearing field is rendered as inert text.
@@ -38,9 +40,11 @@ export class BoardView {
   private readonly outcomeNodes = new Map<string, HTMLElement>();
   private destroyed = false;
   private generation = 0;
+  private suspended = false;
   private readonly persistence: RecoveryCoordinator;
   private readonly stopPersistence: () => void;
-  constructor(private readonly root: HTMLElement, readonly client: BoardClient, readonly boardId: string) {
+  constructor(private readonly root: HTMLElement, readonly client: BoardClient, readonly boardId: string,
+    private readonly checkpoint: (reference?: EditorReference) => void = () => {}) {
     this.persistence = recoveryCoordinator(client);
     this.stopPersistence = this.persistence.subscribe(() => {
       if (this.editor) { this.editor.sequence++; this.editor.recovery.textContent = "Private discard pending; visible input retained. Later deliberate edits are saved after the boundary."; }
@@ -55,6 +59,53 @@ export class BoardView {
       button("Create card", () => this.edit("card.create")), this.cards, this.editorHost, this.current, this.outcomes);
   }
   async open(): Promise<void> { await this.refresh(); }
+  suspend(): void { this.suspended = true; this.generation++; }
+  resume(): void {
+    this.suspended = false;
+    for (const outcome of this.records.values()) {
+      const context = outcome.evidence?.context ?? this.editor?.context;
+      if (context) this.showOutcome(outcome, context);
+      this.reflectCommitted(outcome);
+    }
+    this.updateSave();
+  }
+  get canLeave(): boolean { return !this.editor || this.editor.persisted === this.editor.sequence; }
+  async flushPrivateInput(): Promise<boolean> { await this.persistence.settled(); return this.canLeave; }
+  discardInput(): void {
+    this.editor = undefined; this.editorHost.replaceChildren(); this.current.replaceChildren();
+    try { this.checkpoint(); } catch { this.readState.textContent = "Current editor input discarded in memory. Window storage is unavailable; existing private records may remain in recovery."; }
+  }
+  async restore(reference: EditorReference): Promise<void> {
+    const generation = this.generation, persistenceGeneration = this.persistence.generation;
+    try {
+      if (reference.context.boardId !== this.boardId) return;
+      const draft = await this.persistence.read(() => this.client.recovery.loadDraft(reference.context, reference.draftId));
+      if (!draft || this.destroyed || this.editor || generation !== this.generation) return;
+      const payload = parse(draft.input) as unknown as { command: BoardCommand; base: BoardRead; card?: Card; input: Record<string, string>; start?: boolean };
+      if (!payload || typeof payload !== "object" || typeof payload.command !== "string" || !Object.hasOwn(commands, payload.command) || ["attachment.add", "history.clear", "retention.set"].includes(payload.command) || !payload.base || !payload.input) return;
+      validate("transport:BoardRead", payload.base as unknown as import("../api/boundary.js").Value);
+      const identity = payload.base.result.identity;
+      if (identity.boardId !== reference.context.boardId || identity.incarnation !== reference.context.incarnation || this.session?.actorId !== reference.context.actorId) return;
+      const context = this.client.context(payload.base, this.session);
+      if (Object.entries(context).some(([key, value]) => value !== reference.context[key as keyof Context])) return;
+      const card = payload.card ? payload.base.result.cards.find(c => c.cardId === payload.card!.cardId) : undefined;
+      if (payload.card && !card) return;
+      const inventory = await this.persistence.read(() => this.client.recovery.inventory());
+      const rows = inventory.submissions.filter(row => row.draftId === reference.draftId && Object.entries(reference.context).every(([key, value]) => value === row.context[key as keyof Context]));
+      const originals = await Promise.all(rows.map(async row => ({ row, submission: await this.client.recovery.loadSubmission(row.context, row.opId) })));
+      if (this.destroyed || this.editor || generation !== this.generation || persistenceGeneration !== this.persistence.generation) return;
+      for (const { row, submission } of originals) {
+        const outcome: OriginalOutcome = { opId: row.opId, state: row.outcome, ...(submission ? { evidence: submission.evidence } : {}),
+          message: row.outcome === "unknown" ? "Original operation retained after reload. Outcome unknown; deliberate original lookup only. Do not resubmit." : "Retained original outcome: " + row.outcome + ". No operation was replayed." };
+        this.records.set(row.opId, outcome); this.showOutcome(outcome, row.context);
+      }
+      this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input });
+      const restored = this.editor as Editor | undefined;
+      if (restored) restored.submitted = rows.some(row => row.outcome !== "not_committed");
+      if (rows.some(row => row.outcome === "committed")) this.readState.textContent = "Retained original was committed. This editor remains submitted; read current text and deliberately open new work.";
+      this.updateSave();
+    } catch { this.readState.textContent = "Own window draft unavailable. Private records retained; no input was submitted."; }
+  }
   // Owning session adapter invokes on logout/revocation; it preserves private data.
   destroy(): void { this.destroyed = true; this.stopPersistence(); this.generation++; this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
   async refresh(): Promise<void> {
@@ -117,14 +168,15 @@ export class BoardView {
   private updateSave(): void {
     if (this.editor) this.editor.save.disabled = this.stale || this.editor.submitted || this.editor.composing || this.blocked();
   }
-  private edit(command: BoardCommand, card?: Card, start = false): void {
+  private edit(command: BoardCommand, card?: Card, start = false, restore?: { base: BoardRead; reference: EditorReference; revision: number; input: Record<string, string> }): void {
     if (this.destroyed || !this.board || !this.session || this.stale) { this.readState.textContent = "Read a current board before editing."; return; }
-    const base = this.board, context = this.client.context(base, this.session), form = element("form");
+    if (!this.canLeave) { this.readState.textContent = "Private recovery is pending or failed. Retain this input until saved or explicitly discard the editor."; return; }
+    const base = restore?.base ?? this.board, context = this.client.context(base, this.session), form = element("form");
     form.addEventListener("submit", event => event.preventDefault());
     const recovery = element("p", "Recovery pending"); recovery.setAttribute("role", "status");
-    const editor: Editor = { id: crypto.randomUUID(), revision: 0, command, context, base, card,
+    const editor: Editor = { id: restore?.reference.draftId ?? crypto.randomUUID(), revision: restore?.revision ?? 0, command, context, base, card,
       fields: {}, form, recovery, save: button("Save", () => { void this.save(editor); }), composing: false,
-      sequence: 0, submitted: false };
+      sequence: 0, submitted: false, persisted: -1, start };
     const title = element("h2", command + " · original board revision " + base.result.revision + (card ? ", card revision " + card.revision : ""));
     form.append(title, element("p", "Board " + context.boardId + " · actor " + context.actorId));
     const field = (name: string, value: string, choices?: string[]): void => {
@@ -151,9 +203,14 @@ export class BoardView {
     form.addEventListener("compositionstart", () => { editor.composing = true; this.updateSave(); });
     form.addEventListener("compositionend", () => { editor.composing = false; this.persist(editor); this.updateSave(); });
     form.addEventListener("keydown", event => { if (event.isComposing && event.key === "Enter") event.preventDefault(); });
-    form.append(recovery, editor.save, button("Read current text", () => { void this.currentText(editor); }));
+    form.append(recovery, editor.save, button("Read current text", () => { void this.currentText(editor); }), button("Discard current editor input", () => this.discardInput()));
     this.editor = editor; this.editorHost.replaceChildren(form); this.current.replaceChildren();
-    this.persist(editor); this.updateSave();
+    if (restore) for (const [name, control] of Object.entries(editor.fields)) {
+      if (Object.hasOwn(restore.input, name)) control.value = String(restore.input[name] ?? "");
+    }
+    if (restore) { editor.persisted = editor.sequence; editor.recovery.textContent = "Own window draft restored privately; no operation submitted."; }
+    else this.persist(editor);
+    this.updateSave();
     (Object.values(editor.fields)[0] ?? editor.save).focus();
   }
   private input(editor: Editor): Record<string, Value> {
@@ -165,12 +222,14 @@ export class BoardView {
     const sequence = ++editor.sequence, generation = this.persistence.generation;
     // Prose and original non-secret base only; no credential/session DTO enters storage.
     const input = JSON.stringify({ command: editor.command, target: editor.card ? { cardId: editor.card.cardId } : null,
-      expectedRevision: editor.base.result.revision, expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor) });
+      expectedRevision: editor.base.result.revision, expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor), base: editor.base, start: editor.start, ...(editor.card ? { card: editor.card } : {}) });
     editor.recovery.textContent = "Recovery pending";
     void this.persistence.persist(async () => {
       try {
         const result = await this.client.recovery.saveDraft({ context: editor.context, draftId: editor.id, expectedRevision: editor.revision, input });
         editor.id = result.draft.draftId; editor.revision = result.draft.revision;
+        if (this.editor === editor) this.checkpoint({ context: editor.context, draftId: editor.id });
+        if (generation === this.persistence.generation && sequence === editor.sequence) editor.persisted = sequence;
         if (!this.destroyed && generation === this.persistence.generation && sequence === editor.sequence) editor.recovery.textContent = result.state === "forked" ? "Recovery saved as a separate draft after a conflict." : "Recovery saved privately.";
       } catch { if (!this.destroyed && generation === this.persistence.generation && sequence === editor.sequence) editor.recovery.textContent = "Recovery failed; input remains here. Dispatch requires verified recovery storage."; }
     });
@@ -184,9 +243,9 @@ export class BoardView {
       expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor) })) as MutationRequest;
     const announce = (outcome: OriginalOutcome): void => {
       this.records.set(outcome.opId, outcome);
-      if (this.destroyed) return;
+      if (outcome.state === "unsent" || outcome.state === "not_committed") editor.submitted = false;
+      if (this.destroyed || this.suspended) return;
       this.showOutcome(outcome, editor.context);
-      if (outcome.state === "unsent") editor.submitted = false;
       this.reflectCommitted(outcome);
       if (outcome.conflict || outcome.state === "not_committed") void this.currentText(editor);
       this.updateSave();
@@ -203,6 +262,10 @@ export class BoardView {
   // refreshing its base or taking focus. This is presentation, not proof.
   observeOutcome(outcome: OriginalOutcome): void {
     if (this.destroyed) return;
+    const original = outcome.evidence?.context;
+    if (!original || !this.board || !this.session) return;
+    const context = this.client.context(this.board, this.session);
+    if (Object.entries(context).some(([key, value]) => value !== original[key as keyof Context])) return;
     this.reflectCommitted(outcome);
     this.updateSave();
   }
@@ -228,7 +291,9 @@ export class BoardView {
     }));
     if (outcome.state === "unknown") row.append(button("Look up original outcome", () => {
       void this.client.lookup(context, outcome.opId).then(result => {
-        this.records.set(result.opId, result); if (this.destroyed) return;
+        this.records.set(result.opId, result);
+        if (result.state === "not_committed" && this.editor && result.evidence?.draftId === this.editor.id) this.editor.submitted = false;
+        if (this.destroyed || this.suspended) return;
         this.reflectCommitted(result);
         this.showOutcome(result, context); this.updateSave();
       });
@@ -236,16 +301,17 @@ export class BoardView {
     // Announcements never focus, replace editor input, refresh bases or issue retries.
   }
   private async currentText(editor: Editor): Promise<void> {
+    const generation = this.generation;
     const host = this.current;
     if (!editor.card) { host.replaceChildren(element("p", "Read the current board to compare cards.")); return; }
     try {
       const read = await this.client.card(editor.context.boardId, editor.card.cardId);
-      if (this.destroyed || this.editor !== editor) return;
+      if (this.destroyed || this.editor !== editor || generation !== this.generation) return;
       host.replaceChildren(element("h2", "Current confirmed text · board revision " + read.result.revision),
         element("p", read.result.card.title), element("p", read.result.card.description),
         element("p", "Assignee: " + this.assignee(read.result.card.ownerId, read.result.actors)));
       for (const comment of read.result.comments) host.append(element("p", comment.actorId + ": " + comment.text));
       host.append(element("p", "Your editor retains its original base. Read the current board, then deliberately open a new editor to reconcile."));
-    } catch { if (!this.destroyed && this.editor === editor) host.replaceChildren(element("p", "Current text unavailable; editor input retained.")); }
+    } catch { if (!this.destroyed && this.editor === editor && generation === this.generation) host.replaceChildren(element("p", "Current text unavailable; editor input retained.")); }
   }
 }

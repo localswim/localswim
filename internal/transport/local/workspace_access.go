@@ -3,6 +3,7 @@ package local
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/localswim/localswim/internal/board/grants"
@@ -14,19 +15,29 @@ import (
 // human or automation grant; current enabled state and read rights are resolved
 // by the same Go grant admission used for board reads, in one current snapshot.
 func (r *Runtime) ConfiguredReadAllowed(ctx context.Context, channel string) bool {
+	return r.withConfiguredRead(ctx, channel, nil) == nil
+}
+
+// withConfiguredRead keeps current grant admission and any projection in one
+// physical read transaction. It admits an engine request before native identity
+// IO or reader acquisition, so Close cannot release an admitted read. The budget
+// bounds context-aware SQL/waits; it does not claim to interrupt native IO.
+func (r *Runtime) withConfiguredRead(ctx context.Context, channel string, project func(writer.Read) error) error {
 	if ctx == nil || ctx.Err() != nil || (channel != "browser" && channel != "cli") {
-		return false
+		return grants.ErrDenied
 	}
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
 	r.reqMu.Lock()
 	if r.closing {
 		r.reqMu.Unlock()
-		return false
+		return grants.ErrDenied
 	}
 	r.requests.Add(1)
 	r.reqMu.Unlock()
 	defer r.requests.Done()
 	if !r.validateIdentity() {
-		return false
+		return grants.ErrDenied
 	}
 	actor, grant := r.id.BotID, r.id.BotGrant
 	if channel == "browser" {
@@ -40,24 +51,32 @@ func (r *Runtime) ConfiguredReadAllowed(ctx context.Context, channel string) boo
 		return grants.Credential{InstallationID: r.id.InstallationID, Origin: r.Origin(), BoardID: r.id.BoardID, Incarnation: r.id.Incarnation, ActorID: actor, GrantID: grant, Mode: channel, IssuedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute), IdleExpiresAt: idle}, nil
 	})
 	if e != nil {
-		return false
+		return e
 	}
 	lease, e := r.store.Reader(ctx)
 	if e != nil {
-		return false
+		return e
 	}
 	e = lease.Do(ctx, func(c *sql.Conn) error {
 		if _, e := c.ExecContext(ctx, "BEGIN"); e != nil {
 			return e
 		}
-		if e := admission.Require(ctx, snapshot{ctx, c}, r.id.BoardID, r.id.Incarnation, actor, "read"); e != nil {
+		rd := snapshot{ctx, c}
+		if e := admission.Require(ctx, rd, r.id.BoardID, r.id.Incarnation, actor, "read"); e != nil {
 			return e
+		}
+		if project != nil {
+			if e := project(rd); e != nil {
+				return e
+			}
+		}
+		if !r.validateIdentity() {
+			return grants.ErrDenied
 		}
 		_, e := c.ExecContext(ctx, "COMMIT")
 		return e
 	})
-	ce := lease.Close()
-	return e == nil && ce == nil
+	return errors.Join(e, lease.Close())
 }
 
 // OpenWorkspaceEngine keeps the board's owned lifetime independent of the

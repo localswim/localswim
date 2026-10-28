@@ -20,6 +20,7 @@ import (
 )
 
 var production = []string{
+	"api/runtime", "api/workspace-session", "session-ui/window-state", "session-ui/window-controller",
 	"app", "api/boundary", "api/client", "api/local-session", "api/schema-data", "api/w03-session", "archive-ui/view", "board/advisory", "board/view", "recovery/indexeddb", "recovery/local-readiness", "recovery/store", "recovery/types", "recovery-ui/admin", "recovery-ui/coordination", "recovery-ui/view", "session-ui/local-view", "session-ui/view", "session-ui/workspace",
 }
 var static = []string{"index.html", "styles/app.css"}
@@ -33,6 +34,7 @@ var bindings = []string{
 	"internal/contract/transport/types.go", "internal/contract/transport/mutation.go", "internal/contract/transport/encode.go", "internal/contract/transport/decode.go", "internal/contract/transport/references.go", "internal/contract/transport/session_code_cli.go",
 	"internal/contract/transport/local.go",
 	"internal/contract/transport/workspace.go",
+	"internal/contract/transport/catalog.go",
 }
 
 type manifest struct {

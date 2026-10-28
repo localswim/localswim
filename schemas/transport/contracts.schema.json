@@ -230,6 +230,192 @@
       ],
       "type": "object"
     },
+    "CatalogActivity": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "coverage": {
+              "$ref": "../archive/contracts.schema.json#/$defs/Coverage"
+            },
+            "state": {
+              "enum": [
+                "known",
+                "stale"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "coverage": {
+              "type": "null"
+            },
+            "lastCommittedAt": {
+              "type": "null"
+            },
+            "state": {
+              "const": "unknown"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "coverage": {
+          "anyOf": [
+            {
+              "$ref": "../archive/contracts.schema.json#/$defs/Coverage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastCommittedAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+              "type": "string",
+              "x-year-minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "enum": [
+            "known",
+            "stale",
+            "unknown",
+            "not_configured"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "coverage",
+        "lastCommittedAt",
+        "state"
+      ],
+      "type": "object"
+    },
+    "CatalogAttention": {
+      "additionalProperties": false,
+      "properties": {
+        "blocked": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/CatalogCount"
+            },
+            {
+              "properties": {
+                "state": {
+                  "const": "not_configured"
+                },
+                "value": {
+                  "type": "null"
+                }
+              },
+              "type": "object"
+            }
+          ]
+        },
+        "needsTerry": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/CatalogCount"
+            },
+            {
+              "properties": {
+                "state": {
+                  "const": "not_configured"
+                },
+                "value": {
+                  "type": "null"
+                }
+              },
+              "type": "object"
+            }
+          ]
+        },
+        "readyForReview": {
+          "$ref": "#/$defs/CatalogCount"
+        }
+      },
+      "required": [
+        "blocked",
+        "needsTerry",
+        "readyForReview"
+      ],
+      "type": "object"
+    },
+    "CatalogCount": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "state": {
+              "enum": [
+                "known",
+                "stale"
+              ]
+            },
+            "value": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "state": {
+              "enum": [
+                "unknown",
+                "not_configured"
+              ]
+            },
+            "value": {
+              "type": "null"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "known",
+            "stale",
+            "unknown",
+            "not_configured"
+          ],
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "value"
+      ],
+      "type": "object"
+    },
     "CodeRequest": {
       "additionalProperties": false,
       "properties": {
@@ -10080,6 +10266,326 @@
         "epoch",
         "mode",
         "workspaceId"
+      ],
+      "type": "object"
+    },
+    "WorkspaceCatalog": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "configRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/WorkspaceCatalogEntry"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "observedAt": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        },
+        "workspaceId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "configRevision",
+        "entries",
+        "observedAt",
+        "workspaceId"
+      ],
+      "type": "object"
+    },
+    "WorkspaceCatalogEntry": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "activity": {
+              "properties": {
+                "state": {
+                  "const": "unknown"
+                }
+              },
+              "type": "object"
+            },
+            "ageSeconds": {
+              "type": "null"
+            },
+            "attention": {
+              "properties": {
+                "readyForReview": {
+                  "properties": {
+                    "state": {
+                      "const": "unknown"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "boardRevision": {
+              "type": "null"
+            },
+            "freshness": {
+              "const": "never"
+            },
+            "identity": {
+              "type": "null"
+            },
+            "lastObservedAt": {
+              "type": "null"
+            },
+            "memberEpoch": {
+              "type": "null"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "activity": {
+              "properties": {
+                "state": {
+                  "const": "known"
+                }
+              },
+              "type": "object"
+            },
+            "ageSeconds": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "attention": {
+              "properties": {
+                "readyForReview": {
+                  "properties": {
+                    "state": {
+                      "const": "known"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "availability": {
+              "const": "ready"
+            },
+            "boardRevision": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "freshness": {
+              "const": "fresh"
+            },
+            "identity": {
+              "$ref": "#/$defs/WorkspaceIdentity"
+            },
+            "lastObservedAt": {
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+              "type": "string",
+              "x-year-minimum": 1
+            },
+            "memberEpoch": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "activity": {
+              "properties": {
+                "state": {
+                  "const": "stale"
+                }
+              },
+              "type": "object"
+            },
+            "ageSeconds": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "attention": {
+              "properties": {
+                "readyForReview": {
+                  "properties": {
+                    "state": {
+                      "const": "stale"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "boardRevision": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "freshness": {
+              "const": "stale"
+            },
+            "identity": {
+              "$ref": "#/$defs/WorkspaceIdentity"
+            },
+            "lastObservedAt": {
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+              "type": "string",
+              "x-year-minimum": 1
+            },
+            "memberEpoch": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "activity": {
+          "$ref": "#/$defs/CatalogActivity"
+        },
+        "ageSeconds": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attention": {
+          "$ref": "#/$defs/CatalogAttention"
+        },
+        "availability": {
+          "enum": [
+            "ready",
+            "missing",
+            "invalid",
+            "busy",
+            "unavailable",
+            "identity_conflict"
+          ],
+          "type": "string"
+        },
+        "boardKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "boardRevision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "freshness": {
+          "enum": [
+            "fresh",
+            "stale",
+            "never"
+          ],
+          "type": "string"
+        },
+        "identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspaceIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "lastObservedAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+              "type": "string",
+              "x-year-minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "memberEpoch": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "projectKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "projectLabel": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "activity",
+        "ageSeconds",
+        "attention",
+        "availability",
+        "boardKey",
+        "boardRevision",
+        "freshness",
+        "identity",
+        "label",
+        "lastObservedAt",
+        "memberEpoch",
+        "projectKey",
+        "projectLabel"
       ],
       "type": "object"
     },

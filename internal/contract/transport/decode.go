@@ -15,6 +15,7 @@ import (
 )
 
 var enums = map[string][]string{
+	"CatalogFreshness": {"fresh", "stale", "never"}, "CatalogFactState": {"known", "stale", "unknown", "not_configured"},
 	"WorkspaceAction": {"create", "register"}, "WorkspaceAvailability": {"ready", "pending", "missing", "invalid", "busy", "unavailable", "identity_conflict"}, "WorkspaceRegistrationStatus": {"registered", "initialized-unregistered", "unavailable", "UNKNOWN"},
 	"StandaloneMode": {"standalone"}, "WorkspaceMode": {"workspace"}, "WorkspaceHumanMode": {"human"},
 	"TerminalOutcome": {"committed", "not_committed"}, "RetentionClass": {"full", "compact"}, "RefusedOutcome": {"refused"}, "UnknownOutcome": {"unknown"},
@@ -193,6 +194,22 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case CatalogCount:
+		if (x.State == "known" || x.State == "stale") != (x.Value != nil) {
+			return fmt.Errorf("catalog count state")
+		}
+	case CatalogActivity:
+		if x.State == "not_configured" || ((x.State == "known" || x.State == "stale") != (x.Coverage != nil)) || (x.State == "unknown" && x.LastCommittedAt != nil) {
+			return fmt.Errorf("catalog activity state")
+		}
+	case WorkspaceCatalog:
+		if len(x.Entries) > 256 {
+			return fmt.Errorf("catalog member limit")
+		}
+	case WorkspaceCatalogEntry:
+		if e := catalogEntry(x); e != nil {
+			return e
+		}
 	case WorkspaceKey:
 		if len(x) < 1 || len(x) > 64 || !workspaceKeyRE.MatchString(string(x)) {
 			return fmt.Errorf("invalid workspace key")

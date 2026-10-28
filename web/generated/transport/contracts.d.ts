@@ -500,6 +500,40 @@ export type WorkspaceControlError = {
   readonly outcome: "refused";
 };
 
+export type CatalogCount = { readonly state: 'known' | 'stale'; readonly value: number } | { readonly state: 'unknown' | 'not_configured'; readonly value: null };
+
+export type CatalogAttention = {
+  readonly blocked: CatalogCount;
+  readonly needsTerry: CatalogCount;
+  readonly readyForReview: CatalogCount;
+};
+
+export type CatalogActivity = { readonly state: 'known' | 'stale'; readonly lastCommittedAt: string | null; readonly coverage: Archive.Coverage } | { readonly state: 'unknown'; readonly lastCommittedAt: null; readonly coverage: null };
+
+export type WorkspaceCatalogEntry = {
+  readonly activity: CatalogActivity;
+  readonly ageSeconds: number | null;
+  readonly attention: CatalogAttention;
+  readonly availability: "ready" | "pending" | "missing" | "invalid" | "busy" | "unavailable" | "identity_conflict";
+  readonly boardKey: string;
+  readonly boardRevision: number | null;
+  readonly freshness: "fresh" | "stale" | "never";
+  readonly identity: WorkspaceIdentity | null;
+  readonly label: string;
+  readonly lastObservedAt: string | null;
+  readonly memberEpoch: string | null;
+  readonly projectKey: string;
+  readonly projectLabel: string;
+};
+
+export type WorkspaceCatalog = {
+  readonly apiVersion: 1;
+  readonly configRevision: number;
+  readonly entries: ReadonlyArray<WorkspaceCatalogEntry>;
+  readonly observedAt: string;
+  readonly workspaceId: string;
+};
+
 export type TerminalCardCreateCommittedFull = {
   readonly actorId: string;
   readonly apiVersion: 1;

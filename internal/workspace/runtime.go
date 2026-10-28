@@ -68,25 +68,31 @@ type runtimeHost interface {
 	Attach(*L.Runtime) error
 }
 type Runtime struct {
-	mu              sync.Mutex
-	control         sync.Mutex
-	closeMu         sync.Mutex
-	files           *L.WorkspaceFiles
-	host            runtimeHost
-	config          configuration
-	raw             []byte
-	states          map[string]*activation
-	slots           chan struct{}
-	jobs            sync.WaitGroup
-	ctx             context.Context
-	cancel          context.CancelFunc
-	closing, closed bool
-	closeErr        error
-	service         []byte
-	cleanups        []interface{ Close() error }
-	guards          []*L.WorkspacePath
-	orphans         []*L.Runtime
-	done            chan struct{}
+	mu                sync.Mutex
+	control           sync.Mutex
+	closeMu           sync.Mutex
+	files             *L.WorkspaceFiles
+	host              runtimeHost
+	config            configuration
+	raw               []byte
+	states            map[string]*activation
+	slots             chan struct{}
+	jobs              sync.WaitGroup
+	ctx               context.Context
+	cancel            context.CancelFunc
+	closing, closed   bool
+	closeErr          error
+	service           []byte
+	cleanups          []interface{ Close() error }
+	guards            []*L.WorkspacePath
+	orphans           []*L.Runtime
+	done              chan struct{}
+	catalogJobs       map[string]*catalogJob
+	catalogPending    []*catalogJob
+	activationPending []member
+	preferActivation  bool
+	// catalogProbe is a test seam; production reads the attached engine.
+	catalogProbe func(context.Context, *L.Runtime, string) (L.CatalogSnapshot, error)
 	// publishFault is a labeled test seam. after-config-publication models an
 	// ambiguous reply after durable publication; production never sets it.
 	publishFault func(string) error
@@ -277,14 +283,31 @@ func (r *Runtime) activate(m member) {
 	}
 	s.running = true
 	s.availability = "pending"
-	r.jobs.Add(1)
+	r.activationPending = append(r.activationPending, m)
+	r.pumpActivationLocked()
 	r.mu.Unlock()
+}
+
+// Pending activation is data, not a goroutine waiting for a slot. Activation
+// and projection therefore share at most four actually outstanding jobs.
+func (r *Runtime) pumpActivationLocked() {
+	r.pumpCatalogLocked()
+}
+
+func (r *Runtime) startActivation(m member) {
+	k := memberKey(m.ProjectKey, m.BoardKey)
 	go func() {
 		defer r.jobs.Done()
-		select {
-		case r.slots <- struct{}{}:
-			defer func() { <-r.slots }()
-		case <-r.ctx.Done():
+		defer func() {
+			r.mu.Lock()
+			<-r.slots
+			// Give projections already queued a turn before admitting more
+			// activations. Their own FIFO prevents first-member starvation.
+			r.pumpCatalogLocked()
+			r.pumpActivationLocked()
+			r.mu.Unlock()
+		}()
+		if r.ctx.Err() != nil {
 			r.finish(k, nil, "unavailable")
 			return
 		}

@@ -1,5 +1,11 @@
 L02 localhost product composition
 
+CatalogSnapshot is a read-only workspace projection seam. Current configured read
+admission, revision, active Ready for Review count and retained committed activity/
+coverage share one SQL snapshot. It joins Runtime request admission/drain, creates
+no capability, and changes no board data or storage schema. The one-second attempt
+budget does not promise a bound on arbitrary native IO. Workspace owns scheduling.
+
 Workspace engine/host seam (M01.02)
 - OpenEngine acquires a listener-free independent Runtime using the canonical
   workspace origin and UUID. Existing members require ExpectedIdentity; a missing

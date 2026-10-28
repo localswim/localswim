@@ -1,6 +1,7 @@
 import type { openLocalSession } from "../api/local-session.js";
 import { button, element } from "../recovery-ui/view.js";
 import { SessionWorkspace } from "./workspace.js";
+import type { EditorReference } from "./window-state.js";
 
 // A reconnect changes only the live connection. Editors and immutable originals
 // stay mounted; no board mutation or original lookup runs from this control.
@@ -9,7 +10,9 @@ export class LocalSessionView {
   private readonly unsubscribe: () => void;
   private destroyed = false;
   private busy = false;
-  constructor(private readonly root: HTMLElement, private readonly access: Awaited<ReturnType<typeof openLocalSession>>) {
+  private readonly beforeUnload = (event: BeforeUnloadEvent): void => { if (!this.canLeave) { event.preventDefault(); event.returnValue = ""; } };
+  constructor(private readonly root: HTMLElement, private readonly access: Awaited<ReturnType<typeof openLocalSession>>,
+    options: Readonly<{ editor?: EditorReference; checkpoint?: (reference?: EditorReference) => void; recovery?: EditorReference; recoveryCheckpoint?: (reference?: EditorReference) => void }> = {}) {
     const content = element("section"), status = element("p"), reconnect = button("Reconnect local service", () => { void connect(); });
     status.setAttribute("role", "status");
     const ready = (): void => { status.textContent = access.recoveryReady
@@ -23,14 +26,23 @@ export class LocalSessionView {
       finally { this.busy = false; if (!this.destroyed) reconnect.disabled = false; }
     };
     root.replaceChildren(element("h1", "Localswim"), reconnect, status, content);
-    this.workspace = new SessionWorkspace(content, access.client, access.initial, { local: true });
+    this.workspace = new SessionWorkspace(content, access.client, access.initial, { local: true, ...options });
     this.unsubscribe = access.onUnavailable(() => {
       if (!this.destroyed) status.textContent = "Local connection unavailable. Input and private originals retained; reconnect to continue. Reconnect never resubmits a save.";
     });
     ready();
+    window.addEventListener("beforeunload", this.beforeUnload);
   }
+  suspend(): void { this.workspace.suspend(); }
+  resume(): void { this.workspace.resume(); }
+  activate(): void { this.workspace.activate(); }
+  get ready(): Promise<void> { return this.workspace.ready; }
+  get canLeave(): boolean { return this.workspace.canLeave; }
+  flushPrivateInput(): Promise<boolean> { return this.workspace.flushPrivateInput(); }
+  discardInput(): void { this.workspace.discardInput(); }
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true; this.unsubscribe(); this.workspace.destroy(); this.root.replaceChildren();
+    window.removeEventListener("beforeunload", this.beforeUnload);
   }
 }

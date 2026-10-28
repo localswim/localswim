@@ -19,8 +19,11 @@ independent listener-free boards, one local host, scoped sessions and compatible
 adds `serve --workspace`, persistent membership, create/register/status and reopen.
 The [workspace CLI](docs/decisions/workspace-cli-selection-2026-10-28.txt) adds
 explicit project/board selection and controls through the real executable.
-Browser context/navigation and joined qualification remain subsequent packages;
-these components are not a finished workspace application.
+The [private browser context](docs/decisions/workspace-private-context-2026-10-28.txt)
+retains board/window input and original uncertainty. The
+[Go catalog](docs/decisions/workspace-catalog-2026-10-28.txt) adds authorized counts,
+activity and bounded refresh. The ordinary chooser/sidebar, shared pins and joined
+qualification remain subsequent packages; this is not a finished workspace application.
 
 The Go service, CLI, domain rules and contract generator live in one Go module.
 The browser is a separate TypeScript package under `web/`; the executable will

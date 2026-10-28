@@ -1,0 +1,58 @@
+M01.06 truthful catalog projection and bounded refresh
+2026-10-28
+
+GET /api/v1/workspace/catalog projects explicit workspace membership through its
+authenticated browser or automation channel. Each member's configured read grant
+and all board facts are checked in one actual read-only SQL snapshot. Catalog reads
+do not change priorities, approval, history, board state or storage schemas.
+
+Facts and authority
+- Ready for Review counts exclude archived cards; known zero is a valid value.
+  Blocked and Needs Terry remain not_configured/null until the workflow milestone.
+  Unknown and failed probes never become a current zero.
+- Entries include observation/freshness, revision, availability and honest retained
+  committed-card activity/coverage. Archived edits and compact operation provenance
+  contribute; file times, labels and recovery-expiry housekeeping do not. Future
+  timestamps remain ordered as stored; elapsed age is clamped at zero.
+- Failed or unfinished current probes return opaque unknown facts without prior
+  identity, epoch or counts. Here never freshness means no usable authorized
+  observation for that response. Completed cached facts do not grant current access.
+- In-flight coalescing tracks joining requests. A result whose snapshot began
+  before a later join is discarded and re-read under the same original one-second
+  job context and slot. Every recipient is covered by the snapshot's authority;
+  identity replacement or permission revocation cannot expose an older job's facts
+  to a newly joining poll. Completed jobs are removed atomically with joining.
+- Browser and automation work remain partitioned. No cross-board atomic snapshot
+  or continuously current observation is claimed.
+
+Scheduling and ordering
+Activation and projection share at most four outstanding jobs. FIFO pending data
+and alternating queues prevent member starvation without creating a goroutine per
+waiting member. Native work, SQL and drain occur outside bookkeeping locks. A hung
+call retains its slot until it actually returns; later polls do not duplicate it.
+Each attempt uses one second and each catalog response waits at most two seconds
+before publishing independent results/unknowns. This does not bound arbitrary
+native disk/driver execution. The later browser shell owns five-second visible
+polling, focus/retry/local-commit triggers and one in-flight poll per window.
+
+Other ordering is committed activity descending, supported fresh known attention on
+exact activity ties, then full Unicode case-folded label and exact project/board
+keys. Unknown activity has no invented score. Time passing alone does not reorder.
+Unicode 17 folding uses the pinned Go tables plus 298 generated full-fold exceptions,
+with no normalization or new module dependency. The helper was compared exhaustively
+with the pinned Python Unicode 17 oracle over all 1,112,064 valid scalars; multi-rune
+expansions/ties and deterministic generation are separately checked.
+
+Read-only projection joins Runtime admission/drain. Its current permission, revision,
+counts and provenance share one transaction. New durable facts or ephemeral grants
+are not created. The generated catalog DTOs, schemas and browser validators remain
+Go-owned and strict about nullability, supported categories and observation state.
+
+Evidence boundary
+Native Go/HTTP tests exercise real mutations, read revocation, identity replacement,
+one hung member among healthy members, four-job limits, fairness, late joins and
+deadline pressure. Archived/pruned/future provenance is a separately labeled,
+schema-validated technical read fixture, not a new archive command or SQL customer
+seed path. Real executable browser observations supplement the backend checks.
+No ordinary sidebar, pin controls, full joined M01 qualification, import/cutover or
+power-loss assurance is claimed. Private runtime data and reports remain private.

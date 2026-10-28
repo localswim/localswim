@@ -9,7 +9,11 @@ export class LocalSessionView {
     unsubscribe;
     destroyed = false;
     busy = false;
-    constructor(root, access) {
+    beforeUnload = (event) => { if (!this.canLeave) {
+        event.preventDefault();
+        event.returnValue = "";
+    } };
+    constructor(root, access, options = {}) {
         this.root = root;
         this.access = access;
         const content = element("section"), status = element("p"), reconnect = button("Reconnect local service", () => { void connect(); });
@@ -40,13 +44,21 @@ export class LocalSessionView {
             }
         };
         root.replaceChildren(element("h1", "Localswim"), reconnect, status, content);
-        this.workspace = new SessionWorkspace(content, access.client, access.initial, { local: true });
+        this.workspace = new SessionWorkspace(content, access.client, access.initial, { local: true, ...options });
         this.unsubscribe = access.onUnavailable(() => {
             if (!this.destroyed)
                 status.textContent = "Local connection unavailable. Input and private originals retained; reconnect to continue. Reconnect never resubmits a save.";
         });
         ready();
+        window.addEventListener("beforeunload", this.beforeUnload);
     }
+    suspend() { this.workspace.suspend(); }
+    resume() { this.workspace.resume(); }
+    activate() { this.workspace.activate(); }
+    get ready() { return this.workspace.ready; }
+    get canLeave() { return this.workspace.canLeave; }
+    flushPrivateInput() { return this.workspace.flushPrivateInput(); }
+    discardInput() { this.workspace.discardInput(); }
     destroy() {
         if (this.destroyed)
             return;
@@ -54,5 +66,6 @@ export class LocalSessionView {
         this.unsubscribe();
         this.workspace.destroy();
         this.root.replaceChildren();
+        window.removeEventListener("beforeunload", this.beforeUnload);
     }
 }

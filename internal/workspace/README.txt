@@ -17,7 +17,9 @@ Board identities/epochs require the selected member's currently configured human
 or automation read grant; otherwise the ready projection is opaque unavailable.
 Private paths and physical keys occur only in private control requests/config.
 Project creation, board create/register and focused status are automation-only.
-Catalog projection/cache and preferences belong to subsequent packages.
+Catalog projection and its shared bounded scheduler are implemented in catalog.go.
+Current authorized snapshots cover all joining polls; failed probes disclose no
+prior board facts. Preferences remain a subsequent package.
 
 Initialization and registration are separate durable steps. Any ambiguous config
 publication returns UNKNOWN and retains initialized bytes. A deliberate status

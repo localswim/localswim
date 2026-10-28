@@ -4,6 +4,7 @@ import type { Context } from "../recovery/types.js";
 import type { Inventory } from "../recovery/store.js";
 import { recoveryCoordinator } from "./coordination.js";
 import type { RecoveryCoordinator } from "./coordination.js";
+import type { EditorReference } from "../session-ui/window-state.js";
 
 export function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = ""): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag); node.textContent = text; return node;
@@ -28,14 +29,19 @@ export class RecoveryView {
   private detailRequest = 0;
   private detailEdits = 0;
   private destroyed = false;
+  private inputSequence = 0;
+  private persistedSequence = 0;
   private readonly persistence: RecoveryCoordinator;
   private readonly stopPersistence: () => void;
   private readonly discards = new Set<AbortController>();
-  constructor(private readonly root: HTMLElement, readonly client: BoardClient, private readonly observe: (outcome: OriginalOutcome) => void = () => {}) {
+  constructor(private readonly root: HTMLElement, readonly client: BoardClient, private readonly observe: (outcome: OriginalOutcome) => void = () => {},
+    private readonly checkpoint: (reference?: EditorReference) => void = () => {}) {
     this.persistence = recoveryCoordinator(client);
     this.stopPersistence = this.persistence.subscribe(() => {
+      if (!this.canLeave) { this.status.textContent = "Private discard boundary observed; unsaved input remains in this editor until saved or explicitly discarded."; return; }
       const restoreFocus = this.detail.contains(document.activeElement) || this.rows.contains(document.activeElement);
       this.generation++; this.selection++; this.detailRequest++; this.detail.replaceChildren(); this.rows.replaceChildren();
+      try { this.checkpoint(); } catch { /* Cleared selection stays cleared in memory. */ }
       this.status.textContent = "Private discard pending; earlier workspace writes are draining. Later deliberate edits are retained after the boundary.";
       if (restoreFocus) this.heading.focus();
     });
@@ -43,9 +49,15 @@ export class RecoveryView {
     this.detail.setAttribute("aria-label", "Original recovery detail");
     root.replaceChildren(this.heading, element("p", "Recovery belongs to this browser profile. It is not server history or proof of a saved operation."),
       button("Reload private inventory", () => { void this.open(); }),
+      button("Discard current private editor input", () => this.discardInput()),
       button("Clear all private recovery", () => this.clear("all")), this.status, this.rows, this.detail, this.clearing);
   }
   destroy(): void { this.destroyed = true; this.stopPersistence(); for (const controller of this.discards) controller.abort(); this.discards.clear(); this.generation++; this.selection++; this.detailRequest++; this.root.replaceChildren(); }
+  get canLeave(): boolean { return this.inputSequence === this.persistedSequence; }
+  suspend(): void { this.generation++; this.detailRequest++; }
+  async flushPrivateInput(): Promise<boolean> { await this.persistence.settled(); return this.canLeave; }
+  discardInput(): void { this.selection++; this.detailRequest++; this.detail.replaceChildren(); this.persistedSequence = this.inputSequence; try { this.checkpoint(); } catch { this.status.textContent = "Current private input discarded in memory; window storage is unavailable and stored recovery may remain."; } }
+  restore(reference: EditorReference): Promise<void> { return this.draft(reference.context, reference.draftId, true); }
   async open(): Promise<void> {
     const generation = ++this.generation, persistenceGeneration = this.persistence.generation;
     try {
@@ -67,12 +79,14 @@ export class RecoveryView {
       const article = element("article", "Original operation " + row.opId + " · board " + row.context.boardId + " · incarnation " + row.context.incarnation + " · actor " + row.context.actorId + " · " + row.outcome);
       const state = element("p"); state.setAttribute("role", "status");
       const lookup = button("Look up this original operation", () => {
+        const generation = this.generation, persistenceGeneration = this.persistence.generation;
         lookup.disabled = true;
         void this.client.lookup(row.context, row.opId).then(outcome => {
-          if (this.destroyed) return;
+          lookup.disabled = false;
+          if (this.destroyed || generation !== this.generation || persistenceGeneration !== this.persistence.generation) return;
           this.observe(outcome); this.status.textContent = outcome.message;
           state.textContent = outcome.message; lookup.disabled = false;
-        }, () => { if (!this.destroyed) { state.textContent = "Original outcome unavailable; do not resubmit."; lookup.disabled = false; } });
+        }, () => { lookup.disabled = false; if (!this.destroyed && generation === this.generation) state.textContent = "Original outcome unavailable; do not resubmit."; });
       });
       lookup.dataset.recoveryFocus = row.key;
       article.append(lookup, button("Clear this private operation", () => this.clear({ kind: "submission", context: row.context, id: row.opId })), state); this.rows.append(article);
@@ -80,7 +94,8 @@ export class RecoveryView {
     if (!inventory.drafts.length && !inventory.submissions.length) this.rows.append(element("p", "No retained private records."));
     if (focus) ([...this.rows.querySelectorAll<HTMLButtonElement>("button")].find(n => n.dataset.recoveryFocus === focus) ?? this.heading).focus();
   }
-  private async draft(context: Context, id: string): Promise<void> {
+  private async draft(context: Context, id: string, ownWindow = false): Promise<void> {
+    if (!this.canLeave) { this.status.textContent = "Private recovery failed or is pending. Save or explicitly discard current private input before changing drafts."; return; }
     const request = ++this.detailRequest, edits = this.detailEdits, persistenceGeneration = this.persistence.generation;
     try {
       const draft = await this.persistence.read(() => this.client.recovery.loadDraft(context, id));
@@ -89,25 +104,32 @@ export class RecoveryView {
       if (!draft) { this.detail.replaceChildren(element("p", "Retained draft unavailable or expired.")); return; }
       const input = element("textarea"); input.value = draft.input; input.setAttribute("aria-label", "Retained private draft text");
       const status = element("p", "Private draft loaded; no server submission."); status.setAttribute("role", "status");
-      let editingId = draft.draftId, revision = draft.revision, sequence = 0;
-      input.addEventListener("input", () => {
+      // Viewing shared recovery never adopts another window's writable record.
+      let editingId: string = ownWindow ? draft.draftId : crypto.randomUUID(), revision = ownWindow ? draft.revision : 0, sequence = 0;
+      const persist = (): void => {
         if (this.destroyed || selection !== this.selection) return;
         this.detailEdits++;
+        const inputSequence = ++this.inputSequence;
         const text = input.value, edited = ++sequence, generation = this.persistence.generation; status.textContent = "Recovery pending";
         void this.persistence.persist(async () => {
           try {
             const saved = await this.client.recovery.saveDraft({ context, draftId: editingId, expectedRevision: revision, input: text });
             editingId = saved.draft.draftId; revision = saved.draft.revision;
+            if (!this.destroyed && selection === this.selection) this.checkpoint({ context, draftId: editingId });
+            if (selection === this.selection && inputSequence === this.inputSequence && generation === this.persistence.generation) this.persistedSequence = inputSequence;
             if (!this.destroyed && generation === this.persistence.generation && selection === this.selection && edited === sequence) status.textContent = saved.state === "forked" ? "Recovery saved as a separate draft after a conflict." : "Recovery saved privately.";
           } catch { if (!this.destroyed && generation === this.persistence.generation && selection === this.selection && edited === sequence) status.textContent = "Recovery failed; newer input remains in this editor."; }
         });
-      });
+      };
+      input.addEventListener("input", persist);
       this.detail.replaceChildren(element("h3", "Retained draft · private revision " + draft.revision), input,
         status, element("p", "Original board/incarnation/actor retained. Editing this private copy does not replace another open editor, adopt a current base, or submit."));
+      if (!ownWindow) persist();
     } catch { if (!this.destroyed && request === this.detailRequest && edits === this.detailEdits) this.detail.replaceChildren(element("p", "Retained draft unavailable.")); }
   }
   private clear(selection: Selection): void {
-    this.selection++; this.detailRequest++; this.detail.replaceChildren();
+    if (!this.canLeave) { this.status.textContent = "Retain current private input until saved or explicitly discarded before clearing records."; return; }
+    this.discardInput();
     const prose = check("Discard selected private prose and evidence"), unknown = check("Unresolved outcomes may become unknowable after this discard");
     const state = element("p"); state.setAttribute("role", "status");
     let attempted = false;

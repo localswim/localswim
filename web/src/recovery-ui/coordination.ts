@@ -17,6 +17,7 @@ export class RecoveryCoordinator {
     return result;
   }
   persist<T>(run: () => Promise<T>): Promise<T> { return this.enqueue(run); }
+  settled(): Promise<void> { return this.tail; }
   // Reads begun after a boundary wait for it, but an older, delayed read cannot
   // block a clear. Consumers also compare generation before showing its result.
   read<T>(run: () => Promise<T>): Promise<T> { return this.tail.then(run); }

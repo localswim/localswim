@@ -7,13 +7,14 @@ import { BoardView } from "./view.js";
 
 export async function mountSyntheticBoard(boardInput: BoardRead, sessionInput: SessionRead, qualified = true, databaseName = "w02-test-" + crypto.randomUUID()) {
   const board = structuredClone(boardInput), session = structuredClone(sessionInput);
-  const auth: SessionRead = { ...session, grant: { ...sessionInput.grant, rights: ["approve", "comment", "create", "edit", "read", "read-own-outcome", "review-handoff"] } };
+  const auth: SessionRead = { ...session, grant: { ...sessionInput.grant, rights: ["approve", "attach", "comment", "create", "edit", "export", "read", "read-own-outcome", "review-handoff"] } };
   const installationId = "00000000-0000-4000-8000-000000000090";
   const state = { mode: "commit", mutations: 0, lookups: 0, releases: [] as (() => void)[], wire: [] as string[], readUnavailable: false, terminals: new Map<string, Terminal>() };
   const client = await BoardClient.open({ installationId, profileId: "synthetic-only", credential: () => "synthetic-ephemeral-token",
     ...(qualified ? { qualification: { installationId, profileId: "synthetic-only", strictDurabilityQualified: true as const, evidenceReference: "synthetic browser component test only" } } : {}),
     databaseName,
-    ...(location.protocol === "http:" ? { transport: "local-cookie" as const } : {}),
+    ...(location.protocol === "http:" ? { transport: "local-cookie" as const, selection: { mode: "standalone" as const, boardId: session.grant.boardId,
+      incarnation: session.grant.incarnation, actorId: session.actorId, grantId: session.grant.grantId } } : {}),
     fetch: (async (url, init) => {
       const path = String(url), json = (value: unknown, status = 200): Response => new Response(JSON.stringify(value), { status });
       if (path === "/api/v1/session") return json(auth);

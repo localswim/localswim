@@ -11,7 +11,7 @@ import (
 	A "github.com/localswim/localswim/internal/contract/archive"
 )
 
-var models = []any{Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}}
+var models = []any{Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}, CatalogCount{}, CatalogAttention{}, CatalogActivity{}, WorkspaceCatalogEntry{}, WorkspaceCatalog{}}
 
 // GeneratedFiles is pure and returns disjoint paths for the common generator.
 // Shared D02 rows reference the C03 artifact; command results reference C01.
@@ -120,6 +120,7 @@ func schema(t reflect.Type, inline bool) map[string]any {
 			}
 		}
 		m := map[string]any{"type": "object", "properties": p, "required": required, "additionalProperties": false}
+		catalogSchema(t, m)
 		if t == reflect.TypeFor[WorkspaceMember]() {
 			unavailable := []string{}
 			for _, v := range enums["WorkspaceAvailability"] {
@@ -213,6 +214,12 @@ func typescript(t reflect.Type, inline bool) string {
 	}
 	switch t.Kind() {
 	case reflect.Struct:
+		if t == reflect.TypeFor[CatalogCount]() {
+			return "{ readonly state: 'known' | 'stale'; readonly value: number } | { readonly state: 'unknown' | 'not_configured'; readonly value: null }"
+		}
+		if t == reflect.TypeFor[CatalogActivity]() {
+			return "{ readonly state: 'known' | 'stale'; readonly lastCommittedAt: string | null; readonly coverage: Archive.Coverage } | { readonly state: 'unknown'; readonly lastCommittedAt: null; readonly coverage: null }"
+		}
 		if t == reflect.TypeFor[WorkspaceMember]() {
 			unavailable := []string{}
 			for _, v := range enums["WorkspaceAvailability"] {

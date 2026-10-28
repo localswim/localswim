@@ -14,13 +14,15 @@ import (
 	"github.com/localswim/localswim/internal/transport/cli/core"
 	"github.com/localswim/localswim/internal/transport/cli/evidence"
 	local "github.com/localswim/localswim/internal/transport/local"
+	"github.com/localswim/localswim/internal/workspace"
 )
 
 type localInvocation struct {
-	data  string
-	port  int
-	serve bool
-	args  []string
+	data      string
+	workspace string
+	port      int
+	serve     bool
+	args      []string
 }
 
 func parseLocal(args []string) (localInvocation, error) {
@@ -39,6 +41,8 @@ func parseLocal(args []string) (localInvocation, error) {
 			switch args[i] {
 			case "--data":
 				q.data = args[i+1]
+			case "--workspace":
+				q.workspace = args[i+1]
 			case "--port":
 				n, e := strconv.Atoi(args[i+1])
 				if e != nil || n < 1024 || n > 65535 || strconv.Itoa(n) != args[i+1] {
@@ -49,6 +53,12 @@ func parseLocal(args []string) (localInvocation, error) {
 				return q, errComposition
 			}
 		}
+		if seen["--data"] == seen["--workspace"] {
+			return q, errComposition
+		}
+		if seen["--workspace"] && q.workspace == "" {
+			return q, errComposition
+		}
 	} else {
 		if len(args) < 3 || args[0] != "--data" {
 			return q, errComposition
@@ -57,17 +67,21 @@ func parseLocal(args []string) (localInvocation, error) {
 		q.args = append([]string(nil), args[2:]...)
 		for _, arg := range q.args {
 			switch arg {
-			case "--data", "--port", "--config", "--actor", "--native-owner", "--installation", "--board", "--incarnation", "--grant":
+			case "--data", "--workspace", "--project", "--port", "--config", "--actor", "--native-owner", "--installation", "--board", "--incarnation", "--grant":
 				return q, errComposition
 			}
 		}
 	}
-	if q.data == "" || strings.ContainsAny(q.data, "\x00\r\n") {
+	selected := &q.data
+	if q.workspace != "" {
+		selected = &q.workspace
+	}
+	if *selected == "" || strings.ContainsAny(*selected, "\x00\r\n") {
 		return q, errComposition
 	}
 	var e error
-	q.data, e = filepath.Abs(filepath.FromSlash(q.data))
-	if e != nil || !safeAbsolute(q.data) {
+	*selected, e = filepath.Abs(filepath.FromSlash(*selected))
+	if e != nil || !safeAbsolute(*selected) {
 		return q, errComposition
 	}
 	return q, nil
@@ -110,7 +124,7 @@ func run(ctx context.Context, args []string, in io.Reader, out, diagnostic io.Wr
 		if out == nil {
 			return 1
 		}
-		_, e := fmt.Fprintln(out, "Localswim: localhost swimlanes\n  localswim serve --data DIR [--port PORT]\n  localswim --data DIR [--json] board read\n  localswim --data DIR [--json] card COMMAND ...\n  localswim restore --source FILE --data NEWDIR [--port PORT] [--json]\n  localswim restore-status --data DIR --request-id UUID [--json]\nBrowser and CLI share the local service. No setup, login codes or TLS enrollment.")
+		_, e := fmt.Fprintln(out, "Localswim: localhost swimlanes\n  localswim serve --data DIR [--port PORT]\n  localswim serve --workspace DIR [--port PORT]\n  localswim --data DIR [--json] board read\n  localswim --data DIR [--json] card COMMAND ...\n  localswim restore --source FILE --data NEWDIR [--port PORT] [--json]\n  localswim restore-status --data DIR --request-id UUID [--json]\nA new workspace requires an explicit port; reopen uses its saved port.\nBrowser and CLI share the local service. No setup, login codes or TLS enrollment.")
 		if e != nil {
 			return 1
 		}
@@ -121,27 +135,44 @@ func run(ctx context.Context, args []string, in io.Reader, out, diagnostic io.Wr
 		return entryFailure(args, out, diagnostic, "INVOCATION_OR_IO", 1)
 	}
 	if q.serve {
+		if !retryFailedServeLifetimes() {
+			return entryFailure(nil, out, diagnostic, "UNAVAILABLE", 3)
+		}
 		a, e := assets.Handler()
 		if e != nil {
 			return entryFailure(nil, out, diagnostic, "UNAVAILABLE", 3)
 		}
-		r, e := local.Start(ctx, local.Options{DataDir: q.data, Port: q.port, Assets: a})
+		var r serveRuntime
+		if q.workspace != "" {
+			started, startErr := workspace.Start(ctx, workspace.Options{DataDir: q.workspace, Port: q.port, Assets: a})
+			e = startErr
+			if started != nil {
+				r = started
+			}
+		} else {
+			started, startErr := local.Start(ctx, local.Options{DataDir: q.data, Port: q.port, Assets: a})
+			e = startErr
+			if started != nil {
+				r = started
+			}
+		}
 		if e != nil {
+			_ = finishServe(r)
 			return entryFailure(nil, out, diagnostic, "UNAVAILABLE", 3)
 		}
 		if out == nil {
-			_ = r.Close()
+			_ = finishServe(r)
 			return 1
 		}
 		if _, e = fmt.Fprintln(out, "Localswim "+r.Origin()+"/"); e != nil {
-			_ = r.Close()
+			_ = finishServe(r)
 			return 1
 		}
 		select {
 		case <-ctx.Done():
 		case <-r.Done():
 		}
-		if r.Close() != nil {
+		if finishServe(r) != nil {
 			return entryFailure(nil, out, diagnostic, "UNAVAILABLE", 3)
 		}
 		return 0

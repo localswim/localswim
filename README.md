@@ -15,8 +15,10 @@ HTTPS/setup documentation below describes legacy components.
 
 Spike 02 adds the [workspace runtime bridge](docs/decisions/workspace-runtime-bridge-2026-10-28.txt):
 independent listener-free boards, one local host, scoped sessions and compatible
-`--data` connections. Persistent membership, workspace selection and navigation
-remain subsequent packages; this bridge is not a finished workspace application.
+`--data` connections. The [explicit registry and lifecycle](docs/decisions/workspace-registry-lifecycle-2026-10-28.txt)
+adds `serve --workspace`, persistent membership, create/register/status and reopen.
+Workspace CLI selection and browser navigation remain subsequent packages;
+these components are not a finished workspace application.
 
 The Go service, CLI, domain rules and contract generator live in one Go module.
 The browser is a separate TypeScript package under `web/`; the executable will

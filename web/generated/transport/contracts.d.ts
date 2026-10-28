@@ -422,6 +422,84 @@ export type WorkspaceBootstrap = {
   readonly workspaceId: string;
 };
 
+export type WorkspaceIdentity = {
+  readonly boardId: string;
+  readonly incarnation: string;
+  readonly installationId: string;
+};
+
+export type WorkspaceProject = {
+  readonly key: string;
+  readonly label: string;
+};
+
+export type WorkspaceProjectRequest = {
+  readonly apiVersion: 1;
+  readonly expectedConfigRevision: number;
+  readonly key: string;
+  readonly label: string;
+  readonly root: string;
+};
+
+export type WorkspaceBoardRequest = {
+  readonly action: "create" | "register";
+  readonly apiVersion: 1;
+  readonly boardKey: string;
+  readonly dataDir: string;
+  readonly expectedConfigRevision: number;
+  readonly expectedIdentity: WorkspaceIdentity | null;
+  readonly label: string;
+  readonly projectKey: string;
+};
+
+export type WorkspaceStatusRequest = {
+  readonly apiVersion: 1;
+  readonly boardKey: string;
+  readonly dataDir: string | null;
+  readonly expectedIdentity: WorkspaceIdentity | null;
+  readonly projectKey: string;
+};
+
+export type WorkspaceProjects = {
+  readonly apiVersion: 1;
+  readonly configRevision: number;
+  readonly projects: ReadonlyArray<WorkspaceProject>;
+  readonly workspaceId: string;
+};
+
+export type WorkspaceMember = { readonly projectKey: string; readonly boardKey: string; readonly label: string } & ({ readonly availability: 'ready'; readonly identity: WorkspaceIdentity; readonly memberEpoch: string } | { readonly availability: "pending" | "missing" | "invalid" | "busy" | "unavailable" | "identity_conflict"; readonly identity: null; readonly memberEpoch: null });
+
+export type WorkspaceBoards = {
+  readonly apiVersion: 1;
+  readonly boards: ReadonlyArray<WorkspaceMember>;
+  readonly configRevision: number;
+  readonly workspaceId: string;
+};
+
+export type WorkspaceResolve = {
+  readonly apiVersion: 1;
+  readonly configRevision: number;
+  readonly member: WorkspaceMember;
+  readonly workspaceId: string;
+};
+
+export type WorkspaceControlResult = {
+  readonly apiVersion: 1;
+  readonly boardKey: string | null;
+  readonly configRevision: number;
+  readonly identity: WorkspaceIdentity | null;
+  readonly projectKey: string;
+  readonly status: "registered" | "initialized-unregistered" | "unavailable" | "UNKNOWN";
+  readonly workspaceId: string;
+};
+
+export type WorkspaceControlError = {
+  readonly apiVersion: 1;
+  readonly configRevision: number;
+  readonly error: Error;
+  readonly outcome: "refused";
+};
+
 export type TerminalCardCreateCommittedFull = {
   readonly actorId: string;
   readonly apiVersion: 1;

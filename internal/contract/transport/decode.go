@@ -15,6 +15,7 @@ import (
 )
 
 var enums = map[string][]string{
+	"WorkspaceAction": {"create", "register"}, "WorkspaceAvailability": {"ready", "pending", "missing", "invalid", "busy", "unavailable", "identity_conflict"}, "WorkspaceRegistrationStatus": {"registered", "initialized-unregistered", "unavailable", "UNKNOWN"},
 	"StandaloneMode": {"standalone"}, "WorkspaceMode": {"workspace"}, "WorkspaceHumanMode": {"human"},
 	"TerminalOutcome": {"committed", "not_committed"}, "RetentionClass": {"full", "compact"}, "RefusedOutcome": {"refused"}, "UnknownOutcome": {"unknown"},
 	"BoardScope": {"board"}, "CardScope": {"card"}, "HistoryScope": {"history"}, "SessionScope": {"session"}, "RevokedOutcome": {"revoked"},
@@ -24,6 +25,7 @@ var enums = map[string][]string{
 }
 var rights = []string{"approve", "attach", "comment", "create", "edit", "export", "grant-admin", "history-admin", "read", "read-own-outcome", "restore", "review-handoff"}
 var v4RE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+var workspaceKeyRE = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 var fieldRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$`)
 
 // Decode requires complete D03 fields and delegates shared scalars, exact rows,
@@ -191,6 +193,30 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case WorkspaceKey:
+		if len(x) < 1 || len(x) > 64 || !workspaceKeyRE.MatchString(string(x)) {
+			return fmt.Errorf("invalid workspace key")
+		}
+	case WorkspaceLabel:
+		if !utf8.ValidString(string(x)) || strings.TrimSpace(string(x)) == "" || utf8.RuneCountInString(string(x)) > 200 {
+			return fmt.Errorf("invalid workspace label")
+		}
+	case WorkspacePath:
+		if len(x) < 1 || len(x) > 180 || strings.ContainsRune(string(x), 0) {
+			return fmt.Errorf("invalid workspace path")
+		}
+	case WorkspaceIdentity:
+		if string(x.InstallationID) == string(x.BoardID) || string(x.InstallationID) == string(x.Incarnation) || x.BoardID == x.Incarnation {
+			return fmt.Errorf("invalid workspace identity")
+		}
+	case WorkspaceBoards:
+		if len(x.Boards) > 256 {
+			return fmt.Errorf("workspace member limit")
+		}
+	case WorkspaceMember:
+		if (x.Identity == nil) != (x.MemberEpoch == nil) || (x.Availability == "ready") != (x.Identity != nil && x.MemberEpoch != nil) {
+			return fmt.Errorf("workspace ready facts")
+		}
 	case LocalBootstrap:
 		if x.Session.Grant.BoardID != x.BoardID || x.Session.Grant.Incarnation != x.Incarnation || x.Session.Kind != "human" {
 			return fmt.Errorf("bootstrap session context")

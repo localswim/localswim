@@ -121,8 +121,13 @@ func (h *WorkspaceHost) Detach(boardID string) error {
 	}
 	h.detaching[boardID] = true
 	h.mu.Unlock()
-	if e := r.Close(); e != nil {
-		return e
+	closeErr := r.Close()
+	if closeErr != nil {
+		select {
+		case <-r.Done():
+		default:
+			return closeErr
+		}
 	}
 	h.mu.Lock()
 	if h.members[boardID] == r {
@@ -130,7 +135,7 @@ func (h *WorkspaceHost) Detach(boardID string) error {
 		delete(h.detaching, boardID)
 	}
 	h.mu.Unlock()
-	return nil
+	return closeErr
 }
 
 func (h *WorkspaceHost) Close() error {
@@ -160,7 +165,11 @@ func (h *WorkspaceHost) Close() error {
 	for id, r := range members {
 		if ce := r.Close(); ce != nil {
 			e = errors.Join(e, ce)
-			continue
+			select {
+			case <-r.Done():
+			default:
+				continue
+			}
 		}
 		h.mu.Lock()
 		if h.members[id] == r {

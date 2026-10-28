@@ -9952,6 +9952,105 @@
       ],
       "type": "object"
     },
+    "WorkspaceBoardRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "create",
+            "register"
+          ],
+          "type": "string"
+        },
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "dataDir": {
+          "maxLength": 180,
+          "minLength": 1,
+          "type": "string"
+        },
+        "expectedConfigRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedIdentity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspaceIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "projectKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "apiVersion",
+        "boardKey",
+        "dataDir",
+        "expectedConfigRevision",
+        "expectedIdentity",
+        "label",
+        "projectKey"
+      ],
+      "type": "object"
+    },
+    "WorkspaceBoards": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boards": {
+          "items": {
+            "$ref": "#/$defs/WorkspaceMember"
+          },
+          "type": "array"
+        },
+        "configRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "workspaceId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "boards",
+        "configRevision",
+        "workspaceId"
+      ],
+      "type": "object"
+    },
     "WorkspaceBootstrap": {
       "additionalProperties": false,
       "properties": {
@@ -9984,6 +10083,361 @@
       ],
       "type": "object"
     },
+    "WorkspaceControlError": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "configRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "error": {
+          "$ref": "#/$defs/Error"
+        },
+        "outcome": {
+          "enum": [
+            "refused"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "configRevision",
+        "error",
+        "outcome"
+      ],
+      "type": "object"
+    },
+    "WorkspaceControlResult": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardKey": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "configRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspaceIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "projectKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "registered",
+            "initialized-unregistered",
+            "unavailable",
+            "UNKNOWN"
+          ],
+          "type": "string"
+        },
+        "workspaceId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "boardKey",
+        "configRevision",
+        "identity",
+        "projectKey",
+        "status",
+        "workspaceId"
+      ],
+      "type": "object"
+    },
+    "WorkspaceIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "installationId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "boardId",
+        "incarnation",
+        "installationId"
+      ],
+      "type": "object"
+    },
+    "WorkspaceMember": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "availability": {
+              "const": "ready"
+            },
+            "identity": {
+              "$ref": "#/$defs/WorkspaceIdentity"
+            },
+            "memberEpoch": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "availability": {
+              "enum": [
+                "pending",
+                "missing",
+                "invalid",
+                "busy",
+                "unavailable",
+                "identity_conflict"
+              ]
+            },
+            "identity": {
+              "type": "null"
+            },
+            "memberEpoch": {
+              "type": "null"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "availability": {
+          "enum": [
+            "ready",
+            "pending",
+            "missing",
+            "invalid",
+            "busy",
+            "unavailable",
+            "identity_conflict"
+          ],
+          "type": "string"
+        },
+        "boardKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspaceIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "memberEpoch": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "projectKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "availability",
+        "boardKey",
+        "identity",
+        "label",
+        "memberEpoch",
+        "projectKey"
+      ],
+      "type": "object"
+    },
+    "WorkspaceProject": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "label"
+      ],
+      "type": "object"
+    },
+    "WorkspaceProjectRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expectedConfigRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "key": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "root": {
+          "maxLength": 180,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "expectedConfigRevision",
+        "key",
+        "label",
+        "root"
+      ],
+      "type": "object"
+    },
+    "WorkspaceProjects": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "configRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "projects": {
+          "items": {
+            "$ref": "#/$defs/WorkspaceProject"
+          },
+          "type": "array"
+        },
+        "workspaceId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "configRevision",
+        "projects",
+        "workspaceId"
+      ],
+      "type": "object"
+    },
+    "WorkspaceResolve": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "configRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "member": {
+          "$ref": "#/$defs/WorkspaceMember"
+        },
+        "workspaceId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "configRevision",
+        "member",
+        "workspaceId"
+      ],
+      "type": "object"
+    },
     "WorkspaceRuntimeMode": {
       "additionalProperties": false,
       "properties": {
@@ -10008,6 +10462,59 @@
         "apiVersion",
         "mode",
         "workspaceId"
+      ],
+      "type": "object"
+    },
+    "WorkspaceStatusRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "dataDir": {
+          "anyOf": [
+            {
+              "maxLength": 180,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expectedIdentity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspaceIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "projectKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "boardKey",
+        "dataDir",
+        "expectedIdentity",
+        "projectKey"
       ],
       "type": "object"
     }

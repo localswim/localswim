@@ -11,7 +11,7 @@ import (
 	A "github.com/localswim/localswim/internal/contract/archive"
 )
 
-var models = []any{Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}}
+var models = []any{Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}}
 
 // GeneratedFiles is pure and returns disjoint paths for the common generator.
 // Shared D02 rows reference the C03 artifact; command results reference C01.
@@ -120,6 +120,18 @@ func schema(t reflect.Type, inline bool) map[string]any {
 			}
 		}
 		m := map[string]any{"type": "object", "properties": p, "required": required, "additionalProperties": false}
+		if t == reflect.TypeFor[WorkspaceMember]() {
+			unavailable := []string{}
+			for _, v := range enums["WorkspaceAvailability"] {
+				if v != "ready" {
+					unavailable = append(unavailable, v)
+				}
+			}
+			m["oneOf"] = []any{
+				map[string]any{"type": "object", "properties": map[string]any{"availability": map[string]any{"const": "ready"}, "identity": schema(reflect.TypeFor[WorkspaceIdentity](), false), "memberEpoch": schema(reflect.TypeFor[UUIDv4](), false)}},
+				map[string]any{"type": "object", "properties": map[string]any{"availability": map[string]any{"enum": unavailable}, "identity": map[string]any{"type": "null"}, "memberEpoch": map[string]any{"type": "null"}}},
+			}
+		}
 		if t == reflect.TypeFor[Conflict]() {
 			m["anyOf"] = []any{map[string]any{"properties": map[string]any{"cardId": map[string]any{"type": "null"}, "cardRevision": map[string]any{"type": "null"}}}, map[string]any{"properties": map[string]any{"cardId": schema(reflect.TypeFor[A.UUID](), false), "cardRevision": schema(reflect.TypeFor[A.Positive](), false)}}}
 		}
@@ -146,6 +158,16 @@ func schema(t reflect.Type, inline bool) map[string]any {
 			m["enum"] = e
 		}
 		switch t.Name() {
+		case "WorkspaceKey":
+			m["pattern"] = workspaceKeyRE.String()
+			m["minLength"] = 1
+			m["maxLength"] = 64
+		case "WorkspaceLabel":
+			m["minLength"] = 1
+			m["maxLength"] = 200
+		case "WorkspacePath":
+			m["minLength"] = 1
+			m["maxLength"] = 180
 		case "UUID":
 			m["pattern"] = `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`
 			m["not"] = map[string]any{"const": "00000000-0000-0000-0000-000000000000"}
@@ -191,6 +213,15 @@ func typescript(t reflect.Type, inline bool) string {
 	}
 	switch t.Kind() {
 	case reflect.Struct:
+		if t == reflect.TypeFor[WorkspaceMember]() {
+			unavailable := []string{}
+			for _, v := range enums["WorkspaceAvailability"] {
+				if v != "ready" {
+					unavailable = append(unavailable, v)
+				}
+			}
+			return "{ readonly projectKey: string; readonly boardKey: string; readonly label: string } & ({ readonly availability: 'ready'; readonly identity: WorkspaceIdentity; readonly memberEpoch: string } | { readonly availability: " + quoted(unavailable) + "; readonly identity: null; readonly memberEpoch: null })"
+		}
 		var b strings.Builder
 		b.WriteString("{\n")
 		for _, f := range fields(t) {

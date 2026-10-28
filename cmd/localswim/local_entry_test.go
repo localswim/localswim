@@ -17,6 +17,13 @@ func TestLocalEntryRejectsRemoteAndActorOverrides(t *testing.T) {
 		{"--data", `C:\synthetic\board`, "--actor", "human", "board", "read"},
 		{"--data", `C:\synthetic\board`, "--grant", "00000000-0000-4000-8000-000000000001", "board", "read"},
 		{"--config", `C:\synthetic\old.json`, "setup", "init"},
+		{"serve", "--data", `C:\synthetic\board`, "--workspace", `C:\synthetic\workspace`},
+		{"serve", "--data", "", "--workspace", `C:\synthetic\workspace`},
+		{"serve", "--workspace", ""},
+		{"serve", "--workspace", `C:\synthetic\workspace`, "--workspace", `C:\synthetic\other`},
+		{"serve", "--workspace", `C:\synthetic\workspace`, "--project", "harbor"},
+		{"serve", "--workspace", `C:\synthetic\workspace`, "--port", "0"},
+		{"--data", `C:\synthetic\board`, "--workspace", `C:\synthetic\workspace`, "board", "read"},
 	} {
 		if _, e := parseLocal(args); e == nil {
 			t.Fatal("legacy/network/authority override accepted")
@@ -29,6 +36,18 @@ func TestLocalEntryRejectsRemoteAndActorOverrides(t *testing.T) {
 	var output bytes.Buffer
 	if run(context.Background(), []string{"--help"}, nil, &output, nil) != 0 || !bytes.Contains(output.Bytes(), []byte("localhost swimlanes")) {
 		t.Fatal("local help unavailable")
+	}
+}
+
+func TestWorkspaceServeSelectionDoesNotDefaultToData(t *testing.T) {
+	for _, args := range [][]string{
+		{"serve", "--workspace", `C:\synthetic\workspace`, "--port", "8820"},
+		{"serve", "--workspace", `C:\synthetic\workspace`},
+	} {
+		q, err := parseLocal(args)
+		if err != nil || !q.serve || q.workspace != `C:\synthetic\workspace` || q.data != "" {
+			t.Fatal("workspace selection defaulted or refused")
+		}
 	}
 }
 

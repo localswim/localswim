@@ -1,0 +1,65 @@
+M01.03 explicit workspace registry and lifecycle
+2026-10-28
+
+The accepted M01.01 integration contract and M01.02 runtime bridge now have a
+persistent membership owner. Serve --workspace DIR --port PORT creates a fresh
+private workspace; subsequent serve --workspace DIR reuses its UUID and port.
+Conflicting ports and live owners refuse. Standalone serve --data remains separate.
+
+Membership and control
+- Strict schema-1 workspace.json uses a revision, explicit immutable project and
+  board keys, Unicode labels, project roots and full durable member tuples.
+  Configuration is bounded to 1 MiB, 256 members and 256 projects. Physical-root
+  aliases, duplicate BoardID/tuples and replacement identities are refused.
+- Private host rendezvous is bounded, versioned and ephemeral. Browser projections
+  contain no native paths, physical keys or credentials. A workspace capability
+  authorizes its metadata/control channel and supplies no board mutation rights.
+- Ready member identities/epochs in the board list and key resolution require
+  currently configured member read grants for their channel. A denied member is
+  opaque unavailable, with no tuple or epoch. Project labels require the workspace
+  channel. Project and board control writes and focused inspection are automation
+  only; browser workspace capabilities cannot create or register a board.
+- Create initializes an ordinary independent board before publishing membership.
+  Failed or ambiguous publication retains initialized bytes and reports UNKNOWN.
+  Explicit status compares the key, path and tuple; a deliberate register may
+  publish the existing board. There is no automatic adoption, reinitialization,
+  deletion, command replay, recursive discovery or cross-board transaction.
+
+Ownership and concurrency
+- Native pins verify the configured physical ancestor before member creation,
+  including case-sensitive NTFS directories. Reparse, hardlink, device, UNC, ADS,
+  path escape and alias checks reuse the existing native boundary.
+- Activation coalesces per member with four slots and a one-second acquisition
+  attempt context, separate from the successful engine's lifetime. Missing, busy,
+  invalid and replaced members remain independent of healthy siblings.
+- Native acquisition, SQL initialization, status and drain run outside registry
+  bookkeeping locks. A short publication critical section serializes only final
+  expected-revision CAS and in-memory reconciliation. A slow initializer that
+  loses publication retains its initialized board for explicit inspection.
+- Shutdown drains admitted work before metadata and native ownership release.
+  A completed lifetime's transport diagnostic is distinct from unresolved owned
+  handles. Retained cleanup handles are retried before owned rendezvous removal.
+  In-process command callers retain failed serve owners for a later explicit
+  cleanup attempt; cleanup retry never replays initialization or a domain command.
+
+Review corrections and evidence
+Independent reviews corrected physical ancestry, cleanup custody/order, partial
+member DTOs and browser validation, activation/lifetime context separation,
+completed shutdown diagnostics, global control serialization and command failure
+custody. Synthetic Windows tests exercise actual native guards and HTTP controls,
+uncertain publication, revoked grants, missing/busy/replaced members, concurrent
+controls and explicit cleanup retry. Generated member schemas are checked by the
+actual browser validator, as well as Go. Earlier failed attempts remain evidence.
+
+Normal compiled executable checks cover fresh explicit-port startup, registration
+of a deliberately stopped standalone board, fixed-port reopen, retained identities
+and cards, ordinary --data CLI access and graceful owned-process shutdown. HTTP
+control calls in this package are component evidence; workspace CLI selection is
+M01.04. Browser switching, catalog, pins and joined qualification remain later
+packages. No finished workspace application, real import/cutover, schema migration,
+trust enrollment, arbitrary native-IO deadline or power-loss assurance is claimed.
+
+Offline inspection reuses the accepted SELECT-only store inspection API. The new
+cleanup capability retains the newly owned local/native handles; it does not add
+a retry capability for hidden store-internal resources or change store semantics.
+Private runtime data, capabilities and execution reports remain outside this repo.

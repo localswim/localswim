@@ -15,7 +15,8 @@ import (
 )
 
 var enums = map[string][]string{
-	"CatalogFreshness": {"fresh", "stale", "never"}, "CatalogFactState": {"known", "stale", "unknown", "not_configured"},
+	"WorkspacePreferenceAction": {"pin", "unpin", "reorder"},
+	"CatalogFreshness":          {"fresh", "stale", "never"}, "CatalogFactState": {"known", "stale", "unknown", "not_configured"},
 	"WorkspaceAction": {"create", "register"}, "WorkspaceAvailability": {"ready", "pending", "missing", "invalid", "busy", "unavailable", "identity_conflict"}, "WorkspaceRegistrationStatus": {"registered", "initialized-unregistered", "unavailable", "UNKNOWN"},
 	"StandaloneMode": {"standalone"}, "WorkspaceMode": {"workspace"}, "WorkspaceHumanMode": {"human"},
 	"TerminalOutcome": {"committed", "not_committed"}, "RetentionClass": {"full", "compact"}, "RefusedOutcome": {"refused"}, "UnknownOutcome": {"unknown"},
@@ -194,6 +195,14 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case WorkspacePreferences:
+		if e := preferenceReferences(x.Pins); e != nil {
+			return e
+		}
+	case WorkspacePreferencesRequest:
+		if e := preferenceRequest(x); e != nil {
+			return e
+		}
 	case CatalogCount:
 		if (x.State == "known" || x.State == "stale") != (x.Value != nil) {
 			return fmt.Errorf("catalog count state")

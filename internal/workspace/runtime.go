@@ -96,6 +96,13 @@ type Runtime struct {
 	// publishFault is a labeled test seam. after-config-publication models an
 	// ambiguous reply after durable publication; production never sets it.
 	publishFault func(string) error
+
+	// Preference publication is independent of config and board revisions.
+	preferencesMu       sync.Mutex
+	preferencesRaw      []byte
+	preferencesObserved bool
+	// preferencesFault models an interrupted reply; production leaves it nil.
+	preferencesFault func(string) error
 }
 
 func Start(ctx context.Context, o Options) (*Runtime, error) {

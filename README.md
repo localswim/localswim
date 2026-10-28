@@ -23,9 +23,11 @@ The [private browser context](docs/decisions/workspace-private-context-2026-10-2
 retains board/window input and original uncertainty. The
 [Go catalog](docs/decisions/workspace-catalog-2026-10-28.txt) adds authorized counts,
 activity and bounded refresh. The [ordinary workspace browser](docs/decisions/workspace-browser-navigation-2026-10-28.txt)
-adds its chooser/sidebar, safe routes and automatic refresh. Shared pins and joined
-qualification remain subsequent packages; no finished milestone or product release
-is claimed.
+adds its chooser/sidebar, safe routes and automatic refresh.
+[Shared pins](docs/decisions/workspace-shared-pins-2026-10-28.txt) persist manual
+order without sharing active-window input or layout. Joined qualification and final
+independent handoff remain subsequent packages; no finished milestone or product
+release is claimed.
 
 The Go service, CLI, domain rules and contract generator live in one Go module.
 The browser is a separate TypeScript package under `web/`; the executable will

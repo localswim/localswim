@@ -15,5 +15,9 @@ disposal fence late generations and release owned timers/listeners.
 Catalog transport is cookie-only local metadata, validates generated boundaries
 and exact workspace, and bounds bodies. It grants no board authority. Healthy
 refresh is GET-only; explicit unavailable recovery is coordinated by the app.
-Ordinary positive browser proof remains distinct from synthetic source probes and
-fault supplements. Pins and full joined qualification remain later work.
+WorkspacePins owns only shared key order and its preference revision. Reads/writes
+serialize without a second polling timer; failed/unknown/conflict intent remains
+visible for deliberate inspection/retry. Pin controls preserve keyed rows/editor
+and same-row focus when controls hide or disable. No pin change navigates a window
+or changes its private state. Native positive browser proof remains distinct from
+synthetic source probes and fault supplements; full joined qualification is later.

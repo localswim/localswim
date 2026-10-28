@@ -67,3 +67,22 @@ export async function runCatalogRefreshTests(): Promise<number> {
   assert(disposed && states.length === countBeforeDispose && maximum === 1, "Disposed refresh published or retained listeners"); passed++;
   return passed;
 }
+
+export async function runPreferencesPipelineTests(): Promise<number> {
+  const fixture = catalogFixture();
+  let visible = true, catalogReads = 0, preferenceReads = 0, timer = (): void => {};
+  let release: (() => void) | undefined;
+  const environment: CatalogRefreshEnvironment = { visible: () => visible, now: () => 0,
+    every(callback) { timer = callback; return () => { timer = () => {}; }; }, onFocus() { return () => {}; }, onVisibility() { return () => {}; } };
+  const client: WorkspaceCatalogClient = { async read() { catalogReads++; return fixture; }, async reconnect() {}, onUnavailable() { return () => {}; }, onConnected() { return () => {}; }, dispose() {} };
+  const refresh = new WorkspaceCatalogRefresh(client, { environment, onChange() {}, refreshPreferences() { preferenceReads++; return new Promise<void>(resolve => { release = resolve; }); } });
+  refresh.start(); await settle();
+  assert(refresh.snapshot.phase === "ready" && preferenceReads === 1, "Pending preferences hid a usable catalog");
+  timer(); timer(); refresh.trigger(); await settle();
+  assert(catalogReads === 1 && preferenceReads === 1, "Preference poll overlapped the shared pipeline");
+  release!(); await settle();
+  assert(Number(catalogReads) === 2 && Number(preferenceReads) === 2, "Shared pipeline lost coalesced follow-up");
+  timer(); visible = false; release!(); await settle();
+  assert(Number(catalogReads) === 2, "Queued preferences pipeline drained while hidden");
+  refresh.dispose(); return 4;
+}

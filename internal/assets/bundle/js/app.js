@@ -11,6 +11,8 @@ import { createWorkspaceCatalogClient } from "./api/catalog.js";
 import { WorkspaceCatalogRefresh } from "./workspace-ui/refresh.js";
 import { WorkspaceShell } from "./workspace-ui/view.js";
 import { WindowState } from "./session-ui/window-state.js";
+import { createWorkspacePreferencesClient } from "./api/preferences.js";
+import { WorkspacePins } from "./workspace-ui/pins.js";
 const mounted = new WeakMap();
 const connections = new WeakMap();
 const connectionClock = { schedule: (run, milliseconds) => setTimeout(run, milliseconds), cancel: handle => clearTimeout(handle) };
@@ -61,12 +63,14 @@ export async function connectLocalApplication(root, fetcher = globalThis.fetch.b
     let workspace;
     let controller, view;
     let shell, refresh;
+    let pins;
     let stopRoute, stopCommit;
     let closed = false;
     const cleanup = () => {
         stopRoute?.();
         stopCommit?.();
         refresh?.dispose();
+        pins?.dispose();
         controller?.destroy();
         shell?.destroy();
         view?.destroy();
@@ -107,10 +111,12 @@ export async function connectLocalApplication(root, fetcher = globalThis.fetch.b
                     }
                 };
                 shell = new WorkspaceShell(stage, { navigate: path => controller?.navigate(path) ?? Promise.resolve(false), retry: () => { void retry(); },
+                    pinChanged: order => { void pins?.change(order); }, retryPins: () => { void pins?.refresh(true); }, inspectPins: () => { void pins?.refresh(true); },
                     layout: state.sidebarLayout, layoutChanged: layout => state.setSidebarLayout(layout) });
+                pins = new WorkspacePins(createWorkspacePreferencesClient(workspace, guarded), snapshot => shell?.setPins(snapshot));
                 controller = new WindowBoardController(shell.editorRoot, workspace, state);
                 stopRoute = controller.subscribe(status => shell?.setRouteStatus(status));
-                refresh = new WorkspaceCatalogRefresh(createWorkspaceCatalogClient(workspace, guarded), { onChange: snapshot => shell?.setCatalog(snapshot) });
+                refresh = new WorkspaceCatalogRefresh(createWorkspaceCatalogClient(workspace, guarded), { onChange: snapshot => shell?.setCatalog(snapshot), refreshPreferences: () => pins?.refresh() ?? Promise.resolve() });
                 stopCommit = controller.onCommitted(() => refresh?.trigger());
                 await controller.navigate(location.pathname, false);
                 current();

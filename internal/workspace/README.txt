@@ -19,7 +19,9 @@ Private paths and physical keys occur only in private control requests/config.
 Project creation, board create/register and focused status are automation-only.
 Catalog projection and its shared bounded scheduler are implemented in catalog.go.
 Current authorized snapshots cover all joining polls; failed probes disclose no
-prior board facts. Preferences remain a subsequent package.
+prior board facts. preferences.go persists shared pin keys/order in a separate
+private schema-1 file/revision, browser-only writes and expected-revision CAS.
+Malformed preferences stay unavailable without resetting or stopping healthy boards.
 
 Initialization and registration are separate durable steps. Any ambiguous config
 publication returns UNKNOWN and retains initialized bytes. A deliberate status

@@ -80,6 +80,10 @@ export class WorkspaceCatalogRefresh {
                 this.publish({ phase: this.trusted ? "stale" : "unavailable", catalog: this.trusted ? staleCatalog(this.trusted.catalog, this.receivedAt, this.env.now()) : null,
                     projects: this.trusted?.projects ?? null, receivedAt: this.receivedAt, refreshing: false });
             }
+            // Preferences share these triggers and this single pipeline, while their
+            // failure cannot hide a successful catalog or impair the active editor.
+            if (!this.disposed && this.connected && generation === this.generation)
+                await this.options.refreshPreferences?.().catch(() => { });
         };
         this.running = work().finally(() => { this.running = undefined; this.drain(); });
     }

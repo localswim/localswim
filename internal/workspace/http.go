@@ -34,6 +34,10 @@ func body[T1 any](w http.ResponseWriter, q *http.Request) (T1, error) {
 	return T.Decode[T1](b)
 }
 func (r *Runtime) ServeHTTP(w http.ResponseWriter, q *http.Request) {
+	if q.URL.Path == "/api/v1/workspace/preferences" {
+		r.servePreferences(w, q)
+		return
+	}
 	if L.WorkspaceChannel(q.Context()) == "" {
 		r.refusal(w, 403, "FORBIDDEN")
 		return

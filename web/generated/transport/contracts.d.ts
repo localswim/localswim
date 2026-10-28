@@ -534,6 +534,33 @@ export type WorkspaceCatalog = {
   readonly workspaceId: string;
 };
 
+export type WorkspacePinReference = {
+  readonly boardKey: string;
+  readonly projectKey: string;
+};
+
+export type WorkspacePreferences = {
+  readonly apiVersion: 1;
+  readonly pins: ReadonlyArray<WorkspacePinReference>;
+  readonly preferencesRevision: number;
+  readonly workspaceId: string;
+};
+
+export type WorkspacePreferencesRequest = {
+  readonly action: "pin" | "unpin" | "reorder";
+  readonly apiVersion: 1;
+  readonly expectedPreferencesRevision: number;
+  readonly order: ReadonlyArray<WorkspacePinReference>;
+  readonly pin: WorkspacePinReference | null;
+};
+
+export type WorkspacePreferencesError = {
+  readonly apiVersion: 1;
+  readonly error: Error;
+  readonly outcome: "refused";
+  readonly preferences: WorkspacePreferences | null;
+};
+
 export type TerminalCardCreateCommittedFull = {
   readonly actorId: string;
   readonly apiVersion: 1;

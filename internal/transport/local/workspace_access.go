@@ -10,6 +10,21 @@ import (
 	"github.com/localswim/localswim/internal/store/writer"
 )
 
+// WorkspaceIdentityCurrent checks an already owned member without interpreting
+// its configured grants or minting any capability. Admission keeps native pins
+// owned until this check returns. The caller must also verify registry roots.
+func (r *Runtime) WorkspaceIdentityCurrent(expected BoardIdentity) bool {
+	r.reqMu.Lock()
+	if r.closing {
+		r.reqMu.Unlock()
+		return false
+	}
+	r.requests.Add(1)
+	r.reqMu.Unlock()
+	defer r.requests.Done()
+	return r.Identity() == expected && r.validateIdentity()
+}
+
 // ConfiguredReadAllowed projects no data and mints no credential. The already
 // authenticated workspace channel selects only this engine's immutable local
 // human or automation grant; current enabled state and read rights are resolved

@@ -1,0 +1,72 @@
+M01.08 shared pins without shared active-window context
+2026-10-28
+
+Workspace pins and their manual order now persist independently of board revisions,
+membership configuration and each window's route/editor/layout. Ordinary browser
+controls pin, unpin and move registered boards; shared updates never navigate another
+window, replace its editor input, steal editor focus or reset its scroll.
+
+Private persistence and authority
+- workspace-preferences.json is schema 1, account-private and bounded to 64 KiB.
+  It stores workspace identity, its own positive monotonic revision and pin keys
+  bound to registered installation/board/incarnation tuples. Public responses
+  expose only keys and order; no tuple, grant, native path or capability is added.
+- GET is available through the existing workspace browser or automation metadata
+  channel. POST is workspace-browser-only with the existing exact Host/Origin,
+  cookie, header and media boundary. Automation capability cannot write pins, and
+  workspace cookies gain no board mutation or approval rights.
+- Initially absent preferences read as revision 1/empty without creating a file.
+  The first accepted save creates private schema 1/revision 2. Every accepted
+  change has a separate expected preferences revision; board/config revisions
+  and domain data remain unchanged.
+- Strict parsing refuses unknown/duplicate fields, unsupported versions, invalid
+  workspace/tuple bindings, duplicates, oversize/nonprivate bytes, downgrades and
+  changed bytes at the same revision. An observed file's disappearance is an
+  error, not an automatic empty reset. Malformed/unavailable preferences do not
+  prevent otherwise healthy boards and catalog from serving.
+- Pin validates the registered physical root and full tuple; reorder supplies
+  the complete current reference order. Unpin remains possible for opaque or
+  unavailable boards. Pins do not create membership, adopt replacement identity
+  or grant data access; catalog authorization still controls displayed facts.
+
+Concurrency and uncertain outcomes
+Preference publication uses native byte comparison/atomic replacement under the
+exclusive workspace owner and the preference serializer. Supported writers are
+cooperating requests to that owner. Uncooperative same-account raw file replacement
+between comparison and rename is outside this sole-writer assurance; no hostile
+local-writer or transactional-filesystem guarantee is added.
+
+A stale save returns 412/PREFERENCES_CHANGED with the current public preference
+state. The user sees the conflict and chooses whether to retry; no automatic
+overwrite occurs. Lost/unreadable replies or publication uncertainty remain UNKNOWN,
+including a reply lost after a successful native save. Desired intent remains
+visible until deliberate inspection. Inspection is a read, never mutation replay.
+Failed saves do not remove retained bytes or claim persistence/rollback.
+
+Browser state and controls
+Strict generated Go schemas validate request actions and response identities/order.
+The client sends each intent once, serializes its reads/writes and fences late
+bodies, denials, reconnect and disposal. Preferences join the existing visible
+catalog refresh pipeline instead of a separate timer; their failure does not
+block healthy catalog data. Unknown/conflict outcomes require deliberate handling.
+
+Pinned rows keep manual order; Other keeps catalog order. Native buttons and
+keyboard controls provide pin/unpin/up/down actions. Rows are keyed when moving
+between groups. A hidden/disabled focused pin button falls back to the same board's
+usable row link without navigating or taking focus from an editor. Sidebar scroll,
+route, actual editor nodes and per-window collapse/width remain independent.
+
+Evidence and remaining work
+Native tests exercise browser-only writes, raw HTTP refusals, stale concurrent
+saves/current-state replies, restart, malformed/deleted/nonprivate bytes, file CAS
+interference, publication uncertainty, tuple replacement, opaque unpin and shutdown
+drain. Browser component tests cover exact generated boundaries, single-send,
+UNKNOWN intent, conflicts, generation and shared pipeline behavior. Ordinary
+two-window executable proof checks visible controls, persistence and isolation;
+controlled lost-reply/conflict/invalid-file cases are labeled supplements.
+
+This is M01.08 implementation evidence. Joined M01 qualification and independent
+demo/candidate/report validation remain M01.09/M01.10. No real import, new board
+authority, workflow/attachment feature, storage-schema/retention migration, trust
+ceremony or power-loss assurance is claimed. Private runtime data and evidence
+stay outside the public repository.

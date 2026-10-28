@@ -93,6 +93,7 @@ func verified(source fs.FS) (map[string][]byte, error) {
 }
 
 var declared = map[string]bool{
+	"js/api/preferences.js": true, "js/workspace-ui/pins.js": true,
 	"js/api/catalog.js": true, "js/workspace-ui/view.js": true, "js/workspace-ui/refresh.js": true,
 	"js/api/runtime.js": true, "js/api/workspace-session.js": true, "js/session-ui/window-state.js": true, "js/session-ui/window-controller.js": true,
 	"index.html": true, "styles/app.css": true,

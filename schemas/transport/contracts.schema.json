@@ -10820,6 +10820,181 @@
       ],
       "type": "object"
     },
+    "WorkspacePinReference": {
+      "additionalProperties": false,
+      "properties": {
+        "boardKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "projectKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "boardKey",
+        "projectKey"
+      ],
+      "type": "object"
+    },
+    "WorkspacePreferences": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pins": {
+          "items": {
+            "$ref": "#/$defs/WorkspacePinReference"
+          },
+          "maxItems": 256,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "preferencesRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "workspaceId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "pins",
+        "preferencesRevision",
+        "workspaceId"
+      ],
+      "type": "object"
+    },
+    "WorkspacePreferencesError": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "error": {
+          "$ref": "#/$defs/Error"
+        },
+        "outcome": {
+          "enum": [
+            "refused"
+          ],
+          "type": "string"
+        },
+        "preferences": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspacePreferences"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "apiVersion",
+        "error",
+        "outcome",
+        "preferences"
+      ],
+      "type": "object"
+    },
+    "WorkspacePreferencesRequest": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "action": {
+              "enum": [
+                "pin",
+                "unpin"
+              ]
+            },
+            "order": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "pin": {
+              "$ref": "#/$defs/WorkspacePinReference"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "reorder"
+            },
+            "pin": {
+              "type": "null"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "action": {
+          "enum": [
+            "pin",
+            "unpin",
+            "reorder"
+          ],
+          "type": "string"
+        },
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expectedPreferencesRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "order": {
+          "items": {
+            "$ref": "#/$defs/WorkspacePinReference"
+          },
+          "maxItems": 256,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "pin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspacePinReference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "action",
+        "apiVersion",
+        "expectedPreferencesRevision",
+        "order",
+        "pin"
+      ],
+      "type": "object"
+    },
     "WorkspaceProject": {
       "additionalProperties": false,
       "properties": {

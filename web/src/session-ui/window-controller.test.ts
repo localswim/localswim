@@ -21,17 +21,28 @@ class MemoryStorage implements Storage {
 
 export function runWindowIdentityProbe(): number {
   const storage = new MemoryStorage(), first = new WindowState(storage, "navigate");
+  if ("filter" in JSON.parse(storage.getItem("localswim.window.v1")!)) throw Error("Empty filter changed default privacy shape");
+  first.setSidebarFilter("harbor");
   const reload = new WindowState(storage, "reload");
+  if (reload.sidebarFilter !== "harbor") throw Error("Reload lost sidebar filter");
   if (first.id !== reload.id) throw Error("Reload replaced window identity");
   const cloned = new MemoryStorage();
   for (let i = 0; i < storage.length; i++) { const key = storage.key(i)!; cloned.setItem(key, storage.getItem(key)!); }
-  if (new WindowState(cloned, "navigate").id === first.id) throw Error("New window adopted opener identity");
+  const newWindow = new WindowState(cloned, "navigate");
+  if (newWindow.sidebarFilter !== "") throw Error("New window adopted opener filter");
+  first.setSidebarFilter("x".repeat(300));
+  if (first.sidebarFilter.length !== 200 || new WindowState(storage, "back_forward").sidebarFilter.length !== 200) throw Error("Filter bound was not retained");
+  first.setSidebarFilter("");
+  if ("filter" in JSON.parse(storage.getItem("localswim.window.v1")!)) throw Error("Cleared filter retained privacy field");
+  if (newWindow.id === first.id) throw Error("New window adopted opener identity");
   storage.fail = true;
   const refusing = new WindowState(storage, "reload");
   let refused = false;
   try { refusing.put("synthetic", {}); } catch { refused = true; }
   if (!refused) throw Error("Unavailable window storage claimed a save");
-  return 3;
+  refusing.setSidebarFilter("memory only");
+  if (refusing.sidebarFilter !== "memory only") throw Error("Denied storage disabled filter");
+  return 9;
 }
 
 export async function runPrivateReloadProbe(boardInput: BoardRead, sessionInput: SessionRead): Promise<number> {

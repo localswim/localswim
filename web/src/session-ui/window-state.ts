@@ -13,9 +13,10 @@ export class WindowState {
   private readonly boards: Record<string, PrivateViewState> = {};
   private readonly storage: Storage | undefined;
   private layout: SidebarLayout = { collapsed: false, width: 280 };
+  private filter = "";
   constructor(storage?: Storage, navigationType = performance.getEntriesByType("navigation")[0] && (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming).type) {
     try { this.storage = storage ?? globalThis.sessionStorage; } catch { this.storage = undefined; }
-    let retained: { id?: unknown; boards?: unknown; layout?: { collapsed?: unknown; width?: unknown } } | undefined;
+    let retained: { id?: unknown; boards?: unknown; filter?: unknown; layout?: { collapsed?: unknown; width?: unknown } } | undefined;
     try {
       const text = this.storage?.getItem(storageKey);
       if (text && text.length <= 65536 && (navigationType === "reload" || navigationType === "back_forward")) retained = JSON.parse(text);
@@ -23,6 +24,7 @@ export class WindowState {
     if (retained?.layout && typeof retained.layout.collapsed === "boolean" && typeof retained.layout.width === "number" && Number.isFinite(retained.layout.width)) {
       this.layout = { collapsed: retained.layout.collapsed, width: Math.min(420, Math.max(220, Math.round(retained.layout.width))) };
     }
+    if (typeof retained?.filter === "string") this.filter = retained.filter.slice(0, 200);
     this.id = typeof retained?.id === "string" && uuid.test(retained.id) ? retained.id : crypto.randomUUID();
     if (retained?.boards && typeof retained.boards === "object" && !Array.isArray(retained.boards)) {
       for (const [key, value] of Object.entries(retained.boards).slice(0, 256)) {
@@ -37,7 +39,12 @@ export class WindowState {
         }
       }
     }
-    try { this.storage?.setItem(storageKey, JSON.stringify({ id: this.id, boards: this.boards, layout: this.layout })); } catch { /* Memory identity remains valid for this lifetime. */ }
+    try { this.persist(); } catch { /* Memory identity remains valid for this lifetime. */ }
+  }
+  get sidebarFilter(): string { return this.filter; }
+  setSidebarFilter(filter: string): void {
+    this.filter = filter.slice(0, 200);
+    try { this.persist(); } catch { /* Advisory filter remains usable for this window lifetime. */ }
   }
   get sidebarLayout(): SidebarLayout { return { ...this.layout }; }
   setSidebarLayout(layout: SidebarLayout): void {
@@ -48,7 +55,7 @@ export class WindowState {
     try { this.persist(); } catch { /* Keep the layout for this window lifetime. */ }
   }
   private persist(): void {
-    const text = JSON.stringify({ id: this.id, boards: this.boards, layout: this.layout });
+    const text = JSON.stringify({ id: this.id, boards: this.boards, layout: this.layout, ...(this.filter ? { filter: this.filter } : {}) });
     if (!this.storage || text.length > 65536 || Object.keys(this.boards).length > 256) throw Error("Window recovery index unavailable");
     this.storage.setItem(storageKey, text);
     if (this.storage.getItem(storageKey) !== text) throw Error("Window recovery index unverified");

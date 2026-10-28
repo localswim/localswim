@@ -1,0 +1,76 @@
+M01.09 joined workspace qualification and acceptance gap closure
+2026-10-28
+
+The qualification packet separates the joined customer journey, retained single-
+board regression, changed native boundaries and reproducible build checks. Its
+sanitized results and capability limits are in qualification/workspace/results.json;
+the exact private evidence remains hash-bound and retained for review. A passing
+scoped inventory is not a claim that every fresh native or ordinary Go run passed.
+
+Acceptance gap closed
+The accepted parity checkpoint, contract section 8 and W06 require a per-window
+sidebar filter. Qualification found that collapse and width existed but the filter
+did not. The shell now provides Filter boards for project/board labels and keys,
+with a bounded 200-character window-local query. Reload/back/forward retain that
+window's query; a new window starts fresh. An empty query preserves the prior
+private storage shape. Broader card search remains M02.
+
+Filtering changes row visibility only. Server ordering/counts, shared pin order,
+the full homepage chooser and selected route/editor remain intact. Hidden links
+leave keyboard navigation; no matches has a visible explanation. Polling and pin
+updates preserve filter input/caret and editor state. Independent review found and
+fixed focus loss when a refreshed/reparented row stopped matching: focus now falls
+back to a visible link or the filter without stealing focus from an editor.
+
+The joined outage journey also found that a pin refresh could change the catalog
+status back to connected while its counts remained out of date. The retained shell
+snapshot now preserves its stale state across pin and filter rerenders. Counts
+remain explicitly old and current availability unknown until successful refresh;
+only a fresh catalog read restores the connected status and current facts.
+
+Evidence boundaries
+- W01-W13 use an inventory frozen before final execution, the normal compiled
+  executable and built CLI, and three fresh synthetic boards in two projects.
+  Rendered positive journeys and labeled timing/storage faults remain distinct.
+- The 21 mandatory single-board IDs are retained. Their fixture owns the real
+  local runtime and embedded assets; the application executable performs CLI
+  actions. A separate normal-main startup/browser/CLI/reopen smoke covers that
+  distinction. The privacy case now permits only the exact documented non-secret
+  window index, rather than assuming sessionStorage is empty. Original credential,
+  recovery-storage and inline-execution guards remain; negative probes reject
+  extra fields, secrets, editor prose, wrong references and noncanonical bytes.
+- The native provider inventory includes all current internal source/assets.
+  Fresh root transaction/archive and targeted workspace evidence remain separate
+  from broader ordinary/native suite outcomes. A synthetic validated archive
+  projection fixture proves exclusion/activity behavior, not M02 archive UX.
+- Original operation evidence remains bound to its recorded local origin. A
+  separate real standalone/workspace/standalone journey verifies UNKNOWN at the
+  changed origin through both workspace and metadataV2 data selectors, then
+  reconciliation of the same operation at its original origin. The authentic
+  protected evidence file and board state remain unchanged during these lookups.
+- Earlier case-sensitive-directory fixtures lacked a required directory right.
+  The existing private-directory helper creates a new protected test parent with
+  current-user/SYSTEM FullControl; the unchanged physical-boundary test then
+  passes under the ordinary Windows account. The setup and native permission
+  readback are retained. Final required evidence uses fresh execution; the earlier
+  M01.03 applicability audit remains explicitly historical. Failed broad runs and
+  the intermittent setup-publication result remain alongside the selected current
+  results; later success does not relabel those earlier attempts.
+- The checker binds complete current product/build inputs, candidate, inventory
+  freeze, parsed execution evidence and failed-attempt ledger. It rejects missing
+  provenance, wrong candidates, incomplete rows and failed native event streams.
+  Independent review remains necessary; metadata checking cannot itself execute
+  a browser journey or establish a physical durability guarantee.
+
+Publication and remaining gate
+Candidate 1611225096aec4400db353d7667a005f11314d520fc9df2d13235cd6f0aa6ff3
+contains the reviewed filter, stale-status fix and generated assets. Clean-source
+archives identify the accepted baseline plus exact product overlays;
+qualification-only maintenance is separately executed and reviewed. Historical
+reports and failed attempts are
+unchanged. No real boards, import/cutover, trust enrollment, new account system,
+hostile same-account assurance or power-loss certification is included.
+
+M01.10 remains a separate owner-gated final demonstration, independent candidate
+review and independent report validation. This packet does not approve that card
+or move any owner-controlled card to Completed.

@@ -36,6 +36,16 @@ CDP IME and quota tests and the explicit IDB factory-denial test are labeled.
 The native quota component probe is distinct from actual DOM refusal evidence.
 These tests do not prove physical power-loss durability or meaningful review.
 
+The standalone privacy journey permits only localswim.window.v1 in sessionStorage:
+one UUIDv4 window ID, the current board's exact UUIDv4 editor recovery reference,
+and the unchanged default sidebar layout. Canonical JSON equality rejects extra
+keys, duplicate keys, other boards, prose, base snapshots and operation payloads.
+The reference is bound to the current human, board and unique measured recovery
+draft. Raw bytes must exclude the runtime token and synthetic title/description;
+localStorage, visible cookies, recovery secret scanning and inline-execution
+guards remain required. This updates the former empty-sessionStorage expectation
+for the accepted M01 window metadata without changing the 21-case inventory.
+
 Source/inventory hashes are frozen before startup. Per-case private JSON binds
 status, retry, errors, duration, manifest, inventory, source and binary hashes.
 Startup and owned teardown records are mandatory. final-evidence.mjs requires all

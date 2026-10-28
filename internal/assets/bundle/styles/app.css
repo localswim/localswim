@@ -80,3 +80,7 @@ section:has(> .workspace-shell) { margin: 0; }
   .workspace-width-label { display: none; }
   .workspace-content { padding: 1.25rem 1rem; }
 }
+
+.workspace-filter-label { display: block; margin: 0 .65rem .35rem; color: var(--workspace-muted); font-size: .85rem; }
+.workspace-filter { box-sizing: border-box; width: 100%; margin: 0 0 1rem; color: var(--workspace-text); background: var(--workspace-surface); border: 1px solid var(--workspace-line); border-radius: .4rem; padding: .5rem .65rem; }
+.workspace-filter-status { margin: .5rem .65rem 1rem; color: var(--workspace-muted); font-size: .85rem; }

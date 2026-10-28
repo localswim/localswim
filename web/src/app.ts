@@ -91,7 +91,7 @@ export async function connectLocalApplication(root: HTMLElement, fetcher: typeof
         };
         shell = new WorkspaceShell(stage, { navigate: path => controller?.navigate(path) ?? Promise.resolve(false), retry: () => { void retry(); },
           pinChanged: order => { void pins?.change(order); }, retryPins: () => { void pins?.refresh(true); }, inspectPins: () => { void pins?.refresh(true); },
-          layout: state.sidebarLayout, layoutChanged: layout => state.setSidebarLayout(layout) });
+          layout: state.sidebarLayout, layoutChanged: layout => state.setSidebarLayout(layout), filter: state.sidebarFilter, filterChanged: filter => state.setSidebarFilter(filter) });
         pins = new WorkspacePins(createWorkspacePreferencesClient(workspace, guarded), snapshot => shell?.setPins(snapshot));
         controller = new WindowBoardController(shell.editorRoot, workspace, state);
         stopRoute = controller.subscribe(status => shell?.setRouteStatus(status));

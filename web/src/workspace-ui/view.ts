@@ -2,11 +2,11 @@ import type { CatalogCount, WorkspaceCatalog, WorkspaceCatalogEntry, WorkspacePr
 
 export type ShellPinSnapshot = Readonly<{ pins: readonly WorkspacePinReference[]; state: "loading" | "ready" | "saving" | "failed" | "conflict" | "unknown"; message?: string }>;
 
-export type ShellSnapshot = Readonly<{ catalog?: WorkspaceCatalog; projects?: WorkspaceProjects; state: "loading" | "ready" | "unavailable"; refreshing?: boolean }>;
+export type ShellSnapshot = Readonly<{ catalog?: WorkspaceCatalog; projects?: WorkspaceProjects; state: "loading" | "ready" | "stale" | "unavailable"; refreshing?: boolean }>;
 export type ShellCatalogSnapshot = Readonly<{ phase: "loading" | "ready" | "stale" | "unavailable"; catalog: WorkspaceCatalog | null; projects: WorkspaceProjects | null; receivedAt: number | null; refreshing: boolean }>;
 export type ShellLayout = Readonly<{ collapsed: boolean; width: number }>;
 export type RouteStatus = Readonly<{ requestedPath: string; activePath?: string; phase: "loading" | "ready" | "unavailable" | "blocked"; message?: string }>;
-export type WorkspaceShellOptions = Readonly<{ navigate(path: string): void | Promise<unknown>; retry(): void; layout?: ShellLayout; layoutChanged?(layout: ShellLayout): void; pinChanged?(pins: ShellPinSnapshot["pins"]): void; retryPins?(): void; inspectPins?(): void }>;
+export type WorkspaceShellOptions = Readonly<{ navigate(path: string): void | Promise<unknown>; retry(): void; filter?: string; filterChanged?(filter: string): void; layout?: ShellLayout; layoutChanged?(layout: ShellLayout): void; pinChanged?(pins: ShellPinSnapshot["pins"]): void; retryPins?(): void; inspectPins?(): void }>;
 
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text = ""): HTMLElementTagNameMap[K] {
   const result = document.createElement(tag); result.className = className; result.textContent = text; return result;
@@ -52,6 +52,8 @@ export class WorkspaceShell {
   private readonly projects = node("div", "workspace-empty-projects");
   private readonly toggle = node("button", "workspace-toggle");
   private readonly width = node("input", "workspace-width");
+  private readonly filter = node("input", "workspace-filter");
+  private readonly filterStatus = node("p", "workspace-filter-status");
   private layout: ShellLayout;
   private selected = "/";
   private roving?: string;
@@ -76,7 +78,12 @@ export class WorkspaceShell {
     const widthLabel = node("label", "workspace-width-label", "Sidebar width");
     this.width.type = "range"; this.width.min = "220"; this.width.max = "420"; this.width.step = "10"; this.width.setAttribute("aria-label", "Sidebar width");
     this.width.addEventListener("input", () => { this.layout = { ...this.layout, width: Number(this.width.value) }; this.applyLayout(); this.options.layoutChanged?.(this.layout); });
-    widthLabel.append(this.width); nav.append(pinnedTitle, this.pinnedList, title, this.list); this.sidebar.append(nav, this.pinStatus, this.pinActions, this.status, retry, widthLabel);
+    const filterLabel = node("label", "workspace-filter-label", "Filter boards");
+    this.filter.type = "search"; this.filter.maxLength = 200; this.filter.value = (options.filter ?? "").slice(0, 200);
+    this.filter.id = "workspace-filter"; filterLabel.htmlFor = this.filter.id;
+    this.filterStatus.setAttribute("role", "status"); this.filterStatus.hidden = true;
+    this.filter.addEventListener("input", () => { this.filter.value = this.filter.value.slice(0, 200); this.applyFilter(); this.options.filterChanged?.(this.filter.value); });
+    widthLabel.append(this.width); nav.append(pinnedTitle, this.pinnedList, title, this.list); this.sidebar.append(filterLabel, this.filter, this.filterStatus, nav, this.pinStatus, this.pinActions, this.status, retry, widthLabel);
     this.list.addEventListener("keydown", this.sidebarKeys);
     this.pinnedList.addEventListener("keydown", this.sidebarKeys);
     const content = node("div", "workspace-content");
@@ -119,10 +126,11 @@ export class WorkspaceShell {
       const key = boardHref(entry); let row = map.get(key);
       if (!row) { row = this.makeRow(entry, sidebar); map.set(key, row); }
       row.link.href = key;
+      row.root.dataset.filter = [entry.projectLabel, entry.label, entry.projectKey, entry.boardKey].join("\n").toLowerCase();
       row.project.textContent = entry.projectLabel; row.board.textContent = entry.label;
       row.count.textContent = "Ready for Review: " + (failed && entry.attention.readyForReview.state === "known" ? String(entry.attention.readyForReview.value) + " · out of date" : countLabel(entry.attention.readyForReview));
-      row.status.textContent = failed ? "Connection unavailable · last observation" : availability[entry.availability];
-      row.age.textContent = (failed ? "Out of date · " : "") + observationLabel(entry);
+      row.status.textContent = failed ? "Current availability unknown · last observation: " + availability[entry.availability] : availability[entry.availability];
+      row.age.textContent = (failed && entry.freshness !== "stale" ? "Out of date · " : "") + observationLabel(entry);
       row.root.dataset.availability = failed ? "unavailable" : entry.availability;
       const pinIndex = sidebar ? this.pins.pins.findIndex(pin => boardHref(pin) === key) : -1;
       const target = pinIndex >= 0 ? this.pinnedList : list, position = pinIndex >= 0 ? pinIndex : sidebar ? entries.slice(0, index).filter(item => !this.pins.pins.some(pin => boardHref(pin) === boardHref(item))).length : index;
@@ -145,6 +153,9 @@ export class WorkspaceShell {
       target = [row.link.hasAttribute("href") ? row.link : undefined, row.pin, row.up, row.down].find(usable);
       if (!target && usable(row.root)) { row.root.tabIndex = -1; target = row.root; }
     }
+    // Moving keyed rows can blur them before filtering runs. Use the focus
+    // captured before the update when that row is now hidden or removed.
+    if (!target && focus.row) target = [...this.visibleLinks(), this.filter].find(usable);
     if (target && document.activeElement !== target) target.focus({ preventScroll: true });
   }
   update(snapshot: ShellSnapshot): void {
@@ -152,10 +163,11 @@ export class WorkspaceShell {
     const scrollTop = this.sidebar.scrollTop, scrollLeft = this.sidebar.scrollLeft;
     this.snapshot = snapshot;
     const entries = snapshot.catalog?.entries ?? [];
-    this.updateRows(entries, this.rows, this.list, true, snapshot.state === "unavailable");
+    this.updateRows(entries, this.rows, this.list, true, snapshot.state === "unavailable" || snapshot.state === "stale");
     for (const pin of this.pins.pins) if (!entries.some(entry => boardHref(entry) === boardHref(pin))) {
       const key = boardHref(pin); let row = this.rows.get(key);
       if (!row) { row = this.makeRow(pin, true); this.rows.set(key, row); }
+      row.root.dataset.filter = [pin.projectKey, pin.boardKey].join("\n").toLowerCase();
       row.link.removeAttribute("href"); row.link.tabIndex = -1;
       row.project.textContent = pin.projectKey + " / " + pin.boardKey; row.board.textContent = "Pinned board unavailable";
       row.count.textContent = ""; row.age.textContent = ""; row.status.textContent = "Current board information is unavailable"; row.root.dataset.availability = "unavailable";
@@ -165,13 +177,13 @@ export class WorkspaceShell {
     }
     // Apply the saved order after catalog iteration; Other keeps server order.
     this.pins.pins.forEach((pin, index) => { const row = this.rows.get(boardHref(pin)); if (row && this.pinnedList.children[index] !== row.root) this.pinnedList.insertBefore(row.root, this.pinnedList.children[index] ?? null); });
-    this.updateRows(entries, this.choices, this.choiceList, false, snapshot.state === "unavailable");
-    this.status.textContent = snapshot.state === "unavailable" ? "Board list could not be refreshed. Retry when the local service is available." : snapshot.state === "loading" ? "Loading boards…" : "Board list connected · refreshes every 5 seconds while this window is visible";
-    this.empty.textContent = entries.length ? "" : snapshot.state === "loading" ? "Loading your boards…" : snapshot.state === "unavailable" ? "The board list is unavailable. Refresh to try again." : "No boards are registered in this workspace yet.";
+    this.updateRows(entries, this.choices, this.choiceList, false, snapshot.state === "unavailable" || snapshot.state === "stale");
+    this.status.textContent = snapshot.state === "stale" ? "Board list is out of date. The last observation is shown; refresh to try again." : snapshot.state === "unavailable" ? "Board list could not be refreshed. Retry when the local service is available." : snapshot.state === "loading" ? "Loading boards…" : "Board list connected · refreshes every 5 seconds while this window is visible";
+    this.empty.textContent = entries.length ? "" : snapshot.state === "loading" ? "Loading your boards…" : snapshot.state === "unavailable" ? "The board list is unavailable. Refresh to try again." : snapshot.state === "stale" ? "No boards were registered at the last observation. The board list is out of date." : "No boards are registered in this workspace yet.";
     this.empty.hidden = entries.length > 0;
     const emptyProjects = snapshot.catalog && snapshot.projects?.configRevision === snapshot.catalog.configRevision ? snapshot.projects.projects.filter(project => !entries.some(entry => entry.projectKey === project.key)) : [];
-    this.projects.replaceChildren(...emptyProjects.map(project => node("p", "workspace-empty-project", project.label + " · No boards registered")));
-    this.syncSelection();
+    this.projects.replaceChildren(...emptyProjects.map(project => node("p", "workspace-empty-project", project.label + (snapshot.state === "stale" || snapshot.state === "unavailable" ? " · No boards registered at the last observation" : " · No boards registered"))));
+    this.applyFilter();
     this.restoreSidebarFocus(focused);
     this.sidebar.scrollTop = scrollTop; this.sidebar.scrollLeft = scrollLeft;
   }
@@ -188,8 +200,7 @@ export class WorkspaceShell {
     this.sidebar.scrollTop = scrollTop; this.sidebar.scrollLeft = scrollLeft;
   }
   setCatalog(snapshot: ShellCatalogSnapshot): void {
-    this.update({ ...(snapshot.catalog ? { catalog: snapshot.catalog } : {}), ...(snapshot.projects ? { projects: snapshot.projects } : {}), state: snapshot.phase === "stale" ? "ready" : snapshot.phase, refreshing: snapshot.refreshing });
-    if (snapshot.phase === "stale") this.status.textContent = "Board list is out of date. The last observation is shown; refresh to try again.";
+    this.update({ ...(snapshot.catalog ? { catalog: snapshot.catalog } : {}), ...(snapshot.projects ? { projects: snapshot.projects } : {}), state: snapshot.phase, refreshing: snapshot.refreshing });
   }
   setRoute(path: string): void {
     this.selected = path; this.chooserRoot.hidden = path !== "/"; this.editorRoot.hidden = path === "/"; this.syncSelection();
@@ -199,15 +210,30 @@ export class WorkspaceShell {
     this.setRoute(status.phase === "blocked" ? status.activePath ?? this.selected : status.requestedPath);
     this.setStatus(status.message ?? (status.phase === "loading" ? "Opening board…" : status.phase === "blocked" ? "Navigation paused. Save or discard pending private input to continue." : ""));
   }
+  // Filter changes only row visibility. Catalog facts, pin order and the active
+  // editor/route remain intact, including when the selected board is hidden.
+  private applyFilter(): void {
+    const focused = this.sidebarFocus();
+    const query = this.filter.value.trim().toLowerCase();
+    for (const row of this.rows.values()) row.root.hidden = !!query && !(row.root.dataset.filter ?? "").split("\n").some(value => value.includes(query));
+    const visible = [...this.rows.values()].filter(row => !row.root.hidden).length;
+    this.filterStatus.textContent = query && !visible ? "No boards match this filter. Clear Filter boards to show all boards." : "";
+    this.filterStatus.hidden = !query || visible > 0;
+    this.syncSelection();
+    if (focused?.row?.root.hidden) (this.visibleLinks()[0] ?? this.filter).focus({ preventScroll: true });
+  }
+  private visibleLinks(): HTMLAnchorElement[] {
+    return [...this.pinnedList.querySelectorAll<HTMLAnchorElement>("a[href]"), ...this.list.querySelectorAll<HTMLAnchorElement>("a[href]")].filter(link => !link.closest<HTMLLIElement>(".workspace-board-row")?.hidden);
+  }
   private syncSelection(): void {
-    const first = this.snapshot?.catalog?.entries[0];
-    if (!this.roving || !this.rows.get(this.roving)?.link.hasAttribute("href")) this.roving = this.rows.get(this.selected)?.link.hasAttribute("href") ? this.selected : first ? boardHref(first) : undefined;
-    for (const [key, row] of this.rows) { row.link.tabIndex = row.link.hasAttribute("href") && key === this.roving ? 0 : -1; if (key === this.selected) row.link.setAttribute("aria-current", "page"); else row.link.removeAttribute("aria-current"); }
+    const links = this.visibleLinks(), eligible = (key: string | undefined): boolean => !!key && links.includes(this.rows.get(key)?.link as HTMLAnchorElement);
+    if (!eligible(this.roving)) this.roving = eligible(this.selected) ? this.selected : links[0]?.pathname;
+    for (const [key, row] of this.rows) { row.link.tabIndex = !row.root.hidden && row.link.hasAttribute("href") && key === this.roving ? 0 : -1; if (key === this.selected) row.link.setAttribute("aria-current", "page"); else row.link.removeAttribute("aria-current"); }
     for (const [key, row] of this.choices) { if (key === this.selected) row.link.setAttribute("aria-current", "page"); else row.link.removeAttribute("aria-current"); }
   }
   private readonly sidebarKeys = (event: KeyboardEvent): void => {
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || !(event.target instanceof HTMLAnchorElement)) return;
-    const links = [...this.pinnedList.querySelectorAll<HTMLAnchorElement>("a[href]"), ...this.list.querySelectorAll<HTMLAnchorElement>("a[href]")], index = links.indexOf(event.target);
+    const links = this.visibleLinks(), index = links.indexOf(event.target);
     if (index < 0) return;
     const next = event.key === "ArrowDown" ? (index + 1) % links.length : event.key === "ArrowUp" ? (index + links.length - 1) % links.length : event.key === "Home" ? 0 : event.key === "End" ? links.length - 1 : -1;
     if (next >= 0) { event.preventDefault(); links[next]!.focus(); }

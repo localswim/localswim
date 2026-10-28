@@ -9,8 +9,8 @@ function entry(projectKey: string, boardKey: string, label: string): WorkspaceCa
 export function runWorkspaceShellProbe(): number {
   const root = document.createElement("div"); document.body.append(root);
   const calls: string[] = [], changes: Array<{ collapsed: boolean; width: number }> = [];
-  const pinChanges: string[][] = [];
-  const shell = new WorkspaceShell(root, { navigate: path => { calls.push(path); }, retry: () => { calls.push("retry"); }, layoutChanged: value => changes.push(value), pinChanged: pins => pinChanges.push(pins.map(boardHref)), retryPins: () => calls.push("review-pins"), inspectPins: () => calls.push("inspect-pins") });
+  const pinChanges: string[][] = [], filters: string[] = [];
+  const shell = new WorkspaceShell(root, { navigate: path => { calls.push(path); }, retry: () => { calls.push("retry"); }, filterChanged: value => filters.push(value), layoutChanged: value => changes.push(value), pinChanged: pins => pinChanges.push(pins.map(boardHref)), retryPins: () => calls.push("review-pins"), inspectPins: () => calls.push("inspect-pins") });
   const a = entry("harbor", "alpha", "Delivery board"), b = entry("harbor", "beta", "Delivery board"), c = entry("orchard", "garden", "Garden board");
   const catalog = (entries: readonly WorkspaceCatalogEntry[]): WorkspaceCatalog => ({ apiVersion: 1, workspaceId: "synthetic", configRevision: 2, observedAt: "2026-10-28T12:00:00Z", entries });
   const projects: WorkspaceProjects = { apiVersion: 1, workspaceId: "synthetic", configRevision: 2, projects: [{ key: "harbor", label: "Harbor project" }, { key: "orchard", label: "Orchard project" }, { key: "empty", label: "Empty project" }] };
@@ -34,6 +34,41 @@ export function runWorkspaceShellProbe(): number {
     shell.update({ state: "ready", catalog: catalog([a, c, b]), projects });
     assert(shell.editorRoot.firstChild === editor && document.activeElement === editor && editor.value === "Private unsaved input" && editor.selectionStart === 3, "Refresh touched active editor/focus");
     assert(first.getAttribute("aria-current") === "page" && shell.chooserRoot.hidden, "Selected board or chooser visibility incorrect");
+    const filter = root.querySelector<HTMLInputElement>(".workspace-filter")!;
+    const filterBy = (value: string): void => { filter.value = value; filter.dispatchEvent(new Event("input", { bubbles: true })); };
+    const visible = () => [...root.querySelectorAll<HTMLAnchorElement>(".workspace-board-list a[href]")].filter(link => !link.closest("[hidden]"));
+    filter.focus(); filterBy("  BeTa  ");
+    assert(filter.maxLength === 200 && visible().length === 1 && visible()[0] === second && Number(second.tabIndex) === 0 && Number(first.tabIndex) === -1, "Key filter or hidden roving fallback failed");
+    assert(first.getAttribute("aria-current") === "page" && shell.editorRoot.firstChild === editor && calls.length === 0 && root.querySelectorAll(".workspace-choice-list a").length === 3, "Filter changed active route/editor or full catalog chooser");
+    filter.setSelectionRange(2, 4); shell.update({ state: "ready", catalog: catalog([a, c, b]), projects });
+    shell.setPins({ state: "ready", pins: [{ projectKey: "harbor", boardKey: "beta" }] });
+    assert(document.activeElement === filter && filter.value === "  BeTa  " && filter.selectionStart === 2 && visible()[0] === second, "Refresh/pins changed filter focus, value or caret");
+    second.focus(); second.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+    assert(document.activeElement === second, "Keyboard visited a hidden row");
+    editor.focus(); editor.setSelectionRange(3, 8); filterBy("missing");
+    assert(visible().length === 0 && !root.querySelector<HTMLElement>(".workspace-filter-status")!.hidden && document.activeElement === editor && editor.selectionStart === 3 && !shell.editorRoot.hidden, "No-match filter hid editor, stole focus or omitted explanation");
+    filterBy("orchard project");
+    assert(visible().length === 1 && visible()[0]!.pathname === boardHref(c), "Project label filter missing");
+    filterBy("DELIVERY");
+    assert(visible().length === 2, "Case-insensitive board label filter missing");
+    filterBy(""); shell.setPins({ state: "ready", pins: [] });
+    assert(visible().length === 3 && filters.at(-1) === "" && first.getAttribute("aria-current") === "page", "Clear filter lost full list or selected route");
+    const staleEntries = [
+      { ...a, freshness: "stale" as const, attention: { ...a.attention, readyForReview: { state: "known" as const, value: 7 } } },
+      { ...b, freshness: "stale" as const, attention: { ...b.attention, readyForReview: { state: "unknown" as const, value: null } } },
+      { ...c, freshness: "stale" as const, attention: { ...c.attention, readyForReview: { state: "not_configured" as const, value: null } } },
+    ];
+    shell.setCatalog({ phase: "stale", catalog: catalog(staleEntries), projects, receivedAt: 1, refreshing: false });
+    const catalogStatus = root.querySelector<HTMLElement>(".workspace-catalog-status")!;
+    for (const state of ["ready", "failed", "loading", "unknown", "saving", "conflict"] as const) {
+      filter.focus(); filterBy("harbor"); filter.setSelectionRange(1, 4);
+      shell.setPins({ state, pins: [] }); filterBy("harbor");
+      assert(catalogStatus.textContent?.includes("out of date") && !catalogStatus.textContent.includes("connected") && document.activeElement === filter && Number(filter.selectionStart) === 1, "Pin/filter rerender cleared stale catalog state or filter caret: " + state);
+      editor.focus(); editor.setSelectionRange(3, 8); shell.setPins({ state, pins: [] });
+      assert(first.querySelector(".workspace-rfr")!.textContent === "Ready for Review: 7 · out of date" && second.querySelector(".workspace-rfr")!.textContent === "Ready for Review: Unknown" && root.querySelector(".workspace-choice-list .workspace-availability")!.textContent?.includes("Current availability unknown") && first.querySelector(".workspace-availability")!.textContent?.includes("last observation") && document.activeElement === editor && editor.selectionStart === 3 && editor.value === "Private unsaved input" && first.getAttribute("aria-current") === "page", "Stale row facts or active editor changed during pin rerender: " + state);
+    }
+    filterBy(""); shell.setCatalog({ phase: "ready", catalog: catalog([a, c, b]), projects, receivedAt: 2, refreshing: false }); shell.setPins({ state: "ready", pins: [] });
+    assert(catalogStatus.textContent?.includes("connected") && first.querySelector(".workspace-rfr")!.textContent === "Ready for Review: 0" && first.querySelector(".workspace-availability")!.textContent === "Available" && document.activeElement === editor && editor.selectionStart === 3 && first.getAttribute("aria-current") === "page", "Successful catalog recovery retained stale facts or disturbed editor/route");
     const modified = new MouseEvent("click", { button: 0, ctrlKey: true, bubbles: true, cancelable: true }); first.dispatchEvent(modified);
     assert(!modified.defaultPrevented && calls.length === 0, "Modified click intercepted native new-window navigation");
     const ordinary = new MouseEvent("click", { button: 0, bubbles: true, cancelable: true }); first.dispatchEvent(ordinary);
@@ -81,7 +116,9 @@ export function runWorkspaceShellProbe(): number {
     assert(root.querySelectorAll(".workspace-board-list a[href]").length === 0 && root.textContent?.includes("board list is unavailable"), "Authority loss retained catalog disclosure");
     shell.update({ state: "ready", catalog: catalog([]), projects: { ...projects, configRevision: 1 } });
     assert(!root.textContent?.includes("Empty project · No boards registered"), "Mismatched project revision invented empty membership");
-    return 32;
+    shell.setCatalog({ phase: "stale", catalog: catalog([]), projects, receivedAt: 1, refreshing: false }); shell.setPins({ state: "ready", pins: [] });
+    assert(root.querySelector(".workspace-empty")!.textContent?.includes("last observation") && root.querySelector(".workspace-empty-project")!.textContent?.includes("last observation"), "Stale empty facts were presented as current membership");
+    return 54;
   } finally { shell.destroy(); root.remove(); }
 }
 
@@ -115,6 +152,20 @@ export async function runWorkspacePinFocusProbe(): Promise<number> {
     const editor = document.createElement("textarea"); shell.editorRoot.append(editor); shell.setRoute(boardHref(a)); editor.focus(); editor.value = "Private input"; editor.setSelectionRange(2, 5);
     shell.setPins({ state: "ready", pins: [ref(a)] }); await paint();
     assert(document.activeElement === editor && editor.selectionStart === 2 && navigation.length === 0, "Pin focus fallback stole editor focus or navigated");
-    return 4;
+    const filter = root.querySelector<HTMLInputElement>(".workspace-filter")!;
+    const catalog = (values: WorkspaceCatalogEntry[]) => ({ apiVersion: 1 as const, workspaceId: "synthetic", configRevision: 2, observedAt: "2026-10-28T12:00:00Z", entries: values });
+    const keepA = { ...a, label: "Keep A" }, keepB = { ...b, label: "Keep B" };
+    shell.setPins({ state: "ready", pins: [] }); shell.update({ state: "ready", catalog: catalog([keepA, keepB]) });
+    filter.value = "Keep"; filter.dispatchEvent(new Event("input", { bubbles: true }));
+    bLink.focus(); sidebar.scrollTop = 0;
+    shell.update({ state: "ready", catalog: catalog([{ ...b, label: "Renamed" }, keepA]) }); await paint();
+    assert(bLink.closest("li")!.hidden && document.activeElement === aLink && sidebar.scrollTop === 0, "Renamed/reordered filtered row lost pre-refresh focus or scroll");
+    shell.update({ state: "ready", catalog: catalog([keepA, keepB]) }); shell.setPins({ state: "ready", pins: [ref(b)] }); bLink.focus();
+    shell.update({ state: "ready", catalog: catalog([keepA]) }); await paint();
+    assert(bLink.closest("li")!.hidden && document.activeElement === aLink, "Unavailable filtered pin dropped pre-refresh focus");
+    shell.setPins({ state: "ready", pins: [] }); aLink.focus();
+    shell.update({ state: "ready", catalog: catalog([{ ...a, label: "Renamed" }]) }); await paint();
+    assert(document.activeElement === filter, "No visible rows did not return sidebar focus to the filter");
+    return 7;
   } finally { shell.destroy(); root.remove(); }
 }

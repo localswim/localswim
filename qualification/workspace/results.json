@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "resultsRevision": 2,
+  "status": "PASS_SCOPED_INVENTORY",
+  "scope": "M01.09 synthetic joined qualification; M01.10 is a separate review/demo gate",
+  "inventoryRevision": "joined-r5",
+  "inventorySha256": "61e4b075292377690c0217100035580d8971c17a7056686fae5f4ed26a37e26c",
+  "requiredRecords": 20,
+  "acceptanceGroups": 13,
+  "candidateSha256": "1611225096aec4400db353d7667a005f11314d520fc9df2d13235cd6f0aa6ff3",
+  "canonicalProductInputs": 435,
+  "frozenSourceArchiveSha256": "6e17c6a6ed2f434342d8600839be0a3755243b56b837b7491027480790c89ee8",
+  "evidence": {
+    "joined": {
+      "privatePacketReference": "joined-r10/report.json",
+      "sha256": "e8bd3d548629d06e1bc8ad6afcc29fad118c2be44d8f802617ae3496db0cfb90"
+    },
+    "native27": {
+      "privatePacketReference": "native-r2-final-packet-r3.json",
+      "sha256": "a26e7c09c9bf895cbfbc8e1ec772767ed7c4dbb94ff5afc4f37ada280be9fb8c"
+    },
+    "singleBoard21": {
+      "privatePacketReference": "single-board-attempts/v02-local-20261028-182124-bd6a0f1d/single-board-regression-adapter-r4.json",
+      "sha256": "8088e89cbe2bc6c4d911dcac66f2527fd322cebf05f7aedbdf4a7f500e9c0398"
+    },
+    "freeze": {
+      "privatePacketReference": "inventory-freeze-r5.json",
+      "sha256": "b20e981784b4a6d083d1f7130c8f15356118cb950c7d90b35cdead448747b36c"
+    },
+    "freezeHistory": {
+      "privatePacketReference": "inventory-freeze-path-reconciliation-r1.json",
+      "sha256": "9bfd9dce8d3cec571ad91d10dbac1a9ec398d9a7a55d61d943d43d067cec1168"
+    },
+    "manifest": {
+      "privatePacketReference": "workspace-manifest-r2.json",
+      "sha256": "264f70b5c1fecae514aa35cf8bc15a6f78e8bab1d5549d9d6ee7d6ff34faa772"
+    },
+    "validator": {
+      "privatePacketReference": "workspace-validation-r2.json",
+      "sha256": "876e15b198ed5b17c8be03c2196f93ac5385c8ed02fa30c3a3e721ffcec71f4f"
+    },
+    "currentWholeGo": {
+      "privatePacketReference": "clean-builds/selected-current-native-r2-2256a238.json",
+      "sha256": "fbf8ac96e93582e0f150162ca0ff045a2184b63757e594ed2d89d1313ecc83d9"
+    },
+    "currentV04": {
+      "privatePacketReference": "native-r2-v04-selection-r2.json",
+      "sha256": "f76972b7304c78ab96a37e3aefecf53842747c08e01290c387d08615bf8f7c1c"
+    },
+    "cleanBuildPair": {
+      "privatePacketReference": "clean-builds/final-result-r2-2256a238.json",
+      "sha256": "b4882ef8dd2457ba383d0103e6a279b251fb2e3db100c23b6dfd5312d0cd848b"
+    },
+    "cleanBuildIntegrity": {
+      "privatePacketReference": "clean-builds/validation-r2-2256a238.json",
+      "sha256": "d9590b41c67cb0b4856fbdbec361a5d8b156fbc5305255cfcd0a7297877894ea"
+    },
+    "w04OriginSupplement": {
+      "privatePacketReference": "w04-origin-transition-r1/report.json",
+      "sha256": "999173718e3ace3e367cb9b746c76317920776ee2ee591d5bf396af683214d42"
+    },
+    "w04OriginPlan": {
+      "privatePacketReference": "w04-origin-transition-plan-r1.json",
+      "sha256": "ec76c3bf59477f8b9d5211892d4bfdebab5ed13856992135a69c5e0f02ef9f4f"
+    }
+  },
+  "completed": {
+    "joinedAssertions": 133,
+    "browserAssertions": 121,
+    "nativeRequiredUniqueTests": 27,
+    "nativePassRecords": 40,
+    "retainedSingleBoardCases": 21,
+    "skipsOrRetries": 0,
+    "liveCLIProcesses": 0,
+    "joinedOwnedHostExits": 6,
+    "browserHarnessExit": 0,
+    "w04AdditionalAssertions": 4,
+    "w04OwnedHostExits": 3,
+    "ordinaryGoPassRecordsEach": [
+      1553,
+      1553
+    ],
+    "ordinaryGoTestSkipsEach": [
+      0,
+      0
+    ],
+    "ordinaryGoEmptyTestPackagesEach": [
+      4,
+      4
+    ],
+    "cleanBuildOutputCountsEach": [
+      66,
+      66
+    ],
+    "allCleanBuildOutputHashesEqual": true,
+    "cleanBuiltExecutablesMatchCandidateEach": [
+      true,
+      true
+    ]
+  },
+  "capabilities": [
+    {
+      "scope": "M01",
+      "state": "implemented and exercised",
+      "features": [
+        "explicit workspace/projects/members and exact CLI selection",
+        "normal create/edit/comment isolation and existing workflow authority",
+        "independent per-window routes/editors/layout/filter and reload",
+        "supported Ready for Review counts/activity/freshness",
+        "shared pins/manual order, conflict/UNKNOWN and graceful restart"
+      ]
+    },
+    {
+      "scope": "M02",
+      "state": "deferred",
+      "features": [
+        "broader search/history/rename/hierarchy/configurable workflow lanes/archive UX"
+      ]
+    },
+    {
+      "scope": "M03",
+      "state": "deferred broader UX; existing basics retained",
+      "features": [
+        "broader attachments/covers"
+      ]
+    },
+    {
+      "scope": "M04",
+      "state": "deferred",
+      "features": [
+        "monitors/publishing/notifications"
+      ]
+    },
+    {
+      "scope": "M05/M06",
+      "state": "deferred",
+      "features": [
+        "real import/cutover/full parity acceptance"
+      ]
+    }
+  ],
+  "history": [
+    "Earlier case-sensitive fixture setup failures remain unchanged. A verified account-private fixture parent supports the final fresh physical-case PASS.",
+    "The final joined proof catches and verifies the narrow per-window filter and stale-catalog-status corrections; superseded candidates and failed attempts remain private.",
+    "Earlier historical reuse packets remain history and do not substitute for final fresh requirements.",
+    "W04 origin-copy fixture setup failures are retained as failures. The final separate normal-product transition uses unchanged native private evidence and adds four assertions outside joined-r10."
+  ],
+  "limits": [
+    "Archive exclusion uses a separate validated technical projection fixture, not archive creation UX.",
+    "Controlled transport/storage/native-file faults are labeled supplements to normal rendered browser/CLI journeys.",
+    "Failed private storage cannot promise forced-reload/process-loss recovery.",
+    "No M01.10 approval, real-data adoption, full parity, hostile same-account or power-loss claim."
+  ],
+  "inventoryValidation": "PASS_SCOPED_INVENTORY",
+  "retainedExecutionAttempts": 42,
+  "currentOrdinaryNativeStatus": "PASS"
+}

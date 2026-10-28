@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M01.09",
+  "revision": "joined-r5",
+  "authority": "accepted m01-acceptance-fixture-r1.json W01-W13 and workspace-contract-2026-10-27",
+  "policy": "Freeze before execution. Required records must pass once, bind the exact candidate and current sources, and retain hashed private evidence. Technical/component evidence is not ordinary UI evidence. M01.10 independent demo/candidate/report review remains separate.",
+  "required": [
+    {"id":"W01-native","group":"W01","kind":"native","requirements":["TestWorkspaceHTTPCreateResolveCASAndReopen","TestWorkspaceFilesPathAndPhysicalAliasGuards","TestWorkspaceHTTPIndependentMissingBusyAndReplacedMembers","TestConfigurationStrictBoundsAndDuplicateMembership","TestWorkspaceFilesReparseAndHardlinkRefused","TestWorkspaceFilesCaseSensitiveAncestorPhysicalBoundary"]},
+    {"id":"W01-joined","group":"W01","kind":"joined","requirements":["fresh-three-member-two-project-distinct-tuples-and-ticket-collision","restart-tuples-port-preserved-channels-rotated"]},
+    {"id":"W02-native","group":"W02","kind":"native","requirements":["TestWorkspaceHTTPPublicationUncertaintyRetainsInitializedStore"]},
+    {"id":"W03-native","group":"W03","kind":"native","requirements":["TestWorkspaceHostSecurityBoundaries","TestWorkspaceBrowserCookieJarScopesExactBoardAndDescendants","TestPreferencesHTTPWorkspaceTokenCannotBecomeBoardAuthority","TestWorkspaceTwoIndependentBoardsOverActualHTTP"]},
+    {"id":"W03-joined-http","group":"W03","kind":"joined","requirements":["native-board-bootstrap-wrong-installation-and-incarnation-refused-without-cookie-or-state-change"]},
+    {"id":"W04-native","group":"W04","kind":"native","requirements":["TestWorkspaceIdentityRevalidationAndStrictMetadata"]},
+    {"id":"W04-joined","group":"W04","kind":"joined","requirements":["legacy-data-read-exact-workspace-member","wrong-original-board-refused-without-replay"]},
+    {"id":"W05-joined","group":"W05","kind":"joined","requirements":["cli-create-edit-comment-both-collision-boards-exact-isolation","selector-negative-no-default-or-fallback","normal-browser-create-edit-comment-selected-board-only"]},
+    {"id":"W06-browser","group":"W06","kind":"browser","requirements":["normal-navigation-deeplink-history-reload-keyboard-rapid-switch","editor-dom-base-focus-selection-scroll-roundtrip","unknown-route-no-fallback","per-window-board-filter-persists-through-reload-without-changing-route-or-input"]},
+    {"id":"W07-browser","group":"W07","kind":"browser-fault","requirements":["native-late-read-cannot-paint-other-board","native-committed-response-lost-UNKNOWN-source-bound-no-replay","deliberate-original-inspection-only-on-original-board"]},
+    {"id":"W08-browser","group":"W08","kind":"browser-fault","requirements":["two-window-same-and-different-board-inputs-independent","reload-retains-own-window-draft-layout","private-index-denial-blocks-destructive-navigation"]},
+    {"id":"W09-browser","group":"W09","kind":"browser","requirements":["initial-native-review-counts-2-1-0-null-categories","browser-and-cli-commits-refresh-counts-and-order","unhealthy-member-keeps-healthy-navigation-and-recovers"]},
+    {"id":"W09-native","group":"W09","kind":"technical","requirements":["TestWorkspaceCatalogSnapshotTechnicalArchivedFixture","TestWorkspaceHTTPReadGrantDisclosureAndBrowserControlRefusal","TestCatalogHTTPHungProbeDoesNotDelayHealthyMembersOrDuplicate","TestCatalogCoalescesSlowMemberAndCompletesFairQueue"]},
+    {"id":"W10-joined","group":"W10","kind":"browser","requirements":["browser-and-cli-commits-refresh-counts-and-order","pin-order-fixed-while-other-uses-native-activity"]},
+    {"id":"W10-technical","group":"W10","kind":"technical","requirements":["TestCatalogOtherOrderingAndFutureAge","TestWorkspaceCatalogSnapshotTechnicalArchivedFixture","TestWorkspaceCatalogSnapshotNativeHTTP"]},
+    {"id":"W11-browser","group":"W11","kind":"browser-fault","requirements":["shared-pin-unpin-keyboard-manual-order-restart","shared-pins-preserve-second-window-editor-focus-scroll","native-preference-conflict-and-lost-response-no-replay","malformed-saved-preferences-visible-with-healthy-board"]},
+    {"id":"W11-native","group":"W11","kind":"native","requirements":["TestPreferencesHTTPConcurrentWindowsHaveOneCASWinner","TestPreferencesHTTPMalformedSavedBytesStayUnavailableAndHealthyHostServes","TestPreferencesHTTPPublicationUncertaintyRequiresExplicitRead","TestPreferencesPrivateSchemaAndTupleBinding","TestPreferencesHTTPOpaquePinsRemovableAndReplacedTupleRefused"]},
+    {"id":"W12-native","group":"W12","kind":"native","requirements":["TestWorkspaceDrainRetainsIndependentEngineOwnership","TestWorkspaceCleanupRetainsLockAndForeignEpoch","TestWorkspaceCloseRetainsUnresolvedMemberForRetry","TestWorkspaceConfiguredReadSnapshotDrainAndBudget"]},
+    {"id":"W13-joined","group":"W13","kind":"joined","requirements":["joined-run-complete-owned-teardown-zero-live-processes","exact-candidate-source-assets-tool-and-script-bindings-stable"]},
+    {"id":"W13-single-board","group":"W13","kind":"regression","requirements":["retained-21-single-board-inventory-zero-skip"]}
+  ]
+}

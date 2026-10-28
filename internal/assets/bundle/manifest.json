@@ -579,7 +579,7 @@
     "web/src/api/schema-data.ts": "85bfa3f9aae0060a513ac5444e687e0c4f729f03ad5390aabfd8a56bee66335e",
     "web/src/api/w03-session.ts": "71cc4829c16fa184156ec8b1dacab7d4e0e33178005891cbc045dc8419b522cc",
     "web/src/api/workspace-session.ts": "ebb3a4f9ab70ac62ec4416ae2413ae110796aa23c9964f859d12fececda6d48c",
-    "web/src/app.ts": "42936715673b2f296234491bd58c1a6775a1a40fab21c97063387df5eb26ce7e",
+    "web/src/app.ts": "0c5a86b673d41d2be37e9cb1dbc072530a6de8121024bb4da6428a50ccb9ffb9",
     "web/src/archive-ui/view.ts": "266fcdd68c998ced6b8666fbc8173752f44e4786135121a78c628efcc97e9673",
     "web/src/board/advisory.ts": "05398591f5e7b8deb1542b2e36c93017864ae7a544b57e62c94f42825a8c5a78",
     "web/src/board/view.ts": "7d2fef7c783ca1c7ab2e226aa0460b8a803d0ea2fdb260a5ed0261162bef854b",
@@ -593,12 +593,12 @@
     "web/src/session-ui/local-view.ts": "1326612f5a0b09be0ee809dce2a8fca522b5354b30dc821704d514f5373931fe",
     "web/src/session-ui/view.ts": "fa6ce3517c37707be98bb7f9e2d0fcf4684002836ffa1403f49c755c6018777b",
     "web/src/session-ui/window-controller.ts": "05d6531c799d08b7173d09ef0edafa0fb44ad50ebfb76028194bbf1cb20dbcfe",
-    "web/src/session-ui/window-state.ts": "9a038a259f1330c174e4a4fa39d2cc4ef405b9ab9f46f49ec4597319acd89127",
+    "web/src/session-ui/window-state.ts": "88147b30dd9eb1696701e4038af35c5251db930e46eb9ee516554ec36cc595d8",
     "web/src/session-ui/workspace.ts": "ddd31bdcaf2c424f5dc090bd6f5161973e219176534778939c77235e29e65944",
     "web/src/workspace-ui/pins.ts": "5705a50f91ed2d71337789854b6cae4bb775d0595c7e906fd37261276ba73181",
     "web/src/workspace-ui/refresh.ts": "997ee25b94a93907aeb0b216e03fd95e8ae18fdf9d9fffa5c2a4d19523676716",
-    "web/src/workspace-ui/view.ts": "f987adbd062ff1ed6040579b498b39a9307c1077770c5f27941fe755158f3e18",
-    "web/styles/app.css": "9725c5284ec2282582f2c951dab28c4edc2227be11c5e03ff3e51db6706aa403",
+    "web/src/workspace-ui/view.ts": "39ec72b05e5d06fd4cab6e0859cf9ca94319549fdcf6f1ec49cd5390d32aafdc",
+    "web/styles/app.css": "a0afba1752a9f0958c38136ff72fcaa8c0f82813c780e88c9fb660ae06ceb9ce",
     "web/tsconfig.json": "378d062615abf5cc20d4780eea513a34794d5775588815b8c7b81c0d674c9e51"
   },
   "files": {
@@ -612,7 +612,7 @@
     "js/api/schema-data.js": "d51f1ad3e393c2d816a78039def778cdb7e50ce08620615ba3e075a193100313",
     "js/api/w03-session.js": "40f73cb0a7e2850485d75b45c23d9e674e09211b575dd060fddf194c6e73eba9",
     "js/api/workspace-session.js": "d43a42febb6fcf400af94f089cd8ee8fc089314bb9c5168028f9c654b02060c6",
-    "js/app.js": "379c4348ce33c1aafd0fdc78497e3e52cf437a9889a8763e9294cefd61c3574f",
+    "js/app.js": "992b872a9e8fcb686f2626138542062323ec5a2763df2d92052cf4c935e6b0cb",
     "js/archive-ui/view.js": "0b8a31400b3176c059ab0043897c280a05391f11fd3b518e75ec35a3cbff8eeb",
     "js/board/advisory.js": "35d464d8046febd0011e518e31c1896b2a20c22768946164d4e00bf58332b3f1",
     "js/board/view.js": "1061b9624307ec159eb39226755d66ff3486ea4364eaaada923d8a70be424cac",
@@ -626,11 +626,11 @@
     "js/session-ui/local-view.js": "2fb0d4823fbba630ff75fa0aee83515eeb2e27386b133e2c879957edab272385",
     "js/session-ui/view.js": "43c156a3692108c95dff5a6dd91d368d66f13406687f53fd816eccce01f742c5",
     "js/session-ui/window-controller.js": "5bde639411c6afaec1aaf57959390722126d26c71d15b8d4468d6c42a32fef23",
-    "js/session-ui/window-state.js": "925de93e3426c61c6af9e2759c543bef80989c183c1298efae3780a53a594984",
+    "js/session-ui/window-state.js": "f682f1dbea7a8608729c8e8e75987843dd2d341c7bc5d95e427a4c3c918a81f2",
     "js/session-ui/workspace.js": "a6c77b62a921e9e3df43c086210b22fe2320e156b0a27de59ff4a32f821f1088",
     "js/workspace-ui/pins.js": "3c554f4b2efd7eb7ce1a3eac357a58f4b71ed1467bfe117943c8b464d4db3ed5",
     "js/workspace-ui/refresh.js": "62fdabb061efccdc32c45e634eabd50688364c9b2bd42cecef2d5d20af7d582c",
-    "js/workspace-ui/view.js": "3ee98b2cd350f3f4639f3d9b81ddcc396bc57ad61f96c0e03e26d4bcca15809b",
-    "styles/app.css": "9725c5284ec2282582f2c951dab28c4edc2227be11c5e03ff3e51db6706aa403"
+    "js/workspace-ui/view.js": "b9fa2b103d307286fec222f28de7ab76fcabdac8c1993756d291a5147773e5d1",
+    "styles/app.css": "a0afba1752a9f0958c38136ff72fcaa8c0f82813c780e88c9fb660ae06ceb9ce"
   }
 }

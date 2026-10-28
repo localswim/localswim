@@ -7,6 +7,7 @@ export class WindowState {
     boards = {};
     storage;
     layout = { collapsed: false, width: 280 };
+    filter = "";
     constructor(storage, navigationType = performance.getEntriesByType("navigation")[0] && performance.getEntriesByType("navigation")[0].type) {
         try {
             this.storage = storage ?? globalThis.sessionStorage;
@@ -24,6 +25,8 @@ export class WindowState {
         if (retained?.layout && typeof retained.layout.collapsed === "boolean" && typeof retained.layout.width === "number" && Number.isFinite(retained.layout.width)) {
             this.layout = { collapsed: retained.layout.collapsed, width: Math.min(420, Math.max(220, Math.round(retained.layout.width))) };
         }
+        if (typeof retained?.filter === "string")
+            this.filter = retained.filter.slice(0, 200);
         this.id = typeof retained?.id === "string" && uuid.test(retained.id) ? retained.id : crypto.randomUUID();
         if (retained?.boards && typeof retained.boards === "object" && !Array.isArray(retained.boards)) {
             for (const [key, value] of Object.entries(retained.boards).slice(0, 256)) {
@@ -40,9 +43,17 @@ export class WindowState {
             }
         }
         try {
-            this.storage?.setItem(storageKey, JSON.stringify({ id: this.id, boards: this.boards, layout: this.layout }));
+            this.persist();
         }
         catch { /* Memory identity remains valid for this lifetime. */ }
+    }
+    get sidebarFilter() { return this.filter; }
+    setSidebarFilter(filter) {
+        this.filter = filter.slice(0, 200);
+        try {
+            this.persist();
+        }
+        catch { /* Advisory filter remains usable for this window lifetime. */ }
     }
     get sidebarLayout() { return { ...this.layout }; }
     setSidebarLayout(layout) {
@@ -57,7 +68,7 @@ export class WindowState {
         catch { /* Keep the layout for this window lifetime. */ }
     }
     persist() {
-        const text = JSON.stringify({ id: this.id, boards: this.boards, layout: this.layout });
+        const text = JSON.stringify({ id: this.id, boards: this.boards, layout: this.layout, ...(this.filter ? { filter: this.filter } : {}) });
         if (!this.storage || text.length > 65536 || Object.keys(this.boards).length > 256)
             throw Error("Window recovery index unavailable");
         this.storage.setItem(storageKey, text);

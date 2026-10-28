@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
+import { safeStandaloneWindowStorage } from '../lib/window-storage.mjs';
 import { test, expect, scenario, requireInventory, cli, board, boardText, request, mutate, createEditor, createCard, cardArticle, refresh, save, recoveryRows, control } from '../lib/browser.mjs';
 
 const stats = fixture => control(fixture, { op: 'status' });
@@ -420,14 +421,22 @@ scenario('V02-BYTES-01', 'DOM attachment and browser/CLI downloads preserve exac
 });
 
 scenario('V02-PRIVACY-01', 'actual browser storage excludes authentication and inline execution', async ({ app, run }) => {
-  await createCard(app, run, '<img src=x onerror=alert(1)> ' + randomUUID());
+  const title = '<img src=x onerror=alert(1)> ' + randomUUID();
+  await createCard(app, run, title);
   const rows = await recoveryRows(app);
   const forbidden = /^(authorization|bearer|token|credential|credentials|password|secret|sessioncode|cookie|privatekey)$/i;
   const scan = value => value && typeof value === 'object' && Object.entries(value).some(([key, child]) => forbidden.test(key) || scan(child));
   expect(Boolean(scan(rows))).toBe(false);
   const metadata = JSON.parse(readFileSync(resolve(run.dataDirectory, 'service.json'), 'utf8'));
   expect(JSON.stringify(rows).includes(metadata.botToken)).toBe(false);
-  expect(await app.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage), cookie: document.cookie, maliciousImage: !!document.querySelector('img[onerror]') }))).toEqual({ local: [], session: [], cookie: '', maliciousImage: false });
+  expect(await app.evaluate(() => ({ local: Object.keys(localStorage), cookie: document.cookie, maliciousImage: !!document.querySelector('img[onerror]') }))).toEqual({ local: [], cookie: '', maliciousImage: false });
+  expect(rows.drafts).toHaveLength(1);
+  const identity = metadata.identity, context = { installationId: identity.installationId,
+    boardId: identity.boardId, incarnation: identity.incarnation, actorId: identity.humanId };
+  expect(rows.drafts[0].context).toEqual(context);
+  const entries = await app.evaluate(() => Object.entries(sessionStorage));
+  expect(safeStandaloneWindowStorage(entries, { context, draftId: rows.drafts[0].draftId,
+    forbiddenValues: [metadata.botToken, title, 'Synthetic private input'] })).toBe(true);
 });
 
 requireInventory();

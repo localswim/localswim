@@ -8,18 +8,27 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def source_inputs():
-    inputs = [p for root in ('cmd', 'internal', 'qualification/browser/localfixture')
+    inputs = [p for root in ('cmd', 'internal', 'qualification/browser')
               for p in (REPO / root).rglob('*') if p.is_file()
-              and (p.suffix == '.go' or 'internal/assets/bundle/' in p.as_posix())]
+              and (p.suffix in ('.go', '.py', '.mjs', '.json', '.txt') or 'internal/assets/bundle/' in p.as_posix())]
     return sorted(inputs + [REPO / 'go.mod', REPO / 'go.sum'])
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--artifacts', type=pathlib.Path, default=ART)
+    parser.add_argument('--tool-artifacts', type=pathlib.Path, default=ART)
+    parser.add_argument('--go', type=pathlib.Path, default=pathlib.Path('C:/Program Files/Go/bin/go.exe'))
+    parser.add_argument('--runtime-parent', type=pathlib.Path,
+                        help='Existing private parent for short fresh runtime paths')
     args = parser.parse_args()
     artifacts = args.artifacts.resolve(strict=True)
+    tools = args.tool_artifacts.resolve(strict=True)
     run = artifacts / ('v02-local-' + time.strftime('%Y%m%d-%H%M%S-') + uuid.uuid4().hex[:8])
     run.mkdir(); (run / 'logs').mkdir(); (run / 'results').mkdir()
+    runtime = run
+    if args.runtime_parent:
+        runtime = args.runtime_parent.resolve(strict=True) / ('v02-' + uuid.uuid4().hex[:12])
+        runtime.mkdir()
     result = {'status': 'STARTED', 'scope': 'local fixture preparation and mechanical tests only'}
     def save():
         (run / 'results' / 'preparation.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
@@ -34,11 +43,14 @@ def main():
             shutil.copyfile(REPO / relative, target)
         original = source / 'internal/transport/local/runtime.go'
         content = original.read_text(encoding='utf-8')
-        needle = '&http.Server{Handler: r,'
+        # Wrap only standalone composition, never the shared server factory.
+        needle = 'r.server = newServer(r)'
         if content.count(needle) != 1:
             raise RuntimeError('HANDLER_BINDING_CHANGED')
         overlay = run / 'runtime-overlay.go'
-        overlay.write_text(content.replace(needle, '&http.Server{Handler: v02QualificationWrap(r),') + '''
+        if 'V02QualificationDelivery' in content or 'v02QualificationWrap' in content:
+            raise RuntimeError('QUALIFICATION_SENTINEL_ALREADY_PRESENT')
+        overlay.write_text(content.replace(needle, 'r.server = newServer(v02QualificationWrap(r))') + '''
 // Qualification-only hook: set before Start; normal source has no sentinel.
 var v02QualificationWrap = func(h http.Handler) http.Handler { return h }
 func V02QualificationDelivery(wrap func(http.Handler) http.Handler) { v02QualificationWrap = wrap }
@@ -48,13 +60,14 @@ func V02QualificationDelivery(wrap func(http.Handler) http.Handler) { v02Qualifi
         env = os.environ.copy()
         env.update(GOTOOLCHAIN='local', CGO_ENABLED='0', GOOS='windows', GOARCH='amd64',
                    GOFLAGS='-mod=readonly', GOPROXY='off', GOSUMDB='off',
-                   GOMODCACHE=str(artifacts / 'q01-cache/gomodcache'),
+                   GOMODCACHE=str(tools / 'q01-cache/gomodcache'),
                    GOCACHE=str(run / 'cache'), GOTMPDIR=str(run / 'gotmp'),
-                   V02_TEST_ROOT=str(run / 'mechanical-runtime'))
-        (run / 'gotmp').mkdir(); (run / 'mechanical-runtime').mkdir()
-        seed = artifacts / 'p02-integration-r2/cache'
+                   V02_TEST_ROOT=str(runtime / 'mechanics'))
+        (run / 'gotmp').mkdir(); (runtime / 'mechanics').mkdir()
+        seed = tools / 'p02-integration-r2/cache'
         if seed.is_dir(): shutil.copytree(seed, run / 'cache')
-        go = pathlib.Path('C:/Program Files/Go/bin/go.exe')
+        go = args.go.resolve(strict=True)
+        env['GOROOT'] = str(go.parent.parent)
         pins = json.loads((REPO / 'qualification/build/results.json').read_text())
         if digest(go) != pins['tool_sha256']['go.exe']: raise RuntimeError('GO_HASH_MISMATCH')
         def execute(label, command, must_pass=True):
@@ -66,7 +79,7 @@ func V02QualificationDelivery(wrap func(http.Handler) http.Handler) { v02Qualifi
             raise RuntimeError('GO_VERSION_MISMATCH')
         common = [str(go), 'build', '-trimpath', '-buildvcs=false']
         execute('application-build', common + ['-o', str(run / 'localswim.exe'), './cmd/localswim'])
-        env['L02_TEST_ROOT'] = str(run / 'mechanical-runtime')
+        env['L02_TEST_ROOT'] = str(runtime / 'mechanics')
         execute('ordinary-local-startup', [str(go), 'test', '-count=1', '-timeout=60s', '-run=^TestLocalLifecycleDurabilityAndRotation$', './internal/transport/local'])
         negative = execute('missing-overlay', common + ['-tags=v02qualification', '-o', str(run / 'negative.exe'), './qualification/browser/localfixture'], False)
         if negative.returncode == 0 or b'undefined: local.V02QualificationDelivery' not in negative.stderr:
@@ -77,12 +90,12 @@ func V02QualificationDelivery(wrap func(http.Handler) http.Handler) { v02Qualifi
         after = {p.relative_to(REPO).as_posix(): digest(p) for p in source_inputs()}
         (run / 'source-after.json').write_text(json.dumps(after, indent=2) + '\n')
         if before != after: raise RuntimeError('SOURCE_CHANGED_DURING_BUILD')
-        browser = json.loads((artifacts / 'v02-browser-pin-r1.json').read_text())
+        browser = json.loads((tools / 'v02-browser-pin-r1.json').read_text())
         chrome = pathlib.Path(browser['chromeExecutable']).resolve(strict=True)
         if digest(chrome) != browser['chromeSHA256']: raise RuntimeError('CHROME_HASH_MISMATCH')
         with socket.socket() as sock:
             sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
-        manifest = {'schemaVersion': 2, 'artifactDirectory': str(run), 'dataDirectory': str(run / 'runtime-data'),
+        manifest = {'schemaVersion': 2, 'artifactDirectory': str(run), 'dataDirectory': str(runtime / 'data'),
                     'fixtureBinary': str(run / 'fixture.exe'), 'fixtureSHA256': digest(run / 'fixture.exe'),
                     'applicationBinary': str(run / 'localswim.exe'), 'applicationSHA256': digest(run / 'localswim.exe'),
                     'chromeExecutable': str(chrome), 'chromeSHA256': digest(chrome), 'browserVersion': browser['browserVersion'],

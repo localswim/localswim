@@ -8,8 +8,12 @@ browser executable are checked; manifest v2 contains no credentials or assertion
 of authority/readiness. Browser qualification is a separate required execution.
 
 Run prepare.py with the frozen tools and offline caches available. --artifacts
-selects the private existing artifact root. Native socket/file tests may require
+selects the private existing artifact root. --tool-artifacts selects the existing
+offline caches and browser pin independently; --go selects the exact pinned Go
+executable, still checked against its accepted hash and version. Native socket/file tests may require
 host execution under the managed environment; retain the failed attempt first.
+--runtime-parent may select an existing private parent for fresh short runtime
+paths when nested evidence directories exceed the application's path limit.
 The published run-manifest.json is consumed by the browser launcher.
 
 The executable accepts --data ABSOLUTE-FRESH-DATA-DIR --port PORT. It uses actual
@@ -21,7 +25,8 @@ An oversized line ends the controller with graceful cleanup and nonzero exit.
 EOF releases delivery barriers, drains/closes the service, and exits. stop closes
 before acknowledgment. restart closes before reopening the same data and port.
 
-The private runtime.go overlay only wraps the actual http.Server Handler and adds
+The private runtime.go overlay only wraps the standalone Start composition's
+newServer(r) handler argument and adds
 the unique V02QualificationDelivery sentinel. The normal tagged build must fail
 at that missing sentinel. Production sources and provider behavior are unchanged.
 The wrapper counts original board/card HTTP mutation submissions cumulatively,

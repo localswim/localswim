@@ -17,7 +17,9 @@ Spike 02 adds the [workspace runtime bridge](docs/decisions/workspace-runtime-br
 independent listener-free boards, one local host, scoped sessions and compatible
 `--data` connections. The [explicit registry and lifecycle](docs/decisions/workspace-registry-lifecycle-2026-10-28.txt)
 adds `serve --workspace`, persistent membership, create/register/status and reopen.
-Workspace CLI selection and browser navigation remain subsequent packages;
+The [workspace CLI](docs/decisions/workspace-cli-selection-2026-10-28.txt) adds
+explicit project/board selection and controls through the real executable.
+Browser context/navigation and joined qualification remain subsequent packages;
 these components are not a finished workspace application.
 
 The Go service, CLI, domain rules and contract generator live in one Go module.

@@ -20,6 +20,8 @@ import (
 type localInvocation struct {
 	data      string
 	workspace string
+	project   string
+	board     string
 	port      int
 	serve     bool
 	args      []string
@@ -58,6 +60,10 @@ func parseLocal(args []string) (localInvocation, error) {
 		}
 		if seen["--workspace"] && q.workspace == "" {
 			return q, errComposition
+		}
+	} else if args[0] == "--workspace" {
+		if e := parseWorkspaceLocal(args, &q); e != nil {
+			return q, e
 		}
 	} else {
 		if len(args) < 3 || args[0] != "--data" {
@@ -124,7 +130,7 @@ func run(ctx context.Context, args []string, in io.Reader, out, diagnostic io.Wr
 		if out == nil {
 			return 1
 		}
-		_, e := fmt.Fprintln(out, "Localswim: localhost swimlanes\n  localswim serve --data DIR [--port PORT]\n  localswim serve --workspace DIR [--port PORT]\n  localswim --data DIR [--json] board read\n  localswim --data DIR [--json] card COMMAND ...\n  localswim restore --source FILE --data NEWDIR [--port PORT] [--json]\n  localswim restore-status --data DIR --request-id UUID [--json]\nA new workspace requires an explicit port; reopen uses its saved port.\nBrowser and CLI share the local service. No setup, login codes or TLS enrollment.")
+		_, e := fmt.Fprintln(out, "Localswim: localhost swimlanes\n  localswim serve --data DIR [--port PORT]\n  localswim serve --workspace DIR [--port PORT]\n  localswim --data DIR [--json] board read\n  localswim --data DIR [--json] card COMMAND ...\n"+workspaceCLIHelp+"\n  localswim restore --source FILE --data NEWDIR [--port PORT] [--json]\n  localswim restore-status --data DIR --request-id UUID [--json]\nA new workspace requires an explicit port; reopen uses its saved port.\nBrowser and CLI share the local service. No setup, login codes or TLS enrollment.")
 		if e != nil {
 			return 1
 		}
@@ -176,6 +182,9 @@ func run(ctx context.Context, args []string, in io.Reader, out, diagnostic io.Wr
 			return entryFailure(nil, out, diagnostic, "UNAVAILABLE", 3)
 		}
 		return 0
+	}
+	if q.workspace != "" && !q.serve {
+		return runWorkspaceCLI(ctx, q, in, out, diagnostic)
 	}
 	info, e := local.ReadClient(q.data)
 	if e != nil {

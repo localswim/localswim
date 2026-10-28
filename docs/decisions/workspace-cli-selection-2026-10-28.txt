@@ -1,0 +1,70 @@
+M01.04 explicit workspace CLI selection
+2026-10-28
+
+The real executable now exposes the accepted workspace control and board-selection
+surface. The existing --data interface and board-local private evidence remain.
+Workspace CLI commands use the running host; there is no direct SQL fallback,
+remembered/default board, credential override or automatic command replay.
+
+Usage (global selection and --json belong before the command)
+  localswim --workspace W project list
+  localswim --workspace W project create --key harbor --label Harbor --root P
+  localswim --workspace W --project harbor board list
+  localswim --workspace W --project harbor board create --key dispatch --label Dispatch --root D
+  localswim --workspace W --project harbor board register --key dispatch --label Dispatch --root D
+  localswim --workspace W --project harbor --board dispatch board status
+  localswim --workspace W --project harbor --board dispatch --json board read
+
+W, P and D are explicit local workspace, project and board data directories.
+Register and status may take --expected-identity FILE with the strict nonsecret
+installationId/boardId/incarnation tuple. Focused status may take --root D to
+inspect an initialized but unregistered board. No login capability is copied.
+Serve --workspace retains M01.03's explicit first port and fixed-port reopen.
+
+Grammar and authority
+- --data and --workspace selection are mutually exclusive. Domain, attachment,
+  export and operation-lookup commands require both project and board keys.
+  Lists and create/register commands reject unused or ambiguous selectors.
+- The owning core/archive parsers validate domain grammar before private state or
+  network access. Their validation-only synthetic selectors convey no authority;
+  real selectors are derived only after private and live context checks.
+- The CLI authenticates the workspace channel, then checks exact private physical
+  roots/full tuple against live resolution, member epoch and local rendezvous.
+  Existing core admission independently verifies the live automation session.
+  Workspace configuration capability is never board mutation or human authority.
+- Requests use one fixed numeric-loopback origin with redirects/proxies disabled.
+  Control mutations use one observed revision and one send, with no replay body.
+  Concurrent later revisions may accompany a valid immutable registration result.
+- CONFIG_CHANGED is an explicit refusal. An unusable or uncertain control reply
+  remains UNKNOWN until deliberate status inspection. Its revision is the last
+  observed revision, not evidence of a new commit; unverified identity is omitted.
+  No generic workspace operation ledger or fake board-commit result is added.
+- Human-readable labels are quoted inertly. Public output omits native paths and
+  credentials. Native cleanup custody survives failures and is retried before a
+  later explicit invocation, without hiding an already delivered domain result.
+
+Original-operation safety
+Private registered mapping locates the selected board's evidence before attempting
+live authority. A safely loaded original remains bound to its original context and
+origin. Unavailable authority or a changed origin yields the existing UNKNOWN
+result and exit class 4 without mutation, replay or original rewrite.
+
+An original path outside the selected board's private evidence root is rejected
+before loading: nonterminal UNSAFE_LOCAL_MATERIAL refusal with exit 4. That refuses
+the lookup request; it does not classify the original operation as not committed.
+The guard is not widened to read another board's evidence. A separate technical
+negative fixture can place a valid foreign original inside the selected store to
+verify the subsequent semantic-context UNKNOWN check; this is not customer seeding.
+
+Verification boundary
+Synthetic tests cover strict grammar, bounded expected tuples, cleanup retention,
+single-send/uncertain replies, revision/identity binding and original context.
+Normal compiled CLI tests seed projects and boards through CLI controls, exercise
+same-ticket board isolation, edits/comments, deliberate target changes, registration,
+restart, original uncertainty and replaced-member refusal. Positive seeding uses
+supported commands; technical negative fixtures are separately labeled.
+
+Workspace browser context, catalog, navigation/pins and joined M01 qualification
+remain later sections. No real import/cutover, grant administration, SQLite schema
+change, trust enrollment or power-loss assurance is introduced. Runtime credentials,
+private rosters and execution evidence remain outside this public repository.

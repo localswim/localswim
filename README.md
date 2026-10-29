@@ -48,6 +48,8 @@ The [M02 startup/use/recovery guide](docs/runbooks/m02-start-use-recovery.txt) a
 [customer demonstration](docs/runbooks/m02-customer-demo.txt) support the bounded
 handoff. The [joined qualification](qualification/m02/README.txt) records exact
 candidate bindings and distinguishes normal, controlled, fault and reused evidence.
+The [continual process improvement record](docs/continual-process-improvement.md)
+captures milestone observations and the changes to evaluate at each later review.
 
 The browser is a separate TypeScript package under `web/`; the executable will
 serve its verified embedded assets. Shared contracts and assets change together.

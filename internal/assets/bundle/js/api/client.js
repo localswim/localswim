@@ -1,6 +1,7 @@
 import { openRecoveryDatabase } from "../recovery/indexeddb.js";
 import { RecoveryStore } from "../recovery/store.js";
 import { RecoveryError } from "../recovery/types.js";
+import { validateCardRead, validateHistoryRead } from "./history.js";
 import { boardBoundaryVerifier, canonical, object, parse, prepare, sha256, validate } from "./boundary.js";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export class BoardClient {
@@ -144,7 +145,23 @@ export class BoardClient {
             throw Error("Card identity mismatch");
         if (this.options.selection && card.result.identity.incarnation !== this.options.selection.incarnation)
             throw Error("Selected incarnation mismatch");
+        validateCardRead(card);
         return card;
+    }
+    async history(boardId, cardId) {
+        if (!uuid.test(cardId))
+            throw Error("Invalid card identity");
+        const { response, value } = await this.call(this.path(boardId) + "/cards/" + cardId + "/history");
+        if (!response.ok)
+            throw Error("Committed history unavailable");
+        validate("transport:HistoryRead", value);
+        const history = value;
+        if (history.result.identity.boardId !== boardId || history.result.cardId !== cardId)
+            throw Error("History identity mismatch");
+        if (this.options.selection && history.result.identity.incarnation !== this.options.selection.incarnation)
+            throw Error("Selected incarnation mismatch");
+        validateHistoryRead(history);
+        return history;
     }
     context(board, session) {
         const identity = board.result.identity;

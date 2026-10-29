@@ -1,11 +1,12 @@
 import type { Confirmation, Preview, PreviewRequest } from "../../generated/archive/contracts.js";
 import type { RequestAttachmentAdd } from "../../generated/contracts.js";
 import type { ExportRequest } from "../../generated/transport/contracts.js";
-import type { BoardRead, CardRead, MutationRequest, SessionRead, Terminal } from "../../generated/transport/contracts.js";
+import type { BoardRead, CardRead, HistoryRead, MutationRequest, SessionRead, Terminal } from "../../generated/transport/contracts.js";
 import { openRecoveryDatabase } from "../recovery/indexeddb.js";
 import { RecoveryStore } from "../recovery/store.js";
 import type { Context, PreparedEvidence, ProfileQualification, RecoveryDriver } from "../recovery/types.js";
 import { RecoveryError } from "../recovery/types.js";
+import { validateCardRead, validateHistoryRead } from "./history.js";
 import { boardBoundaryVerifier, canonical, object, parse, prepare, sha256, validate } from "./boundary.js";
 import type { BoardCommand, PreparedCommand, Value } from "./boundary.js";
 
@@ -140,7 +141,19 @@ export class BoardClient {
     const card = value as unknown as CardRead;
     if (card.result.identity.boardId !== boardId || card.result.card.cardId !== cardId) throw Error("Card identity mismatch");
     if (this.options.selection && card.result.identity.incarnation !== this.options.selection.incarnation) throw Error("Selected incarnation mismatch");
+    validateCardRead(card);
     return card;
+  }
+  async history(boardId: string, cardId: string): Promise<HistoryRead> {
+    if (!uuid.test(cardId)) throw Error("Invalid card identity");
+    const { response, value } = await this.call(this.path(boardId) + "/cards/" + cardId + "/history");
+    if (!response.ok) throw Error("Committed history unavailable");
+    validate("transport:HistoryRead", value);
+    const history = value as unknown as HistoryRead;
+    if (history.result.identity.boardId !== boardId || history.result.cardId !== cardId) throw Error("History identity mismatch");
+    if (this.options.selection && history.result.identity.incarnation !== this.options.selection.incarnation) throw Error("Selected incarnation mismatch");
+    validateHistoryRead(history);
+    return history;
   }
   context(board: BoardRead, session: SessionRead): Context {
     const identity = board.result.identity;

@@ -1,6 +1,7 @@
 import { recoveryCoordinator } from "../recovery-ui/coordination.js";
 import { dependencyAdvisory } from "./advisory.js";
 import { commands, parse, validate } from "../api/boundary.js";
+import { CardDetails } from "./details.js";
 function element(tag, text = "") {
     const node = document.createElement(tag);
     node.textContent = text;
@@ -36,6 +37,7 @@ export class BoardView {
     suspended = false;
     persistence;
     stopPersistence;
+    details;
     constructor(root, client, boardId, checkpoint = () => { }) {
         this.root = root;
         this.client = client;
@@ -53,12 +55,15 @@ export class BoardView {
         this.outcomes.setAttribute("aria-label", "Original operation outcomes");
         this.current.setAttribute("aria-label", "Current confirmed text");
         this.cards.setAttribute("aria-label", "Cards");
-        root.replaceChildren(this.heading, this.actor, this.readState, button("Read current board", () => { void this.refresh(); }), button("Create card", () => this.edit("card.create")), this.cards, this.editorHost, this.current, this.outcomes);
+        const read = button("Read current board", () => { void this.refresh(); });
+        this.details = new CardDetails(client, read);
+        root.replaceChildren(this.heading, this.actor, this.readState, read, button("Create card", () => this.edit("card.create")), this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
     }
     async open() { await this.refresh(); }
-    suspend() { this.suspended = true; this.generation++; }
+    suspend() { this.suspended = true; this.generation++; this.details.suspend(); }
     resume() {
         this.suspended = false;
+        this.details.resume();
         for (const outcome of this.records.values()) {
             const context = outcome.evidence?.context ?? this.editor?.context;
             if (context)
@@ -125,9 +130,12 @@ export class BoardView {
         }
     }
     // Owning session adapter invokes on logout/revocation; it preserves private data.
-    destroy() { this.destroyed = true; this.stopPersistence(); this.generation++; this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
+    destroy() { this.destroyed = true; this.details.suspend(); this.stopPersistence(); this.generation++; this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
     async refresh() {
+        if (this.destroyed || this.suspended)
+            return;
         const generation = ++this.generation;
+        this.details.invalidate();
         try {
             const session = await this.client.session(), board = await this.client.board(this.boardId);
             this.client.context(board, session);
@@ -140,6 +148,7 @@ export class BoardView {
             this.actor.textContent = "Actor " + session.actorId + " (" + session.kind + ")";
             this.readState.textContent = "Current at board revision " + board.result.revision + "; incarnation " + board.result.identity.incarnation;
             this.renderCards();
+            this.details.boardRead(board.result.identity);
         }
         catch {
             if (this.destroyed || generation !== this.generation)
@@ -155,8 +164,8 @@ export class BoardView {
         for (const card of this.board.result.cards) {
             const article = element("article");
             article.append(element("h2", "#" + card.ticket + " " + card.title), element("p", card.cardId), element("p", card.description), element("p", "Assignee: " + this.assignee(card.ownerId, this.board.result.actors)), element("p", card.priority + " · " + card.lane + " · card revision " + card.revision));
-            for (const comment of this.board.result.comments.filter(c => c.cardId === card.cardId))
-                article.append(element("p", comment.actorId + ": " + comment.text));
+            const commentCount = this.board.result.comments.filter(c => c.cardId === card.cardId).length;
+            article.append(element("p", commentCount + " comments returned. Open card to read paged comments and history."));
             for (const link of this.board.result.links.filter(l => l.cardId === card.cardId && l.active)) {
                 article.append(element("p", link.kind + " → " + link.target.cardId + " · " + link.linkId));
             }
@@ -176,6 +185,13 @@ export class BoardView {
                 control.disabled = card.lane === "Completed" || command === "approve" && (this.session.kind !== "human" || !this.session.grant.rights.includes("approve"));
                 article.append(control);
             }
+            const open = button("Open card #" + card.ticket + " " + card.title, () => {
+                if (!this.destroyed && !this.suspended && this.board)
+                    this.details.open(card.cardId, this.board.result.identity, open);
+            });
+            open.dataset.openCard = card.cardId;
+            open.dataset.focusKey = card.cardId + ":open";
+            article.append(open);
             this.cards.append(article);
         }
         // Refresh only restores focus when the old card control was removed.
@@ -363,6 +379,7 @@ export class BoardView {
             identity.incarnation === original.incarnation && this.board.result.revision >= terminal.revision)
             return;
         this.stale = true;
+        this.details.invalidate();
         this.readState.textContent = "Confirmed saved. Displayed board is stale; read the current board before new work.";
     }
     showOutcome(outcome, context) {

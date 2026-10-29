@@ -1,0 +1,78 @@
+M02.02 CARD DETAILS AND COMMITTED HISTORY
+2026-10-29 | Scoped read delivery; later M02 edits/qualification remain separate
+
+Outcome
+Open card #<ticket> <title> opens one named nonmodal detail region in the selected
+board. It shows current committed fields, owner/actor labels and identities,
+comments/times, existing relationship facts and prior states. Text is inert and
+wraps with prose line breaks; empty, stale and unavailable are distinct.
+The ordinary overview shows comment counts; opening details provides the paged
+facts instead of duplicating an unbounded comment list on every card.
+
+Current facts and history are separate authorized reads. Full selected context,
+view/request generation and board/card revisions must match before history is
+combined with the current card. A mismatch or failure retains confirmed current
+facts with stale/unavailable disclosure and deliberate Refresh card details;
+it never invents empty history, changes an editor base or resubmits a mutation.
+Selecting another card clears the old heading immediately. Board suspension and
+new selections fence delayed responses. Closing restores the visible opener or
+the existing Read current board control. Read refresh/reconnect does not overwrite
+private input or move editor focus.
+
+Presentation boundaries
+- Current comments, prior snapshots and separately returned historical comment
+  facts have named local previous/next controls with20 rows per page and returned
+  ranges/counts. Explicit refresh resets pages to1. Every returned row is reachable.
+- Current state is separate from prior rows. Current-origin history sorts first,
+  descending card revision; other origins sort by board/incarnation and descending
+  revision within that origin. No global cross-incarnation revision timeline.
+- Comments use existing whole-second UTC timestamps then comment ID. Original
+  actor/time/origin facts remain visible. Prior rows summarize comment references;
+  historical bodies are paged separately rather than repeated for every snapshot.
+- Coverage floors/gaps, compact/removed states and tombstones stay explicit.
+  Missing old text is never reconstructed from current state. Returned rows do
+  not establish complete lifetime history or a network/server-memory bound.
+
+Read boundary and CLI
+The existing Go CardRead and HistoryRead routes and complete JSON envelopes are
+retained. The browser history method uses the selected connection, strict parse,
+generated schema and semantic current/history membership validation. Cross-row
+actor, provenance, ownership, prior-revision and full/removed reference checks
+follow the existing Go projection rules, including legitimate inherited facts
+within the board and foreign relationship targets. These are read verification,
+not new actor rights or a second domain writer.
+
+Focused human CLI card read/history output now labels committed fields and prior
+states, attribution, origin, references and coverage/removal facts. Terminal
+controls are escaped; multiline prose remains readable. --json retains the same
+complete validated envelopes and exit behavior. Workspace selectors and compatible
+--data select the exact member; card arguments remain canonical UUIDs. There is
+no new ticket lookup, paging flag, API version, cursor, schema or storage change.
+
+Checks and evidence limits
+Focused Go read/output tests preserve JSON and refusal behavior and exercise
+ordering, full returned collections, safe text, provenance and coverage. Strict
+TypeScript checks cover production and explicit test-module entries. Generated
+contracts and declared embedded assets are checked; new read/view modules are
+listed in both producer and serving inventories.
+
+The fresh synthetic product journey uses two projects/three boards, distinct
+same-ticket cards and25 alternating human-browser/actual-CLI comment commits.
+It verifies25 prior rows plus25 current comments,20/5 display pages, cross-client
+facts, inert Unicode/prose, private editor/focus, actual SPA switching, reconnect,
+two windows, and stable host reopen. All owned hosts stop gracefully. Separately
+labeled controlled component checks cover malformed/foreign/missing references,
+generation/selection delays, gaps, removed facts and focus. They supplement the
+normal product journey rather than replacing it.
+
+Independent read/UI review corrected and rechecked semantic read membership,
+strict test compilation, stale prior-card headings and repeated historical bodies.
+Original findings/failed attempts and final candidate/source bindings remain in
+the private story evidence. A fresh private native-test parent uses the existing
+protected user/SYSTEM attributes helper; no preexisting ACL or global setting is
+changed to provision required test fixtures.
+
+This is M02.02 read delivery. Named rename/edit refinements belong to M02.03;
+whole keyboard/CLI journeys and final joined qualification/handoff remain later
+M02 stories. No search/archive/workflow/hierarchy/link/attachment expansion, real
+import/cutover, external delivery, power-loss assurance or full-parity release.

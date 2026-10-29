@@ -34,6 +34,11 @@ M01 handoff. Real-data import/cutover, broader workflow and full parity remain
 later work; no general product release or owner milestone acceptance is claimed.
 
 The Go service, CLI, domain rules and contract generator live in one Go module.
+The [M02.02 details/history reader](docs/decisions/m02-details-history-2026-10-29.txt)
+adds a nonmodal card reader, local comment/history pages and readable focused CLI
+facts, with strict selected-card reference checks and honest stale/coverage states.
+It preserves the existing protocol and private editors; later M02 work remains.
+
 The browser is a separate TypeScript package under `web/`; the executable will
 serve its verified embedded assets. Shared contracts and assets change together.
 

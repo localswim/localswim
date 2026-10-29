@@ -109,6 +109,12 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 		if _, e = fmt.Fprintf(stdout, "%s board %s\n", label, board); e != nil {
 			return outputFailure(out.exit, q)
 		}
+		if text, ok := focusedRead(out.value); out.exit == 0 && ok {
+			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
+				return outputFailure(out.exit, q)
+			}
+			return out.exit
+		}
 	}
 	if n, err := stdout.Write(b); err != nil || n != len(b) {
 		return outputFailure(out.exit, q)

@@ -21,7 +21,14 @@ export async function mountSyntheticBoard(boardInput: BoardRead, sessionInput: S
       if (path.includes("/operations/")) { state.lookups++; const op = path.split("/operations/")[1]!.split("?")[0]!; return json(state.terminals.get(op) ?? { outcome: "unknown" }); }
       if (!init?.body) {
         if (state.readUnavailable) return json({}, 503);
-        if (path.includes("/cards/")) return json({ apiVersion: 1, scope: "card", result: { ...board.result, card: board.result.cards[0], cards: undefined, policyVersion: undefined, retention: undefined, retentionVersion: undefined, historyReferences: [] } });
+        if (path.includes("/cards/")) {
+          const cardId = path.split("/cards/")[1]!.split("/")[0]!, b = board.result, card = b.cards.find(row => row.cardId === cardId)!;
+          const comments = b.comments.filter(row => card.commentIds.includes(row.commentId)), links = b.links.filter(row => card.linkIds.includes(row.linkId)),
+            attachments = b.attachments.filter(row => card.attachmentIds.includes(row.attachmentId)), approvals = b.approvals.filter(row => row.cardId === cardId);
+          const actorIds = new Set([card.ownerId, ...comments.map(row => row.actorId), ...approvals.map(row => row.actorId)].filter(Boolean));
+          return json({ apiVersion: 1, scope: "card", result: { identity: b.identity, revision: b.revision, card,
+            actors: b.actors.filter(row => actorIds.has(row.actorId)), comments, links, attachments, approvals, coverage: b.coverage, historyReferences: [] } });
+        }
         return json(board);
       }
       state.mutations++; state.wire.push(String(init.body));
@@ -30,6 +37,13 @@ export async function mountSyntheticBoard(boardInput: BoardRead, sessionInput: S
       if (state.mode === "conflict") return json({ apiVersion: 1, outcome: "refused", opId: request.opId, error: { code: "REVISION_CONFLICT", message: "Synthetic conflict", field: null }, conflict: { incarnation: board.result.identity.incarnation, revision: board.result.revision, cardId: request.target.cardId, cardRevision: board.result.cards[0]!.revision } }, 409);
       if (state.mode === "http403") return json({ apiVersion: 1, outcome: "refused", opId: request.opId, error: { code: "FORBIDDEN", message: "Synthetic refusal", field: null }, conflict: null }, 403);
       const context = client.context(board, auth), e = await prepare(command, request, context, crypto.randomUUID());
+      if (state.mode === "nochange") {
+        const terminal = { apiVersion: 1, actorId: auth.actorId, boardId: context.boardId, incarnation: context.incarnation, opId: request.opId,
+          fingerprintVersion: 1, fingerprint: e.fingerprint, command, target: request.target, expectedRevision: request.expectedRevision,
+          expectedCardRevision: request.expectedCardRevision, outcome: "not_committed", retention: "full", code: "NO_CHANGE", revision: null,
+          cardRevision: null, terminalAt: "2026-10-01T00:00:00Z", result: { error: { code: "NO_CHANGE", message: "Synthetic exact unchanged edit", field: null }, conflict: null }, resultRefs: [], byteFacts: [], removal: null } as unknown as Terminal;
+        state.terminals.set(request.opId, terminal); return json(terminal);
+      }
       let card = request.target ? board.result.cards.find(c => c.cardId === request.target.cardId)! : undefined;
       if (command === "card.create") {
         card = { archived: false, attachmentIds: [], cardId: crypto.randomUUID(), commentIds: [], createdIn: board.result.identity,

@@ -38,6 +38,9 @@ The [M02.02 details/history reader](docs/decisions/m02-details-history-2026-10-2
 adds a nonmodal card reader, local comment/history pages and readable focused CLI
 facts, with strict selected-card reference checks and honest stale/coverage states.
 It preserves the existing protocol and private editors; later M02 work remains.
+The [M02.03 editor controls](docs/decisions/m02-daily-edits-2026-10-29.txt) add
+focused Rename, single-line Enter and explicit dirty-editor discard, retaining
+exact untouched source text and existing no-op/conflict/original-outcome rules.
 
 The browser is a separate TypeScript package under `web/`; the executable will
 serve its verified embedded assets. Shared contracts and assets change together.

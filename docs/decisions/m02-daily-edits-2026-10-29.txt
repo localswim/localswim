@@ -1,0 +1,53 @@
+M02.03 DAILY CARD EDITS
+2026-10-29 | Scoped edit delivery; joined journeys/qualification remain later work
+
+Rename card is a named action opening the existing card.edit form with title focus.
+It shares normal immutable drafts/operations with description, owner, explicit
+priority and comments. UUID/ticket and omitted fields remain stable. No new write
+command, SQL/schema, permission, dependency or recovery protocol is introduced.
+
+A deliberate nonrepeated Enter in a single-line input saves once. Multiline
+prose keeps newline; select controls retain native keyboard behavior. Composition
+and its confirmation Enter cannot submit. Semantic buttons retain native single
+activation. Blur and field changes only persist private input.
+
+Escape and Discard current editor input close a clean unsubmitted editor and
+restore its opener/fallback. Dirty input asks Keep editing or Confirm discard
+editor input. Declining retains exact input/base/focus; confirmation closes only
+the current editor/reference. Existing private recovery retention/clear controls
+remain separate. Pending/UNKNOWN immutable submissions cannot be cancelled,
+erased or made eligible for replacement through that editor control.
+
+Opening another editor cannot silently replace dirty unsubmitted intent, including
+a restored private draft. Confirmed commits allow deliberate fresh editing after
+current read. Conflicts preserve old input/base and expose current confirmed text;
+read/reconnect does not rebase or replay. Original lookup stays intentional and
+source-bound. NO_CHANGE remains definite durable NOT_COMMITTED without domain
+revision/history/activity changes; equal new comments are deliberate new appends.
+
+Native single-line inputs and textareas can normalize existing line endings. The
+editor remembers initial displayed values and retains exact confirmed title and
+description when their displayed control is unchanged. Renaming or changing an
+owner/priority therefore cannot incidentally normalize untouched source prose.
+Changed text retains the normal existing validation and immutable capture rules.
+
+Go admission and CLI behavior already satisfy these field operations. A focused
+domain journey adds regression coverage for Unicode/stable identity, exact/empty
+description, omitted fields, explicit priority, repeated new comments and replay
+of the same original. Existing assignment/no-op/rights tests remain authoritative.
+Human approval and Completed immutability remain unchanged; owner selection does
+not alter the actor or confer rights, and priority is never propagated implicitly.
+
+Focused component evidence covers editor/IME, exact text, cancellation, assignment,
+dependency view, card details and private window/reload boundaries. Independent
+recovery/concurrency review exercises separate native and actual-DOM checks and
+distinguishes those controlled probes from the parent normal built browser/CLI
+journey. The latter cross-reads field commits, tests no-op/conflict, same-ticket
+boards, deliberate lost-response lookup and existing human approval/refusals.
+Response loss is a separately labeled actual-HTTP fault supplement. Failed
+attempts, final source/candidate bindings and owned cleanup stay in private evidence.
+
+M02.04/M02.05 still join the complete keyboard and CLI journeys; M02.06/M02.07
+own final joined qualification and milestone handoff. No search/archive/new
+workflow/hierarchy/link/attachment scope, real-data import/cutover, external
+delivery, power-loss assurance or full-parity/release claim is made here.

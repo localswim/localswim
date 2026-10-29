@@ -16,9 +16,20 @@ cards expose disabled mutation controls; approval requires visible human session
 Create/edit/comment/link-add/link-remove/start-work/handoff/approve open semantic
 forms with an explicit Save button and original board/card bases. Every input change
 persists a private revision-CAS draft; pending/saved/failed/forked feedback retains
-the caller's input. Blur, Enter inside a field and IME composition never submit.
-Tab follows native semantic controls; Enter/Space activates explicit buttons.
+the caller's input. Blur and IME composition/confirmation never submit. A deliberate
+nonrepeated Enter in a single-line input activates Save once; textarea newline
+and select keyboard behavior remain native. Tab follows semantic controls;
+Enter/Space activates explicit buttons without a second form submission.
 Navigation restores the matching logical card control, with heading fallback.
+
+Rename card opens the same card.edit draft focused on title. An unsubmitted dirty
+editor must be finished or explicitly discarded before another editor replaces it.
+Escape/Discard closes a clean editor directly; dirty input asks Keep editing or
+Confirm discard editor input, with focus restoration. This closes the current
+editor/reference, not retained recovery history or an immutable original operation.
+Pending/UNKNOWN submissions cannot be cancelled or unlocked through that control.
+Untouched confirmed title/description values retain their exact source text when
+native input/textarea line-ending normalization would otherwise alter them.
 
 Save captures immutable input before awaiting and dispatches only after W01 verifies
 its durable evidence receipt. Pending/unknown original operations prevent replacement

@@ -179,7 +179,7 @@ export class BoardView {
                 prerequisites.append(element("p", fact));
             prerequisites.append(element("p", advisory.summary));
             article.append(pressure, prerequisites);
-            for (const [label, command] of [["Edit card", "card.edit"], ["Add comment", "comment.add"], ["Add link", "link.add"], ["Remove link", "link.remove"], ["Start work", "card.edit"], ["Review handoff", "review-handoff"], ["Approve", "approve"]]) {
+            for (const [label, command] of [["Edit card", "card.edit"], ["Rename card", "card.edit"], ["Add comment", "comment.add"], ["Add link", "link.add"], ["Remove link", "link.remove"], ["Start work", "card.edit"], ["Review handoff", "review-handoff"], ["Approve", "approve"]]) {
                 const control = button(label, () => this.edit(command, card, label === "Start work"));
                 control.dataset.focusKey = card.cardId + ":" + label;
                 control.disabled = card.lane === "Completed" || command === "approve" && (this.session.kind !== "human" || !this.session.grant.rights.includes("approve"));
@@ -209,7 +209,7 @@ export class BoardView {
     blocked() { return [...this.records.values()].some(r => r.state === "pending" || r.state === "unknown"); }
     updateSave() {
         if (this.editor)
-            this.editor.save.disabled = this.stale || this.editor.submitted || this.editor.composing || this.blocked();
+            this.editor.save.disabled = this.stale || this.editor.submitted || this.editor.composing || this.editor.confirming || this.blocked();
     }
     edit(command, card, start = false, restore) {
         if (this.destroyed || !this.board || !this.session || this.stale) {
@@ -220,13 +220,18 @@ export class BoardView {
             this.readState.textContent = "Private recovery is pending or failed. Retain this input until saved or explicitly discard the editor.";
             return;
         }
+        if (this.editor && !this.editor.submitted && this.dirty(this.editor)) {
+            this.readState.textContent = "Current editor has unsaved intent. Finish it or explicitly discard it before opening another editor.";
+            return;
+        }
         const base = restore?.base ?? this.board, context = this.client.context(base, this.session), form = element("form");
         form.addEventListener("submit", event => event.preventDefault());
         const recovery = element("p", "Recovery pending");
         recovery.setAttribute("role", "status");
         const editor = { id: restore?.reference.draftId ?? crypto.randomUUID(), revision: restore?.revision ?? 0, command, context, base, card,
             fields: {}, form, recovery, save: button("Save", () => { void this.save(editor); }), composing: false,
-            sequence: 0, submitted: false, persisted: -1, start };
+            sequence: 0, submitted: false, persisted: -1, start, initial: "", initialFields: {}, opener: document.activeElement,
+            confirmation: element("section"), confirming: false, confirmingEnter: false };
         const title = element("h2", command + " · original board revision " + base.result.revision + (card ? ", card revision " + card.revision : ""));
         form.append(title, element("p", "Board " + context.boardId + " · actor " + context.actorId));
         const field = (name, value, choices) => {
@@ -272,10 +277,42 @@ export class BoardView {
         else
             form.append(element("p", "Explicit Save submits this review handoff."));
         form.addEventListener("compositionstart", () => { editor.composing = true; this.updateSave(); });
-        form.addEventListener("compositionend", () => { editor.composing = false; this.persist(editor); this.updateSave(); });
-        form.addEventListener("keydown", event => { if (event.isComposing && event.key === "Enter")
-            event.preventDefault(); });
-        form.append(recovery, editor.save, button("Read current text", () => { void this.currentText(editor); }), button("Discard current editor input", () => this.discardInput()));
+        form.addEventListener("compositionend", () => {
+            editor.composing = false;
+            editor.confirmingEnter = true;
+            // Some engines deliver confirmation Enter after compositionend. Fence
+            // that event turn without swallowing a later deliberate Enter after a
+            // mouse-selected candidate (which has no corresponding Enter keyup).
+            setTimeout(() => { editor.confirmingEnter = false; }, 0);
+            this.persist(editor);
+            this.updateSave();
+        });
+        form.addEventListener("keyup", event => { if (event.key === "Enter")
+            editor.confirmingEnter = false; });
+        form.addEventListener("keydown", event => {
+            if (event.isComposing || editor.composing || event.keyCode === 229) {
+                if (event.key === "Enter")
+                    event.preventDefault();
+                return;
+            }
+            if (event.key === "Enter" && editor.confirmingEnter) {
+                event.preventDefault();
+                return;
+            }
+            if (event.key === "Escape") {
+                event.preventDefault();
+                this.cancelEditor(editor);
+                return;
+            }
+            if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
+                event.preventDefault();
+                if (!editor.confirmingEnter && !editor.confirming && !event.repeat)
+                    void this.save(editor);
+            }
+        });
+        editor.initialFields = Object.fromEntries(Object.entries(editor.fields).map(([name, control]) => [name, control.value]));
+        editor.initial = JSON.stringify(this.input(editor));
+        form.append(recovery, editor.save, button("Read current text", () => { void this.currentText(editor); }), button("Discard current editor input", () => this.cancelEditor(editor)), editor.confirmation);
         this.editor = editor;
         this.editorHost.replaceChildren(form);
         this.current.replaceChildren();
@@ -293,10 +330,48 @@ export class BoardView {
         this.updateSave();
         (Object.values(editor.fields)[0] ?? editor.save).focus();
     }
+    dirty(editor) { return JSON.stringify(this.input(editor)) !== editor.initial; }
+    cancelEditor(editor) {
+        if (this.editor !== editor || editor.submitted)
+            return;
+        const close = () => {
+            if (this.editor !== editor || editor.submitted)
+                return;
+            const opener = editor.opener;
+            this.discardInput();
+            const replacement = opener?.dataset.focusKey ? [...this.cards.querySelectorAll("button")]
+                .find(row => row.dataset.focusKey === opener.dataset.focusKey && !row.disabled) : undefined;
+            (replacement ?? (opener?.isConnected ? opener : this.root.querySelector("button")))?.focus();
+        };
+        if (!this.dirty(editor)) {
+            close();
+            return;
+        }
+        if (editor.confirming)
+            return;
+        editor.confirming = true;
+        this.updateSave();
+        editor.confirmation.setAttribute("aria-label", "Discard editor confirmation");
+        const keep = button("Keep editing", () => {
+            editor.confirming = false;
+            editor.confirmation.replaceChildren();
+            this.updateSave();
+            (Object.values(editor.fields)[0] ?? editor.save).focus();
+        });
+        editor.confirmation.replaceChildren(element("p", "Discard this editor's changed input? Retained original operations are unaffected."), button("Confirm discard editor input", close), keep);
+        keep.focus();
+    }
     input(editor) {
         const input = {};
         for (const [name, field] of Object.entries(editor.fields))
             input[name] = name === "policyVersion" ? Number(field.value) : name === "ownerId" && field.value === "" ? null : field.value;
+        // Native text controls normalize existing line endings. An untouched field
+        // must retain its exact confirmed bytes, including when another field changes.
+        if (editor.command === "card.edit" && editor.card)
+            for (const name of ["title", "description"]) {
+                if (editor.fields[name] && editor.fields[name].value === editor.initialFields[name])
+                    input[name] = editor.card[name];
+            }
         return input;
     }
     persist(editor) {
@@ -324,7 +399,7 @@ export class BoardView {
         });
     }
     async save(editor) {
-        if (this.editor !== editor || editor.composing || editor.submitted || this.stale || this.blocked())
+        if (this.editor !== editor || editor.composing || editor.confirmingEnter || editor.confirming || editor.submitted || this.stale || this.blocked())
             return;
         editor.submitted = true;
         this.updateSave();

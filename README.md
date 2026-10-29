@@ -44,6 +44,10 @@ exact untouched source text and existing no-op/conflict/original-outcome rules.
 The [keyboard journey](docs/runbooks/m02-keyboard-read-edit.txt) and
 [real CLI guide](docs/runbooks/m02-cli-read-edit.txt) join those controls and
 commands into ordinary read/edit use, preserving current authority and outcomes.
+The [M02 startup/use/recovery guide](docs/runbooks/m02-start-use-recovery.txt) and
+[customer demonstration](docs/runbooks/m02-customer-demo.txt) support the bounded
+handoff. The [joined qualification](qualification/m02/README.txt) records exact
+candidate bindings and distinguishes normal, controlled, fault and reused evidence.
 
 The browser is a separate TypeScript package under `web/`; the executable will
 serve its verified embedded assets. Shared contracts and assets change together.

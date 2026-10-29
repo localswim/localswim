@@ -1,0 +1,57 @@
+M02 read/edit customer demonstration
+2026-10-29 | Normal browser and built CLI, fresh synthetic boards
+
+Follow m02-start-use-recovery.txt. Use the exact handoff executable and a new
+workspace/browser profile. Record its SHA256 and source revision. Never point this
+walkthrough at the administrative planning board or existing personal data.
+
+1. In Harbor / Dispatch create Dispatch parcel with P3. Research can independently
+   contain ticket #1 Research seed; its card UUID differs. CLI-read both selections
+   using the companion CLI guide. Confirm route, selected label and actual facts.
+
+2. Add 25 short comments to Dispatch parcel, alternating browser human and CLI
+   automation. Before every deliberate write use a current read/base and new opId.
+   Open card; inspect current state, actor/timestamp attribution and inert Unicode
+   or markup text. Use Next comments, Next prior history and Next history comments
+   to reach every returned row. With one create plus 25 comments there are 25
+   current comments and 25 prior states; historical comment facts may be 24 because
+   the newest current comment is not referenced by a prior snapshot yet.
+
+3. Rename to Dispatch café 船 🚲; set a two-line description, assign the local human,
+   then clear Assignee; explicitly choose P2 then P3. Confirm each save/read. Use
+   the CLI to make an equivalent deliberate Research title/description/priority
+   edit and append a comment. Cross-read both: UUID/ticket and unrelated board facts
+   stay unchanged. The CLI guide contains complete typed envelopes.
+
+4. Open a fresh edit and Save unchanged. Observe definitive NO_CHANGE and unchanged
+   revisions/history. Add the same comment text twice deliberately; both remain.
+   This recipe can fill the 20-record private draft limit. After checking all
+   submitted demo actions have definitive outcomes, Reload private inventory and
+   discard four selected old draft copies through Clear this private draft and
+   both acknowledgements. Retain all original operations and verify current board
+   facts are unchanged. Never clear unrelated or unresolved recovery to continue.
+   The old window may retain a guarded submitted editor after private discard;
+   keep it for inspection rather than resubmitting it.
+   Open Dispatch in another window, type a different unsaved title, wait for private
+   save and reload it. The first window retains its own editor. Discard only that
+   demo editor through Escape and Confirm discard editor input.
+
+5. Tab/Enter can open card details and close back to its visible opener. Rename
+   uses title focus; multiline Enter stays in the description. Verify the named
+   controls and visible focus. The larger accepted keyboard journey is separately
+   bound evidence; this short prewalk does not repeat its 100 assertions.
+   Use the new window for the final dirty-editor/discard check after cleanup.
+
+6. Stop only the owned service with Ctrl+C, wait for exit, then reopen the same
+   workspace without --port or re-creating boards. Reconnect and read deliberately.
+   Confirm durable identities and saved values. Stop it cleanly when finished.
+
+Record observed steps, sanitized screenshots and CLI facts in the private packet.
+Preserve failed attempts; do not change expectations to conceal a product defect.
+The demonstration is normal positive evidence. Lost-response UNKNOWN, stale-window
+conflict, delayed reads and native fault behavior rely on the separately accepted
+M02.06 qualification bindings; no fault is invented in this short walkthrough.
+
+Final review assesses the guide, actual demo, kit contents/hashes and qualification
+reuse independently. Only Terry accepts the administrative handoff. No later scope,
+live import/cutover, full-parity release or installer qualification is implied.

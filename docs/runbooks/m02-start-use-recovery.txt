@@ -1,0 +1,96 @@
+M02 read/edit: start, use and recover
+2026-10-29 | Windows synthetic review candidate
+
+Start
+Use the handoff localswim.exe; it includes the browser application. Node/npm,
+accounts and certificates are not needed for ordinary localhost use. Keep the
+review kit separate from private data. Use a new synthetic directory; the kit
+contains no ready-made board or private browser profile.
+
+In PowerShell, adjust the executable path and choose an unused port:
+
+  $exe = 'C:\path\to\review-kit\localswim.exe'
+  $demo = Join-Path $env:LOCALAPPDATA ('localswim\m02-demo-' + [guid]::NewGuid().ToString('N'))
+  $workspace = Join-Path $demo 'workspace'
+  [System.IO.Directory]::CreateDirectory($demo) | Out-Null
+  & $exe serve --workspace $workspace --port 8820
+
+Leave that service running. In a second window set the same $exe, $demo and
+$workspace values; create the project and boards once:
+
+  & $exe --workspace $workspace project create --key harbor --label Harbor --root (Join-Path $demo 'harbor')
+  & $exe --workspace $workspace --project harbor board create --key dispatch --label Dispatch --root (Join-Path $demo 'harbor\dispatch')
+  & $exe --workspace $workspace --project harbor board create --key research --label Research --root (Join-Path $demo 'harbor\research')
+
+Open the service's printed numeric-loopback URL, for example
+http://127.0.0.1:8820/, and choose Harbor / Dispatch. Use a free port rather than
+the administrative board's 8810. On later starts, reopen the same workspace
+without repeating project/board creation. Details of registration/status and
+unavailable members remain in m01-workspace-start-use-recovery.txt.
+
+Read and edit
+- Confirm the selected board. Ticket numbers are local; CLI uses card UUIDs.
+- Read current board and wait for Current before opening a fresh editor.
+- Create card, enter a title and explicit P3 priority, then Save once. Confirm
+  the outcome and read again. Rename card focuses title; Edit card also exposes
+  multiline description, Assignee and explicit priority. Assignment adds no rights.
+- Open card shows current facts, attributed comments and separate prior history.
+  Each returned collection has local Previous/Next controls at 20 rows. Returned
+  coverage is not complete lifetime history; unavailable is not an empty result.
+- Add comment appends an attributed fact. Identical text deliberately submitted
+  twice produces two comments. An unchanged field edit returns NO_CHANGE without
+  advancing board/card revisions or history.
+- Single-line Enter saves once; multiline Enter inserts a newline. Escape on
+  dirty input asks before discard. Keep editing returns to that input. See
+  m02-keyboard-read-edit.txt for keyboard navigation and focus behavior.
+- Read current board refreshes facts, not the editor's original base. A conflict
+  retains input; compare current text and deliberately reconcile before a new save.
+
+CLI
+Use exact selectors; --json is global and precedes the command:
+
+  $selection = @('--workspace', $workspace, '--project', 'harbor', '--board', 'dispatch')
+  & $exe @selection --json board read
+  $card = 'card-uuid-from-that-board-read'
+  & $exe @selection card read $card
+  & $exe @selection card history $card
+
+Use m02-cli-read-edit.txt for runnable typed create/edit/comment requests, current
+revision/opId rules, original evidence lookup and exit meanings. --data may select
+the exact registered member instead; never combine it with workspace selectors.
+The CLI is automation and cannot approve or reach Completed. Human browser
+approval retains the existing reviewed-revision policy; Completed cards refuse
+edits/comments.
+
+Recovery
+- Wait for Recovery saved privately before leaving unsaved input. Ordinary reload
+  restores only this window/board's draft; private storage is not committed history.
+  Storage failure means retain the tab/input; forced loss can lose unsaved work.
+- Private drafts are bounded to 20 unexpired records and 2 MiB per installation
+  in this browser profile, across boards/windows. Confirmed saves can leave draft
+  copies. If recovery refuses at capacity, retain visible input. Reload private
+  inventory, identify an old draft you no longer need, and use Clear this private
+  draft with both explicit discard acknowledgements. Do not clear an original
+  operation to make room for a draft; preserve unresolved evidence. Discarding an
+  editor alone does not remove its retained draft or clear server history.
+  Private discard can leave an already mounted editor guarded with its visible
+  input retained. Keep that window for inspection; use a new window for fresh
+  work after cleanup. It does not cancel or replay a submitted original.
+- UNKNOWN may have committed. Keep its immutable original and exact source.
+  Reconnect/read/navigation never replay. Deliberately Look up original outcome
+  when the source is available. Missing/unavailable evidence remains UNKNOWN;
+  do not resend or invent a new operation merely because a response was lost.
+- Ctrl+C stops the owned foreground service and drains work. Wait for exit, then:
+    & $exe serve --workspace $workspace
+  Refresh boards until connected, Reconnect local service, then Read current board.
+  Reopen retains the configured port, membership and identities. Never bypass a
+  busy owner, delete sidecars or edit workspace/board files to repair a refusal.
+- Keep workspace/board data, service metadata, cli-evidence and browser recovery
+  private. Service metadata contains credentials; it is not support evidence.
+
+Review boundary
+m02-customer-demo.txt describes the short normal walkthrough. The M02 qualification
+report separately binds ordinary journeys, controlled/fault probes and retained
+native evidence. This review kit is a local candidate, not an installer or general
+release. Real-data adoption/import/cutover, later milestone features, installed OS
+IME, full accessibility and physical power-loss qualification remain outside M02.

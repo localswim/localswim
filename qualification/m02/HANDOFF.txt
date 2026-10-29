@@ -1,0 +1,83 @@
+M02 read/edit customer handoff | 2026-10-29
+
+Outcome
+The scoped M02 candidate is ready for owner review. It supports reading current
+card facts and returned history, daily title/description/assignment/priority edits,
+attributed comments, named keyboard controls and matching real CLI commands.
+Owner acceptance remains pending; this is not a general release or installer.
+
+Use
+Follow docs/runbooks/m02-start-use-recovery.txt and m02-customer-demo.txt. The
+local review kit contains the same executable plus the startup, CLI, keyboard,
+demo and M01 workspace guides, bounded qualification reports and MIT license.
+START-HERE.txt is its entry point. New synthetic data stays outside the kit.
+
+Exact identity
+- Tested production source: 4ef21bb35be537e321be790277e34d73e1109210.
+- Executable SHA256:
+  f94146e1f194a3f50c2e2a7febbfd6ecee85a1085c7f28e7b66a8c36182bbd6f.
+- Accepted M02.06 report commit: 9f63a0f. New guide commit: 3bbdcf4.
+- Kit: localswim-m02-review-kit-win-amd64.zip, 11 entries, 11,876,462 bytes.
+- Kit SHA256:
+  92097df4d02d6352727ceeff669ca598562cc1f8f08570fa9afa93284c425851.
+- Manifest binds every bundled file. Extraction, CRC, exact file hashes and
+  extracted executable help pass. The ordinary demo used the exact executable
+  bytes in the kit before ZIP creation; no installer/distribution test is implied.
+- This handoff report is a later documentation-only change. No product source,
+  generated assets, contracts, tool versions or qualified executable changed.
+
+New normal demonstration
+108 assertions pass through the actual kit executable, ordinary headless browser
+and real CLI on a fresh two-project/three-board workspace. No mocked response,
+injected fault, direct SQL/JSON mutation or copied V1 implementation is used.
+- Browser create and same-ticket/different-UUID cross-read.
+- 25 mixed comments: 13 human/browser and 12 automation/CLI. Current comments,
+  25 prior states and 24 historical comment facts remain separately paged with
+  literal Unicode/markup text, actor/timestamp provenance and reachable rows.
+- Rename, multiline Enter, assignment/clear, explicit P2/P3, CLI equivalent
+  edits/comments, unchanged no-op and two equal deliberate comments.
+- Native Enter/Tab details focus return, distinct-window private draft reload,
+  explicit dirty discard and retained first-window input.
+- Selected private-draft cleanup preserves all 20 definitive original operations
+  and native board facts. The mounted old editor remains guarded without dispatch;
+  a new window continues normally. This limit/behavior is documented below.
+- Two owned hosts stop exit 0; CLI checks identity/revision after graceful reopen.
+  Browser reconnection after restart is reused from accepted M02.06, not inferred
+  from that CLI check. Final owned listener is closed.
+
+Bound accepted qualification
+M02.06 report README.txt/results.json and its exact private trace remain unchanged:
+two isolated clean builds, 1,560 tests each, zero failed/skipped test cases and
+70 matching output hashes. Its joined 95-assertion browser/CLI journey, native
+delayed-read/response-loss/UNKNOWN restart evidence, controlled boundary checks,
+exact-candidate keyboard/CLI proofs and bounded unchanged M01 native evidence are
+explicitly bound. They are accepted reuse, not a fresh full-suite execution here.
+
+Observed limit and retained attempts
+Private recovery retains at most 20 live drafts and 2 MiB per installation/profile
+across boards/windows. Confirmed actions can retain draft copies. The first demo
+filled that limit; the next draft refused safely with visible input retained.
+The guide now explains selected cleanup using both acknowledgements, retaining
+original operations and never purging unrelated/UNKNOWN evidence. Clearing can
+guard an already mounted editor; the guide uses a new window for fresh work.
+The second attempt incorrectly expected that old guarded editor to open new work.
+Both failures and their cleanup remain retained. A third normal pass is retained;
+the final pass strengthens nonempty original-status and no-dispatch guard checks.
+All six owned hosts across four attempts stopped exit 0. No source fix, cap change,
+automatic deletion, guard weakening or uncertainty-as-noncommit assumption occurred.
+
+Independent review
+Fresh non-author Sol / Medium review passes the scoped handoff, with no remaining
+material finding. Independent audit verified 19 prior plus 27 final bindings/
+retention/CRC checks and separately extracted the archive executable for hash/help
+validation. It reviewed the actual frozen demo, guides, screenshots and package.
+This is independent source/evidence/guide/package review with narrow integrity
+probes, not a second full normal demo or suite execution. Interim evidence remains
+retained. Primary owns final integration, publication, board/clock and handoff.
+
+Remaining acceptance
+Only owner review/acceptance remains for the scoped M02 handoff. Later milestones,
+real-data adoption/import/cutover, external delivery, full V1 parity, installed OS
+IME, whole-product accessibility and physical power-loss certification remain
+outside this result. Private runtime/credential/evidence/profile files stay out
+of the public repository and the local review kit.

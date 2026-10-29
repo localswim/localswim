@@ -1,0 +1,52 @@
+{
+  "status": "PASS_SCOPED_M02_07_HANDOFF_PENDING_OWNER_ACCEPTANCE",
+  "date": "2026-10-29",
+  "testedProductSource": "4ef21bb35be537e321be790277e34d73e1109210",
+  "guideCommit": "3bbdcf495496c6e9a39beee2c763e3ce43b10aa6",
+  "executableSHA256": "f94146e1f194a3f50c2e2a7febbfd6ecee85a1085c7f28e7b66a8c36182bbd6f",
+  "normalDemo": {
+    "assertions": 108,
+    "fixture": {
+      "humanBrowserComments": 13,
+      "automationCLIcomments": 12,
+      "currentComments": 25,
+      "priorStates": 25,
+      "priorCommentFacts": 24
+    },
+    "normalOnly": true,
+    "scriptSHA256": "b417f3f60c4c64601a4164b96fb42534a4d20e1956047692f47d2987ffaf84ee",
+    "ownedHostsStoppedZero": 2,
+    "reopenProof": "Native identity/revision through CLI; browser restart evidence reused from accepted M02.06"
+  },
+  "reviewKit": {
+    "filename": "localswim-m02-review-kit-win-amd64.zip",
+    "sha256": "92097df4d02d6352727ceeff669ca598562cc1f8f08570fa9afa93284c425851",
+    "bytes": 11876462,
+    "entries": 11,
+    "manifestSHA256": "1236ff7fcf6e25ad5d033d88bd6ed001fb572958c444f82a38395774cbf2ce47",
+    "extractedHelpExit": 0,
+    "privateDataIncluded": false
+  },
+  "qualificationReuse": "Accepted M02.06 exact candidate, unchanged product source and evidence hashes; no new full-suite/tagged run",
+  "recoveryLimits": {
+    "drafts": 20,
+    "draftBytes": 2097152,
+    "scope": "Per installation/profile across boards/windows; confirmed actions can retain draft copies",
+    "privateDiscard": "Selected old settled draft copies only; all20 original operations and committed facts retained; mounted editor can stay guarded,new window continues"
+  },
+  "retainedDemoAttempts": 4,
+  "allOwnedHostsStoppedZero": 6,
+  "independentReview": {
+    "model": "gpt-6.1-sol",
+    "effort": "medium",
+    "result": "PASS,no remaining material findings",
+    "reportSHA256": "e9a5a146243be5c3fdc39c8ca9ce88d7b5b2508e46085f3af2783720681ed3cd",
+    "role": "Fresh source/evidence/guide/package audit and narrow extraction/hash/help probes; no second full demo"
+  },
+  "limits": [
+    "Owner acceptance pending",
+    "Local synthetic review kit,not installer/general release",
+    "No later milestone implementation,live import/adoption/cutover or external delivery",
+    "No full-parity,installed OS IME,whole-product accessibility or power-loss certification"
+  ]
+}

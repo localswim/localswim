@@ -41,6 +41,9 @@ It preserves the existing protocol and private editors; later M02 work remains.
 The [M02.03 editor controls](docs/decisions/m02-daily-edits-2026-10-29.txt) add
 focused Rename, single-line Enter and explicit dirty-editor discard, retaining
 exact untouched source text and existing no-op/conflict/original-outcome rules.
+The [keyboard journey](docs/runbooks/m02-keyboard-read-edit.txt) and
+[real CLI guide](docs/runbooks/m02-cli-read-edit.txt) join those controls and
+commands into ordinary read/edit use, preserving current authority and outcomes.
 
 The browser is a separate TypeScript package under `web/`; the executable will
 serve its verified embedded assets. Shared contracts and assets change together.

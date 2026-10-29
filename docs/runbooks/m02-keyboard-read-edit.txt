@@ -1,0 +1,46 @@
+M02 KEYBOARD READ/EDIT JOURNEY
+2026-10-29 | Scoped M02.04 use; final milestone qualification remains separate
+
+Use the same numeric-loopback workspace and ordinary browser as M01. Tab moves
+through named controls and the visible outline identifies focus. In the workspace
+sidebar, Tab enters its current board link; Arrow Up/Down or Home/End chooses a
+board link, then Enter/Space opens it. Other sidebar links intentionally are not
+individual Tab stops. Each window keeps its own route, editor and private input.
+
+Read current board and wait for its Current status before opening a fresh edit.
+Tab to Open card #<ticket> <title> and activate it. The nonmodal details heading
+receives focus. Comments, prior history and historical comment facts have their
+own named Previous/Next controls with visible returned ranges. Historical facts
+can differ from current comments: a just-added comment is current but is not yet
+referenced by an older snapshot. Returned rows are not a complete-lifetime claim.
+Close card details returns to the rendered opener, or Read current board if that
+opener is unavailable. Text remains inert and multiline prose wraps.
+
+Rename card opens the shared editor with title focus. A deliberate, nonrepeated
+single-line Enter saves once; multiline Enter inserts newline and select controls
+retain native keyboard behavior. Use arrows for owner/priority choices and Tab to
+leave the select before explicitly activating Save. IME composition/confirmation
+does not submit; installed OS input-method qualification is not claimed by the
+controlled tests. Enter/Space activates semantic buttons once, without dragging.
+
+Escape from an unsubmitted dirty editor focuses Keep editing rather than silently
+discarding input. Keep editing returns to the actual edited control with its
+selection bounds and direction. Confirm discard editor input closes only that
+editor/reference; retained private recovery/original-operation policy is separate.
+Clean cancellation restores the usable opener; disabled or hidden keyed controls
+use the named board fallback. Confirmed current facts never overwrite an editor's
+original base. Pending/UNKNOWN operations retain their existing guard and cannot
+be cancelled into a new write by closing an editor.
+
+Focused keyboard corrections preserve caret direction after declined discard,
+reject hidden/disabled opener replacements and restore stable keyed card focus
+with preventScroll during read repaint/reordering. No write, domain, protocol,
+storage or rights behavior changes. The ordinary journey uses native Tab/arrows/
+Enter/Space against a built service for pages, edits, two-window/private routing
+and existing human move/approval. Separately labeled controlled regressions cover
+removed/hidden controls, selection, repaint and IME/refusal cases. Independent
+review corrected and rechecked both focus findings; original reports remain.
+
+This closes the scoped keyboard journey. M02.06/M02.07 still own the joined final
+candidate qualification and owner-ready milestone handoff. No whole-product
+accessibility certification, later-feature expansion or full release is asserted.

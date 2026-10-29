@@ -6,9 +6,16 @@ IPv4 loopback HTTP. Its CLI uses the same service, SQLite and domain admission.
   localswim serve --data DIR [--port PORT]
   localswim --data DIR [--json] board read
   localswim --data DIR [--json] card read CARD-UUID
+  localswim --data DIR [--json] card history CARD-UUID
   localswim --data DIR [--json] card create --input FILE
   localswim --data DIR [--json] card edit CARD-UUID --input FILE
   localswim --data DIR [--json] comment add CARD-UUID --input FILE
+  localswim --data DIR [--json] operation read OP-UUID --evidence FILE
+
+Workspace selection uses --workspace DIR --project KEY --board KEY in place of
+--data DIR. Selectors and --json precede the command. See the focused ordinary
+read/edit guide at docs/runbooks/m02-cli-read-edit.txt for typed input examples,
+exit categories and deliberate source-bound original lookup.
 
 Input files retain the existing typed mutation envelope and exact revision/opId
 rules. --input - reads standard input. Other ordinary core commands retain their

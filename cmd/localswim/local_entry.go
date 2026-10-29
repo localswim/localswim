@@ -130,7 +130,7 @@ func run(ctx context.Context, args []string, in io.Reader, out, diagnostic io.Wr
 		if out == nil {
 			return 1
 		}
-		_, e := fmt.Fprintln(out, "Localswim: localhost swimlanes\n  localswim serve --data DIR [--port PORT]\n  localswim serve --workspace DIR [--port PORT]\n  localswim --data DIR [--json] board read\n  localswim --data DIR [--json] card COMMAND ...\n"+workspaceCLIHelp+"\n  localswim restore --source FILE --data NEWDIR [--port PORT] [--json]\n  localswim restore-status --data DIR --request-id UUID [--json]\nA new workspace requires an explicit port; reopen uses its saved port.\nBrowser and CLI share the local service. No setup, login codes or TLS enrollment.")
+		_, e := fmt.Fprintln(out, "Localswim: localhost swimlanes\n  localswim serve --data DIR [--port PORT]\n  localswim serve --workspace DIR [--port PORT]\n"+localDomainCLIHelp+"\n"+workspaceCLIHelp+"\n  localswim restore --source FILE --data NEWDIR [--port PORT] [--json]\n  localswim restore-status --data DIR --request-id UUID [--json]\nA new workspace requires an explicit port; reopen uses its saved port.\nBrowser and CLI share the local service. No setup, login codes or TLS enrollment.")
 		if e != nil {
 			return 1
 		}

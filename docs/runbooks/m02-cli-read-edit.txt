@@ -1,0 +1,106 @@
+M02 ordinary CLI: read, edit and inspect an original
+2026-10-29 | Synthetic localhost use; final joined qualification is separate
+
+Start the service and register synthetic projects/boards using the M01 workspace
+guide. In a second PowerShell window select one exact member explicitly:
+
+  $exe = 'C:\path\to\localswim.exe'
+  $workspace = 'C:\path\to\private-demo\workspace'
+  $selection = @('--workspace', $workspace, '--project', 'harbor', '--board', 'dispatch')
+  & $exe @selection --json board read
+
+Read the returned result.identity, result.revision, result.cards and result.actors.
+Use the cardId UUID, never its display ticket: different boards can both have #1.
+--data DIR may replace the entire workspace selection only when DIR is the exact
+registered member root. Missing or mismatched selection never chooses a sibling.
+Do not combine --data with workspace selectors. Global --json precedes the command.
+
+  $card = 'canonical-card-uuid-from-board-read'
+  & $exe @selection card read $card
+  & $exe @selection card history $card
+  & $exe @selection --json card read $card
+  & $exe @selection --json card history $card
+
+Human reads label committed current fields, prior states, actor identities, times,
+provenance and coverage. Prose remains inert text with readable line breaks;
+terminal controls are escaped. JSON returns the complete validated envelope.
+History is the returned prior collection, not a claim of complete lifetime history.
+There is no paging flag. Current card and history are separate reads; compare their
+board/card revisions before treating them as aligned. A failed read is unavailable,
+never an empty collection. Read current again deliberately when needed.
+
+Typed writes
+Create, edit and comment use the existing typed envelope. Take a deliberate current
+read and construct one new intent with a fresh opId, exact incarnation and current
+board/card revisions. Save UTF-8 JSON to a private file (PowerShell 7 example):
+
+  $current = (& $exe @selection --json card read $card | ConvertFrom-Json).result
+  $request = @{
+    opId = [guid]::NewGuid().ToString()
+    incarnation = $current.identity.incarnation
+    target = @{ cardId = $card }
+    expectedRevision = $current.revision
+    expectedCardRevision = $current.card.revision
+    input = @{ title = 'Dispatch café 船 🚲' }
+  }
+  $inputFile = 'C:\path\to\private-demo\rename.json'
+  $request | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $inputFile -Encoding utf8
+  & $exe @selection --json card edit $card --input $inputFile
+  $LASTEXITCODE
+
+Rename is card edit with title. Other edit input examples (each is a separate new
+intent, current read/base and fresh opId):
+  {"description":"First line\nSecond line"}
+  {"description":""}
+  {"ownerId":"actor-uuid-from-this-board"}
+  {"ownerId":null}
+  {"priority":"P2"}
+  {"priority":"P3"}
+
+Omitted fields retain their exact values. Owner assignment never changes the CLI
+automation actor or grants rights. Priority is explicit; it does not propagate.
+Titles are nonblank, 1-200 Unicode scalars; description permits empty and is at most
+65,536 UTF-8 bytes. No trimming or Unicode normalization is applied.
+
+For card create, use target:null, expectedCardRevision:null, the current board
+revision and input {"title":"New parcel","description":"","priority":"P3"}:
+  & $exe @selection --json card create --input $inputFile
+
+For comment add, use the current target/card revision envelope with input
+{"text":"Reviewed <script> & café\nSecond line"}:
+  & $exe @selection --json comment add $card --input $inputFile
+
+Comments are nonblank and at most 65,536 UTF-8 bytes. Repeating text with a fresh
+intent deliberately appends another attributed comment. --input - accepts the
+same envelope on stdin; keep its exact UTF-8 content and review the terminal result.
+
+Outcomes and recovery
+- Exit 0: confirmed committed write or confirmed read. Read back deliberately.
+- Exit 1: invocation/IO failure before dispatch; fix the indicated input/selection.
+- Exit 2: refused or definite not_committed terminal. Inspect outcome/code.
+  NO_CHANGE is durable not_committed and does not bump domain/history/activity.
+  REVISION_CONFLICT retains the old request/base: read, compare and create a new
+  deliberate intent. Do not automatically replace the base or resend.
+- Exit 3: read/preflight unavailable before possible dispatch. Check the service
+  and exact selection; unavailable is not empty or permission to select elsewhere.
+- Exit 4: original outcome unknown, including failed original lookup. A write may
+  have committed. Retain its immutable private evidence and original source.
+
+Original evidence is stored at MEMBER-ROOT\cli-evidence\OP-ID.json. Keep it private;
+do not publish credentials, service metadata or cli-evidence files. To deliberately
+inspect an original, use its opId and exact evidence path under its original member:
+
+  & $exe @selection --json operation read $request.opId --evidence 'C:\exact\private\cli-evidence\original.json'
+
+Lookup sends a read only; it never replays a mutation. A different board/origin,
+missing evidence or unavailable source stays UNKNOWN. Navigation, refresh, service
+reopen and ordinary reads do not inspect or resubmit originals. Do not generate a
+new opId or resend merely because an earlier write timed out. A confirmed original
+terminal settles only that original; preserve evidence rather than editing it.
+
+CLI runs as automation. Approve and direct Completed attempts refuse; assignment
+to a human does not change this. Completed edits/comments refuse. Human browser
+approval retains its existing reviewed-revision and policy requirements.
+
+This guide documents the accepted existing read/edit commands. It does not qualify
+the whole milestone, native power-loss durability, V1 import/cutover or full parity.

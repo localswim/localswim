@@ -169,7 +169,7 @@ export class BoardView {
     // Refresh only restores focus when the old card control was removed.
     if (focused) {
       const replacement = [...this.cards.querySelectorAll<HTMLButtonElement>("button")].find(n => n.dataset.focusKey === focused);
-      (replacement ?? this.heading).focus();
+      (replacement ?? this.heading).focus({ preventScroll: true });
     }
   }
   private assignee(id: string | null | undefined, actors: BoardRead["result"]["actors"]): string {
@@ -257,13 +257,17 @@ export class BoardView {
   private dirty(editor: Editor): boolean { return JSON.stringify(this.input(editor)) !== editor.initial; }
   private cancelEditor(editor: Editor): void {
     if (this.editor !== editor || editor.submitted) return;
+    const previousFocus = editor.form.contains(document.activeElement) ? document.activeElement as HTMLElement : undefined;
+    const selection = previousFocus instanceof HTMLInputElement || previousFocus instanceof HTMLTextAreaElement
+      ? [previousFocus.selectionStart, previousFocus.selectionEnd, previousFocus.selectionDirection ?? undefined] as const : undefined;
     const close = (): void => {
       if (this.editor !== editor || editor.submitted) return;
       const opener = editor.opener;
       this.discardInput();
       const replacement = opener?.dataset.focusKey ? [...this.cards.querySelectorAll<HTMLButtonElement>("button")]
-        .find(row => row.dataset.focusKey === opener.dataset.focusKey && !row.disabled) : undefined;
-      (replacement ?? (opener?.isConnected ? opener : this.root.querySelector<HTMLButtonElement>("button")))?.focus();
+        .find(row => row.dataset.focusKey === opener.dataset.focusKey && !row.disabled && row.getClientRects().length > 0) : undefined;
+      (replacement ?? (opener?.isConnected && !(opener instanceof HTMLButtonElement && opener.disabled) && opener.getClientRects().length > 0
+        ? opener : this.root.querySelector<HTMLButtonElement>("button")))?.focus();
     };
     if (!this.dirty(editor)) { close(); return; }
     if (editor.confirming) return;
@@ -273,7 +277,11 @@ export class BoardView {
     const keep = button("Keep editing", () => {
       editor.confirming = false; editor.confirmation.replaceChildren();
       this.updateSave();
-      (Object.values(editor.fields)[0] ?? editor.save).focus();
+      const retainedFocus = previousFocus?.isConnected && !editor.confirmation.contains(previousFocus) ? previousFocus : Object.values(editor.fields)[0] ?? editor.save;
+      retainedFocus.focus({ preventScroll: true });
+      if (selection && (retainedFocus instanceof HTMLInputElement || retainedFocus instanceof HTMLTextAreaElement)) {
+        try { retainedFocus.setSelectionRange(...selection); } catch { /* Some native input types have no text selection. */ }
+      }
     });
     editor.confirmation.replaceChildren(element("p", "Discard this editor's changed input? Retained original operations are unaffected."),
       button("Confirm discard editor input", close), keep);

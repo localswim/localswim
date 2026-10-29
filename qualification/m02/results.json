@@ -1,0 +1,110 @@
+{
+  "status": "PASS_SCOPED_M02_06",
+  "date": "2026-10-29",
+  "testedSource": "4ef21bb35be537e321be790277e34d73e1109210",
+  "candidateSHA256": "f94146e1f194a3f50c2e2a7febbfd6ecee85a1085c7f28e7b66a8c36182bbd6f",
+  "productChanged": false,
+  "joinedAssertions": 95,
+  "joinedControlled": {
+    "editor": 20,
+    "assignment": 7,
+    "dependency": 8,
+    "details": 27,
+    "windowIdentity": 9,
+    "privateReload": 4,
+    "pendingReload": 3
+  },
+  "twoIsolatedBuilds": {
+    "testsEach": [
+      1560,
+      1560
+    ],
+    "failedTestsEach": [
+      0,
+      0
+    ],
+    "skippedTestsEach": [
+      0,
+      0
+    ],
+    "knownNoTestPackagesEach": 4,
+    "equalOutputHashes": 70
+  },
+  "sameCandidateAcceptedReuse": {
+    "keyboardAssertions": 100,
+    "CLIchecks": 55,
+    "priorIndependentCLIaudit": 26
+  },
+  "earlierCandidateMixedFixtureReuse": {
+    "candidateSHA256": "8545064aff39ed4a7915c8a83d59e2799133834736c4a96c89ac6d9720058185",
+    "source": "5a478f9",
+    "assertions": 48,
+    "humanBrowserComments": 13,
+    "automationCLIcomments": 12,
+    "unchangedProductionSources": 5,
+    "unchangedEmbeddedModules": 3,
+    "unchangedTests": 2
+  },
+  "cases": [
+    {
+      "id": "R01",
+      "disposition": "Same-candidate accepted ordinary keyboard100 / CLI55 cover 25current comments,25prior states,all presentation pages,readable facts and inert Unicode. New joined normal edit/CLI facts and separate details27 / contract30+reviewer6 boundary probes. Explicit empty/error/gap technical states are controlled, not fabricated normal product history. Accepted #0035 final mixed-attribution25 recipe (13browser human+12CLI automation;48 assertions) is earlier candidate8545064a, not same executable. Five reader/client/history/CLI projection production sources,three embedded modules andtwo tests are explicitly byte-bound to accepted R3 and source5a478f9; current-candidate keyboard pages and joined edits bridge later editor/view changes."
+    },
+    {
+      "id": "R02",
+      "disposition": "Actual separate stale browser window receives REVISION_CONFLICT, retains original input and does not overwrite newer CLI text. Focused same-candidate CLI covers stale revision/card gates; controlled editor probes cover deliberate reconcile."
+    },
+    {
+      "id": "R03",
+      "disposition": "Actual current field no-op durable NO_CHANGE leaves board/card revisions and history unchanged; identical browser and CLI comments append twice with distinct identities."
+    },
+    {
+      "id": "R04",
+      "disposition": "Labeled native CardRead and HistoryRead200 bodies held unchanged while same-ticket Research paints; both released before assertions and cannot paint Dispatch into Research. Native committed PATCH response held then dropped while Research selected; exact UUID/member CLI edits remain isolated. GET forwarding explicitly supplies same-origin Origin in lieu of APIRequestContext fetch metadata; ordinary browser security is not claimed from that mediation."
+    },
+    {
+      "id": "R05",
+      "disposition": "One actual commit response dropped; pending original survives owned host restart and ordinary reload. Read/reconnect/reload do not replay; explicit lookup matches original opId/fingerprint/outcome, write count unchanged. Same-candidate CLI55 covers wrong-member/missing/offline lookup; controlled component pendingReload3 separately labels private lifecycle."
+    },
+    {
+      "id": "R06",
+      "disposition": "Reused exact-candidate100 keyboard-only normal assertions with named visible focus and page controls; separately controlled focus8/editor20/details27. New joined multiline Enter and dirty Escape checks. No installed OS IME/accessibility certification."
+    },
+    {
+      "id": "R07",
+      "disposition": "Reused exact-candidate55 actual executable checks for workspace/project/board, retained --data, missing/mismatch refusals and same-ticket isolation.26 prior independent audit assertions/rebuild bound; not independently rerun here. New joined CLI daily fields/comments on Research."
+    },
+    {
+      "id": "R08",
+      "disposition": "Native browser human Start/review/Approve reaches Completed; automation approve on RFR and direct Completed refuse; Completed edits/comments refuse. Existing authority only, no rights change."
+    },
+    {
+      "id": "R09",
+      "disposition": "New actual private draft reload retains intended text and no board revision change. Actual pending-original reload/board switch isolated. Reused accepted exact-candidate keyboard two-window/private route/focus/repaint proof. Separate controlled windowIdentity9/privateReload4/pendingReload3 supplement not relabeled ordinary runtime."
+    }
+  ],
+  "newProductAttempts": 5,
+  "ownedHostsStoppedZero": 7,
+  "independentReview": "Fresh Sol / High scoped source/evidence/probe audit: PASS, no remaining material findings. Does not independently rerun entire ordinary journey.",
+  "reviewSHA256": "5849794a61c75674a2177784def893da4c77c16c3c50434c2d7582b6af1b2816",
+  "ordinarySuiteExcludedTaggedHarnesses": true,
+  "unchangedNativeEvidence": "Accepted M01 baseline a0722d3; bounded provider/input hashes audited. Historical compiler sample retains original context.",
+  "productInputs": {
+    "go.mod": "e4884af04b03465b486bccd0f2e8c031d575b5d3ddbf20a6db64ab7fb84f3629",
+    "go.sum": "73d8f9e5776a31a8d5eb60d1cec809f56ba60ffdc13933ae5db6b12fd5c9e8e8",
+    "web/package.json": "66972d513a122571f6c56a3bf143c9dfc710f03b97277f2a3633f59f3e2039dd",
+    "web/package-lock.json": "1dc921aec039df324acdaf724d0e078b98022015838ebd352c2b8fa6d0a9846d",
+    "internal/assets/bundle/manifest.json": "b8b07fef454614cabb040c8ac8620cbe9c9453ddb2e7db96119c338c272741be"
+  },
+  "tools": {
+    "go.exe": "83b7ba66215e696414fa49462d0db2da4f4cf15c7bebd42f0b189fa04866999d",
+    "node.exe": "1c63f1417e2e26d83ca9a9ec1d548524ab1305bc7209d90ebca56257ff0d84ed",
+    "npm-cli.js": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7"
+  },
+  "limits": [
+    "No M02.07 demo/final handoff or owner acceptance.",
+    "No physical powerloss/OS reboot, installed IME, accessibility/fullrelease/V1 parity claim.",
+    "Unchanged M01 native/tagged evidence reused with exact provider/input bindings; ordinary suite does not execute tagged harnesses."
+  ],
+  "scope": "M02.06 qualification only; M02.07 and Terry acceptance remain gated. Report-only publication differs from tested source."
+}

@@ -1,0 +1,127 @@
+M01 workspace: start, use and recover
+2026-10-28 | Synthetic localhost milestone; not a general product release
+
+Use the qualified self-contained Windows executable. It serves its browser assets
+and board API together; Node/npm and a development server are not needed to run it.
+Keep the executable and this guide separate from private workspace/board data.
+Use only new synthetic data for this milestone. Real V1 import/cutover is later work.
+
+Start an empty workspace
+In PowerShell, set these example paths to a new account-private local directory.
+Use the executable supplied with the handoff. Choose an unused port explicitly;
+8820 is only an example. Do not use the administrative board gateway's port 8810.
+
+  $exe = 'C:\path\to\localswim.exe'
+  $demo = Join-Path $env:LOCALAPPDATA 'localswim\m01-demo'
+  $workspace = Join-Path $demo 'workspace'
+  if (Test-Path -LiteralPath $demo) { throw 'Choose a new demo directory; existing data will not be reset.' }
+  [System.IO.Directory]::CreateDirectory($demo) | Out-Null
+  & $exe serve --workspace $workspace --port 8820
+
+The parent directory must exist; serve creates the final workspace leaf. Leave
+this foreground service running. In a second PowerShell window, set the same
+three variables only, then create projects and boards through the running service:
+
+  & $exe --workspace $workspace project create --key harbor --label Harbor --root (Join-Path $demo 'harbor')
+  & $exe --workspace $workspace project create --key orchard --label Orchard --root (Join-Path $demo 'orchard')
+  & $exe --workspace $workspace --project harbor board create --key dispatch --label Dispatch --root (Join-Path $demo 'harbor\dispatch')
+  & $exe --workspace $workspace --project harbor board create --key research --label Research --root (Join-Path $demo 'harbor\research')
+  & $exe --workspace $workspace --project orchard board create --key garden --label Garden --root (Join-Path $demo 'orchard\garden')
+
+These are first-time actions, not a startup script to rerun. Membership is explicit;
+no recursive discovery or JSON-board adoption occurs. Keys are immutable slugs;
+display labels are separate. A ready-made demo already has these registrations.
+
+Open the numeric-loopback address printed by the service, for example
+http://127.0.0.1:8820/. The root opens a chooser, not a default board. Select Harbor /
+Dispatch, or bookmark /board/harbor/dispatch on that same origin. The workspace
+uses one listener; its registered boards keep separate identities and SQLite data.
+
+Daily use
+- Check the project and board label before editing. Ticket #1 can exist on both
+  Dispatch and Research; it is not a workspace-wide card identifier.
+- Read current board, then Create card, Edit card or Add comment. Fill the visible
+  fields and select Save once. Confirm the reported outcome. P3 is the normal
+  assigned priority; dependencies do not promote it automatically.
+- Start work and Review handoff each open an explicit form; Save submits it.
+  Approve is a human browser action, subject to current rights and policy. The CLI
+  is automation and cannot approve or reach Completed.
+- Pinned order is shared and saved. Use Pin/Unpin and the labeled move-up/down
+  controls; keyboard Tab then Enter/Space can activate them. Other rows sort by
+  committed activity. Ready for Review counts are supported; Blocked/Needs Terry
+  are not configured in M01. Unknown/out-of-date counts are not current zero.
+- Visible windows refresh the board list every five seconds. Refresh boards retries
+  metadata; Read current board reads the selected board's card content. A sidebar
+  update does not replace the editor's original revision/base.
+- Filter boards matches project/board labels and keys, not card prose. Hide/Show
+  boards, Sidebar width and the filter belong to this window. Pins are shared.
+- Switch boards or open a second browser window on the same origin. Each window
+  keeps its own route, layout and private editor. Another window's input is not
+  automatically attached to your editor. Wait for private recovery readiness before
+  leaving input; successful private persistence supports ordinary reload recovery.
+
+CLI reads use an explicit selection; global selectors and --json precede commands:
+
+  & $exe --workspace $workspace project list
+  & $exe --workspace $workspace --project harbor board list
+  & $exe --workspace $workspace --project harbor --board dispatch board status
+  & $exe --workspace $workspace --project harbor --board dispatch --json board read
+
+Existing domain commands accept typed revision/opId input files, including
+card create --input FILE, card edit CARD-UUID --input FILE and
+comment add CARD-UUID --input FILE. See cmd/localswim/LOCAL.txt and the generated
+transport contract for envelopes. Never substitute a ticket number for CARD-UUID,
+reuse an opId for new intent or replay an uncertain request. The --data DIR selector
+can still address a workspace-owned member; it must be that member's actual root.
+
+Stop and reopen
+Use Ctrl+C in the foreground service window and wait for it to exit. It drains
+admitted work before releasing ownership. Reopen the same private workspace:
+
+  & $exe serve --workspace $workspace
+
+The configured port, membership and durable board identities are retained. Do not
+repeat project/board creation. Select Refresh boards and wait for its result. If
+the expired workspace channel leaves the list unavailable, select Refresh boards
+again to reconnect it. Wait for the connected list and saved pins, then Reconnect
+local service and Read current board before new work on an expired board channel.
+Reconnect, refresh and navigation never resubmit saves or inspect originals for you.
+
+Recovery decisions
+- Unavailable board: retain input. Check the service and explicit board status,
+  then deliberately retry. A missing/busy/invalid member need not stop healthy
+  siblings. Never remove registration or replace its files to make it look healthy.
+- Occupied port or duplicate owner: resolve the actual owning service. Do not
+  force a foreign process to stop, change ports to bypass ownership or start a
+  second writer. The service refuses instead of choosing a fallback port/board.
+- Revision conflict: read current text/board and compare deliberately. Retained
+  input has its original base; rereading is not automatic permission to overwrite.
+- UNKNOWN save: it may have committed. Keep its private original and selected
+  board/origin. Use Look up original outcome deliberately when available. Do not
+  press Save again, recreate the card or infer noncommit from a timeout. Unavailable
+  original evidence remains UNKNOWN. Moving origins does not migrate originals.
+- Pin save conflict/failure: inspect the visible saved state before a deliberate
+  retry. Do not treat an uncertain save as confirmed persistence.
+- Private storage failure: keep the tab and visible input. Ordinary destructive
+  navigation is refused until persistence succeeds or you explicitly discard.
+  Forced reload/browser/process loss can lose input when persistence has failed.
+- Uncertain create/registration: retain initialized bytes and inspect first:
+    & $exe --workspace $workspace --project harbor --board dispatch board status --root (Join-Path $demo 'harbor\dispatch')
+  Exact registered mapping, initialized-unregistered and UNKNOWN differ. If status
+  confirms an intended initialized but unregistered synthetic store, deliberate
+  board register --key dispatch --label Dispatch --root DIR publishes that existing
+  store. Do not repeat initialization, edit workspace.json or delete/recreate data.
+  Conflicting/unreadable status remains UNKNOWN and needs investigation.
+
+Keep workspace.json, preferences, identity/service metadata, cli-evidence, browser
+recovery and board stores private. Service metadata contains credentials. Do not
+copy it into a ticket, screenshot, public repository or support transcript.
+
+Boundaries and evidence
+qualification/workspace/results.json and README.txt record the M01.09 synthetic
+qualification and exact candidate/source bindings. This runbook and the companion
+m01-customer-demo.txt support the M01.10 handoff; they do not independently establish
+PASS. Real import/cutover/full parity, configurable workflow/archive UX, broader
+attachments/covers, monitors/publishing and hostile same-account or power-loss
+assurance remain outside this milestone. Earlier TLS/setup guides are historical;
+ordinary local startup needs no account, certificate or manual login ceremony.

@@ -25,9 +25,13 @@ retains board/window input and original uncertainty. The
 activity and bounded refresh. The [ordinary workspace browser](docs/decisions/workspace-browser-navigation-2026-10-28.txt)
 adds its chooser/sidebar, safe routes and automatic refresh.
 [Shared pins](docs/decisions/workspace-shared-pins-2026-10-28.txt) persist manual
-order without sharing active-window input or layout. Joined qualification and final
-independent handoff remain subsequent packages; no finished milestone or product
-release is claimed.
+order without sharing active-window input or layout. The
+[joined synthetic qualification](qualification/workspace/README.txt) records the
+M01 workspace evidence and its exact candidate/source bindings. Follow the
+[startup, use and recovery guide](docs/runbooks/m01-workspace-start-use-recovery.txt)
+and [customer demonstration](docs/runbooks/m01-customer-demo.txt) for the bounded
+M01 handoff. Real-data import/cutover, broader workflow and full parity remain
+later work; no general product release or owner milestone acceptance is claimed.
 
 The Go service, CLI, domain rules and contract generator live in one Go module.
 The browser is a separate TypeScript package under `web/`; the executable will

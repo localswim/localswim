@@ -1,0 +1,97 @@
+M01 customer demonstration and UX prewalk
+2026-10-28 | Normal executable + browser + CLI; synthetic data only
+
+Purpose
+Demonstrate working across three independent boards in two projects through one
+localhost application. This is a short final prewalk, not a rerun or replacement
+of M01.09's joined/native/build and retained single-board qualification. Record
+actual observations against the exact executable and private fixture used.
+
+Preparation
+- Use the handoff executable and an unused fixed numeric-loopback port. Record
+  its SHA-256, the public source revision and private run identifier. Follow
+  m01-workspace-start-use-recovery.txt; never use the administrative planning board.
+- Create fresh Harbor / Dispatch, Harbor / Research and Orchard / Garden through
+  normal CLI controls. Seed through supported CLI/browser actions, not SQL/JSON.
+- Dispatch: #1 Dispatch parcel (Ready for Work); #2 Dispatch review one and #3
+  Dispatch review two (Ready for Review). Research: #1 Research seed (Ready for
+  Work) and #2 Research review (Ready for Review). Garden: empty. Use P3 throughout.
+- For browser seeding, Create card then Save; Read current board after each commit.
+  To seed review rows, Start work then Save/read, Review handoff then Save/read.
+  Discard current editor input after a confirmed save when moving to another form.
+  Fresh boards allocate their own ticket numbers; record their distinct UUIDs.
+- Start with unpinned boards and no leftover browser drafts. Use a fresh dedicated
+  browser profile/origin for the run. Do not clear or overwrite anyone else's data.
+  The initial Ready for Review counts must be 2 / 1 / 0 before the mutating prewalk.
+
+Walkthrough (about 15 minutes)
+1. Open the service's root URL. Observe the chooser and all three project/board
+   labels. Open Dispatch, then a cold /board/harbor/research bookmark in a second
+   window. Both #1 cards exist, with different titles and UUIDs. Read both through
+   the explicit --workspace/--project/--board CLI selectors in the companion guide.
+   The selected board must always agree across route, label, content and CLI.
+
+2. In Dispatch, Edit card #1, change its title to Dispatch parcel demo, and Save
+   once. Observe confirmed save; Read current board. Add comment to that card,
+   enter Dispatch demo comment, Save once and read it back. CLI-read both boards:
+   Dispatch has these changes; Research's #1 and revision are unchanged by them.
+   No automatic priority change or approval should occur.
+
+3. Create a Dispatch card form and type Dispatch private draft without saving.
+   Wait for private recovery readiness. Switch to Research and back using the
+   sidebar; the original Dispatch input/base returns. Use browser Back/Forward
+   and ordinary reload; verify the correct route and own draft return. In the
+   second window, open Dispatch and type Second window private draft in a separate
+   unsaved create form. The two inputs stay independent; neither becomes a card.
+
+4. Pin Dispatch and Research. Move Research up using its labeled Pinned control
+   (also exercise Tab + Enter/Space). The other window sees the order after a
+   successful poll; its draft/route stays put. Filter boards to research in only
+   the first window. Its editor remains Dispatch, with no route fallback; clear
+   the filter. Hide/Show boards and adjust Sidebar width. The other window keeps
+   its own filter/layout. Supported review counts remain 2 / 1 / 0 at this point.
+
+5. Keep both unsaved inputs. Stop the owned foreground host gracefully and wait
+   for exit. Refresh boards: the list/counts report unavailable or out of date,
+   not healthy zero. Reopen the same workspace without --port. Refresh boards and
+   wait for the result; if the expired workspace channel leaves the list
+   unavailable, Refresh boards again. Wait for the connected list and saved pins,
+   then Reconnect local service and Read current board. Confirm the same identities,
+   saved changes and pins, healthy counts and retained private inputs. Do not
+   select Save on either draft. Reconnect must create no card or duplicate comment.
+
+6. Open /board/harbor/not-registered in a new window. It reports unavailable;
+   it never displays Dispatch/Research as a fallback. Return to a valid route.
+   Deliberately discard only this demo's unsaved drafts when finished, or retain
+   them privately for the owner's review. Do not copy private recovery records.
+
+Optional review/approval demonstration
+Use an additional fresh synthetic card, since approval changes the initial count.
+Start work, Save/read; Review handoff, Save/read. A human browser user may Approve
+then Save under the current policy. Automation cannot approve/Completed. Record
+this as a separate observation; never approve or complete the administrative ticket.
+
+Record the result
+- Record each step as observed PASS/FAIL, with expected versus actual behavior and
+  sanitized screenshot/CLI evidence references in the private handoff packet.
+- Preserve failed attempts. Pause on a product defect; report it for correction
+  and fresh review instead of broadening M01 or quietly changing the fixture.
+- Bind reused M01.09 evidence only after checking the executable and all frozen
+  product/build input hashes still match. Do not turn this small prewalk into a
+  new claim of 133 joined assertions, 21 regression cases or a fresh full Go suite.
+- A fresh non-author final candidate review and a separate fresh final report
+  validator are required for handoff. A written walkthrough alone is not proof
+  of execution or owner acceptance. Only the owner controls Completed.
+
+What this demonstrates
+Explicit membership and exact selection; normal create/edit/comment and workflow;
+supported Attention; shared pins; private board/window state; unavailable/restart
+behavior and no replay. Filter boards searches labels/keys, not card prose.
+UNKNOWN/lost-response and storage-failure guarantees rely on their bound M01.09
+technical supplements, not an invented fault in this short positive walkthrough.
+
+M01 intentionally differs from V1 recursive JSON discovery. It does not deliver
+real-data import/cutover/full parity, archive/configurable workflow UX, broader
+attachments/covers or monitors/publishing. No LAN/TLS, account enrollment, hostile
+same-account or native power-loss assurance is claimed. See
+qualification/workspace/README.txt for the retained qualification boundaries.

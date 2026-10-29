@@ -20,3 +20,16 @@ v2-architecture repository; newer owner direction takes precedence.
   dependent work stays Ready for Work; dependencies and acceptance gates remain.
 - Keep a task In Progress through implementation and fresh non-author review.
   Only the owner controls Completed. Review/approval alone belongs Ready for Review.
+
+## Fresh-eyes review exception
+
+Terry clarified on 2026-10-29 that a fresh-eyes subagent review of work authored
+by the parent is always permitted, even when no useful work can overlap. An
+independent audit without the parent's preconceived conclusions is a useful
+use of credits; parallel work is not a prerequisite for this review.
+
+This supersedes earlier parallel-only delegation restrictions for that review.
+It does not require fixed reviewer pairs or idle staffing. Keep other purely
+serial work in the parent, provide evidence without prescribing a verdict, and
+describe actual independence truthfully. Preserve task authorization, required
+verification and explicit model/effort, depth and concurrency limits.

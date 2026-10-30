@@ -185,7 +185,7 @@
   },
   {
     "path": "internal/assets/bundle/js/board/details.js",
-    "sha256": "999523733eb8ccc4c7e107583d8516e7775e8195fa4ac2956a94ee86815d0198"
+    "sha256": "913cc81605da52a8a74d30e10d7d8a66ce2f2cbbaa786035eb15c19cf10cdf7d"
   },
   {
     "path": "internal/assets/bundle/js/board/hierarchy.js",
@@ -197,7 +197,7 @@
   },
   {
     "path": "internal/assets/bundle/js/board/view.js",
-    "sha256": "ca80724a2f5b39395bc36b49360864a214b2afe876c59520a8fb907b7f6e8d25"
+    "sha256": "c2430a97ee8bb81996c3c33017548c4bfc3fde7895ffb69507911c4d967c60af"
   },
   {
     "path": "internal/assets/bundle/js/recovery-ui/admin.js",
@@ -261,7 +261,7 @@
   },
   {
     "path": "internal/assets/bundle/manifest.json",
-    "sha256": "61b17d62f2d7fb64622a586b8fb8bd698f199f888031a8f5944049e890d0c06d"
+    "sha256": "b0de826f07df103c454b9b093ffbf76848296da5686a37c3b9b35d8eb9f0644a"
   },
   {
     "path": "internal/assets/bundle/styles/app.css",

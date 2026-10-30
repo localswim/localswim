@@ -92,7 +92,7 @@ export class BoardView {
             if (!this.destroyed && !this.suspended)
                 this.details.open(cardId, identity, opener);
         }, options.searchCheckpoint, options.search);
-        this.details = new CardDetails(client, read, focused => {
+        this.details = new CardDetails(client, this.search.find, focused => {
             const current = this.board, card = current?.result.cards.find(row => row.cardId === focused.result.card.cardId);
             if (!current || !card || current.result.identity.boardId !== focused.result.identity.boardId ||
                 current.result.identity.incarnation !== focused.result.identity.incarnation || current.result.revision !== focused.result.revision || card.revision !== focused.result.card.revision) {
@@ -100,7 +100,7 @@ export class BoardView {
                 return;
             }
             this.edit("card.edit", card, false, undefined, !card.archived);
-        }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read) });
+        }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read });
         root.replaceChildren(this.heading, this.actor, this.readState, read, button("Create card", () => this.edit("card.create")), this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
     }
     async open() { await this.refresh(); }

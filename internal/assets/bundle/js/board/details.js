@@ -62,6 +62,8 @@ export class CardDetails {
     historyPage = 0;
     historicalCommentPage = 0;
     hierarchy;
+    hierarchyFallback;
+    hierarchyOrigin = false;
     constructor(client, fallback, archiveAction, focusRoot, hierarchy) {
         this.client = client;
         this.fallback = fallback;
@@ -80,15 +82,17 @@ export class CardDetails {
         this.historicalComments.setAttribute("aria-label", "History comments");
         this.host.append(this.heading, control("Close card details", () => this.close()), control("Refresh card details", () => { void this.refresh(); }), this.status, this.parentAnnouncement, this.facts, this.comments, this.older, this.historicalComments);
         if (hierarchy) {
-            this.hierarchy = new CardHierarchy(hierarchy.client, (cardId, identity, opener) => this.open(cardId, identity, opener), hierarchy.action);
+            this.hierarchyFallback = hierarchy.fallback;
+            this.hierarchy = new CardHierarchy(hierarchy.client, (cardId, identity, opener) => this.open(cardId, identity, opener, true), hierarchy.action);
             this.host.insertBefore(this.hierarchy.host, this.comments);
         }
     }
-    open(cardId, identity, opener) {
+    open(cardId, identity, opener, hierarchyOrigin = false) {
         this.request++;
         this.selected = cardId;
         this.expected = identity;
         this.opener = opener;
+        this.hierarchyOrigin = hierarchyOrigin;
         this.current = undefined;
         this.history = undefined;
         this.host.hidden = false;
@@ -111,7 +115,7 @@ export class CardDetails {
         const replacement = scope?.isConnected ? [...scope.querySelectorAll("button[data-open-card]")]
             .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0)
             : undefined;
-        const target = replacement ?? this.fallback;
+        const target = replacement ?? (this.hierarchyOrigin ? this.hierarchyFallback ?? this.fallback : this.fallback);
         if (target.isConnected && !target.disabled && target.getClientRects().length > 0)
             target.focus();
     }

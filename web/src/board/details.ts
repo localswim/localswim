@@ -59,9 +59,11 @@ export class CardDetails {
   private historyPage = 0;
   private historicalCommentPage = 0;
   private readonly hierarchy?: CardHierarchy;
+  private readonly hierarchyFallback?: HTMLButtonElement;
+  private hierarchyOrigin = false;
   constructor(private readonly client: Pick<BoardClient, "card" | "history">, private readonly fallback: HTMLButtonElement,
     private readonly archiveAction?: (read: CardRead) => void, private readonly focusRoot?: HTMLElement,
-    hierarchy?: { client: Pick<BoardClient, "board">; action?: (action: HierarchyAction, card: HierarchyCard, read: BoardRead) => void }) {
+    hierarchy?: { client: Pick<BoardClient, "board">; action?: (action: HierarchyAction, card: HierarchyCard, read: BoardRead) => void; fallback?: HTMLButtonElement }) {
     this.host.hidden = true; this.host.setAttribute("aria-label", "Card details"); this.host.setAttribute("role", "region");
     this.heading.tabIndex = -1; this.status.setAttribute("role", "status");
     this.parentAnnouncement.setAttribute("role", "status"); this.parentAnnouncement.setAttribute("aria-label", "Current parent announcement");
@@ -71,12 +73,14 @@ export class CardDetails {
     this.host.append(this.heading, control("Close card details", () => this.close()),
       control("Refresh card details", () => { void this.refresh(); }), this.status, this.parentAnnouncement, this.facts, this.comments, this.older, this.historicalComments);
     if (hierarchy) {
-      this.hierarchy = new CardHierarchy(hierarchy.client, (cardId, identity, opener) => this.open(cardId, identity, opener), hierarchy.action);
+      this.hierarchyFallback = hierarchy.fallback;
+      this.hierarchy = new CardHierarchy(hierarchy.client, (cardId, identity, opener) => this.open(cardId, identity, opener, true), hierarchy.action);
       this.host.insertBefore(this.hierarchy.host, this.comments);
     }
   }
-  open(cardId: string, identity: Identity, opener: HTMLButtonElement): void {
+  open(cardId: string, identity: Identity, opener: HTMLButtonElement, hierarchyOrigin = false): void {
     this.request++; this.selected = cardId; this.expected = identity; this.opener = opener;
+    this.hierarchyOrigin = hierarchyOrigin;
     this.current = undefined; this.history = undefined; this.host.hidden = false;
     this.parentAnnouncement.textContent = "";
     this.heading.textContent = "Card details · " + cardId;
@@ -91,7 +95,7 @@ export class CardDetails {
     const replacement = scope?.isConnected ? [...scope.querySelectorAll<HTMLButtonElement>("button[data-open-card]")]
       .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0)
       : undefined;
-    const target = replacement ?? this.fallback;
+    const target = replacement ?? (this.hierarchyOrigin ? this.hierarchyFallback ?? this.fallback : this.fallback);
     if (target.isConnected && !target.disabled && target.getClientRects().length > 0) target.focus();
   }
   suspend(): void { this.active = false; this.invalidate(); this.hierarchy?.suspend(); }

@@ -326,6 +326,27 @@ export async function runHierarchyDirtySwitchProbe(input: BoardRead, session: Se
 export async function runHierarchyReceiptFollowProbe(input: BoardRead, session: SessionRead): Promise<number> {
   let checks = 0;
   const check = (value: boolean, message: string): void => { if (!value) throw Error(message); checks++; };
+  {
+    const data = forest(input, 3), child = data.result.cards[1]!;
+    Object.assign(child, { archived: false });
+    const mounted = await mountSyntheticBoard(data, session);
+    const find = (label: string): HTMLButtonElement => [...document.querySelectorAll<HTMLButtonElement>("button")].find(row => row.textContent === label)!;
+    const facts = (): string => document.querySelector('[aria-label="Current card state"]')!.textContent!;
+    try {
+      const laneOpener = document.querySelector<HTMLButtonElement>('button[data-open-card="' + child.cardId + '"]')!;
+      laneOpener.click(); await settle(() => facts().includes("Card UUID: " + child.cardId));
+      find("Close card details").click();
+      check(document.activeElement === laneOpener, "Hierarchy-enabled details lost the visible lane opener");
+      laneOpener.click(); await settle(() => facts().includes("Card UUID: " + child.cardId));
+      const parentOpener = [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Card hierarchy"] button')].find(row => row.textContent!.startsWith("Open parent"))!;
+      parentOpener.click(); await settle(() => facts().includes("Card UUID: " + data.result.cards[0]!.cardId));
+      find("Close card details").click();
+      check(document.activeElement === find("Read current board"), "Unmounted hierarchy opener did not use the board-read fallback");
+      await new Promise(resolve => setTimeout(resolve, 20));
+      check(document.activeElement === find("Read current board") && (document.querySelector('[aria-label="Card details"]') as HTMLElement).hidden && mounted.state.mutations === 0,
+        "Closing related details reopened, dispatched or stole settled fallback focus");
+    } finally { mounted.view.destroy(); mounted.client.close(); }
+  }
   for (const action of ["Set parent", "Clear parent", "Create child"] as const) {
     const data = forest(input, 3), child = data.result.cards[1]!, target = data.result.cards[2]!;
     Object.assign(child, { archived: false });

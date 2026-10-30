@@ -1,0 +1,151 @@
+{
+  "status": "PASS_M05_02_FEATURE_SLICE",
+  "sourceBinding": "Tested product source 0502c1f847544e3e19a506f9a78e8d17bdaf2222; application SHA256 matches current gate, normal/labeled-fault product, restored-record and explicit upgrade evidence. Later report-only commits do not imply a new product build.",
+  "binarySHA256": "35e5d14b74f7cfdebe283364c4365f4f13312e32c9ef12a941501b1ead82d763",
+  "scope": "Focused feature delivery; not M05.03 two-isolated-build/native-root/browser-inventory qualification or M05.04 kit/normal final demo",
+  "gate": {
+    "toolBuildChecks": 12,
+    "goTests": {
+      "passed": 1713,
+      "failed": 0,
+      "skipped": 0
+    },
+    "nodeScriptTests": "PASS",
+    "oneCurrentBuild": true,
+    "twoIsolatedCleanBuilds": false
+  },
+  "product": {
+    "assertions": 94,
+    "steps": [
+      "NORMAL: actual browser dirty-switch create, untouched set reload, set/clear and explicit Enter, actual CLI atomic/noop/stale/foreign/cycle, full21localpages/archive, Complete-parent/human-only/child-only effects, two-window retained input",
+      "FAULT: one parent PATCH response lost after real native commit, owned restart/reload retains UNKNOWN without replay, deliberate original lookup only",
+      "NORMAL M05: browser atomic create/parent/link, reciprocal actualCLI, owner-only replacement, incoming/Completed peers, mixed-invalid no allocation, cycles, complete21/local20 pages and hidden-set preservation, archive/unarchive/Close focus",
+      "FAULT: native committed relationship replacement response lost, normal owned restart/reload retains UNKNOWN without replay, deliberate exact lookup settles"
+    ],
+    "ownedHosts": 6,
+    "allHostsExit0": true,
+    "firstCurrentRecords": {
+      "cards": 32,
+      "comments": 3,
+      "links": 28,
+      "attachments": 1,
+      "approvals": 1,
+      "actors": 2
+    },
+    "firstArchiveRecords": {
+      "cards": 32,
+      "comments": 3,
+      "links": 32,
+      "attachments": 1,
+      "approvals": 1,
+      "actors": 2
+    },
+    "secondCurrentRecords": {
+      "cards": 32,
+      "comments": 3,
+      "links": 29,
+      "attachments": 1,
+      "approvals": 1,
+      "actors": 4
+    },
+    "secondArchiveRecords": {
+      "cards": 32,
+      "comments": 3,
+      "links": 33,
+      "attachments": 1,
+      "approvals": 1,
+      "actors": 4
+    },
+    "completeRecordsNotCountsOnly": true,
+    "labeledFaults": "Two real native committed response-loss seams: parent edit and relationship replacement, each retains UNKNOWN over graceful restart/reload without replay; only deliberate original lookup settles"
+  },
+  "canonicalRestores": [
+    {
+      "allRowsAndCanonicalBytesExact": true,
+      "fullCanonicalPayloadPairs": 69,
+      "label": "first_restore",
+      "originals": 69
+    },
+    {
+      "allRowsAndCanonicalBytesExact": true,
+      "fullCanonicalPayloadPairs": 74,
+      "label": "second_restore",
+      "originals": 74
+    }
+  ],
+  "upgrade": {
+    "physicalBefore": 6,
+    "physicalAfter": 7,
+    "base": 5,
+    "checks": {
+      "inspect6_read_only_full_inventory_identical": true,
+      "wrong_identity_refuses_without_rewrite": true,
+      "normal_startup6_refuses_without_migration_or_metadata_rewrite": true,
+      "explicit_upgrade7_base5_only_database_bytes_changed": true,
+      "repeated_valid7_no_change_read_only": true,
+      "all_old_board_focused_history_blob_and_readable_archive_records_identical": true,
+      "upgraded_application_parent_mutation_and_reopen_persist": true
+    },
+    "frozen5Path": "Focused schema/open/native tests, not a new normal5->6 executable journey"
+  },
+  "controlledBrowser": {
+    "scope": "Synthetic actual-DOM relationships and focused hierarchy/archive/recovery/keyboard regressions; no product qualification",
+    "passed": true,
+    "controlledWideNavigation": {
+      "source": "Synthetic complete BoardRead with one legal 1000-card family; not ordinary CLI creation",
+      "descendants": 999,
+      "pages": 50,
+      "fullPages": 49,
+      "lastPageRows": 19,
+      "networkPagination": false
+    },
+    "archiveCard": 15,
+    "archiveStorage": 2,
+    "archiveCanonical": 10,
+    "search": 38,
+    "relationshipBoundary": 32,
+    "relationshipNavigation": 7,
+    "relationshipEditor": 7,
+    "relationshipRecovery": 3,
+    "keyboard": 8,
+    "hierarchyBoundary": 23,
+    "hierarchyNavigation": 168,
+    "hierarchyHistory": 6,
+    "hierarchyCurrentRead": 6,
+    "hierarchyEditor": 14,
+    "hierarchyRecovery": 11,
+    "hierarchyDirtySwitch": 18,
+    "hierarchyReceiptFollow": 43,
+    "existingEditor": 20,
+    "existingDetails": 33,
+    "existingPrivateReload": 4,
+    "existingPendingReload": 3
+  },
+  "freshIndependentReviews": [
+    "review-contracts.txt",
+    "review-cli.txt",
+    "review-backend.txt",
+    "review-backend-integration.txt",
+    "review-browser.txt",
+    "review-handoff.txt"
+  ],
+  "limits": [
+    "Synthetic Windows amd64/NTFS/localhost",
+    "Response loss and controlled injections are separately labeled, not normal-use or physical power-loss evidence",
+    "Earlier failed attempts retained and classified; no uncertain retry",
+    "No real-data adoption, issuer trust installation, general release or full M05 acceptance"
+  ],
+  "nextGate": "Owner acceptance of feature #0038 before #0078; no further implementation/qualification card worked this turn",
+  "completeArchiveAudit": {
+    "result": "All retained records and metadata exact except permitted wrapper identity; complete blob entry bytes exact",
+    "activityEvents": [
+      56,
+      61
+    ],
+    "historyRecords": [
+      24,
+      29
+    ],
+    "category": "Fresh independent read-only archive audit, not runtime replay"
+  }
+}

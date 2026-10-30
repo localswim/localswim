@@ -1,0 +1,81 @@
+M05.02 TYPED RELATIONSHIP FEATURE — REVIEWED HANDOFF CANDIDATE
+2026-10-30 | Feature slice, not whole-milestone qualification/kit acceptance
+
+Delivered
+- Browser and actual CLI typed reciprocal exact views from one owned Link fact;
+  blocking/informational preserved, related/reference/duplicate added. Complete
+  owned-set replacement and atomic card+parent+relationships, incoming conservation,
+  structured browser editing, local20 pages and exact current identities.
+- Physical7/base5 with frozen5/6 validation and explicit adjacent offline upgrades;
+  API/archive/fingerprint1, old canonical bytes and card-only batch receipts.
+
+Current candidate and gate
+- Application SHA256 35e5d14b74f7cfdebe283364c4365f4f13312e32c9ef12a941501b1ead82d763.
+- Current complete Go gate: 1713 test/subtest events PASS,
+  zero failed/skipped tests. Packages with no tests are separate package events.
+- Module verification, generated contracts, TypeScript check/build, staged assets,
+  normal build, Go vet and Node script tests PASS. This is one current build, not
+  two isolated clean builds or execution of the full tagged native/browser inventory.
+
+Actual product evidence
+- Fresh r4 joined browser/actualCLI: 94 assertions
+  across normal journeys AND two separately labeled native response-loss seams.
+  Includes existing hierarchy plus modern/legacy links, browser atomic create,
+  actualCLI5-kind create, reciprocal/Completed/incoming ownership, invalid atomic
+  refusal, duplicate/self cycles, complete21/local20 read and hidden set preservation.
+  Actual journey compares committed BoardRead after refused input; exact ticket,
+  allocator and history noncommit conservation comes from focused native table
+  comparisons, not an inference from fields absent in the transport BoardView.
+- Early archive/search/Close-focus and restored-original search exercised on the
+  actual application. Close restores exact normal-card and search openers. A new
+  relationship batch response is lost only AFTER its one real native commit;
+  normal owned restart/reload retains UNKNOWN and does not replay. Deliberate exact
+  original lookup settles it. These injected seams are not fresh normal-use claims.
+- Both runnable restores compare COMPLETE current and archived retained records,
+  full prior snapshots/approval/attachment/provenance facts and exact blob bytes,
+  not only counts. Only enumerated existing identity transformations are allowed.
+  Independent read-only archive audit additionally compares ALL24/29 history
+  records and56/61 activity events/document metadata, exact except permitted wrapper
+  identity. This closes the wrapper's narrower child-history coverage; no replay.
+  Source board/export unchanged; restore->new relationship AND hierarchy mutation->second restore
+  exercises snapshot Origin versus current/CreatedIn scope. Typed records from
+  the feature remain in both archives, including inactive/history-linked facts.
+- Go canonical comparison:69 then74 full immutable originals and their canonical
+  bytes are exact across the two restores. Both compare complete terminal rows.
+- All 6 owned product hosts exited0; all listeners closed.
+  Browser contexts closed; no cleanup error. No private runtime/profile handed off.
+
+Explicit upgrade evidence
+- Accepted M04 application seeds a fresh genuine physical6 store through normal
+  commands, retaining history/comments/links/bytes and synthetic human approval.
+- Candidate inspect is read-only; wrong identity and normal6 startup refuse
+  unchanged. Explicit6->7 changes only the board database bytes, base5 remains,
+  and all logical archive/focused history/blob records compare exactly.
+- Repeated valid7 upgrade is NO_CHANGE/read-only; new hierarchy and typed-link
+  operations then normal reopen persist. Focused native tests separately cover
+  frozen5/6,5->6, rollback/refusal/UNKNOWN/live writer, exact foreign/unordered pairs.
+- The copied baseline-setup status label saysV5; executable hash and read-only
+  physical inspection prove6. That harness label is retained, not relabeled proof.
+
+Independent assessment and limits
+- Fresh non-author contract, CLI, backend/upgrade and browser/recovery source audits
+  PASS. Reviewer native286/4supplemental/14dispatch, publication44 and controlled
+  browser reruns are separately scoped evidence, not another full product journey.
+- Initial workspace-host test failure is retained; diagnostic and full current
+  configured gate pass. Exact initial cause was not isolated. Productr1 stopped
+  on a harness linked-vs-normal selector ambiguity; fresh r2/r3 pass. Gate-r1 exposed
+  two stale physical6 provider test guards; changed only those to7/base5, re-reviewed
+  and fresh gate-r2 passes. No failed attempt erased or uncertain mutation replayed.
+- Synthetic local Windows evidence; no physical power-loss, installed OS IME,
+  whole-product accessibility, general release, real import/cutover or owner acceptance.
+- Next: owner review of #0038; #0078 full joined qualification and #0079 extracted
+  usable kit/final normal demo remain unstarted with their acceptance gates intact.
+
+Tested product source: 0502c1f847544e3e19a506f9a78e8d17bdaf2222. This publication is a
+documentation-only feature summary; exact executable bytes remain unchanged.
+Use docs/runbooks/m05-relationships.txt and cmd/localswim/LOCAL.txt from that
+source. Detailed private scripts/logs/reviews and source hashes are attached or
+referenced on administrative feature #0038; no private runtime data is published.
+Fresh independent handoff review also PASS, with all-history/activity/blob archive
+audit and guide/reference/cleanup/source-binding checks. Only owner feature review
+remains; full M05.03 qualification and M05.04 kit remain separately gated.

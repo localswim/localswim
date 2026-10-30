@@ -370,6 +370,9 @@ func ValidateDocuments(m Manifest, b Board, h History, a Activity, o Outcomes) (
 		}
 	}
 	for _, l := range b.Links {
+		if currentLinks[l.LinkID] && IsModernLinkKind(l.Kind) && (l.Target.BoardID != m.Source.BoardID || l.Target.Incarnation != m.Source.Incarnation) {
+			return nil, fmt.Errorf("current relationship target scope")
+		}
 		if l.Target.BoardID == m.Source.BoardID && l.Target.Incarnation == m.Source.Incarnation {
 			if e = r.resolve("card", l.Target.CardID, "", !currentLinks[l.LinkID]); e != nil {
 				return nil, e
@@ -495,6 +498,26 @@ func (r *registry) operation(o Operation, board UUID) error {
 					requiredOwner = owner
 				}
 				if e := r.resolve(kind, UUID(id), requiredOwner, true); e != nil {
+					return fmt.Errorf("COMMITTED_REFERENCE: %w", e)
+				}
+			}
+		}
+		// Canonical exact targets remain bound to the operation's original
+		// incarnation across restore. Resolve local IDs without rebasing those
+		// immutable bytes; retained foreign legacy set members stay evidence.
+		resolveTarget := func(value any) error {
+			ref, ok := value.(map[string]any)
+			if !ok || ref["boardId"] != string(o.Origin.BoardID) || ref["incarnation"] != string(o.Origin.Incarnation) {
+				return nil
+			}
+			return r.resolve("card", UUID(ref["cardId"].(string)), "", true)
+		}
+		if e := resolveTarget(payload["target"]); e != nil {
+			return fmt.Errorf("COMMITTED_REFERENCE: %w", e)
+		}
+		if relationships, ok := payload["relationships"].([]any); ok {
+			for _, relationship := range relationships {
+				if e := resolveTarget(relationship.(map[string]any)["target"]); e != nil {
 					return fmt.Errorf("COMMITTED_REFERENCE: %w", e)
 				}
 			}

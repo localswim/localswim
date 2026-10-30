@@ -13,6 +13,13 @@ card history C, card create, card edit C, comment add C, card link-add C,
 card link-remove C, card review-handoff C and card approve C. Mutations require
 --input FILE; --input - reads bounded UTF-8 JSON from stdin. Shared D03/C01
 validation rejects ambiguous or unsupported input and binds the positional card.
+card relationships C [--page N] derives active incident facts from the complete
+BoardRead, with exact owner/peer references and revision. Readable output uses
+20-row local pages; JSON emits the complete CLI-only RelationshipRead and refuses
+--page. Peer labels come only from exact identities in that same snapshot.
+card relationships-replace C maps only to card.edit and requires the ordinary full
+envelope with input.relationships as its only input field. It replaces owned facts;
+incoming facts retain their actual owners. No alias fetches revisions or retries.
 The supplied incarnation must match the selected incarnation; nothing is repaired.
 Selectors and positional IDs must have their exact raw canonical UUID spelling;
 literal escape sequences, quotes and control characters are never decoded into IDs.

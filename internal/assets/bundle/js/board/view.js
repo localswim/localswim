@@ -1,3 +1,4 @@
+import { completeOwnedRelationships, relationshipKinds, forwardLabels, validRelationships } from "../api/relationships.js";
 import { recoveryCoordinator } from "../recovery-ui/coordination.js";
 import { dependencyAdvisory } from "./advisory.js";
 import { commands, parse, validate } from "../api/boundary.js";
@@ -100,7 +101,7 @@ export class BoardView {
                 return;
             }
             this.edit("card.edit", card, false, undefined, !card.archived);
-        }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read });
+        }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read, relationshipAction: (action, card, read, row) => this.relationshipEdit(action, card, read, row) });
         root.replaceChildren(this.heading, this.actor, this.readState, read, button("Create card", () => this.edit("card.create")), this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
     }
     async open() { await this.refresh(); }
@@ -176,6 +177,8 @@ export class BoardView {
                 if (parent !== null && !payload.base.result.cards.some(row => row.cardId === parent.cardId))
                     return;
             }
+            if (Object.hasOwn(payload.input, "relationships") && (payload.command !== "card.create" && payload.command !== "card.edit" || payload.command === "card.edit" && (!card || Object.keys(payload.input).length !== 1)))
+                return;
             const inventory = await this.persistence.read(() => this.client.recovery.inventory());
             const rows = inventory.submissions.filter(row => row.draftId === reference.draftId && Object.entries(reference.context).every(([key, value]) => value === row.context[key]));
             const originals = await Promise.all(rows.map(async (row) => ({ row, submission: await this.client.recovery.loadSubmission(row.context, row.opId) })));
@@ -194,7 +197,7 @@ export class BoardView {
             const retainedFocus = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : undefined;
             const retainedSelection = retainedFocus instanceof HTMLInputElement || retainedFocus instanceof HTMLTextAreaElement
                 ? [retainedFocus.selectionStart, retainedFocus.selectionEnd, retainedFocus.selectionDirection ?? undefined] : undefined;
-            this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive, hierarchy);
+            this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive, hierarchy, payload.command === "card.edit" && Object.hasOwn(payload.input, "relationships"));
             const restored = this.editor;
             if (restored)
                 restored.submitted = rows.some(row => row.outcome !== "not_committed");
@@ -330,7 +333,18 @@ export class BoardView {
             return;
         this.edit(action === "create-child" ? "card.create" : "card.edit", action === "create-child" ? undefined : target, false, undefined, undefined, { action, ...(action === "create-child" ? { parent: { ...current.result.identity, cardId: target.cardId } } : {}) });
     }
-    edit(command, card, start = false, restore, archive, hierarchy) {
+    relationshipEdit(action, card, read, row) {
+        const current = this.board;
+        if (!current || this.stale || !sameIdentity(current.result.identity, read.result.identity) || current.result.revision !== read.result.revision) {
+            this.readState.textContent = "Read current board before changing relationships; the captured relationship base differs.";
+            return;
+        }
+        const target = current.result.cards.find(value => value.cardId === card.cardId);
+        if (!target || target.revision !== card.revision || target.lane === "Completed" || action === "remove" && (!row?.owned || row.owner.cardId !== target.cardId))
+            return;
+        this.edit(action === "replace" ? "card.edit" : action === "add" ? "link.add" : "link.remove", target, false, undefined, undefined, undefined, action === "replace", row?.linkId);
+    }
+    edit(command, card, start = false, restore, archive, hierarchy, relationshipsReplace = false, removeLinkId) {
         if (this.destroyed || !this.board || !this.session || this.stale) {
             this.readState.textContent = "Read a current board before editing.";
             return;
@@ -340,12 +354,12 @@ export class BoardView {
             return;
         }
         if (this.editor && !this.editor.submitted && this.dirty(this.editor)) {
-            if (archive !== undefined || hierarchy !== undefined) {
+            if (archive !== undefined || hierarchy !== undefined || relationshipsReplace || removeLinkId !== undefined) {
                 const opener = document.activeElement;
                 this.cancelEditor(this.editor, () => {
                     const replacement = [...this.root.querySelectorAll("button")].find(row => row.dataset.focusKey === opener?.dataset.focusKey);
                     (replacement ?? (opener?.isConnected ? opener : undefined))?.focus({ preventScroll: true });
-                    this.edit(command, card, start, restore, archive, hierarchy);
+                    this.edit(command, card, start, restore, archive, hierarchy, relationshipsReplace, removeLinkId);
                 });
                 return;
             }
@@ -358,13 +372,13 @@ export class BoardView {
         recovery.setAttribute("role", "status");
         const editor = { id: restore?.reference.draftId ?? crypto.randomUUID(), revision: restore?.revision ?? 0, command, context, base, card,
             fields: {}, form, recovery, save: button("Save", () => { void this.save(editor); }), composing: false,
-            sequence: 0, submitted: false, persisted: -1, start, ...(archive === undefined ? {} : { archive }), ...(hierarchy ? { hierarchy } : {}), initial: "", initialFields: {}, opener: document.activeElement,
+            sequence: 0, submitted: false, persisted: -1, start, ...(archive === undefined ? {} : { archive }), ...(hierarchy ? { hierarchy } : {}), ...(relationshipsReplace ? { relationshipsReplace: true } : {}), initial: "", initialFields: {}, opener: document.activeElement,
             confirmation: element("section"), confirming: false, confirmingEnter: false };
         const title = element("h2", command + " · original board revision " + base.result.revision + (card ? ", card revision " + card.revision : ""));
         form.append(title, element("p", "Board " + context.boardId + " · actor " + context.actorId));
         const field = (name, value, choices) => {
             const label = element("label", name + " ");
-            const control = choices ? element("select") : name === "description" || name === "text" ? element("textarea") : element("input");
+            const control = choices ? element("select") : name === "description" || name === "text" || name === "relationships" ? element("textarea") : element("input");
             if (control instanceof HTMLSelectElement)
                 for (const choice of choices) {
                     const option = element("option", choice);
@@ -380,7 +394,80 @@ export class BoardView {
             label.append(control);
             form.append(label);
         };
-        if (hierarchy?.action === "set-parent") {
+        const relationshipSet = (initial) => {
+            field("relationships", initial);
+            const storage = editor.fields.relationships;
+            storage.hidden = true;
+            storage.parentElement.hidden = true;
+            form.append(element("p", "Complete owned relationship set, including every relationship beyond the visible page. Incoming relationships are retained. Maximum 100 submitted entries; larger legacy sets remain visible and must be reduced deliberately."));
+            const selected = element("section");
+            selected.setAttribute("aria-label", "Selected owned relationships");
+            const update = (value) => { storage.value = JSON.stringify(value); editor.renderRelationships(); this.persist(editor); this.updateSave(); };
+            editor.renderRelationships = () => {
+                selected.replaceChildren();
+                let value;
+                try {
+                    value = storage.value.trim() ? parse(storage.value) : [];
+                }
+                catch {
+                    selected.append(element("p", "Retained owned relationship input is unavailable. Clear the set deliberately to replace it."));
+                    return;
+                }
+                if (!Array.isArray(value)) {
+                    selected.append(element("p", "Retained owned relationship input is invalid. Clear the set deliberately to replace it."));
+                    return;
+                }
+                selected.append(element("p", value.length + " selected owned relationships" + (value.length > 100 ? ". More than 100 entries: saving is refused until you deliberately remove entries or clear this set." : ".")));
+                for (const [index, spec] of value.entries()) {
+                    const entry = element("article"), row = spec;
+                    const target = row?.target, peer = target && sameIdentity(base.result.identity, target) ? base.result.cards.find(card => card.cardId === target.cardId) : undefined;
+                    const label = (row && row.kind && Object.hasOwn(forwardLabels, row.kind) ? forwardLabels[row.kind] : "Unavailable relationship") + " · " + (peer ? "#" + peer.ticket + " " + peer.title + " · " + peer.lane + " · " + (peer.archived ? "Archived" : "Active") + " · " : "Unavailable · ") + (target ? target.boardId + "/" + target.incarnation + "/" + target.cardId : "Unknown exact target");
+                    entry.append(element("p", label), button("Remove owned set entry " + (index + 1), () => { if (this.editor !== editor || editor.submitted || editor.confirming)
+                        return; const next = [...value]; next.splice(index, 1); update(next); (selected.querySelector("button") ?? clear).focus(); }));
+                    selected.append(entry);
+                }
+            };
+            const clear = button("Clear owned relationships", () => { if (this.editor !== editor || editor.submitted || editor.confirming)
+                return; update([]); clear.focus(); });
+            form.append(selected, clear);
+            editor.renderRelationships();
+            const kind = element("select");
+            kind.setAttribute("aria-label", "Relationship kind");
+            for (const value of relationshipKinds) {
+                const option = element("option", forwardLabels[value]);
+                option.value = value;
+                kind.append(option);
+            }
+            const peer = element("select");
+            peer.setAttribute("aria-label", "Relationship target");
+            peer.append(element("option", "Choose an exact relationship peer"));
+            peer.options[0].value = "";
+            for (const card of [...base.result.cards].filter(value => value.cardId !== editor.card?.cardId).sort(hierarchyOrder)) {
+                const option = element("option", "#" + card.ticket + " " + card.title + " · " + card.cardId + " · " + card.lane + " · " + (card.archived ? "Archived" : "Active"));
+                option.value = card.cardId;
+                peer.append(option);
+            }
+            form.append(kind, peer, button("Add selected relationship to owned set", () => {
+                if (this.editor !== editor || editor.submitted || editor.confirming || !peer.value)
+                    return;
+                try {
+                    const value = editor.fields.relationships.value.trim() ? parse(editor.fields.relationships.value) : [];
+                    if (!Array.isArray(value))
+                        throw Error("Array required");
+                    value.push({ kind: kind.value, target: { ...base.result.identity, cardId: peer.value } });
+                    update(value);
+                }
+                catch {
+                    editor.recovery.textContent = "Retained owned set is invalid. Input retained; clear the set deliberately before adding a selected peer.";
+                }
+            }));
+        };
+        if (relationshipsReplace) {
+            title.textContent = "Replace owned relationships · original board revision " + base.result.revision + ", card revision " + card.revision;
+            editor.save.textContent = "Save owned relationships";
+            relationshipSet(JSON.stringify(completeOwnedRelationships(base, card.cardId), null, 2));
+        }
+        else if (hierarchy?.action === "set-parent") {
             const candidates = [...base.result.cards].filter(row => row.cardId !== card?.cardId).sort(hierarchyOrder);
             field("parent", "", ["", ...candidates.map(row => row.cardId)]);
             const selector = editor.fields.parent;
@@ -409,17 +496,35 @@ export class BoardView {
             assignee.parentElement.firstChild.textContent = "Assignee ";
             for (const option of assignee.options)
                 option.textContent = this.assignee(option.value, base.result.actors);
+            if (command === "card.create")
+                relationshipSet("");
             if (hierarchy?.action === "create-child")
                 form.append(element("p", "Create child of exact parent " + hierarchy.parent.boardId + "/" + hierarchy.parent.incarnation + "/" + hierarchy.parent.cardId));
         }
         else if (command === "comment.add")
             field("text", "");
         else if (command === "link.add") {
-            field("kind", "blocking", ["blocking", "informational"]);
-            field("targetCardId", "");
+            field("kind", "blocking", [...relationshipKinds]);
+            const kinds = editor.fields.kind;
+            for (const option of kinds.options)
+                option.textContent = forwardLabels[option.value];
+            field("targetCardId", "", ["", ...base.result.cards.filter(value => value.cardId !== card?.cardId).sort(hierarchyOrder).map(value => value.cardId)]);
+            const targets = editor.fields.targetCardId;
+            targets.setAttribute("aria-label", "Relationship target");
+            targets.options[0].textContent = "Choose an exact relationship peer";
+            for (const option of [...targets.options].slice(1)) {
+                const peer = base.result.cards.find(value => value.cardId === option.value);
+                option.textContent = "#" + peer.ticket + " " + peer.title + " · " + peer.cardId + " · " + peer.lane + " · " + (peer.archived ? "Archived" : "Active");
+            }
         }
-        else if (command === "link.remove")
-            field("linkId", "");
+        else if (command === "link.remove") {
+            const links = base.result.links.filter(link => link.active && link.cardId === card?.cardId);
+            field("linkId", removeLinkId ?? "", ["", ...links.map(link => link.linkId)]);
+            for (const option of [...editor.fields.linkId.options].slice(1)) {
+                const link = links.find(link => link.linkId === option.value);
+                option.textContent = link.kind + " · " + link.target.boardId + "/" + link.target.incarnation + "/" + link.target.cardId + " · " + link.linkId;
+            }
+        }
         else if (command === "approve")
             field("policyVersion", String(base.result.policyVersion), [String(base.result.policyVersion)]);
         else
@@ -466,9 +571,10 @@ export class BoardView {
         this.current.replaceChildren();
         if (restore)
             for (const [name, control] of Object.entries(editor.fields)) {
-                if (Object.hasOwn(restore.input, name))
-                    control.value = name === "parent" && validParentRef(restore.input[name]) ? restore.input[name].cardId : String(restore.input[name] ?? "");
+                if (Object.hasOwn(restore.input, name) || name === "targetCardId" && Object.hasOwn(restore.input, "target"))
+                    control.value = name === "relationships" ? typeof restore.input[name] === "string" ? restore.input[name] : JSON.stringify(restore.input[name], null, 2) : name === "targetCardId" && validParentRef(restore.input.target) ? restore.input.target.cardId : name === "parent" && validParentRef(restore.input[name]) ? restore.input[name].cardId : String(restore.input[name] ?? "");
             }
+        editor.renderRelationships?.();
         if (restore) {
             editor.persisted = editor.sequence;
             editor.recovery.textContent = "Own window draft restored privately; no operation submitted.";
@@ -476,7 +582,7 @@ export class BoardView {
         else
             this.persist(editor);
         this.updateSave();
-        (Object.values(editor.fields)[0] ?? editor.save).focus();
+        (Object.values(editor.fields).find(field => !field.hidden) ?? editor.form.querySelector('[aria-label="Relationship kind"]') ?? editor.save).focus();
     }
     dirty(editor) { return JSON.stringify(this.input(editor)) !== editor.initial; }
     cancelEditor(editor, next) {
@@ -531,9 +637,31 @@ export class BoardView {
             return { parent: null };
         if (editor.hierarchy?.action === "set-parent")
             return { parent: editor.fields.parent?.value ? { ...editor.base.result.identity, cardId: editor.fields.parent.value } : null };
+        if (editor.relationshipsReplace) {
+            const text = editor.fields.relationships.value;
+            try {
+                return { relationships: parse(text) };
+            }
+            catch {
+                return { relationships: text };
+            }
+        }
         const input = {};
         for (const [name, field] of Object.entries(editor.fields))
-            input[name] = name === "policyVersion" ? Number(field.value) : name === "ownerId" && field.value === "" ? null : field.value;
+            if (name !== "relationships")
+                input[name] = name === "policyVersion" ? Number(field.value) : name === "ownerId" && field.value === "" ? null : field.value;
+        if (editor.fields.relationships?.value.trim()) {
+            try {
+                input.relationships = parse(editor.fields.relationships.value);
+            }
+            catch {
+                input.relationships = editor.fields.relationships.value;
+            }
+        }
+        if (editor.command === "link.add") {
+            input.target = { ...editor.base.result.identity, cardId: editor.fields.targetCardId.value };
+            delete input.targetCardId;
+        }
         if (editor.hierarchy?.action === "create-child")
             input.parent = { ...editor.hierarchy.parent };
         // Native text controls normalize existing line endings. An untouched field
@@ -573,6 +701,15 @@ export class BoardView {
     async save(editor) {
         if (this.editor !== editor || editor.composing || editor.confirmingEnter || editor.confirming || editor.submitted || this.stale || this.blocked() || editor.hierarchy?.action === "set-parent" && !editor.fields.parent?.value)
             return;
+        const submittedInput = this.input(editor);
+        if (Object.hasOwn(submittedInput, "relationships") && !validRelationships(submittedInput.relationships)) {
+            editor.recovery.textContent = "Relationships refused: select at most 100 unique relationships to exact target cards. Visible input retained; no operation submitted.";
+            return;
+        }
+        if (editor.command === "link.add" && !editor.fields.targetCardId?.value || editor.command === "link.remove" && !editor.fields.linkId?.value) {
+            editor.recovery.textContent = "Choose an exact relationship before saving. Input retained.";
+            return;
+        }
         const selection = editor.hierarchy ? this.details.captureSelection() : undefined;
         const sourceId = editor.hierarchy?.action === "create-child" ? editor.hierarchy.parent?.cardId : editor.card?.cardId;
         editor.hierarchyFollow = selection && selection.cardId === sourceId && selection.identity.boardId === editor.context.boardId && selection.identity.incarnation === editor.context.incarnation

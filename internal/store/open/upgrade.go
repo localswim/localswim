@@ -30,12 +30,14 @@ func validateSupported(ctx context.Context, c *sql.Conn, id schema.Identity) err
 	case 5:
 		return schema.ValidateV5(ctx, c, id)
 	case 6:
+		return schema.ValidateV6(ctx, c, id)
+	case 7:
 		return schema.Validate(ctx, c, id)
 	}
 	return errors.New("unsupported physical layout")
 }
 
-// InspectStorage is existing-only and accepts exactly the frozen5 or current6 layout.
+// InspectStorage is existing-only and accepts exactly the independently frozen5/6 or current7 layout.
 func InspectStorage(ctx context.Context, dir string, id schema.Identity) (out StorageInspection, err error) {
 	out.BoardID = id.BoardID
 	out.Incarnation = id.Incarnation
@@ -57,9 +59,22 @@ func UpgradeStorage(ctx context.Context, dir string, id schema.Identity) (change
 	return upgradeStorage(ctx, dir, id, nil)
 }
 
+// UpgradeStorageTo performs only the explicitly selected supported adjacent step.
+// An already-valid destination is NO_CHANGE; every other source refuses.
+func UpgradeStorageTo(ctx context.Context, dir string, id schema.Identity, from, to int) (bool, error) {
+	if !supportedStep(from, to) {
+		return false, errors.New("unsupported storage upgrade step")
+	}
+	return upgradeStorageStep(ctx, dir, id, from, to, nil)
+}
+func supportedStep(from, to int) bool { return from == 5 && to == 6 || from == 6 && to == 7 }
+
 // fault is a private deterministic test seam; a failure at committed means reply
 // loss and is UNKNOWN even though COMMIT succeeded.
 func upgradeStorage(ctx context.Context, dir string, id schema.Identity, fault func(string) error) (changed bool, err error) {
+	return upgradeStorageStep(ctx, dir, id, 0, 0, fault)
+}
+func upgradeStorageStep(ctx context.Context, dir string, id schema.Identity, from, to int, fault func(string) error) (changed bool, err error) {
 	inject := func(stage string) error {
 		if fault != nil {
 			return fault(stage)
@@ -111,8 +126,17 @@ func upgradeStorage(ctx context.Context, dir string, id schema.Identity, fault f
 	if err = errors.Join(err, clean); err != nil {
 		return false, err
 	}
-	if version == 6 {
+	if from == 0 {
+		if version == schema.Version {
+			return false, nil
+		}
+		from, to = version, version+1
+	}
+	if version == to {
 		return false, nil
+	}
+	if version != from || !supportedStep(from, to) {
+		return false, errors.New("storage upgrade source mismatch")
 	}
 	db, err = pool(g.path, false)
 	if err != nil {
@@ -141,30 +165,44 @@ func upgradeStorage(ctx context.Context, dir string, id schema.Identity, fault f
 			err = errors.Join(err, rollback(c))
 		}
 	}()
-	if err = schema.ValidateV5(ctx, c, id); err != nil {
+	if err = validateSupported(ctx, c, id); err != nil {
 		return false, err
+	}
+	var lockedVersion int
+	if err = c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&lockedVersion); err != nil || lockedVersion != from {
+		return false, errors.New("storage changed during upgrade preflight")
 	}
 	after, e := recordsDigest(ctx, c)
 	if e != nil || before != after {
 		return false, errors.New("storage changed during upgrade preflight")
 	}
 
-	for _, q := range schema.HierarchyStatements() {
-		if _, err = c.ExecContext(ctx, q); err != nil {
-			return false, err
+	if from == 5 {
+		for _, q := range schema.HierarchyStatements() {
+			if _, err = c.ExecContext(ctx, q); err != nil {
+				return false, err
+			}
 		}
+	} else if err = rebuildLinks(ctx, c, inject); err != nil {
+		return false, err
 	}
 	if err = inject("ddl"); err != nil {
 		return false, err
 	}
-	if _, err = c.ExecContext(ctx, "PRAGMA user_version=6"); err != nil {
+	if _, err = c.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version=%d", to)); err != nil {
 		return false, err
 	}
 	if err = inject("version"); err != nil {
 		return false, err
 	}
-	if err = schema.Validate(ctx, c, id); err != nil {
+	if err = validateSupported(ctx, c, id); err != nil {
 		return false, err
+	}
+	// Recheck all conserved typed rows after candidate validation. The only added
+	// table in5->6 is empty;6->7 preserves the entire row stream including rowids.
+	conserved, e := recordsDigestExcept(ctx, c, from == 5)
+	if e != nil || conserved != before {
+		return false, errors.New("storage upgrade changed retained records")
 	}
 	if err = inject("validated"); err != nil {
 		return false, err
@@ -180,9 +218,42 @@ func upgradeStorage(ctx context.Context, dir string, id schema.Identity, fault f
 	return true, nil
 }
 
+// Rebuild only link. No persistent helper, foreign-key weakening, row filtering,
+// ID reassignment or link update is used. Preserve rowid as well as every column
+// so the complete typed-row digest remains stable across the rebuild.
+func rebuildLinks(ctx context.Context, c *sql.Conn, inject func(string) error) error {
+	for _, q := range []string{
+		"CREATE TEMP TABLE upgrade_link AS SELECT rowid AS original_rowid,* FROM link",
+		"DROP TABLE link",
+	} {
+		if _, err := c.ExecContext(ctx, q); err != nil {
+			return err
+		}
+	}
+	if err := inject("link-dropped"); err != nil {
+		return err
+	}
+	for _, q := range schema.LinkStatements() {
+		if _, err := c.ExecContext(ctx, q); err != nil {
+			return err
+		}
+	}
+	if _, err := c.ExecContext(ctx, "INSERT INTO link(rowid,incarnation,link_id,entity_kind,card_id,kind,target_board,target_incarnation,target_card_id,internal_target_id,active,created_at) SELECT original_rowid,incarnation,link_id,entity_kind,card_id,kind,target_board,target_incarnation,target_card_id,internal_target_id,active,created_at FROM upgrade_link ORDER BY original_rowid"); err != nil {
+		return err
+	}
+	if err := inject("link-copied"); err != nil {
+		return err
+	}
+	_, err := c.ExecContext(ctx, "DROP TABLE temp.upgrade_link")
+	return err
+}
+
 // Freeze every baseline table row and SQLite scalar/blob type. Layout checks
 // freeze DDL separately; this proves the preflight snapshot was not replaced.
 func recordsDigest(ctx context.Context, c *sql.Conn) ([32]byte, error) {
+	return recordsDigestExcept(ctx, c, false)
+}
+func recordsDigestExcept(ctx context.Context, c *sql.Conn, emptyHierarchy bool) ([32]byte, error) {
 	var zero [32]byte
 	rows, err := c.QueryContext(ctx, "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT GLOB 'sqlite_*' ORDER BY name")
 	if err != nil {
@@ -204,8 +275,15 @@ func recordsDigest(ctx context.Context, c *sql.Conn) ([32]byte, error) {
 	}
 	h := sha256.New()
 	for _, table := range tables {
+		if emptyHierarchy && table == "card_parent" {
+			var count int
+			if err := c.QueryRowContext(ctx, "SELECT count(*) FROM card_parent").Scan(&count); err != nil || count != 0 {
+				return zero, errors.New("new hierarchy table is not empty")
+			}
+			continue
+		}
 		fmt.Fprintln(h, table)
-		rows, err = c.QueryContext(ctx, `SELECT * FROM "`+table+`" ORDER BY rowid`)
+		rows, err = c.QueryContext(ctx, `SELECT rowid,* FROM "`+table+`" ORDER BY rowid`)
 		if err != nil {
 			return zero, err
 		}
@@ -224,7 +302,15 @@ func recordsDigest(ctx context.Context, c *sql.Conn) ([32]byte, error) {
 				rows.Close()
 				return zero, err
 			}
-			b, e := json.Marshal(values)
+			typed := make([]struct {
+				Type  string
+				Value any
+			}, len(values))
+			for i, value := range values {
+				typed[i].Type = fmt.Sprintf("%T", value)
+				typed[i].Value = value
+			}
+			b, e := json.Marshal(typed)
 			if e != nil {
 				rows.Close()
 				return zero, e

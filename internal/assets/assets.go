@@ -93,6 +93,7 @@ func verified(source fs.FS) (map[string][]byte, error) {
 }
 
 var declared = map[string]bool{
+	"js/api/relationships.js": true, "js/board/relationships.js": true,
 	"js/api/hierarchy.js": true, "js/board/hierarchy.js": true,
 	"js/api/search.js": true, "js/board/search.js": true,
 	"js/api/history.js": true, "js/board/details.js": true,

@@ -7,11 +7,20 @@ snapshot. Supplied actors, assignments and earlier authorization checks grant no
 authority. Production composition supplies G02's real verifier.
 
 Scope: link.add, link.remove, review-handoff and approve. A link's route card is
-its owner/dependent; the payload targetCardId is a prerequisite or related peer
-in the same board incarnation. No cross-board authority or link creation follows
-from a UUID match. Add rejects self-links and new active blocking cycles. Active
-typed pairs are unique. Informational and inactive links never gate start; B01
-continues to check direct blocking prerequisites when a card starts.
+its owner/dependent. Legacy targetCardId accepts blocking/informational; modern
+target is a full exact selected-board CardRef and also accepts related, reference
+and duplicate. Exactly one target spelling is permitted. No cross-board authority
+or link creation follows from a UUID match. Shared relationships admission refuses
+self-links, new blocking/duplicate cycles and a second outgoing duplicate target.
+Active directed typed pairs and unordered related pairs are unique. Reference,
+related, duplicate, informational and inactive links never gate start; B01
+continues checking only direct blocking prerequisites when a card starts.
+
+Reciprocal display derives from one owned fact. Adding reverse related refuses
+LINK_ALREADY_EXISTS without changing ownership. Legacy historical/external facts
+and existing cycles remain evidence; only newly introduced edges are constrained.
+Cycle traversal uses a visited set so accepted legacy cycles terminate. B01's
+atomic create/replacement uses the same final-proposed-set admission and writes.
 
 An active duplicate typed pair refuses with LINK_ALREADY_EXISTS. Removing an
 inactive or noncurrent association refuses with NOT_FOUND. These terminal

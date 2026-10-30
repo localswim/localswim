@@ -95,15 +95,24 @@ func TestHierarchyUpgradeRollbackConservationAndUnknown(t *testing.T) {
 		}
 		t.Fatal("startup migrated5")
 	}
-	if changed, e := UpgradeStorage(ctx(t), p, identity); e != nil || !changed {
+	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 5, 6); e != nil || !changed {
 		t.Fatal("upgrade", e)
 	}
 	x, e := InspectStorage(ctx(t), p, identity)
 	if e != nil || x.PhysicalVersion != 6 || x.BaseSchemaVersion != 5 || !x.Valid {
 		t.Fatal("inspection", e)
 	}
-	if changed, e := UpgradeStorage(ctx(t), p, identity); e != nil || changed {
+	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 5, 6); e != nil || changed {
 		t.Fatal("valid6 no-change", e)
+	}
+	if s, e := Existing(ctx(t), p, identity); e == nil || !strings.Contains(e.Error(), "explicit offline upgrade 6->7") {
+		if s != nil {
+			s.Close()
+		}
+		t.Fatal("startup did not require explicit6->7", e)
+	}
+	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 6, 7); e != nil || !changed {
+		t.Fatal(e)
 	}
 	s, e := Existing(ctx(t), p, identity)
 	if e != nil {
@@ -160,7 +169,7 @@ func TestHierarchyUpgradeRefusesUnknownAndMissingInventory(t *testing.T) {
 			if e := os.WriteFile(filepath.Join(p, name), []byte("synthetic"), 0600); e != nil {
 				t.Fatal(e)
 			}
-			if _, e := UpgradeStorage(ctx(t), p, identity); e == nil {
+			if _, e := UpgradeStorageTo(ctx(t), p, identity, 5, 6); e == nil {
 				t.Fatal("unknown inventory accepted")
 			}
 			if e := os.Remove(filepath.Join(p, name)); e != nil {
@@ -175,7 +184,7 @@ func TestHierarchyUpgradeRefusesUnknownAndMissingInventory(t *testing.T) {
 	if e := os.Remove(filepath.Join(p, "board.lock")); e != nil {
 		t.Fatal(e)
 	}
-	if _, e := UpgradeStorage(ctx(t), p, identity); e == nil {
+	if _, e := UpgradeStorageTo(ctx(t), p, identity, 5, 6); e == nil {
 		t.Fatal("missing lock accepted")
 	}
 	if _, e := os.Stat(filepath.Join(p, "board.lock")); !os.IsNotExist(e) {
@@ -195,13 +204,13 @@ func TestHierarchyUpgradePreservesOpaqueLegacyStates(t *testing.T) {
 				execute(t, c, "INSERT INTO card_revision(incarnation,origin_board,origin_incarnation,card_id,card_revision,actor_id,committed_at,state) VALUES(?,?,?,?,1,?,'2026-10-25T00:00:00Z',?)", incarnation, boardID, incarnation, cardID, actorID, state)
 			})
 			before := legacyDigest(t, p)
-			changed, e := UpgradeStorage(ctx(t), p, identity)
+			changed, e := UpgradeStorageTo(ctx(t), p, identity, 5, 6)
 			if e != nil || !changed {
 				t.Fatal("legacy upgrade refused", e)
 			}
 			// Compare the entire baseline row digest after excluding only the new empty
 			// adjacency table from the same typed row stream.
-			e = InspectExisting(ctx(t), p, identity, func(r InspectionRead) error {
+			e = inspectExisting(ctx(t), p, identity, func(r InspectionRead) error {
 				var actual string
 				if err := r.Scan("SELECT state FROM card_revision WHERE card_id=?", []any{cardID}, &actual); err != nil {
 					return err
@@ -210,32 +219,19 @@ func TestHierarchyUpgradePreservesOpaqueLegacyStates(t *testing.T) {
 					t.Fatal("opaque bytes rewritten")
 				}
 				return nil
-			})
+			}, schema.ValidateV6)
 			if e != nil {
 				t.Fatal(e)
 			}
-			// Reconstruct a baseline5 validation in a rolled-back writer snapshot only;
-			// no committed downgrade occurs, and every original row is conserved.
-			s, e := Existing(ctx(t), p, identity)
+			// Compare every typed baseline row; only the new empty hierarchy is excluded.
+			e = inspectExisting(ctx(t), p, identity, func(r InspectionRead) error {
+				after, err := recordsDigestExcept(ctx(t), r.(*inspectionReader).conn, true)
+				if err != nil || before != after {
+					t.Fatal("baseline rows changed", err)
+				}
+				return nil
+			}, schema.ValidateV6)
 			if e != nil {
-				t.Fatal(e)
-			}
-			withWriter(t, s, func(c *sql.Conn) {
-				execute(t, c, "BEGIN IMMEDIATE")
-				execute(t, c, "DROP TRIGGER card_parent_no_update")
-				execute(t, c, "DROP INDEX card_parent_by_parent")
-				execute(t, c, "DROP TABLE card_parent")
-				execute(t, c, "PRAGMA user_version=5")
-				if e := schema.ValidateV5(ctx(t), c, identity); e != nil {
-					t.Fatal(e)
-				}
-				after, e := recordsDigest(ctx(t), c)
-				if e != nil || before != after {
-					t.Fatal("baseline rows changed", e)
-				}
-				execute(t, c, "ROLLBACK")
-			})
-			if e = s.Close(); e != nil {
 				t.Fatal(e)
 			}
 			if _, e = InspectStorage(ctx(t), p, identity); e != nil {
@@ -287,7 +283,7 @@ func TestHierarchyUpgradeRejectsMalformedHistoricalParentWithoutRewrite(t *testi
 				execute(t, c, "INSERT INTO card_revision(incarnation,origin_board,origin_incarnation,card_id,card_revision,actor_id,committed_at,state) VALUES(?,?,?,?,1,?,'2026-10-25T00:00:00Z',?)", incarnation, boardID, incarnation, cardID, actorID, state)
 			})
 			before := legacyDigest(t, p)
-			if changed, e := UpgradeStorage(ctx(t), p, identity); e == nil || changed {
+			if changed, e := UpgradeStorageTo(ctx(t), p, identity, 5, 6); e == nil || changed {
 				t.Fatal("malformed parent upgraded")
 			}
 			if legacyDigest(t, p) != before {

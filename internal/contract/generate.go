@@ -70,6 +70,13 @@ func declaration(t *Type) string {
 		c.Nullable = false
 		return "(" + declaration(&c) + " | null)"
 	}
+	if len(t.Variants) > 0 {
+		variants := make([]string, len(t.Variants))
+		for i, variant := range t.Variants {
+			variants[i] = declaration(variant)
+		}
+		return "(" + strings.Join(variants, " | ") + ")"
+	}
 	switch t.Kind {
 	case "object":
 		var b strings.Builder
@@ -111,6 +118,13 @@ func schema(t *Type) map[string]any {
 		c.Nullable = false
 		return map[string]any{"anyOf": []any{schema(&c), map[string]any{"type": "null"}}}
 	}
+	if len(t.Variants) > 0 {
+		variants := make([]any, len(t.Variants))
+		for i, variant := range t.Variants {
+			variants[i] = schema(variant)
+		}
+		return map[string]any{"oneOf": variants}
+	}
 	m := map[string]any{"type": t.Kind}
 	switch t.Kind {
 	case "object":
@@ -146,6 +160,12 @@ func schema(t *Type) map[string]any {
 
 	case "array":
 		m["items"] = schema(t.Element)
+		if t.Max > 0 {
+			m["maxItems"] = t.Max
+		}
+		if t.Format == "unique-relationships" {
+			m["uniqueItems"] = true
+		}
 		if t.Format == "sorted-unique" {
 			m["uniqueItems"] = true
 			m["x-order"] = "ASCII ascending"

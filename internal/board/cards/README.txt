@@ -27,8 +27,20 @@ authority. Missing or ambiguous provenance fails closed through S02 rollback.
 
 Start checks direct active blocking links against nonarchived Completed cards with
 current human approval of the immediately preceding revision and current policy.
-Informational and inactive links do not gate start. B02 owns graph mutations,
-handoff and approval; this package adds no archive, reopen or assignee command.
+Nonblocking and inactive links do not gate start. B02 owns single-link mutations,
+handoff and approval; atomic sets compose the shared relationship admission.
+
+M05 owned relationships
+Create may include up to 100 exact relationship specifications together with its
+parent. Admission precedes all card/ticket/link allocation; the card and all new
+owned facts/current references commit together at one card/board revision.
+An exclusive relationships card.edit replaces the complete active owned set.
+Matching facts retain IDs, omitted facts deactivate, and new facts receive fresh
+IDs. Incoming facts remain owned by their sources. Empty [] clears; equal sets
+record NO_CHANGE after normal admission, including the Completed refusal.
+The relationships package shares final-state validation with workflow link.add.
+Create/edit results and ResultRefs remain card-only; discover new links by reading
+the committed board. Prior snapshots capture owned references before replacement.
 
 Native Windows tests require an explicit private S01_TEST_ROOT outside the public
 repository. Fixtures create fresh synthetic SQLite stores with private ACLs and

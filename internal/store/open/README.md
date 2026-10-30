@@ -1,6 +1,6 @@
 # Storage ownership boundary
 
-This package is the version-six physical schema/open boundary. It uses the Q02 qualified
+This package is the version-seven physical schema/open boundary. It uses the Q02 qualified
 `database/sql` binding on native Windows/amd64 and a fixed local NTFS drive.
 It does not implement domain admission, permissions, outcome reconciliation,
 history clearing, restore, HTTP or CLI behavior.
@@ -29,13 +29,13 @@ garbage collection or database mutation. Inspection establishes neither online
 authorization nor a complete logical/native archive-inventory proof; its caller
 must retain wider offline ownership and perform that proof inside the callback.
 
-Physical layout6 is distinct from the immutable base-schema marker5. Existing
-never migrates/repairs. Explicit offline exact5->6 upgrade requires existing-only
+Physical layout7 is distinct from the immutable base-schema marker5. Existing
+never migrates/repairs. Explicit offline exact5->6 then6->7 upgrades requires existing-only
 native path/identity/exclusion and one validated transaction. Read-only inspect
 reports physical/base versions separately. Unknown/corrupt/dirty-sidecar sources
 refuse unchanged; post-commit cleanup/inspection/delivery uncertainty remains
 UNKNOWN, never definite refusal. API/archive/fingerprint versions stay1 with
-optional parent fields. The layout preserves inherited outcome groups and
+optional parent/relationship fields. The layout preserves inherited outcome groups and
 lineage and enforces null-safe uniqueness of complete recovery-gap tuples. Private
 CLI credential hash/public metadata survives close/reopen in this layout. G02
 owns issuance, replacement, self-revocation and authentication; metadata storage
@@ -107,3 +107,12 @@ cross-card history and committed attachment fact/pin mismatches, exercise matchi
 deferred staging in current and source ledgers, retain valid removed-history and
 compact non-pinning facts, and verify that an unsupported legal schema lookalike
 fails an existing-file open without changing the database bytes.
+
+The6->7 transaction rebuilds only link under BEGIN IMMEDIATE, preserving rowid and
+all typed column values, recreating its exact constraints/indexes/guards and auditing
+the full candidate schema, foreign keys and complete typed retained-row digest before
+COMMIT. Independent frozen5/6 manifests and checks prevent new kinds from being
+mistaken for old layouts. The board base marker remains5. UpgradeStorageTo selects
+exactly one supported adjacent pair and treats a validated matching destination as
+NO_CHANGE; a mismatched source refuses. A successful5->6 remains6 when a separately
+requested6->7 fails. Startup tells validated old stores which explicit step is needed.

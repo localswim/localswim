@@ -1,4 +1,4 @@
-// Package schema defines the version-six physical storage layout. Admission, canonical
+// Package schema defines the version-seven physical storage layout. Admission, canonical
 // wire validation, retention execution and domain transactions belong to callers.
 package schema
 
@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const Version = 6
+const Version = 7
 const BaseSchemaVersion = 5
 const ApplicationID = 0x4c535731 // LSW1
 const MaxInteger int64 = 9007199254740991
@@ -40,7 +40,18 @@ func ValidUUID(v string) bool {
 // Statements returns fresh, deterministic DDL, including constraints and indexes.
 // The small macros keep the same scalar checks on every identity and counter.
 func Statements() []string {
-	return append(StatementsV5(), HierarchyStatements()...)
+	return append(statementsFrom(ddl), HierarchyStatements()...)
+}
+
+// LinkStatements is the exact current link inventory used by the guarded rebuild.
+func LinkStatements() []string {
+	var out []string
+	for _, q := range Statements() {
+		if strings.HasPrefix(q, "CREATE TABLE link (") || strings.HasPrefix(q, "CREATE UNIQUE INDEX active_typed_pair ") || strings.HasPrefix(q, "CREATE UNIQUE INDEX active_related_pair ") || strings.HasPrefix(q, "CREATE TRIGGER link_") {
+			out = append(out, q)
+		}
+	}
+	return out
 }
 
 func statementsFrom(ddl string) []string {
@@ -53,7 +64,7 @@ func statementsFrom(ddl string) []string {
 		}
 		out = append(out, expand(s))
 	}
-	out = append(out, guardsV5()...)
+	out = append(out, guardsCurrent()...)
 	return out
 }
 
@@ -133,6 +144,11 @@ func Validate(ctx context.Context, c *sql.Conn, id Identity) error {
 // ValidateV5 is the immutable accepted V2 baseline validator; no startup path calls it.
 func ValidateV5(ctx context.Context, c *sql.Conn, id Identity) error {
 	return validateLayout(ctx, c, id, 5, StatementsV5(), consistencyChecksV5, false)
+}
+
+// ValidateV6 preserves the accepted physical-six source layout for explicit upgrade.
+func ValidateV6(ctx context.Context, c *sql.Conn, id Identity) error {
+	return validateLayout(ctx, c, id, 6, StatementsV6(), consistencyChecksV6, true)
 }
 func validateLayout(ctx context.Context, c *sql.Conn, id Identity, version int, statements []string, checks []string, forest bool) error {
 	if !ValidUUID(id.BoardID) || !ValidUUID(id.Incarnation) {
@@ -231,6 +247,9 @@ func validateLayout(ctx context.Context, c *sql.Conn, id Identity, version int, 
 		return errors.New("storage byte integrity check failed")
 	}
 	if forest {
+		if version == 6 {
+			return validateHierarchyV6(ctx, c, id)
+		}
 		return validateHierarchy(ctx, c, id)
 	}
 	return nil
@@ -241,6 +260,10 @@ func validateLayout(ctx context.Context, c *sql.Conn, id Identity, version int, 
 // S02/S03 must preserve them at their transaction boundary. These checks do not
 // substitute for canonical-intent, authorization, workflow or archive validation.
 var consistencyChecks = []string{
+	// Current new kinds require full exact local peers. Historical/unavailable and
+	// legacy rows keep their accepted evidence scope. The related index uses this
+	// verified internal target to avoid conflating distinct foreign endpoint pairs.
+	`SELECT count(*) FROM current_reference r JOIN link l ON l.incarnation=r.incarnation AND l.link_id=r.entity_id JOIN board b ON b.incarnation=l.incarnation WHERE r.kind='link' AND l.kind IN ('related','reference','duplicate') AND (l.target_board<>b.board_id OR l.target_incarnation<>b.incarnation OR l.internal_target_id IS NOT l.target_card_id OR NOT EXISTS(SELECT 1 FROM card c WHERE c.incarnation=l.incarnation AND c.card_id=l.target_card_id))`,
 	`SELECT count(*) FROM source_archive_group g JOIN board b USING(incarnation) WHERE g.origin_board<>b.board_id OR g.origin_incarnation=b.incarnation`,
 	`SELECT count(*) FROM cli_credential c WHERE NOT EXISTS(SELECT 1 FROM board b WHERE b.board_id=c.board_id AND b.incarnation=c.incarnation) OR NOT EXISTS(SELECT 1 FROM grant_record g WHERE g.incarnation=c.incarnation AND g.grant_id=c.grant_id AND g.actor_id=c.actor_id)`,
 	`SELECT count(*) FROM entity e WHERE (e.removed_at IS NULL) <> CASE e.kind WHEN 'card' THEN EXISTS(SELECT 1 FROM card x WHERE x.incarnation=e.incarnation AND x.card_id=e.entity_id) WHEN 'comment' THEN EXISTS(SELECT 1 FROM comment x WHERE x.incarnation=e.incarnation AND x.comment_id=e.entity_id) WHEN 'link' THEN EXISTS(SELECT 1 FROM link x WHERE x.incarnation=e.incarnation AND x.link_id=e.entity_id) WHEN 'attachment' THEN EXISTS(SELECT 1 FROM attachment x WHERE x.incarnation=e.incarnation AND x.attachment_id=e.entity_id) WHEN 'approval' THEN EXISTS(SELECT 1 FROM approval x WHERE x.incarnation=e.incarnation AND x.approval_id=e.entity_id) END`,

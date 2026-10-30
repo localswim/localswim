@@ -25,6 +25,8 @@ type Type struct {
 	// Canonical retained payloads use a separate normalized descriptor.
 	ExclusiveField  string
 	ExclusiveFields []string
+	// Variants refine an object into exactly one supported shape.
+	Variants []*Type
 }
 type Field struct {
 	Type     *Type
@@ -43,6 +45,7 @@ var nullableUUID = &Type{Kind: "string", Format: "uuid", Nullable: true}
 var digest = text("sha256")
 var revision = number(0, MaxInteger)
 var priority = enum("P0", "P1", "P2", "P3", "P4", "P5")
+var linkKind = enum("blocking", "informational", "related", "reference", "duplicate")
 var rights = &Type{Kind: "array", Element: enum("approve", "attach", "comment", "create", "edit", "export", "grant-admin", "history-admin", "read", "read-own-outcome", "restore", "review-handoff"), Format: "sorted-unique"}
 var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 var hashPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -60,14 +63,22 @@ type CommandDescriptor struct {
 // Commands returns fresh descriptors so a consumer cannot alter validation.
 func Commands() []CommandDescriptor {
 	empty := obj(map[string]Field{})
+	cardRef := obj(map[string]Field{"boardId": req(uuid), "incarnation": req(uuid), "cardId": req(uuid)})
+	relationships := &Type{Kind: "array", Element: obj(map[string]Field{"kind": req(linkKind), "target": req(cardRef)}), Max: 100, Format: "unique-relationships"}
+	linkAdd := obj(map[string]Field{"kind": req(linkKind), "target": opt(cardRef), "targetCardId": opt(uuid)})
+	linkAdd.Variants = []*Type{
+		obj(map[string]Field{"kind": req(enum("blocking", "informational")), "targetCardId": req(uuid)}),
+		obj(map[string]Field{"kind": req(linkKind), "target": req(cardRef)}),
+	}
 	edit := obj(map[string]Field{"title": opt(text("title")), "description": opt(text("prose")), "priority": opt(priority), "lane": opt(enum("In Progress")), "parent": opt(&Type{Kind: "object", Nullable: true, Fields: map[string]Field{"boardId": req(uuid), "incarnation": req(uuid), "cardId": req(uuid)}}), "ownerId": opt(nullableUUID), "archived": opt(&Type{Kind: "boolean"})})
-	edit.ExclusiveFields = []string{"archived", "parent"}
+	edit.Fields["relationships"] = opt(relationships)
+	edit.ExclusiveFields = []string{"archived", "parent", "relationships"}
 	commands := []CommandDescriptor{
 		{"card.create", "none", "POST", "/api/v1/boards/{boardId}/cards", obj(map[string]Field{"title": req(text("title")), "description": req(text("prose")), "priority": opt(priority), "parent": opt(&Type{Kind: "object", Nullable: true, Fields: map[string]Field{"boardId": req(uuid), "incarnation": req(uuid), "cardId": req(uuid)}}), "ownerId": opt(nullableUUID)}), false},
 		{"card.edit", "card", "PATCH", "/api/v1/boards/{boardId}/cards/{cardId}", edit, false},
 		{"comment.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/comments", obj(map[string]Field{"text": req(text("comment"))}), false},
 		{"attachment.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/attachments", obj(map[string]Field{"name": req(text("attachment-name")), "mediaLabel": req(text("media-label")), "byteLength": req(number(0, 10485760)), "sha256": req(digest)}), false},
-		{"link.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/link-add", obj(map[string]Field{"kind": req(enum("blocking", "informational")), "targetCardId": req(uuid)}), false},
+		{"link.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/link-add", linkAdd, false},
 		{"link.remove", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/link-remove", obj(map[string]Field{"linkId": req(uuid)}), false},
 		{"review-handoff", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/review-handoff", empty, false},
 		{"approve", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/approve", obj(map[string]Field{"policyVersion": req(number(1, 1))}), false},
@@ -76,6 +87,7 @@ func Commands() []CommandDescriptor {
 		{"history.clear", "none", "POST", "/api/v1/boards/{boardId}/recovery/confirm", obj(map[string]Field{"throughTime": req(text("timestamp"))}), true},
 		{"retention.set", "none", "POST", "/api/v1/boards/{boardId}/recovery/confirm", obj(map[string]Field{"historyDays": req(number(1, 3650)), "activityDays": req(number(1, 3650)), "outcomeDays": req(number(1, 3650))}), true},
 	}
+	commands[0].Input.Fields["relationships"] = opt(relationships)
 	for i := range commands {
 		commands[i].Input = cloneType(commands[i].Input)
 	}
@@ -86,6 +98,10 @@ func cloneType(t *Type) *Type {
 	c := *t
 	c.ExclusiveFields = append([]string(nil), t.ExclusiveFields...)
 	c.Enum = append([]string(nil), t.Enum...)
+	c.Variants = nil
+	for _, variant := range t.Variants {
+		c.Variants = append(c.Variants, cloneType(variant))
+	}
 	if t.Element != nil {
 		c.Element = cloneType(t.Element)
 	}
@@ -108,6 +124,18 @@ func descriptor(c Command) (CommandDescriptor, error) {
 
 func (t *Type) validate(v any, path string) error {
 	if t.Nullable && v == nil {
+		return nil
+	}
+	if len(t.Variants) > 0 {
+		matched := 0
+		for _, variant := range t.Variants {
+			if variant.validate(v, path) == nil {
+				matched++
+			}
+		}
+		if matched != 1 {
+			return fmt.Errorf("%s: expected exactly one supported shape", path)
+		}
 		return nil
 	}
 	switch t.Kind {
@@ -212,10 +240,21 @@ func (t *Type) validate(v any, path string) error {
 		if !ok {
 			return fmt.Errorf("%s: expected array", path)
 		}
+		if t.Max > 0 && uint64(len(a)) > t.Max {
+			return fmt.Errorf("%s: array bound", path)
+		}
+		seen := map[string]bool{}
 		prior := ""
 		for i, v := range a {
 			if e := t.Element.validate(v, path); e != nil {
 				return e
+			}
+			if t.Format == "unique-relationships" {
+				canonical, err := Canonical(v)
+				if err != nil || seen[string(canonical)] {
+					return fmt.Errorf("%s: duplicate relationship", path)
+				}
+				seen[string(canonical)] = true
 			}
 			if t.Format == "sorted-unique" {
 				s := v.(string)

@@ -7,10 +7,16 @@ IPv4 loopback HTTP. Its CLI uses the same service, SQLite and domain admission.
   localswim --data DIR [--json] board read
   localswim --data DIR [--json] card read CARD-UUID
   localswim --data DIR [--json] card history CARD-UUID
+  localswim --data DIR [--json] card relationships CARD-UUID [--page N]
+  localswim --data DIR [--json] card relationships-replace CARD-UUID --input FILE
+  localswim --data DIR [--json] card link-add|link-remove CARD-UUID --input FILE
   localswim --data DIR [--json] card create --input FILE
   localswim --data DIR [--json] card edit CARD-UUID --input FILE
   localswim --data DIR [--json] comment add CARD-UUID --input FILE
   localswim --data DIR [--json] operation read OP-UUID --evidence FILE
+  localswim --data DIR [--json] storage inspect --board-id BOARD-UUID --incarnation INC-UUID
+  localswim --data DIR [--json] storage upgrade --from-version 5 --to-version 6 --board-id BOARD-UUID --incarnation INC-UUID
+  localswim --data DIR [--json] storage upgrade --from-version 6 --to-version 7 --board-id BOARD-UUID --incarnation INC-UUID
 
 Workspace selection uses --workspace DIR --project KEY --board KEY in place of
 --data DIR. Selectors and --json precede the command. See the focused ordinary
@@ -22,6 +28,18 @@ rules. --input - reads standard input. Other ordinary core commands retain their
 typed grammar; attachment/export uses the existing bounded file adapter. No actor
 or grant selection is needed: validated private metadata supplies the automation
 context, and GET session independently checks actual actor/grant/board/incarnation.
+
+Relationships derives owned outgoing and incoming facts from one complete board
+snapshot, preserving exact owner/peer identities and board revision. Readable output
+pages locally at20rows; JSON returns all active incident facts and refuses --page.
+The replacement alias requires the full card.edit envelope with input.relationships
+as its only input field; [] clears owned facts. It never edits incoming facts or
+fetches a new revision and retries. Link aliases keep their existing envelopes.
+
+Storage inspect/upgrade are explicit offline existing-store operations. Current
+startup requires physical7/base5. Upgrade a physical5 store through separate
+validated5->6 and6->7 operations; direct5->7 is refused. An uncertain upgrade
+requires deliberate inspection rather than automatic retry.
 
 First serve creates only the explicitly selected data directory, one private board
 and configured local human/bot identities. Later starts reopen them. New directories

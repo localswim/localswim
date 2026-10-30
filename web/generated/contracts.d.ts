@@ -14,6 +14,14 @@ export type RequestCardCreate = {
   readonly incarnation: string;
 } | null);
   readonly priority?: "P0" | "P1" | "P2" | "P3" | "P4" | "P5";
+  readonly relationships?: ReadonlyArray<{
+  readonly kind: "blocking" | "informational" | "related" | "reference" | "duplicate";
+  readonly target: {
+  readonly boardId: string;
+  readonly cardId: string;
+  readonly incarnation: string;
+};
+}>;
   readonly title: string;
 };
   readonly opId: string;
@@ -39,6 +47,14 @@ export type RequestCardEdit = {
   readonly incarnation: string;
 } | null);
   readonly priority?: "P0" | "P1" | "P2" | "P3" | "P4" | "P5";
+  readonly relationships?: ReadonlyArray<{
+  readonly kind: "blocking" | "informational" | "related" | "reference" | "duplicate";
+  readonly target: {
+  readonly boardId: string;
+  readonly cardId: string;
+  readonly incarnation: string;
+};
+}>;
   readonly title?: string;
 };
   readonly opId: string;
@@ -94,10 +110,17 @@ export type RequestLinkAdd = {
   readonly expectedCardRevision: number;
   readonly expectedRevision: number;
   readonly incarnation: string;
-  readonly input: {
+  readonly input: ({
   readonly kind: "blocking" | "informational";
   readonly targetCardId: string;
+} | {
+  readonly kind: "blocking" | "informational" | "related" | "reference" | "duplicate";
+  readonly target: {
+  readonly boardId: string;
+  readonly cardId: string;
+  readonly incarnation: string;
 };
+});
   readonly opId: string;
   readonly target: {
   readonly cardId: string;

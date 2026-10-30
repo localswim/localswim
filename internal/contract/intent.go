@@ -81,7 +81,7 @@ func Freeze(wire []byte, route ResolvedRoute, actor AuthenticatedActor) (Intent,
 	// Owner/archive omission retains current facts. Neither new optional field
 	// may change legacy canonical bytes; explicit false is an unarchive intent.
 	for k, f := range d.Input.Fields {
-		if _, ok := payload[k]; !ok && f.Optional && k != "ownerId" && k != "archived" && k != "parent" {
+		if _, ok := payload[k]; !ok && f.Optional && !PreservesInputOmission(k) {
 			payload[k] = nil
 		}
 	}
@@ -96,4 +96,14 @@ func Freeze(wire []byte, route ResolvedRoute, actor AuthenticatedActor) (Intent,
 	}
 	h := sha256.Sum256(b)
 	return Intent{canonical: b, fingerprint: hex.EncodeToString(h[:]), command: route.Command}, nil
+}
+
+// PreservesInputOmission identifies additive fields whose absence is part of
+// the original intent. Canonical and archive refreeze must use the same rule.
+func PreservesInputOmission(field string) bool {
+	switch field {
+	case "ownerId", "archived", "parent", "relationships", "target", "targetCardId":
+		return true
+	}
+	return false
 }

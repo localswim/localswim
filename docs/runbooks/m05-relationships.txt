@@ -1,0 +1,109 @@
+M05 TYPED RELATIONSHIPS — START, USE AND RECOVERY
+2026-10-30 | Feature slice; joined milestone qualification/handoff remain separate
+
+Use the normal workspace or --data application described in cmd/localswim/LOCAL.txt
+and docs/runbooks/m04-start-use-recovery.txt, substituting the current M05
+executable and its bound checksum. That earlier guide's expected binary hash is
+the historical M04 kit, not the current application. This slice keeps localhost selection, human-only approval, private
+input and original-operation outcomes. Hierarchy and relationships are independent.
+Current source creates physical7/base5 stores; API/archive/fingerprint remain1.
+Earlier M04 qualification/kit reports concern their recorded physical6 executable.
+This guide does not claim general release, V1 import or real-data cutover.
+
+Browser
+1. Select the exact project/board and open a card's details. Read current
+   relationships deliberately when the panel says stale. The panel shows exact
+   total, owned and incoming counts with the captured board revision; local pages
+   contain20 rows. It uses the complete board, not a partial search result.
+2. Add relationship offers Depends on, Informs (legacy), Related to, References
+   and Duplicates. Select the exact labeled peer, then Save once. Archived or
+   Completed peers are labeled and may be targets; Completed source cards remain
+   read-only. A Depends on edge is source dependent -> target prerequisite.
+3. The peer's reciprocal label is derived from the SAME fact. Related to is
+   symmetric. Incoming facts belong to their actual owner: Open relationship
+   owner deliberately before changing/removing one. No hidden inverse mutation.
+4. Replace owned relationships starts from the COMPLETE owned set, including rows
+   beyond the visible page. Remove selected entries, Clear owned relationships,
+   or choose kind/peer and Add selected relationship to owned set. Save owned
+   relationships commits the entire proposed owned set atomically. Incoming facts
+   are retained. Creation/Create child offers the same optional set builder and
+   commits the new card, parent and relationships together. No JSON editing is
+   required in these ordinary controls.
+5. At most100 entries may be submitted in a create/replacement. Larger legacy
+   sets remain fully readable; deliberately remove entries to reduce them before
+   replacement. Over-limit/invalid input remains visible and is not truncated.
+   A mixed-invalid set commits no partial card, ticket allocation or link change.
+6. Only the source's normal content revision/history changes. Peers, hierarchy,
+   priority, lane and owner are not propagated. Blocking still gates Start work
+   on existing valid nonarchived human-approved Completed prerequisites.
+   Duplicate is an assertion, not merging/deleting/completing cards. Per-kind
+   blocking/duplicate cycles refuse; Related to/References/Informs may cycle.
+
+Actual CLI
+Select --workspace DIR --project KEY --board KEY or --data DIR explicitly. All
+mutation targets are UUIDs; --input FILE is the full ordinary prepared request
+with opId, incarnation, target, expectedRevision, expectedCardRevision and input.
+Never fill a new request by rewriting an uncertain original or auto-refresh/retry.
+
+  localswim --workspace WS --project harbor --board dispatch --json card relationships CARD-UUID
+  localswim --workspace WS --project harbor --board dispatch card relationships CARD-UUID --page 2
+  localswim --data DIR --json card relationships-replace CARD-UUID --input request.json
+  localswim --data DIR --json card link-add CARD-UUID --input request.json
+  localswim --data DIR --json card link-remove CARD-UUID --input request.json
+  localswim --data DIR --json card create --input request.json
+
+relationships JSON is complete:true with identity/revision, exact card, counts
+and all active incident rows once. Readable output pages locally20 rows and states
+the exact total/revision. JSON plus --page is an invocation error, not a partial
+list claiming completeness. Empty page1 succeeds; bad/out-of-range pages refuse.
+
+Input fragments for deliberately NEW fully prepared envelopes:
+  link-add modern: {"kind":"reference","target":{"boardId":"...","incarnation":"...","cardId":"..."}}
+  link-add legacy: {"kind":"blocking","targetCardId":"..."}
+  relationships-replace: {"relationships":[{"kind":"related","target":{"boardId":"...","incarnation":"...","cardId":"..."}}]}
+  clear owned: {"relationships":[]}
+  create: ordinary title/description/priority/owner fields, optionally parent and
+          relationships together. No other input field accompanies replacement.
+The ellipses are explanatory placeholders, not runnable UUIDs or authorization.
+Legacy targetCardId remains valid only for blocking/informational. Exactly one
+target form is allowed. null relationships refuses; omitted fields retain legacy
+canonical bytes; array order remains part of the original intent. Create/edit
+receipts remain card-only; a fresh deliberate board read obtains current link IDs.
+
+Physical7 and explicit old-store upgrade
+Normal startup never repairs/upgrades a store. Stop its owning service through the
+normal graceful lifecycle first. Use the exact retained board/incarnation identity.
+
+  localswim --data DIR --json storage inspect --board-id BOARD-UUID --incarnation INC-UUID
+  localswim --data DIR --json storage upgrade --from-version 6 --to-version 7 --board-id BOARD-UUID --incarnation INC-UUID
+
+An existing5 store first takes the retained explicit5->6 step, then a separate
+6->7 step. If the latter refuses, the successful6 intermediate remains and still
+requires the next explicit upgrade before current startup. A6->7 upgrade preserves
+all accepted old facts/IDs/history/original bytes and base5; no link normalization
+or deletion of inactive/foreign evidence occurs. Invalid/future/corrupt/extra/live
+writer inputs refuse without partial rewrite. An uncertain postcommit result is
+UNKNOWN: inspect deliberately, never assume rollback or repeat automatically.
+The old6 executable does not understand7/new kinds and must refuse them.
+
+Recovery and conservation
+Dirty cancellation keeps the existing explicit discard confirmation. Keyboard
+composition Enter is not submission; ordinary Enter submits once, multiline input
+keeps newlines, Escape affects only the active unsubmitted editor. Closing details
+returns focus to its exact live opener or the existing board-read fallback.
+
+On conflict or first failure retain and compare the input and captured base.
+Visible input is not proof of durable storage. Current board reads, navigation,
+refresh and reopen never settle/replay UNKNOWN or rewrite opId. The deliberate
+Look up original outcome action remains available for the exact original identity.
+If new work is appropriate, deliberately prepare a NEW operation after comparison.
+
+Export/restore preserves complete retained facts and canonical original/blob bytes,
+with the existing explicit identity transformations: current parent refs and ALL
+matching source Link.Target refs (also inactive/history-linked rows) rebase to the
+new incarnation. CreatedIn, historical parent refs/Snapshot.Origin and immutable
+original/results stay source-bound. Unmatched foreign evidence stays unresolved;
+it does not grant new foreign mutation authority. Restore is separate from upgrade
+proof. Full M05 qualification and the verified extracted review kit follow this
+feature handoff; use its recorded source/build/evidence rather than test counts
+as a claim of normal product behavior or physical power-loss safety.

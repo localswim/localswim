@@ -91,6 +91,9 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 	if h, ok := out.value.(HierarchyRead); ok {
 		b, e = A.Readable(h)
 	}
+	if h, ok := out.value.(relationshipObservation); ok {
+		b, e = A.Readable(h.read)
+	}
 	if e != nil {
 		out = refused("UNAVAILABLE", out.exit, nil)
 		if out.exit == 0 {
@@ -115,6 +118,13 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 		}
 		if h, ok := out.value.(HierarchyRead); out.exit == 0 && ok {
 			text := readableHierarchy(h, q.page)
+			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
+				return outputFailure(out.exit, q)
+			}
+			return out.exit
+		}
+		if h, ok := out.value.(relationshipObservation); out.exit == 0 && ok {
+			text := readableRelationships(h, q.page)
 			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
 				return outputFailure(out.exit, q)
 			}
@@ -199,6 +209,9 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 		if (q.kind == "card set-parent" || q.kind == "card clear-parent") && !parentAlias(wire, q.kind == "card clear-parent") {
 			return refused("INVALID_INPUT", 2, nil)
 		}
+		if q.kind == "card relationships-replace" && !relationshipsAlias(wire) {
+			return refused("INVALID_INPUT", 2, nil)
+		}
 		if _, e = contract.DecodeJSON(wire); e != nil {
 			return refused("INVALID_INPUT", 2, nil)
 		}
@@ -255,7 +268,7 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 		}
 		v = x
 		identity = x.Result.Identity
-	case "board read", "card children":
+	case "board read", "card children", "card relationships":
 		x, err := T.Decode[T.BoardRead](b)
 		if err != nil {
 			return refused("UNAVAILABLE", 3, nil)
@@ -268,6 +281,16 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 				return refused("NOT_FOUND", 2, nil)
 			}
 			if q.page > 1 && q.page > (len(h.Result.Nodes)+19)/20 {
+				return refused("INVOCATION_OR_IO", 1, nil)
+			}
+			v = h
+		}
+		if q.kind == "card relationships" {
+			h, err := relationshipRead(x, q.id)
+			if err != nil {
+				return refused("NOT_FOUND", 2, nil)
+			}
+			if q.page > 1 && q.page > (len(h.read.Result.Relationships)+19)/20 {
 				return refused("INVOCATION_OR_IO", 1, nil)
 			}
 			v = h
@@ -391,4 +414,21 @@ func parentAlias(wire []byte, clear bool) bool {
 	}
 	p, ok := input["parent"]
 	return ok && ((p == nil) == clear)
+}
+
+func relationshipsAlias(wire []byte) bool {
+	v, err := contract.DecodeJSON(wire)
+	if err != nil {
+		return false
+	}
+	m, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	input, ok := m["input"].(map[string]any)
+	if !ok || len(input) != 1 {
+		return false
+	}
+	_, ok = input["relationships"].([]any)
+	return ok
 }

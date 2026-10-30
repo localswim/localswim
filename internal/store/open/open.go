@@ -97,6 +97,11 @@ func start(ctx context.Context, dir string, id schema.Identity, create bool) (*S
 		}
 	}
 	if err = schema.Validate(ctx, c, id); err != nil {
+		// Only an independently validated older layout earns actionable upgrade advice.
+		var v int
+		if c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v) == nil && (v == 5 || v == 6) && validateSupported(ctx, c, id) == nil {
+			return nil, fmt.Errorf("storage physical version %d requires explicit offline upgrade %d->%d before startup", v, v, v+1)
+		}
 		return nil, err
 	}
 	s.readers, err = pool(g.path, true)

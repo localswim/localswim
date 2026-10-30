@@ -20,6 +20,7 @@ import (
 )
 
 var production = []string{
+	"api/relationships", "board/relationships",
 	"api/hierarchy", "board/hierarchy",
 	"api/search", "board/search",
 	"api/preferences", "workspace-ui/pins",
@@ -31,6 +32,7 @@ var production = []string{
 }
 var static = []string{"index.html", "styles/app.css"}
 var bindings = []string{
+	"internal/board/relationships/relationships.go",
 	"internal/contract/archive/hierarchy.go", "internal/hierarchy/forest.go",
 	".node-version", "qualification/toolchain/current.json",
 	"web/tsconfig.json", "web/package.json", "web/package-lock.json", "web/generated/contracts.d.ts", "web/generated/archive/contracts.d.ts", "web/generated/transport/contracts.d.ts", "cmd/assetstage/main.go", "internal/assets/assets.go",

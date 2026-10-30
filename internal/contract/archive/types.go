@@ -29,6 +29,13 @@ type RestoreOutcome string
 type HashAlgorithm string
 type RestoreScope string
 type LinkKind string
+
+// IsModernLinkKind distinguishes additive relationship kinds from conserved
+// legacy directed evidence, whose foreign/historical targets remain legal.
+func IsModernLinkKind(kind LinkKind) bool {
+	return kind == "related" || kind == "reference" || kind == "duplicate"
+}
+
 type EntityKind string
 
 type Identity struct {

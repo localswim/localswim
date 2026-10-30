@@ -244,7 +244,7 @@ func generateCommandObjects(defs map[string]any, ts *strings.Builder) {
 		payload := d.Input
 		f := map[string]contract.Field{}
 		for k, field := range payload.Fields {
-			if field.Optional && k != "ownerId" && k != "archived" {
+			if field.Optional && !contract.PreservesInputOmission(k) {
 				n := *field.Type
 				n.Nullable = true
 				field.Type = &n
@@ -252,7 +252,7 @@ func generateCommandObjects(defs map[string]any, ts *strings.Builder) {
 			}
 			f[k] = field
 		}
-		payload = &contract.Type{Kind: "object", Fields: f}
+		payload = &contract.Type{Kind: "object", Fields: f, Variants: d.Input.Variants}
 		if d.Recovery {
 			payload = &contract.Type{Kind: "object", Fields: map[string]contract.Field{"input": {Type: payload}, "previewHash": {Type: &contract.Type{Kind: "string", Format: "sha256"}}}}
 		}
@@ -288,6 +288,13 @@ func descriptorSchema(t *contract.Type) map[string]any {
 		c.Nullable = false
 		return map[string]any{"anyOf": []any{descriptorSchema(&c), map[string]any{"type": "null"}}}
 	}
+	if len(t.Variants) > 0 {
+		variants := make([]any, len(t.Variants))
+		for i, variant := range t.Variants {
+			variants[i] = descriptorSchema(variant)
+		}
+		return map[string]any{"oneOf": variants}
+	}
 	if t.Kind == "object" {
 		p := map[string]any{}
 		r := []string{}
@@ -306,6 +313,12 @@ func descriptorSchema(t *contract.Type) map[string]any {
 	}
 	if t.Kind == "array" {
 		m := map[string]any{"type": "array", "items": descriptorSchema(t.Element)}
+		if t.Max > 0 {
+			m["maxItems"] = t.Max
+		}
+		if t.Format == "unique-relationships" {
+			m["uniqueItems"] = true
+		}
 		if t.Format == "sorted-unique" {
 			m["uniqueItems"] = true
 			m["x-order"] = "ASCII ascending"
@@ -341,6 +354,13 @@ func descriptorTS(t *contract.Type) string {
 		c := *t
 		c.Nullable = false
 		return "(" + descriptorTS(&c) + " | null)"
+	}
+	if len(t.Variants) > 0 {
+		variants := make([]string, len(t.Variants))
+		for i, variant := range t.Variants {
+			variants[i] = descriptorTS(variant)
+		}
+		return "(" + strings.Join(variants, " | ") + ")"
 	}
 	switch t.Kind {
 	case "object":

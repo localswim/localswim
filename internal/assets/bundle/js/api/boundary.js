@@ -1,3 +1,5 @@
+import { validRelationships } from "./relationships.js";
+import { validParentRef } from "./hierarchy.js";
 import { schemas } from "./schema-data.js";
 export function invalid() { throw new Error("Invalid boundary data"); }
 // C01 uses Go strings.TrimSpace (Unicode White_Space), not ECMAScript trim.
@@ -199,6 +201,13 @@ function request(command, value) {
         invalid();
     if (Object.hasOwn(input, "parent") && (command !== "card.create" && command !== "card.edit" || command === "card.edit" && Object.keys(input).length !== 1))
         invalid();
+    if (Object.hasOwn(input, "relationships") && (command !== "card.create" && command !== "card.edit" || command === "card.edit" && Object.keys(input).length !== 1 || !validRelationships(input.relationships)))
+        invalid();
+    if (command === "link.add") {
+        const modern = Object.hasOwn(input, "target"), legacy = Object.hasOwn(input, "targetCardId");
+        if (modern === legacy || modern && !validParentRef(input.target) || legacy && !["blocking", "informational"].includes(String(input.kind)))
+            invalid();
+    }
     if (!Object.hasOwn(r, "expectedCardRevision"))
         invalid();
     if (recoveryCommand(command) ? r.expectedCardRevision !== null || r.target !== null || r.command !== command : command === "card.create" ? r.expectedCardRevision !== null : typeof r.expectedCardRevision !== "number" || r.expectedCardRevision < 1)

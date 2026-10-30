@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/localswim/localswim/internal/board/grants"
+	"github.com/localswim/localswim/internal/board/relationships"
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
@@ -29,8 +30,9 @@ type envelope struct {
 	Payload                       struct {
 		Title, Description, Priority, Lane, Text *string
 		Archived                                 *bool
-		Parent                                   contract.ParentInput `json:"parent"`
-		OwnerID                                  contract.OwnerInput  `json:"ownerId"`
+		Parent                                   contract.ParentInput        `json:"parent"`
+		OwnerID                                  contract.OwnerInput         `json:"ownerId"`
+		Relationships                            []contract.RelationshipSpec `json:"relationships"`
 	}
 }
 
@@ -101,6 +103,14 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 					return deny("INVALID_INPUT"), nil
 				}
 			}
+			if e.Payload.Relationships != nil {
+				if _, code, err := relationships.Prepare(r, e.BoardID, e.Incarnation, "", e.Payload.Relationships, true); err != nil || code != "" {
+					if err != nil {
+						return nil, err
+					}
+					return deny(code), nil
+				}
+			}
 			if event >= contract.MaxInteger || ticket >= contract.MaxInteger {
 				return deny("COUNTER_OVERFLOW"), nil
 			}
@@ -120,6 +130,19 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 				return nil, err
 			}
 			changed := e.Payload.Parent.Present && !sameParent(e.Payload.Parent.Value, current.Parent)
+			if e.Payload.Relationships != nil {
+				if e.Payload.Title != nil || e.Payload.Description != nil || e.Payload.Priority != nil || e.Payload.Lane != nil || e.Payload.Archived != nil || e.Payload.Parent.Present || e.Payload.OwnerID.Present {
+					return deny("INVALID_INPUT"), nil
+				}
+				plan, code, err := relationships.Prepare(r, e.BoardID, e.Incarnation, route.CardID, e.Payload.Relationships, true)
+				if err != nil {
+					return nil, err
+				}
+				if code != "" {
+					return deny(code), nil
+				}
+				changed = plan.Changed()
+			}
 			if e.Payload.Parent.Present && changed {
 				if err := validateParent(r, e, route.CardID); err != nil {
 					return deny("INVALID_INPUT"), nil
@@ -164,6 +187,17 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 		e, err := decode(i)
 		if err != nil {
 			return writer.Effect{}, err
+		}
+		var relationshipPlan relationships.Plan
+		if e.Payload.Relationships != nil {
+			var code string
+			relationshipPlan, code, err = relationships.Prepare(w, e.BoardID, e.Incarnation, route.CardID, e.Payload.Relationships, true)
+			if err != nil {
+				return writer.Effect{}, err
+			}
+			if code != "" {
+				return writer.Effect{}, errors.New("relationship admission changed")
+			}
 		}
 		o, err := outcome.Base(i)
 		if err != nil {
@@ -247,6 +281,11 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 				if err = exec("INSERT INTO card_parent(incarnation,child_id,parent_id) VALUES(?,?,?)", e.Incarnation, id, e.Payload.Parent.Value.CardID); err != nil {
 					return writer.Effect{}, err
 				}
+			}
+		}
+		if e.Payload.Relationships != nil {
+			if _, err = relationshipPlan.Apply(w, e.BoardID, e.Incarnation, id, e.ActorID, at); err != nil {
+				return writer.Effect{}, err
 			}
 		}
 		cardRevision := A.Number(revision)

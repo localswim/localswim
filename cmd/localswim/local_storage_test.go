@@ -6,6 +6,7 @@ import (
 	"errors"
 	S "github.com/localswim/localswim/internal/store/open"
 	"github.com/localswim/localswim/internal/store/schema"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -36,5 +37,31 @@ func TestStorageCLICommitKnowledgeExitAndDelivery(t *testing.T) {
 		return S.StorageInspection{PhysicalVersion: 6, BaseSchemaVersion: 5, Valid: true}, true, nil
 	}); exit != 4 {
 		t.Fatal("lost successful reply downgraded", exit)
+	}
+}
+
+func TestStorageCLIExplicitAdjacentSteps(t *testing.T) {
+	for _, test := range []struct {
+		from, to string
+		exit     int
+	}{{"5", "6", 0}, {"6", "7", 0}, {"5", "7", 1}, {"7", "8", 1}, {"06", "7", 1}} {
+		t.Run(test.from+"-"+test.to, func(t *testing.T) {
+			args := []string{"--data", `C:\synthetic-root`, "--json", "storage", "upgrade", "--from-version", test.from, "--to-version", test.to, "--board-id", "10000000-0000-4000-8000-000000000001", "--incarnation", "20000000-0000-4000-8000-000000000001"}
+			var out, diagnostic bytes.Buffer
+			calls := 0
+			handled, exit := runLocalStorageWithStep(context.Background(), args, &out, &diagnostic, func(_ context.Context, _ string, _ schema.Identity, upgrade bool, from, to int) (S.StorageInspection, bool, error) {
+				calls++
+				if !upgrade || strconv.Itoa(from) != test.from || strconv.Itoa(to) != test.to {
+					t.Fatal("selected step lost")
+				}
+				return S.StorageInspection{PhysicalVersion: to, BaseSchemaVersion: 5, Valid: true}, true, nil
+			})
+			if !handled || exit != test.exit {
+				t.Fatal("exit", exit)
+			}
+			if test.exit == 0 && calls != 1 || test.exit != 0 && calls != 0 {
+				t.Fatal("invalid step dispatched", calls)
+			}
+		})
 	}
 }

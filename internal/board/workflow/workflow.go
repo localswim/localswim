@@ -11,6 +11,7 @@ import (
 
 	"github.com/localswim/localswim/internal/board/cards"
 	"github.com/localswim/localswim/internal/board/grants"
+	"github.com/localswim/localswim/internal/board/relationships"
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
@@ -32,6 +33,7 @@ type envelope struct {
 	ExpectedCardRevision          *uint64
 	Payload                       struct {
 		Kind, TargetCardID, LinkID string
+		Target                     *contract.CardRef `json:"target"`
 		PolicyVersion              uint64
 	}
 }
@@ -41,6 +43,19 @@ func decode(i contract.Intent) (envelope, error) {
 	err := json.Unmarshal(i.CanonicalBytes(), &e)
 	return e, err
 }
+
+// Exactly one target spelling survives freezing; legacy spelling admits only
+// the two original kinds. Both paths use current selected-board identity.
+func linkSpec(e envelope) (contract.RelationshipSpec, bool) {
+	if e.Payload.Target != nil {
+		return contract.RelationshipSpec{Kind: e.Payload.Kind, Target: *e.Payload.Target}, e.Payload.TargetCardID == ""
+	}
+	if !schema.ValidUUID(e.Payload.TargetCardID) || (e.Payload.Kind != "blocking" && e.Payload.Kind != "informational") {
+		return contract.RelationshipSpec{}, false
+	}
+	return contract.RelationshipSpec{Kind: e.Payload.Kind, Target: contract.CardRef{BoardID: e.BoardID, Incarnation: e.Incarnation, CardID: e.Payload.TargetCardID}}, true
+}
+
 func deny(code string) *T.RefusalResult {
 	return &T.RefusalResult{Error: T.Error{Code: code, Message: "Mutation refused"}}
 }
@@ -102,34 +117,15 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 				return deny("POLICY_CONFLICT"), nil
 			}
 		case "link.add":
-			if !schema.ValidUUID(e.Payload.TargetCardID) || (e.Payload.Kind != "blocking" && e.Payload.Kind != "informational") {
+			spec, ok := linkSpec(e)
+			if !ok {
 				return deny("INVALID_INPUT"), nil
 			}
-			if e.Payload.TargetCardID == route.CardID {
-				return deny("SELF_LINK"), nil
-			}
-			var n int
-			if err := r.Scan("SELECT count(*) FROM card WHERE incarnation=? AND card_id=?", []any{e.Incarnation, e.Payload.TargetCardID}, &n); err != nil {
-				return nil, err
-			}
-			if n != 1 {
-				return deny("NOT_FOUND"), nil
-			}
-			if err := r.Scan("SELECT count(*) FROM link WHERE incarnation=? AND card_id=? AND kind=? AND target_board=? AND target_incarnation=? AND target_card_id=? AND active=1", []any{e.Incarnation, route.CardID, e.Payload.Kind, e.BoardID, e.Incarnation, e.Payload.TargetCardID}, &n); err != nil {
-				return nil, err
-			}
-			if n != 0 {
-				return deny("LINK_ALREADY_EXISTS"), nil
-			}
-			if e.Payload.Kind == "blocking" {
-				// UNION deduplicates visited vertices, including legacy cycles. The
-				// outer SELECT preserves the writer's read-only statement boundary.
-				if err := r.Scan(`SELECT count(*) FROM (WITH RECURSIVE reachable(id) AS (SELECT ? UNION SELECT l.internal_target_id FROM link l JOIN reachable r ON l.card_id=r.id WHERE l.incarnation=? AND l.active=1 AND l.kind='blocking' AND l.internal_target_id IS NOT NULL) SELECT id FROM reachable WHERE id=?)`, []any{e.Payload.TargetCardID, e.Incarnation, route.CardID}, &n); err != nil {
+			if _, code, err := relationships.Prepare(r, e.BoardID, e.Incarnation, route.CardID, []contract.RelationshipSpec{spec}, false); err != nil || code != "" {
+				if err != nil {
 					return nil, err
 				}
-				if n != 0 {
-					return deny("BLOCKING_CYCLE"), nil
-				}
+				return deny(code), nil
 			}
 		case "link.remove":
 			var owner string
@@ -195,21 +191,23 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 		result := map[string]string{"cardId": route.CardID}
 		switch e.Command {
 		case "link.add":
-			id, err := uuid()
+			spec, ok := linkSpec(e)
+			if !ok {
+				return writer.Effect{}, errors.New("invalid relationship")
+			}
+			plan, code, err := relationships.Prepare(w, e.BoardID, e.Incarnation, route.CardID, []contract.RelationshipSpec{spec}, false)
 			if err != nil {
 				return writer.Effect{}, err
 			}
-			if err = entity("link", id); err != nil {
+			if code != "" {
+				return writer.Effect{}, errors.New("relationship admission changed")
+			}
+			ids, err := plan.Apply(w, e.BoardID, e.Incarnation, route.CardID, e.ActorID, at)
+			if err != nil {
 				return writer.Effect{}, err
 			}
-			if err = exec("INSERT INTO link(incarnation,link_id,card_id,kind,target_board,target_incarnation,target_card_id,internal_target_id,active,created_at) VALUES(?,?,?,?,?,?,?,?,1,?)", e.Incarnation, id, route.CardID, e.Payload.Kind, e.BoardID, e.Incarnation, e.Payload.TargetCardID, e.Payload.TargetCardID, string(at)); err != nil {
-				return writer.Effect{}, err
-			}
-			if err = exec("INSERT INTO current_reference VALUES(?,?,'link',?)", e.Incarnation, route.CardID, id); err != nil {
-				return writer.Effect{}, err
-			}
-			result["linkId"] = id
-			refs = append(refs, A.FactRef{Kind: "link", ID: A.UUID(id)})
+			result["linkId"] = ids[0]
+			refs = append(refs, A.FactRef{Kind: "link", ID: A.UUID(ids[0])})
 		case "link.remove":
 			if err = exec("UPDATE link SET active=0 WHERE incarnation=? AND link_id=?", e.Incarnation, e.Payload.LinkID); err != nil {
 				return writer.Effect{}, err

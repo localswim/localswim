@@ -1,3 +1,4 @@
+import { CardRelationships } from "./relationships.js";
 import { CardHierarchy } from "./hierarchy.js";
 function node(tag, text = "") {
     const result = document.createElement(tag);
@@ -62,6 +63,7 @@ export class CardDetails {
     historyPage = 0;
     historicalCommentPage = 0;
     hierarchy;
+    relationships;
     hierarchyFallback;
     hierarchyOrigin = false;
     constructor(client, fallback, archiveAction, focusRoot, hierarchy) {
@@ -85,6 +87,8 @@ export class CardDetails {
             this.hierarchyFallback = hierarchy.fallback;
             this.hierarchy = new CardHierarchy(hierarchy.client, (cardId, identity, opener) => this.open(cardId, identity, opener, true), hierarchy.action);
             this.host.insertBefore(this.hierarchy.host, this.comments);
+            this.relationships = new CardRelationships(hierarchy.client, (cardId, identity, opener) => this.open(cardId, identity, opener, true), hierarchy.relationshipAction);
+            this.host.insertBefore(this.relationships.host, this.comments);
         }
     }
     open(cardId, identity, opener, hierarchyOrigin = false) {
@@ -103,6 +107,7 @@ export class CardDetails {
         this.older.replaceChildren();
         this.historicalComments.replaceChildren();
         this.hierarchy?.open(cardId, identity);
+        this.relationships?.open(cardId, identity);
         this.heading.focus();
         void this.refresh();
     }
@@ -111,6 +116,7 @@ export class CardDetails {
         this.selected = undefined;
         this.host.hidden = true;
         this.hierarchy?.close();
+        this.relationships?.close();
         const scope = this.focusRoot ?? this.fallback.parentElement;
         const replacement = scope?.isConnected ? [...scope.querySelectorAll("button[data-open-card]")]
             .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0)
@@ -119,13 +125,14 @@ export class CardDetails {
         if (target.isConnected && !target.disabled && target.getClientRects().length > 0)
             target.focus();
     }
-    suspend() { this.active = false; this.invalidate(); this.hierarchy?.suspend(); }
-    resume() { this.active = true; this.hierarchy?.resume(); }
+    suspend() { this.active = false; this.invalidate(); this.hierarchy?.suspend(); this.relationships?.suspend(); }
+    resume() { this.active = true; this.hierarchy?.resume(); this.relationships?.resume(); }
     invalidate() {
         this.request++;
         this.history = undefined;
         this.parentAnnouncement.textContent = "";
         this.hierarchy?.markStale();
+        this.relationships?.markStale();
         this.historicalComments.replaceChildren(node("p", "History comments stale; a deliberate refresh is required."));
         if (this.selected) {
             this.status.textContent = "Card details stale. Deliberately refresh card details to read current facts.";
@@ -141,7 +148,7 @@ export class CardDetails {
         }
         void this.refresh();
     }
-    completeBoardRead(read) { this.hierarchy?.boardRead(read); }
+    completeBoardRead(read) { this.hierarchy?.boardRead(read); this.relationships?.boardRead(read); }
     captureSelection() {
         return this.active && this.selected && this.expected ? { cardId: this.selected, identity: { ...this.expected }, request: this.request } : undefined;
     }
@@ -150,6 +157,7 @@ export class CardDetails {
             !this.expected || !same(selection.identity, this.expected) || !created && cardId !== selection.cardId)
             return false;
         this.hierarchy?.markStale();
+        this.relationships?.markStale();
         this.parentAnnouncement.textContent = "";
         if (created) {
             // Follow only this still-selected create-child source. A receipt supplies
@@ -163,6 +171,7 @@ export class CardDetails {
             this.older.replaceChildren();
             this.historicalComments.replaceChildren();
             this.hierarchy?.open(cardId, this.expected);
+            this.relationships?.open(cardId, this.expected);
         }
         void this.refresh({ boardRevision, cardRevision, announceParent: true });
         return true;
@@ -201,6 +210,7 @@ export class CardDetails {
         }
         this.current = current.value;
         this.hierarchy?.observeRevision(current.value.result.identity, current.value.result.revision);
+        this.relationships?.observeRevision(current.value.result.identity, current.value.result.revision);
         this.renderCurrent();
         if (minimum?.announceParent) {
             const c = current.value.result, parent = c.card.parent;
@@ -257,11 +267,13 @@ export class CardDetails {
                 archive.focus({ preventScroll: true });
         }
         const links = c.links.filter(row => row.cardId === card.cardId);
-        this.facts.append(node("h3", "Existing relationships"));
-        if (!links.length)
-            this.facts.append(node("p", "No relationships returned."));
-        for (const link of links)
-            this.facts.append(node("p", link.kind + " → " + origin(link.target) + "/" + link.target.cardId + " · " + (link.active ? "active" : "inactive") + " · " + link.linkId));
+        if (!this.relationships) {
+            this.facts.append(node("h3", "Existing relationships"));
+            if (!links.length)
+                this.facts.append(node("p", "No relationships returned."));
+            for (const link of links)
+                this.facts.append(node("p", link.kind + " → " + origin(link.target) + "/" + link.target.cardId + " · " + (link.active ? "active" : "inactive") + " · " + link.linkId));
+        }
         coverage(this.facts, c.coverage);
         this.renderComments();
     }

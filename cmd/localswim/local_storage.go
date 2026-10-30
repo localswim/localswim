@@ -10,12 +10,23 @@ import (
 	local "github.com/localswim/localswim/internal/transport/local"
 	"io"
 	"path/filepath"
+	"strconv"
 )
 
 func runLocalStorage(ctx context.Context, args []string, out, diagnostic io.Writer) (bool, int) {
-	return runLocalStorageWith(ctx, args, out, diagnostic, local.Storage)
+	return runLocalStorageWithStep(ctx, args, out, diagnostic, func(ctx context.Context, dir string, id schema.Identity, upgrade bool, from, to int) (S.StorageInspection, bool, error) {
+		if upgrade {
+			return local.StorageTo(ctx, dir, id, from, to)
+		}
+		return local.Storage(ctx, dir, id, false)
+	})
 }
 func runLocalStorageWith(ctx context.Context, args []string, out, diagnostic io.Writer, operation func(context.Context, string, schema.Identity, bool) (S.StorageInspection, bool, error)) (bool, int) {
+	return runLocalStorageWithStep(ctx, args, out, diagnostic, func(ctx context.Context, dir string, id schema.Identity, upgrade bool, _, _ int) (S.StorageInspection, bool, error) {
+		return operation(ctx, dir, id, upgrade)
+	})
+}
+func runLocalStorageWithStep(ctx context.Context, args []string, out, diagnostic io.Writer, operation func(context.Context, string, schema.Identity, bool, int, int) (S.StorageInspection, bool, error)) (bool, int) {
 	if len(args) < 3 || args[0] != "--data" {
 		return false, 0
 	}
@@ -66,7 +77,7 @@ func runLocalStorageWith(ctx context.Context, args []string, out, diagnostic io.
 		return fail("INVOCATION_OR_IO", 1)
 	}
 	if action == "upgrade" {
-		if flags["--from-version"] != "5" || flags["--to-version"] != "6" {
+		if !(flags["--from-version"] == "5" && flags["--to-version"] == "6" || flags["--from-version"] == "6" && flags["--to-version"] == "7") {
 			return fail("INVOCATION_OR_IO", 1)
 		}
 	} else if flags["--from-version"] != "" || flags["--to-version"] != "" {
@@ -76,7 +87,9 @@ func runLocalStorageWith(ctx context.Context, args []string, out, diagnostic io.
 	if err != nil || !safeAbsolute(dir) {
 		return fail("INVOCATION_OR_IO", 1)
 	}
-	inspection, changed, err := operation(ctx, dir, schema.Identity{BoardID: flags["--board-id"], Incarnation: flags["--incarnation"]}, action == "upgrade")
+	from, _ := strconv.Atoi(flags["--from-version"])
+	to, _ := strconv.Atoi(flags["--to-version"])
+	inspection, changed, err := operation(ctx, dir, schema.Identity{BoardID: flags["--board-id"], Incarnation: flags["--incarnation"]}, action == "upgrade", from, to)
 	if errors.Is(err, S.ErrUpgradeUnknown) || err != nil && changed {
 		return fail("STORAGE_UPGRADE_UNKNOWN", 4)
 	}

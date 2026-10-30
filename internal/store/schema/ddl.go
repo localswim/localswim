@@ -1,7 +1,6 @@
 package schema
 
-// Frozen accepted V2 layout-five DDL. Keep exact; later physical extensions
-// append their own objects instead of changing this base.
+// Current physical-seven DDL. Older layouts have independent frozen manifests.
 // Registry rows preserve typed entity existence after authorized compaction.
 // A tombstone is never made merely to satisfy an attempted refused reference.
 const ddl = `CREATE TABLE board (
@@ -98,7 +97,7 @@ CREATE TABLE comment (
 ) STRICT;
 CREATE TABLE link (
  incarnation TEXT NOT NULL, link_id TEXT NOT NULL, entity_kind TEXT NOT NULL DEFAULT 'link' CHECK(entity_kind='link'),
- card_id TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('blocking','informational')),
+ card_id TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('blocking','informational','related','reference','duplicate')),
  target_board TEXT NOT NULL CHECK({{u:target_board}}), target_incarnation TEXT NOT NULL CHECK({{u:target_incarnation}}),
  target_card_id TEXT NOT NULL CHECK({{u:target_card_id}}), internal_target_id TEXT,
  active INTEGER NOT NULL CHECK(active IN (0,1)), created_at TEXT NOT NULL CHECK({{t:created_at}}),
@@ -108,6 +107,7 @@ CREATE TABLE link (
  CHECK(internal_target_id IS NULL OR (internal_target_id=target_card_id AND target_incarnation=incarnation AND card_id<>target_card_id))
 ) STRICT;
 CREATE UNIQUE INDEX active_typed_pair ON link(incarnation,card_id,kind,target_board,target_incarnation,target_card_id) WHERE active=1;
+CREATE UNIQUE INDEX active_related_pair ON link(incarnation,target_board,target_incarnation,min(card_id,target_card_id),max(card_id,target_card_id)) WHERE active=1 AND kind='related' AND internal_target_id IS NOT NULL;
 CREATE TABLE approval (
  incarnation TEXT NOT NULL, approval_id TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'approval' CHECK(kind='approval'),
  card_id TEXT NOT NULL, actor_id TEXT NOT NULL, reviewed_card_revision INTEGER NOT NULL CHECK({{p:reviewed_card_revision}}),

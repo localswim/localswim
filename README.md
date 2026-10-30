@@ -216,10 +216,22 @@ records the G01/S04/G02 boundaries. The
 [credential composition](docs/decisions/credential-service-composition-2026-10-26.txt)
 records G02's historical service and its native lease ownership. HTTP/browser delivery,
 terminal confirmation/private files and integrated qualification remain separate
-consumer work for that legacy path. Current physical layout6 adds hierarchy to the
-layout5 assignment/Unicode/outcome base; the board's base-schema marker stays5.
-Normal startup refuses older layouts. Explicit offline exact5-to-6 upgrade
-preserves existing rows and never runs automatically. API/archive versions stay1
-with optional ownerId and parent compatibility. See
-[hierarchy use and storage compatibility](docs/runbooks/m04-hierarchy.txt);
+consumer work for that legacy path. Physical layout6 added hierarchy to the
+layout5 assignment/Unicode/outcome base. Current physical layout7 adds typed
+relationships while the board's base-schema marker stays5. Normal startup refuses
+older layouts; explicit offline5-to-6 and6-to-7 steps preserve existing records
+and never run automatically. API/archive/fingerprint versions stay1 with strict
+additive fields and kinds. See [typed relationships and storage compatibility](docs/runbooks/m05-relationships.txt)
+and the earlier [hierarchy guide](docs/runbooks/m04-hierarchy.txt). Earlier M04
+qualification and kit reports retain their exact recorded physical6 candidate;
 general-release qualification is not implied.
+
+The M05 relationship feature adds Related to, References and Duplicates beside
+the existing blocking/informational links, with reciprocal exact-target views
+from one owned fact. Browser and actual CLI can create a card with a parent and
+relationships atomically, or replace its complete owned set while retaining
+incoming relationships. Complete reads use local20-row presentation pages;
+priority/lane/owner/approval do not propagate. Follow the
+[relationship guide](docs/runbooks/m05-relationships.txt) for deliberate saves,
+owner-correct removal, the100-entry batch boundary and original UNKNOWN/no-replay
+recovery. Complete joined qualification and final kit remain separate M05 stories.

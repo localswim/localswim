@@ -30,6 +30,18 @@ type CardRef struct {
 	CardID      string `json:"cardId"`
 }
 
+// RelationshipSpec is one exact owned relationship in a submitted set. A nil
+// relationships slice means omission; a nonnil empty slice deliberately clears.
+type RelationshipSpec struct {
+	Kind   string  `json:"kind"`
+	Target CardRef `json:"target"`
+}
+
+// IsZero preserves explicit [] when a relationship replacement is marshaled.
+type RelationshipSpecs []RelationshipSpec
+
+func (r RelationshipSpecs) IsZero() bool { return r == nil }
+
 // ParentInput preserves omission versus the deliberate root value null.
 type ParentInput struct {
 	Present bool
@@ -44,20 +56,22 @@ func (p ParentInput) IsZero() bool                 { return !p.Present }
 func (p ParentInput) MarshalJSON() ([]byte, error) { return json.Marshal(p.Value) }
 
 type CreateInput struct {
-	Parent      ParentInput `json:"parent,omitzero"`
-	OwnerID     OwnerInput  `json:"ownerId,omitzero"`
-	Title       string      `json:"title"`
-	Description string      `json:"description"`
-	Priority    *string     `json:"priority"`
+	Relationships RelationshipSpecs `json:"relationships,omitzero"`
+	Parent        ParentInput       `json:"parent,omitzero"`
+	OwnerID       OwnerInput        `json:"ownerId,omitzero"`
+	Title         string            `json:"title"`
+	Description   string            `json:"description"`
+	Priority      *string           `json:"priority"`
 }
 type EditInput struct {
-	Parent      ParentInput `json:"parent,omitzero"`
-	OwnerID     OwnerInput  `json:"ownerId,omitzero"`
-	Archived    *bool       `json:"archived,omitempty"`
-	Title       *string     `json:"title"`
-	Description *string     `json:"description"`
-	Priority    *string     `json:"priority"`
-	Lane        *string     `json:"lane"`
+	Relationships RelationshipSpecs `json:"relationships,omitzero"`
+	Parent        ParentInput       `json:"parent,omitzero"`
+	OwnerID       OwnerInput        `json:"ownerId,omitzero"`
+	Archived      *bool             `json:"archived,omitempty"`
+	Title         *string           `json:"title"`
+	Description   *string           `json:"description"`
+	Priority      *string           `json:"priority"`
+	Lane          *string           `json:"lane"`
 }
 type CommentInput struct {
 	Text string `json:"text"`
@@ -69,8 +83,9 @@ type AttachmentInput struct {
 	SHA256     string `json:"sha256"`
 }
 type LinkAddInput struct {
-	Kind         string `json:"kind"`
-	TargetCardID string `json:"targetCardId"`
+	Kind         string   `json:"kind"`
+	TargetCardID string   `json:"targetCardId,omitempty"`
+	Target       *CardRef `json:"target,omitempty"`
 }
 type LinkRemoveInput struct {
 	LinkID string `json:"linkId"`

@@ -79,8 +79,8 @@ func parityGrant(t *testing.T, s *S.Store, id A.Identity, actor string, rights .
 
 func newParityFixture(t *testing.T, expiry bool) *parityFixture {
 	t.Helper()
-	if schema.Version != 6 || schema.BaseSchemaVersion != 5 {
-		t.Fatal("current physical6/base5 provider required before consumer qualification")
+	if schema.Version != 7 || schema.BaseSchemaVersion != 5 {
+		t.Fatal("current physical7/base5 provider required before consumer qualification")
 	}
 	n, root := nativeRoot(t)
 	f := &parityFixture{n: n, root: root, data: filepath.Join(root, "source"), input: filepath.Join(root, "input"), output: filepath.Join(root, "output"), id: A.Identity{BoardID: uuid(t), Incarnation: uuid(t)}, actor: string(uuid(t)), maintenance: string(uuid(t))}
@@ -452,8 +452,8 @@ func parityGroupZIP(t *testing.T) ([]byte, A.Identity, A.Identity) {
 }
 
 func TestNativePhysical4EmptyGroupsLineageIndependenceAndNestedRestore(t *testing.T) {
-	if schema.Version != 6 || schema.BaseSchemaVersion != 5 {
-		t.Fatal("current physical6/base5 provider required")
+	if schema.Version != 7 || schema.BaseSchemaVersion != 5 {
+		t.Fatal("current physical7/base5 provider required")
 	}
 	n, root := nativeRoot(t)
 	input, output := filepath.Join(root, "input"), filepath.Join(root, "output")

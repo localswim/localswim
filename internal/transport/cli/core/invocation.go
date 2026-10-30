@@ -57,11 +57,11 @@ func parse(args []string) (q invocation, code string, exit int) {
 		q.archive = "active"
 	case "board read":
 		q.method = "GET"
-	case "card read", "card history", "card children", "operation read":
+	case "card read", "card history", "card children", "card relationships", "operation read":
 		q.method = "GET"
 	case "card create":
 		q.command = "card.create"
-	case "card edit", "card archive", "card unarchive", "card set-parent", "card clear-parent":
+	case "card edit", "card archive", "card unarchive", "card set-parent", "card clear-parent", "card relationships-replace":
 		q.command = "card.edit"
 	case "comment add":
 		q.command = "comment.add"
@@ -97,7 +97,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 		if i >= len(args) {
 			return q, "INVOCATION_OR_IO", 1
 		}
-		if k == "--page" && q.kind == "card children" {
+		if k == "--page" && (q.kind == "card children" || q.kind == "card relationships") {
 			n, e := strconv.Atoi(args[i])
 			if e != nil || n < 1 || strconv.Itoa(n) != args[i] || q.json {
 				return q, "INVOCATION_OR_IO", 1

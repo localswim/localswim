@@ -13,6 +13,17 @@ import (
 // existing application and database exclusions. It never starts a host or creates
 // missing directories, locks, identities, credentials or database files.
 func Storage(ctx context.Context, dataDir string, expected schema.Identity, upgrade bool) (out S.StorageInspection, changed bool, err error) {
+	return storage(ctx, dataDir, expected, upgrade, 0, 0)
+}
+
+// StorageTo performs one deliberate selected step under both native exclusions.
+func StorageTo(ctx context.Context, dataDir string, expected schema.Identity, from, to int) (S.StorageInspection, bool, error) {
+	if !(from == 5 && to == 6 || from == 6 && to == 7) {
+		return S.StorageInspection{}, false, errLocal
+	}
+	return storage(ctx, dataDir, expected, true, from, to)
+}
+func storage(ctx context.Context, dataDir string, expected schema.Identity, upgrade bool, from, to int) (out S.StorageInspection, changed bool, err error) {
 	if ctx == nil || ctx.Err() != nil || !schema.ValidUUID(expected.BoardID) || !schema.ValidUUID(expected.Incarnation) {
 		return out, false, errLocal
 	}
@@ -76,7 +87,13 @@ func Storage(ctx context.Context, dataDir string, expected schema.Identity, upgr
 			return out, false, errLocal
 		}
 	}
-	return storageOperation(ctx, boardDir, expected, upgrade, S.UpgradeStorage, S.InspectStorage)
+	upgradeStore := S.UpgradeStorage
+	if from != 0 {
+		upgradeStore = func(ctx context.Context, dir string, id schema.Identity) (bool, error) {
+			return S.UpgradeStorageTo(ctx, dir, id, from, to)
+		}
+	}
+	return storageOperation(ctx, boardDir, expected, upgrade, upgradeStore, S.InspectStorage)
 }
 
 // Private dependency seam exercises post-COMMIT inspection failure without a

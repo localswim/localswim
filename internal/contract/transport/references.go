@@ -17,6 +17,9 @@ func boardLinkTargets(identity A.Identity, cards []A.Card, links []A.Link) error
 		ids[card.CardID] = true
 	}
 	for _, link := range links {
+		if A.IsModernLinkKind(link.Kind) && (link.Target.BoardID != identity.BoardID || link.Target.Incarnation != identity.Incarnation) {
+			return fmt.Errorf("current relationship target scope")
+		}
 		if link.Target.BoardID == identity.BoardID && link.Target.Incarnation == identity.Incarnation && !ids[link.Target.CardID] {
 			return fmt.Errorf("current internal link target missing")
 		}
@@ -88,6 +91,9 @@ func current(identity A.Identity, cards []A.Card, actors []A.Actor, comments []A
 		neededActors[c.ActorID] = true
 	}
 	for _, l := range links {
+		if A.IsModernLinkKind(l.Kind) && (l.Target.BoardID != identity.BoardID || l.Target.Incarnation != identity.Incarnation) {
+			return fmt.Errorf("current relationship target scope")
+		}
 		if e := row("link", l.LinkID, l.CardID, l.CreatedIn); e != nil {
 			return e
 		}

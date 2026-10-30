@@ -1,7 +1,7 @@
-# Version-six physical relational layout
+# Version-seven physical relational layout
 
-Version and PRAGMA user_version are6; retained board.schema_version stays5
-as the immutable base-schema discriminator, including fresh physical6 stores.
+Version and PRAGMA user_version are7; retained board.schema_version stays5
+as the immutable base-schema discriminator, including fresh physical7 stores.
 Validation checks both intended values and exact schema, not a header alone.
 
 Layout6 adds card_parent and its parent index without rebuilding base tables or
@@ -9,7 +9,7 @@ rewriting old rows. Roots have no edge; unique child/same-incarnation full-card
 foreign keys/self refusal protect adjacency. Go admission and full validation
 enforce acyclicity,64-edge/1,000-card family bounds (not total board-card limits).
 
-Ordinary open never migrates. Explicit offline exact5->6 upgrade under existing-only
+Ordinary open never migrates. Explicit offline exact5->6 then6->7 upgrades under existing-only
 native exclusion and one validated transaction preserves old rows/canonical bytes.
 Unknown layouts, corruption and dirty sidecars refuse without repair. API/archive/
 fingerprint versions stay1 with optional parent fields. See
@@ -140,3 +140,15 @@ tests/open validation confer no domain, recovery or durability qualification.
 Assignment is a nullable card.owner_id referencing the same incarnation actor.
 It records responsibility only and grants no authority. Existing layout 4 is
 refused before any write; no migration or old fixture relabeling is supported.
+
+Physical7 expands only link kinds and an active unordered related-pair unique index.
+Frozen5 and frozen6 exact SQL manifests and independent consistency validators remain
+available solely for deliberate offline inspection/adjacent upgrade. Current startup
+accepts7 only. Explicit5->6 and6->7 are separate guarded transactions; no startup
+migration, direct5->7, graph normalization or original-outcome rewriting occurs.
+
+The unordered related index covers full local internal targets. Exact foreign and
+historical unavailable endpoint pairs are already distinct under directed typed
+uniqueness; comparing only their card UUIDs would falsely conflate them. Current
+new-kind references additionally require a full Board.Identity local peer with an
+exact internal target. Historical-only evidence remains readable and conserved.

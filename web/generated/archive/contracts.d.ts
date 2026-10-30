@@ -17,12 +17,20 @@ export type IntentCardCreate = {
   readonly payload: {
   readonly description: string;
   readonly ownerId?: (string | null);
-  readonly parent: ({
+  readonly parent?: ({
   readonly boardId: string;
   readonly cardId: string;
   readonly incarnation: string;
 } | null);
   readonly priority: ("P0" | "P1" | "P2" | "P3" | "P4" | "P5" | null);
+  readonly relationships?: ReadonlyArray<{
+  readonly kind: "blocking" | "informational" | "related" | "reference" | "duplicate";
+  readonly target: {
+  readonly boardId: string;
+  readonly cardId: string;
+  readonly incarnation: string;
+};
+}>;
   readonly title: string;
 };
   readonly target: null;
@@ -42,12 +50,20 @@ export type IntentCardEdit = {
   readonly description: (string | null);
   readonly lane: ("In Progress" | null);
   readonly ownerId?: (string | null);
-  readonly parent: ({
+  readonly parent?: ({
   readonly boardId: string;
   readonly cardId: string;
   readonly incarnation: string;
 } | null);
   readonly priority: ("P0" | "P1" | "P2" | "P3" | "P4" | "P5" | null);
+  readonly relationships?: ReadonlyArray<{
+  readonly kind: "blocking" | "informational" | "related" | "reference" | "duplicate";
+  readonly target: {
+  readonly boardId: string;
+  readonly cardId: string;
+  readonly incarnation: string;
+};
+}>;
   readonly title: (string | null);
 };
   readonly target: {
@@ -101,10 +117,17 @@ export type IntentLinkAdd = {
   readonly fingerprintVersion: number;
   readonly incarnation: string;
   readonly opId: string;
-  readonly payload: {
+  readonly payload: ({
   readonly kind: "blocking" | "informational";
   readonly targetCardId: string;
+} | {
+  readonly kind: "blocking" | "informational" | "related" | "reference" | "duplicate";
+  readonly target: {
+  readonly boardId: string;
+  readonly cardId: string;
+  readonly incarnation: string;
 };
+});
   readonly target: {
   readonly cardId: string;
 };
@@ -357,7 +380,7 @@ export type Link = {
   readonly cardId: string;
   readonly createdAt: string;
   readonly createdIn: Identity;
-  readonly kind: "blocking" | "informational";
+  readonly kind: "blocking" | "informational" | "related" | "reference" | "duplicate";
   readonly linkId: string;
   readonly target: CardRef;
 };

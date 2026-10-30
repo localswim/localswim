@@ -1,0 +1,86 @@
+M03 JOINED FIND / ARCHIVE QUALIFICATION
+2026-10-29 | Synthetic localhost candidate; final kit/demo is M03.05
+
+Use the normal workspace startup guide and the accepted archive/search guides:
+  m01-workspace-start-use-recovery.txt
+  m03-card-archive.txt
+  m03-card-search.txt
+The joined report records the tested source and application SHA256. Later report
+publication commits do not imply another product build or runtime test.
+
+Reproduction boundaries
+- Extract the tested committed source twice into separate fresh trees. Start with
+  no web/node_modules or web/dist and an empty separate Go build cache per tree.
+- Use pinned Go1.27.3, Node26.12.1, TypeScript7.0.2 and the locked offline npm and
+  Go module caches. Disable network/toolchain upgrades (GOTOOLCHAIN=local,
+  GOPROXY=off, GOSUMDB=off, GOWORK=off, GOFLAGS=-mod=readonly, CGO_ENABLED=0).
+- Target windows/amd64/v1. Native fixtures need short fresh S01/N01/A03/A04/P01
+  test roots and a fresh account-private L02_TEST_ROOT. Use the existing local
+  attributes helper to create only the new empty leaf; do not change an existing
+  directory's permissions. Provide the pinned L02_NODE/L02_BROWSER/L02_BINARY.
+- Preserve every command's arguments, environment, exit, output hash and source
+  snapshot. Stop after a failure; retain the attempt and classify it before a
+  deliberate corrective run. Never replay an uncertain mutation.
+
+Complete commands in each tree
+  go mod verify
+  node <pinned-npm-cli.js> --prefix web ci --offline
+  go run ./cmd/contractgen -check
+  node web/scripts/tsc.mjs check
+  node web/scripts/tsc.mjs build
+  go run ./cmd/assetstage -check
+  go build -trimpath -buildvcs=false -o dist/localswim.exe ./cmd/localswim
+  go test -count=1 -p 1 -json -timeout=240s ./...
+  go vet ./...
+  node --test web/scripts/scripts.test.mjs
+The isolated fixture-parent setup is an overlay-only scoped test before the full
+inventory, not a shipped source change. Require no skipped test cases; packages
+that explicitly contain no tests are separate. Compare the complete generated,
+staged and executable output sets, not just one executable hash. Source files
+must remain unchanged. Qualification/native tagged suites and browser21-case
+fixtures are separate inventories: the report distinguishes fresh runs from
+exact-source/executable qualified reuse. Use their repository instructions for
+a fresh rerun, with new manifests, roots and owned processes.
+
+Fresh joined customer prewalk
+1. Start one fresh synthetic workspace with two boards and separate windows.
+   Create a card in the browser; retain an assigned owner, comments, a link and
+   an existing byte attachment through the ordinary real CLI. Use equal display
+   tickets on different boards to check identity separation.
+2. Find active work through browser and CLI; inspect it with keyboard activation
+   and return focus to the actual opener. Archive in the browser. Verify default
+   search/list exclusion and explicit archived discovery/inspection. Unarchive
+   through CLI, refresh deliberately and find active work again. Keep private
+   filters independent across windows/boards and reload.
+3. Separately label one real response-loss check. The service receives and commits
+   one archive request; only response delivery is lost. Gracefully stop/restart
+   the owned host and compare complete committed BoardRead. Reload and search
+   archived work while the original remains UNKNOWN. Only deliberate original
+   lookup settles it; search/reload must never dispatch it again.
+4. Export, stop, restore into a fresh identity/root/port and run the restored copy.
+   Compare card fields, UUID/ticket, owner/lane/archive, comments/history/links and
+   exact downloaded bytes. Search Active/Archived/All, unarchive the restored card
+   and re-find it. Reopen the source and require complete source BoardRead and
+   export bytes unchanged. Stop all owned hosts and verify listener closure.
+
+Capacity and continuation
+Private editable draft recovery retains at most20 live drafts/2MiB per profile
+installation across windows/boards. A refused draft save keeps visible input;
+read-only search can still work. It does not claim that input is durable.
+Submitted immutable operation evidence has a separate100-unresolved/8MiB budget.
+A deliberate Save can therefore proceed after draft-cap refusal only if fresh
+immutable evidence is strictly committed and read back before dispatch. The draft
+warning does not waive that admission. Failure to freeze verified evidence means
+unsent; UNKNOWN remains independent and must never be inferred from search.
+Avoid filling a shared everyday profile during a demonstration. Use a fresh
+synthetic profile, inspect private metadata and clear only deliberately selected
+records with the ordinary warnings; clearing private data never changes server
+facts or makes an uncertain original safe to retry.
+
+Delivery and limits
+The21,476,864-byte executable exceeds this board's10MiB attachment channel. Keep
+the verified executable/review kit local and attach small guide/manifest/evidence
+files. M03.05 supplies and independently reviews the usable final kit/demo.
+Ordinary operations, labeled faults, controlled capacity/storage cases and reused
+regressions are separate claims. This is no physical power-loss, broad OS IME,
+whole-product accessibility, real-data import/adoption or general-release proof.

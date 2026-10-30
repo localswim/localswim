@@ -1,0 +1,71 @@
+M03.04 JOINED FIND / ARCHIVE QUALIFICATION
+2026-10-29 | Scoped candidate; final usable kit/demo remains M03.05
+
+Outcome
+The ordinary browser and actual CLI join find/inspect/archive/default exclusion,
+explicit archived discovery/unarchive and re-find across independent boards and
+windows. No product source changes were needed for this qualification packet.
+Tested source:ef417a1b6cec1a03d5e2c2d0c0def09f05a56399
+Executable SHA256:f28c8c9db9f501c67856e06f8ab4948695eed93986d47daf982a6f6093eea7ea
+Report-only publication is separate from the tested source commit.
+
+Fresh execution
+- Two isolated committed-source extractions use fresh npm-ci offline, separate
+  initially empty Go caches and fresh private native fixture roots. Complete
+  contracts/assets/module/strict TS/build/Go vet/Node-script gates pass in each.
+-1596 Go test cases per tree pass, zero failed/skipped cases. Four explicit
+  no-test-file packages are separate from test skips. Source remains stable;
+  all74 generated/staged/executable output hashes agree. Both applications
+  equal the ordinary candidate, not merely each other.
+- Fresh joined browser/realCLI:45 explicit assertions including the separately
+  labeled response-loss phase, plus DOM expectations.
+  Includes exact default exclusion and archived result membership, keyboard
+  opener/confirm focus, same-ticket board/window isolation, current filters and
+  private reload, first invalid-filter refusal without mutation.
+- Separately labeled native response loss commits one archive and discards only
+  delivery. Actual graceful restart preserves complete decoded BoardRead. Reload
+  and archived search leave original UNKNOWN; only deliberate lookup settles it,
+  with no replay. Exact current submitted/editor protections remain separate.
+- Export/runnable restore preserves card UUID/ticket/fields/owner/lane/archive,
+  comments/history/links and exact downloaded bytes. Restored Active/Archived/All
+  search and unarchive/re-find pass; complete source BoardRead/export bytes stay
+  unchanged. Four joined owned hosts exit0 and both listeners close.
+- Fresh capacity check reaches20 drafts through ordinary forms. Draft21 private
+  persistence refuses while input remains; search and existing UNKNOWN evidence
+  remain independent. Submitted originals have their own verified admission and
+  budget; see capacity investigation and guide. Its hosts/attempts are recorded
+  separately and never hidden by a later successful assertion.
+
+Qualified unchanged reuse
+Exact candidate/source binding checks382 cmd/internal files,351 provider files,
+603 asset inputs,34 staged assets and398 frozen browser inputs. Accepted .03
+feature-local137 joined browser/CLI assertions including labeled delayed reads,
+175 controlled DOM/IndexedDB assertions,
+fresh V04 native mandatory inventories/children and21 V02 cases remain valid for
+these unchanged bytes. They are qualified reuse, not fresh .04 executions. No
+historical .02 executable is presented as the current candidate. Full source,
+manifest and private evidence digests retain the provenance of each claim.
+
+Capacity and delivery prewalk
+The initial capacity harness overclaimed that full editable-draft storage must
+disable a separate deliberate submission. That failed assertion and first runs
+remain private evidence. Existing submitted evidence is independent of editable
+drafts: Save must freeze/read back immutable original bytes before dispatch, even
+when a draft save failed. The final capacity report and fresh independent review
+record the actual before-dispatch evidence and final disposition.
+The21,476,864-byte application exceeds the board10MiB attachment channel. Use a
+bound local kit and small guide/manifest/evidence attachments. This check happened
+in the early joined prewalk; final usable kit/customer demo is .05.
+
+Independent review
+Fresh non-author Sol / High review PASS, no unresolved material finding. The exact private report digest is in the structured result. Review coverage is a candidate/source/evidence/report audit plus its recorded focused checks, not a second execution of every ordinary journey or isolated build.
+
+Reproduction and limits
+See docs/runbooks/m03-qualification.txt for pinned source/tool/environment/gates,
+fresh fixture requirements, ordinary scenario and cleanup. Detailed command/log,
+candidate/attempt/input/output hashes stay in private evidence; no credentials,
+real board data or runtime stores enter public source.
+Only synthetic localhost M03 qualification is claimed. No physical power-loss,
+installed OS IME, whole-product accessibility, real import/adoption/parity or
+general release. Draft-count proof is separate from byte/original/expiry/disk
+limits; existing unchanged controlled store tests remain explicitly reused.

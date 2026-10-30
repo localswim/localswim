@@ -1,0 +1,137 @@
+{
+  "status": "PASS_SCOPED_M03_04",
+  "date": "2026-10-29",
+  "testedSource": "ef417a1b6cec1a03d5e2c2d0c0def09f05a56399",
+  "candidateSHA256": "f28c8c9db9f501c67856e06f8ab4948695eed93986d47daf982a6f6093eea7ea",
+  "productChanged": false,
+  "twoIsolatedCleanBuilds": {
+    "testsEach": [
+      1596,
+      1596
+    ],
+    "failedTestsEach": [
+      0,
+      0
+    ],
+    "skippedTestsEach": [
+      0,
+      0
+    ],
+    "knownNoTestPackagesEach": 4,
+    "equalOutputHashes": 74,
+    "sourceStableEach": true
+  },
+  "freshJoinedAssertionsIncludingLabeledFault": 45,
+  "freshOwnedFinalJoinedHostsStoppedZero": 4,
+  "freshCapacity": {
+    "status": "PASS",
+    "checks": {
+      "one_real_create_response_lost_labeled_fault": true,
+      "twenty_UI_created_live_drafts_and_one_unknown_original": true,
+      "twenty_first_private_draft_refused_without_server_mutation": true,
+      "search_usable_at_capacity": true,
+      "visible_twenty_first_input_retained_after_search": true,
+      "all_draft_bytes_original_bytes_and_unknown_status_unchanged": true,
+      "search_neither_replays_nor_settles_original": true,
+      "ordinary_inventory_shows_twenty_retained_drafts": true,
+      "explicit_save_persists_matching_immutable_original_before_native_dispatch": true,
+      "one_deliberate_save_after_capacity_with_frozen_original": true,
+      "save_does_not_evict_existing_twenty_drafts": true,
+      "first_unknown_original_not_settled_by_independent_save": true,
+      "native_current_board_confirms_two_deliberate_saves": true,
+      "owned_listener_closed": true,
+      "owned_host_graceful_exit_zero": true
+    },
+    "limits": "20 live draft count only; not 2MiB byte cap, 100 unresolved cap, expiry, or disk exhaustion. No selected cleanup required."
+  },
+  "qualifiedReuse": {
+    "classification": "These successful .03 runs are exact-source/executable qualified reuse, not fresh .04 execution. Fresh .04 joined proof, capacity proof and two isolated clean builds are separate. No historical .02 executable is treated as current runtime evidence.",
+    "coverage": [
+      "175 controlled actual DOM/IndexedDB assertions, including search/archived/details/editor/reload/window/focus boundaries",
+      "137 feature-local joined browser/realCLI assertions including separately labeled delayed real reads;20+1 order/continuation, Unicode/filter/refusal and positive query/full-fact reopen",
+      "V04 mandatory native transaction/archive inventories and children complete, source stable",
+      "V02 all21 browser cases, no failed/skipped/flaky/retries; includes bounded private recovery/capacity/current originals"
+    ],
+    "unchangedCmdInternalFiles": 382,
+    "unchangedProviderFiles": 351,
+    "unchangedAssetInputs": 603,
+    "unchangedStagedAssets": 34,
+    "unchangedFrozenV02Inputs": 398
+  },
+  "cases": [
+    {
+      "id": "Q01",
+      "claim": "Exact source/tools/contracts/assets/executable binding",
+      "classification": "fresh clean builds + current inventory"
+    },
+    {
+      "id": "Q02",
+      "claim": "Two isolated clean builds, complete gates and equal generated/staged/executable outputs",
+      "classification": "fresh two-tree execution"
+    },
+    {
+      "id": "Q03",
+      "claim": "Browser/realCLI find-inspect-archive-default-exclude-archived-inspect-unarchive-refind",
+      "classification": "fresh joined45 assertions including separately labeled response loss, plus DOM expectations"
+    },
+    {
+      "id": "Q04",
+      "claim": "First invalid-filter refusal read-only; keyboard opener/confirm, two-board/window retained query/reload",
+      "classification": "fresh ordinary joined prewalk"
+    },
+    {
+      "id": "Q05",
+      "claim": "One committed archive response lost; restart/full BoardRead equality, UNKNOWN search and explicit lookup, no replay",
+      "classification": "fresh separately labeled native response loss"
+    },
+    {
+      "id": "Q06",
+      "claim": "Runnable export/restore retained facts/history/links/exact bytes; restored search/unarchive, complete source unchanged",
+      "classification": "fresh actualCLI/owned-runtime checks"
+    },
+    {
+      "id": "Q07",
+      "claim": "20 UI-created drafts,21st private-save refusal/retained input, read-only search and UNKNOWN preservation; separate original admission",
+      "classification": "fresh ordinary capacity UI + labeled response loss + read-only storage observation"
+    },
+    {
+      "id": "Q08",
+      "claim": "Unicode/filter/order20+1/cursor/stale responses and editor/private-focus/reload edge cases",
+      "classification": "exact-source/candidate qualified .03 reuse:137 joined browser/CLI assertions including labeled delayed reads +175 controlled assertions"
+    },
+    {
+      "id": "Q09",
+      "claim": "Native transaction/archive mandatory coverage and21 browser cases including storage/refusal/recovery",
+      "classification": "exact-source/candidate qualified .03 reuse; not fresh .04 tagged/browser run"
+    },
+    {
+      "id": "Q10",
+      "claim": "Local delivery path and small attachments fit intended handoff channel; owned host cleanup",
+      "classification": "fresh early size/channel check; final usable kit/demo .05"
+    }
+  ],
+  "handoffChannel": {
+    "executableBytes": 21476864,
+    "attachmentLimitBytes": 10485760,
+    "largeBinaryUsesLocalKit": true,
+    "smallReportUnderLimit": true,
+    "finalUsableKitOwner": "M03.05"
+  },
+  "capacityInvestigation": "Initial harness expected draft-count refusal to disable a separate deliberate Save. Preserve that failed assertion/attempt; draft and immutable-original budgets are independent. Final admission evidence and fresh reviewer assessment determine disposition; no product behavior change is inferred from the first assumption.",
+  "independentReview": {
+    "status": "PASS",
+    "reportSHA256": "97e194e1a511f3c42fd5fe4c6414684134ff2cb59ed2d133fd63f97ca52339e5",
+    "scope": "Fresh non-author Sol / High source/candidate/evidence/report audit; own focused probes as recorded, not second whole ordinary journey or clean-build execution."
+  },
+  "tools": {
+    "go.exe": "83b7ba66215e696414fa49462d0db2da4f4cf15c7bebd42f0b189fa04866999d",
+    "node.exe": "1c63f1417e2e26d83ca9a9ec1d548524ab1305bc7209d90ebca56257ff0d84ed",
+    "npm-cli.js": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7"
+  },
+  "limits": [
+    "M03.04 qualification only; usable final kit/demo remains gated M03.05 and Terry acceptance.",
+    "Fresh and qualified reused evidence remain distinct; no full duplicate native/browser rerun claimed.",
+    "Synthetic localhost scope; no physical power-loss, installed OS IME, broad accessibility, real-data import/adoption, new feature parity or general-release claim.",
+    "Capacity count check is not a new2MiB/100-original/8MiB/expiry/disk-exhaustion run; unchanged bounded store cases are qualified reuse."
+  ]
+}

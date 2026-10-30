@@ -133,3 +133,42 @@ Add a dated entry and update the current practices/open improvements above:
    them with reasons and supporting evidence; avoid turning sparse results into rules.
 6. **Next small adjustment:** Name a concrete process change and how the next review
    will judge it. Keep effort proportionate and distinguish proposals from authorization.
+
+## M03 — find and retire work
+
+**Handoff:** 2026-10-29; final owner acceptance pending. The candidate joins literal
+current-text search/filter and unfinished-card archive/unarchive through actual
+browser/CLI, preserving explicit priority, Completed and original-outcome rules.
+
+- Approved development:270 minutes P80 base +90 reserve =360 P95 target.
+  Separately approved Preflight25+15 finished8.785 minutes, no reserve or transfer.
+  Development active snapshot before final review/publication:199.91 minutes;
+  final actual/reserve is the closing board receipt after substantive delivery.
+  This snapshot is not final elapsed or calibrated coverage evidence.
+- Off-session/owner waits remain separate. The interrupted turn initially inflated
+  a receipt; app event metadata proved54.6167 inactive minutes after the last reviewer
+  finished. The corrected ledger retains reviewer work and resumed publication;
+  original receipt/history preserved. No reset or guessed inactive boundary.
+- Early/native prewalk and independent review found focused-details, first pending
+  search revision, actual opener/page focus and retained-commit reload ordering
+  issues. Material fixes were re-reviewed before feature acceptance. This is useful
+  correction evidence; it does not prove those checks happened as early as possible.
+- Joined qualification checked the20draft limit before final demo and verified a
+  separate immutable original before dispatch. An initial test wrongly treated
+  draft capacity as the submission budget; failed attempts were retained, the
+  assumption corrected with real before-dispatch storage evidence and independently
+  reviewed. Complete restore comparisons replaced weaker count/existence checks.
+- Delivery size was checked early: the21.48MB application and11.75MB ZIP exceed the
+  10MiB board channel. Verified local kit plus small reports avoids a late retry.
+- Two isolated1596-test builds/74equal outputs, fresh joined/final normal journeys,
+  labeled faults, controlled probes and exact unchanged reuse remain separate
+  claims. Fresh non-author reviews audited candidate/evidence/guide/package bounds;
+  they are not another execution of every journey or full physical-loss assurance.
+- Next small adjustment: run native asynchronous focus/restored-original search
+  checks before the broad feature gate, and compare complete retained records from
+  the first restore prewalk. Judge this by when the next scoped defect/evidence gap
+  is caught; do not apply a mechanical estimate discount from this milestone.
+
+See [joined qualification](../qualification/m03/joined-qualification-r1.txt) and
+[final handoff](../qualification/m03/HANDOFF.txt) for scope/evidence/limits. No
+general release, real adoption, physical power-loss or full accessibility claim.

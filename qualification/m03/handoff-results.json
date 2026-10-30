@@ -1,0 +1,61 @@
+{
+  "scope": "M03.05 final synthetic localhost kit/demo; owner acceptance pending",
+  "status": "PASS_M03_HANDOFF",
+  "candidateSHA256": "f28c8c9db9f501c67856e06f8ab4948695eed93986d47daf982a6f6093eea7ea",
+  "testedProductSource": "ef417a1b6cec1a03d5e2c2d0c0def09f05a56399",
+  "qualificationReportSource": "b07bbad263b6151ba47d9ca01f42468c86e39cb3",
+  "freshNormalDemo": {
+    "processes": [
+      {
+        "state": "stopped",
+        "exit": 0
+      },
+      {
+        "state": "stopped",
+        "exit": 0
+      }
+    ],
+    "checks": {
+      "fresh_workspace_two_boards": true,
+      "graceful_restart_complete_boardread_and_realcli_active_archived_all_query_parity_two_boards": true,
+      "normal_browser_and_actual_cli_journey": true,
+      "final_browser_search_after_restart": true,
+      "owned_listener_closed": true
+    },
+    "status": "PASS_M03_05_NORMAL_CUSTOMER_DEMO",
+    "assertions": 42,
+    "steps": [
+      "Normal customer journey: browser create/find/inspect/archive; default exclusion and archived search; CLI unarchive and refind; two-board/window isolation, keyboard focus and private query reload."
+    ],
+    "packageRevision": "Guide-only revisions r2/r3 add spacing and referenced CLI/keyboard guides, re-extracted/verified after the demo; exact executable bytes unchanged. Demo ran extracted original kit application, not altered product bytes.",
+    "evidenceClassification": "Fresh ordinary browser/actualCLI from extracted kit; no injected fault or controlled/mock response."
+  },
+  "kit": {
+    "filename": "localswim-m03-review-kit-win-amd64-r3.zip",
+    "sha256": "1e70c87d12761ec26a9b9f087fa95e2fd1a1ad3c1ba8a72d18e1170a71d0f5a7",
+    "bytes": 11750665,
+    "manifestSHA256": "27f56f9326a107361f1f380d5e54c7b240830b09d088ef07af7b111b615805d0",
+    "delivery": "Verified local ZIP/unpacked folder; small guides/manifests/reports attached. ZIP and executable exceed10MiB board limit."
+  },
+  "qualifiedReuse": "Accepted .04:two isolated complete builds1596Go cases each/74equal outputs;45joined assertions including labeled response loss/full retained restore;20UI draft capacity and separate verified original admission. Exact unchanged .03:175controlled+137joined including delayed reads/native mandatory/21browser cases. These are reused, not fresh .05 runs.",
+  "timing": {
+    "approvedBaseMinutes": 270,
+    "approvedReserveMinutes": 90,
+    "preflightSeparateMinutes": 8.785161245,
+    "activeDevelopmentSnapshotBeforeFinalPublicationMinutes": 199.91390899833334,
+    "reserveUsedAtSnapshotMinutes": 0,
+    "finalActual": "Closing private board receipt after all substantive review/fixes/source/kit/board/RFR publication; snapshot is not final actual.",
+    "exclusions": "Documented inactive owner waits and54.6167m app-event offsession gap after all review stopped. Preserve original receipt and correction."
+  },
+  "independentReview": {
+    "status": "PASS",
+    "sha256": "ceadcb39c92e6f9589c1459fa40ed5281acb6c806d8893df65c898690a1d451f",
+    "coverage": "Fresh non-author Sol / High guide/kit/source/evidence review and independent ZIP/hash/help probes; no second whole customer journey or full suite claimed."
+  },
+  "limits": [
+    "Synthetic localhost Windows amd64 review candidate; no installer, real-data import/adoption, M04+ parity or general-release promise.",
+    "No physical power-loss, full installed OS IME or broad accessibility certification.",
+    "Literal current retained text only; original outcomes independent, Completed read-only, fixed20partial summaries and deliberate fresh-page recovery.",
+    "Draft20/2MiB and original100/8MiB budgets separate; private failure retains visible input but never claims it durable."
+  ]
+}

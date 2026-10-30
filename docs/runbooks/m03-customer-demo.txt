@@ -1,0 +1,23 @@
+M03 NORMAL CUSTOMER REVIEW
+2026-10-29 | Fresh synthetic data, actual local executable/browser/CLI
+
+1. Start a fresh workspace and two boards using START-HERE.txt and the workspace
+   guide. In one board create an unfinished card with searchable text. Use another
+   window/board with the same display ticket and different actual UUID.
+2. Find cards; enter text and Apply filters. Compare actual CLI card search with
+   the same query/selectors. Inspect the matching result, close with keyboard and
+   verify focus returns to the correct opener.
+3. Archive the unfinished card through confirmation. Retain the query; deliberately
+   reapply. Active search and default listing exclude it. Choose Archived and
+   inspect the same UUID/content/history. The other window remains independent.
+4. Unarchive through the real CLI or confirmed browser action. Read current facts,
+   reapply Active and find it again. Reload retains bounded filters while fetching
+   fresh summaries, not stored results/cursors. Completed stays read-only.
+5. Stop gracefully, restart the same workspace and compare committed facts. Search
+   again with fresh pages. Do not infer an original outcome from matching text.
+
+This normal demo does not inject faults. Accepted qualification separately covers
+one lost native response/UNKNOWN/restart/no replay, complete retained export/restore,
+capacity and stale-response cases. Those categories remain separate evidence.
+The kit manifest binds the application to two isolated clean builds and the joined
+qualification report; a review of evidence is not a second execution of every case.

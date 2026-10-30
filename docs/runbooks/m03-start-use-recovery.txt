@@ -1,0 +1,50 @@
+M03 START / USE / RECOVER
+2026-10-29 | Windows amd64 synthetic localhost review kit
+
+Unzip the entire kit into a local folder. Keep candidate-manifest.json beside
+localswim.exe. Verify its SHA256 with Get-FileHash before starting. This kit
+contains no board data, credentials, browser profile or private recovery records.
+Use a fresh synthetic workspace, not an existing everyday data directory.
+
+Start in PowerShell (replace the example paths with your chosen local paths):
+  $exe = 'C:\path\to\kit\localswim.exe'
+  & $exe serve --workspace 'C:\path\to\new-review-workspace' --port 8803
+Keep that terminal open. The service's local startup information identifies its
+browser address; open http://127.0.0.1:8803 in your browser. Follow the included
+m01-workspace-start-use-recovery.txt to create/select a synthetic project and
+board, using explicit --workspace/--project/--board selectors in the real CLI.
+The kit is a local executable and guides, not an installer or automatic importer.
+
+Use
+- Create a card, then Find cards. Enter literal text, optionally combine Lane,
+  Owner, Explicit priority and Archive status, then Apply filters. Default is
+  Active. Empty text lists matching work, at most 20 summaries per page.
+- Open card reads full facts separately. Close returns focus to its visible
+  opener. Archive unfinished work through the confirmed action; default rows
+  and search exclude it. Choose Archived/All explicitly to inspect it again.
+- Confirm Unarchive card, deliberately read/apply current facts, then find it
+  under Active. Completed remains read-only; search never grants approval rights.
+- Next results continues the same snapshot. After writes/restart/stale state,
+  retain the query and choose First page. Filters are private to exact board and
+  window; another window can choose independently. Reload starts a fresh page.
+
+Recovery and limits
+Keep visible input when private persistence fails. 20 live drafts/2MiB is one
+budget; verified immutable originals have a separate 100-unresolved/8MiB budget.
+Save may proceed only after original evidence is strictly stored/read back.
+Search, refresh, reload and matching current text do not settle UNKNOWN and never
+replay it. Use Look up original outcome deliberately; reconcile current text
+before a new intentional edit. A lookup does not authorize a duplicate dispatch.
+Private discard warns before removal and never erases server history/outcomes.
+See m02-start-use-recovery.txt and m03-qualification.txt for bounded continuation.
+
+Stop the service with Ctrl+C and wait for a clean exit. Restart using the SAME
+--workspace path; verify current facts and choose a fresh first search page.
+Export/restore uses separate destination roots/identities; use the existing guide
+and never assume a restored copy shares the source's original-operation context.
+
+Read m03-customer-demo.txt for the short normal review sequence. Detailed archive
+and literal matching/filter/cursor rules are in m03-card-archive.txt and
+m03-card-search.txt. Qualification reports distinguish fresh checks, controlled
+faults and exact unchanged reuse. No physical power-loss, full OS IME/accessibility,
+real-data adoption/import, M04+ feature parity or general-release claim is made.

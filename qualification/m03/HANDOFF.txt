@@ -1,0 +1,52 @@
+M03 FINAL FIND / ARCHIVE HANDOFF
+2026-10-29 | Owner acceptance pending
+
+The verified local kit provides ordinary browser/realCLI find/filter, inspect,
+archive/default exclusion, explicit archived discovery and unarchive/re-find.
+Completed stays read-only. Queries retain exact board/window identity and never
+settle or replay an UNKNOWN original. See docs/runbooks/m03-start-use-recovery.txt
+and m03-customer-demo.txt; detailed search/archive/qualification guides included.
+
+Application SHA256:f28c8c9db9f501c67856e06f8ab4948695eed93986d47daf982a6f6093eea7ea
+Tested product source:ef417a1b6cec1a03d5e2c2d0c0def09f05a56399.
+Accepted joined qualification report source:b07bbad263b6151ba47d9ca01f42468c86e39cb3.
+Later guide/report publication does not imply another product build.
+
+Fresh normal demonstration
+Actual extracted-kit browser/CLI, fresh synthetic two-board/two-page workspace,
+find/inspect/archive/exclude/archived inspect/CLIunarchive/refind/private reload,
+keyboard focus and normal graceful restart/current fact/query preservation.
+No faults injected in this final normal demo. Actual counts/cleanup/steps are in
+handoff-results.json; screenshots and full runtime evidence remain private.
+
+Qualification reused, not rerun here
+Accepted .04:two isolated clean builds1596tests each,74equal generated/staged/
+executable outputs;45joined assertions including labeled response loss and full
+retained-record runnable restore; fresh ordinary20draft capacity and pre-dispatch
+immutable original admission. Exact unchanged .03:175controlled/137joined including
+labeled delayed reads, mandatory native suites and21browser cases. See joined
+qualification for candidate bindings, categories, failed assumptions/corrections.
+
+Usable delivery
+ZIP:localswim-m03-review-kit-win-amd64-r3.zip; bytes:11750665.
+ZIP SHA256:1e70c87d12761ec26a9b9f087fa95e2fd1a1ad3c1ba8a72d18e1170a71d0f5a7
+Manifest SHA256:27f56f9326a107361f1f380d5e54c7b240830b09d088ef07af7b111b615805d0
+ZIP integrity, exact file allowlist, extraction and application byte checks pass.
+The verified ZIP/application exceed this board's10MiB channel; use the recorded
+local kit/unpacked location and small guide/manifest/evidence attachments. No
+runtime stores, real board data, credentials or private recovery records included.
+
+Review and accounting
+Fresh non-author Sol / High final review PASS; exact report digest/coverage in JSON. Independent ZIP/hash/help probes and evidence audit are distinct from a second execution of the normal demo.
+Approved270m base/P80 +90m reserve =360m total/P95; Preflight8.785m separate.
+Development snapshot before final review/publication:199.91m, reserve used
+0.00m. Final complete-delivery actual is the closing board receipt,
+not this earlier snapshot. Same ledger; documented inactive owner waits and54.6167m
+app-event interruption excluded, with reviewer work/resumed publication included.
+Original estimates/history and superseded receipts remain evidence. These planning
+targets are judgmental, not statistically calibrated confidence guarantees.
+
+Only owner review/acceptance remains after final RFR publication. No M04+ work,
+real-data import/adoption, installer/general release, physical power-loss, full OS
+IME or whole-product accessibility assurance is claimed. All known continuation
+limits and original UNKNOWN/no replay rules remain in the included guides.

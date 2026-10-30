@@ -27,6 +27,12 @@ runtime profiles and raw operational records out of this document.
   reviewer pairs. State what the reviewer actually inspected or executed.
 - Keep original estimates and later forecasts. Name residual uncertainty, leave
   reserve unscheduled, and preserve spending authority separately from forecasts.
+- Bound interrupted-session exclusions with recorded events. Include any reviewer
+  or tool work that continues after the parent stops; exclude only the interval
+  when all scoped work is inactive. Preserve the original and corrected receipts.
+- Validate the extracted delivery package and its referenced guides as well as its
+  hashes. Compare complete retained records for conservation claims, with any
+  required identity transformation stated explicitly.
 
 ## Open improvements to evaluate
 
@@ -35,10 +41,12 @@ implementation tickets or automatic work authorization.
 
 | Improvement | Why it matters | Check at the next milestone review |
 |---|---|---|
-| Put capacity, first failure, cleanup and restart into the early integrated prewalk. | A successful path can conceal awkward state transitions and recovery limits. | Record when these paths were first exercised, what they revealed and whether refinements happened before final handoff. |
-| Check the intended handoff channel and size limits early. | A verified artifact can still be inconvenient to deliver or retrieve. | Confirm the artifact fits its intended channel, or establish a usable alternative before closeout. |
+| Put capacity, first failure, cleanup and restart into the early integrated prewalk. | M03 exercised these before final demonstration, but a draft-cap test initially assumed the separate submission budget must also refuse. | Identify the actual admission boundary and independent budgets; prove visible input, retained evidence and safe continuation without inferring an original outcome. |
+| Check the intended handoff channel, size and package contents early. | M03 established local delivery before closeout, but final review still found a missing referenced CLI guide. | Confirm channel fit or a usable alternative, then traverse guide references and run the extracted kit before final review. |
 | Refresh the remaining-delivery forecast after the bounded risk check and material findings. | Passing implementation does not remove review, feedback, packaging or cleanup work. | Preserve the original and revised forecast, assumptions, timing and remaining observable outcomes; compare like stages. |
 | Improve estimation incrementally using qualified reuse and measured results. | Both optimistic late forecasts and excessive padding can mislead planning. | Explain which reusable work or uncertainty changed; do not apply a universal discount from one result. |
+| Exercise native asynchronous focus and restored-original search before the broad feature gate. | M03 found pending-first revision, page/opener focus and retained-commit reload ordering issues during feature review and prewalk. | Record whether these checks catch a scoped issue earlier; retain current board/window/generation and UNKNOWN/no-replay assertions. |
+| Use full-record comparisons in the first restore prewalk. | M03 review strengthened history-count and link-existence checks before accepting a conservation claim. | Compare complete retained records and exact bytes; allow only the documented local-link incarnation rebasing. |
 
 ## M02 — read and edit cards comfortably
 
@@ -136,39 +144,124 @@ Add a dated entry and update the current practices/open improvements above:
 
 ## M03 — find and retire work
 
-**Handoff:** 2026-10-29; final owner acceptance pending. The candidate joins literal
-current-text search/filter and unfinished-card archive/unarchive through actual
-browser/CLI, preserving explicit priority, Completed and original-outcome rules.
+**Accepted:** 2026-10-29. Terry approved M03 after the final handoff. The earlier
+handoff reports retain their acceptance-pending state and provisional timing as
+historical checkpoints; this entry records acceptance and the closed actuals.
 
-- Approved development:270 minutes P80 base +90 reserve =360 P95 target.
-  Separately approved Preflight25+15 finished8.785 minutes, no reserve or transfer.
-  Development active snapshot before final review/publication:199.91 minutes;
-  final actual/reserve is the closing board receipt after substantive delivery.
-  This snapshot is not final elapsed or calibrated coverage evidence.
-- Off-session/owner waits remain separate. The interrupted turn initially inflated
-  a receipt; app event metadata proved54.6167 inactive minutes after the last reviewer
-  finished. The corrected ledger retains reviewer work and resumed publication;
-  original receipt/history preserved. No reset or guessed inactive boundary.
-- Early/native prewalk and independent review found focused-details, first pending
-  search revision, actual opener/page focus and retained-commit reload ordering
-  issues. Material fixes were re-reviewed before feature acceptance. This is useful
-  correction evidence; it does not prove those checks happened as early as possible.
-- Joined qualification checked the20draft limit before final demo and verified a
-  separate immutable original before dispatch. An initial test wrongly treated
-  draft capacity as the submission budget; failed attempts were retained, the
-  assumption corrected with real before-dispatch storage evidence and independently
-  reviewed. Complete restore comparisons replaced weaker count/existence checks.
-- Delivery size was checked early: the21.48MB application and11.75MB ZIP exceed the
-  10MiB board channel. Verified local kit plus small reports avoids a late retry.
-- Two isolated1596-test builds/74equal outputs, fresh joined/final normal journeys,
-  labeled faults, controlled probes and exact unchanged reuse remain separate
-  claims. Fresh non-author reviews audited candidate/evidence/guide/package bounds;
-  they are not another execution of every journey or full physical-loss assurance.
-- Next small adjustment: run native asynchronous focus/restored-original search
-  checks before the broad feature gate, and compare complete retained records from
-  the first restore prewalk. Judge this by when the next scoped defect/evidence gap
-  is caught; do not apply a mechanical estimate discount from this milestone.
+The delivered customer outcome is literal current-text search and typed filters,
+unfinished-card archive/unarchive, explicit archived inspection and re-find through
+the ordinary browser and real CLI. Explicit priority, read-only Completed cards,
+board/window identity and original UNKNOWN/no-replay rules remain intact.
 
-See [joined qualification](../qualification/m03/joined-qualification-r1.txt) and
-[final handoff](../qualification/m03/HANDOFF.txt) for scope/evidence/limits. No
-general release, real adoption, physical power-loss or full accessibility claim.
+### Final time and estimation
+
+Active elapsed minutes, rounded to one decimal:
+
+| Phase | Approved P80 base target | Reserve | Base + reserve / P95 target | Final actual |
+|---|---:|---:|---:|---:|
+| Preflight, separately tracked | 25 | 15 | 40 | 8.8 |
+| Development through final handoff | 270 | 90 | 360 | 202.9 |
+
+No reserve was used in either phase. Development finished **67.1 minutes below
+base** and **157.1 minutes below cap**. Combined actual was 211.7 minutes, about
+3 hours 32 minutes; the phase ledgers remained separate and no unused Preflight
+allowance was transferred into development.
+
+The exact closed development actual is 202.91726443833332 minutes; Preflight is
+8.785161245 minutes. Development includes implementation, fixes, coordination,
+model/tool/build/test waits, independent review, demonstrations, guides, packaging,
+cleanup and source/board publication, counting overlap once. This later requested
+post-acceptance documentation update is outside that closed delivery measurement.
+
+Documented inactive owner waits are excluded. An interrupted turn initially left
+the timer counting idle time. App event metadata established **54.6167 inactive
+minutes** after the last reviewer finished and before the parent resumed, at
+one-second event precision. The correction retained reviewer work after the parent
+stopped and all resumed publication/timing work. Original and corrected receipts
+remain evidence; the earlier 250.5-minute receipt is superseded. The historical
+199.9139-minute report snapshot preceded final review/publication and is not the
+final actual.
+
+Remaining-delivery forecasts were preserved as preparation snapshots, including
+the work still needed for each handoff:
+
+| Forecast checkpoint | Active at preparation | Projected whole P80 | Projected whole P95 |
+|---|---:|---:|---:|
+| After archive, before its final handoff publication | 97.9 | 273.1 | 331.8 |
+| After search, before its final handoff publication | 168.4 | 253.7 | 282.9 |
+| After joined qualification, before its final handoff publication | 188.8 | 216.6 | 227.0 |
+
+The approved 270 + 90 envelope did not change. Forecasts retained the original
+remaining story sizes and uncertainty rather than fitting a faster pace or
+discounting setup. The exceptional correction cycle belonged to qualification
+and was not charged again to final handoff once qualification finished.
+
+Finishing 24.8% below the development base is a budget success, not evidence that
+P80/P95 coverage is statistically calibrated or that future work should receive
+that percentage discount. Base is a confidence target, not an expected average.
+Do not add phase quantiles and label their sum a combined confidence guarantee.
+
+### What worked and what still needs improvement
+
+| Lesson | M03 observation | Practical consequence |
+|---|---|---|
+| Complete customer slices and owner gates | Archive and search each had ordinary client proof and fresh review before acceptance; joined qualification and final kit stayed separate. | Preserve turn-sized outcomes and explicit prerequisite acceptance; RFR alone does not authorize dependent execution. |
+| Useful parallel work and independent review | Disjoint Go/CLI and browser authors worked alongside primary integration; finished work passed to fresh reviewers. | Keep ownership clear and use fresh review without reserving idle reviewer pairs. |
+| Early failure and recovery prewalk | Native-response loss, restart, UNKNOWN/no replay, capacity and delivery-channel checks occurred before the final normal demo. | Retain early integrated checks; this does not establish that every feature edge was tested early enough. |
+| Native interaction and restored state | Review/prewalk found focused archive details, first pending search revision, actual opener/page focus and retained-commit reload ordering issues. | Material corrections were re-reviewed before acceptance. Move native asynchronous focus and restored-original search checks earlier than the broad feature gate. |
+| Test assumptions versus product defects | The first capacity test wrongly assumed a full editable-draft budget must prohibit every deliberate submission. | Identify the separate admission budgets and inspect exact durable original evidence before declaring unsafe dispatch. Preserve failed assumptions and their correction. |
+| Strength of conservation evidence | Initial restore checks used history counts and link existence; review required full comparisons. | Compare complete card/comment/attachment/history records, links after only required incarnation rebasing, and exact blob bytes from the first restore prewalk. |
+| Usable delivery beyond byte integrity | Size checks selected local delivery early; final review still found a referenced runnable CLI guide missing from the kit. | Traverse guide dependencies as well as validating hashes. The corrected 17-file kit includes CLI and keyboard guides. |
+| Timing across interruptions | A stopped parent did not immediately stop the reviewer; later idle time inflated the first receipt. | Derive exclusions from the last active worker through actual resumption, preserve correction history and keep post-acceptance maintenance separate. |
+
+### Capacity, evidence and delivery limits
+
+- Ordinary UI checks created 20 live drafts, then demonstrated refusal of draft 21
+  while visible input remained. Search preserved the existing drafts and UNKNOWN
+  original without lookup or replay. Editable drafts use a 20-draft/2 MiB budget;
+  immutable submissions have a separate 100-unresolved/8 MiB budget. A deliberate
+  Save at draft capacity was safe because exact original bytes were strictly
+  stored and read back before native dispatch. Visible input alone is not durable
+  recovery proof. The fresh check covered the draft-count boundary; other unchanged
+  storage boundaries remained explicitly qualified reuse.
+- Two isolated clean builds passed 1,596 Go tests each and matched all 74 generated,
+  staged and executable output hashes. Fresh joined qualification recorded 45
+  assertions including separately labeled response loss. Exact unchanged reuse
+  comprised 175 controlled DOM/IndexedDB assertions, 137 joined browser/CLI
+  assertions including labeled delayed reads, native mandatory inventories and
+  21 browser cases. These categories are not all fresh ordinary executions.
+- The final extracted-kit normal demonstration passed 42 assertions with two
+  boards and two headless browser pages, including complete committed-fact/query
+  preservation across graceful restart. Both final demo hosts exited cleanly and
+  the listener closed. Fresh independent final review included package extraction,
+  CRC, allowlist, manifest hashes, help and evidence checks; it was not a second
+  execution of the whole customer journey or full suite.
+- The 21,476,864-byte application and final 11,750,665-byte ZIP exceed the board's
+  10 MiB attachment channel. The verified local kit and small report/manifest
+  attachments supplied the usable alternative. Guide-only package revisions kept
+  the tested executable bytes unchanged and were independently rechecked.
+- Acceptance covers the scoped synthetic localhost milestone. It does not imply
+  real-data import/adoption, M04+ parity, a general release, physical power-loss
+  certification, full installed OS IME or whole-product accessibility assurance.
+
+### Next small adjustments
+
+1. Run native asynchronous focus and restored-original search checks before the
+   broad feature gate. Record whether the next scoped defect is caught earlier.
+2. Start the first restore prewalk with complete retained-record comparisons and
+   an explicit identity-rebasing rule; avoid upgrading count/existence evidence
+   into a conservation claim later.
+3. Audit referenced guides and run the extracted package while checking channel
+   size. Judge success by whether final review still finds missing runnable steps.
+
+These are process checks for the next authorized milestone, not permission to
+start it or add product scope. Original estimates, superseded forecasts, failed
+attempts and historical handoff snapshots remain unchanged.
+
+See [joined qualification](../qualification/m03/joined-qualification-r1.txt),
+[structured qualification](../qualification/m03/joined-qualification-r1.json),
+[final handoff](../qualification/m03/HANDOFF.txt),
+[structured handoff](../qualification/m03/handoff-results.json) and the
+[start/use/recover guide](runbooks/m03-start-use-recovery.txt). Final private clock
+receipts and the interruption reconciliation supply the closed timing above;
+historical public handoff snapshots retain their original checkpoint meaning.

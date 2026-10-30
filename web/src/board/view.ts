@@ -10,8 +10,14 @@ import { dependencyAdvisory } from "./advisory.js";
 import { commands, parse, validate } from "../api/boundary.js";
 import type { EditorReference } from "../session-ui/window-state.js";
 import { CardDetails } from "./details.js";
+import type { DetailsSelection } from "./details.js";
 import { CardSearch } from "./search.js";
 import type { PrivateSearch } from "./search.js";
+import { sameIdentity, validParentRef, validateBoardHierarchy, hierarchyOrder } from "../api/hierarchy.js";
+import type { ParentRef, HierarchyCard } from "../api/hierarchy.js";
+import type { HierarchyAction } from "./hierarchy.js";
+
+type HierarchyEdit = { action: HierarchyAction; parent?: ParentRef };
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = ""): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag); node.textContent = text; return node;
@@ -24,6 +30,8 @@ type Editor = {
   card: Card | undefined; fields: Record<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
   form: HTMLFormElement; recovery: HTMLElement; save: HTMLButtonElement; composing: boolean;
   sequence: number; submitted: boolean; persisted: number; start: boolean; archive?: boolean;
+  hierarchy?: HierarchyEdit;
+  hierarchyFollow?: { selection: DetailsSelection; generation: number };
   initial: string; initialFields: Record<string, string>; opener: HTMLElement | null; confirmation: HTMLElement; confirming: boolean; confirmingEnter: boolean;
 };
 
@@ -86,14 +94,14 @@ export class BoardView {
     this.search = new CardSearch(client, boardId, this.archiveStatus, (cardId, identity, opener) => {
       if (!this.destroyed && !this.suspended) this.details.open(cardId, identity, opener);
     }, options.searchCheckpoint, options.search);
-    this.details = new CardDetails(client, this.search.find, focused => {
+    this.details = new CardDetails(client, read, focused => {
       const current = this.board, card = current?.result.cards.find(row => row.cardId === focused.result.card.cardId);
       if (!current || !card || current.result.identity.boardId !== focused.result.identity.boardId ||
           current.result.identity.incarnation !== focused.result.identity.incarnation || current.result.revision !== focused.result.revision || card.revision !== focused.result.card.revision) {
         this.readState.textContent = "Read current board before archiving this focused card; its independently read facts differ from the board base."; return;
       }
       this.edit("card.edit", card, false, undefined, !card.archived);
-    }, root);
+    }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read) });
     root.replaceChildren(this.heading, this.actor, this.readState, read,
       button("Create card", () => this.edit("card.create")), this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
   }
@@ -122,9 +130,10 @@ export class BoardView {
       if (reference.context.boardId !== this.boardId) return;
       const draft = await this.persistence.read(() => this.client.recovery.loadDraft(reference.context, reference.draftId));
       if (!draft || this.destroyed || this.editor || generation !== this.generation) return;
-      const payload = parse(draft.input) as unknown as { command: BoardCommand; base: BoardRead; card?: Card; input: Record<string, string | boolean>; start?: boolean };
+      const payload = parse(draft.input) as unknown as { command: BoardCommand; base: BoardRead; card?: Card; input: Record<string, Value>; start?: boolean; hierarchy?: HierarchyEdit };
       if (!payload || typeof payload !== "object" || typeof payload.command !== "string" || !Object.hasOwn(commands, payload.command) || ["attachment.add", "history.clear", "retention.set"].includes(payload.command) || !payload.base || !payload.input) return;
       validate("transport:BoardRead", payload.base as unknown as import("../api/boundary.js").Value);
+      validateBoardHierarchy(payload.base);
       const identity = payload.base.result.identity;
       if (identity.boardId !== reference.context.boardId || identity.incarnation !== reference.context.incarnation || this.session?.actorId !== reference.context.actorId) return;
       const context = this.client.context(payload.base, this.session);
@@ -133,6 +142,19 @@ export class BoardView {
       if (payload.card && !card) return;
       const archive = Object.hasOwn(payload.input, "archived") ? payload.input.archived : undefined;
       if (archive !== undefined && (typeof archive !== "boolean" || payload.command !== "card.edit" || !card || Object.keys(payload.input).length !== 1 || payload.start)) return;
+      let hierarchy: HierarchyEdit | undefined;
+      if (payload.hierarchy && (!Object.hasOwn(payload.input, "parent") || !["create-child", "set-parent", "clear-parent"].includes(payload.hierarchy.action))) return;
+      if (Object.hasOwn(payload.input, "parent")) {
+        const parent = payload.input.parent;
+        if (payload.start || archive !== undefined || parent !== null && !validParentRef(parent, identity)) return;
+        if (payload.command === "card.edit") {
+          if (!card || Object.keys(payload.input).length !== 1 || card.lane === "Completed") return;
+          if (payload.hierarchy?.action === "create-child" || payload.hierarchy?.action === "clear-parent" && parent !== null) return;
+          hierarchy = parent === null && payload.hierarchy?.action !== "set-parent" ? { action: "clear-parent" } : { action: "set-parent" };
+        } else if (payload.command === "card.create" && parent !== null) hierarchy = { action: "create-child", parent: parent as ParentRef };
+        else return;
+        if (parent !== null && !payload.base.result.cards.some(row => row.cardId === (parent as ParentRef).cardId)) return;
+      }
       const inventory = await this.persistence.read(() => this.client.recovery.inventory());
       const rows = inventory.submissions.filter(row => row.draftId === reference.draftId && Object.entries(reference.context).every(([key, value]) => value === row.context[key as keyof Context]));
       const originals = await Promise.all(rows.map(async row => ({ row, submission: await this.client.recovery.loadSubmission(row.context, row.opId) })));
@@ -148,7 +170,7 @@ export class BoardView {
       const retainedFocus = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : undefined;
       const retainedSelection = retainedFocus instanceof HTMLInputElement || retainedFocus instanceof HTMLTextAreaElement
         ? [retainedFocus.selectionStart, retainedFocus.selectionEnd, retainedFocus.selectionDirection ?? undefined] as const : undefined;
-      this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive as boolean | undefined);
+      this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive as boolean | undefined, hierarchy);
       const restored = this.editor as Editor | undefined;
       if (restored) restored.submitted = rows.some(row => row.outcome !== "not_committed");
       if (rows.some(row => row.outcome === "committed")) this.readState.textContent = "Retained original was committed. This editor remains submitted; read current text and deliberately open new work.";
@@ -176,6 +198,7 @@ export class BoardView {
       this.actor.textContent = "Actor " + session.actorId + " (" + session.kind + ")";
       this.readState.textContent = "Current at board revision " + board.result.revision + "; incarnation " + board.result.identity.incarnation;
       this.renderCards();
+      this.details.completeBoardRead(board);
       this.details.boardRead(board.result.identity);
       this.search.boardRead(board.result.identity, board.result.revision);
     } catch {
@@ -245,17 +268,27 @@ export class BoardView {
   }
   private blocked(): boolean { return [...this.records.values()].some(r => r.state === "pending" || r.state === "unknown"); }
   private updateSave(): void {
-    if (this.editor) this.editor.save.disabled = this.stale || this.editor.submitted || this.editor.composing || this.editor.confirming || this.blocked();
+    if (this.editor) this.editor.save.disabled = this.stale || this.editor.submitted || this.editor.composing || this.editor.confirming || this.blocked() || this.editor.hierarchy?.action === "set-parent" && !this.editor.fields.parent?.value;
   }
-  private edit(command: BoardCommand, card?: Card, start = false, restore?: { base: BoardRead; reference: EditorReference; revision: number; input: Record<string, string | boolean> }, archive?: boolean): void {
+  private hierarchyEdit(action: HierarchyAction, card: HierarchyCard, read: BoardRead): void {
+    const current = this.board;
+    if (!current || !sameIdentity(current.result.identity, read.result.identity) || current.result.revision !== read.result.revision) {
+      this.readState.textContent = "Read current board before changing hierarchy; the captured hierarchy base differs."; return;
+    }
+    const target = current.result.cards.find(row => row.cardId === card.cardId);
+    if (!target || target.revision !== card.revision || action !== "create-child" && target.lane === "Completed") return;
+    this.edit(action === "create-child" ? "card.create" : "card.edit", action === "create-child" ? undefined : target, false, undefined, undefined,
+      { action, ...(action === "create-child" ? { parent: { ...current.result.identity, cardId: target.cardId } } : {}) });
+  }
+  private edit(command: BoardCommand, card?: Card, start = false, restore?: { base: BoardRead; reference: EditorReference; revision: number; input: Record<string, Value> }, archive?: boolean, hierarchy?: HierarchyEdit): void {
     if (this.destroyed || !this.board || !this.session || this.stale) { this.readState.textContent = "Read a current board before editing."; return; }
     if (!this.canLeave) { this.readState.textContent = "Private recovery is pending or failed. Retain this input until saved or explicitly discard the editor."; return; }
     if (this.editor && !this.editor.submitted && this.dirty(this.editor)) {
-      if (archive !== undefined) {
+      if (archive !== undefined || hierarchy !== undefined) {
         const opener = document.activeElement as HTMLElement | null;
         this.cancelEditor(this.editor, () => {
           const replacement = [...this.root.querySelectorAll<HTMLButtonElement>("button")].find(row => row.dataset.focusKey === opener?.dataset.focusKey);
-          (replacement ?? (opener?.isConnected ? opener : undefined))?.focus({ preventScroll: true }); this.edit(command, card, start, restore, archive);
+          (replacement ?? (opener?.isConnected ? opener : undefined))?.focus({ preventScroll: true }); this.edit(command, card, start, restore, archive, hierarchy);
         });
         return;
       }
@@ -267,7 +300,7 @@ export class BoardView {
     const recovery = element("p", "Recovery pending"); recovery.setAttribute("role", "status");
     const editor: Editor = { id: restore?.reference.draftId ?? crypto.randomUUID(), revision: restore?.revision ?? 0, command, context, base, card,
       fields: {}, form, recovery, save: button("Save", () => { void this.save(editor); }), composing: false,
-      sequence: 0, submitted: false, persisted: -1, start, ...(archive === undefined ? {} : { archive }), initial: "", initialFields: {}, opener: document.activeElement as HTMLElement | null,
+      sequence: 0, submitted: false, persisted: -1, start, ...(archive === undefined ? {} : { archive }), ...(hierarchy ? { hierarchy } : {}), initial: "", initialFields: {}, opener: document.activeElement as HTMLElement | null,
       confirmation: element("section"), confirming: false, confirmingEnter: false };
     const title = element("h2", command + " · original board revision " + base.result.revision + (card ? ", card revision " + card.revision : ""));
     form.append(title, element("p", "Board " + context.boardId + " · actor " + context.actorId));
@@ -275,12 +308,24 @@ export class BoardView {
       const label = element("label", name + " ");
       const control = choices ? element("select") : name === "description" || name === "text" ? element("textarea") : element("input");
       if (control instanceof HTMLSelectElement) for (const choice of choices!) { const option = element("option", choice); option.value = choice; control.append(option); }
-      control.name = name; control.setAttribute("aria-label", name === "ownerId" ? "Assignee" : name); control.value = value; editor.fields[name] = control;
-      control.addEventListener("input", () => this.persist(editor));
-      control.addEventListener("change", () => this.persist(editor));
+      control.name = name; control.setAttribute("aria-label", name === "ownerId" ? "Assignee" : name === "parent" ? "Parent card" : name); control.value = value; editor.fields[name] = control;
+      control.addEventListener("input", () => { this.persist(editor); this.updateSave(); });
+      control.addEventListener("change", () => { this.persist(editor); this.updateSave(); });
       label.append(control); form.append(label);
     };
-    if (archive !== undefined) {
+    if (hierarchy?.action === "set-parent") {
+      const candidates = [...base.result.cards].filter(row => row.cardId !== card?.cardId).sort(hierarchyOrder);
+      field("parent", "", ["", ...candidates.map(row => row.cardId)]);
+      const selector = editor.fields.parent as HTMLSelectElement;
+      selector.options[0]!.textContent = "Choose an exact parent card";
+      for (const option of [...selector.options].slice(1)) {
+        const target = candidates.find(row => row.cardId === option.value)!;
+        option.textContent = "#" + target.ticket + " " + target.title + " · " + target.cardId + " · " + target.lane + " · " + (target.archived ? "Archived" : "Active");
+      }
+      form.append(element("p", "Set parent only. Save submits the explicitly selected exact identity."));
+    } else if (hierarchy?.action === "clear-parent") {
+      form.append(element("p", "Clear parent for #" + card!.ticket + "? Save submits one explicit parent edit."));
+    } else if (archive !== undefined) {
       editor.save.textContent = archive ? "Confirm archive card" : "Confirm unarchive card";
       form.append(element("p", (archive ? "Archive" : "Unarchive") + " card #" + card!.ticket + "? Recorded lane " + card!.lane + " and retained card facts remain. This submits one explicit edit."));
     } else if (start) field("lane", "In Progress", ["In Progress"]);
@@ -290,6 +335,7 @@ export class BoardView {
       const assignee = editor.fields["ownerId"] as HTMLSelectElement;
       assignee.parentElement!.firstChild!.textContent = "Assignee ";
       for (const option of assignee.options) option.textContent = this.assignee(option.value, base.result.actors);
+      if (hierarchy?.action === "create-child") form.append(element("p", "Create child of exact parent " + hierarchy.parent!.boardId + "/" + hierarchy.parent!.incarnation + "/" + hierarchy.parent!.cardId));
     } else if (command === "comment.add") field("text", "");
     else if (command === "link.add") { field("kind", "blocking", ["blocking", "informational"]); field("targetCardId", ""); }
     else if (command === "link.remove") field("linkId", "");
@@ -314,7 +360,7 @@ export class BoardView {
       if (event.key === "Escape") {
         event.preventDefault(); this.cancelEditor(editor); return;
       }
-      if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
+      if (event.key === "Enter" && (event.target instanceof HTMLInputElement || event.target === editor.save)) {
         event.preventDefault();
         if (!editor.confirmingEnter && !editor.confirming && !event.repeat) void this.save(editor);
       }
@@ -324,7 +370,7 @@ export class BoardView {
     form.append(recovery, editor.save, button("Read current text", () => { void this.currentText(editor); }), button(archive === undefined ? "Discard current editor input" : archive ? "Cancel archive" : "Cancel unarchive", () => this.cancelEditor(editor)), editor.confirmation);
     this.editor = editor; this.editorHost.replaceChildren(form); this.current.replaceChildren();
     if (restore) for (const [name, control] of Object.entries(editor.fields)) {
-      if (Object.hasOwn(restore.input, name)) control.value = String(restore.input[name] ?? "");
+      if (Object.hasOwn(restore.input, name)) control.value = name === "parent" && validParentRef(restore.input[name]) ? (restore.input[name] as unknown as ParentRef).cardId : String(restore.input[name] ?? "");
     }
     if (restore) { editor.persisted = editor.sequence; editor.recovery.textContent = "Own window draft restored privately; no operation submitted."; }
     else this.persist(editor);
@@ -367,8 +413,11 @@ export class BoardView {
   }
   private input(editor: Editor): Record<string, Value> {
     if (editor.archive !== undefined) return { archived: editor.archive };
+    if (editor.hierarchy?.action === "clear-parent") return { parent: null };
+    if (editor.hierarchy?.action === "set-parent") return { parent: editor.fields.parent?.value ? { ...editor.base.result.identity, cardId: editor.fields.parent.value } : null };
     const input: Record<string, Value> = {};
     for (const [name, field] of Object.entries(editor.fields)) input[name] = name === "policyVersion" ? Number(field.value) : name === "ownerId" && field.value === "" ? null : field.value;
+    if (editor.hierarchy?.action === "create-child") input.parent = { ...editor.hierarchy.parent! };
     // Native text controls normalize existing line endings. An untouched field
     // must retain its exact confirmed bytes, including when another field changes.
     if (editor.command === "card.edit" && editor.card) for (const name of ["title", "description"] as const) {
@@ -380,7 +429,8 @@ export class BoardView {
     const sequence = ++editor.sequence, generation = this.persistence.generation;
     // Prose and original non-secret base only; no credential/session DTO enters storage.
     const input = JSON.stringify({ command: editor.command, target: editor.card ? { cardId: editor.card.cardId } : null,
-      expectedRevision: editor.base.result.revision, expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor), base: editor.base, start: editor.start, ...(editor.card ? { card: editor.card } : {}) });
+      expectedRevision: editor.base.result.revision, expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor), base: editor.base, start: editor.start,
+      ...(editor.hierarchy ? { hierarchy: editor.hierarchy } : {}), ...(editor.card ? { card: editor.card } : {}) });
     editor.recovery.textContent = "Recovery pending";
     void this.persistence.persist(async () => {
       try {
@@ -393,7 +443,11 @@ export class BoardView {
     });
   }
   private async save(editor: Editor): Promise<void> {
-    if (this.editor !== editor || editor.composing || editor.confirmingEnter || editor.confirming || editor.submitted || this.stale || this.blocked()) return;
+    if (this.editor !== editor || editor.composing || editor.confirmingEnter || editor.confirming || editor.submitted || this.stale || this.blocked() || editor.hierarchy?.action === "set-parent" && !editor.fields.parent?.value) return;
+    const selection = editor.hierarchy ? this.details.captureSelection() : undefined;
+    const sourceId = editor.hierarchy?.action === "create-child" ? editor.hierarchy.parent?.cardId : editor.card?.cardId;
+    editor.hierarchyFollow = selection && selection.cardId === sourceId && selection.identity.boardId === editor.context.boardId && selection.identity.incarnation === editor.context.incarnation
+      ? { selection, generation: this.generation } : undefined;
     editor.submitted = true; this.updateSave();
     // Capture synchronous immutable input before storage, session or network awaits.
     const request = JSON.parse(JSON.stringify({ opId: crypto.randomUUID(), incarnation: editor.context.incarnation,
@@ -441,7 +495,20 @@ export class BoardView {
     // Fresh receipts and live outcomes retain normal search invalidation.
     if (terminal || !this.restoredCommits.has(outcome.opId)) this.search.invalidate();
     this.stale = true;
-    this.details.invalidate();
+    let hierarchyRefreshed = false;
+    const editor = this.editor, follow = editor?.hierarchyFollow;
+    if (identity && original && terminal?.outcome === "committed" && terminal.cardRevision !== null && editor?.hierarchy && follow && follow.generation === this.generation &&
+        outcome.evidence?.draftId === editor.id && identity.boardId === original.boardId && identity.incarnation === original.incarnation) {
+      try {
+        const request = parse(outcome.evidence.requestBytes) as unknown as { input?: Record<string, unknown> };
+        if (request.input && Object.hasOwn(request.input, "parent")) {
+          const created = editor.hierarchy.action === "create-child";
+          const cardId = created ? terminal.resultRefs.find(ref => ref.kind === "card" && ref.revision === terminal.cardRevision)?.id : terminal.target?.cardId;
+          if (cardId && terminal.command === (created ? "card.create" : "card.edit")) hierarchyRefreshed = this.details.refreshAfterHierarchy(follow.selection, cardId, terminal.revision, terminal.cardRevision, created);
+        }
+      } catch { /* Invalid evidence never supplies navigation or optimistic facts. */ }
+    }
+    if (!hierarchyRefreshed) this.details.invalidate();
     this.readState.textContent = "Confirmed saved. Displayed board is stale; read the current board before new work.";
     if (identity && original && terminal?.outcome === "committed" && terminal.command === "card.edit" && terminal.target && terminal.cardRevision !== null &&
         identity.boardId === original.boardId && identity.incarnation === original.incarnation && outcome.evidence?.command === "card.edit") {

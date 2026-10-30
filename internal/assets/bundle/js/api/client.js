@@ -2,6 +2,7 @@ import { openRecoveryDatabase } from "../recovery/indexeddb.js";
 import { RecoveryStore } from "../recovery/store.js";
 import { RecoveryError } from "../recovery/types.js";
 import { validateCardRead, validateHistoryRead } from "./history.js";
+import { validateBoardHierarchy } from "./hierarchy.js";
 import { boardBoundaryVerifier, canonical, object, parse, prepare, sha256, validate } from "./boundary.js";
 import { validSearch, validateSearchRead } from "./search.js";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -132,6 +133,7 @@ export class BoardClient {
             throw Error("Board identity mismatch");
         if (this.options.selection && board.result.identity.incarnation !== this.options.selection.incarnation)
             throw Error("Selected incarnation mismatch");
+        validateBoardHierarchy(board);
         return board;
     }
     async card(boardId, cardId) {

@@ -81,7 +81,7 @@ func Freeze(wire []byte, route ResolvedRoute, actor AuthenticatedActor) (Intent,
 	// Owner/archive omission retains current facts. Neither new optional field
 	// may change legacy canonical bytes; explicit false is an unarchive intent.
 	for k, f := range d.Input.Fields {
-		if _, ok := payload[k]; !ok && f.Optional && k != "ownerId" && k != "archived" {
+		if _, ok := payload[k]; !ok && f.Optional && k != "ownerId" && k != "archived" && k != "parent" {
 			payload[k] = nil
 		}
 	}

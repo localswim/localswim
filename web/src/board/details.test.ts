@@ -13,6 +13,7 @@ export async function runCardDetailsProbe(boardInput: BoardRead): Promise<number
     cardRevision: index + 1, committedAt: "2026-10-29T00:00:00Z", origin: identity,
     state: { ...card, title: "Prior " + (index + 1) }, removal: null,
     references: { commentIds: comments.filter(row => row.commentId <= id(index)).map(row => row.commentId), linkIds: [], attachmentIds: [], approvalIds: [] } }));
+  Object.assign(records[24]!.state!, { parent: { ...identity, cardId: id(9999) } });
   const current: CardRead = { apiVersion: 1, scope: "card", result: { ...board, card, comments, historyReferences: [] } };
   const priorOnlyComment = { ...comments[0]!, commentId: id(26), text: "Retained history-only comment" };
   const history: HistoryRead = { apiVersion: 1, scope: "history", result: { ...board, cardId: card.cardId, cardRevision: 26, comments: [...comments, priorOnlyComment], records, tombstones: [] } };
@@ -49,6 +50,7 @@ export async function runCardDetailsProbe(boardInput: BoardRead): Promise<number
     check(details.host.textContent!.includes(card.description) && !details.host.querySelector("script,em"), "Prose was altered or executed");
     check(commentsRegion().querySelectorAll("article").length === 20 && commentsRegion().textContent!.includes("1–20 of 25 returned"), "First comment page mismatch");
     check(historyRegion().querySelectorAll("article").length === 20 && historyRegion().querySelector("h4")!.textContent!.endsWith("revision 25"), "Prior history order/current exclusion mismatch");
+    check(historyRegion().textContent!.includes("Historical parent: " + identity.boardId + "/" + identity.incarnation + "/" + id(9999) + " · unresolved/unavailable in this history view"), "Historical parent identity was hidden or current availability fabricated");
     check(!historyRegion().textContent!.includes("<em>inert</em>") && historyComments().querySelectorAll("article").length === 20 &&
       [...historyComments().querySelectorAll("article")].every(row => (row.textContent!.match(/<em>inert<\/em>/g) ?? []).length === 1), "Cumulative snapshot references expanded duplicate comment bodies");
     button("Next history comments").click();

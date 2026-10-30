@@ -163,6 +163,9 @@ func shape(t reflect.Type, v any, path, format string) error {
 				}
 				return fmt.Errorf("%s.%s: required", path, n)
 			}
+			if n == "parent" && x == nil && (t == reflect.TypeFor[Card]() || t == reflect.TypeFor[SnapshotState]()) {
+				return fail()
+			}
 			if e := shape(f.Type, x, path+"."+n, f.Tag.Get("validate")); e != nil {
 				return e
 			}

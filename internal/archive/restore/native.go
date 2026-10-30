@@ -400,6 +400,14 @@ func (p *Prepared) insert(ctx context.Context, c *sql.Conn) error {
 			return e
 		}
 	}
+	for _, v := range p.board.Cards {
+		if v.Parent != nil {
+			if e := put("card_parent", "incarnation,child_id,parent_id", i, v.CardID, v.Parent.CardID); e != nil {
+				return e
+			}
+		}
+	}
+
 	for _, v := range p.board.Comments {
 		if e := put("comment", "incarnation,comment_id,card_id,actor_id,text,created_at", i, v.CommentID, v.CardID, v.ActorID, v.Text, v.CreatedAt); e != nil {
 			return e

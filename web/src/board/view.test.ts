@@ -47,11 +47,15 @@ export async function mountSyntheticBoard(boardInput: BoardRead, sessionInput: S
       let card = request.target ? board.result.cards.find(c => c.cardId === request.target.cardId)! : undefined;
       if (command === "card.create") {
         card = { archived: false, attachmentIds: [], cardId: crypto.randomUUID(), commentIds: [], createdIn: board.result.identity,
-          ownerId: request.input.ownerId, currentApprovalId: null, description: request.input.description, lane: "Ready for Work", linkIds: [], priority: request.input.priority ?? "P3", revision: 1, ticket: board.result.cards.length + 1, title: request.input.title };
+          ownerId: request.input.ownerId, currentApprovalId: null, description: request.input.description, lane: "Ready for Work", linkIds: [], priority: request.input.priority ?? "P3", revision: 1, ticket: board.result.cards.length + 1, title: request.input.title,
+          ...(request.input.parent ? { parent: request.input.parent } : {}) };
         (board.result.cards as unknown as object[]).push(card);
       } else {
         Object.assign(card!, { revision: card!.revision + 1 });
-        if (command === "card.edit") Object.assign(card!, request.input);
+        if (command === "card.edit") {
+          Object.assign(card!, request.input);
+          if (request.input.parent === null) delete (card as { parent?: unknown }).parent;
+        }
       }
       Object.assign(board.result, { revision: board.result.revision + 1 });
       const result: Record<string, string> = { cardId: card!.cardId };

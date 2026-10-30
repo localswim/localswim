@@ -85,3 +85,14 @@ exact filter/query echo, at most 20 unique ordered summary rows and bounded
 continuation. Summaries contain no graph and never qualify as BoardRead/CardRead
 or mutation proof. Failed/stale reads throw; callers retain prior rows as stale
 and deliberately request a new first page.
+
+BoardClient.board also validates the complete current parent forest after its
+generated schema/selected-identity checks: exact current same-board targets,
+no self/cycle/dangling edges, maximum depth 64 edges and 1,000 cards per family.
+Current roots omit parent; explicit null belongs only to mutation input. A focused
+CardRead checks parent shape/current identity without claiming complete children.
+HistoryRead checks parent shape against each Snapshot.Origin, without inventing
+a source registry or deriving scope from target CreatedIn. Mutation preparation
+preserves absent parent bytes and explicit null distinctly, and refuses mixed
+parent/content card.edit input before dispatch. Original recovery uses that same
+prepared verifier and immutable fingerprint; hierarchy adds no private store.

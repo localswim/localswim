@@ -123,6 +123,9 @@ func run(ctx context.Context, args []string, in io.Reader, out, diagnostic io.Wr
 	if ctx == nil || ctx.Err() != nil {
 		return entryFailure(args, out, diagnostic, "UNAVAILABLE", 3)
 	}
+	if handled, exit := runLocalStorage(ctx, args, out, diagnostic); handled {
+		return exit
+	}
 	if handled, exit := runLocalRestore(ctx, args, in, out, diagnostic); handled {
 		return exit
 	}

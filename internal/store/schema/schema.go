@@ -1,4 +1,4 @@
-// Package schema defines the version-five physical storage layout. Admission, canonical
+// Package schema defines the version-six physical storage layout. Admission, canonical
 // wire validation, retention execution and domain transactions belong to callers.
 package schema
 
@@ -11,7 +11,8 @@ import (
 	"strings"
 )
 
-const Version = 5
+const Version = 6
+const BaseSchemaVersion = 5
 const ApplicationID = 0x4c535731 // LSW1
 const MaxInteger int64 = 9007199254740991
 
@@ -39,6 +40,10 @@ func ValidUUID(v string) bool {
 // Statements returns fresh, deterministic DDL, including constraints and indexes.
 // The small macros keep the same scalar checks on every identity and counter.
 func Statements() []string {
+	return append(StatementsV5(), HierarchyStatements()...)
+}
+
+func statementsFrom(ddl string) []string {
 	parts := strings.Split(ddl, ";\n")
 	out := make([]string, 0, len(parts))
 	for _, s := range parts {
@@ -48,27 +53,7 @@ func Statements() []string {
 		}
 		out = append(out, expand(s))
 	}
-	out = append(out, guards()...)
-	return out
-}
-
-// These guards protect immutable full entities and retained references. They
-// deliberately do not implement command permission, graph-cycle or CAS admission.
-func guards() []string {
-	var out []string
-	for _, v := range []struct{ table, id, kind string }{{"card", "card_id", "card"}, {"comment", "comment_id", "comment"}, {"link", "link_id", "link"}, {"attachment", "attachment_id", "attachment"}, {"approval", "approval_id", "approval"}} {
-		out = append(out, fmt.Sprintf("CREATE TRIGGER %s_full_insert BEFORE INSERT ON %s BEGIN SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM entity WHERE incarnation=NEW.incarnation AND kind='%s' AND entity_id=NEW.%s AND removed_at IS NULL) THEN RAISE(ABORT,'full entity registry mismatch') END; END", v.table, v.table, v.kind, v.id))
-		out = append(out, fmt.Sprintf("CREATE TRIGGER %s_full_delete BEFORE DELETE ON %s BEGIN SELECT CASE WHEN EXISTS(SELECT 1 FROM entity WHERE incarnation=OLD.incarnation AND kind='%s' AND entity_id=OLD.%s AND removed_at IS NULL) THEN RAISE(ABORT,'full entity requires authorized tombstone first') END; END", v.table, v.table, v.kind, v.id))
-		if v.kind == "comment" || v.kind == "attachment" || v.kind == "approval" {
-			out = append(out, fmt.Sprintf("CREATE TRIGGER %s_immutable BEFORE UPDATE ON %s BEGIN SELECT RAISE(ABORT,'immutable entity'); END", v.table, v.table))
-		}
-	}
-	for _, table := range []string{"operation_reference", "byte_fact", "operation_full", "current_attachment_pin", "history_blob_pin", "operation_blob_pin", "revision_reference"} {
-		out = append(out, fmt.Sprintf("CREATE TRIGGER %s_no_update BEFORE UPDATE ON %s BEGIN SELECT RAISE(ABORT,'replace references through explicit delete and insert'); END", table, table))
-	}
-	for _, table := range []string{"current_attachment_pin", "history_blob_pin", "operation_blob_pin"} {
-		out = append(out, fmt.Sprintf("CREATE TRIGGER %s_quota AFTER INSERT ON %s BEGIN SELECT CASE WHEN (SELECT coalesce(sum(byte_length),0) FROM blob b WHERE EXISTS(SELECT 1 FROM current_attachment_pin p WHERE p.incarnation=b.incarnation AND p.sha256=b.sha256) OR EXISTS(SELECT 1 FROM history_blob_pin p WHERE p.incarnation=b.incarnation AND p.sha256=b.sha256) OR EXISTS(SELECT 1 FROM operation_blob_pin p WHERE p.incarnation=b.incarnation AND p.sha256=b.sha256))>67108864 THEN RAISE(ABORT,'protected byte quota exceeded') END; END", table, table))
-	}
+	out = append(out, guardsV5()...)
 	return out
 }
 
@@ -142,10 +127,18 @@ func Initialize(ctx context.Context, c *sql.Conn, id Identity) error {
 // Validate checks the exact layout as well as stored constraints. It never writes,
 // repairs, migrates, deletes unknown objects, or changes journal mode.
 func Validate(ctx context.Context, c *sql.Conn, id Identity) error {
+	return validateLayout(ctx, c, id, Version, Statements(), consistencyChecks, true)
+}
+
+// ValidateV5 is the immutable accepted V2 baseline validator; no startup path calls it.
+func ValidateV5(ctx context.Context, c *sql.Conn, id Identity) error {
+	return validateLayout(ctx, c, id, 5, StatementsV5(), consistencyChecksV5, false)
+}
+func validateLayout(ctx context.Context, c *sql.Conn, id Identity, version int, statements []string, checks []string, forest bool) error {
 	if !ValidUUID(id.BoardID) || !ValidUUID(id.Incarnation) {
 		return errors.New("invalid storage identity")
 	}
-	for name, want := range map[string]int{"application_id": ApplicationID, "user_version": Version} {
+	for name, want := range map[string]int{"application_id": ApplicationID, "user_version": version} {
 		var got int
 		if err := c.QueryRowContext(ctx, "PRAGMA "+name).Scan(&got); err != nil || got != want {
 			return fmt.Errorf("unsupported storage %s", name)
@@ -154,7 +147,7 @@ func Validate(ctx context.Context, c *sql.Conn, id Identity) error {
 	// SQLite preserves these DDL statements in sqlite_schema, removing only the
 	// terminating semicolon. Exact comparison refuses extra/missing/changed objects.
 	want := make(map[string]bool)
-	for _, s := range Statements() {
+	for _, s := range statements {
 		want[s] = true
 	}
 	rows, err := c.QueryContext(ctx, "SELECT sql FROM sqlite_schema WHERE sql IS NOT NULL AND name NOT GLOB 'sqlite_*'")
@@ -181,6 +174,10 @@ func Validate(ctx context.Context, c *sql.Conn, id Identity) error {
 	if len(want) != 0 {
 		return errors.New("incomplete storage layout")
 	}
+	var base int
+	if err := c.QueryRowContext(ctx, "SELECT schema_version FROM board WHERE singleton=1").Scan(&base); err != nil || base != BaseSchemaVersion {
+		return errors.New("storage base schema mismatch")
+	}
 	var b, i string
 	if err = c.QueryRowContext(ctx, "SELECT board_id,incarnation FROM board WHERE singleton=1").Scan(&b, &i); err != nil || b != id.BoardID || i != id.Incarnation {
 		return errors.New("storage identity mismatch")
@@ -206,7 +203,7 @@ func Validate(ctx context.Context, c *sql.Conn, id Identity) error {
 	if err = c.QueryRowContext(ctx, "SELECT count(*) FROM policy WHERE incarnation=? AND policy_version=1", i).Scan(&n); err != nil || n != 1 {
 		return errors.New("storage policy missing")
 	}
-	for _, q := range consistencyChecks {
+	for _, q := range checks {
 		var bad int
 		if err = c.QueryRowContext(ctx, q).Scan(&bad); err != nil || bad != 0 {
 			return errors.New("storage relational consistency check failed")
@@ -232,6 +229,9 @@ func Validate(ctx context.Context, c *sql.Conn, id Identity) error {
 	rows.Close()
 	if err != nil {
 		return errors.New("storage byte integrity check failed")
+	}
+	if forest {
+		return validateHierarchy(ctx, c, id)
 	}
 	return nil
 }

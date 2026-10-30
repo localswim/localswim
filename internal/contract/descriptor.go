@@ -12,7 +12,7 @@ import (
 
 // Type is the single validation/generation descriptor. A missing optional field
 // is permitted on wire. Legacy optional fields become null in frozen semantic
-// payloads; ownerId and archived preserve omission for legacy fingerprints.
+// payloads; ownerId, archived and parent preserve omission for legacy fingerprints.
 type Type struct {
 	Kind     string
 	Nullable bool
@@ -23,7 +23,8 @@ type Type struct {
 	Format   string
 	// ExclusiveField, when present, must be the only supplied object field.
 	// Canonical retained payloads use a separate normalized descriptor.
-	ExclusiveField string
+	ExclusiveField  string
+	ExclusiveFields []string
 }
 type Field struct {
 	Type     *Type
@@ -59,10 +60,10 @@ type CommandDescriptor struct {
 // Commands returns fresh descriptors so a consumer cannot alter validation.
 func Commands() []CommandDescriptor {
 	empty := obj(map[string]Field{})
-	edit := obj(map[string]Field{"title": opt(text("title")), "description": opt(text("prose")), "priority": opt(priority), "lane": opt(enum("In Progress")), "ownerId": opt(nullableUUID), "archived": opt(&Type{Kind: "boolean"})})
-	edit.ExclusiveField = "archived"
+	edit := obj(map[string]Field{"title": opt(text("title")), "description": opt(text("prose")), "priority": opt(priority), "lane": opt(enum("In Progress")), "parent": opt(&Type{Kind: "object", Nullable: true, Fields: map[string]Field{"boardId": req(uuid), "incarnation": req(uuid), "cardId": req(uuid)}}), "ownerId": opt(nullableUUID), "archived": opt(&Type{Kind: "boolean"})})
+	edit.ExclusiveFields = []string{"archived", "parent"}
 	commands := []CommandDescriptor{
-		{"card.create", "none", "POST", "/api/v1/boards/{boardId}/cards", obj(map[string]Field{"title": req(text("title")), "description": req(text("prose")), "priority": opt(priority), "ownerId": opt(nullableUUID)}), false},
+		{"card.create", "none", "POST", "/api/v1/boards/{boardId}/cards", obj(map[string]Field{"title": req(text("title")), "description": req(text("prose")), "priority": opt(priority), "parent": opt(&Type{Kind: "object", Nullable: true, Fields: map[string]Field{"boardId": req(uuid), "incarnation": req(uuid), "cardId": req(uuid)}}), "ownerId": opt(nullableUUID)}), false},
 		{"card.edit", "card", "PATCH", "/api/v1/boards/{boardId}/cards/{cardId}", edit, false},
 		{"comment.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/comments", obj(map[string]Field{"text": req(text("comment"))}), false},
 		{"attachment.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/attachments", obj(map[string]Field{"name": req(text("attachment-name")), "mediaLabel": req(text("media-label")), "byteLength": req(number(0, 10485760)), "sha256": req(digest)}), false},
@@ -83,6 +84,7 @@ func Commands() []CommandDescriptor {
 
 func cloneType(t *Type) *Type {
 	c := *t
+	c.ExclusiveFields = append([]string(nil), t.ExclusiveFields...)
 	c.Enum = append([]string(nil), t.Enum...)
 	if t.Element != nil {
 		c.Element = cloneType(t.Element)
@@ -114,8 +116,11 @@ func (t *Type) validate(v any, path string) error {
 		if !ok {
 			return fmt.Errorf("%s: expected object", path)
 		}
-		if t.ExclusiveField != "" {
-			if _, present := m[t.ExclusiveField]; present && len(m) != 1 {
+		for _, field := range append(append([]string{}, t.ExclusiveFields...), t.ExclusiveField) {
+			if field == "" {
+				continue
+			}
+			if _, present := m[field]; present && len(m) != 1 {
 				return fmt.Errorf("%s: exclusive field", path)
 			}
 		}

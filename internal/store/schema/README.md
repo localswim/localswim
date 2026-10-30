@@ -1,8 +1,19 @@
-# Version-five physical relational layout
+# Version-six physical relational layout
 
-`Version`, `PRAGMA user_version` and `board.schema_version` are 5. Existing
-physical layouts 1, 2, 3 and 4 are refused without writes, migration or adoption. This is an
-unreleased storage change; API, logical archive and fingerprint versions stay 1.
+Version and PRAGMA user_version are6; retained board.schema_version stays5
+as the immutable base-schema discriminator, including fresh physical6 stores.
+Validation checks both intended values and exact schema, not a header alone.
+
+Layout6 adds card_parent and its parent index without rebuilding base tables or
+rewriting old rows. Roots have no edge; unique child/same-incarnation full-card
+foreign keys/self refusal protect adjacency. Go admission and full validation
+enforce acyclicity,64-edge/1,000-card family bounds (not total board-card limits).
+
+Ordinary open never migrates. Explicit offline exact5->6 upgrade under existing-only
+native exclusion and one validated transaction preserves old rows/canonical bytes.
+Unknown layouts, corruption and dirty sidecars refuse without repair. API/archive/
+fingerprint versions stay1 with optional parent fields. See
+[the hierarchy guide](../../../docs/runbooks/m04-hierarchy.txt).
 
 The schema identifies a board and one storage incarnation. Every relation carries
 that storage incarnation, including restored historical rows. `origin_board` and

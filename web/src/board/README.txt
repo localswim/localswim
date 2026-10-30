@@ -74,6 +74,33 @@ tests using production IndexedDB and the concrete prepared verifier. A synthetic
 qualification assertion is test-only. API-fixture cross-direction changes do not
 claim the later real browser/CLI/backend acceptance journey or product qualification.
 
+Hierarchy in nonmodal details uses a captured complete validated BoardRead, never
+search summaries or a focused card response. Parent navigation and Children show
+exact identities, archive labels and direct/descendant counts. Descendants use
+ticket/UUID sibling order in depth-first preorder, 20 local rows per page, exact
+range/total/page/end, with First children page, Previous children and Next children.
+A background board revision marks the captured hierarchy stale and keeps its
+pages. Read current hierarchy deliberately reads a complete board, resets page 1
+and preserves unrelated input/focus. Identity/generation fences discard late reads.
+
+Create child, Set parent and Clear parent reuse the same editor, private drafts,
+immutable originals and dispatch guards. Set parent chooses an exact full card
+from the complete board, including archived/Completed targets; selecting an option
+does not save. Clear parent retains explicit null. Current parent refs use the
+board identity, independently of the target's CreatedIn provenance. Parent edits
+are exclusive input and Completed children remain read-only. No hierarchy action
+settles/replays a pending original. Historical parents show exact snapshot-time
+identity as unresolved/unavailable; a standalone history read cannot resolve them.
+After a validated hierarchy commit receipt, a still-matching selected child is
+read authoritatively at or above the receipt's board/card revisions and its exact
+current parent is announced. Create child follows the new receipt card identity
+only while that submitting view/editor and source-parent selection still match.
+Selection/request/view-generation changes, close, suspend or reload prevent late
+follow-up navigation. These reads neither take focus nor replace editor/private
+originals, rebase input, replay operations or update the captured complete graph.
+hierarchy.test.ts exports focused boundary, navigation, editor, history and
+recovery supplements; these synthetic checks do not claim product qualification.
+
 Assignee uses actual board.result.actors IDs, with a plain Unassigned option.
 Cards and current-text comparisons display the assignment. Create/edit capture
 UUID or null in the same immutable draft and request as title/priority; refresh

@@ -1,5 +1,7 @@
 package schema
 
+// Frozen accepted V2 layout-five DDL. Keep exact; later physical extensions
+// append their own objects instead of changing this base.
 // Registry rows preserve typed entity existence after authorized compaction.
 // A tombstone is never made merely to satisfy an attempted refused reference.
 const ddl = `CREATE TABLE board (

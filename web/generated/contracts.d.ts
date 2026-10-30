@@ -8,6 +8,11 @@ export type RequestCardCreate = {
   readonly input: {
   readonly description: string;
   readonly ownerId?: (string | null);
+  readonly parent?: ({
+  readonly boardId: string;
+  readonly cardId: string;
+  readonly incarnation: string;
+} | null);
   readonly priority?: "P0" | "P1" | "P2" | "P3" | "P4" | "P5";
   readonly title: string;
 };
@@ -28,6 +33,11 @@ export type RequestCardEdit = {
   readonly description?: string;
   readonly lane?: "In Progress";
   readonly ownerId?: (string | null);
+  readonly parent?: ({
+  readonly boardId: string;
+  readonly cardId: string;
+  readonly incarnation: string;
+} | null);
   readonly priority?: "P0" | "P1" | "P2" | "P3" | "P4" | "P5";
   readonly title?: string;
 };

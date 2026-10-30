@@ -1,0 +1,101 @@
+M04 HIERARCHY USE AND STORAGE COMPATIBILITY
+2026-10-30 | Synthetic candidate, no general release or real-data adoption
+
+Select one board
+Use the existing workspace startup guide and explicit browser member chooser.
+The actual CLI selects --workspace W --project harbor --board dispatch, or
+--data DIR. Use canonical card UUIDs, never display-ticket/title matches.
+Owner assignment and a parent confer no actor rights or approval.
+
+Create, set, reparent, clear
+Open nonmodal card details and its Parent and Children section. Create child
+opens the ordinary create editor bound to that exact parent. Set parent starts
+unselected: deliberately choose a current card and Save. Clear parent is an
+explicit clear intent requiring Save. Read the current board and hierarchy
+before starting from stale facts. Dirty keep/discard and private-recovery
+warnings remain meaningful; navigation never silently commits or replays.
+After confirmed hierarchy changes, set/clear retain the selected child and
+create-child follows the exact returned child. An authoritative current read
+announces its parent, guarded by identity/generation and receipt revision floors.
+This does not rebase private editor input or invent a complete current graph.
+Later invalidation/refresh clears old announcements rather than mixing revisions.
+
+FILE contains a fresh full typed request envelope: opId, incarnation, target,
+expectedRevision, expectedCardRevision and input. Ordinary create fields may
+include parent:{boardId,incarnation,cardId}; omission/null creates a root.
+Parent edit is exclusive. Omission retains behavior, null deliberately clears,
+and exact CardRef sets/reparents. Legacy omission and explicit null are distinct.
+  localswim --workspace W --project harbor --board dispatch card create --input FILE
+  localswim --workspace W --project harbor --board dispatch card set-parent CARD-UUID --input FILE
+  localswim --workspace W --project harbor --board dispatch card clear-parent CARD-UUID --input FILE
+No read-and-retry convenience, inferred revision, new automatic opId or owner-
+derived authority is provided. Conflicts retain input for deliberate reread.
+
+Only the changed child advances content revision/history and invalidates its
+current approval. Derived membership does not rewrite parent/ancestor content.
+A Completed child refuses even an equal-state edit. Archived unfinished
+children remain editable; archived/Completed parent targets are allowed without
+transferring their state/priority/owner/approval. Existing blocking/informational
+link admission and start gating remain independent.
+
+Complete bounded children
+Use complete validated BoardRead, never a search-summary page. Root depth0,
+maximum64 edges and1,000 current cards per connected family include archived/
+Completed cards; many independent roots may exceed1,000 total board cards.
+The writer refuses self/cycle/missing/foreign/over-bound graphs atomically,
+without partial clear/set or ticket consumption from a refused create.
+
+Descendants use depth-first pre-order, siblings numeric ticket then UUID.
+Local20-row pages display exact range/total/end. Archived relatives are labeled
+in hierarchy; default lane/search exclusion remains unchanged. Parent/child
+controls open exact identities. Newer board/focused facts mark an older captured
+hierarchy stale; deliberate Read current hierarchy resets page1. Do not splice
+revisions/members or discard private editors/UNKNOWN originals.
+  localswim --workspace W --project harbor --board dispatch card children CARD-UUID --page 2
+  localswim --workspace W --project harbor --board dispatch --json card children CARD-UUID
+Each readable invocation fetches a fresh complete snapshot. JSON includes all
+descendants with complete:true/exact counts and rejects --page. Existing full
+BoardRead network/memory cost is not bounded by local20-row presentation.
+
+Explicit offline compatibility
+Normal startup requires physical6 and never upgrades. board.schema_version
+stays5 as immutable base-schema marker, distinct from PRAGMA user_version6.
+API/archive remain1 with optional parent fields. Older strict decoders may
+refuse hierarchy-bearing fields, never silently strip them.
+
+For a synthetic accepted physical5 store, cleanly stop its owned host first.
+Use exact expected identity with the existing-only native commands:
+  localswim --data DIR --json storage inspect --board-id BOARD-UUID --incarnation INC-UUID
+  localswim --data DIR --json storage upgrade --from-version 5 --to-version 6 --board-id BOARD-UUID --incarnation INC-UUID
+Inspect validates known exact5/6 read-only and reports physical/base versions.
+Upgrade refuses held leases, unknown inventory, dirty journals, wrong identity,
+corruption and unsupported layouts. One BEGIN IMMEDIATE adds empty hierarchy
+storage, updates physical version last, validates and commits. Old cards stay
+roots; old rows/counters/operations/fingerprints/bytes are conserved. Already
+valid6 yields NO_CHANGE without rewrite. No workspace/browser/HTTP route or
+real-data adoption authorization is implied.
+
+Before-COMMIT failure rolls back. Post-COMMIT cleanup/inspection/delivery failure
+remains UNKNOWN/exit4; inspect deliberately before deciding. It has no fabricated
+card opId and must not become definite refusal or automatic retry. Close errors
+cannot erase knowledge that a commit was attempted. Fault injection is not
+physical power-loss certification.
+
+History and restore
+Current parents use Board.Identity, not target CreatedIn. Restore rebases only
+current local refs. Historical parents follow Snapshot.Origin. Capturing a
+restored prior revision preserves its prior operation origin/actor/time and maps
+that prior state's parent back to that scope, never relabels the old revision.
+Standalone history validates shape/scope, displays unresolved exact identity
+and does not invent target availability; server/archive own registry checks.
+
+Preserve full cards/comments/history/links/approvals, canonical original bytes/
+fingerprints/source groups and attachment bytes through restore. Old-source
+outcomes cannot settle new-incarnation UNKNOWN originals. Upgrade, reads,
+refresh and restart never resubmit pending originals.
+
+Expanded typed links/atomic relationship batches remain later work. Feature
+proof/fresh review precede handoff; joined/full qualification and extracted
+kit/demo are separately gated, with exact candidate/source/input bindings and
+justified unchanged reuse. No whole-product accessibility, installed OS IME,
+power-loss, V1 adoption or general-release assurance follows from this guide.

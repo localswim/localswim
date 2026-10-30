@@ -1,6 +1,7 @@
 import type { CardRead, HistoryRead } from "../../generated/transport/contracts.js";
 import type { Coverage, Identity } from "../../generated/archive/contracts.js";
 import { invalid } from "./boundary.js";
+import { validParentRef } from "./hierarchy.js";
 
 type EntityKind = "card" | "comment" | "link" | "attachment" | "approval";
 const kinds: readonly EntityKind[] = ["card", "comment", "link", "attachment", "approval"];
@@ -85,6 +86,12 @@ export function validateHistoryRead(history: HistoryRead): void {
     if (row.cardId !== view.cardId || row.cardRevision >= view.cardRevision || (row.state === null) === (row.removal === null)) invalid();
     actor(row.actorId);
     if (row.state?.ownerId != null) actor(row.state.ownerId);
+    // The standalone history projection has no source-card registry. Validate
+    // exact snapshot-time scope, without claiming current target availability.
+    if (row.state && Object.hasOwn(row.state, "parent")) {
+      const parent = (row.state as { parent?: unknown }).parent;
+      if (!validParentRef(parent, row.origin) || parent.cardId === row.cardId) invalid();
+    }
     const refs = row.references;
     for (const [kind, ids] of [["comment", refs.commentIds], ["link", refs.linkIds],
       ["attachment", refs.attachmentIds], ["approval", refs.approvalIds]] as const) {
@@ -124,6 +131,10 @@ function validateCoverage(coverage: Coverage, boardId: string): void {
 export function validateCardRead(card: CardRead): void {
   const view = card.result, current = view.card, boardId = view.identity.boardId;
   if (view.revision === 0 || current.createdIn.boardId !== boardId) invalid();
+  if (Object.hasOwn(current, "parent")) {
+    const parent = (current as { parent?: unknown }).parent;
+    if (!validParentRef(parent, view.identity) || parent.cardId === current.cardId) invalid();
+  }
   const actors = new Map<string, string>(), neededActors = new Set<string>();
   const actor = (id: string): void => {
     if (!actors.has(id)) invalid();

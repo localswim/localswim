@@ -73,15 +73,18 @@ func project(r writer.Read, q route) (any, error) {
 	if e != nil {
 		return nil, e
 	}
-	e = rows(r, `SELECT c.card_id,t.ticket,c.revision,c.title,c.description,c.priority,c.lane,c.archived,c.current_approval_id,c.owner_id,e.origin_board,e.origin_incarnation FROM card c JOIN ticket t USING(incarnation,card_id) JOIN entity e ON e.incarnation=c.incarnation AND e.kind='card' AND e.entity_id=c.card_id WHERE c.incarnation=? ORDER BY t.ticket,c.card_id`, []any{inc}, func(rs *sql.Rows) error {
+	e = rows(r, `SELECT c.card_id,t.ticket,c.revision,c.title,c.description,c.priority,c.lane,c.archived,c.current_approval_id,c.owner_id,e.origin_board,e.origin_incarnation,p.parent_id FROM card c JOIN ticket t USING(incarnation,card_id) JOIN entity e ON e.incarnation=c.incarnation AND e.kind='card' AND e.entity_id=c.card_id LEFT JOIN card_parent p ON p.incarnation=c.incarnation AND p.child_id=c.card_id WHERE c.incarnation=? ORDER BY t.ticket,c.card_id`, []any{inc}, func(rs *sql.Rows) error {
 		var c A.Card
-		var approval, owner sql.NullString
+		var approval, owner, parent sql.NullString
 		var archived int
-		e := rs.Scan(&c.CardID, &c.Ticket, &c.Revision, &c.Title, &c.Description, &c.Priority, &c.Lane, &archived, &approval, &owner, &c.CreatedIn.BoardID, &c.CreatedIn.Incarnation)
+		e := rs.Scan(&c.CardID, &c.Ticket, &c.Revision, &c.Title, &c.Description, &c.Priority, &c.Lane, &archived, &approval, &owner, &c.CreatedIn.BoardID, &c.CreatedIn.Incarnation, &parent)
 		if q.card != "" && string(c.CardID) != q.card {
 			return e
 		}
 		c.Archived = archived != 0
+		if parent.Valid {
+			c.Parent = &A.CardRef{BoardID: p.board.Identity.BoardID, Incarnation: p.board.Identity.Incarnation, CardID: A.UUID(parent.String)}
+		}
 		c.CurrentApprovalID = uuidPtr(approval)
 		c.OwnerID = uuidPtr(owner)
 		if q.kind != "history" && c.OwnerID != nil {
@@ -180,6 +183,15 @@ func (p *projection) history(r writer.Read, inc, card string) error {
 				return e
 			}
 			s.State = &v
+			if v.Parent != nil {
+				if e = A.ValidateHistoricalParent(s); e != nil {
+					return e
+				}
+				var known int
+				if e = r.Scan(`SELECT count(*) FROM entity e JOIN ticket t ON t.incarnation=e.incarnation AND t.card_id=e.entity_id WHERE e.incarnation=? AND e.kind='card' AND e.entity_id=? AND e.origin_board=?`, []any{inc, string(v.Parent.CardID), string(v.Parent.BoardID)}, &known); e != nil || known != 1 {
+					return ErrUnavailable
+				}
+			}
 			if v.OwnerID != nil {
 				p.actors[*v.OwnerID] = true
 			}

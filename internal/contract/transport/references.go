@@ -9,6 +9,9 @@ import (
 // that same identity here; a CardView has no complete target-card collection.
 // Inherited and foreign identities remain external references to that view.
 func boardLinkTargets(identity A.Identity, cards []A.Card, links []A.Link) error {
+	if e := A.ValidateForest(identity, cards); e != nil {
+		return e
+	}
 	ids := make(map[A.UUID]bool, len(cards))
 	for _, card := range cards {
 		ids[card.CardID] = true
@@ -48,6 +51,9 @@ func current(identity A.Identity, cards []A.Card, actors []A.Actor, comments []A
 	required := map[key]A.UUID{}
 	found := map[key]bool{}
 	for _, c := range cards {
+		if c.Parent != nil && (c.Parent.BoardID != identity.BoardID || c.Parent.Incarnation != identity.Incarnation || c.Parent.CardID == c.CardID) {
+			return fmt.Errorf("current parent scope")
+		}
 		if c.OwnerID != nil {
 			if _, ok := actorIDs[*c.OwnerID]; !ok {
 				return fmt.Errorf("card assignee missing")

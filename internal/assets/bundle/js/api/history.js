@@ -1,4 +1,5 @@
 import { invalid } from "./boundary.js";
+import { validParentRef } from "./hierarchy.js";
 const kinds = ["card", "comment", "link", "attachment", "approval"];
 const originKey = (origin) => origin.boardId + "/" + origin.incarnation;
 const numberKey = (n) => String(n).padStart(16, "0");
@@ -101,6 +102,13 @@ export function validateHistoryRead(history) {
         actor(row.actorId);
         if (row.state?.ownerId != null)
             actor(row.state.ownerId);
+        // The standalone history projection has no source-card registry. Validate
+        // exact snapshot-time scope, without claiming current target availability.
+        if (row.state && Object.hasOwn(row.state, "parent")) {
+            const parent = row.state.parent;
+            if (!validParentRef(parent, row.origin) || parent.cardId === row.cardId)
+                invalid();
+        }
         const refs = row.references;
         for (const [kind, ids] of [["comment", refs.commentIds], ["link", refs.linkIds],
             ["attachment", refs.attachmentIds], ["approval", refs.approvalIds]]) {
@@ -147,6 +155,11 @@ export function validateCardRead(card) {
     const view = card.result, current = view.card, boardId = view.identity.boardId;
     if (view.revision === 0 || current.createdIn.boardId !== boardId)
         invalid();
+    if (Object.hasOwn(current, "parent")) {
+        const parent = current.parent;
+        if (!validParentRef(parent, view.identity) || parent.cardId === current.cardId)
+            invalid();
+    }
     const actors = new Map(), neededActors = new Set();
     const actor = (id) => {
         if (!actors.has(id))

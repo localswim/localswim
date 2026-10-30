@@ -216,7 +216,10 @@ records the G01/S04/G02 boundaries. The
 [credential composition](docs/decisions/credential-service-composition-2026-10-26.txt)
 records G02's historical service and its native lease ownership. HTTP/browser delivery,
 terminal confirmation/private files and integrated qualification remain separate
-consumer work for that legacy path. Current physical layout5 adds nullable card
-assignment while retaining accepted Unicode and outcome/gap representation.
-Older layouts, including4, are refused without migration. Logical API/archive
-versions remain1 with optional ownerId compatibility.
+consumer work for that legacy path. Current physical layout6 adds hierarchy to the
+layout5 assignment/Unicode/outcome base; the board's base-schema marker stays5.
+Normal startup refuses older layouts. Explicit offline exact5-to-6 upgrade
+preserves existing rows and never runs automatically. API/archive versions stay1
+with optional ownerId and parent compatibility. See
+[hierarchy use and storage compatibility](docs/runbooks/m04-hierarchy.txt);
+general-release qualification is not implied.

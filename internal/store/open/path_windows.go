@@ -31,14 +31,18 @@ func (g *pathGuard) close() error {
 }
 
 func acquirePath(dir string, create bool) (*pathGuard, error) {
-	return acquirePathMode(dir, create, false)
+	return acquirePathMode(dir, create, false, false)
 }
 
 func acquireInspectionPath(dir string) (*pathGuard, error) {
-	return acquirePathMode(dir, false, true)
+	return acquirePathMode(dir, false, true, false)
 }
 
-func acquirePathMode(dir string, create, inspect bool) (*pathGuard, error) {
+func acquireUpgradePath(dir string) (*pathGuard, error) {
+	return acquirePathMode(dir, false, false, true)
+}
+
+func acquirePathMode(dir string, create, inspect, upgrade bool) (*pathGuard, error) {
 	if !safePath(dir) {
 		return nil, errors.New("unsupported storage path")
 	}
@@ -107,6 +111,10 @@ func acquirePathMode(dir string, create, inspect bool) (*pathGuard, error) {
 	}
 	lockAccess, lockDisposition := uint32(windows.GENERIC_READ|windows.GENERIC_WRITE|windows.READ_CONTROL), uint32(windows.OPEN_ALWAYS)
 	dbAccess := uint32(windows.GENERIC_READ | windows.GENERIC_WRITE | windows.READ_CONTROL)
+	if upgrade {
+		lockDisposition = windows.OPEN_EXISTING
+		sa = nil
+	}
 	if inspect {
 		// Existing-only inspection never creates an exclusion file. Real data
 		// access (not attribute-only access) makes omitted delete sharing bind.

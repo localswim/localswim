@@ -4,6 +4,7 @@ package core
 import (
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -13,6 +14,7 @@ import (
 
 type Selectors struct{ InstallationID, BoardID, Incarnation, GrantID string }
 type invocation struct {
+	page                                          int
 	selected                                      Selectors
 	json, native, lookup                          bool
 	kind, id, input, file, method, path           string
@@ -35,6 +37,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	}
 	p, err := ParsePrefix(args)
 	q.selected, q.json = p.Selected, p.JSON
+	q.page = 1
 	if err != nil {
 		code, exit := failure(err)
 		return q, code, exit
@@ -54,11 +57,11 @@ func parse(args []string) (q invocation, code string, exit int) {
 		q.archive = "active"
 	case "board read":
 		q.method = "GET"
-	case "card read", "card history", "operation read":
+	case "card read", "card history", "card children", "operation read":
 		q.method = "GET"
 	case "card create":
 		q.command = "card.create"
-	case "card edit", "card archive", "card unarchive":
+	case "card edit", "card archive", "card unarchive", "card set-parent", "card clear-parent":
 		q.command = "card.edit"
 	case "comment add":
 		q.command = "comment.add"
@@ -94,7 +97,13 @@ func parse(args []string) (q invocation, code string, exit int) {
 		if i >= len(args) {
 			return q, "INVOCATION_OR_IO", 1
 		}
-		if k == "--archive" && (q.kind == "card list" || q.kind == "card search") {
+		if k == "--page" && q.kind == "card children" {
+			n, e := strconv.Atoi(args[i])
+			if e != nil || n < 1 || strconv.Itoa(n) != args[i] || q.json {
+				return q, "INVOCATION_OR_IO", 1
+			}
+			q.page = n
+		} else if k == "--archive" && (q.kind == "card list" || q.kind == "card search") {
 			if args[i] != "active" && args[i] != "archived" && args[i] != "all" {
 				return q, "INVOCATION_OR_IO", 1
 			}

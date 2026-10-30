@@ -122,6 +122,13 @@ func prepare(ctx context.Context, source *V.Package, created A.Timestamp, incarn
 	h.Identity = destination
 	a.Identity = destination
 	o.Identity = destination
+	for i := range b.Cards {
+		if p := b.Cards[i].Parent; p != nil {
+			if p.BoardID == m.Source.BoardID && p.Incarnation == m.Source.Incarnation {
+				p.Incarnation = incarnation
+			}
+		}
+	}
 	for i := range b.Links {
 		t := &b.Links[i].Target
 		if t.BoardID == m.Source.BoardID && t.Incarnation == m.Source.Incarnation {

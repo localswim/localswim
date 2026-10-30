@@ -13,3 +13,7 @@ func acquirePath(string, bool) (*pathGuard, error) {
 func acquireInspectionPath(string) (*pathGuard, error) {
 	return nil, errors.New("storage platform unqualified")
 }
+
+func acquireUpgradePath(string) (*pathGuard, error) {
+	return nil, errors.New("storage platform unqualified")
+}

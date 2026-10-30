@@ -415,6 +415,16 @@
             }
           ]
         },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "priority": {
           "enum": [
             "P0",
@@ -1503,6 +1513,45 @@
                 }
               ]
             },
+            "parent": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "boardId": {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    "cardId": {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    "incarnation": {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "boardId",
+                    "cardId",
+                    "incarnation"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "priority": {
               "anyOf": [
                 {
@@ -1530,6 +1579,7 @@
           },
           "required": [
             "description",
+            "parent",
             "priority",
             "title"
           ],
@@ -1649,6 +1699,45 @@
                 }
               ]
             },
+            "parent": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "boardId": {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    "cardId": {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    "incarnation": {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "boardId",
+                    "cardId",
+                    "incarnation"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "priority": {
               "anyOf": [
                 {
@@ -1684,6 +1773,7 @@
           "required": [
             "description",
             "lane",
+            "parent",
             "priority",
             "title"
           ],
@@ -3624,6 +3714,16 @@
               },
               "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
               "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardRef"
             },
             {
               "type": "null"

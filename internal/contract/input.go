@@ -23,19 +23,41 @@ func (o *OwnerInput) UnmarshalJSON(b []byte) error {
 func (o OwnerInput) IsZero() bool                 { return !o.Present }
 func (o OwnerInput) MarshalJSON() ([]byte, error) { return json.Marshal(o.Value) }
 
+// CardRef is an exact current or historical card identity, never a ticket.
+type CardRef struct {
+	BoardID     string `json:"boardId"`
+	Incarnation string `json:"incarnation"`
+	CardID      string `json:"cardId"`
+}
+
+// ParentInput preserves omission versus the deliberate root value null.
+type ParentInput struct {
+	Present bool
+	Value   *CardRef
+}
+
+func (p *ParentInput) UnmarshalJSON(b []byte) error {
+	p.Present = true
+	return json.Unmarshal(b, &p.Value)
+}
+func (p ParentInput) IsZero() bool                 { return !p.Present }
+func (p ParentInput) MarshalJSON() ([]byte, error) { return json.Marshal(p.Value) }
+
 type CreateInput struct {
-	OwnerID     OwnerInput `json:"ownerId,omitzero"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Priority    *string    `json:"priority"`
+	Parent      ParentInput `json:"parent,omitzero"`
+	OwnerID     OwnerInput  `json:"ownerId,omitzero"`
+	Title       string      `json:"title"`
+	Description string      `json:"description"`
+	Priority    *string     `json:"priority"`
 }
 type EditInput struct {
-	OwnerID     OwnerInput `json:"ownerId,omitzero"`
-	Archived    *bool      `json:"archived,omitempty"`
-	Title       *string    `json:"title"`
-	Description *string    `json:"description"`
-	Priority    *string    `json:"priority"`
-	Lane        *string    `json:"lane"`
+	Parent      ParentInput `json:"parent,omitzero"`
+	OwnerID     OwnerInput  `json:"ownerId,omitzero"`
+	Archived    *bool       `json:"archived,omitempty"`
+	Title       *string     `json:"title"`
+	Description *string     `json:"description"`
+	Priority    *string     `json:"priority"`
+	Lane        *string     `json:"lane"`
 }
 type CommentInput struct {
 	Text string `json:"text"`

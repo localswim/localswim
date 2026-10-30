@@ -135,6 +135,9 @@ func semantics(v reflect.Value) error {
 			return fmt.Errorf("tombstone attribution")
 		}
 	case Snapshot:
+		if err := ValidateHistoricalParent(x); err != nil {
+			return err
+		}
 		if (x.State == nil) == (x.Removal == nil) {
 			return fmt.Errorf("snapshot availability")
 		}
@@ -496,7 +499,7 @@ func operation(o Operation) error {
 	} else {
 		input := map[string]any{}
 		for k, v := range payload {
-			if f, ok := desc.Input.Fields[k]; ok && f.Optional && v == nil && k != "ownerId" && k != "archived" {
+			if f, ok := desc.Input.Fields[k]; ok && f.Optional && v == nil && k != "ownerId" && k != "archived" && k != "parent" {
 				continue
 			}
 			input[k] = v

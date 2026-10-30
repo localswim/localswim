@@ -88,6 +88,9 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 		out = r.execute(ctx, q, stdin, stderr)
 	}
 	b, e := T.Readable(out.value)
+	if h, ok := out.value.(HierarchyRead); ok {
+		b, e = A.Readable(h)
+	}
 	if e != nil {
 		out = refused("UNAVAILABLE", out.exit, nil)
 		if out.exit == 0 {
@@ -109,6 +112,13 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 		}
 		if _, e = fmt.Fprintf(stdout, "%s board %s\n", label, board); e != nil {
 			return outputFailure(out.exit, q)
+		}
+		if h, ok := out.value.(HierarchyRead); out.exit == 0 && ok {
+			text := readableHierarchy(h, q.page)
+			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
+				return outputFailure(out.exit, q)
+			}
+			return out.exit
 		}
 		if text, ok := focusedRead(out.value); out.exit == 0 && ok {
 			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
@@ -186,6 +196,9 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 		if (q.kind == "card archive" || q.kind == "card unarchive") && !archiveAlias(wire, q.kind == "card archive") {
 			return refused("INVALID_INPUT", 2, nil)
 		}
+		if (q.kind == "card set-parent" || q.kind == "card clear-parent") && !parentAlias(wire, q.kind == "card clear-parent") {
+			return refused("INVALID_INPUT", 2, nil)
+		}
 		if _, e = contract.DecodeJSON(wire); e != nil {
 			return refused("INVALID_INPUT", 2, nil)
 		}
@@ -242,13 +255,23 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 		}
 		v = x
 		identity = x.Result.Identity
-	case "board read":
+	case "board read", "card children":
 		x, err := T.Decode[T.BoardRead](b)
 		if err != nil {
 			return refused("UNAVAILABLE", 3, nil)
 		}
 		v = x
 		identity = x.Result.Identity
+		if q.kind == "card children" {
+			h, err := hierarchyRead(x, q.id)
+			if err != nil {
+				return refused("NOT_FOUND", 2, nil)
+			}
+			if q.page > 1 && q.page > (len(h.Result.Nodes)+19)/20 {
+				return refused("INVOCATION_OR_IO", 1, nil)
+			}
+			v = h
+		}
 	case "card read":
 		x, err := T.Decode[T.CardRead](b)
 		if err != nil || string(x.Result.Card.CardID) != q.id {
@@ -351,4 +374,21 @@ func searchEcho[S ~string](got *S, want string) bool {
 		return want == ""
 	}
 	return want != "" && string(*got) == want
+}
+
+func parentAlias(wire []byte, clear bool) bool {
+	v, err := contract.DecodeJSON(wire)
+	if err != nil {
+		return false
+	}
+	m, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	input, ok := m["input"].(map[string]any)
+	if !ok || len(input) != 1 {
+		return false
+	}
+	p, ok := input["parent"]
+	return ok && ((p == nil) == clear)
 }

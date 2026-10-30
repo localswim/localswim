@@ -29,7 +29,8 @@ type envelope struct {
 	Payload                       struct {
 		Title, Description, Priority, Lane, Text *string
 		Archived                                 *bool
-		OwnerID                                  contract.OwnerInput `json:"ownerId"`
+		Parent                                   contract.ParentInput `json:"parent"`
+		OwnerID                                  contract.OwnerInput  `json:"ownerId"`
 	}
 }
 
@@ -95,6 +96,11 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 			return nil, err
 		}
 		if e.Command == "card.create" {
+			if e.Payload.Parent.Present {
+				if err := validateParent(r, e, ""); err != nil {
+					return deny("INVALID_INPUT"), nil
+				}
+			}
 			if event >= contract.MaxInteger || ticket >= contract.MaxInteger {
 				return deny("COUNTER_OVERFLOW"), nil
 			}
@@ -113,7 +119,13 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 			if err != nil {
 				return nil, err
 			}
-			changed := e.Payload.Archived != nil && *e.Payload.Archived != current.Archived
+			changed := e.Payload.Parent.Present && !sameParent(e.Payload.Parent.Value, current.Parent)
+			if e.Payload.Parent.Present && changed {
+				if err := validateParent(r, e, route.CardID); err != nil {
+					return deny("INVALID_INPUT"), nil
+				}
+			}
+			changed = changed || e.Payload.Archived != nil && *e.Payload.Archived != current.Archived
 			changed = changed || e.Payload.OwnerID.Present && !sameOwner(e.Payload.OwnerID.Value, current.OwnerID)
 			for _, f := range []struct {
 				supplied *string
@@ -224,6 +236,16 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 							return writer.Effect{}, err
 						}
 					}
+				}
+			}
+		}
+		if e.Payload.Parent.Present && (e.Command == "card.create" || e.Command == "card.edit") {
+			if err = exec("DELETE FROM card_parent WHERE incarnation=? AND child_id=?", e.Incarnation, id); err != nil {
+				return writer.Effect{}, err
+			}
+			if e.Payload.Parent.Value != nil {
+				if err = exec("INSERT INTO card_parent(incarnation,child_id,parent_id) VALUES(?,?,?)", e.Incarnation, id, e.Payload.Parent.Value.CardID); err != nil {
+					return writer.Effect{}, err
 				}
 			}
 		}

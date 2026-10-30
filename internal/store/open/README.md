@@ -1,6 +1,6 @@
 # Storage ownership boundary
 
-This package is the version-four physical schema/open boundary. It uses the Q02 qualified
+This package is the version-six physical schema/open boundary. It uses the Q02 qualified
 `database/sql` binding on native Windows/amd64 and a fixed local NTFS drive.
 It does not implement domain admission, permissions, outcome reconciliation,
 history clearing, restore, HTTP or CLI behavior.
@@ -29,10 +29,13 @@ garbage collection or database mutation. Inspection establishes neither online
 authorization nor a complete logical/native archive-inventory proof; its caller
 must retain wider offline ownership and perform that proof inside the callback.
 
-The unreleased physical layout is 4 in the schema inventory, board metadata and
-SQLite user version. Layouts 1, 2 and 3 are refused without modifying database bytes;
-there is no migration. API, logical archive and fingerprint versions remain 1. The
-layout preserves explicit inherited outcome groups independently of operations or
+Physical layout6 is distinct from the immutable base-schema marker5. Existing
+never migrates/repairs. Explicit offline exact5->6 upgrade requires existing-only
+native path/identity/exclusion and one validated transaction. Read-only inspect
+reports physical/base versions separately. Unknown/corrupt/dirty-sidecar sources
+refuse unchanged; post-commit cleanup/inspection/delivery uncertainty remains
+UNKNOWN, never definite refusal. API/archive/fingerprint versions stay1 with
+optional parent fields. The layout preserves inherited outcome groups and
 lineage and enforces null-safe uniqueness of complete recovery-gap tuples. Private
 CLI credential hash/public metadata survives close/reopen in this layout. G02
 owns issuance, replacement, self-revocation and authentication; metadata storage

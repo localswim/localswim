@@ -286,6 +286,45 @@
                 }
               ]
             },
+            "parent": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "boardId": {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    "cardId": {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    "incarnation": {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "boardId",
+                    "cardId",
+                    "incarnation"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "priority": {
               "enum": [
                 "P0",
@@ -368,6 +407,54 @@
             {
               "additionalProperties": false,
               "properties": {
+                "parent": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "boardId": {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        "cardId": {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        "incarnation": {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "boardId",
+                        "cardId",
+                        "incarnation"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "parent"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
                 "description": {
                   "type": "string",
                   "x-max-utf8-bytes": 65536
@@ -436,6 +523,45 @@
                   },
                   "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
                   "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "boardId": {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    "cardId": {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    "incarnation": {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "boardId",
+                    "cardId",
+                    "incarnation"
+                  ],
+                  "type": "object"
                 },
                 {
                   "type": "null"

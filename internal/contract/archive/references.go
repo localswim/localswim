@@ -266,6 +266,9 @@ func rowsBoard(rows Rows, boardID UUID) error {
 // returns the distinct protected byte facts. Callers still must qualify member
 // parsing, actual bytes/hash IO, safe ZIP/native publication and persistence.
 func ValidateDocuments(m Manifest, b Board, h History, a Activity, o Outcomes) ([]ByteFact, error) {
+	if err := ValidateForest(b.Identity, b.Cards); err != nil {
+		return nil, err
+	}
 	for _, v := range []any{m, b, h, a, o} {
 		if e := Validate(v); e != nil {
 			return nil, e
@@ -328,6 +331,11 @@ func ValidateDocuments(m Manifest, b Board, h History, a Activity, o Outcomes) (
 	for _, s := range h.Records {
 		if s.Origin.BoardID != m.Source.BoardID {
 			return nil, fmt.Errorf("snapshot provenance board")
+		}
+		if s.State != nil && s.State.Parent != nil {
+			if err := r.resolve("card", s.State.Parent.CardID, "", true); err != nil {
+				return nil, err
+			}
 		}
 		if s.State != nil && s.State.Ticket >= b.NextTicket {
 			return nil, fmt.Errorf("snapshot ticket allocator")

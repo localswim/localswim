@@ -1,6 +1,9 @@
-import type { CardRead, HistoryRead } from "../../generated/transport/contracts.js";
+import type { BoardRead, CardRead, HistoryRead } from "../../generated/transport/contracts.js";
 import type { Actor, Comment, Coverage, Identity, Snapshot } from "../../generated/archive/contracts.js";
 import type { BoardClient } from "../api/client.js";
+import { CardHierarchy } from "./hierarchy.js";
+import type { HierarchyAction } from "./hierarchy.js";
+import type { HierarchyCard, ParentRef } from "../api/hierarchy.js";
 
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, text = ""): HTMLElementTagNameMap[K] {
   const result = document.createElement(tag); result.textContent = text;
@@ -33,6 +36,7 @@ function coverage(host: HTMLElement, value: Coverage): void {
     (gap.fromExclusive ?? "unbounded start") + " exclusive through " + gap.throughInclusive + " inclusive · " + gap.reason +
     " · recorded " + gap.recordedAt + " at board revision " + gap.boardRevision));
 }
+export type DetailsSelection = Readonly<{ cardId: string; identity: Identity; request: number }>;
 
 // One board-local nonmodal reader. It never reads or writes editor/recovery state.
 export class CardDetails {
@@ -46,6 +50,7 @@ export class CardDetails {
   private opener: HTMLButtonElement | undefined;
   private readonly heading = node("h2", "Card details");
   private readonly status = node("p");
+  private readonly parentAnnouncement = node("p");
   private readonly facts = node("section");
   private readonly comments = node("section");
   private readonly older = node("section");
@@ -53,25 +58,35 @@ export class CardDetails {
   private commentPage = 0;
   private historyPage = 0;
   private historicalCommentPage = 0;
+  private readonly hierarchy?: CardHierarchy;
   constructor(private readonly client: Pick<BoardClient, "card" | "history">, private readonly fallback: HTMLButtonElement,
-    private readonly archiveAction?: (read: CardRead) => void, private readonly focusRoot?: HTMLElement) {
+    private readonly archiveAction?: (read: CardRead) => void, private readonly focusRoot?: HTMLElement,
+    hierarchy?: { client: Pick<BoardClient, "board">; action?: (action: HierarchyAction, card: HierarchyCard, read: BoardRead) => void }) {
     this.host.hidden = true; this.host.setAttribute("aria-label", "Card details"); this.host.setAttribute("role", "region");
     this.heading.tabIndex = -1; this.status.setAttribute("role", "status");
+    this.parentAnnouncement.setAttribute("role", "status"); this.parentAnnouncement.setAttribute("aria-label", "Current parent announcement");
     this.facts.setAttribute("aria-label", "Current card state"); this.comments.setAttribute("aria-label", "Card comments");
     this.older.setAttribute("aria-label", "Prior card history");
     this.historicalComments.setAttribute("aria-label", "History comments");
     this.host.append(this.heading, control("Close card details", () => this.close()),
-      control("Refresh card details", () => { void this.refresh(); }), this.status, this.facts, this.comments, this.older, this.historicalComments);
+      control("Refresh card details", () => { void this.refresh(); }), this.status, this.parentAnnouncement, this.facts, this.comments, this.older, this.historicalComments);
+    if (hierarchy) {
+      this.hierarchy = new CardHierarchy(hierarchy.client, (cardId, identity, opener) => this.open(cardId, identity, opener), hierarchy.action);
+      this.host.insertBefore(this.hierarchy.host, this.comments);
+    }
   }
   open(cardId: string, identity: Identity, opener: HTMLButtonElement): void {
     this.request++; this.selected = cardId; this.expected = identity; this.opener = opener;
     this.current = undefined; this.history = undefined; this.host.hidden = false;
+    this.parentAnnouncement.textContent = "";
     this.heading.textContent = "Card details · " + cardId;
     this.facts.replaceChildren(); this.comments.replaceChildren(); this.older.replaceChildren(); this.historicalComments.replaceChildren();
+    this.hierarchy?.open(cardId, identity);
     this.heading.focus(); void this.refresh();
   }
   close(): void {
     this.request++; this.selected = undefined; this.host.hidden = true;
+    this.hierarchy?.close();
     const scope = this.focusRoot ?? this.fallback.parentElement;
     const replacement = scope?.isConnected ? [...scope.querySelectorAll<HTMLButtonElement>("button[data-open-card]")]
       .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0)
@@ -79,10 +94,12 @@ export class CardDetails {
     const target = replacement ?? this.fallback;
     if (target.isConnected && !target.disabled && target.getClientRects().length > 0) target.focus();
   }
-  suspend(): void { this.active = false; this.invalidate(); }
-  resume(): void { this.active = true; }
+  suspend(): void { this.active = false; this.invalidate(); this.hierarchy?.suspend(); }
+  resume(): void { this.active = true; this.hierarchy?.resume(); }
   invalidate(): void {
     this.request++; this.history = undefined;
+    this.parentAnnouncement.textContent = "";
+    this.hierarchy?.markStale();
     this.historicalComments.replaceChildren(node("p", "History comments stale; a deliberate refresh is required."));
     if (this.selected) {
       this.status.textContent = "Card details stale. Deliberately refresh card details to read current facts.";
@@ -94,17 +111,36 @@ export class CardDetails {
     if (!this.expected || !same(identity, this.expected)) { this.close(); return; }
     void this.refresh();
   }
+  completeBoardRead(read: BoardRead): void { this.hierarchy?.boardRead(read); }
+  captureSelection(): DetailsSelection | undefined {
+    return this.active && this.selected && this.expected ? { cardId: this.selected, identity: { ...this.expected }, request: this.request } : undefined;
+  }
+  refreshAfterHierarchy(selection: DetailsSelection, cardId: string, boardRevision: number, cardRevision: number, created = false): boolean {
+    if (!this.active || this.host.hidden || selection.request !== this.request || this.selected !== selection.cardId ||
+        !this.expected || !same(selection.identity, this.expected) || !created && cardId !== selection.cardId) return false;
+    this.hierarchy?.markStale(); this.parentAnnouncement.textContent = "";
+    if (created) {
+      // Follow only this still-selected create-child source. A receipt supplies
+      // identity, never text; no focus or editor/base/recovery state changes.
+      this.selected = cardId; this.current = undefined; this.history = undefined;
+      this.heading.textContent = "Card details · " + cardId;
+      this.facts.replaceChildren(); this.comments.replaceChildren(); this.older.replaceChildren(); this.historicalComments.replaceChildren();
+      this.hierarchy?.open(cardId, this.expected);
+    }
+    void this.refresh({ boardRevision, cardRevision, announceParent: true }); return true;
+  }
   refreshAfterArchive(identity: Identity, cardId: string, boardRevision: number, cardRevision: number): void {
     if (!this.active || this.selected !== cardId || !this.expected || !same(identity, this.expected)) return;
     // The terminal receipt triggers a new authoritative read; it supplies no
     // current card facts. A response older than that receipt is still stale.
     void this.refresh({ boardRevision, cardRevision });
   }
-  async refresh(minimum?: Readonly<{ boardRevision: number; cardRevision: number }>): Promise<void> {
+  async refresh(minimum?: Readonly<{ boardRevision: number; cardRevision: number; announceParent?: boolean }>): Promise<void> {
     if (!this.active || !this.selected || !this.expected) return;
     const generation = ++this.request, cardId = this.selected, identity = this.expected;
     const valid = (): boolean => this.active && generation === this.request && this.selected === cardId;
     this.commentPage = 0; this.historyPage = 0; this.historicalCommentPage = 0; this.history = undefined;
+    this.parentAnnouncement.textContent = "";
     this.status.textContent = "Reading current card and separate history snapshots…";
     this.older.replaceChildren(node("p", "History unavailable while reading."));
     this.historicalComments.replaceChildren(node("p", "History comments unavailable while reading."));
@@ -118,7 +154,13 @@ export class CardDetails {
       this.status.textContent = this.current ? "Current card unavailable; displayed confirmed facts are stale. Retry deliberately." : "Current card unavailable. Retry deliberately.";
       this.older.replaceChildren(node("p", "History unavailable without a matching current card read.")); return;
     }
-    this.current = current.value; this.renderCurrent();
+    this.current = current.value;
+    this.hierarchy?.observeRevision(current.value.result.identity, current.value.result.revision);
+    this.renderCurrent();
+    if (minimum?.announceParent) {
+      const c = current.value.result, parent = (c.card as { parent?: ParentRef }).parent;
+      this.parentAnnouncement.textContent = "Current parent for child " + c.card.cardId + ": " + (parent ? origin(parent) + "/" + parent.cardId : "No parent") + " · board revision " + c.revision + ", card revision " + c.card.revision + ".";
+    }
     if (history.status !== "fulfilled") {
       this.status.textContent = "Current card read. History unavailable; retry deliberately."; return;
     }
@@ -153,6 +195,8 @@ export class CardDetails {
       node("p", "Title: " + card.title), node("p", card.description === "" ? "Description: empty" : "Description:\n" + card.description),
       node("p", "Lane: " + card.lane + " · Priority: " + card.priority + " · Owner: " + (card.ownerId ? attribution(card.ownerId, c.actors) : "Unassigned")),
       node("p", "Board revision " + c.revision + " · card revision " + card.revision + " · archived: " + card.archived + " · approval: " + (card.currentApprovalId ?? "none")));
+    const parent = (card as { parent?: ParentRef }).parent;
+    this.facts.append(node("p", parent ? "Current parent reference: " + origin(parent) + "/" + parent.cardId : "Current parent reference: No parent"));
     if (this.archiveAction) {
       const archive = control(card.archived ? "Unarchive card" : "Archive card", () => {
         archive.focus({ preventScroll: true }); this.archiveAction!(this.current!);
@@ -183,6 +227,10 @@ export class CardDetails {
         node("p", row.state.lane + " · " + row.state.priority + " · Owner: " + (row.state.ownerId ? attribution(row.state.ownerId, h.actors) : "Unassigned")),
         node("p", "Archived: " + row.state.archived + " · approval: " + (row.state.currentApprovalId ?? "none")));
       else article.append(node("p", "Old text unavailable; compact or removed state."));
+      if (row.state) {
+        const parent = (row.state as { parent?: ParentRef }).parent;
+        article.append(node("p", parent ? "Historical parent: " + origin(parent) + "/" + parent.cardId + " · unresolved/unavailable in this history view" : "Historical parent: No parent"));
+      }
       if (row.removal) article.append(node("p", "State removed: " + row.removal.reason + " · " + row.removal.removedAt + " · board revision " + row.removal.boardRevision));
       const commentReferences = row.references.commentIds.map(id => {
         const comment = h.comments.find(value => value.commentId === id);

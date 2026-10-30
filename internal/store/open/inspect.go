@@ -25,7 +25,10 @@ type InspectionRead interface {
 // bounded by ten seconds and the caller deadline, holds the audit and callback
 // in the same actual read transaction. The caller owns any wider root lease and
 // complete native inventory/content proof; this is not online authorization.
-func InspectExisting(ctx context.Context, dir string, id schema.Identity, fn func(InspectionRead) error) (err error) {
+func InspectExisting(ctx context.Context, dir string, id schema.Identity, fn func(InspectionRead) error) error {
+	return inspectExisting(ctx, dir, id, fn, schema.Validate)
+}
+func inspectExisting(ctx context.Context, dir string, id schema.Identity, fn func(InspectionRead) error, validate func(context.Context, *sql.Conn, schema.Identity) error) (err error) {
 	if ctx == nil || fn == nil {
 		return errors.New("inspection context and callback required")
 	}
@@ -59,7 +62,7 @@ func InspectExisting(ctx context.Context, dir string, id schema.Identity, fn fun
 		return errors.New("inspection transaction unavailable")
 	}
 	defer func() { err = errors.Join(err, rollback(c)) }()
-	if err = schema.Validate(ctx, c, id); err != nil {
+	if err = validate(ctx, c, id); err != nil {
 		return err
 	}
 	r := &inspectionReader{ctx: ctx, conn: c}

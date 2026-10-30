@@ -1,3 +1,4 @@
+import { CardHierarchy } from "./hierarchy.js";
 function node(tag, text = "") {
     const result = document.createElement(tag);
     result.textContent = text;
@@ -52,6 +53,7 @@ export class CardDetails {
     opener;
     heading = node("h2", "Card details");
     status = node("p");
+    parentAnnouncement = node("p");
     facts = node("section");
     comments = node("section");
     older = node("section");
@@ -59,7 +61,8 @@ export class CardDetails {
     commentPage = 0;
     historyPage = 0;
     historicalCommentPage = 0;
-    constructor(client, fallback, archiveAction, focusRoot) {
+    hierarchy;
+    constructor(client, fallback, archiveAction, focusRoot, hierarchy) {
         this.client = client;
         this.fallback = fallback;
         this.archiveAction = archiveAction;
@@ -69,11 +72,17 @@ export class CardDetails {
         this.host.setAttribute("role", "region");
         this.heading.tabIndex = -1;
         this.status.setAttribute("role", "status");
+        this.parentAnnouncement.setAttribute("role", "status");
+        this.parentAnnouncement.setAttribute("aria-label", "Current parent announcement");
         this.facts.setAttribute("aria-label", "Current card state");
         this.comments.setAttribute("aria-label", "Card comments");
         this.older.setAttribute("aria-label", "Prior card history");
         this.historicalComments.setAttribute("aria-label", "History comments");
-        this.host.append(this.heading, control("Close card details", () => this.close()), control("Refresh card details", () => { void this.refresh(); }), this.status, this.facts, this.comments, this.older, this.historicalComments);
+        this.host.append(this.heading, control("Close card details", () => this.close()), control("Refresh card details", () => { void this.refresh(); }), this.status, this.parentAnnouncement, this.facts, this.comments, this.older, this.historicalComments);
+        if (hierarchy) {
+            this.hierarchy = new CardHierarchy(hierarchy.client, (cardId, identity, opener) => this.open(cardId, identity, opener), hierarchy.action);
+            this.host.insertBefore(this.hierarchy.host, this.comments);
+        }
     }
     open(cardId, identity, opener) {
         this.request++;
@@ -83,11 +92,13 @@ export class CardDetails {
         this.current = undefined;
         this.history = undefined;
         this.host.hidden = false;
+        this.parentAnnouncement.textContent = "";
         this.heading.textContent = "Card details · " + cardId;
         this.facts.replaceChildren();
         this.comments.replaceChildren();
         this.older.replaceChildren();
         this.historicalComments.replaceChildren();
+        this.hierarchy?.open(cardId, identity);
         this.heading.focus();
         void this.refresh();
     }
@@ -95,6 +106,7 @@ export class CardDetails {
         this.request++;
         this.selected = undefined;
         this.host.hidden = true;
+        this.hierarchy?.close();
         const scope = this.focusRoot ?? this.fallback.parentElement;
         const replacement = scope?.isConnected ? [...scope.querySelectorAll("button[data-open-card]")]
             .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0)
@@ -103,11 +115,13 @@ export class CardDetails {
         if (target.isConnected && !target.disabled && target.getClientRects().length > 0)
             target.focus();
     }
-    suspend() { this.active = false; this.invalidate(); }
-    resume() { this.active = true; }
+    suspend() { this.active = false; this.invalidate(); this.hierarchy?.suspend(); }
+    resume() { this.active = true; this.hierarchy?.resume(); }
     invalidate() {
         this.request++;
         this.history = undefined;
+        this.parentAnnouncement.textContent = "";
+        this.hierarchy?.markStale();
         this.historicalComments.replaceChildren(node("p", "History comments stale; a deliberate refresh is required."));
         if (this.selected) {
             this.status.textContent = "Card details stale. Deliberately refresh card details to read current facts.";
@@ -122,6 +136,32 @@ export class CardDetails {
             return;
         }
         void this.refresh();
+    }
+    completeBoardRead(read) { this.hierarchy?.boardRead(read); }
+    captureSelection() {
+        return this.active && this.selected && this.expected ? { cardId: this.selected, identity: { ...this.expected }, request: this.request } : undefined;
+    }
+    refreshAfterHierarchy(selection, cardId, boardRevision, cardRevision, created = false) {
+        if (!this.active || this.host.hidden || selection.request !== this.request || this.selected !== selection.cardId ||
+            !this.expected || !same(selection.identity, this.expected) || !created && cardId !== selection.cardId)
+            return false;
+        this.hierarchy?.markStale();
+        this.parentAnnouncement.textContent = "";
+        if (created) {
+            // Follow only this still-selected create-child source. A receipt supplies
+            // identity, never text; no focus or editor/base/recovery state changes.
+            this.selected = cardId;
+            this.current = undefined;
+            this.history = undefined;
+            this.heading.textContent = "Card details · " + cardId;
+            this.facts.replaceChildren();
+            this.comments.replaceChildren();
+            this.older.replaceChildren();
+            this.historicalComments.replaceChildren();
+            this.hierarchy?.open(cardId, this.expected);
+        }
+        void this.refresh({ boardRevision, cardRevision, announceParent: true });
+        return true;
     }
     refreshAfterArchive(identity, cardId, boardRevision, cardRevision) {
         if (!this.active || this.selected !== cardId || !this.expected || !same(identity, this.expected))
@@ -139,6 +179,7 @@ export class CardDetails {
         this.historyPage = 0;
         this.historicalCommentPage = 0;
         this.history = undefined;
+        this.parentAnnouncement.textContent = "";
         this.status.textContent = "Reading current card and separate history snapshots…";
         this.older.replaceChildren(node("p", "History unavailable while reading."));
         this.historicalComments.replaceChildren(node("p", "History comments unavailable while reading."));
@@ -155,7 +196,12 @@ export class CardDetails {
             return;
         }
         this.current = current.value;
+        this.hierarchy?.observeRevision(current.value.result.identity, current.value.result.revision);
         this.renderCurrent();
+        if (minimum?.announceParent) {
+            const c = current.value.result, parent = c.card.parent;
+            this.parentAnnouncement.textContent = "Current parent for child " + c.card.cardId + ": " + (parent ? origin(parent) + "/" + parent.cardId : "No parent") + " · board revision " + c.revision + ", card revision " + c.card.revision + ".";
+        }
         if (history.status !== "fulfilled") {
             this.status.textContent = "Current card read. History unavailable; retry deliberately.";
             return;
@@ -193,6 +239,8 @@ export class CardDetails {
         const c = this.current.result, card = c.card;
         this.heading.textContent = "Card details · #" + card.ticket + " " + card.title;
         this.facts.replaceChildren(node("h3", "Current card state"), node("p", "Card UUID: " + card.cardId), node("p", "Origin: " + origin(c.identity) + " · created in " + origin(card.createdIn)), node("p", "Title: " + card.title), node("p", card.description === "" ? "Description: empty" : "Description:\n" + card.description), node("p", "Lane: " + card.lane + " · Priority: " + card.priority + " · Owner: " + (card.ownerId ? attribution(card.ownerId, c.actors) : "Unassigned")), node("p", "Board revision " + c.revision + " · card revision " + card.revision + " · archived: " + card.archived + " · approval: " + (card.currentApprovalId ?? "none")));
+        const parent = card.parent;
+        this.facts.append(node("p", parent ? "Current parent reference: " + origin(parent) + "/" + parent.cardId : "Current parent reference: No parent"));
         if (this.archiveAction) {
             const archive = control(card.archived ? "Unarchive card" : "Archive card", () => {
                 archive.focus({ preventScroll: true });
@@ -230,6 +278,10 @@ export class CardDetails {
                 article.append(node("p", "#" + row.state.ticket + " " + row.state.title), node("p", "Description:\n" + row.state.description), node("p", row.state.lane + " · " + row.state.priority + " · Owner: " + (row.state.ownerId ? attribution(row.state.ownerId, h.actors) : "Unassigned")), node("p", "Archived: " + row.state.archived + " · approval: " + (row.state.currentApprovalId ?? "none")));
             else
                 article.append(node("p", "Old text unavailable; compact or removed state."));
+            if (row.state) {
+                const parent = row.state.parent;
+                article.append(node("p", parent ? "Historical parent: " + origin(parent) + "/" + parent.cardId + " · unresolved/unavailable in this history view" : "Historical parent: No parent"));
+            }
             if (row.removal)
                 article.append(node("p", "State removed: " + row.removal.reason + " · " + row.removal.removedAt + " · board revision " + row.removal.boardRevision));
             const commentReferences = row.references.commentIds.map(id => {

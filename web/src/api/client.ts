@@ -7,6 +7,7 @@ import { RecoveryStore } from "../recovery/store.js";
 import type { Context, PreparedEvidence, ProfileQualification, RecoveryDriver } from "../recovery/types.js";
 import { RecoveryError } from "../recovery/types.js";
 import { validateCardRead, validateHistoryRead } from "./history.js";
+import { validateBoardHierarchy } from "./hierarchy.js";
 import { boardBoundaryVerifier, canonical, object, parse, prepare, sha256, validate } from "./boundary.js";
 import type { BoardCommand, PreparedCommand, Value } from "./boundary.js";
 import type { CardSearchRead } from "../../generated/transport/contracts.js";
@@ -134,6 +135,7 @@ export class BoardClient {
     const board = value as unknown as BoardRead;
     if (board.result.identity.boardId !== boardId) throw Error("Board identity mismatch");
     if (this.options.selection && board.result.identity.incarnation !== this.options.selection.incarnation) throw Error("Selected incarnation mismatch");
+    validateBoardHierarchy(board);
     return board;
   }
   async card(boardId: string, cardId: string): Promise<CardRead> {

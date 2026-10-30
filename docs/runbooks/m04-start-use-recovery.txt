@@ -1,0 +1,98 @@
+M04 START / USE / RECOVER
+2026-10-30 | Synthetic Windows amd64 localhost review kit
+
+Extract the complete kit to a local folder. In PowerShell verify the executable
+before running it. Compare the result with the expected SHA256 below and the kit
+manifest; stop if either differs.
+
+  $exe = 'C:\path\to\kit\localswim.exe'
+  Get-FileHash -LiteralPath $exe -Algorithm SHA256
+
+  Expected: bd54b2aa86a728cf2dff64444e1241eb3091435e342e318db1d442904a4d0885
+
+The executable includes its browser application; ordinary use needs no Node,
+account or certificate. Keep the kit separate from workspace and browser data.
+Use new synthetic data, not an existing everyday workspace. Choose an unused port;
+8820 is an example, not the administrative board's port 8810.
+
+  $demo = Join-Path $env:LOCALAPPDATA ('localswim\m04-demo-' + [guid]::NewGuid().ToString('N'))
+  $workspace = Join-Path $demo 'workspace'
+  [System.IO.Directory]::CreateDirectory($demo) | Out-Null
+  & $exe serve --workspace $workspace --port 8820
+
+Leave the foreground service running. In a second PowerShell window set the same
+$exe, $demo and $workspace values, then create these members once:
+
+  & $exe --workspace $workspace project create --key harbor --label Harbor --root (Join-Path $demo 'harbor')
+  & $exe --workspace $workspace --project harbor board create --key dispatch --label Dispatch --root (Join-Path $demo 'harbor\dispatch')
+  & $exe --workspace $workspace --project harbor board create --key research --label Research --root (Join-Path $demo 'harbor\research')
+
+Open the numeric-loopback address printed by the service, such as
+http://127.0.0.1:8820/, and select Harbor / Dispatch. Read current board and wait
+for Current. For actual CLI reads, select the exact workspace, project and board:
+
+  $selection = @('--workspace', $workspace, '--project', 'harbor', '--board', 'dispatch')
+  & $exe @selection --json board read
+
+Use the returned full identity and card UUID. Display tickets are board-local:
+Dispatch and Research can each have #1 without referring to the same card.
+
+Use hierarchy
+Open card details and Parent and Children. Create child opens the normal create
+editor bound to that exact parent. Set parent starts unselected: choose a current
+card and Save. To remove the relationship, choose the explicit clear and Save.
+Set parent also reparents. Read current hierarchy deliberately when it is stale;
+navigate parent/children by their exact identities. The hierarchy guide describes
+paging, CLI requests, bounds and history in detail.
+
+A relationship does not change priority, lane, owner or approval, grant rights,
+or waive a prerequisite. P3 is normal unless deliberately changed. A Completed
+child is read-only, even for an equal edit. An archived or Completed card may be
+a parent target. Human approval remains governed by the existing policy.
+
+Find cards searches current work. Archive unfinished cards through confirmation;
+Active excludes them. Select Archived or All to find them, then confirm Unarchive.
+Read current facts and reapply filters. See the archive and search guides for
+filters, paging and CLI. Tab and Enter/Space operate named controls; closing
+card details returns to an available opener or the relevant read/find fallback.
+See the keyboard guide for focus, dirty input and cancellation.
+
+Recover and reopen
+Wait for private recovery to save before leaving input. If it fails, keep the tab
+and visible input. A current read does not overwrite or rebase an editor. Resolve
+keep/discard deliberately. UNKNOWN may have committed: retain its original source
+and private evidence and deliberately look up the original outcome. Refresh,
+search, reload, restart and navigation never replay or settle the original; do
+not send a replacement merely because a response was lost. See the M02 recovery
+and CLI guides for limits, original lookup and exit meanings.
+
+Stop with Ctrl+C in the service window and wait for clean exit. Reopen the same
+workspace without repeating creation:
+
+  & $exe serve --workspace $workspace
+
+The saved port and member identities remain. Refresh boards until connected,
+reconnect the local service if needed, and read current board before new work.
+Keep workspace data, service metadata, credentials, CLI evidence and private
+browser recovery out of the kit and public reports.
+
+Offline upgrade is separate
+Normal startup requires physical version 6 and does not upgrade. For a synthetic
+accepted version-5 store only, stop its owned host and follow the explicit inspect
+and upgrade procedure in docs/runbooks/m04-hierarchy.txt. Check exact board and
+incarnation; an uncertain post-commit result requires deliberate inspection, not
+automatic retry. This is not authorization for real-data adoption.
+
+Read next
+- docs/runbooks/m04-customer-demo.txt: normal review sequence.
+- docs/runbooks/m04-hierarchy.txt: detailed hierarchy and offline compatibility.
+- docs/runbooks/m01-workspace-start-use-recovery.txt: workspace and startup.
+- docs/runbooks/m02-start-use-recovery.txt, m02-cli-read-edit.txt and
+  m02-keyboard-read-edit.txt: recovery, typed requests and keyboard use.
+- docs/runbooks/m03-card-archive.txt and m03-card-search.txt: archive and search.
+- docs/runbooks/m04-qualification.txt and the kit qualification report: evidence
+  categories and limits. Older guides describe their historical milestones; their
+  later-feature exclusions are not claims that M04 lacks hierarchy.
+
+This synthetic localhost candidate is not a general release, real-data import,
+physical power-loss proof, installed OS IME or whole-product accessibility claim.

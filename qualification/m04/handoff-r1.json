@@ -1,0 +1,39 @@
+{
+  "testedProductSource": "e51be8d13f2ff76b4174f72206466b47eea4f871",
+  "qualifiedReportPublication": "95a9555310dc7f33e707e7f9e824673b54da4fca",
+  "candidateSHA256": "bd54b2aa86a728cf2dff64444e1241eb3091435e342e318db1d442904a4d0885",
+  "kitSHA256": "a57e2425474060fe81e77e39c644ce787444a80e65d91fb3faa471e176cf6845",
+  "kitBytes": 11862349,
+  "payloadFiles": 32,
+  "totalKitFiles": 34,
+  "schemaLocalRefsChecked": 170,
+  "demo": {
+    "countedBrowserCliAssertions": 45,
+    "companionChecks": 5,
+    "boards": 2,
+    "headlessPages": 2,
+    "hostLifetimes": 2,
+    "allOwnedExitsZero": true,
+    "listenerClosed": true,
+    "fullBoardAndSearchParityOnReopen": true,
+    "noInjectedFaults": true
+  },
+  "delivery": {
+    "attachmentCapBytes": 10485760,
+    "kitFitsBoardAttachment": false,
+    "method": "Local verified ZIP and extracted folder; small report, manifest, checksums and guide attachments on board."
+  },
+  "guideClosure": "32 allowlisted payloads include recursive local guide/reference set, complete generated schemas, LICENSE, qualified reports and source/evidence boundary note. Source/tools/private qualification outputs are not implied runtime inputs.",
+  "qualificationReuse": "Exact unchanged application; prior owner-accepted full suites/faults/compatibility are labeled reuse, not fresh kit execution.",
+  "independentReview": {
+    "status": "PASS",
+    "scope": "Fresh non-author Sol / High kit/source/guide/evidence/packet assessment and independent fresh extraction/checksum/schema/help probes; audited normal demo is not a second full product execution."
+  },
+  "limits": [
+    "Synthetic Windows amd64/local NTFS/localhost only; no installer/general release, real-data adoption, expanded M05 links, physical power loss, full OS IME or whole-product accessibility.",
+    "Fresh normal extracted-kit demonstration and independent kit probes are separate from qualified reused full native/browser/clean-build/fault evidence.",
+    "ZIP exceeds10MiB channel: use local artifact; runtime/private data excluded; checksums are not signatures."
+  ],
+  "status": "PASS_SCOPED_M04_04_HANDOFF",
+  "initialFailure": "First normal harness expected explicit ownerId:null although accepted Card.OwnerID omits nil. Read-only source diagnosis confirmed omission encoding; fresh corrected second workspace passed with parent/priority/lane/approval checks unchanged. Failed attempt retained, host stopped cleanly, no replay/product change."
+}

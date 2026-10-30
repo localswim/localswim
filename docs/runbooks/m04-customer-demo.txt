@@ -1,0 +1,36 @@
+M04 NORMAL CUSTOMER REVIEW
+2026-10-30 | Fresh synthetic data, actual local executable and browser
+
+Use docs/runbooks/m04-start-use-recovery.txt to verify the executable, start a new
+workspace and register Harbor / Dispatch and Harbor / Research. Use the printed
+localhost address. Do not repeat registration on restart.
+
+1. Select Dispatch, read current board and create a P3 parent and child. Open the
+   parent's details, choose Create child, enter a title and Save. Navigate from
+   parent to child and back. Read the exact UUIDs with the selected real CLI:
+
+     $selection = @('--workspace', $workspace, '--project', 'harbor', '--board', 'dispatch')
+     & $exe @selection --json board read
+
+2. Create another parent. Open the child, choose Set parent, deliberately select
+   that parent and Save. Read current hierarchy, then choose explicit clear and
+   Save. Confirm the child is now a root. Priority, lane, owner and approval do
+   not propagate. Completed children are read-only; archived or Completed cards
+   can be parent targets. Parentage grants no rights and does not waive gates.
+3. Create a card on Research too. Compare its full board/card identity to the
+   Dispatch card; equal display tickets do not identify the same card. Return to
+   Dispatch. Find cards with literal text, Apply filters and open a result. Use
+   Tab and Enter/Space; close details and observe the available focus return.
+4. Confirm Archive on an unfinished card. Reapply the search: Active excludes it.
+   Select Archived or All, find the same card and confirm Unarchive. Read current
+   board and reapply Active. Completed remains read-only.
+5. Stop the service with Ctrl+C and wait for exit. Start it again with
+   & $exe serve --workspace $workspace. It uses the saved port. Reconnect, read
+   current board and inspect the committed hierarchy and card facts.
+
+Keep private drafts and UNKNOWN originals separate from current reads. A normal
+refresh or restart does not replay or settle an original. This demonstration does
+not inject faults. Qualification separately records controlled uncertainty, bounds,
+upgrade and other evidence; review of those reports is not a repeat of those tests.
+The offline version-5 upgrade is a separate synthetic procedure in
+ docs/runbooks/m04-hierarchy.txt, not part of this normal walkthrough.

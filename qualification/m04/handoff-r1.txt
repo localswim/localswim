@@ -1,0 +1,39 @@
+M04 FINAL HIERARCHY REVIEW KIT
+2026-10-30 | PASS synthetic localhost handoff; independently reviewed
+
+Application source: e51be8d13f2ff76b4174f72206466b47eea4f871
+Application SHA256: bd54b2aa86a728cf2dff64444e1241eb3091435e342e318db1d442904a4d0885
+Kit ZIP SHA256: a57e2425474060fe81e77e39c644ce787444a80e65d91fb3faa471e176cf6845
+Kit ZIP bytes: 11862349
+
+Fresh final-kit proof
+- Complete ZIP CRC/extraction and every payload/manifest/checksum byte verified.
+- 34 kit files; 32 allowlisted payloads, local guide/reference closure,
+  complete generated schemas with 170 local-ref checks, MIT license and reports.
+- Normal extracted executable/browser/actual CLI demo: 45 counted assertions plus
+  5 companion checks and DOM expectations, two boards/pages.
+- Browser create/navigation/reparent/clear and actual CLI create/set/clear/children;
+  exact same-ticket identity, explicit P2/default P3, owner/lane/approval preserved,
+  legal Completed parent, archive/refind/unarchive and keyboard focus verified.
+- Graceful stop/reopen retained complete BoardRead and Active/Archived/All search
+  facts on both boards. Both owned hosts exit0, no remaining owned listener.
+- No injected faults, export/restore or build reruns in this normal final demo.
+
+Qualified reuse and first failure
+Exact same executable reuses accepted M04.03 full native/browser/two-clean-build,
+restore/canonical-original/upgrade/recovery and controlled-bound evidence. Those
+are historical accepted runs, not fresh kit execution. Earlier reports retain
+their historical candidates/scopes. The first demo harness expected a null owner
+instead of accepted omitted nil; source diagnosis/fresh corrective run retained,
+assertions preserved and no product change or uncertain-operation replay.
+
+Delivery and review
+ZIP exceeds the 10 MiB board channel. Deliver verified local ZIP/extracted folder;
+attach small report/manifest/checksum/guides to the board. START-HERE directs
+ordinary startup/use/recovery/demo. Full qualification reproduction still needs
+the source checkout, pinned tools and private fresh evidence. No runtime board,
+profile, original-operation store, credentials or private rosters are shipped.
+Fresh non-author Sol / High assessment passed, including independent extraction,
+checksum/schema/help probes and source/guide/evidence/packet review.
+No general release, real V1 adoption, expanded M05 features, physical power loss,
+full OS IME or broad accessibility claim. Prior V1 exposure remains disclosed.

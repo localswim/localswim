@@ -162,6 +162,228 @@
       ],
       "type": "object"
     },
+    "CardSearchQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "archive": {
+          "enum": [
+            "active",
+            "archived",
+            "all"
+          ],
+          "type": "string"
+        },
+        "lane": {
+          "anyOf": [
+            {
+              "enum": [
+                "Ready for Work",
+                "In Progress",
+                "Ready for Review",
+                "Completed"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "const": "unassigned"
+            },
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          ]
+        },
+        "priority": {
+          "anyOf": [
+            {
+              "enum": [
+                "P0",
+                "P1",
+                "P2",
+                "P3",
+                "P4",
+                "P5"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "q": {
+          "type": "string",
+          "x-max-utf8-bytes": 1024
+        }
+      },
+      "required": [
+        "archive",
+        "lane",
+        "owner",
+        "priority",
+        "q"
+      ],
+      "type": "object"
+    },
+    "CardSearchRead": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "result": {
+          "$ref": "#/$defs/CardSearchView"
+        },
+        "scope": {
+          "enum": [
+            "card-search"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "result",
+        "scope"
+      ],
+      "type": "object"
+    },
+    "CardSearchView": {
+      "additionalProperties": false,
+      "properties": {
+        "identity": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Identity"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/CardSummary"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "maxLength": 2048,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "type": "string"
+            }
+          ]
+        },
+        "query": {
+          "$ref": "#/$defs/CardSearchQuery"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "identity",
+        "items",
+        "nextCursor",
+        "query",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "CardSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "archived": {
+          "type": "boolean"
+        },
+        "cardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "lane": {
+          "enum": [
+            "Ready for Work",
+            "In Progress",
+            "Ready for Review",
+            "Completed"
+          ],
+          "type": "string"
+        },
+        "ownerId": {
+          "anyOf": [
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "priority": {
+          "enum": [
+            "P0",
+            "P1",
+            "P2",
+            "P3",
+            "P4",
+            "P5"
+          ],
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "ticket": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+          "x-nonblank": true
+        }
+      },
+      "required": [
+        "archived",
+        "cardId",
+        "lane",
+        "ownerId",
+        "priority",
+        "revision",
+        "ticket",
+        "title"
+      ],
+      "type": "object"
+    },
     "CardView": {
       "additionalProperties": false,
       "properties": {

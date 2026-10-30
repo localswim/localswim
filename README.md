@@ -51,6 +51,15 @@ candidate bindings and distinguishes normal, controlled, fault and reused eviden
 The [continual process improvement record](docs/continual-process-improvement.md)
 captures milestone observations and the changes to evaluate at each later review.
 
+The [M03 card archive slice](docs/decisions/m03-card-archive-2026-10-29.txt)
+adds reversible archive/unarchive for unfinished cards, default active rows,
+explicit archived inspection and a bounded CLI listing. Follow the
+[card archive guide](docs/runbooks/m03-card-archive.txt) for browser/CLI use,
+explicit revisions and recovery. Complete JSON board snapshots retain hidden
+link targets; archive visibility is not a security boundary or ZIP export.
+Completed remains read-only. Full text search/filtering and joined milestone
+qualification follow in their own M03 stories; no general release is claimed.
+
 The browser is a separate TypeScript package under `web/`; the executable will
 serve its verified embedded assets. Shared contracts and assets change together.
 

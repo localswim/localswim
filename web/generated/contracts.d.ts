@@ -24,6 +24,7 @@ export type RequestCardEdit = {
   readonly expectedRevision: number;
   readonly incarnation: string;
   readonly input: {
+  readonly archived?: boolean;
   readonly description?: string;
   readonly lane?: "In Progress";
   readonly ownerId?: (string | null);

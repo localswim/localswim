@@ -38,10 +38,22 @@ func boardAdvisory(b T.BoardView) string {
 		return ok && a.CardID == c.CardID && human && h.Kind == "human" && a.PolicyVersion == b.PolicyVersion && a.ReviewedCardRevision == c.Revision-1
 	}
 	ordered := append([]A.Card(nil), b.Cards...)
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Ticket < ordered[j].Ticket })
+	sort.Slice(ordered, func(i, j int) bool {
+		a, b := ordered[i], ordered[j]
+		if a.Priority != b.Priority {
+			return a.Priority < b.Priority
+		}
+		if a.Ticket != b.Ticket {
+			return a.Ticket < b.Ticket
+		}
+		return a.CardID < b.CardID
+	})
 	var out strings.Builder
 	out.WriteString("Dependency advisory (current snapshot; assigned priorities unchanged):\n")
 	for _, c := range ordered {
+		if c.Archived {
+			continue
+		}
 		fmt.Fprintf(&out, "%s\n", advisoryCard(c))
 		var pressure, prerequisites []string
 		seen := map[A.UUID]bool{}

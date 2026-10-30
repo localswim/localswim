@@ -41,7 +41,7 @@ func statusFor(code string) int {
 		return 401
 	case "NOT_FOUND":
 		return 404
-	case "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH":
+	case "CURSOR_STALE", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH":
 		return 409
 	case "INPUT_TOO_LARGE":
 		return 413
@@ -341,6 +341,16 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request, q route, current 
 		return
 	}
 	var value any
+	var search searchRequest
+	if q.kind == "search" {
+		var err error
+		search, err = parseSearch(r.URL.RawQuery)
+		if err != nil {
+			_ = l.Close()
+			refuse(w, 400, "INVALID_INPUT")
+			return
+		}
+	}
 	e = l.Do(ctx, func(c *sql.Conn) error {
 		if _, e := c.ExecContext(ctx, "BEGIN"); e != nil {
 			return e
@@ -350,13 +360,19 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request, q route, current 
 			return grants.ErrDenied
 		}
 		var e error
-		value, e = project(rd, q)
+		if q.kind == "search" {
+			value, e = h.search(rd, q, string(current.ActorID), search)
+		} else {
+			value, e = project(rd, q)
+		}
 		return e
 	})
 	closeErr := l.Close()
 	if e != nil || closeErr != nil {
 		code := "UNAVAILABLE"
-		if errors.Is(e, grants.ErrDenied) {
+		if errors.Is(e, errCursorStale) {
+			code = "CURSOR_STALE"
+		} else if errors.Is(e, grants.ErrDenied) {
 			code = "FORBIDDEN"
 		} else if errors.Is(e, sql.ErrNoRows) {
 			code = "NOT_FOUND"

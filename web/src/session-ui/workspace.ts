@@ -1,6 +1,7 @@
 import type { SessionRead } from "../../generated/transport/contracts.js";
 import type { OriginalOutcome } from "../api/client.js";
 import { BoardView } from "../board/view.js";
+import type { BoardViewOptions } from "../board/view.js";
 import { RecoveryView, element } from "../recovery-ui/view.js";
 import { RecoveryAdminView } from "../recovery-ui/admin.js";
 import type { RecoveryAdminClient } from "../recovery-ui/admin.js";
@@ -16,10 +17,10 @@ export class SessionWorkspace {
   private readonly recovery: RecoveryView;
   private readonly admin: RecoveryAdminView | undefined;
   private readonly archive: ArchiveView;
-  constructor(private readonly root: HTMLElement, client: RecoveryAdminClient & ArchiveClient, session: SessionRead, options: Readonly<{ local?: boolean; editor?: EditorReference; checkpoint?: (reference?: EditorReference) => void; recovery?: EditorReference; recoveryCheckpoint?: (reference?: EditorReference) => void }> = {}) {
+  constructor(private readonly root: HTMLElement, client: RecoveryAdminClient & ArchiveClient, session: SessionRead, options: BoardViewOptions & Readonly<{ local?: boolean; editor?: EditorReference; checkpoint?: (reference?: EditorReference) => void; recovery?: EditorReference; recoveryCheckpoint?: (reference?: EditorReference) => void }> = {}) {
     const board = element("section"), recovery = element("section"), admin = element("section"), archive = element("section");
     root.replaceChildren(board, recovery, admin, archive);
-    this.board = new BoardView(board, client, session.grant.boardId, options.checkpoint);
+    this.board = new BoardView(board, client, session.grant.boardId, options.checkpoint, options);
     const observe = (outcome: OriginalOutcome): void => this.board.observeOutcome(outcome);
     this.recovery = new RecoveryView(recovery, client, observe, options.recoveryCheckpoint);
     if (!options.local) this.admin = new RecoveryAdminView(admin, client, session.grant.boardId, observe);

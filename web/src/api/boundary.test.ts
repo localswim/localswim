@@ -85,3 +85,26 @@ export async function runAssignmentParity(): Promise<number> {
   }
   return passed;
 }
+
+// Legacy edit canonical bytes are frozen: archived omission must never add a key.
+export async function runArchiveParity(): Promise<number> {
+  const context: Context = { installationId: "00000000-0000-4000-8000-000000000090", boardId: "00000000-0000-4000-8000-000000000001", incarnation: "00000000-0000-4000-8000-000000000002", actorId: "00000000-0000-4000-8000-000000000003" };
+  const base = { opId: "00000000-0000-4000-8000-000000000006", incarnation: context.incarnation, expectedRevision: 5, expectedCardRevision: 4, target: { cardId: "00000000-0000-4000-8000-00000000000b" } };
+  const fingerprints = new Set<string>();
+  for (const archived of [undefined, false, true]) {
+    const request = { ...base, input: archived === undefined ? {} : { archived } } as MutationRequest;
+    const evidence = await prepare("card.edit", request, context, crypto.randomUUID());
+    const payload = { title: null, description: null, priority: null, lane: null, ...(archived === undefined ? {} : { archived }) };
+    const expected = canonical({ fingerprintVersion: 1, boardId: context.boardId, incarnation: context.incarnation, actorId: context.actorId, opId: base.opId, command: "card.edit", target: base.target, expectedRevision: 5, expectedCardRevision: 4, payload });
+    if (evidence.canonicalBytes !== expected || !await boardBoundaryVerifier.prepared(evidence, request)) throw Error("Archive canonical/recovery parity failed");
+    fingerprints.add(evidence.fingerprint);
+  }
+  if (fingerprints.size !== 3) throw Error("Archive false/omission collision");
+  let checks = 4;
+  for (const input of [{ archived: null }, { archived: "false" }, { archived: 0 }, { archived: true, title: "Mixed" }, { archived: false, ownerId: null }, { archived: false, lane: "In Progress" }]) {
+    let refused = false;
+    try { await prepare("card.edit", { ...base, input } as MutationRequest, context, crypto.randomUUID()); } catch { refused = true; }
+    if (!refused) throw Error("Invalid/mixed archive input accepted"); checks++;
+  }
+  return checks;
+}

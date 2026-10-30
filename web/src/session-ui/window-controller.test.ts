@@ -35,6 +35,10 @@ export function runWindowIdentityProbe(): number {
   first.setSidebarFilter("");
   if ("filter" in JSON.parse(storage.getItem("localswim.window.v1")!)) throw Error("Cleared filter retained privacy field");
   if (newWindow.id === first.id) throw Error("New window adopted opener identity");
+  first.put("board-a", { archiveStatus: "archived" });
+  first.put("board-b", { archiveStatus: "all" });
+  const archiveReload = new WindowState(storage, "reload");
+  if (archiveReload.get("board-a").archiveStatus !== "archived" || archiveReload.get("board-b").archiveStatus !== "all" || newWindow.get("board-a").archiveStatus !== undefined) throw Error("Archive filter leaked across windows/boards or failed reload");
   storage.fail = true;
   const refusing = new WindowState(storage, "reload");
   let refused = false;
@@ -42,7 +46,7 @@ export function runWindowIdentityProbe(): number {
   if (!refused) throw Error("Unavailable window storage claimed a save");
   refusing.setSidebarFilter("memory only");
   if (refusing.sidebarFilter !== "memory only") throw Error("Denied storage disabled filter");
-  return 9;
+  return 10;
 }
 
 export async function runPrivateReloadProbe(boardInput: BoardRead, sessionInput: SessionRead): Promise<number> {
@@ -122,6 +126,33 @@ export async function runPendingReloadProbe(boardInput: BoardRead, sessionInput:
     if (fixture.state.lookups || fixture.state.mutations !== 1) throw Error("Reload looked up or replayed an original");
     fixture.state.releases[0]!();
     return 3;
+  } finally { view.destroy(); fixture.client.close(); }
+}
+
+export async function runArchiveReloadProbe(boardInput: BoardRead, sessionInput: SessionRead): Promise<number> {
+  const input = structuredClone(boardInput); Object.assign(input.result.cards[0]!, { archived: true });
+  const fixture = await mountSyntheticBoard(input, sessionInput); fixture.view.destroy();
+  const root = document.createElement("main"); document.body.replaceChildren(root);
+  let reference: EditorReference | undefined;
+  const mount = (): BoardView => new BoardView(root, fixture.client, fixture.board.result.identity.boardId, value => { reference = value; }, { archiveStatus: "archived" });
+  let view = mount();
+  const button = (text: string): HTMLButtonElement => [...root.querySelectorAll("button")].find(n => n.textContent === text)!;
+  try {
+    await view.open(); button("Unarchive card").click(); await view.flushPrivateInput();
+    if (!reference) throw Error("Unarchive draft reference unavailable");
+    const retained = reference;
+    view.destroy(); view = mount(); await view.open(); await view.restore(retained);
+    if (!button("Confirm unarchive card") || fixture.state.mutations || !root.textContent!.includes("Own window draft restored privately")) throw Error("False archive draft lost or replayed on reload");
+    fixture.state.mode = "late"; button("Confirm unarchive card").click();
+    for (let i = 0; i < 250 && !fixture.state.releases.length; i++) await new Promise(resolve => setTimeout(resolve, 20));
+    if (fixture.state.releases.length !== 1 || JSON.parse(fixture.state.wire[0]!).input.archived !== false) throw Error("Restored unarchive did not dispatch exact false once");
+    view.destroy(); view = mount(); await view.open(); await view.restore(retained);
+    if (!button("Confirm unarchive card").disabled || !button("Look up original outcome") || fixture.state.lookups || fixture.state.mutations !== 1) throw Error("Archive UNKNOWN reload replayed or lost original guard");
+    const filter = root.querySelector<HTMLSelectElement>('[aria-label="Archive status"]')!;
+    filter.value = "all"; filter.dispatchEvent(new Event("change", { bubbles: true })); await view.refresh();
+    button("Confirm unarchive card").click();
+    if (fixture.state.mutations !== 1 || !button("Confirm unarchive card").disabled) throw Error("Filter/refresh unlocked archived original");
+    fixture.state.releases[0]!(); return 4;
   } finally { view.destroy(); fixture.client.close(); }
 }
 

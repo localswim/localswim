@@ -53,7 +53,8 @@ export class CardDetails {
   private commentPage = 0;
   private historyPage = 0;
   private historicalCommentPage = 0;
-  constructor(private readonly client: Pick<BoardClient, "card" | "history">, private readonly fallback: HTMLButtonElement) {
+  constructor(private readonly client: Pick<BoardClient, "card" | "history">, private readonly fallback: HTMLButtonElement,
+    private readonly archiveAction?: (read: CardRead) => void) {
     this.host.hidden = true; this.host.setAttribute("aria-label", "Card details"); this.host.setAttribute("role", "region");
     this.heading.tabIndex = -1; this.status.setAttribute("role", "status");
     this.facts.setAttribute("aria-label", "Current card state"); this.comments.setAttribute("aria-label", "Card comments");
@@ -72,7 +73,7 @@ export class CardDetails {
   close(): void {
     this.request++; this.selected = undefined; this.host.hidden = true;
     const replacement = [...this.fallback.parentElement!.querySelectorAll<HTMLButtonElement>("button[data-open-card]")]
-      .find(row => row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0);
+      .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0);
     (replacement ?? this.fallback).focus();
   }
   suspend(): void { this.active = false; this.invalidate(); }
@@ -90,7 +91,13 @@ export class CardDetails {
     if (!this.expected || !same(identity, this.expected)) { this.close(); return; }
     void this.refresh();
   }
-  async refresh(): Promise<void> {
+  refreshAfterArchive(identity: Identity, cardId: string, boardRevision: number, cardRevision: number): void {
+    if (!this.active || this.selected !== cardId || !this.expected || !same(identity, this.expected)) return;
+    // The terminal receipt triggers a new authoritative read; it supplies no
+    // current card facts. A response older than that receipt is still stale.
+    void this.refresh({ boardRevision, cardRevision });
+  }
+  async refresh(minimum?: Readonly<{ boardRevision: number; cardRevision: number }>): Promise<void> {
     if (!this.active || !this.selected || !this.expected) return;
     const generation = ++this.request, cardId = this.selected, identity = this.expected;
     const valid = (): boolean => this.active && generation === this.request && this.selected === cardId;
@@ -103,7 +110,8 @@ export class CardDetails {
     const [current, history] = await Promise.allSettled([currentPromise, historyPromise]);
     if (!valid()) return;
     this.historicalComments.replaceChildren(node("p", "History comments unavailable without matching current and history snapshots."));
-    if (current.status !== "fulfilled" || !same(current.value.result.identity, identity) || current.value.result.card.cardId !== cardId) {
+    if (current.status !== "fulfilled" || !same(current.value.result.identity, identity) || current.value.result.card.cardId !== cardId ||
+        minimum && (current.value.result.revision < minimum.boardRevision || current.value.result.card.revision < minimum.cardRevision)) {
       this.status.textContent = this.current ? "Current card unavailable; displayed confirmed facts are stale. Retry deliberately." : "Current card unavailable. Retry deliberately.";
       this.older.replaceChildren(node("p", "History unavailable without a matching current card read.")); return;
     }
@@ -134,6 +142,7 @@ export class CardDetails {
     for (const row of rows.slice(start, stop)) list.append(render(row));
   }
   private renderCurrent(): void {
+    const focusedArchive = this.facts.contains(document.activeElement) && (document.activeElement as HTMLElement)?.dataset.focusKey;
     const c = this.current!.result, card = c.card;
     this.heading.textContent = "Card details · #" + card.ticket + " " + card.title;
     this.facts.replaceChildren(node("h3", "Current card state"), node("p", "Card UUID: " + card.cardId),
@@ -141,6 +150,14 @@ export class CardDetails {
       node("p", "Title: " + card.title), node("p", card.description === "" ? "Description: empty" : "Description:\n" + card.description),
       node("p", "Lane: " + card.lane + " · Priority: " + card.priority + " · Owner: " + (card.ownerId ? attribution(card.ownerId, c.actors) : "Unassigned")),
       node("p", "Board revision " + c.revision + " · card revision " + card.revision + " · archived: " + card.archived + " · approval: " + (card.currentApprovalId ?? "none")));
+    if (this.archiveAction) {
+      const archive = control(card.archived ? "Unarchive card" : "Archive card", () => {
+        archive.focus({ preventScroll: true }); this.archiveAction!(this.current!);
+      });
+      archive.dataset.focusKey = card.cardId + ":details:archive";
+      archive.disabled = card.lane === "Completed"; this.facts.append(archive);
+      if (focusedArchive === archive.dataset.focusKey && !archive.disabled) archive.focus({ preventScroll: true });
+    }
     const links = c.links.filter(row => row.cardId === card.cardId);
     this.facts.append(node("h3", "Existing relationships"));
     if (!links.length) this.facts.append(node("p", "No relationships returned."));

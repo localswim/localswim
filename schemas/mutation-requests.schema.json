@@ -352,7 +352,72 @@
         },
         "input": {
           "additionalProperties": false,
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "archived": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "archived"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "x-max-utf8-bytes": 65536
+                },
+                "lane": {
+                  "enum": [
+                    "In Progress"
+                  ],
+                  "type": "string"
+                },
+                "ownerId": {
+                  "anyOf": [
+                    {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "priority": {
+                  "enum": [
+                    "P0",
+                    "P1",
+                    "P2",
+                    "P3",
+                    "P4",
+                    "P5"
+                  ],
+                  "type": "string"
+                },
+                "title": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string",
+                  "x-nonblank": true
+                }
+              },
+              "required": [],
+              "type": "object"
+            }
+          ],
           "properties": {
+            "archived": {
+              "type": "boolean"
+            },
             "description": {
               "type": "string",
               "x-max-utf8-bytes": 65536

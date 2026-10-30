@@ -42,3 +42,9 @@ Create omission/null is unassigned. Edit omission retains ownership; null clears
 it. Membership, stale revision, current rights and no-change checks run inside
 the current writer transaction. Assignment shares normal revision/history and
 approval invalidation and never changes authenticated actor, rights or workflow.
+
+M03 archive visibility
+Archive/unarchive is an exclusive archived Boolean card.edit through the existing
+writer, revisions and original outcome path. Completed refuses before no-op;
+unchanged unfinished flags retain NO_CHANGE without history/activity advancement.
+Existing unfinished-card edit admission and exact retained references remain.

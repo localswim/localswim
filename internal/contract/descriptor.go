@@ -12,7 +12,7 @@ import (
 
 // Type is the single validation/generation descriptor. A missing optional field
 // is permitted on wire. Legacy optional fields become null in frozen semantic
-// payloads; ownerId preserves omission because explicit null clears assignment.
+// payloads; ownerId and archived preserve omission for legacy fingerprints.
 type Type struct {
 	Kind     string
 	Nullable bool
@@ -21,6 +21,9 @@ type Type struct {
 	Min, Max uint64
 	Element  *Type
 	Format   string
+	// ExclusiveField, when present, must be the only supplied object field.
+	// Canonical retained payloads use a separate normalized descriptor.
+	ExclusiveField string
 }
 type Field struct {
 	Type     *Type
@@ -56,9 +59,11 @@ type CommandDescriptor struct {
 // Commands returns fresh descriptors so a consumer cannot alter validation.
 func Commands() []CommandDescriptor {
 	empty := obj(map[string]Field{})
+	edit := obj(map[string]Field{"title": opt(text("title")), "description": opt(text("prose")), "priority": opt(priority), "lane": opt(enum("In Progress")), "ownerId": opt(nullableUUID), "archived": opt(&Type{Kind: "boolean"})})
+	edit.ExclusiveField = "archived"
 	commands := []CommandDescriptor{
 		{"card.create", "none", "POST", "/api/v1/boards/{boardId}/cards", obj(map[string]Field{"title": req(text("title")), "description": req(text("prose")), "priority": opt(priority), "ownerId": opt(nullableUUID)}), false},
-		{"card.edit", "card", "PATCH", "/api/v1/boards/{boardId}/cards/{cardId}", obj(map[string]Field{"title": opt(text("title")), "description": opt(text("prose")), "priority": opt(priority), "lane": opt(enum("In Progress")), "ownerId": opt(nullableUUID)}), false},
+		{"card.edit", "card", "PATCH", "/api/v1/boards/{boardId}/cards/{cardId}", edit, false},
 		{"comment.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/comments", obj(map[string]Field{"text": req(text("comment"))}), false},
 		{"attachment.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/attachments", obj(map[string]Field{"name": req(text("attachment-name")), "mediaLabel": req(text("media-label")), "byteLength": req(number(0, 10485760)), "sha256": req(digest)}), false},
 		{"link.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/link-add", obj(map[string]Field{"kind": req(enum("blocking", "informational")), "targetCardId": req(uuid)}), false},
@@ -108,6 +113,11 @@ func (t *Type) validate(v any, path string) error {
 		m, ok := v.(map[string]any)
 		if !ok {
 			return fmt.Errorf("%s: expected object", path)
+		}
+		if t.ExclusiveField != "" {
+			if _, present := m[t.ExclusiveField]; present && len(m) != 1 {
+				return fmt.Errorf("%s: exclusive field", path)
+			}
 		}
 		for k := range m {
 			if _, ok := t.Fields[k]; !ok {
@@ -178,6 +188,10 @@ func (t *Type) validate(v any, path string) error {
 					return fmt.Errorf("%s: expected ASCII", path)
 				}
 			}
+		}
+	case "boolean":
+		if _, ok := v.(bool); !ok {
+			return fmt.Errorf("%s: expected Boolean", path)
 		}
 	case "integer":
 		n, ok := v.(json.Number)

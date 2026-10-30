@@ -31,6 +31,7 @@ type CreateInput struct {
 }
 type EditInput struct {
 	OwnerID     OwnerInput `json:"ownerId,omitzero"`
+	Archived    *bool      `json:"archived,omitempty"`
 	Title       *string    `json:"title"`
 	Description *string    `json:"description"`
 	Priority    *string    `json:"priority"`

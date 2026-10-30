@@ -1,0 +1,98 @@
+M03 CARD ARCHIVE: USE AND RECOVER
+2026-10-29 | Synthetic local feature slice; full text search follows separately
+
+Start and select
+Use the verified executable and a new synthetic workspace. Follow the existing
+m02-start-use-recovery.txt commands to create/select a project and board; the
+same --workspace/project/board selectors apply below. Compatible --data selects
+one exact standalone root. A card's display ticket is local; CLI edits use UUIDs.
+Do not repeat project/board creation when reopening an existing synthetic run.
+
+Browser
+1. Read current board. Active is the default Archive status; rows show explicit
+   priority, current recorded lane and Active/Archived. The underlying full board
+   still contains the target of any retained relationship.
+2. Choose Archive card on an unfinished row or current focused details. Resolve
+   any existing dirty editor explicitly; Keep editing retains it. Review the
+   confirmation and activate Confirm archive card once. Cancel archive sends no
+   mutation. Wait for the original outcome, not just the disappearance of a row.
+3. After the confirmed save, Read current board to acquire the current visible
+   rows; an older board is labeled stale. Focused details update the archived flag
+   authoritatively without replacing an editor base. Choose Archived or All to find it explicitly;
+   existing linked-target and direct details/history inspection remain available.
+4. Choose Unarchive card and Confirm unarchive card once. It returns to default
+   visibility in its recorded lane with retained identity/content/references.
+5. Completed has no archive exception. Its archive controls are disabled and the
+   service refuses submitted archive/unarchive intents. Only the human approval
+   flow can complete work; archive is not that flow.
+
+The archive filter belongs to this window and exact board. Another window keeps
+its own filter/editor/selection. Refresh and filter changes do not replace a
+mounted editor, silently discard input or resubmit a pending/UNKNOWN original.
+Leaving a changed field can queue its private-save change event. If an archive
+action reports private recovery pending, retain the visible input, wait for
+Recovery saved privately and deliberately select the action again; it has not
+submitted an archive. Keyboard Tab followed by the saved status makes that
+boundary explicit before opening the keep/discard choice.
+Details/current board/history are independent reads; respect visible stale state
+and use Read current board or Refresh card details deliberately when offered.
+
+Real CLI
+Set the executable and explicit selector for your synthetic board:
+  $exe = 'C:\path\to\localswim.exe'
+  $select = @('--workspace', 'C:\path\to\workspace', '--project', 'harbor', '--board', 'dispatch')
+  & $exe @select --json board read
+  & $exe @select card list
+  & $exe @select card list --archive archived
+  & $exe @select card list --archive all
+  & $exe @select card list --archive active --cursor 'TOKEN_FROM_PREVIOUS_PAGE'
+  & $exe @select card read 'CURRENT_CARD_UUID'
+  & $exe @select card history 'CURRENT_CARD_UUID'
+
+Listing returns at most 20 summaries and an explicit next cursor. Keep the same
+archive filter with the cursor. A board change or restart invalidates continuation;
+read the first page without cursor deliberately. Do not label a page as all work.
+board read JSON intentionally remains a complete snapshot, including archived
+cards and reference closure. Human-readable board output hides archived rows.
+
+Build a fresh ordinary typed request using the just-read board incarnation and
+board/card revisions, a new deliberate opId, target card UUID and input ONLY
+{"archived":true} (or ONLY {"archived":false}). Use real returned values, not these
+labels; no actor/owner field grants authority. Then:
+  & $exe @select --json card archive 'CURRENT_CARD_UUID' --input archive-request.json
+  & $exe @select --json card unarchive 'CURRENT_CARD_UUID' --input unarchive-request.json
+--input - accepts the same full request from stdin. Equal current flags return
+NO_CHANGE; stale/unauthorized/invalid/Completed requests cannot bypass admission
+as no-ops. Do not reuse an old expected revision after a successful change.
+
+Uncertainty and restart
+After timeout, delivery loss or unreadable success, retain the original opId,
+fingerprint, full source tuple and immutable request/evidence. Do not submit a
+replacement operation or infer noncommit from a missing row. The browser exposes
+Look up original outcome; CLI uses its existing operation-read/evidence path in
+m02-cli-read-edit.txt. Missing/expired/replaced-source evidence remains UNKNOWN.
+Restart the same owned service gracefully and reopen the same workspace; current
+card facts persist. Reload/filter/navigation is not permission to replay an old
+archive. Private input/original retention and its existing capacity limits remain.
+
+Export, restore and delivery
+For an existing exported package, runnable local restoration uses the top-level
+restore --source FILE --data NEWDIR [--port PORT] command. The restored copy saves
+its configured port. If selecting a port, choose an unused one at restoration
+and use that same value for serve --data NEWDIR --port PORT; omitting the serve
+port reuses the saved value. Requesting a different port at startup refuses.
+Choose a fresh destination outside the input archive directory and protected
+source/executable trees. Inspect an unknown publication with the existing
+restore-status command and request ID; do not replay restoration to test success.
+
+Archive/unarchive is a card visibility edit. Existing export creates a complete
+logical package; restore creates a separate isolated runnable copy with fresh
+authority. It does not adopt real V1 data, change the source or settle source
+originals. Preserve original packages and inspect unknown local publication before
+any retry. Existing attachment byte limits and no-overwrite/protected-root rules
+still apply. Keep runtime credentials/profile data out of review kits.
+
+For this local handoff, use the exact bound executable/local kit and small report
+attachments. The administrative board has a 10 MiB/file limit; a larger executable
+or ZIP stays at its recorded local path with manifest/checksum. No installer,
+remote distribution, broad accessibility/IME or physical power-loss claim follows.

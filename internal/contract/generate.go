@@ -88,6 +88,8 @@ func declaration(t *Type) string {
 		return "ReadonlyArray<" + declaration(t.Element) + ">"
 	case "integer":
 		return "number"
+	case "boolean":
+		return "boolean"
 	case "null":
 		return "null"
 	case "string":
@@ -124,6 +126,18 @@ func schema(t *Type) map[string]any {
 		m["properties"] = p
 		m["required"] = required
 		m["additionalProperties"] = false
+		if t.ExclusiveField != "" {
+			ordinary := map[string]any{}
+			for k, value := range p {
+				if k != t.ExclusiveField {
+					ordinary[k] = value
+				}
+			}
+			m["oneOf"] = []any{
+				map[string]any{"type": "object", "properties": map[string]any{t.ExclusiveField: p[t.ExclusiveField]}, "required": []string{t.ExclusiveField}, "additionalProperties": false},
+				map[string]any{"type": "object", "properties": ordinary, "required": required, "additionalProperties": false},
+			}
+		}
 	case "array":
 		m["items"] = schema(t.Element)
 		if t.Format == "sorted-unique" {

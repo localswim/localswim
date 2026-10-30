@@ -3,6 +3,7 @@
 package boardapi
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"errors"
 	"net/http"
@@ -22,13 +23,15 @@ import (
 var ErrUnavailable = errors.New("board transport unavailable")
 
 type Handler struct {
-	store    *S.Store
-	native   *credentials.Service
-	sessions session.Access
-	boundary *H.Handler
-	guarded  http.Handler
-	mu       sync.Mutex
-	recovery map[[32]byte]recoveryEntry
+	store       *S.Store
+	native      *credentials.Service
+	sessions    session.Access
+	boundary    *H.Handler
+	guarded     http.Handler
+	mu          sync.Mutex
+	recovery    map[[32]byte]recoveryEntry
+	cursorKey   [32]byte
+	cursorEpoch [16]byte
 }
 
 type recoveryEntry struct {
@@ -48,6 +51,12 @@ func New(store *S.Store, native *credentials.Service, sessions *session.Service)
 		return nil, ErrUnavailable
 	}
 	h := &Handler{store: store, native: native, sessions: sessions, boundary: boundary, recovery: map[[32]byte]recoveryEntry{}}
+	if _, e := rand.Read(h.cursorKey[:]); e != nil {
+		return nil, ErrUnavailable
+	}
+	if _, e := rand.Read(h.cursorEpoch[:]); e != nil {
+		return nil, ErrUnavailable
+	}
 	h.guarded = boundary.Native(http.HandlerFunc(h.dispatch))
 	return h, nil
 }
@@ -83,6 +92,11 @@ func selectRoute(r *http.Request) (route, int) {
 		q.kind = "mutation"
 		q.command = "card.create"
 		method = "POST"
+		if r.Method == "GET" {
+			q.kind = "search"
+			q.command = ""
+			method = "GET"
+		}
 	case len(p) == 7 && p[5] == "operations" && schema.ValidUUID(p[6]):
 		q.kind = "lookup"
 		q.operation = p[6]
@@ -124,7 +138,7 @@ func selectRoute(r *http.Request) (route, int) {
 	default:
 		return route{}, 404
 	}
-	if q.kind != "lookup" && r.URL.RawQuery != "" {
+	if q.kind != "lookup" && q.kind != "search" && r.URL.RawQuery != "" {
 		return route{}, 400
 	}
 	if r.Method != method {

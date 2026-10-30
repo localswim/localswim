@@ -21,9 +21,18 @@ type Editor = {
   id: string; revision: number; command: BoardCommand; context: Context; base: BoardRead;
   card: Card | undefined; fields: Record<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
   form: HTMLFormElement; recovery: HTMLElement; save: HTMLButtonElement; composing: boolean;
-  sequence: number; submitted: boolean; persisted: number; start: boolean;
+  sequence: number; submitted: boolean; persisted: number; start: boolean; archive?: boolean;
   initial: string; initialFields: Record<string, string>; opener: HTMLElement | null; confirmation: HTMLElement; confirming: boolean; confirmingEnter: boolean;
 };
+
+export type ArchiveStatus = "active" | "archived" | "all";
+export type BoardViewOptions = Readonly<{ archiveStatus?: ArchiveStatus; archiveCheckpoint?: (status: ArchiveStatus) => void }>;
+// The complete source graph remains intact for reference and advisory validation.
+export function visibleCards(cards: readonly Card[], status: ArchiveStatus): Card[] {
+  const rank = ["P0", "P1", "P2", "P3", "P4", "P5"];
+  return cards.filter(card => status === "all" || card.archived === (status === "archived"))
+    .sort((a, b) => rank.indexOf(a.priority) - rank.indexOf(b.priority) || a.ticket - b.ticket || (a.cardId < b.cardId ? -1 : a.cardId > b.cardId ? 1 : 0));
+}
 
 // DOM-only view. Every prose-bearing field is rendered as inert text.
 export class BoardView {
@@ -46,8 +55,9 @@ export class BoardView {
   private readonly persistence: RecoveryCoordinator;
   private readonly stopPersistence: () => void;
   private readonly details: CardDetails;
+  private readonly archiveStatus = element("select");
   constructor(private readonly root: HTMLElement, readonly client: BoardClient, readonly boardId: string,
-    private readonly checkpoint: (reference?: EditorReference) => void = () => {}) {
+    private readonly checkpoint: (reference?: EditorReference) => void = () => {}, private readonly options: BoardViewOptions = {}) {
     this.persistence = recoveryCoordinator(client);
     this.stopPersistence = this.persistence.subscribe(() => {
       if (this.editor) { this.editor.sequence++; this.editor.recovery.textContent = "Private discard pending; visible input retained. Later deliberate edits are saved after the boundary."; }
@@ -58,9 +68,29 @@ export class BoardView {
     this.current.setAttribute("aria-label", "Current confirmed text");
     this.cards.setAttribute("aria-label", "Cards");
     const read = button("Read current board", () => { void this.refresh(); });
-    this.details = new CardDetails(client, read);
+    const archiveLabel = element("label", "Archive status ");
+    this.archiveStatus.setAttribute("aria-label", "Archive status");
+    for (const [value, label] of [["active", "Active"], ["archived", "Archived"], ["all", "All"]]) {
+      const option = element("option", label); option.value = value!; this.archiveStatus.append(option);
+    }
+    this.archiveStatus.value = options.archiveStatus ?? "active";
+    this.archiveStatus.addEventListener("change", () => {
+      if (this.destroyed || this.suspended) return;
+      try { options.archiveCheckpoint?.(this.archiveStatus.value as ArchiveStatus); }
+      catch { this.readState.textContent = "Archive status retained for this window lifetime; window storage unavailable."; }
+      if (this.board) this.renderCards();
+    });
+    archiveLabel.append(this.archiveStatus);
+    this.details = new CardDetails(client, read, focused => {
+      const current = this.board, card = current?.result.cards.find(row => row.cardId === focused.result.card.cardId);
+      if (!current || !card || current.result.identity.boardId !== focused.result.identity.boardId ||
+          current.result.identity.incarnation !== focused.result.identity.incarnation || current.result.revision !== focused.result.revision || card.revision !== focused.result.card.revision) {
+        this.readState.textContent = "Read current board before archiving this focused card; its independently read facts differ from the board base."; return;
+      }
+      this.edit("card.edit", card, false, undefined, !card.archived);
+    });
     root.replaceChildren(this.heading, this.actor, this.readState, read,
-      button("Create card", () => this.edit("card.create")), this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
+      button("Create card", () => this.edit("card.create")), archiveLabel, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
   }
   async open(): Promise<void> { await this.refresh(); }
   suspend(): void { this.suspended = true; this.generation++; this.details.suspend(); }
@@ -86,7 +116,7 @@ export class BoardView {
       if (reference.context.boardId !== this.boardId) return;
       const draft = await this.persistence.read(() => this.client.recovery.loadDraft(reference.context, reference.draftId));
       if (!draft || this.destroyed || this.editor || generation !== this.generation) return;
-      const payload = parse(draft.input) as unknown as { command: BoardCommand; base: BoardRead; card?: Card; input: Record<string, string>; start?: boolean };
+      const payload = parse(draft.input) as unknown as { command: BoardCommand; base: BoardRead; card?: Card; input: Record<string, string | boolean>; start?: boolean };
       if (!payload || typeof payload !== "object" || typeof payload.command !== "string" || !Object.hasOwn(commands, payload.command) || ["attachment.add", "history.clear", "retention.set"].includes(payload.command) || !payload.base || !payload.input) return;
       validate("transport:BoardRead", payload.base as unknown as import("../api/boundary.js").Value);
       const identity = payload.base.result.identity;
@@ -95,6 +125,8 @@ export class BoardView {
       if (Object.entries(context).some(([key, value]) => value !== reference.context[key as keyof Context])) return;
       const card = payload.card ? payload.base.result.cards.find(c => c.cardId === payload.card!.cardId) : undefined;
       if (payload.card && !card) return;
+      const archive = Object.hasOwn(payload.input, "archived") ? payload.input.archived : undefined;
+      if (archive !== undefined && (typeof archive !== "boolean" || payload.command !== "card.edit" || !card || Object.keys(payload.input).length !== 1 || payload.start)) return;
       const inventory = await this.persistence.read(() => this.client.recovery.inventory());
       const rows = inventory.submissions.filter(row => row.draftId === reference.draftId && Object.entries(reference.context).every(([key, value]) => value === row.context[key as keyof Context]));
       const originals = await Promise.all(rows.map(async row => ({ row, submission: await this.client.recovery.loadSubmission(row.context, row.opId) })));
@@ -104,7 +136,7 @@ export class BoardView {
           message: row.outcome === "unknown" ? "Original operation retained after reload. Outcome unknown; deliberate original lookup only. Do not resubmit." : "Retained original outcome: " + row.outcome + ". No operation was replayed." };
         this.records.set(row.opId, outcome); this.showOutcome(outcome, row.context);
       }
-      this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input });
+      this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive as boolean | undefined);
       const restored = this.editor as Editor | undefined;
       if (restored) restored.submitted = rows.some(row => row.outcome !== "not_committed");
       if (rows.some(row => row.outcome === "committed")) this.readState.textContent = "Retained original was committed. This editor remains submitted; read current text and deliberately open new work.";
@@ -135,17 +167,31 @@ export class BoardView {
     this.updateSave();
   }
   private renderCards(): void {
-    const focused = (document.activeElement as HTMLElement | null)?.dataset.focusKey;
+    const focused = this.cards.contains(document.activeElement) ? (document.activeElement as HTMLElement | null)?.dataset.focusKey : undefined;
     this.cards.replaceChildren();
-    for (const card of this.board!.result.cards) {
+    const visible = visibleCards(this.board!.result.cards, this.archiveStatus.value as ArchiveStatus);
+    this.cards.append(element("p", visible.length + " cards visible · Archive status: " + this.archiveStatus.selectedOptions[0]!.textContent));
+    for (const card of visible) {
       const article = element("article");
       article.append(element("h2", "#" + card.ticket + " " + card.title), element("p", card.cardId),
-        element("p", card.description), element("p", "Assignee: " + this.assignee(card.ownerId, this.board!.result.actors)), element("p", card.priority + " · " + card.lane + " · card revision " + card.revision));
+        element("p", card.description), element("p", "Assignee: " + this.assignee(card.ownerId, this.board!.result.actors)), element("p", card.priority + " · " + card.lane + " · card revision " + card.revision + " · " + (card.archived ? "Archived" : "Active")));
       const commentCount = this.board!.result.comments.filter(c => c.cardId === card.cardId).length;
       article.append(element("p", commentCount + " comments returned. Open card to read paged comments and history."));
       for (const link of this.board!.result.links.filter(l => l.cardId === card.cardId && l.active)) {
         article.append(element("p", link.kind + " → " + link.target.cardId + " · " + link.linkId));
+        const identity = this.board!.result.identity, target = this.board!.result.cards.find(row => row.cardId === link.target.cardId);
+        if (target && link.target.boardId === identity.boardId && link.target.incarnation === identity.incarnation) {
+          const openTarget = button("Open linked card #" + target.ticket + " " + target.title, () => {
+            if (!this.destroyed && !this.suspended && this.board) this.details.open(target.cardId, this.board.result.identity, openTarget);
+          });
+          openTarget.dataset.openCard = target.cardId; openTarget.dataset.focusKey = card.cardId + ":link:" + link.linkId;
+          article.append(openTarget);
+        }
       }
+      const archive = button(card.archived ? "Unarchive card" : "Archive card", () => {
+        archive.focus({ preventScroll: true }); this.edit("card.edit", card, false, undefined, !card.archived);
+      });
+      archive.dataset.focusKey = card.cardId + ":archive"; archive.disabled = card.lane === "Completed"; article.append(archive);
       const advisory = dependencyAdvisory(this.board!, card);
       const pressure = element("section"), prerequisites = element("section");
       pressure.setAttribute("aria-label", "Dependency pressure");
@@ -181,10 +227,18 @@ export class BoardView {
   private updateSave(): void {
     if (this.editor) this.editor.save.disabled = this.stale || this.editor.submitted || this.editor.composing || this.editor.confirming || this.blocked();
   }
-  private edit(command: BoardCommand, card?: Card, start = false, restore?: { base: BoardRead; reference: EditorReference; revision: number; input: Record<string, string> }): void {
+  private edit(command: BoardCommand, card?: Card, start = false, restore?: { base: BoardRead; reference: EditorReference; revision: number; input: Record<string, string | boolean> }, archive?: boolean): void {
     if (this.destroyed || !this.board || !this.session || this.stale) { this.readState.textContent = "Read a current board before editing."; return; }
     if (!this.canLeave) { this.readState.textContent = "Private recovery is pending or failed. Retain this input until saved or explicitly discard the editor."; return; }
     if (this.editor && !this.editor.submitted && this.dirty(this.editor)) {
+      if (archive !== undefined) {
+        const opener = document.activeElement as HTMLElement | null;
+        this.cancelEditor(this.editor, () => {
+          const replacement = [...this.root.querySelectorAll<HTMLButtonElement>("button")].find(row => row.dataset.focusKey === opener?.dataset.focusKey);
+          (replacement ?? (opener?.isConnected ? opener : undefined))?.focus({ preventScroll: true }); this.edit(command, card, start, restore, archive);
+        });
+        return;
+      }
       this.readState.textContent = "Current editor has unsaved intent. Finish it or explicitly discard it before opening another editor.";
       return;
     }
@@ -193,7 +247,7 @@ export class BoardView {
     const recovery = element("p", "Recovery pending"); recovery.setAttribute("role", "status");
     const editor: Editor = { id: restore?.reference.draftId ?? crypto.randomUUID(), revision: restore?.revision ?? 0, command, context, base, card,
       fields: {}, form, recovery, save: button("Save", () => { void this.save(editor); }), composing: false,
-      sequence: 0, submitted: false, persisted: -1, start, initial: "", initialFields: {}, opener: document.activeElement as HTMLElement | null,
+      sequence: 0, submitted: false, persisted: -1, start, ...(archive === undefined ? {} : { archive }), initial: "", initialFields: {}, opener: document.activeElement as HTMLElement | null,
       confirmation: element("section"), confirming: false, confirmingEnter: false };
     const title = element("h2", command + " · original board revision " + base.result.revision + (card ? ", card revision " + card.revision : ""));
     form.append(title, element("p", "Board " + context.boardId + " · actor " + context.actorId));
@@ -206,7 +260,10 @@ export class BoardView {
       control.addEventListener("change", () => this.persist(editor));
       label.append(control); form.append(label);
     };
-    if (start) field("lane", "In Progress", ["In Progress"]);
+    if (archive !== undefined) {
+      editor.save.textContent = archive ? "Confirm archive card" : "Confirm unarchive card";
+      form.append(element("p", (archive ? "Archive" : "Unarchive") + " card #" + card!.ticket + "? Recorded lane " + card!.lane + " and retained card facts remain. This submits one explicit edit."));
+    } else if (start) field("lane", "In Progress", ["In Progress"]);
     else if (command === "card.create" || command === "card.edit") {
       field("title", card?.title ?? ""); field("description", card?.description ?? ""); field("priority", card?.priority ?? "P3", ["P0", "P1", "P2", "P3", "P4", "P5"]);
       field("ownerId", card?.ownerId ?? "", ["", ...base.result.actors.map(a => a.actorId)]);
@@ -244,7 +301,7 @@ export class BoardView {
     });
     editor.initialFields = Object.fromEntries(Object.entries(editor.fields).map(([name, control]) => [name, control.value]));
     editor.initial = JSON.stringify(this.input(editor));
-    form.append(recovery, editor.save, button("Read current text", () => { void this.currentText(editor); }), button("Discard current editor input", () => this.cancelEditor(editor)), editor.confirmation);
+    form.append(recovery, editor.save, button("Read current text", () => { void this.currentText(editor); }), button(archive === undefined ? "Discard current editor input" : archive ? "Cancel archive" : "Cancel unarchive", () => this.cancelEditor(editor)), editor.confirmation);
     this.editor = editor; this.editorHost.replaceChildren(form); this.current.replaceChildren();
     if (restore) for (const [name, control] of Object.entries(editor.fields)) {
       if (Object.hasOwn(restore.input, name)) control.value = String(restore.input[name] ?? "");
@@ -255,7 +312,7 @@ export class BoardView {
     (Object.values(editor.fields)[0] ?? editor.save).focus();
   }
   private dirty(editor: Editor): boolean { return JSON.stringify(this.input(editor)) !== editor.initial; }
-  private cancelEditor(editor: Editor): void {
+  private cancelEditor(editor: Editor, next?: () => void): void {
     if (this.editor !== editor || editor.submitted) return;
     const previousFocus = editor.form.contains(document.activeElement) ? document.activeElement as HTMLElement : undefined;
     const selection = previousFocus instanceof HTMLInputElement || previousFocus instanceof HTMLTextAreaElement
@@ -264,7 +321,8 @@ export class BoardView {
       if (this.editor !== editor || editor.submitted) return;
       const opener = editor.opener;
       this.discardInput();
-      const replacement = opener?.dataset.focusKey ? [...this.cards.querySelectorAll<HTMLButtonElement>("button")]
+      if (next) { next(); return; }
+      const replacement = opener?.dataset.focusKey ? [...this.root.querySelectorAll<HTMLButtonElement>("button")]
         .find(row => row.dataset.focusKey === opener.dataset.focusKey && !row.disabled && row.getClientRects().length > 0) : undefined;
       (replacement ?? (opener?.isConnected && !(opener instanceof HTMLButtonElement && opener.disabled) && opener.getClientRects().length > 0
         ? opener : this.root.querySelector<HTMLButtonElement>("button")))?.focus();
@@ -288,6 +346,7 @@ export class BoardView {
     keep.focus();
   }
   private input(editor: Editor): Record<string, Value> {
+    if (editor.archive !== undefined) return { archived: editor.archive };
     const input: Record<string, Value> = {};
     for (const [name, field] of Object.entries(editor.fields)) input[name] = name === "policyVersion" ? Number(field.value) : name === "ownerId" && field.value === "" ? null : field.value;
     // Native text controls normalize existing line endings. An untouched field
@@ -359,6 +418,15 @@ export class BoardView {
     this.stale = true;
     this.details.invalidate();
     this.readState.textContent = "Confirmed saved. Displayed board is stale; read the current board before new work.";
+    if (identity && original && terminal?.outcome === "committed" && terminal.command === "card.edit" && terminal.target && terminal.cardRevision !== null &&
+        identity.boardId === original.boardId && identity.incarnation === original.incarnation && outcome.evidence?.command === "card.edit") {
+      try {
+        const request = parse(outcome.evidence.requestBytes) as unknown as { input?: Record<string, unknown> };
+        if (request.input && Object.keys(request.input).length === 1 && typeof request.input.archived === "boolean") {
+          this.details.refreshAfterArchive(identity, terminal.target.cardId, terminal.revision, terminal.cardRevision);
+        }
+      } catch { /* A receipt never supplies optimistic card facts or permits replay. */ }
+    }
   }
   private showOutcome(outcome: OriginalOutcome, context: Context): void {
     let row = this.outcomeNodes.get(outcome.opId);

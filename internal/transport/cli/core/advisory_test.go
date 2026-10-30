@@ -106,11 +106,11 @@ func TestDependencyAdvisoryOnlyDirectRelationships(t *testing.T) {
 	link.CardID, link.Target.CardID = gamma.CardID, b.Result.Cards[1].CardID
 	b.Result.Links = append(b.Result.Links, link)
 	out := boardAdvisory(b.Result)
-	alpha := strings.Split(out, "\n#2 Beta")[0]
+	alpha := strings.Split(strings.Split(out, "#1 Alpha (P3; Ready for Review)\n")[1], "\n#")[0]
 	if strings.Contains(alpha, "Gamma") || !strings.Contains(alpha, "Dependency pressure: #2 Beta") {
 		t.Fatal("transitive pressure or omitted direct dependent")
 	}
-	gammaRows := strings.Split(out, "\n#3 Gamma")[1]
+	gammaRows := strings.Split(strings.Split(out, "\n#3 Gamma")[1], "\n#")[0]
 	if strings.Contains(gammaRows, "Alpha") || !strings.Contains(gammaRows, "Prerequisites/readiness: #2 Beta") {
 		t.Fatal("transitive prerequisite or omitted direct target")
 	}
@@ -141,7 +141,8 @@ func TestDependencyAdvisoryOrdinaryOutputAndExactJSON(t *testing.T) {
 					t.Fatal("JSON changed")
 				}
 			} else {
-				want := "confirmed board " + testBoard + "\n" + string(wire) + boardAdvisory(b.Result)
+				text, _ := focusedRead(b)
+				want := "confirmed board " + testBoard + "\n" + text
 				if out.String() != want {
 					t.Fatal("ordinary advisory missing or altered envelope")
 				}

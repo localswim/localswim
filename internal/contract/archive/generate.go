@@ -244,7 +244,7 @@ func generateCommandObjects(defs map[string]any, ts *strings.Builder) {
 		payload := d.Input
 		f := map[string]contract.Field{}
 		for k, field := range payload.Fields {
-			if field.Optional && k != "ownerId" {
+			if field.Optional && k != "ownerId" && k != "archived" {
 				n := *field.Type
 				n.Nullable = true
 				field.Type = &n
@@ -318,6 +318,9 @@ func descriptorSchema(t *contract.Type) map[string]any {
 	if t.Kind == "integer" {
 		return map[string]any{"type": "integer", "minimum": t.Min, "maximum": t.Max}
 	}
+	if t.Kind == "boolean" {
+		return map[string]any{"type": "boolean"}
+	}
 	typ := reflect.TypeFor[string]()
 	switch t.Format {
 	case "uuid":
@@ -362,6 +365,8 @@ func descriptorTS(t *contract.Type) string {
 		return "ReadonlyArray<" + descriptorTS(t.Element) + ">"
 	case "integer":
 		return "number"
+	case "boolean":
+		return "boolean"
 	case "null":
 		return "null"
 	case "string":

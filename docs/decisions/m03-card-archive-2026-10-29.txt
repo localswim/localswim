@@ -1,0 +1,81 @@
+M03.02 CARD ARCHIVE / EXPLICIT LISTING
+2026-10-29 | Accepted M03.01 integration contract; feature-local scope
+
+Behavior
+Unfinished cards may be archived and unarchived through the existing card.edit
+intent and writer. The optional archived Boolean must be the only public input
+field. Omission preserves the old edit, explicit false unarchives; null, mixed
+edits and non-Booleans refuse. Canonical intent normalization retains the old
+nullable title/description/priority/lane fields, preserves archived omission and
+keeps legacy frozen bytes/fingerprints unchanged. Owner omission remains distinct.
+No new operation command, grant right, physical layout or API/archive version.
+
+Current edit authority, identity/incarnation and expected board/card revisions
+apply before no-op. A changed flag commits once, advances ordinary card/board
+history and activity and preserves recorded lane, identity/ticket, explicit
+priority, owner, exact content, comments and references/bytes. Equal flags return
+durable NO_CHANGE. Completed refuses both operations before no-op, preserving its
+terminal/approval rule. Other unfinished archived-card commands keep existing
+admission; Start already refuses archived cards. There is no blanket new read-only
+policy for all archived data, deletion, automatic completion or byte collection.
+
+Reads and visibility
+BoardRead JSON is still the complete current board in canonical ticket/UUID
+transport order. It retains archived same-identity link targets and complete
+reference closure. UI lane rows and readable CLI board output default to active
+cards, in explicit P0..P5/ticket/UUID display order; no priority propagation.
+Archive status Active/Archived/All is private per window/board. Direct card and
+history reads remain available for archived cards. This is visibility, not an
+authorization filter; assignment does not grant rights.
+
+GET /api/v1/boards/{boardId}/cards is a distinct fixed-20 partial listing with
+CardSearchRead/card-search scope. It contains identity/revision, exact query echo
+and typed filters, bounded current summaries and nullable nextCursor, never a
+partial BoardView or a complete comment/link/attachment graph. This story accepts
+empty q, archive active(default)/archived/all and cursor only. Full matching and
+lane/owner/priority filters remain M03.03 and are not implied by the DTO name.
+The selected response is one authorized SQLite snapshot, ordered by explicit
+priority/ticket/UUID with a 21st match used only for continuation. No total count,
+database-work or aggregate memory bound is claimed.
+
+The bounded opaque cursor authenticates the handler epoch, actor, board and
+incarnation/revision, canonical empty query/archive filters and last sort key.
+Read rights are checked for every page. Changed facts, restart, scope/filter
+mismatch or tampering cannot continue another snapshot; a valid-shaped unusable
+cursor returns CURSOR_STALE/409 without rows. Malformed syntax refuses input.
+The caller deliberately starts the first page without cursor. Cursors are not
+credentials or authority and do not create durable mutation operations.
+
+Browser and CLI
+Archive/unarchive uses the normal editor, private recovery, explicit confirmation
+and original-operation outcomes. Dirty input requires explicit keep/discard;
+storage refusal blocks lossy replacement. A confirmed archive result refreshes
+matching focused details authoritatively, keeping its archived state current even
+when the visible row disappears. Context/request fences prevent another card or
+window receiving that result. No optimistic state patch or mutation replay.
+Cancel/close returns to a visible opener or Read current board. Keyboard/native
+button and composition guards remain; filter reads do not unlock an unresolved
+original or resubmit it. Current board/editor bases stay separate from a details
+read and are refreshed deliberately when needed.
+
+card archive UUID --input REQUEST and card unarchive UUID --input REQUEST are
+strict aliases to card.edit requiring matching true/false. They use existing
+full request metadata/explicit revisions, --input - and outcome/evidence rules.
+card list [--archive active|archived|all] [--cursor TOKEN] returns the partial
+listing in JSON or readable form, with returned count, next cursor or honest end.
+Existing --workspace/project/board and compatible --data selection remain exact.
+
+Conservation and verification limits
+Retained relationships and attachment bytes are regression assertions, not new
+hierarchy/file UI work. Export always uses complete logical board data, not the
+visible list; same-candidate restore accepts new archive-edit originals as well
+as legacy omitted fields and preserves exact retained facts/bytes and provenance.
+The restored copy has its own installation/incarnation and current grants; it
+does not turn an original source UNKNOWN into noncommit or import source authority.
+
+Feature proof uses ordinary built browser/real CLI paths plus labeled native
+response-loss/restart checks, source-bound DOM/storage probes, Go/HTTP/CLI tests
+and existing native/browser regression entrypoints. Failed attempts and source
+bindings remain private. Component probes are not ordinary product journeys;
+process termination does not certify physical power-loss safety. M03.04/.05 still
+own joined find/archive qualification and final milestone handoff.

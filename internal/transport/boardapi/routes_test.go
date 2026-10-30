@@ -25,7 +25,7 @@ func TestExactRoutesExcludeOtherAdapters(t *testing.T) {
 		status                      int
 	}{
 		{"GET", base, "board", "", 0}, {"GET", base + "/cards/" + testCard, "card", "", 0}, {"GET", base + "/cards/" + testCard + "/history", "history", "", 0},
-		{"POST", base + "/cards", "mutation", "card.create", 0}, {"PATCH", base + "/cards/" + testCard, "mutation", "card.edit", 0},
+		{"GET", base + "/cards", "search", "", 0}, {"GET", base + "/cards?archive=archived", "search", "", 0}, {"POST", base + "/cards", "mutation", "card.create", 0}, {"PATCH", base + "/cards/" + testCard, "mutation", "card.edit", 0},
 		{"POST", base + "/cards/" + testCard + "/comments", "mutation", "comment.add", 0}, {"POST", base + "/cards/" + testCard + "/link-add", "mutation", "link.add", 0},
 		{"POST", base + "/cards/" + testCard + "/link-remove", "mutation", "link.remove", 0}, {"POST", base + "/cards/" + testCard + "/review-handoff", "mutation", "review-handoff", 0}, {"POST", base + "/cards/" + testCard + "/approve", "mutation", "approve", 0},
 		{"POST", base + "/recovery/preview", "preview", "", 0}, {"POST", base + "/recovery/confirm", "confirm", "", 0}, {"GET", base + "/operations/" + testCard + "?incarnation=" + testInc, "lookup", "", 0},

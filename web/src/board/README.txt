@@ -13,6 +13,25 @@ references, assigned priority, lanes, comments and link kinds remain visible. Go
 enforces grants, prerequisites, review handoff and human-only approval. Completed
 cards expose disabled mutation controls; approval requires visible human session rights.
 
+Archive status selects Active (default), Archived or All rows from the complete
+validated BoardRead. Display rows sort explicit P0-P5, then ticket and UUID;
+transport ordering and the reference graph are unchanged. Same-identity linked
+targets can be opened even when archive filtering hides their own row. Details
+remain mounted through filtering and close to the visible opener, else Read
+current board. The filter is private per window and board, bounded on reload,
+and remains usable in memory if window storage refuses.
+
+Archive card and Unarchive card open an exclusive archived:Boolean card.edit
+draft with Confirm archive card/Confirm unarchive card and Cancel archive/Cancel
+unarchive buttons. Dirty editor input first uses the explicit discard/keep gate.
+Cancellation does not erase private history or retained originals. The ordinary
+storage, stale-base and pending/UNKNOWN guards still apply. A confirmed mutation
+marks the board stale; deliberately read current board to update visible rows.
+After a confirmed archive/unarchive of the selected card, details issue fresh
+authoritative card/history reads and update its archived label without replacing
+the editor or moving its focus. Responses must match the selected context and
+reach the receipt revisions; failed reads retain truthfully stale prior facts.
+
 Create/edit/comment/link-add/link-remove/start-work/handoff/approve open semantic
 forms with an explicit Save button and original board/card bases. Every input change
 persists a private revision-CAS draft; pending/saved/failed/forked feedback retains

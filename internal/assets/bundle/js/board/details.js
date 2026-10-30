@@ -40,6 +40,7 @@ function coverage(host, value) {
 export class CardDetails {
     client;
     fallback;
+    archiveAction;
     host = node("section");
     selected;
     expected;
@@ -57,9 +58,10 @@ export class CardDetails {
     commentPage = 0;
     historyPage = 0;
     historicalCommentPage = 0;
-    constructor(client, fallback) {
+    constructor(client, fallback, archiveAction) {
         this.client = client;
         this.fallback = fallback;
+        this.archiveAction = archiveAction;
         this.host.hidden = true;
         this.host.setAttribute("aria-label", "Card details");
         this.host.setAttribute("role", "region");
@@ -92,7 +94,7 @@ export class CardDetails {
         this.selected = undefined;
         this.host.hidden = true;
         const replacement = [...this.fallback.parentElement.querySelectorAll("button[data-open-card]")]
-            .find(row => row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0);
+            .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0);
         (replacement ?? this.fallback).focus();
     }
     suspend() { this.active = false; this.invalidate(); }
@@ -115,7 +117,14 @@ export class CardDetails {
         }
         void this.refresh();
     }
-    async refresh() {
+    refreshAfterArchive(identity, cardId, boardRevision, cardRevision) {
+        if (!this.active || this.selected !== cardId || !this.expected || !same(identity, this.expected))
+            return;
+        // The terminal receipt triggers a new authoritative read; it supplies no
+        // current card facts. A response older than that receipt is still stale.
+        void this.refresh({ boardRevision, cardRevision });
+    }
+    async refresh(minimum) {
         if (!this.active || !this.selected || !this.expected)
             return;
         const generation = ++this.request, cardId = this.selected, identity = this.expected;
@@ -133,7 +142,8 @@ export class CardDetails {
         if (!valid())
             return;
         this.historicalComments.replaceChildren(node("p", "History comments unavailable without matching current and history snapshots."));
-        if (current.status !== "fulfilled" || !same(current.value.result.identity, identity) || current.value.result.card.cardId !== cardId) {
+        if (current.status !== "fulfilled" || !same(current.value.result.identity, identity) || current.value.result.card.cardId !== cardId ||
+            minimum && (current.value.result.revision < minimum.boardRevision || current.value.result.card.revision < minimum.cardRevision)) {
             this.status.textContent = this.current ? "Current card unavailable; displayed confirmed facts are stale. Retry deliberately." : "Current card unavailable. Retry deliberately.";
             this.older.replaceChildren(node("p", "History unavailable without a matching current card read."));
             return;
@@ -173,9 +183,21 @@ export class CardDetails {
             list.append(render(row));
     }
     renderCurrent() {
+        const focusedArchive = this.facts.contains(document.activeElement) && document.activeElement?.dataset.focusKey;
         const c = this.current.result, card = c.card;
         this.heading.textContent = "Card details · #" + card.ticket + " " + card.title;
         this.facts.replaceChildren(node("h3", "Current card state"), node("p", "Card UUID: " + card.cardId), node("p", "Origin: " + origin(c.identity) + " · created in " + origin(card.createdIn)), node("p", "Title: " + card.title), node("p", card.description === "" ? "Description: empty" : "Description:\n" + card.description), node("p", "Lane: " + card.lane + " · Priority: " + card.priority + " · Owner: " + (card.ownerId ? attribution(card.ownerId, c.actors) : "Unassigned")), node("p", "Board revision " + c.revision + " · card revision " + card.revision + " · archived: " + card.archived + " · approval: " + (card.currentApprovalId ?? "none")));
+        if (this.archiveAction) {
+            const archive = control(card.archived ? "Unarchive card" : "Archive card", () => {
+                archive.focus({ preventScroll: true });
+                this.archiveAction(this.current);
+            });
+            archive.dataset.focusKey = card.cardId + ":details:archive";
+            archive.disabled = card.lane === "Completed";
+            this.facts.append(archive);
+            if (focusedArchive === archive.dataset.focusKey && !archive.disabled)
+                archive.focus({ preventScroll: true });
+        }
         const links = c.links.filter(row => row.cardId === card.cardId);
         this.facts.append(node("h3", "Existing relationships"));
         if (!links.length)

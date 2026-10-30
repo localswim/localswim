@@ -15,7 +15,7 @@ export class SessionWorkspace {
         this.root = root;
         const board = element("section"), recovery = element("section"), admin = element("section"), archive = element("section");
         root.replaceChildren(board, recovery, admin, archive);
-        this.board = new BoardView(board, client, session.grant.boardId, options.checkpoint);
+        this.board = new BoardView(board, client, session.grant.boardId, options.checkpoint, options);
         const observe = (outcome) => this.board.observeOutcome(outcome);
         this.recovery = new RecoveryView(recovery, client, observe, options.recoveryCheckpoint);
         if (!options.local)

@@ -28,6 +28,7 @@ type envelope struct {
 	Target                        *contract.Target
 	Payload                       struct {
 		Title, Description, Priority, Lane, Text *string
+		Archived                                 *bool
 		OwnerID                                  contract.OwnerInput `json:"ownerId"`
 	}
 }
@@ -112,7 +113,8 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 			if err != nil {
 				return nil, err
 			}
-			changed := e.Payload.OwnerID.Present && !sameOwner(e.Payload.OwnerID.Value, current.OwnerID)
+			changed := e.Payload.Archived != nil && *e.Payload.Archived != current.Archived
+			changed = changed || e.Payload.OwnerID.Present && !sameOwner(e.Payload.OwnerID.Value, current.OwnerID)
 			for _, f := range []struct {
 				supplied *string
 				current  string
@@ -203,6 +205,11 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 				return writer.Effect{}, err
 			}
 			if e.Command == "card.edit" {
+				if e.Payload.Archived != nil {
+					if err = exec("UPDATE card SET archived=? WHERE incarnation=? AND card_id=?", *e.Payload.Archived, e.Incarnation, id); err != nil {
+						return writer.Effect{}, err
+					}
+				}
 				if e.Payload.OwnerID.Present {
 					if err = exec("UPDATE card SET owner_id=? WHERE incarnation=? AND card_id=?", e.Payload.OwnerID.Value, e.Incarnation, id); err != nil {
 						return writer.Effect{}, err

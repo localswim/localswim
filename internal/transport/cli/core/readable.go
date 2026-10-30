@@ -14,6 +14,39 @@ import (
 func focusedRead(value any) (string, bool) {
 	var out strings.Builder
 	switch x := value.(type) {
+	case T.BoardRead:
+		out.WriteString("Active cards (current snapshot; explicit priority order):\n")
+		ordered := append([]A.Card(nil), x.Result.Cards...)
+		sort.Slice(ordered, func(i, j int) bool {
+			a, b := ordered[i], ordered[j]
+			if a.Priority != b.Priority {
+				return a.Priority < b.Priority
+			}
+			if a.Ticket != b.Ticket {
+				return a.Ticket < b.Ticket
+			}
+			return a.CardID < b.CardID
+		})
+		for _, c := range ordered {
+			if !c.Archived {
+				fmt.Fprintf(&out, "#%d %s (%s; %s) %s\n", c.Ticket, advisoryText(c.Title), c.Priority, c.Lane, c.CardID)
+			}
+		}
+		out.WriteString(boardAdvisory(x.Result))
+	case T.CardSearchRead:
+		fmt.Fprintf(&out, "Card listing: %d returned (archive: %s; board revision: %d).\n", len(x.Result.Items), x.Result.Query.Archive, x.Result.Revision)
+		for _, c := range x.Result.Items {
+			owner := "Unassigned"
+			if c.OwnerID != nil {
+				owner = string(*c.OwnerID)
+			}
+			fmt.Fprintf(&out, "#%d %s (%s; %s; archived: %t; owner: %s; card revision: %d) %s\n", c.Ticket, advisoryText(c.Title), c.Priority, c.Lane, c.Archived, owner, c.Revision, c.CardID)
+		}
+		if x.Result.NextCursor != nil {
+			fmt.Fprintf(&out, "Next cursor: %s\n", *x.Result.NextCursor)
+		} else {
+			out.WriteString("End of results.\n")
+		}
 	case T.CardRead:
 		b := x.Result
 		c := b.Card

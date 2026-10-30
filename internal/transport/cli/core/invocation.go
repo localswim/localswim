@@ -2,6 +2,7 @@
 package core
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -14,6 +15,7 @@ type invocation struct {
 	selected                            Selectors
 	json, native, lookup                bool
 	kind, id, input, file, method, path string
+	archive, cursor                     string
 	command                             contract.Command
 }
 
@@ -46,13 +48,16 @@ func parse(args []string) (q invocation, code string, exit int) {
 	i += 2
 	q.kind = group + " " + action
 	switch q.kind {
+	case "card list":
+		q.method = "GET"
+		q.archive = "active"
 	case "board read":
 		q.method = "GET"
 	case "card read", "card history", "operation read":
 		q.method = "GET"
 	case "card create":
 		q.command = "card.create"
-	case "card edit":
+	case "card edit", "card archive", "card unarchive":
 		q.command = "card.edit"
 	case "comment add":
 		q.command = "comment.add"
@@ -67,7 +72,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	default:
 		return q, "INVOCATION_OR_IO", 1
 	}
-	if q.kind != "board read" && q.kind != "card create" {
+	if q.kind != "board read" && q.kind != "card create" && q.kind != "card list" {
 		if i >= len(args) || !uuid(args[i]) {
 			return q, "INVOCATION_OR_IO", 1
 		}
@@ -88,7 +93,22 @@ func parse(args []string) (q invocation, code string, exit int) {
 		if i >= len(args) {
 			return q, "INVOCATION_OR_IO", 1
 		}
-		if k == "--input" && q.command != "" {
+		if k == "--archive" && q.kind == "card list" {
+			if args[i] != "active" && args[i] != "archived" && args[i] != "all" {
+				return q, "INVOCATION_OR_IO", 1
+			}
+			q.archive = args[i]
+		} else if k == "--cursor" && q.kind == "card list" {
+			if len(args[i]) == 0 || len(args[i]) > 2048 {
+				return q, "INVOCATION_OR_IO", 1
+			}
+			for _, c := range args[i] {
+				if c < 0x21 || c > 0x7e {
+					return q, "INVOCATION_OR_IO", 1
+				}
+			}
+			q.cursor = args[i]
+		} else if k == "--input" && q.command != "" {
 			q.input = args[i]
 		} else if k == "--evidence" && q.lookup {
 			q.file = args[i]
@@ -107,6 +127,12 @@ func parse(args []string) (q invocation, code string, exit int) {
 	base := "/api/v1/boards/" + q.selected.BoardID
 	q.path = base
 	switch q.kind {
+	case "card list":
+		values := url.Values{"archive": {q.archive}}
+		if q.cursor != "" {
+			values.Set("cursor", q.cursor)
+		}
+		q.path = base + "/cards?" + values.Encode()
 	case "card read", "card edit":
 		q.path = base + "/cards/" + q.id
 	case "card history":

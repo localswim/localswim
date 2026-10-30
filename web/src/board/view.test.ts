@@ -3,7 +3,7 @@ import type { BoardRead, SessionRead, Terminal } from "../../generated/transport
 import { BoardClient } from "../api/client.js";
 import { prepare } from "../api/boundary.js";
 import type { BoardCommand } from "../api/boundary.js";
-import { BoardView } from "./view.js";
+import { BoardView, visibleCards } from "./view.js";
 
 export async function mountSyntheticBoard(boardInput: BoardRead, sessionInput: SessionRead, qualified = true, databaseName = "w02-test-" + crypto.randomUUID()) {
   const board = structuredClone(boardInput), session = structuredClone(sessionInput);
@@ -121,12 +121,13 @@ export async function runDependencyViewProbe(boardInput: BoardRead, sessionInput
   const mounted = await mountSyntheticBoard(input, sessionInput);
   let checks = 0;
   const check = (condition: boolean, message: string): void => { if (!condition) throw Error(message); checks++; };
-  const articles = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('section[aria-label="Cards"] > article')];
+  // Look up transport fixture identities independently of the priority display order.
+  const articles = (): HTMLElement[] => [alpha, beta].map(card => [...document.querySelectorAll<HTMLElement>('section[aria-label="Cards"] > article')].find(row => [...row.querySelectorAll<HTMLButtonElement>('button[data-open-card]')].some(button => button.dataset.focusKey === card.cardId + ":open"))!);
   try {
     check(articles()[0]!.querySelector('[aria-label="Dependency pressure"]')!.textContent!.includes("Dependency pressure: #2 Beta (P0; Ready for Work)"), "Pressure section missing");
     check(articles()[1]!.querySelector('[aria-label="Prerequisites/readiness"]')!.textContent!.includes("awaiting human acceptance (not satisfied)"), "RFR readiness missing");
     check(document.querySelector("img") === null && document.body.textContent!.includes(alpha.title), "Advisory prose executed markup");
-    const edit = articles()[1]!.querySelector<HTMLButtonElement>("button")!; edit.click();
+    const edit = [...articles()[1]!.querySelectorAll<HTMLButtonElement>("button")].find(row => row.textContent === "Edit card")!; edit.click();
     const title = document.querySelector<HTMLInputElement>('input[name="title"]')!;
     title.value = "Keep my draft"; title.dispatchEvent(new Event("input", { bubbles: true }));
     const currentAlpha = mounted.board.result.cards[0]!, human = mounted.board.result.actors.find(actor => actor.kind === "human")!;
@@ -141,5 +142,90 @@ export async function runDependencyViewProbe(boardInput: BoardRead, sessionInput
     check(articles()[0]!.textContent!.includes("Dependency pressure: none.") && currentAlpha.priority === "P3", "Unlink retained pressure or changed priority");
     check(mounted.state.mutations === 0, "Advisory performed a mutation");
     return checks;
+  } finally { mounted.view.destroy(); mounted.client.close(); }
+}
+
+// Actual DOM and IndexedDB with synthetic transport; ordinary runtime proof is separate.
+export async function runArchiveCardProbe(boardInput: BoardRead, sessionInput: SessionRead): Promise<number> {
+  const input = structuredClone(boardInput), original = input.result.cards[0]!, identity = input.result.identity;
+  const archived = { ...original, cardId: "00000000-0000-4000-8000-000000000063", ticket: original.ticket + 1, archived: true, title: "Hidden target", priority: "P0" as const, ownerId: null, commentIds: [], attachmentIds: [], linkIds: [], currentApprovalId: null };
+  const link = { active: true, cardId: original.cardId, target: { ...identity, cardId: archived.cardId }, kind: "informational" as const, linkId: "00000000-0000-4000-8000-000000000064", createdIn: identity, createdAt: "2026-10-01T00:00:00Z" };
+  Object.assign(original, { archived: false, lane: "Ready for Work", linkIds: [link.linkId] });
+  Object.assign(input.result, { cards: [original, archived], links: [link] });
+  const mounted = await mountSyntheticBoard(input, sessionInput);
+  let checks = 0;
+  const check = (value: boolean, message: string): void => { if (!value) throw Error(message); checks++; };
+  const find = (label: string): HTMLButtonElement => [...document.querySelectorAll("button")].find(row => row.textContent === label)!;
+  const status = (): HTMLSelectElement => document.querySelector('select[aria-label="Archive status"]')!;
+  const filter = (value: string): void => { status().value = value; status().dispatchEvent(new Event("change", { bubbles: true })); };
+  const rows = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('section[aria-label="Cards"] > article')];
+  const settle = async (test: () => boolean): Promise<void> => { for (let i = 0; i < 250; i++) { if (test()) return; await new Promise(resolve => setTimeout(resolve, 20)); } throw Error("Archive component did not settle"); };
+  try {
+    check(rows().length === 1 && status().value === "active", "Default archive visibility wrong");
+    const complete = JSON.stringify(mounted.board);
+    check(visibleCards(input.result.cards, "all")[0]!.cardId === archived.cardId && JSON.stringify(mounted.board) === complete, "Priority projection changed source graph");
+    find("Open linked card #" + archived.ticket + " " + archived.title).click();
+    await settle(() => document.querySelector('[aria-label="Current card state"]')!.textContent!.includes("archived: true"));
+    check(rows().length === 1 && !document.querySelector<HTMLElement>('[aria-label="Card details"]')!.hidden, "Hidden linked target cannot be inspected");
+    document.querySelector<HTMLButtonElement>('[aria-label="Current card state"] button')!.click();
+    check(!!find("Confirm unarchive card") && mounted.state.mutations === 0, "Focused hidden card lacks explicit unarchive action");
+    find("Cancel unarchive").click();
+    find("Close card details").click();
+    find("Edit card").click();
+    const title = document.querySelector<HTMLInputElement>('input[name="title"]')!;
+    title.value = "Private retained input"; title.dispatchEvent(new Event("input", { bubbles: true }));
+    await mounted.view.flushPrivateInput();
+    find("Archive card").click();
+    check(!!find("Keep editing") && mounted.state.mutations === 0, "Dirty archive bypassed deliberate discard gate");
+    find("Keep editing").click();
+    filter("archived"); await mounted.view.refresh();
+    check(title === document.querySelector('input[name="title"]') && title.value === "Private retained input", "Filtering or refresh replaced private input");
+    filter("active"); find("Archive card").click(); find("Confirm discard editor input").click();
+    check(!!find("Confirm archive card") && mounted.state.mutations === 0, "Discard gate did not lead to a separate archive confirmation");
+    find("Cancel archive").click();
+    check(mounted.state.mutations === 0 && !find("Confirm archive card") && document.activeElement === find("Archive card"), "Archive cancel dispatched or lost visible opener");
+    find("Open card #" + original.ticket + " " + original.title).click();
+    await settle(() => document.querySelector('[aria-label="Current card state"]')!.textContent!.includes("archived: false"));
+    document.querySelector<HTMLButtonElement>('[aria-label="Current card state"] button')!.click();
+    await mounted.view.flushPrivateInput();
+    const archiveConfirmation = find("Confirm archive card"), retainedEditorControl = find("Read current text");
+    retainedEditorControl.focus(); archiveConfirmation.click();
+    await settle(() => document.body.textContent!.includes("Confirmed saved."));
+    check(mounted.state.wire.length === 1 && JSON.stringify(JSON.parse(mounted.state.wire[0]!).input) === '{"archived":true}', "Archive sent mixed input");
+    await settle(() => document.querySelector('[aria-label="Current card state"]')!.textContent!.includes("archived: true"));
+    check(!document.querySelector<HTMLElement>('[aria-label="Card details"]')!.hidden && document.activeElement === retainedEditorControl && find("Confirm archive card") === archiveConfirmation,
+      "Confirmed archive did not refresh selected details without changing input/focus");
+    await mounted.view.refresh();
+    check(rows().length === 0 && !document.querySelector<HTMLElement>('[aria-label="Card details"]')!.hidden, "Hidden card closed focused details");
+    await settle(() => document.querySelector('[aria-label="Current card state"]')!.textContent!.includes("archived: true"));
+    find("Close card details").click();
+    check(document.activeElement === find("Read current board"), "Hidden opener did not fall back to current board");
+    filter("archived");
+    find("Open card #" + original.ticket + " " + original.title).click();
+    await settle(() => document.querySelector('[aria-label="Current card state"]')!.textContent!.includes("archived: true"));
+    document.querySelector<HTMLButtonElement>('[aria-label="Current card state"] button')!.click();
+    await mounted.view.flushPrivateInput(); find("Confirm unarchive card").click();
+    await settle(() => mounted.state.wire.length === 2 && mounted.board.result.cards[0]!.archived === false);
+    // The selected reader stays open and updates from fresh reads in both directions.
+    await settle(() => document.querySelector('[aria-label="Current card state"]')!.textContent!.includes("archived: false"));
+    await mounted.view.refresh(); filter("active");
+    check(rows().length === 1 && mounted.board.result.cards[0]!.lane === "Ready for Work" && JSON.stringify(JSON.parse(mounted.state.wire[1]!).input) === '{"archived":false}', "Unarchive lost recorded lane or false input");
+    Object.assign(mounted.board.result.cards[0]!, { lane: "Completed" });
+    await mounted.view.refresh();
+    check(find("Archive card").disabled, "Completed archive was enabled");
+    return checks;
+  } finally { mounted.view.destroy(); mounted.client.close(); }
+}
+
+export async function runArchiveStorageProbe(boardInput: BoardRead, sessionInput: SessionRead): Promise<number> {
+  const mounted = await mountSyntheticBoard(boardInput, sessionInput, false);
+  const find = (label: string): HTMLButtonElement => [...document.querySelectorAll("button")].find(row => row.textContent === label)!;
+  try {
+    find("Archive card").click(); find("Confirm archive card").click();
+    for (let i = 0; i < 250 && !document.body.textContent!.includes("Not dispatched."); i++) await new Promise(resolve => setTimeout(resolve, 20));
+    if (!document.body.textContent!.includes("Not dispatched.") || mounted.state.mutations !== 0 || !find("Confirm archive card")) throw Error("Unqualified archive dispatched or lost its retained editor");
+    await mounted.view.refresh();
+    if (!find("Confirm archive card") || mounted.state.mutations !== 0 || mounted.board.result.cards[0]!.archived) throw Error("Refresh lost refused archive input or mutated source");
+    return 2;
   } finally { mounted.view.destroy(); mounted.client.close(); }
 }

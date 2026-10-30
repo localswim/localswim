@@ -33,6 +33,7 @@ export type IntentCardEdit = {
   readonly incarnation: string;
   readonly opId: string;
   readonly payload: {
+  readonly archived?: boolean;
   readonly description: (string | null);
   readonly lane: ("In Progress" | null);
   readonly ownerId?: (string | null);

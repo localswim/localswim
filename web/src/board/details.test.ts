@@ -103,6 +103,25 @@ export async function runCardDetailsProbe(boardInput: BoardRead): Promise<number
     details.close(); check(document.activeElement === opener, "Close did not restore visible opener");
     details.open(card.cardId, identity, opener); await flush(); opener.remove(); details.close();
     check(document.activeElement === fallback, "Missing opener did not use workspace fallback");
+    details.open(card.cardId, identity, opener); await flush();
+    const beforeArchiveRead = reads;
+    details.refreshAfterArchive({ ...identity, incarnation: id(700) }, card.cardId, 1, 1);
+    details.refreshAfterArchive(identity, id(701), 1, 1);
+    check(reads === beforeArchiveRead, "Archive receipt from another context refreshed selected details");
+    details.refreshAfterArchive(identity, card.cardId, current.result.revision + 1, current.result.card.revision + 1); await flush();
+    check(details.host.textContent!.includes("confirmed facts are stale") && details.host.textContent!.includes("archived: false"), "Pre-commit focused read was presented as current archive state");
+    Object.assign(current.result, { revision: current.result.revision + 1 });
+    Object.assign(current.result.card, { revision: current.result.card.revision + 1, archived: true });
+    editor.focus();
+    details.refreshAfterArchive(identity, card.cardId, current.result.revision, current.result.card.revision); await flush();
+    check(details.host.textContent!.includes("archived: true") && document.activeElement === editor && editor.value === "Private draft", "Fresh archive read failed to update status or stole private input focus");
+    mode = "late"; details.refreshAfterArchive(identity, card.cardId, current.result.revision, current.result.card.revision);
+    mode = "normal"; Object.assign(current.result.card, { archived: false }); details.open(id(904), identity, opener); await flush();
+    pending.splice(0).forEach(release => release()); await flush();
+    check(details.host.textContent!.includes("Card UUID: " + id(904)) && details.host.textContent!.includes("archived: false"), "Late post-archive read painted another selection");
+    details.suspend(); const suspendedReads = reads;
+    details.refreshAfterArchive(identity, id(904), 1, 1);
+    check(reads === suspendedReads, "Suspended archive receipt triggered a focused read");
     return checks;
   } finally { details.suspend(); root.remove(); }
 }

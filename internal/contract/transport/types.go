@@ -13,6 +13,8 @@ type RefusedOutcome string
 type UnknownOutcome string
 type BoardScope string
 type CardScope string
+type CardSearchScope string
+type CardArchiveMode string
 type HistoryScope string
 type SessionScope string
 type RevokedOutcome string
@@ -109,6 +111,41 @@ type CardRead struct {
 	APIVersion A.Version `json:"apiVersion"`
 	Scope      CardScope `json:"scope"`
 	Result     CardView  `json:"result"`
+}
+
+// CardSearchRead is a bounded summary observation, never a partial BoardView.
+// Full board reads retain their complete internal link target/reference graph.
+type CardSearchRead struct {
+	APIVersion A.Version       `json:"apiVersion"`
+	Scope      CardSearchScope `json:"scope"`
+	Result     CardSearchView  `json:"result"`
+}
+
+type CardSearchView struct {
+	Identity   A.Identity      `json:"identity"`
+	Revision   A.Number        `json:"revision"`
+	Query      CardSearchQuery `json:"query"`
+	Items      []CardSummary   `json:"items"`
+	NextCursor *string         `json:"nextCursor"`
+}
+
+type CardSearchQuery struct {
+	Q        string          `json:"q"`
+	Lane     *A.Lane         `json:"lane"`
+	Owner    *string         `json:"owner"`
+	Priority *A.Priority     `json:"priority"`
+	Archive  CardArchiveMode `json:"archive"`
+}
+
+type CardSummary struct {
+	CardID   A.UUID     `json:"cardId"`
+	Ticket   A.Positive `json:"ticket"`
+	Revision A.Positive `json:"revision"`
+	Title    string     `json:"title"`
+	Lane     A.Lane     `json:"lane"`
+	Priority A.Priority `json:"priority"`
+	OwnerID  *A.UUID    `json:"ownerId"`
+	Archived bool       `json:"archived"`
 }
 type CardView struct {
 	Identity          A.Identity         `json:"identity"`

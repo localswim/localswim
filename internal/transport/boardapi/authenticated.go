@@ -1,6 +1,7 @@
 package boardapi
 
 import (
+	"crypto/rand"
 	S "github.com/localswim/localswim/internal/store/open"
 	"github.com/localswim/localswim/internal/transport/session"
 	"net/http"
@@ -13,6 +14,12 @@ func NewAuthenticated(store *S.Store, access session.Access, boundary session.Bo
 		return nil, ErrUnavailable
 	}
 	h := &Handler{store: store, sessions: access, recovery: map[[32]byte]recoveryEntry{}}
+	if _, e := rand.Read(h.cursorKey[:]); e != nil {
+		return nil, ErrUnavailable
+	}
+	if _, e := rand.Read(h.cursorEpoch[:]); e != nil {
+		return nil, ErrUnavailable
+	}
 	h.guarded = boundary.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q, status := selectRoute(r)
 		if status != 0 {

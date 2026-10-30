@@ -2,6 +2,7 @@ import type { openLocalSession } from "../api/local-session.js";
 import { button, element } from "../recovery-ui/view.js";
 import { SessionWorkspace } from "./workspace.js";
 import type { EditorReference } from "./window-state.js";
+import type { BoardViewOptions } from "../board/view.js";
 
 // A reconnect changes only the live connection. Editors and immutable originals
 // stay mounted; no board mutation or original lookup runs from this control.
@@ -12,7 +13,7 @@ export class LocalSessionView {
   private busy = false;
   private readonly beforeUnload = (event: BeforeUnloadEvent): void => { if (!this.canLeave) { event.preventDefault(); event.returnValue = ""; } };
   constructor(private readonly root: HTMLElement, private readonly access: Awaited<ReturnType<typeof openLocalSession>>,
-    options: Readonly<{ editor?: EditorReference; checkpoint?: (reference?: EditorReference) => void; recovery?: EditorReference; recoveryCheckpoint?: (reference?: EditorReference) => void }> = {}) {
+    options: BoardViewOptions & Readonly<{ editor?: EditorReference; checkpoint?: (reference?: EditorReference) => void; recovery?: EditorReference; recoveryCheckpoint?: (reference?: EditorReference) => void }> = {}) {
     const content = element("section"), status = element("p"), reconnect = button("Reconnect local service", () => { void connect(); });
     status.setAttribute("role", "status");
     const ready = (): void => { status.textContent = access.recoveryReady

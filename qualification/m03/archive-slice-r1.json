@@ -1,0 +1,43 @@
+{
+  "scope": "M03.02 card archive and bounded explicit listing only; owner acceptance pending, not whole M03 release",
+  "sourceBase": "77da36548bccdc4befc874816775ab8fd3b9d243 plus reviewed M03.02 changes; final source commit recorded at handoff",
+  "candidateSHA256": "fd006a01379c796367142299e9f9d8a656fd0352fe34921db45c68c664f834e8",
+  "cmdInternalManifestSHA256": "a5b2c009440ec1bafbe0f62a2b20ecc5f0e8d2c6b7f1d993ecf931c1c95f1289",
+  "cmdInternalFileCount": 377,
+  "goTests": {
+    "passed": 1584,
+    "failed": 0,
+    "skipped": 0
+  },
+  "sourceStableDuringFinalGate": true,
+  "gates": [
+    "offline module verification",
+    "generated contracts check",
+    "generated embedded asset check",
+    "strict TypeScript check/build",
+    "go vet ./...",
+    "go test -count=1 -p 1 -json ./...",
+    "Node script tests",
+    "120 source-bound DOM/IndexedDB assertions",
+    "fresh V04 native qualification inventory",
+    "fresh V02 browser qualification, 21 cases, no failures/skips/retries"
+  ],
+  "ordinaryJourney": {
+    "recordedAssertions": 39,
+    "normal": [
+      "browser and real CLI archive/unarchive with explicit revisions",
+      "cancel/keyboard confirmation and authoritative details update before board refresh",
+      "default active rows, complete JSON graph and explicit archived listing",
+      "assigned owner, exact content/comments/recorded lane/current and prior state conservation",
+      "same-ticket cross-board and private archive-filter window/reload isolation",
+      "NO_CHANGE, stale-revision, Completed refusal and dirty private input protection"
+    ],
+    "labeledFault": "One committed ordinary PATCH response discarded. Native workspace host restarted, reload preserved original UNKNOWN; deliberate original lookup settled it. No automatic PATCH replay.",
+    "existingConservation": "Same candidate complete export, isolated runnable restore with explicit configured port, archived flag/UUID/ticket/owner/lane/history/links and exact blob hash retained; restored copy unarchived through real CLI, source identity/revision and export bytes unchanged.",
+    "cleanup": "All four owned hosts in final pass exited0; original listener ports closed."
+  },
+  "componentLimits": "DOM/source probes and technical native fixtures are distinct from ordinary product use. Current cached build and separately prepared source-snapshot application are byte-equal; two isolated clean-build reproducibility belongs to joined M03.04, with no such claim here.",
+  "review": "Fresh non-author Sol / High source/evidence review and material-fix re-review PASS, final current source/binary/gate/journey binding verified. It is not a second full ordinary journey execution.",
+  "retainedAttempts": "First ordinary run found F01 stale selected details after archive; fixed using authoritative identity/revision/generation-fenced reads and re-reviewed. Later harness attempts clarified explicit current-board/private-save boundaries and configured restore port. Long-root grant fixtures, one existing parallel-package publication UNKNOWN and stale native provider inventory attempts are retained; final short-root serialized gate and refreshed exact provider inventory passed unchanged case inventories.",
+  "remaining": "Full text matching, lane/owner/priority filters and their UI/private search context remain M03.03. Joined search/archive qualification and final review kit remain M03.04/.05. No power-loss, full accessibility/installed IME, real import/adoption or general release claim."
+}

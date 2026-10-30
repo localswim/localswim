@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -37,7 +38,7 @@ func refused(code string, exit int, original *evidence.Record) result {
 }
 func safeCode(code string) string {
 	switch code {
-	case "INVOCATION_OR_IO", "CREDENTIAL_SELECTION_REQUIRED", "CREDENTIAL_EXPIRED", "CREDENTIAL_DISABLED", "CREDENTIAL_CONTEXT_MISMATCH", "CREDENTIAL_UNAVAILABLE", "UNSAFE_LOCAL_MATERIAL", "UNAVAILABLE", "INVALID_INPUT", "INPUT_TOO_LARGE", "UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH", "OUTCOME_UNKNOWN", "SOURCE_AUTHORITY_UNAVAILABLE", "CONFIRMATION_REQUIRED", "CONFIRMATION_REFUSED":
+	case "INVOCATION_OR_IO", "CREDENTIAL_SELECTION_REQUIRED", "CREDENTIAL_EXPIRED", "CREDENTIAL_DISABLED", "CREDENTIAL_CONTEXT_MISMATCH", "CREDENTIAL_UNAVAILABLE", "UNSAFE_LOCAL_MATERIAL", "UNAVAILABLE", "INVALID_INPUT", "INPUT_TOO_LARGE", "UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "CURSOR_STALE", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH", "OUTCOME_UNKNOWN", "SOURCE_AUTHORITY_UNAVAILABLE", "CONFIRMATION_REQUIRED", "CONFIRMATION_REFUSED":
 		return code
 	}
 	return "UNAVAILABLE"
@@ -182,6 +183,9 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 		if e != nil {
 			return refused("INVOCATION_OR_IO", 1, nil)
 		}
+		if (q.kind == "card archive" || q.kind == "card unarchive") && !archiveAlias(wire, q.kind == "card archive") {
+			return refused("INVALID_INPUT", 2, nil)
+		}
 		if _, e = contract.DecodeJSON(wire); e != nil {
 			return refused("INVALID_INPUT", 2, nil)
 		}
@@ -231,6 +235,13 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 	var v any
 	var identity A.Identity
 	switch q.kind {
+	case "card list":
+		x, err := T.Decode[T.CardSearchRead](b)
+		if err != nil || x.Result.Query.Q != "" || x.Result.Query.Lane != nil || x.Result.Query.Owner != nil || x.Result.Query.Priority != nil || string(x.Result.Query.Archive) != q.archive {
+			return refused("UNAVAILABLE", 3, nil)
+		}
+		v = x
+		identity = x.Result.Identity
 	case "board read":
 		x, err := T.Decode[T.BoardRead](b)
 		if err != nil {
@@ -313,4 +324,24 @@ func classifyMutation(status int, b []byte, original evidence.Record, lookup boo
 		return refused(x.Error.Code, 4, &original)
 	}
 	return refused("OUTCOME_UNKNOWN", 4, &original)
+}
+
+// The alias checks only explicit intent; normal dispatch still validates the full
+// envelope and freezes the same card.edit original before any send.
+func archiveAlias(wire []byte, want bool) bool {
+	if _, err := contract.DecodeJSON(wire); err != nil {
+		return false
+	}
+	var envelope struct {
+		Input map[string]json.RawMessage `json:"input"`
+	}
+	if json.Unmarshal(wire, &envelope) != nil || len(envelope.Input) != 1 {
+		return false
+	}
+	flag, ok := envelope.Input["archived"]
+	if !ok || string(flag) == "null" {
+		return false
+	}
+	var got bool
+	return json.Unmarshal(flag, &got) == nil && got == want
 }

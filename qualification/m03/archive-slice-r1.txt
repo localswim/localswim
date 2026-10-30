@@ -1,0 +1,71 @@
+M03.02 CARD ARCHIVE / BOUNDED LISTING EVIDENCE
+2026-10-29 | Feature-local handoff for owner review; no whole-M03 release
+
+Outcome
+Unfinished cards can be archived/unarchived through ordinary browser and real
+CLI, found by explicit archive visibility/listing and inspected with retained
+facts/history. Completed remains read-only. Search text/filter work remains .03.
+Complete JSON board reads preserve hidden linked targets; visibility is not an
+authorization boundary. Existing writer/rights/revisions/original outcomes remain.
+
+Exact candidate
+- Based on production77da365 plus reviewed M03.02 changes; final commit recorded
+  at source/board handoff. API/archive1 and physical SQLite layout5 unchanged.
+- Executable SHA256:fd006a01379c796367142299e9f9d8a656fd0352fe34921db45c68c664f834e8
+- Current cmd/internal source binding:a5b2c009440ec1bafbe0f62a2b20ecc5f0e8d2c6b7f1d993ecf931c1c95f1289;377 files,
+  independently compared to final source with no mismatch.
+- Current cached build and separately prepared V02 source-snapshot application
+  have identical executable bytes. This is not two isolated clean-build proof;
+  that belongs to the joined .04 candidate.
+
+Verification
+-1,584 Go cases pass, zero failed/skipped, using explicit short fixture roots and
+  serialized packages (-p 1). Module/contract/assets checks, Go vet, locked strict
+  TypeScript check/build and Node script tests pass. No tool upgrades.
+-120 actual-DOM/IndexedDB source probes pass, including explicit true/false and
+  exclusive archive input, details update before manual board refresh, late/stale
+  selected reads, focus/storage/dirty input/private reload and no replay.
+- Fresh V04 native mandatory inventory passes. Exact346-file provider set and
+  bytes refreshed without removing checks; transaction/archive report completeness
+  and source stability checks remain strict. Fresh V02 browser21-case regression
+  passes with zero failed/skipped/retries on this exact application candidate.
+- Actual ordinary browser/CLI journey records39 explicit assertions plus DOM
+  expectations: archive/unarchive, cancel/keyboard activation, assigned owner,
+  retained lane/content/comments/references, exact bytes, complete JSON graph,
+  explicit/default listings, same-ticket board separation, private filter reload,
+  no-op/stale/Completed refusal and dirty-input keep/discard behavior.
+- Separately labeled loss injection discards one real committed PATCH response.
+  Actual host restart/reload retains UNKNOWN; deliberate lookup settles the
+  original with no extra PATCH. It is not evidence of physical power loss.
+- Existing complete export and runnable isolated restore preserve archived flag,
+  UUID/ticket/owner/lane/history/links and exact attached byte hash. Real CLI can
+  unarchive the restored copy; source identity/revision and export bytes remain
+  unchanged. No current source authority is imported into the copy.
+- All four final owned hosts exit0 and original listener ports close. Runtime
+  directories, profiles, credentials and raw traces remain outside public source.
+
+Review and retained findings
+Fresh non-author Sol / High review passes source, canonical legacy compatibility,
+admission/SQL/HMAC/query/read and private-browser fences, then final evidence and
+current source/binary bindings. It independently ran contract/API/CLI tests and
+the120-assertion synthetic browser suite; it did not rerun the entire ordinary
+journey. F01 discovered by built ordinary use (old archive flag in focused details)
+was corrected with authoritative focused reads, minimum revision and generation
+guards and independently re-reviewed, then confirmed in rebuilt ordinary use.
+
+Earlier failed attempts remain evidence: excessive fixture path lengths; an
+existing publication test UNKNOWN under parallel packages; stale frozen provider
+inventory after adding files; and harness assumptions about current board reads,
+private-save completion and restored configured port. No test was weakened or
+uncertain mutation replayed. Final runs use fresh data and exact current inputs.
+
+Limits and next scope
+Returned pages bound rows only, not database work or aggregate memory. Listing
+currently accepts empty q/archive/cursor, not the future search/filter grammar.
+Known private recovery capacity and pending-save safeguards remain; first safe
+refusal retains input and requires deliberate continuation. Local guides describe
+explicit Read current board and the restore port configuration. Large executable
+delivery uses a local bound path/manifest plus small administrative attachments.
+No full-M03 acceptance, physical power-loss, broad accessibility/IME, import,
+installer or general-release qualification follows. Only owner review remains
+for this bounded feature; .03 requires its accepted prerequisite.

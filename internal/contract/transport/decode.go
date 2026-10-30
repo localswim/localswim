@@ -15,6 +15,9 @@ import (
 )
 
 var enums = map[string][]string{
+	"CardSearchScope": {"card-search"}, "CardArchiveMode": {"active", "archived", "all"},
+	"Lane":                      {"Ready for Work", "In Progress", "Ready for Review", "Completed"},
+	"Priority":                  {"P0", "P1", "P2", "P3", "P4", "P5"},
 	"WorkspacePreferenceAction": {"pin", "unpin", "reorder"},
 	"CatalogFreshness":          {"fresh", "stale", "never"}, "CatalogFactState": {"known", "stale", "unknown", "not_configured"},
 	"WorkspaceAction": {"create", "register"}, "WorkspaceAvailability": {"ready", "pending", "missing", "invalid", "busy", "unavailable", "identity_conflict"}, "WorkspaceRegistrationStatus": {"registered", "initialized-unregistered", "unavailable", "UNKNOWN"},
@@ -195,6 +198,18 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case CardSearchView:
+		if e := cardSearchView(x); e != nil {
+			return e
+		}
+	case CardSearchQuery:
+		if e := cardSearchQuery(x); e != nil {
+			return e
+		}
+	case CardSummary:
+		if !utf8.ValidString(x.Title) || strings.TrimSpace(x.Title) == "" || utf8.RuneCountInString(x.Title) > 200 {
+			return fmt.Errorf("invalid summary title")
+		}
 	case WorkspacePreferences:
 		if e := preferenceReferences(x.Pins); e != nil {
 			return e

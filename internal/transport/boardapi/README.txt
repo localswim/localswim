@@ -43,3 +43,14 @@ requires exclusive access to the configured fixed port. It installs no trust.
 These bounded tests do not qualify product dispatch, browser storage, crash or
 power-loss durability. CLI/UI, schema/contracts, attachment byte handling, grant
 administration, export, restore and executable route composition remain separate.
+
+M03 archive visibility
+Archive/unarchive is an exclusive archived Boolean card.edit through the existing
+writer, revisions and original outcome path. Completed refuses before no-op;
+unchanged unfinished flags retain NO_CHANGE without history/activity advancement.
+Existing unfinished-card edit admission and exact retained references remain.
+GET cards is a separate partial empty-query listing (active by default, archived
+or all explicitly), ordered by priority/ticket/UUID with at most 20 summaries.
+Each continuation rechecks current read authority in one SQLite snapshot. HMAC
+cursors bind handler epoch, actor, board/incarnation/revision and exact canonical
+filters; stale/tampered cursors refuse CURSOR_STALE. BoardRead stays complete.

@@ -63,6 +63,39 @@ export type BoardView = {
   readonly revision: number;
 };
 
+export type CardSearchRead = {
+  readonly apiVersion: 1;
+  readonly result: CardSearchView;
+  readonly scope: "card-search";
+};
+
+export type CardSearchView = {
+  readonly identity: Archive.Identity;
+  readonly items: ReadonlyArray<CardSummary>;
+  readonly nextCursor: string | null;
+  readonly query: CardSearchQuery;
+  readonly revision: number;
+};
+
+export type CardSearchQuery = {
+  readonly archive: "active" | "archived" | "all";
+  readonly lane: "Ready for Work" | "In Progress" | "Ready for Review" | "Completed" | null;
+  readonly owner: string | null;
+  readonly priority: "P0" | "P1" | "P2" | "P3" | "P4" | "P5" | null;
+  readonly q: string;
+};
+
+export type CardSummary = {
+  readonly archived: boolean;
+  readonly cardId: string;
+  readonly lane: "Ready for Work" | "In Progress" | "Ready for Review" | "Completed";
+  readonly ownerId: string | null;
+  readonly priority: "P0" | "P1" | "P2" | "P3" | "P4" | "P5";
+  readonly revision: number;
+  readonly ticket: number;
+  readonly title: string;
+};
+
 export type CardRead = {
   readonly apiVersion: 1;
   readonly result: CardView;

@@ -7,9 +7,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -331,4 +334,119 @@ func TestWorkspaceConfiguredReadSnapshotDrainAndBudget(t *testing.T) {
 		t.Fatalf("reader budget: elapsed=%v error=%v", elapsed, err)
 	}
 	catalogSnapshot(t, r2, 0, 0)
+}
+
+// Ordinary archive mutations change active RFR counts while preserving the
+// recorded lane and last-card-activity observation.
+func TestWorkspaceCatalogArchiveOperationRoundTrip(t *testing.T) {
+	r, root := startTest(t)
+	info, err := ReadClient(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	card := catalogCreate(t, r, info.Token)
+	path := r.boardPath() + "cards/" + card
+	term(t, request(t, r, "PATCH", path, mutationWire(t, r, card, 1, 1, map[string]any{"lane": "In Progress"}), info.Token, nil, nil), "committed")
+	term(t, request(t, r, "POST", path+"/review-handoff", mutationWire(t, r, card, 2, 2, map[string]any{}), info.Token, nil, nil), "committed")
+	catalogSnapshot(t, r, 3, 1)
+	term(t, request(t, r, "PATCH", path, mutationWire(t, r, card, 3, 3, map[string]any{"archived": true}), info.Token, nil, nil), "committed")
+	archived := catalogSnapshot(t, r, 4, 0)
+	if archived.LastCardActivity == nil {
+		t.Fatal("archive activity unavailable")
+	}
+	term(t, request(t, r, "PATCH", path, mutationWire(t, r, card, 4, 4, map[string]any{"archived": true}), info.Token, nil, nil), "not_committed")
+	unchanged := catalogSnapshot(t, r, 4, 0)
+	if unchanged.LastCardActivity == nil || *unchanged.LastCardActivity != *archived.LastCardActivity {
+		t.Fatal("no-op advanced activity")
+	}
+	term(t, request(t, r, "PATCH", path, mutationWire(t, r, card, 4, 4, map[string]any{"archived": false}), info.Token, nil, nil), "committed")
+	catalogSnapshot(t, r, 5, 1)
+}
+
+func TestWorkspaceArchiveListingContinuationAndCompleteReferenceClosure(t *testing.T) {
+	r, root := startTest(t)
+	info, err := ReadClient(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	card := catalogCreate(t, r, info.Token)
+	rev := 1
+	for n := 0; n < 24; n++ {
+		term(t, request(t, r, "POST", r.boardPath()+"cards", mutationWire(t, r, "", rev, 0, map[string]any{"title": fmt.Sprintf("row %d", n), "description": "", "priority": fmt.Sprintf("P%d", n%6)}), info.Token, nil, nil), "committed")
+		rev++
+	}
+	page := func(path string) T.CardSearchRead {
+		t.Helper()
+		w := request(t, r, "GET", path, nil, info.Token, nil, nil)
+		if w.status != 200 {
+			t.Fatalf("listing status %d", w.status)
+		}
+		out, e := T.Decode[T.CardSearchRead](w.b)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return out
+	}
+	first := page(r.boardPath() + "cards")
+	if len(first.Result.Items) != 20 || first.Result.NextCursor == nil || first.Result.Query.Archive != "active" {
+		t.Fatal("first page bound")
+	}
+	second := page(r.boardPath() + "cards?cursor=" + url.QueryEscape(*first.Result.NextCursor))
+	if len(second.Result.Items) != 5 || second.Result.NextCursor != nil {
+		t.Fatal("continuation bound")
+	}
+	seen := map[string]bool{}
+	for _, p := range []T.CardSearchRead{first, second} {
+		for _, c := range p.Result.Items {
+			if seen[string(c.CardID)] {
+				t.Fatal("duplicate continuation")
+			}
+			seen[string(c.CardID)] = true
+		}
+	}
+	term(t, request(t, r, "PATCH", r.boardPath()+"cards/"+card, mutationWire(t, r, card, rev, 1, map[string]any{"archived": true}), info.Token, nil, nil), "committed")
+	rev++
+	stale := request(t, r, "GET", r.boardPath()+"cards?cursor="+url.QueryEscape(*first.Result.NextCursor), nil, info.Token, nil, nil)
+	if stale.status != 409 {
+		t.Fatal("old revision cursor accepted")
+	}
+	failure, e := T.Decode[T.NonterminalRefusal](stale.b)
+	if e != nil || failure.Error.Code != "CURSOR_STALE" {
+		t.Fatal("stale refusal")
+	}
+	archived := page(r.boardPath() + "cards?archive=archived")
+	if len(archived.Result.Items) != 1 || string(archived.Result.Items[0].CardID) != card {
+		t.Fatal("archive filter")
+	}
+	complete := request(t, r, "GET", strings.TrimSuffix(r.boardPath(), "/"), nil, info.Token, nil, nil)
+	board, e := T.Decode[T.BoardRead](complete.b)
+	if e != nil || len(board.Result.Cards) != 25 {
+		t.Fatal("complete board filtered")
+	}
+	// An active source's same-identity link remains valid when its target is archived.
+	source := string(first.Result.Items[0].CardID)
+	if source == card {
+		source = string(first.Result.Items[1].CardID)
+	}
+	term(t, request(t, r, "POST", r.boardPath()+"cards/"+source+"/link-add", mutationWire(t, r, source, rev, 1, map[string]any{"kind": "informational", "targetCardId": card}), info.Token, nil, nil), "committed")
+	complete = request(t, r, "GET", strings.TrimSuffix(r.boardPath(), "/"), nil, info.Token, nil, nil)
+	board, e = T.Decode[T.BoardRead](complete.b)
+	if e != nil || len(board.Result.Links) != 1 || len(board.Result.Cards) != 25 {
+		t.Fatal("hidden target broke reference closure")
+	}
+	catalogSnapshot(t, r, 27, 0)
+	current := page(r.boardPath() + "cards")
+	mismatch := request(t, r, "GET", r.boardPath()+"cards?archive=all&cursor="+url.QueryEscape(*current.Result.NextCursor), nil, info.Token, nil, nil)
+	if mismatch.status != 409 {
+		t.Fatal("changed-filter cursor accepted")
+	}
+	malformed := request(t, r, "GET", r.boardPath()+"cards?cursor=opaque", nil, info.Token, nil, nil)
+	if malformed.status != 400 {
+		t.Fatal("malformed cursor syntax accepted")
+	}
+	configuredGrantSQL(t, r, "DELETE FROM grant_right WHERE incarnation=? AND grant_id=? AND right_name='read'", r.id.Incarnation, r.id.BotGrant)
+	denied := request(t, r, "GET", r.boardPath()+"cards?cursor="+url.QueryEscape(*current.Result.NextCursor), nil, info.Token, nil, nil)
+	if denied.status != 403 {
+		t.Fatal("continuation reused read authority")
+	}
 }

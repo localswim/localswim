@@ -1608,6 +1608,9 @@
         "payload": {
           "additionalProperties": false,
           "properties": {
+            "archived": {
+              "type": "boolean"
+            },
             "description": {
               "anyOf": [
                 {

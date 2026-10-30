@@ -36,6 +36,7 @@ export class WindowState {
                     if (!validReference(state.editor) || !validReference(state.recovery))
                         continue;
                     this.boards[key] = { ...(state.editor ? { editor: state.editor } : {}), ...(state.recovery ? { recovery: state.recovery } : {}),
+                        ...(["active", "archived", "all"].includes(state.archiveStatus ?? "") ? { archiveStatus: state.archiveStatus } : {}),
                         scrollX: Number.isFinite(state.scrollX) ? state.scrollX : 0, scrollY: Number.isFinite(state.scrollY) ? state.scrollY : 0,
                         ...(Array.isArray(state.focusPath) && state.focusPath.length <= 32 && state.focusPath.every(n => Number.isInteger(n) && n >= 0 && n <= 10000) ? { focusPath: state.focusPath } : {}),
                         ...(Array.isArray(state.selection) && state.selection.length === 2 && state.selection.every(n => n === null || Number.isInteger(n) && n >= 0 && n <= 1000000) ? { selection: state.selection } : {}) };

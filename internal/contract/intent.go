@@ -78,10 +78,10 @@ func Freeze(wire []byte, route ResolvedRoute, actor AuthenticatedActor) (Intent,
 		}
 	}
 	payload := m["input"].(map[string]any)
-	// Assignment omission retains current ownership; explicit null clears it.
-	// Preserve that distinction without changing legacy fingerprints.
+	// Owner/archive omission retains current facts. Neither new optional field
+	// may change legacy canonical bytes; explicit false is an unarchive intent.
 	for k, f := range d.Input.Fields {
-		if _, ok := payload[k]; !ok && f.Optional && k != "ownerId" {
+		if _, ok := payload[k]; !ok && f.Optional && k != "ownerId" && k != "archived" {
 			payload[k] = nil
 		}
 	}

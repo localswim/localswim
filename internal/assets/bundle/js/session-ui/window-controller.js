@@ -240,6 +240,8 @@ export class WindowBoardController {
                 const host = element("section"), previous = this.state.get(key);
                 const view = new LocalSessionView(host, access, { ...(previous.editor ? { editor: previous.editor } : {}),
                     ...(previous.recovery ? { recovery: previous.recovery } : {}),
+                    ...(previous.archiveStatus ? { archiveStatus: previous.archiveStatus } : {}),
+                    archiveCheckpoint: archiveStatus => this.state.put(key, { ...this.state.get(key), archiveStatus }),
                     checkpoint: reference => this.state.put(key, { ...this.state.get(key), editor: reference }),
                     recoveryCheckpoint: reference => this.state.put(key, { ...this.state.get(key), recovery: reference }) });
                 const stopCommit = access.client.onCommitted?.(() => { for (const callback of this.commitObservers) {

@@ -186,3 +186,14 @@ N01 range; authority, hostname/SNI and pinned issuer still match exactly. The
 native fixture also verifies an explicitly initialized nondefault port, private
 evidence publication, commit-disconnect and original lookup without replay, plus
 rejection of evidence carrying a different original origin.
+
+M03 archive visibility
+Archive/unarchive is an exclusive archived Boolean card.edit through the existing
+writer, revisions and original outcome path. Completed refuses before no-op;
+unchanged unfinished flags retain NO_CHANGE without history/activity advancement.
+Existing unfinished-card edit admission and exact retained references remain.
+card archive UUID --input FILE and card unarchive UUID --input FILE require
+normal full card.edit envelopes with exclusive input.archived true/false.
+card list [--archive active|archived|all] [--cursor TOKEN] prints returned rows
+and explicit next cursor. Human board read shows active priority order while
+--json board read preserves the full canonical snapshot and reference closure.

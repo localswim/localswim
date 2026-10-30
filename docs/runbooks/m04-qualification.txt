@@ -1,0 +1,93 @@
+M04 HIERARCHY QUALIFICATION
+2026-10-30 | Synthetic Windows amd64 / local NTFS / localhost
+
+Use m04-hierarchy.txt for the ordinary browser/CLI and explicit storage-upgrade
+commands. The qualification report records the tested product source and binary;
+later documentation/report publication does not imply another application build.
+The final extracted usable kit and normal demonstration remain M04.04.
+
+Reproduce complete builds
+- Extract the tested committed source twice into separate fresh trees. Begin
+  each without web/node_modules or web/dist and with a separate empty Go cache.
+- Use pinned Go1.27.3, Node26.12.1, npm12.2.1, TypeScript7.0.2, Playwright1.64.1
+  and the qualified Chrome for Testing binary. Preserve exact tool hashes.
+- Use the locked offline npm/module caches, GOTOOLCHAIN=local, GOPROXY=off,
+  GOSUMDB=off, GOWORK=off, GOFLAGS=-mod=readonly, CGO_ENABLED=0 and
+  windows/amd64/v1. No dependency or toolchain upgrades are part of qualification.
+- Provide short fresh S01/N01/A03/A04/P01 test roots and an account-private
+  L02_TEST_ROOT. Use the existing local attributes helper only for a new empty
+  leaf; never change permissions on an existing directory. L02_NODE,
+  L02_BROWSER and L02_BINARY name the pinned browser tools and newly built app.
+- Preserve arguments, environment, exits, logs, source snapshots and hashes.
+  A failed attempt stays failed and retained. A deliberate corrective run gets
+  fresh roots; an uncertain mutation is never automatically replayed.
+
+Run in each extracted tree
+  go mod verify
+  node <pinned-npm-cli.js> --prefix web ci --offline
+  go run ./cmd/contractgen -check
+  node web/scripts/tsc.mjs check
+  node web/scripts/tsc.mjs build
+  go run ./cmd/assetstage -check
+  go build -trimpath -buildvcs=false -o dist/localswim.exe ./cmd/localswim
+  go test -count=1 -p 1 -json -timeout=240s ./...
+  go vet ./...
+  node --test web/scripts/scripts.test.mjs
+Require zero failed/skipped test cases. Explicit no-test packages are separate.
+Compare complete schemas, web/generated, web/dist, internal/assets/bundle and
+executable output sets, and confirm every committed source byte remains intact.
+
+Separate native and browser inventories
+Follow qualification/native/README.txt for the complete nativequalification
+root and its mandatory transaction, continuation, archive and interruption rows.
+Freeze the exact complete current provider manifest, not a selected file subset.
+Follow qualification/browser/README.txt for a new localfixture preparation,
+normal 21-case browser inventory, final Playwright output and owned teardown.
+Native dispatch alone cannot establish browser or clean-build qualification.
+Qualification overlays and process interruptions remain explicitly labeled;
+they do not establish physical power-loss durability.
+
+Fresh joined hierarchy journey
+1. Normally create a synthetic multi-board workspace with equal display tickets
+   but distinct full identities. Use normal browser controls and the actual
+   built CLI for create-child, set, reparent and explicit clear. Read back exact
+   parents, complete children, child-only changes, default priority and refusal
+   boundaries. Include archived relatives, a human-approved Completed parent,
+   a forbidden Completed child edit, 20+1 local paging and stale captured facts.
+2. Keep both legacy blocking and informational links beside hierarchy. Capture
+   full edge IDs/types/endpoints/attribution, then set/reparent/clear and require
+   exact unchanged edges. Starting dependent work must still refuse until its
+   original prerequisite receives normal human approval. Hierarchy cannot waive
+   that gate, complete work or grant authority.
+3. Retain private input across dirty-switch decisions, blank parent-draft reload,
+   two-window stale refusals and keyboard activation. Close ordinary details to
+   their mounted opener or Find cards. Close hierarchy-related details to an
+   available exact opener, otherwise the board-read fallback. Late reads must
+   not reopen details, steal focus, change editor bases or dispatch mutations.
+4. Separately label one real committed PATCH whose response is lost. Gracefully
+   restart its owned host; reload retains UNKNOWN and sends nothing again.
+   Only deliberate original-identity lookup can settle the original outcome.
+5. Export all retained records, not a visible page. Restore to a fresh identity,
+   run it, compare complete logical records/history/approvals/both link types
+   and exact attachment bytes. Compare canonical immutable intents, fingerprints
+   and outcome rows with the Go canonical implementation. Mutate the restored
+   copy and restore again to test historical Origin and current-parent rebasing.
+   Require source board/export unchanged and every owned listener closed.
+
+Large bounds and compatibility
+The 64/65-edge, 1000/1001-family, moved-subtree and multi-family cases are labeled
+controlled native/model checks. Exhaust all 999 descendants in 50 local browser
+pages of a controlled valid fixture. This is distinct from ordinary small-board
+CLI creation and does not cap the existing full BoardRead network/memory cost.
+Exercise actual explicit frozen-v5 inspect/refuse/upgrade/NO_CHANGE/reopen with
+the current candidate, preserving old full records and archive member bytes.
+Physical/base versions are 5/5 before and 6/5 after; API/archive remain version1.
+
+Evidence categories and limits
+Fresh normal journeys, labeled response loss, controlled DOM/native boundaries,
+negative compiler guards, exact source reuse and report-only commits are distinct.
+Retain first failures and their diagnosis. Final qualification requires fresh
+independent non-author assessment of the source, evidence and stated limits.
+This is synthetic localhost assurance: no installed OS IME, broad accessibility,
+physical power loss, real V1 import/adoption, expanded M05 link features or
+general-release certification. Prior V1 exposure remains disclosed.

@@ -1,0 +1,44 @@
+M04.03 HIERARCHY QUALIFICATION R1
+2026-10-30 | PASS scoped synthetic localhost qualification; independently reviewed
+
+Tested source: e51be8d13f2ff76b4174f72206466b47eea4f871
+Executable SHA256: bd54b2aa86a728cf2dff64444e1241eb3091435e342e318db1d442904a4d0885
+Later report-only publication does not imply another product build.
+
+Fresh current-candidate checks
+- Two isolated clean builds: 1,641 Go tests each, zero failures/skips, offline npmci,
+  empty separate Go caches, source stable, 78 complete generated/staged/executable hashes equal.
+- Full native inventories: 8 transaction, 7 continuation, 14 archive, 4 interruption,
+  all mandatory root/archive rows, exactly 368 providers; zero failures/skips.
+- Full 21-case browser cases: zero failures/skips/flaky/retries; clean owned teardown.
+- Hierarchy: 349 controlled DOM checks: all 999 descendants exhausted in 50 pages.
+- Ordinary browser/actualCLI joined hierarchy: 69 counted checks plus expectations;
+  both legacy link types retain exact edges and start gate through hierarchy.
+- One separately labeled lost response after real commit; graceful restart,
+  UNKNOWN retention and deliberate original lookup only, without replay.
+- Two runnable restores compare full retained records/approvals/history / 3 links,
+  exact attachment bytes and Go-canonical 57 / 60 immutable original rows/payloads.
+  Restored snapshot Origin/current-parent rebasing conserved; source unchanged.
+- Fresh actual v5 inspect/refusal/upgrade/NO_CHANGE/reopen:5/5 to6/5. Old dataJSON
+  and blobs exact; regenerated exportedAt/COMPLETE manifest fields are explicit.
+- Earlier regression:176 controlled DOM, 137 ordinary search assertions plus 5
+  joined checks; 15 capacity checks for 20 drafts / 21st refusal/read-only search and
+  separate deliberate Save while the original remains UNKNOWN.
+- All 5 joined and 3 supporting host lifetimes exit0 with listeners closed;
+  native/browser owned teardown separately verified.
+
+Findings corrected and retained
+Ordinary details Close had regressed from Find cards to board read. The fix
+preserves Find cards for ordinary origins and board read for hierarchy origins;
+fresh independent source/178 DOM checks supplement normal regression coverage.
+Joined legacy-link coverage was expanded. Root-setup environment omission,
+ambiguous linked/normal opener selector and readonly test setup were harness
+failures; first attempts retained, assertions preserved, fresh scenarios used.
+
+Independent review and boundaries
+Fresh non-author Sol / High source/evidence/report assessment passed. Its own
+178 focused actual-DOM checks are distinct from audited primary/support runs. Initial candidate and failed attempts do not count as final-candidate proof.
+M04.04 owns the extracted usable kit/normal demo after owner acceptance of this
+qualification. No M05 features, physical power-loss, installed OS IME, broad
+accessibility, V1 adoption or general release/clean-room certification claimed.
+Reproduction: docs/runbooks/m04-qualification.txt and m04-hierarchy.txt.

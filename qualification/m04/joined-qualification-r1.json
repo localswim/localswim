@@ -1,0 +1,150 @@
+{
+  "status": "PASS_SCOPED_M04_03",
+  "date": "2026-10-30",
+  "testedSource": "e51be8d13f2ff76b4174f72206466b47eea4f871",
+  "candidateSHA256": "bd54b2aa86a728cf2dff64444e1241eb3091435e342e318db1d442904a4d0885",
+  "twoIsolatedCleanBuilds": {
+    "testsEach": [
+      1641,
+      1641
+    ],
+    "failedTestsEach": [
+      0,
+      0
+    ],
+    "skippedTestsEach": [
+      0,
+      0
+    ],
+    "sourceStableEach": true,
+    "equalOutputSets": true,
+    "equalOutputHashes": 78,
+    "freshEmptyGoCacheEach": true,
+    "offlineNpmCiEach": true
+  },
+  "freshNative": {
+    "mandatory": {
+      "root": {
+        "required": 3,
+        "pass": 3,
+        "fail": 0,
+        "skip": 0
+      },
+      "transaction": {
+        "required": 8,
+        "pass": 8,
+        "fail": 0,
+        "skip": 0
+      },
+      "archive": {
+        "required": 14,
+        "pass": 14,
+        "fail": 0,
+        "skip": 0
+      },
+      "transactionChild": {
+        "required": 7,
+        "pass": 7,
+        "fail": 0,
+        "skip": 0
+      },
+      "archiveChild": {
+        "required": 4,
+        "pass": 4,
+        "fail": 0,
+        "skip": 0
+      },
+      "archiveRows": {
+        "required": 6,
+        "pass": 6,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "exactProviderFiles": 368,
+    "sourceStable": true,
+    "ownedProcessesAfter": 0,
+    "ownedListenersAfter": 0
+  },
+  "freshBrowserInventory": {
+    "requiredCases": 21,
+    "passed": 21,
+    "failed": 0,
+    "skipped": 0,
+    "retries": 0,
+    "flaky": 0,
+    "teardown": "PASS"
+  },
+  "freshHierarchy": {
+    "controlledDomChecks": 349,
+    "controlledFamilyNodes": 1000,
+    "controlledDescendants": 999,
+    "controlledPages": 50,
+    "ordinaryBrowserAndActualCliCountedChecks": 69,
+    "fullRetainedLegacyLinks": 3,
+    "canonicalOriginalRowsEachRestore": [
+      57,
+      60
+    ],
+    "ownedHostLifetimesStoppedZero": 5
+  },
+  "freshEarlierRegression": {
+    "controlledDomChecks": 176,
+    "ordinarySearchBrowserAssertions": 137,
+    "searchJoinedChecks": 5,
+    "capacityChecks": 15,
+    "capacityDraftsRetained": 20,
+    "refusedDraft": 21,
+    "independentDeliberateSaves": 2,
+    "originalLookupRequests": 0,
+    "ownedHostLifetimesStoppedZero": 3
+  },
+  "compatibility": {
+    "classification": "Fresh current-candidate actual offline inspect/refuse/explicit upgrade/NO_CHANGE/reopen",
+    "physicalAndBaseBefore": [
+      5,
+      5
+    ],
+    "physicalAndBaseAfter": [
+      6,
+      5
+    ],
+    "oldFullRecordsAndReadableArchiveDataAndBlobBytesConserved": true,
+    "archiveManifestException": "exportedAt and dependent COMPLETE digest regenerate; archive data JSON and blobs compare exactly",
+    "expectedOldStartupRefusalExit": 3,
+    "cleanup": "PASS"
+  },
+  "findings": {
+    "product": "Ordinary details Close fallback regressed to board read. Restore Find cards for ordinary openers, keep explicit board-read fallback for hierarchy-origin navigation; independent focused source and178 DOM checks pass.",
+    "coverage": "Added joined hierarchy + both legacy link types, unchanged full edge rows and blocked-start before/after hierarchy, then normal human approval releases original gate.",
+    "retainedHarnessFailures": [
+      "Initial private-root setup omitted environment variables before helper; no product gate passed in that attempt.",
+      "Joined row selector matched both normal and linked openers; exact source-card :open selector fixes ambiguity without weakening assertions.",
+      "New focused test initially assigned a readonly fixture property; corrected test setup before execution."
+    ]
+  },
+  "evidenceCategories": [
+    "Fresh ordinary actual-browser and actualCLI synthetic journeys",
+    "Fresh separately labeled response loss after real commit and graceful restart; original UNKNOWN/no replay",
+    "Fresh controlled DOM/native graph bounds and existing regression inventories",
+    "Fresh explicit compatibility upgrade of normally seeded accepted old synthetic store",
+    "Two fresh isolated committed-source clean builds; complete generated/staged/executable sets compared",
+    "Historical initial-candidate and failed attempts retained; excluded from final-candidate passing counts"
+  ],
+  "independentReview": {
+    "status": "PASS",
+    "scope": "Fresh non-author Sol / High source, evidence and report assessment plus independent focused actual-DOM probes; not a duplicate execution of every full product/build/native suite.",
+    "ownFocusedDomChecks": 178
+  },
+  "tools": {
+    "go.exe": "83b7ba66215e696414fa49462d0db2da4f4cf15c7bebd42f0b189fa04866999d",
+    "node.exe": "1c63f1417e2e26d83ca9a9ec1d548524ab1305bc7209d90ebca56257ff0d84ed",
+    "npm-cli.js": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7"
+  },
+  "limits": [
+    "M04.03 qualification; final extracted usable kit/demo remains owner-gated M04.04.",
+    "Synthetic Windows amd64/local NTFS/localhost only; no physical power-loss, installed OS IME, broad accessibility, real V1 import/adoption, expanded M05 relationships or general release claim.",
+    "Controlled large-family DOM/model checks are distinct from ordinary21-descendant CLI setup; full BoardRead network/memory remains unbounded by local20-row presentation.",
+    "Prior V1 exposure disclosed; no independent clean-room certification."
+  ]
+}

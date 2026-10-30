@@ -20,6 +20,7 @@ import (
 )
 
 var production = []string{
+	"api/search", "board/search",
 	"api/preferences", "workspace-ui/pins",
 	"board/details",
 	"api/history",
@@ -40,6 +41,7 @@ var bindings = []string{
 	"internal/contract/transport/workspace.go",
 	"internal/contract/transport/catalog.go",
 	"internal/contract/transport/preferences.go",
+	"internal/contract/transport/card_search.go",
 }
 
 type manifest struct {

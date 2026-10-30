@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/localswim/localswim/internal/contract"
 	"github.com/localswim/localswim/internal/store/schema"
@@ -12,11 +13,11 @@ import (
 
 type Selectors struct{ InstallationID, BoardID, Incarnation, GrantID string }
 type invocation struct {
-	selected                            Selectors
-	json, native, lookup                bool
-	kind, id, input, file, method, path string
-	archive, cursor                     string
-	command                             contract.Command
+	selected                                      Selectors
+	json, native, lookup                          bool
+	kind, id, input, file, method, path           string
+	archive, cursor, query, lane, owner, priority string
+	command                                       contract.Command
 }
 
 func uuid(s string) bool { return schema.ValidUUID(s) }
@@ -48,7 +49,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	i += 2
 	q.kind = group + " " + action
 	switch q.kind {
-	case "card list":
+	case "card list", "card search":
 		q.method = "GET"
 		q.archive = "active"
 	case "board read":
@@ -72,7 +73,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	default:
 		return q, "INVOCATION_OR_IO", 1
 	}
-	if q.kind != "board read" && q.kind != "card create" && q.kind != "card list" {
+	if q.kind != "board read" && q.kind != "card create" && q.kind != "card list" && q.kind != "card search" {
 		if i >= len(args) || !uuid(args[i]) {
 			return q, "INVOCATION_OR_IO", 1
 		}
@@ -93,12 +94,12 @@ func parse(args []string) (q invocation, code string, exit int) {
 		if i >= len(args) {
 			return q, "INVOCATION_OR_IO", 1
 		}
-		if k == "--archive" && q.kind == "card list" {
+		if k == "--archive" && (q.kind == "card list" || q.kind == "card search") {
 			if args[i] != "active" && args[i] != "archived" && args[i] != "all" {
 				return q, "INVOCATION_OR_IO", 1
 			}
 			q.archive = args[i]
-		} else if k == "--cursor" && q.kind == "card list" {
+		} else if k == "--cursor" && (q.kind == "card list" || q.kind == "card search") {
 			if len(args[i]) == 0 || len(args[i]) > 2048 {
 				return q, "INVOCATION_OR_IO", 1
 			}
@@ -108,6 +109,29 @@ func parse(args []string) (q invocation, code string, exit int) {
 				}
 			}
 			q.cursor = args[i]
+		} else if k == "--query" && q.kind == "card search" {
+			if !utf8.ValidString(args[i]) || len(args[i]) > 1024 {
+				return q, "INVOCATION_OR_IO", 1
+			}
+			q.query = args[i]
+		} else if k == "--lane" && q.kind == "card search" {
+			switch args[i] {
+			case "Ready for Work", "In Progress", "Ready for Review", "Completed":
+			default:
+				return q, "INVOCATION_OR_IO", 1
+			}
+			q.lane = args[i]
+		} else if k == "--owner" && q.kind == "card search" {
+			if args[i] != "unassigned" && !uuid(args[i]) {
+				return q, "INVOCATION_OR_IO", 1
+			}
+			q.owner = args[i]
+		} else if k == "--priority" && q.kind == "card search" {
+			v := args[i]
+			if len(v) != 2 || v[0] != 'P' || v[1] < '0' || v[1] > '5' {
+				return q, "INVOCATION_OR_IO", 1
+			}
+			q.priority = v
 		} else if k == "--input" && q.command != "" {
 			q.input = args[i]
 		} else if k == "--evidence" && q.lookup {
@@ -127,8 +151,20 @@ func parse(args []string) (q invocation, code string, exit int) {
 	base := "/api/v1/boards/" + q.selected.BoardID
 	q.path = base
 	switch q.kind {
-	case "card list":
+	case "card list", "card search":
 		values := url.Values{"archive": {q.archive}}
+		if q.kind == "card search" {
+			values.Set("q", q.query)
+		}
+		if q.lane != "" {
+			values.Set("lane", q.lane)
+		}
+		if q.owner != "" {
+			values.Set("owner", q.owner)
+		}
+		if q.priority != "" {
+			values.Set("priority", q.priority)
+		}
 		if q.cursor != "" {
 			values.Set("cursor", q.cursor)
 		}

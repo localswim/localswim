@@ -1,0 +1,73 @@
+M03 FIND/FILTER CURRENT WORK
+2026-10-29 | Synthetic localhost slice; joined final qualification separate
+
+Choose the exact project/board using the normal workspace guide. Display tickets
+are board-local; summaries and focused actions retain actual UUID identity.
+Find cards focuses Search cards. Enter literal text and optional Lane, Owner,
+Explicit priority and Archive status, then Apply filters (or ordinary Enter).
+IME confirmation Enter does not search. Owner accepts a current actor UUID or
+unassigned; leave it empty for any owner. Owner label or assignment grants no
+authority. Empty q means all cards subject to typed filters.
+
+Matching
+- Current title, description and current retained comment text are searched.
+  Each matching card appears once. Private drafts, pending originals and prior/
+  removed text are not lifetime search results.
+- Go simple Unicode lowercase literal matching: CAFÉ matches café; decomposed
+  accents differ; STRASSE does not match Straße. %, _, .* and <script> are plain
+  text, not wildcards/regex/SQL/HTML. Query whitespace stays significant.
+- Exact canonical UUID (case-insensitive ASCII) or positive decimal ticket with
+  optional # is also considered. Identity fragments/leading-zero forms are not
+  identity matches, but remain ordinary searchable text.
+- Original query limit is1024 UTF-8 bytes. It is not a character count or a limit
+  after case conversion. Invalid filters retain input and show a real error.
+
+Results and focus
+Results use explicit P0..P5, numeric ticket then UUID order. A page returns at most
+20 summaries with an honest More/End state; it does not show a complete total.
+Next results continues the same query/snapshot. First page deliberately starts
+again; draft changes need Apply to replace the applied filters. Clear resets to
+empty/any/Active. A board change, restart, query/filter mismatch or revoked read
+authority invalidates continuation. Retain input and choose a deliberate fresh
+read, not an automatic retry loop or concatenation of different pages.
+
+Keyboard activation keeps a usable control after loading; exhausted/error Next
+falls back to First page. Reads do not take focus back after you move to an editor
+or another control. Open card reads full focused facts separately. Close returns
+to the visible actual row opener, or Find cards if it disappeared. Summaries are
+not editor bases; use Read current board/Refresh card details when current bases
+differ before editing. Existing dirty/private-save gates remain in force.
+
+Archive and privacy
+Active is default. Archived/All can find retained retired work explicitly. Archive
+and unarchive remain the existing confirmed card.edit flow from
+m03-card-archive.txt; Completed stays read-only. A successful edit marks old search
+results stale; reapply/First page for current membership and counts. Search/absence
+cannot settle a pending original. Look up original outcome deliberately; no
+filter/reload/navigation/search operation replays or unlocks it.
+
+Filters/drafts are private to this window and exact board. Another window may use
+different text/modes; the same ticket on another board is another identity. Reload
+restores bounded filters and requests a fresh first page, not a saved cursor or
+cached result. If window storage refuses, visible input remains for this lifetime
+with memory-only status. Do not assume durable filter retention from a successful
+search. Core editor/original recovery and capacity limits remain separate.
+
+Actual CLI examples
+Use the actual verified executable and exact normal selector, for example:
+  $exe = 'C:\path\to\localswim.exe'
+  $select = @('--workspace', 'C:\path\to\workspace', '--project', 'harbor', '--board', 'dispatch')
+  & $exe @select --json card search --query 'CommentNeedle'
+  & $exe @select card search --query 'CommentNeedle' --lane 'Ready for Review' --owner 'CURRENT_ACTOR_UUID' --priority P3 --archive active
+  & $exe @select card search --query 'CommentNeedle' --archive archived
+  & $exe @select card search --query 'BoundaryNeedle' --cursor 'TOKEN_FROM_PREVIOUS_PAGE'
+  & $exe @select card read 'RETURNED_CARD_UUID'
+  & $exe @select card history 'RETURNED_CARD_UUID'
+
+Keep every query/filter flag identical with a cursor. Omit cursor for a new first
+page. CLI JSON/readable output provides current summaries, returned count and
+next cursor/End; current read-only failures remain explicit. Compatible --data
+selects its exact standalone root. card list remains the simpler empty-query
+archive listing, and board read JSON remains the complete reference-closed board.
+No global workspace search, custom workflow, import, new attachment UI, remote
+delivery, general release or physical power-loss proof is implied.

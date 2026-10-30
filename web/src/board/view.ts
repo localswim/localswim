@@ -10,6 +10,8 @@ import { dependencyAdvisory } from "./advisory.js";
 import { commands, parse, validate } from "../api/boundary.js";
 import type { EditorReference } from "../session-ui/window-state.js";
 import { CardDetails } from "./details.js";
+import { CardSearch } from "./search.js";
+import type { PrivateSearch } from "./search.js";
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = ""): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag); node.textContent = text; return node;
@@ -26,7 +28,7 @@ type Editor = {
 };
 
 export type ArchiveStatus = "active" | "archived" | "all";
-export type BoardViewOptions = Readonly<{ archiveStatus?: ArchiveStatus; archiveCheckpoint?: (status: ArchiveStatus) => void }>;
+export type BoardViewOptions = Readonly<{ archiveStatus?: ArchiveStatus; archiveCheckpoint?: (status: ArchiveStatus) => void; search?: PrivateSearch; searchCheckpoint?: (state: PrivateSearch) => void }>;
 // The complete source graph remains intact for reference and advisory validation.
 export function visibleCards(cards: readonly Card[], status: ArchiveStatus): Card[] {
   const rank = ["P0", "P1", "P2", "P3", "P4", "P5"];
@@ -48,6 +50,7 @@ export class BoardView {
   private readonly current = element("section");
   private readonly outcomes = element("section");
   private readonly records = new Map<string, OriginalOutcome>();
+  private readonly restoredCommits = new Set<string>();
   private readonly outcomeNodes = new Map<string, HTMLElement>();
   private destroyed = false;
   private generation = 0;
@@ -55,6 +58,7 @@ export class BoardView {
   private readonly persistence: RecoveryCoordinator;
   private readonly stopPersistence: () => void;
   private readonly details: CardDetails;
+  private readonly search: CardSearch;
   private readonly archiveStatus = element("select");
   constructor(private readonly root: HTMLElement, readonly client: BoardClient, readonly boardId: string,
     private readonly checkpoint: (reference?: EditorReference) => void = () => {}, private readonly options: BoardViewOptions = {}) {
@@ -68,7 +72,6 @@ export class BoardView {
     this.current.setAttribute("aria-label", "Current confirmed text");
     this.cards.setAttribute("aria-label", "Cards");
     const read = button("Read current board", () => { void this.refresh(); });
-    const archiveLabel = element("label", "Archive status ");
     this.archiveStatus.setAttribute("aria-label", "Archive status");
     for (const [value, label] of [["active", "Active"], ["archived", "Archived"], ["all", "All"]]) {
       const option = element("option", label); option.value = value!; this.archiveStatus.append(option);
@@ -80,23 +83,26 @@ export class BoardView {
       catch { this.readState.textContent = "Archive status retained for this window lifetime; window storage unavailable."; }
       if (this.board) this.renderCards();
     });
-    archiveLabel.append(this.archiveStatus);
-    this.details = new CardDetails(client, read, focused => {
+    this.search = new CardSearch(client, boardId, this.archiveStatus, (cardId, identity, opener) => {
+      if (!this.destroyed && !this.suspended) this.details.open(cardId, identity, opener);
+    }, options.searchCheckpoint, options.search);
+    this.details = new CardDetails(client, this.search.find, focused => {
       const current = this.board, card = current?.result.cards.find(row => row.cardId === focused.result.card.cardId);
       if (!current || !card || current.result.identity.boardId !== focused.result.identity.boardId ||
           current.result.identity.incarnation !== focused.result.identity.incarnation || current.result.revision !== focused.result.revision || card.revision !== focused.result.card.revision) {
         this.readState.textContent = "Read current board before archiving this focused card; its independently read facts differ from the board base."; return;
       }
       this.edit("card.edit", card, false, undefined, !card.archived);
-    });
+    }, root);
     root.replaceChildren(this.heading, this.actor, this.readState, read,
-      button("Create card", () => this.edit("card.create")), archiveLabel, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
+      button("Create card", () => this.edit("card.create")), this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
   }
   async open(): Promise<void> { await this.refresh(); }
-  suspend(): void { this.suspended = true; this.generation++; this.details.suspend(); }
+  suspend(): void { this.suspended = true; this.generation++; this.details.suspend(); this.search.suspend(); }
   resume(): void {
     this.suspended = false;
     this.details.resume();
+    this.search.resume();
     for (const outcome of this.records.values()) {
       const context = outcome.evidence?.context ?? this.editor?.context;
       if (context) this.showOutcome(outcome, context);
@@ -132,19 +138,31 @@ export class BoardView {
       const originals = await Promise.all(rows.map(async row => ({ row, submission: await this.client.recovery.loadSubmission(row.context, row.opId) })));
       if (this.destroyed || this.editor || generation !== this.generation || persistenceGeneration !== this.persistence.generation) return;
       for (const { row, submission } of originals) {
+        if (row.outcome === "committed") this.restoredCommits.add(row.opId);
         const outcome: OriginalOutcome = { opId: row.opId, state: row.outcome, ...(submission ? { evidence: submission.evidence } : {}),
           message: row.outcome === "unknown" ? "Original operation retained after reload. Outcome unknown; deliberate original lookup only. Do not resubmit." : "Retained original outcome: " + row.outcome + ". No operation was replayed." };
         this.records.set(row.opId, outcome); this.showOutcome(outcome, row.context);
       }
+      // Recovery reads may finish after deliberate query/editor navigation. Keep
+      // the user's currently focused control when mounting the recovered editor.
+      const retainedFocus = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : undefined;
+      const retainedSelection = retainedFocus instanceof HTMLInputElement || retainedFocus instanceof HTMLTextAreaElement
+        ? [retainedFocus.selectionStart, retainedFocus.selectionEnd, retainedFocus.selectionDirection ?? undefined] as const : undefined;
       this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive as boolean | undefined);
       const restored = this.editor as Editor | undefined;
       if (restored) restored.submitted = rows.some(row => row.outcome !== "not_committed");
       if (rows.some(row => row.outcome === "committed")) this.readState.textContent = "Retained original was committed. This editor remains submitted; read current text and deliberately open new work.";
       this.updateSave();
+      if (retainedFocus?.isConnected) {
+        retainedFocus.focus({ preventScroll: true });
+        if (retainedSelection && (retainedFocus instanceof HTMLInputElement || retainedFocus instanceof HTMLTextAreaElement)) {
+          try { retainedFocus.setSelectionRange(...retainedSelection); } catch { /* Native non-text input has no selection. */ }
+        }
+      }
     } catch { this.readState.textContent = "Own window draft unavailable. Private records retained; no input was submitted."; }
   }
   // Owning session adapter invokes on logout/revocation; it preserves private data.
-  destroy(): void { this.destroyed = true; this.details.suspend(); this.stopPersistence(); this.generation++; this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
+  destroy(): void { this.destroyed = true; this.details.suspend(); this.search.suspend(); this.stopPersistence(); this.generation++; this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
   async refresh(): Promise<void> {
     if (this.destroyed || this.suspended) return;
     const generation = ++this.generation;
@@ -159,9 +177,11 @@ export class BoardView {
       this.readState.textContent = "Current at board revision " + board.result.revision + "; incarnation " + board.result.identity.incarnation;
       this.renderCards();
       this.details.boardRead(board.result.identity);
+      this.search.boardRead(board.result.identity, board.result.revision);
     } catch {
       if (this.destroyed || generation !== this.generation) return;
       this.stale = true;
+      this.search.invalidate();
       this.readState.textContent = this.board ? "Unavailable; displayed board is stale. Editor input and original base retained." : "Unavailable; no current board loaded.";
     }
     this.updateSave();
@@ -415,6 +435,11 @@ export class BoardView {
     const identity = this.board?.result.identity, original = outcome.evidence?.context, terminal = outcome.terminal;
     if (identity && original && terminal?.outcome === "committed" && identity.boardId === original.boardId &&
         identity.incarnation === original.incarnation && this.board!.result.revision >= terminal.revision) return;
+    // A restored terminal classification has no retained receipt/revision. It
+    // keeps the original editor submitted and the existing board-stale policy,
+    // but is not a new mutation relative to this reload's independent searches.
+    // Fresh receipts and live outcomes retain normal search invalidation.
+    if (terminal || !this.restoredCommits.has(outcome.opId)) this.search.invalidate();
     this.stale = true;
     this.details.invalidate();
     this.readState.textContent = "Confirmed saved. Displayed board is stale; read the current board before new work.";

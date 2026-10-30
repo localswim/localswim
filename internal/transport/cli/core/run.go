@@ -235,9 +235,9 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 	var v any
 	var identity A.Identity
 	switch q.kind {
-	case "card list":
+	case "card list", "card search":
 		x, err := T.Decode[T.CardSearchRead](b)
-		if err != nil || x.Result.Query.Q != "" || x.Result.Query.Lane != nil || x.Result.Query.Owner != nil || x.Result.Query.Priority != nil || string(x.Result.Query.Archive) != q.archive {
+		if err != nil || x.Result.Query.Q != q.query || !searchEcho(x.Result.Query.Lane, q.lane) || !searchEcho(x.Result.Query.Owner, q.owner) || !searchEcho(x.Result.Query.Priority, q.priority) || string(x.Result.Query.Archive) != q.archive {
 			return refused("UNAVAILABLE", 3, nil)
 		}
 		v = x
@@ -344,4 +344,11 @@ func archiveAlias(wire []byte, want bool) bool {
 	}
 	var got bool
 	return json.Unmarshal(flag, &got) == nil && got == want
+}
+
+func searchEcho[S ~string](got *S, want string) bool {
+	if got == nil {
+		return want == ""
+	}
+	return want != "" && string(*got) == want
 }

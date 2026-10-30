@@ -9,17 +9,20 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
+	"github.com/localswim/localswim/internal/store/schema"
 	"github.com/localswim/localswim/internal/store/writer"
 )
 
 var errCursorStale = errors.New("cursor stale")
+var errPageComplete = errors.New("page complete")
 
-type searchRequest struct{ archive, cursor string }
+type searchRequest struct{ q, lane, owner, priority, archive, cursor string }
 
 func parseSearch(raw string) (searchRequest, error) {
 	out := searchRequest{archive: "active"}
@@ -33,9 +36,27 @@ func parseSearch(raw string) (searchRequest, error) {
 		}
 		switch k {
 		case "q":
-			if vs[0] != "" {
+			if len(vs[0]) > 1024 {
 				return out, ErrUnavailable
 			}
+			out.q = vs[0]
+		case "lane":
+			switch vs[0] {
+			case "Ready for Work", "In Progress", "Ready for Review", "Completed":
+			default:
+				return out, ErrUnavailable
+			}
+			out.lane = vs[0]
+		case "owner":
+			if vs[0] != "unassigned" && !schema.ValidUUID(vs[0]) {
+				return out, ErrUnavailable
+			}
+			out.owner = vs[0]
+		case "priority":
+			if len(vs[0]) != 2 || vs[0][0] != 'P' || vs[0][1] < '0' || vs[0][1] > '5' {
+				return out, ErrUnavailable
+			}
+			out.priority = vs[0]
 		case "archive":
 			if vs[0] != "active" && vs[0] != "archived" && vs[0] != "all" {
 				return out, ErrUnavailable
@@ -81,17 +102,48 @@ type cursorPayload struct {
 	CardID   A.UUID     `json:"cardId"`
 }
 
-func filterDigest(archive string) string {
-	// Includes the exact canonical empty query and null typed filters.
-	b, _ := json.Marshal(struct {
-		Q        string  `json:"q"`
-		Lane     *string `json:"lane"`
-		Owner    *string `json:"owner"`
-		Priority *string `json:"priority"`
-		Archive  string  `json:"archive"`
-	}{Archive: archive})
+func (r searchRequest) canonical() T.CardSearchQuery {
+	q := T.CardSearchQuery{Q: r.q, Archive: T.CardArchiveMode(r.archive)}
+	if r.lane != "" {
+		v := A.Lane(r.lane)
+		q.Lane = &v
+	}
+	if r.owner != "" {
+		v := r.owner
+		q.Owner = &v
+	}
+	if r.priority != "" {
+		v := A.Priority(r.priority)
+		q.Priority = &v
+	}
+	return q
+}
+func filterDigest(request searchRequest) string {
+	b, _ := json.Marshal(request.canonical())
 	d := sha256.Sum256(b)
 	return base64.RawURLEncoding.EncodeToString(d[:])
+}
+
+// Literal matching deliberately uses Go simple lowercase, without normalization
+// or full case folding. Identity is exact; invalid spelling remains literal text.
+func searchMatches(query string, c T.CardSummary, description string, comments []string) bool {
+	if query == "" {
+		return true
+	}
+	if strings.Contains(strings.ToLower(c.Title), query) || strings.Contains(strings.ToLower(description), query) {
+		return true
+	}
+	for _, text := range comments {
+		if strings.Contains(strings.ToLower(text), query) {
+			return true
+		}
+	}
+	if schema.ValidUUID(query) && query == string(c.CardID) {
+		return true
+	}
+	digits := strings.TrimPrefix(query, "#")
+	n, e := strconv.ParseUint(digits, 10, 64)
+	return e == nil && n > 0 && n <= 9007199254740991 && strconv.FormatUint(n, 10) == digits && n == uint64(c.Ticket)
 }
 func (h *Handler) encodeCursor(p cursorPayload) string {
 	b, _ := json.Marshal(p)
@@ -135,11 +187,11 @@ func (h *Handler) decodeCursor(s string, expected cursorPayload) (cursorPayload,
 func (h *Handler) search(r writer.Read, q route, actor string, request searchRequest) (any, error) {
 	out := T.CardSearchRead{APIVersion: 1, Scope: "card-search"}
 	out.Result.Items = []T.CardSummary{}
-	out.Result.Query.Archive = T.CardArchiveMode(request.archive)
+	out.Result.Query = request.canonical()
 	if e := r.Scan(`SELECT board_id,incarnation,revision FROM board WHERE singleton=1 AND board_id=?`, []any{q.board}, &out.Result.Identity.BoardID, &out.Result.Identity.Incarnation, &out.Result.Revision); e != nil {
 		return nil, e
 	}
-	key := cursorPayload{Epoch: base64.RawURLEncoding.EncodeToString(h.cursorEpoch[:]), Actor: actor, Identity: out.Result.Identity, Revision: out.Result.Revision, Filter: filterDigest(request.archive)}
+	key := cursorPayload{Epoch: base64.RawURLEncoding.EncodeToString(h.cursorEpoch[:]), Actor: actor, Identity: out.Result.Identity, Revision: out.Result.Revision, Filter: filterDigest(request)}
 	var last cursorPayload
 	if request.cursor != "" {
 		var e error
@@ -154,18 +206,45 @@ func (h *Handler) search(r writer.Read, q route, actor string, request searchReq
 		where += " AND c.archived=?"
 		args = append(args, request.archive == "archived")
 	}
+	if request.lane != "" {
+		where += " AND c.lane=?"
+		args = append(args, request.lane)
+	}
+	if request.priority != "" {
+		where += " AND c.priority=?"
+		args = append(args, request.priority)
+	}
+	if request.owner == "unassigned" {
+		where += " AND c.owner_id IS NULL"
+	} else if request.owner != "" {
+		where += " AND c.owner_id=?"
+		args = append(args, request.owner)
+	}
 	if request.cursor != "" {
 		where += " AND (c.priority>? OR (c.priority=? AND (t.ticket>? OR (t.ticket=? AND c.card_id>?))))"
 		args = append(args, string(last.Priority), string(last.Priority), uint64(last.Ticket), uint64(last.Ticket), string(last.CardID))
 	}
-	e := rows(r, `SELECT c.card_id,t.ticket,c.revision,c.title,c.lane,c.priority,c.owner_id,c.archived FROM card c JOIN ticket t USING(incarnation,card_id) WHERE `+where+` ORDER BY c.priority,t.ticket,c.card_id LIMIT 21`, args, func(rs *sql.Rows) error {
+	lowered := strings.ToLower(request.q)
+	stop := errPageComplete
+	e := searchRows(r, `SELECT c.card_id,t.ticket,c.revision,c.title,c.lane,c.priority,c.owner_id,c.archived,c.description,(SELECT json_group_array(m.text) FROM current_reference ref JOIN comment m ON m.incarnation=ref.incarnation AND m.comment_id=ref.entity_id AND m.card_id=ref.card_id WHERE ref.incarnation=c.incarnation AND ref.card_id=c.card_id AND ref.kind='comment') FROM card c JOIN ticket t USING(incarnation,card_id) WHERE `+where+` ORDER BY c.priority,t.ticket,c.card_id`, args, func(rs *sql.Rows) error {
 		var c T.CardSummary
 		var owner sql.NullString
-		if e := rs.Scan(&c.CardID, &c.Ticket, &c.Revision, &c.Title, &c.Lane, &c.Priority, &owner, &c.Archived); e != nil {
+		var description, commentJSON string
+		var comments []string
+		if e := rs.Scan(&c.CardID, &c.Ticket, &c.Revision, &c.Title, &c.Lane, &c.Priority, &owner, &c.Archived, &description, &commentJSON); e != nil {
 			return e
 		}
 		c.OwnerID = uuidPtr(owner)
+		if e := json.Unmarshal([]byte(commentJSON), &comments); e != nil {
+			return e
+		}
+		if !searchMatches(lowered, c, description, comments) {
+			return nil
+		}
 		out.Result.Items = append(out.Result.Items, c)
+		if len(out.Result.Items) == 21 {
+			return stop
+		}
 		return nil
 	})
 	if e != nil {
@@ -181,4 +260,21 @@ func (h *Handler) search(r writer.Read, q route, actor string, request searchReq
 		out.Result.NextCursor = &token
 	}
 	return out, nil
+}
+
+// Stop only after the 21st match; row/close failures still invalidate the page.
+func searchRows(r writer.Read, query string, args []any, fn func(*sql.Rows) error) error {
+	rs, e := r.Query(query, args...)
+	if e != nil {
+		return e
+	}
+	for rs.Next() {
+		if e = fn(rs); e != nil {
+			if e == errPageComplete {
+				e = nil
+			}
+			break
+		}
+	}
+	return errors.Join(e, rs.Err(), rs.Close())
 }

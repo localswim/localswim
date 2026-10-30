@@ -1,3 +1,4 @@
+import { validPrivateSearch } from "../board/search.js";
 const storageKey = "localswim.window.v1", uuid = /^[0-9a-f-]{36}$/;
 // This bounded index contains references, never draft prose, credentials or sessions.
 // A newly navigated browsing context gets a fresh identity even when its opener's
@@ -36,6 +37,7 @@ export class WindowState {
                     if (!validReference(state.editor) || !validReference(state.recovery))
                         continue;
                     this.boards[key] = { ...(state.editor ? { editor: state.editor } : {}), ...(state.recovery ? { recovery: state.recovery } : {}),
+                        ...(validPrivateSearch(state.search) ? { search: state.search } : {}),
                         ...(["active", "archived", "all"].includes(state.archiveStatus ?? "") ? { archiveStatus: state.archiveStatus } : {}),
                         scrollX: Number.isFinite(state.scrollX) ? state.scrollX : 0, scrollY: Number.isFinite(state.scrollY) ? state.scrollY : 0,
                         ...(Array.isArray(state.focusPath) && state.focusPath.length <= 32 && state.focusPath.every(n => Number.isInteger(n) && n >= 0 && n <= 10000) ? { focusPath: state.focusPath } : {}),

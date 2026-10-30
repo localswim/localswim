@@ -1,0 +1,66 @@
+M03.03 CURRENT-CARD SEARCH / FILTER EVIDENCE
+2026-10-29 | Feature-local owner-review handoff; joined M03 qualification separate
+
+Candidate
+Production base664a8c8 plus reviewed M03.03 changes; final source publication
+commit recorded in handoff. Executable SHA256:f28c8c9db9f501c67856e06f8ab4948695eed93986d47daf982a6f6093eea7ea
+Current cmd/internal binding:1c4f4819f4fde49754dbf35238cee14c16a47d80f9145b25633e3a338774ccf2;382 files.
+Current cached build and separate V02 source-snapshot application bytes match;
+this is not two isolated clean builds. API/archive1 and physical layout5 unchanged.
+
+Outcome and current proof
+- Literal current title/description/referenced-comment matching, exact ticket/UUID,
+  typed lane/owner/priority/archive filters, explicit priority/ticket/UUID order,
+  fixed20 summaries/continuation and exact original-q echo use one authorized Go
+  snapshot. No durable board/card/history/activity/outcome/priority fact changes.
+-1596 Go tests pass, zero failed/skipped. Module/contracts/assets/vet,
+  strict pinned TypeScript/build and Node script gates pass. No dependencies upgraded.
+-175 controlled DOM/IndexedDB/source checks pass with archive/editor/private-root
+  regressions and new query/echo/filter/page/stale/focus/reload checks. Independent
+  reviewers reproduce focused semantics and adversarial/native keyboard cases.
+- Fresh V04 native mandatory inventory and V02 browser21-case regression pass on
+  this exact application candidate. Full source/provider sets remain strict.
+- Ordinary built browser and actual CLI record137 explicit assertions plus DOM
+  expectations: base-only field/identity/Unicode/metacharacter/filter/unknown-owner
+  and empty/read-only cases, then21 repeated-field matches with20+1 exact unique
+  priority/ticket pages. Each actor uses its own cursor; cross-actor and changed
+  revision tokens refuse. Native Enter preserves/falls back to usable focus.
+- Joined archived search opens independent details, Close returns actual opener,
+  real browser unarchive invalidates old results without losing query, explicit
+  first page observes new membership. Per-board/window filters and private reload
+  with a retained committed editor/original remain isolated. Graceful reopen keeps
+  the complete decoded BoardRead, positive Active/Archived/All query envelopes and
+  order, and boundary first-page membership/order; the prior handler cursor refuses. Two
+  final hosts exit0 and original listener closes.
+
+Labeled native read faults
+The actual ordinary Go GET body is held before delivery, then a normal write and
+current board read advance observed revision. The delayed first response is
+rejected, with explicit fresh-page recovery. Another real body held past SPA
+board switch cannot paint selected destination. Origin header forwarding is
+explicit qualification mediation, distinct from ordinary requests/security proof.
+There is no mocked row content or direct runtime SQL/JSON mutation.
+
+Review and retained corrections
+Fresh non-author Sol / High backend and browser reviews pass, with findings and
+material-fix re-review preserved. BR01 fixes pending-first revision race; BR02
+restores the actual visible lane/search opener; BR03 handles asynchronous native
+Next/First focus without stealing later focus; BR04 sequences retained historical
+committed classifications without cancelling a fresh reload search. UNKNOWN
+originals remain submitted/unknown; real new commits still invalidate old reads.
+Later query/editor/context focus and backward selection survive recovery reads.
+
+Earlier staging/runtime inventory refusals required explicit new module names,
+not weaker checks. Harness actor-cursor and SPA request-wait assumptions were
+corrected; failed attempts remain evidence. Current feature-local records use
+M03.03; copied old author gate scope text is provenance, not a qualification claim.
+
+Limits
+Only current retained content is searched, not lifetime history or private drafts.
+Row bounds claim no database-work or aggregate-memory bound; no totals invented.
+Search neither grants rights nor settles/replays an original. Results are not a
+complete BoardView or editor base. Persisted filters are bounded and private;
+no cursor/results are retained, memory-only failure is honest. Two isolated
+clean-build/joined qualification is .04 and final usable kit/demo is .05. No
+whole-M03 acceptance, physical power-loss, broad accessibility/installed IME,
+real import/adoption, installer or general-release claim follows from this slice.

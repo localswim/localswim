@@ -57,8 +57,11 @@ explicit archived inspection and a bounded CLI listing. Follow the
 [card archive guide](docs/runbooks/m03-card-archive.txt) for browser/CLI use,
 explicit revisions and recovery. Complete JSON board snapshots retain hidden
 link targets; archive visibility is not a security boundary or ZIP export.
-Completed remains read-only. Full text search/filtering and joined milestone
-qualification follow in their own M03 stories; no general release is claimed.
+Completed remains read-only. The [current-card search slice](docs/decisions/m03-card-search-2026-10-29.txt)
+adds literal matching, typed filters and per-window query context; follow the
+[find/filter guide](docs/runbooks/m03-card-search.txt) for explicit pages and stale
+continuation recovery. Joined milestone qualification and final handoff remain
+separate M03 stories; no general release is claimed.
 
 The browser is a separate TypeScript package under `web/`; the executable will
 serve its verified embedded assets. Shared contracts and assets change together.

@@ -1,0 +1,80 @@
+M03.03 CURRENT-CARD SEARCH / FILTERS
+2026-10-29 | Accepted M03.01 contract and M03.02 archive foundation
+
+Authoritative reads
+Extend the existing separate GET /api/v1/boards/{boardId}/cards summary read with
+q,lane,owner,priority,archive,cursor. Normal read authority, identity, revision,
+typed restrictions, text matching and next-page decision share one SQLite read
+snapshot. There is no new operation/intent, storage layout, API/archive version,
+permission right, external service or search platform. Complete BoardRead JSON
+and focused card/history graph validation retain their existing meanings.
+
+Validate original q as Unicode at most1024 UTF-8 bytes before any transformation.
+Keep whitespace and echo q exactly. Go simple Unicode lowercasing is internal to
+literal substring matching of current title, description and current referenced
+retained comment text. Historical/removed text, private drafts and originals are
+not searched. Do not use SQL wildcard syntax, normalization, full case folding
+or browser-side matching. Exact lowercased UUID or canonical positive decimal
+ticket with optional # is an OR alternative. Invalid identity spelling remains
+literal text; it is never an integer coercion, identity substring or query DSL.
+
+AND exact optional lane, owner(unassigned or canonical UUID), priorityP0..P5 and
+archive active(default)/archived/all with that predicate. Omitted restrictions
+mean any; provided empty/invalid typed values and duplicate/unknown parameters
+refuse. A well-formed owner outside this board simply has no matching cards.
+Assignment and display labels grant no rights or cross-board lookup.
+
+Typed SQL restrictions/order precede a Go scan over matching current facts; do
+not LIMIT candidates before text matching. Stop after finding the21st matching
+card, return20, then continue after the last returned priority/ticket/UUID key.
+Each card appears once even when several fields/comments match. These are row
+bounds, not total/database-work/aggregate-memory claims. Failed reads never turn
+into empty success. No board/card/history/activity/outcome/priority fact changes.
+
+Cursor and client boundary
+Reuse the authenticated epoch/actor/board/incarnation/revision/key cursor with
+the complete exact-q/default-resolved-filter digest. Case-only q changes require
+a first page too. Every continuation rechecks current rights and snapshot.
+Unusable/stale/mismatched tokens cannot silently resume or merge other results;
+the caller deliberately starts First page. Normal card list remains the bounded
+empty-query archive-list grammar; card search exposes full filter flags.
+
+Go-generated CardSearchRead has at most20 unique ordered summaries and nullable
+nextCursor, not a partial BoardView. Browser and real CLI validate exact query/
+filter echo, identity, row bounds/order/uniqueness/filter consistency. Opening a
+summary performs an independent CardRead/HistoryRead; it cannot become an editor
+base. Current complete-board and existing editor bases stay separate.
+
+Private browser state and interaction
+Find cards focuses the named Search cards input. Apply filters/Enter starts a
+first page; IME confirmation does not submit. Clear resets all filters including
+Active. Next/First request captures the relevant query/context/generation and
+announces loading/empty/partial/end/stale/unavailable honestly. Newer known board
+facts reject a delayed older first result even when no prior result existed.
+Late query/page/board/window responses cannot paint a newer view or overwrite
+edited filters. Old confirmed rows remain marked stale after invalidation/error.
+
+Draft and applied filters are separate, bounded, private to window/exact board.
+Persist filters in the existing bounded window index, never cursor/results or
+credentials. Reload reads a new applied first page. Storage failure keeps input
+in memory with honest status; it does not grant editor dispatch or purge an
+original. Archive status is one shared control for local complete-board visible
+rows and pending search mode. Archive/unarchive invalidates old result pages;
+apply a fresh read rather than treating old counts as current or patching rows.
+
+Keyboard Next/First restore their own invoked focus after asynchronous loading;
+disabled terminal/error Next falls back to enabled First page. A later query,
+editor or other-context focus move relinquishes that request's focus claim.
+Close details prefers the actual visible keyed opener across search and lane
+surfaces, then a valid replacement, then Find cards. Editor input/private-save
+gates and original UNKNOWN/no replay are not changed by a read.
+
+Verification scope
+Focused field/Unicode/byte/identity/filter and current-reference tests, actual
+local HTTP20/21 pagination after nonmatches, CLI echo/refusal tests and controlled
+DOM/private-state/late-response/native-keyboard probes accompany the feature.
+Ordinary built browser/realCLI proof remains distinct from controlled/fault/
+unchanged evidence reuse. M03.04 owns joined candidate qualification/two isolated
+clean builds and M03.05 owns final usable review kit/demo. No complete-M03,
+physical power-loss, broad accessibility/installed IME or real-data adoption
+claim follows from this slice. Owner acceptance governs the next entry.

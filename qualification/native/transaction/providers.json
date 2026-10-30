@@ -109,7 +109,7 @@
   },
   {
     "path": "internal/assets/assets.go",
-    "sha256": "a6ba85f267efbf4d4c2f8db78e68c4ccea0451c7a9bdd1165232cdb1274bf0cd"
+    "sha256": "5f20fd8adfa6d8e069560701525084617a2ec3f1622b676ee3ebfbca3a1ba197"
   },
   {
     "path": "internal/assets/assets_test.go",
@@ -129,7 +129,7 @@
   },
   {
     "path": "internal/assets/bundle/js/api/client.js",
-    "sha256": "a2f872f12bed91a9c6ddf960a173d9ecda1e058d5d29663561d83c51763ccf2f"
+    "sha256": "0bb775529941c3e373f8c5a5d8b743077055cd69516b4e8ed76816fada8b36e4"
   },
   {
     "path": "internal/assets/bundle/js/api/history.js",
@@ -150,6 +150,10 @@
   {
     "path": "internal/assets/bundle/js/api/schema-data.js",
     "sha256": "0b284eaa24f2165e90b3e6f52e7b3fa78cd9f0e7e6fd84624749a9ee7f3c4d9c"
+  },
+  {
+    "path": "internal/assets/bundle/js/api/search.js",
+    "sha256": "b7f274375245c4a77fae82d943357f133b5282dc5774e171a5d01af9b6378d03"
   },
   {
     "path": "internal/assets/bundle/js/api/w03-session.js",
@@ -173,11 +177,15 @@
   },
   {
     "path": "internal/assets/bundle/js/board/details.js",
-    "sha256": "616313052f889c83fea8e5bbfade6edce4557bdadef921f86efb8838f6bc1d11"
+    "sha256": "0cb66eff210d1ce5fdba0e3d458ca9f96b5829fa2c6434ba4fc92c77223678e5"
+  },
+  {
+    "path": "internal/assets/bundle/js/board/search.js",
+    "sha256": "e34fb7a778ca1f34bc72bd2e6cdd4d390b653405b555c0841d2b2fed8f71e12a"
   },
   {
     "path": "internal/assets/bundle/js/board/view.js",
-    "sha256": "da5e77a8f052c51185967eaf805ef5c1579b5eb3caa0c5cb3e8952e82f910bb4"
+    "sha256": "78d4dcf1c1bc33b63a2aa4212a16e863f7810ccb3cc2aad7c7ef8592af482b6e"
   },
   {
     "path": "internal/assets/bundle/js/recovery-ui/admin.js",
@@ -217,11 +225,11 @@
   },
   {
     "path": "internal/assets/bundle/js/session-ui/window-controller.js",
-    "sha256": "7b898ca6bbe93b95a6208057188a5394e1a5cada464ce24b9a117e251f6f7c63"
+    "sha256": "597e09649e5b4773d6b9395e9aa39445020477cfecc6262d23e2a1d6ef26090f"
   },
   {
     "path": "internal/assets/bundle/js/session-ui/window-state.js",
-    "sha256": "c6fe7be3730b1031275a20f64177ef8cf5e97988ae37a108d450f0fcbcf84a89"
+    "sha256": "10a4c0fd56ad81be6e7ee1be3308d1bf63896649b6de5e2ccc29a5abaf68c1e8"
   },
   {
     "path": "internal/assets/bundle/js/session-ui/workspace.js",
@@ -241,7 +249,7 @@
   },
   {
     "path": "internal/assets/bundle/manifest.json",
-    "sha256": "e753a703de75e34353e2cbe256d529e81c5b039f4fcc4a797cd136ccbe5fe948"
+    "sha256": "0ad6e5c8a9c2828f2f02167ce9169f0bed551f48abdbc254030a3589822c41b0"
   },
   {
     "path": "internal/assets/bundle/styles/app.css",
@@ -481,7 +489,7 @@
   },
   {
     "path": "internal/contract/transport/card_search_test.go",
-    "sha256": "fa3c51d1a86dd1fe970a20815929584f9cbcd10aa975a1fa47bcab4cb93ecc29"
+    "sha256": "d03d0fa12bc000edbf3e7fe49689f6119202ae9811ebdd9a246a6f64dc9d5e18"
   },
   {
     "path": "internal/contract/transport/catalog.go",
@@ -765,11 +773,15 @@
   },
   {
     "path": "internal/transport/boardapi/search.go",
-    "sha256": "e34676fad93fd1906f0dba8b190006229b6aae044aca33e4bb758c4734485b89"
+    "sha256": "e361505166e67b8a73192da0df0fa8d9ffc421bfcacda82114133a658d7b6ae0"
+  },
+  {
+    "path": "internal/transport/boardapi/search_match_test.go",
+    "sha256": "5140f86d4cb9de1cb36eae3bc8f0ccf7c740c4f67b23c70ef32c23816090b1f7"
   },
   {
     "path": "internal/transport/boardapi/search_test.go",
-    "sha256": "d4b7bd2d5c8c02d1cf6dced099285a753b878590567f8eb74ed803064d472806"
+    "sha256": "9b9379bdc14d21f10faf2d813cb3e1fbb56a27522c9a74e3784e952887865980"
   },
   {
     "path": "internal/transport/cli/admin/README.txt",
@@ -897,7 +909,7 @@
   },
   {
     "path": "internal/transport/cli/core/README.txt",
-    "sha256": "f6808faa1bb1b977c6aa9ea14931bb52c0d14581dde1483a394a339e93ce288d"
+    "sha256": "13eab985a82989cda5b6d4f57379b9e5add1450f494ff39884de350e7b061ae2"
   },
   {
     "path": "internal/transport/cli/core/advisory.go",
@@ -941,7 +953,7 @@
   },
   {
     "path": "internal/transport/cli/core/invocation.go",
-    "sha256": "19998e14c71bda52a52090f3c44d4031a2baf86e51a06940c25c955fec26fcfe"
+    "sha256": "0791a33b2558f4b974ed6ca2333965e29c69b5e1eb969685bd0f5268350ed96f"
   },
   {
     "path": "internal/transport/cli/core/local.go",
@@ -981,11 +993,15 @@
   },
   {
     "path": "internal/transport/cli/core/run.go",
-    "sha256": "68ccc19a5b2e0dcd0b4d06aaed26b10a7f79ed8b82ea25371a1c5e1c6a515fc4"
+    "sha256": "5aed9a17b85d2012a82746b0f8f148c8039a1c7d484cfbbe965950fccfb4d27f"
   },
   {
     "path": "internal/transport/cli/core/run_test.go",
     "sha256": "d710a040dcd754e9a8452107f31cdb1131bffb6a38934ca52e44147c726e33b1"
+  },
+  {
+    "path": "internal/transport/cli/core/search_test.go",
+    "sha256": "69522e3b8463794046a4d044ba28dad2f139eb20e2105821096f0a639013fdfd"
   },
   {
     "path": "internal/transport/cli/core/validate.go",
@@ -1174,6 +1190,10 @@
   {
     "path": "internal/transport/local/runtime_windows_test.go",
     "sha256": "be63842ad972829c09b44d77e946a84613e59baf4086471864fa73a6d560fd7a"
+  },
+  {
+    "path": "internal/transport/local/search_windows_test.go",
+    "sha256": "65b65af20c00fe2f3b9b46d31b9bf45951b4d3b2b1cf6a8dca75a4b8e960d0dc"
   },
   {
     "path": "internal/transport/local/workspace.go",

@@ -2,6 +2,7 @@ import { recoveryCoordinator } from "../recovery-ui/coordination.js";
 import { dependencyAdvisory } from "./advisory.js";
 import { commands, parse, validate } from "../api/boundary.js";
 import { CardDetails } from "./details.js";
+import { CardSearch } from "./search.js";
 function element(tag, text = "") {
     const node = document.createElement(tag);
     node.textContent = text;
@@ -38,6 +39,7 @@ export class BoardView {
     current = element("section");
     outcomes = element("section");
     records = new Map();
+    restoredCommits = new Set();
     outcomeNodes = new Map();
     destroyed = false;
     generation = 0;
@@ -45,6 +47,7 @@ export class BoardView {
     persistence;
     stopPersistence;
     details;
+    search;
     archiveStatus = element("select");
     constructor(root, client, boardId, checkpoint = () => { }, options = {}) {
         this.root = root;
@@ -65,7 +68,6 @@ export class BoardView {
         this.current.setAttribute("aria-label", "Current confirmed text");
         this.cards.setAttribute("aria-label", "Cards");
         const read = button("Read current board", () => { void this.refresh(); });
-        const archiveLabel = element("label", "Archive status ");
         this.archiveStatus.setAttribute("aria-label", "Archive status");
         for (const [value, label] of [["active", "Active"], ["archived", "Archived"], ["all", "All"]]) {
             const option = element("option", label);
@@ -85,8 +87,11 @@ export class BoardView {
             if (this.board)
                 this.renderCards();
         });
-        archiveLabel.append(this.archiveStatus);
-        this.details = new CardDetails(client, read, focused => {
+        this.search = new CardSearch(client, boardId, this.archiveStatus, (cardId, identity, opener) => {
+            if (!this.destroyed && !this.suspended)
+                this.details.open(cardId, identity, opener);
+        }, options.searchCheckpoint, options.search);
+        this.details = new CardDetails(client, this.search.find, focused => {
             const current = this.board, card = current?.result.cards.find(row => row.cardId === focused.result.card.cardId);
             if (!current || !card || current.result.identity.boardId !== focused.result.identity.boardId ||
                 current.result.identity.incarnation !== focused.result.identity.incarnation || current.result.revision !== focused.result.revision || card.revision !== focused.result.card.revision) {
@@ -94,14 +99,15 @@ export class BoardView {
                 return;
             }
             this.edit("card.edit", card, false, undefined, !card.archived);
-        });
-        root.replaceChildren(this.heading, this.actor, this.readState, read, button("Create card", () => this.edit("card.create")), archiveLabel, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
+        }, root);
+        root.replaceChildren(this.heading, this.actor, this.readState, read, button("Create card", () => this.edit("card.create")), this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
     }
     async open() { await this.refresh(); }
-    suspend() { this.suspended = true; this.generation++; this.details.suspend(); }
+    suspend() { this.suspended = true; this.generation++; this.details.suspend(); this.search.suspend(); }
     resume() {
         this.suspended = false;
         this.details.resume();
+        this.search.resume();
         for (const outcome of this.records.values()) {
             const context = outcome.evidence?.context ?? this.editor?.context;
             if (context)
@@ -153,11 +159,18 @@ export class BoardView {
             if (this.destroyed || this.editor || generation !== this.generation || persistenceGeneration !== this.persistence.generation)
                 return;
             for (const { row, submission } of originals) {
+                if (row.outcome === "committed")
+                    this.restoredCommits.add(row.opId);
                 const outcome = { opId: row.opId, state: row.outcome, ...(submission ? { evidence: submission.evidence } : {}),
                     message: row.outcome === "unknown" ? "Original operation retained after reload. Outcome unknown; deliberate original lookup only. Do not resubmit." : "Retained original outcome: " + row.outcome + ". No operation was replayed." };
                 this.records.set(row.opId, outcome);
                 this.showOutcome(outcome, row.context);
             }
+            // Recovery reads may finish after deliberate query/editor navigation. Keep
+            // the user's currently focused control when mounting the recovered editor.
+            const retainedFocus = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : undefined;
+            const retainedSelection = retainedFocus instanceof HTMLInputElement || retainedFocus instanceof HTMLTextAreaElement
+                ? [retainedFocus.selectionStart, retainedFocus.selectionEnd, retainedFocus.selectionDirection ?? undefined] : undefined;
             this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive);
             const restored = this.editor;
             if (restored)
@@ -165,13 +178,22 @@ export class BoardView {
             if (rows.some(row => row.outcome === "committed"))
                 this.readState.textContent = "Retained original was committed. This editor remains submitted; read current text and deliberately open new work.";
             this.updateSave();
+            if (retainedFocus?.isConnected) {
+                retainedFocus.focus({ preventScroll: true });
+                if (retainedSelection && (retainedFocus instanceof HTMLInputElement || retainedFocus instanceof HTMLTextAreaElement)) {
+                    try {
+                        retainedFocus.setSelectionRange(...retainedSelection);
+                    }
+                    catch { /* Native non-text input has no selection. */ }
+                }
+            }
         }
         catch {
             this.readState.textContent = "Own window draft unavailable. Private records retained; no input was submitted.";
         }
     }
     // Owning session adapter invokes on logout/revocation; it preserves private data.
-    destroy() { this.destroyed = true; this.details.suspend(); this.stopPersistence(); this.generation++; this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
+    destroy() { this.destroyed = true; this.details.suspend(); this.search.suspend(); this.stopPersistence(); this.generation++; this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
     async refresh() {
         if (this.destroyed || this.suspended)
             return;
@@ -190,11 +212,13 @@ export class BoardView {
             this.readState.textContent = "Current at board revision " + board.result.revision + "; incarnation " + board.result.identity.incarnation;
             this.renderCards();
             this.details.boardRead(board.result.identity);
+            this.search.boardRead(board.result.identity, board.result.revision);
         }
         catch {
             if (this.destroyed || generation !== this.generation)
                 return;
             this.stale = true;
+            this.search.invalidate();
             this.readState.textContent = this.board ? "Unavailable; displayed board is stale. Editor input and original base retained." : "Unavailable; no current board loaded.";
         }
         this.updateSave();
@@ -543,6 +567,12 @@ export class BoardView {
         if (identity && original && terminal?.outcome === "committed" && identity.boardId === original.boardId &&
             identity.incarnation === original.incarnation && this.board.result.revision >= terminal.revision)
             return;
+        // A restored terminal classification has no retained receipt/revision. It
+        // keeps the original editor submitted and the existing board-stale policy,
+        // but is not a new mutation relative to this reload's independent searches.
+        // Fresh receipts and live outcomes retain normal search invalidation.
+        if (terminal || !this.restoredCommits.has(outcome.opId))
+            this.search.invalidate();
         this.stale = true;
         this.details.invalidate();
         this.readState.textContent = "Confirmed saved. Displayed board is stale; read the current board before new work.";

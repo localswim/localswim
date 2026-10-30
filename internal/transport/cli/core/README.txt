@@ -197,3 +197,16 @@ normal full card.edit envelopes with exclusive input.archived true/false.
 card list [--archive active|archived|all] [--cursor TOKEN] prints returned rows
 and explicit next cursor. Human board read shows active priority order while
 --json board read preserves the full canonical snapshot and reference closure.
+
+M03 literal find/filter
+card search [--query TEXT] [--lane LANE] [--owner unassigned|UUID]
+[--priority Pn] [--archive active|archived|all] [--cursor TOKEN] uses the same
+read-only partial listing. Omitted query is empty; spaces are preserved. Query is
+limited to 1024 UTF-8 bytes. Go simple lowercase literal matching covers current
+title, description and retained comments, or an exact UUID/canonical ticket
+(optional #). No wildcard, regex, normalization or historical text search.
+Filters combine with AND. Default archive mode is active. Each page contains up
+to 20 matches and an explicit next cursor when available; no total is promised.
+CURSOR_STALE requires a deliberate new first page without --cursor. Changing any
+filter or query spelling, including case, starts a first page. Search never
+changes board revisions, priority, history, activity or mutation outcomes.

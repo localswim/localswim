@@ -9,6 +9,9 @@ import { RecoveryError } from "../recovery/types.js";
 import { validateCardRead, validateHistoryRead } from "./history.js";
 import { boardBoundaryVerifier, canonical, object, parse, prepare, sha256, validate } from "./boundary.js";
 import type { BoardCommand, PreparedCommand, Value } from "./boundary.js";
+import type { CardSearchRead } from "../../generated/transport/contracts.js";
+import { validSearch, validateSearchRead } from "./search.js";
+import type { SearchFilters } from "./search.js";
 
 export type OriginalOutcome = Readonly<{
   opId: string;
@@ -143,6 +146,20 @@ export class BoardClient {
     if (this.options.selection && card.result.identity.incarnation !== this.options.selection.incarnation) throw Error("Selected incarnation mismatch");
     validateCardRead(card);
     return card;
+  }
+  async search(boardId: string, filters: SearchFilters, cursor?: string): Promise<CardSearchRead> {
+    filters = structuredClone(filters);
+    if (!validSearch(filters) || cursor !== undefined && !/^[\x21-\x7e]{1,2048}$/.test(cursor)) throw Error("Invalid search filters; query limit is 1024 UTF-8 bytes");
+    const query = new URLSearchParams({ q: filters.q, archive: filters.archive });
+    for (const key of ["lane", "owner", "priority"] as const) if (filters[key] !== null) query.set(key, filters[key]!);
+    if (cursor !== undefined) query.set("cursor", cursor);
+    const { response, value } = await this.call(this.path(boardId) + "/cards?" + query, { signal: AbortSignal.timeout(20_000) });
+    if (!response.ok) throw Error(response.status === 409 ? "Search cursor stale; choose First page" : "Search unavailable; choose First page to retry");
+    validate("transport:CardSearchRead", value);
+    const read = value as unknown as CardSearchRead;
+    if (read.result.identity.boardId !== boardId || this.options.selection && read.result.identity.incarnation !== this.options.selection.incarnation) throw Error("Search identity mismatch");
+    validateSearchRead(read, filters);
+    return read;
   }
   async history(boardId: string, cardId: string): Promise<HistoryRead> {
     if (!uuid.test(cardId)) throw Error("Invalid card identity");

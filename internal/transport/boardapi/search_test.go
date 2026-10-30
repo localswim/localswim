@@ -12,7 +12,7 @@ func TestArchiveListingQueryBoundary(t *testing.T) {
 			t.Fatal("valid listing query refused")
 		}
 	}
-	for _, raw := range []string{"archive=", "archive=Active", "q=x", "lane=Ready+for+Work", "archive=all&archive=active", "q=&q=", "unknown=1", "q=%ff", "cursor=opaque", "cursor=", "cursor=" + strings.Repeat("x", 2049), "cursor=%0a", "q=%zz", "archive=all;bad"} {
+	for _, raw := range []string{"archive=", "archive=Active", "archive=all&archive=active", "q=&q=", "unknown=1", "q=%ff", "cursor=opaque", "cursor=", "cursor=" + strings.Repeat("x", 2049), "cursor=%0a", "q=%zz", "archive=all;bad"} {
 		if _, e := parseSearch(raw); e == nil {
 			t.Fatal("invalid listing query accepted")
 		}
@@ -22,12 +22,12 @@ func TestListingCursorBindsActorSnapshotFilterAndHandler(t *testing.T) {
 	h := &Handler{}
 	h.cursorKey[0] = 1
 	h.cursorEpoch[0] = 2
-	p := cursorPayload{Epoch: "epoch", Actor: testActor, Identity: A.Identity{BoardID: testBoard, Incarnation: testInc}, Revision: 1, Filter: filterDigest("active"), Priority: "P3", Ticket: 1, CardID: testCard}
+	p := cursorPayload{Epoch: "epoch", Actor: testActor, Identity: A.Identity{BoardID: testBoard, Incarnation: testInc}, Revision: 1, Filter: filterDigest(searchRequest{archive: "active"}), Priority: "P3", Ticket: 1, CardID: testCard}
 	token := h.encodeCursor(p)
 	if _, e := h.decodeCursor(token, p); e != nil {
 		t.Fatal(e)
 	}
-	for _, change := range []func(*cursorPayload){func(p *cursorPayload) { p.Actor = testCard }, func(p *cursorPayload) { p.Identity.Incarnation = testCard }, func(p *cursorPayload) { p.Identity.BoardID = testCard }, func(p *cursorPayload) { p.Revision++ }, func(p *cursorPayload) { p.Filter = filterDigest("all") }, func(p *cursorPayload) { p.Epoch = "restart" }} {
+	for _, change := range []func(*cursorPayload){func(p *cursorPayload) { p.Actor = testCard }, func(p *cursorPayload) { p.Identity.Incarnation = testCard }, func(p *cursorPayload) { p.Identity.BoardID = testCard }, func(p *cursorPayload) { p.Revision++ }, func(p *cursorPayload) { p.Filter = filterDigest(searchRequest{archive: "all"}) }, func(p *cursorPayload) { p.Epoch = "restart" }} {
 		expected := p
 		change(&expected)
 		if _, e := h.decodeCursor(token, expected); e != errCursorStale {

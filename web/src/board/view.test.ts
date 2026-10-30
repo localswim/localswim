@@ -184,6 +184,11 @@ export async function runArchiveCardProbe(boardInput: BoardRead, sessionInput: S
     check(!!find("Confirm archive card") && mounted.state.mutations === 0, "Discard gate did not lead to a separate archive confirmation");
     find("Cancel archive").click();
     check(mounted.state.mutations === 0 && !find("Confirm archive card") && document.activeElement === find("Archive card"), "Archive cancel dispatched or lost visible opener");
+    const visibleLaneOpener = find("Open card #" + original.ticket + " " + original.title);
+    visibleLaneOpener.click();
+    await settle(() => document.querySelector('[aria-label="Current card state"]')!.textContent!.includes("archived: false"));
+    find("Close card details").click();
+    check(document.activeElement === visibleLaneOpener, "Visible lane opener outside search host lost Close focus");
     find("Open card #" + original.ticket + " " + original.title).click();
     await settle(() => document.querySelector('[aria-label="Current card state"]')!.textContent!.includes("archived: false"));
     document.querySelector<HTMLButtonElement>('[aria-label="Current card state"] button')!.click();
@@ -199,7 +204,7 @@ export async function runArchiveCardProbe(boardInput: BoardRead, sessionInput: S
     check(rows().length === 0 && !document.querySelector<HTMLElement>('[aria-label="Card details"]')!.hidden, "Hidden card closed focused details");
     await settle(() => document.querySelector('[aria-label="Current card state"]')!.textContent!.includes("archived: true"));
     find("Close card details").click();
-    check(document.activeElement === find("Read current board"), "Hidden opener did not fall back to current board");
+    check(document.activeElement === find("Find cards"), "Hidden opener did not fall back to Find cards");
     filter("archived");
     find("Open card #" + original.ticket + " " + original.title).click();
     await settle(() => document.querySelector('[aria-label="Current card state"]')!.textContent!.includes("archived: true"));

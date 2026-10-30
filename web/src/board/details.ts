@@ -54,7 +54,7 @@ export class CardDetails {
   private historyPage = 0;
   private historicalCommentPage = 0;
   constructor(private readonly client: Pick<BoardClient, "card" | "history">, private readonly fallback: HTMLButtonElement,
-    private readonly archiveAction?: (read: CardRead) => void) {
+    private readonly archiveAction?: (read: CardRead) => void, private readonly focusRoot?: HTMLElement) {
     this.host.hidden = true; this.host.setAttribute("aria-label", "Card details"); this.host.setAttribute("role", "region");
     this.heading.tabIndex = -1; this.status.setAttribute("role", "status");
     this.facts.setAttribute("aria-label", "Current card state"); this.comments.setAttribute("aria-label", "Card comments");
@@ -72,9 +72,12 @@ export class CardDetails {
   }
   close(): void {
     this.request++; this.selected = undefined; this.host.hidden = true;
-    const replacement = [...this.fallback.parentElement!.querySelectorAll<HTMLButtonElement>("button[data-open-card]")]
-      .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0);
-    (replacement ?? this.fallback).focus();
+    const scope = this.focusRoot ?? this.fallback.parentElement;
+    const replacement = scope?.isConnected ? [...scope.querySelectorAll<HTMLButtonElement>("button[data-open-card]")]
+      .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0)
+      : undefined;
+    const target = replacement ?? this.fallback;
+    if (target.isConnected && !target.disabled && target.getClientRects().length > 0) target.focus();
   }
   suspend(): void { this.active = false; this.invalidate(); }
   resume(): void { this.active = true; }

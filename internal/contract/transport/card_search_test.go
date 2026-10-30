@@ -84,3 +84,57 @@ func TestCardSummaryContinuationPageLimit(t *testing.T) {
 		t.Fatal("partial summary accepted as complete board")
 	}
 }
+
+func TestCardSearchExactQueryEchoAndTypedRows(t *testing.T) {
+	page := summaryPage()
+	owner := "00000000-0000-4000-8000-000000000099"
+	lane, priority := A.Lane("Ready for Review"), A.Priority("P2")
+	page.Result.Query = CardSearchQuery{Q: " İ Σ <script>%_ ", Lane: &lane, Owner: &owner, Priority: &priority, Archive: "archived"}
+	ownerID := A.UUID(owner)
+	page.Result.Items[0].Lane, page.Result.Items[0].Priority = lane, priority
+	page.Result.Items[0].OwnerID, page.Result.Items[0].Archived = &ownerID, true
+	raw, err := Readable(page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := Decode[CardSearchRead](raw)
+	if err != nil || decoded.Result.Query.Q != page.Result.Query.Q {
+		t.Fatal("exact original query was transformed", err)
+	}
+	for name, change := range map[string]func(*CardSearchRead){
+		"lane":     func(p *CardSearchRead) { p.Result.Items[0].Lane = "Ready for Work" },
+		"priority": func(p *CardSearchRead) { p.Result.Items[0].Priority = "P3" },
+		"owner":    func(p *CardSearchRead) { p.Result.Items[0].OwnerID = nil },
+		"archive":  func(p *CardSearchRead) { p.Result.Items[0].Archived = false },
+	} {
+		t.Run(name, func(t *testing.T) {
+			bad := page
+			bad.Result.Items = append([]CardSummary{}, page.Result.Items...)
+			change(&bad)
+			if Validate(bad) == nil {
+				t.Fatal("summary violated echoed typed filter")
+			}
+		})
+	}
+	page.Result.Items = []CardSummary{}
+	if err := Validate(page); err != nil {
+		t.Fatal("well-formed unknown owner cannot represent empty result", err)
+	}
+}
+
+func TestCardSearchByteLimitPrecedesMatchingTransform(t *testing.T) {
+	page := summaryPage()
+	// Go's simple lowercase expands each two-byte U+023A to three-byte U+2C65.
+	// The wire echo and its byte limit still describe the original query.
+	page.Result.Query.Q = strings.Repeat("Ⱥ", 512)
+	if len(page.Result.Query.Q) != 1024 || len(strings.ToLower(page.Result.Query.Q)) <= 1024 {
+		t.Fatal("fixture does not exercise pre-transform bound")
+	}
+	if err := Validate(page); err != nil {
+		t.Fatal("valid original query refused after implicit transformation", err)
+	}
+	page.Result.Query.Q += "a"
+	if Validate(page) == nil {
+		t.Fatal("oversized original query accepted")
+	}
+}

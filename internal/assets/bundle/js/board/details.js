@@ -41,6 +41,7 @@ export class CardDetails {
     client;
     fallback;
     archiveAction;
+    focusRoot;
     host = node("section");
     selected;
     expected;
@@ -58,10 +59,11 @@ export class CardDetails {
     commentPage = 0;
     historyPage = 0;
     historicalCommentPage = 0;
-    constructor(client, fallback, archiveAction) {
+    constructor(client, fallback, archiveAction, focusRoot) {
         this.client = client;
         this.fallback = fallback;
         this.archiveAction = archiveAction;
+        this.focusRoot = focusRoot;
         this.host.hidden = true;
         this.host.setAttribute("aria-label", "Card details");
         this.host.setAttribute("role", "region");
@@ -93,9 +95,13 @@ export class CardDetails {
         this.request++;
         this.selected = undefined;
         this.host.hidden = true;
-        const replacement = [...this.fallback.parentElement.querySelectorAll("button[data-open-card]")]
-            .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0);
-        (replacement ?? this.fallback).focus();
+        const scope = this.focusRoot ?? this.fallback.parentElement;
+        const replacement = scope?.isConnected ? [...scope.querySelectorAll("button[data-open-card]")]
+            .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0)
+            : undefined;
+        const target = replacement ?? this.fallback;
+        if (target.isConnected && !target.disabled && target.getClientRects().length > 0)
+            target.focus();
     }
     suspend() { this.active = false; this.invalidate(); }
     resume() { this.active = true; }

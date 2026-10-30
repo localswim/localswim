@@ -77,3 +77,11 @@ bodyless DELETE; only exact SessionRevoked confirms presented-token revocation.
 401/403 clears current authority. Local clearing never classifies an original
 mutation. Reauthentication does not rewrite a retained original context or
 replace its operation ID, and a different actor/scope cannot look it up.
+
+BoardClient.search reads the separate CardSearchRead boundary. Requests retain
+the original Unicode query (maximum 1024 UTF-8 bytes) and exact typed filters;
+Go owns all matching. Responses validate generated schema, selected identity,
+exact filter/query echo, at most 20 unique ordered summary rows and bounded
+continuation. Summaries contain no graph and never qualify as BoardRead/CardRead
+or mutation proof. Failed/stale reads throw; callers retain prior rows as stale
+and deliberately request a new first page.

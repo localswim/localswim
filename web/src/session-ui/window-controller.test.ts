@@ -156,6 +156,53 @@ export async function runArchiveReloadProbe(boardInput: BoardRead, sessionInput:
   } finally { view.destroy(); fixture.client.close(); }
 }
 
+export async function runSearchOriginalReloadProbe(boardInput: BoardRead, sessionInput: SessionRead): Promise<number> {
+  let checks = 0;
+  for (const scenario of ["committed", "unknown", "edited-during-restore"] as const) {
+    const input = structuredClone(boardInput); Object.assign(input.result.cards[0]!, { archived: true });
+    const fixture = await mountSyntheticBoard(input, sessionInput); fixture.view.destroy();
+    const root = document.createElement("main"); document.body.replaceChildren(root);
+    let reference: EditorReference | undefined;
+    let view = new BoardView(root, fixture.client, fixture.board.result.identity.boardId, value => { reference = value; }, { archiveStatus: "archived" });
+    const button = (text: string): HTMLButtonElement => [...root.querySelectorAll("button")].find(row => row.textContent === text)!;
+    const settle = async (predicate: () => boolean): Promise<void> => {
+      for (let i = 0; i < 250; i++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 20)); }
+      throw Error("Search/original reload did not settle: " + scenario);
+    };
+    try {
+      await view.open(); button("Unarchive card").click(); await view.flushPrivateInput();
+      if (!reference) throw Error("Missing source-bound archive draft reference");
+      const retained = reference;
+      if (scenario === "unknown") fixture.state.mode = "late";
+      button("Confirm unarchive card").click();
+      await settle(() => fixture.state.mutations === 1 && (scenario === "unknown" ? fixture.state.releases.length === 1 : root.textContent!.includes("Confirmed saved.")));
+      view.destroy();
+      let searchCalls = 0, finish: (() => void) | undefined;
+      fixture.client.search = async (_boardId, query) => {
+        searchCalls++; await new Promise<void>(resolve => { finish = resolve; });
+        return { apiVersion: 1, scope: "card-search", result: { identity: fixture.board.result.identity, revision: fixture.board.result.revision, query: structuredClone(query), items: [], nextCursor: null } };
+      };
+      const filters = { q: "CommentNeedle", lane: null, owner: null, priority: null, archive: "archived" as const };
+      view = new BoardView(root, fixture.client, fixture.board.result.identity.boardId, () => {}, { search: { draft: filters, applied: filters } });
+      await view.open();
+      const restoring = view.restore(retained);
+      const query = root.querySelector<HTMLInputElement>('[aria-label="Search cards"]')!;
+      if (scenario === "edited-during-restore") { query.value = "New private query"; query.dispatchEvent(new Event("input")); query.focus(); }
+      await restoring; view.resume(); finish!();
+      await settle(() => scenario === "edited-during-restore" ? root.textContent!.includes("Filters changed") : root.textContent!.includes("0 results returned on this page"));
+      if (searchCalls !== 1 || fixture.state.mutations !== 1 || fixture.state.lookups !== 0) throw Error("Reload replayed, looked up or retried an original/search"); checks++;
+      if (!button("Confirm unarchive card").disabled || !root.textContent!.includes("Own window draft restored privately")) throw Error("Fresh search unlocked or replaced the original editor"); checks++;
+      if (scenario === "unknown" && !button("Look up original outcome")) throw Error("UNKNOWN lost deliberate lookup guard");
+      if (scenario === "edited-during-restore") {
+        if (query.value !== "New private query" || document.activeElement !== query || root.textContent!.includes("0 results returned")) throw Error("Restore/search overwrote new query, focus or generation");
+      } else if (query.value !== "CommentNeedle" || !root.textContent!.includes("End of results")) throw Error("Applied reload search did not complete after original restore");
+      checks++;
+      if (scenario === "unknown") fixture.state.releases[0]!();
+    } finally { view.destroy(); fixture.client.close(); root.remove(); }
+  }
+  return checks;
+}
+
 export async function runPrivateWindowProbe(boardA: BoardRead, sessionA: SessionRead, boardB: BoardRead, sessionB: SessionRead): Promise<number> {
   if (boardA.result.identity.boardId === boardB.result.identity.boardId) throw Error("Probe requires distinct boards");
   const databaseName = "m01-private-synthetic-" + crypto.randomUUID();

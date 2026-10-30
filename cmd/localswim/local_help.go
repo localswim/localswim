@@ -7,6 +7,7 @@ const localDomainCLIHelp = `  localswim --data DIR [--json] board read
   localswim --data DIR [--json] card edit CARD-UUID --input FILE
   localswim --data DIR [--json] card archive|unarchive CARD-UUID --input FILE
   localswim --data DIR [--json] card list [--archive active|archived|all] [--cursor TOKEN]
+  localswim --data DIR [--json] card search [--query TEXT] [--lane LANE] [--owner unassigned|UUID] [--priority Pn] [--archive active|archived|all] [--cursor TOKEN]
   localswim --data DIR [--json] comment add CARD-UUID --input FILE
   localswim --data DIR [--json] operation read OP-UUID --evidence FILE
 Use canonical card UUIDs from board read, never display ticket numbers.

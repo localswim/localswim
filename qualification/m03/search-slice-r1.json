@@ -1,0 +1,44 @@
+{
+  "scope": "M03.03 current-card search/filter feature only; owner acceptance pending, no full milestone/release claim",
+  "sourceBase": "664a8c841de5a362ac18805dd5d926cf32149b28 plus reviewed search changes; final publication commit in handoff",
+  "candidateSHA256": "f28c8c9db9f501c67856e06f8ab4948695eed93986d47daf982a6f6093eea7ea",
+  "cmdInternalManifestSHA256": "1c4f4819f4fde49754dbf35238cee14c16a47d80f9145b25633e3a338774ccf2",
+  "cmdInternalFileCount": 382,
+  "goTests": {
+    "passed": 1596,
+    "failed": 0,
+    "skipped": 0
+  },
+  "gates": [
+    "module verification",
+    "generated contract/asset exact checks",
+    "strict TypeScript check/build",
+    "Go vet",
+    "complete Go -count=1 -p 1 test inventory",
+    "Node script tests",
+    "175 source-bound DOM/IndexedDB checks",
+    "fresh V04 native mandatory suites",
+    "fresh V02 browser21cases no failures/skips/retries"
+  ],
+  "ordinary": {
+    "recordedAssertions": 137,
+    "groups": [
+      "BASE: actual browser/CLI literal field/identity/Unicode/metacharacter/typed filter/empty/read-only parity on fresh base before boundary seeding",
+      "BOUNDARY: 21 repeated-field matches,20+1 exact ordering/dedupe, browser nativeEnter/fallback, realCLI continuation and stale revision refusal",
+      "JOINED: default/explicit archived search, summaryfocusedread/closefocus, realbrowser unarchive invalidates oldresults withoutlosinginput, per-window/board/reload filters",
+      "LABELED NATIVE READ FAULTS: exact Go response held past newer real board read, and past selected-board switch; old first/foreign response rejected, explicit first-page recovery, no fabricated rows"
+    ],
+    "coverage": "Browser/actual CLI current-title/description/comment/identity/literal Unicode/metacharacter matching, typed filters/unknown owner, empty results, unchanged complete read facts, exact20+1 priority order/dedupe and both own-client cursor continuation plus cross-actor refusal, selected archived discovery/detail/unarchive invalidation, private windows/reload. Graceful reopen compares complete decoded BoardRead and positive Active/Archived/All query envelopes and order, boundary first-page membership/order, and refuses the previous handler cursor."
+  },
+  "labeledNativeFault": "Exact real Go GET response retained while a normal current update advances revision and actual board refresh observes it; old first response refuses. Separate response held across SPA board switch cannot paint destination. Origin forwarding is explicit fault mediation, not an ordinary-request security proof. No fabricated data or direct database/JSON mutation.",
+  "cleanup": "Both final owned runtime hosts exit0 and original listener closes. Native/browser qualification has its own mandatory teardown records.",
+  "review": "Fresh independent Sol / High Go and browser reviewers; material-fix re-review and final current source/evidence binding. Source/control probes are distinct from a second ordinary journey execution.",
+  "corrections": [
+    "BR01 first pending search cannot appear fresh behind newer known board revision",
+    "BR02 Close returns the actual visible keyed opener across lane/search, else safe fallback",
+    "BR03 asynchronous native Next/First focus restoration with no theft after later user/context focus",
+    "BR04 cached committed classification after private restore does not cancel independent reload search; pending/UNKNOWN and real new receipt invalidation retained, later input/focus/selection preserved"
+  ],
+  "attempts": "Initial asset staging/runtime exact allowlists refused undeclared new modules; explicit two-module declarations retain all strict checks. Actor-bound browser cursor correctly refused CLI use; harness now uses each actor own cursor. SPA fault harness now waits exact destination and exact query. Original results/findings/failed attempts remain private evidence, not relabeled passes. Author focused gate copied M03.02 scope text; final current runner and source bindings identify M03.03.",
+  "limits": "Only current retained facts, no lifetime/history search, regex/wildcard/full-fold/normalization or database-work/aggregate-memory bound. Query is read-only; assignment/owner filter is not authority. Cached current executable and separately prepared source-snapshot executable are byte-equal, not two isolated clean-build proof. Joined candidate/two-clean-build qualification remains M03.04, final kit/demo M03.05. No physical power-loss, full accessibility/IME, import or general-release claim."
+}

@@ -93,3 +93,23 @@ These facts use the complete validated board read. Refresh updates them and fail
 reads retain the existing stale disclosure. A satisfied prerequisite display does
 not establish permission or card-lane eligibility; the server rechecks every
 deliberate start. Card-only current-text reads do not derive board-wide readiness.
+
+Find cards focuses Search cards. Apply filters (or non-composing Enter) reads
+committed current summaries from the server using exact query text, Lane, Owner
+(blank means any, unassigned or a canonical actor UUID), Explicit priority and
+the single shared Archive status control. That archive choice also immediately
+changes the local complete-board visibility projection; draft text/lane/owner/
+priority never approximate Go's authoritative matching in JavaScript.
+
+Search pages contain at most 20 summaries, never a total or full graph. Next
+results uses the returned cursor; First page explicitly refreshes the last
+applied filters. Apply filters uses the visible draft; Clear filters resets
+everything including Active and reads a fresh first page. Failed, stale or late
+reads retain input and mark old rows stale; commits disable continuation until
+an explicit fresh read. Open card reads independent current details. Search
+cannot settle an original operation, unlock a submitted editor or change its
+base. A disappearing opener returns Close focus to Find cards.
+
+Draft and applied filters are bounded private window/exact-board state. Cursors
+and result pages are never persisted; reload reads a fresh first page. Storage
+failure retains visible input in memory and explicitly reports the limitation.

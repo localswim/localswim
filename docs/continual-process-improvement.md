@@ -33,6 +33,12 @@ runtime profiles and raw operational records out of this document.
 - Validate the extracted delivery package and its referenced guides as well as its
   hashes. Compare complete retained records for conservation claims, with any
   required identity transformation stated explicitly.
+- Follow local guide and generated-schema references recursively. Distinguish
+  ordinary runtime instructions from qualification procedures that require the
+  full source tree, pinned tools and private execution outputs.
+- Classify product defects, coverage gaps and harness assumptions separately.
+  Retain failed attempts, diagnose them against the accepted contract, and use a
+  fresh corrective scenario without replaying uncertain operations.
 
 ## Open improvements to evaluate
 
@@ -42,11 +48,12 @@ implementation tickets or automatic work authorization.
 | Improvement | Why it matters | Check at the next milestone review |
 |---|---|---|
 | Put capacity, first failure, cleanup and restart into the early integrated prewalk. | M03 exercised these before final demonstration, but a draft-cap test initially assumed the separate submission budget must also refuse. | Identify the actual admission boundary and independent budgets; prove visible input, retained evidence and safe continuation without inferring an original outcome. |
-| Check the intended handoff channel, size and package contents early. | M03 established local delivery before closeout, but final review still found a missing referenced CLI guide. | Confirm channel fit or a usable alternative, then traverse guide references and run the extracted kit before final review. |
-| Refresh the remaining-delivery forecast after the bounded risk check and material findings. | Passing implementation does not remove review, feedback, packaging or cleanup work. | Preserve the original and revised forecast, assumptions, timing and remaining observable outcomes; compare like stages. |
-| Improve estimation incrementally using qualified reuse and measured results. | Both optimistic late forecasts and excessive padding can mislead planning. | Explain which reusable work or uncertainty changed; do not apply a universal discount from one result. |
-| Exercise native asynchronous focus and restored-original search before the broad feature gate. | M03 found pending-first revision, page/opener focus and retained-commit reload ordering issues during feature review and prewalk. | Record whether these checks catch a scoped issue earlier; retain current board/window/generation and UNKNOWN/no-replay assertions. |
-| Use full-record comparisons in the first restore prewalk. | M03 review strengthened history-count and link-existence checks before accepting a conservation claim. | Compare complete retained records and exact bytes; allow only the documented local-link incarnation rebasing. |
+| Check the intended handoff channel, size and package contents early. | M03 final review found a missing CLI guide. M04 traversed guide/schema references and ran the extracted kit before final review; no missing runnable step remained. Its ZIP still required local delivery. | Retain the early size check, recursive reference audit and extracted use. Record whether final review finds a missing step or an unusable delivery path. |
+| Refresh the remaining-delivery forecast after the bounded risk check and material findings. | M04 preserved forecasts but still allowed 75 P80 minutes for final delivery at qualification handoff; that card took 8.7 minutes. | List retired and remaining risks at each checkpoint, then justify the residual allowance against remaining observable work. Preserve original spending authority and compare like stages. |
+| Improve estimation incrementally using qualified reuse and measured results. | M04 finished 52.3% below its P80 base. That is a budget success, not calibrated confidence coverage; unchanged uncertainty allowances also warrant examination. | Explain which reusable work and named risks changed. Do not apply a universal discount or mechanically retain the full original uncertainty after risks are resolved. |
+| Run existing archive/search/focus regression and relevant joined-feature scenarios before feature handoff. | M04 qualification found an ordinary Close-focus regression and missing joined hierarchy/blocking-link coverage after feature approval. The earlier-prevention goal remains partial. | Before the next authorized feature handoff, exercise existing interactions plus its new cross-feature boundary. Retain asynchronous read/window/generation, restored-original search and UNKNOWN/no-replay checks; record whether qualification still catches a covered defect. |
+| Use full-record comparisons in the first restore prewalk. | M03 began with counts/existence checks. M04 delivered complete records and Go-canonical immutable bytes; transport and archive envelopes also exposed different field assumptions. | State the compared envelope, complete record set, exact bytes and allowed identity transformations at the first restore prewalk. Do not infer early coverage from a stronger final report. |
+| Reduce recurring harness setup and contract assumptions. | M04 retained failures from missing private-root environment, ambiguous normal/linked card selectors and omitted-versus-null field expectations. | Before a broad run, verify fixture environment, exact target selectors and optional-field encoding against the current contract. Reuse validated setup where appropriate; keep product findings distinct from harness costs. |
 
 ## M02 — read and edit cards comfortably
 
@@ -265,3 +272,150 @@ See [joined qualification](../qualification/m03/joined-qualification-r1.txt),
 [start/use/recover guide](runbooks/m03-start-use-recovery.txt). Final private clock
 receipts and the interruption reconciliation supply the closed timing above;
 historical public handoff snapshots retain their original checkpoint meaning.
+
+## M04 — organize cards with hierarchy
+
+**Accepted:** 2026-10-30. Terry approved the final card and the M04 milestone after
+handoff. Earlier reports and receipts retain their acceptance-pending checkpoint
+meaning. This post-acceptance review does not reopen those cards or start M05.
+
+The delivered outcome is bounded parent/child hierarchy through the ordinary
+browser and actual CLI: create a child, navigate exact parents and complete
+children, reparent and explicitly clear. Archived relatives and Completed parent
+targets remain usable under the accepted rules. Hierarchy preserves independent
+priority, lane, owner, approval and existing blocking/informational link semantics.
+Explicit offline compatibility and retained original-outcome safeguards accompany
+the feature. Expanded typed-link and atomic-batch work remains in M05.
+
+The assessment is **strong delivery and evidence, partial early prevention, and
+forecast calibration needing improvement**. The four-hour P80 milestone limit
+helped separate a complete hierarchy outcome from the larger relationship scope.
+
+### Final time and estimation
+
+Active elapsed minutes, rounded to one decimal:
+
+| Phase | Approved P80 base target | Reserve | Base + reserve / P95 target | Final actual |
+|---|---:|---:|---:|---:|
+| Preflight, separately tracked | 20 | 15 | 35 | 4.4 |
+| Development through final handoff | 235 | 75 | 310 | 112.1 |
+
+No reserve was used in either phase. Development finished **122.9 minutes below
+base** and **197.9 minutes below cap**. Combined actual was 116.5 minutes; the
+separate phase ledgers and unused Preflight allowance were preserved.
+
+The closed development actual is 112.09733566666667 minutes; Preflight is
+4.365245533333334 minutes. Development includes refinement, fixes, coordination,
+model/tool/build/test waits, independent review, demonstrations, documentation,
+packaging, cleanup and source/board handoff publication. Parallel elapsed counts
+once; timestamped inactive owner-only waiting is excluded. This later requested
+retrospective documentation work is outside that closed delivery measurement.
+
+The retained development checkpoints allow a comparison of forecasts with the
+work actually remaining at each handoff:
+
+| Handoff checkpoint | Cumulative active | Remaining P80 allowance | Remaining P95 allowance | Subsequent actual to final handoff |
+|---|---:|---:|---:|---:|
+| Feature handoff, before qualification | 81.4 | 105 | 180 | 30.7 |
+| Qualification handoff, before final kit | 103.4 | 75 | 150 | 8.7 |
+
+These are closing handoff checkpoints, distinct from earlier forecast-preparation
+snapshots. The approved 235 + 75 envelope remained unchanged. After qualification,
+the forecast still retained a 20-minute central final-kit anchor, the full original
+55-minute ordinary uncertainty allowance and 75-minute tail allowance. Preserving
+the original estimate and spending authority was useful; mechanically carrying
+the full uncertainty forward made the late forecast less informative.
+
+Finishing 52.3% below a P80 target does not establish padding or statistically
+calibrated P80/P95 coverage. P80 is not an expected average, and the milestones
+have different scopes and reuse opportunities. The late remaining-work comparison
+warrants reviewing which risks had been retired. Revise residual uncertainty with
+explicit reasons rather than applying a blanket percentage discount to M05 or
+treating unchanged allowances as automatically justified. Phase quantiles must
+not be added into a combined confidence guarantee.
+
+### Prevention, correction and delivery learning
+
+| Area | M04 assessment | Observation and consequence |
+|---|---|---|
+| Small customer outcome and owner gates | Strong | The split held: hierarchy was complete, relationship expansion stayed outside M04, and each dependent story waited for owner acceptance. |
+| Complete-delivery accounting | Strong | The final 112.1 minutes includes corrections, review, qualification, the extracted-kit demo, guides, cleanup and publication; Preflight and inactive owner waits remained separate. |
+| Early native interaction regression | Partial | Qualification exposed an ordinary hidden-opener Close-focus regression after feature approval. It was corrected and independently reviewed before milestone acceptance; the existing regression belongs before feature handoff. |
+| Joined boundary coverage | Partial | The first hierarchy journey retained informational links, while dependency gating was tested separately. Review required both legacy link types alongside hierarchy, exact edge conservation and unchanged blocked-start behavior through reparent/clear. |
+| Test assumptions and safe correction | Safe handling; avoidable friction | Missing fixture environment, linked-versus-normal opener ambiguity and omitted-versus-null fields caused failed runs. Contract-based diagnosis and fresh attempts preserved evidence and avoided uncertain-operation replay; earlier harness checks should reduce recurrence. |
+| Conservation evidence | Strong final evidence | Full records, history, approvals, legacy links, attachment bytes and canonical original intents/outcomes were compared with explicit identity rules. This final strength does not establish that every check was present in the first attempt. |
+| Usable package and guide closure | Improved | Recursive guide/schema dependencies, extracted use, channel size and local delivery were checked before final review. No missing runnable guide step remained; size above the attachment cap was an explicit delivery constraint. |
+| Useful staffing and independent review | Strong within observed scope | Disjoint authors and fresh reviewers had clear responsibilities. Terra's bounded guide/dependency assignment was useful; one assignment does not establish a general quality, latency or credit-cost comparison with Sol. |
+| Remaining-delivery forecasts | Needs improvement | Original and revised figures were preserved, but the final-kit P80 allowance remained 75 minutes for work that took 8.7. Retire named risks and explain the residual allowance at each checkpoint. |
+
+The Close-focus correction preserved two accepted behaviors: ordinary unavailable
+openers fall back to Find cards, while hierarchy-origin navigation retains its
+board-read fallback. Existing regression and independent focused probes verified
+the distinction. This was successful correction before final acceptance; the
+earlier-prevention goal remains open.
+
+The final demo's first failure expected explicit `ownerId:null` for a new
+unassigned card. The accepted optional field can be omitted. The corrected harness
+accepted that encoding while preserving parent, priority, lane and approval
+assertions; a fresh workspace passed. This was a harness assumption, not a product
+defect. Failed and superseded attempts remain separately classified.
+
+### Evidence, review and delivery boundaries
+
+- Current-candidate qualification passed two isolated clean builds with 1,641 Go
+  tests each, zero failures/skips and all 78 generated/staged/executable hashes
+  equal. Complete mandatory native inventories and all 21 browser cases passed.
+- Qualification recorded 349 controlled hierarchy DOM checks and a fresh
+  browser/actual CLI journey with 69 counted assertions plus expectations. Its
+  ordinary steps and separately labeled response-loss check remain distinct. The
+  controlled 1,000-card family exhausted all 999 descendants in 50 local pages;
+  it is distinct from ordinary small-board creation.
+- Separately labeled response loss after a real commit preserved UNKNOWN through
+  graceful restart and prevented replay. Two runnable restores conserved complete
+  records and exact Go-canonical bytes for 57 and 60 retained original operations.
+  Current parent rebasing and historical Origin were explicitly checked. Actual
+  supported offline upgrade/refusal/NO_CHANGE and old-data conservation also passed.
+- The final extracted-kit normal demo passed 45 counted browser/CLI assertions
+  plus five companion checks and DOM expectations, across two boards and two
+  headless pages. Complete BoardRead and Active/Archived/All query facts matched
+  across graceful reopen. Both final owned hosts exited cleanly; the listener
+  closed. This normal demo injected no faults.
+- Fresh independent final review executed separate package extraction, CRC,
+  exact-member/manifest/checksum, schema-reference, help and cleanup probes and
+  audited the demo evidence. It did not duplicate the full normal journey or all
+  qualification suites. Final-kit full-suite/fault claims are explicit unchanged-
+  application reuse of accepted qualification.
+- The 34-file kit contains 32 allowlisted payloads, complete local guide/reference
+  dependencies, generated schemas, license and reports. The 11,862,349-byte ZIP
+  exceeds the 10 MiB attachment channel. Verified local ZIP/extracted delivery and
+  small board attachments supplied the usable path. Full qualification reproduction
+  still needs the source checkout, pinned tools and private run outputs.
+- Acceptance covers synthetic Windows amd64/local NTFS/localhost use. It does not
+  imply expanded M05 features, real V1 adoption, general release, physical
+  power-loss certification, full installed OS IME, whole-product accessibility or
+  independent clean-room certification. Prior V1 exposure remains disclosed.
+
+### Next small adjustment
+
+**RECOMMENDED:** before the next authorized feature handoff, run the existing
+archive/search/focus regression together with the relevant joined-feature
+scenario. Retain asynchronous read/window/generation and UNKNOWN/no-replay checks.
+Judge success by whether qualification still finds a defect those checks should
+already have caught, and record the checkpoint where each finding first appears.
+
+Supporting forecast reviews should name resolved and residual risks instead of
+carrying all original uncertainty forward. Before a broad run, check fixture
+environment, exact target selectors and optional-field encoding. These are
+proportionate process checks, not new implementation tickets or permission to
+start M05. Preserve original estimates, failed attempts, historical reports and
+the closed delivery clock.
+
+See [hierarchy feature evidence](../qualification/m04/hierarchy-slice-r1.txt),
+[joined qualification](../qualification/m04/joined-qualification-r1.txt),
+[structured qualification](../qualification/m04/joined-qualification-r1.json),
+[final handoff](../qualification/m04/handoff-r1.txt),
+[structured handoff](../qualification/m04/handoff-r1.json),
+[start/use/recovery guide](runbooks/m04-start-use-recovery.txt) and
+[normal customer demo](runbooks/m04-customer-demo.txt). Final private handoff/clock
+receipts supply closed actuals and closing forecast checkpoints; public reports
+retain their original tested, handed-off and acceptance-pending checkpoint scope.

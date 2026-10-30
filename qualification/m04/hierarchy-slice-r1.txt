@@ -1,0 +1,43 @@
+M04.02 HIERARCHY FEATURE HANDOFF
+2026-10-30 | Focused verified candidate; milestone qualification/final kit remain separately gated
+
+Tested product source:2fa6ad6e45541d4b1af915a6f837e6e9d34010eb
+Application SHA256:61b74798db3c01f6dacc7b1750af3ef427e9462c9fdd45f8b6506756042fce4f
+Report-only publication does not imply a new product build.
+
+- Application SHA256:61b74798db3c01f6dacc7b1750af3ef427e9462c9fdd45f8b6506756042fce4f
+- Baseline35c2050 plus reviewed hierarchy source; tested commit is recorded above.
+- Complete browser/actual CLI hierarchy; physical6/base5 explicit offline upgrade, API/archive1 optional parent;64edge/1000family, local20pages.
+- Fresh Go1641passed/0failed/0skipped, required ordinary build/type/contracts/assets/vet/scripts checks; controlled browser346checks.
+- Actual product63counted checks plus Playwright UI expectations, separate one native-response-loss seam/owned restart, two runnable restores/full retained records and allocator/tombstone/blob checks.
+- Exact Go C01canonical original payload/row comparisons:52first-restore originals and55second-restore originals; fingerprints and complete retained operation rows unchanged.
+- Actual ordinary seeded v5->v6 compatibility proof conserves old full records/readable archive entries/blobs; only physical database bytes change, new application mutation/reopen persists.
+- All5 joined hosts stopped0/listeners closed; no active owned product host remains. Upgrade negative5startup3 expected; actual upgraded6hosts close cleanly.
+
+Evidence limits
+- This feature handoff is not the joined/full milestone qualification or final extracted review kit.
+- Separate full native tagged/browser mandatory inventories and two-isolated-clean-build distribution qualification remain M04.03; no result inferred from their launcher presence.
+- Final ordinary extracted-kit demonstration/guide manifest audit remains M04.04.
+- No real V1 import/adoption, new typed-link batches, workflows or new platform; no physical-power-loss, full installed OS IME, broad accessibility or general-release claim.
+
+Restore comparison scope
+- All retained non-actor entity sets and full rows match exactly, with only current local ref-incarnation rebasing. Every original actor row is retained; documented new native bootstrap actors in each destination are separately validated. Historical snapshot refs and operation provenance remain original.
+- Go C01 encoder compares exact canonical intent/result bytes, complete immutable operation rows and fingerprints, keyed by original board/incarnation/opId across both exported outcome groups. No Python JSON reserialization is treated as canonical byte proof.
+
+Review and corrections
+- Fresh non-author Sol / High source/evidence review PASS, including independent controlled browser and narrow post-commit native reruns. This is distinct from the primary actual product execution.
+- Untouched set-parent draft action persists through reload; cannot become clear-parent.
+- Dirty editor discard preserves all3hierarchy action contexts.
+- Focused/history strict read boundaries reject self-parent; focused newer facts mark old graph stale.
+- Post-COMMIT cleanup/inspection/output failure preserves native UNKNOWN/exit4.
+- Additive upgrade retains opaque absent-parent legacy history while supplied parent refs remain strict; physical/base consumer guards consistent.
+- Both staged and runtime production module declarations include hierarchy.
+- Confirmed hierarchy receipt follows exact selected child and authoritative parent read with generation/floor guards; stale announcements clear.
+
+Reproduction
+- Follow docs/runbooks/m04-hierarchy.txt and the existing locked offline build/native-private-root instructions. New native tests include hierarchy upgrade rollback/refusal/UNKNOWN, atomic child and family bounds, current/prior snapshot provenance and chained restores. Native test roots must be fresh, short and account-private; full suite records no skipped cases.
+- Product proof initializes only fresh synthetic normal workspaces. Response loss is an explicitly named seam after one real native commit. Unknown restores are inspected, retained and never blindly replayed; archive source directories and destinations remain separate. Local pages use captured complete reads.
+- Final public report contains no runtime stores, real boards, credentials, private rosters or user paths. Two isolated clean-build/full tagged/native/browser milestone inventories and extracted-kit final demo remain later gated work, not inferred from this feature report.
+
+Upgrade export comparison detail
+- Board/history/activity/outcomes data JSON and blob archive members are byte-identical before/after upgrade. Manifest export time and COMPLETE manifest digest are regenerated, not claimed byte-identical.

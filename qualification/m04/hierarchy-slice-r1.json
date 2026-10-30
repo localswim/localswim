@@ -1,0 +1,70 @@
+{
+  "stage": "M04.02 hierarchy complete feature",
+  "date": "2026-10-30",
+  "status": "Verified focused feature candidate; milestone qualification and final kit separately gated",
+  "testedProductCommit": "2fa6ad6e45541d4b1af915a6f837e6e9d34010eb",
+  "applicationSHA256": "61b74798db3c01f6dacc7b1750af3ef427e9462c9fdd45f8b6506756042fce4f",
+  "sourceBaseline": "35c2050972228f74368388ef206a016e9c3f0513",
+  "versions": {
+    "go": "1.27.3",
+    "node": "26.12.1",
+    "typescript": "7.0.2",
+    "playwright": "1.64.1",
+    "sqliteDriver": "modernc.org/sqlite v1.61.0"
+  },
+  "outcome": "Browser and actual CLI hierarchy create/set/reparent/clear, complete bounded navigation, private originals/focus, versioned native compatibility and retained-record conservation.",
+  "choices": {
+    "physicalVersion": 6,
+    "baseSchemaVersion": 5,
+    "apiArchiveVersion": 1,
+    "maxDepthEdges": 64,
+    "maxFamilyCards": 1000,
+    "localPageRows": 20
+  },
+  "freshChecks": {
+    "goTests": {
+      "passed": 1641,
+      "failed": 0,
+      "skipped": 0
+    },
+    "ordinaryGate": "mod verify, generated-contract/type/web/staged-assets/build/vet/Go/script checks",
+    "controlledBrowserChecks": 346,
+    "controlledBrowserScope": "Actual DOM/component fixtures including complete1000-card family and all999descendants/50pages; separate from ordinary product",
+    "productCountedChecks": 63,
+    "productScope": "Actual candidate browser/CLI normal journeys plus separately labeled one native PATCH response loss, original UNKNOWN across graceful restart/reload, deliberate lookup/no replay",
+    "upgrade": "Actual normally seeded frozen-v5 store: inspect/wrong identity/startup5refusal unchanged; explicit6/base5 upgrade; NO_CHANGE; all old BoardRead/CardRead/HistoryRead/readable archive member/blob bytes identical; parent mutation and reopen Readable archive comparison covers board/history/activity/outcomes data JSON and blob members; manifest export time and COMPLETE manifest digest are deliberately regenerated.",
+    "restore": "Two actual runnable restores preserve all retained full card/comment/link/attachment/approval/actor rows, history and exact bytes, allocator/tombstones from full archive. Only current local incarnation refs rebased; positive first-restored snapshot Origin with older target CreatedIn preserved through second restore. Actor comparison retains every original actor and permits only the documented destination-native bootstrap additions (at most one human and one automation actor with destination CreatedIn); non-actor retained entity sets are exact, with no extra or missing rows.",
+    "canonicalOriginals": [
+      {
+        "pair": "first_restore",
+        "originals": 52,
+        "fullCanonicalPayloadPairs": 52,
+        "allRowsAndCanonicalBytesExact": true
+      },
+      {
+        "pair": "second_restore",
+        "originals": 55,
+        "fullCanonicalPayloadPairs": 55,
+        "allRowsAndCanonicalBytesExact": true
+      }
+    ],
+    "ownedHosts": "All5 joined hosts exited0 and recorded listeners closed; upgrade expected startup5exit3 and valid6hosts cleanly stopped."
+  },
+  "review": "Fresh non-author Sol / High source and evidence review, with material corrections independently re-reviewed; final report bound separately.",
+  "meaningfulCorrections": [
+    "Untouched set-parent draft action persists through reload; cannot become clear-parent.",
+    "Dirty editor discard preserves all3hierarchy action contexts.",
+    "Focused/history strict read boundaries reject self-parent; focused newer facts mark old graph stale.",
+    "Post-COMMIT cleanup/inspection/output failure preserves native UNKNOWN/exit4.",
+    "Additive upgrade retains opaque absent-parent legacy history while supplied parent refs remain strict; physical/base consumer guards consistent.",
+    "Both staged and runtime production module declarations include hierarchy.",
+    "Confirmed hierarchy receipt follows exact selected child and authoritative parent read with generation/floor guards; stale announcements clear."
+  ],
+  "evidenceCategories": "Normal current product, controlled DOM/native malformed/boundary/fault cases, injected response loss and frozen baseline reuse labeled separately. Frozen v5 baseline binary reused only to seed ordinary legacy fixture; final candidate executes upgrade.",
+  "limits": [
+    "This feature handoff is not the joined/full milestone qualification or final extracted review kit.",
+    "Separate full native tagged/browser mandatory inventories and two-isolated-clean-build distribution qualification remain M04.03; no result inferred from their launcher presence.",
+    "Final ordinary extracted-kit demonstration/guide manifest audit remains M04.04.",
+    "No real V1 import/adoption, new typed-link batches, workflows or new platform; no physical-power-loss, full installed OS IME, broad accessibility or general-release claim."
+  ]
+}

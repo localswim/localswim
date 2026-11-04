@@ -12,3 +12,8 @@ demonstration belong to M05.04. Neither is claimed by this feature report.
 
 Private administrative boards, credentials, runtime profiles, raw execution logs,
 review rosters and recovery stores stay outside the public repository.
+
+M05.03 joined qualification is recorded in joined-qualification-r1.txt/json.
+See ../../docs/runbooks/m05-qualification.txt. The report explicitly identifies
+fresh builds/journeys and exact qualified native/browser reuse. Owner acceptance
+and the M05.04 final extracted kit/demonstration remain separate gates.

@@ -1,0 +1,62 @@
+M05.03 JOINED QUALIFICATION — PASS; READY FOR OWNER ACCEPTANCE
+Source d7a538c8156c73815776d859863b5ca6dbde8117
+Executable SHA256 34388dd5275c42ed407662c79cc09ce8b87bf8ddd86c185815a5695e01506d75
+
+Fresh complete builds
+- Two independent committed source extractions; separate initially empty Go caches,
+  no preexisting node_modules/web-dist, locked offline npm install. Source bytes
+  preserved across all checks in both 890-file extractions.
+- 1713 and 1713 Go test/subtest events PASS,
+  zero failed/skipped tests. All prescribed module/contract/type/asset/build/vet/
+  script gates pass; 82 complete generated/staged/executable hashes equal.
+
+Exact qualified reuse
+- Accepted refresh83 native root3, transaction8, continuation7, archive14 and
+  interruption4 cases plus six archive rows are reused after fresh independent
+  hash/source/tool/negative-overlay audit. Current385-provider manifest matches;
+  all22 private evidence hashes verified. No new native-execution claim here.
+- Full21 browser cases, retry0/failure0/skip0 with bound clean fixture/browser
+  teardown, likewise match current source, Node26.13.0, Chrome157.0.8103.38,
+  Playwright1.64.1 and actual executable. Six publication-only document changes
+  do not alter those runtime/test inputs. Full audit: reuse-assessment.txt/json.
+
+Fresh joined customer and compatibility proof
+- 102 counted checks across normal browser/realCLI
+  and explicitly labeled native response-loss cases. Adds blocking/informational
+  plus new reference next to hierarchy; set/reparent/clear preserves all edges,
+  explicit P0/P4 values and the human-approved prerequisite start gate.
+- New typed reciprocal/owned views, atomic parent+create+links, whole-owned-set
+  replacement/incoming conservation, mixed-invalid refusal, duplicate/self rules,
+  complete21/local20 pages, hidden-set preservation, archived/Completed targets,
+  same-ticket boards, stale windows, exact Close/search focus and restored search.
+- Parent and relationship response loss occur after a real native commit; normal
+  owned restart/reload retains UNKNOWN without replay. Only deliberate original
+  lookup settles it. These are fault-labeled checks, not normal-use assertions.
+- Two full-record restore comparisons include a new typed relationship and later
+  snapshot after the first restore. Go-canonical original pairs are
+  76/81, exact. Wrapper
+  compares complete entities/blob bytes and selected history; fresh independent
+  review verified all29/34 history and61/66 activity records, metadata and blobs.
+- Fresh accepted-M04-seeded6->7 upgrade: inspection/identity/old-start refusals,
+  only database-byte rewrite, complete logical archive/history/blob preservation,
+  repeated7 no-change, new typed mutation and reopen all pass. No replay of a used
+  or uncertain operation. Current targets use Board.Identity, not CreatedIn.
+- All6 owned joined hosts exit0 and listeners close;
+  browser contexts close. Upgrade and reused native/browser teardown recorded
+  separately. No real boards, credentials or profiles are part of this evidence.
+
+Scope and next gate
+- Earlier old-tool interrupted builds/browser profiles remain evidence; never
+  reused. A new baseline-setup attempt initially selected the stale cache and
+  failed before runtime; it is retained, then corrected with the current profile.
+- Synthetic local Windows qualification only; no physical power-loss, full OS
+  IME/accessibility, general release or real-data import/cutover claim.
+- M05.04 final usable kit, fresh normal demo, cleanup and final milestone handoff
+  remain unstarted until Terry accepts this qualification. Current225m base/
+  300m cap and continuous active clock remain unchanged; separate Preflight and
+  maintenance stay excluded. Fresh independent review PASS. Only owner acceptance remains.
+
+Independent final review PASS; exact source/tool/output and all-record audits
+validated. R10 leaves only M05.04, gated by owner acceptance of this card.
+See docs/runbooks/m05-qualification.txt and m05-relationships.txt for reproducible
+current-source use. Detailed private execution and review records remain on#0078.

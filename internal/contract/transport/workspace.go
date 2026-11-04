@@ -26,6 +26,7 @@ type WorkspaceProjectRequest struct {
 	Root                   WorkspacePath  `json:"root"`
 }
 type WorkspaceBoardRequest struct {
+	Workflow               *A.Workflow        `json:"workflow,omitempty"`
 	APIVersion             A.Version          `json:"apiVersion"`
 	ExpectedConfigRevision A.Positive         `json:"expectedConfigRevision"`
 	ProjectKey             WorkspaceKey       `json:"projectKey"`
@@ -82,4 +83,27 @@ type WorkspaceControlError struct {
 	Outcome        RefusedOutcome `json:"outcome"`
 	Error          Error          `json:"error"`
 	ConfigRevision A.Positive     `json:"configRevision"`
+}
+
+// ConfiguredWorkspaceBoardRequest is the browser-only bounded setup route.
+// Its selected project determines the root; no client filesystem path exists.
+type ConfiguredWorkspaceBoardRequest struct {
+	APIVersion             A.Version      `json:"apiVersion"`
+	WorkspaceID            UUIDv4         `json:"workspaceId"`
+	ExpectedConfigRevision A.Positive     `json:"expectedConfigRevision"`
+	ProjectKey             WorkspaceKey   `json:"projectKey"`
+	BoardKey               WorkspaceKey   `json:"boardKey"`
+	Label                  WorkspaceLabel `json:"label"`
+	Workflow               A.Workflow     `json:"workflow"`
+}
+
+// ConfiguredWorkspaceStatusRequest retains the complete originally submitted
+// definition. Status observes present facts and never retries initialization.
+type ConfiguredWorkspaceStatusRequest struct {
+	APIVersion       A.Version          `json:"apiVersion"`
+	WorkspaceID      UUIDv4             `json:"workspaceId"`
+	ProjectKey       WorkspaceKey       `json:"projectKey"`
+	BoardKey         WorkspaceKey       `json:"boardKey"`
+	Workflow         A.Workflow         `json:"workflow"`
+	ExpectedIdentity *WorkspaceIdentity `json:"expectedIdentity,omitempty" validate:"nonnull"`
 }

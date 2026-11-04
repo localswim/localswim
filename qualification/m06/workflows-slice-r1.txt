@@ -1,0 +1,46 @@
+M06.02 CONFIGURED-WORKFLOW BACKEND / CLI SLICE
+2026-11-04 | Focused synthetic Windows amd64/NTFS/localhost evidence
+
+Delivered
+- Immutable new-board workflow definitions, semantic lanes and current grant
+  ceilings; strict default omission and old canonical operation preservation.
+- Physical8/base5, independently frozen7 validation and explicit7-to-8 upgrade.
+- Standalone configured initialization/inspection; workspace CLI creation and
+  narrow browser-channel create/status backend. Actual browser controls remain
+  M06.03 and are not claimed by this backend handoff.
+- Configured card creation/moves, human-only approval/Completed, complete read
+  context and full archive/restore definition/history conservation.
+
+Verification
+- Final pinned ordinary gate: module verification, generated-contract check,
+  TypeScript check, asset check, executable build, Go tests/vet and Node scripts.
+- Go test/subtest events: 1807 pass,0 fail,0 skip.
+  Package-level no-test events are not test-case skips.
+- 923 source inputs unchanged throughout the gate.
+  Test-input inventory SHA256:600548f8939dfae86a6c0f57aa3fbcab4f17d5ad7d0566728b838e16bde3755e
+  This inventory excludes these later report-only files.
+- Executable SHA256:2270115326bc2844d399aee1674a9af7fc7ae00d764523f75ff9995f5b9d3c85
+- Fresh actual executable journey:31 checks. Includes the published
+  guide's definition, invalid preallocation/repeat refusal, custom creation/move/
+  no-op/filter/history/approval denial/handoff/reopen and exact definition reads.
+- Browser-channel HTTP adapter checks cover authenticated creation/status,
+  full-definition mismatch, CAS and retained project-create denial. These are
+  technical HTTP checks, not a browser-editor demonstration.
+- Focused author and fresh independent reviews cover contracts, archive,
+  domain/storage and runtime. Material findings were fixed and re-reviewed:
+  invalid configured approval rejected before restore allocation, and atomic
+  exclusive root acquisition for standalone setup, and raw embedded workflow
+  size enforcement. Exact byte-boundary and HTTP refusal checks are retained.
+
+Retained attempts and cleanup
+- Two harness failures retained: CLI terminal envelope assumption and a Python
+  HTTP-module name collision. Assertions corrected; no product mutation replay.
+- Final fresh attempt passed; all 12 captured owned hosts across attempts
+  exited0, with no cleanup errors or remaining owned service descriptors.
+
+Use and limits
+See docs/runbooks/m06-configured-workflows.txt for actual CLI setup/recovery.
+All data are synthetic. No production trust, real board adoption, browser editor,
+full M06.04 inventory, two-clean-build qualification, general release or physical
+power-loss claim. Prior accepted evidence remains historical, not relabeled.
+Owner acceptance of this slice gates M06.03. Only Terry controls Completed.

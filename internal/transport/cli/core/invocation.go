@@ -61,7 +61,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 		q.method = "GET"
 	case "card create":
 		q.command = "card.create"
-	case "card edit", "card archive", "card unarchive", "card set-parent", "card clear-parent", "card relationships-replace":
+	case "card edit", "card move", "card archive", "card unarchive", "card set-parent", "card clear-parent", "card relationships-replace":
 		q.command = "card.edit"
 	case "comment add":
 		q.command = "comment.add"
@@ -127,7 +127,9 @@ func parse(args []string) (q invocation, code string, exit int) {
 			switch args[i] {
 			case "Ready for Work", "In Progress", "Ready for Review", "Completed":
 			default:
-				return q, "INVOCATION_OR_IO", 1
+				if !uuid(args[i]) {
+					return q, "INVOCATION_OR_IO", 1
+				}
 			}
 			q.lane = args[i]
 		} else if k == "--owner" && q.kind == "card search" {

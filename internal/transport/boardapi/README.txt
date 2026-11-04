@@ -54,3 +54,9 @@ or all explicitly), ordered by priority/ticket/UUID with at most 20 summaries.
 Each continuation rechecks current read authority in one SQLite snapshot. HMAC
 cursors bind handler epoch, actor, board/incarnation/revision and exact canonical
 filters; stale/tampered cursors refuse CURSOR_STALE. BoardRead stays complete.
+
+M06 workflow projection
+Read projections load the immutable definition in the same authorized snapshot.
+Board/card/history/search results include that optional full context, and every
+returned or queried lane is checked against it. Search accepts exact UUID syntax
+for configured lanes, never labels; legacy boards retain literal lane filters.

@@ -82,3 +82,14 @@ retain null in frozen intent; omission retains the current assignment and is
 kept absent in the fingerprint. Older decoders reject assignment-bearing rows;
 this extension does not claim they can read newly assigned cards. Actor facts
 remain provenance and never import current grants or authority on restore.
+
+M06 immutable configured workflow
+- Optional Board.workflow contains the complete validated definition. Absence is
+  the exact legacy profile; explicit null is invalid. DecodeWorkflow enforces
+  strict shape and the submitted 64 KiB bound. ValidateWorkflow checks lanes,
+  roles, labels, ordered edges/actors/rights and human graph reachability.
+- WorkflowRole, WorkflowInitial, WorkflowLaneForRole, WorkflowAllows and
+  WorkflowAllowsRight are pure profile helpers, not independently verified grants.
+  WorkflowBytes emits canonical definition bytes; nil emits no definition.
+- Current cards and retained snapshots must belong to the enclosing definition.
+  Refused originals retain their attempted laneId even when it is not a member.

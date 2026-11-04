@@ -61,6 +61,7 @@ export type BoardView = {
   readonly retention: Archive.Retention;
   readonly retentionVersion: number;
   readonly revision: number;
+  readonly workflow?: Archive.Workflow;
 };
 
 export type CardSearchRead = {
@@ -75,11 +76,12 @@ export type CardSearchView = {
   readonly nextCursor: string | null;
   readonly query: CardSearchQuery;
   readonly revision: number;
+  readonly workflow?: Archive.Workflow;
 };
 
 export type CardSearchQuery = {
   readonly archive: "active" | "archived" | "all";
-  readonly lane: "Ready for Work" | "In Progress" | "Ready for Review" | "Completed" | null;
+  readonly lane: string | null;
   readonly owner: string | null;
   readonly priority: "P0" | "P1" | "P2" | "P3" | "P4" | "P5" | null;
   readonly q: string;
@@ -88,7 +90,7 @@ export type CardSearchQuery = {
 export type CardSummary = {
   readonly archived: boolean;
   readonly cardId: string;
-  readonly lane: "Ready for Work" | "In Progress" | "Ready for Review" | "Completed";
+  readonly lane: string;
   readonly ownerId: string | null;
   readonly priority: "P0" | "P1" | "P2" | "P3" | "P4" | "P5";
   readonly revision: number;
@@ -113,6 +115,7 @@ export type CardView = {
   readonly identity: Archive.Identity;
   readonly links: ReadonlyArray<Archive.Link>;
   readonly revision: number;
+  readonly workflow?: Archive.Workflow;
 };
 
 export type HistoryReference = {
@@ -142,6 +145,7 @@ export type HistoryView = {
   readonly records: ReadonlyArray<Archive.Snapshot>;
   readonly revision: number;
   readonly tombstones: ReadonlyArray<Archive.EntityTombstone>;
+  readonly workflow?: Archive.Workflow;
 };
 
 export type SessionGrant = {
@@ -483,6 +487,7 @@ export type WorkspaceBoardRequest = {
   readonly expectedIdentity: WorkspaceIdentity | null;
   readonly label: string;
   readonly projectKey: string;
+  readonly workflow?: Archive.Workflow;
 };
 
 export type WorkspaceStatusRequest = {
@@ -491,6 +496,25 @@ export type WorkspaceStatusRequest = {
   readonly dataDir: string | null;
   readonly expectedIdentity: WorkspaceIdentity | null;
   readonly projectKey: string;
+};
+
+export type ConfiguredWorkspaceBoardRequest = {
+  readonly apiVersion: 1;
+  readonly boardKey: string;
+  readonly expectedConfigRevision: number;
+  readonly label: string;
+  readonly projectKey: string;
+  readonly workflow: Archive.Workflow;
+  readonly workspaceId: string;
+};
+
+export type ConfiguredWorkspaceStatusRequest = {
+  readonly apiVersion: 1;
+  readonly boardKey: string;
+  readonly expectedIdentity?: WorkspaceIdentity;
+  readonly projectKey: string;
+  readonly workflow: Archive.Workflow;
+  readonly workspaceId: string;
 };
 
 export type WorkspaceProjects = {

@@ -18,6 +18,19 @@ func TestArchiveListingQueryBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestConfiguredLaneQueryPreservesExactID(t *testing.T) {
+	const lane = "60000000-0000-4000-8000-000000000001"
+	query, err := parseSearch("lane=" + lane)
+	if err != nil || query.lane != lane || query.canonical().Lane == nil || string(*query.canonical().Lane) != lane {
+		t.Fatal("configured lane query lost exact identity")
+	}
+	for _, bad := range []string{"lane=Inbox", "lane=00000000-0000-0000-0000-000000000000", "lane=60000000-0000-4000-8000-00000000000A"} {
+		if _, err := parseSearch(bad); err == nil {
+			t.Fatal("invalid lane syntax accepted")
+		}
+	}
+}
 func TestListingCursorBindsActorSnapshotFilterAndHandler(t *testing.T) {
 	h := &Handler{}
 	h.cursorKey[0] = 1

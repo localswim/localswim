@@ -18,7 +18,7 @@ func Storage(ctx context.Context, dataDir string, expected schema.Identity, upgr
 
 // StorageTo performs one deliberate selected step under both native exclusions.
 func StorageTo(ctx context.Context, dataDir string, expected schema.Identity, from, to int) (S.StorageInspection, bool, error) {
-	if !(from == 5 && to == 6 || from == 6 && to == 7) {
+	if !(from == 5 && to == 6 || from == 6 && to == 7 || from == 7 && to == 8) {
 		return S.StorageInspection{}, false, errLocal
 	}
 	return storage(ctx, dataDir, expected, true, from, to)

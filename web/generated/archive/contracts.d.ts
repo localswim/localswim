@@ -49,6 +49,7 @@ export type IntentCardEdit = {
   readonly archived?: boolean;
   readonly description: (string | null);
   readonly lane: ("In Progress" | null);
+  readonly laneId?: string;
   readonly ownerId?: (string | null);
   readonly parent?: ({
   readonly boardId: string;
@@ -262,6 +263,31 @@ export type ClearInput = {
   readonly throughTime: string;
 };
 
+export type Workflow = {
+  readonly actorRights: WorkflowActorRights;
+  readonly lanes: ReadonlyArray<WorkflowLane>;
+  readonly revision: 1;
+  readonly transitions: ReadonlyArray<WorkflowTransition>;
+  readonly workflowId: string;
+};
+
+export type WorkflowLane = {
+  readonly id: string;
+  readonly label: string;
+  readonly role: string;
+};
+
+export type WorkflowTransition = {
+  readonly actors: ReadonlyArray<"human" | "automation">;
+  readonly from: string;
+  readonly to: string;
+};
+
+export type WorkflowActorRights = {
+  readonly automation: ReadonlyArray<string>;
+  readonly human: ReadonlyArray<string>;
+};
+
 export type Identity = {
   readonly boardId: string;
   readonly incarnation: string;
@@ -356,7 +382,7 @@ export type Card = {
   readonly createdIn: Identity;
   readonly currentApprovalId: string | null;
   readonly description: string;
-  readonly lane: "Ready for Work" | "In Progress" | "Ready for Review" | "Completed";
+  readonly lane: string;
   readonly linkIds: ReadonlyArray<string>;
   readonly ownerId?: string | null;
   readonly parent?: CardRef | null;
@@ -434,13 +460,14 @@ export type Board = {
   readonly revision: number;
   readonly schemaVersion: 1;
   readonly tombstones: ReadonlyArray<EntityTombstone>;
+  readonly workflow?: Workflow;
 };
 
 export type SnapshotState = {
   readonly archived: boolean;
   readonly currentApprovalId: string | null;
   readonly description: string;
-  readonly lane: "Ready for Work" | "In Progress" | "Ready for Review" | "Completed";
+  readonly lane: string;
   readonly ownerId?: string | null;
   readonly parent?: CardRef | null;
   readonly priority: "P0" | "P1" | "P2" | "P3" | "P4" | "P5";

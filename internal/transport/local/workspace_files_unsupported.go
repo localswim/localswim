@@ -4,6 +4,8 @@ package local
 
 import "os"
 
+func createInitializationRoot(string) (*WorkspacePath, error) { return nil, ErrInitializationRefused }
+
 func workspacePath(string, bool, bool, bool) (*WorkspacePath, error) { return nil, ErrWorkspaceFiles }
 func workspacePathWithAncestor(string, bool, bool, bool, *WorkspacePath) (*WorkspacePath, error) {
 	return nil, ErrWorkspaceFiles

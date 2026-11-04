@@ -16,6 +16,7 @@ type HierarchyRead struct {
 	Result     HierarchyView `json:"result"`
 }
 type HierarchyView struct {
+	Workflow         *A.Workflow     `json:"workflow,omitempty"`
 	Identity         A.Identity      `json:"identity"`
 	Revision         A.Number        `json:"revision"`
 	Root             A.CardRef       `json:"root"`
@@ -65,6 +66,7 @@ func hierarchyRead(board T.BoardRead, id string) (HierarchyRead, error) {
 		return A.CardRef{BoardID: b.Identity.BoardID, Incarnation: b.Identity.Incarnation, CardID: id}
 	}
 	out = HierarchyRead{APIVersion: 1, Scope: "hierarchy", Result: HierarchyView{Identity: b.Identity, Revision: b.Revision, Root: ref(root.CardID), Parent: root.Parent, DirectChildCount: A.Number(len(children[root.CardID])), Nodes: []HierarchyNode{}, Complete: true}}
+	out.Result.Workflow = b.Workflow
 	var visit func(A.UUID, A.Positive)
 	visit = func(id A.UUID, depth A.Positive) {
 		for _, c := range children[id] {
@@ -79,6 +81,7 @@ func hierarchyRead(board T.BoardRead, id string) (HierarchyRead, error) {
 func readableHierarchy(h HierarchyRead, page int) string {
 	b := h.Result
 	var out strings.Builder
+	writeWorkflow(&out, b.Workflow)
 	pages := (len(b.Nodes) + 19) / 20
 	if pages == 0 {
 		pages = 1
@@ -103,7 +106,7 @@ func readableHierarchy(h HierarchyRead, page int) string {
 		if n.OwnerID != nil {
 			owner = string(*n.OwnerID)
 		}
-		fmt.Fprintf(&out, "Depth %d #%d %s (%s; %s; owner: %s; archived: %t) %s; parent %s\n", n.Depth, n.Ticket, advisoryText(n.Title), n.Lane, n.Priority, owner, n.Archived, n.Ref.CardID, n.Parent.CardID)
+		fmt.Fprintf(&out, "Depth %d #%d %s (%s; %s; owner: %s; archived: %t) %s; parent %s\n", n.Depth, n.Ticket, advisoryText(n.Title), laneText(b.Workflow, n.Lane), n.Priority, owner, n.Archived, n.Ref.CardID, n.Parent.CardID)
 	}
 	if page == pages {
 		out.WriteString("End of hierarchy.\n")

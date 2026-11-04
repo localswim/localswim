@@ -115,3 +115,12 @@ These exercise trusted synthetic principals, not production token verification,
 CLI hash durability, restart/session lifecycle, actual enrollment/confirmation,
 HTTP Host/Origin, browser behavior, hostile same-account isolation, crash/flush/
 power-loss durability or complete native qualification.
+
+M06 immutable ordinary-right ceilings
+Require, command Admit and own-outcome authority intersect current verified
+grants with the definition's ceiling for the stored actor kind in the same
+snapshot. A configured grant.create cannot add ordinary rights above that
+ceiling, and credential issue/browser grant resolution rejects such grants.
+Native grant administration remains a separate authority boundary; configured
+rights never introduce administration or actor-kind reassignment. The nil
+workflow retains existing default ordinary rights and human-only approval.

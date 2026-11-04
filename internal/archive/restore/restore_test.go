@@ -43,6 +43,14 @@ func fixture(t *testing.T) map[string][]byte {
 }
 func sourcePackage(t *testing.T, members map[string][]byte) *V.Package {
 	t.Helper()
+	p, e := V.Read(context.Background(), bytes.NewReader(sourceArchiveBytes(t, members)))
+	if e != nil {
+		t.Fatal(e)
+	}
+	return p
+}
+func sourceArchiveBytes(t *testing.T, members map[string][]byte) []byte {
+	t.Helper()
 	m, e := A.DecodeReadable[A.Manifest](members["manifest.json"])
 	if e != nil {
 		t.Fatal(e)
@@ -81,11 +89,7 @@ func sourcePackage(t *testing.T, members map[string][]byte) *V.Package {
 	if e = z.Close(); e != nil {
 		t.Fatal(e)
 	}
-	p, e := V.Read(context.Background(), &raw)
-	if e != nil {
-		t.Fatal(e)
-	}
-	return p
+	return raw.Bytes()
 }
 func TestTransformPreservesProvenanceAndIsolatesLedger(t *testing.T) {
 	source := sourcePackage(t, fixture(t))

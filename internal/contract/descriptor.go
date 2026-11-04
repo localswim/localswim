@@ -72,7 +72,8 @@ func Commands() []CommandDescriptor {
 	}
 	edit := obj(map[string]Field{"title": opt(text("title")), "description": opt(text("prose")), "priority": opt(priority), "lane": opt(enum("In Progress")), "parent": opt(&Type{Kind: "object", Nullable: true, Fields: map[string]Field{"boardId": req(uuid), "incarnation": req(uuid), "cardId": req(uuid)}}), "ownerId": opt(nullableUUID), "archived": opt(&Type{Kind: "boolean"})})
 	edit.Fields["relationships"] = opt(relationships)
-	edit.ExclusiveFields = []string{"archived", "parent", "relationships"}
+	edit.Fields["laneId"] = opt(uuid)
+	edit.ExclusiveFields = []string{"archived", "parent", "relationships", "laneId"}
 	commands := []CommandDescriptor{
 		{"card.create", "none", "POST", "/api/v1/boards/{boardId}/cards", obj(map[string]Field{"title": req(text("title")), "description": req(text("prose")), "priority": opt(priority), "parent": opt(&Type{Kind: "object", Nullable: true, Fields: map[string]Field{"boardId": req(uuid), "incarnation": req(uuid), "cardId": req(uuid)}}), "ownerId": opt(nullableUUID)}), false},
 		{"card.edit", "card", "PATCH", "/api/v1/boards/{boardId}/cards/{cardId}", edit, false},

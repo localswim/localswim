@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/localswim/localswim/internal/board/policy"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
 	"github.com/localswim/localswim/internal/store/writer"
@@ -62,6 +63,10 @@ func project(r writer.Read, q route) (any, error) {
 	p.board.Coverage.ActivityFloor = stampPtr(af)
 	p.board.Coverage.OutcomePayloadFloor = stampPtr(of)
 	inc := string(p.board.Identity.Incarnation)
+	p.board.Workflow, e = policy.Load(r, inc)
+	if e != nil {
+		return nil, e
+	}
 	e = rows(r, `SELECT origin_board,origin_incarnation,class,reason,from_exclusive,through_inclusive,recorded_at,board_revision FROM coverage_gap WHERE incarnation=? ORDER BY origin_board,origin_incarnation,class,from_exclusive,through_inclusive,reason,board_revision,recorded_at`, []any{inc}, func(rs *sql.Rows) error {
 		var g A.Gap
 		var from sql.NullString
@@ -150,7 +155,7 @@ func project(r writer.Read, q route) (any, error) {
 		return nil, e
 	}
 	if q.kind == "history" {
-		return T.HistoryRead{APIVersion: 1, Scope: "history", Result: T.HistoryView{Identity: p.board.Identity, Revision: p.board.Revision, CardID: A.UUID(q.card), CardRevision: p.board.Cards[0].Revision, Coverage: p.board.Coverage, Records: p.records, Actors: p.board.Actors, Comments: p.board.Comments, Links: p.board.Links, Attachments: p.board.Attachments, Approvals: p.board.Approvals, Tombstones: p.tombstones}}, nil
+		return T.HistoryRead{APIVersion: 1, Scope: "history", Result: T.HistoryView{Workflow: p.board.Workflow, Identity: p.board.Identity, Revision: p.board.Revision, CardID: A.UUID(q.card), CardRevision: p.board.Cards[0].Revision, Coverage: p.board.Coverage, Records: p.records, Actors: p.board.Actors, Comments: p.board.Comments, Links: p.board.Links, Attachments: p.board.Attachments, Approvals: p.board.Approvals, Tombstones: p.tombstones}}, nil
 	}
 	if q.kind == "card" {
 		refs := []T.HistoryReference{}
@@ -163,7 +168,7 @@ func project(r writer.Read, q route) (any, error) {
 		if e != nil {
 			return nil, e
 		}
-		return T.CardRead{APIVersion: 1, Scope: "card", Result: T.CardView{Identity: p.board.Identity, Revision: p.board.Revision, Card: p.board.Cards[0], Actors: p.board.Actors, Comments: p.board.Comments, Links: p.board.Links, Attachments: p.board.Attachments, Approvals: p.board.Approvals, HistoryReferences: refs, Coverage: p.board.Coverage}}, nil
+		return T.CardRead{APIVersion: 1, Scope: "card", Result: T.CardView{Workflow: p.board.Workflow, Identity: p.board.Identity, Revision: p.board.Revision, Card: p.board.Cards[0], Actors: p.board.Actors, Comments: p.board.Comments, Links: p.board.Links, Attachments: p.board.Attachments, Approvals: p.board.Approvals, HistoryReferences: refs, Coverage: p.board.Coverage}}, nil
 	}
 	return T.BoardRead{APIVersion: 1, Scope: "board", Result: p.board}, nil
 }

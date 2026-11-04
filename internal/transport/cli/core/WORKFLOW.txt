@@ -1,0 +1,21 @@
+Configured workflow CLI
+
+  card move CARD-UUID --input FILE
+
+This aliases card.edit. FILE remains the complete exact mutation envelope with
+boardId, incarnation, opId, expectedRevision, expectedCardRevision and targetId;
+input must contain only laneId, an exact configured lane UUID. The runner never
+fetches replacement revisions or automatically retries a move. Use the existing
+review-handoff and approve commands for semantic review and completion; ordinary
+move cannot enter those roles. The local automation channel cannot approve.
+
+  card search --lane LANE
+
+LANE is an exact legacy literal on default boards or a configured lane UUID.
+Server validation binds it to the selected board and current definition.
+
+Board, card, history, search and hierarchy output retain the complete immutable
+definition on configured boards. Human-readable output prints ordered labels,
+semantic roles, exact lane IDs, transitions and actor-right ceilings. JSON keeps
+the complete typed result; default results omit workflow entirely. These reads
+describe current state and do not settle or replay an UNKNOWN original operation.

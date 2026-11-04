@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/localswim/localswim/internal/board/grants"
+	"github.com/localswim/localswim/internal/board/policy"
 	"github.com/localswim/localswim/internal/board/relationships"
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
@@ -28,11 +29,11 @@ type envelope struct {
 	Command                       contract.Command
 	Target                        *contract.Target
 	Payload                       struct {
-		Title, Description, Priority, Lane, Text *string
-		Archived                                 *bool
-		Parent                                   contract.ParentInput        `json:"parent"`
-		OwnerID                                  contract.OwnerInput         `json:"ownerId"`
-		Relationships                            []contract.RelationshipSpec `json:"relationships"`
+		Title, Description, Priority, Lane, LaneID, Text *string
+		Archived                                         *bool
+		Parent                                           contract.ParentInput        `json:"parent"`
+		OwnerID                                          contract.OwnerInput         `json:"ownerId"`
+		Relationships                                    []contract.RelationshipSpec `json:"relationships"`
 	}
 }
 
@@ -84,6 +85,13 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 		if d, err := s.grants.Admit(ctx, r, i); d != nil || err != nil {
 			return d, err
 		}
+		w, err := policy.Load(r, e.Incarnation)
+		if err != nil {
+			return nil, err
+		}
+		if e.Command == "card.create" && (e.Payload.Lane != nil || e.Payload.LaneID != nil) {
+			return deny("INVALID_INPUT"), nil
+		}
 		if e.Payload.OwnerID.Present && e.Payload.OwnerID.Value != nil {
 			var exists int
 			if err := r.Scan("SELECT count(*) FROM actor WHERE incarnation=? AND actor_id=?", []any{e.Incarnation, *e.Payload.OwnerID.Value}, &exists); err != nil {
@@ -121,17 +129,29 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 		if err := r.Scan("SELECT lane,archived FROM card WHERE incarnation=? AND card_id=?", []any{e.Incarnation, route.CardID}, &lane, &archived); err != nil {
 			return nil, err
 		}
-		if lane == "Completed" {
+		if A.WorkflowRole(w, A.Lane(lane)) == "completed" {
 			return deny("COMPLETED"), nil
 		}
 		if e.Command == "card.edit" {
+			if w != nil && e.Payload.Lane != nil || w == nil && e.Payload.LaneID != nil {
+				return deny("INVALID_INPUT"), nil
+			}
+			if e.Payload.LaneID != nil {
+				code, err := admitMove(r, w, e, route.CardID, lane, archived)
+				if err != nil {
+					return nil, err
+				}
+				if code != "" {
+					return deny(code), nil
+				}
+			}
 			current, err := loadSnapshot(r, e, route.CardID)
 			if err != nil {
 				return nil, err
 			}
 			changed := e.Payload.Parent.Present && !sameParent(e.Payload.Parent.Value, current.Parent)
 			if e.Payload.Relationships != nil {
-				if e.Payload.Title != nil || e.Payload.Description != nil || e.Payload.Priority != nil || e.Payload.Lane != nil || e.Payload.Archived != nil || e.Payload.Parent.Present || e.Payload.OwnerID.Present {
+				if e.Payload.Title != nil || e.Payload.Description != nil || e.Payload.Priority != nil || e.Payload.Lane != nil || e.Payload.LaneID != nil || e.Payload.Archived != nil || e.Payload.Parent.Present || e.Payload.OwnerID.Present {
 					return deny("INVALID_INPUT"), nil
 				}
 				plan, code, err := relationships.Prepare(r, e.BoardID, e.Incarnation, route.CardID, e.Payload.Relationships, true)
@@ -155,7 +175,7 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 				current  string
 			}{
 				{e.Payload.Title, current.Title}, {e.Payload.Description, current.Description},
-				{e.Payload.Priority, string(current.Priority)}, {e.Payload.Lane, string(current.Lane)},
+				{e.Payload.Priority, string(current.Priority)}, {e.Payload.Lane, string(current.Lane)}, {e.Payload.LaneID, string(current.Lane)},
 			} {
 				changed = changed || f.supplied != nil && *f.supplied != f.current
 			}
@@ -170,11 +190,9 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 			if lane != "Ready for Work" || archived != 0 {
 				return deny("INVALID_TRANSITION"), nil
 			}
-			var invalid int
-			if err := r.Scan(`SELECT count(*) FROM link l LEFT JOIN card c ON c.incarnation=l.incarnation AND c.card_id=l.internal_target_id LEFT JOIN approval a ON a.incarnation=c.incarnation AND a.approval_id=c.current_approval_id AND a.card_id=c.card_id LEFT JOIN actor h ON h.incarnation=a.incarnation AND h.actor_id=a.actor_id JOIN policy p ON p.incarnation=l.incarnation WHERE l.incarnation=? AND l.card_id=? AND l.active=1 AND l.kind='blocking' AND (c.card_id IS NULL OR c.lane<>'Completed' OR c.archived<>0 OR a.approval_id IS NULL OR h.kind<>'human' OR a.policy_version<>p.policy_version OR a.reviewed_card_revision<>c.revision-1)`, []any{e.Incarnation, route.CardID}, &invalid); err != nil {
+			if ok, err := prerequisitesApproved(r, e.Incarnation, route.CardID, string(A.WorkflowLaneForRole(w, "completed"))); err != nil {
 				return nil, err
-			}
-			if invalid != 0 {
+			} else if !ok {
 				return deny("PREREQUISITE_NOT_APPROVED"), nil
 			}
 		}
@@ -210,6 +228,10 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 			return exec("INSERT INTO entity(incarnation,kind,entity_id,card_id,origin_board,origin_incarnation,creator_id,created_at) VALUES(?,?,?,?,?,?,?,?)", e.Incarnation, kind, id, card, e.BoardID, e.Incarnation, e.ActorID, string(at))
 		}
 		if e.Command == "card.create" {
+			wf, loadErr := policy.Load(w, e.Incarnation)
+			if loadErr != nil {
+				return writer.Effect{}, loadErr
+			}
 			id, err = uuid()
 			if err != nil {
 				return writer.Effect{}, err
@@ -231,7 +253,7 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 			if err = exec("INSERT INTO ticket(incarnation,ticket,card_id) VALUES(?,?,?)", e.Incarnation, ticket, id); err != nil {
 				return writer.Effect{}, err
 			}
-			if err = exec("INSERT INTO card(incarnation,card_id,revision,title,description,priority,owner_id) VALUES(?,?,1,?,?,?,?)", e.Incarnation, id, *e.Payload.Title, *e.Payload.Description, priority, e.Payload.OwnerID.Value); err != nil {
+			if err = exec("INSERT INTO card(incarnation,card_id,revision,title,description,priority,owner_id,lane) VALUES(?,?,1,?,?,?,?,?)", e.Incarnation, id, *e.Payload.Title, *e.Payload.Description, priority, e.Payload.OwnerID.Value, string(A.WorkflowInitial(wf))); err != nil {
 				return writer.Effect{}, err
 			}
 		} else {
@@ -264,7 +286,7 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 				for _, f := range []struct {
 					column string
 					value  *string
-				}{{"title", e.Payload.Title}, {"description", e.Payload.Description}, {"priority", e.Payload.Priority}, {"lane", e.Payload.Lane}} {
+				}{{"title", e.Payload.Title}, {"description", e.Payload.Description}, {"priority", e.Payload.Priority}, {"lane", e.Payload.Lane}, {"lane", e.Payload.LaneID}} {
 					if f.value != nil {
 						if err = exec("UPDATE card SET "+f.column+"=? WHERE incarnation=? AND card_id=?", *f.value, e.Incarnation, id); err != nil {
 							return writer.Effect{}, err

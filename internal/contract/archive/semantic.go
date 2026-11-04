@@ -118,6 +118,19 @@ func semantics(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case Workflow:
+		if err := ValidateWorkflow(&x); err != nil {
+			return err
+		}
+	case Board:
+		if err := ValidateWorkflow(x.Workflow); err != nil {
+			return err
+		}
+		for _, card := range x.Cards {
+			if err := ValidateWorkflowLanes(x.Workflow, card.Lane); err != nil {
+				return err
+			}
+		}
 	case ByteFact:
 		if x.ByteLength > 10485760 {
 			return fmt.Errorf("byte fact length")

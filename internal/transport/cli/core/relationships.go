@@ -17,6 +17,7 @@ type RelationshipRead struct {
 	Result     RelationshipView `json:"result"`
 }
 type RelationshipView struct {
+	Workflow      *A.Workflow       `json:"workflow,omitempty"`
 	Identity      A.Identity        `json:"identity"`
 	Revision      A.Number          `json:"revision"`
 	Card          A.CardRef         `json:"card"`
@@ -61,6 +62,7 @@ func relationshipRead(board T.BoardRead, id string) (relationshipObservation, er
 		return out, fmt.Errorf("card unavailable")
 	}
 	v := RelationshipView{Identity: b.Identity, Revision: b.Revision, Card: selected, Relationships: []RelationshipRow{}, Complete: true}
+	v.Workflow = b.Workflow
 	for _, l := range b.Links {
 		owner := ref(l.CardID)
 		owned := owner == selected
@@ -132,6 +134,7 @@ func refText(r A.CardRef) string {
 func readableRelationships(h relationshipObservation, page int) string {
 	b := h.read.Result
 	var out strings.Builder
+	writeWorkflow(&out, b.Workflow)
 	pages := (len(b.Relationships) + 19) / 20
 	if pages == 0 {
 		pages = 1
@@ -148,7 +151,7 @@ func readableRelationships(h relationshipObservation, page int) string {
 	for _, r := range b.Relationships[start:end] {
 		peer := "unavailable"
 		if c, ok := h.peers[r.Peer]; ok {
-			peer = fmt.Sprintf("#%d %s (lane: %s; archived: %t)", c.Ticket, advisoryText(c.Title), c.Lane, c.Archived)
+			peer = fmt.Sprintf("#%d %s (lane: %s; archived: %t)", c.Ticket, advisoryText(c.Title), laneText(b.Workflow, c.Lane), c.Archived)
 		}
 		fmt.Fprintf(&out, "%s [%s; %s; owned: %t] %s; peer %s; owner %s; link %s\n", r.Label, r.Kind, r.Direction, r.Owned, peer, refText(r.Peer), refText(r.Owner), r.LinkID)
 	}

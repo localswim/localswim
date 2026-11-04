@@ -1,0 +1,35 @@
+Configured new-board workflow
+
+Native setup is deliberate and existing-only inspection is separate:
+  localswim --data NEWDIR board init --workflow FILE
+  localswim --data DIR --json board inspect
+  localswim serve --data DIR
+
+FILE contains exactly one complete Workflow object, at most 64 KiB UTF-8 JSON.
+Definition and actor-rights validation completes before allocating the native
+root. Occupied roots refuse; initialization never changes an existing workflow.
+The initialization result reports identity and full definition, never credentials.
+An IO failure after dispatch is UNKNOWN; inspect deliberately before deciding.
+
+Workspace native CLI:
+  localswim --workspace DIR --project PROJECT board create --key KEY --label LABEL --root NEWDIR --workflow FILE
+Omitting --workflow preserves exact legacy creation. Register cannot accept a
+workflow option; it inspects an already valid board without changing policy.
+
+The trusted workspace browser channel has only these additional mutations:
+  POST /api/v1/workspace/boards/configured
+  POST /api/v1/workspace/boards/configured/status
+Their strict contracts include workspaceId and the complete workflow; create
+also requires expectedConfigRevision. The server derives a direct child of the
+selected guarded project root from boardKey. Neither route accepts native paths,
+actor/grant overrides, arbitrary registration or project creation.
+
+Status compares the complete retained definition and identity. An active owned
+engine supplies an authorized coherent read; other roots require full guarded
+offline inspection. Busy ownership, identity/definition mismatch or incomplete
+validation returns UNKNOWN. Status never activates, detaches, restarts, repairs
+or replays creation. A matching observation does not settle a previous UNKNOWN.
+Initialized-unregistered boards require deliberate native register after inspection.
+
+All fresh local human/automation grants, including restored local channels, use
+the retained workflow's ordinary-right ceilings. No source credential is adopted.

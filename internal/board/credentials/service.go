@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/localswim/localswim/internal/board/grants"
+	"github.com/localswim/localswim/internal/board/policy"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
 	S "github.com/localswim/localswim/internal/store/open"
@@ -391,6 +392,12 @@ func currentScope(ctx context.Context, c *sql.Conn, b, i, g string) (actor, kind
 	err = errors.Join(e, rows.Err(), rows.Close())
 	if err == nil {
 		err = grants.ValidateRights(kind, rights)
+	}
+	if err == nil {
+		w, loadErr := policy.Load(access{ctx: ctx, c: c}, i)
+		if loadErr != nil || !policy.AllowsRights(w, kind, rights...) {
+			err = ErrDenied
+		}
 	}
 	if err != nil {
 		err = ErrDenied

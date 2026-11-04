@@ -1,9 +1,11 @@
 package workspace
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/localswim/localswim/internal/contract"
@@ -40,6 +42,32 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, q *http.Request) {
 	}
 	if L.WorkspaceChannel(q.Context()) == "" {
 		r.refusal(w, 403, "FORBIDDEN")
+		return
+	}
+	if q.URL.Path == "/api/v1/workspace/boards/configured" || q.URL.Path == "/api/v1/workspace/boards/configured/status" {
+		if L.WorkspaceChannel(q.Context()) != "browser" || q.Method != "POST" {
+			r.refusal(w, 403, "FORBIDDEN")
+			return
+		}
+		if q.URL.RawQuery != "" {
+			r.refusal(w, 400, "INVALID_INPUT")
+			return
+		}
+		if q.URL.Path == "/api/v1/workspace/boards/configured" {
+			v, e := body[T.ConfiguredWorkspaceBoardRequest](w, q)
+			if e != nil {
+				r.refusal(w, 400, "INVALID_INPUT")
+				return
+			}
+			r.createConfiguredBoard(w, q, v)
+		} else {
+			v, e := body[T.ConfiguredWorkspaceStatusRequest](w, q)
+			if e != nil {
+				r.refusal(w, 400, "INVALID_INPUT")
+				return
+			}
+			r.configuredStatus(w, q, v)
+		}
 		return
 	}
 	if q.Method != "GET" && L.WorkspaceChannel(q.Context()) != "cli" {
@@ -291,7 +319,7 @@ func (r *Runtime) createBoard(w http.ResponseWriter, q *http.Request, v T.Worksp
 	var id T.WorkspaceIdentity
 	var engine *L.Runtime
 	if v.Action == "create" {
-		engine, e = L.OpenEngine(r.ctx, L.EngineOptions{DataDir: g.Path(), Origin: r.Origin(), WorkspaceID: string(c.WorkspaceID)})
+		engine, e = L.OpenEngine(r.ctx, L.EngineOptions{DataDir: g.Path(), Origin: r.Origin(), WorkspaceID: string(c.WorkspaceID), Workflow: v.Workflow})
 		if e != nil {
 			r.retainEngine(engine)
 			r.result(w, c, "UNKNOWN", v.ProjectKey, &v.BoardKey, nil)
@@ -349,6 +377,104 @@ func (r *Runtime) createBoard(w http.ResponseWriter, q *http.Request, v T.Worksp
 		r.activate(m)
 	}
 	r.result(w, r.snapshot(), "registered", v.ProjectKey, &v.BoardKey, &id)
+}
+
+func (r *Runtime) createConfiguredBoard(w http.ResponseWriter, q *http.Request, v T.ConfiguredWorkspaceBoardRequest) {
+	c := r.snapshot()
+	if v.WorkspaceID != c.WorkspaceID {
+		r.refusal(w, 403, "FORBIDDEN")
+		return
+	}
+	p, ok := c.project(v.ProjectKey)
+	if !ok {
+		r.refusal(w, 400, "INVALID_INPUT")
+		return
+	}
+	// Validated keys contain no separators; the root is a single direct child.
+	root := filepath.Join(string(p.Root), string(v.BoardKey))
+	r.createBoard(w, q, T.WorkspaceBoardRequest{APIVersion: 1, ExpectedConfigRevision: v.ExpectedConfigRevision, ProjectKey: v.ProjectKey, BoardKey: v.BoardKey, Label: v.Label, DataDir: T.WorkspacePath(root), Action: "create", Workflow: &v.Workflow})
+}
+
+func (r *Runtime) configuredStatus(w http.ResponseWriter, q *http.Request, v T.ConfiguredWorkspaceStatusRequest) {
+	c, e := r.refresh()
+	if e != nil {
+		r.result(w, r.snapshot(), "UNKNOWN", v.ProjectKey, &v.BoardKey, nil)
+		return
+	}
+	if v.WorkspaceID != c.WorkspaceID {
+		r.refusal(w, 403, "FORBIDDEN")
+		return
+	}
+	p, ok := c.project(v.ProjectKey)
+	if !ok {
+		r.result(w, c, "unavailable", v.ProjectKey, &v.BoardKey, nil)
+		return
+	}
+	root := filepath.Join(string(p.Root), string(v.BoardKey))
+	m, registered := c.member(v.ProjectKey, v.BoardKey)
+	if registered && (!pathEqual(root, string(m.DataDir)) || v.ExpectedIdentity != nil && *v.ExpectedIdentity != m.Identity) {
+		r.result(w, c, "UNKNOWN", v.ProjectKey, &v.BoardKey, nil)
+		return
+	}
+	g, e := r.openMember(p, root, false)
+	if e != nil {
+		r.retain(g)
+		status := T.WorkspaceRegistrationStatus("UNKNOWN")
+		if !registered && errors.Is(e, L.ErrWorkspaceMissing) {
+			status = "unavailable"
+		}
+		r.result(w, c, status, v.ProjectKey, &v.BoardKey, nil)
+		return
+	}
+	defer r.retain(g)
+	var expected *L.BoardIdentity
+	if registered {
+		expected = localIdentity(m.Identity)
+	} else if v.ExpectedIdentity != nil {
+		expected = localIdentity(*v.ExpectedIdentity)
+	}
+	var observed L.BoardDefinition
+	if registered {
+		if g.PhysicalKey() != m.PhysicalKey {
+			r.result(w, c, "UNKNOWN", v.ProjectKey, &v.BoardKey, nil)
+			return
+		}
+		r.mu.Lock()
+		state := r.states[memberKey(m.ProjectKey, m.BoardKey)]
+		var engine *L.Runtime
+		if state != nil {
+			engine = state.engine
+		}
+		r.mu.Unlock()
+		if engine != nil {
+			observed, e = engine.InspectDefinition(q.Context(), "browser")
+		} else {
+			observed, e = L.InspectBoardDefinition(q.Context(), g.Path(), expected)
+		}
+	} else {
+		observed, e = L.InspectBoardDefinition(q.Context(), g.Path(), expected)
+	}
+	want, we := A.WorkflowBytes(&v.Workflow)
+	got, ge := A.WorkflowBytes(observed.Workflow)
+	if e != nil || we != nil || ge != nil || !bytes.Equal(want, got) || expected != nil && observed.Identity != *expected {
+		r.retainCleanup(e)
+		r.result(w, c, "UNKNOWN", v.ProjectKey, &v.BoardKey, nil)
+		return
+	}
+	id := wireIdentity(observed.Identity)
+	if !registered {
+		for _, other := range c.Members {
+			if other.Identity.BoardID == id.BoardID || other.PhysicalKey == g.PhysicalKey() {
+				r.result(w, c, "UNKNOWN", v.ProjectKey, &v.BoardKey, nil)
+				return
+			}
+		}
+	}
+	status := T.WorkspaceRegistrationStatus("initialized-unregistered")
+	if registered {
+		status = "registered"
+	}
+	r.result(w, c, status, v.ProjectKey, &v.BoardKey, &id)
 }
 func (r *Runtime) status(w http.ResponseWriter, q *http.Request, v T.WorkspaceStatusRequest) {
 	c, e := r.refresh()

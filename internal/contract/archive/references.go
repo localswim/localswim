@@ -274,6 +274,9 @@ func ValidateDocuments(m Manifest, b Board, h History, a Activity, o Outcomes) (
 			return nil, e
 		}
 	}
+	if err := ValidateWorkflowFacts(b.Workflow, b.Cards, h.Records, b.Actors, b.Approvals); err != nil {
+		return nil, err
+	}
 	if b.Identity != m.Source || h.Identity != m.Source || a.Identity != m.Source || o.Identity != m.Source || b.Revision != m.Revision || h.Revision != m.Revision || a.Revision != m.Revision || o.Revision != m.Revision {
 		return nil, fmt.Errorf("document snapshot identity/revision")
 	}
@@ -329,6 +332,11 @@ func ValidateDocuments(m Manifest, b Board, h History, a Activity, o Outcomes) (
 		return nil, fmt.Errorf("nonempty revision zero")
 	}
 	for _, s := range h.Records {
+		if s.State != nil {
+			if err := ValidateWorkflowLanes(b.Workflow, s.State.Lane); err != nil {
+				return nil, err
+			}
+		}
 		if s.Origin.BoardID != m.Source.BoardID {
 			return nil, fmt.Errorf("snapshot provenance board")
 		}

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/localswim/localswim/internal/board/policy"
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
@@ -67,7 +68,11 @@ func (s *Service) Admit(ctx context.Context, r writer.Read, i contract.Intent) (
 		}
 		return deny("FORBIDDEN"), nil
 	}
-	if !has(p, rights...) {
+	w, err := policy.Load(r, e.Incarnation)
+	if err != nil {
+		return nil, err
+	}
+	if !has(p, rights...) || !policy.AllowsRights(w, p.kind, rights...) {
 		return deny("FORBIDDEN"), nil
 	}
 	return nil, nil
@@ -90,8 +95,15 @@ func (s *Service) GrantCallbacks(route Route) writer.Callbacks {
 			if route.GrantID != "" || e.Target != nil || !schema.ValidUUID(e.Payload.GranteeActorID) || ValidateRights(e.Payload.Kind, e.Payload.Rights) != nil {
 				return deny("INVALID_INPUT"), nil
 			}
+			w, err := policy.Load(r, e.Incarnation)
+			if err != nil {
+				return nil, err
+			}
+			if !policy.AllowsRights(w, e.Payload.Kind, e.Payload.Rights...) {
+				return deny("FORBIDDEN"), nil
+			}
 			var kind string
-			err := r.Scan("SELECT kind FROM actor WHERE incarnation=? AND actor_id=?", []any{e.Incarnation, e.Payload.GranteeActorID}, &kind)
+			err = r.Scan("SELECT kind FROM actor WHERE incarnation=? AND actor_id=?", []any{e.Incarnation, e.Payload.GranteeActorID}, &kind)
 			if err != nil && err != sql.ErrNoRows {
 				return nil, err
 			}

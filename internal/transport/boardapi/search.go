@@ -13,6 +13,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/localswim/localswim/internal/board/policy"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
 	"github.com/localswim/localswim/internal/store/schema"
@@ -44,7 +45,9 @@ func parseSearch(raw string) (searchRequest, error) {
 			switch vs[0] {
 			case "Ready for Work", "In Progress", "Ready for Review", "Completed":
 			default:
-				return out, ErrUnavailable
+				if !schema.ValidUUID(vs[0]) {
+					return out, ErrUnavailable
+				}
 			}
 			out.lane = vs[0]
 		case "owner":
@@ -190,6 +193,14 @@ func (h *Handler) search(r writer.Read, q route, actor string, request searchReq
 	out.Result.Query = request.canonical()
 	if e := r.Scan(`SELECT board_id,incarnation,revision FROM board WHERE singleton=1 AND board_id=?`, []any{q.board}, &out.Result.Identity.BoardID, &out.Result.Identity.Incarnation, &out.Result.Revision); e != nil {
 		return nil, e
+	}
+	workflow, err := policy.Load(r, string(out.Result.Identity.Incarnation))
+	if err != nil {
+		return nil, err
+	}
+	out.Result.Workflow = workflow
+	if request.lane != "" && A.WorkflowRole(workflow, A.Lane(request.lane)) == "" {
+		return nil, ErrUnavailable
 	}
 	key := cursorPayload{Epoch: base64.RawURLEncoding.EncodeToString(h.cursorEpoch[:]), Actor: actor, Identity: out.Result.Identity, Revision: out.Result.Revision, Filter: filterDigest(request)}
 	var last cursorPayload

@@ -14,7 +14,7 @@ and source revision; destination floors reset to null. Existing gaps and the ful
 lineage persist, adding the immediate source manifest hash/identity/revision tuple.
 The source manifest hash and target inventory remain distinct anchors.
 
-Construct creates layout 4 through S01 exclusively in an existing private empty
+Construct creates layout 8 through S01 exclusively in an existing private empty
 data directory. SQL import uses explicit BEGIN IMMEDIATE/COMMIT and the exact
 shared schema, with deferred reference checks and full schema/FK/byte validation.
 No file is adopted, overwritten, repaired, migrated or automatically retried.
@@ -62,3 +62,16 @@ lineage-only identities without invented groups, and empty current operation led
 Private fixture paths and raw logs stay outside public source. Fresh human bootstrap
 is a future explicit activation gate; test fixtures contain only synthetic scopes.
 No trust change, real credential, migration, service, port or UI is involved.
+
+Configured workflow conservation (M06)
+
+The complete immutable definition keeps its workflow/lane UUIDs, revision,
+ordered labels/roles, transitions and rights ceilings across each restore.
+Current cards and retained snapshot states must belong to that definition.
+Default packages omit workflow; mixed profiles and invalid definitions refuse
+before destination allocation. Refused original laneId attempts remain historical
+evidence even when the attempted UUID is outside the configured lane set.
+Restored definitions govern later trusted channel seeding; source credentials
+and grants never become current authority. Controlled native tests exercise two
+restores with intervening custom moves, handoff and human approval, comparing
+all reprojected records and protected bytes after the allowed identity transform.

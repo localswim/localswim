@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
 	"github.com/localswim/localswim/internal/transport/cli/archive"
 	"github.com/localswim/localswim/internal/transport/cli/core"
@@ -21,7 +22,7 @@ import (
 const workspaceCLIHelp = `  localswim --workspace DIR [--json] project list
   localswim --workspace DIR [--json] project create --key KEY --label LABEL --root DIR
   localswim --workspace DIR [--project PROJECT] [--json] board list
-  localswim --workspace DIR --project PROJECT [--json] board create --key KEY --label LABEL --root DIR
+  localswim --workspace DIR --project PROJECT [--json] board create --key KEY --label LABEL --root DIR [--workflow FILE]
   localswim --workspace DIR --project PROJECT [--json] board register --key KEY --label LABEL --root DIR [--expected-identity FILE]
   localswim --workspace DIR --project PROJECT --board BOARD [--json] board status [--root DIR] [--expected-identity FILE]
   localswim --workspace DIR --project PROJECT --board BOARD [--json] board read
@@ -140,6 +141,8 @@ type workspaceCommand struct {
 	key, label, root string
 	expectedFile     string
 	expected         *T.WorkspaceIdentity
+	workflowFile     string
+	workflow         *A.Workflow
 }
 
 // Parse and validate before opening private state or contacting a service.
@@ -178,13 +181,17 @@ func parseWorkspaceCommand(q localInvocation) (workspaceCommand, []string, error
 			return c, nil, errComposition
 		}
 		switch args[i] {
-		case "--key", "--label", "--root", "--expected-identity":
+		case "--key", "--label", "--root", "--expected-identity", "--workflow":
 		default:
 			return c, nil, errComposition
 		}
 		flags[args[i]] = args[i+1]
 	}
 	c.key, c.label, c.root = flags["--key"], flags["--label"], flags["--root"]
+	c.workflowFile = flags["--workflow"]
+	if c.workflowFile != "" && (c.family != "board" || c.action != "create") {
+		return c, nil, errComposition
+	}
 	switch c.family + " " + c.action {
 	case "project list":
 		if q.project != "" || q.board != "" || len(flags) != 0 {
@@ -224,6 +231,13 @@ func parseWorkspaceCommand(q localInvocation) (workspaceCommand, []string, error
 }
 
 func (c *workspaceCommand) readExpectedIdentity() error {
+	if c.workflowFile != "" {
+		w, e := readWorkflowFile(c.workflowFile)
+		if e != nil {
+			return e
+		}
+		c.workflow = w
+	}
 	if c.expectedFile != "" {
 		f, err := os.Open(c.expectedFile)
 		if err != nil {
@@ -394,7 +408,7 @@ func runWorkspaceCLI(ctx context.Context, q localInvocation, in io.Reader, out, 
 		if c.family == "project" {
 			result, err = client.CreateProject(ctx, T.WorkspaceProjectRequest{APIVersion: 1, Key: T.WorkspaceKey(c.key), Label: T.WorkspaceLabel(c.label), Root: T.WorkspacePath(c.root)})
 		} else {
-			result, err = client.CreateBoard(ctx, T.WorkspaceBoardRequest{APIVersion: 1, ProjectKey: T.WorkspaceKey(q.project), BoardKey: T.WorkspaceKey(c.key), Label: T.WorkspaceLabel(c.label), DataDir: T.WorkspacePath(c.root), Action: T.WorkspaceAction(c.action), ExpectedIdentity: c.expected})
+			result, err = client.CreateBoard(ctx, T.WorkspaceBoardRequest{APIVersion: 1, ProjectKey: T.WorkspaceKey(q.project), BoardKey: T.WorkspaceKey(c.key), Label: T.WorkspaceLabel(c.label), DataDir: T.WorkspacePath(c.root), Action: T.WorkspaceAction(c.action), ExpectedIdentity: c.expected, Workflow: c.workflow})
 		}
 		value = result
 	}

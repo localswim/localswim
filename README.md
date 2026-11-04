@@ -217,10 +217,10 @@ records the G01/S04/G02 boundaries. The
 records G02's historical service and its native lease ownership. HTTP/browser delivery,
 terminal confirmation/private files and integrated qualification remain separate
 consumer work for that legacy path. Physical layout6 added hierarchy to the
-layout5 assignment/Unicode/outcome base. Current physical layout7 adds typed
-relationships while the board's base-schema marker stays5. Normal startup refuses
-older layouts; explicit offline5-to-6 and6-to-7 steps preserve existing records
-and never run automatically. API/archive/fingerprint versions stay1 with strict
+layout5 assignment/Unicode/outcome base. Layout7 added typed relationships;
+current physical layout8 adds immutable configured workflows while the board's
+base-schema marker stays5. Normal startup refuses older layouts; explicit offline
+5-to-6, 6-to-7 and 7-to-8 steps preserve existing records and never run automatically. API/archive/fingerprint versions stay1 with strict
 additive fields and kinds. See [typed relationships and storage compatibility](docs/runbooks/m05-relationships.txt)
 and the earlier [hierarchy guide](docs/runbooks/m04-hierarchy.txt). Earlier M04
 qualification and kit reports retain their exact recorded physical6 candidate;
@@ -235,3 +235,8 @@ priority/lane/owner/approval do not propagate. Follow the
 [relationship guide](docs/runbooks/m05-relationships.txt) for deliberate saves,
 owner-correct removal, the100-entry batch boundary and original UNKNOWN/no-replay
 recovery. Complete joined qualification and final kit remain separate M05 stories.
+
+Configured new-board workflows are available in native setup and the actual CLI.
+The [configured workflow guide](docs/runbooks/m06-configured-workflows.txt) covers
+creation, reads, moves, reopening and recovery; browser workflow controls and
+joined milestone qualification remain separate work.

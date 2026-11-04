@@ -19,7 +19,7 @@ var digestRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var timeRE = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$`)
 var commandValues = []string{"card.create", "card.edit", "comment.add", "attachment.add", "link.add", "link.remove", "review-handoff", "approve", "grant.create", "grant.revoke", "history.clear", "retention.set"}
 var enums = map[string][]string{
-	"Priority": {"P0", "P1", "P2", "P3", "P4", "P5"}, "Lane": {"Ready for Work", "In Progress", "Ready for Review", "Completed"}, "Kind": {"human", "automation"}, "Reason": {"cleared", "expired"}, "GapClass": {"history", "activity", "outcome_payload"}, "FactKind": {"board", "card", "comment", "link", "attachment", "approval", "grant"}, "Command": commandValues, "RecoveryCommand": {"history.clear", "retention.set"}, "TerminalClass": {"COMMITTED", "NOT_COMMITTED"}, "Phase": {"preparing", "prepared", "published"}, "ReceiptResult": {"incomplete", "complete", "failed"}, "RestoreOutcome": {"confirmed", "failed", "unknown"}, "HashAlgorithm": {"sha256"}, "RestoreScope": {"restore"}, "LinkKind": {"blocking", "informational", "related", "reference", "duplicate"}, "EntityKind": {"card", "comment", "link", "attachment"},
+	"Priority": {"P0", "P1", "P2", "P3", "P4", "P5"}, "Kind": {"human", "automation"}, "Reason": {"cleared", "expired"}, "GapClass": {"history", "activity", "outcome_payload"}, "FactKind": {"board", "card", "comment", "link", "attachment", "approval", "grant"}, "Command": commandValues, "RecoveryCommand": {"history.clear", "retention.set"}, "TerminalClass": {"COMMITTED", "NOT_COMMITTED"}, "Phase": {"preparing", "prepared", "published"}, "ReceiptResult": {"incomplete", "complete", "failed"}, "RestoreOutcome": {"confirmed", "failed", "unknown"}, "HashAlgorithm": {"sha256"}, "RestoreScope": {"restore"}, "LinkKind": {"blocking", "informational", "related", "reference", "duplicate"}, "EntityKind": {"card", "comment", "link", "attachment"},
 }
 
 // Decode validates exact fields, required nulls, scalar rules and local semantic
@@ -31,7 +31,13 @@ func Decode[T any](data []byte) (T, error) {
 		return out, e
 	}
 	t := reflect.TypeFor[T]()
+	if (t == reflect.TypeFor[Workflow]() || t == reflect.TypeFor[*Workflow]()) && len(data) > 65536 {
+		return out, fmt.Errorf("workflow exceeds 64 KiB")
+	}
 	if e = shape(t, v, "$", ""); e != nil {
+		return out, e
+	}
+	if e = workflowRawLimits(t, data); e != nil {
 		return out, e
 	}
 	if e = json.Unmarshal(data, &out); e != nil {
@@ -117,6 +123,9 @@ func validStrings(v reflect.Value) error {
 func shape(t reflect.Type, v any, path, format string) error {
 	fail := func() error { return fmt.Errorf("%s: invalid %s", path, t.Name()) }
 	if t.Kind() == reflect.Pointer {
+		if t == reflect.TypeFor[*Workflow]() && v == nil {
+			return fail()
+		}
 		if v == nil {
 			return nil
 		}
@@ -163,7 +172,7 @@ func shape(t reflect.Type, v any, path, format string) error {
 				}
 				return fmt.Errorf("%s.%s: required", path, n)
 			}
-			if n == "parent" && x == nil && (t == reflect.TypeFor[Card]() || t == reflect.TypeFor[SnapshotState]()) {
+			if (n == "workflow" && x == nil) || (f.Tag.Get("validate") == "nonnull" && x == nil) || (n == "parent" && x == nil && (t == reflect.TypeFor[Card]() || t == reflect.TypeFor[SnapshotState]())) {
 				return fail()
 			}
 			if e := shape(f.Type, x, path+"."+n, f.Tag.Get("validate")); e != nil {
@@ -203,6 +212,10 @@ func shape(t reflect.Type, v any, path, format string) error {
 			}
 		}
 		switch t.Name() {
+		case "Lane":
+			if s != "Ready for Work" && s != "In Progress" && s != "Ready for Review" && s != "Completed" && (!uuidRE.MatchString(s) || s == "00000000-0000-0000-0000-000000000000") {
+				return fail()
+			}
 		case "UUID":
 			if !uuidRE.MatchString(s) || s == "00000000-0000-0000-0000-000000000000" {
 				return fail()

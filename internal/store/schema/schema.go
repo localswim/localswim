@@ -1,4 +1,4 @@
-// Package schema defines the version-seven physical storage layout. Admission, canonical
+// Package schema defines the version-eight physical storage layout. Admission, canonical
 // wire validation, retention execution and domain transactions belong to callers.
 package schema
 
@@ -9,9 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	A "github.com/localswim/localswim/internal/contract/archive"
 )
 
-const Version = 7
+const Version = 8
 const BaseSchemaVersion = 5
 const ApplicationID = 0x4c535731 // LSW1
 const MaxInteger int64 = 9007199254740991
@@ -40,7 +42,7 @@ func ValidUUID(v string) bool {
 // Statements returns fresh, deterministic DDL, including constraints and indexes.
 // The small macros keep the same scalar checks on every identity and counter.
 func Statements() []string {
-	return append(statementsFrom(ddl), HierarchyStatements()...)
+	return append(append(statementsFrom(ddl), HierarchyStatements()...), WorkflowStatements()...)
 }
 
 // LinkStatements is the exact current link inventory used by the guarded rebuild.
@@ -117,6 +119,15 @@ func expand(s string) string {
 // Initialize must run inside the caller's exclusive, explicit SQL transaction on
 // a newly created empty database. It never adopts an existing unversioned file.
 func Initialize(ctx context.Context, c *sql.Conn, id Identity) error {
+	return InitializeWorkflow(ctx, c, id, nil)
+}
+
+// InitializeWorkflow creates the immutable optional definition in the same new-store transaction.
+func InitializeWorkflow(ctx context.Context, c *sql.Conn, id Identity, workflow *A.Workflow) error {
+	definition, err := A.WorkflowBytes(workflow)
+	if err != nil {
+		return err
+	}
 	if !ValidUUID(id.BoardID) || !ValidUUID(id.Incarnation) {
 		return errors.New("invalid storage identity")
 	}
@@ -131,14 +142,22 @@ func Initialize(ctx context.Context, c *sql.Conn, id Identity) error {
 	if _, err := c.ExecContext(ctx, "INSERT INTO policy(incarnation) VALUES(?)", id.Incarnation); err != nil {
 		return err
 	}
-	_, err := c.ExecContext(ctx, fmt.Sprintf("PRAGMA application_id=%d; PRAGMA user_version=%d", ApplicationID, Version))
+	if workflow != nil {
+		if _, err = c.ExecContext(ctx, "INSERT INTO workflow_definition(incarnation,workflow_id,revision,definition) VALUES(?,?,?,?)", id.Incarnation, workflow.WorkflowID, workflow.Revision, string(definition)); err != nil {
+			return err
+		}
+	}
+	_, err = c.ExecContext(ctx, fmt.Sprintf("PRAGMA application_id=%d; PRAGMA user_version=%d", ApplicationID, Version))
 	return err
 }
 
 // Validate checks the exact layout as well as stored constraints. It never writes,
 // repairs, migrates, deletes unknown objects, or changes journal mode.
 func Validate(ctx context.Context, c *sql.Conn, id Identity) error {
-	return validateLayout(ctx, c, id, Version, Statements(), consistencyChecks, true)
+	if err := validateLayout(ctx, c, id, Version, Statements(), consistencyChecks, true); err != nil {
+		return err
+	}
+	return validateWorkflow(ctx, c, id)
 }
 
 // ValidateV5 is the immutable accepted V2 baseline validator; no startup path calls it.
@@ -150,6 +169,12 @@ func ValidateV5(ctx context.Context, c *sql.Conn, id Identity) error {
 func ValidateV6(ctx context.Context, c *sql.Conn, id Identity) error {
 	return validateLayout(ctx, c, id, 6, StatementsV6(), consistencyChecksV6, true)
 }
+
+// ValidateV7 preserves the accepted physical-seven source independently.
+func ValidateV7(ctx context.Context, c *sql.Conn, id Identity) error {
+	return validateLayout(ctx, c, id, 7, StatementsV7(), consistencyChecksV7, true)
+}
+
 func validateLayout(ctx context.Context, c *sql.Conn, id Identity, version int, statements []string, checks []string, forest bool) error {
 	if !ValidUUID(id.BoardID) || !ValidUUID(id.Incarnation) {
 		return errors.New("invalid storage identity")
@@ -249,6 +274,9 @@ func validateLayout(ctx context.Context, c *sql.Conn, id Identity, version int, 
 	if forest {
 		if version == 6 {
 			return validateHierarchyV6(ctx, c, id)
+		}
+		if version == 7 {
+			return validateHierarchyV7(ctx, c, id)
 		}
 		return validateHierarchy(ctx, c, id)
 	}

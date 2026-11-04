@@ -10,7 +10,7 @@ import (
 	"github.com/localswim/localswim/internal/contract"
 )
 
-var models = []any{Identity{}, CardRef{}, Retention{}, Floors{}, Coverage{}, Gap{}, GapSelection{}, Entry{}, ByteFact{}, Lineage{}, Manifest{}, Actor{}, Card{}, Comment{}, Link{}, Attachment{}, Approval{}, EntityTombstone{}, Board{}, SnapshotState{}, SnapshotReferences{}, Removal{}, Snapshot{}, History{}, FactRef{}, Event{}, Activity{}, Target{}, FullOutcome{}, Operation{}, SourceArchive{}, Outcomes{}, HistoryKey{}, ActivityKey{}, OutcomeKey{}, PreviewCounts{}, PreviewBytes{}, PreviewInventory{}, PreviewRequest{}, Preview{}, Confirmation{}, TargetInventory{}, Receipt{}, RestoreResult{}, Status{}}
+var models = []any{Workflow{}, WorkflowLane{}, WorkflowTransition{}, WorkflowActorRights{}, Identity{}, CardRef{}, Retention{}, Floors{}, Coverage{}, Gap{}, GapSelection{}, Entry{}, ByteFact{}, Lineage{}, Manifest{}, Actor{}, Card{}, Comment{}, Link{}, Attachment{}, Approval{}, EntityTombstone{}, Board{}, SnapshotState{}, SnapshotReferences{}, Removal{}, Snapshot{}, History{}, FactRef{}, Event{}, Activity{}, Target{}, FullOutcome{}, Operation{}, SourceArchive{}, Outcomes{}, HistoryKey{}, ActivityKey{}, OutcomeKey{}, PreviewCounts{}, PreviewBytes{}, PreviewInventory{}, PreviewRequest{}, Preview{}, Confirmation{}, TargetInventory{}, Receipt{}, RestoreResult{}, Status{}}
 
 // GeneratedFiles has no filesystem effects. Callers aggregate these disjoint
 // paths with the C01 bundle in the common contractgen command.
@@ -70,13 +70,18 @@ func schemaType(t reflect.Type, inline bool, format string) map[string]any {
 			if name := rawName(t, f); name != "" {
 				p[n] = map[string]any{"$ref": "#/$defs/" + name}
 			} else {
-				p[n] = schemaType(f.Type, false, f.Tag.Get("validate"))
+				typ := f.Type
+				if n == "workflow" && typ.Kind() == reflect.Pointer {
+					typ = typ.Elem()
+				}
+				p[n] = schemaType(typ, false, f.Tag.Get("validate"))
 			}
 			if !optionalField(f) {
 				r = append(r, n)
 			}
 		}
 		m = map[string]any{"type": "object", "properties": p, "required": r, "additionalProperties": false}
+		workflowSchema(t, p, m)
 		if t == reflect.TypeFor[Preview]() || t == reflect.TypeFor[PreviewRequest]() || t == reflect.TypeFor[Confirmation]() {
 			m["allOf"] = []any{map[string]any{"if": map[string]any{"properties": map[string]any{"command": map[string]any{"const": "history.clear"}}}, "then": map[string]any{"properties": map[string]any{"input": map[string]any{"$ref": "#/$defs/ClearInput"}}}, "else": map[string]any{"properties": map[string]any{"input": map[string]any{"$ref": "#/$defs/Retention"}}}}}
 		}
@@ -120,6 +125,8 @@ func scalarSchema(t reflect.Type, format string) map[string]any {
 		m["enum"] = e
 	}
 	switch t.Name() {
+	case "Lane":
+		return map[string]any{"anyOf": []any{map[string]any{"enum": []string{"Ready for Work", "In Progress", "Ready for Review", "Completed"}}, scalarSchema(reflect.TypeFor[UUID](), "")}}
 	case "UUID":
 		m["pattern"] = uuidRE.String()
 		m["not"] = map[string]any{"const": "00000000-0000-0000-0000-000000000000"}
@@ -166,7 +173,11 @@ func tsType(t reflect.Type, inline bool) string {
 		var b strings.Builder
 		b.WriteString("{\n")
 		for _, f := range fields(t) {
-			fieldType := tsType(f.Type, false)
+			typ := f.Type
+			if fieldName(f) == "workflow" && typ.Kind() == reflect.Pointer {
+				typ = typ.Elem()
+			}
+			fieldType := tsType(typ, false)
 			if name := rawName(t, f); name != "" {
 				fieldType = name
 			}

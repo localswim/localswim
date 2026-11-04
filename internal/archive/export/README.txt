@@ -12,6 +12,10 @@ that reader before board content is projected. All metadata, current references,
 full/removed history, retained activity, compact/full terminal operations, source
 archives, lineage and protected BLOB bytes come from the same pinned revision.
 Current grants, sessions, credentials and machine paths never become archive rows.
+Configured boards include the complete immutable workflow from that same reader:
+workflow/lane UUIDs, revision, ordered labels/roles, edges and rights ceilings.
+The stored definition is bounded, strictly decoded and checked against its row
+metadata and canonical bytes. Default boards omit the workflow field entirely.
 Source groups are the sorted identity union of explicit source_archive_group
 rows and noncurrent operation origins. Empty declared groups survive independently
 of lineage; lineage alone never invents a group. Complete coverage-gap tuples,

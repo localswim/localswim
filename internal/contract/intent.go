@@ -102,7 +102,7 @@ func Freeze(wire []byte, route ResolvedRoute, actor AuthenticatedActor) (Intent,
 // the original intent. Canonical and archive refreeze must use the same rule.
 func PreservesInputOmission(field string) bool {
 	switch field {
-	case "ownerId", "archived", "parent", "relationships", "target", "targetCardId":
+	case "ownerId", "archived", "parent", "relationships", "target", "targetCardId", "laneId":
 		return true
 	}
 	return false

@@ -11,6 +11,7 @@ import (
 
 	"github.com/localswim/localswim/internal/board/cards"
 	"github.com/localswim/localswim/internal/board/grants"
+	"github.com/localswim/localswim/internal/board/policy"
 	"github.com/localswim/localswim/internal/board/relationships"
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
@@ -89,20 +90,43 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 		if d, err := s.grants.Admit(ctx, r, i); d != nil || err != nil {
 			return d, err
 		}
-		var lane string
-		if err := r.Scan("SELECT lane FROM card WHERE incarnation=? AND card_id=?", []any{e.Incarnation, route.CardID}, &lane); err != nil {
+		w, err := policy.Load(r, e.Incarnation)
+		if err != nil {
 			return nil, err
 		}
-		if lane == "Completed" {
+		var lane string
+		var archived int
+		if err := r.Scan("SELECT lane,archived FROM card WHERE incarnation=? AND card_id=?", []any{e.Incarnation, route.CardID}, &lane, &archived); err != nil {
+			return nil, err
+		}
+		if A.WorkflowRole(w, A.Lane(lane)) == "completed" {
 			return deny("COMPLETED"), nil
+		}
+		if e.Command == "review-handoff" || e.Command == "approve" {
+			// Preserve legacy archived behavior; configured transitions require an
+			// explicit unarchive before any workflow transition.
+			if w != nil && archived != 0 {
+				return deny("INVALID_TRANSITION"), nil
+			}
+			var kind string
+			if err := r.Scan("SELECT kind FROM actor WHERE incarnation=? AND actor_id=?", []any{e.Incarnation, e.ActorID}, &kind); err != nil {
+				return nil, err
+			}
+			role := "review"
+			if e.Command == "approve" {
+				role = "completed"
+			}
+			if !A.WorkflowAllows(w, A.Lane(lane), A.WorkflowLaneForRole(w, role), A.Kind(kind)) {
+				return deny("INVALID_TRANSITION"), nil
+			}
 		}
 		switch e.Command {
 		case "review-handoff":
-			if lane != "In Progress" {
+			if A.WorkflowRole(w, A.Lane(lane)) != "in_progress" {
 				return deny("INVALID_TRANSITION"), nil
 			}
 		case "approve":
-			if lane != "Ready for Review" {
+			if A.WorkflowRole(w, A.Lane(lane)) != "review" {
 				return deny("INVALID_TRANSITION"), nil
 			}
 			var kind string
@@ -167,6 +191,10 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 		if err != nil {
 			return writer.Effect{}, err
 		}
+		wf, err := policy.Load(w, e.Incarnation)
+		if err != nil {
+			return writer.Effect{}, err
+		}
 		o, err := outcome.Base(i)
 		if err != nil {
 			return writer.Effect{}, err
@@ -218,7 +246,7 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 			result["linkId"] = e.Payload.LinkID
 			refs = append(refs, A.FactRef{Kind: "link", ID: A.UUID(e.Payload.LinkID)})
 		case "review-handoff":
-			if err = exec("UPDATE card SET lane='Ready for Review' WHERE incarnation=? AND card_id=?", e.Incarnation, route.CardID); err != nil {
+			if err = exec("UPDATE card SET lane=? WHERE incarnation=? AND card_id=?", string(A.WorkflowLaneForRole(wf, "review")), e.Incarnation, route.CardID); err != nil {
 				return writer.Effect{}, err
 			}
 		case "approve":
@@ -232,7 +260,7 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 			if err = exec("INSERT INTO approval(incarnation,approval_id,card_id,actor_id,reviewed_card_revision,reviewed_board_revision,policy_version,created_at) VALUES(?,?,?,?,?,?,?,?)", e.Incarnation, id, route.CardID, e.ActorID, *e.ExpectedCardRevision, e.ExpectedRevision, e.Payload.PolicyVersion, string(at)); err != nil {
 				return writer.Effect{}, err
 			}
-			if err = exec("UPDATE card SET lane='Completed',current_approval_id=? WHERE incarnation=? AND card_id=?", id, e.Incarnation, route.CardID); err != nil {
+			if err = exec("UPDATE card SET lane=?,current_approval_id=? WHERE incarnation=? AND card_id=?", string(A.WorkflowLaneForRole(wf, "completed")), id, e.Incarnation, route.CardID); err != nil {
 				return writer.Effect{}, err
 			}
 			result["approvalId"] = id

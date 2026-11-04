@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/localswim/localswim/internal/board/policy"
 	"io"
 	"os"
 	"path/filepath"
@@ -299,6 +300,18 @@ func InspectBoard(ctx context.Context, dataDir string, expected *BoardIdentity) 
 	return inspectWorkspaceBoard(ctx, dataDir, expected, func(f *os.File) io.Closer { return f })
 }
 
+func InspectBoardDefinition(ctx context.Context, dataDir string, expected *BoardIdentity) (out BoardDefinition, err error) {
+	out.Identity, err = inspectWorkspaceBoardWithRead(ctx, dataDir, expected, func(f *os.File) io.Closer { return f }, func(rd S.InspectionRead, id identity) error {
+		var e error
+		out.Workflow, e = policy.Load(rd, id.Incarnation)
+		return e
+	})
+	if err != nil {
+		return BoardDefinition{}, err
+	}
+	return out, nil
+}
+
 type workspaceInspectionOwner struct {
 	root           *WorkspacePath
 	lock, identity io.Closer
@@ -333,6 +346,9 @@ func (o *workspaceInspectionOwner) Close() error {
 	return nil
 }
 func inspectWorkspaceBoard(ctx context.Context, dataDir string, expected *BoardIdentity, wrapIdentity func(*os.File) io.Closer) (out BoardIdentity, err error) {
+	return inspectWorkspaceBoardWithRead(ctx, dataDir, expected, wrapIdentity, nil)
+}
+func inspectWorkspaceBoardWithRead(ctx context.Context, dataDir string, expected *BoardIdentity, wrapIdentity func(*os.File) io.Closer, inspect func(S.InspectionRead, identity) error) (out BoardIdentity, err error) {
 	if ctx == nil || ctx.Err() != nil {
 		return out, ErrWorkspaceFiles
 	}
@@ -386,7 +402,12 @@ func inspectWorkspaceBoard(ctx context.Context, dataDir string, expected *BoardI
 	// InspectExisting owns its SELECT-only SQL/native cleanup under the accepted
 	// store contract. It exposes no retry handle; this seam does not extend that
 	// contract or claim custody of its hidden resources.
-	e = S.InspectExisting(ctx, boardDir, schema.Identity{BoardID: id.BoardID, Incarnation: id.Incarnation}, func(S.InspectionRead) error { return nil })
+	e = S.InspectExisting(ctx, boardDir, schema.Identity{BoardID: id.BoardID, Incarnation: id.Incarnation}, func(rd S.InspectionRead) error {
+		if inspect != nil {
+			return inspect(rd, id)
+		}
+		return nil
+	})
 	if e != nil {
 		return BoardIdentity{}, ErrWorkspaceFiles
 	}

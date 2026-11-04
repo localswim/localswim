@@ -23,6 +23,14 @@ func cardSearchQuery(q CardSearchQuery) error {
 }
 
 func cardSearchView(v CardSearchView) error {
+	if err := A.ValidateWorkflow(v.Workflow); err != nil {
+		return err
+	}
+	if v.Query.Lane != nil {
+		if err := A.ValidateWorkflowLanes(v.Workflow, *v.Query.Lane); err != nil {
+			return err
+		}
+	}
 	if len(v.Items) > 20 || (v.Revision == 0 && len(v.Items) != 0) {
 		return fmt.Errorf("invalid card summary page")
 	}
@@ -31,6 +39,9 @@ func cardSearchView(v CardSearchView) error {
 	}
 	seenIDs, seenTickets := map[A.UUID]bool{}, map[A.Positive]bool{}
 	for i, row := range v.Items {
+		if err := A.ValidateWorkflowLanes(v.Workflow, row.Lane); err != nil {
+			return err
+		}
 		if seenIDs[row.CardID] || seenTickets[row.Ticket] {
 			return fmt.Errorf("duplicate card summary")
 		}

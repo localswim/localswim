@@ -11,7 +11,7 @@ import (
 	A "github.com/localswim/localswim/internal/contract/archive"
 )
 
-var models = []any{Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardSearchRead{}, CardSearchView{}, CardSearchQuery{}, CardSummary{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}, CatalogCount{}, CatalogAttention{}, CatalogActivity{}, WorkspaceCatalogEntry{}, WorkspaceCatalog{}, WorkspacePinReference{}, WorkspacePreferences{}, WorkspacePreferencesRequest{}, WorkspacePreferencesError{}}
+var models = []any{Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardSearchRead{}, CardSearchView{}, CardSearchQuery{}, CardSummary{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, ConfiguredWorkspaceBoardRequest{}, ConfiguredWorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}, CatalogCount{}, CatalogAttention{}, CatalogActivity{}, WorkspaceCatalogEntry{}, WorkspaceCatalog{}, WorkspacePinReference{}, WorkspacePreferences{}, WorkspacePreferencesRequest{}, WorkspacePreferencesError{}}
 
 // GeneratedFiles is pure and returns disjoint paths for the common generator.
 // Shared D02 rows reference the C03 artifact; command results reference C01.
@@ -102,7 +102,7 @@ func schema(t reflect.Type, inline bool) map[string]any {
 		for _, f := range fields(t) {
 			n := fieldName(f)
 			typ := f.Type
-			optional := t == reflect.TypeFor[NonterminalRefusal]() && f.Name == "OpID"
+			optional := strings.Contains(f.Tag.Get("json"), ",omitempty")
 			if optional {
 				typ = typ.Elem()
 			} else {
@@ -171,6 +171,8 @@ func schema(t reflect.Type, inline bool) map[string]any {
 		case "WorkspacePath":
 			m["minLength"] = 1
 			m["maxLength"] = 180
+		case "Lane":
+			return map[string]any{"anyOf": []any{map[string]any{"enum": []string{"Ready for Work", "In Progress", "Ready for Review", "Completed"}}, schema(reflect.TypeFor[A.UUID](), false)}}
 		case "UUID":
 			m["pattern"] = `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`
 			m["not"] = map[string]any{"const": "00000000-0000-0000-0000-000000000000"}
@@ -237,7 +239,7 @@ func typescript(t reflect.Type, inline bool) string {
 			name := fieldName(f)
 			typ := f.Type
 			optional := ""
-			if t == reflect.TypeFor[NonterminalRefusal]() && f.Name == "OpID" {
+			if strings.Contains(f.Tag.Get("json"), ",omitempty") {
 				optional = "?"
 				typ = typ.Elem()
 			}

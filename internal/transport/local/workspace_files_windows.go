@@ -30,6 +30,26 @@ func workspacePath(path string, create, private, exclusiveCreate bool) (*Workspa
 	return workspacePathWithAncestor(path, create, private, exclusiveCreate, nil)
 }
 func workspacePathWithAncestor(path string, create, private, exclusiveCreate bool, ancestor *WorkspacePath) (*WorkspacePath, error) {
+	return workspacePathWithCreator(path, create, private, exclusiveCreate, ancestor, windows.CreateDirectory)
+}
+
+// createInitializationRoot holds the full guarded ancestor/leaf chain after an
+// atomic CREATE_NEW-style directory operation. A failure before that operation
+// succeeds is a definite no-allocation refusal; later failures remain uncertain.
+func createInitializationRoot(path string) (*WorkspacePath, error) {
+	created := false
+	g, err := workspacePathWithCreator(path, true, true, true, nil, func(p *uint16, attributes *windows.SecurityAttributes) error {
+		err := windows.CreateDirectory(p, attributes)
+		created = err == nil
+		return err
+	})
+	if err != nil && !created {
+		err = errors.Join(ErrInitializationRefused, err)
+	}
+	return g, err
+}
+
+func workspacePathWithCreator(path string, create, private, exclusiveCreate bool, ancestor *WorkspacePath, createDirectory func(*uint16, *windows.SecurityAttributes) error) (*WorkspacePath, error) {
 	if !workspaceSafeDir(path) {
 		return nil, ErrWorkspaceFiles
 	}
@@ -69,7 +89,7 @@ func workspacePathWithAncestor(path string, create, private, exclusiveCreate boo
 			if e != nil {
 				return fail(ErrWorkspaceFiles)
 			}
-			e = windows.CreateDirectory(p, sa)
+			e = createDirectory(p, sa)
 			if e != nil && (exclusiveCreate || !errors.Is(e, windows.ERROR_ALREADY_EXISTS)) {
 				return fail(workspaceNativeError(e))
 			}

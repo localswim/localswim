@@ -16,7 +16,6 @@ import (
 
 var enums = map[string][]string{
 	"CardSearchScope": {"card-search"}, "CardArchiveMode": {"active", "archived", "all"},
-	"Lane":                      {"Ready for Work", "In Progress", "Ready for Review", "Completed"},
 	"Priority":                  {"P0", "P1", "P2", "P3", "P4", "P5"},
 	"WorkspacePreferenceAction": {"pin", "unpin", "reorder"},
 	"CatalogFreshness":          {"fresh", "stale", "never"}, "CatalogFactState": {"known", "stale", "unknown", "not_configured"},
@@ -198,6 +197,10 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case WorkspaceBoardRequest:
+		if x.Workflow != nil && x.Action != "create" {
+			return fmt.Errorf("workflow requires new board")
+		}
 	case CardSearchView:
 		if e := cardSearchView(x); e != nil {
 			return e
@@ -351,6 +354,12 @@ func walk(v reflect.Value) error {
 			return fmt.Errorf("export source facts")
 		}
 	case BoardView:
+		if err := A.ValidateWorkflowFacts(x.Workflow, x.Cards, nil, x.Actors, x.Approvals); err != nil {
+			return err
+		}
+		if e := validateReadWorkflow(x.Workflow, x.Cards, nil); e != nil {
+			return e
+		}
 		if e := boardLinkTargets(x.Identity, x.Cards, x.Links); e != nil {
 			return e
 		}
@@ -364,6 +373,12 @@ func walk(v reflect.Value) error {
 			return e
 		}
 	case CardView:
+		if err := A.ValidateWorkflowFacts(x.Workflow, []A.Card{x.Card}, nil, x.Actors, x.Approvals); err != nil {
+			return err
+		}
+		if e := validateReadWorkflow(x.Workflow, []A.Card{x.Card}, nil); e != nil {
+			return e
+		}
 		if e := readCoverage(x.Identity, x.Coverage); e != nil {
 			return e
 		}
@@ -382,6 +397,12 @@ func walk(v reflect.Value) error {
 			prior = k
 		}
 	case HistoryView:
+		if err := A.ValidateWorkflowFacts(x.Workflow, nil, x.Records, x.Actors, x.Approvals); err != nil {
+			return err
+		}
+		if e := validateReadWorkflow(x.Workflow, nil, x.Records); e != nil {
+			return e
+		}
 		if e := readCoverage(x.Identity, x.Coverage); e != nil {
 			return e
 		}
@@ -504,6 +525,25 @@ func terminal(x Terminal) error {
 			json.Unmarshal(raw, &n)
 			if x.Revision == nil || n != *x.Revision {
 				return fmt.Errorf("coverage revision binding")
+			}
+		}
+	}
+	return nil
+}
+
+func validateReadWorkflow(w *A.Workflow, cards []A.Card, records []A.Snapshot) error {
+	if err := A.ValidateWorkflow(w); err != nil {
+		return err
+	}
+	for _, card := range cards {
+		if err := A.ValidateWorkflowLanes(w, card.Lane); err != nil {
+			return err
+		}
+	}
+	for _, record := range records {
+		if record.State != nil {
+			if err := A.ValidateWorkflowLanes(w, record.State.Lane); err != nil {
+				return err
 			}
 		}
 	}

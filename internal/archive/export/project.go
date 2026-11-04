@@ -1,6 +1,7 @@
 package export
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 
@@ -91,6 +92,10 @@ func project(r writer.Read, id A.Identity, revision A.Number) (b A.Board, h A.Hi
 	b.Coverage.ActivityFloor = stampPtr(af)
 	b.Coverage.OutcomePayloadFloor = stampPtr(of)
 	budget := projectionBudget{}
+	b.Workflow, err = projectWorkflow(r, id, &budget)
+	if err != nil {
+		return
+	}
 	b.Coverage.Gaps, err = collection[A.Gap](r, &budget, "SELECT json_object('origin',"+origin("")+",'class',class,'reason',reason,'fromExclusive',from_exclusive,'throughInclusive',through_inclusive,'recordedAt',recorded_at,'boardRevision',board_revision) value FROM coverage_gap ORDER BY origin_board,origin_incarnation,class,coalesce(from_exclusive,''),through_inclusive,reason,board_revision,recorded_at")
 	if err != nil {
 		return
@@ -166,6 +171,42 @@ func project(r writer.Read, id A.Identity, revision A.Number) (b A.Board, h A.Hi
 	budget.document = 0
 	lineage, err = collection[A.Lineage](r, &budget, "SELECT json_object('identity',json_object('boardId',source_board,'incarnation',source_incarnation),'manifestSha256',manifest_sha256,'revision',revision) value FROM lineage ORDER BY source_board,source_incarnation,manifest_sha256,revision")
 	return
+}
+
+// Keep the optional definition in the same pinned reader as every card and
+// historical state. Absence is the legacy profile, never a synthesized policy.
+func projectWorkflow(r writer.Read, id A.Identity, budget *projectionBudget) (*A.Workflow, error) {
+	var count int
+	if err := r.Scan("SELECT count(*) FROM workflow_definition", nil, &count); err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		return nil, nil
+	}
+	if count != 1 {
+		return nil, fmt.Errorf("invalid workflow row count")
+	}
+	var workflowID A.UUID
+	var revision A.Number
+	var n int64
+	var raw sql.NullString
+	if err := r.Scan("SELECT workflow_id,revision,length(CAST(definition AS BLOB)),CASE WHEN length(CAST(definition AS BLOB))<=65536 THEN definition END FROM workflow_definition WHERE incarnation=?", []any{id.Incarnation}, &workflowID, &revision, &n, &raw); err != nil {
+		return nil, err
+	}
+	if n < 0 || n > 65536 || !raw.Valid || n > int64(MaxJSONBytes-budget.document) || n > int64(MaxJSONTotalBytes-budget.total) {
+		return nil, ErrLimit
+	}
+	w, err := A.Decode[A.Workflow]([]byte(raw.String))
+	if err != nil {
+		return nil, err
+	}
+	canonical, err := A.WorkflowBytes(&w)
+	if err != nil || w.WorkflowID != workflowID || A.Number(w.Revision) != revision || !bytes.Equal(canonical, []byte(raw.String)) {
+		return nil, fmt.Errorf("invalid stored workflow definition")
+	}
+	budget.document += int(n)
+	budget.total += int(n)
+	return &w, nil
 }
 
 const operationQuery = `SELECT json_object(

@@ -118,6 +118,9 @@
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
+        },
+        "workflow": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
         }
       },
       "required": [
@@ -176,13 +179,23 @@
         "lane": {
           "anyOf": [
             {
-              "enum": [
-                "Ready for Work",
-                "In Progress",
-                "Ready for Review",
-                "Completed"
-              ],
-              "type": "string"
+              "anyOf": [
+                {
+                  "enum": [
+                    "Ready for Work",
+                    "In Progress",
+                    "Ready for Review",
+                    "Completed"
+                  ]
+                },
+                {
+                  "not": {
+                    "const": "00000000-0000-0000-0000-000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "type": "string"
+                }
+              ]
             },
             {
               "type": "null"
@@ -297,6 +310,9 @@
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
+        },
+        "workflow": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
         }
       },
       "required": [
@@ -322,13 +338,23 @@
           "type": "string"
         },
         "lane": {
-          "enum": [
-            "Ready for Work",
-            "In Progress",
-            "Ready for Review",
-            "Completed"
-          ],
-          "type": "string"
+          "anyOf": [
+            {
+              "enum": [
+                "Ready for Work",
+                "In Progress",
+                "Ready for Review",
+                "Completed"
+              ]
+            },
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          ]
         },
         "ownerId": {
           "anyOf": [
@@ -436,6 +462,9 @@
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
+        },
+        "workflow": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
         }
       },
       "required": [
@@ -744,6 +773,97 @@
         "incarnation",
         "installationId",
         "issuedAt"
+      ],
+      "type": "object"
+    },
+    "ConfiguredWorkspaceBoardRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "expectedConfigRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "projectKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "workflow": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
+        },
+        "workspaceId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "boardKey",
+        "expectedConfigRevision",
+        "label",
+        "projectKey",
+        "workflow",
+        "workspaceId"
+      ],
+      "type": "object"
+    },
+    "ConfiguredWorkspaceStatusRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "expectedIdentity": {
+          "$ref": "#/$defs/WorkspaceIdentity"
+        },
+        "projectKey": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "workflow": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
+        },
+        "workspaceId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "boardKey",
+        "projectKey",
+        "workflow",
+        "workspaceId"
       ],
       "type": "object"
     },
@@ -1993,6 +2113,9 @@
             "$ref": "../archive/contracts.schema.json#/$defs/EntityTombstone"
           },
           "type": "array"
+        },
+        "workflow": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
         }
       },
       "required": [
@@ -10412,6 +10535,9 @@
           "minLength": 1,
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
           "type": "string"
+        },
+        "workflow": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
         }
       },
       "required": [

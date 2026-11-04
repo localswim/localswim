@@ -1,6 +1,6 @@
 package schema
 
-// Current physical-seven DDL. Older layouts have independent frozen manifests.
+// Current physical-eight DDL. Older layouts have independent frozen manifests.
 // Registry rows preserve typed entity existence after authorized compaction.
 // A tombstone is never made merely to satisfy an attempted refused reference.
 const ddl = `CREATE TABLE board (
@@ -79,7 +79,7 @@ CREATE TABLE card (
  revision INTEGER NOT NULL CHECK({{p:revision}}), title TEXT NOT NULL CHECK({{l:title}} BETWEEN 1 AND 200),
  description TEXT NOT NULL CHECK(length(CAST(description AS BLOB))<=65536),
  priority TEXT NOT NULL DEFAULT 'P3' CHECK(priority IN ('P0','P1','P2','P3','P4','P5')),
- lane TEXT NOT NULL DEFAULT 'Ready for Work' CHECK(lane IN ('Ready for Work','In Progress','Ready for Review','Completed')),
+ lane TEXT NOT NULL DEFAULT 'Ready for Work' CHECK(lane IN ('Ready for Work','In Progress','Ready for Review','Completed') OR {{u:lane}}),
  archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)), current_approval_id TEXT,
  owner_id TEXT CHECK(owner_id IS NULL OR {{u:owner_id}}),
  approval_kind TEXT NOT NULL DEFAULT 'approval' CHECK(approval_kind='approval'),

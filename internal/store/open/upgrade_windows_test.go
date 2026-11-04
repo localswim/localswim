@@ -114,6 +114,13 @@ func TestHierarchyUpgradeRollbackConservationAndUnknown(t *testing.T) {
 	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 6, 7); e != nil || !changed {
 		t.Fatal(e)
 	}
+	if old, e := Existing(ctx(t), p, identity); e == nil {
+		old.Close()
+		t.Fatal("startup accepted frozen7 without upgrade")
+	}
+	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 7, 8); e != nil || !changed {
+		t.Fatal("explicit7->8", e)
+	}
 	s, e := Existing(ctx(t), p, identity)
 	if e != nil {
 		t.Fatal(e)

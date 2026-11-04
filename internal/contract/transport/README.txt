@@ -101,3 +101,11 @@ implementation/qualification gates. Consumer code must use the D03 refinements
 for exact public requests rather than treating C01's earlier foundation request
 declarations as the complete accepted D03 wire surface. This milestone alone
 qualifies neither authentication nor any native/HTTP/product acceptance scenario.
+
+M06 configured context
+BoardView, CardView, HistoryView and CardSearchView carry the same optional full
+workflow in their identity/revision result. Default reads omit it; configured
+reads validate every current, retained and query lane against that definition.
+ConfiguredWorkspaceBoardRequest and ConfiguredWorkspaceStatusRequest contain
+only accepted browser setup fields. Workflow and workspaceId are required; the
+status expectedIdentity is omission-preserved and cannot be explicit null.

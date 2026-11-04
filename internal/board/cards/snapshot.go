@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/localswim/localswim/internal/board/policy"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	"github.com/localswim/localswim/internal/store/writer"
 )
@@ -32,10 +33,24 @@ func loadSnapshot(r writer.Read, e envelope, id string) (A.SnapshotState, error)
 		a := A.UUID(approval.String)
 		s.CurrentApprovalID = &a
 	}
-	return s, err
+	if err != nil {
+		return s, err
+	}
+	wf, err := policy.Load(r, e.Incarnation)
+	if err != nil {
+		return s, err
+	}
+	return s, A.ValidateWorkflowLanes(wf, s.Lane)
 }
 
 func writeSnapshot(w writer.Write, e envelope, id string, revision A.Positive, s A.SnapshotState) error {
+	wf, err := policy.Load(w, e.Incarnation)
+	if err != nil {
+		return err
+	}
+	if err = A.ValidateWorkflowLanes(wf, s.Lane); err != nil {
+		return err
+	}
 	// Retained operation metadata survives payload pruning and restore. It is
 	// historical provenance only; current authority still comes from G01.
 	rows, err := w.Query(`SELECT o.origin_board,o.origin_incarnation,o.actor_id,o.terminal_at FROM operation o JOIN operation_reference r USING(incarnation,origin_board,origin_incarnation,op_id) WHERE o.incarnation=? AND o.terminal_class='COMMITTED' AND o.committed_card_revision=? AND r.kind='card' AND r.entity_id=? AND r.revision=?`, e.Incarnation, uint64(revision), id, uint64(revision))

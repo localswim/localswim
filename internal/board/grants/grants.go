@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/localswim/localswim/internal/board/policy"
 	"github.com/localswim/localswim/internal/contract"
 	T "github.com/localswim/localswim/internal/contract/transport"
 	"github.com/localswim/localswim/internal/store/schema"
@@ -147,6 +148,10 @@ func (s *Service) Require(ctx context.Context, r writer.Read, board, inc, actor 
 	if err != nil || p.credential.Mode == "native-owner" || !has(p, rights...) {
 		return ErrDenied
 	}
+	w, err := policy.Load(r, inc)
+	if err != nil || !policy.AllowsRights(w, p.kind, rights...) {
+		return ErrDenied
+	}
 	return nil
 }
 
@@ -177,8 +182,11 @@ func (s *Service) Authority(ctx context.Context, r writer.Read, req writer.Autho
 		}
 		return nil
 	}
-	if purpose == writer.OwnOutcome && !has(p, "read-own-outcome") {
-		return ErrDenied
+	if purpose == writer.OwnOutcome {
+		w, err := policy.Load(r, req.Identity.Incarnation)
+		if err != nil || !has(p, "read-own-outcome") || !policy.AllowsRights(w, p.kind, "read-own-outcome") {
+			return ErrDenied
+		}
 	}
 	return nil
 }

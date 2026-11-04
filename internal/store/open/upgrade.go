@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	A "github.com/localswim/localswim/internal/contract/archive"
 	"github.com/localswim/localswim/internal/store/schema"
 	"time"
 )
@@ -14,11 +15,12 @@ import (
 var ErrUpgradeUnknown = errors.New("storage upgrade outcome unknown; inspect deliberately")
 
 type StorageInspection struct {
-	PhysicalVersion   int    `json:"physicalVersion"`
-	BaseSchemaVersion int    `json:"baseSchemaVersion"`
-	BoardID           string `json:"boardId"`
-	Incarnation       string `json:"incarnation"`
-	Valid             bool   `json:"valid"`
+	PhysicalVersion   int         `json:"physicalVersion"`
+	BaseSchemaVersion int         `json:"baseSchemaVersion"`
+	BoardID           string      `json:"boardId"`
+	Incarnation       string      `json:"incarnation"`
+	Valid             bool        `json:"valid"`
+	Workflow          *A.Workflow `json:"workflow,omitempty"`
 }
 
 func validateSupported(ctx context.Context, c *sql.Conn, id schema.Identity) error {
@@ -32,12 +34,14 @@ func validateSupported(ctx context.Context, c *sql.Conn, id schema.Identity) err
 	case 6:
 		return schema.ValidateV6(ctx, c, id)
 	case 7:
+		return schema.ValidateV7(ctx, c, id)
+	case 8:
 		return schema.Validate(ctx, c, id)
 	}
 	return errors.New("unsupported physical layout")
 }
 
-// InspectStorage is existing-only and accepts exactly the independently frozen5/6 or current7 layout.
+// InspectStorage is existing-only and accepts exactly the independently frozen5/6/7 or current8 layout.
 func InspectStorage(ctx context.Context, dir string, id schema.Identity) (out StorageInspection, err error) {
 	out.BoardID = id.BoardID
 	out.Incarnation = id.Incarnation
@@ -47,7 +51,15 @@ func InspectStorage(ctx context.Context, dir string, id schema.Identity) (out St
 		if err := validateSupported(ctx, c, id); err != nil {
 			return err
 		}
-		return c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&out.PhysicalVersion)
+		if err := c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&out.PhysicalVersion); err != nil {
+			return err
+		}
+		if out.PhysicalVersion == schema.Version {
+			var err error
+			out.Workflow, err = schema.ReadWorkflow(ctx, c, id)
+			return err
+		}
+		return nil
 	})
 	out.Valid = err == nil
 	return
@@ -67,7 +79,9 @@ func UpgradeStorageTo(ctx context.Context, dir string, id schema.Identity, from,
 	}
 	return upgradeStorageStep(ctx, dir, id, from, to, nil)
 }
-func supportedStep(from, to int) bool { return from == 5 && to == 6 || from == 6 && to == 7 }
+func supportedStep(from, to int) bool {
+	return from == 5 && to == 6 || from == 6 && to == 7 || from == 7 && to == 8
+}
 
 // fault is a private deterministic test seam; a failure at committed means reply
 // loss and is UNKNOWN even though COMMIT succeeded.
@@ -183,7 +197,11 @@ func upgradeStorageStep(ctx context.Context, dir string, id schema.Identity, fro
 				return false, err
 			}
 		}
-	} else if err = rebuildLinks(ctx, c, inject); err != nil {
+	} else if from == 6 {
+		if err = rebuildLinks(ctx, c, inject); err != nil {
+			return false, err
+		}
+	} else if err = rebuildWorkflow(ctx, c, inject); err != nil {
 		return false, err
 	}
 	if err = inject("ddl"); err != nil {
@@ -200,7 +218,7 @@ func upgradeStorageStep(ctx context.Context, dir string, id schema.Identity, fro
 	}
 	// Recheck all conserved typed rows after candidate validation. The only added
 	// table in5->6 is empty;6->7 preserves the entire row stream including rowids.
-	conserved, e := recordsDigestExcept(ctx, c, from == 5)
+	conserved, e := recordsDigestExcluding(ctx, c, from == 5, from == 7)
 	if e != nil || conserved != before {
 		return false, errors.New("storage upgrade changed retained records")
 	}
@@ -254,6 +272,9 @@ func recordsDigest(ctx context.Context, c *sql.Conn) ([32]byte, error) {
 	return recordsDigestExcept(ctx, c, false)
 }
 func recordsDigestExcept(ctx context.Context, c *sql.Conn, emptyHierarchy bool) ([32]byte, error) {
+	return recordsDigestExcluding(ctx, c, emptyHierarchy, false)
+}
+func recordsDigestExcluding(ctx context.Context, c *sql.Conn, emptyHierarchy, emptyWorkflow bool) ([32]byte, error) {
 	var zero [32]byte
 	rows, err := c.QueryContext(ctx, "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT GLOB 'sqlite_*' ORDER BY name")
 	if err != nil {
@@ -275,10 +296,10 @@ func recordsDigestExcept(ctx context.Context, c *sql.Conn, emptyHierarchy bool) 
 	}
 	h := sha256.New()
 	for _, table := range tables {
-		if emptyHierarchy && table == "card_parent" {
+		if emptyHierarchy && table == "card_parent" || emptyWorkflow && table == "workflow_definition" {
 			var count int
-			if err := c.QueryRowContext(ctx, "SELECT count(*) FROM card_parent").Scan(&count); err != nil || count != 0 {
-				return zero, errors.New("new hierarchy table is not empty")
+			if err := c.QueryRowContext(ctx, `SELECT count(*) FROM "`+table+`"`).Scan(&count); err != nil || count != 0 {
+				return zero, errors.New("new extension table is not empty")
 			}
 			continue
 		}
@@ -327,4 +348,42 @@ func recordsDigestExcept(ctx context.Context, c *sql.Conn, emptyHierarchy bool) 
 	var sum [32]byte
 	copy(sum[:], h.Sum(nil))
 	return sum, nil
+}
+
+// Rebuild only card for the widened scalar lane shape. Foreign keys remain ON;
+// deferral applies within this one transaction, with a full FK audit before
+// COMMIT. The stable name is restored before any committed state can be seen.
+func rebuildWorkflow(ctx context.Context, c *sql.Conn, inject func(string) error) error {
+	for _, q := range []string{
+		"PRAGMA defer_foreign_keys=ON",
+		"CREATE TEMP TABLE upgrade_card AS SELECT rowid AS original_rowid,* FROM card",
+		"DROP TABLE card",
+	} {
+		if _, err := c.ExecContext(ctx, q); err != nil {
+			return err
+		}
+	}
+	if err := inject("card-dropped"); err != nil {
+		return err
+	}
+	for _, q := range schema.CardStatements() {
+		if _, err := c.ExecContext(ctx, q); err != nil {
+			return err
+		}
+	}
+	if _, err := c.ExecContext(ctx, `INSERT INTO card(rowid,incarnation,card_id,kind,revision,title,description,priority,lane,archived,current_approval_id,owner_id,approval_kind) SELECT original_rowid,incarnation,card_id,kind,revision,title,description,priority,lane,archived,current_approval_id,owner_id,approval_kind FROM upgrade_card ORDER BY original_rowid`); err != nil {
+		return err
+	}
+	if err := inject("card-copied"); err != nil {
+		return err
+	}
+	if _, err := c.ExecContext(ctx, "DROP TABLE temp.upgrade_card"); err != nil {
+		return err
+	}
+	for _, q := range schema.WorkflowStatements() {
+		if _, err := c.ExecContext(ctx, q); err != nil {
+			return err
+		}
+	}
+	return nil
 }

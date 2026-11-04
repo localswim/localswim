@@ -13,6 +13,7 @@ import (
 
 	"github.com/localswim/localswim/internal/board/cards"
 	"github.com/localswim/localswim/internal/board/grants"
+	"github.com/localswim/localswim/internal/board/policy"
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
@@ -89,7 +90,11 @@ func (s *Service) Add(ctx context.Context, g *grants.Service, route Route, i con
 		if e := r.Scan("SELECT lane FROM card WHERE incarnation=? AND card_id=?", []any{route.Incarnation, route.CardID}, &lane); e != nil {
 			return nil, e
 		}
-		if lane == "Completed" {
+		wf, err := policy.Load(r, route.Incarnation)
+		if err != nil {
+			return nil, err
+		}
+		if A.WorkflowRole(wf, A.Lane(lane)) == "completed" {
 			return deny("COMPLETED"), nil
 		}
 		if e := r.Scan("SELECT next_event FROM board WHERE singleton=1", nil, &next); e != nil {

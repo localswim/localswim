@@ -16,6 +16,7 @@ func TestFrozenLayoutsRemainIndependent(t *testing.T) {
 	}{
 		{"five", frozenFive, "c861603906f958245553a543e2b34198a7bb73f8d9fb5fed165c9a8de0dbb9ec", StatementsV5},
 		{"six", frozenSix, "976025eb1565d378044ae8697a8eb45080fbaf6d290f5e74725c6357f40a9f68", StatementsV6},
+		{"seven", frozenSeven, "a544db45d15621ee1a2ff574d32f9713eeb2f66f9d8df7d0f4fbffd6d7d898c1", StatementsV7},
 	} {
 		t.Run(v.name, func(t *testing.T) {
 			if fmt.Sprintf("%x", sha256.Sum256(v.data)) != v.hash {
@@ -28,13 +29,13 @@ func TestFrozenLayoutsRemainIndependent(t *testing.T) {
 				t.Fatal("shared mutable statements")
 			}
 			for _, q := range original {
-				if strings.Contains(q, "'related'") {
+				if v.name != "seven" && strings.Contains(q, "'related'") {
 					t.Fatal("new kinds inherited by frozen source")
 				}
 			}
 		})
 	}
-	if Version != 7 || BaseSchemaVersion != 5 {
+	if Version != 8 || BaseSchemaVersion != 5 {
 		t.Fatal("version domains changed")
 	}
 	link := strings.Join(LinkStatements(), "\n")

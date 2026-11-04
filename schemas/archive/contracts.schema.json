@@ -282,6 +282,9 @@
             "$ref": "#/$defs/EntityTombstone"
           },
           "type": "array"
+        },
+        "workflow": {
+          "$ref": "#/$defs/Workflow"
         }
       },
       "required": [
@@ -381,13 +384,23 @@
           "x-max-utf8-bytes": 65536
         },
         "lane": {
-          "enum": [
-            "Ready for Work",
-            "In Progress",
-            "Ready for Review",
-            "Completed"
-          ],
-          "type": "string"
+          "anyOf": [
+            {
+              "enum": [
+                "Ready for Work",
+                "In Progress",
+                "Ready for Review",
+                "Completed"
+              ]
+            },
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          ]
         },
         "linkIds": {
           "items": {
@@ -1740,6 +1753,13 @@
                   "type": "null"
                 }
               ]
+            },
+            "laneId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
             },
             "ownerId": {
               "anyOf": [
@@ -3869,13 +3889,23 @@
           "x-max-utf8-bytes": 65536
         },
         "lane": {
-          "enum": [
-            "Ready for Work",
-            "In Progress",
-            "Ready for Review",
-            "Completed"
-          ],
-          "type": "string"
+          "anyOf": [
+            {
+              "enum": [
+                "Ready for Work",
+                "In Progress",
+                "Ready for Review",
+                "Completed"
+              ]
+            },
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          ]
         },
         "ownerId": {
           "anyOf": [
@@ -4055,6 +4085,171 @@
         "entryCount",
         "schemaVersion",
         "sha256"
+      ],
+      "type": "object"
+    },
+    "Workflow": {
+      "additionalProperties": false,
+      "properties": {
+        "actorRights": {
+          "$ref": "#/$defs/WorkflowActorRights"
+        },
+        "lanes": {
+          "items": {
+            "$ref": "#/$defs/WorkflowLane"
+          },
+          "maxItems": 16,
+          "minItems": 4,
+          "type": "array"
+        },
+        "revision": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "transitions": {
+          "items": {
+            "$ref": "#/$defs/WorkflowTransition"
+          },
+          "maxItems": 64,
+          "minItems": 3,
+          "type": "array",
+          "x-order": "strict (from,to) UUID ascending"
+        },
+        "workflowId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actorRights",
+        "lanes",
+        "revision",
+        "transitions",
+        "workflowId"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 65536
+    },
+    "WorkflowActorRights": {
+      "additionalProperties": false,
+      "properties": {
+        "automation": {
+          "items": {
+            "enum": [
+              "attach",
+              "comment",
+              "create",
+              "edit",
+              "export",
+              "read",
+              "read-own-outcome",
+              "review-handoff"
+            ]
+          },
+          "type": "array",
+          "uniqueItems": true,
+          "x-order": "ASCII ascending"
+        },
+        "human": {
+          "items": {
+            "enum": [
+              "approve",
+              "attach",
+              "comment",
+              "create",
+              "edit",
+              "export",
+              "read",
+              "read-own-outcome",
+              "review-handoff"
+            ]
+          },
+          "type": "array",
+          "uniqueItems": true,
+          "x-order": "ASCII ascending"
+        }
+      },
+      "required": [
+        "automation",
+        "human"
+      ],
+      "type": "object"
+    },
+    "WorkflowLane": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+          "type": "string",
+          "x-unique-labels": "Go strings.EqualFold",
+          "x-untrimmed": true
+        },
+        "role": {
+          "enum": [
+            "initial",
+            "in_progress",
+            "review",
+            "completed",
+            "waiting"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "role"
+      ],
+      "type": "object"
+    },
+    "WorkflowTransition": {
+      "additionalProperties": false,
+      "properties": {
+        "actors": {
+          "items": {
+            "enum": [
+              "automation",
+              "human"
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true,
+          "x-order": "ASCII ascending"
+        },
+        "from": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "to": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actors",
+        "from",
+        "to"
       ],
       "type": "object"
     }

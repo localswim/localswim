@@ -1,6 +1,8 @@
 package main
 
-const localDomainCLIHelp = `  localswim --data DIR [--json] board read
+const localDomainCLIHelp = `  localswim --data NEWDIR [--json] board init --workflow FILE
+  localswim --data DIR [--json] board inspect
+  localswim --data DIR [--json] board read
   localswim --data DIR [--json] card read CARD-UUID
   localswim --data DIR [--json] card history CARD-UUID
   localswim --data DIR [--json] card children CARD-UUID [--page N]
@@ -10,6 +12,7 @@ const localDomainCLIHelp = `  localswim --data DIR [--json] board read
   localswim --data DIR [--json] card set-parent|clear-parent CARD-UUID --input FILE
   localswim --data DIR [--json] card create --input FILE
   localswim --data DIR [--json] card edit CARD-UUID --input FILE
+  localswim --data DIR [--json] card move CARD-UUID --input FILE
   localswim --data DIR [--json] card archive|unarchive CARD-UUID --input FILE
   localswim --data DIR [--json] card list [--archive active|archived|all] [--cursor TOKEN]
   localswim --data DIR [--json] card search [--query TEXT] [--lane LANE] [--owner unassigned|UUID] [--priority Pn] [--archive active|archived|all] [--cursor TOKEN]
@@ -18,8 +21,11 @@ const localDomainCLIHelp = `  localswim --data DIR [--json] board read
   localswim --data DIR [--json] storage inspect --board-id BOARD-UUID --incarnation INC-UUID
   localswim --data DIR [--json] storage upgrade --from-version 5 --to-version 6 --board-id BOARD-UUID --incarnation INC-UUID
   localswim --data DIR [--json] storage upgrade --from-version 6 --to-version 7 --board-id BOARD-UUID --incarnation INC-UUID
+  localswim --data DIR [--json] storage upgrade --from-version 7 --to-version 8 --board-id BOARD-UUID --incarnation INC-UUID
 Use canonical card UUIDs from board read, never display ticket numbers.
 Archive aliases require the full card.edit request with only input.archived true/false.
+Move requires the full card.edit request with only input.laneId (a configured lane UUID).
+Workflow files are complete immutable definitions, valid only for new boards.
 List returns at most 20 cards and an explicit next cursor when more remain.
 --input - reads a typed mutation envelope from stdin. Rename uses card edit.
 Omitted edit fields retain values; ownerId:null clears owner. CLI cannot approve.
@@ -29,8 +35,8 @@ Relationships uses a complete snapshot: readable20rows/page, full JSON rejects -
 Replace owned relationships requires card.edit with only input.relationships array.
 Incoming facts retain their actual owner; open that owner to deliberately edit them.
 Storage inspect/upgrade are offline existing-only operations, never startup migration.
-Physical7 retains base-schema marker5; a5 store requires separate5->6 then6->7 steps.
-An uncertain upgrade needs deliberate inspection, never a direct5->7 attempt.
+Physical8 retains base-schema marker5; older stores require separate adjacent steps.
+An uncertain upgrade needs deliberate inspection, never a skipped-version attempt.
 Original lookup is deliberate and source-bound; never replay an uncertain save.
 Exits: 0 confirmed; 1 invocation/IO; 2 refused or definite noncommit;
        3 unavailable before dispatch; 4 original outcome unknown.

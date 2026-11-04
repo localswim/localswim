@@ -30,7 +30,7 @@ func boardAdvisory(b T.BoardView) string {
 		return r.BoardID == b.Identity.BoardID && r.Incarnation == b.Identity.Incarnation
 	}
 	satisfied := func(c A.Card) bool {
-		if c.Archived || c.Lane != "Completed" || c.CurrentApprovalID == nil || c.Revision < 2 {
+		if c.Archived || A.WorkflowRole(b.Workflow, c.Lane) != "completed" || c.CurrentApprovalID == nil || c.Revision < 2 {
 			return false
 		}
 		a, ok := approvals[*c.CurrentApprovalID]
@@ -54,7 +54,7 @@ func boardAdvisory(b T.BoardView) string {
 		if c.Archived {
 			continue
 		}
-		fmt.Fprintf(&out, "%s\n", advisoryCard(c))
+		fmt.Fprintf(&out, "%s\n", advisoryWorkflowCard(c, b.Workflow))
 		var pressure, prerequisites []string
 		seen := map[A.UUID]bool{}
 		allSatisfied := true
@@ -64,7 +64,7 @@ func boardAdvisory(b T.BoardView) string {
 			}
 			if current(l.Target) && l.Target.CardID == c.CardID && !seen[l.CardID] {
 				if dependent, ok := cards[l.CardID]; ok {
-					pressure = append(pressure, advisoryCard(dependent))
+					pressure = append(pressure, advisoryWorkflowCard(dependent, b.Workflow))
 					seen[l.CardID] = true
 				}
 			}
@@ -76,9 +76,9 @@ func boardAdvisory(b T.BoardView) string {
 				prerequisites = append(prerequisites, fmt.Sprintf("target %s/%s/%s — unavailable or foreign target (not satisfied)", l.Target.BoardID, l.Target.Incarnation, l.Target.CardID))
 				allSatisfied = false
 			} else if satisfied(target) {
-				prerequisites = append(prerequisites, advisoryCard(target)+" — satisfied")
+				prerequisites = append(prerequisites, advisoryWorkflowCard(target, b.Workflow)+" — satisfied")
 			} else {
-				prerequisites = append(prerequisites, advisoryCard(target)+" — awaiting human acceptance (not satisfied)")
+				prerequisites = append(prerequisites, advisoryWorkflowCard(target, b.Workflow)+" — awaiting human acceptance (not satisfied)")
 				allSatisfied = false
 			}
 		}
@@ -107,11 +107,14 @@ func writeAdvisoryRows(out *strings.Builder, label string, rows []string) {
 }
 
 func advisoryCard(c A.Card) string {
+	return advisoryWorkflowCard(c, nil)
+}
+func advisoryWorkflowCard(c A.Card, w *A.Workflow) string {
 	archived := ""
 	if c.Archived {
 		archived = "; archived"
 	}
-	return fmt.Sprintf("#%d %s (%s; %s%s)", c.Ticket, advisoryText(c.Title), c.Priority, c.Lane, archived)
+	return fmt.Sprintf("#%d %s (%s; %s%s)", c.Ticket, advisoryText(c.Title), c.Priority, laneText(w, c.Lane), archived)
 }
 
 // Keep accepted prose inert in terminals, including escape and bidi controls.

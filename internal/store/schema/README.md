@@ -1,7 +1,7 @@
-# Version-seven physical relational layout
+# Version-eight physical relational layout
 
-Version and PRAGMA user_version are7; retained board.schema_version stays5
-as the immutable base-schema discriminator, including fresh physical7 stores.
+Version and PRAGMA user_version are8; retained board.schema_version stays5
+as the immutable base-schema discriminator, including fresh physical8 stores.
 Validation checks both intended values and exact schema, not a header alone.
 
 Layout6 adds card_parent and its parent index without rebuilding base tables or
@@ -9,7 +9,7 @@ rewriting old rows. Roots have no edge; unique child/same-incarnation full-card
 foreign keys/self refusal protect adjacency. Go admission and full validation
 enforce acyclicity,64-edge/1,000-card family bounds (not total board-card limits).
 
-Ordinary open never migrates. Explicit offline exact5->6 then6->7 upgrades under existing-only
+Ordinary open never migrates. Explicit offline exact5->6 then6->7 then7->8 upgrades under existing-only
 native exclusion and one validated transaction preserves old rows/canonical bytes.
 Unknown layouts, corruption and dirty sidecars refuse without repair. API/archive/
 fingerprint versions stay1 with optional parent fields. See
@@ -142,9 +142,9 @@ It records responsibility only and grants no authority. Existing layout 4 is
 refused before any write; no migration or old fixture relabeling is supported.
 
 Physical7 expands only link kinds and an active unordered related-pair unique index.
-Frozen5 and frozen6 exact SQL manifests and independent consistency validators remain
+Frozen5, frozen6 and frozen7 exact SQL manifests and independent consistency validators remain
 available solely for deliberate offline inspection/adjacent upgrade. Current startup
-accepts7 only. Explicit5->6 and6->7 are separate guarded transactions; no startup
+accepts8 only. Explicit5->6,6->7 and7->8 are separate guarded transactions; no startup
 migration, direct5->7, graph normalization or original-outcome rewriting occurs.
 
 The unordered related index covers full local internal targets. Exact foreign and
@@ -152,3 +152,23 @@ historical unavailable endpoint pairs are already distinct under directed typed
 uniqueness; comparing only their card UUIDs would falsely conflate them. Current
 new-kind references additionally require a full Board.Identity local peer with an
 exact internal target. Historical-only evidence remains readable and conserved.
+
+Physical8 adds an optional immutable `workflow_definition` row and widens only
+`card.lane` to the legacy literals or the established UUID shape. The row records
+incarnation, workflow UUID, revision1 and canonical complete JSON. No row means
+the exact default profile; open never synthesizes a definition. Go validation
+checks the complete policy, current lane membership, configured snapshot states,
+ordinary grant ceilings and configured human approval evidence. SQL shape alone
+is not workflow membership or permission. Definition updates/deletes are refused.
+
+Explicit7->8 rebuilds only card with its exact guards and rowids, and adds an empty
+definition table. Foreign keys remain enabled; transaction-local deferral permits
+the stable table name to be rebuilt, followed by full integrity/FK/schema and
+complete typed-row conservation checks before COMMIT. No old row, JSON, original,
+blob, credential, approval, counter or historical provenance is rewritten.
+
+Accepted raw default storage snapshots may contain opaque legacy JSON without a
+lane; those bytes remain accepted and conserved. A present lane must be one of the
+four exact legacy values. Configured retained states require the complete strict
+SnapshotState and membership in that board's definition. Full archive/domain
+validation remains stricter than this legacy raw-storage compatibility seam.

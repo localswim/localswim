@@ -32,15 +32,17 @@ deactivates the immutable link identity and removes its current reference; prior
 snapshots and committed result references retain that identity. Adding a pair
 after removal allocates a fresh link, preserving the old link's provenance.
 
-Handoff only moves In Progress to Ready for Review and requires the
-review-handoff right. It creates no approval or approve right. Approval only
+Default handoff moves In Progress to Ready for Review and requires the
+review-handoff right. Configured handoff follows the in_progress -> review
+edge, requiring its current actor-kind permission and ordinary-right ceiling. It creates no approval or approve right. Approval only
 moves Ready for Review to Completed, requiring a current human actor,
 approve right and the current policy version. The approval fact binds the exact
 pre-approval board/card revisions; currentApproval points to that new fact while
 the card revision advances once. Other card mutations clear currentApproval and
 retain historical facts. Completed refuses all further mutation in this slice.
-These transitions preserve the archived flag; an archived Completed card still
-cannot satisfy a start prerequisite. There is no reopen, archive, assignment or
+Default transitions preserve the existing archived behavior. Configured
+transitions require an unarchived source. An archived completed-role card never
+satisfies a start prerequisite. There is no reopen, archive, assignment or
 priority propagation command here.
 
 Every successful command advances only the owner card once, and creates one
@@ -56,3 +58,10 @@ They require S01_TEST_ROOT outside the public repository and use a test-only liv
 snapshot verifier. They do not qualify production credentials, browser/HTTP/CLI
 composition, restore execution or native power-loss durability. No issuer trust,
 real board or actual grant action is involved.
+
+M06 configured approval uses the review -> completed edge from the immutable
+workflow and the current approve grant/ceiling. The verified actor must still be
+human; labels never confer approval. The exact reviewed card/board revisions,
+policyVersion 1 and immutable approval fact retain their existing meaning.
+Every Completed guard uses its semantic role, including link mutation. Peers and
+hierarchy targets receive no revision or approval changes from source mutations.

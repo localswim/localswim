@@ -81,3 +81,9 @@ Q03's earlier sample is not product equivalence. No authentication, server, boar
 admission, DB, archive implementation, CLI runtime, browser, trust enrollment,
 native crash/power-loss, distribution build or final product qualification occurs.
 Public MIT FOSS; synthetic identities only. No credentials or board data.
+
+M06 configured workflow extension
+- card.edit accepts exclusive laneId (nonzero lowercase UUID). Freeze preserves
+  its omission in old originals; legacy lane grammar and normalization stay exact.
+- Freeze validates syntax only. A well-shaped foreign laneId can remain retained
+  NOT_COMMITTED evidence; membership and current authority belong to admission.

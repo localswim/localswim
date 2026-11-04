@@ -44,7 +44,7 @@ func TestStorageCLIExplicitAdjacentSteps(t *testing.T) {
 	for _, test := range []struct {
 		from, to string
 		exit     int
-	}{{"5", "6", 0}, {"6", "7", 0}, {"5", "7", 1}, {"7", "8", 1}, {"06", "7", 1}} {
+	}{{"5", "6", 0}, {"6", "7", 0}, {"7", "8", 0}, {"5", "7", 1}, {"6", "8", 1}, {"06", "7", 1}} {
 		t.Run(test.from+"-"+test.to, func(t *testing.T) {
 			args := []string{"--data", `C:\synthetic-root`, "--json", "storage", "upgrade", "--from-version", test.from, "--to-version", test.to, "--board-id", "10000000-0000-4000-8000-000000000001", "--incarnation", "20000000-0000-4000-8000-000000000001"}
 			var out, diagnostic bytes.Buffer

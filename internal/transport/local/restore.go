@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/localswim/localswim/internal/board/policy"
 	"path/filepath"
 
 	P "github.com/localswim/localswim/internal/archive/publication"
@@ -151,6 +152,10 @@ func RestoreStatus(ctx context.Context, dataDir string, requestID A.UUID) P.Resp
 }
 
 func verifyBootstrap(r S.InspectionRead, id identity) error {
+	workflow, err := policy.Load(r, id.Incarnation)
+	if err != nil {
+		return err
+	}
 	for _, v := range []struct {
 		actor, grant, kind string
 		human              bool
@@ -165,6 +170,12 @@ func verifyBootstrap(r S.InspectionRead, id identity) error {
 		rights := []string{"attach", "comment", "create", "edit", "export", "read", "read-own-outcome", "review-handoff"}
 		if v.human {
 			rights = append(rights, "approve")
+		}
+		if workflow != nil {
+			rights = workflow.ActorRights.Automation
+			if v.human {
+				rights = workflow.ActorRights.Human
+			}
 		}
 		if r.Scan("SELECT count(*) FROM grant_right WHERE incarnation=? AND grant_id=?", []any{id.Incarnation, v.grant}, &count) != nil || count != len(rights) {
 			return errLocal

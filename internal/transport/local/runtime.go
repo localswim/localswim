@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/localswim/localswim/internal/contract"
+	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
 	S "github.com/localswim/localswim/internal/store/open"
 	"github.com/localswim/localswim/internal/store/schema"
@@ -60,6 +61,7 @@ type EngineOptions struct {
 	Origin           string
 	WorkspaceID      string
 	ExpectedIdentity *BoardIdentity
+	Workflow         *A.Workflow // new initialization only; never changes an existing board
 }
 
 func (ClientInfo) String() string               { return "local connection [redacted]" }
@@ -353,7 +355,7 @@ func newServer(handler http.Handler) *http.Server {
 }
 
 func openEngine(ctx context.Context, o EngineOptions, assets http.Handler) (*Runtime, error) {
-	if ctx == nil || ctx.Err() != nil || !safeDir(o.DataDir) {
+	if ctx == nil || ctx.Err() != nil || !safeDir(o.DataDir) || A.ValidateWorkflow(o.Workflow) != nil {
 		return nil, errLocal
 	}
 	if o.Port != 0 && (o.Port < 1024 || o.Port > 65535) {
@@ -406,6 +408,9 @@ func openEngine(ctx context.Context, o EngineOptions, assets http.Handler) (*Run
 	} else if decode(b, &id) != nil || !id.valid() || o.Port != 0 && id.Port != o.Port {
 		return nil, errLocal
 	}
+	if !fresh && o.Workflow != nil {
+		return nil, errLocal
+	}
 	if !fresh && o.WorkspaceID != "" && o.ExpectedIdentity == nil {
 		return nil, errLocal
 	}
@@ -422,7 +427,7 @@ func openEngine(ctx context.Context, o EngineOptions, assets http.Handler) (*Run
 	var store *S.Store
 	sid := schema.Identity{BoardID: id.BoardID, Incarnation: id.Incarnation}
 	if fresh {
-		store, e = S.Create(ctx, boardDir, sid)
+		store, e = S.CreateWorkflow(ctx, boardDir, sid, o.Workflow)
 	} else {
 		store, e = S.Existing(ctx, boardDir, sid)
 	}
@@ -508,6 +513,10 @@ func initialize(ctx context.Context, store *S.Store, id identity) (err error) {
 		if _, e := c.ExecContext(ctx, "BEGIN IMMEDIATE"); e != nil {
 			return e
 		}
+		workflow, e := schema.ReadWorkflow(ctx, c, schema.Identity{BoardID: id.BoardID, Incarnation: id.Incarnation})
+		if e != nil {
+			return e
+		}
 		for _, v := range []struct{ actor, grant, kind, label string }{{id.HumanID, id.HumanGrant, "human", "Human"}, {id.BotID, id.BotGrant, "automation", "Bot"}} {
 			if _, e := c.ExecContext(ctx, "INSERT INTO actor VALUES(?,?,?,?,?,?)", id.Incarnation, v.actor, v.kind, v.label, id.BoardID, id.Incarnation); e != nil {
 				return e
@@ -522,13 +531,19 @@ func initialize(ctx context.Context, store *S.Store, id identity) (err error) {
 			if v.kind == "human" {
 				rights = append(rights, "approve")
 			}
+			if workflow != nil {
+				rights = workflow.ActorRights.Automation
+				if v.kind == "human" {
+					rights = workflow.ActorRights.Human
+				}
+			}
 			for _, right := range rights {
 				if _, e := c.ExecContext(ctx, "INSERT INTO grant_right VALUES(?,?,?)", id.Incarnation, v.grant, right); e != nil {
 					return e
 				}
 			}
 		}
-		_, e := c.ExecContext(ctx, "COMMIT")
+		_, e = c.ExecContext(ctx, "COMMIT")
 		return e
 	})
 }

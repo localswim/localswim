@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	A "github.com/localswim/localswim/internal/contract/archive"
 	"github.com/localswim/localswim/internal/store/schema"
 	_ "modernc.org/sqlite"
 )
@@ -36,7 +37,15 @@ type Store struct {
 // failed create is retained for investigation; it is never recursively removed,
 // adopted, overwritten or automatically retried as a fresh database.
 func Create(ctx context.Context, dir string, id schema.Identity) (*Store, error) {
-	return start(ctx, dir, id, true)
+	return CreateWorkflow(ctx, dir, id, nil)
+}
+
+// CreateWorkflow validates the complete definition before allocating the new file.
+func CreateWorkflow(ctx context.Context, dir string, id schema.Identity, workflow *A.Workflow) (*Store, error) {
+	if err := A.ValidateWorkflow(workflow); err != nil {
+		return nil, err
+	}
+	return startWorkflow(ctx, dir, id, true, workflow)
 }
 
 // Existing validates identity, exact schema and integrity without migrating or
@@ -46,6 +55,10 @@ func Existing(ctx context.Context, dir string, id schema.Identity) (*Store, erro
 }
 
 func start(ctx context.Context, dir string, id schema.Identity, create bool) (*Store, error) {
+	return startWorkflow(ctx, dir, id, create, nil)
+}
+
+func startWorkflow(ctx context.Context, dir string, id schema.Identity, create bool, workflow *A.Workflow) (*Store, error) {
 	if !schema.ValidUUID(id.BoardID) || !schema.ValidUUID(id.Incarnation) {
 		return nil, errors.New("invalid storage identity")
 	}
@@ -87,7 +100,7 @@ func start(ctx context.Context, dir string, id schema.Identity, create bool) (*S
 		if _, err = c.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 			return nil, errors.New("storage initialization unavailable")
 		}
-		if err = schema.Initialize(ctx, c, id); err != nil {
+		if err = schema.InitializeWorkflow(ctx, c, id, workflow); err != nil {
 			rollback(c)
 			return nil, err
 		}
@@ -99,7 +112,7 @@ func start(ctx context.Context, dir string, id schema.Identity, create bool) (*S
 	if err = schema.Validate(ctx, c, id); err != nil {
 		// Only an independently validated older layout earns actionable upgrade advice.
 		var v int
-		if c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v) == nil && (v == 5 || v == 6) && validateSupported(ctx, c, id) == nil {
+		if c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v) == nil && (v == 5 || v == 6 || v == 7) && validateSupported(ctx, c, id) == nil {
 			return nil, fmt.Errorf("storage physical version %d requires explicit offline upgrade %d->%d before startup", v, v, v+1)
 		}
 		return nil, err

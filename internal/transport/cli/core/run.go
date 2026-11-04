@@ -212,6 +212,9 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 		if q.kind == "card relationships-replace" && !relationshipsAlias(wire) {
 			return refused("INVALID_INPUT", 2, nil)
 		}
+		if q.kind == "card move" && !moveAlias(wire) {
+			return refused("INVALID_INPUT", 2, nil)
+		}
 		if _, e = contract.DecodeJSON(wire); e != nil {
 			return refused("INVALID_INPUT", 2, nil)
 		}
@@ -316,6 +319,23 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 		return refused("INCARNATION_CONFLICT", 2, nil)
 	}
 	return result{v, 0}
+}
+
+func moveAlias(wire []byte) bool {
+	v, e := contract.DecodeJSON(wire)
+	if e != nil {
+		return false
+	}
+	obj, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	input, ok := obj["input"].(map[string]any)
+	if !ok || len(input) != 1 {
+		return false
+	}
+	lane, ok := input["laneId"].(string)
+	return ok && uuid(lane)
 }
 
 func (r Runner) mark(out result, original evidence.Record, stderr io.Writer) result {

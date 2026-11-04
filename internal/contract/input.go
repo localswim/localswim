@@ -72,6 +72,7 @@ type EditInput struct {
 	Description   *string           `json:"description"`
 	Priority      *string           `json:"priority"`
 	Lane          *string           `json:"lane"`
+	LaneID        *string           `json:"laneId,omitempty"`
 }
 type CommentInput struct {
 	Text string `json:"text"`

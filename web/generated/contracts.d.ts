@@ -40,6 +40,7 @@ export type RequestCardEdit = {
   readonly archived?: boolean;
   readonly description?: string;
   readonly lane?: "In Progress";
+  readonly laneId?: string;
   readonly ownerId?: (string | null);
   readonly parent?: ({
   readonly boardId: string;

@@ -1,6 +1,6 @@
 # Storage ownership boundary
 
-This package is the version-seven physical schema/open boundary. It uses the Q02 qualified
+This package is the version-eight physical schema/open boundary. It uses the Q02 qualified
 `database/sql` binding on native Windows/amd64 and a fixed local NTFS drive.
 It does not implement domain admission, permissions, outcome reconciliation,
 history clearing, restore, HTTP or CLI behavior.
@@ -29,8 +29,8 @@ garbage collection or database mutation. Inspection establishes neither online
 authorization nor a complete logical/native archive-inventory proof; its caller
 must retain wider offline ownership and perform that proof inside the callback.
 
-Physical layout7 is distinct from the immutable base-schema marker5. Existing
-never migrates/repairs. Explicit offline exact5->6 then6->7 upgrades requires existing-only
+Physical layout8 is distinct from the immutable base-schema marker5. Existing
+never migrates/repairs. Explicit offline exact5->6 then6->7 then7->8 upgrades requires existing-only
 native path/identity/exclusion and one validated transaction. Read-only inspect
 reports physical/base versions separately. Unknown/corrupt/dirty-sidecar sources
 refuse unchanged; post-commit cleanup/inspection/delivery uncertainty remains
@@ -116,3 +116,18 @@ mistaken for old layouts. The board base marker remains5. UpgradeStorageTo selec
 exactly one supported adjacent pair and treats a validated matching destination as
 NO_CHANGE; a mismatched source refuses. A successful5->6 remains6 when a separately
 requested6->7 fails. Startup tells validated old stores which explicit step is needed.
+
+`CreateWorkflow` validates the complete optional definition before acquiring or
+creating storage; nil is exactly `Create`'s legacy profile. Initial creation stores
+canonical workflow JSON in the same initialization transaction. `Existing` accepts
+only physical8/base5, validates the configured policy and context, and never adopts
+an older layout. `InspectStorage` accepts independent frozen5/6/7 or current8 and
+returns the complete optional workflow for current configured stores.
+
+The explicit7->8 step creates an empty workflow table and rebuilds only card,
+preserving all implicit rowids and typed values. FK checks remain enabled with
+transaction-local deferral during that rebuild, and the complete candidate FK/
+integrity/layout/row digest must pass before COMMIT. Injected precommit failures
+roll back to exact7; COMMIT or postcommit delivery/cleanup uncertainty stays UNKNOWN.
+Default legacy opaque snapshots without a lane retain their accepted raw-storage
+meaning; configured snapshots require strict full state and policy membership.

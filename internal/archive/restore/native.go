@@ -27,7 +27,7 @@ func (p *Prepared) Construct(ctx context.Context, dataDir string) (err error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	s, e := S.Create(ctx, dataDir, schema.Identity{BoardID: string(p.board.Identity.BoardID), Incarnation: string(p.board.Identity.Incarnation)})
+	s, e := S.CreateWorkflow(ctx, dataDir, schema.Identity{BoardID: string(p.board.Identity.BoardID), Incarnation: string(p.board.Identity.Incarnation)}, p.board.Workflow)
 	if e != nil {
 		return e
 	}

@@ -15,6 +15,7 @@ func focusedRead(value any) (string, bool) {
 	var out strings.Builder
 	switch x := value.(type) {
 	case T.BoardRead:
+		writeWorkflow(&out, x.Result.Workflow)
 		out.WriteString("Active cards (current snapshot; explicit priority order):\n")
 		ordered := append([]A.Card(nil), x.Result.Cards...)
 		sort.Slice(ordered, func(i, j int) bool {
@@ -29,18 +30,19 @@ func focusedRead(value any) (string, bool) {
 		})
 		for _, c := range ordered {
 			if !c.Archived {
-				fmt.Fprintf(&out, "#%d %s (%s; %s) %s\n", c.Ticket, advisoryText(c.Title), c.Priority, c.Lane, c.CardID)
+				fmt.Fprintf(&out, "#%d %s (%s; %s) %s\n", c.Ticket, advisoryText(c.Title), c.Priority, laneText(x.Result.Workflow, c.Lane), c.CardID)
 			}
 		}
 		out.WriteString(boardAdvisory(x.Result))
 	case T.CardSearchRead:
+		writeWorkflow(&out, x.Result.Workflow)
 		fmt.Fprintf(&out, "Card listing: %d returned (archive: %s; board revision: %d).\n", len(x.Result.Items), x.Result.Query.Archive, x.Result.Revision)
 		for _, c := range x.Result.Items {
 			owner := "Unassigned"
 			if c.OwnerID != nil {
 				owner = string(*c.OwnerID)
 			}
-			fmt.Fprintf(&out, "#%d %s (%s; %s; archived: %t; owner: %s; card revision: %d) %s\n", c.Ticket, advisoryText(c.Title), c.Priority, c.Lane, c.Archived, owner, c.Revision, c.CardID)
+			fmt.Fprintf(&out, "#%d %s (%s; %s; archived: %t; owner: %s; card revision: %d) %s\n", c.Ticket, advisoryText(c.Title), c.Priority, laneText(x.Result.Workflow, c.Lane), c.Archived, owner, c.Revision, c.CardID)
 		}
 		if x.Result.NextCursor != nil {
 			fmt.Fprintf(&out, "Next cursor: %s\n", *x.Result.NextCursor)
@@ -49,9 +51,10 @@ func focusedRead(value any) (string, bool) {
 		}
 	case T.CardRead:
 		b := x.Result
+		writeWorkflow(&out, b.Workflow)
 		c := b.Card
 		fmt.Fprintf(&out, "Committed current card #%d: %s\nCard UUID: %s\nBoard/incarnation: %s\nBoard revision: %d; card revision: %d\nCreated in: %s\n", c.Ticket, advisoryText(c.Title), c.CardID, originText(b.Identity), b.Revision, c.Revision, originText(c.CreatedIn))
-		writeState(&out, c.Description, c.Lane, c.Priority, c.Archived, c.OwnerID, c.CurrentApprovalID, b.Actors)
+		writeState(&out, c.Description, A.Lane(laneText(b.Workflow, c.Lane)), c.Priority, c.Archived, c.OwnerID, c.CurrentApprovalID, b.Actors)
 		writeFacts(&out, b.Actors, b.Comments, b.Links, b.Attachments, b.Approvals)
 		refs := append([]T.HistoryReference(nil), b.HistoryReferences...)
 		sort.Slice(refs, func(i, j int) bool {
@@ -68,6 +71,7 @@ func focusedRead(value any) (string, bool) {
 		writeCoverage(&out, b.Coverage)
 	case T.HistoryRead:
 		b := x.Result
+		writeWorkflow(&out, b.Workflow)
 		fmt.Fprintf(&out, "Committed prior card states for %s\nBoard/incarnation: %s\nBoard revision: %d; current card revision: %d\nCurrent state is separate; use card read for current fields.\nPrior states returned: %d (returned collection, not a claim of complete lifetime history).\n", b.CardID, originText(b.Identity), b.Revision, b.CardRevision, len(b.Records))
 		records := append([]A.Snapshot(nil), b.Records...)
 		sort.Slice(records, func(i, j int) bool {
@@ -78,7 +82,7 @@ func focusedRead(value any) (string, bool) {
 			if h.State != nil {
 				s := h.State
 				fmt.Fprintf(&out, "Ticket #%d: %s\n", s.Ticket, advisoryText(s.Title))
-				writeState(&out, s.Description, s.Lane, s.Priority, s.Archived, s.OwnerID, s.CurrentApprovalID, b.Actors)
+				writeState(&out, s.Description, A.Lane(laneText(b.Workflow, s.Lane)), s.Priority, s.Archived, s.OwnerID, s.CurrentApprovalID, b.Actors)
 			} else {
 				out.WriteString("Old state text unavailable.\n")
 			}

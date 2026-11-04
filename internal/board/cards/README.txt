@@ -5,11 +5,11 @@ resolved board/incarnation/card route. Use these callbacks with S02 Engine.Submi
 No principal, actor claim, rights cache or fallback verifier grants authority.
 G01 performs live credential and current grant checks in the writer snapshot.
 
-Scope: card.create, card.edit, comment.add, and the fixed Ready for Work to
-In Progress transition. C01 freezes and validates input. S02 owns exact board/card
+Scope: card.create, card.edit, comment.add, the default Ready for Work to
+In Progress transition and configured ordinary lane moves. C01 freezes and validates input. S02 owns exact board/card
 preconditions, terminal refusal persistence, atomic commit and reconciliation.
 Creation allocates a UUID and a never-reused ticket, starts at revision 1 and
-Ready for Work, and defaults priority to P3. Comments preserve immutable text and
+the workflow initial role (default Ready for Work), and defaults priority to P3. Comments preserve immutable text and
 credential-bound attribution. Completed refuses edits and comments.
 
 An empty edit or exactly identical supplied values records durable NOT_COMMITTED
@@ -60,3 +60,17 @@ Archive/unarchive is an exclusive archived Boolean card.edit through the existin
 writer, revisions and original outcome path. Completed refuses before no-op;
 unchanged unfinished flags retain NO_CHANGE without history/activity advancement.
 Existing unfinished-card edit admission and exact retained references remain.
+
+M06 configured workflows
+An optional immutable workflow is loaded in the writer snapshot through the
+shared policy loader and strict archive validator. A missing definition retains
+the exact default profile. Completed admission and prerequisite completion use
+semantic roles rather than display labels; snapshots retain exact lane IDs.
+
+Configured card.edit uses an exclusive laneId. Default boards refuse laneId;
+configured boards refuse non-null legacy lane. Unknown IDs refuse INVALID_INPUT.
+Archived sources and review/completed destinations refuse before equality. An
+allowed equal target records NO_CHANGE without an edge or prerequisite check.
+Actual moves require the configured actor edge and current edit grant plus
+ceiling. Every entry into in_progress checks current source-owned prerequisites.
+One successful move advances only the source card and board once.

@@ -77,7 +77,7 @@ func runLocalStorageWithStep(ctx context.Context, args []string, out, diagnostic
 		return fail("INVOCATION_OR_IO", 1)
 	}
 	if action == "upgrade" {
-		if !(flags["--from-version"] == "5" && flags["--to-version"] == "6" || flags["--from-version"] == "6" && flags["--to-version"] == "7") {
+		if !(flags["--from-version"] == "5" && flags["--to-version"] == "6" || flags["--from-version"] == "6" && flags["--to-version"] == "7" || flags["--from-version"] == "7" && flags["--to-version"] == "8") {
 			return fail("INVOCATION_OR_IO", 1)
 		}
 	} else if flags["--from-version"] != "" || flags["--to-version"] != "" {

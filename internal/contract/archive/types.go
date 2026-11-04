@@ -177,6 +177,7 @@ type EntityTombstone struct {
 	Reason    Reason     `json:"reason"`
 }
 type Board struct {
+	Workflow         *Workflow         `json:"workflow,omitempty"`
 	SchemaVersion    Version           `json:"schemaVersion"`
 	Identity         Identity          `json:"identity"`
 	Revision         Number            `json:"revision"`

@@ -94,6 +94,7 @@ type BoardRead struct {
 	Result     BoardView  `json:"result"`
 }
 type BoardView struct {
+	Workflow         *A.Workflow    `json:"workflow,omitempty"`
 	Identity         A.Identity     `json:"identity"`
 	Revision         A.Number       `json:"revision"`
 	PolicyVersion    A.Version      `json:"policyVersion"`
@@ -122,6 +123,7 @@ type CardSearchRead struct {
 }
 
 type CardSearchView struct {
+	Workflow   *A.Workflow     `json:"workflow,omitempty"`
 	Identity   A.Identity      `json:"identity"`
 	Revision   A.Number        `json:"revision"`
 	Query      CardSearchQuery `json:"query"`
@@ -148,6 +150,7 @@ type CardSummary struct {
 	Archived bool       `json:"archived"`
 }
 type CardView struct {
+	Workflow          *A.Workflow        `json:"workflow,omitempty"`
 	Identity          A.Identity         `json:"identity"`
 	Revision          A.Number           `json:"revision"`
 	Card              A.Card             `json:"card"`
@@ -172,6 +175,7 @@ type HistoryRead struct {
 	Result     HistoryView  `json:"result"`
 }
 type HistoryView struct {
+	Workflow     *A.Workflow         `json:"workflow,omitempty"`
 	Identity     A.Identity          `json:"identity"`
 	Revision     A.Number            `json:"revision"`
 	CardID       A.UUID              `json:"cardId"`

@@ -13,6 +13,9 @@ import { WorkspaceShell } from "./workspace-ui/view.js";
 import { WindowState } from "./session-ui/window-state.js";
 import { createWorkspacePreferencesClient } from "./api/preferences.js";
 import { WorkspacePins } from "./workspace-ui/pins.js";
+import { createConfiguredWorkflowClient } from "./api/configured-workflow.js";
+import { openSetupStore } from "./recovery/workflow-setup.js";
+import { WorkflowSetup } from "./workspace-ui/workflow-setup.js";
 const mounted = new WeakMap();
 const connections = new WeakMap();
 const connectionClock = { schedule: (run, milliseconds) => setTimeout(run, milliseconds), cancel: handle => clearTimeout(handle) };
@@ -64,11 +67,13 @@ export async function connectLocalApplication(root, fetcher = globalThis.fetch.b
     let controller, view;
     let shell, refresh;
     let pins;
+    let setup;
     let stopRoute, stopCommit;
     let closed = false;
     const cleanup = () => {
         stopRoute?.();
         stopCommit?.();
+        setup?.destroy();
         refresh?.dispose();
         pins?.dispose();
         controller?.destroy();
@@ -111,12 +116,36 @@ export async function connectLocalApplication(root, fetcher = globalThis.fetch.b
                     }
                 };
                 shell = new WorkspaceShell(stage, { navigate: path => controller?.navigate(path) ?? Promise.resolve(false), retry: () => { void retry(); },
+                    createBoard: opener => { void setup?.show(opener); },
                     pinChanged: order => { void pins?.change(order); }, retryPins: () => { void pins?.refresh(true); }, inspectPins: () => { void pins?.refresh(true); },
                     layout: state.sidebarLayout, layoutChanged: layout => state.setSidebarLayout(layout), filter: state.sidebarFilter, filterChanged: filter => state.setSidebarFilter(filter) });
                 pins = new WorkspacePins(createWorkspacePreferencesClient(workspace, guarded), snapshot => shell?.setPins(snapshot));
-                controller = new WindowBoardController(shell.editorRoot, workspace, state);
+                controller = new WindowBoardController(shell.editorRoot, workspace, state, () => setup?.canLeave ?? true);
                 stopRoute = controller.subscribe(status => shell?.setRouteStatus(status));
                 refresh = new WorkspaceCatalogRefresh(createWorkspaceCatalogClient(workspace, guarded), { onChange: snapshot => shell?.setCatalog(snapshot), refreshPreferences: () => pins?.refresh() ?? Promise.resolve() });
+                const setupStore = await openSetupStore(globalThis.indexedDB, runtime.workspaceId, state.id).catch(() => ({
+                    read: async () => { throw Error("Private setup storage unavailable"); },
+                    write: async () => { throw Error("Private setup storage unavailable"); },
+                    clear: async () => { throw Error("Private setup storage unavailable"); }, close: () => { },
+                }));
+                current();
+                const origin = location.origin;
+                const setupCurrent = () => !closed && connections.get(root) === generation && location.origin === origin;
+                const setupWindowReady = () => {
+                    try {
+                        return JSON.parse(sessionStorage.getItem("localswim.window.v1") ?? "null")?.id === state.id;
+                    }
+                    catch {
+                        return false;
+                    }
+                };
+                setup = new WorkflowSetup(shell.setupRoot, { workspaceId: runtime.workspaceId, windowId: state.id,
+                    client: createConfiguredWorkflowClient(workspace, guarded), store: setupStore, current: setupCurrent, windowReady: setupWindowReady,
+                    projects: () => { const snapshot = refresh?.snapshot; return snapshot?.phase === "ready" && snapshot.catalog?.configRevision === snapshot.projects?.configRevision ? snapshot.projects ?? undefined : undefined; },
+                    navigate: (path, expectedIdentity) => controller?.openExpected(path, expectedIdentity) ?? Promise.resolve(false), refresh: () => refresh?.trigger(),
+                    fallback: () => shell.createBoardButton, confirm: message => window.confirm(message) });
+                await setup.ready;
+                current();
                 stopCommit = controller.onCommitted(() => refresh?.trigger());
                 await controller.navigate(location.pathname, false);
                 current();
@@ -131,7 +160,7 @@ export async function connectLocalApplication(root, fetcher = globalThis.fetch.b
                 await view.flushPrivateInput();
                 current();
             }
-            const result = Object.freeze({ ...(controller ? { controller } : {}), get canLeave() { return controller?.canLeave ?? view?.canLeave ?? true; }, destroy() {
+            const result = Object.freeze({ ...(controller ? { controller } : {}), get canLeave() { return (setup?.canLeave ?? true) && (controller?.canLeave ?? view?.canLeave ?? true); }, destroy() {
                     if (closed)
                         return;
                     closed = true;

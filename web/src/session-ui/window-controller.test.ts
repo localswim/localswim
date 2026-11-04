@@ -19,6 +19,25 @@ class MemoryStorage implements Storage {
   setItem(key: string, value: string): void { if (this.fail) throw Error("Synthetic storage refusal"); this.entries.set(key, value); }
 }
 
+export async function runExpectedBoardNavigationProbe(): Promise<number> {
+  const root = document.createElement("section"), retained = document.createElement("p");
+  retained.textContent = "Retained source view"; root.append(retained); document.body.append(root);
+  const expected = { installationId: "00000000-0000-4000-8000-000000000001", boardId: "00000000-0000-4000-8000-000000000002", incarnation: "00000000-0000-4000-8000-000000000003" };
+  let allowed = false, resolves = 0, opens = 0;
+  const controller = new WindowBoardController(root, {
+    resolve: async () => { resolves++; return { apiVersion: 1, workspaceId: "00000000-0000-4000-8000-000000000004", configRevision: 1,
+      member: { projectKey: "harbor", boardKey: "created", label: "Created", availability: "ready", identity: { ...expected, boardId: "00000000-0000-4000-8000-000000000005" }, memberEpoch: "00000000-0000-4000-8000-000000000006" } } as WorkspaceResolve; },
+    openBoard: async () => { opens++; throw Error("Unexpected open"); },
+  }, new WindowState(new MemoryStorage(), "navigate"), () => allowed);
+  try {
+    if (await controller.openExpected("/board/harbor/created", expected) || resolves !== 0 || opens !== 0 || !retained.isConnected) throw Error("Setup persistence gate bypassed");
+    allowed = true;
+    if (await controller.openExpected("/board/harbor/created", expected) || Number(resolves) !== 1 || opens !== 0 || !retained.isConnected) throw Error("Expected identity mismatch treated as successful navigation");
+    if (await controller.retryRequested(false) || Number(resolves) !== 2 || opens !== 0 || !retained.isConnected) throw Error("Retry dropped expected identity");
+    return 3;
+  } finally { controller.destroy(); root.remove(); }
+}
+
 export function runWindowIdentityProbe(): number {
   const storage = new MemoryStorage(), first = new WindowState(storage, "navigate");
   if ("filter" in JSON.parse(storage.getItem("localswim.window.v1")!)) throw Error("Empty filter changed default privacy shape");

@@ -1,3 +1,4 @@
+import { completedLane, laneText } from "../api/workflow.js";
 import type { BoardRead } from "../../generated/transport/contracts.js";
 import type { Card } from "../../generated/archive/contracts.js";
 
@@ -7,8 +8,8 @@ export type DependencyAdvisory = {
   summary: string;
 };
 
-function cardFact(card: Card): string {
-  return "#" + card.ticket + " " + card.title + " (" + card.priority + "; " + card.lane + (card.archived ? "; archived" : "") + ")";
+function cardFact(card: Card, read: BoardRead): string {
+  return "#" + card.ticket + " " + card.title + " (" + card.priority + "; " + laneText(card.lane, read.result.workflow) + (card.archived ? "; archived" : "") + ")";
 }
 
 // A current, complete validated board read is required. This derives presentation
@@ -21,7 +22,7 @@ export function dependencyAdvisory(read: BoardRead, card: Card): DependencyAdvis
   const pressure = links.filter(link => currentTarget(link.target) && link.target.cardId === card.cardId)
     .flatMap(link => {
       const dependent = board.cards.find(candidate => candidate.cardId === link.cardId);
-      return dependent ? ["Dependency pressure: " + cardFact(dependent)] : [];
+      return dependent ? ["Dependency pressure: " + cardFact(dependent, read)] : [];
     });
   let satisfied = true;
   const prerequisites = links.filter(link => link.cardId === card.cardId).map(link => {
@@ -32,10 +33,10 @@ export function dependencyAdvisory(read: BoardRead, card: Card): DependencyAdvis
     }
     const approval = board.approvals.find(candidate => candidate.approvalId === target.currentApprovalId && candidate.cardId === target.cardId);
     const human = approval && board.actors.find(actor => actor.actorId === approval.actorId && actor.kind === "human");
-    const accepted = !target.archived && target.lane === "Completed" && approval !== undefined && human !== undefined &&
+    const accepted = !target.archived && completedLane(target.lane, board.workflow) && approval !== undefined && human !== undefined &&
       approval.policyVersion === board.policyVersion && approval.reviewedCardRevision === target.revision - 1;
     satisfied = satisfied && accepted;
-    return "Prerequisites/readiness: " + cardFact(target) + (accepted ? " — satisfied" : " — awaiting human acceptance (not satisfied)");
+    return "Prerequisites/readiness: " + cardFact(target, read) + (accepted ? " — satisfied" : " — awaiting human acceptance (not satisfied)");
   });
   return {
     pressure: pressure.length ? pressure : ["Dependency pressure: none."],

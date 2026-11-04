@@ -236,7 +236,9 @@ priority/lane/owner/approval do not propagate. Follow the
 owner-correct removal, the100-entry batch boundary and original UNKNOWN/no-replay
 recovery. Complete joined qualification and final kit remain separate M05 stories.
 
-Configured new-board workflows are available in native setup and the actual CLI.
-The [configured workflow guide](docs/runbooks/m06-configured-workflows.txt) covers
-creation, reads, moves, reopening and recovery; browser workflow controls and
-joined milestone qualification remain separate work.
+Configured new-board workflows are available in native setup, the actual CLI and
+the browser controls slice. The [configured workflow guide](docs/runbooks/m06-configured-workflows.txt)
+covers native and CLI creation, reads, moves, reopening and recovery; the
+[browser workflow guide](docs/runbooks/m06-browser-workflows.txt) covers the new
+board form and configured card controls. Joined M06.04 qualification and the
+M06.05 kit remain separate work; no full release is claimed.

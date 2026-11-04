@@ -1,4 +1,4 @@
-import type { Confirmation, Preview, PreviewRequest } from "../../generated/archive/contracts.js";
+import type { Confirmation, Preview, PreviewRequest, Workflow } from "../../generated/archive/contracts.js";
 import type { RequestAttachmentAdd } from "../../generated/contracts.js";
 import type { ExportRequest } from "../../generated/transport/contracts.js";
 import type { BoardRead, CardRead, HistoryRead, MutationRequest, SessionRead, Terminal } from "../../generated/transport/contracts.js";
@@ -13,6 +13,7 @@ import type { BoardCommand, PreparedCommand, Value } from "./boundary.js";
 import type { CardSearchRead } from "../../generated/transport/contracts.js";
 import { validSearch, validateSearchRead } from "./search.js";
 import type { SearchFilters } from "./search.js";
+import { laneRole, sameWorkflow } from "./workflow.js";
 
 export type OriginalOutcome = Readonly<{
   opId: string;
@@ -52,6 +53,13 @@ export class BoardClient {
   onCommitted(callback: () => void): () => void { this.commitObservers.add(callback); return () => { this.commitObservers.delete(callback); }; }
   private readonly previews = new Map<string, Preview>();
   private readonly inFlight = new Set<string>();
+  private readonly workflows = new Map<string, Workflow | undefined>();
+  private workflowRead(identity: { boardId: string; incarnation: string }, workflow: Workflow | undefined, lanes: readonly string[]): void {
+    if (lanes.some(lane => !laneRole(lane, workflow))) throw Error("Lane does not belong to the current workflow");
+    const key = identity.boardId + "/" + identity.incarnation;
+    if (this.workflows.has(key) && !sameWorkflow(this.workflows.get(key), workflow)) throw Error("Immutable workflow changed");
+    this.workflows.set(key, workflow && structuredClone(workflow));
+  }
   static async open(options: ClientOptions): Promise<BoardClient> {
     if (options.transport === "local-cookie") {
       const selected = options.selection;
@@ -136,6 +144,7 @@ export class BoardClient {
     if (board.result.identity.boardId !== boardId) throw Error("Board identity mismatch");
     if (this.options.selection && board.result.identity.incarnation !== this.options.selection.incarnation) throw Error("Selected incarnation mismatch");
     validateBoardHierarchy(board);
+    this.workflowRead(board.result.identity, board.result.workflow, board.result.cards.map(card => card.lane));
     return board;
   }
   async card(boardId: string, cardId: string): Promise<CardRead> {
@@ -147,6 +156,7 @@ export class BoardClient {
     if (card.result.identity.boardId !== boardId || card.result.card.cardId !== cardId) throw Error("Card identity mismatch");
     if (this.options.selection && card.result.identity.incarnation !== this.options.selection.incarnation) throw Error("Selected incarnation mismatch");
     validateCardRead(card);
+    this.workflowRead(card.result.identity, card.result.workflow, [card.result.card.lane]);
     return card;
   }
   async search(boardId: string, filters: SearchFilters, cursor?: string): Promise<CardSearchRead> {
@@ -161,6 +171,7 @@ export class BoardClient {
     const read = value as unknown as CardSearchRead;
     if (read.result.identity.boardId !== boardId || this.options.selection && read.result.identity.incarnation !== this.options.selection.incarnation) throw Error("Search identity mismatch");
     validateSearchRead(read, filters);
+    this.workflowRead(read.result.identity, read.result.workflow, [...read.result.items.map(card => card.lane), ...(read.result.query.lane === null ? [] : [read.result.query.lane])]);
     return read;
   }
   async history(boardId: string, cardId: string): Promise<HistoryRead> {
@@ -172,6 +183,7 @@ export class BoardClient {
     if (history.result.identity.boardId !== boardId || history.result.cardId !== cardId) throw Error("History identity mismatch");
     if (this.options.selection && history.result.identity.incarnation !== this.options.selection.incarnation) throw Error("Selected incarnation mismatch");
     validateHistoryRead(history);
+    this.workflowRead(history.result.identity, history.result.workflow, history.result.records.flatMap(row => row.state ? [row.state.lane] : []));
     return history;
   }
   context(board: BoardRead, session: SessionRead): Context {

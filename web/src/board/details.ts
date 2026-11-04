@@ -1,3 +1,4 @@
+import { completedLane, laneText } from "../api/workflow.js";
 import { CardRelationships } from "./relationships.js";
 import type { RelationshipActionHandler } from "./relationships.js";
 import type { BoardRead, CardRead, HistoryRead } from "../../generated/transport/contracts.js";
@@ -202,7 +203,7 @@ export class CardDetails {
     this.facts.replaceChildren(node("h3", "Current card state"), node("p", "Card UUID: " + card.cardId),
       node("p", "Origin: " + origin(c.identity) + " · created in " + origin(card.createdIn)),
       node("p", "Title: " + card.title), node("p", card.description === "" ? "Description: empty" : "Description:\n" + card.description),
-      node("p", "Lane: " + card.lane + " · Priority: " + card.priority + " · Owner: " + (card.ownerId ? attribution(card.ownerId, c.actors) : "Unassigned")),
+      node("p", "Lane: " + laneText(card.lane, c.workflow) + " · Priority: " + card.priority + " · Owner: " + (card.ownerId ? attribution(card.ownerId, c.actors) : "Unassigned")),
       node("p", "Board revision " + c.revision + " · card revision " + card.revision + " · archived: " + card.archived + " · approval: " + (card.currentApprovalId ?? "none")));
     const parent = (card as { parent?: ParentRef }).parent;
     this.facts.append(node("p", parent ? "Current parent reference: " + origin(parent) + "/" + parent.cardId : "Current parent reference: No parent"));
@@ -211,7 +212,7 @@ export class CardDetails {
         archive.focus({ preventScroll: true }); this.archiveAction!(this.current!);
       });
       archive.dataset.focusKey = card.cardId + ":details:archive";
-      archive.disabled = card.lane === "Completed"; this.facts.append(archive);
+      archive.disabled = completedLane(card.lane, c.workflow); this.facts.append(archive);
       if (focusedArchive === archive.dataset.focusKey && !archive.disabled) archive.focus({ preventScroll: true });
     }
     const links = c.links.filter(row => row.cardId === card.cardId);
@@ -235,7 +236,7 @@ export class CardDetails {
       article.append(node("h4", "Origin " + origin(row.origin) + " · card revision " + row.cardRevision),
         node("p", attribution(row.actorId, h.actors) + " · " + row.committedAt));
       if (row.state) article.append(node("p", "#" + row.state.ticket + " " + row.state.title), node("p", "Description:\n" + row.state.description),
-        node("p", row.state.lane + " · " + row.state.priority + " · Owner: " + (row.state.ownerId ? attribution(row.state.ownerId, h.actors) : "Unassigned")),
+        node("p", laneText(row.state.lane, h.workflow) + " · " + row.state.priority + " · Owner: " + (row.state.ownerId ? attribution(row.state.ownerId, h.actors) : "Unassigned")),
         node("p", "Archived: " + row.state.archived + " · approval: " + (row.state.currentApprovalId ?? "none")));
       else article.append(node("p", "Old text unavailable; compact or removed state."));
       if (row.state) {

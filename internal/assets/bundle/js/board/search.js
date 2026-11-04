@@ -1,3 +1,4 @@
+import { laneText, workflowLanes, sameWorkflow } from "../api/workflow.js";
 import { compareSummary, emptySearch, sameSearch, validSearch } from "../api/search.js";
 import { button, element } from "../recovery-ui/view.js";
 export function validPrivateSearch(value) {
@@ -24,6 +25,8 @@ export class CardSearch {
     first;
     identity;
     revisionFloor = 0;
+    workflow;
+    retainedLane = null;
     result;
     applied;
     generation = 0;
@@ -90,8 +93,8 @@ export class CardSearch {
         }
         this.update();
     }
-    draft() { return { q: this.query.value, lane: this.lane.value || null, owner: this.owner.value || null, priority: this.priority.value || null, archive: this.archive.value }; }
-    setDraft(value) { this.query.value = value.q; this.lane.value = value.lane ?? ""; this.owner.value = value.owner ?? ""; this.priority.value = value.priority ?? ""; this.archive.value = value.archive; }
+    draft() { return { q: this.query.value, lane: this.lane.value || this.retainedLane || null, owner: this.owner.value || null, priority: this.priority.value || null, archive: this.archive.value }; }
+    setDraft(value) { this.query.value = value.q; this.retainedLane = value.lane; this.lane.value = value.lane ?? ""; this.owner.value = value.owner ?? ""; this.priority.value = value.priority ?? ""; this.archive.value = value.archive; }
     persist() {
         if (!this.checkpoint) {
             this.storage.textContent = "Search filters are held in memory for this window lifetime.";
@@ -108,6 +111,7 @@ export class CardSearch {
         }
     }
     changed() {
+        this.retainedLane = this.lane.value || null;
         this.generation++;
         this.busy = false;
         this.stale = true;
@@ -115,7 +119,27 @@ export class CardSearch {
         this.persist();
         this.update();
     }
-    boardRead(identity, revision) {
+    boardRead(identity, revision, workflow) {
+        const selected = this.lane.value || this.retainedLane || "";
+        this.workflow = workflow;
+        this.lane.replaceChildren();
+        const any = element("option", "Any");
+        any.value = "";
+        this.lane.append(any);
+        for (const lane of workflowLanes(workflow)) {
+            const option = element("option", laneText(lane.id, workflow));
+            option.value = lane.id;
+            this.lane.append(option);
+        }
+        this.lane.value = selected;
+        // Preserve a private incompatible draft visibly; never silently search Any.
+        if (selected && !workflowLanes(workflow).some(lane => lane.id === selected)) {
+            const unavailable = element("option", "Unavailable lane (retained filter)");
+            unavailable.value = selected;
+            this.lane.append(unavailable);
+            this.lane.value = selected;
+        }
+        this.retainedLane = selected || null;
         if (this.identity && (this.identity.boardId !== identity.boardId || this.identity.incarnation !== identity.incarnation)) {
             this.generation++;
             this.result = undefined;
@@ -142,7 +166,7 @@ export class CardSearch {
         if (!this.active || !this.identity || continuation && this.next.disabled)
             return;
         const filters = structuredClone(apply ? this.draft() : this.applied ?? this.draft()), previous = this.result;
-        if (!validSearch(filters)) {
+        if (!validSearch(filters) || filters.lane !== null && !workflowLanes(this.workflow).some(lane => lane.id === filters.lane)) {
             this.generation++;
             this.busy = false;
             this.stale = true;
@@ -170,6 +194,10 @@ export class CardSearch {
                 throw Error("Search snapshot is older than current board facts; choose First page");
             if (read.result.identity.incarnation !== identity.incarnation || read.result.identity.boardId !== identity.boardId || continuation && (!previous || read.result.revision !== previous.result.revision || read.result.items.some(row => previous.result.items.some(old => old.cardId === row.cardId || old.ticket === row.ticket)) || read.result.items.length && compareSummary(previous.result.items.at(-1), read.result.items[0]) >= 0))
                 throw Error("Search page mismatch; choose First page");
+            if (!sameWorkflow(read.result.workflow, this.workflow))
+                throw Error("Search workflow differs from selected board; read current board");
+            if (read.result.items.some(card => !workflowLanes(read.result.workflow).some(lane => lane.id === card.lane)))
+                throw Error("Search lane unavailable in complete workflow");
             this.result = read;
             this.applied = filters;
             this.stale = false;
@@ -181,7 +209,7 @@ export class CardSearch {
                     this.open(card.cardId, read.result.identity, opener); });
                 opener.dataset.openCard = card.cardId;
                 opener.dataset.focusKey = "search:" + card.cardId;
-                article.append(element("h2", "#" + card.ticket + " " + card.title), element("p", card.cardId + " · " + card.priority + " · " + card.lane + " · Owner: " + (card.ownerId ?? "Unassigned") + " · " + (card.archived ? "Archived" : "Active")), opener);
+                article.append(element("h2", "#" + card.ticket + " " + card.title), element("p", card.cardId + " · " + card.priority + " · " + laneText(card.lane, read.result.workflow) + " · Owner: " + (card.ownerId ?? "Unassigned") + " · " + (card.archived ? "Archived" : "Active")), opener);
                 this.rows.append(article);
             }
             this.persist();

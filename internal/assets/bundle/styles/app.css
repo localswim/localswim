@@ -84,3 +84,19 @@ section:has(> .workspace-shell) { margin: 0; }
 .workspace-filter-label { display: block; margin: 0 .65rem .35rem; color: var(--workspace-muted); font-size: .85rem; }
 .workspace-filter { box-sizing: border-box; width: 100%; margin: 0 0 1rem; color: var(--workspace-text); background: var(--workspace-surface); border: 1px solid var(--workspace-line); border-radius: .4rem; padding: .5rem .65rem; }
 .workspace-filter-status { margin: .5rem .65rem 1rem; color: var(--workspace-muted); font-size: .85rem; }
+
+/* Configured new-board editor: no existing-board policy changes. */
+.workflow-editor { max-width: 72rem; margin: 0 auto; }
+.workflow-editor fieldset { border: 1px solid var(--workspace-line); border-radius: .6rem; padding: 1rem; }
+.workflow-editor label { display: inline-flex; flex-direction: column; gap: .3rem; margin: .35rem .8rem .6rem 0; vertical-align: top; }
+.workflow-editor input:not([type=checkbox]), .workflow-editor select { box-sizing: border-box; max-width: 100%; min-width: 10rem; padding: .5rem; color: var(--workspace-text); background: var(--workspace-surface); border: 1px solid var(--workspace-line); border-radius: .35rem; }
+.workflow-editor input[type=checkbox] { align-self: flex-start; }
+.workflow-row { border-top: 1px solid var(--workspace-line); padding: .65rem 0; display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.workflow-editor button:disabled { opacity: .55; cursor: default; }
+.workflow-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: 1rem; }
+.workflow-preview { border-left: 3px solid var(--workspace-accent); padding-left: 1rem; }
+.workflow-preview:empty { display: none; }
+.workflow-preview pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; padding: 1rem; background: var(--workspace-surface); }
+.workflow-editor [role=alert] { color: #a32929; }
+.workflow-editor :focus-visible { outline: 3px solid var(--workspace-accent); outline-offset: 2px; }
+@media (max-width: 700px) { .workflow-row { align-items: stretch; } .workflow-editor label { max-width: 100%; } }

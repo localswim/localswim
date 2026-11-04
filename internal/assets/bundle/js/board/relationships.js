@@ -1,3 +1,4 @@
+import { completedLane, laneText } from "../api/workflow.js";
 import { captureRelationships } from "../api/relationships.js";
 import { sameIdentity } from "../api/hierarchy.js";
 function node(tag, text = "") { const n = document.createElement(tag); n.textContent = text; return n; }
@@ -98,7 +99,7 @@ export class CardRelationships {
             const act = (action, text, row) => {
                 const n = button(text, () => { n.focus({ preventScroll: true }); if (this.active && !this.stale)
                     this.action?.(action, root, read, row); });
-                n.disabled = this.stale || root.lane === "Completed";
+                n.disabled = this.stale || completedLane(root.lane, read.result.workflow);
                 n.dataset.focusKey = root.cardId + ":relationships:" + action + ":" + (row?.linkId ?? "");
                 return n;
             };
@@ -118,7 +119,7 @@ export class CardRelationships {
             for (const row of rows.slice(start, stop)) {
                 const article = node("article");
                 article.dataset.relationship = row.linkId;
-                article.append(node("h4", (row.owned ? "Owned · " : "Incoming · ") + row.label), node("p", row.kind + " · " + row.direction + " · " + row.linkId), node("p", "Peer: " + ref(row.peer) + (row.card ? " · #" + row.card.ticket + " " + row.card.title + " · " + row.card.lane + " · " + (row.card.archived ? "Archived" : "Active") : " · Unavailable")), node("p", "Actual owner: " + ref(row.owner)));
+                article.append(node("h4", (row.owned ? "Owned · " : "Incoming · ") + row.label), node("p", row.kind + " · " + row.direction + " · " + row.linkId), node("p", "Peer: " + ref(row.peer) + (row.card ? " · #" + row.card.ticket + " " + row.card.title + " · " + laneText(row.card.lane, read.result.workflow) + " · " + (row.card.archived ? "Archived" : "Active") : " · Unavailable")), node("p", "Actual owner: " + ref(row.owner)));
                 if (row.card)
                     article.append(open(row.card.cardId, "Open relationship peer", row.linkId + ":peer"));
                 if (!row.owned && read.result.cards.some(card => card.cardId === row.owner.cardId))

@@ -6,7 +6,8 @@ export function validSearch(value: unknown): value is SearchFilters {
   if (!value || typeof value !== "object") return false;
   const row = value as SearchFilters;
   return Object.keys(row).sort().join() === "archive,lane,owner,priority,q" && typeof row.q === "string" && row.q.isWellFormed() && new TextEncoder().encode(row.q).length <= 1024 &&
-    (row.lane === null || ["Ready for Work", "In Progress", "Ready for Review", "Completed"].includes(row.lane)) &&
+    (row.lane === null || ["Ready for Work", "In Progress", "Ready for Review", "Completed"].includes(row.lane) ||
+      typeof row.lane === "string" && uuid.test(row.lane) && row.lane !== "00000000-0000-0000-0000-000000000000") &&
     (row.owner === null || row.owner === "unassigned" || typeof row.owner === "string" && uuid.test(row.owner) && row.owner !== "00000000-0000-0000-0000-000000000000") &&
     (row.priority === null || /^P[0-5]$/.test(row.priority)) && ["active", "archived", "all"].includes(row.archive);
 }

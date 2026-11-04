@@ -30,6 +30,8 @@ export class WorkspaceShell {
     options;
     editorRoot = node("section", "workspace-editor");
     chooserRoot = node("section", "workspace-chooser");
+    setupRoot = node("section", "workspace-setup-root");
+    createBoardButton = node("button", "workspace-create-board", "New configured board");
     shell = node("div", "workspace-shell");
     sidebar = node("aside", "workspace-sidebar");
     list = node("ul", "workspace-board-list");
@@ -64,6 +66,12 @@ export class WorkspaceShell {
         this.toggle.type = "button";
         this.toggle.addEventListener("click", () => { this.layout = { ...this.layout, collapsed: !this.layout.collapsed }; this.applyLayout(); this.options.layoutChanged?.(this.layout); });
         header.append(brand, this.toggle);
+        if (options.createBoard) {
+            this.createBoardButton.type = "button";
+            this.createBoardButton.disabled = true;
+            this.createBoardButton.addEventListener("click", () => options.createBoard?.(this.createBoardButton));
+            header.append(this.createBoardButton);
+        }
         const body = node("div", "workspace-body"), nav = node("nav", "workspace-nav");
         nav.setAttribute("aria-label", "Workspace boards");
         const title = node("h2", "workspace-group-title", "Other"), pinnedTitle = node("h2", "workspace-group-title", "Pinned");
@@ -108,7 +116,7 @@ export class WorkspaceShell {
         this.routeStatus.setAttribute("role", "status");
         this.routeStatus.hidden = true;
         this.chooserRoot.append(node("p", "workspace-eyebrow", "Your workspace"), node("h1", "", "Choose a board"), node("p", "workspace-intro", "Open a board to view its cards and continue your work."), this.empty, this.choiceList, this.projects);
-        content.append(this.routeStatus, this.chooserRoot, this.editorRoot);
+        content.append(this.routeStatus, this.setupRoot, this.chooserRoot, this.editorRoot);
         body.append(this.sidebar, content);
         this.shell.append(header, body);
         root.replaceChildren(this.shell);
@@ -234,6 +242,7 @@ export class WorkspaceShell {
         const focused = this.sidebarFocus();
         const scrollTop = this.sidebar.scrollTop, scrollLeft = this.sidebar.scrollLeft;
         this.snapshot = snapshot;
+        this.createBoardButton.disabled = snapshot.state !== "ready" || !snapshot.projects?.projects.length || snapshot.projects.configRevision !== snapshot.catalog?.configRevision;
         const entries = snapshot.catalog?.entries ?? [];
         this.updateRows(entries, this.rows, this.list, true, snapshot.state === "unavailable" || snapshot.state === "stale");
         for (const pin of this.pins.pins)

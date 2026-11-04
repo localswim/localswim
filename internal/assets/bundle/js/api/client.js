@@ -5,6 +5,7 @@ import { validateCardRead, validateHistoryRead } from "./history.js";
 import { validateBoardHierarchy } from "./hierarchy.js";
 import { boardBoundaryVerifier, canonical, object, parse, prepare, sha256, validate } from "./boundary.js";
 import { validSearch, validateSearchRead } from "./search.js";
+import { laneRole, sameWorkflow } from "./workflow.js";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export class BoardClient {
     options;
@@ -22,6 +23,15 @@ export class BoardClient {
     onCommitted(callback) { this.commitObservers.add(callback); return () => { this.commitObservers.delete(callback); }; }
     previews = new Map();
     inFlight = new Set();
+    workflows = new Map();
+    workflowRead(identity, workflow, lanes) {
+        if (lanes.some(lane => !laneRole(lane, workflow)))
+            throw Error("Lane does not belong to the current workflow");
+        const key = identity.boardId + "/" + identity.incarnation;
+        if (this.workflows.has(key) && !sameWorkflow(this.workflows.get(key), workflow))
+            throw Error("Immutable workflow changed");
+        this.workflows.set(key, workflow && structuredClone(workflow));
+    }
     static async open(options) {
         if (options.transport === "local-cookie") {
             const selected = options.selection;
@@ -134,6 +144,7 @@ export class BoardClient {
         if (this.options.selection && board.result.identity.incarnation !== this.options.selection.incarnation)
             throw Error("Selected incarnation mismatch");
         validateBoardHierarchy(board);
+        this.workflowRead(board.result.identity, board.result.workflow, board.result.cards.map(card => card.lane));
         return board;
     }
     async card(boardId, cardId) {
@@ -149,6 +160,7 @@ export class BoardClient {
         if (this.options.selection && card.result.identity.incarnation !== this.options.selection.incarnation)
             throw Error("Selected incarnation mismatch");
         validateCardRead(card);
+        this.workflowRead(card.result.identity, card.result.workflow, [card.result.card.lane]);
         return card;
     }
     async search(boardId, filters, cursor) {
@@ -169,6 +181,7 @@ export class BoardClient {
         if (read.result.identity.boardId !== boardId || this.options.selection && read.result.identity.incarnation !== this.options.selection.incarnation)
             throw Error("Search identity mismatch");
         validateSearchRead(read, filters);
+        this.workflowRead(read.result.identity, read.result.workflow, [...read.result.items.map(card => card.lane), ...(read.result.query.lane === null ? [] : [read.result.query.lane])]);
         return read;
     }
     async history(boardId, cardId) {
@@ -184,6 +197,7 @@ export class BoardClient {
         if (this.options.selection && history.result.identity.incarnation !== this.options.selection.incarnation)
             throw Error("Selected incarnation mismatch");
         validateHistoryRead(history);
+        this.workflowRead(history.result.identity, history.result.workflow, history.result.records.flatMap(row => row.state ? [row.state.lane] : []));
         return history;
     }
     context(board, session) {

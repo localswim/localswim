@@ -1,3 +1,4 @@
+import { completedLane, laneText } from "../api/workflow.js";
 import type { BoardRead } from "../../generated/transport/contracts.js";
 import type { Identity } from "../../generated/archive/contracts.js";
 import type { BoardClient } from "../api/client.js";
@@ -92,13 +93,13 @@ export class CardHierarchy {
       return control;
     };
     this.host.append(node("p", "Hierarchy board " + identity.boardId + " · incarnation " + identity.incarnation + " · source revision " + read.result.revision));
-    if (parent) this.host.append(node("p", "Parent: #" + parent.ticket + " · " + parent.cardId + " · " + parent.lane + " · " + (parent.archived ? "Archived" : "Active")), open(parent, "Open parent"));
+    if (parent) this.host.append(node("p", "Parent: #" + parent.ticket + " · " + parent.cardId + " · " + laneText(parent.lane, read.result.workflow) + " · " + (parent.archived ? "Archived" : "Active")), open(parent, "Open parent"));
     else this.host.append(node("p", "No parent"));
     this.host.append(node("p", "Children: " + directChildCount + " direct · " + nodes.length + " descendants"));
     if (this.action) for (const [action, label] of [["create-child", "Create child"], ["set-parent", "Set parent"], ["clear-parent", "Clear parent"]] as const) {
       const control = button(label, () => { control.focus({ preventScroll: true }); if (this.active && !this.stale) this.action!(action, root, read); });
       control.dataset.focusKey = root.cardId + ":hierarchy:" + action;
-      control.disabled = this.stale || action !== "create-child" && root.lane === "Completed";
+      control.disabled = this.stale || action !== "create-child" && completedLane(root.lane, read.result.workflow);
       this.host.append(control);
     }
     const count = nodes.length, start = this.page * 20, stop = Math.min(count, start + 20), pages = Math.max(1, Math.ceil(count / 20));
@@ -118,7 +119,7 @@ export class CardHierarchy {
       const card = row.card, article = node("article"); article.dataset.hierarchyCard = card.cardId;
       const owner = read.result.actors.find(actor => actor.actorId === card.ownerId);
       article.append(node("p", "Depth " + row.depth + " · #" + card.ticket + " · UUID " + card.cardId + " · " + card.title),
-        node("p", card.lane + " · " + card.priority + " · Owner: " + (owner ? owner.label + " (" + owner.actorId + ")" : card.ownerId ?? "Unassigned") + " · " + (card.archived ? "Archived" : "Active")),
+        node("p", laneText(card.lane, read.result.workflow) + " · " + card.priority + " · Owner: " + (owner ? owner.label + " (" + owner.actorId + ")" : card.ownerId ?? "Unassigned") + " · " + (card.archived ? "Archived" : "Active")),
         node("p", "Direct parent: " + card.parent!.boardId + "/" + card.parent!.incarnation + "/" + card.parent!.cardId + " · " + row.directChildCount + " direct children · " + row.descendantCount + " descendants"), open(card, "Open child"));
       this.host.append(article);
     }

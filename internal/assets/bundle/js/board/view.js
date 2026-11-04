@@ -1,3 +1,4 @@
+import { completedLane, laneText, moveLanes, roleLane, workflowEdge, workflowRight, workflowLanes } from "../api/workflow.js";
 import { completeOwnedRelationships, relationshipKinds, forwardLabels, validRelationships } from "../api/relationships.js";
 import { recoveryCoordinator } from "../recovery-ui/coordination.js";
 import { dependencyAdvisory } from "./advisory.js";
@@ -37,6 +38,7 @@ export class BoardView {
     readState = element("p", "Unavailable; no current board loaded.");
     actor = element("p");
     cards = element("section");
+    create = button("Create card", () => this.edit("card.create"));
     editorHost = element("section");
     current = element("section");
     outcomes = element("section");
@@ -102,7 +104,7 @@ export class BoardView {
             }
             this.edit("card.edit", card, false, undefined, !card.archived);
         }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read, relationshipAction: (action, card, read, row) => this.relationshipEdit(action, card, read, row) });
-        root.replaceChildren(this.heading, this.actor, this.readState, read, button("Create card", () => this.edit("card.create")), this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
+        root.replaceChildren(this.heading, this.actor, this.readState, read, this.create, this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
     }
     async open() { await this.refresh(); }
     suspend() { this.suspended = true; this.generation++; this.details.suspend(); this.search.suspend(); }
@@ -156,6 +158,8 @@ export class BoardView {
             const archive = Object.hasOwn(payload.input, "archived") ? payload.input.archived : undefined;
             if (archive !== undefined && (typeof archive !== "boolean" || payload.command !== "card.edit" || !card || Object.keys(payload.input).length !== 1 || payload.start))
                 return;
+            if (Object.hasOwn(payload.input, "laneId") && (payload.command !== "card.edit" || !card || !payload.start || !payload.base.result.workflow || Object.keys(payload.input).length !== 1 || typeof payload.input.laneId !== "string" || !workflowLanes(payload.base.result.workflow).some(lane => lane.id === payload.input.laneId && ["initial", "in_progress", "waiting"].includes(lane.role))))
+                return;
             let hierarchy;
             if (payload.hierarchy && (!Object.hasOwn(payload.input, "parent") || !["create-child", "set-parent", "clear-parent"].includes(payload.hierarchy.action)))
                 return;
@@ -164,7 +168,7 @@ export class BoardView {
                 if (payload.start || archive !== undefined || parent !== null && !validParentRef(parent, identity))
                     return;
                 if (payload.command === "card.edit") {
-                    if (!card || Object.keys(payload.input).length !== 1 || card.lane === "Completed")
+                    if (!card || Object.keys(payload.input).length !== 1 || completedLane(card.lane, payload.base.result.workflow))
                         return;
                     if (payload.hierarchy?.action === "create-child" || payload.hierarchy?.action === "clear-parent" && parent !== null)
                         return;
@@ -197,7 +201,7 @@ export class BoardView {
             const retainedFocus = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : undefined;
             const retainedSelection = retainedFocus instanceof HTMLInputElement || retainedFocus instanceof HTMLTextAreaElement
                 ? [retainedFocus.selectionStart, retainedFocus.selectionEnd, retainedFocus.selectionDirection ?? undefined] : undefined;
-            this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive, hierarchy, payload.command === "card.edit" && Object.hasOwn(payload.input, "relationships"));
+            this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive, hierarchy, payload.command === "card.edit" && Object.hasOwn(payload.input, "relationships"), undefined, payload.genericMove === true);
             const restored = this.editor;
             if (restored)
                 restored.submitted = rows.some(row => row.outcome !== "not_committed");
@@ -233,13 +237,14 @@ export class BoardView {
             this.session = session;
             this.board = board;
             this.stale = false;
+            this.create.disabled = !!board.result.workflow && !workflowRight(session, "create", board.result.workflow);
             this.heading.textContent = "Board " + board.result.identity.boardId;
             this.actor.textContent = "Actor " + session.actorId + " (" + session.kind + ")";
             this.readState.textContent = "Current at board revision " + board.result.revision + "; incarnation " + board.result.identity.incarnation;
             this.renderCards();
             this.details.completeBoardRead(board);
             this.details.boardRead(board.result.identity);
-            this.search.boardRead(board.result.identity, board.result.revision);
+            this.search.boardRead(board.result.identity, board.result.revision, board.result.workflow);
         }
         catch {
             if (this.destroyed || generation !== this.generation)
@@ -255,55 +260,72 @@ export class BoardView {
         this.cards.replaceChildren();
         const visible = visibleCards(this.board.result.cards, this.archiveStatus.value);
         this.cards.append(element("p", visible.length + " cards visible · Archive status: " + this.archiveStatus.selectedOptions[0].textContent));
-        for (const card of visible) {
-            const article = element("article");
-            article.append(element("h2", "#" + card.ticket + " " + card.title), element("p", card.cardId), element("p", card.description), element("p", "Assignee: " + this.assignee(card.ownerId, this.board.result.actors)), element("p", card.priority + " · " + card.lane + " · card revision " + card.revision + " · " + (card.archived ? "Archived" : "Active")));
-            const commentCount = this.board.result.comments.filter(c => c.cardId === card.cardId).length;
-            article.append(element("p", commentCount + " comments returned. Open card to read paged comments and history."));
-            for (const link of this.board.result.links.filter(l => l.cardId === card.cardId && l.active)) {
-                article.append(element("p", link.kind + " → " + link.target.cardId + " · " + link.linkId));
-                const identity = this.board.result.identity, target = this.board.result.cards.find(row => row.cardId === link.target.cardId);
-                if (target && link.target.boardId === identity.boardId && link.target.incarnation === identity.incarnation) {
-                    const openTarget = button("Open linked card #" + target.ticket + " " + target.title, () => {
-                        if (!this.destroyed && !this.suspended && this.board)
-                            this.details.open(target.cardId, this.board.result.identity, openTarget);
-                    });
-                    openTarget.dataset.openCard = target.cardId;
-                    openTarget.dataset.focusKey = card.cardId + ":link:" + link.linkId;
-                    article.append(openTarget);
+        const workflow = this.board.result.workflow;
+        for (const lane of workflow ? workflowLanes(workflow) : [undefined]) {
+            if (lane)
+                this.cards.append(element("h2", laneText(lane.id, workflow)));
+            for (const card of lane ? visible.filter(row => row.lane === lane.id) : visible) {
+                const article = element("article");
+                article.append(element("h2", "#" + card.ticket + " " + card.title), element("p", card.cardId), element("p", card.description), element("p", "Assignee: " + this.assignee(card.ownerId, this.board.result.actors)), element("p", card.priority + " · " + laneText(card.lane, this.board.result.workflow) + " · card revision " + card.revision + " · " + (card.archived ? "Archived" : "Active")));
+                const commentCount = this.board.result.comments.filter(c => c.cardId === card.cardId).length;
+                article.append(element("p", commentCount + " comments returned. Open card to read paged comments and history."));
+                for (const link of this.board.result.links.filter(l => l.cardId === card.cardId && l.active)) {
+                    article.append(element("p", link.kind + " → " + link.target.cardId + " · " + link.linkId));
+                    const identity = this.board.result.identity, target = this.board.result.cards.find(row => row.cardId === link.target.cardId);
+                    if (target && link.target.boardId === identity.boardId && link.target.incarnation === identity.incarnation) {
+                        const openTarget = button("Open linked card #" + target.ticket + " " + target.title, () => {
+                            if (!this.destroyed && !this.suspended && this.board)
+                                this.details.open(target.cardId, this.board.result.identity, openTarget);
+                        });
+                        openTarget.dataset.openCard = target.cardId;
+                        openTarget.dataset.focusKey = card.cardId + ":link:" + link.linkId;
+                        article.append(openTarget);
+                    }
                 }
+                const archive = button(card.archived ? "Unarchive card" : "Archive card", () => {
+                    archive.focus({ preventScroll: true });
+                    this.edit("card.edit", card, false, undefined, !card.archived);
+                });
+                archive.dataset.focusKey = card.cardId + ":archive";
+                archive.disabled = completedLane(card.lane, this.board.result.workflow) || !!this.board.result.workflow && !workflowRight(this.session, "edit", this.board.result.workflow);
+                article.append(archive);
+                const advisory = dependencyAdvisory(this.board, card);
+                const pressure = element("section"), prerequisites = element("section");
+                pressure.setAttribute("aria-label", "Dependency pressure");
+                prerequisites.setAttribute("aria-label", "Prerequisites/readiness");
+                for (const fact of advisory.pressure)
+                    pressure.append(element("p", fact));
+                for (const fact of advisory.prerequisites)
+                    prerequisites.append(element("p", fact));
+                prerequisites.append(element("p", advisory.summary));
+                article.append(pressure, prerequisites);
+                for (const [label, command] of [["Edit card", "card.edit"], ["Rename card", "card.edit"], ["Add comment", "comment.add"], ["Add link", "link.add"], ["Remove link", "link.remove"], ["Start work", "card.edit"], ["Review handoff", "review-handoff"], ["Approve", "approve"]]) {
+                    const control = button(label, () => this.edit(command, card, label === "Start work"));
+                    control.dataset.focusKey = card.cardId + ":" + label;
+                    const workflow = this.board.result.workflow, session = this.session;
+                    control.disabled = completedLane(card.lane, workflow) || command === "approve" && (session.kind !== "human" || !session.grant.rights.includes("approve"));
+                    if (workflow) {
+                        const role = label === "Start work" ? "in_progress" : command === "review-handoff" ? "review" : command === "approve" ? "completed" : undefined;
+                        const right = command === "review-handoff" || command === "approve" ? command : command === "comment.add" ? "comment" : "edit";
+                        control.disabled ||= !workflowRight(session, right, workflow) || !!role && (card.archived || !workflowEdge(card.lane, roleLane(role, workflow), session, right === "comment" ? "edit" : right, workflow));
+                    }
+                    article.append(control);
+                }
+                if (this.board.result.workflow) {
+                    const move = button("Move card", () => this.edit("card.edit", card, true, undefined, undefined, undefined, false, undefined, true));
+                    move.dataset.focusKey = card.cardId + ":move";
+                    move.disabled = card.archived || completedLane(card.lane, this.board.result.workflow) || !moveLanes(card.lane, this.session, this.board.result.workflow).length;
+                    article.append(move);
+                }
+                const open = button("Open card #" + card.ticket + " " + card.title, () => {
+                    if (!this.destroyed && !this.suspended && this.board)
+                        this.details.open(card.cardId, this.board.result.identity, open);
+                });
+                open.dataset.openCard = card.cardId;
+                open.dataset.focusKey = card.cardId + ":open";
+                article.append(open);
+                this.cards.append(article);
             }
-            const archive = button(card.archived ? "Unarchive card" : "Archive card", () => {
-                archive.focus({ preventScroll: true });
-                this.edit("card.edit", card, false, undefined, !card.archived);
-            });
-            archive.dataset.focusKey = card.cardId + ":archive";
-            archive.disabled = card.lane === "Completed";
-            article.append(archive);
-            const advisory = dependencyAdvisory(this.board, card);
-            const pressure = element("section"), prerequisites = element("section");
-            pressure.setAttribute("aria-label", "Dependency pressure");
-            prerequisites.setAttribute("aria-label", "Prerequisites/readiness");
-            for (const fact of advisory.pressure)
-                pressure.append(element("p", fact));
-            for (const fact of advisory.prerequisites)
-                prerequisites.append(element("p", fact));
-            prerequisites.append(element("p", advisory.summary));
-            article.append(pressure, prerequisites);
-            for (const [label, command] of [["Edit card", "card.edit"], ["Rename card", "card.edit"], ["Add comment", "comment.add"], ["Add link", "link.add"], ["Remove link", "link.remove"], ["Start work", "card.edit"], ["Review handoff", "review-handoff"], ["Approve", "approve"]]) {
-                const control = button(label, () => this.edit(command, card, label === "Start work"));
-                control.dataset.focusKey = card.cardId + ":" + label;
-                control.disabled = card.lane === "Completed" || command === "approve" && (this.session.kind !== "human" || !this.session.grant.rights.includes("approve"));
-                article.append(control);
-            }
-            const open = button("Open card #" + card.ticket + " " + card.title, () => {
-                if (!this.destroyed && !this.suspended && this.board)
-                    this.details.open(card.cardId, this.board.result.identity, open);
-            });
-            open.dataset.openCard = card.cardId;
-            open.dataset.focusKey = card.cardId + ":open";
-            article.append(open);
-            this.cards.append(article);
         }
         // Refresh only restores focus when the old card control was removed.
         if (focused) {
@@ -329,7 +351,7 @@ export class BoardView {
             return;
         }
         const target = current.result.cards.find(row => row.cardId === card.cardId);
-        if (!target || target.revision !== card.revision || action !== "create-child" && target.lane === "Completed")
+        if (!target || target.revision !== card.revision || action !== "create-child" && completedLane(target.lane, current.result.workflow))
             return;
         this.edit(action === "create-child" ? "card.create" : "card.edit", action === "create-child" ? undefined : target, false, undefined, undefined, { action, ...(action === "create-child" ? { parent: { ...current.result.identity, cardId: target.cardId } } : {}) });
     }
@@ -340,11 +362,11 @@ export class BoardView {
             return;
         }
         const target = current.result.cards.find(value => value.cardId === card.cardId);
-        if (!target || target.revision !== card.revision || target.lane === "Completed" || action === "remove" && (!row?.owned || row.owner.cardId !== target.cardId))
+        if (!target || target.revision !== card.revision || completedLane(target.lane, current.result.workflow) || action === "remove" && (!row?.owned || row.owner.cardId !== target.cardId))
             return;
         this.edit(action === "replace" ? "card.edit" : action === "add" ? "link.add" : "link.remove", target, false, undefined, undefined, undefined, action === "replace", row?.linkId);
     }
-    edit(command, card, start = false, restore, archive, hierarchy, relationshipsReplace = false, removeLinkId) {
+    edit(command, card, start = false, restore, archive, hierarchy, relationshipsReplace = false, removeLinkId, genericMove = false) {
         if (this.destroyed || !this.board || !this.session || this.stale) {
             this.readState.textContent = "Read a current board before editing.";
             return;
@@ -359,12 +381,19 @@ export class BoardView {
                 this.cancelEditor(this.editor, () => {
                     const replacement = [...this.root.querySelectorAll("button")].find(row => row.dataset.focusKey === opener?.dataset.focusKey);
                     (replacement ?? (opener?.isConnected ? opener : undefined))?.focus({ preventScroll: true });
-                    this.edit(command, card, start, restore, archive, hierarchy, relationshipsReplace, removeLinkId);
+                    this.edit(command, card, start, restore, archive, hierarchy, relationshipsReplace, removeLinkId, genericMove);
                 });
                 return;
             }
             this.readState.textContent = "Current editor has unsaved intent. Finish it or explicitly discard it before opening another editor.";
             return;
+        }
+        if (!restore && this.board.result.workflow) {
+            const right = command === "card.create" ? "create" : command === "comment.add" ? "comment" : command === "review-handoff" || command === "approve" ? command : "edit";
+            if (!workflowRight(this.session, right, this.board.result.workflow)) {
+                this.readState.textContent = "Current workflow and grant do not offer this action. The server remains authoritative.";
+                return;
+            }
         }
         const base = restore?.base ?? this.board, context = this.client.context(base, this.session), form = element("form");
         form.addEventListener("submit", event => event.preventDefault());
@@ -372,7 +401,7 @@ export class BoardView {
         recovery.setAttribute("role", "status");
         const editor = { id: restore?.reference.draftId ?? crypto.randomUUID(), revision: restore?.revision ?? 0, command, context, base, card,
             fields: {}, form, recovery, save: button("Save", () => { void this.save(editor); }), composing: false,
-            sequence: 0, submitted: false, persisted: -1, start, ...(archive === undefined ? {} : { archive }), ...(hierarchy ? { hierarchy } : {}), ...(relationshipsReplace ? { relationshipsReplace: true } : {}), initial: "", initialFields: {}, opener: document.activeElement,
+            sequence: 0, submitted: false, persisted: -1, start, ...(genericMove ? { genericMove: true } : {}), ...(archive === undefined ? {} : { archive }), ...(hierarchy ? { hierarchy } : {}), ...(relationshipsReplace ? { relationshipsReplace: true } : {}), initial: "", initialFields: {}, opener: document.activeElement,
             confirmation: element("section"), confirming: false, confirmingEnter: false };
         const title = element("h2", command + " · original board revision " + base.result.revision + (card ? ", card revision " + card.revision : ""));
         form.append(title, element("p", "Board " + context.boardId + " · actor " + context.actorId));
@@ -421,7 +450,7 @@ export class BoardView {
                 for (const [index, spec] of value.entries()) {
                     const entry = element("article"), row = spec;
                     const target = row?.target, peer = target && sameIdentity(base.result.identity, target) ? base.result.cards.find(card => card.cardId === target.cardId) : undefined;
-                    const label = (row && row.kind && Object.hasOwn(forwardLabels, row.kind) ? forwardLabels[row.kind] : "Unavailable relationship") + " · " + (peer ? "#" + peer.ticket + " " + peer.title + " · " + peer.lane + " · " + (peer.archived ? "Archived" : "Active") + " · " : "Unavailable · ") + (target ? target.boardId + "/" + target.incarnation + "/" + target.cardId : "Unknown exact target");
+                    const label = (row && row.kind && Object.hasOwn(forwardLabels, row.kind) ? forwardLabels[row.kind] : "Unavailable relationship") + " · " + (peer ? "#" + peer.ticket + " " + peer.title + " · " + laneText(peer.lane, base.result.workflow) + " · " + (peer.archived ? "Archived" : "Active") + " · " : "Unavailable · ") + (target ? target.boardId + "/" + target.incarnation + "/" + target.cardId : "Unknown exact target");
                     entry.append(element("p", label), button("Remove owned set entry " + (index + 1), () => { if (this.editor !== editor || editor.submitted || editor.confirming)
                         return; const next = [...value]; next.splice(index, 1); update(next); (selected.querySelector("button") ?? clear).focus(); }));
                     selected.append(entry);
@@ -443,7 +472,7 @@ export class BoardView {
             peer.append(element("option", "Choose an exact relationship peer"));
             peer.options[0].value = "";
             for (const card of [...base.result.cards].filter(value => value.cardId !== editor.card?.cardId).sort(hierarchyOrder)) {
-                const option = element("option", "#" + card.ticket + " " + card.title + " · " + card.cardId + " · " + card.lane + " · " + (card.archived ? "Archived" : "Active"));
+                const option = element("option", "#" + card.ticket + " " + card.title + " · " + card.cardId + " · " + laneText(card.lane, base.result.workflow) + " · " + (card.archived ? "Archived" : "Active"));
                 option.value = card.cardId;
                 peer.append(option);
             }
@@ -474,7 +503,7 @@ export class BoardView {
             selector.options[0].textContent = "Choose an exact parent card";
             for (const option of [...selector.options].slice(1)) {
                 const target = candidates.find(row => row.cardId === option.value);
-                option.textContent = "#" + target.ticket + " " + target.title + " · " + target.cardId + " · " + target.lane + " · " + (target.archived ? "Archived" : "Active");
+                option.textContent = "#" + target.ticket + " " + target.title + " · " + target.cardId + " · " + laneText(target.lane, base.result.workflow) + " · " + (target.archived ? "Archived" : "Active");
             }
             form.append(element("p", "Set parent only. Save submits the explicitly selected exact identity."));
         }
@@ -483,10 +512,28 @@ export class BoardView {
         }
         else if (archive !== undefined) {
             editor.save.textContent = archive ? "Confirm archive card" : "Confirm unarchive card";
-            form.append(element("p", (archive ? "Archive" : "Unarchive") + " card #" + card.ticket + "? Recorded lane " + card.lane + " and retained card facts remain. This submits one explicit edit."));
+            form.append(element("p", (archive ? "Archive" : "Unarchive") + " card #" + card.ticket + "? Recorded lane " + laneText(card.lane, base.result.workflow) + " and retained card facts remain. This submits one explicit edit."));
         }
-        else if (start)
-            field("lane", "In Progress", ["In Progress"]);
+        else if (start) {
+            if (base.result.workflow) {
+                const choices = [...moveLanes(card.lane, this.session, base.result.workflow).filter(lane => genericMove || lane.role === "in_progress")];
+                if (restore && typeof restore.input.laneId === "string" && !choices.some(lane => lane.id === restore.input.laneId)) {
+                    const retained = workflowLanes(base.result.workflow).find(lane => lane.id === restore.input.laneId);
+                    if (retained)
+                        choices.push(retained);
+                }
+                field("laneId", roleLane("in_progress", base.result.workflow) ?? "", choices.map(lane => lane.id));
+                const select = editor.fields.laneId;
+                for (const option of select.options)
+                    option.textContent = laneText(option.value, base.result.workflow);
+                if (!select.value && choices.length)
+                    select.value = choices[0].id;
+                editor.save.textContent = "Move card";
+                form.append(element("p", "Move only. The server rechecks the edge, rights and prerequisites when entering in_progress."));
+            }
+            else
+                field("lane", "In Progress", ["In Progress"]);
+        }
         else if (command === "card.create" || command === "card.edit") {
             field("title", card?.title ?? "");
             field("description", card?.description ?? "");
@@ -514,7 +561,7 @@ export class BoardView {
             targets.options[0].textContent = "Choose an exact relationship peer";
             for (const option of [...targets.options].slice(1)) {
                 const peer = base.result.cards.find(value => value.cardId === option.value);
-                option.textContent = "#" + peer.ticket + " " + peer.title + " · " + peer.cardId + " · " + peer.lane + " · " + (peer.archived ? "Archived" : "Active");
+                option.textContent = "#" + peer.ticket + " " + peer.title + " · " + peer.cardId + " · " + laneText(peer.lane, base.result.workflow) + " · " + (peer.archived ? "Archived" : "Active");
             }
         }
         else if (command === "link.remove") {
@@ -677,7 +724,7 @@ export class BoardView {
         const sequence = ++editor.sequence, generation = this.persistence.generation;
         // Prose and original non-secret base only; no credential/session DTO enters storage.
         const input = JSON.stringify({ command: editor.command, target: editor.card ? { cardId: editor.card.cardId } : null,
-            expectedRevision: editor.base.result.revision, expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor), base: editor.base, start: editor.start,
+            expectedRevision: editor.base.result.revision, expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor), base: editor.base, start: editor.start, ...(editor.genericMove ? { genericMove: true } : {}),
             ...(editor.hierarchy ? { hierarchy: editor.hierarchy } : {}), ...(editor.card ? { card: editor.card } : {}) });
         editor.recovery.textContent = "Recovery pending";
         void this.persistence.persist(async () => {

@@ -1,4 +1,4 @@
-import type { WorkspaceResolve } from "../../generated/transport/contracts.js";
+import type { WorkspaceIdentity, WorkspaceResolve } from "../../generated/transport/contracts.js";
 import type { openLocalSession } from "../api/local-session.js";
 import { LocalSessionView } from "./local-view.js";
 import { WindowState } from "./window-state.js";
@@ -32,6 +32,7 @@ export class WindowBoardController {
   private reverting = false;
   private historyGeneration = 0;
   private navigationGeneration = 0;
+  private expectedSelection?: Readonly<{ path: string; identity: WorkspaceIdentity }>;
   private routeStatus: RouteStatus = { requestedPath: location.pathname, phase: "loading" };
   private readonly routeObservers = new Set<(status: RouteStatus) => void>();
   private readonly commitObservers = new Set<() => void>();
@@ -47,14 +48,17 @@ export class WindowBoardController {
   }
   readonly windowId: string;
   constructor(private readonly root: HTMLElement, private readonly connection: WorkspaceConnection,
-    private readonly state = new WindowState()) {
+    private readonly state = new WindowState(), private readonly externalCanLeave: () => boolean = () => true) {
     this.windowId = state.id;
     if (history.state?.localswimWindow === this.windowId && Number.isInteger(history.state.index)) this.index = history.state.index;
     history.replaceState({ localswimWindow: this.windowId, index: this.index }, "", location.href);
     window.addEventListener("beforeunload", this.beforeUnload);
     window.addEventListener("popstate", this.popState);
   }
-  get canLeave(): boolean { return [...this.views.values()].every(v => v.view.canLeave); }
+  get canLeave(): boolean {
+    try { return this.externalCanLeave() && [...this.views.values()].every(v => v.view.canLeave); }
+    catch { return false; }
+  }
   async flushPrivateInput(): Promise<boolean> { await Promise.all([...this.views.values()].map(v => v.view.flushPrivateInput())); return this.canLeave; }
   discardActiveInput(): void { this.active?.view.discardInput(); }
   activate(): void { if (this.active) this.attach(this.active); }
@@ -63,7 +67,7 @@ export class WindowBoardController {
     if (!this.root.querySelector('[data-private-navigation="blocked"]')) {
       const notice = element("section"); notice.dataset.privateNavigation = "blocked"; notice.setAttribute("role", "alert");
       notice.append(element("p", "Private input in a retained view is pending or could not be saved. Navigation is paused until it is saved or explicitly discarded."),
-        button("Discard unpersisted input in retained views", () => { this.discardUnpersistedInput(); notice.remove(); }));
+        button("Discard unpersisted input in retained views", () => { this.discardUnpersistedInput(); if (this.canLeave) notice.remove(); }));
       this.root.append(notice);
     }
     this.report({ ...this.routeStatus, phase: "blocked", message: "Save or explicitly discard unpersisted private input before navigating." });
@@ -95,17 +99,23 @@ export class WindowBoardController {
   };
   async retryRequested(reconnect = true): Promise<boolean> {
     const path = this.routeStatus.requestedPath, navigation = this.navigationGeneration;
+    const expected = this.expectedSelection?.path === path ? this.expectedSelection.identity : undefined;
     if (reconnect) { try { await this.reconnect(); } catch { /* Resolve renders unavailable deliberately. */ } }
     if (navigation !== this.navigationGeneration || this.destroyed) return false;
-    return this.navigate(path, false, true);
+    return this.navigate(path, false, true, expected);
   }
-  async navigate(path: string, push = true, renewBoard = false): Promise<boolean> {
+  async openExpected(path: string, identity: WorkspaceIdentity): Promise<boolean> {
+    if (!boardRoute(path)) return false;
+    return this.navigate(path, true, false, Object.freeze({ ...identity }));
+  }
+  async navigate(path: string, push = true, renewBoard = false, expectedIdentity?: WorkspaceIdentity): Promise<boolean> {
     if (this.destroyed) return false;
+    this.expectedSelection = expectedIdentity ? { path, identity: Object.freeze({ ...expectedIdentity }) } : undefined;
     const navigation = ++this.navigationGeneration;
     if (push) this.historyGeneration++;
     this.report({ requestedPath: path, ...(this.routeStatus.activePath ? { activePath: this.routeStatus.activePath } : {}), phase: "loading" });
     const route = boardRoute(path);
-    const allowed = route ? await this.select(route[0], route[1], renewBoard) : await this.showPendingShell(path);
+    const allowed = route ? await this.select(route[0], route[1], renewBoard, expectedIdentity) : await this.showPendingShell(path);
     if (navigation !== this.navigationGeneration || this.destroyed) return false;
     if (allowed) {
       if (push && location.pathname !== path) {
@@ -161,7 +171,7 @@ export class WindowBoardController {
     for (const [node, x, y] of view.offsets) { node.scrollLeft = x; node.scrollTop = y; }
     window.scrollTo(...view.scroll);
   }
-  async select(projectKey: string, boardKey: string, renewBoard = false): Promise<boolean> {
+  async select(projectKey: string, boardKey: string, renewBoard = false, expectedIdentity?: WorkspaceIdentity): Promise<boolean> {
     if (this.destroyed || !boardRoute("/board/" + projectKey + "/" + boardKey)) return false;
     const generation = ++this.generation;
     const persisted = await this.flushPrivateInput();
@@ -174,6 +184,7 @@ export class WindowBoardController {
       if (generation !== this.generation || this.destroyed) return false;
       if (selected.member.availability !== "ready") throw Error("Selected board unavailable");
       const identity = selected.member.identity;
+      if (expectedIdentity && (identity.installationId !== expectedIdentity.installationId || identity.boardId !== expectedIdentity.boardId || identity.incarnation !== expectedIdentity.incarnation)) throw Error("Selected board identity changed");
       const key = [identity.installationId, identity.boardId, identity.incarnation].join(":");
       let retained = this.views.get(key);
       const existed = !!retained;
@@ -225,6 +236,10 @@ export class WindowBoardController {
       const persisted = await this.flushPrivateInput();
       if (generation !== this.generation || this.destroyed) return false;
       if (!persisted) return this.blocked();
+      if (expectedIdentity) {
+        this.report({ ...this.routeStatus, phase: "blocked", message: "The expected board could not be opened. Retain the setup and inspect its exact identity before trying again." });
+        return false;
+      }
       this.report({ ...this.routeStatus, phase: "unavailable" });
       this.suspend(); this.root.replaceChildren(element("h1", "Localswim"), element("p", "Selected board unavailable. Retained private views and original outcomes remain with their source board. Retry deliberately; no board action was submitted."), button("Retry selected board", () => { void this.retryRequested().catch(() => {}); }));
       return true;

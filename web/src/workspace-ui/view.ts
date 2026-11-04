@@ -6,7 +6,7 @@ export type ShellSnapshot = Readonly<{ catalog?: WorkspaceCatalog; projects?: Wo
 export type ShellCatalogSnapshot = Readonly<{ phase: "loading" | "ready" | "stale" | "unavailable"; catalog: WorkspaceCatalog | null; projects: WorkspaceProjects | null; receivedAt: number | null; refreshing: boolean }>;
 export type ShellLayout = Readonly<{ collapsed: boolean; width: number }>;
 export type RouteStatus = Readonly<{ requestedPath: string; activePath?: string; phase: "loading" | "ready" | "unavailable" | "blocked"; message?: string }>;
-export type WorkspaceShellOptions = Readonly<{ navigate(path: string): void | Promise<unknown>; retry(): void; filter?: string; filterChanged?(filter: string): void; layout?: ShellLayout; layoutChanged?(layout: ShellLayout): void; pinChanged?(pins: ShellPinSnapshot["pins"]): void; retryPins?(): void; inspectPins?(): void }>;
+export type WorkspaceShellOptions = Readonly<{ navigate(path: string): void | Promise<unknown>; retry(): void; createBoard?(opener: HTMLElement): void; filter?: string; filterChanged?(filter: string): void; layout?: ShellLayout; layoutChanged?(layout: ShellLayout): void; pinChanged?(pins: ShellPinSnapshot["pins"]): void; retryPins?(): void; inspectPins?(): void }>;
 
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text = ""): HTMLElementTagNameMap[K] {
   const result = document.createElement(tag); result.className = className; result.textContent = text; return result;
@@ -37,6 +37,8 @@ type SidebarFocus = { element: HTMLElement; row?: Row };
 export class WorkspaceShell {
   readonly editorRoot = node("section", "workspace-editor");
   readonly chooserRoot = node("section", "workspace-chooser");
+  readonly setupRoot = node("section", "workspace-setup-root");
+  readonly createBoardButton = node("button", "workspace-create-board", "New configured board");
   private readonly shell = node("div", "workspace-shell");
   private readonly sidebar = node("aside", "workspace-sidebar");
   private readonly list = node("ul", "workspace-board-list");
@@ -66,6 +68,11 @@ export class WorkspaceShell {
     this.sidebar.id = "workspace-sidebar"; this.toggle.setAttribute("aria-controls", this.sidebar.id);
     this.toggle.type = "button"; this.toggle.addEventListener("click", () => { this.layout = { ...this.layout, collapsed: !this.layout.collapsed }; this.applyLayout(); this.options.layoutChanged?.(this.layout); });
     header.append(brand, this.toggle);
+    if (options.createBoard) {
+      this.createBoardButton.type = "button"; this.createBoardButton.disabled = true;
+      this.createBoardButton.addEventListener("click", () => options.createBoard?.(this.createBoardButton));
+      header.append(this.createBoardButton);
+    }
     const body = node("div", "workspace-body"), nav = node("nav", "workspace-nav"); nav.setAttribute("aria-label", "Workspace boards");
     const title = node("h2", "workspace-group-title", "Other"), pinnedTitle = node("h2", "workspace-group-title", "Pinned");
     pinnedTitle.id = "workspace-pinned-title"; title.id = "workspace-other-title";
@@ -89,7 +96,7 @@ export class WorkspaceShell {
     const content = node("div", "workspace-content");
     this.routeStatus.setAttribute("role", "status"); this.routeStatus.hidden = true;
     this.chooserRoot.append(node("p", "workspace-eyebrow", "Your workspace"), node("h1", "", "Choose a board"), node("p", "workspace-intro", "Open a board to view its cards and continue your work."), this.empty, this.choiceList, this.projects);
-    content.append(this.routeStatus, this.chooserRoot, this.editorRoot); body.append(this.sidebar, content); this.shell.append(header, body); root.replaceChildren(this.shell);
+    content.append(this.routeStatus, this.setupRoot, this.chooserRoot, this.editorRoot); body.append(this.sidebar, content); this.shell.append(header, body); root.replaceChildren(this.shell);
     this.applyLayout(); this.setRoute("/"); this.setPins(this.pins);
   }
   private applyLayout(): void {
@@ -162,6 +169,7 @@ export class WorkspaceShell {
     const focused = this.sidebarFocus();
     const scrollTop = this.sidebar.scrollTop, scrollLeft = this.sidebar.scrollLeft;
     this.snapshot = snapshot;
+    this.createBoardButton.disabled = snapshot.state !== "ready" || !snapshot.projects?.projects.length || snapshot.projects.configRevision !== snapshot.catalog?.configRevision;
     const entries = snapshot.catalog?.entries ?? [];
     this.updateRows(entries, this.rows, this.list, true, snapshot.state === "unavailable" || snapshot.state === "stale");
     for (const pin of this.pins.pins) if (!entries.some(entry => boardHref(entry) === boardHref(pin))) {

@@ -1,3 +1,5 @@
+import { laneText, workflowLanes, sameWorkflow } from "../api/workflow.js";
+import type { Workflow } from "../../generated/archive/contracts.js";
 import type { CardSearchRead } from "../../generated/transport/contracts.js";
 import type { Identity } from "../../generated/archive/contracts.js";
 import type { BoardClient } from "../api/client.js";
@@ -24,6 +26,8 @@ export class CardSearch {
   private readonly first: HTMLButtonElement;
   private identity: Identity | undefined;
   private revisionFloor = 0;
+  private workflow?: Workflow;
+  private retainedLane: string | null = null;
   private result: CardSearchRead | undefined;
   private applied: SearchFilters | undefined;
   private generation = 0;
@@ -66,19 +70,29 @@ export class CardSearch {
     if (validPrivateSearch(initial)) { this.setDraft(initial.draft); this.applied = initial.applied; this.restored = !!initial.applied; }
     this.update();
   }
-  private draft(): SearchFilters { return { q: this.query.value, lane: this.lane.value as SearchFilters["lane"] || null, owner: this.owner.value || null, priority: this.priority.value as SearchFilters["priority"] || null, archive: this.archive.value as SearchFilters["archive"] }; }
-  private setDraft(value: SearchFilters): void { this.query.value = value.q; this.lane.value = value.lane ?? ""; this.owner.value = value.owner ?? ""; this.priority.value = value.priority ?? ""; this.archive.value = value.archive; }
+  private draft(): SearchFilters { return { q: this.query.value, lane: this.lane.value || this.retainedLane || null, owner: this.owner.value || null, priority: this.priority.value as SearchFilters["priority"] || null, archive: this.archive.value as SearchFilters["archive"] }; }
+  private setDraft(value: SearchFilters): void { this.query.value = value.q; this.retainedLane = value.lane; this.lane.value = value.lane ?? ""; this.owner.value = value.owner ?? ""; this.priority.value = value.priority ?? ""; this.archive.value = value.archive; }
   private persist(): void {
     if (!this.checkpoint) { this.storage.textContent = "Search filters are held in memory for this window lifetime."; return; }
     try { if (!validSearch(this.draft())) throw Error(); this.checkpoint({ draft: this.draft(), ...(this.applied ? { applied: this.applied } : {}) }); this.storage.textContent = "Search filters saved privately for this window and board; pages are not saved."; }
     catch { this.storage.textContent = "Search filter storage unavailable or limit exceeded; visible input retained in memory only."; }
   }
   private changed(): void {
+    this.retainedLane = this.lane.value || null;
     this.generation++; this.busy = false; this.stale = true;
     this.status.textContent = this.result ? "Filters changed; previous results are stale. Apply filters to search." : "Filters changed; apply filters to search.";
     this.persist(); this.update();
   }
-  boardRead(identity: Identity, revision: number): void {
+  boardRead(identity: Identity, revision: number, workflow?: Workflow): void {
+    const selected = this.lane.value || this.retainedLane || "";
+    this.workflow = workflow;
+    this.lane.replaceChildren();
+    const any = element("option", "Any"); any.value = ""; this.lane.append(any);
+    for (const lane of workflowLanes(workflow)) { const option = element("option", laneText(lane.id, workflow)); option.value = lane.id; this.lane.append(option); }
+    this.lane.value = selected;
+    // Preserve a private incompatible draft visibly; never silently search Any.
+    if (selected && !workflowLanes(workflow).some(lane => lane.id === selected)) { const unavailable = element("option", "Unavailable lane (retained filter)"); unavailable.value = selected; this.lane.append(unavailable); this.lane.value = selected; }
+    this.retainedLane = selected || null;
     if (this.identity && (this.identity.boardId !== identity.boardId || this.identity.incarnation !== identity.incarnation)) {
       this.generation++; this.result = undefined; this.rows.replaceChildren(); this.busy = false; this.stale = true;
       this.revisionFloor = 0;
@@ -96,7 +110,7 @@ export class CardSearch {
   private async read(continuation: boolean, apply = true, invoked?: HTMLButtonElement): Promise<void> {
     if (!this.active || !this.identity || continuation && this.next.disabled) return;
     const filters = structuredClone(apply ? this.draft() : this.applied ?? this.draft()), previous = this.result;
-    if (!validSearch(filters)) { this.generation++; this.busy = false; this.stale = true; this.status.textContent = "Invalid filters. Query must be valid Unicode at most 1024 UTF-8 bytes; use exact lane, actor UUID/unassigned and P0–P5 values." + (previous ? " Previous results are stale." : " No confirmed results."); this.update(); return; }
+    if (!validSearch(filters) || filters.lane !== null && !workflowLanes(this.workflow).some(lane => lane.id === filters.lane)) { this.generation++; this.busy = false; this.stale = true; this.status.textContent = "Invalid filters. Query must be valid Unicode at most 1024 UTF-8 bytes; use exact lane, actor UUID/unassigned and P0–P5 values." + (previous ? " Previous results are stale." : " No confirmed results."); this.update(); return; }
     const generation = ++this.generation, identity = structuredClone(this.identity), cursor = continuation ? previous?.result.nextCursor ?? undefined : undefined;
     // Native disabled buttons can shed keyboard focus to BODY during loading.
     // Restore only our own invocation, and permanently relinquish this request's
@@ -110,6 +124,8 @@ export class CardSearch {
       if (!this.active || generation !== this.generation) return;
       if (read.result.revision < this.revisionFloor) throw Error("Search snapshot is older than current board facts; choose First page");
       if (read.result.identity.incarnation !== identity.incarnation || read.result.identity.boardId !== identity.boardId || continuation && (!previous || read.result.revision !== previous.result.revision || read.result.items.some(row => previous.result.items.some(old => old.cardId === row.cardId || old.ticket === row.ticket)) || read.result.items.length && compareSummary(previous.result.items.at(-1)!, read.result.items[0]!) >= 0)) throw Error("Search page mismatch; choose First page");
+      if (!sameWorkflow(read.result.workflow, this.workflow)) throw Error("Search workflow differs from selected board; read current board");
+      if (read.result.items.some(card => !workflowLanes(read.result.workflow).some(lane => lane.id === card.lane))) throw Error("Search lane unavailable in complete workflow");
       this.result = read; this.applied = filters; this.stale = false;
       this.revisionFloor = Math.max(this.revisionFloor, read.result.revision);
       this.status.textContent = read.result.items.length + " results returned on this page · " + (read.result.nextCursor ? "More results available." : "End of results.") + " Board revision " + read.result.revision + (sameSearch(this.draft(), filters) ? "" : " · Draft filters differ; Apply filters to use them.");
@@ -117,7 +133,7 @@ export class CardSearch {
       for (const card of read.result.items) {
         const article = element("article"), opener = button("Open card #" + card.ticket + " " + card.title, () => { if (this.active) this.open(card.cardId, read.result.identity, opener); });
         opener.dataset.openCard = card.cardId; opener.dataset.focusKey = "search:" + card.cardId;
-        article.append(element("h2", "#" + card.ticket + " " + card.title), element("p", card.cardId + " · " + card.priority + " · " + card.lane + " · Owner: " + (card.ownerId ?? "Unassigned") + " · " + (card.archived ? "Archived" : "Active")), opener); this.rows.append(article);
+        article.append(element("h2", "#" + card.ticket + " " + card.title), element("p", card.cardId + " · " + card.priority + " · " + laneText(card.lane, read.result.workflow) + " · Owner: " + (card.ownerId ?? "Unassigned") + " · " + (card.archived ? "Archived" : "Active")), opener); this.rows.append(article);
       }
       this.persist();
     } catch (error) { if (this.active && generation === this.generation) { this.stale = true; this.status.textContent = (error instanceof Error ? error.message : "Search unavailable") + (previous ? "; previous results are stale." : "; no confirmed results."); } }

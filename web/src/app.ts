@@ -14,6 +14,9 @@ import { WorkspaceShell } from "./workspace-ui/view.js";
 import { WindowState } from "./session-ui/window-state.js";
 import { createWorkspacePreferencesClient } from "./api/preferences.js";
 import { WorkspacePins } from "./workspace-ui/pins.js";
+import { createConfiguredWorkflowClient } from "./api/configured-workflow.js";
+import { openSetupStore } from "./recovery/workflow-setup.js";
+import { WorkflowSetup } from "./workspace-ui/workflow-setup.js";
 
 // Retained explicit HTTPS component mode only: trusted composition supplies
 // its profile proof. No URL, storage value or inline script grants
@@ -62,10 +65,11 @@ export async function connectLocalApplication(root: HTMLElement, fetcher: typeof
   let controller: WindowBoardController | undefined, view: LocalSessionView | undefined;
   let shell: WorkspaceShell | undefined, refresh: WorkspaceCatalogRefresh | undefined;
   let pins: WorkspacePins | undefined;
+  let setup: WorkflowSetup | undefined;
   let stopRoute: (() => void) | undefined, stopCommit: (() => void) | undefined;
   let closed = false;
   const cleanup = (): void => {
-    stopRoute?.(); stopCommit?.(); refresh?.dispose(); pins?.dispose(); controller?.destroy(); shell?.destroy(); view?.destroy(); local?.clear(); local?.client.close(); workspace?.clear();
+    stopRoute?.(); stopCommit?.(); setup?.destroy(); refresh?.dispose(); pins?.dispose(); controller?.destroy(); shell?.destroy(); view?.destroy(); local?.clear(); local?.client.close(); workspace?.clear();
   };
   try {
     const application = await initialConnection(async (guarded, live) => {
@@ -90,12 +94,29 @@ export async function connectLocalApplication(root: HTMLElement, fetcher: typeof
           finally { retrying = false; }
         };
         shell = new WorkspaceShell(stage, { navigate: path => controller?.navigate(path) ?? Promise.resolve(false), retry: () => { void retry(); },
+          createBoard: opener => { void setup?.show(opener); },
           pinChanged: order => { void pins?.change(order); }, retryPins: () => { void pins?.refresh(true); }, inspectPins: () => { void pins?.refresh(true); },
           layout: state.sidebarLayout, layoutChanged: layout => state.setSidebarLayout(layout), filter: state.sidebarFilter, filterChanged: filter => state.setSidebarFilter(filter) });
         pins = new WorkspacePins(createWorkspacePreferencesClient(workspace, guarded), snapshot => shell?.setPins(snapshot));
-        controller = new WindowBoardController(shell.editorRoot, workspace, state);
+        controller = new WindowBoardController(shell.editorRoot, workspace, state, () => setup?.canLeave ?? true);
         stopRoute = controller.subscribe(status => shell?.setRouteStatus(status));
         refresh = new WorkspaceCatalogRefresh(createWorkspaceCatalogClient(workspace, guarded), { onChange: snapshot => shell?.setCatalog(snapshot), refreshPreferences: () => pins?.refresh() ?? Promise.resolve() });
+        const setupStore = await openSetupStore(globalThis.indexedDB, runtime.workspaceId, state.id).catch(() => ({
+          read: async () => { throw Error("Private setup storage unavailable"); },
+          write: async () => { throw Error("Private setup storage unavailable"); },
+          clear: async () => { throw Error("Private setup storage unavailable"); }, close: () => {},
+        })); current();
+        const origin = location.origin;
+        const setupCurrent = (): boolean => !closed && connections.get(root) === generation && location.origin === origin;
+        const setupWindowReady = (): boolean => {
+          try { return JSON.parse(sessionStorage.getItem("localswim.window.v1") ?? "null")?.id === state.id; } catch { return false; }
+        };
+        setup = new WorkflowSetup(shell.setupRoot, { workspaceId: runtime.workspaceId, windowId: state.id,
+          client: createConfiguredWorkflowClient(workspace, guarded), store: setupStore, current: setupCurrent, windowReady: setupWindowReady,
+          projects: () => { const snapshot = refresh?.snapshot; return snapshot?.phase === "ready" && snapshot.catalog?.configRevision === snapshot.projects?.configRevision ? snapshot.projects ?? undefined : undefined; },
+          navigate: (path, expectedIdentity) => controller?.openExpected(path, expectedIdentity) ?? Promise.resolve(false), refresh: () => refresh?.trigger(),
+          fallback: () => shell!.createBoardButton, confirm: message => window.confirm(message) });
+        await setup.ready; current();
         stopCommit = controller.onCommitted(() => refresh?.trigger());
         await controller.navigate(location.pathname, false); current();
       } else {
@@ -105,7 +126,7 @@ export async function connectLocalApplication(root: HTMLElement, fetcher: typeof
           checkpoint: editor => state.put(key, { ...state.get(key), editor }), recoveryCheckpoint: recovery => state.put(key, { ...state.get(key), recovery }) });
         await view.ready; await view.flushPrivateInput(); current();
       }
-      const result: Application = Object.freeze({ ...(controller ? { controller } : {}), get canLeave(): boolean { return controller?.canLeave ?? view?.canLeave ?? true; }, destroy(): void {
+      const result: Application = Object.freeze({ ...(controller ? { controller } : {}), get canLeave(): boolean { return (setup?.canLeave ?? true) && (controller?.canLeave ?? view?.canLeave ?? true); }, destroy(): void {
         if (closed) return; closed = true; cleanup();
         if (mounted.get(root) === result) { mounted.delete(root); root.replaceChildren(); }
       } });

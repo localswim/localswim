@@ -1,0 +1,76 @@
+Configured workflows in the browser
+2026-11-04 | M06 browser controls slice
+
+Create a configured board
+
+Open the workspace and choose New configured board. Select an existing project,
+then enter a board key and label. The form starts with four lanes and a directed
+path through them. A board's workflow is immutable after creation; this form is
+for new boards, not an editor for an existing board's policy. Default board
+creation remains available through the CLI.
+
+Edit lane labels and roles, reorder lanes, or add waiting lanes. Removing a lane
+also removes its connected transitions. Define directed transitions and select
+the human and/or automation actors allowed on each. Set each actor's rights
+ceiling. These ceilings do not themselves grant credentials or authority. The
+form checks the definition, including 4–16 lanes and 3–64 transitions, required
+roles and reachability. Read any validation messages and correct the draft.
+
+Choose Preview workflow and review the ordered lanes, transitions, rights and
+complete definition with immutable IDs. Any subsequent edit requires a new
+preview. When the private save completes, choose Create board. Creation uses
+the workspace configuration revision captured at preview; a refusal retains the
+input, and a new attempt requires explicitly discarding the old attempt.
+
+The form reports private saving status. Keep draft and close preserves the
+setup so it can be reopened in the same workspace and window, including after
+reload when private storage is available. A registered result does not navigate
+automatically: choose Open registered board when ready. Cancel asks before
+discarding a draft or saved attempt; discarding an attempt warns that its
+original outcome may become unknowable and does not delete a server board.
+
+If private window or setup storage is unavailable or unverified, the input stays
+visible, Create is disabled, and navigation may be blocked. Use Retry private
+save when offered, and wait for a successful save before leaving. A storage
+failure is not permission to recreate a submitted request.
+
+Creation status and recovery
+
+After dispatch, a lost or uncertain response is UNKNOWN. The submitted request
+and exact draft are retained and Create is not sent again. Choose Check configured
+status deliberately. Its current observation is separate from the original
+outcome: it does not settle whether that original request succeeded. Status
+compares the complete retained definition and, when known, the exact board
+identity. A matching workflow ID alone is insufficient. Unavailable status,
+busy or foreign ownership does not prove success or absence.
+
+If status reports an initialized but unregistered board, inspect it and explicitly
+register it using the native CLI; the browser does not register or recreate it.
+See m06-configured-workflows.txt for exact identity, definition comparison and
+CLI recovery. Open registered board is offered only for a registered observation
+with identity; opening is an explicit action and current resolution remains
+authoritative.
+
+Private setup storage is separate from card recovery and contains no credentials
+or card operation ledger. It is bounded to 20 setup records and 2 MiB total,
+with a global monotonically increasing revision to prevent stale writes after
+deletion and recreation. Retain submitted evidence until recovery is complete.
+
+Use cards on a configured board
+
+Lanes appear in configured order with their labels and roles. A new card enters
+the initial role. Start work targets in_progress; Move card offers permitted
+ordinary lane destinations. The server rechecks the edge, current rights and
+blocking prerequisites when entering in_progress. Generic moves cannot enter
+review or completed: use Review handoff and Approve respectively. Approval
+requires a human with current approval authority; automation cannot approve.
+Completed cards remain read-only. Use the Lane filter to find cards by configured
+lane; an unavailable retained filter must be corrected before searching.
+
+An UNKNOWN card mutation is separate from setup status. A current board read or
+setup status does not settle its original outcome. Use the original-outcome
+recovery described in m02-keyboard-read-edit.txt; do not automatically replay it.
+
+This slice does not provide an existing-board policy editor. Joined M06.04
+qualification and the M06.05 kit remain separate; this guide does not claim full
+release, IME or accessibility qualification.

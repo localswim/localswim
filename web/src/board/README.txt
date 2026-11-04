@@ -140,3 +140,30 @@ base. A disappearing opener returns Close focus to Find cards.
 Draft and applied filters are bounded private window/exact-board state. Cursors
 and result pages are never persisted; reload reads a fresh first page. Storage
 failure retains visible input in memory and explicitly reports the limitation.
+
+Configured new-board workflow (M06)
+The complete definition on each read supplies exact lane IDs, labels, semantic
+roles and array order. The board displays every configured lane including empty
+ones; details, history, hierarchy, relationships and dependency advisories resolve
+labels only against their own complete read. Completed/prerequisite checks use
+semantic roles rather than labels. Default boards keep their existing labels,
+order and action behavior without a fabricated workflow.
+
+Configured Start work chooses only the in_progress target. Move card offers
+allowed initial/in_progress/waiting edges in definition order. Both use the same
+private editor, durable original preparation and explicit Save path, with only
+laneId in the actual mutation input. Handoff/approve retain their own commands.
+Current grant, actor kind and workflow ceiling/edge inform available controls;
+server admission remains authoritative. No refresh resolves/replays an UNKNOWN.
+
+Search choices use exact IDs and label/role presentation. Private UUID filters
+survive reload, including an unavailable filter shown explicitly instead of
+silently becoming Any. A filter outside the selected complete policy refuses
+before dispatch, including empty-result cases. Search result definitions must
+match the selected board definition; result cards use that result's own labels.
+
+workflow.test.ts exports runConfiguredWorkflowProbe(board, session), a controlled
+DOM/pure helper/private-original supplement. It covers configured ordering and
+empty lanes, label/role resolution, human-only approval ceilings, generic target
+constraints, exact laneId-only dispatch and retained/foreign UUID filtering.
+These synthetic assertions are not normal-user or server admission evidence.

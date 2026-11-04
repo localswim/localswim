@@ -10,11 +10,19 @@ export function runWorkspaceShellProbe(): number {
   const root = document.createElement("div"); document.body.append(root);
   const calls: string[] = [], changes: Array<{ collapsed: boolean; width: number }> = [];
   const pinChanges: string[][] = [], filters: string[] = [];
-  const shell = new WorkspaceShell(root, { navigate: path => { calls.push(path); }, retry: () => { calls.push("retry"); }, filterChanged: value => filters.push(value), layoutChanged: value => changes.push(value), pinChanged: pins => pinChanges.push(pins.map(boardHref)), retryPins: () => calls.push("review-pins"), inspectPins: () => calls.push("inspect-pins") });
+  let setupOpener: HTMLElement | undefined;
+  const shell = new WorkspaceShell(root, { navigate: path => { calls.push(path); }, retry: () => { calls.push("retry"); }, createBoard: opener => { setupOpener = opener; }, filterChanged: value => filters.push(value), layoutChanged: value => changes.push(value), pinChanged: pins => pinChanges.push(pins.map(boardHref)), retryPins: () => calls.push("review-pins"), inspectPins: () => calls.push("inspect-pins") });
   const a = entry("harbor", "alpha", "Delivery board"), b = entry("harbor", "beta", "Delivery board"), c = entry("orchard", "garden", "Garden board");
   const catalog = (entries: readonly WorkspaceCatalogEntry[]): WorkspaceCatalog => ({ apiVersion: 1, workspaceId: "synthetic", configRevision: 2, observedAt: "2026-10-28T12:00:00Z", entries });
   const projects: WorkspaceProjects = { apiVersion: 1, workspaceId: "synthetic", configRevision: 2, projects: [{ key: "harbor", label: "Harbor project" }, { key: "orchard", label: "Orchard project" }, { key: "empty", label: "Empty project" }] };
   try {
+    assert(shell.createBoardButton.disabled, "Setup available before coherent project metadata");
+    shell.update({ state: "ready", catalog: catalog([a, b, c]), projects });
+    shell.createBoardButton.click(); assert(setupOpener === shell.createBoardButton, "Setup lost its exact live opener");
+    shell.update({ state: "stale", catalog: catalog([a, b, c]), projects });
+    assert(shell.createBoardButton.disabled, "Stale metadata enabled new setup");
+    shell.update({ state: "ready", catalog: catalog([a, b, c]), projects: { ...projects, configRevision: 3 } });
+    assert(shell.createBoardButton.disabled, "Incoherent project/catalog revision enabled setup");
     shell.update({ state: "ready", catalog: catalog([a, b, c]), projects });
     assert(!shell.chooserRoot.hidden && shell.editorRoot.hidden, "Root selected a board automatically");
     assert(root.querySelectorAll(".workspace-board-list a").length === 3 && root.textContent?.includes("Empty project · No boards registered"), "Flat board list or empty project missing");

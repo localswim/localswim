@@ -12,6 +12,7 @@ export class WindowBoardController {
     root;
     connection;
     state;
+    externalCanLeave;
     views = new Map();
     active;
     generation = 0;
@@ -20,6 +21,7 @@ export class WindowBoardController {
     reverting = false;
     historyGeneration = 0;
     navigationGeneration = 0;
+    expectedSelection;
     routeStatus = { requestedPath: location.pathname, phase: "loading" };
     routeObservers = new Set();
     commitObservers = new Set();
@@ -40,10 +42,11 @@ export class WindowBoardController {
         }
     }
     windowId;
-    constructor(root, connection, state = new WindowState()) {
+    constructor(root, connection, state = new WindowState(), externalCanLeave = () => true) {
         this.root = root;
         this.connection = connection;
         this.state = state;
+        this.externalCanLeave = externalCanLeave;
         this.windowId = state.id;
         if (history.state?.localswimWindow === this.windowId && Number.isInteger(history.state.index))
             this.index = history.state.index;
@@ -51,7 +54,14 @@ export class WindowBoardController {
         window.addEventListener("beforeunload", this.beforeUnload);
         window.addEventListener("popstate", this.popState);
     }
-    get canLeave() { return [...this.views.values()].every(v => v.view.canLeave); }
+    get canLeave() {
+        try {
+            return this.externalCanLeave() && [...this.views.values()].every(v => v.view.canLeave);
+        }
+        catch {
+            return false;
+        }
+    }
     async flushPrivateInput() { await Promise.all([...this.views.values()].map(v => v.view.flushPrivateInput())); return this.canLeave; }
     discardActiveInput() { this.active?.view.discardInput(); }
     activate() { if (this.active)
@@ -64,7 +74,8 @@ export class WindowBoardController {
             const notice = element("section");
             notice.dataset.privateNavigation = "blocked";
             notice.setAttribute("role", "alert");
-            notice.append(element("p", "Private input in a retained view is pending or could not be saved. Navigation is paused until it is saved or explicitly discarded."), button("Discard unpersisted input in retained views", () => { this.discardUnpersistedInput(); notice.remove(); }));
+            notice.append(element("p", "Private input in a retained view is pending or could not be saved. Navigation is paused until it is saved or explicitly discarded."), button("Discard unpersisted input in retained views", () => { this.discardUnpersistedInput(); if (this.canLeave)
+                notice.remove(); }));
             this.root.append(notice);
         }
         this.report({ ...this.routeStatus, phase: "blocked", message: "Save or explicitly discard unpersisted private input before navigating." });
@@ -109,6 +120,7 @@ export class WindowBoardController {
     };
     async retryRequested(reconnect = true) {
         const path = this.routeStatus.requestedPath, navigation = this.navigationGeneration;
+        const expected = this.expectedSelection?.path === path ? this.expectedSelection.identity : undefined;
         if (reconnect) {
             try {
                 await this.reconnect();
@@ -117,17 +129,23 @@ export class WindowBoardController {
         }
         if (navigation !== this.navigationGeneration || this.destroyed)
             return false;
-        return this.navigate(path, false, true);
+        return this.navigate(path, false, true, expected);
     }
-    async navigate(path, push = true, renewBoard = false) {
+    async openExpected(path, identity) {
+        if (!boardRoute(path))
+            return false;
+        return this.navigate(path, true, false, Object.freeze({ ...identity }));
+    }
+    async navigate(path, push = true, renewBoard = false, expectedIdentity) {
         if (this.destroyed)
             return false;
+        this.expectedSelection = expectedIdentity ? { path, identity: Object.freeze({ ...expectedIdentity }) } : undefined;
         const navigation = ++this.navigationGeneration;
         if (push)
             this.historyGeneration++;
         this.report({ requestedPath: path, ...(this.routeStatus.activePath ? { activePath: this.routeStatus.activePath } : {}), phase: "loading" });
         const route = boardRoute(path);
-        const allowed = route ? await this.select(route[0], route[1], renewBoard) : await this.showPendingShell(path);
+        const allowed = route ? await this.select(route[0], route[1], renewBoard, expectedIdentity) : await this.showPendingShell(path);
         if (navigation !== this.navigationGeneration || this.destroyed)
             return false;
         if (allowed) {
@@ -209,7 +227,7 @@ export class WindowBoardController {
         }
         window.scrollTo(...view.scroll);
     }
-    async select(projectKey, boardKey, renewBoard = false) {
+    async select(projectKey, boardKey, renewBoard = false, expectedIdentity) {
         if (this.destroyed || !boardRoute("/board/" + projectKey + "/" + boardKey))
             return false;
         const generation = ++this.generation;
@@ -227,6 +245,8 @@ export class WindowBoardController {
             if (selected.member.availability !== "ready")
                 throw Error("Selected board unavailable");
             const identity = selected.member.identity;
+            if (expectedIdentity && (identity.installationId !== expectedIdentity.installationId || identity.boardId !== expectedIdentity.boardId || identity.incarnation !== expectedIdentity.incarnation))
+                throw Error("Selected board identity changed");
             const key = [identity.installationId, identity.boardId, identity.incarnation].join(":");
             let retained = this.views.get(key);
             const existed = !!retained;
@@ -309,6 +329,10 @@ export class WindowBoardController {
                 return false;
             if (!persisted)
                 return this.blocked();
+            if (expectedIdentity) {
+                this.report({ ...this.routeStatus, phase: "blocked", message: "The expected board could not be opened. Retain the setup and inspect its exact identity before trying again." });
+                return false;
+            }
             this.report({ ...this.routeStatus, phase: "unavailable" });
             this.suspend();
             this.root.replaceChildren(element("h1", "Localswim"), element("p", "Selected board unavailable. Retained private views and original outcomes remain with their source board. Retry deliberately; no board action was submitted."), button("Retry selected board", () => { void this.retryRequested().catch(() => { }); }));

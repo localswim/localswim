@@ -19,7 +19,7 @@ function privateDirectory(path, fresh = false) {
   if (!(rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel))) throw Error('Synthetic private directory must be outside public source');
 }
 export function readRun() {
-  if (process.platform !== 'win32' || process.arch !== 'x64' || process.versions.node !== '26.12.1') throw Error('Pinned Windows/amd64 Node environment required');
+  if (process.platform !== 'win32' || process.arch !== 'x64' || process.versions.node !== '26.13.0') throw Error('Pinned Windows/amd64 Node environment required');
   const path = canonical(process.env.V02_RUN_MANIFEST, false), bytes = readFileSync(path);
   if (bytes.length > 65_536 || bytes[0] === 0xef) throw Error('Invalid qualification manifest');
   const run = JSON.parse(bytes.toString('utf8'));
@@ -36,8 +36,9 @@ export function readRun() {
     canonical(run[key], false);
     if (!/^[a-f0-9]{64}$/.test(run[hash]) || digest(readFileSync(run[key])) !== run[hash]) throw Error('Pinned executable mismatch');
   }
-  const pin = JSON.parse(readFileSync(resolve(root, 'qualification/environment.json'), 'utf8')).browser.candidate;
-  if (run.browserVersion !== pin.version || run.browserArchiveSHA256 !== pin.archive_sha256 || run.playwrightVersion !== pin.runner_version) throw Error('Accepted browser pin mismatch');
+  const selection = JSON.parse(readFileSync(resolve(root, 'qualification/toolchain/browser-current.json'), 'utf8'));
+  const pin = selection.browser;
+  if (run.browserVersion !== pin.version || run.browserArchiveSHA256 !== pin.archiveSHA256 || run.playwrightVersion !== selection.playwrightVersion || run.chromeSHA256 !== pin.executableSHA256) throw Error('Current browser pin mismatch');
   const browserRoot = resolve(root, 'qualification/browser'), files = ['run.mjs', 'inventory.json'];
   for (const dir of ['lib', 'suites']) for (const name of readdirSync(resolve(browserRoot, dir)).sort()) if (name.endsWith('.mjs')) files.push(dir + '/' + name);
   const sourceHashes = Object.fromEntries(files.sort().map(name => [name, digest(readFileSync(resolve(browserRoot, name)))]));

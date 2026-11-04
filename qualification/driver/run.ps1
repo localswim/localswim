@@ -34,18 +34,13 @@ try {
     if ($LASTEXITCODE -ne 0 -or $version -ne 'go version go1.27.3 windows/amd64') { throw 'Exact native Go candidate required.' }
     $lockedBefore = @{}
     foreach ($file in @('go.mod', 'go.sum')) { $lockedBefore[$file] = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant() }
-    $candidate = Get-Content qualification/environment.json -Raw | ConvertFrom-Json
-    $acceptedMod = '5dfd8f468bc0fa34eaa1c6a64ca7ee3c59b12c943a991e1e78bec900e9d12ce1'
-    $completeMod = 'e4884af04b03465b486bccd0f2e8c031d575b5d3ddbf20a6db64ab7fb84f3629'
-    $acceptedSum = '73d8f9e5776a31a8d5eb60d1cec809f56ba60ffdc13933ae5db6b12fd5c9e8e8'
-    $addendum = 'docs/decisions/go-module-completeness-2026-10-25.txt'
-    $addendumText = Get-Content $addendum -Raw
-    if ($lockedBefore['go.mod'] -ne $completeMod -or $lockedBefore['go.sum'] -ne $acceptedSum -or !$addendumText.Contains($acceptedMod) -or !$addendumText.Contains($completeMod) -or !$addendumText.Contains($acceptedSum)) { throw 'Manifest differs from documented exact additive repair.' }
+    $candidate = Get-Content qualification/toolchain/go-current.json -Raw | ConvertFrom-Json
+    if ($lockedBefore['go.mod'] -ne $candidate.goModSHA256 -or $lockedBefore['go.sum'] -ne $candidate.goSumSHA256) { throw 'Manifest differs from current exact Go selection.' }
     $selected = @(& $GoExecutable list -m '-f={{.Path}} {{.Version}}' all)
     if ($LASTEXITCODE -ne 0) { throw 'Readonly module graph inventory failed.' }
     $selected = @($selected | Where-Object { $_ -match ' v' } | Sort-Object)
     $expected = @($candidate.go_modules | ForEach-Object { "$($_.module) $($_.version)" } | Sort-Object)
-    if (@(Compare-Object $expected $selected).Count -ne 0) { throw 'Selected module versions differ from Q01 inventory.' }
+    if (@(Compare-Object $expected $selected).Count -ne 0) { throw 'Selected module versions differ from current Go inventory.' }
     & $GoExecutable mod verify *> (Join-Path $privateRoot 'module-verify.log')
     if ($LASTEXITCODE -ne 0) { throw 'Module verification failed; inspect private log.' }
     & $GoExecutable vet ./qualification/driver *> (Join-Path $privateRoot 'vet.log')
@@ -66,13 +61,13 @@ try {
         if (@(Compare-Object $expectedOptions @($result.compile_options | Sort-Object)).Count -ne 0) { throw 'Runtime compile options differ from frozen source inventory.' }
     }
     $hashes = [ordered]@{}
-    foreach ($file in @('go.mod', 'go.sum', 'qualification/environment.json', 'docs/decisions/go-module-completeness-2026-10-25.txt', 'qualification/driver/main_windows.go', 'qualification/driver/run.ps1', 'qualification/driver/README.md')) {
+    foreach ($file in @('go.mod', 'go.sum', 'qualification/toolchain/go-current.json', 'qualification/driver/main_windows.go', 'qualification/driver/run.ps1', 'qualification/driver/README.md')) {
         $hashes[$file] = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
     }
     foreach ($file in @('go.mod', 'go.sum')) { if ($lockedBefore[$file] -ne $hashes[$file]) { throw 'Dependency lock changed.' } }
     $bindingHashes = [ordered]@{}
     foreach ($file in @('doc.go', 'conn.go', 'lib/mutex.go')) {
-        $bindingHashes["modernc.org/sqlite@v1.61.0/$file"] = (Get-FileHash (Join-Path $cache "modernc.org/sqlite@v1.61.0/$file") -Algorithm SHA256).Hash.ToLowerInvariant()
+        $bindingHashes["modernc.org/sqlite@v1.61.1/$file"] = (Get-FileHash (Join-Path $cache "modernc.org/sqlite@v1.61.1/$file") -Algorithm SHA256).Hash.ToLowerInvariant()
     }
     $evidence = [ordered]@{
         schema_version = 1
@@ -82,7 +77,7 @@ try {
         source_base_revision = (& git rev-parse HEAD | Out-String).Trim()
         source_state = 'Harness source identified by SHA256 below; base revision is not claimed to include uncommitted harness files.'
         source_sha256 = $hashes
-        manifest_completeness_repair = [ordered]@{ accepted_candidate_go_mod_sha256 = $acceptedMod; complete_go_mod_sha256 = $completeMod; unchanged_go_sum_sha256 = $acceptedSum; selected_versions_match_q01_inventory = $true; reference = $addendum }
+        current_module_selection = [ordered]@{ go_mod_sha256 = $candidate.goModSHA256; go_sum_sha256 = $candidate.goSumSHA256; selected_versions_match_current_inventory = $true; reference = 'qualification/toolchain/go-current.json' }
         inspected_binding_source_sha256 = $bindingHashes
         go_executable_sha256 = (Get-FileHash $GoExecutable -Algorithm SHA256).Hash.ToLowerInvariant()
         harness_executable_sha256 = (Get-FileHash $binary -Algorithm SHA256).Hash.ToLowerInvariant()

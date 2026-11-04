@@ -17,6 +17,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--artifacts', type=pathlib.Path, default=ART)
     parser.add_argument('--tool-artifacts', type=pathlib.Path, default=ART)
+    parser.add_argument('--module-cache', type=pathlib.Path,
+                        help='Verified current Go module cache; defaults to tool-artifacts/q01-cache/gomodcache')
+    parser.add_argument('--go-cache-seed', type=pathlib.Path,
+                        help='Optional verified Go build cache seed; defaults to tool-artifacts/p02-integration-r2/cache')
     parser.add_argument('--go', type=pathlib.Path, default=pathlib.Path('C:/Program Files/Go/bin/go.exe'))
     parser.add_argument('--runtime-parent', type=pathlib.Path,
                         help='Existing private parent for short fresh runtime paths')
@@ -60,11 +64,11 @@ func V02QualificationDelivery(wrap func(http.Handler) http.Handler) { v02Qualifi
         env = os.environ.copy()
         env.update(GOTOOLCHAIN='local', CGO_ENABLED='0', GOOS='windows', GOARCH='amd64',
                    GOFLAGS='-mod=readonly', GOPROXY='off', GOSUMDB='off',
-                   GOMODCACHE=str(tools / 'q01-cache/gomodcache'),
+                   GOMODCACHE=str(args.module_cache.resolve(strict=True) if args.module_cache else tools / 'q01-cache/gomodcache'),
                    GOCACHE=str(run / 'cache'), GOTMPDIR=str(run / 'gotmp'),
                    V02_TEST_ROOT=str(runtime / 'mechanics'))
         (run / 'gotmp').mkdir(); (runtime / 'mechanics').mkdir()
-        seed = tools / 'p02-integration-r2/cache'
+        seed = args.go_cache_seed.resolve(strict=True) if args.go_cache_seed else tools / 'p02-integration-r2/cache'
         if seed.is_dir(): shutil.copytree(seed, run / 'cache')
         go = args.go.resolve(strict=True)
         env['GOROOT'] = str(go.parent.parent)

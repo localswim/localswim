@@ -45,3 +45,8 @@ restart and EOF cleanup. A separate ordinary no-overlay lifecycle test checks th
 normal runtime startup path. These tests do not prove browser behavior or physical
 power-loss durability. There is no control HTTP endpoint, reverse proxy, SQL write,
 issuer, TLS, enrollment, login code, delegation or browser-profile approval.
+
+Current maintenance runs may pass --module-cache and --go-cache-seed to select
+a separately verified current cache without changing historical tool artifacts.
+--tool-artifacts supplies the private v02-browser-pin-r1.json for that run; its
+browser must match qualification/toolchain/browser-current.json.

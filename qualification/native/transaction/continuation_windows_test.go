@@ -137,13 +137,32 @@ func TestV01RemainingNativeMatrix(t *testing.T) {
 	for _, row := range providers {
 		copyOne(row.Path)
 	}
-	for rel, want := range map[string]string{"go.mod": "e4884af04b03465b486bccd0f2e8c031d575b5d3ddbf20a6db64ab7fb84f3629", "go.sum": "73d8f9e5776a31a8d5eb60d1cec809f56ba60ffdc13933ae5db6b12fd5c9e8e8"} {
+	const selectionPath = "qualification/toolchain/go-current.json"
+	selectionBytes, e := os.ReadFile(filepath.Join(repo, selectionPath))
+	var selection struct {
+		SchemaVersion int    `json:"schemaVersion"`
+		GoModSHA256   string `json:"goModSHA256"`
+		GoSumSHA256   string `json:"goSumSHA256"`
+	}
+	if e != nil || json.Unmarshal(selectionBytes, &selection) != nil || selection.SchemaVersion != 1 {
+		t.Fatal("current module selection unavailable or unsupported")
+	}
+	for rel, want := range map[string]string{"go.mod": selection.GoModSHA256, "go.sum": selection.GoSumSHA256} {
+		decoded, err := hex.DecodeString(want)
+		if err != nil || len(decoded) != sha256.Size || hex.EncodeToString(decoded) != want {
+			t.Fatal("current module selection requires canonical SHA256 pins")
+		}
 		b, e := os.ReadFile(filepath.Join(repo, rel))
 		if e != nil || v01Digest(b) != want {
 			t.Fatal("qualified module inputs differ")
 		}
 		copyOne(rel)
 	}
+	// Freeze the exact selection bytes used for this attempt, without rereading
+	// a potentially changed pin file between validation and evidence capture.
+	write(filepath.Join(module, selectionPath), selectionBytes)
+	write(filepath.Join(attempt, "source-before", selectionPath), selectionBytes)
+	binding = append(binding, v01Hash{selectionPath, v01Digest(selectionBytes)})
 	for _, rel := range []string{"native_windows_test.go", "continuation_windows_test.go", "child.go.txt", "root-overlay.txt", "writer-overlay.txt", "evidence-overlay.txt", "providers.json"} {
 		b, e := os.ReadFile(filepath.Join(wd, rel))
 		if e != nil {

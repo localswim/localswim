@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "observedDate": "2026-11-04",
+  "status": "PINNED_CURRENT_BROWSER_SELECTION",
+  "scope": "Current buildchain browser selection; historical qualification/environment.json and completed evidence remain unchanged",
+  "browser": {
+    "executableSHA256": "b299662ff2155d34b7aa8475d287940aa9461fc538defecff6fdd566054541b1",
+    "sourceMetadata": "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json",
+    "archiveSHA256": "ae0deef27d449e1d7529df7705d609bab102de48464da13567ed3dd2ee1a0586",
+    "version": "157.0.8103.38",
+    "source": "https://storage.googleapis.com/chrome-for-testing-public/157.0.8103.38/win64/chrome-win64.zip"
+  },
+  "playwrightVersion": "1.64.1",
+  "finalReleaseQualified": false
+}

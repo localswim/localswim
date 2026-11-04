@@ -9,7 +9,7 @@ The final extracted usable kit and normal demonstration remain M04.04.
 Reproduce complete builds
 - Extract the tested committed source twice into separate fresh trees. Begin
   each without web/node_modules or web/dist and with a separate empty Go cache.
-- Use pinned Go1.27.3, Node26.12.1, npm12.2.1, TypeScript7.0.2, Playwright1.64.1
+- Use pinned Go1.27.3, Node26.13.0, npm12.2.1, TypeScript7.0.2, Playwright1.64.1
   and the qualified Chrome for Testing binary. Preserve exact tool hashes.
 - Use the locked offline npm/module caches, GOTOOLCHAIN=local, GOPROXY=off,
   GOSUMDB=off, GOWORK=off, GOFLAGS=-mod=readonly, CGO_ENABLED=0 and

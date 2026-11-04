@@ -143,7 +143,7 @@ func qualify(dir string) (r report, err error) {
 			r.BuildSettings[s.Key] = s.Value
 		}
 	}
-	if r.Modules["modernc.org/sqlite"] != "v1.61.0" || r.Modules["modernc.org/libc"] != "v1.79.0" || r.BuildSettings["CGO_ENABLED"] != "0" {
+	if r.Modules["modernc.org/sqlite"] != "v1.61.1" || r.Modules["modernc.org/libc"] != "v1.79.0" || r.BuildSettings["CGO_ENABLED"] != "0" {
 		return r, errors.New("frozen build/module pins mismatch")
 	}
 	r.Filesystem, err = filesystem(dir)

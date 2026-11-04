@@ -269,7 +269,7 @@
   },
   {
     "path": "internal/assets/bundle/manifest.json",
-    "sha256": "7873f39856c3fbccdd40846d3d28fe54a88b8456b6c71e7c8a41c16a9e811a6a"
+    "sha256": "fdc485051de5ec65eec346466ac7a619b2a6b7cb358071d5fddb6b5a349e8a9d"
   },
   {
     "path": "internal/assets/bundle/styles/app.css",
@@ -433,11 +433,11 @@
   },
   {
     "path": "internal/contract/README.txt",
-    "sha256": "de46e044c74fc3dd581e4842dc459e69a9f2dd3b8eff5062260e05ac697f4e02"
+    "sha256": "404f8b7453014c11690de72eed2d9b5ca0636f44a4f5d80e503b0de29b657d4c"
   },
   {
     "path": "internal/contract/archive/README.txt",
-    "sha256": "f49a21f39a8aa64688df9ddb9f0bf86a1c308b96ddb5de0cc9c8ad8512cab3f2"
+    "sha256": "7a3c34e2e87dd39e90631084b6eaf3962133a91e24bc72d0af4fe17ec86fbb0c"
   },
   {
     "path": "internal/contract/archive/archive_test.go",
@@ -465,7 +465,7 @@
   },
   {
     "path": "internal/contract/archive/native_test.go",
-    "sha256": "4f54c29b536a7ebac30e370c3dde9596edcdbe077d5740a109a1967db1f4b543"
+    "sha256": "4c9bea4f28f5baa386754ff82e60fc4d3736eccfc95ef74308072ecdc24432bd"
   },
   {
     "path": "internal/contract/archive/references.go",
@@ -521,7 +521,7 @@
   },
   {
     "path": "internal/contract/native_test.go",
-    "sha256": "c8c59df9bf64050d13ffcbb3858f16b7c04696491adeb0fcb05f77e16717b015"
+    "sha256": "a5a83666fcb265397a26476f5a608096859ec5a5c8382b1ab421ee7acae218c4"
   },
   {
     "path": "internal/contract/relationships_test.go",
@@ -537,7 +537,7 @@
   },
   {
     "path": "internal/contract/transport/README.txt",
-    "sha256": "f7c20215ab16cb487501c54a5e29b97950dadd9c1b88f757d27fb61e23ec3ddd"
+    "sha256": "c7486fdc2b041247f98c2734dab956d590673d22b4779276855fda72ba3783e2"
   },
   {
     "path": "internal/contract/transport/card_search.go",
@@ -581,7 +581,7 @@
   },
   {
     "path": "internal/contract/transport/native_test.go",
-    "sha256": "41b4c158a84af538ac65da04ed0307c21e7a9495411d960190ca27d601cf4db3"
+    "sha256": "4b996e66d52e3a95c33d23b5f99d5b18d95a491d402e16b376d82d1177122011"
   },
   {
     "path": "internal/contract/transport/preferences.go",
@@ -613,7 +613,7 @@
   },
   {
     "path": "internal/contract/transport/session_code_native_test.go",
-    "sha256": "9c35567850cac7eb1faebfa3ca7c6dce3c651726466a7114d2ddc5cea4030475"
+    "sha256": "646f811e06977d5019098f1efa0022ae067b1f87f2a191f9b27572d1b90e5577"
   },
   {
     "path": "internal/contract/transport/testdata/session-code-cli/literal-types.ts.txt",

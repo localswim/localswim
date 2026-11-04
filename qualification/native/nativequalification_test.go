@@ -110,7 +110,7 @@ func TestNativeQualification(t *testing.T) {
 				t.Fatal("source inventory unavailable")
 			}
 		}
-		for _, rel := range []string{"go.mod", "go.sum"} {
+		for _, rel := range []string{"go.mod", "go.sum", "qualification/toolchain/go-current.json"} {
 			b, e := os.ReadFile(filepath.Join(repo, rel))
 			if e != nil {
 				t.Fatal(e)

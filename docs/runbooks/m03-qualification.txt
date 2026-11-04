@@ -11,7 +11,7 @@ publication commits do not imply another product build or runtime test.
 Reproduction boundaries
 - Extract the tested committed source twice into separate fresh trees. Start with
   no web/node_modules or web/dist and an empty separate Go build cache per tree.
-- Use pinned Go1.27.3, Node26.12.1, TypeScript7.0.2 and the locked offline npm and
+- Use pinned Go1.27.3, Node26.13.0, TypeScript7.0.2 and the locked offline npm and
   Go module caches. Disable network/toolchain upgrades (GOTOOLCHAIN=local,
   GOPROXY=off, GOSUMDB=off, GOWORK=off, GOFLAGS=-mod=readonly, CGO_ENABLED=0).
 - Target windows/amd64/v1. Native fixtures need short fresh S01/N01/A03/A04/P01

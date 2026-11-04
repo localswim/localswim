@@ -21,7 +21,7 @@ because an earlier version passed.
 Browser entry
   npm --prefix web run qualification:browser
 
-Use Node26.12.1/npm12.2.1, the locked TS7.0.2/Playwright1.64.1 and pinned browser.
+Use Node26.13.0/npm12.2.1, the locked TS7.0.2/Playwright1.64.1 and pinned browser.
 Preparation supplies a fresh private localfixture manifest/data/profile. All20
 cases, final Playwright JSON, launcher/child exits and owned teardown must pass.
 No certificate, login code, human enrollment or delegation is part of this path.

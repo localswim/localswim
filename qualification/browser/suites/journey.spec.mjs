@@ -72,11 +72,11 @@ scenario('V02-RELATIONS-01', 'DOM add/remove relationships and CLI reads preserv
   const first = await createCard(app, run), peer = await createCard(app, run);
   await cardArticle(app, first).getByRole('button', { name: 'Add link', exact: true }).click();
   await app.getByLabel('kind', { exact: true }).selectOption('blocking');
-  await app.getByLabel('targetCardId', { exact: true }).fill(peer.cardId); await save(app);
+  await app.getByLabel('Relationship target', { exact: true }).selectOption(peer.cardId); await save(app);
   let current = board(run), link = current.links.find(row => row.cardId === first.cardId && row.target.cardId === peer.cardId && row.active);
   expect(link).toBeTruthy(); expect(current.cards.find(row => row.cardId === first.cardId).priority).toBe('P3');
   await refresh(app); await cardArticle(app, first).getByRole('button', { name: 'Remove link', exact: true }).click();
-  await app.getByLabel('linkId', { exact: true }).fill(link.linkId); await save(app);
+  await app.getByLabel('linkId', { exact: true }).selectOption(link.linkId); await save(app);
   current = board(run);
   // CurrentBoard contains active relationships; removed history is a separate read.
   expect(current.cards.find(row => row.cardId === first.cardId).linkIds).not.toContain(link.linkId);
@@ -104,7 +104,7 @@ scenario('V02-DEPENDENCY-01', 'normal DOM and ordinary CLI show pressure and acc
   // The dependent owns the blocking link; its target is the prerequisite.
   await cardArticle(app, beta).getByRole('button', { name: 'Add link', exact: true }).click();
   await app.getByLabel('kind', { exact: true }).selectOption('blocking');
-  await app.getByLabel('targetCardId', { exact: true }).fill(alpha.cardId); await save(app); await refresh(app);
+  await app.getByLabel('Relationship target', { exact: true }).selectOption(alpha.cardId); await save(app); await refresh(app);
   let current = board(run);
   const link = current.links.find(row => row.cardId === beta.cardId && row.target.cardId === alpha.cardId && row.kind === 'blocking' && row.active);
   expect(link).toBeTruthy();
@@ -154,7 +154,7 @@ scenario('V02-DEPENDENCY-01', 'normal DOM and ordinary CLI show pressure and acc
   expect(board(run).cards.find(row => row.cardId === beta.cardId).lane).toBe('In Progress');
   await expect(pressure(alpha)).toContainText(fact(beta, 'P0', 'In Progress'));
   await cardArticle(app, beta).getByRole('button', { name: 'Remove link', exact: true }).click();
-  await app.getByLabel('linkId', { exact: true }).fill(link.linkId); await save(app); await refresh(app);
+  await app.getByLabel('linkId', { exact: true }).selectOption(link.linkId); await save(app); await refresh(app);
   current = board(run);
   expect(current.links.some(row => row.linkId === link.linkId && row.active)).toBe(false);
   expect(current.cards.find(row => row.cardId === alpha.cardId).priority).toBe('P3');
@@ -238,7 +238,9 @@ scenario('V02-INPUT-01', 'invalid input refuses before mutation and remains edit
 scenario('V02-KEYBOARD-01', 'Tab Enter saves and explicit current read restores card focus', async ({ app, run }) => {
   await createEditor(app);
   const visited = [];
-  for (let n = 0; n < 5; n++) {
+  // The accepted relationship selector adds controls before Save; keep a bounded
+  // real Tab traversal rather than assuming the older editor's five tab stops.
+  for (let n = 0; n < 16; n++) {
     await app.keyboard.press('Tab');
     visited.push(await app.evaluate(() => document.activeElement?.getAttribute('name') ?? document.activeElement?.textContent));
     if (await app.getByRole('button', { name: 'Save', exact: true }).evaluate(node => node === document.activeElement)) break;

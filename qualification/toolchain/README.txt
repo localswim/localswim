@@ -1,17 +1,18 @@
 CURRENT JAVASCRIPT BUILD/TEST TOOLCHAIN
-2026-10-27 | #0062 freshness selection
+2026-11-04 | #0083 maintenance selection
 
-Use Node26.12.1 and npm12.2.1. .node-version and web/package.json select the
+Use Node26.13.0 and npm12.2.1. .node-version and web/package.json select the
 same exact runtime; packageManager selects npm12.2.1. The original Q01
 qualification/environment.json remains historical input evidence, not the
 current Node/npm selection. current.json records artifact checksums and sources;
 new qualification results are separate from immutable earlier reports.
 
-Official Node index selects26.12.1 as latest stable26 on the recorded date.
-It is Current on2026-10-27, with LTS scheduled2026-10-28. No future LTS release
-or automatic upgrade is claimed. npm latest is12.2.1; TypeScript7.0.2 and
-Playwright1.64.1 remain the registry latest stable direct dependencies, so their
-locked package versions/integrities and matching native compiler remain unchanged.
+Official Node index selects26.13.0 as the latest stable release on the recorded
+date, with Lithium LTS status. Prereleases are excluded. npm latest is12.2.1;
+TypeScript7.0.2 and Playwright1.64.1 remain the registry latest stable direct
+dependencies, so their locked package versions/integrities and matching native
+compiler remain unchanged. Earlier qualification results retain their original
+versions and do not qualify the updated selection.
 
 Provisioning uses the official Node Windows x64 ZIP/SHASUMS256 and npm registry
 tarball integrity. The verified project-local runtime preserves the original
@@ -36,5 +37,7 @@ The last command requires a fresh private localfixture manifest/profile and
 pinned browser, supplied automatically by the qualification preparation flow.
 It is not a manual profile-approval or trust ceremony. Current active compiler
 and browser qualification guards use Node26; no Node24 fallback is accepted.
-Go/module/SQLite pins and domain behavior are outside this JS freshness change.
+Go1.27.3 remains current. SQLite is selected at v1.61.1 and golang.org/x/sys
+is a direct dependency at v0.49.0; see go-current.json. Domain behavior changes
+are outside this maintenance scope.
 V04 still verifies final integrated dispatch and two clean product builds.

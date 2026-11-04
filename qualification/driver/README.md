@@ -12,8 +12,10 @@ manifest lacked eight required indirect declarations. Its LIMITED_NOT_QUALIFIED
 evidence remains in `evidence-initial-manifest-limit-r1.json`. The primary applied
 the exact additive repair documented in
 [`go-module-completeness-2026-10-25.txt`](../../docs/decisions/go-module-completeness-2026-10-25.txt).
-The runner checks both manifest hashes, unchanged go.sum and the complete selected
-version set against Q01. No dependency version or checksum changed.
+The original run checked both manifest hashes, unchanged go.sum and the complete
+selected version set against Q01. Its evidence remains historical. The active
+runner now checks exact manifest hashes and the selected module graph against
+qualification/toolchain/go-current.json for the 2026-11-04 maintenance selection.
 
 This harness is intended to qualify only exact native Windows/amd64, local NTFS
 binding behavior recorded in `evidence-r1.json`. It uses synthetic tables and bytes,
@@ -23,7 +25,7 @@ review and owner acceptance are separate gates.
 
 Run from repository root in PowerShell, supplying private directories outside
 this repository. Use the verified Q01 dependency cache or another verified cache
-with the exact frozen module graph already available:
+with the exact current module graph already available:
 
 ```powershell
 ./qualification/driver/run.ps1 -RuntimeRoot $privateQ02Root -ModuleCache $verifiedModuleCache -Repeats 3
@@ -40,7 +42,7 @@ private. The runner does not download modules, alter pins, install software,
 change persistent environment settings, or clean unrelated paths.
 
 The executable independently verifies Go, platform, CGO and exact linked
-`modernc.org/sqlite v1.61.0` / `modernc.org/libc v1.79.0`. It queries the native
+`modernc.org/sqlite v1.61.1` / `modernc.org/libc v1.79.0`. It queries the native
 filesystem type, SQLite version/source ID and complete compile options. Every
 physical connection, including clean reopen, must report FK=1, journal=delete,
 synchronous=2, read_uncommitted=0, locking=normal and busy_timeout=150 ms, and

@@ -1,0 +1,70 @@
+M06 CONFIGURED-WORKFLOW QUALIFICATION
+
+Scope
+See qualification/m06/joined-qualification-r1.txt/json for the exact tested
+source, executable, inventories, evidence categories and limitations. This is
+synthetic Windows amd64, local NTFS and loopback qualification. The final
+extracted kit and normal customer demonstration belong to M06.05.
+
+Reproduce clean builds
+- Extract the report's source commit twice into separate fresh directories.
+  Neither starts with web/node_modules, web/dist or dist. Use an empty Go build
+  cache for each extraction and a separate offline npm cache/install.
+- Follow qualification/toolchain/current.json, go-current.json and
+  browser-current.json for the exact pinned tools and checksums. Download caches
+  may be reused; do not describe that as a cold download-cache build.
+- Set CGO_ENABLED=0, GOTOOLCHAIN=local, GOFLAGS=-mod=readonly, GOPROXY=off,
+  GOSUMDB=off, GOWORK=off, GOOS=windows, GOARCH=amd64 and GOAMD64=v1.
+- Set short fresh S01_TEST_ROOT, N01_TEST_ROOT, A03_TEST_ROOT, A04_TEST_ROOT,
+  P01_TEST_ROOT, C01_WORK, C02_WORK, C03_WORK, V02_TEST_ROOT, TEMP and TMP paths.
+  L02_TEST_ROOT must be account-private. Bind L02_NODE, L02_BROWSER, L02_BINARY
+  and P01_BINARY to the selected tools and newly built application. C01/C02/C03
+  compiler tests use the pinned node executable and installed TypeScript CLI.
+  Create only new private fixture leaves; never change an existing user's ACL.
+
+Run in each extracted tree
+  go mod verify
+  node <pinned-npm-cli.js> --prefix web ci --offline
+  go run ./cmd/contractgen -check
+  node web/scripts/tsc.mjs check
+  node web/scripts/tsc.mjs build
+  go run ./cmd/assetstage -check
+  go build -trimpath -buildvcs=false -o dist/localswim.exe ./cmd/localswim
+  go test -count=1 -p 1 -json -timeout=240s ./...
+  go vet ./...
+  node --test web/scripts/scripts.test.mjs
+
+Require zero required failures/skips; distinguish package no-test events from
+skipped test cases. Compare all schemas, web/generated, web/dist,
+internal/assets/bundle and dist output paths and bytes between builds. Hash all
+extracted source before and after. Retain every failed preparation or run.
+
+Native and browser inventories
+Follow qualification/native/README.txt for the full root, transaction,
+continuation, archive and interruption inventories. Bind the complete current
+internal provider set; unchanged test names do not establish unchanged inputs.
+Follow qualification/browser/README.txt and localfixture/README.txt for fresh
+preparation, all 21 browser cases, final Playwright JSON and owned teardown.
+Missing, skipped, failed or retried required cases cannot qualify.
+
+Joined M06 evidence
+Use the accepted workflow fixture and acceptance recipes from v2-architecture.
+Exercise custom and default boards through real browser controls and the actual
+CLI, including cross-board identity, lifecycle, explicit priorities, authority,
+hierarchy and all five relationship kinds. Retain full current/history facts.
+Separately label injected response loss and native publication/rollback tests;
+UNKNOWN is not a successful historical outcome and never authorizes replay.
+Compare complete configured/default archive records and canonical originals at
+the first restore prewalk, make permitted new operations, then restore again.
+Run the explicit physical 7-to-8 upgrade and refusal/rollback paths; normal
+startup does not migrate or install a new workflow into an existing board.
+
+Evidence and limits
+Record actual source/tool/executable hashes, precise tests and commands, full
+result streams, source stability and owned cleanup. Any reused execution needs
+an independently reviewed exact input/evidence equivalence statement. Fresh
+execution of an unchanged test is different from reuse of an old result.
+Private overlays are qualification instrumentation, not shipped product code.
+Process interruption and injected faults do not prove physical power-loss
+safety. No real-data adoption, broad accessibility/installed OS IME certification,
+general release or M07 policy editing is implied. Owner acceptance gates M06.05.

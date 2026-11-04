@@ -419,3 +419,40 @@ See [hierarchy feature evidence](../qualification/m04/hierarchy-slice-r1.txt),
 [normal customer demo](runbooks/m04-customer-demo.txt). Final private handoff/clock
 receipts supply closed actuals and closing forecast checkpoints; public reports
 retain their original tested, handed-off and acceptance-pending checkpoint scope.
+
+## M05 final-delivery checkpoint — 2026-11-04
+
+M05 keeps the accepted hierarchy outcome and adds typed relationships and atomic
+owned-set operations. The final kit uses the exact qualified executable; its
+normal demonstration is separate from the qualification's labeled fault,
+restore and upgrade evidence. The original 225-minute development base and
+300-minute cap remain unchanged. The private closing receipt supplies actual
+active time after review, source publication and board handoff; Preflight and
+documented owner-only waits remain separate.
+
+Two final-demo failures exposed harness synchronization assumptions. A response
+waiter could select an older background board read, and a save assertion could
+match the preceding operation while a new asynchronous submission was still
+preparing. Both attempts were retained and their owned hosts stopped cleanly.
+Read-only inspection of the second stopped synthetic store showed both expected
+links. The corrected fresh run waits for a sufficiently current snapshot and a
+distinct new original outcome before asserting success. No product change or
+uncertain mutation replay was used to make the demonstration pass.
+
+The final fresh run passed 61 counted assertions plus five companion checks and
+DOM expectations, including complete two-board read/query parity across graceful
+restart. The kit has 41 allowlisted payloads and 170 local schema references.
+Its ZIP exceeds the board's 10 MiB limit, so verified local delivery and small
+manifest/guide/report attachments remain part of the handoff.
+
+**RECOMMENDED:** bind asynchronous test waits to the action's new operation or
+required revision, rather than an already-visible success label or any matching
+background response. Retain failed attempts and diagnose against authoritative
+state before changing product code. Exact unchanged qualification reuse must
+still compare source, tools, outputs and complete evidence; a publication commit
+alone is insufficient. This checkpoint does not authorize M06 work or claim
+general release or physical power-loss certification.
+
+See [M05 handoff](../qualification/m05/HANDOFF.txt),
+[joined qualification](../qualification/m05/joined-qualification-r1.txt) and
+[current owner guide](runbooks/m05-start-use-recovery.txt).

@@ -1,0 +1,44 @@
+M05 FINAL REVIEW KIT AND NORMAL DEMONSTRATION
+2026-11-04 | Fresh independent review passed; owner acceptance remains separate
+
+Delivered
+- Current executable SHA256: 34388dd5275c42ed407662c79cc09ce8b87bf8ddd86c185815a5695e01506d75
+- Tested product source: d7a538c8156c73815776d859863b5ca6dbde8117
+- Qualification report source: 405be548ac59d70a59c3f47532f926c0c1cf085d
+- ZIP: private M05.04 evidence folder\localswim-m05-review-kit-win-amd64-r1.zip
+- ZIP SHA256: 222d213dae1440447f8c126e756e974fce549e5a0e438470fd206e1f614dce21
+- ZIP size: 11,987,534 bytes; above the10MiB attachment cap.
+  Use the local archive/extracted folder. Small reports/manifests/guides are attached.
+- Start at START-HERE.txt and the current M05 start/use/recovery and demo guides.
+
+Verified kit and fresh normal demonstration
+- 41 allowlisted payloads, exact ZIP CRC/extraction/hash set,
+  complete manifest/checksum policy and 170 local schema references.
+  Only public guides/schemas/reports/license and executable; no runtime data/profile/credentials.
+- Fresh demo-r3: 61 counted assertions plus5 companion checks and
+  browser DOM expectations. Actual extracted executable and normal browser/CLI controls.
+- Hierarchy creation/navigation/reparent/clear, archive/find/unarchive, explicitP2/defaultP3,
+  owner/lane/approval conservation, Completed peer and equal-ticket member identity.
+- Browser related/reference additions and complete owned replacement; realCLI reciprocal
+  views, atomic parent+all5 typed kinds, unlink, and unchanged incoming/peer facts.
+- Normal graceful restart preserved complete BoardRead and active/archived/all queries
+  for both boards. Two captured hosts exited0, browser closed and listener closed.
+- Two earlier harness failures retained. First matched a stale background read; second
+  matched a prior outcome before a fresh async save completed. Fresh corrected r3 waits
+  current revision and a distinct new outcome; no product changes or mutation replay.
+
+Qualification and limits
+Owner-accepted M05.03 remains exact executable reuse: two1713-pass clean builds with82
+matching outputs, native and21-case browser inventories, joined102-check proof,
+complete restore/canonical-byte conservation and explicit6->7 upgrade. Its deliberate
+faults/response loss are separately labeled; the final normal demo injects none.
+Full-source qualification procedures require source/caches/private fixtures, not only
+this kit. Historical guides retain prior milestone limitations; use M05 startup/hash.
+No real-data adoption, general release, physical power-loss, full accessibility or
+installed OS IME certification. Only Terry controls Completed.
+
+Handoff governance
+M05.00-.03 are owner-Completed. Final #0079 and epic #0075 go to RFR after independent
+review/publication. R11 records no remaining execution turns/workers after handoff;
+owner review remains visible. M06+ stays Backlog. Original225m P80 base+75m reserve=
+300m P95 cap unchanged; continuous final actual receipt follows durable publication.

@@ -1,0 +1,51 @@
+{
+  "status": "M06_05_NORMAL_KIT_HANDOFF_PENDING_OWNER_ACCEPTANCE",
+  "testedProductSource": "88e16a2dca5085de61b3f9a2fd2173a59e29d2f7",
+  "qualificationReportCommit": "d2f8eb0d4128bac7bd2b75fb3a0f38dd30b5099b",
+  "binarySHA256": "561876c7ef86b5aa243c077a342d6b674596d195af643de160c8eed838ed3870",
+  "kit": {
+    "name": "localswim-m06-review-kit-win-amd64-r2.zip",
+    "sha256": "08e1f96a96a3996846812c7bede60fc0ff01277a0b8531e7b4b478cadf1c69e4",
+    "bytes": 12188569,
+    "payloads": 80,
+    "schemaReferences": 177,
+    "schemaReferenceScope": "cross-document references",
+    "localDelivery": "artifacts/2026-11-04-m06-development/m06-05/localswim-m06-review-kit-win-amd64-r2.zip",
+    "extracted": "artifacts/2026-11-04-m06-development/m06-05/extracted-kit-r2",
+    "above10MiBAttachmentLimit": true
+  },
+  "normalDemo": {
+    "evidence": "demo-aa372b02",
+    "browserChecks": 85,
+    "companionChecks": {
+      "three_board_complete_and_all_query_reopen_equality": true,
+      "extracted_browser_cli_keyboard_normal": true,
+      "workspace_listener_closed": true,
+      "packaged_example_standalone_init_inspect_and_reopen": true,
+      "standalone_listener_closed": true,
+      "kit_executable_unchanged": true
+    },
+    "browserExit": 0,
+    "ownedHosts": 4,
+    "allHostsExit0": true,
+    "scope": "Fresh normal extracted executable/browser/actual CLI; no fault injection"
+  },
+  "verification": {
+    "all944QualifiedSourceFilesUnchanged": true,
+    "zipCRCAndHash": true,
+    "independentReview": "See current review.txt/json receipt; must pass before publication"
+  },
+  "qualificationReuse": "Owner-accepted M06.04 is reused with exact executable/source binding, not claimed as a new full qualification run. Two 1807-pass clean builds,92 equal outputs, full native/21 browser inventories and joined/restore/upgrade/UNKNOWN evidence remain separate.",
+  "retainedAttempts": [
+    "r1 kit retained; configured standalone guide port corrected in r2",
+    "r1 demo passed with narrower keyboard/read evidence",
+    "first r2 demo retained: harness incorrectly added unsupported archive query to full-board read; corrected fresh run uses exact documented route"
+  ],
+  "limits": [
+    "Synthetic Windows amd64/NTFS/loopback only",
+    "No general release, installer or real-data adoption",
+    "No physical power-loss, broad accessibility or installed OS IME certification",
+    "No existing-workflow editing or M07 work"
+  ],
+  "handoff": "All M06 execution ends at story #0091 and epic #0049 RFR; only Terry controls Completed."
+}

@@ -1,88 +1,110 @@
-SHARED LOCALPOST FOR BROWSER DEVELOPMENT
+SHARED QUEUE FOR BROWSER DEVELOPMENT
 
-Required workflow
-Use the shared localpost service for bounded browser/JavaScript diagnostics
-during web-client development, testing and debugging. Its canonical contract is
-https://github.com/SixbucksSolutions/localpost/blob/v0.2.1/openapi.json and its
-release is https://github.com/SixbucksSolutions/localpost/releases/tag/v0.2.1.
-The README at https://github.com/SixbucksSolutions/localpost links both.
+Current contract
+Use the shared Valkey 9.0.7 / Webdis 0.1.25 queue at
+http://127.0.0.1:53147 for bounded browser diagnostics. The frozen contract is
+https://github.com/SixbucksSolutions/localpost/blob/91f19e628c8d5f2318ddacd7a2c0418a3fb038e5/docs/contracts/valkey-webdis.md
+The historical dated HTTP-to-file API and qualification records retain their
+original protocol binding. New runs use native Webdis and the installed client.
 
-The localpost development chat owns the shared daemon. Its default endpoint is
-http://127.0.0.1:53147/api/2026-11-05. A configurable port, wildcard CORS and
-no authentication are intentional trusted-loopback behavior. If it is unavailable, report that to
-its owner or Terry. Never start a replacement listener or diagnostic disk writer.
+The Windows Agent Message Queue task starts at user sign-in. Its operator owns
+Start/Stop and recovery. An unavailable listener, wrong protocol or failed new
+queue health check requires immediate Terry attention and pauses queue-dependent
+testing. Check readiness with the following command. Do not start another stack.
 
-The service operator provisions the private mailbox root and its permissions
-outside public/served source. The agent sends exactly {} to POST /registrations
-under the dated API base. The service creates a private UUIDv4-named child and
-returns exactly id and directory. Validate the canonical lowercase UUIDv4 id,
-absolute existing directory, and its basename matching id before reading files.
-Use that returned directory as this run's private inbox. The agent owns bounded
-inspection and retention for its mailbox. Registration IDs disappear on restart and all mailbox-root contents are cleared
-before serving. Copy needed evidence outside the root before restart, then
-register again. DELETE leaves files until owned cleanup or restart. Never fall back to an unversioned route or API alias.
+  & 'C:\Projects\shared-message-queue\queue.ps1' -Action Status
 
-Browser harness integration
-The maintained qualification/browser/lib/localpost.mjs is a thin sender. It owns
-no listener, inbox or disk writer. Before the existing full browser qualification,
-set these environment values in the same terminal:
+Register a fresh logical mailbox
+The native client checks PING readiness and creates a cryptographically random
+UUIDv4 address. It does not create a directory. Check exit status before parsing
+stdout; failures have a structured error code and operation on stderr.
 
-  $env:LOCALPOST_URL = 'http://127.0.0.1:53147/api/2026-11-05'
-  $env:LOCALPOST_RUN_ID = [guid]::NewGuid().ToString().ToLowerInvariant()
-  $registration = Invoke-RestMethod -Method Post -Uri "$env:LOCALPOST_URL/registrations" -ContentType 'application/json' -Body '{}'
-  $registrationKeys = ($registration.PSObject.Properties.Name | Sort-Object) -join ','
-  $validId = $registration.id -cmatch '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-  if ($registrationKeys -ne 'directory,id' -or -not $validId -or $registration.directory -isnot [string]) { throw 'Invalid registration response' }
-  $inbox = $registration.directory
-  if (-not [IO.Path]::IsPathFullyQualified($inbox) -or (Split-Path -Leaf $inbox) -cne $registration.id -or -not (Test-Path -LiteralPath $inbox -PathType Container)) { throw 'Invalid mailbox directory' }
+  $client = 'C:\Projects\shared-message-queue\bin\localpost-client.exe'
+  $env:LOCALPOST_URL = 'http://127.0.0.1:53147'
+  $registered = & $client --url $env:LOCALPOST_URL register
+  if ($LASTEXITCODE -ne 0) { throw 'Shared queue registration failed' }
+  $registration = $registered | ConvertFrom-Json
+  $keys = ($registration.PSObject.Properties.Name | Sort-Object) -join ','
+  if ($keys -cne 'id' -or $registration.id -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$') { throw 'Invalid mailbox response' }
   $env:LOCALPOST_REGISTRATION_ID = $registration.id
+  $env:LOCALPOST_RUN_ID = [guid]::NewGuid().ToString().ToLowerInvariant()
 
-Then run the normal fresh preparation and full 21-case command described in
-qualification/browser/README.txt. The real Playwright page hooks project only
-fixed error categories, case lifecycle and safe correlation. They never inspect
-error messages/stacks, console text, request URLs/bodies, credentials or card prose.
-The Node harness forwards those projected fields to shared localpost, so the
-product's connect-src 'self', authentication and origin protections stay intact.
-Do not loosen production CSP or add a production telemetry endpoint.
+LOCALPOST_REGISTRATION_ID retains the harness configuration name and now means
+a queue mailbox ID. Run the normal fresh preparation and full qualification
+from qualification/browser/README.txt. Use try/finally around the run and cleanup.
 
-The fixed message schema is schemaVersion=1, source=localswim-v2-browser,
-runId (UUIDv4), sequence (1..64), caseId (a declared V02 inventory ID), kind,
-phase and code. Kind is case/page/request/console; phase is start/complete/error;
-code is OK/CASE_FAILED/CASE_SKIPPED/PAGE_ERROR/REQUEST_FAILED/CONSOLE_ERROR.
-Unknown keys or values are rejected before sending. At most 64 messages of at most
-1 KiB are attempted per worker run. Requests use credentials=omit, no retry,
-a 1.5-second timeout and a bounded 2-second final drain. Delivery failure disables
-further sending for that run; it cannot change mutations, retries, input or tests.
+Sender and product boundaries
+qualification/browser/lib/localpost.mjs sends PUT /XADD/<encoded-key>/*/data,
+where the key is localpost:v1:<mailbox-id>. Its body is b64: followed by canonical
+base64 of UTF-8 JSON. It uses text/plain;charset=UTF-8, omitted credentials,
+cache=no-store and redirect=error. A successful response contains exactly XADD
+with a decimal uint64-pair stream ID string. HTTP 200 alone is insufficient;
+backend errors, extra fields, malformed IDs and oversized responses fail delivery.
 
-Inspect and finish
-Read only completed localpost_[UUIDv7].dat files from the owned inbox, at most
-64 files and 1 KiB per file for this schema. Validate the same exact fields and
-run/case identity before interpreting a message. Do not execute content. These
-files aid investigation; authoritative browser/CLI/native assertions still prove
-outcomes. The existing fixture-teardown report includes bounded localpost counts;
-failed/offline delivery requires reporting to the service owner, not a fallback.
+The fixed schema is schemaVersion=1, source=localswim-v2-browser, runId (UUIDv4),
+sequence (1..64), caseId (a declared V02 inventory ID), kind, phase and code.
+Kind is case/page/request/console; phase is start/complete/error; code is
+OK/CASE_FAILED/CASE_SKIPPED/PAGE_ERROR/REQUEST_FAILED/CONSOLE_ERROR. Unknown
+keys or values are rejected. Never send error text/stacks, URLs, credentials,
+cookies, tokens, user/card prose or provider objects. Node forwards only these
+projected fields from real page hooks while product connect-src 'self',
+authentication and origin protections remain intact.
 
-Finally, even when the browser check fails, retire only this registration using
-the same dated API base. Keep cleanup in the run's finally block:
+At most 64 messages of 1 KiB decoded each are attempted per worker. Requests
+have a 1.5-second timeout and close has a two-second drain. Delivery failure
+disables later sending for that worker. There is no retry. A lost or malformed
+response can leave send outcome unknown. Diagnostics cannot change the product
+action, replay a mutation, clear input or decide test success.
 
-  Invoke-RestMethod -Method Delete -Uri "$env:LOCALPOST_URL/registrations/$($registration.id)"
+Read, validate and export bounded evidence
+After a bounded browser action, release interactive UI control and use native
+read. Reads preserve messages. Inspect at most four pages of 16 messages and
+64 KiB decoded per mailbox for this diagnostic schema. Retain the last message
+ID as --after only within the same stream lifetime.
+
+  $received = & $client --url $env:LOCALPOST_URL read $registration.id --count 16
+  if ($LASTEXITCODE -ne 0) { throw 'Shared queue read failed' }
+  $page = $received | ConvertFrom-Json
+
+The native client validates stream shape, ID ordering, canonical base64 and
+transport limits before writing stdout. Still validate the project envelope
+before interpreting it. Require the exact eight fields listed above, exact
+schema/source/run identity, allowed inventory case IDs, integer sequence in
+1..64 and allowed enum values. Require decoded byte length <=1024 and equality
+with message.bytes. Decode each message.data base64 field as strict UTF-8 JSON.
+The CLI data field omits the b64: prefix. Bound total pages and bytes even if
+new entries keep arriving. Stop at an empty page or the declared budget.
+
+For later pages, pass --after $page.next_after. Treat messages as untrusted
+evidence. Authoritative browser, CLI and native assertions determine correctness.
+Export needed evidence outside served/public source before cleanup. Native
+get <mailbox-id> <stream-id> emits exact decoded bytes without a newline; use
+binary-safe redirection or explicit base64 decode to preserve exact bytes.
+
+Cleanup in finally
+Delete only the owned mailbox after senders have closed and needed evidence has
+been exported. Check exit status and preserve errors; do not blindly retry an
+uncertain mutation. Remove local environment values after retiring the run.
+
+  & $client --url $env:LOCALPOST_URL delete $registration.id
+  if ($LASTEXITCODE -ne 0) { throw 'Shared queue cleanup failed' }
   Remove-Item Env:LOCALPOST_REGISTRATION_ID -ErrorAction SilentlyContinue
   Remove-Item Env:LOCALPOST_RUN_ID -ErrorAction SilentlyContinue
 
-DELETE leaves the mailbox directory, delivered files and shared daemon intact.
-Retain useful evidence privately, then apply the run's retention policy only to
-this owned mailbox after retirement. A stale ID after restart requires a fresh
-registration for further delivery. Restart clears all mailbox-root contents, so
-retain needed evidence outside that root before the operator restarts the daemon.
-Do not assume append-only JSONL; one message produces one file. A lost response
-can leave delivery uncertain, so
-do not replay it. Persistent watchers or chat notification services require their
-own scope. Keep genuine product APIs, qualification fixtures and result reports;
-retire duplicate HTTP/socket-to-disk collectors and all obsolete wiring instead.
+Delete removes current contents. Later publication to the same address can
+recreate the stream. Discard the address and pagination position; every future
+run registers afresh. Queue messages are volatile, have no automatic expiry and
+are lost when Valkey exits. The default 128 MiB noeviction threshold can reject
+new messages. Preserve required evidence before operator maintenance. Ordinary
+cleanup must not Stop the host or change its memory limit. Persistent watchers
+and direct chat notifications require separate scope.
 
 Verification
-The existing node --test web/scripts/scripts.test.mjs gate includes sender tests
-for strict projection, no sensitive field reads, bounded volume and response
-size, disabled/offline behavior, timeouts, detach and no retry. The live proof must
-also use the shared daemon and inspect delivered files; mocked tests alone do not
-establish transport delivery.
+node --test web/scripts/localpost.test.mjs covers projection privacy, native
+framing, strict endpoint/receipt validation, uint64 bounds, HTTP-200 backend
+errors, volume, timeout, offline and no-retry behavior. The ordinary
+node --test web/scripts/scripts.test.mjs gate includes these tests. Live proof
+also requires a fresh mailbox, maintained-sender delivery, bounded native reads
+and owned deletion against the shared queue. Historical .dat evidence does not
+qualify this transport. No new listener, diagnostic writer or production
+telemetry endpoint is part of the sender.

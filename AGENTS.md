@@ -106,12 +106,11 @@ Use one shared queue. Retire duplicate project collectors under normal ticket
 gates. Thin senders/consumers are permitted; persistent watchers and direct chat
 notifications require separate scope.
 
-### Current V2 migration boundary
+### Current V2 diagnostic workflow
 
-The accepted M07 harness still contains its historical dated-API sender.
-Track its migration through follow-up #0116. Use the shared queue at53147 and a
-bounded private forwarding adapter for isolated readiness checks meanwhile.
-Retain old qualification evidence under its original source/protocol binding.
-The historical localpost runbook is superseded for new queue-backed runs by this
-section and the frozen contract. Preserve genuine application APIs, synthetic
-fixtures, authoritative reports and the separately owned board monitor.
+The maintained V2 browser harness forwards its fixed diagnostic schema through
+the shared queue at53147. Follow docs/runbooks/localpost-development.txt for
+native registration, bounded reads, validated exports and owned mailbox deletion.
+Retain earlier qualification evidence under its original source/protocol binding.
+Preserve genuine application APIs, synthetic fixtures, authoritative reports and
+the separately owned board monitor.

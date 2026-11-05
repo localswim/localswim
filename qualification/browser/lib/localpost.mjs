@@ -1,20 +1,32 @@
-// Development-only transport. localpost alone owns diagnostic file delivery.
+// Development-only transport to the shared volatile Valkey/Webdis queue.
 import { randomUUID } from 'node:crypto';
 
 const uuid4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const deliveredName = /^localpost_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.dat$/;
+const streamId = /^(0|[1-9][0-9]*)-(0|[1-9][0-9]*)$/;
+// The receipt schema has exactly one string-valued member. Check its syntax
+// before JSON.parse can collapse duplicate (including escaped) member names.
+const singleStringMember = /^\s*\{\s*"(?:\\[\s\S]|[^"\\])*"\s*:\s*"(?:\\[\s\S]|[^"\\])*"\s*\}\s*$/;
+const maxUint64 = 18446744073709551615n;
 const kinds = new Set(['case', 'page', 'request', 'console']);
 const phases = new Set(['start', 'complete', 'error']);
 const codes = new Set(['OK', 'CASE_FAILED', 'CASE_SKIPPED', 'PAGE_ERROR', 'REQUEST_FAILED', 'CONSOLE_ERROR']);
 const maxMessages = 64, messageLimit = 1024, receiptLimit = 2048;
 
 function endpoint(value) {
+  // Check the original spelling before URL parsing can normalize paths or hosts.
+  if (typeof value !== 'string' ||
+      !/^http:\/\/(127\.0\.0\.1|\[::1\])(?::([0-9]+))?\/?$/.test(value)) return null;
   try {
-    const url = new URL(value);
-    if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.username || url.password ||
-        url.pathname !== '/api/2026-11-05' || url.search || url.hash || !url.port || Number(url.port) < 1024) return null;
-    return `${url.origin}${url.pathname}`;
+    const port = /^http:\/\/(?:127\.0\.0\.1|\[::1\])(?::([0-9]+))?\/?$/.exec(value)[1];
+    if (port && (Number(port) < 1 || Number(port) > 65535)) return null;
+    return new URL(value).origin;
   } catch { return null; }
+}
+
+function validStreamId(value) {
+  if (typeof value !== 'string' || value.length > 41) return false;
+  const parts = streamId.exec(value);
+  return Boolean(parts && BigInt(parts[1]) <= maxUint64 && BigInt(parts[2]) <= maxUint64);
 }
 
 export function projectDiagnostic(event, runId, sequence, caseIds) {
@@ -29,7 +41,7 @@ export function projectDiagnostic(event, runId, sequence, caseIds) {
   } catch { return null; }
 }
 
-async function receipt(response, expectedBytes) {
+async function receipt(response) {
   if (response.status !== 200) { await response.body?.cancel(); return false; }
   const reader = response.body?.getReader();
   if (!reader) return false;
@@ -44,15 +56,17 @@ async function receipt(response, expectedBytes) {
     }
     const bytes = new Uint8Array(size); let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    const value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-    return value && Object.keys(value).sort().join() === 'bytes,filename' &&
-      deliveredName.test(value.filename) && value.bytes === expectedBytes;
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    if (!singleStringMember.test(text)) return false;
+    const value = JSON.parse(text);
+    return value !== null && typeof value === 'object' && !Array.isArray(value) &&
+      Object.keys(value).join() === 'XADD' && validStreamId(value.XADD);
   } finally { reader.releaseLock(); }
 }
 
 export function createLocalpostDiagnostics({
   registrationId = process.env.LOCALPOST_REGISTRATION_ID,
-  serviceUrl = process.env.LOCALPOST_URL ?? 'http://127.0.0.1:53147/api/2026-11-05',
+  serviceUrl = process.env.LOCALPOST_URL ?? 'http://127.0.0.1:53147',
   runId = process.env.LOCALPOST_RUN_ID ?? randomUUID(), caseIds = [], fetcher = globalThis.fetch,
 } = {}) {
   const allowed = new Set((Array.isArray(caseIds) ? caseIds : []).filter(id => typeof id === 'string' && /^V02-[A-Z]+-\d{2}$/.test(id)));
@@ -65,7 +79,9 @@ export function createLocalpostDiagnostics({
     if (!enabled || !accepting || offline || sequence >= maxMessages) { rejected++; return Promise.resolve(false); }
     const projected = projectDiagnostic(event, runId, sequence + 1, allowed);
     if (!projected) { rejected++; return Promise.resolve(false); }
-    const body = JSON.stringify(projected), bytes = Buffer.byteLength(body);
+    const payload = Buffer.from(JSON.stringify(projected), 'utf8');
+    const bytes = payload.byteLength;
+    const body = `b64:${payload.toString('base64')}`;
     if (bytes > messageLimit) { rejected++; return Promise.resolve(false); }
     sequence++;
     tail = tail.then(async () => {
@@ -73,11 +89,11 @@ export function createLocalpostDiagnostics({
       const controller = new AbortController(); current = controller;
       const timer = setTimeout(() => controller.abort(), 1500);
       try {
-        const response = await fetcher(`${baseUrl}/registrations/${registrationId}/messages`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          credentials: 'omit', redirect: 'error', signal: controller.signal, body,
+        const response = await fetcher(`${baseUrl}/XADD/${encodeURIComponent(`localpost:v1:${registrationId}`)}/*/data`, {
+          method: 'PUT', headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+          credentials: 'omit', redirect: 'error', cache: 'no-store', signal: controller.signal, body,
         });
-        if (!await receipt(response, bytes)) throw Error('Invalid delivery');
+        if (!await receipt(response)) throw Error('Invalid delivery');
         delivered++; return true;
       } catch { failed++; offline = true; return false; }
       finally { clearTimeout(timer); current = undefined; }

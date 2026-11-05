@@ -1,11 +1,13 @@
 V02 - Actual local browser and CLI qualification
 
-Development diagnostics use the shared localpost service. Follow
-docs/runbooks/localpost-development.txt to send {} to the v0.2.1 dated API
-registration route and validate its service-created private per-run inbox,
-set LOCALPOST_REGISTRATION_ID, run the ordinary fresh browser qualification,
-inspect bounded completed .dat messages, and retire the registration. The
-harness forwards fixed metadata; product CSP and test authority are unchanged.
+Development diagnostics use the shared Valkey/Webdis queue at 127.0.0.1:53147.
+Follow docs/runbooks/localpost-development.txt to register a fresh UUIDv4 mailbox
+with the installed native client, set LOCALPOST_REGISTRATION_ID and run ordinary
+fresh browser qualification. Inspect bounded native read pages, validate and
+export the fixed project diagnostics, then delete the owned mailbox. The harness
+forwards metadata through native PUT/XADD with canonical base64. Product CSP and
+authoritative test assertions remain intact. Historical dated-API .dat records
+retain their original protocol binding and do not qualify this transport.
 
 Authority: accepted 22-localhost-scope-reset and companion task map. This replaces
 the historical TLS, code/delegation and manually asserted profile matrix. Historical

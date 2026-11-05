@@ -1,6 +1,7 @@
 // Synthetic actual-DOM component evidence; never a product qualification claim.
 import type { BoardRead, CardRead, HistoryRead } from "../../generated/transport/contracts.js";
 import type { Snapshot } from "../../generated/archive/contracts.js";
+import { configuredWorkflowFixture } from "./workflow.test.js";
 import { CardDetails, priorHistory, sortedComments } from "./details.js";
 
 export async function runCardDetailsProbe(boardInput: BoardRead): Promise<number> {
@@ -78,6 +79,20 @@ export async function runCardDetailsProbe(boardInput: BoardRead): Promise<number
     mode = "empty"; await details.refresh();
     check(historyRegion().textContent!.includes("No prior history returned"), "Empty history missing");
     mode = "normal";
+    const firstPolicy = configuredWorkflowFixture(), currentPolicy = structuredClone(firstPolicy);
+    Object.assign(currentPolicy, { revision: 2, lanes: firstPolicy.lanes.filter(lane => lane.role !== "waiting").map(lane => ({ ...lane, label: lane.label + " current" })), transitions: firstPolicy.transitions.filter(edge => edge.from !== firstPolicy.lanes[0]!.id && edge.to !== firstPolicy.lanes[0]!.id) });
+    const savedCurrent = structuredClone(current.result), savedHistory = structuredClone(history.result);
+    const policies = [{ policyVersion: 1, workflow: firstPolicy }, { policyVersion: 2, workflow: currentPolicy }];
+    Object.assign(current.result, { workflow: currentPolicy, workflowPolicies: policies });
+    Object.assign(history.result, { workflow: currentPolicy, workflowPolicies: policies, records: [{ ...records[24]!, state: { ...records[24]!.state!, lane: firstPolicy.lanes[0]!.id } }] });
+    await details.refresh();
+    check(historyRegion().textContent!.includes("Parked (waiting)") && !historyRegion().textContent!.includes("Unavailable lane"), "Retired historical lane lost its issuing policy label");
+    check(historyRegion().textContent!.includes("Recorded workflow policy 1 · lane ID " + firstPolicy.lanes[0]!.id), "Historical policy/identity context missing");
+    Object.assign(history.result, { records: [{ ...records[24]!, state: { ...records[24]!.state!, lane: firstPolicy.lanes[1]!.id } }] });
+    await details.refresh();
+    check(historyRegion().textContent!.includes("Intake (initial)") && !historyRegion().textContent!.includes("Intake current"), "Historical rename displayed current label");
+    Object.assign(current.result, savedCurrent, { workflow: savedCurrent.workflow, workflowPolicies: savedCurrent.workflowPolicies });
+    Object.assign(history.result, savedHistory, { workflow: savedHistory.workflow, workflowPolicies: savedHistory.workflowPolicies });
     const gap = { class: "history" as const, origin: identity, reason: "cleared" as const, boardRevision: 9,
       fromExclusive: null, throughInclusive: "2026-10-28T00:00:00Z", recordedAt: "2026-10-29T00:00:00Z" };
     Object.assign(history.result, { records: [{ ...records[0]!, state: null, removal: { reason: "cleared", boardRevision: 9, removedAt: gap.recordedAt }, references: { commentIds: [id(800)], linkIds: [], attachmentIds: [], approvalIds: [] } }],

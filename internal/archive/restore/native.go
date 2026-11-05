@@ -27,7 +27,11 @@ func (p *Prepared) Construct(ctx context.Context, dataDir string) (err error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	s, e := S.CreateWorkflow(ctx, dataDir, schema.Identity{BoardID: string(p.board.Identity.BoardID), Incarnation: string(p.board.Identity.Incarnation)}, p.board.Workflow)
+	initialWorkflow := p.board.Workflow
+	if len(p.board.WorkflowPolicies) > 0 {
+		initialWorkflow = p.board.WorkflowPolicies[0].Workflow
+	}
+	s, e := S.CreateWorkflow(ctx, dataDir, schema.Identity{BoardID: string(p.board.Identity.BoardID), Incarnation: string(p.board.Identity.Incarnation)}, initialWorkflow)
 	if e != nil {
 		return e
 	}
@@ -346,6 +350,9 @@ func protectedFacts(r writer.Read) ([]A.ByteFact, error) {
 
 func (p *Prepared) insert(ctx context.Context, c *sql.Conn) error {
 	i := p.board.Identity.Incarnation
+	if err := schema.InstallWorkflowPolicies(ctx, c, schema.Identity{BoardID: string(p.board.Identity.BoardID), Incarnation: string(i)}, p.board.WorkflowPolicies); err != nil {
+		return err
+	}
 	run := func(q string, args ...any) error { _, e := c.ExecContext(ctx, q, args...); return e }
 	put := func(table, columns string, values ...any) error {
 		return run("INSERT INTO "+table+"("+columns+") VALUES("+strings.TrimSuffix(strings.Repeat("?,", len(values)), ",")+")", values...)
@@ -396,7 +403,7 @@ func (p *Prepared) insert(ctx context.Context, c *sql.Conn) error {
 		}
 	}
 	for _, v := range p.board.Cards {
-		if e := put("card", "incarnation,card_id,revision,title,description,priority,lane,archived,current_approval_id,owner_id", i, v.CardID, v.Revision, v.Title, v.Description, v.Priority, v.Lane, v.Archived, v.CurrentApprovalID, v.OwnerID); e != nil {
+		if e := put("card", "incarnation,card_id,revision,title,description,priority,lane,archived,current_approval_id,owner_id,workflow_policy_version", i, v.CardID, v.Revision, v.Title, v.Description, v.Priority, v.Lane, v.Archived, v.CurrentApprovalID, v.OwnerID, v.WorkflowPolicyVersion); e != nil {
 			return e
 		}
 	}
@@ -461,16 +468,17 @@ func (p *Prepared) insert(ctx context.Context, c *sql.Conn) error {
 		}
 	}
 	for _, v := range p.history.Records {
-		var state, removed, reason, rev any
+		var state, removed, reason, rev, policyPin any
 		if v.State != nil {
 			state = jsonText(v.State)
+			policyPin = v.State.WorkflowPolicyVersion
 		}
 		if v.Removal != nil {
 			removed = v.Removal.RemovedAt
 			reason = v.Removal.Reason
 			rev = v.Removal.BoardRevision
 		}
-		if e := put("card_revision", "incarnation,origin_board,origin_incarnation,card_id,card_revision,actor_id,committed_at,state,removed_at,removal_reason,removal_revision", i, v.Origin.BoardID, v.Origin.Incarnation, v.CardID, v.CardRevision, v.ActorID, v.CommittedAt, state, removed, reason, rev); e != nil {
+		if e := put("card_revision", "incarnation,origin_board,origin_incarnation,card_id,card_revision,actor_id,committed_at,state,removed_at,removal_reason,removal_revision,workflow_policy_version", i, v.Origin.BoardID, v.Origin.Incarnation, v.CardID, v.CardRevision, v.ActorID, v.CommittedAt, state, removed, reason, rev, policyPin); e != nil {
 			return e
 		}
 		for kind, ids := range map[string][]A.UUID{"comment": v.References.CommentIDs, "link": v.References.LinkIDs, "attachment": v.References.AttachmentIDs, "approval": v.References.ApprovalIDs} {

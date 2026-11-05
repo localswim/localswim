@@ -1,5 +1,6 @@
 import type { BoardRead } from "../../generated/transport/contracts.js";
 import type { Approval, Card, Link } from "../../generated/archive/contracts.js";
+import { configuredWorkflowFixture } from "./workflow.test.js";
 import { dependencyAdvisory } from "./advisory.js";
 
 // Synthetic derivation assertions, never product qualification or admission proof.
@@ -46,5 +47,13 @@ export function runDependencyAdvisoryProbe(boardInput: BoardRead): number {
   }
   Object.assign(board, { links: [] });
   check(dependencyAdvisory(read, alpha).pressure[0] === "Dependency pressure: none." && alpha.priority === "P3", "Unlink changed priority or retained pressure");
+  const first = configuredWorkflowFixture(), second = structuredClone(first);
+  Object.assign(second, { revision: 2, lanes: second.lanes.map(lane => ({ ...lane, label: lane.label + " renamed" })) });
+  Object.assign(board, { workflow: second, policyVersion: 2, workflowPolicies: [{ policyVersion: 1, workflow: first }, { policyVersion: 2, workflow: second }], links: [link] });
+  Object.assign(alpha, { lane: first.lanes.find(lane => lane.role === "completed")!.id });
+  Object.assign(approval, { policyVersion: 1 });
+  check(dependencyAdvisory(read, beta).summary.startsWith("Prerequisites satisfied"), "Retained issuing approval lost after policy edit");
+  Object.assign(board, { workflowPolicies: undefined });
+  check(dependencyAdvisory(read, beta).summary.startsWith("Prerequisites not satisfied"), "Missing issuing policy accepted");
   return checks;
 }

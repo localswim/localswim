@@ -133,7 +133,7 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 			return deny("COMPLETED"), nil
 		}
 		if e.Command == "card.edit" {
-			if w != nil && e.Payload.Lane != nil || w == nil && e.Payload.LaneID != nil {
+			if w != nil && w.Profile != "default" && e.Payload.Lane != nil || w == nil && e.Payload.LaneID != nil {
 				return deny("INVALID_INPUT"), nil
 			}
 			if e.Payload.LaneID != nil {
@@ -189,6 +189,15 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 		if e.Command == "card.edit" && e.Payload.Lane != nil && *e.Payload.Lane != lane {
 			if lane != "Ready for Work" || archived != 0 {
 				return deny("INVALID_TRANSITION"), nil
+			}
+			if w != nil {
+				var kind string
+				if err := r.Scan("SELECT kind FROM actor WHERE incarnation=? AND actor_id=?", []any{e.Incarnation, e.ActorID}, &kind); err != nil {
+					return nil, err
+				}
+				if !A.WorkflowAllows(w, A.Lane(lane), A.Lane(*e.Payload.Lane), A.Kind(kind)) {
+					return deny("INVALID_TRANSITION"), nil
+				}
 			}
 			if ok, err := prerequisitesApproved(r, e.Incarnation, route.CardID, string(A.WorkflowLaneForRole(w, "completed"))); err != nil {
 				return nil, err
@@ -294,6 +303,9 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 					}
 				}
 			}
+		}
+		if err = policy.PinCurrent(w, e.Incarnation, id); err != nil {
+			return writer.Effect{}, err
 		}
 		if e.Payload.Parent.Present && (e.Command == "card.create" || e.Command == "card.edit") {
 			if err = exec("DELETE FROM card_parent WHERE incarnation=? AND child_id=?", e.Incarnation, id); err != nil {

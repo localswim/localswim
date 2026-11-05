@@ -113,7 +113,7 @@ export function validate(name: string, value: Value): void {
   if (!schemas[name] || !check(value, schemas[name])) invalid();
 }
 export const commands = {
-  "attachment.add": "AttachmentAdd", "history.clear": "HistoryClear", "retention.set": "RetentionSet",
+  "workflow.edit": "WorkflowEdit", "attachment.add": "AttachmentAdd", "history.clear": "HistoryClear", "retention.set": "RetentionSet",
   "card.create": "CardCreate", "card.edit": "CardEdit", "comment.add": "CommentAdd",
   "link.add": "LinkAdd", "link.remove": "LinkRemove", "review-handoff": "ReviewHandoff", "approve": "Approve",
 } as const;
@@ -131,7 +131,8 @@ function request(command: PreparedCommand, value: Value): ObjectValue {
     if (modern === legacy || modern && !validParentRef(input.target) || legacy && !["blocking", "informational"].includes(String(input.kind))) invalid();
   }
   if (!Object.hasOwn(r, "expectedCardRevision")) invalid();
-  if (recoveryCommand(command) ? r.expectedCardRevision !== null || r.target !== null || r.command !== command : command === "card.create" ? r.expectedCardRevision !== null : typeof r.expectedCardRevision !== "number" || r.expectedCardRevision < 1) invalid();
+  if (recoveryCommand(command) ? r.expectedCardRevision !== null || r.target !== null || r.command !== command : (command === "card.create" || command === "workflow.edit") ? r.expectedCardRevision !== null || r.target !== null : typeof r.expectedCardRevision !== "number" || r.expectedCardRevision < 1) invalid();
+  if (command === "workflow.edit" && (new TextEncoder().encode(JSON.stringify(value)).length > 800000 || new TextEncoder().encode(JSON.stringify(input.workflow)).length > 65536)) invalid();
   const bytes = (x: Value): number => new TextEncoder().encode(String(x)).length;
   if (input.title !== undefined && (typeof input.title !== "string" || !nonblank(input.title) || [...input.title].length > 200)) invalid();
   if (input.description !== undefined && bytes(input.description) > 65536) invalid();
@@ -182,6 +183,13 @@ export const boardBoundaryVerifier: BoundaryVerifier = {
         const ref = terminal.resultRefs[0]!;
         if (ref.kind !== "board" || ref.id !== e.context.boardId || ref.revision !== terminal.revision) return false;
         return terminal.retention === "compact" || ("coverageRevision" in terminal.result && terminal.result.coverageRevision === terminal.revision && terminal.result.retentionVersion >= 1);
+      }
+      if (e.command === "workflow.edit") {
+        if (terminal.cardRevision !== null || terminal.target !== null || terminal.resultRefs.length !== 1) return false;
+        const input = object(object(parse(e.requestBytes)).input!), workflow = object(input.workflow!);
+        const ref = terminal.resultRefs[0]!;
+        if (ref.kind !== "workflow" || ref.id !== workflow.workflowId || ref.revision !== workflow.revision || workflow.revision !== Number(input.expectedPolicyVersion) + 1) return false;
+        return terminal.retention === "compact" || ("workflowId" in terminal.result && terminal.result.workflowId === ref.id && "policyVersion" in terminal.result && terminal.result.policyVersion === ref.revision);
       }
       if (terminal.cardRevision === null || terminal.cardRevision < 1) return false;
       if (terminal.target && (terminal.expectedCardRevision === null || terminal.cardRevision !== terminal.expectedCardRevision + 1)) return false;

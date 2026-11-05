@@ -1,0 +1,122 @@
+EXISTING-WORKFLOW CHANGES THROUGH THE SERVICE AND CLI
+2026-11-05 | M07.02 native/CLI slice
+
+Read and prepare
+Use an existing private board through the normal local service. Its browser and
+CLI share authoritative state. The ordinary CLI channel is automation, so it
+needs an independently valid current edit grant and an effective edit ceiling.
+
+  localswim --data DIR --json workflow show
+  localswim --workspace WORKSPACE --project PROJECT --board BOARD --json workflow show
+
+Workflow show returns the complete current board read, including policyVersion,
+current workflow and retained workflowPolicies after the first workflow change.
+Keep any saved board reads, candidate files and original-operation evidence in
+private storage. They can contain user work.
+
+Prepare one complete candidate. For a configured board, copy the current
+workflow, retain its workflowId and every existing lane ID/role, and set revision
+to current policyVersion+1. Apply deliberate label/order/ordinary-edge/right
+changes or add a new waiting lane with a fresh UUID. Remove a waiting lane only
+when no current card, including archived cards, occupies it. Retired IDs remain
+reserved forever through retained history.
+
+For a first edit to an untouched default board, use profile default, retain its
+four literal lane IDs and roles, generate a fresh workflowId once, and propose
+revision2. The synthetic example is ../examples/m07-default-workflow.json.
+Generate a new UUID for actual use, then retain it through preview, submission
+and any uncertain result. Labels may change while those fixed IDs remain.
+
+Preview and save
+Use the identity and revision from one deliberate current read. The following
+PowerShell values illustrate the exact payloads; DIR and candidate.json refer
+to the operator's already selected private paths.
+
+  $snapshot = (& localswim --data DIR --json board read) | ConvertFrom-Json
+  $board = $snapshot.result
+  $candidate = Get-Content candidate.json -Raw | ConvertFrom-Json
+  $preview = [ordered]@{
+    apiVersion = 1
+    boardId = $board.identity.boardId
+    incarnation = $board.identity.incarnation
+    expectedRevision = $board.revision
+    expectedPolicyVersion = $board.policyVersion
+    workflow = $candidate
+  }
+  $preview | ConvertTo-Json -Depth 30 | Set-Content preview.json -Encoding utf8NoBOM
+  localswim --data DIR --json workflow preview --input preview.json
+
+Inspect the returned changes, occupancy, approval-preservation rule and capacity.
+Preview is read-only and does not reserve the displayed revision. The browser
+editor is a separate M07.03 slice; the CLI preview is available here.
+
+Construct and retain the original save envelope using that same candidate and
+expected context. Running workflow edit is a separate deliberate action.
+
+  $original = [ordered]@{
+    opId = [guid]::NewGuid().ToString().ToLowerInvariant()
+    incarnation = $board.identity.incarnation
+    target = $null
+    expectedRevision = $board.revision
+    expectedCardRevision = $null
+    input = [ordered]@{
+      expectedPolicyVersion = $board.policyVersion
+      workflow = $candidate
+    }
+  }
+  $original | ConvertTo-Json -Depth 30 | Set-Content original.json -Encoding utf8NoBOM
+  localswim --data DIR --json workflow edit --input original.json
+
+A committed edit advances the board and policy once, preserves card revisions
+and approvals, and returns workflowId/policyVersion. An equal candidate yields
+durable NOT_COMMITTED/NO_CHANGE. Stale revisions or a forbidden transition of
+workflow identity/role yield a definite refusal. The first real default edit can
+return WORKFLOW_INCOMPATIBLE for legacy current card/approval facts that do not
+meet the edited-profile safety rules. Source bytes and existing behavior remain
+available; the refusal performs no automatic repair.
+
+An unknown result requires retaining the original bytes, fingerprint and context.
+Use the existing deliberate operation-read workflow to reconcile it. A current
+board read, preview, reload or restart does not settle the original outcome and
+must not trigger a retry. A new edit requires a deliberate fresh original after
+the operator inspects the current state. CLI exit meanings remain documented in
+m02-cli-read-edit.txt.
+
+Rights, history and limits
+Policy ceilings intersect current independently valid grants. Lowering a ceiling
+does not rewrite the grant; a later expansion only makes a still-valid retained
+right effective again. A CLI actor can remove its own edit ceiling. A currently
+authorized human channel provides the ordinary recovery path.
+
+Current displays use current labels. Historical states use their recorded policy
+pin, with old omission meaning policy1. Issuing policy and exact reviewed card
+revision continue to establish meaningful human approval. Required core roles
+and IDs remain fixed, and Completed stays terminal/read-only.
+
+Keep at most16 active lanes, 64 directed edges, a 64KiB definition, 128 retained
+policy records and an 8MiB canonical policy array. Full preview/save bodies are
+limited to800000 bytes. Changed saves at history capacity refuse; equal candidates
+retain NO_CHANGE behavior. Policy history is retained rather than silently pruned.
+
+Storage and restore
+This slice uses physical layout9 and base schema5. Existing layout8 requires an
+explicit offline adjacent upgrade with its host fully closed. Inspect first and
+use exact identity values, then reopen normally.
+
+  localswim --data DIR --json storage inspect --board-id BOARD-UUID --incarnation INC-UUID
+  localswim --data DIR --json storage upgrade --from-version 8 --to-version 9 --board-id BOARD-UUID --incarnation INC-UUID
+
+Older supported layouts retain their separate adjacent steps. Startup refuses an
+unsupported layout and performs no automatic upgrade. Preserve the old source
+and recovery material when an upgrade outcome is uncertain. Complete exports
+and restores retain policy history, state pins, approvals and exact original
+operations using only the documented identity/bootstrap transformations.
+
+Legacy opaque default history retains its storage validation and bytes. Where
+the old full history/archive reader cannot represent those bytes, bounded
+unavailability remains the result. Workflow editing adds no new opaque encoding.
+
+Read the accepted architecture contract and synthetic acceptance inventory for
+the exact semantics. M07.04 owns complete joined qualification and M07.05 owns
+the independently demonstrated extracted review kit. New category configuration
+and category-aware Attention belong to M08.

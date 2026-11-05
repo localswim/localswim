@@ -92,7 +92,7 @@ func project(r writer.Read, id A.Identity, revision A.Number) (b A.Board, h A.Hi
 	b.Coverage.ActivityFloor = stampPtr(af)
 	b.Coverage.OutcomePayloadFloor = stampPtr(of)
 	budget := projectionBudget{}
-	b.Workflow, err = projectWorkflow(r, id, &budget)
+	b.Workflow, b.WorkflowPolicies, err = projectWorkflow(r, id, b.PolicyVersion, &budget)
 	if err != nil {
 		return
 	}
@@ -104,7 +104,7 @@ func project(r writer.Read, id A.Identity, revision A.Number) (b A.Board, h A.Hi
 	if err != nil {
 		return
 	}
-	b.Cards, err = collection[A.Card](r, &budget, "SELECT json_patch(json_object('cardId',c.card_id,'ticket',t.ticket,'revision',c.revision,'title',c.title,'description',c.description,'priority',c.priority,'lane',c.lane,'archived',json(CASE c.archived WHEN 0 THEN 'false' ELSE 'true' END),'currentApprovalId',c.current_approval_id,'ownerId',c.owner_id,'commentIds',json("+ids("current_reference", "c", "comment")+"),'linkIds',json("+ids("current_reference", "c", "link")+"),'attachmentIds',json("+ids("current_reference", "c", "attachment")+"),'createdIn',"+origin("e.")+"),CASE WHEN p.parent_id IS NULL THEN '{}' ELSE json_object('parent',json_object('boardId',(SELECT board_id FROM board),'incarnation',c.incarnation,'cardId',p.parent_id)) END) value FROM card c JOIN ticket t USING(incarnation,card_id) JOIN entity e ON e.incarnation=c.incarnation AND e.kind='card' AND e.entity_id=c.card_id LEFT JOIN card_parent p ON p.incarnation=c.incarnation AND p.child_id=c.card_id ORDER BY t.ticket,c.card_id")
+	b.Cards, err = collection[A.Card](r, &budget, "SELECT json_patch(json_patch(json_object('cardId',c.card_id,'ticket',t.ticket,'revision',c.revision,'title',c.title,'description',c.description,'priority',c.priority,'lane',c.lane,'archived',json(CASE c.archived WHEN 0 THEN 'false' ELSE 'true' END),'currentApprovalId',c.current_approval_id,'ownerId',c.owner_id,'commentIds',json("+ids("current_reference", "c", "comment")+"),'linkIds',json("+ids("current_reference", "c", "link")+"),'attachmentIds',json("+ids("current_reference", "c", "attachment")+"),'createdIn',"+origin("e.")+"),CASE WHEN c.workflow_policy_version IS NULL THEN '{}' ELSE json_object('workflowPolicyVersion',c.workflow_policy_version) END),CASE WHEN p.parent_id IS NULL THEN '{}' ELSE json_object('parent',json_object('boardId',(SELECT board_id FROM board),'incarnation',c.incarnation,'cardId',p.parent_id)) END) value FROM card c JOIN ticket t USING(incarnation,card_id) JOIN entity e ON e.incarnation=c.incarnation AND e.kind='card' AND e.entity_id=c.card_id LEFT JOIN card_parent p ON p.incarnation=c.incarnation AND p.child_id=c.card_id ORDER BY t.ticket,c.card_id")
 	if err != nil {
 		return
 	}
@@ -131,6 +131,9 @@ func project(r writer.Read, id A.Identity, revision A.Number) (b A.Board, h A.Hi
 		return
 	}
 	budget.document = 0
+	if err = validateSnapshotPins(r); err != nil {
+		return
+	}
 	h.Records, err = collection[A.Snapshot](r, &budget, "SELECT json_object('origin',"+origin("c.")+",'cardId',c.card_id,'cardRevision',c.card_revision,'committedAt',c.committed_at,'actorId',c.actor_id,'state',json(c.state),'references',json_object('commentIds',json("+ids("revision_reference", "c", "comment")+"),'linkIds',json("+ids("revision_reference", "c", "link")+"),'attachmentIds',json("+ids("revision_reference", "c", "attachment")+"),'approvalIds',json("+ids("revision_reference", "c", "approval")+")),'removal',"+removal("c")+") value FROM card_revision c ORDER BY c.origin_board,c.origin_incarnation,c.card_id,c.card_revision")
 	if err != nil {
 		return
@@ -175,38 +178,72 @@ func project(r writer.Read, id A.Identity, revision A.Number) (b A.Board, h A.Hi
 
 // Keep the optional definition in the same pinned reader as every card and
 // historical state. Absence is the legacy profile, never a synthesized policy.
-func projectWorkflow(r writer.Read, id A.Identity, budget *projectionBudget) (*A.Workflow, error) {
-	var count int
-	if err := r.Scan("SELECT count(*) FROM workflow_definition", nil, &count); err != nil {
-		return nil, err
-	}
-	if count == 0 {
-		return nil, nil
-	}
-	if count != 1 {
-		return nil, fmt.Errorf("invalid workflow row count")
-	}
-	var workflowID A.UUID
-	var revision A.Number
-	var n int64
-	var raw sql.NullString
-	if err := r.Scan("SELECT workflow_id,revision,length(CAST(definition AS BLOB)),CASE WHEN length(CAST(definition AS BLOB))<=65536 THEN definition END FROM workflow_definition WHERE incarnation=?", []any{id.Incarnation}, &workflowID, &revision, &n, &raw); err != nil {
-		return nil, err
-	}
-	if n < 0 || n > 65536 || !raw.Valid || n > int64(MaxJSONBytes-budget.document) || n > int64(MaxJSONTotalBytes-budget.total) {
-		return nil, ErrLimit
-	}
-	w, err := A.Decode[A.Workflow]([]byte(raw.String))
+func projectWorkflow(r writer.Read, id A.Identity, current A.PolicyVersion, budget *projectionBudget) (*A.Workflow, []A.WorkflowPolicy, error) {
+	policies, err := collection[A.WorkflowPolicy](r, budget, "SELECT json_patch(json_object('policyVersion',policy_version),CASE WHEN definition IS NULL THEN '{}' ELSE json_object('workflow',json(definition)) END) value FROM workflow_policy WHERE incarnation=? ORDER BY policy_version", id.Incarnation)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	canonical, err := A.WorkflowBytes(&w)
-	if err != nil || w.WorkflowID != workflowID || A.Number(w.Revision) != revision || !bytes.Equal(canonical, []byte(raw.String)) {
-		return nil, fmt.Errorf("invalid stored workflow definition")
+	if len(policies) == 0 || A.PolicyVersion(len(policies)) != current {
+		return nil, nil, fmt.Errorf("invalid retained workflow count")
 	}
-	budget.document += int(n)
-	budget.total += int(n)
-	return &w, nil
+	workflow := policies[len(policies)-1].Workflow
+	// An untouched board retains its exact M06 public shape, while physical9
+	// always retains the initial policy record internally.
+	if current == 1 {
+		policies = nil
+	}
+	if err = A.ValidateWorkflowPolicies(current, workflow, policies); err != nil {
+		return nil, nil, err
+	}
+	// Independently verify stored scalar identities and canonical definition
+	// bytes; constructing a JSON object must not hide a corrupt retained row.
+	rows, err := r.Query("SELECT policy_version,workflow_id,definition FROM workflow_policy WHERE incarnation=? ORDER BY policy_version", id.Incarnation)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var version A.PolicyVersion
+		var workflowID, definition sql.NullString
+		if err = rows.Scan(&version, &workflowID, &definition); err != nil {
+			return nil, nil, err
+		}
+		if !definition.Valid {
+			if version != 1 || workflowID.Valid {
+				return nil, nil, fmt.Errorf("invalid implicit workflow record")
+			}
+			continue
+		}
+		w, decodeErr := A.DecodeWorkflow([]byte(definition.String))
+		if decodeErr != nil {
+			return nil, nil, decodeErr
+		}
+		canonical, encodeErr := A.WorkflowBytes(w)
+		if encodeErr != nil || !workflowID.Valid || string(w.WorkflowID) != workflowID.String || A.PolicyVersion(w.Revision) != version || !bytes.Equal(canonical, []byte(definition.String)) {
+			return nil, nil, fmt.Errorf("invalid stored workflow definition")
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return workflow, policies, nil
+}
+
+// A legacy opaque state may contain this newly reserved JSON key. Physical
+// metadata distinguishes a genuine pin from such bytes without reinterpreting
+// old facts or giving previously unavailable snapshots a new public encoding.
+func validateSnapshotPins(r writer.Read) error {
+	var inconsistent int
+	if err := r.Scan(`SELECT count(*) FROM card_revision WHERE state IS NOT NULL AND (
+ (workflow_policy_version IS NULL AND json_type(state,'$.workflowPolicyVersion') IS NOT NULL)
+ OR (workflow_policy_version IS NOT NULL AND (json_type(state,'$.workflowPolicyVersion') IS NOT 'integer'
+ OR json_extract(state,'$.workflowPolicyVersion') IS NOT workflow_policy_version)))`, nil, &inconsistent); err != nil {
+		return err
+	}
+	if inconsistent != 0 {
+		return fmt.Errorf("snapshot policy metadata is unavailable or inconsistent")
+	}
+	return nil
 }
 
 const operationQuery = `SELECT json_object(

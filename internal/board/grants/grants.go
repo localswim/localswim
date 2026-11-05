@@ -195,7 +195,7 @@ func commandRights(c contract.Command) []string {
 	switch c {
 	case "card.create":
 		return []string{"create"}
-	case "card.edit", "link.add", "link.remove":
+	case "card.edit", "link.add", "link.remove", "workflow.edit":
 		return []string{"edit"}
 	case "comment.add":
 		return []string{"comment"}

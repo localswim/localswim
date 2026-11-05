@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"github.com/localswim/localswim/internal/board/cards"
 	A "github.com/localswim/localswim/internal/contract/archive"
-	S "github.com/localswim/localswim/internal/store/open"
 	"testing"
 )
 
@@ -17,7 +16,7 @@ const customReview = "71000000-0000-0000-0000-000000000003"
 const customCompleted = "71000000-0000-0000-0000-000000000004"
 const customWaiting = "71000000-0000-0000-0000-000000000005"
 
-func customPolicy(t *testing.T, db *S.Store) {
+func customDefinition(t *testing.T) *A.Workflow {
 	t.Helper()
 	w := A.Workflow{WorkflowID: "70000000-0000-0000-0000-000000000001", Revision: 1,
 		Lanes:       []A.WorkflowLane{{ID: customInitial, Label: "Completed", Role: "initial"}, {ID: customProgress, Label: "Build", Role: "in_progress"}, {ID: customReview, Label: "Inspect", Role: "review"}, {ID: customCompleted, Label: "Accepted", Role: "completed"}, {ID: customWaiting, Label: "Queued", Role: "waiting"}},
@@ -29,18 +28,17 @@ func customPolicy(t *testing.T, db *S.Store) {
 		}
 		w.Transitions = append(w.Transitions, A.WorkflowTransition{From: A.UUID(edge[0]), To: A.UUID(edge[1]), Actors: actors})
 	}
-	raw, err := A.WorkflowBytes(&w)
+	_, err := A.WorkflowBytes(&w)
 	if err != nil {
 		t.Fatal(err)
 	}
-	execSQL(t, db, "DELETE FROM grant_right WHERE right_name='comment'")
-	execSQL(t, db, "INSERT INTO workflow_definition(incarnation,workflow_id,revision,definition) VALUES(?,?,?,?)", inc, string(w.WorkflowID), 1, string(raw))
+	return &w
 }
 
 func TestConfiguredWorkflowMovesApprovalAndTerminalGuards(t *testing.T) {
-	e, db := fixture(t)
+	e, db := fixture(t, customDefinition(t))
 	g := service(t, db)
-	customPolicy(t, db)
+	execSQL(t, db, "DELETE FROM grant_right WHERE right_name='comment'")
 	a := create(t, e, g, 0)
 	if value(t, db, "SELECT count(*) FROM card WHERE lane='"+customInitial+"' AND priority='P3'") != 1 {
 		t.Fatal("create ignored initial role")
@@ -76,9 +74,9 @@ func TestConfiguredWorkflowMovesApprovalAndTerminalGuards(t *testing.T) {
 }
 
 func TestConfiguredPrerequisitesAndCeilings(t *testing.T) {
-	e, db := fixture(t)
+	e, db := fixture(t, customDefinition(t))
 	g := service(t, db)
-	customPolicy(t, db)
+	execSQL(t, db, "DELETE FROM grant_right WHERE right_name='comment'")
 	a := create(t, e, g, 0)
 	b := create(t, e, g, 1)
 	issue(t, e, db, g, "link.add", a, map[string]any{"kind": "blocking", "targetCardId": b}, "committed")
@@ -144,9 +142,9 @@ func (r configuredRead) Query(q string, args ...any) (*sql.Rows, error) {
 }
 
 func TestConfiguredEdgeActorAndApprovalAuthority(t *testing.T) {
-	e, db := fixture(t)
+	e, db := fixture(t, customDefinition(t))
 	g := service(t, db)
-	customPolicy(t, db)
+	execSQL(t, db, "DELETE FROM grant_right WHERE right_name='comment'")
 	a := create(t, e, g, 0)
 	execSQL(t, db, "INSERT INTO actor(incarnation,actor_id,kind,label,origin_board,origin_incarnation) VALUES(?,?,'automation','Synthetic automation',?,?)", inc, grantee, board, inc)
 	execSQL(t, db, "DELETE FROM grant_right WHERE right_name='approve'")

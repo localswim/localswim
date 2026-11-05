@@ -2,6 +2,9 @@ package main
 
 const localDomainCLIHelp = `  localswim --data NEWDIR [--json] board init --workflow FILE
   localswim --data DIR [--json] board inspect
+  localswim --data DIR [--json] workflow show
+  localswim --data DIR [--json] workflow preview --input FILE
+  localswim --data DIR [--json] workflow edit --input FILE
   localswim --data DIR [--json] board read
   localswim --data DIR [--json] card read CARD-UUID
   localswim --data DIR [--json] card history CARD-UUID
@@ -22,12 +25,15 @@ const localDomainCLIHelp = `  localswim --data NEWDIR [--json] board init --work
   localswim --data DIR [--json] storage upgrade --from-version 5 --to-version 6 --board-id BOARD-UUID --incarnation INC-UUID
   localswim --data DIR [--json] storage upgrade --from-version 6 --to-version 7 --board-id BOARD-UUID --incarnation INC-UUID
   localswim --data DIR [--json] storage upgrade --from-version 7 --to-version 8 --board-id BOARD-UUID --incarnation INC-UUID
+  localswim --data DIR [--json] storage upgrade --from-version 8 --to-version 9 --board-id BOARD-UUID --incarnation INC-UUID
 Use canonical card UUIDs from board read, never display ticket numbers.
 Archive aliases require the full card.edit request with only input.archived true/false.
-Move requires the full card.edit request with only input.laneId (a configured lane UUID).
-Workflow files are complete immutable definitions, valid only for new boards.
+Move requires the full card.edit request with only input.laneId (an exact current lane ID).
+Board init accepts a complete configured revision1 workflow for a new board.
+Workflow preview/edit accept complete replacement candidates for an existing board.
+Preview requires exact board/policy revisions; edit submits the same candidate.
 List returns at most 20 cards and an explicit next cursor when more remain.
---input - reads a typed mutation envelope from stdin. Rename uses card edit.
+--input - reads the command's typed request from stdin. Rename uses card edit.
 Omitted edit fields retain values; ownerId:null clears owner. CLI cannot approve.
 Parent aliases require exactly input.parent CardRef/null; create may include parent.
 Children uses a complete snapshot: readable20rows/page, full JSON rejects --page.
@@ -35,7 +41,7 @@ Relationships uses a complete snapshot: readable20rows/page, full JSON rejects -
 Replace owned relationships requires card.edit with only input.relationships array.
 Incoming facts retain their actual owner; open that owner to deliberately edit them.
 Storage inspect/upgrade are offline existing-only operations, never startup migration.
-Physical8 retains base-schema marker5; older stores require separate adjacent steps.
+Physical9 retains base-schema marker5; older stores require separate adjacent steps.
 An uncertain upgrade needs deliberate inspection, never a skipped-version attempt.
 Original lookup is deliberate and source-bound; never replay an uncertain save.
 Exits: 0 confirmed; 1 invocation/IO; 2 refused or definite noncommit;

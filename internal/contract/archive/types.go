@@ -10,6 +10,7 @@ type Timestamp string
 type Number uint64
 type Positive uint64
 type Version uint64
+type PolicyVersion uint64
 type Days uint64
 type Priority string
 type Lane string
@@ -113,21 +114,22 @@ type Actor struct {
 	CreatedIn Identity `json:"createdIn"`
 }
 type Card struct {
-	CardID            UUID     `json:"cardId"`
-	Ticket            Positive `json:"ticket"`
-	Revision          Positive `json:"revision"`
-	Title             string   `json:"title" validate:"title"`
-	Description       string   `json:"description" validate:"prose"`
-	Priority          Priority `json:"priority"`
-	Lane              Lane     `json:"lane"`
-	Archived          bool     `json:"archived"`
-	Parent            *CardRef `json:"parent,omitempty"`
-	OwnerID           *UUID    `json:"ownerId,omitempty"`
-	CurrentApprovalID *UUID    `json:"currentApprovalId"`
-	CommentIDs        []UUID   `json:"commentIds"`
-	LinkIDs           []UUID   `json:"linkIds"`
-	AttachmentIDs     []UUID   `json:"attachmentIds"`
-	CreatedIn         Identity `json:"createdIn"`
+	WorkflowPolicyVersion *PolicyVersion `json:"workflowPolicyVersion,omitempty" validate:"nonnull"`
+	CardID                UUID           `json:"cardId"`
+	Ticket                Positive       `json:"ticket"`
+	Revision              Positive       `json:"revision"`
+	Title                 string         `json:"title" validate:"title"`
+	Description           string         `json:"description" validate:"prose"`
+	Priority              Priority       `json:"priority"`
+	Lane                  Lane           `json:"lane"`
+	Archived              bool           `json:"archived"`
+	Parent                *CardRef       `json:"parent,omitempty"`
+	OwnerID               *UUID          `json:"ownerId,omitempty"`
+	CurrentApprovalID     *UUID          `json:"currentApprovalId"`
+	CommentIDs            []UUID         `json:"commentIds"`
+	LinkIDs               []UUID         `json:"linkIds"`
+	AttachmentIDs         []UUID         `json:"attachmentIds"`
+	CreatedIn             Identity       `json:"createdIn"`
 }
 type Comment struct {
 	CommentID UUID      `json:"commentId"`
@@ -157,14 +159,14 @@ type Attachment struct {
 	CreatedIn    Identity  `json:"createdIn"`
 }
 type Approval struct {
-	ApprovalID            UUID      `json:"approvalId"`
-	CardID                UUID      `json:"cardId"`
-	ActorID               UUID      `json:"actorId"`
-	ReviewedCardRevision  Positive  `json:"reviewedCardRevision"`
-	ReviewedBoardRevision Number    `json:"reviewedBoardRevision"`
-	PolicyVersion         Version   `json:"policyVersion"`
-	CreatedAt             Timestamp `json:"createdAt"`
-	CreatedIn             Identity  `json:"createdIn"`
+	ApprovalID            UUID          `json:"approvalId"`
+	CardID                UUID          `json:"cardId"`
+	ActorID               UUID          `json:"actorId"`
+	ReviewedCardRevision  Positive      `json:"reviewedCardRevision"`
+	ReviewedBoardRevision Number        `json:"reviewedBoardRevision"`
+	PolicyVersion         PolicyVersion `json:"policyVersion"`
+	CreatedAt             Timestamp     `json:"createdAt"`
+	CreatedIn             Identity      `json:"createdIn"`
 }
 type EntityTombstone struct {
 	Kind      EntityKind `json:"kind"`
@@ -177,12 +179,13 @@ type EntityTombstone struct {
 	Reason    Reason     `json:"reason"`
 }
 type Board struct {
+	WorkflowPolicies []WorkflowPolicy  `json:"workflowPolicies,omitempty" validate:"nonnull"`
 	Workflow         *Workflow         `json:"workflow,omitempty"`
 	SchemaVersion    Version           `json:"schemaVersion"`
 	Identity         Identity          `json:"identity"`
 	Revision         Number            `json:"revision"`
 	NextTicket       Positive          `json:"nextTicket"`
-	PolicyVersion    Version           `json:"policyVersion"`
+	PolicyVersion    PolicyVersion     `json:"policyVersion"`
 	Retention        Retention         `json:"retention"`
 	RetentionVersion Positive          `json:"retentionVersion"`
 	Coverage         Coverage          `json:"coverage"`
@@ -195,15 +198,16 @@ type Board struct {
 	Tombstones       []EntityTombstone `json:"tombstones"`
 }
 type SnapshotState struct {
-	Ticket            Positive `json:"ticket"`
-	Title             string   `json:"title" validate:"title"`
-	Description       string   `json:"description" validate:"prose"`
-	Priority          Priority `json:"priority"`
-	Lane              Lane     `json:"lane"`
-	Archived          bool     `json:"archived"`
-	Parent            *CardRef `json:"parent,omitempty"`
-	OwnerID           *UUID    `json:"ownerId,omitempty"`
-	CurrentApprovalID *UUID    `json:"currentApprovalId"`
+	WorkflowPolicyVersion *PolicyVersion `json:"workflowPolicyVersion,omitempty" validate:"nonnull"`
+	Ticket                Positive       `json:"ticket"`
+	Title                 string         `json:"title" validate:"title"`
+	Description           string         `json:"description" validate:"prose"`
+	Priority              Priority       `json:"priority"`
+	Lane                  Lane           `json:"lane"`
+	Archived              bool           `json:"archived"`
+	Parent                *CardRef       `json:"parent,omitempty"`
+	OwnerID               *UUID          `json:"ownerId,omitempty"`
+	CurrentApprovalID     *UUID          `json:"currentApprovalId"`
 }
 type SnapshotReferences struct {
 	CommentIDs    []UUID `json:"commentIds"`

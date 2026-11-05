@@ -23,7 +23,7 @@ func readWorkflowFile(path string) (*A.Workflow, error) {
 		return nil, errComposition
 	}
 	w, e := A.DecodeWorkflow(b)
-	if e != nil {
+	if e != nil || A.ValidateInitialWorkflow(w) != nil {
 		return nil, errComposition
 	}
 	return w, nil

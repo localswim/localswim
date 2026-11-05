@@ -7,6 +7,7 @@ import (
 	"github.com/localswim/localswim/internal/board/policy"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
+	"github.com/localswim/localswim/internal/store/schema"
 	"github.com/localswim/localswim/internal/store/writer"
 )
 
@@ -67,6 +68,18 @@ func project(r writer.Read, q route) (any, error) {
 	if e != nil {
 		return nil, e
 	}
+	p.board.WorkflowPolicies, e = policy.LoadHistory(r, inc)
+	if e != nil {
+		return nil, e
+	}
+	if len(p.board.WorkflowPolicies) == 1 {
+		p.board.WorkflowPolicies = nil
+	}
+	if p.board.Workflow != nil {
+		if e = policy.ValidateCurrent(r, inc, p.board.Workflow); e != nil {
+			return nil, e
+		}
+	}
 	e = rows(r, `SELECT origin_board,origin_incarnation,class,reason,from_exclusive,through_inclusive,recorded_at,board_revision FROM coverage_gap WHERE incarnation=? ORDER BY origin_board,origin_incarnation,class,from_exclusive,through_inclusive,reason,board_revision,recorded_at`, []any{inc}, func(rs *sql.Rows) error {
 		var g A.Gap
 		var from sql.NullString
@@ -78,15 +91,20 @@ func project(r writer.Read, q route) (any, error) {
 	if e != nil {
 		return nil, e
 	}
-	e = rows(r, `SELECT c.card_id,t.ticket,c.revision,c.title,c.description,c.priority,c.lane,c.archived,c.current_approval_id,c.owner_id,e.origin_board,e.origin_incarnation,p.parent_id FROM card c JOIN ticket t USING(incarnation,card_id) JOIN entity e ON e.incarnation=c.incarnation AND e.kind='card' AND e.entity_id=c.card_id LEFT JOIN card_parent p ON p.incarnation=c.incarnation AND p.child_id=c.card_id WHERE c.incarnation=? ORDER BY t.ticket,c.card_id`, []any{inc}, func(rs *sql.Rows) error {
+	e = rows(r, `SELECT c.card_id,t.ticket,c.revision,c.title,c.description,c.priority,c.lane,c.workflow_policy_version,c.archived,c.current_approval_id,c.owner_id,e.origin_board,e.origin_incarnation,p.parent_id FROM card c JOIN ticket t USING(incarnation,card_id) JOIN entity e ON e.incarnation=c.incarnation AND e.kind='card' AND e.entity_id=c.card_id LEFT JOIN card_parent p ON p.incarnation=c.incarnation AND p.child_id=c.card_id WHERE c.incarnation=? ORDER BY t.ticket,c.card_id`, []any{inc}, func(rs *sql.Rows) error {
 		var c A.Card
 		var approval, owner, parent sql.NullString
 		var archived int
-		e := rs.Scan(&c.CardID, &c.Ticket, &c.Revision, &c.Title, &c.Description, &c.Priority, &c.Lane, &archived, &approval, &owner, &c.CreatedIn.BoardID, &c.CreatedIn.Incarnation, &parent)
+		var pin sql.NullInt64
+		e := rs.Scan(&c.CardID, &c.Ticket, &c.Revision, &c.Title, &c.Description, &c.Priority, &c.Lane, &pin, &archived, &approval, &owner, &c.CreatedIn.BoardID, &c.CreatedIn.Incarnation, &parent)
 		if q.card != "" && string(c.CardID) != q.card {
 			return e
 		}
 		c.Archived = archived != 0
+		if pin.Valid {
+			version := A.PolicyVersion(pin.Int64)
+			c.WorkflowPolicyVersion = &version
+		}
 		if parent.Valid {
 			c.Parent = &A.CardRef{BoardID: p.board.Identity.BoardID, Incarnation: p.board.Identity.Incarnation, CardID: A.UUID(parent.String)}
 		}
@@ -155,7 +173,7 @@ func project(r writer.Read, q route) (any, error) {
 		return nil, e
 	}
 	if q.kind == "history" {
-		return T.HistoryRead{APIVersion: 1, Scope: "history", Result: T.HistoryView{Workflow: p.board.Workflow, Identity: p.board.Identity, Revision: p.board.Revision, CardID: A.UUID(q.card), CardRevision: p.board.Cards[0].Revision, Coverage: p.board.Coverage, Records: p.records, Actors: p.board.Actors, Comments: p.board.Comments, Links: p.board.Links, Attachments: p.board.Attachments, Approvals: p.board.Approvals, Tombstones: p.tombstones}}, nil
+		return T.HistoryRead{APIVersion: 1, Scope: "history", Result: T.HistoryView{Workflow: p.board.Workflow, WorkflowPolicies: p.board.WorkflowPolicies, Identity: p.board.Identity, Revision: p.board.Revision, CardID: A.UUID(q.card), CardRevision: p.board.Cards[0].Revision, Coverage: p.board.Coverage, Records: p.records, Actors: p.board.Actors, Comments: p.board.Comments, Links: p.board.Links, Attachments: p.board.Attachments, Approvals: p.board.Approvals, Tombstones: p.tombstones}}, nil
 	}
 	if q.kind == "card" {
 		refs := []T.HistoryReference{}
@@ -168,21 +186,24 @@ func project(r writer.Read, q route) (any, error) {
 		if e != nil {
 			return nil, e
 		}
-		return T.CardRead{APIVersion: 1, Scope: "card", Result: T.CardView{Workflow: p.board.Workflow, Identity: p.board.Identity, Revision: p.board.Revision, Card: p.board.Cards[0], Actors: p.board.Actors, Comments: p.board.Comments, Links: p.board.Links, Attachments: p.board.Attachments, Approvals: p.board.Approvals, HistoryReferences: refs, Coverage: p.board.Coverage}}, nil
+		return T.CardRead{APIVersion: 1, Scope: "card", Result: T.CardView{Workflow: p.board.Workflow, WorkflowPolicies: p.board.WorkflowPolicies, Identity: p.board.Identity, Revision: p.board.Revision, Card: p.board.Cards[0], Actors: p.board.Actors, Comments: p.board.Comments, Links: p.board.Links, Attachments: p.board.Attachments, Approvals: p.board.Approvals, HistoryReferences: refs, Coverage: p.board.Coverage}}, nil
 	}
 	return T.BoardRead{APIVersion: 1, Scope: "board", Result: p.board}, nil
 }
 
 func (p *projection) history(r writer.Read, inc, card string) error {
-	e := rows(r, `SELECT origin_board,origin_incarnation,card_id,card_revision,committed_at,actor_id,state,removed_at,removal_reason,removal_revision FROM card_revision WHERE incarnation=? AND card_id=? ORDER BY origin_board,origin_incarnation,card_id,card_revision`, []any{inc, card}, func(rs *sql.Rows) error {
+	e := rows(r, `SELECT origin_board,origin_incarnation,card_id,card_revision,committed_at,actor_id,state,workflow_policy_version,removed_at,removal_reason,removal_revision FROM card_revision WHERE incarnation=? AND card_id=? ORDER BY origin_board,origin_incarnation,card_id,card_revision`, []any{inc, card}, func(rs *sql.Rows) error {
 		var s A.Snapshot
 		var state, removed, reason sql.NullString
-		var revision sql.NullInt64
-		if e := rs.Scan(&s.Origin.BoardID, &s.Origin.Incarnation, &s.CardID, &s.CardRevision, &s.CommittedAt, &s.ActorID, &state, &removed, &reason, &revision); e != nil {
+		var revision, pin sql.NullInt64
+		if e := rs.Scan(&s.Origin.BoardID, &s.Origin.Incarnation, &s.CardID, &s.CardRevision, &s.CommittedAt, &s.ActorID, &state, &pin, &removed, &reason, &revision); e != nil {
 			return e
 		}
 		s.References = A.SnapshotReferences{CommentIDs: []A.UUID{}, LinkIDs: []A.UUID{}, AttachmentIDs: []A.UUID{}, ApprovalIDs: []A.UUID{}}
 		if state.Valid {
+			if e := schema.ValidateSnapshotPolicyPin([]byte(state.String), pin); e != nil {
+				return e
+			}
 			v, e := A.Decode[A.SnapshotState]([]byte(state.String))
 			if e != nil {
 				return e

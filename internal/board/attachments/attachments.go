@@ -159,6 +159,9 @@ func (s *Service) Add(ctx context.Context, g *grants.Service, route Route, i con
 		if e = cards.WriteSnapshot(w, route.Incarnation, route.CardID, rev, prior); e != nil {
 			return writer.Effect{}, e
 		}
+		if e = policy.PinCurrent(w, route.Incarnation, route.CardID); e != nil {
+			return writer.Effect{}, e
+		}
 		rev++
 		attachment, e := uuid()
 		if e != nil {

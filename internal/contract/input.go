@@ -92,6 +92,11 @@ type LinkRemoveInput struct {
 	LinkID string `json:"linkId"`
 }
 type EmptyInput struct{}
+type WorkflowEditInput struct {
+	ExpectedPolicyVersion uint64          `json:"expectedPolicyVersion"`
+	Workflow              json.RawMessage `json:"workflow"`
+}
+
 type ApproveInput struct {
 	PolicyVersion uint64 `json:"policyVersion"`
 }
@@ -116,6 +121,7 @@ func (AttachmentInput) commandInput()   {}
 func (LinkAddInput) commandInput()      {}
 func (LinkRemoveInput) commandInput()   {}
 func (EmptyInput) commandInput()        {}
+func (WorkflowEditInput) commandInput() {}
 func (ApproveInput) commandInput()      {}
 func (GrantCreateInput) commandInput()  {}
 func (HistoryClearInput) commandInput() {}
@@ -191,6 +197,8 @@ func (i Intent) Input() (CommandInput, error) {
 		out = &EmptyInput{}
 	case "approve":
 		out = &ApproveInput{}
+	case "workflow.edit":
+		out = &WorkflowEditInput{}
 	case "grant.create":
 		out = &GrantCreateInput{}
 	case "history.clear":

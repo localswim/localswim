@@ -101,9 +101,8 @@
           "type": "array"
         },
         "policyVersion": {
-          "const": 1,
           "maximum": 9007199254740991,
-          "minimum": 0,
+          "minimum": 1,
           "type": "integer"
         },
         "retention": {
@@ -121,6 +120,12 @@
         },
         "workflow": {
           "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
+        },
+        "workflowPolicies": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/WorkflowPolicy"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -313,6 +318,12 @@
         },
         "workflow": {
           "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
+        },
+        "workflowPolicies": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/WorkflowPolicy"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -465,6 +476,12 @@
         },
         "workflow": {
           "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
+        },
+        "workflowPolicies": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/WorkflowPolicy"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -2116,6 +2133,12 @@
         },
         "workflow": {
           "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
+        },
+        "workflowPolicies": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/WorkflowPolicy"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -2274,6 +2297,9 @@
         },
         {
           "$ref": "#/$defs/RequestApprove"
+        },
+        {
+          "$ref": "#/$defs/RequestWorkflowEdit"
         },
         {
           "$ref": "#/$defs/RequestGrantCreate"
@@ -2583,6 +2609,24 @@
               "maximum": 9007199254740991,
               "minimum": 1,
               "type": "integer"
+            }
+          },
+          "required": [
+            "expectedCardRevision"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "RequestWorkflowEdit": {
+      "allOf": [
+        {
+          "$ref": "../mutation-requests.schema.json#/$defs/RequestWorkflowEdit"
+        },
+        {
+          "properties": {
+            "expectedCardRevision": {
+              "type": "null"
             }
           },
           "required": [
@@ -3688,6 +3732,18 @@
         },
         {
           "$ref": "#/$defs/TerminalApproveNotcommittedCompact"
+        },
+        {
+          "$ref": "#/$defs/TerminalWorkflowEditCommittedFull"
+        },
+        {
+          "$ref": "#/$defs/TerminalWorkflowEditCommittedCompact"
+        },
+        {
+          "$ref": "#/$defs/TerminalWorkflowEditNotcommittedFull"
+        },
+        {
+          "$ref": "#/$defs/TerminalWorkflowEditNotcommittedCompact"
         },
         {
           "$ref": "#/$defs/TerminalGrantCreateCommittedFull"
@@ -10480,6 +10536,859 @@
         "revision",
         "target",
         "terminalAt"
+      ],
+      "type": "object"
+    },
+    "TerminalWorkflowEditCommittedCompact": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "byteFacts": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/ByteFact"
+          },
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array"
+        },
+        "cardRevision": {
+          "type": "null"
+        },
+        "code": {
+          "const": "OK"
+        },
+        "command": {
+          "const": "workflow.edit"
+        },
+        "expectedCardRevision": {
+          "type": "null"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "fingerprintVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "outcome": {
+          "const": "committed"
+        },
+        "removal": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Removal"
+        },
+        "result": {
+          "type": "null"
+        },
+        "resultRefs": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/FactRef"
+          },
+          "type": "array"
+        },
+        "retention": {
+          "const": "compact"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "target": {
+          "type": "null"
+        },
+        "terminalAt": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        }
+      },
+      "required": [
+        "actorId",
+        "apiVersion",
+        "boardId",
+        "byteFacts",
+        "cardRevision",
+        "code",
+        "command",
+        "expectedCardRevision",
+        "expectedRevision",
+        "fingerprint",
+        "fingerprintVersion",
+        "incarnation",
+        "opId",
+        "outcome",
+        "removal",
+        "result",
+        "resultRefs",
+        "retention",
+        "revision",
+        "target",
+        "terminalAt"
+      ],
+      "type": "object"
+    },
+    "TerminalWorkflowEditCommittedFull": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "byteFacts": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/ByteFact"
+          },
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array"
+        },
+        "cardRevision": {
+          "type": "null"
+        },
+        "code": {
+          "const": "OK"
+        },
+        "command": {
+          "const": "workflow.edit"
+        },
+        "expectedCardRevision": {
+          "type": "null"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "fingerprintVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "outcome": {
+          "const": "committed"
+        },
+        "removal": {
+          "type": "null"
+        },
+        "result": {
+          "$ref": "../mutation-requests.schema.json#/$defs/ResultWorkflowEdit"
+        },
+        "resultRefs": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/FactRef"
+          },
+          "type": "array"
+        },
+        "retention": {
+          "const": "full"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "target": {
+          "type": "null"
+        },
+        "terminalAt": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        }
+      },
+      "required": [
+        "actorId",
+        "apiVersion",
+        "boardId",
+        "byteFacts",
+        "cardRevision",
+        "code",
+        "command",
+        "expectedCardRevision",
+        "expectedRevision",
+        "fingerprint",
+        "fingerprintVersion",
+        "incarnation",
+        "opId",
+        "outcome",
+        "removal",
+        "result",
+        "resultRefs",
+        "retention",
+        "revision",
+        "target",
+        "terminalAt"
+      ],
+      "type": "object"
+    },
+    "TerminalWorkflowEditNotcommittedCompact": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "byteFacts": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/ByteFact"
+          },
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array"
+        },
+        "cardRevision": {
+          "type": "null"
+        },
+        "code": {
+          "minLength": 1,
+          "not": {
+            "const": "OK"
+          },
+          "type": "string"
+        },
+        "command": {
+          "const": "workflow.edit"
+        },
+        "expectedCardRevision": {
+          "type": "null"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "fingerprintVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "outcome": {
+          "const": "not_committed"
+        },
+        "removal": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Removal"
+        },
+        "result": {
+          "type": "null"
+        },
+        "resultRefs": {
+          "maxItems": 0,
+          "type": "array"
+        },
+        "retention": {
+          "const": "compact"
+        },
+        "revision": {
+          "type": "null"
+        },
+        "target": {
+          "type": "null"
+        },
+        "terminalAt": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        }
+      },
+      "required": [
+        "actorId",
+        "apiVersion",
+        "boardId",
+        "byteFacts",
+        "cardRevision",
+        "code",
+        "command",
+        "expectedCardRevision",
+        "expectedRevision",
+        "fingerprint",
+        "fingerprintVersion",
+        "incarnation",
+        "opId",
+        "outcome",
+        "removal",
+        "result",
+        "resultRefs",
+        "retention",
+        "revision",
+        "target",
+        "terminalAt"
+      ],
+      "type": "object"
+    },
+    "TerminalWorkflowEditNotcommittedFull": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "byteFacts": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/ByteFact"
+          },
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array"
+        },
+        "cardRevision": {
+          "type": "null"
+        },
+        "code": {
+          "minLength": 1,
+          "not": {
+            "const": "OK"
+          },
+          "type": "string"
+        },
+        "command": {
+          "const": "workflow.edit"
+        },
+        "expectedCardRevision": {
+          "type": "null"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "fingerprintVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "outcome": {
+          "const": "not_committed"
+        },
+        "removal": {
+          "type": "null"
+        },
+        "result": {
+          "$ref": "#/$defs/RefusalResult"
+        },
+        "resultRefs": {
+          "maxItems": 0,
+          "type": "array"
+        },
+        "retention": {
+          "const": "full"
+        },
+        "revision": {
+          "type": "null"
+        },
+        "target": {
+          "type": "null"
+        },
+        "terminalAt": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        }
+      },
+      "required": [
+        "actorId",
+        "apiVersion",
+        "boardId",
+        "byteFacts",
+        "cardRevision",
+        "code",
+        "command",
+        "expectedCardRevision",
+        "expectedRevision",
+        "fingerprint",
+        "fingerprintVersion",
+        "incarnation",
+        "opId",
+        "outcome",
+        "removal",
+        "result",
+        "resultRefs",
+        "retention",
+        "revision",
+        "target",
+        "terminalAt"
+      ],
+      "type": "object"
+    },
+    "WorkflowActorRightsChange": {
+      "additionalProperties": false,
+      "properties": {
+        "automation": {
+          "$ref": "#/$defs/WorkflowRightsChange"
+        },
+        "human": {
+          "$ref": "#/$defs/WorkflowRightsChange"
+        }
+      },
+      "required": [
+        "automation",
+        "human"
+      ],
+      "type": "object"
+    },
+    "WorkflowApproval": {
+      "additionalProperties": false,
+      "properties": {
+        "preservedCurrentCount": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rule": {
+          "const": "retained-issuing-policy"
+        }
+      },
+      "required": [
+        "preservedCurrentCount",
+        "rule"
+      ],
+      "type": "object"
+    },
+    "WorkflowCapacity": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalPolicyBytesAfter": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxCanonicalPolicyBytes": {
+          "const": 8388608
+        },
+        "maxPolicyRecords": {
+          "const": 128
+        },
+        "policyRecords": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "policyRecordsAfter": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "canonicalPolicyBytesAfter",
+        "maxCanonicalPolicyBytes",
+        "maxPolicyRecords",
+        "policyRecords",
+        "policyRecordsAfter"
+      ],
+      "type": "object"
+    },
+    "WorkflowChanges": {
+      "additionalProperties": false,
+      "properties": {
+        "added": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/WorkflowLane"
+          },
+          "type": "array"
+        },
+        "orderChanged": {
+          "type": "boolean"
+        },
+        "renamed": {
+          "items": {
+            "$ref": "#/$defs/WorkflowRename"
+          },
+          "type": "array"
+        },
+        "retired": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/WorkflowLane"
+          },
+          "type": "array"
+        },
+        "rights": {
+          "$ref": "#/$defs/WorkflowActorRightsChange"
+        },
+        "transitionsChanged": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "added",
+        "orderChanged",
+        "renamed",
+        "retired",
+        "rights",
+        "transitionsChanged"
+      ],
+      "type": "object"
+    },
+    "WorkflowOccupancy": {
+      "additionalProperties": false,
+      "properties": {
+        "archivedCards": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "currentCards": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "laneId": {
+          "anyOf": [
+            {
+              "enum": [
+                "Ready for Work",
+                "In Progress",
+                "Ready for Review",
+                "Completed"
+              ]
+            },
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "required": [
+        "archivedCards",
+        "currentCards",
+        "laneId"
+      ],
+      "type": "object"
+    },
+    "WorkflowPreview": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "approval": {
+          "$ref": "#/$defs/WorkflowApproval"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "candidate": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
+        },
+        "capacity": {
+          "$ref": "#/$defs/WorkflowCapacity"
+        },
+        "changes": {
+          "$ref": "#/$defs/WorkflowChanges"
+        },
+        "currentWorkflow": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "nextPolicyVersion": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "occupancy": {
+          "items": {
+            "$ref": "#/$defs/WorkflowOccupancy"
+          },
+          "type": "array"
+        },
+        "policyVersion": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "wouldChange": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "approval",
+        "boardId",
+        "candidate",
+        "capacity",
+        "changes",
+        "incarnation",
+        "nextPolicyVersion",
+        "occupancy",
+        "policyVersion",
+        "revision",
+        "wouldChange"
+      ],
+      "type": "object"
+    },
+    "WorkflowPreviewRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "expectedPolicyVersion": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "workflow": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "boardId",
+        "expectedPolicyVersion",
+        "expectedRevision",
+        "incarnation",
+        "workflow"
+      ],
+      "type": "object"
+    },
+    "WorkflowRename": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "type": "string"
+        },
+        "before": {
+          "type": "string"
+        },
+        "laneId": {
+          "anyOf": [
+            {
+              "enum": [
+                "Ready for Work",
+                "In Progress",
+                "Ready for Review",
+                "Completed"
+              ]
+            },
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "required": [
+        "after",
+        "before",
+        "laneId"
+      ],
+      "type": "object"
+    },
+    "WorkflowRightsChange": {
+      "additionalProperties": false,
+      "properties": {
+        "added": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "removed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "added",
+        "removed"
       ],
       "type": "object"
     },

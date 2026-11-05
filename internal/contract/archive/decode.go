@@ -17,9 +17,9 @@ import (
 var uuidRE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 var digestRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var timeRE = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$`)
-var commandValues = []string{"card.create", "card.edit", "comment.add", "attachment.add", "link.add", "link.remove", "review-handoff", "approve", "grant.create", "grant.revoke", "history.clear", "retention.set"}
+var commandValues = []string{"card.create", "card.edit", "comment.add", "attachment.add", "link.add", "link.remove", "review-handoff", "approve", "grant.create", "grant.revoke", "history.clear", "retention.set", "workflow.edit"}
 var enums = map[string][]string{
-	"Priority": {"P0", "P1", "P2", "P3", "P4", "P5"}, "Kind": {"human", "automation"}, "Reason": {"cleared", "expired"}, "GapClass": {"history", "activity", "outcome_payload"}, "FactKind": {"board", "card", "comment", "link", "attachment", "approval", "grant"}, "Command": commandValues, "RecoveryCommand": {"history.clear", "retention.set"}, "TerminalClass": {"COMMITTED", "NOT_COMMITTED"}, "Phase": {"preparing", "prepared", "published"}, "ReceiptResult": {"incomplete", "complete", "failed"}, "RestoreOutcome": {"confirmed", "failed", "unknown"}, "HashAlgorithm": {"sha256"}, "RestoreScope": {"restore"}, "LinkKind": {"blocking", "informational", "related", "reference", "duplicate"}, "EntityKind": {"card", "comment", "link", "attachment"},
+	"Priority": {"P0", "P1", "P2", "P3", "P4", "P5"}, "Kind": {"human", "automation"}, "Reason": {"cleared", "expired"}, "GapClass": {"history", "activity", "outcome_payload"}, "FactKind": {"board", "card", "comment", "link", "attachment", "approval", "grant", "workflow"}, "Command": commandValues, "RecoveryCommand": {"history.clear", "retention.set"}, "TerminalClass": {"COMMITTED", "NOT_COMMITTED"}, "Phase": {"preparing", "prepared", "published"}, "ReceiptResult": {"incomplete", "complete", "failed"}, "RestoreOutcome": {"confirmed", "failed", "unknown"}, "HashAlgorithm": {"sha256"}, "RestoreScope": {"restore"}, "LinkKind": {"blocking", "informational", "related", "reference", "duplicate"}, "EntityKind": {"card", "comment", "link", "attachment"},
 }
 
 // Decode validates exact fields, required nulls, scalar rules and local semantic
@@ -172,8 +172,17 @@ func shape(t reflect.Type, v any, path, format string) error {
 				}
 				return fmt.Errorf("%s.%s: required", path, n)
 			}
-			if (n == "workflow" && x == nil) || (f.Tag.Get("validate") == "nonnull" && x == nil) || (n == "parent" && x == nil && (t == reflect.TypeFor[Card]() || t == reflect.TypeFor[SnapshotState]())) {
+			if ((n == "workflow" || n == "currentWorkflow") && x == nil) || (f.Tag.Get("validate") == "nonnull" && x == nil) || (n == "parent" && x == nil && (t == reflect.TypeFor[Card]() || t == reflect.TypeFor[SnapshotState]())) {
 				return fail()
+			}
+			if t == reflect.TypeFor[Workflow]() && (n == "profile" && x != "default") {
+				return fail()
+			}
+			if (t == reflect.TypeFor[WorkflowLane]() && n == "id") || (t == reflect.TypeFor[WorkflowTransition]() && (n == "from" || n == "to")) {
+				if e := shape(reflect.TypeFor[Lane](), x, path+"."+n, ""); e != nil {
+					return e
+				}
+				continue
 			}
 			if e := shape(f.Type, x, path+"."+n, f.Tag.Get("validate")); e != nil {
 				return e
@@ -269,7 +278,7 @@ func shape(t reflect.Type, v any, path, format string) error {
 			return fail()
 		}
 		switch t.Name() {
-		case "Positive":
+		case "Positive", "PolicyVersion":
 			if u == 0 {
 				return fail()
 			}

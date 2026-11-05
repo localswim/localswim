@@ -117,9 +117,8 @@
           "$ref": "#/$defs/Identity"
         },
         "policyVersion": {
-          "const": 1,
           "maximum": 9007199254740991,
-          "minimum": 0,
+          "minimum": 1,
           "type": "integer"
         },
         "reviewedBoardRevision": {
@@ -253,9 +252,8 @@
           "type": "integer"
         },
         "policyVersion": {
-          "const": 1,
           "maximum": 9007199254740991,
-          "minimum": 0,
+          "minimum": 1,
           "type": "integer"
         },
         "retention": {
@@ -285,6 +283,12 @@
         },
         "workflow": {
           "$ref": "#/$defs/Workflow"
+        },
+        "workflowPolicies": {
+          "items": {
+            "$ref": "#/$defs/WorkflowPolicy"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -464,6 +468,11 @@
           "minLength": 1,
           "type": "string",
           "x-nonblank": true
+        },
+        "workflowPolicyVersion": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
         }
       },
       "required": [
@@ -920,7 +929,8 @@
             "link",
             "attachment",
             "approval",
-            "grant"
+            "grant",
+            "workflow"
           ],
           "type": "string"
         },
@@ -1232,6 +1242,9 @@
           "$ref": "#/$defs/IntentApprove"
         },
         {
+          "$ref": "#/$defs/IntentWorkflowEdit"
+        },
+        {
           "$ref": "#/$defs/IntentGrantCreate"
         },
         {
@@ -1301,7 +1314,7 @@
           "additionalProperties": false,
           "properties": {
             "policyVersion": {
-              "maximum": 1,
+              "maximum": 9007199254740991,
               "minimum": 1,
               "type": "integer"
             }
@@ -1755,10 +1768,6 @@
               ]
             },
             "laneId": {
-              "not": {
-                "const": "00000000-0000-0000-0000-000000000000"
-              },
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
               "type": "string"
             },
             "ownerId": {
@@ -2797,6 +2806,232 @@
       ],
       "type": "object"
     },
+    "IntentWorkflowEdit": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "command": {
+          "enum": [
+            "workflow.edit"
+          ],
+          "type": "string"
+        },
+        "expectedCardRevision": {
+          "type": "null"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fingerprintVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "expectedPolicyVersion": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "workflow": {
+              "additionalProperties": false,
+              "properties": {
+                "actorRights": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "automation": {
+                      "items": {
+                        "enum": [
+                          "attach",
+                          "comment",
+                          "create",
+                          "edit",
+                          "export",
+                          "read",
+                          "read-own-outcome",
+                          "review-handoff"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "uniqueItems": true,
+                      "x-order": "ASCII ascending"
+                    },
+                    "human": {
+                      "items": {
+                        "enum": [
+                          "approve",
+                          "attach",
+                          "comment",
+                          "create",
+                          "edit",
+                          "export",
+                          "read",
+                          "read-own-outcome",
+                          "review-handoff"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "uniqueItems": true,
+                      "x-order": "ASCII ascending"
+                    }
+                  },
+                  "required": [
+                    "automation",
+                    "human"
+                  ],
+                  "type": "object"
+                },
+                "lanes": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "role": {
+                        "enum": [
+                          "initial",
+                          "in_progress",
+                          "review",
+                          "completed",
+                          "waiting"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "label",
+                      "role"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 16,
+                  "type": "array"
+                },
+                "profile": {
+                  "enum": [
+                    "default"
+                  ],
+                  "type": "string"
+                },
+                "revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "transitions": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "actors": {
+                        "items": {
+                          "enum": [
+                            "automation",
+                            "human"
+                          ],
+                          "type": "string"
+                        },
+                        "maxItems": 2,
+                        "type": "array",
+                        "uniqueItems": true,
+                        "x-order": "ASCII ascending"
+                      },
+                      "from": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "actors",
+                      "from",
+                      "to"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 64,
+                  "type": "array"
+                },
+                "workflowId": {
+                  "not": {
+                    "const": "00000000-0000-0000-0000-000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "actorRights",
+                "lanes",
+                "revision",
+                "transitions",
+                "workflowId"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "expectedPolicyVersion",
+            "workflow"
+          ],
+          "type": "object"
+        },
+        "target": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "actorId",
+        "boardId",
+        "command",
+        "expectedCardRevision",
+        "expectedRevision",
+        "fingerprintVersion",
+        "incarnation",
+        "opId",
+        "payload",
+        "target"
+      ],
+      "type": "object"
+    },
     "Lineage": {
       "additionalProperties": false,
       "properties": {
@@ -2980,7 +3215,8 @@
             "grant.create",
             "grant.revoke",
             "history.clear",
-            "retention.set"
+            "retention.set",
+            "workflow.edit"
           ],
           "type": "string"
         },
@@ -3698,6 +3934,9 @@
           "$ref": "../mutation-requests.schema.json#/$defs/ResultApprove"
         },
         {
+          "$ref": "../mutation-requests.schema.json#/$defs/ResultWorkflowEdit"
+        },
+        {
           "$ref": "../mutation-requests.schema.json#/$defs/ResultGrantCreate"
         },
         {
@@ -3952,6 +4191,11 @@
           "minLength": 1,
           "type": "string",
           "x-nonblank": true
+        },
+        "workflowPolicyVersion": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
         }
       },
       "required": [
@@ -4102,10 +4346,12 @@
           "minItems": 4,
           "type": "array"
         },
+        "profile": {
+          "const": "default"
+        },
         "revision": {
-          "const": 1,
           "maximum": 9007199254740991,
-          "minimum": 0,
+          "minimum": 1,
           "type": "integer"
         },
         "transitions": {
@@ -4115,7 +4361,7 @@
           "maxItems": 64,
           "minItems": 3,
           "type": "array",
-          "x-order": "strict (from,to) UUID ascending"
+          "x-order": "strict (from,to) exact endpoint ascending"
         },
         "workflowId": {
           "not": {
@@ -4184,11 +4430,23 @@
       "additionalProperties": false,
       "properties": {
         "id": {
-          "not": {
-            "const": "00000000-0000-0000-0000-000000000000"
-          },
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-          "type": "string"
+          "anyOf": [
+            {
+              "enum": [
+                "Ready for Work",
+                "In Progress",
+                "Ready for Review",
+                "Completed"
+              ]
+            },
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          ]
         },
         "label": {
           "maxLength": 80,
@@ -4215,6 +4473,23 @@
       ],
       "type": "object"
     },
+    "WorkflowPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "policyVersion": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "workflow": {
+          "$ref": "#/$defs/Workflow"
+        }
+      },
+      "required": [
+        "policyVersion"
+      ],
+      "type": "object"
+    },
     "WorkflowTransition": {
       "additionalProperties": false,
       "properties": {
@@ -4232,18 +4507,42 @@
           "x-order": "ASCII ascending"
         },
         "from": {
-          "not": {
-            "const": "00000000-0000-0000-0000-000000000000"
-          },
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-          "type": "string"
+          "anyOf": [
+            {
+              "enum": [
+                "Ready for Work",
+                "In Progress",
+                "Ready for Review",
+                "Completed"
+              ]
+            },
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          ]
         },
         "to": {
-          "not": {
-            "const": "00000000-0000-0000-0000-000000000000"
-          },
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-          "type": "string"
+          "anyOf": [
+            {
+              "enum": [
+                "Ready for Work",
+                "In Progress",
+                "Ready for Review",
+                "Completed"
+              ]
+            },
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          ]
         }
       },
       "required": [

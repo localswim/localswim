@@ -355,7 +355,7 @@ func newServer(handler http.Handler) *http.Server {
 }
 
 func openEngine(ctx context.Context, o EngineOptions, assets http.Handler) (*Runtime, error) {
-	if ctx == nil || ctx.Err() != nil || !safeDir(o.DataDir) || A.ValidateWorkflow(o.Workflow) != nil {
+	if ctx == nil || ctx.Err() != nil || !safeDir(o.DataDir) || A.ValidateInitialWorkflow(o.Workflow) != nil {
 		return nil, errLocal
 	}
 	if o.Port != 0 && (o.Port < 1024 || o.Port > 65535) {

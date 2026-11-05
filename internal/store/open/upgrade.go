@@ -9,6 +9,7 @@ import (
 	"fmt"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	"github.com/localswim/localswim/internal/store/schema"
+	"strings"
 	"time"
 )
 
@@ -36,12 +37,14 @@ func validateSupported(ctx context.Context, c *sql.Conn, id schema.Identity) err
 	case 7:
 		return schema.ValidateV7(ctx, c, id)
 	case 8:
+		return schema.ValidateV8(ctx, c, id)
+	case 9:
 		return schema.Validate(ctx, c, id)
 	}
 	return errors.New("unsupported physical layout")
 }
 
-// InspectStorage is existing-only and accepts exactly the independently frozen5/6/7 or current8 layout.
+// InspectStorage is existing-only and accepts exactly the independently frozen5/6/7/8 or current9 layout.
 func InspectStorage(ctx context.Context, dir string, id schema.Identity) (out StorageInspection, err error) {
 	out.BoardID = id.BoardID
 	out.Incarnation = id.Incarnation
@@ -54,9 +57,13 @@ func InspectStorage(ctx context.Context, dir string, id schema.Identity) (out St
 		if err := c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&out.PhysicalVersion); err != nil {
 			return err
 		}
-		if out.PhysicalVersion == schema.Version {
+		if out.PhysicalVersion >= 8 {
 			var err error
-			out.Workflow, err = schema.ReadWorkflow(ctx, c, id)
+			if out.PhysicalVersion == 8 {
+				out.Workflow, err = schema.ReadWorkflowV8(ctx, c, id)
+			} else {
+				out.Workflow, err = schema.ReadWorkflow(ctx, c, id)
+			}
 			return err
 		}
 		return nil
@@ -80,7 +87,7 @@ func UpgradeStorageTo(ctx context.Context, dir string, id schema.Identity, from,
 	return upgradeStorageStep(ctx, dir, id, from, to, nil)
 }
 func supportedStep(from, to int) bool {
-	return from == 5 && to == 6 || from == 6 && to == 7 || from == 7 && to == 8
+	return from == 5 && to == 6 || from == 6 && to == 7 || from == 7 && to == 8 || from == 8 && to == 9
 }
 
 // fault is a private deterministic test seam; a failure at committed means reply
@@ -201,7 +208,11 @@ func upgradeStorageStep(ctx context.Context, dir string, id schema.Identity, fro
 		if err = rebuildLinks(ctx, c, inject); err != nil {
 			return false, err
 		}
-	} else if err = rebuildWorkflow(ctx, c, inject); err != nil {
+	} else if from == 7 {
+		if err = rebuildWorkflow(ctx, c, inject); err != nil {
+			return false, err
+		}
+	} else if err = rebuildPolicies(ctx, c, inject); err != nil {
 		return false, err
 	}
 	if err = inject("ddl"); err != nil {
@@ -218,7 +229,7 @@ func upgradeStorageStep(ctx context.Context, dir string, id schema.Identity, fro
 	}
 	// Recheck all conserved typed rows after candidate validation. The only added
 	// table in5->6 is empty;6->7 preserves the entire row stream including rowids.
-	conserved, e := recordsDigestExcluding(ctx, c, from == 5, from == 7)
+	conserved, e := recordsDigestUpgrade(ctx, c, from == 5, from == 7, from == 8)
 	if e != nil || conserved != before {
 		return false, errors.New("storage upgrade changed retained records")
 	}
@@ -275,6 +286,9 @@ func recordsDigestExcept(ctx context.Context, c *sql.Conn, emptyHierarchy bool) 
 	return recordsDigestExcluding(ctx, c, emptyHierarchy, false)
 }
 func recordsDigestExcluding(ctx context.Context, c *sql.Conn, emptyHierarchy, emptyWorkflow bool) ([32]byte, error) {
+	return recordsDigestUpgrade(ctx, c, emptyHierarchy, emptyWorkflow, false)
+}
+func recordsDigestUpgrade(ctx context.Context, c *sql.Conn, emptyHierarchy, emptyWorkflow, policyUpgrade bool) ([32]byte, error) {
 	var zero [32]byte
 	rows, err := c.QueryContext(ctx, "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT GLOB 'sqlite_*' ORDER BY name")
 	if err != nil {
@@ -303,8 +317,18 @@ func recordsDigestExcluding(ctx context.Context, c *sql.Conn, emptyHierarchy, em
 			}
 			continue
 		}
+		if policyUpgrade && table == "workflow_policy" {
+			continue
+		}
 		fmt.Fprintln(h, table)
-		rows, err = c.QueryContext(ctx, `SELECT rowid,* FROM "`+table+`" ORDER BY rowid`)
+		query := `SELECT rowid,* FROM "` + table + `" ORDER BY rowid`
+		if policyUpgrade && table == "card" {
+			query = `SELECT rowid,incarnation,card_id,kind,revision,title,description,priority,lane,archived,current_approval_id,owner_id,approval_kind FROM card ORDER BY rowid`
+		}
+		if policyUpgrade && table == "card_revision" {
+			query = `SELECT rowid,incarnation,origin_board,origin_incarnation,card_id,card_revision,actor_id,committed_at,state,removed_at,removal_reason,removal_revision FROM card_revision ORDER BY rowid`
+		}
+		rows, err = c.QueryContext(ctx, query)
 		if err != nil {
 			return zero, err
 		}
@@ -366,7 +390,10 @@ func rebuildWorkflow(ctx context.Context, c *sql.Conn, inject func(string) error
 	if err := inject("card-dropped"); err != nil {
 		return err
 	}
-	for _, q := range schema.CardStatements() {
+	for _, q := range schema.StatementsV8() {
+		if !strings.HasPrefix(q, "CREATE TABLE card (") && !(strings.HasPrefix(q, "CREATE TRIGGER ") && strings.Contains(q, " ON card BEGIN ")) {
+			continue
+		}
 		if _, err := c.ExecContext(ctx, q); err != nil {
 			return err
 		}
@@ -382,6 +409,96 @@ func rebuildWorkflow(ctx context.Context, c *sql.Conn, inject func(string) error
 	}
 	for _, q := range schema.WorkflowStatements() {
 		if _, err := c.ExecContext(ctx, q); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Rebuild the seven changed tables under the same exclusive transaction. All
+// old columns, SQLite types, rowids and payload bytes are copied unchanged.
+func rebuildPolicies(ctx context.Context, c *sql.Conn, inject func(string) error) error {
+	tables := []string{"policy", "card", "approval", "operation", "operation_reference", "activity", "card_revision"}
+	if _, err := c.ExecContext(ctx, "PRAGMA defer_foreign_keys=ON"); err != nil {
+		return err
+	}
+	columns := map[string]string{}
+	for _, table := range tables {
+		rows, err := c.QueryContext(ctx, `PRAGMA table_info("`+table+`")`)
+		if err != nil {
+			return err
+		}
+		var names []string
+		for rows.Next() {
+			var cid, notnull, pk int
+			var name, typ string
+			var def any
+			if err = rows.Scan(&cid, &name, &typ, &notnull, &def, &pk); err != nil {
+				rows.Close()
+				return err
+			}
+			names = append(names, `"`+name+`"`)
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		columns[table] = strings.Join(names, ",")
+		if _, err = c.ExecContext(ctx, `CREATE TEMP TABLE "upgrade_`+table+`" AS SELECT rowid AS original_rowid,`+columns[table]+` FROM "`+table+`"`); err != nil {
+			return err
+		}
+	}
+	for n := len(tables) - 1; n >= 0; n-- {
+		table := tables[n]
+		if _, err := c.ExecContext(ctx, `DROP TABLE "`+table+`"`); err != nil {
+			return err
+		}
+		if err := inject(table + "-dropped"); err != nil {
+			return err
+		}
+	}
+	statements := schema.Statements()
+	for _, q := range statements {
+		for _, table := range tables {
+			if strings.HasPrefix(q, "CREATE TABLE "+table+" (") {
+				if _, err := c.ExecContext(ctx, q); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	for _, table := range tables {
+		if _, err := c.ExecContext(ctx, `INSERT INTO "`+table+`"(rowid,`+columns[table]+`) SELECT original_rowid,`+columns[table]+` FROM "upgrade_`+table+`" ORDER BY original_rowid`); err != nil {
+			return err
+		}
+		if err := inject(table + "-copied"); err != nil {
+			return err
+		}
+	}
+	for _, q := range statements {
+		if strings.HasPrefix(q, "CREATE TABLE ") {
+			continue
+		}
+		for _, table := range tables {
+			if strings.Contains(q, " ON "+table+" ") || strings.Contains(q, " ON "+table+"(") {
+				if _, err := c.ExecContext(ctx, q); err != nil {
+					return err
+				}
+				break
+			}
+		}
+	}
+	for _, q := range schema.WorkflowPolicyStatements() {
+		if _, err := c.ExecContext(ctx, q); err != nil {
+			return err
+		}
+	}
+	if _, err := c.ExecContext(ctx, `INSERT INTO workflow_policy(incarnation,policy_version,workflow_id,definition) SELECT p.incarnation,1,w.workflow_id,w.definition FROM policy p LEFT JOIN workflow_definition w USING(incarnation)`); err != nil {
+		return err
+	}
+	for _, table := range tables {
+		if _, err := c.ExecContext(ctx, `DROP TABLE temp."upgrade_`+table+`"`); err != nil {
 			return err
 		}
 	}

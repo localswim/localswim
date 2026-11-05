@@ -1,0 +1,76 @@
+{
+  "status": "PASS_FOCUSED_M07_02_SLICE",
+  "ticket": 58,
+  "scope": "Existing-workflow service, storage, archive and actual CLI, with existing browser compatibility",
+  "testInputSourceTreeSHA256": "b7265b16cb027d3cc509b72684ba4fd5450c50f1b46f4dc6966e3470d4070f42",
+  "testInputFileCount": 974,
+  "sourceStableAcrossGate": true,
+  "allTestInputBytesMatchedAtGateCompletion": true,
+  "postGateDocumentationNormalization": [
+    "internal/transport/boardapi/README.txt",
+    "internal/transport/cli/core/WORKFLOW.txt",
+    "internal/transport/local/WORKFLOW.txt"
+  ],
+  "postGateNormalizationEffect": "CRLF to LF only in three prose-only files; all executable inputs retain exact verified bytes.",
+  "binarySHA256": "499462d9be27f508a02f6dd991fd6926b9b5b95f159e9a10819b8bcaa434a7df",
+  "gateChecks": [
+    "private-paths",
+    "module",
+    "contracts-check",
+    "typecheck",
+    "assets-check",
+    "build",
+    "go-tests",
+    "vet",
+    "node-scripts"
+  ],
+  "goTests": {
+    "pass": 1889,
+    "fail": 0,
+    "skip": 0
+  },
+  "nodeScriptTests": {
+    "pass": 17,
+    "fail": 0,
+    "skip": 0
+  },
+  "actualCLIAndCompatibilityChecks": 35,
+  "existingBrowserAssertions": 14,
+  "additionalNativeChecks": [
+    "Actual executable workflow show, preview and edit",
+    "Real TLS workflow commit with lost reply, exact UNKNOWN and deliberate original lookup"
+  ],
+  "independentReviews": [
+    "contracts",
+    "storage",
+    "domain",
+    "archive",
+    "adapters",
+    "integration"
+  ],
+  "localpost": {
+    "api": "2026-11-05",
+    "mainRunFiles": 5,
+    "diagnosticProbeFiles": 3,
+    "registrationsRetired": true
+  },
+  "observedBrowserDiagnostic": "One favicon HTTP404 resource error; separate read-only probe confirmed zero page exceptions and connected current state.",
+  "cleanup": {
+    "mainHosts": 2,
+    "diagnosticHosts": 1,
+    "allExitedZero": true,
+    "ownedListenersClosed": true
+  },
+  "priorAttempts": "Three retained journey harness failures corrected without replaying uncertain mutations; initial full-gate fixture failures corrected and independently reviewed.",
+  "publicReportOnlyFilesExcludedFromTestInputInventory": [
+    "qualification/m07/workflows-slice-r1.json",
+    "qualification/m07/workflows-slice-r1.txt"
+  ],
+  "remainingAcceptance": [
+    "M07.03 browser workflow editor",
+    "M07.04 complete joined qualification and two clean builds",
+    "M07.05 extracted-kit demonstration and handoff"
+  ],
+  "advancementAuthority": "Terry authorized AFK advancement after fresh independent review; owner retains final approval and Completed.",
+  "environment": "Synthetic Windows amd64/NTFS/loopback; Go1.27.3, Node26.13.0, TypeScript7.0.2, Playwright1.64.1, Chrome157.0.8103.38"
+}

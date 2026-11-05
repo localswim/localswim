@@ -1,6 +1,7 @@
 import type { CardRead, HistoryRead } from "../../generated/transport/contracts.js";
 import type { Coverage, Identity } from "../../generated/archive/contracts.js";
 import { invalid } from "./boundary.js";
+import { currentApprovalValid, laneRole, workflowAtVersion, validateWorkflowPolicies } from "./workflow.js";
 import { validParentRef } from "./hierarchy.js";
 
 type EntityKind = "card" | "comment" | "link" | "attachment" | "approval";
@@ -22,6 +23,7 @@ function ordered<T>(rows: readonly T[], key: (row: T) => string): void {
 // by full origin/card identity; transport ordering is distinct from display order.
 export function validateHistoryRead(history: HistoryRead): void {
   const view = history.result, boardId = view.identity.boardId;
+  validateWorkflowPolicies(view.workflow, view.workflowPolicies);
   if (view.revision === 0) invalid();
   const full = new Map<EntityKind, Map<string, string>>();
   const dead = new Map<EntityKind, Map<string, string>>();
@@ -85,6 +87,11 @@ export function validateHistoryRead(history: HistoryRead): void {
     provenance(row.origin);
     if (row.cardId !== view.cardId || row.cardRevision >= view.cardRevision || (row.state === null) === (row.removal === null)) invalid();
     actor(row.actorId);
+    if (row.state) {
+      const policy = workflowAtVersion(view.workflow, view.workflowPolicies, row.state.workflowPolicyVersion);
+      if (!laneRole(row.state.lane, policy)) invalid();
+      if (policy && (laneRole(row.state.lane, policy) === "completed" ? !currentApprovalValid({ ...row.state, cardId: row.cardId, revision: row.cardRevision }, policy, view.workflowPolicies, view.actors, view.approvals) : row.state.currentApprovalId !== null)) invalid();
+    }
     if (row.state?.ownerId != null) actor(row.state.ownerId);
     // The standalone history projection has no source-card registry. Validate
     // exact snapshot-time scope, without claiming current target availability.
@@ -130,6 +137,9 @@ function validateCoverage(coverage: Coverage, boardId: string): void {
 // external/inherited references exactly as on the accepted Go boundary.
 export function validateCardRead(card: CardRead): void {
   const view = card.result, current = view.card, boardId = view.identity.boardId;
+  validateWorkflowPolicies(view.workflow, view.workflowPolicies);
+  if (view.workflow && (laneRole(current.lane, view.workflow) === "completed" ? !currentApprovalValid(current, view.workflow, view.workflowPolicies, view.actors, view.approvals) : current.currentApprovalId !== null)) invalid();
+  if (!laneRole(current.lane, workflowAtVersion(view.workflow, view.workflowPolicies, current.workflowPolicyVersion))) invalid();
   if (view.revision === 0 || current.createdIn.boardId !== boardId) invalid();
   if (Object.hasOwn(current, "parent")) {
     const parent = (current as { parent?: unknown }).parent;

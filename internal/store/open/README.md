@@ -1,6 +1,6 @@
 # Storage ownership boundary
 
-This package is the version-eight physical schema/open boundary. It uses the Q02 qualified
+This package is the version-nine physical schema/open boundary. It uses the Q02 qualified
 `database/sql` binding on native Windows/amd64 and a fixed local NTFS drive.
 It does not implement domain admission, permissions, outcome reconciliation,
 history clearing, restore, HTTP or CLI behavior.
@@ -29,8 +29,8 @@ garbage collection or database mutation. Inspection establishes neither online
 authorization nor a complete logical/native archive-inventory proof; its caller
 must retain wider offline ownership and perform that proof inside the callback.
 
-Physical layout8 is distinct from the immutable base-schema marker5. Existing
-never migrates/repairs. Explicit offline exact5->6 then6->7 then7->8 upgrades requires existing-only
+Physical layout9 is distinct from the immutable base-schema marker5. Existing
+never migrates/repairs. Explicit offline exact5->6 then6->7 then7->8 then8->9 upgrades require existing-only
 native path/identity/exclusion and one validated transaction. Read-only inspect
 reports physical/base versions separately. Unknown/corrupt/dirty-sidecar sources
 refuse unchanged; post-commit cleanup/inspection/delivery uncertainty remains
@@ -120,9 +120,10 @@ requested6->7 fails. Startup tells validated old stores which explicit step is n
 `CreateWorkflow` validates the complete optional definition before acquiring or
 creating storage; nil is exactly `Create`'s legacy profile. Initial creation stores
 canonical workflow JSON in the same initialization transaction. `Existing` accepts
-only physical8/base5, validates the configured policy and context, and never adopts
-an older layout. `InspectStorage` accepts independent frozen5/6/7 or current8 and
-returns the complete optional workflow for current configured stores.
+only physical9/base5, validates the configured policy and context, and never adopts
+an older layout. `InspectStorage` accepts independent frozen5/6/7/8 or current9 and
+returns the complete optional workflow for configured physical8 and all edited
+physical9 stores.
 
 The explicit7->8 step creates an empty workflow table and rebuilds only card,
 preserving all implicit rowids and typed values. FK checks remain enabled with
@@ -131,3 +132,20 @@ integrity/layout/row digest must pass before COMMIT. Injected precommit failures
 roll back to exact7; COMMIT or postcommit delivery/cleanup uncertainty stays UNKNOWN.
 Default legacy opaque snapshots without a lane retain their accepted raw-storage
 meaning; configured snapshots require strict full state and policy membership.
+
+The explicit8->9 step seeds immutable policy1 from the original definition,
+retaining an implicit default as NULL, and adds the current policy pointer and
+nullable card policy pin. It rebuilds the seven widened tables while conserving
+all prior typed columns, rowids, originals, approvals, grants and opaque history
+bytes. Independent frozen8 validation governs admission. Complete candidate
+policy/relational validation and the conserved-row digest govern publication.
+Repeated8->9 on a valid9 store is NO_CHANGE. Active ownership, wrong identities,
+extra objects, corruption and unsupported upgrade pairs refuse through the same
+existing-only guarded path. Policy changes themselves remain serialized domain
+operations through the normal writer.
+
+`schema.ReadWorkflowPolicies` returns the full ordered retained history inside
+the caller's transaction, including implicit policy1. `schema.ReadWorkflow`
+returns the exact current definition. Public projections omit history until the
+first edit. Restore initializes with the original policy1 and calls
+`schema.InstallWorkflowPolicies` inside its transaction before installing cards.

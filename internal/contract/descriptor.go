@@ -72,7 +72,7 @@ func Commands() []CommandDescriptor {
 	}
 	edit := obj(map[string]Field{"title": opt(text("title")), "description": opt(text("prose")), "priority": opt(priority), "lane": opt(enum("In Progress")), "parent": opt(&Type{Kind: "object", Nullable: true, Fields: map[string]Field{"boardId": req(uuid), "incarnation": req(uuid), "cardId": req(uuid)}}), "ownerId": opt(nullableUUID), "archived": opt(&Type{Kind: "boolean"})})
 	edit.Fields["relationships"] = opt(relationships)
-	edit.Fields["laneId"] = opt(uuid)
+	edit.Fields["laneId"] = opt(text("lane-id"))
 	edit.ExclusiveFields = []string{"archived", "parent", "relationships", "laneId"}
 	commands := []CommandDescriptor{
 		{"card.create", "none", "POST", "/api/v1/boards/{boardId}/cards", obj(map[string]Field{"title": req(text("title")), "description": req(text("prose")), "priority": opt(priority), "parent": opt(&Type{Kind: "object", Nullable: true, Fields: map[string]Field{"boardId": req(uuid), "incarnation": req(uuid), "cardId": req(uuid)}}), "ownerId": opt(nullableUUID)}), false},
@@ -82,7 +82,8 @@ func Commands() []CommandDescriptor {
 		{"link.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/link-add", linkAdd, false},
 		{"link.remove", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/link-remove", obj(map[string]Field{"linkId": req(uuid)}), false},
 		{"review-handoff", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/review-handoff", empty, false},
-		{"approve", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/approve", obj(map[string]Field{"policyVersion": req(number(1, 1))}), false},
+		{"approve", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/approve", obj(map[string]Field{"policyVersion": req(number(1, MaxInteger))}), false},
+		{"workflow.edit", "none", "PATCH", "/api/v1/boards/{boardId}/workflow", obj(map[string]Field{"expectedPolicyVersion": req(number(1, MaxInteger)), "workflow": req(workflowType())}), false},
 		{"grant.create", "none", "POST", "/api/v1/grants", obj(map[string]Field{"granteeActorId": req(uuid), "kind": req(enum("human", "automation")), "rights": req(rights)}), false},
 		{"grant.revoke", "grant", "DELETE", "/api/v1/grants/{grantId}", empty, false},
 		{"history.clear", "none", "POST", "/api/v1/boards/{boardId}/recovery/confirm", obj(map[string]Field{"throughTime": req(text("timestamp"))}), true},
@@ -185,6 +186,11 @@ func (t *Type) validate(v any, path string) error {
 			}
 		}
 		switch t.Format {
+		case "lane-id":
+			if s == "Ready for Work" || s == "In Progress" || s == "Ready for Review" || s == "Completed" {
+				break
+			}
+			fallthrough
 		case "uuid":
 			if !uuidPattern.MatchString(s) || s == "00000000-0000-0000-0000-000000000000" {
 				return fmt.Errorf("%s: invalid UUID", path)
@@ -200,6 +206,15 @@ func (t *Type) validate(v any, path string) error {
 			v, e := time.Parse("2006-01-02T15:04:05Z", s)
 			if e != nil || v.Year() < 1 {
 				return fmt.Errorf("%s: invalid UTC timestamp", path)
+			}
+		case "workflow-label":
+			if n := utf8.RuneCountInString(s); n < 1 || n > 80 || strings.TrimSpace(s) != s {
+				return fmt.Errorf("%s: invalid workflow label", path)
+			}
+			for _, r := range s {
+				if r < 32 || r == 127 {
+					return fmt.Errorf("%s: invalid workflow label", path)
+				}
 			}
 		case "title":
 			if n := utf8.RuneCountInString(s); n < 1 || n > 200 || strings.TrimSpace(s) == "" {
@@ -296,7 +311,7 @@ func RequestType(d CommandDescriptor) *Type {
 		target = obj(map[string]Field{"grantId": req(uuid)})
 	}
 	f := map[string]Field{"opId": req(uuid), "incarnation": req(uuid), "target": req(target), "expectedRevision": req(revision), "expectedCardRevision": req(cardRev), "input": req(d.Input)}
-	if d.Target != "card" && !d.Recovery {
+	if d.Target != "card" && !d.Recovery && d.Command != "workflow.edit" {
 		f["expectedCardRevision"] = opt(cardRev)
 	}
 	if strings.HasPrefix(string(d.Command), "grant.") {

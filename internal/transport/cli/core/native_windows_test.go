@@ -212,7 +212,8 @@ func newNativeAtPort(t *testing.T, port *int) *nativeRun {
 		if r.Method != "GET" && f.lost.Swap(false) {
 			capture := httptest.NewRecorder()
 			board.ServeHTTP(capture, r)
-			if capture.Code != 201 {
+			terminal, err := T.Decode[T.Terminal](capture.Body.Bytes())
+			if (capture.Code != 200 && capture.Code != 201) || err != nil || terminal.Outcome != "committed" {
 				t.Error("lost response fixture did not commit")
 			}
 			h, ok := w.(http.Hijacker)

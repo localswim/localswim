@@ -17,7 +17,7 @@ func InitializeBoard(ctx context.Context, dataDir string, workflow *A.Workflow) 
 }
 
 func initializeBoardWithRoot(ctx context.Context, dataDir string, workflow *A.Workflow, createRoot func(string) (*WorkspacePath, error)) (id BoardIdentity, err error) {
-	if ctx == nil || ctx.Err() != nil || workflow == nil || A.ValidateWorkflow(workflow) != nil {
+	if ctx == nil || ctx.Err() != nil || workflow == nil || A.ValidateInitialWorkflow(workflow) != nil {
 		return BoardIdentity{}, ErrInitializationRefused
 	}
 	guard, err := createRoot(dataDir)
@@ -48,10 +48,11 @@ func initializeBoardWithRoot(ctx context.Context, dataDir string, workflow *A.Wo
 }
 
 // BoardDefinition reports a fully validated native identity and its complete
-// immutable definition. Nil Workflow explicitly identifies the legacy profile.
+// current definition and retained policy context. Nil Workflow identifies default1.
 type BoardDefinition struct {
-	Identity BoardIdentity `json:"identity"`
-	Workflow *A.Workflow   `json:"workflow,omitempty"`
+	Identity         BoardIdentity      `json:"identity"`
+	Workflow         *A.Workflow        `json:"workflow,omitempty"`
+	WorkflowPolicies []A.WorkflowPolicy `json:"workflowPolicies,omitempty"`
 }
 
 // InspectDefinition reads an already owned engine under current channel read
@@ -61,6 +62,18 @@ func (r *Runtime) InspectDefinition(ctx context.Context, channel string) (BoardD
 	err := r.withConfiguredRead(ctx, channel, func(rd writer.Read) error {
 		var err error
 		out.Workflow, err = policy.Load(rd, r.id.Incarnation)
+		if err != nil {
+			return err
+		}
+		if out.Workflow != nil {
+			if err = policy.ValidateCurrent(rd, r.id.Incarnation, out.Workflow); err != nil {
+				return err
+			}
+		}
+		out.WorkflowPolicies, err = policy.LoadHistory(rd, r.id.Incarnation)
+		if len(out.WorkflowPolicies) == 1 {
+			out.WorkflowPolicies = nil
+		}
 		return err
 	})
 	if err != nil {

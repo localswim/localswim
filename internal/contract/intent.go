@@ -37,6 +37,19 @@ func (i Intent) Command() Command       { return i.command }
 // authenticated actor before normalization and hashing. State-dependent checks
 // (including automation rights, workflow and revisions) belong to admission.
 func Freeze(wire []byte, route ResolvedRoute, actor AuthenticatedActor) (Intent, error) {
+	if route.Command == "workflow.edit" {
+		if len(wire) > 800000 {
+			return Intent{}, fmt.Errorf("workflow request exceeds limit")
+		}
+		var raw struct {
+			Input struct {
+				Workflow json.RawMessage `json:"workflow"`
+			} `json:"input"`
+		}
+		if err := json.Unmarshal(wire, &raw); err != nil || len(raw.Input.Workflow) > 65536 {
+			return Intent{}, fmt.Errorf("workflow exceeds 64 KiB")
+		}
+	}
 	if route.Command == "attachment.add" && len(wire) > 16384 {
 		return Intent{}, fmt.Errorf("attachment metadata exceeds 16 KiB")
 	}

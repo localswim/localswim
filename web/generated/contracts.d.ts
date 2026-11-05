@@ -185,6 +185,41 @@ export type ResultApprove = {
   readonly cardId: string;
 };
 
+export type RequestWorkflowEdit = {
+  readonly expectedCardRevision: null;
+  readonly expectedRevision: number;
+  readonly incarnation: string;
+  readonly input: {
+  readonly expectedPolicyVersion: number;
+  readonly workflow: {
+  readonly actorRights: {
+  readonly automation: ReadonlyArray<"attach" | "comment" | "create" | "edit" | "export" | "read" | "read-own-outcome" | "review-handoff">;
+  readonly human: ReadonlyArray<"approve" | "attach" | "comment" | "create" | "edit" | "export" | "read" | "read-own-outcome" | "review-handoff">;
+};
+  readonly lanes: ReadonlyArray<{
+  readonly id: string;
+  readonly label: string;
+  readonly role: "initial" | "in_progress" | "review" | "completed" | "waiting";
+}>;
+  readonly profile?: "default";
+  readonly revision: number;
+  readonly transitions: ReadonlyArray<{
+  readonly actors: ReadonlyArray<"automation" | "human">;
+  readonly from: string;
+  readonly to: string;
+}>;
+  readonly workflowId: string;
+};
+};
+  readonly opId: string;
+  readonly target: null;
+};
+
+export type ResultWorkflowEdit = {
+  readonly policyVersion: number;
+  readonly workflowId: string;
+};
+
 export type RequestGrantCreate = {
   readonly boardId: string;
   readonly expectedCardRevision?: null;
@@ -272,5 +307,5 @@ export type RefusalResult = {
 };
 };
 
-export type MutationRequest = RequestCardCreate | RequestCardEdit | RequestCommentAdd | RequestAttachmentAdd | RequestLinkAdd | RequestLinkRemove | RequestReviewHandoff | RequestApprove | RequestGrantCreate | RequestGrantRevoke | RequestHistoryClear | RequestRetentionSet;
-export type Command = "card.create" | "card.edit" | "comment.add" | "attachment.add" | "link.add" | "link.remove" | "review-handoff" | "approve" | "grant.create" | "grant.revoke" | "history.clear" | "retention.set";
+export type MutationRequest = RequestCardCreate | RequestCardEdit | RequestCommentAdd | RequestAttachmentAdd | RequestLinkAdd | RequestLinkRemove | RequestReviewHandoff | RequestApprove | RequestWorkflowEdit | RequestGrantCreate | RequestGrantRevoke | RequestHistoryClear | RequestRetentionSet;
+export type Command = "card.create" | "card.edit" | "comment.add" | "attachment.add" | "link.add" | "link.remove" | "review-handoff" | "approve" | "workflow.edit" | "grant.create" | "grant.revoke" | "history.clear" | "retention.set";

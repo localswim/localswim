@@ -23,7 +23,7 @@ func cardSearchQuery(q CardSearchQuery) error {
 }
 
 func cardSearchView(v CardSearchView) error {
-	if err := A.ValidateWorkflow(v.Workflow); err != nil {
+	if err := A.ValidateWorkflowPolicies(readPolicyVersion(v.Workflow), v.Workflow, v.WorkflowPolicies); err != nil {
 		return err
 	}
 	if v.Query.Lane != nil {

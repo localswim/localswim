@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/localswim/localswim/internal/board/policy"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	"github.com/localswim/localswim/internal/store/writer"
 )
@@ -33,7 +34,17 @@ func (r *Runtime) CatalogSnapshot(ctx context.Context, channel string) (CatalogS
 		if err := rd.Scan(`SELECT revision,history_floor,activity_floor,outcome_floor FROM board WHERE singleton=1 AND board_id=? AND incarnation=?`, []any{r.id.BoardID, r.id.Incarnation}, &out.Revision, &hf, &af, &of); err != nil {
 			return err
 		}
-		if err := rd.Scan(`SELECT count(*) FROM card WHERE incarnation=? AND archived=0 AND lane='Ready for Review'`, []any{r.id.Incarnation}, &out.ReadyForReview); err != nil {
+		workflow, err := policy.Load(rd, r.id.Incarnation)
+		if err != nil {
+			return err
+		}
+		if workflow != nil {
+			if err = policy.ValidateCurrent(rd, r.id.Incarnation, workflow); err != nil {
+				return err
+			}
+		}
+		reviewLane := A.WorkflowLaneForRole(workflow, "review")
+		if err := rd.Scan(`SELECT count(*) FROM card WHERE incarnation=? AND archived=0 AND lane=?`, []any{r.id.Incarnation, string(reviewLane)}, &out.ReadyForReview); err != nil {
 			return err
 		}
 		if err := rd.Scan(`SELECT max(terminal_at) FROM operation WHERE incarnation=? AND terminal_class='COMMITTED' AND committed_card_revision IS NOT NULL`, []any{r.id.Incarnation}, &last); err != nil {

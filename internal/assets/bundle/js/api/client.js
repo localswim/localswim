@@ -5,7 +5,7 @@ import { validateCardRead, validateHistoryRead } from "./history.js";
 import { validateBoardHierarchy } from "./hierarchy.js";
 import { boardBoundaryVerifier, canonical, object, parse, prepare, sha256, validate } from "./boundary.js";
 import { validSearch, validateSearchRead } from "./search.js";
-import { laneRole, sameWorkflow } from "./workflow.js";
+import { laneRole, sameWorkflow, validateWorkflowPolicies, workflowAtVersion, validateCurrentWorkflowCards, validateWorkflowPreview } from "./workflow.js";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export class BoardClient {
     options;
@@ -27,9 +27,9 @@ export class BoardClient {
     workflowRead(identity, workflow, lanes) {
         if (lanes.some(lane => !laneRole(lane, workflow)))
             throw Error("Lane does not belong to the current workflow");
-        const key = identity.boardId + "/" + identity.incarnation;
+        const key = identity.boardId + "/" + identity.incarnation + "/" + (workflow?.revision ?? 1);
         if (this.workflows.has(key) && !sameWorkflow(this.workflows.get(key), workflow))
-            throw Error("Immutable workflow changed");
+            throw Error("Retained workflow changed");
         this.workflows.set(key, workflow && structuredClone(workflow));
     }
     static async open(options) {
@@ -144,6 +144,8 @@ export class BoardClient {
         if (this.options.selection && board.result.identity.incarnation !== this.options.selection.incarnation)
             throw Error("Selected incarnation mismatch");
         validateBoardHierarchy(board);
+        validateWorkflowPolicies(board.result.workflow, board.result.workflowPolicies, board.result.policyVersion);
+        validateCurrentWorkflowCards(board.result.cards, board.result.workflow, board.result.workflowPolicies, board.result.actors, board.result.approvals);
         this.workflowRead(board.result.identity, board.result.workflow, board.result.cards.map(card => card.lane));
         return board;
     }
@@ -160,6 +162,7 @@ export class BoardClient {
         if (this.options.selection && card.result.identity.incarnation !== this.options.selection.incarnation)
             throw Error("Selected incarnation mismatch");
         validateCardRead(card);
+        validateWorkflowPolicies(card.result.workflow, card.result.workflowPolicies);
         this.workflowRead(card.result.identity, card.result.workflow, [card.result.card.lane]);
         return card;
     }
@@ -181,6 +184,7 @@ export class BoardClient {
         if (read.result.identity.boardId !== boardId || this.options.selection && read.result.identity.incarnation !== this.options.selection.incarnation)
             throw Error("Search identity mismatch");
         validateSearchRead(read, filters);
+        validateWorkflowPolicies(read.result.workflow, read.result.workflowPolicies);
         this.workflowRead(read.result.identity, read.result.workflow, [...read.result.items.map(card => card.lane), ...(read.result.query.lane === null ? [] : [read.result.query.lane])]);
         return read;
     }
@@ -197,8 +201,29 @@ export class BoardClient {
         if (this.options.selection && history.result.identity.incarnation !== this.options.selection.incarnation)
             throw Error("Selected incarnation mismatch");
         validateHistoryRead(history);
-        this.workflowRead(history.result.identity, history.result.workflow, history.result.records.flatMap(row => row.state ? [row.state.lane] : []));
+        validateWorkflowPolicies(history.result.workflow, history.result.workflowPolicies);
+        for (const row of history.result.records)
+            if (row.state && !laneRole(row.state.lane, workflowAtVersion(history.result.workflow, history.result.workflowPolicies, row.state.workflowPolicyVersion)))
+                throw Error("Historical lane unavailable");
+        this.workflowRead(history.result.identity, history.result.workflow, []);
         return history;
+    }
+    async previewWorkflow(request) {
+        const submitted = structuredClone(request), body = JSON.stringify(submitted);
+        validate("transport:WorkflowPreviewRequest", parse(body));
+        if (new TextEncoder().encode(body).length > 800000 || new TextEncoder().encode(JSON.stringify(submitted.workflow)).length > 65536)
+            throw Error("Workflow request too large");
+        if (this.options.selection && submitted.incarnation !== this.options.selection.incarnation)
+            throw Error("Selected incarnation mismatch");
+        const { response, value } = await this.call(this.path(submitted.boardId) + "/workflow/preview", { method: "POST", body, signal: AbortSignal.timeout(20_000) });
+        if (!response.ok)
+            throw Error("Workflow preview unavailable");
+        validate("transport:WorkflowPreview", value);
+        const preview = value;
+        validateWorkflowPreview(preview);
+        if (preview.boardId !== submitted.boardId || preview.incarnation !== submitted.incarnation || preview.revision !== submitted.expectedRevision || preview.policyVersion !== submitted.expectedPolicyVersion || !sameWorkflow(preview.candidate, submitted.workflow))
+            throw Error("Workflow preview context mismatch");
+        return structuredClone(preview);
     }
     context(board, session) {
         const identity = board.result.identity;
@@ -300,8 +325,8 @@ export class BoardClient {
         const r = object(parse(evidence.requestBytes));
         const target = r.target === null ? null : object(r.target);
         const base = this.path(evidence.context.boardId) + "/cards";
-        const suffix = { "attachment.add": "/attachments", "history.clear": "", "retention.set": "", "card.create": "", "card.edit": "", "comment.add": "/comments", "link.add": "/link-add", "link.remove": "/link-remove", "review-handoff": "/review-handoff", "approve": "/approve" };
-        const path = intent.command === "history.clear" || intent.command === "retention.set" ? this.path(evidence.context.boardId) + "/recovery/confirm" : base + (target ? "/" + String(target.cardId) : "") + suffix[intent.command];
+        const suffix = { "workflow.edit": "", "attachment.add": "/attachments", "history.clear": "", "retention.set": "", "card.create": "", "card.edit": "", "comment.add": "/comments", "link.add": "/link-add", "link.remove": "/link-remove", "review-handoff": "/review-handoff", "approve": "/approve" };
+        const path = intent.command === "workflow.edit" ? this.path(evidence.context.boardId) + "/workflow" : intent.command === "history.clear" || intent.command === "retention.set" ? this.path(evidence.context.boardId) + "/recovery/confirm" : base + (target ? "/" + String(target.cardId) : "") + suffix[intent.command];
         let result;
         try {
             if (!dispatchCredential || this.options.credential() !== dispatchCredential)
@@ -313,7 +338,7 @@ export class BoardClient {
                 multipart.append("file", new Blob([attachmentBytes], { type: "application/octet-stream" }));
                 body = multipart;
             }
-            const { response, value } = await this.call(path, { method: intent.command === "card.edit" ? "PATCH" : "POST", body });
+            const { response, value } = await this.call(path, { method: intent.command === "card.edit" || intent.command === "workflow.edit" ? "PATCH" : "POST", body });
             result = await this.classify(evidence, value, response.status === 200 || response.status === 201);
         }
         catch {

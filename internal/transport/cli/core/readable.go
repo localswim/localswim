@@ -14,6 +14,26 @@ import (
 func focusedRead(value any) (string, bool) {
 	var out strings.Builder
 	switch x := value.(type) {
+	case T.WorkflowPreview:
+		fmt.Fprintf(&out, "Board %s/%s revision %d; current policy %d; proposed policy %d\nChange %t; retained approvals %d (%s)\nPolicy capacity %d/%d records; %d/%d canonical bytes after save\n", x.BoardID, x.Incarnation, x.Revision, x.PolicyVersion, x.NextPolicyVersion, x.WouldChange, x.Approval.PreservedCurrentCount, x.Approval.Rule, x.Capacity.PolicyRecordsAfter, x.Capacity.MaxPolicyRecords, x.Capacity.CanonicalPolicyBytesAfter, x.Capacity.MaxCanonicalPolicyBytes)
+		out.WriteString("Current workflow\n")
+		writeWorkflow(&out, x.CurrentWorkflow)
+		out.WriteString("Candidate workflow\n")
+		writeWorkflow(&out, &x.Candidate)
+		fmt.Fprintf(&out, "Lane order changed %t; transitions changed %t\n", x.Changes.OrderChanged, x.Changes.TransitionsChanged)
+		for _, rename := range x.Changes.Renamed {
+			fmt.Fprintf(&out, "Renamed lane %s from %s to %s\n", rename.LaneID, advisoryText(rename.Before), advisoryText(rename.After))
+		}
+		for _, lane := range x.Changes.Added {
+			fmt.Fprintf(&out, "Added lane %s [%s] %s\n", lane.ID, lane.Role, advisoryText(lane.Label))
+		}
+		for _, lane := range x.Changes.Retired {
+			fmt.Fprintf(&out, "Retired lane %s [%s] %s\n", lane.ID, lane.Role, advisoryText(lane.Label))
+		}
+		fmt.Fprintf(&out, "Human ceiling added [%s]; removed [%s]\nAutomation ceiling added [%s]; removed [%s]\n", strings.Join(x.Changes.Rights.Human.Added, ", "), strings.Join(x.Changes.Rights.Human.Removed, ", "), strings.Join(x.Changes.Rights.Automation.Added, ", "), strings.Join(x.Changes.Rights.Automation.Removed, ", "))
+		for _, occupancy := range x.Occupancy {
+			fmt.Fprintf(&out, "Lane %s has %d current cards including %d archived\n", occupancy.LaneID, occupancy.CurrentCards, occupancy.ArchivedCards)
+		}
 	case T.BoardRead:
 		writeWorkflow(&out, x.Result.Workflow)
 		out.WriteString("Active cards (current snapshot; explicit priority order):\n")
@@ -82,7 +102,12 @@ func focusedRead(value any) (string, bool) {
 			if h.State != nil {
 				s := h.State
 				fmt.Fprintf(&out, "Ticket #%d: %s\n", s.Ticket, advisoryText(s.Title))
-				writeState(&out, s.Description, A.Lane(laneText(b.Workflow, s.Lane)), s.Priority, s.Archived, s.OwnerID, s.CurrentApprovalID, b.Actors)
+				pin := A.PolicyVersion(1)
+				if s.WorkflowPolicyVersion != nil {
+					pin = *s.WorkflowPolicyVersion
+				}
+				fmt.Fprintf(&out, "Recorded workflow policy %d\n", pin)
+				writeState(&out, s.Description, A.Lane(laneText(historicalWorkflow(b.Workflow, b.WorkflowPolicies, s.WorkflowPolicyVersion), s.Lane)), s.Priority, s.Archived, s.OwnerID, s.CurrentApprovalID, b.Actors)
 			} else {
 				out.WriteString("Old state text unavailable.\n")
 			}

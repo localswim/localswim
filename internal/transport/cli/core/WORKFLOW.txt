@@ -1,21 +1,33 @@
-Configured workflow CLI
+Workflow CLI
+
+  workflow show
+  workflow preview --input FILE
+  workflow edit --input FILE
+
+Show reads coherent current and retained policy context. Preview FILE is the exact
+preview request with board/incarnation and expected board/policy revisions plus
+the complete candidate. Edit FILE is the ordinary exact mutation envelope with
+incarnation, opId, target:null, expectedRevision, expectedCardRevision:null and
+input containing expectedPolicyVersion and the same complete candidate.
+
+Preview is read-only. Edit uses ordinary authenticated automation authority and
+the frozen original/evidence path. No command fetches substitute expected
+revisions, replays UNKNOWN, retries a save or impersonates a human actor.
 
   card move CARD-UUID --input FILE
 
-This aliases card.edit. FILE remains the complete exact mutation envelope with
-boardId, incarnation, opId, expectedRevision, expectedCardRevision and targetId;
-input must contain only laneId, an exact configured lane UUID. The runner never
-fetches replacement revisions or automatically retries a move. Use the existing
-review-handoff and approve commands for semantic review and completion; ordinary
-move cannot enter those roles. The local automation channel cannot approve.
+This aliases card.edit. FILE is the complete ordinary mutation envelope. Its
+input contains only laneId, an exact configured lane UUID or an edited-default
+stable lane ID. Untouched defaults refuse laneId through policy admission.
+Review-handoff and approve remain the semantic review/completion commands.
 
   card search --lane LANE
 
-LANE is an exact legacy literal on default boards or a configured lane UUID.
-Server validation binds it to the selected board and current definition.
+LANE is an exact default literal or configured/waiting lane UUID. Server admission
+binds it to the selected board and current definition.
 
-Board, card, history, search and hierarchy output retain the complete immutable
-definition on configured boards. Human-readable output prints ordered labels,
-semantic roles, exact lane IDs, transitions and actor-right ceilings. JSON keeps
-the complete typed result; default results omit workflow entirely. These reads
-describe current state and do not settle or replay an UNKNOWN original operation.
+Board, card, history, search and hierarchy results retain complete current and
+historical policy context after an edit. Human output shows labels, roles, stable
+IDs, transitions and ceilings. History resolves each state's recorded policy pin.
+Untouched boards preserve the original omitted-history shapes. Reads describe
+committed state and do not settle an UNKNOWN original operation.

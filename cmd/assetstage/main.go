@@ -41,6 +41,7 @@ var bindings = []string{
 	"cmd/contractgen/main.go", "internal/contract/descriptor.go", "internal/contract/generate.go", "internal/contract/archive/generate.go", "internal/contract/transport/generate.go", "internal/contract/transport/session_code_generate.go",
 	"go.mod", "go.sum", "schemas/mutation-requests.schema.json", "schemas/archive/contracts.schema.json", "schemas/transport/contracts.schema.json",
 	"internal/contract/input.go", "internal/contract/intent.go", "internal/contract/json.go", "internal/contract/result.go",
+	"internal/contract/workflow.go", "internal/contract/transport/workflow.go",
 	"internal/contract/archive/types.go", "internal/contract/archive/semantic.go", "internal/contract/archive/references.go", "internal/contract/archive/decode.go",
 	"internal/contract/archive/workflow.go", "internal/contract/archive/workflow_raw.go", "internal/contract/archive/workflow_schema.go",
 	"internal/contract/transport/types.go", "internal/contract/transport/mutation.go", "internal/contract/transport/encode.go", "internal/contract/transport/decode.go", "internal/contract/transport/references.go", "internal/contract/transport/session_code_cli.go",

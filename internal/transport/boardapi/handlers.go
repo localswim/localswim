@@ -13,6 +13,7 @@ import (
 	"github.com/localswim/localswim/internal/board/cards"
 	"github.com/localswim/localswim/internal/board/credentials"
 	"github.com/localswim/localswim/internal/board/grants"
+	"github.com/localswim/localswim/internal/board/policyedit"
 	"github.com/localswim/localswim/internal/board/workflow"
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
@@ -41,7 +42,7 @@ func statusFor(code string) int {
 		return 401
 	case "NOT_FOUND":
 		return 404
-	case "CURSOR_STALE", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH":
+	case "CURSOR_STALE", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH", "POLICY_CONFLICT":
 		return 409
 	case "INPUT_TOO_LARGE":
 		return 413
@@ -238,6 +239,10 @@ func (h *Handler) ordinary(w http.ResponseWriter, r *http.Request, q route) {
 	if !ok {
 		return
 	}
+	if q.kind == "workflow-preview" {
+		h.workflowPreview(w, r, q, current, a, b)
+		return
+	}
 	recRoute := recovery.Route{BoardID: q.board, Incarnation: string(current.Grant.Incarnation)}
 	if q.kind == "preview" {
 		req, e := T.Decode[T.PreviewRequest](b)
@@ -279,6 +284,8 @@ func (h *Handler) ordinary(w http.ResponseWriter, r *http.Request, q route) {
 	}
 	var cb writer.Callbacks
 	switch q.command {
+	case "workflow.edit":
+		cb = policyedit.New(a).Callbacks(policyedit.Route{BoardID: q.board, Incarnation: string(current.Grant.Incarnation)})
 	case "card.create", "card.edit", "comment.add":
 		cb = cards.New(a).Callbacks(cards.Route{BoardID: q.board, Incarnation: string(current.Grant.Incarnation), CardID: q.card})
 	default:
@@ -381,4 +388,44 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request, q route, current 
 		return
 	}
 	respond(w, 200, value)
+}
+
+// workflowPreview holds authority, context and candidate checks in one read snapshot.
+func (h *Handler) workflowPreview(w http.ResponseWriter, r *http.Request, q route, current T.SessionRead, a *grants.Service, b []byte) {
+	req, err := T.DecodeWorkflowPreviewRequest(b)
+	if err != nil {
+		refuse(w, 400, "INVALID_INPUT")
+		return
+	}
+	if string(req.BoardID) != q.board || req.Incarnation != current.Grant.Incarnation {
+		refuse(w, 403, "FORBIDDEN")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	lease, err := h.store.Reader(ctx)
+	if err != nil {
+		refuse(w, 503, "UNAVAILABLE")
+		return
+	}
+	var preview T.WorkflowPreview
+	var refusal *T.RefusalResult
+	err = lease.Do(ctx, func(c *sql.Conn) error {
+		if _, err := c.ExecContext(ctx, "BEGIN"); err != nil {
+			return err
+		}
+		var err error
+		preview, refusal, err = policyedit.New(a).Preview(ctx, readAccess{ctx, c}, string(current.ActorID), req)
+		return err
+	})
+	closeErr := lease.Close()
+	if err != nil || closeErr != nil {
+		refuse(w, 503, "UNAVAILABLE")
+		return
+	}
+	if refusal != nil {
+		refuse(w, statusFor(refusal.Error.Code), refusal.Error.Code)
+		return
+	}
+	respond(w, 200, preview)
 }

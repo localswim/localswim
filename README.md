@@ -242,3 +242,10 @@ covers native and CLI creation, reads, moves, reopening and recovery; the
 [browser workflow guide](docs/runbooks/m06-browser-workflows.txt) covers the new
 board form and configured card controls. Joined M06.04 qualification and the
 M06.05 kit remain separate work; no full release is claimed.
+
+The M07.02 native/CLI slice adds existing-workflow show, preview and deliberate
+edit, retained policy history, compatible state pins and explicit physical8-to9
+upgrade. The [workflow-change guide](docs/runbooks/m07-workflow-changes.txt)
+covers these commands, rights, limits and original-outcome handling. Ordinary
+browser workflow editing belongs to M07.03, with full joined qualification and
+the extracted-kit handoff in M07.04/.05. Category-based Attention remains M08.

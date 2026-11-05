@@ -199,6 +199,18 @@ func (h *Handler) search(r writer.Read, q route, actor string, request searchReq
 		return nil, err
 	}
 	out.Result.Workflow = workflow
+	out.Result.WorkflowPolicies, err = policy.LoadHistory(r, string(out.Result.Identity.Incarnation))
+	if err != nil {
+		return nil, err
+	}
+	if len(out.Result.WorkflowPolicies) == 1 {
+		out.Result.WorkflowPolicies = nil
+	}
+	if workflow != nil {
+		if err = policy.ValidateCurrent(r, string(out.Result.Identity.Incarnation), workflow); err != nil {
+			return nil, err
+		}
+	}
 	if request.lane != "" && A.WorkflowRole(workflow, A.Lane(request.lane)) == "" {
 		return nil, ErrUnavailable
 	}

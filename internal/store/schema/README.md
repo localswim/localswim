@@ -1,7 +1,7 @@
-# Version-eight physical relational layout
+# Version-nine physical relational layout
 
-Version and PRAGMA user_version are8; retained board.schema_version stays5
-as the immutable base-schema discriminator, including fresh physical8 stores.
+Version and PRAGMA user_version are9; retained board.schema_version stays5
+as the immutable base-schema discriminator, including fresh physical9 stores.
 Validation checks both intended values and exact schema, not a header alone.
 
 Layout6 adds card_parent and its parent index without rebuilding base tables or
@@ -9,7 +9,7 @@ rewriting old rows. Roots have no edge; unique child/same-incarnation full-card
 foreign keys/self refusal protect adjacency. Go admission and full validation
 enforce acyclicity,64-edge/1,000-card family bounds (not total board-card limits).
 
-Ordinary open never migrates. Explicit offline exact5->6 then6->7 then7->8 upgrades under existing-only
+Ordinary open never migrates. Explicit offline exact5->6 then6->7 then7->8 then8->9 upgrades under existing-only
 native exclusion and one validated transaction preserves old rows/canonical bytes.
 Unknown layouts, corruption and dirty sidecars refuse without repair. API/archive/
 fingerprint versions stay1 with optional parent fields. See
@@ -142,9 +142,9 @@ It records responsibility only and grants no authority. Existing layout 4 is
 refused before any write; no migration or old fixture relabeling is supported.
 
 Physical7 expands only link kinds and an active unordered related-pair unique index.
-Frozen5, frozen6 and frozen7 exact SQL manifests and independent consistency validators remain
+Frozen5, frozen6, frozen7 and frozen8 exact SQL manifests and independent consistency validators remain
 available solely for deliberate offline inspection/adjacent upgrade. Current startup
-accepts8 only. Explicit5->6,6->7 and7->8 are separate guarded transactions; no startup
+accepts9 only. Explicit5->6,6->7,7->8 and8->9 are separate guarded transactions; no startup
 migration, direct5->7, graph normalization or original-outcome rewriting occurs.
 
 The unordered related index covers full local internal targets. Exact foreign and
@@ -153,10 +153,10 @@ uniqueness; comparing only their card UUIDs would falsely conflate them. Current
 new-kind references additionally require a full Board.Identity local peer with an
 exact internal target. Historical-only evidence remains readable and conserved.
 
-Physical8 adds an optional immutable `workflow_definition` row and widens only
+The frozen physical8 layout adds an optional immutable `workflow_definition` row and widens only
 `card.lane` to the legacy literals or the established UUID shape. The row records
 incarnation, workflow UUID, revision1 and canonical complete JSON. No row means
-the exact default profile; open never synthesizes a definition. Go validation
+the exact default profile; open never synthesizes a definition. Its frozen validation
 checks the complete policy, current lane membership, configured snapshot states,
 ordinary grant ceilings and configured human approval evidence. SQL shape alone
 is not workflow membership or permission. Definition updates/deletes are refused.
@@ -172,3 +172,30 @@ lane; those bytes remain accepted and conserved. A present lane must be one of t
 four exact legacy values. Configured retained states require the complete strict
 SnapshotState and membership in that board's definition. Full archive/domain
 validation remains stricter than this legacy raw-storage compatibility seam.
+
+Physical9 retains the original `workflow_definition` unchanged and adds immutable
+`workflow_policy` rows keyed by incarnation and policy version. Every board has
+policy1, with NULL definition/identity for the implicit default. `policy` points
+to the latest contiguous version. Edited histories contain at most128 policies
+and8 MiB of canonical complete records. Required lane identities and roles remain
+stable and retired waiting-lane identities stay reserved throughout the history.
+
+The nullable `card.workflow_policy_version` records the policy of the latest
+card revision. Snapshot JSON records its own optional `workflowPolicyVersion`, bound to nullable
+`card_revision.workflow_policy_version` metadata. Metadata distinguishes an old
+opaque JSON key from a newly written strict pin. Pruning clears that derived
+metadata together with state.
+Omission means1. Current lane presentation follows the current policy while
+historical membership resolves the retained pin. After a default edit, current
+approval validation is strict even for implicit1 cards. Historical default1
+opaque snapshots retain their frozen acceptance and bytes. Retained grants are
+validated independently from changing ceilings, with forbidden automation rights
+still rejected. Physical9 permits workflow.edit operation/activity records and
+workflow result references to a retained definition and exact revision.
+
+The explicit8->9 transaction rebuilds policy, card, approval, operation,
+operation_reference, activity and card_revision, retaining every prior column value and rowid.
+It adds only the initial policy record and nullable current and snapshot pin metadata. Full layout,
+foreign-key, integrity, policy and typed-row conservation checks precede COMMIT.
+An interrupted precommit candidate rolls back. Postcommit uncertainty remains
+UNKNOWN. Startup requires an explicit adjacent upgrade before opening physical8.

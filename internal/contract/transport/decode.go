@@ -37,6 +37,9 @@ var fieldRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_
 // It proves boundary validity only, never that a terminal claim is authentic.
 func Decode[T any](data []byte) (T, error) {
 	var out T
+	if reflect.TypeFor[T]() == reflect.TypeFor[WorkflowPreviewRequest]() && len(data) > 800000 {
+		return out, fmt.Errorf("workflow preview exceeds limit")
+	}
 	if !supported(reflect.TypeFor[T]()) {
 		return out, fmt.Errorf("unsupported transport boundary")
 	}
@@ -197,7 +200,26 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case WorkflowPreviewRequest:
+		if x.ExpectedPolicyVersion == 9007199254740991 || x.Workflow.Revision != x.ExpectedPolicyVersion+1 {
+			return fmt.Errorf("candidate revision mismatch")
+		}
+	case WorkflowPreview:
+		if e := validateWorkflowPreview(x); e != nil {
+			return e
+		}
+	case ConfiguredWorkspaceBoardRequest:
+		if err := A.ValidateInitialWorkflow(&x.Workflow); err != nil {
+			return err
+		}
+	case ConfiguredWorkspaceStatusRequest:
+		if err := A.ValidateInitialWorkflow(&x.Workflow); err != nil {
+			return err
+		}
 	case WorkspaceBoardRequest:
+		if e := A.ValidateInitialWorkflow(x.Workflow); e != nil {
+			return e
+		}
 		if x.Workflow != nil && x.Action != "create" {
 			return fmt.Errorf("workflow requires new board")
 		}
@@ -354,7 +376,7 @@ func walk(v reflect.Value) error {
 			return fmt.Errorf("export source facts")
 		}
 	case BoardView:
-		if err := A.ValidateWorkflowFacts(x.Workflow, x.Cards, nil, x.Actors, x.Approvals); err != nil {
+		if err := A.ValidateWorkflowPolicyFacts(x.PolicyVersion, x.Workflow, x.WorkflowPolicies, x.Cards, nil, x.Actors, x.Approvals); err != nil {
 			return err
 		}
 		if e := validateReadWorkflow(x.Workflow, x.Cards, nil); e != nil {
@@ -373,7 +395,7 @@ func walk(v reflect.Value) error {
 			return e
 		}
 	case CardView:
-		if err := A.ValidateWorkflowFacts(x.Workflow, []A.Card{x.Card}, nil, x.Actors, x.Approvals); err != nil {
+		if err := A.ValidateWorkflowPolicyFacts(readPolicyVersion(x.Workflow), x.Workflow, x.WorkflowPolicies, []A.Card{x.Card}, nil, x.Actors, x.Approvals); err != nil {
 			return err
 		}
 		if e := validateReadWorkflow(x.Workflow, []A.Card{x.Card}, nil); e != nil {
@@ -397,10 +419,10 @@ func walk(v reflect.Value) error {
 			prior = k
 		}
 	case HistoryView:
-		if err := A.ValidateWorkflowFacts(x.Workflow, nil, x.Records, x.Actors, x.Approvals); err != nil {
+		if err := A.ValidateWorkflowPolicyFacts(readPolicyVersion(x.Workflow), x.Workflow, x.WorkflowPolicies, nil, x.Records, x.Actors, x.Approvals); err != nil {
 			return err
 		}
-		if e := validateReadWorkflow(x.Workflow, nil, x.Records); e != nil {
+		if e := validateHistoryWorkflow(x.Workflow, x.WorkflowPolicies, x.Records); e != nil {
 			return e
 		}
 		if e := readCoverage(x.Identity, x.Coverage); e != nil {
@@ -518,6 +540,12 @@ func terminal(x Terminal) error {
 			}
 			if !found {
 				return fmt.Errorf("terminal result reference binding")
+			}
+		}
+		if key == "policyVersion" && x.Command == "workflow.edit" {
+			var n A.Number
+			if json.Unmarshal(raw, &n) != nil || len(x.ResultRefs) != 1 || x.ResultRefs[0].Revision == nil || n != *x.ResultRefs[0].Revision {
+				return fmt.Errorf("workflow policy result binding")
 			}
 		}
 		if key == "coverageRevision" {

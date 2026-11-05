@@ -169,7 +169,7 @@ func TestCreateOpenSettingsAndIdentity(t *testing.T) {
 		if e := c.QueryRowContext(ctx(t), "SELECT schema_version FROM board").Scan(&layout); e != nil {
 			t.Fatal(e)
 		}
-		if e := c.QueryRowContext(ctx(t), "PRAGMA user_version").Scan(&user); e != nil || layout != schema.BaseSchemaVersion || user != schema.Version || schema.BaseSchemaVersion != 5 || schema.Version != 8 {
+		if e := c.QueryRowContext(ctx(t), "PRAGMA user_version").Scan(&user); e != nil || layout != schema.BaseSchemaVersion || user != schema.Version || schema.BaseSchemaVersion != 5 || schema.Version != 9 {
 			t.Fatal("physical layout markers mismatch")
 		}
 		if e := configure(ctx(t), c, false, false); e != nil {
@@ -589,7 +589,7 @@ func TestExistingUnknownVersionAndCorruptionFailClosed(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			s, p := newStore(t)
 			if kind == "version" {
-				withWriter(t, s, func(c *sql.Conn) { execute(t, c, "PRAGMA user_version=9") })
+				withWriter(t, s, func(c *sql.Conn) { execute(t, c, "PRAGMA user_version=10") })
 			}
 			if kind == "layout" {
 				withWriter(t, s, func(c *sql.Conn) { execute(t, c, "CREATE TABLE unknown(x)") })

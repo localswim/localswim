@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	T "github.com/localswim/localswim/internal/contract/transport"
 	"strings"
 )
 
@@ -18,12 +19,40 @@ func laneText(w *A.Workflow, lane A.Lane) string {
 	return "Unavailable lane"
 }
 
+func readableWorkflowShow(board T.BoardRead) string {
+	var out strings.Builder
+	b := board.Result
+	fmt.Fprintf(&out, "Board %s/%s revision %d; current policy %d\n", b.Identity.BoardID, b.Identity.Incarnation, b.Revision, b.PolicyVersion)
+	if len(b.WorkflowPolicies) == 0 {
+		out.WriteString("Retained policy 1\n")
+		if b.Workflow == nil {
+			out.WriteString("Implicit default workflow\n")
+		} else {
+			writeWorkflow(&out, b.Workflow)
+		}
+		return out.String()
+	}
+	for _, policy := range b.WorkflowPolicies {
+		fmt.Fprintf(&out, "Retained policy %d\n", policy.PolicyVersion)
+		if policy.Workflow == nil {
+			out.WriteString("Implicit default workflow\n")
+		} else {
+			writeWorkflow(&out, policy.Workflow)
+		}
+	}
+	return out.String()
+}
+
 // The same complete policy accompanies focused current/history/search output.
 func writeWorkflow(out *strings.Builder, w *A.Workflow) {
 	if w == nil {
 		return
 	}
-	fmt.Fprintf(out, "Workflow %s revision %d (immutable):\n", w.WorkflowID, w.Revision)
+	profile := "configured"
+	if w.Profile != "" {
+		profile = w.Profile
+	}
+	fmt.Fprintf(out, "Workflow %s revision %d; profile %s\n", w.WorkflowID, w.Revision, profile)
 	for _, l := range w.Lanes {
 		fmt.Fprintf(out, "  Lane %s: %s [%s]\n", l.ID, advisoryText(l.Label), l.Role)
 	}
@@ -35,4 +64,13 @@ func writeWorkflow(out *strings.Builder, w *A.Workflow) {
 		fmt.Fprintf(out, "  Edge %s -> %s: %s\n", e.From, e.To, strings.Join(actors, ", "))
 	}
 	fmt.Fprintf(out, "  Human rights: %s\n  Automation rights: %s\n", strings.Join(w.ActorRights.Human, ", "), strings.Join(w.ActorRights.Automation, ", "))
+}
+
+func historicalWorkflow(current *A.Workflow, policies []A.WorkflowPolicy, pin *A.PolicyVersion) *A.Workflow {
+	version := A.PolicyVersion(1)
+	if pin != nil {
+		version = *pin
+	}
+	workflow, _ := A.WorkflowAtVersion(current, policies, version)
+	return workflow
 }

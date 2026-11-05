@@ -2,11 +2,12 @@ package cards
 
 import (
 	"errors"
+	"github.com/localswim/localswim/internal/board/policy"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	"github.com/localswim/localswim/internal/store/writer"
 )
 
-// Generic configured moves are a distinct input from legacy start. Admission
+// Explicit workflow moves are a distinct input from legacy start. Admission
 // happens after current authority, identity, revision and terminal checks.
 func admitMove(r writer.Read, w *A.Workflow, e envelope, id, lane string, archived int) (string, error) {
 	if w == nil || e.Payload.LaneID == nil {
@@ -51,7 +52,43 @@ func prerequisitesApproved(r writer.Read, inc, id, completed string) (bool, erro
 	if completed == "" {
 		return false, errors.New("completed role unavailable")
 	}
-	var invalid int
-	err := r.Scan(`SELECT count(*) FROM link l LEFT JOIN card c ON c.incarnation=l.incarnation AND c.card_id=l.internal_target_id LEFT JOIN approval a ON a.incarnation=c.incarnation AND a.approval_id=c.current_approval_id AND a.card_id=c.card_id LEFT JOIN actor h ON h.incarnation=a.incarnation AND h.actor_id=a.actor_id JOIN policy p ON p.incarnation=l.incarnation WHERE l.incarnation=? AND l.card_id=? AND l.active=1 AND l.kind='blocking' AND (c.card_id IS NULL OR c.lane<>? OR c.archived<>0 OR a.approval_id IS NULL OR h.kind<>'human' OR a.policy_version<>p.policy_version OR a.reviewed_card_revision<>c.revision-1)`, []any{inc, id, completed}, &invalid)
-	return invalid == 0, err
+	rows, err := r.Query("SELECT coalesce(c.card_id,''),coalesce(c.lane,''),coalesce(c.archived,0) FROM link l LEFT JOIN card c ON c.incarnation=l.incarnation AND c.card_id=l.internal_target_id WHERE l.incarnation=? AND l.card_id=? AND l.active=1 AND l.kind='blocking'", inc, id)
+	if err != nil {
+		return false, err
+	}
+	type peer struct {
+		id, lane string
+		archived int
+	}
+	var peers []peer
+	for rows.Next() {
+		var p peer
+		if err = rows.Scan(&p.id, &p.lane, &p.archived); err != nil {
+			rows.Close()
+			return false, err
+		}
+		peers = append(peers, p)
+	}
+	err = rows.Err()
+	closeErr := rows.Close()
+	if err != nil {
+		return false, err
+	}
+	if closeErr != nil {
+		return false, closeErr
+	}
+	wf, err := policy.Load(r, inc)
+	if err != nil {
+		return false, err
+	}
+	for _, p := range peers {
+		if p.lane != completed || p.archived != 0 {
+			return false, nil
+		}
+		valid, err := policy.CurrentApprovalValid(r, inc, p.id, wf)
+		if err != nil || !valid {
+			return false, err
+		}
+	}
+	return true, nil
 }

@@ -54,7 +54,7 @@ func workflowDigest(t *testing.T, p string) [32]byte {
 		var e error
 		digest, e = recordsDigestExcluding(ctx(t), r.(*inspectionReader).conn, false, true)
 		return e
-	}, schema.Validate)
+	}, schema.ValidateV8)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +84,9 @@ func TestWorkflowUpgradeConservesExactRowsAndRequiresExplicitStep(t *testing.T) 
 	}
 	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 7, 8); e != nil || changed {
 		t.Fatal("matching8 not no-change", e)
+	}
+	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 8, 9); e != nil || !changed {
+		t.Fatal("explicit8->9", e)
 	}
 	s, e := Existing(ctx(t), p, identity)
 	if e != nil {
@@ -173,7 +176,7 @@ func TestConfiguredWorkflowOpenAndRefusal(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer s.Close()
-	for _, kind := range []string{"legacy-current", "foreign-current", "missing-history-lane", "foreign-history-lane", "grant-ceiling", "approval-missing"} {
+	for _, kind := range []string{"legacy-current", "foreign-current", "missing-history-lane", "foreign-history-lane", "approval-missing"} {
 		t.Run(kind, func(t *testing.T) {
 			withWriter(t, s, func(c *sql.Conn) {
 				execute(t, c, "BEGIN IMMEDIATE")

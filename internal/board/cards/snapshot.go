@@ -15,8 +15,13 @@ func loadSnapshot(r writer.Read, e envelope, id string) (A.SnapshotState, error)
 	var s A.SnapshotState
 	var archived int
 	var approval, owner, parent sql.NullString
-	err := r.Scan(`SELECT t.ticket,c.title,c.description,c.priority,c.lane,c.archived,c.current_approval_id,c.owner_id,p.parent_id FROM card c JOIN ticket t USING(incarnation,card_id) LEFT JOIN card_parent p ON p.incarnation=c.incarnation AND p.child_id=c.card_id WHERE c.incarnation=? AND c.card_id=?`, []any{e.Incarnation, id}, &s.Ticket, &s.Title, &s.Description, &s.Priority, &s.Lane, &archived, &approval, &owner, &parent)
+	var pin sql.NullInt64
+	err := r.Scan(`SELECT t.ticket,c.title,c.description,c.priority,c.lane,c.archived,c.current_approval_id,c.owner_id,p.parent_id,c.workflow_policy_version FROM card c JOIN ticket t USING(incarnation,card_id) LEFT JOIN card_parent p ON p.incarnation=c.incarnation AND p.child_id=c.card_id WHERE c.incarnation=? AND c.card_id=?`, []any{e.Incarnation, id}, &s.Ticket, &s.Title, &s.Description, &s.Priority, &s.Lane, &archived, &approval, &owner, &parent, &pin)
 	s.Archived = archived != 0
+	if pin.Valid {
+		value := A.PolicyVersion(pin.Int64)
+		s.WorkflowPolicyVersion = &value
+	}
 	if parent.Valid {
 		if e.BoardID == "" {
 			if x := r.Scan("SELECT board_id FROM board WHERE singleton=1", nil, &e.BoardID); x != nil {
@@ -36,7 +41,11 @@ func loadSnapshot(r writer.Read, e envelope, id string) (A.SnapshotState, error)
 	if err != nil {
 		return s, err
 	}
-	wf, err := policy.Load(r, e.Incarnation)
+	version := uint64(1)
+	if s.WorkflowPolicyVersion != nil {
+		version = uint64(*s.WorkflowPolicyVersion)
+	}
+	wf, err := policy.At(r, e.Incarnation, version)
 	if err != nil {
 		return s, err
 	}
@@ -44,7 +53,11 @@ func loadSnapshot(r writer.Read, e envelope, id string) (A.SnapshotState, error)
 }
 
 func writeSnapshot(w writer.Write, e envelope, id string, revision A.Positive, s A.SnapshotState) error {
-	wf, err := policy.Load(w, e.Incarnation)
+	version := uint64(1)
+	if s.WorkflowPolicyVersion != nil {
+		version = uint64(*s.WorkflowPolicyVersion)
+	}
+	wf, err := policy.At(w, e.Incarnation, version)
 	if err != nil {
 		return err
 	}
@@ -90,7 +103,7 @@ func writeSnapshot(w writer.Write, e envelope, id string, revision A.Positive, s
 	if err != nil {
 		return err
 	}
-	if _, err = w.Exec(`INSERT INTO card_revision(incarnation,origin_board,origin_incarnation,card_id,card_revision,actor_id,committed_at,state) VALUES(?,?,?,?,?,?,?,?)`, e.Incarnation, board, inc, id, uint64(revision), actor, committed, string(raw)); err != nil {
+	if _, err = w.Exec(`INSERT INTO card_revision(incarnation,origin_board,origin_incarnation,card_id,card_revision,actor_id,committed_at,state,workflow_policy_version) VALUES(?,?,?,?,?,?,?,?,?)`, e.Incarnation, board, inc, id, uint64(revision), actor, committed, string(raw), s.WorkflowPolicyVersion); err != nil {
 		return err
 	}
 	if _, err = w.Exec(`INSERT INTO revision_reference(incarnation,origin_board,origin_incarnation,card_id,card_revision,kind,entity_id) SELECT incarnation,?,?,card_id,?,kind,entity_id FROM current_reference WHERE incarnation=? AND card_id=?`, board, inc, uint64(revision), e.Incarnation, id); err != nil {

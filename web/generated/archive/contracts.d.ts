@@ -184,6 +184,40 @@ export type IntentApprove = {
 };
 };
 
+export type IntentWorkflowEdit = {
+  readonly actorId: string;
+  readonly boardId: string;
+  readonly command: "workflow.edit";
+  readonly expectedCardRevision: null;
+  readonly expectedRevision: number;
+  readonly fingerprintVersion: number;
+  readonly incarnation: string;
+  readonly opId: string;
+  readonly payload: {
+  readonly expectedPolicyVersion: number;
+  readonly workflow: {
+  readonly actorRights: {
+  readonly automation: ReadonlyArray<"attach" | "comment" | "create" | "edit" | "export" | "read" | "read-own-outcome" | "review-handoff">;
+  readonly human: ReadonlyArray<"approve" | "attach" | "comment" | "create" | "edit" | "export" | "read" | "read-own-outcome" | "review-handoff">;
+};
+  readonly lanes: ReadonlyArray<{
+  readonly id: string;
+  readonly label: string;
+  readonly role: "initial" | "in_progress" | "review" | "completed" | "waiting";
+}>;
+  readonly profile?: "default";
+  readonly revision: number;
+  readonly transitions: ReadonlyArray<{
+  readonly actors: ReadonlyArray<"automation" | "human">;
+  readonly from: string;
+  readonly to: string;
+}>;
+  readonly workflowId: string;
+};
+};
+  readonly target: null;
+};
+
 export type IntentGrantCreate = {
   readonly actorId: string;
   readonly boardId: string;
@@ -255,9 +289,9 @@ export type IntentRetentionSet = {
   readonly target: null;
 };
 
-export type Intent = IntentCardCreate | IntentCardEdit | IntentCommentAdd | IntentAttachmentAdd | IntentLinkAdd | IntentLinkRemove | IntentReviewHandoff | IntentApprove | IntentGrantCreate | IntentGrantRevoke | IntentHistoryClear | IntentRetentionSet;
+export type Intent = IntentCardCreate | IntentCardEdit | IntentCommentAdd | IntentAttachmentAdd | IntentLinkAdd | IntentLinkRemove | IntentReviewHandoff | IntentApprove | IntentWorkflowEdit | IntentGrantCreate | IntentGrantRevoke | IntentHistoryClear | IntentRetentionSet;
 
-export type RetainedResult = Mutation.RefusalResult | Mutation.ResultCardCreate | Mutation.ResultCardEdit | Mutation.ResultCommentAdd | Mutation.ResultAttachmentAdd | Mutation.ResultLinkAdd | Mutation.ResultLinkRemove | Mutation.ResultReviewHandoff | Mutation.ResultApprove | Mutation.ResultGrantCreate | Mutation.ResultGrantRevoke | Mutation.ResultHistoryClear | Mutation.ResultRetentionSet;
+export type RetainedResult = Mutation.RefusalResult | Mutation.ResultCardCreate | Mutation.ResultCardEdit | Mutation.ResultCommentAdd | Mutation.ResultAttachmentAdd | Mutation.ResultLinkAdd | Mutation.ResultLinkRemove | Mutation.ResultReviewHandoff | Mutation.ResultApprove | Mutation.ResultWorkflowEdit | Mutation.ResultGrantCreate | Mutation.ResultGrantRevoke | Mutation.ResultHistoryClear | Mutation.ResultRetentionSet;
 
 export type ClearInput = {
   readonly throughTime: string;
@@ -266,9 +300,15 @@ export type ClearInput = {
 export type Workflow = {
   readonly actorRights: WorkflowActorRights;
   readonly lanes: ReadonlyArray<WorkflowLane>;
-  readonly revision: 1;
+  readonly profile?: string;
+  readonly revision: number;
   readonly transitions: ReadonlyArray<WorkflowTransition>;
   readonly workflowId: string;
+};
+
+export type WorkflowPolicy = {
+  readonly policyVersion: number;
+  readonly workflow?: Workflow;
 };
 
 export type WorkflowLane = {
@@ -390,6 +430,7 @@ export type Card = {
   readonly revision: number;
   readonly ticket: number;
   readonly title: string;
+  readonly workflowPolicyVersion?: number;
 };
 
 export type Comment = {
@@ -428,7 +469,7 @@ export type Approval = {
   readonly cardId: string;
   readonly createdAt: string;
   readonly createdIn: Identity;
-  readonly policyVersion: 1;
+  readonly policyVersion: number;
   readonly reviewedBoardRevision: number;
   readonly reviewedCardRevision: number;
 };
@@ -454,13 +495,14 @@ export type Board = {
   readonly identity: Identity;
   readonly links: ReadonlyArray<Link>;
   readonly nextTicket: number;
-  readonly policyVersion: 1;
+  readonly policyVersion: number;
   readonly retention: Retention;
   readonly retentionVersion: number;
   readonly revision: number;
   readonly schemaVersion: 1;
   readonly tombstones: ReadonlyArray<EntityTombstone>;
   readonly workflow?: Workflow;
+  readonly workflowPolicies?: ReadonlyArray<WorkflowPolicy>;
 };
 
 export type SnapshotState = {
@@ -473,6 +515,7 @@ export type SnapshotState = {
   readonly priority: "P0" | "P1" | "P2" | "P3" | "P4" | "P5";
   readonly ticket: number;
   readonly title: string;
+  readonly workflowPolicyVersion?: number;
 };
 
 export type SnapshotReferences = {
@@ -508,7 +551,7 @@ export type History = {
 
 export type FactRef = {
   readonly id: string;
-  readonly kind: "board" | "card" | "comment" | "link" | "attachment" | "approval" | "grant";
+  readonly kind: "board" | "card" | "comment" | "link" | "attachment" | "approval" | "grant" | "workflow";
   readonly revision: number | null;
 };
 
@@ -541,7 +584,7 @@ export type Operation = {
   readonly actorId: string;
   readonly byteFacts: ReadonlyArray<ByteFact>;
   readonly code: string;
-  readonly command: "card.create" | "card.edit" | "comment.add" | "attachment.add" | "link.add" | "link.remove" | "review-handoff" | "approve" | "grant.create" | "grant.revoke" | "history.clear" | "retention.set";
+  readonly command: "card.create" | "card.edit" | "comment.add" | "attachment.add" | "link.add" | "link.remove" | "review-handoff" | "approve" | "grant.create" | "grant.revoke" | "history.clear" | "retention.set" | "workflow.edit";
   readonly committedCardRevision: number | null;
   readonly committedRevision: number | null;
   readonly expectedCardRevision: number | null;

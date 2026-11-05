@@ -123,7 +123,7 @@ func semantics(v reflect.Value) error {
 			return err
 		}
 	case Board:
-		if err := ValidateWorkflow(x.Workflow); err != nil {
+		if err := ValidateWorkflowPolicies(x.PolicyVersion, x.Workflow, x.WorkflowPolicies); err != nil {
 			return err
 		}
 		for _, card := range x.Cards {
@@ -161,6 +161,9 @@ func semantics(v reflect.Value) error {
 		}
 		if !found || (x.Type == "recovery.expire") != (x.OpID == nil) {
 			return fmt.Errorf("event command/opId")
+		}
+		if x.Type == "workflow.edit" && (len(x.Affected) != 1 || x.Affected[0].Kind != "workflow" || x.Affected[0].Revision == nil || *x.Affected[0].Revision < 2) {
+			return fmt.Errorf("workflow event policy reference")
 		}
 	case Gap:
 		if x.FromExclusive != nil && *x.FromExclusive > x.ThroughInclusive {
@@ -581,6 +584,8 @@ func compactReferences(o Operation) error {
 		kinds = []string{"grant"}
 	case "history.clear", "retention.set":
 		kinds = []string{"board"}
+	case "workflow.edit":
+		kinds = []string{"workflow"}
 	}
 	if len(o.ResultRefs) != len(kinds) {
 		return fmt.Errorf("result reference cardinality")
@@ -604,6 +609,10 @@ func compactReferences(o Operation) error {
 			if o.Target != nil && o.Target.CardID != nil && f.ID != *o.Target.CardID {
 				return fmt.Errorf("result card target")
 			}
+		case "workflow":
+			if f.Revision == nil || *f.Revision < 2 {
+				return fmt.Errorf("result workflow revision")
+			}
 		case "board":
 			if f.ID != o.Origin.BoardID || f.Revision == nil || *f.Revision != Number(*o.CommittedRevision) {
 				return fmt.Errorf("result board revision")
@@ -624,7 +633,7 @@ func fullReferences(o Operation) error {
 	if e := json.Unmarshal(o.Full.Result, &result); e != nil {
 		return e
 	}
-	for key, kind := range map[string]FactKind{"cardId": "card", "commentId": "comment", "attachmentId": "attachment", "linkId": "link", "approvalId": "approval", "grantId": "grant"} {
+	for key, kind := range map[string]FactKind{"cardId": "card", "commentId": "comment", "attachmentId": "attachment", "linkId": "link", "approvalId": "approval", "grantId": "grant", "workflowId": "workflow"} {
 		if raw, ok := result[key]; ok {
 			var id UUID
 			json.Unmarshal(raw, &id)
@@ -635,6 +644,24 @@ func fullReferences(o Operation) error {
 			if !found {
 				return fmt.Errorf("result reference binding")
 			}
+		}
+	}
+	if o.Command == "workflow.edit" {
+		var version Number
+		if err := json.Unmarshal(result["policyVersion"], &version); err != nil {
+			return fmt.Errorf("workflow result version")
+		}
+		if len(o.ResultRefs) != 1 || o.ResultRefs[0].Revision == nil || *o.ResultRefs[0].Revision != version {
+			return fmt.Errorf("workflow result policy binding")
+		}
+		var original struct {
+			Payload struct {
+				ExpectedPolicyVersion PolicyVersion `json:"expectedPolicyVersion"`
+				Workflow              Workflow      `json:"workflow"`
+			} `json:"payload"`
+		}
+		if err := json.Unmarshal(o.Full.Intent, &original); err != nil || version != Number(original.Payload.ExpectedPolicyVersion)+1 || version != Number(original.Payload.Workflow.Revision) || o.ResultRefs[0].ID != original.Payload.Workflow.WorkflowID {
+			return fmt.Errorf("workflow result original binding")
 		}
 	}
 	if raw, ok := result["coverageRevision"]; ok {

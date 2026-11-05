@@ -1,4 +1,4 @@
-import { completedLane, laneText } from "../api/workflow.js";
+import { currentApprovalValid, laneText } from "../api/workflow.js";
 import type { BoardRead } from "../../generated/transport/contracts.js";
 import type { Card } from "../../generated/archive/contracts.js";
 
@@ -31,10 +31,7 @@ export function dependencyAdvisory(read: BoardRead, card: Card): DependencyAdvis
       satisfied = false;
       return "Prerequisites/readiness: " + link.target.boardId + "/" + link.target.incarnation + "/" + link.target.cardId + " — unavailable or foreign target (not satisfied)";
     }
-    const approval = board.approvals.find(candidate => candidate.approvalId === target.currentApprovalId && candidate.cardId === target.cardId);
-    const human = approval && board.actors.find(actor => actor.actorId === approval.actorId && actor.kind === "human");
-    const accepted = !target.archived && completedLane(target.lane, board.workflow) && approval !== undefined && human !== undefined &&
-      approval.policyVersion === board.policyVersion && approval.reviewedCardRevision === target.revision - 1;
+    const accepted = !target.archived && currentApprovalValid(target, board.workflow, board.workflowPolicies, board.actors, board.approvals);
     satisfied = satisfied && accepted;
     return "Prerequisites/readiness: " + cardFact(target, read) + (accepted ? " — satisfied" : " — awaiting human acceptance (not satisfied)");
   });

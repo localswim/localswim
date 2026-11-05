@@ -55,8 +55,14 @@ Each continuation rechecks current read authority in one SQLite snapshot. HMAC
 cursors bind handler epoch, actor, board/incarnation/revision and exact canonical
 filters; stale/tampered cursors refuse CURSOR_STALE. BoardRead stays complete.
 
-M06 workflow projection
-Read projections load the immutable definition in the same authorized snapshot.
-Board/card/history/search results include that optional full context, and every
-returned or queried lane is checked against it. Search accepts exact UUID syntax
-for configured lanes, never labels; legacy boards retain literal lane filters.
+Workflow projection and editing
+Read projections load current and retained definitions in one authorized snapshot.
+Board/card/history/search results preserve optional full policy context. Current
+cards resolve current lanes; history resolves recorded policy pins. Snapshot pin
+metadata must agree with JSON before full history becomes readable. Search accepts
+exact lane IDs from the selected current policy.
+
+PATCH /api/v1/boards/{boardId}/workflow uses the ordinary frozen mutation path.
+POST /api/v1/boards/{boardId}/workflow/preview is read-only and requires current
+read/edit authority in one snapshot. Both retain the 800000-byte request bound.
+Preview cannot authorize a later save or settle an UNKNOWN original.

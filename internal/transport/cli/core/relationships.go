@@ -17,14 +17,15 @@ type RelationshipRead struct {
 	Result     RelationshipView `json:"result"`
 }
 type RelationshipView struct {
-	Workflow      *A.Workflow       `json:"workflow,omitempty"`
-	Identity      A.Identity        `json:"identity"`
-	Revision      A.Number          `json:"revision"`
-	Card          A.CardRef         `json:"card"`
-	OwnedCount    A.Number          `json:"ownedCount"`
-	IncomingCount A.Number          `json:"incomingCount"`
-	Relationships []RelationshipRow `json:"relationships"`
-	Complete      bool              `json:"complete"`
+	WorkflowPolicies []A.WorkflowPolicy `json:"workflowPolicies,omitempty"`
+	Workflow         *A.Workflow        `json:"workflow,omitempty"`
+	Identity         A.Identity         `json:"identity"`
+	Revision         A.Number           `json:"revision"`
+	Card             A.CardRef          `json:"card"`
+	OwnedCount       A.Number           `json:"ownedCount"`
+	IncomingCount    A.Number           `json:"incomingCount"`
+	Relationships    []RelationshipRow  `json:"relationships"`
+	Complete         bool               `json:"complete"`
 }
 type RelationshipRow struct {
 	LinkID    A.UUID     `json:"linkId"`
@@ -63,6 +64,7 @@ func relationshipRead(board T.BoardRead, id string) (relationshipObservation, er
 	}
 	v := RelationshipView{Identity: b.Identity, Revision: b.Revision, Card: selected, Relationships: []RelationshipRow{}, Complete: true}
 	v.Workflow = b.Workflow
+	v.WorkflowPolicies = b.WorkflowPolicies
 	for _, l := range b.Links {
 		owner := ref(l.CardID)
 		owned := owner == selected

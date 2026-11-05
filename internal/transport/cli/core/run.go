@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -38,7 +39,7 @@ func refused(code string, exit int, original *evidence.Record) result {
 }
 func safeCode(code string) string {
 	switch code {
-	case "INVOCATION_OR_IO", "CREDENTIAL_SELECTION_REQUIRED", "CREDENTIAL_EXPIRED", "CREDENTIAL_DISABLED", "CREDENTIAL_CONTEXT_MISMATCH", "CREDENTIAL_UNAVAILABLE", "UNSAFE_LOCAL_MATERIAL", "UNAVAILABLE", "INVALID_INPUT", "INPUT_TOO_LARGE", "UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "CURSOR_STALE", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH", "OUTCOME_UNKNOWN", "SOURCE_AUTHORITY_UNAVAILABLE", "CONFIRMATION_REQUIRED", "CONFIRMATION_REFUSED":
+	case "INVOCATION_OR_IO", "CREDENTIAL_SELECTION_REQUIRED", "CREDENTIAL_EXPIRED", "CREDENTIAL_DISABLED", "CREDENTIAL_CONTEXT_MISMATCH", "CREDENTIAL_UNAVAILABLE", "UNSAFE_LOCAL_MATERIAL", "UNAVAILABLE", "INVALID_INPUT", "INPUT_TOO_LARGE", "UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "CURSOR_STALE", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH", "OUTCOME_UNKNOWN", "SOURCE_AUTHORITY_UNAVAILABLE", "CONFIRMATION_REQUIRED", "CONFIRMATION_REFUSED", "POLICY_CONFLICT", "WORKFLOW_INCOMPATIBLE":
 		return code
 	}
 	return "UNAVAILABLE"
@@ -130,6 +131,13 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 			}
 			return out.exit
 		}
+		if board, ok := out.value.(T.BoardRead); out.exit == 0 && ok && q.kind == "workflow show" {
+			text := readableWorkflowShow(board)
+			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
+				return outputFailure(out.exit, q)
+			}
+			return out.exit
+		}
 		if text, ok := focusedRead(out.value); out.exit == 0 && ok {
 			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
 				return outputFailure(out.exit, q)
@@ -197,7 +205,7 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 		}
 	}
 	var wire []byte
-	if q.command != "" {
+	if q.command != "" || q.kind == "workflow preview" {
 		var e error
 		wire, e = readInput(q.input, stdin)
 		if e != nil {
@@ -214,6 +222,12 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 		}
 		if q.kind == "card move" && !moveAlias(wire) {
 			return refused("INVALID_INPUT", 2, nil)
+		}
+		if q.kind == "workflow preview" {
+			req, err := T.Decode[T.WorkflowPreviewRequest](wire)
+			if err != nil || string(req.BoardID) != q.selected.BoardID || string(req.Incarnation) != q.selected.Incarnation {
+				return refused("INVALID_INPUT", 2, nil)
+			}
 		}
 		if _, e = contract.DecodeJSON(wire); e != nil {
 			return refused("INVALID_INPUT", 2, nil)
@@ -254,7 +268,7 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 	if q.command != "" {
 		return client.Dispatch(ctx, r.Evidence, contract.ResolvedRoute{Command: q.command, BoardID: q.selected.BoardID, TargetID: q.id}, wire, stderr).r
 	}
-	status, b, err := c.request(ctx, q.method, q.path, nil)
+	status, b, err := c.request(ctx, q.method, q.path, bytes.NewReader(wire))
 	if err != nil {
 		return refused("UNAVAILABLE", 3, nil)
 	}
@@ -271,7 +285,23 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 		}
 		v = x
 		identity = x.Result.Identity
-	case "board read", "card children", "card relationships":
+	case "workflow preview":
+		x, err := T.Decode[T.WorkflowPreview](b)
+		if err != nil {
+			return refused("UNAVAILABLE", 3, nil)
+		}
+		var requested T.WorkflowPreviewRequest
+		if json.Unmarshal(wire, &requested) != nil || x.Revision != requested.ExpectedRevision || x.PolicyVersion != requested.ExpectedPolicyVersion {
+			return refused("UNAVAILABLE", 3, nil)
+		}
+		candidate, _ := json.Marshal(x.Candidate)
+		expected, _ := json.Marshal(requested.Workflow)
+		if string(candidate) != string(expected) {
+			return refused("UNAVAILABLE", 3, nil)
+		}
+		v = x
+		identity = A.Identity{BoardID: x.BoardID, Incarnation: x.Incarnation}
+	case "board read", "workflow show", "card children", "card relationships":
 		x, err := T.Decode[T.BoardRead](b)
 		if err != nil {
 			return refused("UNAVAILABLE", 3, nil)
@@ -335,7 +365,7 @@ func moveAlias(wire []byte) bool {
 		return false
 	}
 	lane, ok := input["laneId"].(string)
-	return ok && uuid(lane)
+	return ok && (uuid(lane) || lane == "Ready for Work" || lane == "In Progress" || lane == "Ready for Review" || lane == "Completed")
 }
 
 func (r Runner) mark(out result, original evidence.Record, stderr io.Writer) result {

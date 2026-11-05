@@ -45,8 +45,8 @@ func decode(i contract.Intent) (envelope, error) {
 	return e, nil
 }
 
-// Admit checks current command rights only. Consumers must compose their own
-// domain invariants. Grant mutations must use GrantCallbacks for exact scope and
+// Admit checks current command rights and edited-profile current integrity.
+// Consumers add command-specific invariants. Grant mutations use GrantCallbacks for exact scope and
 // target checks plus effect generation.
 func (s *Service) Admit(ctx context.Context, r writer.Read, i contract.Intent) (*T.RefusalResult, error) {
 	e, err := decode(i)
@@ -74,6 +74,15 @@ func (s *Service) Admit(ctx context.Context, r writer.Read, i contract.Intent) (
 	}
 	if !has(p, rights...) || !policy.AllowsRights(w, p.kind, rights...) {
 		return deny("FORBIDDEN"), nil
+	}
+	// Current state is strict after the first policy edit even when its
+	// recorded pin remains 1. Validate before any command can clear approval
+	// or capture that state as permissive legacy history. Retained outcomes
+	// resolve before Admit and preserve their original immutable result.
+	if w != nil && w.Revision > 1 {
+		if err := policy.ValidateCurrent(r, e.Incarnation, w); err != nil {
+			return nil, err
+		}
 	}
 	return nil, nil
 }

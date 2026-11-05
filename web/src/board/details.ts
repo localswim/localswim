@@ -1,4 +1,4 @@
-import { completedLane, laneText } from "../api/workflow.js";
+import { completedLane, laneText, workflowAtVersion } from "../api/workflow.js";
 import { CardRelationships } from "./relationships.js";
 import type { RelationshipActionHandler } from "./relationships.js";
 import type { BoardRead, CardRead, HistoryRead } from "../../generated/transport/contracts.js";
@@ -236,7 +236,8 @@ export class CardDetails {
       article.append(node("h4", "Origin " + origin(row.origin) + " · card revision " + row.cardRevision),
         node("p", attribution(row.actorId, h.actors) + " · " + row.committedAt));
       if (row.state) article.append(node("p", "#" + row.state.ticket + " " + row.state.title), node("p", "Description:\n" + row.state.description),
-        node("p", laneText(row.state.lane, h.workflow) + " · " + row.state.priority + " · Owner: " + (row.state.ownerId ? attribution(row.state.ownerId, h.actors) : "Unassigned")),
+        node("p", laneText(row.state.lane, workflowAtVersion(h.workflow, h.workflowPolicies, row.state.workflowPolicyVersion)) + " · " + row.state.priority + " · Owner: " + (row.state.ownerId ? attribution(row.state.ownerId, h.actors) : "Unassigned")),
+        node("p", "Recorded workflow policy " + (row.state.workflowPolicyVersion ?? 1) + " · lane ID " + row.state.lane),
         node("p", "Archived: " + row.state.archived + " · approval: " + (row.state.currentApprovalId ?? "none")));
       else article.append(node("p", "Old text unavailable; compact or removed state."));
       if (row.state) {

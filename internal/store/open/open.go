@@ -42,7 +42,7 @@ func Create(ctx context.Context, dir string, id schema.Identity) (*Store, error)
 
 // CreateWorkflow validates the complete definition before allocating the new file.
 func CreateWorkflow(ctx context.Context, dir string, id schema.Identity, workflow *A.Workflow) (*Store, error) {
-	if err := A.ValidateWorkflow(workflow); err != nil {
+	if err := A.ValidateInitialWorkflow(workflow); err != nil {
 		return nil, err
 	}
 	return startWorkflow(ctx, dir, id, true, workflow)
@@ -112,7 +112,7 @@ func startWorkflow(ctx context.Context, dir string, id schema.Identity, create b
 	if err = schema.Validate(ctx, c, id); err != nil {
 		// Only an independently validated older layout earns actionable upgrade advice.
 		var v int
-		if c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v) == nil && (v == 5 || v == 6 || v == 7) && validateSupported(ctx, c, id) == nil {
+		if c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v) == nil && (v == 5 || v == 6 || v == 7 || v == 8) && validateSupported(ctx, c, id) == nil {
 			return nil, fmt.Errorf("storage physical version %d requires explicit offline upgrade %d->%d before startup", v, v, v+1)
 		}
 		return nil, err

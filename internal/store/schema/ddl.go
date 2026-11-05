@@ -1,6 +1,6 @@
 package schema
 
-// Current physical-eight DDL. Older layouts have independent frozen manifests.
+// Current physical-nine DDL. Older layouts have independent frozen manifests.
 // Registry rows preserve typed entity existence after authorized compaction.
 // A tombstone is never made merely to satisfy an attempted refused reference.
 const ddl = `CREATE TABLE board (
@@ -21,7 +21,7 @@ const ddl = `CREATE TABLE board (
 ) STRICT;
 CREATE TABLE policy (
  incarnation TEXT PRIMARY KEY REFERENCES board(incarnation),
- policy_version INTEGER NOT NULL DEFAULT 1 CHECK(policy_version=1)
+ policy_version INTEGER NOT NULL DEFAULT 1 CHECK({{p:policy_version}})
 ) STRICT;
 CREATE TABLE actor (
  incarnation TEXT NOT NULL REFERENCES board(incarnation), actor_id TEXT NOT NULL CHECK({{u:actor_id}}),
@@ -83,6 +83,7 @@ CREATE TABLE card (
  archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)), current_approval_id TEXT,
  owner_id TEXT CHECK(owner_id IS NULL OR {{u:owner_id}}),
  approval_kind TEXT NOT NULL DEFAULT 'approval' CHECK(approval_kind='approval'),
+ workflow_policy_version INTEGER CHECK(workflow_policy_version IS NULL OR {{p:workflow_policy_version}}),
  FOREIGN KEY(incarnation,owner_id) REFERENCES actor(incarnation,actor_id),
  PRIMARY KEY(incarnation,card_id), FOREIGN KEY(incarnation,kind,card_id) REFERENCES entity(incarnation,kind,entity_id),
  FOREIGN KEY(incarnation,card_id) REFERENCES ticket(incarnation,card_id),
@@ -111,7 +112,7 @@ CREATE UNIQUE INDEX active_related_pair ON link(incarnation,target_board,target_
 CREATE TABLE approval (
  incarnation TEXT NOT NULL, approval_id TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'approval' CHECK(kind='approval'),
  card_id TEXT NOT NULL, actor_id TEXT NOT NULL, reviewed_card_revision INTEGER NOT NULL CHECK({{p:reviewed_card_revision}}),
- reviewed_board_revision INTEGER NOT NULL CHECK({{n:reviewed_board_revision}}), policy_version INTEGER NOT NULL CHECK(policy_version=1),
+ reviewed_board_revision INTEGER NOT NULL CHECK({{n:reviewed_board_revision}}), policy_version INTEGER NOT NULL CHECK({{p:policy_version}}),
  created_at TEXT NOT NULL CHECK({{t:created_at}}), PRIMARY KEY(incarnation,approval_id), UNIQUE(incarnation,card_id,approval_id),
  FOREIGN KEY(incarnation,kind,approval_id,card_id) REFERENCES entity(incarnation,kind,entity_id,card_id),
  FOREIGN KEY(incarnation,card_id) REFERENCES card(incarnation,card_id), FOREIGN KEY(incarnation,actor_id) REFERENCES actor(incarnation,actor_id)
@@ -146,10 +147,12 @@ CREATE TABLE card_revision (
  origin_incarnation TEXT NOT NULL CHECK({{u:origin_incarnation}}), card_id TEXT NOT NULL,
  card_revision INTEGER NOT NULL CHECK({{p:card_revision}}), actor_id TEXT NOT NULL, committed_at TEXT NOT NULL CHECK({{t:committed_at}}),
  state TEXT CHECK(state IS NULL OR json_valid(state)),
+ workflow_policy_version INTEGER CHECK(workflow_policy_version IS NULL OR {{p:workflow_policy_version}}),
  removed_at TEXT CHECK(removed_at IS NULL OR {{t:removed_at}}), removal_reason TEXT CHECK(removal_reason IN ('cleared','expired')),
  removal_revision INTEGER CHECK(removal_revision IS NULL OR {{p:removal_revision}}),
  PRIMARY KEY(incarnation,origin_board,origin_incarnation,card_id,card_revision),
  FOREIGN KEY(incarnation,card_id) REFERENCES card(incarnation,card_id), FOREIGN KEY(incarnation,actor_id) REFERENCES actor(incarnation,actor_id),
+ CHECK(state IS NOT NULL OR workflow_policy_version IS NULL),
  CHECK((state IS NULL)=(removed_at IS NOT NULL)), CHECK((removed_at IS NULL)=(removal_reason IS NULL)), CHECK((removed_at IS NULL)=(removal_revision IS NULL))
 ) STRICT;
 CREATE TABLE revision_reference (
@@ -172,7 +175,7 @@ CREATE TABLE operation (
  origin_incarnation TEXT NOT NULL CHECK({{u:origin_incarnation}}), op_id TEXT NOT NULL CHECK({{u:op_id}}),
  current_ledger INTEGER NOT NULL CHECK(current_ledger IN (0,1)), actor_id TEXT NOT NULL,
  fingerprint_version INTEGER NOT NULL DEFAULT 1 CHECK(fingerprint_version=1), fingerprint TEXT NOT NULL CHECK({{h:fingerprint}}),
- command TEXT NOT NULL CHECK(command IN ('card.create','card.edit','comment.add','attachment.add','link.add','link.remove','review-handoff','approve','grant.create','grant.revoke','history.clear','retention.set')),
+ command TEXT NOT NULL CHECK(command IN ('card.create','card.edit','comment.add','attachment.add','link.add','link.remove','review-handoff','approve','grant.create','grant.revoke','history.clear','retention.set','workflow.edit')),
  target_kind TEXT CHECK(target_kind IN ('card','grant')), target_id TEXT CHECK(target_id IS NULL OR {{u:target_id}}),
  expected_revision INTEGER NOT NULL CHECK({{n:expected_revision}}), expected_card_revision INTEGER CHECK(expected_card_revision IS NULL OR {{p:expected_card_revision}}),
  terminal_class TEXT NOT NULL CHECK(terminal_class IN ('COMMITTED','NOT_COMMITTED')), code TEXT NOT NULL,
@@ -187,7 +190,7 @@ CREATE TABLE operation (
  FOREIGN KEY(incarnation,committed_target_kind,committed_target_card) REFERENCES entity(incarnation,kind,entity_id),
  FOREIGN KEY(incarnation,committed_target_grant) REFERENCES grant_fact(incarnation,grant_id), FOREIGN KEY(incarnation,actor_id) REFERENCES actor(incarnation,actor_id),
  CHECK((target_kind IS NULL)=(target_id IS NULL)),
- CHECK(CASE WHEN command IN ('card.create','grant.create','history.clear','retention.set') THEN target_kind IS NULL AND expected_card_revision IS NULL WHEN command='grant.revoke' THEN target_kind IS 'grant' AND expected_card_revision IS NULL ELSE target_kind IS 'card' AND expected_card_revision IS NOT NULL END),
+ CHECK(CASE WHEN command IN ('card.create','grant.create','history.clear','retention.set','workflow.edit') THEN target_kind IS NULL AND expected_card_revision IS NULL WHEN command='grant.revoke' THEN target_kind IS 'grant' AND expected_card_revision IS NULL ELSE target_kind IS 'card' AND expected_card_revision IS NOT NULL END),
  CHECK((terminal_class='COMMITTED' AND code='OK' AND committed_revision IS NOT NULL AND ((target_kind IS 'card' OR command='card.create')=(committed_card_revision IS NOT NULL))) OR (terminal_class='NOT_COMMITTED' AND code<>'OK' AND committed_revision IS NULL AND committed_card_revision IS NULL)),
  CHECK((removed_at IS NULL)=(removal_reason IS NULL)), CHECK((removed_at IS NULL)=(removal_revision IS NULL))
 ) STRICT;
@@ -200,7 +203,7 @@ CREATE TABLE operation_full (
 ) STRICT;
 CREATE TABLE operation_reference (
  incarnation TEXT NOT NULL, origin_board TEXT NOT NULL, origin_incarnation TEXT NOT NULL, op_id TEXT NOT NULL,
- kind TEXT NOT NULL CHECK(kind IN ('board','card','comment','link','attachment','approval','grant')),
+ kind TEXT NOT NULL CHECK(kind IN ('board','card','comment','link','attachment','approval','grant','workflow')),
  entity_id TEXT NOT NULL CHECK({{u:entity_id}}), revision INTEGER CHECK(revision IS NULL OR {{n:revision}}),
  entity_kind TEXT GENERATED ALWAYS AS (CASE WHEN kind IN ('card','comment','link','attachment','approval') THEN kind END) STORED,
  grant_id TEXT GENERATED ALWAYS AS (CASE WHEN kind='grant' THEN entity_id END) STORED,
@@ -227,7 +230,7 @@ CREATE TABLE operation_blob_pin (
 CREATE TABLE activity (
  incarnation TEXT NOT NULL REFERENCES board(incarnation), origin_board TEXT NOT NULL CHECK({{u:origin_board}}), origin_incarnation TEXT NOT NULL CHECK({{u:origin_incarnation}}),
  event_id INTEGER NOT NULL CHECK({{p:event_id}}), actor_id TEXT NOT NULL, op_id TEXT CHECK(op_id IS NULL OR {{u:op_id}}),
- type TEXT NOT NULL CHECK(type IN ('card.create','card.edit','comment.add','attachment.add','link.add','link.remove','review-handoff','approve','grant.create','grant.revoke','history.clear','retention.set','recovery.expire')),
+ type TEXT NOT NULL CHECK(type IN ('card.create','card.edit','comment.add','attachment.add','link.add','link.remove','review-handoff','approve','grant.create','grant.revoke','history.clear','retention.set','workflow.edit','recovery.expire')),
  board_revision INTEGER NOT NULL CHECK({{n:board_revision}}), at TEXT NOT NULL CHECK({{t:at}}),
  affected TEXT NOT NULL CHECK(json_valid(affected)), PRIMARY KEY(incarnation,origin_board,origin_incarnation,event_id),
  FOREIGN KEY(incarnation,actor_id) REFERENCES actor(incarnation,actor_id), CHECK((op_id IS NULL)=(type='recovery.expire'))
@@ -268,7 +271,7 @@ CREATE TRIGGER counters_monotone BEFORE UPDATE ON board BEGIN SELECT CASE WHEN N
 CREATE TRIGGER operation_origin BEFORE INSERT ON operation BEGIN SELECT CASE WHEN (NEW.current_ledger=1)<>EXISTS(SELECT 1 FROM board WHERE board_id=NEW.origin_board AND incarnation=NEW.origin_incarnation) THEN RAISE(ABORT,'operation authority mismatch') END; SELECT CASE WHEN NEW.terminal_class='COMMITTED' AND NEW.target_kind='card' AND NOT EXISTS(SELECT 1 FROM entity WHERE incarnation=NEW.incarnation AND kind='card' AND entity_id=NEW.target_id) THEN RAISE(ABORT,'missing committed target') END; SELECT CASE WHEN NEW.terminal_class='COMMITTED' AND NEW.target_kind='grant' AND NOT EXISTS(SELECT 1 FROM grant_fact WHERE incarnation=NEW.incarnation AND grant_id=NEW.target_id) THEN RAISE(ABORT,'missing committed grant') END; END;
 CREATE TRIGGER operation_identity_immutable BEFORE UPDATE ON operation BEGIN SELECT CASE WHEN NEW.incarnation<>OLD.incarnation OR NEW.origin_board<>OLD.origin_board OR NEW.origin_incarnation<>OLD.origin_incarnation OR NEW.op_id<>OLD.op_id OR NEW.current_ledger<>OLD.current_ledger OR NEW.actor_id<>OLD.actor_id OR NEW.fingerprint<>OLD.fingerprint OR NEW.command<>OLD.command OR NEW.target_kind IS NOT OLD.target_kind OR NEW.target_id IS NOT OLD.target_id OR NEW.expected_revision<>OLD.expected_revision OR NEW.expected_card_revision IS NOT OLD.expected_card_revision OR NEW.terminal_class<>OLD.terminal_class OR NEW.code<>OLD.code OR NEW.terminal_at<>OLD.terminal_at OR NEW.committed_revision IS NOT OLD.committed_revision OR NEW.committed_card_revision IS NOT OLD.committed_card_revision THEN RAISE(ABORT,'terminal identity is immutable') END; END;
 CREATE TRIGGER operation_retained BEFORE DELETE ON operation BEGIN SELECT RAISE(ABORT,'terminal identity is retained'); END;
-CREATE TRIGGER result_reference BEFORE INSERT ON operation_reference BEGIN SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM operation WHERE incarnation=NEW.incarnation AND origin_board=NEW.origin_board AND origin_incarnation=NEW.origin_incarnation AND op_id=NEW.op_id AND terminal_class='COMMITTED') THEN RAISE(ABORT,'refusal has no result references') END; SELECT CASE WHEN NEW.kind IN ('card','comment','link','attachment','approval') AND NOT EXISTS(SELECT 1 FROM entity WHERE incarnation=NEW.incarnation AND kind=NEW.kind AND entity_id=NEW.entity_id) THEN RAISE(ABORT,'missing committed result') END; SELECT CASE WHEN NEW.kind='board' AND NOT EXISTS(SELECT 1 FROM board WHERE incarnation=NEW.incarnation AND board_id=NEW.entity_id) THEN RAISE(ABORT,'missing board result') END; SELECT CASE WHEN NEW.kind='grant' AND NOT EXISTS(SELECT 1 FROM grant_fact WHERE incarnation=NEW.incarnation AND grant_id=NEW.entity_id) THEN RAISE(ABORT,'missing grant result') END; END;
+CREATE TRIGGER result_reference BEFORE INSERT ON operation_reference BEGIN SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM operation WHERE incarnation=NEW.incarnation AND origin_board=NEW.origin_board AND origin_incarnation=NEW.origin_incarnation AND op_id=NEW.op_id AND terminal_class='COMMITTED') THEN RAISE(ABORT,'refusal has no result references') END; SELECT CASE WHEN NEW.kind IN ('card','comment','link','attachment','approval') AND NOT EXISTS(SELECT 1 FROM entity WHERE incarnation=NEW.incarnation AND kind=NEW.kind AND entity_id=NEW.entity_id) THEN RAISE(ABORT,'missing committed result') END; SELECT CASE WHEN NEW.kind='board' AND NOT EXISTS(SELECT 1 FROM board WHERE incarnation=NEW.incarnation AND board_id=NEW.entity_id) THEN RAISE(ABORT,'missing board result') END; SELECT CASE WHEN NEW.kind='grant' AND NOT EXISTS(SELECT 1 FROM grant_fact WHERE incarnation=NEW.incarnation AND grant_id=NEW.entity_id) THEN RAISE(ABORT,'missing grant result') END; SELECT CASE WHEN NEW.kind='workflow' AND NOT EXISTS(SELECT 1 FROM workflow_policy WHERE incarnation=NEW.incarnation AND workflow_id=NEW.entity_id AND policy_version=NEW.revision) THEN RAISE(ABORT,'missing workflow result') END; END;
 CREATE TRIGGER operation_pin BEFORE INSERT ON operation_blob_pin BEGIN SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM operation WHERE incarnation=NEW.incarnation AND origin_board=NEW.origin_board AND origin_incarnation=NEW.origin_incarnation AND op_id=NEW.op_id AND terminal_class='COMMITTED' AND command='attachment.add' AND removed_at IS NULL) THEN RAISE(ABORT,'only full committed attachments pin bytes') END; SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM attachment WHERE incarnation=NEW.incarnation AND attachment_id=NEW.attachment_id AND sha256=NEW.sha256 AND byte_length=NEW.byte_length) THEN RAISE(ABORT,'attachment pin mismatch') END; END;
 CREATE TRIGGER operation_pin_fact BEFORE INSERT ON operation_blob_pin BEGIN SELECT CASE WHEN EXISTS(SELECT 1 FROM byte_fact WHERE incarnation=NEW.incarnation AND origin_board=NEW.origin_board AND origin_incarnation=NEW.origin_incarnation AND op_id=NEW.op_id AND (sha256<>NEW.sha256 OR byte_length<>NEW.byte_length)) THEN RAISE(ABORT,'operation byte fact mismatch') END; END;
 CREATE TRIGGER byte_fact_pin BEFORE INSERT ON byte_fact BEGIN SELECT CASE WHEN EXISTS(SELECT 1 FROM operation_blob_pin WHERE incarnation=NEW.incarnation AND origin_board=NEW.origin_board AND origin_incarnation=NEW.origin_incarnation AND op_id=NEW.op_id AND (sha256<>NEW.sha256 OR byte_length<>NEW.byte_length)) THEN RAISE(ABORT,'operation byte fact mismatch') END; END;

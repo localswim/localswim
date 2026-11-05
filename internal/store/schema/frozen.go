@@ -16,6 +16,9 @@ var frozenSix []byte
 //go:embed layout7-statements.json
 var frozenSeven []byte
 
+//go:embed layout8-statements.json
+var frozenEight []byte
+
 func frozenStatements(b []byte) []string {
 	var out []string
 	if err := json.Unmarshal(b, &out); err != nil {

@@ -266,6 +266,9 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 			result["approvalId"] = id
 			refs = append([]A.FactRef{{Kind: "approval", ID: A.UUID(id)}}, refs...)
 		}
+		if err = policy.PinCurrent(w, e.Incarnation, route.CardID); err != nil {
+			return writer.Effect{}, err
+		}
 		var next, boardRevision uint64
 		if err = w.Scan("SELECT next_event,revision FROM board WHERE singleton=1", nil, &next, &boardRevision); err != nil {
 			return writer.Effect{}, err

@@ -94,19 +94,20 @@ type BoardRead struct {
 	Result     BoardView  `json:"result"`
 }
 type BoardView struct {
-	Workflow         *A.Workflow    `json:"workflow,omitempty"`
-	Identity         A.Identity     `json:"identity"`
-	Revision         A.Number       `json:"revision"`
-	PolicyVersion    A.Version      `json:"policyVersion"`
-	Retention        A.Retention    `json:"retention"`
-	RetentionVersion A.Positive     `json:"retentionVersion"`
-	Coverage         A.Coverage     `json:"coverage"`
-	Actors           []A.Actor      `json:"actors"`
-	Cards            []A.Card       `json:"cards"`
-	Comments         []A.Comment    `json:"comments"`
-	Links            []A.Link       `json:"links"`
-	Attachments      []A.Attachment `json:"attachments"`
-	Approvals        []A.Approval   `json:"approvals"`
+	WorkflowPolicies []A.WorkflowPolicy `json:"workflowPolicies,omitempty" validate:"nonnull"`
+	Workflow         *A.Workflow        `json:"workflow,omitempty"`
+	Identity         A.Identity         `json:"identity"`
+	Revision         A.Number           `json:"revision"`
+	PolicyVersion    A.PolicyVersion    `json:"policyVersion"`
+	Retention        A.Retention        `json:"retention"`
+	RetentionVersion A.Positive         `json:"retentionVersion"`
+	Coverage         A.Coverage         `json:"coverage"`
+	Actors           []A.Actor          `json:"actors"`
+	Cards            []A.Card           `json:"cards"`
+	Comments         []A.Comment        `json:"comments"`
+	Links            []A.Link           `json:"links"`
+	Attachments      []A.Attachment     `json:"attachments"`
+	Approvals        []A.Approval       `json:"approvals"`
 }
 type CardRead struct {
 	APIVersion A.Version `json:"apiVersion"`
@@ -123,12 +124,13 @@ type CardSearchRead struct {
 }
 
 type CardSearchView struct {
-	Workflow   *A.Workflow     `json:"workflow,omitempty"`
-	Identity   A.Identity      `json:"identity"`
-	Revision   A.Number        `json:"revision"`
-	Query      CardSearchQuery `json:"query"`
-	Items      []CardSummary   `json:"items"`
-	NextCursor *string         `json:"nextCursor"`
+	WorkflowPolicies []A.WorkflowPolicy `json:"workflowPolicies,omitempty" validate:"nonnull"`
+	Workflow         *A.Workflow        `json:"workflow,omitempty"`
+	Identity         A.Identity         `json:"identity"`
+	Revision         A.Number           `json:"revision"`
+	Query            CardSearchQuery    `json:"query"`
+	Items            []CardSummary      `json:"items"`
+	NextCursor       *string            `json:"nextCursor"`
 }
 
 type CardSearchQuery struct {
@@ -150,6 +152,7 @@ type CardSummary struct {
 	Archived bool       `json:"archived"`
 }
 type CardView struct {
+	WorkflowPolicies  []A.WorkflowPolicy `json:"workflowPolicies,omitempty" validate:"nonnull"`
 	Workflow          *A.Workflow        `json:"workflow,omitempty"`
 	Identity          A.Identity         `json:"identity"`
 	Revision          A.Number           `json:"revision"`
@@ -175,19 +178,20 @@ type HistoryRead struct {
 	Result     HistoryView  `json:"result"`
 }
 type HistoryView struct {
-	Workflow     *A.Workflow         `json:"workflow,omitempty"`
-	Identity     A.Identity          `json:"identity"`
-	Revision     A.Number            `json:"revision"`
-	CardID       A.UUID              `json:"cardId"`
-	CardRevision A.Positive          `json:"cardRevision"`
-	Coverage     A.Coverage          `json:"coverage"`
-	Records      []A.Snapshot        `json:"records"`
-	Actors       []A.Actor           `json:"actors"`
-	Comments     []A.Comment         `json:"comments"`
-	Links        []A.Link            `json:"links"`
-	Attachments  []A.Attachment      `json:"attachments"`
-	Approvals    []A.Approval        `json:"approvals"`
-	Tombstones   []A.EntityTombstone `json:"tombstones"`
+	WorkflowPolicies []A.WorkflowPolicy  `json:"workflowPolicies,omitempty" validate:"nonnull"`
+	Workflow         *A.Workflow         `json:"workflow,omitempty"`
+	Identity         A.Identity          `json:"identity"`
+	Revision         A.Number            `json:"revision"`
+	CardID           A.UUID              `json:"cardId"`
+	CardRevision     A.Positive          `json:"cardRevision"`
+	Coverage         A.Coverage          `json:"coverage"`
+	Records          []A.Snapshot        `json:"records"`
+	Actors           []A.Actor           `json:"actors"`
+	Comments         []A.Comment         `json:"comments"`
+	Links            []A.Link            `json:"links"`
+	Attachments      []A.Attachment      `json:"attachments"`
+	Approvals        []A.Approval        `json:"approvals"`
+	Tombstones       []A.EntityTombstone `json:"tombstones"`
 }
 
 type SessionGrant struct {

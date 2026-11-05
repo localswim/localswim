@@ -26,6 +26,8 @@ type registry struct {
 	attachments map[UUID]Attachment
 	approvals   map[UUID]Approval
 	lengths     map[Digest]Number
+	policies    map[Number]UUID
+	workflows   map[Number]*Workflow
 }
 
 func newRegistry(rows Rows) (*registry, error) {
@@ -274,7 +276,7 @@ func ValidateDocuments(m Manifest, b Board, h History, a Activity, o Outcomes) (
 			return nil, e
 		}
 	}
-	if err := ValidateWorkflowFacts(b.Workflow, b.Cards, h.Records, b.Actors, b.Approvals); err != nil {
+	if err := ValidateWorkflowPolicyFacts(b.PolicyVersion, b.Workflow, b.WorkflowPolicies, b.Cards, h.Records, b.Actors, b.Approvals); err != nil {
 		return nil, err
 	}
 	if b.Identity != m.Source || h.Identity != m.Source || a.Identity != m.Source || o.Identity != m.Source || b.Revision != m.Revision || h.Revision != m.Revision || a.Revision != m.Revision || o.Revision != m.Revision {
@@ -287,6 +289,21 @@ func ValidateDocuments(m Manifest, b Board, h History, a Activity, o Outcomes) (
 	r, e := newRegistry(rows)
 	if e != nil {
 		return nil, e
+	}
+	r.policies = map[Number]UUID{}
+	r.workflows = map[Number]*Workflow{}
+	if len(b.WorkflowPolicies) == 0 {
+		if b.Workflow != nil {
+			r.policies[1] = b.Workflow.WorkflowID
+			r.workflows[1] = b.Workflow
+		}
+	} else {
+		for _, policy := range b.WorkflowPolicies {
+			if policy.Workflow != nil {
+				r.policies[Number(policy.PolicyVersion)] = policy.Workflow.WorkflowID
+				r.workflows[Number(policy.PolicyVersion)] = policy.Workflow
+			}
+		}
 	}
 	if e = rowsBoard(rows, m.Source.BoardID); e != nil {
 		return nil, e
@@ -332,11 +349,6 @@ func ValidateDocuments(m Manifest, b Board, h History, a Activity, o Outcomes) (
 		return nil, fmt.Errorf("nonempty revision zero")
 	}
 	for _, s := range h.Records {
-		if s.State != nil {
-			if err := ValidateWorkflowLanes(b.Workflow, s.State.Lane); err != nil {
-				return nil, err
-			}
-		}
 		if s.Origin.BoardID != m.Source.BoardID {
 			return nil, fmt.Errorf("snapshot provenance board")
 		}
@@ -469,6 +481,15 @@ func (r *registry) fact(f FactRef, board UUID) error {
 	if f.Kind == "grant" {
 		return nil
 	}
+	if f.Kind == "workflow" {
+		if f.Revision == nil || *f.Revision < 2 {
+			return fmt.Errorf("workflow fact version")
+		}
+		if r.policies != nil && r.policies[*f.Revision] != f.ID {
+			return fmt.Errorf("unresolved workflow policy reference")
+		}
+		return nil
+	}
 	return r.resolve(string(f.Kind), f.ID, "", true)
 }
 func (r *registry) operation(o Operation, board UUID) error {
@@ -499,6 +520,19 @@ func (r *registry) operation(o Operation, board UUID) error {
 		raw, _ := jsonValue(o.Full.Intent)
 		intent := raw.(map[string]any)
 		payload := intent["payload"].(map[string]any)
+		if o.Command == "workflow.edit" && r.workflows != nil {
+			ref := o.ResultRefs[0]
+			if ref.Revision == nil || !equal(payload["workflow"], r.workflows[*ref.Revision]) {
+				return fmt.Errorf("committed workflow differs from retained policy")
+			}
+		}
+		if o.Command == "approve" {
+			for _, ref := range o.ResultRefs {
+				if ref.Kind == "approval" && !equal(payload["policyVersion"], r.approvals[ref.ID].PolicyVersion) {
+					return fmt.Errorf("approval issuing policy differs from original")
+				}
+			}
+		}
 		for key, kind := range map[string]string{"targetCardId": "card", "linkId": "link"} {
 			if id, ok := payload[key].(string); ok {
 				requiredOwner := UUID("")
@@ -539,7 +573,7 @@ func (r *registry) operation(o Operation, board UUID) error {
 		json.Unmarshal(o.Full.Result, &result)
 		expected := []FactRef{}
 		var resultCard UUID
-		for key, kind := range map[string]string{"cardId": "card", "commentId": "comment", "attachmentId": "attachment", "linkId": "link", "approvalId": "approval", "grantId": "grant"} {
+		for key, kind := range map[string]string{"cardId": "card", "commentId": "comment", "attachmentId": "attachment", "linkId": "link", "approvalId": "approval", "grantId": "grant", "workflowId": "workflow"} {
 			if value, ok := result[key]; ok {
 				var id UUID
 				json.Unmarshal(value, &id)
@@ -550,6 +584,10 @@ func (r *registry) operation(o Operation, board UUID) error {
 					}
 					var rev Number = Number(*o.CommittedCardRevision)
 					expected = append(expected, FactRef{FactKind(kind), id, &rev})
+				} else if kind == "workflow" {
+					var version Number
+					json.Unmarshal(result["policyVersion"], &version)
+					expected = append(expected, FactRef{FactKind(kind), id, &version})
 				} else {
 					expected = append(expected, FactRef{FactKind(kind), id, nil})
 					if kind != "grant" {

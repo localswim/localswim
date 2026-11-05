@@ -464,11 +464,19 @@ func TestCurrentRightsAndRevisionRechecked(t *testing.T) {
 			case "native":
 				f.mode = "native-owner"
 			case "automation":
-				f.exec(t, "UPDATE grant_record SET actor_id=?", automation)
+				// Automation retains a legal ordinary grant. It cannot hold the
+				// human-only history-admin right, so recovery admission must refuse.
+				f.raw(t, func(c *sql.Conn) error {
+					if _, err := c.ExecContext(tc(t), "DELETE FROM grant_right WHERE right_name='history-admin'"); err != nil {
+						return err
+					}
+					_, err := c.ExecContext(tc(t), "UPDATE grant_record SET actor_id=?", automation)
+					return err
+				})
 				f.who = automation
 			}
 			r := confirm(t, f, p)
-			if which == "revoked" || which == "native" || which == "automation" {
+			if which == "revoked" || which == "native" {
 				if r.Refused == nil || r.Refused.Error.Code != "FORBIDDEN" {
 					t.Fatal("current credential/kind admission bypass")
 				}

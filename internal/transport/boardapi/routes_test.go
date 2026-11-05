@@ -25,6 +25,8 @@ func TestExactRoutesExcludeOtherAdapters(t *testing.T) {
 		status                      int
 	}{
 		{"GET", base, "board", "", 0}, {"GET", base + "/cards/" + testCard, "card", "", 0}, {"GET", base + "/cards/" + testCard + "/history", "history", "", 0},
+		{"PATCH", base + "/workflow", "mutation", "workflow.edit", 0}, {"POST", base + "/workflow/preview", "workflow-preview", "", 0},
+		{"GET", base + "/workflow", "", "", 405}, {"POST", base + "/workflow/preview?path=private", "", "", 400}, {"PATCH", base + "/workflow/", "", "", 404},
 		{"GET", base + "/cards", "search", "", 0}, {"GET", base + "/cards?archive=archived", "search", "", 0}, {"POST", base + "/cards", "mutation", "card.create", 0}, {"PATCH", base + "/cards/" + testCard, "mutation", "card.edit", 0},
 		{"POST", base + "/cards/" + testCard + "/comments", "mutation", "comment.add", 0}, {"POST", base + "/cards/" + testCard + "/link-add", "mutation", "link.add", 0},
 		{"POST", base + "/cards/" + testCard + "/link-remove", "mutation", "link.remove", 0}, {"POST", base + "/cards/" + testCard + "/review-handoff", "mutation", "review-handoff", 0}, {"POST", base + "/cards/" + testCard + "/approve", "mutation", "approve", 0},

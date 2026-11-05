@@ -27,7 +27,7 @@ func prune(w writer.Write, s selection, at A.Timestamp, reason A.Reason, exports
 		if e := exec(w, "DELETE FROM history_blob_pin WHERE origin_board=? AND origin_incarnation=? AND card_id=? AND card_revision=?", args...); e != nil {
 			return e
 		}
-		if e := exec(w, "UPDATE card_revision SET state=NULL,removed_at=?,removal_reason=?,removal_revision=? WHERE origin_board=? AND origin_incarnation=? AND card_id=? AND card_revision=? AND state IS NOT NULL", append([]any{string(at), string(reason), rev}, args...)...); e != nil {
+		if e := exec(w, "UPDATE card_revision SET state=NULL,workflow_policy_version=NULL,removed_at=?,removal_reason=?,removal_revision=? WHERE origin_board=? AND origin_incarnation=? AND card_id=? AND card_revision=? AND state IS NOT NULL", append([]any{string(at), string(reason), rev}, args...)...); e != nil {
 			return e
 		}
 	}

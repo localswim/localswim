@@ -18,6 +18,8 @@ func ResultType(command Command) *Type {
 		f["linkId"] = req(uuid)
 	case "approve":
 		f["approvalId"] = req(uuid)
+	case "workflow.edit":
+		f = map[string]Field{"workflowId": req(uuid), "policyVersion": req(number(1, MaxInteger))}
 	case "grant.create", "grant.revoke":
 		f = map[string]Field{"grantId": req(uuid)}
 	case "history.clear", "retention.set":

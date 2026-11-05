@@ -1,4 +1,4 @@
-// Package schema defines the version-eight physical storage layout. Admission, canonical
+// Package schema defines the version-nine physical storage layout. Admission, canonical
 // wire validation, retention execution and domain transactions belong to callers.
 package schema
 
@@ -13,7 +13,7 @@ import (
 	A "github.com/localswim/localswim/internal/contract/archive"
 )
 
-const Version = 8
+const Version = 9
 const BaseSchemaVersion = 5
 const ApplicationID = 0x4c535731 // LSW1
 const MaxInteger int64 = 9007199254740991
@@ -42,7 +42,9 @@ func ValidUUID(v string) bool {
 // Statements returns fresh, deterministic DDL, including constraints and indexes.
 // The small macros keep the same scalar checks on every identity and counter.
 func Statements() []string {
-	return append(append(statementsFrom(ddl), HierarchyStatements()...), WorkflowStatements()...)
+	statements := append(statementsFrom(ddl), HierarchyStatements()...)
+	statements = append(statements, WorkflowStatements()...)
+	return append(statements, WorkflowPolicyStatements()...)
 }
 
 // LinkStatements is the exact current link inventory used by the guarded rebuild.
@@ -124,6 +126,9 @@ func Initialize(ctx context.Context, c *sql.Conn, id Identity) error {
 
 // InitializeWorkflow creates the immutable optional definition in the same new-store transaction.
 func InitializeWorkflow(ctx context.Context, c *sql.Conn, id Identity, workflow *A.Workflow) error {
+	if workflow != nil && (workflow.Revision != 1 || workflow.Profile != "") {
+		return errors.New("new board requires configured revision1")
+	}
 	definition, err := A.WorkflowBytes(workflow)
 	if err != nil {
 		return err
@@ -147,6 +152,14 @@ func InitializeWorkflow(ctx context.Context, c *sql.Conn, id Identity, workflow 
 			return err
 		}
 	}
+	var workflowID, value any
+	if workflow != nil {
+		workflowID = string(workflow.WorkflowID)
+		value = string(definition)
+	}
+	if _, err = c.ExecContext(ctx, "INSERT INTO workflow_policy(incarnation,policy_version,workflow_id,definition) VALUES(?,1,?,?)", id.Incarnation, workflowID, value); err != nil {
+		return err
+	}
 	_, err = c.ExecContext(ctx, fmt.Sprintf("PRAGMA application_id=%d; PRAGMA user_version=%d", ApplicationID, Version))
 	return err
 }
@@ -168,6 +181,14 @@ func ValidateV5(ctx context.Context, c *sql.Conn, id Identity) error {
 // ValidateV6 preserves the accepted physical-six source layout for explicit upgrade.
 func ValidateV6(ctx context.Context, c *sql.Conn, id Identity) error {
 	return validateLayout(ctx, c, id, 6, StatementsV6(), consistencyChecksV6, true)
+}
+
+// ValidateV8 preserves the exact accepted physical-eight source.
+func ValidateV8(ctx context.Context, c *sql.Conn, id Identity) error {
+	if err := validateLayout(ctx, c, id, 8, StatementsV8(), consistencyChecksV7, true); err != nil {
+		return err
+	}
+	return validateWorkflowV8(ctx, c, id)
 }
 
 // ValidateV7 preserves the accepted physical-seven source independently.
@@ -241,7 +262,7 @@ func validateLayout(ctx context.Context, c *sql.Conn, id Identity, version int, 
 		return errors.New("storage foreign key check failed")
 	}
 	var n int
-	if err = c.QueryRowContext(ctx, "SELECT count(*) FROM policy WHERE incarnation=? AND policy_version=1", i).Scan(&n); err != nil || n != 1 {
+	if err = c.QueryRowContext(ctx, "SELECT count(*) FROM policy WHERE incarnation=? AND policy_version BETWEEN 1 AND 128", i).Scan(&n); err != nil || n != 1 {
 		return errors.New("storage policy missing")
 	}
 	for _, q := range checks {
@@ -275,7 +296,7 @@ func validateLayout(ctx context.Context, c *sql.Conn, id Identity, version int, 
 		if version == 6 {
 			return validateHierarchyV6(ctx, c, id)
 		}
-		if version == 7 {
+		if version == 7 || version == 8 {
 			return validateHierarchyV7(ctx, c, id)
 		}
 		return validateHierarchy(ctx, c, id)
@@ -288,6 +309,7 @@ func validateLayout(ctx context.Context, c *sql.Conn, id Identity, version int, 
 // S02/S03 must preserve them at their transaction boundary. These checks do not
 // substitute for canonical-intent, authorization, workflow or archive validation.
 var consistencyChecks = []string{
+	`SELECT count(*) FROM operation_reference r WHERE r.kind='workflow' AND NOT EXISTS(SELECT 1 FROM workflow_policy p WHERE p.incarnation=r.incarnation AND p.workflow_id=r.entity_id AND p.policy_version=r.revision)`,
 	// Current new kinds require full exact local peers. Historical/unavailable and
 	// legacy rows keep their accepted evidence scope. The related index uses this
 	// verified internal target to avoid conflating distinct foreign endpoint pairs.

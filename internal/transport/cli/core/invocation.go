@@ -55,10 +55,14 @@ func parse(args []string) (q invocation, code string, exit int) {
 	case "card list", "card search":
 		q.method = "GET"
 		q.archive = "active"
-	case "board read":
+	case "board read", "workflow show":
 		q.method = "GET"
 	case "card read", "card history", "card children", "card relationships", "operation read":
 		q.method = "GET"
+	case "workflow preview":
+		q.method = "POST"
+	case "workflow edit":
+		q.command = "workflow.edit"
 	case "card create":
 		q.command = "card.create"
 	case "card edit", "card move", "card archive", "card unarchive", "card set-parent", "card clear-parent", "card relationships-replace":
@@ -76,7 +80,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	default:
 		return q, "INVOCATION_OR_IO", 1
 	}
-	if q.kind != "board read" && q.kind != "card create" && q.kind != "card list" && q.kind != "card search" {
+	if q.kind != "board read" && q.kind != "workflow show" && q.kind != "workflow preview" && q.kind != "workflow edit" && q.kind != "card create" && q.kind != "card list" && q.kind != "card search" {
 		if i >= len(args) || !uuid(args[i]) {
 			return q, "INVOCATION_OR_IO", 1
 		}
@@ -143,7 +147,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 				return q, "INVOCATION_OR_IO", 1
 			}
 			q.priority = v
-		} else if k == "--input" && q.command != "" {
+		} else if k == "--input" && (q.command != "" || q.kind == "workflow preview") {
 			q.input = args[i]
 		} else if k == "--evidence" && q.lookup {
 			q.file = args[i]
@@ -156,12 +160,14 @@ func parse(args []string) (q invocation, code string, exit int) {
 		code, exit := failure(err)
 		return q, code, exit
 	}
-	if (q.command != "" && q.input == "") || (q.lookup && q.file == "") {
+	if ((q.command != "" || q.kind == "workflow preview") && q.input == "") || (q.lookup && q.file == "") {
 		return q, "INVOCATION_OR_IO", 1
 	}
 	base := "/api/v1/boards/" + q.selected.BoardID
 	q.path = base
 	switch q.kind {
+	case "workflow preview":
+		q.path = base + "/workflow/preview"
 	case "card list", "card search":
 		values := url.Values{"archive": {q.archive}}
 		if q.kind == "card search" {

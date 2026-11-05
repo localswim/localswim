@@ -16,15 +16,16 @@ type HierarchyRead struct {
 	Result     HierarchyView `json:"result"`
 }
 type HierarchyView struct {
-	Workflow         *A.Workflow     `json:"workflow,omitempty"`
-	Identity         A.Identity      `json:"identity"`
-	Revision         A.Number        `json:"revision"`
-	Root             A.CardRef       `json:"root"`
-	Parent           *A.CardRef      `json:"parent"`
-	DirectChildCount A.Number        `json:"directChildCount"`
-	DescendantCount  A.Number        `json:"descendantCount"`
-	Nodes            []HierarchyNode `json:"nodes"`
-	Complete         bool            `json:"complete"`
+	WorkflowPolicies []A.WorkflowPolicy `json:"workflowPolicies,omitempty"`
+	Workflow         *A.Workflow        `json:"workflow,omitempty"`
+	Identity         A.Identity         `json:"identity"`
+	Revision         A.Number           `json:"revision"`
+	Root             A.CardRef          `json:"root"`
+	Parent           *A.CardRef         `json:"parent"`
+	DirectChildCount A.Number           `json:"directChildCount"`
+	DescendantCount  A.Number           `json:"descendantCount"`
+	Nodes            []HierarchyNode    `json:"nodes"`
+	Complete         bool               `json:"complete"`
 }
 type HierarchyNode struct {
 	Ref      A.CardRef  `json:"ref"`
@@ -67,6 +68,7 @@ func hierarchyRead(board T.BoardRead, id string) (HierarchyRead, error) {
 	}
 	out = HierarchyRead{APIVersion: 1, Scope: "hierarchy", Result: HierarchyView{Identity: b.Identity, Revision: b.Revision, Root: ref(root.CardID), Parent: root.Parent, DirectChildCount: A.Number(len(children[root.CardID])), Nodes: []HierarchyNode{}, Complete: true}}
 	out.Result.Workflow = b.Workflow
+	out.Result.WorkflowPolicies = b.WorkflowPolicies
 	var visit func(A.UUID, A.Positive)
 	visit = func(id A.UUID, depth A.Positive) {
 		for _, c := range children[id] {

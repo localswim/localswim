@@ -304,6 +304,13 @@ func InspectBoardDefinition(ctx context.Context, dataDir string, expected *Board
 	out.Identity, err = inspectWorkspaceBoardWithRead(ctx, dataDir, expected, func(f *os.File) io.Closer { return f }, func(rd S.InspectionRead, id identity) error {
 		var e error
 		out.Workflow, e = policy.Load(rd, id.Incarnation)
+		if e != nil {
+			return e
+		}
+		out.WorkflowPolicies, e = policy.LoadHistory(rd, id.Incarnation)
+		if len(out.WorkflowPolicies) == 1 {
+			out.WorkflowPolicies = nil
+		}
 		return e
 	})
 	if err != nil {

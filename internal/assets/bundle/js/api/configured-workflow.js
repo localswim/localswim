@@ -27,6 +27,8 @@ export function createConfiguredWorkflowClient(access, fetcher = globalThis.fetc
             throw Error("Workspace setup request already active");
         const request = structuredClone(input), body = JSON.stringify(request);
         validate(status ? "transport:ConfiguredWorkspaceStatusRequest" : "transport:ConfiguredWorkspaceBoardRequest", parse(body));
+        if (request.workflow.profile !== undefined || request.workflow.revision !== 1)
+            throw Error("Invalid initial workflow");
         if (request.workspaceId !== workspaceId || new TextEncoder().encode(body).length > 65536)
             throw Error("Invalid workspace setup request");
         busy = true;

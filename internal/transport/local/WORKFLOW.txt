@@ -5,7 +5,8 @@ Native setup is deliberate and existing-only inspection is separate:
   localswim --data DIR --json board inspect
   localswim serve --data DIR
 
-FILE contains exactly one complete Workflow object, at most 64 KiB UTF-8 JSON.
+FILE contains exactly one complete configured revision1 Workflow object, at most
+64 KiB UTF-8 JSON. Setup rejects profile and later revisions before allocation.
 Definition and actor-rights validation completes before allocating the native
 root. Occupied roots refuse; initialization never changes an existing workflow.
 The initialization result reports identity and full definition, never credentials.
@@ -33,3 +34,9 @@ Initialized-unregistered boards require deliberate native register after inspect
 
 All fresh local human/automation grants, including restored local channels, use
 the retained workflow's ordinary-right ceilings. No source credential is adopted.
+
+Existing-board editing uses ordinary authenticated routes and CLI commands.
+workflow show returns current and retained policy context; workflow preview
+--input FILE performs an exact read-only preview; workflow edit --input FILE
+submits the original frozen save envelope. The initialization path remains
+configured-only and cannot replace an existing board's policy.

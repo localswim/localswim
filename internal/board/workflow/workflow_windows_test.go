@@ -49,7 +49,7 @@ func testContext(t *testing.T) context.Context {
 	t.Cleanup(cancel)
 	return c
 }
-func fixture(t *testing.T) (*writer.Engine, *S.Store) {
+func fixture(t *testing.T, workflows ...*A.Workflow) (*writer.Engine, *S.Store) {
 	t.Helper()
 	root := os.Getenv("S01_TEST_ROOT")
 	if root == "" {
@@ -87,7 +87,11 @@ func fixture(t *testing.T) (*writer.Engine, *S.Store) {
 	if err = windows.CreateDirectory(windows.StringToUTF16Ptr(p), &windows.SecurityAttributes{Length: uint32(unsafe.Sizeof(windows.SecurityAttributes{})), SecurityDescriptor: sd}); err != nil {
 		t.Fatal(err)
 	}
-	s, err := S.Create(testContext(t), p, sid)
+	var wf *A.Workflow
+	if len(workflows) > 0 {
+		wf = workflows[0]
+	}
+	s, err := S.CreateWorkflow(testContext(t), p, sid, wf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -632,18 +636,15 @@ func TestCompactSourceProvenanceAndMissingProvenance(t *testing.T) {
 	}
 }
 
-func TestUnsupportedApprovalPolicyRejectedByContract(t *testing.T) {
-	// Policy version 1 is frozen by both C01 and schema 3. Version 2 cannot reach
-	// domain admission; no policy migration or arbitrary accepted-version fallback.
+func TestUnsupportedApprovalPolicyRefusesAtCurrentAdmission(t *testing.T) {
 	e, db := fixture(t)
 	g := service(t, db)
 	a := create(t, e, g, 0)
-	wire, _ := json.Marshal(map[string]any{"opId": op, "incarnation": inc, "target": map[string]string{"cardId": a}, "expectedRevision": 1, "expectedCardRevision": 1, "input": map[string]int{"policyVersion": 2}})
-	if _, err := T.FreezeMutation(wire, contract.ResolvedRoute{Command: "approve", BoardID: board, TargetID: a}, contract.AuthenticatedActor{ActorID: actor}); err == nil {
-		t.Fatal("unfrozen approval policy accepted")
-	}
-	if value(t, db, "SELECT count(*) FROM operation") != 1 {
-		t.Fatal("invalid wire input gained ledger identity")
+	issue(t, e, db, g, "card.edit", a, map[string]any{"lane": "In Progress"}, "committed")
+	issue(t, e, db, g, "review-handoff", a, map[string]any{}, "committed")
+	code(t, issue(t, e, db, g, "approve", a, map[string]any{"policyVersion": 2}, "not_committed"), "POLICY_CONFLICT")
+	if value(t, db, "SELECT count(*) FROM approval") != 0 {
+		t.Fatal("stale policy gained approval")
 	}
 }
 

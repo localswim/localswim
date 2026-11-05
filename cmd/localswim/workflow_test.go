@@ -1,6 +1,22 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestWorkflowHelpExplainsExistingBoardEditsAndUpgrade(t *testing.T) {
+	for _, text := range []string{"workflow show", "workflow preview --input FILE", "workflow edit --input FILE", "configured revision1 workflow for a new board", "replacement candidates for an existing board", "--from-version 8 --to-version 9", "Physical9 retains base-schema marker5"} {
+		if !strings.Contains(localDomainCLIHelp, text) {
+			t.Fatalf("workflow help missing %q", text)
+		}
+	}
+	for _, text := range []string{"complete immutable definitions, valid only for new boards", "Physical8 retains"} {
+		if strings.Contains(localDomainCLIHelp, text) {
+			t.Fatalf("workflow help retained stale text %q", text)
+		}
+	}
+}
 
 func TestWorkspaceWorkflowFlagIsCreateOnly(t *testing.T) {
 	base := []string{"--workspace", `C:\workspace`, "--project", "harbor"}

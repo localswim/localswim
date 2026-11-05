@@ -10,7 +10,7 @@ import (
 	"github.com/localswim/localswim/internal/contract"
 )
 
-var models = []any{Workflow{}, WorkflowLane{}, WorkflowTransition{}, WorkflowActorRights{}, Identity{}, CardRef{}, Retention{}, Floors{}, Coverage{}, Gap{}, GapSelection{}, Entry{}, ByteFact{}, Lineage{}, Manifest{}, Actor{}, Card{}, Comment{}, Link{}, Attachment{}, Approval{}, EntityTombstone{}, Board{}, SnapshotState{}, SnapshotReferences{}, Removal{}, Snapshot{}, History{}, FactRef{}, Event{}, Activity{}, Target{}, FullOutcome{}, Operation{}, SourceArchive{}, Outcomes{}, HistoryKey{}, ActivityKey{}, OutcomeKey{}, PreviewCounts{}, PreviewBytes{}, PreviewInventory{}, PreviewRequest{}, Preview{}, Confirmation{}, TargetInventory{}, Receipt{}, RestoreResult{}, Status{}}
+var models = []any{Workflow{}, WorkflowPolicy{}, WorkflowLane{}, WorkflowTransition{}, WorkflowActorRights{}, Identity{}, CardRef{}, Retention{}, Floors{}, Coverage{}, Gap{}, GapSelection{}, Entry{}, ByteFact{}, Lineage{}, Manifest{}, Actor{}, Card{}, Comment{}, Link{}, Attachment{}, Approval{}, EntityTombstone{}, Board{}, SnapshotState{}, SnapshotReferences{}, Removal{}, Snapshot{}, History{}, FactRef{}, Event{}, Activity{}, Target{}, FullOutcome{}, Operation{}, SourceArchive{}, Outcomes{}, HistoryKey{}, ActivityKey{}, OutcomeKey{}, PreviewCounts{}, PreviewBytes{}, PreviewInventory{}, PreviewRequest{}, Preview{}, Confirmation{}, TargetInventory{}, Receipt{}, RestoreResult{}, Status{}}
 
 // GeneratedFiles has no filesystem effects. Callers aggregate these disjoint
 // paths with the C01 bundle in the common contractgen command.
@@ -71,7 +71,7 @@ func schemaType(t reflect.Type, inline bool, format string) map[string]any {
 				p[n] = map[string]any{"$ref": "#/$defs/" + name}
 			} else {
 				typ := f.Type
-				if n == "workflow" && typ.Kind() == reflect.Pointer {
+				if (n == "workflow" || f.Tag.Get("validate") == "nonnull") && typ.Kind() == reflect.Pointer {
 					typ = typ.Elem()
 				}
 				p[n] = schemaType(typ, false, f.Tag.Get("validate"))
@@ -108,7 +108,7 @@ func scalarSchema(t reflect.Type, format string) map[string]any {
 		if format == "blob-length" {
 			m["maximum"] = 10485760
 		}
-		if t.Name() == "Positive" {
+		if t.Name() == "Positive" || t.Name() == "PolicyVersion" {
 			m["minimum"] = 1
 		}
 		if t.Name() == "Version" {
@@ -174,7 +174,7 @@ func tsType(t reflect.Type, inline bool) string {
 		b.WriteString("{\n")
 		for _, f := range fields(t) {
 			typ := f.Type
-			if fieldName(f) == "workflow" && typ.Kind() == reflect.Pointer {
+			if (fieldName(f) == "workflow" || f.Tag.Get("validate") == "nonnull") && typ.Kind() == reflect.Pointer {
 				typ = typ.Elem()
 			}
 			fieldType := tsType(typ, false)

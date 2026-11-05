@@ -54,6 +54,7 @@ func samples() map[Command]string {
 		"grant.create": fmt.Sprintf(`{"granteeActorId":%q,"kind":"human","rights":["approve","read"]}`, cardD),
 		"grant.revoke": `{}`, "history.clear": `{"throughTime":"2026-10-01T00:00:00Z"}`,
 		"retention.set": `{"historyDays":90,"activityDays":365,"outcomeDays":180}`,
+		"workflow.edit": `{"expectedPolicyVersion":1,"workflow":{"profile":"default","workflowId":"00000000-0000-4000-8000-000000000020","revision":2,"lanes":[{"id":"Ready for Work","label":"Ready","role":"initial"},{"id":"In Progress","label":"Active","role":"in_progress"},{"id":"Ready for Review","label":"Review","role":"review"},{"id":"Completed","label":"Done","role":"completed"}],"transitions":[{"from":"In Progress","to":"Ready for Review","actors":["human"]},{"from":"Ready for Review","to":"Completed","actors":["human"]},{"from":"Ready for Work","to":"In Progress","actors":["human"]}],"actorRights":{"human":["approve","create","edit","read","read-own-outcome","review-handoff"],"automation":["read","read-own-outcome"]}}}`,
 	}
 }
 func TestFreezeAllCommands(t *testing.T) {

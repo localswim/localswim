@@ -4,6 +4,75 @@
 import type * as Archive from '../archive/contracts';
 import type * as Mutation from '../contracts';
 
+export type WorkflowPreviewRequest = {
+  readonly apiVersion: 1;
+  readonly boardId: string;
+  readonly expectedPolicyVersion: number;
+  readonly expectedRevision: number;
+  readonly incarnation: string;
+  readonly workflow: Archive.Workflow;
+};
+
+export type WorkflowPreview = {
+  readonly apiVersion: 1;
+  readonly approval: WorkflowApproval;
+  readonly boardId: string;
+  readonly candidate: Archive.Workflow;
+  readonly capacity: WorkflowCapacity;
+  readonly changes: WorkflowChanges;
+  readonly currentWorkflow?: Archive.Workflow;
+  readonly incarnation: string;
+  readonly nextPolicyVersion: number;
+  readonly occupancy: ReadonlyArray<WorkflowOccupancy>;
+  readonly policyVersion: number;
+  readonly revision: number;
+  readonly wouldChange: boolean;
+};
+
+export type WorkflowRename = {
+  readonly after: string;
+  readonly before: string;
+  readonly laneId: string;
+};
+
+export type WorkflowRightsChange = {
+  readonly added: ReadonlyArray<string>;
+  readonly removed: ReadonlyArray<string>;
+};
+
+export type WorkflowActorRightsChange = {
+  readonly automation: WorkflowRightsChange;
+  readonly human: WorkflowRightsChange;
+};
+
+export type WorkflowChanges = {
+  readonly added: ReadonlyArray<Archive.WorkflowLane>;
+  readonly orderChanged: boolean;
+  readonly renamed: ReadonlyArray<WorkflowRename>;
+  readonly retired: ReadonlyArray<Archive.WorkflowLane>;
+  readonly rights: WorkflowActorRightsChange;
+  readonly transitionsChanged: boolean;
+};
+
+export type WorkflowOccupancy = {
+  readonly archivedCards: number;
+  readonly currentCards: number;
+  readonly laneId: string;
+};
+
+export type WorkflowApproval = {
+  readonly preservedCurrentCount: number;
+  readonly rule: string;
+};
+
+export type WorkflowCapacity = {
+  readonly canonicalPolicyBytesAfter: number;
+  readonly maxCanonicalPolicyBytes: number;
+  readonly maxPolicyRecords: number;
+  readonly policyRecords: number;
+  readonly policyRecordsAfter: number;
+};
+
 export type Error = {
   readonly code: string;
   readonly field: string | null;
@@ -57,11 +126,12 @@ export type BoardView = {
   readonly coverage: Archive.Coverage;
   readonly identity: Archive.Identity;
   readonly links: ReadonlyArray<Archive.Link>;
-  readonly policyVersion: 1;
+  readonly policyVersion: number;
   readonly retention: Archive.Retention;
   readonly retentionVersion: number;
   readonly revision: number;
   readonly workflow?: Archive.Workflow;
+  readonly workflowPolicies?: ReadonlyArray<Archive.WorkflowPolicy>;
 };
 
 export type CardSearchRead = {
@@ -77,6 +147,7 @@ export type CardSearchView = {
   readonly query: CardSearchQuery;
   readonly revision: number;
   readonly workflow?: Archive.Workflow;
+  readonly workflowPolicies?: ReadonlyArray<Archive.WorkflowPolicy>;
 };
 
 export type CardSearchQuery = {
@@ -116,6 +187,7 @@ export type CardView = {
   readonly links: ReadonlyArray<Archive.Link>;
   readonly revision: number;
   readonly workflow?: Archive.Workflow;
+  readonly workflowPolicies?: ReadonlyArray<Archive.WorkflowPolicy>;
 };
 
 export type HistoryReference = {
@@ -146,6 +218,7 @@ export type HistoryView = {
   readonly revision: number;
   readonly tombstones: ReadonlyArray<Archive.EntityTombstone>;
   readonly workflow?: Archive.Workflow;
+  readonly workflowPolicies?: ReadonlyArray<Archive.WorkflowPolicy>;
 };
 
 export type SessionGrant = {
@@ -1386,6 +1459,102 @@ export type TerminalApproveNotcommittedCompact = {
   readonly terminalAt: string;
 };
 
+export type TerminalWorkflowEditCommittedFull = {
+  readonly actorId: string;
+  readonly apiVersion: 1;
+  readonly boardId: string;
+  readonly byteFacts: ReadonlyArray<Archive.ByteFact>;
+  readonly cardRevision: null;
+  readonly code: 'OK';
+  readonly command: "workflow.edit";
+  readonly expectedCardRevision: null;
+  readonly expectedRevision: number;
+  readonly fingerprint: string;
+  readonly fingerprintVersion: 1;
+  readonly incarnation: string;
+  readonly opId: string;
+  readonly outcome: "committed";
+  readonly removal: null;
+  readonly result: Mutation.ResultWorkflowEdit;
+  readonly resultRefs: ReadonlyArray<Archive.FactRef>;
+  readonly retention: "full";
+  readonly revision: number;
+  readonly target: null;
+  readonly terminalAt: string;
+};
+
+export type TerminalWorkflowEditCommittedCompact = {
+  readonly actorId: string;
+  readonly apiVersion: 1;
+  readonly boardId: string;
+  readonly byteFacts: ReadonlyArray<Archive.ByteFact>;
+  readonly cardRevision: null;
+  readonly code: 'OK';
+  readonly command: "workflow.edit";
+  readonly expectedCardRevision: null;
+  readonly expectedRevision: number;
+  readonly fingerprint: string;
+  readonly fingerprintVersion: 1;
+  readonly incarnation: string;
+  readonly opId: string;
+  readonly outcome: "committed";
+  readonly removal: Archive.Removal;
+  readonly result: null;
+  readonly resultRefs: ReadonlyArray<Archive.FactRef>;
+  readonly retention: "compact";
+  readonly revision: number;
+  readonly target: null;
+  readonly terminalAt: string;
+};
+
+export type TerminalWorkflowEditNotcommittedFull = {
+  readonly actorId: string;
+  readonly apiVersion: 1;
+  readonly boardId: string;
+  readonly byteFacts: ReadonlyArray<Archive.ByteFact>;
+  readonly cardRevision: null;
+  readonly code: string;
+  readonly command: "workflow.edit";
+  readonly expectedCardRevision: null;
+  readonly expectedRevision: number;
+  readonly fingerprint: string;
+  readonly fingerprintVersion: 1;
+  readonly incarnation: string;
+  readonly opId: string;
+  readonly outcome: "not_committed";
+  readonly removal: null;
+  readonly result: RefusalResult;
+  readonly resultRefs: readonly [];
+  readonly retention: "full";
+  readonly revision: null;
+  readonly target: null;
+  readonly terminalAt: string;
+};
+
+export type TerminalWorkflowEditNotcommittedCompact = {
+  readonly actorId: string;
+  readonly apiVersion: 1;
+  readonly boardId: string;
+  readonly byteFacts: ReadonlyArray<Archive.ByteFact>;
+  readonly cardRevision: null;
+  readonly code: string;
+  readonly command: "workflow.edit";
+  readonly expectedCardRevision: null;
+  readonly expectedRevision: number;
+  readonly fingerprint: string;
+  readonly fingerprintVersion: 1;
+  readonly incarnation: string;
+  readonly opId: string;
+  readonly outcome: "not_committed";
+  readonly removal: Archive.Removal;
+  readonly result: null;
+  readonly resultRefs: readonly [];
+  readonly retention: "compact";
+  readonly revision: null;
+  readonly target: null;
+  readonly terminalAt: string;
+};
+
 export type TerminalGrantCreateCommittedFull = {
   readonly actorId: string;
   readonly apiVersion: 1;
@@ -1770,7 +1939,7 @@ export type TerminalRetentionSetNotcommittedCompact = {
   readonly terminalAt: string;
 };
 
-export type Terminal = TerminalCardCreateCommittedFull | TerminalCardCreateCommittedCompact | TerminalCardCreateNotcommittedFull | TerminalCardCreateNotcommittedCompact | TerminalCardEditCommittedFull | TerminalCardEditCommittedCompact | TerminalCardEditNotcommittedFull | TerminalCardEditNotcommittedCompact | TerminalCommentAddCommittedFull | TerminalCommentAddCommittedCompact | TerminalCommentAddNotcommittedFull | TerminalCommentAddNotcommittedCompact | TerminalAttachmentAddCommittedFull | TerminalAttachmentAddCommittedCompact | TerminalAttachmentAddNotcommittedFull | TerminalAttachmentAddNotcommittedCompact | TerminalLinkAddCommittedFull | TerminalLinkAddCommittedCompact | TerminalLinkAddNotcommittedFull | TerminalLinkAddNotcommittedCompact | TerminalLinkRemoveCommittedFull | TerminalLinkRemoveCommittedCompact | TerminalLinkRemoveNotcommittedFull | TerminalLinkRemoveNotcommittedCompact | TerminalReviewHandoffCommittedFull | TerminalReviewHandoffCommittedCompact | TerminalReviewHandoffNotcommittedFull | TerminalReviewHandoffNotcommittedCompact | TerminalApproveCommittedFull | TerminalApproveCommittedCompact | TerminalApproveNotcommittedFull | TerminalApproveNotcommittedCompact | TerminalGrantCreateCommittedFull | TerminalGrantCreateCommittedCompact | TerminalGrantCreateNotcommittedFull | TerminalGrantCreateNotcommittedCompact | TerminalGrantRevokeCommittedFull | TerminalGrantRevokeCommittedCompact | TerminalGrantRevokeNotcommittedFull | TerminalGrantRevokeNotcommittedCompact | TerminalHistoryClearCommittedFull | TerminalHistoryClearCommittedCompact | TerminalHistoryClearNotcommittedFull | TerminalHistoryClearNotcommittedCompact | TerminalRetentionSetCommittedFull | TerminalRetentionSetCommittedCompact | TerminalRetentionSetNotcommittedFull | TerminalRetentionSetNotcommittedCompact;
+export type Terminal = TerminalCardCreateCommittedFull | TerminalCardCreateCommittedCompact | TerminalCardCreateNotcommittedFull | TerminalCardCreateNotcommittedCompact | TerminalCardEditCommittedFull | TerminalCardEditCommittedCompact | TerminalCardEditNotcommittedFull | TerminalCardEditNotcommittedCompact | TerminalCommentAddCommittedFull | TerminalCommentAddCommittedCompact | TerminalCommentAddNotcommittedFull | TerminalCommentAddNotcommittedCompact | TerminalAttachmentAddCommittedFull | TerminalAttachmentAddCommittedCompact | TerminalAttachmentAddNotcommittedFull | TerminalAttachmentAddNotcommittedCompact | TerminalLinkAddCommittedFull | TerminalLinkAddCommittedCompact | TerminalLinkAddNotcommittedFull | TerminalLinkAddNotcommittedCompact | TerminalLinkRemoveCommittedFull | TerminalLinkRemoveCommittedCompact | TerminalLinkRemoveNotcommittedFull | TerminalLinkRemoveNotcommittedCompact | TerminalReviewHandoffCommittedFull | TerminalReviewHandoffCommittedCompact | TerminalReviewHandoffNotcommittedFull | TerminalReviewHandoffNotcommittedCompact | TerminalApproveCommittedFull | TerminalApproveCommittedCompact | TerminalApproveNotcommittedFull | TerminalApproveNotcommittedCompact | TerminalWorkflowEditCommittedFull | TerminalWorkflowEditCommittedCompact | TerminalWorkflowEditNotcommittedFull | TerminalWorkflowEditNotcommittedCompact | TerminalGrantCreateCommittedFull | TerminalGrantCreateCommittedCompact | TerminalGrantCreateNotcommittedFull | TerminalGrantCreateNotcommittedCompact | TerminalGrantRevokeCommittedFull | TerminalGrantRevokeCommittedCompact | TerminalGrantRevokeNotcommittedFull | TerminalGrantRevokeNotcommittedCompact | TerminalHistoryClearCommittedFull | TerminalHistoryClearCommittedCompact | TerminalHistoryClearNotcommittedFull | TerminalHistoryClearNotcommittedCompact | TerminalRetentionSetCommittedFull | TerminalRetentionSetCommittedCompact | TerminalRetentionSetNotcommittedFull | TerminalRetentionSetNotcommittedCompact;
 
 export type RequestCardCreate = Omit<Mutation.RequestCardCreate, 'expectedCardRevision'> & { readonly expectedCardRevision: null };
 
@@ -1788,6 +1957,8 @@ export type RequestReviewHandoff = Omit<Mutation.RequestReviewHandoff, 'expected
 
 export type RequestApprove = Omit<Mutation.RequestApprove, 'expectedCardRevision'> & { readonly expectedCardRevision: number };
 
+export type RequestWorkflowEdit = Omit<Mutation.RequestWorkflowEdit, 'expectedCardRevision'> & { readonly expectedCardRevision: null };
+
 export type RequestGrantCreate = Omit<Mutation.RequestGrantCreate, 'expectedCardRevision'> & { readonly expectedCardRevision: null };
 
 export type RequestGrantRevoke = Omit<Mutation.RequestGrantRevoke, 'expectedCardRevision'> & { readonly expectedCardRevision: null };
@@ -1796,7 +1967,7 @@ export type RequestHistoryClear = Omit<Mutation.RequestHistoryClear, 'expectedCa
 
 export type RequestRetentionSet = Omit<Mutation.RequestRetentionSet, 'expectedCardRevision'> & { readonly expectedCardRevision: null };
 
-export type MutationRequest = RequestCardCreate | RequestCardEdit | RequestCommentAdd | RequestAttachmentAdd | RequestLinkAdd | RequestLinkRemove | RequestReviewHandoff | RequestApprove | RequestGrantCreate | RequestGrantRevoke | RequestHistoryClear | RequestRetentionSet;
+export type MutationRequest = RequestCardCreate | RequestCardEdit | RequestCommentAdd | RequestAttachmentAdd | RequestLinkAdd | RequestLinkRemove | RequestReviewHandoff | RequestApprove | RequestWorkflowEdit | RequestGrantCreate | RequestGrantRevoke | RequestHistoryClear | RequestRetentionSet;
 
 export type RuntimeMode = StandaloneRuntimeMode | WorkspaceRuntimeMode;
 

@@ -76,11 +76,11 @@ func runLocalStorageWithStep(ctx context.Context, args []string, out, diagnostic
 	if !schema.ValidUUID(flags["--board-id"]) || !schema.ValidUUID(flags["--incarnation"]) {
 		return fail("INVOCATION_OR_IO", 1)
 	}
+	from, fromErr := strconv.Atoi(flags["--from-version"])
+	to, toErr := strconv.Atoi(flags["--to-version"])
 	if action == "upgrade" {
-		if !(flags["--from-version"] == "5" && flags["--to-version"] == "6" ||
-			flags["--from-version"] == "6" && flags["--to-version"] == "7" ||
-			flags["--from-version"] == "7" && flags["--to-version"] == "8" ||
-			flags["--from-version"] == "8" && flags["--to-version"] == "9") {
+		if fromErr != nil || toErr != nil || strconv.Itoa(from) != flags["--from-version"] ||
+			strconv.Itoa(to) != flags["--to-version"] || !S.SupportedUpgradeStep(from, to) {
 			return fail("INVOCATION_OR_IO", 1)
 		}
 	} else if flags["--from-version"] != "" || flags["--to-version"] != "" {
@@ -90,8 +90,6 @@ func runLocalStorageWithStep(ctx context.Context, args []string, out, diagnostic
 	if err != nil || !safeAbsolute(dir) {
 		return fail("INVOCATION_OR_IO", 1)
 	}
-	from, _ := strconv.Atoi(flags["--from-version"])
-	to, _ := strconv.Atoi(flags["--to-version"])
 	inspection, changed, err := operation(ctx, dir, schema.Identity{BoardID: flags["--board-id"], Incarnation: flags["--incarnation"]}, action == "upgrade", from, to)
 	if errors.Is(err, S.ErrUpgradeUnknown) || err != nil && changed {
 		return fail("STORAGE_UPGRADE_UNKNOWN", 4)

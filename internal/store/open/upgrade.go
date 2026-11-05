@@ -81,12 +81,15 @@ func UpgradeStorage(ctx context.Context, dir string, id schema.Identity) (change
 // UpgradeStorageTo performs only the explicitly selected supported adjacent step.
 // An already-valid destination is NO_CHANGE; every other source refuses.
 func UpgradeStorageTo(ctx context.Context, dir string, id schema.Identity, from, to int) (bool, error) {
-	if !supportedStep(from, to) {
+	if !SupportedUpgradeStep(from, to) {
 		return false, errors.New("unsupported storage upgrade step")
 	}
 	return upgradeStorageStep(ctx, dir, id, from, to, nil)
 }
-func supportedStep(from, to int) bool {
+
+// SupportedUpgradeStep reports the explicit adjacent storage upgrades accepted
+// by both the native store and its application adapters.
+func SupportedUpgradeStep(from, to int) bool {
 	return from == 5 && to == 6 || from == 6 && to == 7 || from == 7 && to == 8 || from == 8 && to == 9
 }
 
@@ -156,7 +159,7 @@ func upgradeStorageStep(ctx context.Context, dir string, id schema.Identity, fro
 	if version == to {
 		return false, nil
 	}
-	if version != from || !supportedStep(from, to) {
+	if version != from || !SupportedUpgradeStep(from, to) {
 		return false, errors.New("storage upgrade source mismatch")
 	}
 	db, err = pool(g.path, false)

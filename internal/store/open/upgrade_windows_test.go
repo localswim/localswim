@@ -15,6 +15,22 @@ import (
 	"testing"
 )
 
+func TestSupportedUpgradeSteps(t *testing.T) {
+	for _, test := range []struct {
+		from, to int
+		allowed  bool
+	}{
+		{5, 6, true}, {6, 7, true}, {7, 8, true}, {8, 9, true},
+		{4, 5, false}, {5, 7, false}, {8, 8, false}, {8, 10, false}, {9, 10, false},
+	} {
+		t.Run(fmt.Sprintf("%d-%d", test.from, test.to), func(t *testing.T) {
+			if SupportedUpgradeStep(test.from, test.to) != test.allowed {
+				t.Fatal("unexpected supported upgrade step")
+			}
+		})
+	}
+}
+
 func legacyFive(t *testing.T) string {
 	p := privateDir(t)
 	g, e := acquirePath(p, true)

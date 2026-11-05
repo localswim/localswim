@@ -825,11 +825,11 @@
   },
   {
     "path": "internal/store/open/upgrade.go",
-    "sha256": "2c95015ebeab38174665f2a9ef3a6c8f8453e12bd435d419cd930f0da5d1447a"
+    "sha256": "f266c479377e4371cb6b8cfa26a8afa3ccab9e38a71cf46c290abb4b7d3ab9fa"
   },
   {
     "path": "internal/store/open/upgrade_windows_test.go",
-    "sha256": "228b7f9ef27372ad581f4dde8c7d737056ff7ba0765e698674fe8f8e30f9a667"
+    "sha256": "853ecf04eaa0cefd85e270e6a845ca0c0c8b9a3605f297dd2eef014a699b3990"
   },
   {
     "path": "internal/store/open/workflow_windows_test.go",
@@ -1489,7 +1489,7 @@
   },
   {
     "path": "internal/transport/local/storage.go",
-    "sha256": "0b0e5262197babd5b0dda409af1e7e0a89a8d4a3945ded619a6e3194154b3fb8"
+    "sha256": "d80d1d6a375a46967d2c02fa8bb6968b2cbfd03d0eb845676dca29b8c966fbe1"
   },
   {
     "path": "internal/transport/local/storage_test.go",

@@ -16,6 +16,10 @@ import { validSearch, validateSearchRead } from "./search.js";
 import type { SearchFilters } from "./search.js";
 import { laneRole, sameWorkflow, validateWorkflowPolicies, workflowAtVersion, validateCurrentWorkflowCards, validateWorkflowPreview } from "./workflow.js";
 
+export class WorkflowPreviewRefusal extends Error {
+  constructor(readonly code: string) { super("Workflow preview refused"); }
+}
+
 export type OriginalOutcome = Readonly<{
   opId: string;
   state: "pending" | "unknown" | "committed" | "not_committed" | "unsent";
@@ -199,7 +203,12 @@ export class BoardClient {
     if (new TextEncoder().encode(body).length > 800000 || new TextEncoder().encode(JSON.stringify(submitted.workflow)).length > 65536) throw Error("Workflow request too large");
     if (this.options.selection && submitted.incarnation !== this.options.selection.incarnation) throw Error("Selected incarnation mismatch");
     const { response, value } = await this.call(this.path(submitted.boardId) + "/workflow/preview", { method: "POST", body, signal: AbortSignal.timeout(20_000) });
-    if (!response.ok) throw Error("Workflow preview unavailable");
+    if (!response.ok) {
+      validate("transport:NonterminalRefusal", value);
+      const refusal = value as unknown as { error: { code: string } };
+      if (["FORBIDDEN", "INVALID_INPUT", "POLICY_CONFLICT", "REVISION_CONFLICT", "WORKFLOW_INCOMPATIBLE", "COUNTER_OVERFLOW", "UNAVAILABLE"].includes(refusal.error.code)) throw new WorkflowPreviewRefusal(refusal.error.code);
+      throw Error("Workflow preview unavailable");
+    }
     validate("transport:WorkflowPreview", value);
     const preview = value as unknown as WorkflowPreview;
     validateWorkflowPreview(preview);

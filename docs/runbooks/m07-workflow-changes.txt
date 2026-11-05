@@ -47,8 +47,7 @@ to the operator's already selected private paths.
   localswim --data DIR --json workflow preview --input preview.json
 
 Inspect the returned changes, occupancy, approval-preservation rule and capacity.
-Preview is read-only and does not reserve the displayed revision. The browser
-editor is a separate M07.03 slice; the CLI preview is available here.
+Preview is read-only and does not reserve the displayed revision.
 
 Construct and retain the original save envelope using that same candidate and
 expected context. Running workflow edit is a separate deliberate action.
@@ -120,3 +119,31 @@ Read the accepted architecture contract and synthetic acceptance inventory for
 the exact semantics. M07.04 owns complete joined qualification and M07.05 owns
 the independently demonstrated extracted review kit. New category configuration
 and category-aware Attention belong to M08.
+
+Browser editor
+Open an existing board through its ordinary browser entry, read the current
+board and choose Edit workflow. Labels and order are editable. Lane IDs and
+roles are displayed and fixed. Add waiting lane creates one fresh UUID in the
+draft. Only waiting lanes offer removal; the server checks archived-inclusive
+occupancy and retained-ID history. Edit the complete transition graph and
+ordinary-right ceilings, then choose Preview workflow.
+
+The read-only server preview shows the exact candidate, label/order/edge/right
+changes, occupancy, affected authority, retained approval rule and policy-history
+capacity. Inspect it before choosing Save workflow. Every input change invalidates
+the preview. Save uses the captured board and policy revisions, never a background
+rebase. A stale or refused candidate retains its input. Read the current board and
+deliberately discard/open new work to use refreshed context.
+
+Private draft and original storage must succeed before dispatch. UNKNOWN locks
+the exact submitted candidate and original; use Look up original outcome
+deliberately. Reload, current reads and new previews never replay an operation.
+Cancel offers Keep editing or Confirm discard editor input for changed drafts.
+Focus returns to the live opener, with the selected board controls as fallback.
+Keyboard activation of Preview workflow and Save workflow is explicit. Enter in
+a lane label does not save, and composition confirmation never submits.
+
+Each window owns its private draft. A second window can make its captured
+revision stale; it must reconcile deliberately. Existing card priority, hierarchy,
+relationships, human approval and terminal Completed behavior remain intact.
+M08 category configuration is outside this editor's scope.

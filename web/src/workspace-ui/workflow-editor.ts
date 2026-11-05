@@ -3,6 +3,7 @@ import type * as A from "../../generated/archive/contracts.js";
 export type WorkflowDraft = { projectKey: string; boardKey: string; label: string; workflow: A.Workflow };
 export type WorkflowEditorState = { busy?: boolean; locked?: boolean; message?: string; canCheckStatus?: boolean; canCreate?: boolean };
 export type WorkflowEditorOptions = {
+  existing?: boolean;
   draft: WorkflowDraft; projects: readonly { key: string; label: string }[];
   change(draft: WorkflowDraft): void; submit(draft: WorkflowDraft): void;
   preview?(draft: WorkflowDraft): void;
@@ -34,16 +35,16 @@ export function createWorkflowDraft(projectKey: string, uuid: () => string = () 
 }
 
 // Advisory checks only: the strict setup boundary remains authoritative.
-export function workflowDraftErrors(draft: WorkflowDraft): string[] {
+export function workflowDraftErrors(draft: WorkflowDraft, existing = false): string[] {
   const errors: string[] = [], w = draft.workflow;
-  if (draft.boardKey.length > 64 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(draft.boardKey)) errors.push("Board key must contain 1–64 lowercase letters or digits, separated by single hyphens.");
-  if (!draft.projectKey) errors.push("Select an existing project.");
-  if (!draft.label.trim() || [...draft.label].length > 200 || /[\ud800-\udfff]/u.test(draft.label)) errors.push("Board label must contain 1–200 valid characters and cannot be only whitespace.");
-  if (!validID(w.workflowId) || w.revision !== 1) errors.push("Workflow identity is invalid.");
+  if (!existing && (draft.boardKey.length > 64 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(draft.boardKey))) errors.push("Board key must contain 1–64 lowercase letters or digits, separated by single hyphens.");
+  if (!existing && !draft.projectKey) errors.push("Select an existing project.");
+  if (!existing && (!draft.label.trim() || [...draft.label].length > 200 || /[\ud800-\udfff]/u.test(draft.label))) errors.push("Board label must contain 1–200 valid characters and cannot be only whitespace.");
+  if (!validID(w.workflowId) || (!existing ? w.revision !== 1 : !Number.isSafeInteger(w.revision) || w.revision < 2)) errors.push("Workflow identity is invalid.");
   if (w.lanes.length < 4 || w.lanes.length > 16) errors.push("Use 4–16 lanes.");
   const ids = new Set<string>(), labels = new Set<string>();
   w.lanes.forEach((lane, index) => {
-    if (!validID(lane.id) || ids.has(lane.id)) errors.push(`Lane ${index + 1}: identity is invalid or duplicated.`);
+    if ((!validID(lane.id) && !(existing && w.profile === "default" && ["Ready for Work", "In Progress", "Ready for Review", "Completed"].includes(lane.id))) || ids.has(lane.id)) errors.push(`Lane ${index + 1}: identity is invalid or duplicated.`);
     ids.add(lane.id);
     if (!validLabel(lane.label) || labels.has(fold(lane.label))) errors.push(`Lane ${index + 1}: use a unique 1–80 character label without surrounding whitespace or controls.`);
     labels.add(fold(lane.label));
@@ -85,7 +86,8 @@ export class WorkflowEditor {
   private sent = false;
   private disposed = false;
   private composing = false;
-  private readonly form = node("form");
+  private compositionEnd = false;
+  private readonly form: HTMLFormElement | HTMLDivElement;
   private readonly fields = node("fieldset");
   private readonly preview = node("section");
   private readonly feedback = node("div");
@@ -93,26 +95,32 @@ export class WorkflowEditor {
   private readonly create = node("button", "Create board");
   private readonly check = node("button", "Check configured status");
   constructor(private readonly root: HTMLElement, private readonly options: WorkflowEditorOptions) {
+    this.form = options.existing ? node("div") : node("form");
     this.draft = copy(options.draft); this.baseline = JSON.stringify(this.draft);
-    this.form.className = "workflow-editor"; this.form.noValidate = true;
+    if (options.existing) this.create.textContent = "Save workflow";
+    this.form.className = options.existing ? "workflow-editor workflow-editor-existing" : "workflow-editor"; if (this.form instanceof HTMLFormElement) this.form.noValidate = true;
     this.form.addEventListener("submit", event => event.preventDefault());
     this.form.addEventListener("compositionstart", () => { this.composing = true; });
-    this.form.addEventListener("compositionend", () => { this.composing = false; });
-    this.form.addEventListener("keydown", event => {
+    this.form.addEventListener("compositionend", () => { this.composing = false; this.compositionEnd = true; setTimeout(() => { this.compositionEnd = false; }, 0); });
+    this.form.addEventListener("keydown", raw => {
+      const event = raw as KeyboardEvent;
       if (this.disposed) return;
+      if (event.key === "Enter" && (this.composing || this.compositionEnd || event.isComposing || event.keyCode === 229)) { event.preventDefault(); return; }
       if (event.key === "Escape" && !this.composing && !event.isComposing) { event.preventDefault(); this.options.cancel(this.isDirty()); }
       if (event.key === "Enter" && event.target instanceof HTMLInputElement && !this.composing && !event.isComposing && event.keyCode !== 229) event.preventDefault();
     });
-    this.feedback.setAttribute("role", "alert"); this.message.setAttribute("role", "status");
+    this.feedback.setAttribute("role", "alert"); this.feedback.tabIndex = -1; this.message.setAttribute("role", "status");
     this.preview.className = "workflow-preview"; this.preview.setAttribute("aria-label", "Complete workflow preview");
     this.create.type = this.check.type = "button";
-    this.create.addEventListener("click", () => { if (this.disposed || !this.previewed || this.sent || this.state.busy || this.state.locked || this.state.canCreate === false || workflowDraftErrors(this.draft).length) return; this.sent = true; this.applyState(); this.options.submit(this.snapshot()); });
+    this.create.addEventListener("click", () => { if (this.disposed || this.composing || this.compositionEnd || !this.previewed || this.sent || this.state.busy || this.state.locked || this.state.canCreate === false || workflowDraftErrors(this.draft, !!this.options.existing).length) return; this.sent = true; this.applyState(); this.options.submit(this.snapshot()); });
     this.check.addEventListener("click", () => { if (!this.disposed && !this.state.busy && this.state.canCheckStatus) this.options.status(this.snapshot()); });
     const actions = node("div"); actions.className = "workflow-actions";
     actions.append(this.button("Preview workflow", () => this.showPreview(), "workflow-preview-button"), this.create, this.check, this.button("Cancel", () => options.cancel(this.isDirty())));
-    this.form.append(node("h1", "Create a configured board"), node("p", "Choose an immutable workflow for a new board in an existing project. Roles define behavior; labels are display names. Default board creation remains available through the CLI."), this.fields, this.feedback, this.preview, this.message, actions);
+    this.form.append(node("h1", options.existing ? "Edit existing workflow" : "Create a configured board"), node("p", options.existing ? "Edit labels, order, ordinary transitions and ceilings. Lane identities and roles remain fixed. Cards and human approvals are preserved. Preview is read-only; Save is deliberate." : "Choose an immutable workflow for a new board in an existing project. Roles define behavior; labels are display names. Default board creation remains available through the CLI."), this.fields, this.feedback, this.preview, this.message, actions);
+    if (options.existing) this.fields.before(actions);
     root.replaceChildren(this.form); this.renderFields(); this.applyState();
   }
+  approvePreview(): void { this.previewed = true; this.applyState(); }
   snapshot(): WorkflowDraft { return copy(this.draft); }
   isDirty(): boolean { return JSON.stringify(this.draft) !== this.baseline; }
   setState(state: WorkflowEditorState): void { this.state = { ...state }; if (!state.busy && !state.locked) this.sent = false; this.applyState(); }
@@ -141,13 +149,15 @@ export class WorkflowEditor {
   }
   private renderFields(): void {
     this.fields.replaceChildren(node("legend", "Board and workflow"));
-    this.fields.append(this.field("Project", this.draft.projectKey, value => { this.draft.projectKey = value; }, this.options.projects.map(p => ({ value: p.key, label: p.label }))), this.field("Board key", this.draft.boardKey, value => { this.draft.boardKey = value; }), this.field("Board label", this.draft.label, value => { this.draft.label = value; }));
+    if (!this.options.existing) this.fields.append(this.field("Project", this.draft.projectKey, value => { this.draft.projectKey = value; }, this.options.projects.map(p => ({ value: p.key, label: p.label }))), this.field("Board key", this.draft.boardKey, value => { this.draft.boardKey = value; }), this.field("Board label", this.draft.label, value => { this.draft.label = value; }));
     const lanes = node("section"); lanes.append(node("h2", "Ordered lanes (4–16)"));
     this.draft.workflow.lanes.forEach((lane, index) => {
       const row = node("div"); row.className = "workflow-row";
-      row.append(this.field(`Lane ${index + 1} label`, lane.label, value => this.replaceLane(index, { ...this.draft.workflow.lanes[index]!, label: value })), this.field(`Lane ${index + 1} role`, lane.role, value => this.replaceLane(index, { ...this.draft.workflow.lanes[index]!, role: value }), roles.map(value => ({ value, label: value }))));
+      row.append(this.field(`Lane ${index + 1} label`, lane.label, value => this.replaceLane(index, { ...this.draft.workflow.lanes[index]!, label: value })));
+      if (this.options.existing) row.append(node("p", `Lane ${index + 1} identity ${lane.id} · role ${lane.role}`));
+      else row.append(this.field(`Lane ${index + 1} role`, lane.role, value => this.replaceLane(index, { ...this.draft.workflow.lanes[index]!, role: value }), roles.map(value => ({ value, label: value }))));
       for (const [text, offset] of [["Move up", -1], ["Move down", 1]] as const) { const b = this.button(`${text} lane ${index + 1}`, () => { const next = [...this.draft.workflow.lanes]; [next[index], next[index + offset]] = [next[index + offset]!, next[index]!]; this.draft.workflow = { ...this.draft.workflow, lanes: next }; this.changed(true); }); b.disabled = index + offset < 0 || index + offset >= this.draft.workflow.lanes.length; row.append(b); }
-      const remove = this.button(`Remove lane ${index + 1}`, () => { this.draft.workflow = { ...this.draft.workflow, lanes: this.draft.workflow.lanes.filter((_, i) => i !== index), transitions: this.draft.workflow.transitions.filter(edge => edge.from !== lane.id && edge.to !== lane.id) }; this.changed(true); }); remove.disabled = this.draft.workflow.lanes.length <= 4; row.append(remove); lanes.append(row);
+      const remove = this.button(`Remove lane ${index + 1}`, () => { this.draft.workflow = { ...this.draft.workflow, lanes: this.draft.workflow.lanes.filter((_, i) => i !== index), transitions: this.draft.workflow.transitions.filter(edge => edge.from !== lane.id && edge.to !== lane.id) }; this.changed(true); }); remove.disabled = this.draft.workflow.lanes.length <= 4 || !!this.options.existing && lane.role !== "waiting"; row.append(remove); lanes.append(row);
     });
     const addLane = this.button("Add waiting lane", () => { this.draft.workflow = { ...this.draft.workflow, lanes: [...this.draft.workflow.lanes, { id: crypto.randomUUID(), label: "", role: "waiting" }] }; this.changed(true); }); addLane.disabled = this.draft.workflow.lanes.length >= 16; lanes.append(addLane); this.fields.append(lanes);
     const edges = node("section"); edges.append(node("h2", "Directed transitions (3–64)"));
@@ -165,13 +175,15 @@ export class WorkflowEditor {
   }
   private replaceLane(index: number, lane: A.WorkflowLane): void { this.draft.workflow = { ...this.draft.workflow, lanes: this.draft.workflow.lanes.map((old, i) => i === index ? lane : old) }; }
   private showPreview(): void {
-    if (this.disposed || this.state.busy || this.state.locked || this.sent) return;
+    if (this.disposed || this.composing || this.compositionEnd || this.state.busy || this.state.locked || this.sent) return;
     // Sorting here is explicit draft construction, never normalization of submitted/status evidence.
     this.draft.workflow = { ...this.draft.workflow, transitions: [...this.draft.workflow.transitions].sort(edgeOrder) }; this.renderFields(); this.options.change(this.snapshot());
-    const errors = workflowDraftErrors(this.draft); this.feedback.replaceChildren();
+    const errors = workflowDraftErrors(this.draft, !!this.options.existing); this.feedback.replaceChildren();
     for (const error of errors) this.feedback.append(node("p", error));
+    if (errors.length) this.feedback.focus();
     this.previewed = errors.length === 0; this.preview.replaceChildren();
     if (this.previewed) {
+      if (this.options.existing) { this.previewed = false; this.options.preview?.(this.snapshot()); this.applyState(); return; }
       this.options.preview?.(this.snapshot());
       this.preview.append(node("h2", "Review before Create"), node("p", "This complete definition is immutable after creation. Lane order is the order shown. Actor-right ceilings do not grant credentials or authority."), node("p", `Project: ${this.draft.projectKey} · Board: ${this.draft.label} (${this.draft.boardKey})`));
       const lanes = node("ol"); for (const lane of this.draft.workflow.lanes) lanes.append(node("li", `${lane.label} — ${lane.role} · ${lane.id}`)); this.preview.append(node("h3", "Ordered lanes"), lanes);

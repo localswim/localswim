@@ -100,3 +100,12 @@ section:has(> .workspace-shell) { margin: 0; }
 .workflow-editor [role=alert] { color: #a32929; }
 .workflow-editor :focus-visible { outline: 3px solid var(--workspace-accent); outline-offset: 2px; }
 @media (max-width: 700px) { .workflow-row { align-items: stretch; } .workflow-editor label { max-width: 100%; } }
+
+.workflow-editor-existing > .workflow-actions {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: .75rem;
+  background: var(--workspace-surface);
+  border: 1px solid var(--workspace-line);
+}

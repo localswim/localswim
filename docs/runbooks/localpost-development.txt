@@ -3,8 +3,8 @@ SHARED LOCALPOST FOR BROWSER DEVELOPMENT
 Required workflow
 Use the shared localpost service for bounded browser/JavaScript diagnostics
 during web-client development, testing and debugging. Its canonical contract is
-https://github.com/SixbucksSolutions/localpost/blob/v0.2.0/openapi.json and its
-release is https://github.com/SixbucksSolutions/localpost/releases/tag/v0.2.0.
+https://github.com/SixbucksSolutions/localpost/blob/v0.2.1/openapi.json and its
+release is https://github.com/SixbucksSolutions/localpost/releases/tag/v0.2.1.
 The README at https://github.com/SixbucksSolutions/localpost links both.
 
 The localpost development chat owns the shared daemon. Its default endpoint is
@@ -18,9 +18,9 @@ under the dated API base. The service creates a private UUIDv4-named child and
 returns exactly id and directory. Validate the canonical lowercase UUIDv4 id,
 absolute existing directory, and its basename matching id before reading files.
 Use that returned directory as this run's private inbox. The agent owns bounded
-inspection and retention for its mailbox. Registration IDs disappear on restart;
-mailbox directories and delivered files survive restart and DELETE. Re-register
-for a new run after restart. Never fall back to an unversioned route or API alias.
+inspection and retention for its mailbox. Registration IDs disappear on restart and all mailbox-root contents are cleared
+before serving. Copy needed evidence outside the root before restart, then
+register again. DELETE leaves files until owned cleanup or restart. Never fall back to an unversioned route or API alias.
 
 Browser harness integration
 The maintained qualification/browser/lib/localpost.mjs is a thin sender. It owns
@@ -72,7 +72,8 @@ the same dated API base. Keep cleanup in the run's finally block:
 DELETE leaves the mailbox directory, delivered files and shared daemon intact.
 Retain useful evidence privately, then apply the run's retention policy only to
 this owned mailbox after retirement. A stale ID after restart requires a fresh
-registration for further delivery; retained files remain available for inspection.
+registration for further delivery. Restart clears all mailbox-root contents, so
+retain needed evidence outside that root before the operator restarts the daemon.
 Do not assume append-only JSONL; one message produces one file. A lost response
 can leave delivery uncertain, so
 do not replay it. Persistent watchers or chat notification services require their

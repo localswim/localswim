@@ -1,4 +1,4 @@
-import { BoardClient } from "./client.js";
+import { BoardClient, WorkflowPreviewRefusal } from "./client.js";
 import { configuredWorkflowFixture } from "../board/workflow.test.js";
 import { emptySearch } from "./search.js";
 import type { BoardRead, SessionRead, WorkflowPreview, WorkflowPreviewRequest } from "../../generated/transport/contracts.js";
@@ -33,7 +33,7 @@ export async function runWorkflowReadContextProbe(input: BoardRead, session: Ses
 }
 
 
-export async function runWorkflowPreviewContextProbe(input: BoardRead): Promise<number> {
+export async function runWorkflowPreviewContextProbe(input: BoardRead, session: SessionRead): Promise<number> {
   const current = configuredWorkflowFixture(), candidate = structuredClone(current);
   Object.assign(candidate, { revision: 2, lanes: current.lanes.map((lane, index) => index === 0 ? { ...lane, label: "Changed" } : lane) });
   const request: WorkflowPreviewRequest = { apiVersion: 1, boardId: input.result.identity.boardId, incarnation: input.result.identity.incarnation, expectedRevision: 5, expectedPolicyVersion: 1, workflow: candidate };
@@ -41,8 +41,10 @@ export async function runWorkflowPreviewContextProbe(input: BoardRead): Promise<
     changes: { renamed: [{ laneId: current.lanes[0]!.id, before: current.lanes[0]!.label, after: "Changed" }], orderChanged: false, added: [], retired: [], transitionsChanged: false, rights: { human: { added: [], removed: [] }, automation: { added: [], removed: [] } } },
     occupancy: current.lanes.map(lane => ({ laneId: lane.id, currentCards: 0, archivedCards: 0 })).sort((a,b) => a.laneId < b.laneId ? -1 : 1),
     approval: { preservedCurrentCount: 0, rule: "retained-issuing-policy" }, capacity: { policyRecords: 1, policyRecordsAfter: 2, canonicalPolicyBytesAfter: 1000, maxPolicyRecords: 128, maxCanonicalPolicyBytes: 8388608 } };
-  let response = structuredClone(preview), count = 0;
-  const client = await BoardClient.open({ installationId: "00000000-0000-4000-8000-000000000090", profileId: "synthetic-workflow-preview", credential: () => "synthetic", fetch: (async () => new Response(JSON.stringify(response))) as typeof fetch });
+  let response: unknown = structuredClone(preview), status = 200, count = 0;
+  const client = await BoardClient.open({ installationId: "00000000-0000-4000-8000-000000000090", profileId: "synthetic-workflow-preview",
+    transport: "local-cookie", selection: { mode: "standalone", boardId: input.result.identity.boardId, incarnation: input.result.identity.incarnation, actorId: session.actorId, grantId: session.grant.grantId },
+    credential: () => "synthetic", fetch: (async () => new Response(JSON.stringify(response), { status })) as typeof fetch });
   try {
     await client.previewWorkflow(request); count++;
     const mutations: Array<(value: WorkflowPreview) => void> = [
@@ -54,10 +56,19 @@ export async function runWorkflowPreviewContextProbe(input: BoardRead): Promise<
       value => Object.assign(value.changes, { renamed: [] }),
     ];
     for (const mutate of mutations) {
-      response = structuredClone(preview); mutate(response);
+      const next = structuredClone(preview); mutate(next); response = next;
       let rejected = false; try { await client.previewWorkflow(request); } catch { rejected = true; }
       if (!rejected) throw Error("Contradictory workflow preview accepted"); count++;
     }
+    status = 409;
+    response = { apiVersion: 1, outcome: "refused", conflict: null, error: { code: "WORKFLOW_INCOMPATIBLE", message: "Untrusted prose", field: null } };
+    let code = "";
+    try { await client.previewWorkflow(request); } catch (error) { if (error instanceof WorkflowPreviewRefusal) code = error.code; }
+    if (code !== "WORKFLOW_INCOMPATIBLE") throw Error("Preview refusal lost bounded code"); count++;
+    response = { apiVersion: 1, outcome: "refused", conflict: null, error: { code: "untrusted payload", message: "Untrusted prose", field: null } };
+    let rejected = false;
+    try { await client.previewWorkflow(request); } catch (error) { rejected = true; if (error instanceof WorkflowPreviewRefusal) throw Error("Unknown code was displayed"); }
+    if (!rejected) throw Error("Unknown refusal was accepted"); count++;
     return count;
   } finally { client.close(); }
 }

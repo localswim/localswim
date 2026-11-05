@@ -6,6 +6,13 @@ import { validateBoardHierarchy } from "./hierarchy.js";
 import { boardBoundaryVerifier, canonical, object, parse, prepare, sha256, validate } from "./boundary.js";
 import { validSearch, validateSearchRead } from "./search.js";
 import { laneRole, sameWorkflow, validateWorkflowPolicies, workflowAtVersion, validateCurrentWorkflowCards, validateWorkflowPreview } from "./workflow.js";
+export class WorkflowPreviewRefusal extends Error {
+    code;
+    constructor(code) {
+        super("Workflow preview refused");
+        this.code = code;
+    }
+}
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export class BoardClient {
     options;
@@ -216,8 +223,13 @@ export class BoardClient {
         if (this.options.selection && submitted.incarnation !== this.options.selection.incarnation)
             throw Error("Selected incarnation mismatch");
         const { response, value } = await this.call(this.path(submitted.boardId) + "/workflow/preview", { method: "POST", body, signal: AbortSignal.timeout(20_000) });
-        if (!response.ok)
+        if (!response.ok) {
+            validate("transport:NonterminalRefusal", value);
+            const refusal = value;
+            if (["FORBIDDEN", "INVALID_INPUT", "POLICY_CONFLICT", "REVISION_CONFLICT", "WORKFLOW_INCOMPATIBLE", "COUNTER_OVERFLOW", "UNAVAILABLE"].includes(refusal.error.code))
+                throw new WorkflowPreviewRefusal(refusal.error.code);
             throw Error("Workflow preview unavailable");
+        }
         validate("transport:WorkflowPreview", value);
         const preview = value;
         validateWorkflowPreview(preview);

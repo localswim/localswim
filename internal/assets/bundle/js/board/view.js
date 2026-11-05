@@ -1,5 +1,7 @@
+import { WorkflowEditor } from "../workspace-ui/workflow-editor.js";
 import { completedLane, laneText, moveLanes, roleLane, workflowEdge, workflowRight, workflowLanes } from "../api/workflow.js";
 import { completeOwnedRelationships, relationshipKinds, forwardLabels, validRelationships } from "../api/relationships.js";
+import { WorkflowPreviewRefusal } from "../api/client.js";
 import { recoveryCoordinator } from "../recovery-ui/coordination.js";
 import { dependencyAdvisory } from "./advisory.js";
 import { commands, parse, validate } from "../api/boundary.js";
@@ -39,6 +41,7 @@ export class BoardView {
     actor = element("p");
     cards = element("section");
     create = button("Create card", () => this.edit("card.create"));
+    workflowEdit = button("Edit workflow", () => { this.workflowEdit.focus(); this.edit("workflow.edit"); });
     editorHost = element("section");
     current = element("section");
     outcomes = element("section");
@@ -104,7 +107,7 @@ export class BoardView {
             }
             this.edit("card.edit", card, false, undefined, !card.archived);
         }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read, relationshipAction: (action, card, read, row) => this.relationshipEdit(action, card, read, row) });
-        root.replaceChildren(this.heading, this.actor, this.readState, read, this.create, this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
+        root.replaceChildren(this.heading, this.actor, this.readState, read, this.create, this.workflowEdit, this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
     }
     async open() { await this.refresh(); }
     suspend() { this.suspended = true; this.generation++; this.details.suspend(); this.search.suspend(); }
@@ -123,6 +126,7 @@ export class BoardView {
     get canLeave() { return !this.editor || this.editor.persisted === this.editor.sequence; }
     async flushPrivateInput() { await this.persistence.settled(); return this.canLeave; }
     discardInput() {
+        this.editor?.workflowEditor?.destroy();
         this.editor = undefined;
         this.editorHost.replaceChildren();
         this.current.replaceChildren();
@@ -223,7 +227,7 @@ export class BoardView {
         }
     }
     // Owning session adapter invokes on logout/revocation; it preserves private data.
-    destroy() { this.destroyed = true; this.details.suspend(); this.search.suspend(); this.stopPersistence(); this.generation++; this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
+    destroy() { this.destroyed = true; this.details.suspend(); this.search.suspend(); this.stopPersistence(); this.generation++; this.editor?.workflowEditor?.destroy(); this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
     async refresh() {
         if (this.destroyed || this.suspended)
             return;
@@ -237,6 +241,7 @@ export class BoardView {
             this.session = session;
             this.board = board;
             this.stale = false;
+            this.workflowEdit.disabled = !workflowRight(session, "edit", board.result.workflow);
             this.create.disabled = !!board.result.workflow && !workflowRight(session, "create", board.result.workflow);
             this.heading.textContent = "Board " + board.result.identity.boardId;
             this.actor.textContent = "Actor " + session.actorId + " (" + session.kind + ")";
@@ -341,6 +346,12 @@ export class BoardView {
     }
     blocked() { return [...this.records.values()].some(r => r.state === "pending" || r.state === "unknown"); }
     updateSave() {
+        if (this.editor?.workflowEditor) {
+            const editor = this.editor;
+            editor.workflowEditor.setState({ busy: editor.workflowPreviewBusy, locked: editor.submitted || editor.confirming,
+                canCreate: !this.stale && !this.blocked() && editor.persisted === editor.sequence && editor.workflowPreview === JSON.stringify(this.input(editor)),
+                message: editor.recovery.textContent ?? "" });
+        }
         if (this.editor)
             this.editor.save.disabled = this.stale || this.editor.submitted || this.editor.composing || this.editor.confirming || this.blocked() || this.editor.hierarchy?.action === "set-parent" && !this.editor.fields.parent?.value;
     }
@@ -491,7 +502,31 @@ export class BoardView {
                 }
             }));
         };
-        if (relationshipsReplace) {
+        if (command === "workflow.edit") {
+            const current = base.result.workflow;
+            const retainedWorkflow = restore?.input.workflow;
+            const lanes = structuredClone(workflowLanes(current));
+            const ordinary = ["attach", "comment", "create", "edit", "export", "read", "read-own-outcome", "review-handoff"];
+            const workflow = current ? { ...structuredClone(current), revision: base.result.policyVersion + 1 } : {
+                workflowId: retainedWorkflow?.workflowId ?? crypto.randomUUID(), profile: "default", revision: base.result.policyVersion + 1, lanes,
+                transitions: [{ from: "In Progress", to: "Ready for Review", actors: ["automation", "human"] }, { from: "Ready for Review", to: "Completed", actors: ["human"] }, { from: "Ready for Work", to: "In Progress", actors: ["automation", "human"] }],
+                actorRights: { human: ["approve", ...ordinary], automation: ordinary }
+            };
+            editor.initial = JSON.stringify({ expectedPolicyVersion: base.result.policyVersion, workflow });
+            field("workflow", JSON.stringify(retainedWorkflow ?? workflow));
+            editor.fields.workflow.hidden = true;
+            editor.fields.workflow.parentElement.hidden = true;
+            const host = element("section");
+            form.append(host);
+            const draft = { projectKey: "", boardKey: "", label: "", workflow: JSON.parse(editor.fields.workflow.value) };
+            editor.workflowEditor = new WorkflowEditor(host, { existing: true, draft, projects: [],
+                change: next => { if (this.editor !== editor || editor.submitted || this.suspended)
+                    return; editor.workflowPreview = undefined; editor.workflowPreviewSequence = (editor.workflowPreviewSequence ?? 0) + 1; editor.fields.workflow.value = JSON.stringify(next.workflow); this.persist(editor); this.updateSave(); },
+                preview: () => { void this.previewWorkflow(editor); }, submit: () => { void this.save(editor); },
+                cancel: () => this.cancelEditor(editor), status: () => { } });
+            editor.save.hidden = true;
+        }
+        else if (relationshipsReplace) {
             title.textContent = "Replace owned relationships · original board revision " + base.result.revision + ", card revision " + card.revision;
             editor.save.textContent = "Save owned relationships";
             relationshipSet(JSON.stringify(completeOwnedRelationships(base, card.cardId), null, 2));
@@ -590,6 +625,8 @@ export class BoardView {
         form.addEventListener("keyup", event => { if (event.key === "Enter")
             editor.confirmingEnter = false; });
         form.addEventListener("keydown", event => {
+            if (command === "workflow.edit")
+                return;
             if (event.isComposing || editor.composing || event.keyCode === 229) {
                 if (event.key === "Enter")
                     event.preventDefault();
@@ -611,14 +648,16 @@ export class BoardView {
             }
         });
         editor.initialFields = Object.fromEntries(Object.entries(editor.fields).map(([name, control]) => [name, control.value]));
-        editor.initial = JSON.stringify(this.input(editor));
+        if (!editor.initial)
+            editor.initial = JSON.stringify(this.input(editor));
         form.append(recovery, editor.save, button("Read current text", () => { void this.currentText(editor); }), button(archive === undefined ? "Discard current editor input" : archive ? "Cancel archive" : "Cancel unarchive", () => this.cancelEditor(editor)), editor.confirmation);
+        this.editor?.workflowEditor?.destroy();
         this.editor = editor;
         this.editorHost.replaceChildren(form);
         this.current.replaceChildren();
         if (restore)
             for (const [name, control] of Object.entries(editor.fields)) {
-                if (Object.hasOwn(restore.input, name) || name === "targetCardId" && Object.hasOwn(restore.input, "target"))
+                if (name !== "workflow" && (Object.hasOwn(restore.input, name) || name === "targetCardId" && Object.hasOwn(restore.input, "target")))
                     control.value = name === "relationships" ? typeof restore.input[name] === "string" ? restore.input[name] : JSON.stringify(restore.input[name], null, 2) : name === "targetCardId" && validParentRef(restore.input.target) ? restore.input.target.cardId : name === "parent" && validParentRef(restore.input[name]) ? restore.input[name].cardId : String(restore.input[name] ?? "");
             }
         editor.renderRelationships?.();
@@ -629,7 +668,7 @@ export class BoardView {
         else
             this.persist(editor);
         this.updateSave();
-        (Object.values(editor.fields).find(field => !field.hidden) ?? editor.form.querySelector('[aria-label="Relationship kind"]') ?? editor.save).focus();
+        (editor.workflowEditor ? editor.form.querySelector('input[aria-label="Lane 1 label"]') : Object.values(editor.fields).find(field => !field.hidden) ?? editor.form.querySelector('[aria-label="Relationship kind"]') ?? editor.save).focus();
     }
     dirty(editor) { return JSON.stringify(this.input(editor)) !== editor.initial; }
     cancelEditor(editor, next) {
@@ -678,6 +717,8 @@ export class BoardView {
         keep.focus();
     }
     input(editor) {
+        if (editor.command === "workflow.edit")
+            return { expectedPolicyVersion: editor.base.result.policyVersion, workflow: parse(editor.fields.workflow.value) };
         if (editor.archive !== undefined)
             return { archived: editor.archive };
         if (editor.hierarchy?.action === "clear-parent")
@@ -743,12 +784,86 @@ export class BoardView {
                 if (!this.destroyed && generation === this.persistence.generation && sequence === editor.sequence)
                     editor.recovery.textContent = "Recovery failed; input remains here. Dispatch requires verified recovery storage.";
             }
+            this.updateSave();
         });
     }
+    async previewWorkflow(editor) {
+        if (this.destroyed || this.suspended || this.editor !== editor || editor.submitted || editor.workflowPreviewBusy || this.stale)
+            return;
+        const generation = this.generation, sequence = editor.workflowPreviewSequence ?? 0, input = this.input(editor);
+        editor.workflowPreviewBusy = true;
+        editor.workflowPreview = undefined;
+        this.updateSave();
+        try {
+            const preview = await this.client.previewWorkflow({ apiVersion: 1, boardId: editor.context.boardId, incarnation: editor.context.incarnation,
+                expectedRevision: editor.base.result.revision, expectedPolicyVersion: editor.base.result.policyVersion,
+                workflow: input.workflow });
+            if (this.destroyed || this.suspended || this.editor !== editor || generation !== this.generation || sequence !== (editor.workflowPreviewSequence ?? 0))
+                return;
+            editor.workflowPreview = JSON.stringify(input);
+            const target = editor.form.querySelector('[aria-label="Complete workflow preview"]');
+            target.replaceChildren(element("h2", "Review before Save"), element("p", preview.wouldChange ? `Policy ${preview.policyVersion} → ${preview.nextPolicyVersion} at board revision ${preview.revision}.` : `No workflow changes at policy ${preview.policyVersion}. Save will return NO_CHANGE.`), element("p", "Read-only preview. Cards stay in their current lanes. Existing human approvals retain their issuing policy. Ordinary authority is rechecked when saving."));
+            const section = (heading, lines) => {
+                const list = element("ul");
+                for (const line of lines)
+                    list.append(element("li", line));
+                target.append(element("h3", heading), list);
+            };
+            const before = workflowLanes(preview.currentWorkflow), after = preview.candidate.lanes;
+            const describe = (id) => {
+                const lane = after.find(row => row.id === id) ?? before.find(row => row.id === id);
+                return lane ? `${lane.label} (${lane.role})` : id;
+            };
+            const changes = preview.changes;
+            section("Lane changes", [
+                ...changes.renamed.map(row => `${row.before} → ${row.after} · ${describe(row.laneId)} · ID ${row.laneId}`),
+                ...changes.added.map(row => `Add ${row.label} (${row.role}) · ID ${row.id}`),
+                ...changes.retired.map(row => `Retire ${row.label} (${row.role}) · ID ${row.id}`),
+                changes.orderChanged ? "Lane order changes. New order appears below." : "Lane order stays the same.",
+            ]);
+            if (changes.orderChanged)
+                section("New lane order", after.map((lane, index) => `${index + 1}. ${lane.label} (${lane.role}) · ID ${lane.id}`));
+            const priorEdges = preview.currentWorkflow?.transitions ?? [
+                { from: "In Progress", to: "Ready for Review", actors: ["automation", "human"] },
+                { from: "Ready for Review", to: "Completed", actors: ["human"] },
+                { from: "Ready for Work", to: "In Progress", actors: ["automation", "human"] },
+            ];
+            const edgeKey = (edge) => JSON.stringify([edge.from, edge.to, edge.actors]);
+            const priorKeys = new Set(priorEdges.map(edgeKey)), nextKeys = new Set(preview.candidate.transitions.map(edgeKey));
+            const edgeLine = (edge) => `${describe(edge.from)} → ${describe(edge.to)} · ${edge.actors.join(", ")}`;
+            section("Transition changes", changes.transitionsChanged ? [
+                ...priorEdges.filter(edge => !nextKeys.has(edgeKey(edge))).map(edge => "Remove " + edgeLine(edge)),
+                ...preview.candidate.transitions.filter(edge => !priorKeys.has(edgeKey(edge))).map(edge => "Add " + edgeLine(edge)),
+            ] : ["No transition changes."]);
+            section("Ordinary-right ceiling changes", ["human", "automation"].map(actor => {
+                const rights = changes.rights[actor];
+                return `${actor} · add ${rights.added.join(", ") || "none"} · remove ${rights.removed.join(", ") || "none"}`;
+            }));
+            target.append(element("p", "Effective rights remain the intersection of these ceilings and independently valid grants. Removing rights can prevent existing card actions."));
+            section("Current lane occupancy", preview.occupancy.map(row => `${describe(row.laneId)} · ${row.currentCards} current cards, including ${row.archivedCards} archived. ID ${row.laneId}`));
+            target.append(element("h3", "Approvals and capacity"), element("p", `${preview.approval.preservedCurrentCount} current human approvals preserved under their retained issuing policy.`), element("p", `Policy records ${preview.capacity.policyRecords} → ${preview.capacity.policyRecordsAfter} of ${preview.capacity.maxPolicyRecords}. Remaining after save ${preview.capacity.maxPolicyRecords - preview.capacity.policyRecordsAfter}.`), element("p", `Canonical policy history after save ${preview.capacity.canonicalPolicyBytesAfter} of ${preview.capacity.maxCanonicalPolicyBytes} bytes. Remaining ${preview.capacity.maxCanonicalPolicyBytes - preview.capacity.canonicalPolicyBytesAfter} bytes.`));
+            const complete = element("details");
+            complete.append(element("summary", "Complete validated preview and definitions"), element("pre", JSON.stringify(preview, null, 2)));
+            target.append(complete);
+            editor.workflowEditor.approvePreview();
+            editor.recovery.textContent = "Preview ready. Review changes, occupancy, rights, approval preservation and capacity before Save workflow.";
+        }
+        catch (error) {
+            if (!this.destroyed && !this.suspended && this.editor === editor && generation === this.generation && sequence === (editor.workflowPreviewSequence ?? 0))
+                editor.recovery.textContent = (error instanceof WorkflowPreviewRefusal ? "Workflow preview refused (" + error.code + ")." : "Workflow preview refused or unavailable.") + " Input and original revision retained. Read the current board and deliberately open a new editor to refresh context.";
+        }
+        finally {
+            editor.workflowPreviewBusy = false;
+            if (!this.destroyed && !this.suspended && this.editor === editor)
+                this.updateSave();
+        }
+    }
     async save(editor) {
-        if (this.editor !== editor || editor.composing || editor.confirmingEnter || editor.confirming || editor.submitted || this.stale || this.blocked() || editor.hierarchy?.action === "set-parent" && !editor.fields.parent?.value)
+        if (this.destroyed || this.suspended || this.editor !== editor || editor.command === "workflow.edit" && editor.workflowPreview !== JSON.stringify(this.input(editor)) || editor.composing || editor.confirmingEnter || editor.confirming || editor.submitted || this.stale || this.blocked() || editor.hierarchy?.action === "set-parent" && !editor.fields.parent?.value)
             return;
         const submittedInput = this.input(editor);
+        if (editor.command === "workflow.edit" && editor.persisted !== editor.sequence)
+            return;
         if (Object.hasOwn(submittedInput, "relationships") && !validRelationships(submittedInput.relationships)) {
             editor.recovery.textContent = "Relationships refused: select at most 100 unique relationships to exact target cards. Visible input retained; no operation submitted.";
             return;
@@ -769,8 +884,11 @@ export class BoardView {
             expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor) }));
         const announce = (outcome) => {
             this.records.set(outcome.opId, outcome);
-            if (outcome.state === "unsent" || outcome.state === "not_committed")
+            if (outcome.state === "unsent" || outcome.state === "not_committed") {
                 editor.submitted = false;
+                if (editor.command === "workflow.edit")
+                    editor.workflowPreview = undefined;
+            }
             if (this.destroyed || this.suspended)
                 return;
             this.showOutcome(outcome, editor.context);

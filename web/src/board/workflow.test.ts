@@ -106,7 +106,8 @@ export async function runConfiguredReadLabelsProbe(input: BoardRead): Promise<nu
   document.body.replaceChildren(fallback, details.host); details.open(root.cardId, identity, fallback);
   for (let i = 0; i < 50 && !details.host.querySelector('[aria-label="Prior card history"] article'); i++) await new Promise(resolve => setTimeout(resolve, 10));
   const historicalRow = details.host.querySelector('[aria-label="Prior card history"] article');
-  check(historicalRow?.textContent!.includes("Parked (waiting)") && !historicalRow?.textContent!.includes(waiting), "Historical row leaked raw lane UUID or omitted role");
+  check(historicalRow?.textContent!.includes("Parked (waiting)"), "Historical row omitted retained-policy label or role");
+  check(historicalRow?.textContent!.includes("Recorded workflow policy 1 · lane ID " + waiting), "Historical row omitted explicit policy/identity provenance");
   check(historicalRow?.textContent!.includes(foreign.incarnation) && historicalRow.textContent!.includes("unresolved/unavailable in this history view"), "Historical origin/parent was resolved through current identity");
   details.suspend();
   return checks;

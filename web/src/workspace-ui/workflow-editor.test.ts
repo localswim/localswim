@@ -55,6 +55,7 @@ export function runWorkflowEditorTests(): number {
   assert(editor.snapshot().label === submissions[0]!.label, "Locked UNKNOWN draft changed"); passed++;
   editor.setState({}); type("Lane 1 label", ""); button("Preview workflow").click();
   assert(input("Lane 1 label").value === "" && button("Create board").disabled && root.querySelector("[role=alert]")?.textContent?.includes("Lane 1"), "Invalid input was erased or not identified");
+  assert(document.activeElement === root.querySelector("[role=alert]"), "Invalid preview must focus validation summary");
   type("Lane 1 label", "Queue"); button("Preview workflow").click(); type("Board label", "Changed after preview");
   assert(button("Create board").disabled, "Changing draft must invalidate preview"); passed++;
   const originalIDs = editor.snapshot().workflow.lanes.map(l => l.id);
@@ -67,5 +68,30 @@ export function runWorkflowEditorTests(): number {
   assert(Number(cancels.length) === 1 && cancels[0], "Escape did not delegate dirty dismissal");
   const snapshot = editor.snapshot(); snapshot.label = "External edit"; assert(editor.snapshot().label !== snapshot.label, "Snapshot leaks mutable draft");
   editor.destroy(); root.remove(); passed++;
+  const existing = fixture();
+  existing.workflow = { ...existing.workflow, revision: 2, profile: "default", lanes: existing.workflow.lanes.map(lane => ({ ...lane, id: lane.label })), transitions: [
+    { from: "In Progress", to: "Ready for Review", actors: ["automation", "human"] },
+    { from: "Ready for Review", to: "Completed", actors: ["human"] },
+    { from: "Ready for Work", to: "In Progress", actors: ["automation", "human"] },
+  ] };
+  assert(workflowDraftErrors(existing, true).length === 0, "Existing default draft must retain literal lane identities");
+  const editRoot = document.createElement("div"); document.body.append(editRoot);
+  let saveCount = 0, previewCount = 0;
+  const edit = new WorkflowEditor(editRoot, { existing: true, draft: existing, projects: [], change: () => {}, submit: () => { saveCount++; }, preview: () => { previewCount++; }, cancel: () => {}, status: () => {} });
+  const editButton = (text: string): HTMLButtonElement => { const result = [...editRoot.querySelectorAll("button")].find(node => node.textContent === text); assert(result, "Missing existing-workflow action"); return result; };
+  assert(!!(editRoot.querySelector(".workflow-actions")!.compareDocumentPosition(editRoot.querySelector("fieldset")!) & Node.DOCUMENT_POSITION_FOLLOWING), "Existing workflow actions must precede the long editor");
+  assert(!editRoot.querySelector('[aria-label="Board key"]') && !editRoot.querySelector('[aria-label="Lane 1 role"]'), "Existing identities must not offer replacement controls");
+  assert(editButton("Remove lane 1").disabled && editRoot.textContent?.includes("identity Ready for Work"), "Fixed lane identity or role is not preserved visibly");
+  editButton("Preview workflow").click();
+  assert(previewCount === 1 && editButton("Save workflow").disabled, "Local preview must wait for authoritative preview");
+  edit.approvePreview(); edit.setState({ canCreate: false });
+  assert(editButton("Save workflow").disabled, "Recovery failure must block workflow save");
+  edit.setState({}); editButton("Save workflow").click(); editButton("Save workflow").click();
+  assert(saveCount === 1, "Workflow save must dispatch once");
+  edit.setState({ locked: true });
+  const fixedLabel = editRoot.querySelector<HTMLInputElement>('[aria-label="Lane 1 label"]')!;
+  fixedLabel.value = "Changed"; fixedLabel.dispatchEvent(new Event("input", { bubbles: true }));
+  assert(edit.snapshot().workflow.lanes[0]!.label === "Ready for Work", "UNKNOWN must lock exact workflow draft");
+  edit.destroy(); editRoot.remove(); passed++;
   return passed;
 }

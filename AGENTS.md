@@ -49,8 +49,8 @@ older recommendation to create or prefer project-private loopback collectors.
   control, application instrumentation, or authoritative tests.
 - Use the single shared localpost implementation:
   https://github.com/SixbucksSolutions/localpost . The current release is
-  https://github.com/SixbucksSolutions/localpost/releases/tag/v0.2.0 and its API is
-  https://github.com/SixbucksSolutions/localpost/blob/v0.2.0/openapi.json .
+  https://github.com/SixbucksSolutions/localpost/releases/tag/v0.2.1 and its API is
+  https://github.com/SixbucksSolutions/localpost/blob/v0.2.1/openapi.json .
   The default API base is `http://127.0.0.1:53147/api/2026-11-05`,
   with a configurable service port.
   Wildcard CORS (`Access-Control-Allow-Origin: *`) and no authentication are
@@ -64,10 +64,17 @@ older recommendation to create or prefer project-private loopback collectors.
   dated base for `POST /registrations/{id}/messages` and
   `DELETE /registrations/{id}`. Retire only the owned registration before
   cleaning its mailbox according to the run retention policy. IDs expire on
-  service restart, while directories and files survive restart and DELETE.
-  Re-register for a new run after restart. The service writes one file per
+  service restart. Every restart clears all mailbox-root contents before serving.
+  Copy needed evidence outside that root before restart and register again. DELETE
+  leaves delivered files available until owned cleanup or restart. The service writes one file per
   message; do not assume an appended JSONL log. Both `application/json` and
   `application/octet-stream` carry opaque bytes.
+- Permanent daemon constraint from Terry on 2026-11-05. Localpost writes only
+  `.dat` message files for active subscriptions, including hidden `.dat`
+  staging files, plus required mailbox directories. Do not add disk-write probes,
+  lockfiles, state, ownership records or daemon log files. Instance coordination
+  belongs to the host operator; the configured TCP port is the sole first-instance
+  protection. External launchers and service wrappers may capture console output.
 - The localpost development chat owns shared-service operation and recovery.
   Client projects report an unavailable service to its owner or Terry rather
   than starting a replacement collector. Thin project senders or forwarding

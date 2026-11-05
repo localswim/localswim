@@ -1,7 +1,7 @@
 V02 - Actual local browser and CLI qualification
 
 Development diagnostics use the shared localpost service. Follow
-docs/runbooks/localpost-development.txt to send {} to the v0.2.0 dated API
+docs/runbooks/localpost-development.txt to send {} to the v0.2.1 dated API
 registration route and validate its service-created private per-run inbox,
 set LOCALPOST_REGISTRATION_ID, run the ordinary fresh browser qualification,
 inspect bounded completed .dat messages, and retire the registration. The

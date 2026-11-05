@@ -581,7 +581,7 @@
     "web/package.json": "5df8c6b70adaa6be79aac3b324dd8319d1d1f10ea72207d5a58e2644bce438ad",
     "web/src/api/boundary.ts": "7608c4880a7da8580aee2ed483ea95c34eb1eb1b7056841a5859d9b100d567fc",
     "web/src/api/catalog.ts": "6328f864bafba7a647a4798168f7da8c6c0942301ceacda81482b4e40109fc72",
-    "web/src/api/client.ts": "1b366a56ba111811e675bc7a91b392c09c401e59cadfc547be66bcd3cf4034bf",
+    "web/src/api/client.ts": "2e088a40ecb1e53bbedea601044463b13ae7ef7c2215d7a38f5e9a55cf1e8902",
     "web/src/api/configured-workflow.ts": "726a11f9a4b7b7f2b5c75f67cfc22be745173f05372b968c9734cd0abdafab80",
     "web/src/api/hierarchy.ts": "99e4237368d2486b397d69d398de345334f0d5913acabdc0aebbb9b2e9f4cf77",
     "web/src/api/history.ts": "50cb7a584e68b7026fe60e3694939decf9b1ab87551f292a5066c2bfd4a5d324",
@@ -601,7 +601,7 @@
     "web/src/board/hierarchy.ts": "caac8e9e1087de85a5ef64036404df24f90be2502a4fef6fcc9bc107503ec5a2",
     "web/src/board/relationships.ts": "80a06f017d35c302fce2aa475a6ae954cf0af198822afb065f6b21f5b9079517",
     "web/src/board/search.ts": "13a70fc4f6b3c026b443d5bf73250bbb2d5edaa5211bce69f7ebbb211121412a",
-    "web/src/board/view.ts": "c6fd1b153983ce489a7dd9aa4b5c0cc429e7fe66395469a27a2eab9fac6e9478",
+    "web/src/board/view.ts": "de6fde57ac16f93975b7b553223c92b0c0845a93aa65bc8275ae796b0b298fc2",
     "web/src/recovery-ui/admin.ts": "024dc17374d791e721be98fbeffa12061a171e170680fd3092082a50ad8e0e2a",
     "web/src/recovery-ui/coordination.ts": "50ed3b7eb723f16c8c5110b4d41ea8b42c22c842446fb769757745f8a926fabc",
     "web/src/recovery-ui/view.ts": "ef8ddc7885930f4665bc4e6a18dc265384ea72c5bcae56ae1c500a5cb2383b59",
@@ -618,16 +618,16 @@
     "web/src/workspace-ui/pins.ts": "5705a50f91ed2d71337789854b6cae4bb775d0595c7e906fd37261276ba73181",
     "web/src/workspace-ui/refresh.ts": "997ee25b94a93907aeb0b216e03fd95e8ae18fdf9d9fffa5c2a4d19523676716",
     "web/src/workspace-ui/view.ts": "f5c1a4708c9072184567be0a0a23a12a101b5d0e51bc2b520199490e69df8b87",
-    "web/src/workspace-ui/workflow-editor.ts": "73be9342c6ec892a9facab250f038129c4f88595c8df6955974ea0e95af4b9fe",
+    "web/src/workspace-ui/workflow-editor.ts": "8d36a64d4270ab8f528d3ff371daabb16663599810c3b089d22747d6e0dc597c",
     "web/src/workspace-ui/workflow-setup.ts": "7f454eaa6ee3e1672dc5730bc559087bc20dcadfd8ea2113be2df5f41e52aa34",
-    "web/styles/app.css": "940f443e89a129b5fdfc1ac1d60fecc57c36c5e9d698297ea41033909c68814b",
+    "web/styles/app.css": "64911871ce9d7de779e8b4fa872122a2951dd9c9462d842efdd7d57a0baddb00",
     "web/tsconfig.json": "68b102cd0417ce7a7d419495db3b32d215d1014ef5bff1305e8a925612228b12"
   },
   "files": {
     "index.html": "3ee9dcffccde6acbab9ba0323af53dde9e9fe16ec3fa0d8a2fe0c20e89cc96c4",
     "js/api/boundary.js": "8e76f4580123a2a533457d396b1bb4141ec7eadaaa7c77754eca20ccefb3e8de",
     "js/api/catalog.js": "8a705c6ce02694ae48eae38d232f8618781830fc2784d0c5cb2f57bf99f30a03",
-    "js/api/client.js": "1739b05399bf566f20e994e65aa40b40e3113bc3e1e13efeb7c885c8c4397463",
+    "js/api/client.js": "2cca9bb2650d94e6f7518f1ffb674f3dea8b9a90821b16942b6974d33728dcc7",
     "js/api/configured-workflow.js": "b12e5fea7c3603cd398e2c675cb8bbd3cb64b515d35a931f4347202e1bf0993d",
     "js/api/hierarchy.js": "abe0c7023348fba4c0f216ee89e12bf59df9a061968b68e6984313bbb40ba01f",
     "js/api/history.js": "d223bd2b653aeb657b72f1a371bdc86e788402e23f8c269af7c4b6b8a5b438f8",
@@ -647,7 +647,7 @@
     "js/board/hierarchy.js": "6b3749ea40924c544b3a4e85a40742ca74f2f7eeb20c52e5a56c4341a04353c2",
     "js/board/relationships.js": "7a0c7a42732f55c415bbf96adf8b1845b8c3884e550808b0090030b87af690d8",
     "js/board/search.js": "0d8f2b5c6325ef132c0c51b5497f9d400e911e35bd17ca95eb2981ca70bd392c",
-    "js/board/view.js": "f0fe6031ac4990529893503ea466c16e75f8ca765d4c0ef1293daf606f380dea",
+    "js/board/view.js": "b1362518c83024e51210990cdbd76f3e5bdbefd6ea3b9d791f198d423c67c09c",
     "js/recovery-ui/admin.js": "512e6aee825161926f4bb9763a83fe13160e7ae569c262b3eb9ab0add9b3faad",
     "js/recovery-ui/coordination.js": "63acbfb8ebb627f34f017770eb36b07f4d2b511b6143f22a33c1e9dafb944fd9",
     "js/recovery-ui/view.js": "15c494ddd91753ca6bbb366ceac663a9d5fd5edaa22778fb345f50723d47ca7a",
@@ -664,8 +664,8 @@
     "js/workspace-ui/pins.js": "3c554f4b2efd7eb7ce1a3eac357a58f4b71ed1467bfe117943c8b464d4db3ed5",
     "js/workspace-ui/refresh.js": "62fdabb061efccdc32c45e634eabd50688364c9b2bd42cecef2d5d20af7d582c",
     "js/workspace-ui/view.js": "8bf0c7aeb2d3454404ac671f49b197b07bb6a30f12ca4d3be5015fa624f4e50a",
-    "js/workspace-ui/workflow-editor.js": "8ff7d9251555ffc87d5020feaaf6249ff0152345c307a91ea98ad96d10312d14",
+    "js/workspace-ui/workflow-editor.js": "dd38e3ad408588ddb7b55c77c9a2365ebe50c62374468023a1f6464cac9c19c9",
     "js/workspace-ui/workflow-setup.js": "453fbb5b0883a9c4590afff711edeaaec7b22c40ba2ee0ae5f89a9a718344c47",
-    "styles/app.css": "940f443e89a129b5fdfc1ac1d60fecc57c36c5e9d698297ea41033909c68814b"
+    "styles/app.css": "64911871ce9d7de779e8b4fa872122a2951dd9c9462d842efdd7d57a0baddb00"
   }
 }

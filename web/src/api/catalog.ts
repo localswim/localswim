@@ -2,6 +2,7 @@ import type { WorkspaceCatalog, WorkspaceProjects } from "../../generated/transp
 import type { WorkspaceSessionAccess } from "./workspace-session.js";
 import { parse, validate } from "./boundary.js";
 import { isLocalOrigin } from "./client.js";
+import { validateAttentionAssignments } from "./workflow.js";
 
 export type CatalogSnapshot = Readonly<{ catalog: WorkspaceCatalog; projects: WorkspaceProjects }>;
 export type WorkspaceCatalogClient = Readonly<{
@@ -13,6 +14,36 @@ export type WorkspaceCatalogClient = Readonly<{
 }>;
 
 const maxBodyBytes = 2 * 1024 * 1024;
+
+function validateCatalogObservations(catalog: WorkspaceCatalog): void {
+  const keys = ["blocked", "needsTerry", "readyForReview"] as const;
+  for (const entry of catalog.entries) {
+    const context = entry.attentionContext;
+    if (entry.freshness === "never") {
+      if (context !== null || keys.some(key => entry.attention[key].state !== "unknown" || entry.attention[key].value !== null)) throw Error("Unobserved Attention context");
+      continue;
+    }
+    if (!context) throw Error("Missing Attention context");
+    validateAttentionAssignments({ lanes: context.lanes, attention: context.assignments });
+    if (context.assignments.blocked.length + context.assignments.needsTerry.length > 12) throw Error("Too many assigned waiting lanes");
+    if (context.lanes.length !== keys.reduce((sum, key) => sum + context.assignments[key].length, 0)) throw Error("Incomplete Attention context");
+    if (context.source === "implicit" && (context.assignments.blocked.length !== 0 || context.assignments.needsTerry.length !== 0 || context.assignments.readyForReview.length !== 1)) throw Error("Invalid implicit Attention context");
+    if (context.workflowId === null && (context.profile !== "default" || context.policyVersion !== 1 || context.source !== "implicit" || context.lanes.length !== 1 || context.lanes[0]!.id !== "Ready for Review" || context.lanes[0]!.label !== "Ready for Review")) throw Error("Invalid default Attention context");
+    if (context.workflowId !== null && context.profile === "default" && context.policyVersion < 2) throw Error("Invalid edited-default policy");
+    for (const [index, lane] of context.lanes.entries()) {
+      if (index > 0 && context.lanes[index - 1]!.id >= lane.id || /^\p{White_Space}|\p{White_Space}$/u.test(lane.label)) throw Error("Invalid Attention lane order or label");
+      const literal = Array.from(lane.label, character => `\\u{${character.codePointAt(0)!.toString(16)}}`).join("");
+      const foldedLabel = new RegExp(`^(?:${literal})$`, "iu");
+      if (context.lanes.slice(0, index).some(previous => foldedLabel.test(previous.label))) throw Error("Duplicate Attention lane label");
+      if (context.profile === "default" && lane.role === "review" && lane.id !== "Ready for Review") throw Error("Invalid default review identity");
+      if ((context.profile === "configured" || lane.role === "waiting") && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(lane.id)) throw Error("Invalid Attention lane identity");
+    }
+    for (const key of keys) {
+      const configured = context.assignments[key].length > 0;
+      if (entry.attention[key].state !== (configured ? entry.freshness === "fresh" ? "known" : "stale" : "not_configured")) throw Error("Attention freshness mismatch");
+    }
+  }
+}
 
 // The generated Go boundary is the wire contract. This client keeps only a
 // nonsecret connection generation; workspace cookies remain HttpOnly.
@@ -60,6 +91,7 @@ export function createWorkspaceCatalogClient(access: WorkspaceSessionAccess,
       // newly observed opaque catalog row in favor of an old trusted row.
       const projects = await readBoundary<WorkspaceProjects>("/api/v1/workspace/projects", "transport:WorkspaceProjects", expected);
       const catalog = await readBoundary<WorkspaceCatalog>("/api/v1/workspace/catalog", "transport:WorkspaceCatalog", expected);
+      validateCatalogObservations(catalog);
       current(expected); return { projects, catalog };
     };
     pending = work().finally(() => { pending = undefined; });

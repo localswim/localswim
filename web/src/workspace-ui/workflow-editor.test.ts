@@ -93,5 +93,96 @@ export function runWorkflowEditorTests(): number {
   fixedLabel.value = "Changed"; fixedLabel.dispatchEvent(new Event("input", { bubbles: true }));
   assert(edit.snapshot().workflow.lanes[0]!.label === "Ready for Work", "UNKNOWN must lock exact workflow draft");
   edit.destroy(); editRoot.remove(); passed++;
+  return passed + runAttentionEditorTests() + runAttentionRoleChangeTests();
+}
+
+
+// M08 category controls share the ordinary editor and its exact complete draft.
+export function runAttentionEditorTests(): number {
+  let passed = 0;
+  const draft = fixture();
+  const waitA = "10000000-0000-4000-8000-000000000020", waitB = "10000000-0000-4000-8000-000000000019";
+  const initial = draft.workflow.lanes[0]!.id, doing = draft.workflow.lanes[1]!.id, review = draft.workflow.lanes[2]!.id;
+  draft.workflow = { ...draft.workflow, revision: 2,
+    lanes: [...draft.workflow.lanes, { id: waitA, label: "Outside", role: "waiting" }, { id: waitB, label: "Input", role: "waiting" }],
+    transitions: [...draft.workflow.transitions, ...[waitA, waitB].flatMap(id => [
+      { from: initial, to: id, actors: ["human"] as const }, { from: id, to: doing, actors: ["human"] as const },
+    ])].sort((a, b) => a.from < b.from ? -1 : a.from > b.from ? 1 : a.to < b.to ? -1 : 1) };
+  assert(workflowDraftErrors(draft, true).length === 0, "Attention fixture must be valid");
+  const root = document.createElement("div"); document.body.append(root);
+  const previews: WorkflowDraft[] = [], submissions: WorkflowDraft[] = [], status: WorkflowDraft[] = [];
+  const editor = new WorkflowEditor(root, { existing: true, draft, projects: [], change: () => {}, preview: value => previews.push(value), submit: value => submissions.push(value), status: value => status.push(value), cancel: () => {} });
+  const button = (text: string): HTMLButtonElement => { const result = [...root.querySelectorAll("button")].find(row => row.textContent === text); assert(result, "Missing action " + text); return result; };
+  const select = (id: string): HTMLSelectElement => { const result = [...root.querySelectorAll<HTMLSelectElement>("select")].find(row => row.getAttribute("aria-label") === `Attention category for lane ${id}`); assert(result, "Missing stable lane category control"); return result; };
+  const choose = (id: string, value: string): void => { const input = select(id); input.focus(); input.value = value; input.dispatchEvent(new Event("change", { bubbles: true })); };
+  try {
+    assert(!editor.isDirty() && editor.snapshot().workflow.attention === undefined, "Opening implicit workflow added explicit policy");
+    assert(root.textContent!.includes("Attention source: implicit") && select(review).value === "readyForReview", "Implicit review mapping missing");
+    assert(!root.querySelector(`[aria-label="Attention category for lane ${initial}"]`), "Initial lane offered for Attention");
+    assert([...select(waitA).options].map(row => row.value).join() === ",blocked,needsTerry" && [...select(review).options].map(row => row.value).join() === ",readyForReview", "Role-specific category choices are wrong"); passed++;
+    button("Use explicit Attention assignments").click();
+    assert(editor.isDirty() && editor.snapshot().workflow.attention?.readyForReview[0] === review, "Explicit identical mapping lost presence");
+    choose(waitA, "blocked"); choose(waitB, "blocked");
+    assert(JSON.stringify(editor.snapshot().workflow.attention?.blocked) === JSON.stringify([waitB, waitA]), "Category IDs are not sorted");
+    choose(waitA, "needsTerry");
+    assert(editor.snapshot().workflow.attention?.blocked.join() === waitB && editor.snapshot().workflow.attention?.needsTerry.join() === waitA, "Waiting categories overlap");
+    assert(document.activeElement === select(waitA), "Category change lost keyboard focus");
+    const label = root.querySelector<HTMLInputElement>('[aria-label="Lane 1 label"]')!;
+    label.value = "Mixed policy"; label.dispatchEvent(new Event("input", { bubbles: true }));
+    button("Preview workflow").click();
+    assert(previews.length === 1 && previews[0]!.workflow.lanes[0]!.label === "Mixed policy" && previews[0]!.workflow.attention?.needsTerry[0] === waitA && button("Save workflow").disabled, "Mixed complete candidate or authoritative preview gate lost");
+    editor.approvePreview(); choose(review, "");
+    assert(button("Save workflow").disabled && editor.snapshot().workflow.attention?.readyForReview.length === 0, "Explicit review disable failed to invalidate preview"); passed++;
+    const malformed = structuredClone(editor.snapshot());
+    malformed.workflow = { ...malformed.workflow, attention: { blocked: [waitA], needsTerry: [waitA], readyForReview: [] } };
+    assert(workflowDraftErrors(malformed, true).some(row => row.includes("Attention")), "Overlapping categories accepted");
+    malformed.workflow = { ...malformed.workflow, attention: { blocked: [initial], needsTerry: [], readyForReview: [] } };
+    assert(workflowDraftErrors(malformed, true).some(row => row.includes("Attention")), "Wrong role accepted");
+    malformed.workflow = { ...malformed.workflow, attention: { blocked: [waitA, waitB], needsTerry: [], readyForReview: [] } };
+    assert(workflowDraftErrors(malformed, true).some(row => row.includes("Attention")), "Unsorted assignment accepted"); passed++;
+    button("Disable all Attention categories").click();
+    assert(JSON.stringify(editor.snapshot().workflow.attention) === '{"blocked":[],"needsTerry":[],"readyForReview":[]}', "Disable did not retain explicit empty sets");
+    button("Restore implicit Attention assignments").click();
+    assert(!Object.hasOwn(editor.snapshot().workflow, "attention") && select(review).value === "readyForReview", "Restore did not omit attention");
+    choose(waitA, "blocked"); button("Remove lane 5").click();
+    assert(editor.snapshot().workflow.attention?.blocked.length === 0 && !editor.snapshot().workflow.lanes.some(row => row.id === waitA), "Retirement retained a dead category assignment"); passed++;
+    button("Preview workflow").click(); editor.approvePreview(); button("Save workflow").click();
+    assert(submissions.length === 1, "Complete category candidate was not submitted once");
+    const exact = JSON.stringify(submissions[0]);
+    editor.setState({ locked: true, canCheckStatus: true });
+    choose(waitB, "needsTerry"); button("Restore implicit Attention assignments").click(); button("Check configured status").click();
+    assert(JSON.stringify(editor.snapshot()) === exact && JSON.stringify(status[0]) === exact, "UNKNOWN changed exact category candidate"); passed++;
+  } finally { editor.destroy(); root.remove(); }
   return passed;
+}
+
+
+export function runAttentionRoleChangeTests(): number {
+  const draft = fixture(), root = document.createElement("div"); document.body.append(root);
+  const originalReview = draft.workflow.lanes[2]!.id;
+  const waiting = "10000000-0000-4000-8000-000000000020";
+  draft.workflow = { ...draft.workflow, lanes: [...draft.workflow.lanes, { id: waiting, role: "waiting", label: "Waiting" }] };
+  const editor = new WorkflowEditor(root, { draft, projects: [{ key: "harbor", label: "Harbor" }], change: () => {}, preview: () => {}, submit: () => {}, status: () => {}, cancel: () => {} });
+  const role = (index: number): HTMLSelectElement => root.querySelector<HTMLSelectElement>(`[aria-label="Lane ${index} role"]`)!;
+  const category = (id: string): HTMLSelectElement => root.querySelector<HTMLSelectElement>(`[aria-label="Attention category for lane ${id}"]`)!;
+  const chooseRole = (index: number, value: string): void => { const input = role(index); input.focus(); input.value = value; input.dispatchEvent(new Event("change", { bubbles: true })); };
+  const button = (name: string): HTMLButtonElement => [...root.querySelectorAll("button")].find(row => row.textContent === name)!;
+  try {
+    chooseRole(3, "waiting"); chooseRole(5, "review");
+    assert(document.activeElement === role(5), "Role change did not preserve select focus");
+    assert([...category(waiting).options].map(row => row.value).join() === ",readyForReview" && category(waiting).value === "readyForReview", "Role swap did not update implicit review control");
+    assert([...category(originalReview).options].map(row => row.value).join() === ",blocked,needsTerry" && category(originalReview).value === "", "Former review lane retained stale category choices");
+    assert(editor.snapshot().workflow.attention === undefined && root.textContent!.includes(`Ready for Review mapping: ${waiting}`), "Role swap changed implicit presence or retained old mapping");
+    button("Use explicit Attention assignments").click();
+    chooseRole(5, "initial");
+    const invalid = category(waiting);
+    assert(invalid.value === "readyForReview" && invalid.selectedOptions[0]!.disabled && root.textContent!.includes("invalid for the current role"), "Invalid explicit membership was hidden or silently repaired");
+    assert(editor.snapshot().workflow.attention?.readyForReview[0] === waiting && workflowDraftErrors(editor.snapshot()).some(row => row.includes("Attention")), "Wrong-role assignment escaped validation");
+    invalid.value = ""; invalid.dispatchEvent(new Event("change", { bubbles: true }));
+    assert(editor.snapshot().workflow.attention?.readyForReview.length === 0 && !root.querySelector(`[aria-label="Attention category for lane ${waiting}"]`), "Invalid membership could not be deliberately cleared");
+    assert(!workflowDraftErrors(editor.snapshot()).some(row => row.includes("Attention")), "Cleared membership retained Attention error");
+    chooseRole(3, "review");
+    assert(category(originalReview).value === "" && [...category(originalReview).options].map(row => row.value).join() === ",readyForReview", "Explicit disabled review incorrectly restored implicit assignment");
+    return 1;
+  } finally { editor.destroy(); root.remove(); }
 }

@@ -47,8 +47,8 @@ export async function runCatalogRefreshTests(): Promise<number> {
   assert(stale.phase === "stale" && stale.catalog!.entries[0]!.freshness === "stale" && stale.catalog!.entries[0]!.ageSeconds === 11 && stale.catalog!.entries[0]!.attention.readyForReview.state === "stale" && stale.catalog!.entries[0]!.attention.readyForReview.value === 0 && stale.catalog!.entries[0]!.activity.state === "stale", "Failure lost trusted rows or fabricated freshness"); passed++;
   assert(stale.catalog!.entries[0]!.activity.lastCommittedAt === "2026-10-29T00:00:00Z" && stale.catalog!.entries[0]!.attention.blocked.value === null, "Stale conversion changed future activity or unsupported count"); passed++;
   const unknown: CatalogSnapshot = { ...fixture, catalog: { ...fixture.catalog, entries: [{ ...fixture.catalog.entries[0]!, availability: "unavailable", freshness: "never", ageSeconds: null,
-    identity: null, memberEpoch: null, lastObservedAt: null, boardRevision: null, activity: { state: "unknown", lastCommittedAt: null, coverage: null },
-    attention: { readyForReview: { state: "unknown", value: null }, blocked: { state: "not_configured", value: null }, needsTerry: { state: "not_configured", value: null } } }] } };
+    identity: null, memberEpoch: null, lastObservedAt: null, boardRevision: null, attentionContext: null, activity: { state: "unknown", lastCommittedAt: null, coverage: null },
+    attention: { readyForReview: { state: "unknown", value: null }, blocked: { state: "unknown", value: null }, needsTerry: { state: "unknown", value: null } } }] } };
   refresh.trigger(); resolveRead!(unknown); await settle(); refresh.trigger(); rejectRead!(); await settle();
   assert(refresh.snapshot.catalog!.entries[0]!.identity === null && refresh.snapshot.catalog!.entries[0]!.attention.readyForReview.state === "unknown", "Unknown response resurrected prior identity/count"); passed++;
   refresh.trigger(); for (const callback of unavailable) callback(); resolveRead!(fixture); await settle();

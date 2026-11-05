@@ -108,11 +108,12 @@ wait:
 					id, epoch := m.Identity, T.UUIDv4(j.engine.Epoch())
 					observed := A.Timestamp(j.observed.Format(time.RFC3339))
 					age := elapsed(now, j.observed)
-					revision, count := j.result.Revision, j.result.ReadyForReview
+					revision := j.result.Revision
 					e.Identity, e.MemberEpoch, e.LastObservedAt, e.AgeSeconds, e.BoardRevision = &id, &epoch, &observed, &age, &revision
 					e.Availability, e.Freshness = "ready", "fresh"
 					e.Activity = T.CatalogActivity{State: "known", LastCommittedAt: j.result.LastCardActivity, Coverage: j.result.Coverage}
-					e.Attention.ReadyForReview = T.CatalogCount{State: "known", Value: &count}
+					e.Attention = j.result.Attention
+					e.AttentionContext = &j.result.AttentionContext
 				} else {
 					e.Availability = "unavailable"
 				}
@@ -192,7 +193,7 @@ func (r *Runtime) pumpCatalogLocked() {
 }
 
 func unknownCatalog(m member) T.WorkspaceCatalogEntry {
-	return T.WorkspaceCatalogEntry{ProjectKey: m.ProjectKey, BoardKey: m.BoardKey, Label: m.Label, Availability: "unavailable", Freshness: "never", Activity: T.CatalogActivity{State: "unknown"}, Attention: T.CatalogAttention{ReadyForReview: T.CatalogCount{State: "unknown"}, Blocked: T.CatalogCount{State: "not_configured"}, NeedsTerry: T.CatalogCount{State: "not_configured"}}}
+	return T.WorkspaceCatalogEntry{ProjectKey: m.ProjectKey, BoardKey: m.BoardKey, Label: m.Label, Availability: "unavailable", Freshness: "never", Activity: T.CatalogActivity{State: "unknown"}, Attention: T.CatalogAttention{ReadyForReview: T.CatalogCount{State: "unknown"}, Blocked: T.CatalogCount{State: "unknown"}, NeedsTerry: T.CatalogCount{State: "unknown"}}}
 }
 func elapsed(now, at time.Time) A.Number {
 	if now.Before(at) {
@@ -212,15 +213,13 @@ func catalogLess(a, b T.WorkspaceCatalogEntry) bool {
 		if *aa != *bb {
 			return *aa > *bb
 		}
-		ac, bc := a.Attention.ReadyForReview, b.Attention.ReadyForReview
-		// Only compare supported known sums when both operands have fresh facts.
-		ak := a.Freshness == "fresh" && ac.State == "known" && ac.Value != nil
-		bk := b.Freshness == "fresh" && bc.State == "known" && bc.Value != nil
+		ac, ak := catalogAttentionSum(a)
+		bc, bk := catalogAttentionSum(b)
 		if ak != bk {
 			return ak
 		}
-		if ak && *ac.Value != *bc.Value {
-			return *ac.Value > *bc.Value
+		if ak && ac != bc {
+			return ac > bc
 		}
 	}
 	al, bl := catalogFold(string(a.Label)), catalogFold(string(b.Label))
@@ -231,4 +230,28 @@ func catalogLess(a, b T.WorkspaceCatalogEntry) bool {
 		return a.ProjectKey < b.ProjectKey
 	}
 	return a.BoardKey < b.BoardKey
+}
+
+// Only a complete fresh observation can supply the activity tie-break sum.
+func catalogAttentionSum(e T.WorkspaceCatalogEntry) (uint64, bool) {
+	if e.Freshness != "fresh" || e.AttentionContext == nil {
+		return 0, false
+	}
+	var sum uint64
+	for _, count := range []T.CatalogCount{e.Attention.Blocked, e.Attention.NeedsTerry, e.Attention.ReadyForReview} {
+		switch count.State {
+		case "known":
+			if count.Value == nil {
+				return 0, false
+			}
+			sum += uint64(*count.Value)
+		case "not_configured":
+			if count.Value != nil {
+				return 0, false
+			}
+		default:
+			return 0, false
+		}
+	}
+	return sum, true
 }

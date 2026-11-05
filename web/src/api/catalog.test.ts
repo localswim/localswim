@@ -14,6 +14,7 @@ export function catalogFixture(): { catalog: WorkspaceCatalog; projects: Workspa
     catalog: { apiVersion: 1, workspaceId, configRevision: 1, observedAt: "2026-10-28T00:00:00Z", entries: [{ projectKey: "harbor", boardKey: "dispatch", projectLabel: "Harbor", label: "Dispatch",
       identity: { installationId: "20000000-0000-4000-8000-000000000001", boardId: "30000000-0000-4000-8000-000000000001", incarnation: "40000000-0000-4000-8000-000000000001" },
       memberEpoch: "50000000-0000-4000-8000-000000000001", availability: "ready", freshness: "fresh", ageSeconds: 0, lastObservedAt: "2026-10-28T00:00:00Z", boardRevision: 4,
+      attentionContext: { policyVersion: 1, workflowId: null, profile: "default", source: "implicit", assignments: { blocked: [], needsTerry: [], readyForReview: ["Ready for Review"] }, lanes: [{ id: "Ready for Review", label: "Ready for Review", role: "review" }] },
       activity: { state: "known", lastCommittedAt: "2026-10-29T00:00:00Z", coverage: { historyFloor: null, activityFloor: null, outcomePayloadFloor: null, gaps: [] } },
       attention: { readyForReview: { state: "known", value: 0 }, blocked: { state: "not_configured", value: null }, needsTerry: { state: "not_configured", value: null } } }] } };
 }
@@ -27,6 +28,18 @@ export function fakeWorkspaceAccess(workspaceId: string): WorkspaceSessionAccess
     onUnavailable(callback) { unavailable.add(callback); return () => { unavailable.delete(callback); }; },
     onConnected(callback) { connected.add(callback); return () => { connected.delete(callback); }; },
   };
+}
+
+function mappedCatalog(labels: string[]): WorkspaceCatalog {
+  const value = structuredClone(catalogFixture().catalog);
+  const entry = value.entries[0]!;
+  const lanes = labels.map((label, index) => ({ id: `90000000-0000-4000-8000-${(index + 1).toString().padStart(12, "0")}`, label, role: "waiting" as const }));
+  const blocked = lanes.slice(0, 12).map(lane => lane.id);
+  const needsTerry = lanes.slice(12).map(lane => lane.id);
+  return { ...value, entries: [{ ...entry,
+    attentionContext: { policyVersion: 1, workflowId: "80000000-0000-4000-8000-000000000001", profile: "configured", source: "explicit", assignments: { blocked, needsTerry, readyForReview: [] }, lanes },
+    attention: { blocked: { state: "known", value: 0 }, needsTerry: needsTerry.length ? { state: "known", value: 0 } : { state: "not_configured", value: null }, readyForReview: { state: "not_configured", value: null } },
+  }] };
 }
 
 export async function runCatalogTransportTests(): Promise<number> {
@@ -47,9 +60,15 @@ export async function runCatalogTransportTests(): Promise<number> {
     assert(valid.catalog.entries[0]!.attention.readyForReview.value === 0 && valid.projects.projects.length === 2, "Known zero or empty project lost"); passed++;
     assert(requests.every(({ path, init }) => path.startsWith("/api/v1/workspace/") && init.method === "GET" && init.credentials === "same-origin" && init.cache === "no-store" && init.redirect === "error" && new Headers(init.headers).get("X-Localswim-Client") === "browser" && !new Headers(init.headers).has("Authorization") && !init.body), "Catalog channel changed"); passed++;
     for (const value of [ { ...fixture.catalog, extra: "forbidden" }, { ...fixture.catalog, entries: [{ ...fixture.catalog.entries[0], attention: { ...fixture.catalog.entries[0]!.attention, readyForReview: { state: "unknown", value: 0 } } }] },
-      '{"apiVersion":1,"apiVersion":1}', { ...fixture.catalog, entries: [{ ...fixture.catalog.entries[0], freshness: "never" }] } ]) {
+      '{"apiVersion":1,"apiVersion":1}', { ...fixture.catalog, entries: [{ ...fixture.catalog.entries[0], freshness: "never" }] },
+      { ...fixture.catalog, entries: [{ ...fixture.catalog.entries[0], attentionContext: null }] },
+      { ...fixture.catalog, entries: [{ ...fixture.catalog.entries[0], attentionContext: { ...fixture.catalog.entries[0]!.attentionContext!, source: "explicit" } }] },
+      mappedCatalog(["Queue", "queue"]), mappedCatalog(["K", "K"]), mappedCatalog(["Σ", "ς"]),
+      mappedCatalog(Array.from({ length: 13 }, (_, index) => `Waiting ${index}`)) ]) {
       catalog = value; await refuses(() => client.read()); passed++;
     }
+    catalog = mappedCatalog(["Straße", "STRASSE"]);
+    await client.read(); passed++;
     catalog = fixture.catalog;
     projects = { ...fixture.projects, projects: [{ key: "empty", label: "Empty", root: "private" }] };
     await refuses(() => client.read()); passed++; projects = fixture.projects;

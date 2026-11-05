@@ -5,18 +5,20 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/localswim/localswim/internal/board/policy"
+	"github.com/localswim/localswim/internal/board/attention"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	T "github.com/localswim/localswim/internal/contract/transport"
 	"github.com/localswim/localswim/internal/store/writer"
 )
 
 // CatalogSnapshot is an independently owned observation, never a credential or
 // wire authority. No member/runtime storage is shared with its pointer or slice
-// fields. Unsupported Attention categories are intentionally absent; the
-// workspace boundary reports their not_configured/null state.
+// fields. All policy context and category counts share the authorized snapshot.
 type CatalogSnapshot struct {
 	Revision         A.Number
-	ReadyForReview   A.Number
+	ReadyForReview   A.Number // Compatibility accessor for the configured review count.
+	AttentionContext T.AttentionContext
+	Attention        T.CatalogAttention
 	LastCardActivity *A.Timestamp
 	Coverage         *A.Coverage
 }
@@ -34,18 +36,14 @@ func (r *Runtime) CatalogSnapshot(ctx context.Context, channel string) (CatalogS
 		if err := rd.Scan(`SELECT revision,history_floor,activity_floor,outcome_floor FROM board WHERE singleton=1 AND board_id=? AND incarnation=?`, []any{r.id.BoardID, r.id.Incarnation}, &out.Revision, &hf, &af, &of); err != nil {
 			return err
 		}
-		workflow, err := policy.Load(rd, r.id.Incarnation)
+		current, err := attention.ReadCurrent(rd, r.id.BoardID, r.id.Incarnation)
 		if err != nil {
 			return err
 		}
-		if workflow != nil {
-			if err = policy.ValidateCurrent(rd, r.id.Incarnation, workflow); err != nil {
-				return err
-			}
-		}
-		reviewLane := A.WorkflowLaneForRole(workflow, "review")
-		if err := rd.Scan(`SELECT count(*) FROM card WHERE incarnation=? AND archived=0 AND lane=?`, []any{r.id.Incarnation, string(reviewLane)}, &out.ReadyForReview); err != nil {
-			return err
+		out.Revision = current.Revision
+		out.AttentionContext, out.Attention = current.AttentionContext, current.Attention
+		if current.Attention.ReadyForReview.Value != nil {
+			out.ReadyForReview = *current.Attention.ReadyForReview.Value
 		}
 		if err := rd.Scan(`SELECT max(terminal_at) FROM operation WHERE incarnation=? AND terminal_class='COMMITTED' AND committed_card_revision IS NOT NULL`, []any{r.id.Incarnation}, &last); err != nil {
 			return err

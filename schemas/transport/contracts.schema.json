@@ -11742,16 +11742,41 @@
             },
             "attention": {
               "properties": {
+                "blocked": {
+                  "properties": {
+                    "state": {
+                      "enum": [
+                        "unknown"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
+                "needsTerry": {
+                  "properties": {
+                    "state": {
+                      "enum": [
+                        "unknown"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
                 "readyForReview": {
                   "properties": {
                     "state": {
-                      "const": "unknown"
+                      "enum": [
+                        "unknown"
+                      ]
                     }
                   },
                   "type": "object"
                 }
               },
               "type": "object"
+            },
+            "attentionContext": {
+              "type": "null"
             },
             "boardRevision": {
               "type": "null"
@@ -11788,16 +11813,44 @@
             },
             "attention": {
               "properties": {
+                "blocked": {
+                  "properties": {
+                    "state": {
+                      "enum": [
+                        "known",
+                        "not_configured"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
+                "needsTerry": {
+                  "properties": {
+                    "state": {
+                      "enum": [
+                        "known",
+                        "not_configured"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
                 "readyForReview": {
                   "properties": {
                     "state": {
-                      "const": "known"
+                      "enum": [
+                        "known",
+                        "not_configured"
+                      ]
                     }
                   },
                   "type": "object"
                 }
               },
               "type": "object"
+            },
+            "attentionContext": {
+              "$ref": "#/$defs/AttentionContext"
             },
             "availability": {
               "const": "ready"
@@ -11843,16 +11896,44 @@
             },
             "attention": {
               "properties": {
+                "blocked": {
+                  "properties": {
+                    "state": {
+                      "enum": [
+                        "stale",
+                        "not_configured"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
+                "needsTerry": {
+                  "properties": {
+                    "state": {
+                      "enum": [
+                        "stale",
+                        "not_configured"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
                 "readyForReview": {
                   "properties": {
                     "state": {
-                      "const": "stale"
+                      "enum": [
+                        "stale",
+                        "not_configured"
+                      ]
                     }
                   },
                   "type": "object"
                 }
               },
               "type": "object"
+            },
+            "attentionContext": {
+              "$ref": "#/$defs/AttentionContext"
             },
             "boardRevision": {
               "maximum": 9007199254740991,
@@ -11896,54 +11977,17 @@
           ]
         },
         "attention": {
-          "additionalProperties": false,
-          "properties": {
-            "blocked": {
-              "allOf": [
-                {
-                  "$ref": "#/$defs/CatalogCount"
-                },
-                {
-                  "properties": {
-                    "state": {
-                      "const": "not_configured"
-                    },
-                    "value": {
-                      "type": "null"
-                    }
-                  },
-                  "type": "object"
-                }
-              ]
+          "$ref": "#/$defs/CatalogAttention"
+        },
+        "attentionContext": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttentionContext"
             },
-            "needsTerry": {
-              "allOf": [
-                {
-                  "$ref": "#/$defs/CatalogCount"
-                },
-                {
-                  "properties": {
-                    "state": {
-                      "const": "not_configured"
-                    },
-                    "value": {
-                      "type": "null"
-                    }
-                  },
-                  "type": "object"
-                }
-              ]
-            },
-            "readyForReview": {
-              "$ref": "#/$defs/CatalogCount"
+            {
+              "type": "null"
             }
-          },
-          "required": [
-            "blocked",
-            "needsTerry",
-            "readyForReview"
-          ],
-          "type": "object"
+          ]
         },
         "availability": {
           "enum": [
@@ -12037,6 +12081,7 @@
         "activity",
         "ageSeconds",
         "attention",
+        "attentionContext",
         "availability",
         "boardKey",
         "boardRevision",

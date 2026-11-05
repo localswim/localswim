@@ -254,4 +254,10 @@ M08.02 adds category assignments within retained workflow policies, current
 single-board Attention reads and the explicit physical9-to10 upgrade. The
 [category configuration guide](docs/runbooks/m08-category-configuration.txt)
 covers actual CLI preview, edit, observation, compatibility and recovery.
-Workspace category projection and browser controls follow in their M08 slices.
+The [Attention catalog guide](docs/runbooks/m08-attention-catalog.txt) covers
+M08.03 workspace category projection, observation states and read recovery.
+Browser controls follow in their M08 slice.
+
+Read all registered boards with `localswim --workspace DIR [--json] workspace catalog`.
+The catalog reports current policy context and separate Blocked, Needs Terry and
+Ready for Review counts, including disabled and unavailable states.

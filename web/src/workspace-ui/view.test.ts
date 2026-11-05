@@ -4,7 +4,7 @@ import { WorkspaceShell, boardHref, countLabel, observationLabel } from "./view.
 
 function assert(value: unknown, message: string): asserts value { if (!value) throw Error(message); }
 function entry(projectKey: string, boardKey: string, label: string): WorkspaceCatalogEntry {
-  return { projectKey, boardKey, label, projectLabel: projectKey === "harbor" ? "Harbor project" : "Orchard project", availability: "ready", freshness: "fresh", ageSeconds: 0, identity: null, memberEpoch: null, boardRevision: 1, lastObservedAt: "2026-10-28T12:00:00Z", activity: { state: "unknown", lastCommittedAt: null, coverage: null }, attention: { readyForReview: { state: "known", value: 0 }, blocked: { state: "not_configured", value: null }, needsTerry: { state: "not_configured", value: null } } };
+  return { projectKey, boardKey, label, projectLabel: projectKey === "harbor" ? "Harbor project" : "Orchard project", availability: "ready", freshness: "fresh", ageSeconds: 0, identity: null, memberEpoch: null, boardRevision: 1, attentionContext: null, lastObservedAt: "2026-10-28T12:00:00Z", activity: { state: "unknown", lastCommittedAt: null, coverage: null }, attention: { readyForReview: { state: "known", value: 0 }, blocked: { state: "not_configured", value: null }, needsTerry: { state: "not_configured", value: null } } };
 }
 export function runWorkspaceShellProbe(): number {
   const root = document.createElement("div"); document.body.append(root);

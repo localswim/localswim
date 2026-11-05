@@ -679,6 +679,7 @@ export type WorkspaceCatalogEntry = {
   readonly activity: CatalogActivity;
   readonly ageSeconds: number | null;
   readonly attention: CatalogAttention;
+  readonly attentionContext: AttentionContext | null;
   readonly availability: "ready" | "pending" | "missing" | "invalid" | "busy" | "unavailable" | "identity_conflict";
   readonly boardKey: string;
   readonly boardRevision: number | null;

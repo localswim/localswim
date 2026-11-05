@@ -1,0 +1,80 @@
+M08 Attention catalog
+2026-11-05 | Development slice; milestone acceptance remains separate
+
+Read the workspace
+Run the current executable against the explicitly selected, running workspace.
+Global selectors and --json precede the command.
+
+  localswim --workspace DIR workspace catalog
+  localswim --workspace DIR --json workspace catalog
+
+This workspace-level read accepts no --project, --board, --data or mutation input.
+It uses the saved workspace location and authenticated automation channel.
+Readable output includes workspace/config revision, project/board keys and
+labels, known board/incarnation/epoch, policy version/source and freshness/age.
+JSON returns the generated WorkspaceCatalog including full attentionContext.
+
+For one selected board, use the existing board read authority.
+
+  localswim --data DIR [--json] attention show
+  localswim --workspace DIR --project PROJECT --board BOARD [--json] attention show
+
+Interpret the three categories
+Display order is Blocked, Needs Terry, Ready for Review. Each counts distinct
+current committed unarchived cards in its assigned lanes. Assignments use stable
+lane IDs and the current workflow policy. Labels, ticket numbers, dependencies
+and historical card policy pins do not determine current category membership.
+
+- A number, including 0, is a known count for a configured category.
+- Not configured means that category has an explicit or implicit empty mapping.
+- Unavailable means the observation cannot establish that category's value.
+  It must not be interpreted as zero or as a confirmed disabled category.
+- A stale number is labeled stale with its observation age. Retained stale
+  context and counts describe the same earlier observation.
+
+A fresh entry includes attentionContext with policyVersion, workflowId, profile,
+source, assignments and assigned lane IDs/labels/roles. Source implicit means
+attention was omitted from the policy. Its default mapping selects only the
+current review lane. Source explicit means attention was supplied, including
+when all three categories were deliberately disabled.
+
+Observation and ordering
+Each member's counts, current policy context, board revision and activity come
+from one authorized read transaction. Different members have separate snapshots.
+observedAt is catalog assembly time; lastObservedAt is the member observation.
+
+The current scheduler returns fresh observations or unavailable entries. A
+failed/timed-out probe, authority loss or identity change clears attentionContext
+and makes all three counts unknown together. It does not retain a stale cache.
+
+Order follows last committed card activity descending, with missing times last.
+Equal non-null times use the sum of fresh known category counts, treating an
+observed disabled category as zero, then board label and project/board keys.
+Two missing activity times use the label/key fallback. A workflow/category edit
+may change this tie-break but does not create a newer card-activity timestamp.
+
+Reads, bounds and recovery
+Catalog and attention show are read-only. They do not select a new board, change
+policy, move cards, approve work or reconcile an uncertain mutation. Category
+configuration uses the existing explicit workflow preview/edit path described
+in m08-category-configuration.txt.
+
+One catalog request has a two-second response budget. Member attempts have a
+one-second budget. Four shared work slots bound activation/catalog work, with
+FIFO pending work, coalesced concurrent callers and late-join authorization
+rechecks. A slot stays occupied until the native call returns. Healthy members
+can progress while another member is unavailable. Reading the catalog starts
+no background polling.
+
+- Exit 0 means the catalog read succeeded, even if a member is unavailable.
+- Exit 1 means invalid selection/flags or local input/output failure.
+- Exit 2 means a refused request or credential/context mismatch.
+- Exit 3 means the workspace read is unavailable.
+
+For an unavailable workspace, check its running service and saved explicit
+selection, then deliberately repeat the read. For an unavailable member, inspect
+that member's existing board status and authority. Preserve its registered
+identity and files. Resolve the current service/credential issue before retrying.
+Keep private drafts and original mutation evidence during recovery. Catalog
+refresh never proves whether an earlier uncertain save committed. Use the
+existing deliberate original-outcome lookup for that decision.

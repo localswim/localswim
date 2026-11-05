@@ -228,3 +228,35 @@ func TestStatusRejectsDifferentExpectedIdentityAndOlderRevision(t *testing.T) {
 		}
 	}
 }
+
+func TestCatalogAuthenticatedReadAndBinding(t *testing.T) {
+	c := testClient()
+	calls := 0
+	c.do = func(q *http.Request) (*http.Response, error) {
+		calls++
+		if q.URL.Path != "/api/v1/workspace/catalog" || q.URL.RawQuery != "" || q.Method != "GET" || q.Header.Get("Authorization") != "Bearer "+string(c.info.Token) {
+			t.Fatal("catalog channel mismatch")
+		}
+		return response(200, T.WorkspaceCatalog{APIVersion: 1, WorkspaceID: workspaceID, ConfigRevision: 1, ObservedAt: "2026-11-05T12:00:00Z", Entries: []T.WorkspaceCatalogEntry{}}), nil
+	}
+	if _, err := c.Catalog(context.Background()); err != nil || calls != 1 {
+		t.Fatal("catalog read failed", err)
+	}
+	info := c.info
+	info.Epoch = "00000000-0000-4000-8000-000000000009"
+	c.readClient = func(string) (W.ClientInfo, error) { return info, nil }
+	_, err := c.Catalog(context.Background())
+	assertFailure(t, err, "CREDENTIAL_CONTEXT_MISMATCH", 2)
+	if calls != 1 {
+		t.Fatal("rotated epoch contacted service")
+	}
+	c.readClient = func(string) (W.ClientInfo, error) { return c.info, nil }
+	c.do = func(*http.Request) (*http.Response, error) {
+		return response(200, T.WorkspaceCatalog{APIVersion: 1, WorkspaceID: epochID, ConfigRevision: 1, ObservedAt: "2026-11-05T12:00:00Z", Entries: []T.WorkspaceCatalogEntry{}}), nil
+	}
+	_, err = c.Catalog(context.Background())
+	assertFailure(t, err, "CREDENTIAL_CONTEXT_MISMATCH", 2)
+	c.do = func(*http.Request) (*http.Response, error) { return rawResponse(200, `{}`), nil }
+	_, err = c.Catalog(context.Background())
+	assertFailure(t, err, "UNAVAILABLE", 3)
+}

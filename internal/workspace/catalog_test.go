@@ -84,7 +84,7 @@ func TestCatalogOtherOrderingAndFutureAge(t *testing.T) {
 	older := A.Timestamp("2026-01-01T00:00:00Z")
 	zero, three := A.Number(0), A.Number(3)
 	entry := func(label string, at *A.Timestamp, count *A.Number) T.WorkspaceCatalogEntry {
-		return T.WorkspaceCatalogEntry{Label: T.WorkspaceLabel(label), Freshness: "fresh", Activity: T.CatalogActivity{State: "known", LastCommittedAt: at}, Attention: T.CatalogAttention{ReadyForReview: T.CatalogCount{State: "known", Value: count}}}
+		return T.WorkspaceCatalogEntry{Label: T.WorkspaceLabel(label), Freshness: "fresh", Activity: T.CatalogActivity{State: "known", LastCommittedAt: at}, AttentionContext: &T.AttentionContext{}, Attention: T.CatalogAttention{Blocked: T.CatalogCount{State: "not_configured"}, NeedsTerry: T.CatalogCount{State: "not_configured"}, ReadyForReview: T.CatalogCount{State: "known", Value: count}}}
 	}
 	a, b := entry("Zulu", &future, &zero), entry("Alpha", &older, &three)
 	if !catalogLess(a, b) {
@@ -108,5 +108,29 @@ func TestCatalogOtherOrderingAndFutureAge(t *testing.T) {
 	}
 	if elapsed(time.Now(), time.Now().Add(time.Hour)) != 0 {
 		t.Fatal("future elapsed display not clamped")
+	}
+}
+
+func TestCatalogAggregateUsesAllFreshCategories(t *testing.T) {
+	stamp := A.Timestamp("2026-11-05T12:00:00Z")
+	one, three := A.Number(1), A.Number(3)
+	base := T.WorkspaceCatalogEntry{Label: "A", Freshness: "fresh", AttentionContext: &T.AttentionContext{}, Activity: T.CatalogActivity{State: "known", LastCommittedAt: &stamp}, Attention: T.CatalogAttention{Blocked: T.CatalogCount{State: "known", Value: &three}, NeedsTerry: T.CatalogCount{State: "known", Value: &one}, ReadyForReview: T.CatalogCount{State: "not_configured"}}}
+	other := base
+	other.Label = "Z"
+	other.Attention.Blocked = T.CatalogCount{State: "not_configured"}
+	other.Attention.ReadyForReview = T.CatalogCount{State: "known", Value: &three}
+	other.Attention.NeedsTerry = T.CatalogCount{State: "not_configured"}
+	if !catalogLess(base, other) {
+		t.Fatal("all-category aggregate ignored")
+	}
+	base.Attention.Blocked = T.CatalogCount{State: "not_configured"}
+	base.Attention.NeedsTerry = T.CatalogCount{State: "not_configured"}
+	other.Freshness = "stale"
+	if !catalogLess(base, other) {
+		t.Fatal("fresh disabled zero lost to stale sum")
+	}
+	base.Attention.NeedsTerry = T.CatalogCount{State: "unknown"}
+	if _, known := catalogAttentionSum(base); known {
+		t.Fatal("partial knowledge ranked")
 	}
 }

@@ -39,14 +39,14 @@ const attentionFacts = (value: AttentionAssignments): readonly unknown[] => atte
 export function resolvedAttention(workflow?: Workflow): AttentionAssignments {
   return workflow?.attention ? structuredClone(workflow.attention) : { blocked: [], needsTerry: [], readyForReview: [roleLane("review", workflow)!] };
 }
-export function validateAttentionAssignments(workflow?: Workflow): void {
+export function validateAttentionAssignments(workflow?: { attention?: AttentionAssignments; lanes: readonly Pick<WorkflowLane, "id" | "role">[] }): void {
   if (!workflow?.attention) return;
   const seen = new Set<string>();
   for (const key of attentionKeys) {
     const lanes = workflow.attention[key];
     if (!Array.isArray(lanes) || lanes.length > (key === "readyForReview" ? 1 : 12)) throw Error("Invalid Attention assignments");
     for (const [index, id] of lanes.entries()) {
-      if (typeof id !== "string" || seen.has(id) || index > 0 && lanes[index - 1]! >= id || laneRole(id, workflow) !== (key === "readyForReview" ? "review" : "waiting")) throw Error("Invalid Attention lane");
+      if (typeof id !== "string" || seen.has(id) || index > 0 && lanes[index - 1]! >= id || workflow.lanes.find(lane => lane.id === id)?.role !== (key === "readyForReview" ? "review" : "waiting")) throw Error("Invalid Attention lane");
       seen.add(id);
     }
   }

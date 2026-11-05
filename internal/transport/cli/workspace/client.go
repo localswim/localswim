@@ -277,6 +277,20 @@ func (c *Client) Projects(ctx context.Context) (T.WorkspaceProjects, error) {
 	defer c.mu.Unlock()
 	return c.projects(ctx)
 }
+
+// Catalog reads through the authenticated workspace channel without selecting a board.
+func (c *Client) Catalog(ctx context.Context) (T.WorkspaceCatalog, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	v, e := read[T.WorkspaceCatalog](c, ctx, "/api/v1/workspace/catalog")
+	if e != nil {
+		return T.WorkspaceCatalog{}, e
+	}
+	if string(v.WorkspaceID) != c.info.WorkspaceID {
+		return T.WorkspaceCatalog{}, fail("CREDENTIAL_CONTEXT_MISMATCH", 2)
+	}
+	return v, nil
+}
 func validKey(k T.WorkspaceKey) bool {
 	return T.Validate(T.WorkspaceProject{Key: k, Label: "validation"}) == nil
 }

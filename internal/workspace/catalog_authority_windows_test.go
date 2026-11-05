@@ -137,7 +137,7 @@ func TestCatalogLateJoinRevalidatesChangedNativeAuthority(t *testing.T) {
 				select {
 				case out := <-poll:
 					row := out.Entries[0]
-					if row.Freshness != "never" || row.Identity != nil || row.BoardRevision != nil || row.Attention.ReadyForReview.Value != nil || row.Activity.Coverage != nil {
+					if row.Freshness != "never" || row.Identity != nil || row.BoardRevision != nil || row.Attention.ReadyForReview.Value != nil || row.Activity.Coverage != nil || row.AttentionContext != nil || row.Attention.Blocked.State != "unknown" || row.Attention.NeedsTerry.State != "unknown" || row.Attention.ReadyForReview.State != "unknown" {
 						t.Fatal("late join inherited pre-change authority facts")
 					}
 				case <-time.After(2 * time.Second):

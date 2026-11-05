@@ -1,3 +1,4 @@
+import { resolvedAttention, validateAttentionAssignments } from "../api/workflow.js";
 const roles = ["initial", "in_progress", "review", "completed", "waiting"];
 const rights = ["approve", "attach", "comment", "create", "edit", "export", "read", "read-own-outcome", "review-handoff"];
 const actors = ["automation", "human"];
@@ -30,6 +31,12 @@ export function createWorkflowDraft(projectKey, uuid = () => crypto.randomUUID()
 // Advisory checks only: the strict setup boundary remains authoritative.
 export function workflowDraftErrors(draft, existing = false) {
     const errors = [], w = draft.workflow;
+    try {
+        validateAttentionAssignments(w);
+    }
+    catch {
+        errors.push("Attention categories require disjoint active waiting lanes and at most the review lane, with sorted unique IDs.");
+    }
     if (!existing && (draft.boardKey.length > 64 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(draft.boardKey)))
         errors.push("Board key must contain 1–64 lowercase letters or digits, separated by single hyphens.");
     if (!existing && !draft.projectKey)
@@ -156,7 +163,7 @@ export class WorkflowEditor {
         const actions = node("div");
         actions.className = "workflow-actions";
         actions.append(this.button("Preview workflow", () => this.showPreview(), "workflow-preview-button"), this.create, this.check, this.button("Cancel", () => options.cancel(this.isDirty())));
-        this.form.append(node("h1", options.existing ? "Edit existing workflow" : "Create a configured board"), node("p", options.existing ? "Edit labels, order, ordinary transitions and ceilings. Lane identities and roles remain fixed. Cards and human approvals are preserved. Preview is read-only; Save is deliberate." : "Choose an immutable workflow for a new board in an existing project. Roles define behavior; labels are display names. Default board creation remains available through the CLI."), this.fields, this.feedback, this.preview, this.message, actions);
+        this.form.append(node("h1", options.existing ? "Edit existing workflow" : "Create a configured board"), node("p", options.existing ? "Edit labels, order, ordinary transitions, ceilings and Attention categories. Lane identities and roles remain fixed. Cards and human approvals are preserved. Preview is read-only; Save is deliberate." : "Choose an immutable workflow for a new board in an existing project. Roles define behavior; labels are display names. Default board creation remains available through the CLI."), this.fields, this.feedback, this.preview, this.message, actions);
         if (options.existing)
             this.fields.before(actions);
         root.replaceChildren(this.form);
@@ -178,7 +185,9 @@ export class WorkflowEditor {
         this.form.setAttribute("aria-busy", String(!!this.state.busy));
     }
     changed(render = false) {
-        const active = this.fields.contains(document.activeElement) ? document.activeElement?.textContent : null;
+        const activeElement = this.fields.contains(document.activeElement) ? document.activeElement : null;
+        const activeName = activeElement?.getAttribute("aria-label");
+        const active = activeElement?.textContent;
         this.previewed = false;
         this.preview.replaceChildren();
         this.feedback.replaceChildren();
@@ -188,12 +197,13 @@ export class WorkflowEditor {
         this.options.change(this.snapshot());
         if (render && active) {
             const buttons = [...this.fields.querySelectorAll("button")].filter(button => !button.disabled);
-            (buttons.find(button => button.textContent === active) ?? buttons.at(-1))?.focus();
+            const named = activeName ? [...this.fields.querySelectorAll("[aria-label]")].find(field => field.getAttribute("aria-label") === activeName) : undefined;
+            (named ?? buttons.find(button => button.textContent === active) ?? buttons.at(-1))?.focus();
         }
     }
     button(text, action, className = "") { const b = node("button", text); b.type = "button"; b.className = className; b.addEventListener("click", () => { if (!this.disposed && !b.disabled && !(this.fields.disabled && this.fields.contains(b)))
         action(); }); return b; }
-    field(text, value, change, choices) {
+    field(text, value, change, choices, render = false) {
         const label = node("label", text), input = choices ? node("select") : node("input");
         input.setAttribute("aria-label", text);
         if (input instanceof HTMLSelectElement)
@@ -208,7 +218,7 @@ export class WorkflowEditor {
         }
         input.value = value;
         input.addEventListener(choices ? "change" : "input", () => { if (this.disposed || this.fields.disabled)
-            return; change(input.value); this.changed(); });
+            return; change(input.value); this.changed(render); });
         label.append(input);
         return label;
     }
@@ -225,13 +235,18 @@ export class WorkflowEditor {
             if (this.options.existing)
                 row.append(node("p", `Lane ${index + 1} identity ${lane.id} · role ${lane.role}`));
             else
-                row.append(this.field(`Lane ${index + 1} role`, lane.role, value => this.replaceLane(index, { ...this.draft.workflow.lanes[index], role: value }), roles.map(value => ({ value, label: value }))));
+                row.append(this.field(`Lane ${index + 1} role`, lane.role, value => this.replaceLane(index, { ...this.draft.workflow.lanes[index], role: value }), roles.map(value => ({ value, label: value })), true));
             for (const [text, offset] of [["Move up", -1], ["Move down", 1]]) {
                 const b = this.button(`${text} lane ${index + 1}`, () => { const next = [...this.draft.workflow.lanes]; [next[index], next[index + offset]] = [next[index + offset], next[index]]; this.draft.workflow = { ...this.draft.workflow, lanes: next }; this.changed(true); });
                 b.disabled = index + offset < 0 || index + offset >= this.draft.workflow.lanes.length;
                 row.append(b);
             }
-            const remove = this.button(`Remove lane ${index + 1}`, () => { this.draft.workflow = { ...this.draft.workflow, lanes: this.draft.workflow.lanes.filter((_, i) => i !== index), transitions: this.draft.workflow.transitions.filter(edge => edge.from !== lane.id && edge.to !== lane.id) }; this.changed(true); });
+            const remove = this.button(`Remove lane ${index + 1}`, () => {
+                const attention = this.draft.workflow.attention;
+                this.draft.workflow = { ...this.draft.workflow, lanes: this.draft.workflow.lanes.filter((_, i) => i !== index), transitions: this.draft.workflow.transitions.filter(edge => edge.from !== lane.id && edge.to !== lane.id),
+                    ...(attention ? { attention: { blocked: attention.blocked.filter(id => id !== lane.id), needsTerry: attention.needsTerry.filter(id => id !== lane.id), readyForReview: attention.readyForReview.filter(id => id !== lane.id) } } : {}) };
+                this.changed(true);
+            });
             remove.disabled = this.draft.workflow.lanes.length <= 4 || !!this.options.existing && lane.role !== "waiting";
             row.append(remove);
             lanes.append(row);
@@ -240,6 +255,7 @@ export class WorkflowEditor {
         addLane.disabled = this.draft.workflow.lanes.length >= 16;
         lanes.append(addLane);
         this.fields.append(lanes);
+        this.renderAttention();
         const edges = node("section");
         edges.append(node("h2", "Directed transitions (3–64)"));
         const choices = this.draft.workflow.lanes.map((lane, index) => ({ value: lane.id, label: `${index + 1}. ${lane.label || "Unnamed"} (${lane.role})` }));
@@ -278,6 +294,63 @@ export class WorkflowEditor {
             }
         this.fields.append(ceilings);
     }
+    renderAttention() {
+        const section = node("section"), workflow = this.draft.workflow;
+        const assignments = resolvedAttention(workflow), explicit = workflow.attention !== undefined;
+        section.setAttribute("aria-label", "Attention categories");
+        section.append(node("h2", "Attention categories"), node("p", `Attention source: ${explicit ? "explicit" : "implicit"}. Policy ${workflow.revision}.`), node("p", "Blocked waits on an external condition. Needs Terry requires a specific input or action. Ready for Review awaits human review or approval."), node("p", "An empty category is Not configured. A configured category with no matching unarchived cards has count 0. Category choices preserve cards and approval rules."));
+        section.append(this.button("Use explicit Attention assignments", () => {
+            this.draft.workflow = { ...this.draft.workflow, attention: resolvedAttention(this.draft.workflow) };
+            this.changed(true);
+        }), this.button("Restore implicit Attention assignments", () => {
+            const { attention: _attention, ...rest } = this.draft.workflow;
+            this.draft.workflow = rest;
+            this.changed(true);
+        }), this.button("Disable all Attention categories", () => {
+            this.draft.workflow = { ...this.draft.workflow, attention: { blocked: [], needsTerry: [], readyForReview: [] } };
+            this.changed(true);
+        }));
+        const categoryNames = { blocked: "Blocked", needsTerry: "Needs Terry", readyForReview: "Ready for Review" };
+        const categoryKeys = ["blocked", "needsTerry", "readyForReview"];
+        for (const lane of workflow.lanes.filter(lane => lane.role === "waiting" || lane.role === "review" || categoryKeys.some(key => assignments[key].includes(lane.id)))) {
+            const label = node("label", `${lane.label || "Unnamed lane"} · ID ${lane.id} · role ${lane.role}`), select = node("select");
+            select.setAttribute("aria-label", `Attention category for lane ${lane.id}`);
+            const choices = [["", "Not configured"], ...(lane.role === "review" ? [["readyForReview", "Ready for Review"]] : lane.role === "waiting" ? [["blocked", "Blocked"], ["needsTerry", "Needs Terry"]] : [])];
+            for (const [value, text] of choices) {
+                const option = node("option", text);
+                option.value = value;
+                select.append(option);
+            }
+            const assigned = categoryKeys.find(key => assignments[key].includes(lane.id));
+            if (assigned && !choices.some(([value]) => value === assigned)) {
+                const invalid = node("option", `Invalid assignment: ${categoryNames[assigned]}`);
+                invalid.value = assigned;
+                invalid.disabled = true;
+                select.append(invalid);
+                label.append(node("span", " This assignment is invalid for the current role. Clear it or restore the lane role before previewing."));
+            }
+            select.value = assigned ?? "";
+            select.addEventListener("change", () => {
+                if (this.disposed || this.fields.disabled)
+                    return;
+                const current = resolvedAttention(this.draft.workflow);
+                const next = { blocked: [...current.blocked], needsTerry: [...current.needsTerry], readyForReview: [...current.readyForReview] };
+                for (const key of ["blocked", "needsTerry", "readyForReview"])
+                    next[key] = next[key].filter(id => id !== lane.id);
+                if (select.value === "blocked" || select.value === "needsTerry" || select.value === "readyForReview")
+                    next[select.value].push(lane.id);
+                for (const key of ["blocked", "needsTerry", "readyForReview"])
+                    next[key].sort();
+                this.draft.workflow = { ...this.draft.workflow, attention: next };
+                this.changed(true);
+            });
+            label.append(select);
+            section.append(label);
+        }
+        for (const key of ["blocked", "needsTerry", "readyForReview"])
+            section.append(node("p", `${categoryNames[key]} mapping: ${assignments[key].join(", ") || "Not configured"}`));
+        this.fields.append(section);
+    }
     replaceLane(index, lane) { this.draft.workflow = { ...this.draft.workflow, lanes: this.draft.workflow.lanes.map((old, i) => i === index ? lane : old) }; }
     showPreview() {
         if (this.disposed || this.composing || this.compositionEnd || this.state.busy || this.state.locked || this.sent)
@@ -313,6 +386,10 @@ export class WorkflowEditor {
             this.preview.append(node("h3", "Allowed transitions"), edges);
             for (const actor of actors)
                 this.preview.append(node("p", `${actor} rights: ${this.draft.workflow.actorRights[actor].join(", ")}`));
+            this.preview.append(node("h3", "Attention categories"), node("p", `Attention source: ${this.draft.workflow.attention === undefined ? "implicit" : "explicit"}.`));
+            const assignments = resolvedAttention(this.draft.workflow);
+            for (const [key, name] of [["blocked", "Blocked"], ["needsTerry", "Needs Terry"], ["readyForReview", "Ready for Review"]])
+                this.preview.append(node("p", `${name}: ${assignments[key].map(id => `${label(id)} · ID ${id}`).join(", ") || "Not configured"}`));
             const details = node("details");
             details.append(node("summary", "Complete definition and immutable IDs"), node("pre", JSON.stringify(this.draft, null, 2)));
             this.preview.append(details);

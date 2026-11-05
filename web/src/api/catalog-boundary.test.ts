@@ -19,14 +19,14 @@ export function runCatalogBoundaryTests(): number {
   check("CatalogActivity", { state: "unknown", lastCommittedAt: null, coverage: null }, true);
   check("CatalogActivity", { state: "unknown", lastCommittedAt: null, coverage }, false);
   check("CatalogActivity", { state: "stale", lastCommittedAt: null, coverage: null }, false);
-  const unknown = { state: "unknown", value: null }, unsupported = { state: "not_configured", value: null };
+  const unknown = { state: "unknown", value: null };
   const entry = { projectKey: "p", boardKey: "b", projectLabel: "P", label: "B", identity: null, memberEpoch: null,
     availability: "unavailable", freshness: "never", ageSeconds: null, lastObservedAt: null, boardRevision: null,
-    activity: { state: "unknown", lastCommittedAt: null, coverage: null },
-    attention: { readyForReview: unknown, blocked: unsupported, needsTerry: unsupported } };
+    activity: { state: "unknown", lastCommittedAt: null, coverage: null }, attentionContext: null,
+    attention: { readyForReview: unknown, blocked: unknown, needsTerry: unknown } };
   check("WorkspaceCatalogEntry", entry, true);
   check("WorkspaceCatalogEntry", { ...entry, boardRevision: 0 }, false);
   check("WorkspaceCatalogEntry", { ...entry, freshness: "fresh" }, false);
-  check("CatalogAttention", { ...entry.attention, blocked: { state: "known", value: 0 } }, false);
+  check("CatalogAttention", { ...entry.attention, blocked: { state: "known", value: 0 } }, true);
   return passed;
 }

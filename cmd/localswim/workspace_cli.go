@@ -19,7 +19,8 @@ import (
 	W "github.com/localswim/localswim/internal/transport/cli/workspace"
 )
 
-const workspaceCLIHelp = `  localswim --workspace DIR [--json] project list
+const workspaceCLIHelp = `  localswim --workspace DIR [--json] workspace catalog
+  localswim --workspace DIR [--json] project list
   localswim --workspace DIR [--json] project create --key KEY --label LABEL --root DIR
   localswim --workspace DIR [--project PROJECT] [--json] board list
   localswim --workspace DIR --project PROJECT [--json] board create --key KEY --label LABEL --root DIR [--workflow FILE]
@@ -156,6 +157,12 @@ func parseWorkspaceCommand(q localInvocation) (workspaceCommand, []string, error
 		return c, nil, errComposition
 	}
 	c.family, c.action = args[0], args[1]
+	if c.family == "workspace" && c.action == "catalog" {
+		if q.workspace == "" || q.project != "" || q.board != "" || len(args) != 2 {
+			return c, nil, errComposition
+		}
+		return c, nil, nil
+	}
 	control := c.family == "project" || c.family == "board" && c.action != "read"
 	if !control {
 		if q.project == "" || q.board == "" {
@@ -391,6 +398,8 @@ func runWorkspaceCLI(ctx context.Context, q localInvocation, in io.Reader, out, 
 	var value any
 	var result T.WorkspaceControlResult
 	switch c.family + " " + c.action {
+	case "workspace catalog":
+		value, err = client.Catalog(ctx)
 	case "project list":
 		value, err = client.Projects(ctx)
 	case "board list":
@@ -446,6 +455,8 @@ func runWorkspaceCLI(ctx context.Context, q localInvocation, in io.Reader, out, 
 
 func writeWorkspaceText(out io.Writer, value any) error {
 	switch v := value.(type) {
+	case T.WorkspaceCatalog:
+		return writeWorkspaceCatalog(out, v)
 	case T.WorkspaceProjects:
 		if _, e := fmt.Fprintf(out, "Projects (config revision %d)\n", v.ConfigRevision); e != nil {
 			return e

@@ -3,7 +3,7 @@ import { completedLane, laneText, moveLanes, roleLane, workflowEdge, workflowRig
 import { completeOwnedRelationships, relationshipKinds, forwardLabels, validRelationships } from "../api/relationships.js";
 import type { RelationshipRow } from "../api/relationships.js";
 import type { RelationshipAction } from "./relationships.js";
-import type { BoardRead, MutationRequest, SessionRead } from "../../generated/transport/contracts.js";
+import type { BoardRead, MutationRequest, SessionRead, CatalogCount } from "../../generated/transport/contracts.js";
 import type { Card } from "../../generated/archive/contracts.js";
 import type { BoardCommand, Value } from "../api/boundary.js";
 import { BoardClient, WorkflowPreviewRefusal } from "../api/client.js";
@@ -35,7 +35,7 @@ type Editor = {
   card: Card | undefined; fields: Record<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
   form: HTMLFormElement; recovery: HTMLElement; save: HTMLButtonElement; composing: boolean;
   sequence: number; submitted: boolean; persisted: number; start: boolean; genericMove?: boolean; archive?: boolean;
-  workflowEditor?: WorkflowEditor; workflowPreview?: string; workflowPreviewBusy?: boolean; workflowPreviewSequence?: number;
+  workflowEditor?: WorkflowEditor; workflowPreview?: string; workflowPreviewBusy?: boolean; workflowPreviewSequence?: number; workflowPreviewFailure?: string;
   hierarchy?: HierarchyEdit;
   relationshipsReplace?: boolean;
   renderRelationships?: () => void;
@@ -411,7 +411,7 @@ export class BoardView {
       const host = element("section"); form.append(host);
       const draft: WorkflowDraft = { projectKey: "", boardKey: "", label: "", workflow: JSON.parse(editor.fields.workflow!.value) };
       editor.workflowEditor = new WorkflowEditor(host, { existing: true, draft, projects: [],
-        change: next => { if (this.editor !== editor || editor.submitted || this.suspended) return; editor.workflowPreview = undefined; editor.workflowPreviewSequence = (editor.workflowPreviewSequence ?? 0) + 1; editor.fields.workflow!.value = JSON.stringify(next.workflow); this.persist(editor); this.updateSave(); },
+        change: next => { if (this.editor !== editor || editor.submitted || this.suspended) return; editor.workflowPreview = undefined; editor.workflowPreviewFailure = undefined; editor.workflowPreviewSequence = (editor.workflowPreviewSequence ?? 0) + 1; editor.fields.workflow!.value = JSON.stringify(next.workflow); this.persist(editor); this.updateSave(); },
         preview: () => { void this.previewWorkflow(editor); }, submit: () => { void this.save(editor); },
         cancel: () => this.cancelEditor(editor), status: () => {} });
       editor.save.hidden = true;
@@ -572,22 +572,22 @@ export class BoardView {
     const input = JSON.stringify({ command: editor.command, target: editor.card ? { cardId: editor.card.cardId } : null,
       expectedRevision: editor.base.result.revision, expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor), base: editor.base, start: editor.start, ...(editor.genericMove ? { genericMove: true } : {}),
       ...(editor.hierarchy ? { hierarchy: editor.hierarchy } : {}), ...(editor.card ? { card: editor.card } : {}) });
-    editor.recovery.textContent = "Recovery pending";
+    editor.recovery.textContent = editor.workflowPreviewFailure ?? "Recovery pending";
     void this.persistence.persist(async () => {
       try {
         const result = await this.client.recovery.saveDraft({ context: editor.context, draftId: editor.id, expectedRevision: editor.revision, input });
         editor.id = result.draft.draftId; editor.revision = result.draft.revision;
         if (this.editor === editor) this.checkpoint({ context: editor.context, draftId: editor.id });
         if (generation === this.persistence.generation && sequence === editor.sequence) editor.persisted = sequence;
-        if (!this.destroyed && generation === this.persistence.generation && sequence === editor.sequence) editor.recovery.textContent = result.state === "forked" ? "Recovery saved as a separate draft after a conflict." : "Recovery saved privately.";
-      } catch { if (!this.destroyed && generation === this.persistence.generation && sequence === editor.sequence) editor.recovery.textContent = "Recovery failed; input remains here. Dispatch requires verified recovery storage."; }
+        if (!this.destroyed && generation === this.persistence.generation && sequence === editor.sequence) editor.recovery.textContent = editor.workflowPreviewFailure ?? (result.state === "forked" ? "Recovery saved as a separate draft after a conflict." : "Recovery saved privately.");
+      } catch { if (!this.destroyed && generation === this.persistence.generation && sequence === editor.sequence) editor.recovery.textContent = (editor.workflowPreviewFailure ? editor.workflowPreviewFailure + " " : "") + "Recovery failed; input remains here. Dispatch requires verified recovery storage."; }
       this.updateSave();
     });
   }
   private async previewWorkflow(editor: Editor): Promise<void> {
     if (this.destroyed || this.suspended || this.editor !== editor || editor.submitted || editor.workflowPreviewBusy || this.stale) return;
     const generation = this.generation, sequence = editor.workflowPreviewSequence ?? 0, input = this.input(editor);
-    editor.workflowPreviewBusy = true; editor.workflowPreview = undefined; this.updateSave();
+    editor.workflowPreviewBusy = true; editor.workflowPreview = undefined; editor.workflowPreviewFailure = undefined; editor.recovery.textContent = "Checking workflow preview."; this.updateSave();
     try {
       const preview = await this.client.previewWorkflow({ apiVersion: 1, boardId: editor.context.boardId, incarnation: editor.context.incarnation,
         expectedRevision: editor.base.result.revision, expectedPolicyVersion: editor.base.result.policyVersion,
@@ -609,6 +609,19 @@ export class BoardView {
         return lane ? `${lane.label} (${lane.role})` : id;
       };
       const changes = preview.changes;
+      section("Attention categories", [
+        `Source ${changes.attention.beforeSource} → ${changes.attention.afterSource}. ${changes.attention.changed ? "Attention policy changes." : "Attention policy stays the same."}`,
+        "Counts use current committed unarchived cards. Candidate counts are preview estimates.",
+        ...(["blocked", "needsTerry", "readyForReview"] as const).map(key => {
+          const name = { blocked: "Blocked", needsTerry: "Needs Terry", readyForReview: "Ready for Review" }[key];
+          const mapping = (ids: readonly string[], lanes: readonly { id: string; label: string; role: string }[]): string => ids.map(id => {
+            const lane = lanes.find(row => row.id === id)!;
+            return `${lane.label} (${lane.role}) · ID ${id}`;
+          }).join(", ") || "Not configured";
+          const count = (value: CatalogCount): string => value.state === "known" ? String(value.value) : value.state === "not_configured" ? "Not configured" : value.state === "stale" ? `Stale ${value.value}` : "Unavailable";
+          return `${name} · Current ${count(preview.currentAttention[key])}: ${mapping(changes.attention.before[key], before)} → Candidate ${count(preview.candidateAttention[key])}: ${mapping(changes.attention.after[key], after)}`;
+        }),
+      ]);
       section("Lane changes", [
         ...changes.renamed.map(row => `${row.before} → ${row.after} · ${describe(row.laneId)} · ID ${row.laneId}`),
         ...changes.added.map(row => `Add ${row.label} (${row.role}) · ID ${row.id}`),
@@ -643,7 +656,12 @@ export class BoardView {
       target.append(complete);
       editor.workflowEditor!.approvePreview();
       editor.recovery.textContent = "Preview ready. Review changes, occupancy, rights, approval preservation and capacity before Save workflow.";
-    } catch (error) { if (!this.destroyed && !this.suspended && this.editor === editor && generation === this.generation && sequence === (editor.workflowPreviewSequence ?? 0)) editor.recovery.textContent = (error instanceof WorkflowPreviewRefusal ? "Workflow preview refused (" + error.code + ")." : "Workflow preview refused or unavailable.") + " Input and original revision retained. Read the current board and deliberately open a new editor to refresh context."; }
+    } catch (error) {
+      if (!this.destroyed && !this.suspended && this.editor === editor && generation === this.generation && sequence === (editor.workflowPreviewSequence ?? 0)) {
+        editor.workflowPreviewFailure = (error instanceof WorkflowPreviewRefusal ? "Workflow preview refused (" + error.code + ")." : "Workflow preview refused or unavailable.") + " Input and original revision retained. Read the current board and deliberately open a new editor to refresh context.";
+        editor.recovery.textContent = editor.workflowPreviewFailure;
+      }
+    }
     finally { editor.workflowPreviewBusy = false; if (!this.destroyed && !this.suspended && this.editor === editor) this.updateSave(); }
   }
   private async save(editor: Editor): Promise<void> {

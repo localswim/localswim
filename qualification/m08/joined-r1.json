@@ -1,0 +1,93 @@
+{
+  "scope": "M08.06 joined qualification",
+  "status": "PASS",
+  "productSource": "251f97fb3ae56e84ecf861dd9620b46567425a74",
+  "qualifiedSource": "cd3280f9c576d0112822050d85a6ed758b7d1de5",
+  "binarySHA256": "1ee908e24d0565d85074b7dbdb579875c2dd578145855ddc5db53a8fdfeb81d3",
+  "cleanBuilds": {
+    "count": 2,
+    "sourceFiles": 1015,
+    "matchingOutputFiles": 92,
+    "independentCaches": true
+  },
+  "fullGo": {
+    "pass": 1968,
+    "fail": 0,
+    "skip": 0
+  },
+  "nodeScripts": 19,
+  "nativeInventory": {
+    "root": {
+      "required": 3,
+      "pass": 3,
+      "fail": 0,
+      "skip": 0
+    },
+    "transaction": {
+      "required": 8,
+      "pass": 8,
+      "fail": 0,
+      "skip": 0
+    },
+    "archive": {
+      "required": 14,
+      "pass": 14,
+      "fail": 0,
+      "skip": 0
+    },
+    "transactionChild": {
+      "required": 7,
+      "pass": 7,
+      "fail": 0,
+      "skip": 0
+    },
+    "archiveChild": {
+      "required": 4,
+      "pass": 4,
+      "fail": 0,
+      "skip": 0
+    },
+    "archiveRows": {
+      "required": 6,
+      "pass": 6,
+      "fail": 0,
+      "skip": 0
+    }
+  },
+  "nativeSupplement": {
+    "passed": 28,
+    "failed": 0,
+    "skipped": 0
+  },
+  "browserInventory": {
+    "pass": 21,
+    "fail": 0,
+    "skip": 0,
+    "retry": 0
+  },
+  "joinedBrowserChecks": 256,
+  "categoryAssertions": 148,
+  "categoryReopenChecks": 8,
+  "workspaceBrowserGroups": 14,
+  "conservation": {
+    "pass": 272,
+    "fail": 0,
+    "skip": 0,
+    "restoreProfiles": 4,
+    "completePrewalks": 8,
+    "originalPairs": 64,
+    "oldM06Checks": 92,
+    "oldM07Checks": 90
+  },
+  "retainedPolicyBound": {
+    "maxAssignedLaneReferences": 13,
+    "conservative128PolicyBytes": 3153921,
+    "limitBytes": 8388608
+  },
+  "independentReview": "PASS",
+  "limits": [
+    "Synthetic Windows amd64/local NTFS and loopback fixtures.",
+    "Injected transport and storage faults are separately labeled.",
+    "No physical power-loss qualification."
+  ]
+}

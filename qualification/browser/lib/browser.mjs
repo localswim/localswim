@@ -6,12 +6,14 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readRun, digest } from './run-input.mjs';
 import { startFixture, control } from './control.mjs';
+import { createLocalpostDiagnostics } from './localpost.mjs';
 const require = createRequire(resolve(dirname(fileURLToPath(import.meta.url)), '../../../web/package.json'));
 const { test: base, expect, chromium } = require('@playwright/test');
 export { expect, control };
 const run = readRun(), declared = new Set();
 export const inventory = JSON.parse(readFileSync(new URL('../inventory.json', import.meta.url), 'utf8'));
 const inventorySHA256 = digest(readFileSync(new URL('../inventory.json', import.meta.url)));
+const diagnostics = createLocalpostDiagnostics({ caseIds: inventory.required });
 
 export const test = base.extend({
   run: [async ({}, use) => { await use(run); }, { scope: 'worker' }],
@@ -22,8 +24,11 @@ export const test = base.extend({
     writeFileSync(resolve(run.artifactDirectory, 'live-start.json'), JSON.stringify({ ...fixture.ready, manifestSHA256: run.manifestSHA256, inventorySHA256 }) + '\n', { flag: 'wx' });
     try { await use(fixture); }
     finally {
-      const result = await fixture.close();
-      writeFileSync(resolve(run.artifactDirectory, 'fixture-teardown.json'), JSON.stringify({ ...result, manifestSHA256: run.manifestSHA256 }) + '\n', { flag: 'wx' });
+      let result;
+      try { result = await fixture.close(); }
+      finally { await diagnostics.close(); }
+      writeFileSync(resolve(run.artifactDirectory, 'fixture-teardown.json'), JSON.stringify({ ...result, manifestSHA256: run.manifestSHA256,
+        localpost: diagnostics.stats() }) + '\n', { flag: 'wx' });
     }
   }, { scope: 'worker' }],
   profile: [async ({ run, fixture }, use) => {
@@ -37,15 +42,18 @@ export const test = base.extend({
       writeFileSync(resolve(run.artifactDirectory, 'browser-teardown.json'), JSON.stringify({ closed: true, manifestSHA256: run.manifestSHA256 }) + '\n', { flag: 'wx' });
     }
   }, { scope: 'worker' }],
-  app: async ({ run, profile }, use) => {
+  app: async ({ run, profile }, use, info) => {
     const page = await profile.context.newPage();
+    const id = info.title.split(' ', 1)[0];
+    const detach = diagnostics.attach(page, id);
+    void diagnostics.emit({ caseId: id, kind: 'case', phase: 'start', code: 'OK' });
     try {
       const response = await page.goto(run.origin, { waitUntil: 'networkidle' });
       if (!response || response.status() !== 200 || page.url() !== run.origin + '/') throw Error('Normal local entry failed');
       await expect(page.getByRole('button', { name: 'Create card', exact: true })).toBeVisible();
       await expect(page.getByRole('status').filter({ hasText: 'Current at board revision' })).toBeVisible();
       await use(page);
-    } finally { await page.close(); }
+    } finally { detach(); await page.close(); }
   },
 });
 export function scenario(id, title, body) {
@@ -58,6 +66,8 @@ export function requireInventory() {
 test.afterEach(async ({}, info) => {
   const id = info.title.split(' ', 1)[0];
   if (!/^V02-[A-Z]+-\d+$/.test(id)) throw Error('Unidentified browser case');
+  void diagnostics.emit({ caseId: id, kind: 'case', phase: 'complete',
+    code: info.status === 'passed' ? 'OK' : info.status === 'skipped' ? 'CASE_SKIPPED' : 'CASE_FAILED' });
   writeFileSync(resolve(run.artifactDirectory, id + '.json'), JSON.stringify({ id, status: info.status, expectedStatus: info.expectedStatus, retry: info.retry,
     errors: info.errors.length, durationMs: info.duration, evidenceId: run.evidenceId, manifestSHA256: run.manifestSHA256, inventorySHA256, sourceSHA256: run.sourceSHA256,
     fixtureSHA256: run.fixtureSHA256, applicationSHA256: run.applicationSHA256, browserVersion: run.browserVersion,

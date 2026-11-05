@@ -1,5 +1,11 @@
 V02 - Actual local browser and CLI qualification
 
+Development diagnostics use the shared localpost service. Follow
+docs/runbooks/localpost-development.txt to register a private per-run inbox,
+set LOCALPOST_REGISTRATION_ID, run the ordinary fresh browser qualification,
+inspect bounded completed .dat messages, and retire the registration. The
+harness forwards fixed metadata; product CSP and test authority are unchanged.
+
 Authority: accepted 22-localhost-scope-reset and companion task map. This replaces
 the historical TLS, code/delegation and manually asserted profile matrix. Historical
 source and failed evidence remain private; no trust or login action is required.

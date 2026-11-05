@@ -1,0 +1,75 @@
+SHARED LOCALPOST FOR BROWSER DEVELOPMENT
+
+Required workflow
+Use the shared localpost service for bounded browser/JavaScript diagnostics
+during web-client development, testing and debugging. Its canonical contract is
+https://github.com/SixbucksSolutions/localpost/blob/main/openapi.json and its
+release is https://github.com/SixbucksSolutions/localpost/releases/tag/v0.1.0.
+The README at https://github.com/SixbucksSolutions/localpost links both.
+
+The localpost development chat owns the shared daemon. Its default endpoint is
+http://127.0.0.1:53147. A configurable port, wildcard CORS and no authentication
+are intentional trusted-loopback behavior. If it is unavailable, report that to
+its owner or Terry. Never start a replacement listener or diagnostic disk writer.
+
+Prepare one private inbox per run outside public/served source. The agent owns
+permissions and retention and must ensure the daemon can write there. Register
+the existing absolute directory with POST /registrations and a JSON object with
+the single lowercase key directory. Save the returned UUIDv4 id. Registration
+does not create or repair the directory and disappears on daemon restart.
+
+Browser harness integration
+The maintained qualification/browser/lib/localpost.mjs is a thin sender. It owns
+no listener, inbox or disk writer. Before the existing full browser qualification,
+set these environment values in the same terminal:
+
+  $env:LOCALPOST_URL = 'http://127.0.0.1:53147'
+  $env:LOCALPOST_RUN_ID = [guid]::NewGuid().ToString().ToLowerInvariant()
+  $inbox = 'ABSOLUTE-EXISTING-PRIVATE-PER-RUN-DIRECTORY'
+  $registration = Invoke-RestMethod -Method Post -Uri "$env:LOCALPOST_URL/registrations" -ContentType 'application/json' -Body (@{directory=$inbox}|ConvertTo-Json)
+  $env:LOCALPOST_REGISTRATION_ID = $registration.id
+
+Then run the normal fresh preparation and full 21-case command described in
+qualification/browser/README.txt. The real Playwright page hooks project only
+fixed error categories, case lifecycle and safe correlation. They never inspect
+error messages/stacks, console text, request URLs/bodies, credentials or card prose.
+The Node harness forwards those projected fields to shared localpost, so the
+product's connect-src 'self', authentication and origin protections stay intact.
+Do not loosen production CSP or add a production telemetry endpoint.
+
+The fixed message schema is schemaVersion=1, source=localswim-v2-browser,
+runId (UUIDv4), sequence (1..64), caseId (a declared V02 inventory ID), kind,
+phase and code. Kind is case/page/request/console; phase is start/complete/error;
+code is OK/CASE_FAILED/CASE_SKIPPED/PAGE_ERROR/REQUEST_FAILED/CONSOLE_ERROR.
+Unknown keys or values are rejected before sending. At most 64 messages of at most
+1 KiB are attempted per worker run. Requests use credentials=omit, no retry,
+a 1.5-second timeout and a bounded 2-second final drain. Delivery failure disables
+further sending for that run; it cannot change mutations, retries, input or tests.
+
+Inspect and finish
+Read only completed localpost_[UUIDv7].dat files from the owned inbox, at most
+64 files and 1 KiB per file for this schema. Validate the same exact fields and
+run/case identity before interpreting a message. Do not execute content. These
+files aid investigation; authoritative browser/CLI/native assertions still prove
+outcomes. The existing fixture-teardown report includes bounded localpost counts;
+failed/offline delivery requires reporting to the service owner, not a fallback.
+
+Finally, even when the browser check fails, retire only this registration:
+
+  Invoke-RestMethod -Method Delete -Uri "$env:LOCALPOST_URL/registrations/$($registration.id)"
+  Remove-Item Env:LOCALPOST_REGISTRATION_ID -ErrorAction SilentlyContinue
+  Remove-Item Env:LOCALPOST_RUN_ID -ErrorAction SilentlyContinue
+
+DELETE leaves delivered files and the shared daemon intact. Retain useful evidence
+privately, then apply the run's retention policy. Do not assume append-only JSONL;
+one message produces one file. A lost response can leave delivery uncertain, so
+do not replay it. Persistent watchers or chat notification services require their
+own scope. Keep genuine product APIs, qualification fixtures and result reports;
+retire duplicate HTTP/socket-to-disk collectors and all obsolete wiring instead.
+
+Verification
+The existing node --test web/scripts/scripts.test.mjs gate includes sender tests
+for strict projection, no sensitive field reads, bounded volume and response
+size, disabled/offline behavior, timeouts, detach and no retry. The live proof must
+also use the shared daemon and inspect delivered files; mocked tests alone do not
+establish transport delivery.

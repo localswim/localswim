@@ -41,11 +41,11 @@ supersedes the earlier HTTP-to-file workflow.
 
 ### Rollout and ownership
 
-Host setup remains in progress. The qualified staging endpoint is
-`http://127.0.0.1:53170`, for isolated new-queue tests. The target shared
-endpoint is `http://127.0.0.1:53147`; it retains legacy v0.2.1 until Terry's
-rollout record explicitly confirms cutover. Windows boot-start setup and
-validation remain pending. Preserve the shared host and its operator ownership.
+Cutover completed on 2026-11-05. Use the qualified shared queue at
+`http://127.0.0.1:53147`. The legacy dated API and staging53170 are retired.
+Windows task `Agent Message Queue` starts at Terry's sign-in and runs independently
+of Codex. Its registered trigger and manual execution are verified; an actual
+sign-out/sign-in cycle remains to be observed. Preserve operator ownership.
 
 The server uses Valkey 9.0.7 and Webdis 0.1.25 with volatile in-memory messages,
 plain HTTP and wildcard CORS. Use the installed native client
@@ -56,10 +56,11 @@ Valkey/Webdis are the active server components; the repository retains history.
 
 Check health through `C:\Projects\shared-message-queue\queue.ps1 -Action Status`
 or POST `/` with body `PING`, expecting `{"PING":[true,"PONG"]}`.
-After confirmed cutover, an absent or wrong-protocol listener on 53147 requires
+An absent or wrong-protocol listener or failed queue health check on 53147 requires
 immediate Terry attention and a pause in queue-dependent testing. Respect an
 announced maintenance window. Start/Stop are operator actions requiring explicit
-authority. A stop discards volatile messages.
+authority. The launcher permits three one-minute retries after a failed WSL
+client. Explicit Stop cancels the task and retries. A stop discards volatile messages.
 
 ### Bounded browser feedback
 
@@ -106,7 +107,7 @@ notifications require separate scope.
 ### Current V2 migration boundary
 
 The accepted M07 harness still contains its historical dated-API sender.
-Track its migration through a new follow-up card. Use the shared queue and a
+Track its migration through follow-up #0116. Use the shared queue at53147 and a
 bounded private forwarding adapter for isolated readiness checks meanwhile.
 Retain old qualification evidence under its original source/protocol binding.
 The historical localpost runbook is superseded for new queue-backed runs by this

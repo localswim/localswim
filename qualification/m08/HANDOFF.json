@@ -1,0 +1,55 @@
+{
+  "status": "M08_07_HANDOFF_READY_FOR_OWNER_REVIEW",
+  "productSource": "251f97fb3ae56e84ecf861dd9620b46567425a74",
+  "qualifiedSource": "cd3280f9c576d0112822050d85a6ed758b7d1de5",
+  "qualificationPublication": "60a39aa45cef39d4f51f679be41a0b8d78341517",
+  "binarySHA256": "1ee908e24d0565d85074b7dbdb579875c2dd578145855ddc5db53a8fdfeb81d3",
+  "kit": {
+    "name": "localswim-m08-review-kit-win-amd64-r4.zip",
+    "sha256": "9906637e34a02b6b169dca1aff2b85123afdf047ceb3cc96268ab4360deeba82",
+    "bytes": 12424504,
+    "payloadFiles": 100,
+    "totalFiles": 102,
+    "schemaReferences": 460,
+    "delivery": "Verified local ZIP with manifest and checksum; exceeds the board 10 MiB attachment limit."
+  },
+  "normalDemo": {
+    "evidence": "normal-demo-66391342",
+    "browserChecks": 270,
+    "reopenedChecks": 18,
+    "actualCLICommands": 140,
+    "validatedQueueMessages": 11,
+    "boards": 3,
+    "projects": 2,
+    "savedPortReused": true,
+    "fullCurrentReadParity": true,
+    "ownedCleanup": true,
+    "diagnosticObservations": {
+      "favicon404": 0,
+      "otherHttpErrors": 0,
+      "pageExceptions": 0,
+      "consoleFavicon404": 1,
+      "consoleOther404": 0,
+      "consoleUnclassified": 0
+    }
+  },
+  "independentReview": "PASS",
+  "phaseBudgetMinutes": {
+    "base": 245,
+    "reserve": 95,
+    "cap": 340
+  },
+  "preflightSeparateMinutes": 9.225141011666667,
+  "timingReceipt": "Continuous development elapsed time, including reviews and corrections, is recorded in the final board closure and clock receipt.",
+  "limits": [
+    "Synthetic Windows amd64, local NTFS and loopback.",
+    "The normal extracted demonstration is separate from labeled qualification fault injections.",
+    "Physical power-loss qualification is outside this evidence."
+  ],
+  "processLessons": [
+    "Validate diagnostic IDs and the complete envelope before a long browser run.",
+    "Test legal waiting-lane return paths in the normal walkthrough.",
+    "Freeze current-guide references and all authored text bytes before final packaging.",
+    "Keep complete restore and exact-original comparisons bound to the current source and executable."
+  ]
+}

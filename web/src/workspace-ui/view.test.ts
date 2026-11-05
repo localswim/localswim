@@ -26,7 +26,23 @@ export function runWorkspaceShellProbe(): number {
     shell.update({ state: "ready", catalog: catalog([a, b, c]), projects });
     assert(!shell.chooserRoot.hidden && shell.editorRoot.hidden, "Root selected a board automatically");
     assert(root.querySelectorAll(".workspace-board-list a").length === 3 && root.textContent?.includes("Empty project · No boards registered"), "Flat board list or empty project missing");
-    assert(countLabel({ state: "known", value: 0 }) === "0" && countLabel({ state: "unknown", value: null }) === "Unknown" && countLabel({ state: "not_configured", value: null }) === "Not configured" && countLabel({ state: "stale", value: 4 }).includes("out of date"), "Count states collapsed into zero");
+    const blockedLane = "60000000-0000-4000-8000-000000000001", needsLane = "60000000-0000-4000-8000-000000000002";
+    const mapped: WorkspaceCatalogEntry = { ...a, attentionContext: {
+      policyVersion: 4, workflowId: "70000000-0000-4000-8000-000000000001", profile: "configured", source: "explicit",
+      assignments: { readyForReview: [], needsTerry: [needsLane], blocked: [blockedLane] },
+      lanes: [{ id: blockedLane, label: "Waiting on supplier", role: "waiting" }, { id: needsLane, label: "Waiting on owner", role: "waiting" }],
+    }, attention: { blocked: { state: "known", value: 3 }, needsTerry: { state: "known", value: 0 }, readyForReview: { state: "not_configured", value: null } } };
+    shell.update({ state: "ready", catalog: catalog([mapped, b, c]), projects });
+    const mappedRow = root.querySelector(".workspace-board-list a")!;
+    assert(mappedRow.querySelector(".workspace-blocked")!.textContent === "Blocked: 3" && mappedRow.querySelector(".workspace-needs-terry")!.textContent === "Needs Terry: 0" && mappedRow.querySelector(".workspace-rfr")!.textContent === "Ready for Review: Not configured", "Three categories confused a known zero, mapped count or disabled category");
+    assert(mappedRow.querySelector(".workspace-attention-context")!.textContent?.startsWith("Policy 4 · Explicit categories\nBlocked:"), "Policy context missing from row");
+    shell.update({ state: "stale", catalog: catalog([mapped, b, c]), projects });
+    assert(mappedRow.querySelector(".workspace-blocked")!.textContent === "Blocked: 3 · out of date" && mappedRow.querySelector(".workspace-needs-terry")!.textContent === "Needs Terry: 0 · out of date" && mappedRow.querySelector(".workspace-rfr")!.textContent === "Ready for Review: Not configured" && mappedRow.querySelector(".workspace-attention-context")!.textContent?.includes("categories · out of date\n"), "Stale conversion lost counts or confused disabled category");
+    const lost: WorkspaceCatalogEntry = { ...a, attention: { blocked: { state: "unknown", value: null }, needsTerry: { state: "unknown", value: null }, readyForReview: { state: "unknown", value: null } } };
+    shell.update({ state: "ready", catalog: catalog([lost, b, c]), projects });
+    assert([...mappedRow.querySelectorAll(".workspace-count")].every(node => node.textContent?.endsWith("Unavailable")) && mappedRow.querySelector<HTMLElement>(".workspace-attention-context")!.title === "" && !mappedRow.textContent?.includes("Policy 4"), "Unknown observation retained prior category values or policy context");
+    shell.update({ state: "ready", catalog: catalog([a, b, c]), projects });
+    assert(countLabel({ state: "known", value: 0 }) === "0" && countLabel({ state: "unknown", value: null }) === "Unavailable" && countLabel({ state: "not_configured", value: null }) === "Not configured" && countLabel({ state: "stale", value: 4 }).includes("out of date"), "Count states collapsed into zero");
     assert(observationLabel({ ...a, ageSeconds: -5 }) === "Observed just now" && observationLabel({ ...a, freshness: "never", ageSeconds: null }) === "Not yet observed", "Observation age is misleading");
     const links = [...root.querySelectorAll<HTMLAnchorElement>(".workspace-board-list a")], first = links[0]!, second = links[1]!;
     assert(first.pathname === boardHref(a) && first.tabIndex === 0 && second.tabIndex === -1, "Board href or roving tab stop invalid");
@@ -73,7 +89,7 @@ export function runWorkspaceShellProbe(): number {
       shell.setPins({ state, pins: [] }); filterBy("harbor");
       assert(catalogStatus.textContent?.includes("out of date") && !catalogStatus.textContent.includes("connected") && document.activeElement === filter && Number(filter.selectionStart) === 1, "Pin/filter rerender cleared stale catalog state or filter caret: " + state);
       editor.focus(); editor.setSelectionRange(3, 8); shell.setPins({ state, pins: [] });
-      assert(first.querySelector(".workspace-rfr")!.textContent === "Ready for Review: 7 · out of date" && second.querySelector(".workspace-rfr")!.textContent === "Ready for Review: Unknown" && root.querySelector(".workspace-choice-list .workspace-availability")!.textContent?.includes("Current availability unknown") && first.querySelector(".workspace-availability")!.textContent?.includes("last observation") && document.activeElement === editor && editor.selectionStart === 3 && editor.value === "Private unsaved input" && first.getAttribute("aria-current") === "page", "Stale row facts or active editor changed during pin rerender: " + state);
+      assert(first.querySelector(".workspace-rfr")!.textContent === "Ready for Review: 7 · out of date" && second.querySelector(".workspace-rfr")!.textContent === "Ready for Review: Unavailable" && root.querySelector(".workspace-choice-list .workspace-availability")!.textContent?.includes("Current availability unknown") && first.querySelector(".workspace-availability")!.textContent?.includes("last observation") && document.activeElement === editor && editor.selectionStart === 3 && editor.value === "Private unsaved input" && first.getAttribute("aria-current") === "page", "Stale row facts or active editor changed during pin rerender: " + state);
     }
     filterBy(""); shell.setCatalog({ phase: "ready", catalog: catalog([a, c, b]), projects, receivedAt: 2, refreshing: false }); shell.setPins({ state: "ready", pins: [] });
     assert(catalogStatus.textContent?.includes("connected") && first.querySelector(".workspace-rfr")!.textContent === "Ready for Review: 0" && first.querySelector(".workspace-availability")!.textContent === "Available" && document.activeElement === editor && editor.selectionStart === 3 && first.getAttribute("aria-current") === "page", "Successful catalog recovery retained stale facts or disturbed editor/route");
@@ -117,7 +133,7 @@ export function runWorkspaceShellProbe(): number {
     assert(document.activeElement === editor && Number(editor.selectionStart) === 4 && first.getAttribute("aria-current") === "page", "Other-window pins stole editor focus, selection or active route");
     shell.setPins({ state: "ready", pins: [{ projectKey: "registered", boardKey: "absent" }] });
     const unavailable = root.querySelector<HTMLLIElement>(".workspace-pinned-list li")!;
-    assert(unavailable.textContent?.includes("Pinned board unavailable") && !unavailable.querySelector("a[href]") && !unavailable.querySelector(".workspace-rfr")!.textContent, "Pin metadata granted navigation or board facts");
+    assert(unavailable.textContent?.includes("Pinned board unavailable") && !unavailable.querySelector("a[href]") && unavailable.querySelector(".workspace-rfr")!.textContent === "Ready for Review: Unavailable", "Pin metadata granted navigation or board facts");
     root.querySelector<HTMLButtonElement>(".workspace-toggle")!.click();
     assert(changes[0]?.collapsed && root.querySelector<HTMLElement>(".workspace-sidebar")!.hidden, "Collapse did not persist through callback");
     shell.setCatalog({ phase: "unavailable", catalog: null, projects: null, receivedAt: null, refreshing: false });
@@ -126,7 +142,7 @@ export function runWorkspaceShellProbe(): number {
     assert(!root.textContent?.includes("Empty project · No boards registered"), "Mismatched project revision invented empty membership");
     shell.setCatalog({ phase: "stale", catalog: catalog([]), projects, receivedAt: 1, refreshing: false }); shell.setPins({ state: "ready", pins: [] });
     assert(root.querySelector(".workspace-empty")!.textContent?.includes("last observation") && root.querySelector(".workspace-empty-project")!.textContent?.includes("last observation"), "Stale empty facts were presented as current membership");
-    return 54;
+    return 58;
   } finally { shell.destroy(); root.remove(); }
 }
 

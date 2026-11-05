@@ -617,10 +617,10 @@
     "web/src/session-ui/workspace.ts": "17edf2504f6f011619cea1246a66aedcc6af0fb093e70bbf418ef792deec7f46",
     "web/src/workspace-ui/pins.ts": "5705a50f91ed2d71337789854b6cae4bb775d0595c7e906fd37261276ba73181",
     "web/src/workspace-ui/refresh.ts": "997ee25b94a93907aeb0b216e03fd95e8ae18fdf9d9fffa5c2a4d19523676716",
-    "web/src/workspace-ui/view.ts": "f5c1a4708c9072184567be0a0a23a12a101b5d0e51bc2b520199490e69df8b87",
+    "web/src/workspace-ui/view.ts": "e0b6c0e95cf3f38616a3295e62f89d05a2fcfd29e5e41eba542c0076c0551020",
     "web/src/workspace-ui/workflow-editor.ts": "3b6eee7d24ff21d1cebdd4a3a5117fee2b9a5d40060acaa2751a02c92088e552",
     "web/src/workspace-ui/workflow-setup.ts": "7f454eaa6ee3e1672dc5730bc559087bc20dcadfd8ea2113be2df5f41e52aa34",
-    "web/styles/app.css": "64911871ce9d7de779e8b4fa872122a2951dd9c9462d842efdd7d57a0baddb00",
+    "web/styles/app.css": "f0de7bfe578831de9e5e74a332fb39126ca66b518b953cffcb7ae2916945693c",
     "web/tsconfig.json": "68b102cd0417ce7a7d419495db3b32d215d1014ef5bff1305e8a925612228b12"
   },
   "files": {
@@ -663,9 +663,9 @@
     "js/session-ui/workspace.js": "15106c9f40f1e7bdcfd0a7a5dd5fa5671dbb34fa7123bdb33686912fe261d82b",
     "js/workspace-ui/pins.js": "3c554f4b2efd7eb7ce1a3eac357a58f4b71ed1467bfe117943c8b464d4db3ed5",
     "js/workspace-ui/refresh.js": "62fdabb061efccdc32c45e634eabd50688364c9b2bd42cecef2d5d20af7d582c",
-    "js/workspace-ui/view.js": "8bf0c7aeb2d3454404ac671f49b197b07bb6a30f12ca4d3be5015fa624f4e50a",
+    "js/workspace-ui/view.js": "f739e36506f05d803add685a9ed46c33070bd97970d99801c8870e715fb14b8a",
     "js/workspace-ui/workflow-editor.js": "9ac785dc2a492437dfd11e0e3e7b53c0d00c343d74960d218d834bf5435d6088",
     "js/workspace-ui/workflow-setup.js": "453fbb5b0883a9c4590afff711edeaaec7b22c40ba2ee0ae5f89a9a718344c47",
-    "styles/app.css": "64911871ce9d7de779e8b4fa872122a2951dd9c9462d842efdd7d57a0baddb00"
+    "styles/app.css": "f0de7bfe578831de9e5e74a332fb39126ca66b518b953cffcb7ae2916945693c"
   }
 }

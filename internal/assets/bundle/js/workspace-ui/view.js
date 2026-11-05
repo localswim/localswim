@@ -12,7 +12,7 @@ export function countLabel(count) {
         case "known": return String(count.value);
         case "stale": return String(count.value) + " · out of date";
         case "not_configured": return "Not configured";
-        case "unknown": return "Unknown";
+        case "unknown": return "Unavailable";
     }
 }
 export function observationLabel(entry) {
@@ -23,6 +23,29 @@ export function observationLabel(entry) {
     return (entry.freshness === "stale" ? "Out of date · observed " : "Observed ") + age;
 }
 const availability = { ready: "Available", pending: "Connecting", missing: "Board missing", invalid: "Board needs attention", busy: "In use by another service", unavailable: "Unavailable", identity_conflict: "Board identity changed" };
+function updateAttention(row, entry, failed) {
+    const categories = [
+        { key: "blocked", label: "Blocked", target: row.blocked },
+        { key: "needsTerry", label: "Needs Terry", target: row.needsTerry },
+        { key: "readyForReview", label: "Ready for Review", target: row.count },
+    ];
+    for (const category of categories) {
+        const count = entry?.attention[category.key] ?? { state: "unknown", value: null };
+        const stale = failed && count.state === "known";
+        category.target.textContent = category.label + ": " + (stale ? count.value + " · out of date" : countLabel(count));
+        category.target.dataset.state = stale ? "stale" : count.state;
+    }
+    const context = entry?.attentionContext;
+    row.context.textContent = context
+        ? `Policy ${context.policyVersion} · ${context.source === "explicit" ? "Explicit" : "Implicit"} categories${failed || entry?.freshness === "stale" ? " · out of date" : ""}`
+        : "Attention context unavailable";
+    row.context.title = context ? categories.map(({ key, label }) => {
+        const ids = context.assignments[key];
+        return label + ": " + (ids.map(id => context.lanes.find(lane => lane.id === id).label).join(", ") || "Not configured");
+    }).join("\n") : "";
+    if (context)
+        row.context.textContent += "\n" + row.context.title;
+}
 // Only this view's metadata nodes change during refresh. The controller owns the
 // editor subtree for its entire lifetime, including detached private views.
 export class WorkspaceShell {
@@ -145,10 +168,12 @@ export class WorkspaceShell {
         } });
     }
     makeRow(entry, sidebar) {
-        const row = { root: node("li", "workspace-board-row"), link: node("a", "workspace-board-link"), project: node("span", "workspace-project-label"), board: node("span", "workspace-board-label"), count: node("span", "workspace-rfr"), status: node("span", "workspace-availability"), age: node("span", "workspace-observation") };
+        const row = { root: node("li", "workspace-board-row"), link: node("a", "workspace-board-link"), project: node("span", "workspace-project-label"), board: node("span", "workspace-board-label"), count: node("span", "workspace-count workspace-rfr"), blocked: node("span", "workspace-count workspace-blocked"), needsTerry: node("span", "workspace-count workspace-needs-terry"), context: node("span", "workspace-attention-context"), status: node("span", "workspace-availability"), age: node("span", "workspace-observation") };
         row.link.href = boardHref(entry);
         this.bindNavigation(row.link);
-        row.link.append(row.project, row.board, row.count, row.status, row.age);
+        const attention = node("span", "workspace-attention");
+        attention.append(row.blocked, row.needsTerry, row.count);
+        row.link.append(row.project, row.board, attention, row.context, row.status, row.age);
         row.root.append(row.link);
         if (sidebar)
             row.link.addEventListener("focus", () => { this.roving = row.link.pathname; this.syncSelection(); });
@@ -190,7 +215,7 @@ export class WorkspaceShell {
             row.root.dataset.filter = [entry.projectLabel, entry.label, entry.projectKey, entry.boardKey].join("\n").toLowerCase();
             row.project.textContent = entry.projectLabel;
             row.board.textContent = entry.label;
-            row.count.textContent = "Ready for Review: " + (failed && entry.attention.readyForReview.state === "known" ? String(entry.attention.readyForReview.value) + " · out of date" : countLabel(entry.attention.readyForReview));
+            updateAttention(row, entry, failed);
             row.status.textContent = failed ? "Current availability unknown · last observation: " + availability[entry.availability] : availability[entry.availability];
             row.age.textContent = (failed && entry.freshness !== "stale" ? "Out of date · " : "") + observationLabel(entry);
             row.root.dataset.availability = failed ? "unavailable" : entry.availability;
@@ -258,7 +283,7 @@ export class WorkspaceShell {
                 row.link.tabIndex = -1;
                 row.project.textContent = pin.projectKey + " / " + pin.boardKey;
                 row.board.textContent = "Pinned board unavailable";
-                row.count.textContent = "";
+                updateAttention(row, null, false);
                 row.age.textContent = "";
                 row.status.textContent = "Current board information is unavailable";
                 row.root.dataset.availability = "unavailable";

@@ -50,7 +50,10 @@ section:has(> .workspace-shell) { margin: 0; }
 .workspace-board-link[aria-current="page"] { background: var(--workspace-active); border-color: var(--workspace-accent); }
 .workspace-project-label { color: var(--workspace-muted); font-size: .78rem; line-height: 1.35; }
 .workspace-board-label { font-weight: 650; font-size: 1rem; line-height: 1.35; }
-.workspace-rfr { color: var(--workspace-accent); font-size: .8rem; margin-top: .3rem; }
+.workspace-attention { display: grid; gap: .15rem; margin-top: .3rem; }
+.workspace-count { color: var(--workspace-accent); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.workspace-count[data-state="unknown"], .workspace-count[data-state="stale"] { color: var(--workspace-muted); }
+.workspace-attention-context { color: var(--workspace-muted); font-size: .72rem; line-height: 1.35; white-space: pre-line; }
 .workspace-availability, .workspace-observation { color: var(--workspace-muted); font-size: .75rem; line-height: 1.4; }
 .workspace-board-row[data-availability="ready"] .workspace-availability::before { content: "● "; color: #248351; }
 .workspace-catalog-status { color: var(--workspace-muted); font-size: .77rem; margin: 1.25rem .65rem .6rem; border: 0; padding: 0; }
@@ -66,7 +69,7 @@ section:has(> .workspace-shell) { margin: 0; }
 .workspace-choice-list .workspace-board-link { height: 100%; box-sizing: border-box; padding: 1.25rem; background: var(--workspace-surface); border-color: var(--workspace-line); margin: 0; }
 .workspace-choice-list .workspace-board-label { font-size: 1.2rem; }
 .workspace-choice-list .workspace-board-link:hover { border-color: var(--workspace-accent); background: var(--workspace-hover); }
-.workspace-choice-list .workspace-rfr { margin-top: 1rem; }
+.workspace-choice-list .workspace-attention { margin-top: 1rem; }
 .workspace-empty, .workspace-empty-project { border: 1px dashed var(--workspace-line); padding: 1rem; border-radius: .6rem; color: var(--workspace-muted); background: var(--workspace-surface); }
 .workspace-empty-projects { margin-top: 1.5rem; }
 .workspace-route-status { background: var(--workspace-surface); color: var(--workspace-muted); padding: .75rem 1rem; margin-top: 0; border-color: var(--workspace-accent); }

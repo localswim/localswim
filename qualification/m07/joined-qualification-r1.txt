@@ -1,0 +1,53 @@
+M07.04 WORKFLOW EDITING AND CONSERVATION QUALIFICATION
+
+Candidate
+Source 2eaf112305f9bcaca7430728e74d9a970a0e2f52
+Executable SHA256 cb4b5018991cb577e5a2c55ef927097d300c99edbfd0b45f708cf94daff67874
+Synthetic Windows amd64, NTFS and loopback evidence.
+
+Verification
+- Two isolated clean extractions and empty Go build caches. Both pass
+  1903 Go test/subtest results with zero failures/skips.
+  Module, locked npm install, contracts, TypeScript, embedded assets, executable,
+  vet and Node script gates pass. All 92 generated/staged/output files match.
+- Current required native inventory passes 36 terminals and six archive rows.
+  All 430 provider bindings and owned teardown checked independently.
+- Current browser inventory passes 21 required cases, zero failures/skips/flaky,
+  with normal browser and fixture teardown. Bounded diagnostic events remain
+  recorded, including intentional reload faults. Owned registration retired.
+- Current normal joined journey passes 230 assertions and 128 actual CLI calls
+  across default/configured boards. Full reopen equality and closed listeners
+  pass. One classified favicon404, zero page exceptions or unclassified errors.
+- Native supplements pass 28 terminals covering real 128-policy capacity,
+  old-default compatibility, delayed snapshots, waiting retirement, competing
+  writes/counters and workflow-specific injected transaction ambiguity.
+- Conservation suite passes 249 tests/subtests. Complete first and second restore
+  comparisons include retained policies/cards/history/approvals/comments/links/
+  hierarchy/activity/originals/tombstones and exact blobs. Actual M06 8-to-9
+  upgrade proof passes 83 checks, with old-reader refusal and saved-port reopen.
+  Original comparisons use per-operation C01 canonical intent/result bytes.
+  The first source is a valid synthetic archive. The second source is the first
+  restored board after native mutations and export. SQL JSON whitespace is
+  storage formatting.
+- Fresh real-TLS workflow lost-response regression passes. The unchanged browser
+  input/recovery boundary reuses 85 controlled checks and 10 prior targeted cases
+  with exact source/asset comparison, supplemented by fresh current journeys.
+
+Capacity precision
+The 128-record limit is exercised through the real engine. The 8 MiB safety bound
+cannot be reached by valid retained definitions under the accepted type limits.
+The conservative maximum is 4,341,889 bytes. The byte-limit branch has analytical
+coverage, and runtime capacity evidence reaches 128 records. Six concurrency cases
+establish controlled winner/loser ordering. Three start-barrier races are recorded
+separately. Native fault injection and transport loss have separate evidence.
+
+Findings and retained attempts
+Qualification found missing 8-to-9 admission in the CLI and local adapters. Both now
+reuse the store's supported-step predicate. Focused tests, actual old-store
+upgrades, full records and refusal/UNKNOWN handling verify the correction.
+Superseded builds, earlier fixture failures and original refusals remain retained.
+
+Next
+M07.05 owns the extracted-kit normal demonstration and final milestone handoff.
+Terry authorized AFK advancement after independent review and retains final
+owner approval and Completed.

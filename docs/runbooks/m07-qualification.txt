@@ -1,0 +1,48 @@
+M07 QUALIFICATION GUIDE
+
+Candidate and evidence
+The qualified product source is 2eaf112305f9bcaca7430728e74d9a970a0e2f52.
+The Windows amd64 executable SHA256 is cb4b5018991cb577e5a2c55ef927097d300c99edbfd0b45f708cf94daff67874.
+Read qualification/m07/joined-qualification-r1.txt and its JSON companion for
+the complete result. The earlier service/CLI and browser slice reports retain
+their own original source bindings and findings.
+
+Normal operation
+Follow docs/runbooks/m07-workflow-changes.txt for current workflow show, preview,
+deliberate edit and exact-original lookup. Current boards use physical 9/base 5.
+API, archive and operation-fingerprint versions remain 1. Offline 8-to-9 is an
+explicit selected step. Existing valid policy1 default/configured data retains
+its values, rowids and canonical original bytes through that upgrade.
+
+Qualification structure
+- Two separate clean source extractions, fresh Go build caches and locked npm
+  installations produce identical generated contracts, embedded assets and
+  executable outputs. Each runs the complete ordinary test and vet inventory.
+- Native qualification uses the existing root/transaction/archive harness and
+  the current complete provider manifest. Preserve each failed attempt and use
+  a new private native root for a new run.
+- Browser qualification uses the 21-case inventory and a fresh localfixture
+  manifest with exact application, browser and Playwright identities. Follow
+  qualification/browser/README.txt and the localpost development runbook.
+- Runtime workflow/restore supplements use synthetic isolated stores. Reports
+  distinguish normal browser/CLI use, controlled native fixtures and injected
+  transaction or transport failures. Process interruption measures software
+  behavior within the stated platform scope.
+
+Conservation and compatibility
+First and second restored prewalks compare complete retained records and exact
+blob bytes under the accepted identity/bootstrap transforms. Separate M06
+binary fixtures prove explicit 8-to-9 admission, rowid/value conservation, repeated
+NO_CHANGE and strict older-reader refusal. Reopening a workspace uses its saved
+port and original mode. A display ticket never replaces the recorded UUIDs.
+
+Capacity interpretation
+The real engine exercises 128 retained policy versions. The typed definition
+bounds imply a conservative 4,341,889-byte maximum for a valid 128-record history,
+below the 8,388,608-byte defensive ceiling. Runtime 128-record evidence and the
+analytical byte-bound proof are identified separately in the qualification report.
+
+Review and closure
+M07.04 qualifies the product. M07.05 packages that exact executable and verifies
+a fresh normal extracted-kit journey, recursive guide/schema references, hashes
+and owned cleanup before the milestone is handed to owner review.

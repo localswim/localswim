@@ -1,0 +1,34 @@
+M08.05 workspace Attention review slice
+
+Source 251f97fb3ae56e84ecf861dd9620b46567425a74
+Candidate SHA256 1ee908e24d0565d85074b7dbdb579875c2dd578145855ddc5db53a8fdfeb81d3
+
+Outcome
+- Chooser/sidebar display Blocked, Needs Terry and Ready for Review with the
+  same observation's policy version, source and lane labels.
+- Known zero, not configured, stale and unavailable remain distinct.
+- Refresh preserves the active editor, private drafts, focus, filter and pins.
+  Authority loss clears catalog facts and context. Context order is fixed.
+
+Verification
+- Full native gate passed 1,968 tests, zero failed/skipped, plus 19 Node script
+  tests, generation, typecheck, build, assets and vet.
+- That gate preceded the final small display-order and coherent-test-fixture
+  correction. Final source received independent focused verification of 105
+  grouped checks, keyboard operation, 390px layout and native queue delivery.
+- Final candidate normal runtime passed 30 native setup/parity checks and 14
+  browser check groups across three boards and two projects, including actual
+  CLI reads and mutations, browser mapping/rename save, archive exclusion,
+  explicit-empty/absent configuration and two private editing windows.
+- Four controlled cases cover unavailable sibling, replaced member, stale503
+  and workspace authority401. These are injected responses, separately recorded.
+- Runtime queue delivered four validated messages; no page exceptions occurred.
+  Owned host exited gracefully and its listener closed. Mailbox was deleted.
+- Fresh Sol High source/evidence review and Terra Medium visual review passed.
+  Visual captures cover chooser1440/390 and stale/unavailable desktop states.
+
+Evidence boundary
+The full joined candidate qualification follows in M08.06. Earlier failed
+private attempts remain retained, including disabled diagnostic case IDs,
+a stale local editor reused by the harness and missing no-store on a synthetic
+successful response. Final source and harness hashes bind the passing run.

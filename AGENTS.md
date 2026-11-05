@@ -56,6 +56,8 @@ Valkey/Webdis are the active server components; the repository retains history.
 
 Check health through `C:\Projects\shared-message-queue\queue.ps1 -Action Status`
 or POST `/` with body `PING`, expecting `{"PING":[true,"PONG"]}`.
+Status measures HTTP readiness from the caller. Host startup additionally
+validates the scheduled task and Linux unit.
 An absent or wrong-protocol listener or failed queue health check on 53147 requires
 immediate Terry attention and a pause in queue-dependent testing. Respect an
 announced maintenance window. Start/Stop are operator actions requiring explicit

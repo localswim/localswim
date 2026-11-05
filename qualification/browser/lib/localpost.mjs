@@ -12,8 +12,8 @@ function endpoint(value) {
   try {
     const url = new URL(value);
     if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.username || url.password ||
-        url.pathname !== '/' || url.search || url.hash || !url.port || Number(url.port) < 1024) return null;
-    return url.origin;
+        url.pathname !== '/api/2026-11-05' || url.search || url.hash || !url.port || Number(url.port) < 1024) return null;
+    return `${url.origin}${url.pathname}`;
   } catch { return null; }
 }
 
@@ -52,12 +52,12 @@ async function receipt(response, expectedBytes) {
 
 export function createLocalpostDiagnostics({
   registrationId = process.env.LOCALPOST_REGISTRATION_ID,
-  serviceUrl = process.env.LOCALPOST_URL ?? 'http://127.0.0.1:53147',
+  serviceUrl = process.env.LOCALPOST_URL ?? 'http://127.0.0.1:53147/api/2026-11-05',
   runId = process.env.LOCALPOST_RUN_ID ?? randomUUID(), caseIds = [], fetcher = globalThis.fetch,
 } = {}) {
   const allowed = new Set((Array.isArray(caseIds) ? caseIds : []).filter(id => typeof id === 'string' && /^V02-[A-Z]+-\d{2}$/.test(id)));
-  const origin = endpoint(serviceUrl);
-  const enabled = Boolean(origin && typeof registrationId === 'string' && uuid4.test(registrationId) &&
+  const baseUrl = endpoint(serviceUrl);
+  const enabled = Boolean(baseUrl && typeof registrationId === 'string' && uuid4.test(registrationId) &&
     typeof runId === 'string' && uuid4.test(runId) && allowed.size && typeof fetcher === 'function');
   let accepting = true, offline = false, sequence = 0, delivered = 0, rejected = 0, failed = 0;
   let tail = Promise.resolve(false), current;
@@ -73,7 +73,7 @@ export function createLocalpostDiagnostics({
       const controller = new AbortController(); current = controller;
       const timer = setTimeout(() => controller.abort(), 1500);
       try {
-        const response = await fetcher(`${origin}/registrations/${registrationId}/messages`, {
+        const response = await fetcher(`${baseUrl}/registrations/${registrationId}/messages`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           credentials: 'omit', redirect: 'error', signal: controller.signal, body,
         });

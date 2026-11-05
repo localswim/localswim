@@ -18,22 +18,52 @@ test('fixed projection refuses arbitrary payload fields and identifiers',()=>{
 test('one send preserves fixed bytes, omits credentials, validates receipt and never retries',async()=>{
   let count=0;
   const d=createLocalpostDiagnostics({registrationId,runId,caseIds,fetcher:async(url,request)=>{
-    count++;assert.equal(url,`http://127.0.0.1:53147/registrations/${registrationId}/messages`);
+    count++;assert.equal(url,`http://127.0.0.1:53147/api/2026-11-05/registrations/${registrationId}/messages`);
     assert.equal(request.credentials,'omit');assert.equal(request.redirect,'error');assert.equal(request.method,'POST');
     assert.equal(JSON.parse(request.body).sequence,1);return reply(Buffer.byteLength(request.body));
   }});
   assert.equal(await d.emit(event),true);await d.close();assert.equal(count,1);assert.equal(d.stats().delivered,1);
 });
 test('disabled or invalid configuration never invokes transport',async()=>{
-  for(const options of [{registrationId:''},{serviceUrl:'https://127.0.0.1:53147'},{serviceUrl:'http://example.com:53147'},{serviceUrl:'http://127.0.0.1:53147/path'},{serviceUrl:'http://user@127.0.0.1:53147'}]){
+  for(const options of [
+    {registrationId:''},
+    {serviceUrl:'https://127.0.0.1:53147/api/2026-11-05'},
+    {serviceUrl:'http://example.com:53147/api/2026-11-05'},
+    {serviceUrl:'http://127.0.0.1:53147'},
+    {serviceUrl:'http://127.0.0.1:53147/api/2026-11-04'},
+    {serviceUrl:'http://127.0.0.1:53147/api/latest'},
+    {serviceUrl:'http://127.0.0.1:53147/api/2026-11-05/'},
+    {serviceUrl:'http://127.0.0.1:53147/api/2026-11-05?extra=1'},
+    {serviceUrl:'http://127.0.0.1:53147/api/2026-11-05#fragment'},
+    {serviceUrl:'http://user@127.0.0.1:53147/api/2026-11-05'},
+    {serviceUrl:'http://127.0.0.1:80/api/2026-11-05'},
+  ]){
     const d=createLocalpostDiagnostics({registrationId,runId,caseIds,...options,fetcher:()=>{throw Error('must not run');}});
     assert.equal(await d.emit(event),false);assert.equal(d.stats().enabled,false);await d.close();
   }
+});
+
+test('dated API base supports a configured loopback service port',async()=>{
+  const d=createLocalpostDiagnostics({registrationId,runId,caseIds,
+    serviceUrl:'http://127.0.0.1:54147/api/2026-11-05',fetcher:async(url,request)=>{
+      assert.equal(url,`http://127.0.0.1:54147/api/2026-11-05/registrations/${registrationId}/messages`);
+      return reply(Buffer.byteLength(request.body));
+    }});
+  assert.equal(await d.emit(event),true);await d.close();
 });
 test('delivery failure is bounded, nonthrowing, disables later sends and does not retry',async()=>{
   let count=0;const d=createLocalpostDiagnostics({registrationId,runId,caseIds,fetcher:async()=>{count++;throw Error('private failure');}});
   const first=d.emit(event),second=d.emit(event);assert.equal(await first,false);assert.equal(await second,false);
   assert.equal(await d.emit(event),false);await d.close();assert.equal(count,1);assert.equal(d.stats().failed,1);
+});
+
+test('expired registration disables delivery without recreating or replaying it',async()=>{
+  let count=0;
+  const d=createLocalpostDiagnostics({registrationId,runId,caseIds,fetcher:async()=>{
+    count++;return new Response('{"error":{"code":"registration_not_found"}}',{status:404});
+  }});
+  assert.equal(await d.emit(event),false);assert.equal(await d.emit(event),false);
+  await d.close();assert.equal(count,1);assert.equal(d.stats().offline,true);
 });
 test('malformed, oversized or wrong-size receipt is not accepted',async()=>{
   for(const fetcher of [async()=>new Response('{}'),async()=>new Response('x'.repeat(2049)),async()=>reply(0),async()=>new Response('',{status:503})]){

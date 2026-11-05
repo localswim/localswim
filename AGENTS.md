@@ -48,19 +48,26 @@ older recommendation to create or prefer project-private loopback collectors.
   Localpost supplies transport and file delivery; it does not replace browser
   control, application instrumentation, or authoritative tests.
 - Use the single shared localpost implementation:
-  https://github.com/SixbucksSolutions/localpost . The published release and
-  canonical API reference are linked from its README. The default endpoint is
-  plain HTTP at `http://127.0.0.1:53147`, with a configurable service port.
+  https://github.com/SixbucksSolutions/localpost . The current release is
+  https://github.com/SixbucksSolutions/localpost/releases/tag/v0.2.0 and its API is
+  https://github.com/SixbucksSolutions/localpost/blob/v0.2.0/openapi.json .
+  The default API base is `http://127.0.0.1:53147/api/2026-11-05`,
+  with a configurable service port.
   Wildcard CORS (`Access-Control-Allow-Origin: *`) and no authentication are
   deliberate parts of this trusted-loopback service. Do not recreate or fork
   its listener, collector, relay or diagnostic disk-writer in each project.
-- The agent creates a private, per-run destination directory and ensures the
-  service can write to it. Register it with `POST /registrations`, use the
-  returned UUIDv4 ID for `POST /registrations/{id}/messages`, inspect completed
-  `localpost_[UUIDv7].dat` files, and retire the owned registration with
-  `DELETE /registrations/{id}`. Keep the inbox outside served/public source.
-  The service writes one file per message; do not assume an appended JSONL log.
-  Both `application/json` and `application/octet-stream` carry opaque bytes.
+- The service operator provisions a private mailbox root outside served/public
+  source. The agent sends exactly `{}` to `POST /registrations` under the dated
+  API base. The service creates a per-run mailbox and returns its UUIDv4 `id`
+  and absolute `directory`. Validate both and use the returned directory for
+  bounded inspection of completed `localpost_[UUIDv7].dat` files. Use the same
+  dated base for `POST /registrations/{id}/messages` and
+  `DELETE /registrations/{id}`. Retire only the owned registration before
+  cleaning its mailbox according to the run retention policy. IDs expire on
+  service restart, while directories and files survive restart and DELETE.
+  Re-register for a new run after restart. The service writes one file per
+  message; do not assume an appended JSONL log. Both `application/json` and
+  `application/octet-stream` carry opaque bytes.
 - The localpost development chat owns shared-service operation and recovery.
   Client projects report an unavailable service to its owner or Terry rather
   than starting a replacement collector. Thin project senders or forwarding
@@ -98,7 +105,8 @@ older recommendation to create or prefer project-private loopback collectors.
 
 ## Local browser harness
 
-Follow docs/runbooks/localpost-development.txt. Register one private inbox, set
+Follow docs/runbooks/localpost-development.txt. Obtain one service-created
+private inbox through the dated API, set
 LOCALPOST_REGISTRATION_ID and LOCALPOST_RUN_ID, run the normal real-browser
 qualification, inspect bounded final .dat files, then DELETE only the owned
 registration. The Node Playwright harness forwards sanitized metadata outside

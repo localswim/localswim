@@ -1,0 +1,24 @@
+{
+  "source": "76ea7fb6592c81bc6da1bf981022a61bfcdc2d97",
+  "binarySHA256": "8153a08458e9d7c4e7b3b1cfe48962f531c329abd7c69207f1617c43a15f39f4",
+  "go": {
+    "pass": 1968,
+    "fail": 0,
+    "skip": 0
+  },
+  "nodeScripts": 19,
+  "independentReview": "PASS",
+  "live": {
+    "assertions": 148,
+    "normalCases": 2,
+    "staleWindowCases": 1,
+    "injectedReplyLossCases": 1,
+    "reopenChecks": 8,
+    "queueMessages": 17
+  },
+  "controlled": {
+    "editorGroups": 15,
+    "persistenceRaceAssertions": 5
+  },
+  "scope": "M08.04 browser category configuration"
+}

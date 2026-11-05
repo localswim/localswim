@@ -25,11 +25,15 @@ import (
 )
 
 func TestEditedPolicyNativeRepeatedRestorePreservesProjection(t *testing.T) {
-	for _, defaultProfile := range []bool{false, true} {
-		t.Run(map[bool]string{false: "configured", true: "default"}[defaultProfile], func(t *testing.T) {
+	for _, scenario := range []struct{ defaultProfile, attention bool }{{false, false}, {true, false}, {false, true}, {true, true}} {
+		defaultProfile := scenario.defaultProfile
+		t.Run(fmt.Sprintf("default-%t-attention-%t", defaultProfile, scenario.attention), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 			members := editedPolicyMembers(t, defaultProfile)
+			if scenario.attention {
+				members = attentionPolicyMembers(t, defaultProfile)
+			}
 			board, err := A.DecodeReadable[A.Board](members["board.json"])
 			if err != nil {
 				t.Fatal(err)

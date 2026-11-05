@@ -3,6 +3,7 @@ package main
 const localDomainCLIHelp = `  localswim --data NEWDIR [--json] board init --workflow FILE
   localswim --data DIR [--json] board inspect
   localswim --data DIR [--json] workflow show
+  localswim --data DIR [--json] attention show
   localswim --data DIR [--json] workflow preview --input FILE
   localswim --data DIR [--json] workflow edit --input FILE
   localswim --data DIR [--json] board read
@@ -26,6 +27,7 @@ const localDomainCLIHelp = `  localswim --data NEWDIR [--json] board init --work
   localswim --data DIR [--json] storage upgrade --from-version 6 --to-version 7 --board-id BOARD-UUID --incarnation INC-UUID
   localswim --data DIR [--json] storage upgrade --from-version 7 --to-version 8 --board-id BOARD-UUID --incarnation INC-UUID
   localswim --data DIR [--json] storage upgrade --from-version 8 --to-version 9 --board-id BOARD-UUID --incarnation INC-UUID
+  localswim --data DIR [--json] storage upgrade --from-version 9 --to-version 10 --board-id BOARD-UUID --incarnation INC-UUID
 Use canonical card UUIDs from board read, never display ticket numbers.
 Archive aliases require the full card.edit request with only input.archived true/false.
 Move requires the full card.edit request with only input.laneId (an exact current lane ID).
@@ -41,7 +43,7 @@ Relationships uses a complete snapshot: readable20rows/page, full JSON rejects -
 Replace owned relationships requires card.edit with only input.relationships array.
 Incoming facts retain their actual owner; open that owner to deliberately edit them.
 Storage inspect/upgrade are offline existing-only operations, never startup migration.
-Physical9 retains base-schema marker5; older stores require separate adjacent steps.
+Physical10 retains base-schema marker5; older stores require separate adjacent steps.
 An uncertain upgrade needs deliberate inspection, never a skipped-version attempt.
 Original lookup is deliberate and source-bound; never replay an uncertain save.
 Exits: 0 confirmed; 1 invocation/IO; 2 refused or definite noncommit;

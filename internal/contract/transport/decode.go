@@ -200,6 +200,27 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case AttentionLane:
+		if (x.Role != "waiting" && x.Role != "review") || utf8.RuneCountInString(x.Label) < 1 || utf8.RuneCountInString(x.Label) > 80 || strings.TrimSpace(x.Label) != x.Label {
+			return fmt.Errorf("invalid attention lane")
+		}
+		for _, r := range x.Label {
+			if r < 32 || r == 127 {
+				return fmt.Errorf("invalid attention lane")
+			}
+		}
+	case WorkflowAttentionChange:
+		if (x.BeforeSource != "implicit" && x.BeforeSource != "explicit") || (x.AfterSource != "implicit" && x.AfterSource != "explicit") || x.Changed != (x.BeforeSource != x.AfterSource || !reflect.DeepEqual(x.Before, x.After)) {
+			return fmt.Errorf("invalid attention change")
+		}
+	case AttentionContext:
+		if e := validateAttentionContext(x); e != nil {
+			return e
+		}
+	case BoardAttention:
+		if e := validateMappedAttention(x.Attention, x.AttentionContext.Assignments); e != nil {
+			return e
+		}
 	case WorkflowPreviewRequest:
 		if x.ExpectedPolicyVersion == 9007199254740991 || x.Workflow.Revision != x.ExpectedPolicyVersion+1 {
 			return fmt.Errorf("candidate revision mismatch")

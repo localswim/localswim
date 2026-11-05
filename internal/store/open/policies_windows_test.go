@@ -55,7 +55,7 @@ func policyUpgradeDigest(t *testing.T, p string) [32]byte {
 		var err error
 		digest, err = recordsDigestUpgrade(ctx(t), r.(*inspectionReader).conn, false, false, true)
 		return err
-	}, schema.Validate)
+	}, validateSupported)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +84,9 @@ func TestPolicyUpgradeConservesEveryTypedRowAndRequiresExplicitStep(t *testing.T
 			}
 			if changed, err := UpgradeStorageTo(ctx(t), p, identity, 8, 9); err != nil || changed {
 				t.Fatal("repeat was not no-change", err)
+			}
+			if _, err := UpgradeStorageTo(ctx(t), p, identity, 9, 10); err != nil {
+				t.Fatal(err)
 			}
 			s, err := Existing(ctx(t), p, identity)
 			if err != nil {
@@ -179,6 +182,9 @@ func TestEditedDefaultPreservesOpaqueHistoryAndStrictCurrentPinOne(t *testing.T)
 	if _, err := UpgradeStorageTo(ctx(t), p, identity, 8, 9); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := UpgradeStorageTo(ctx(t), p, identity, 9, 10); err != nil {
+		t.Fatal(err)
+	}
 	var before []byte
 	withOfflineLayout(t, p, func(c *sql.Conn) {
 		if err := c.QueryRowContext(ctx(t), "SELECT state FROM card_revision LIMIT 1").Scan(&before); err != nil {
@@ -189,6 +195,9 @@ func TestEditedDefaultPreservesOpaqueHistoryAndStrictCurrentPinOne(t *testing.T)
 			t.Fatal(err)
 		}
 	}, schema.Validate)
+	if _, err := UpgradeStorageTo(ctx(t), p, identity, 9, 10); err != nil {
+		t.Fatal(err)
+	}
 	s, err := Existing(ctx(t), p, identity)
 	if err != nil {
 		t.Fatal(err)
@@ -244,6 +253,9 @@ func TestPolicyUpgradeRacingOwnersAndBadSchemaRefuseWithoutChanges(t *testing.T)
 	}
 	if inspection, err := InspectStorage(ctx(t), p, identity); err != nil || inspection.PhysicalVersion != 9 {
 		t.Fatal("race published invalid layout", err)
+	}
+	if _, err := UpgradeStorageTo(ctx(t), p, identity, 9, 10); err != nil {
+		t.Fatal(err)
 	}
 	s, err := Existing(ctx(t), p, identity)
 	if err != nil {

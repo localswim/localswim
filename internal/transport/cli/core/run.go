@@ -278,6 +278,13 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 	var v any
 	var identity A.Identity
 	switch q.kind {
+	case "attention show":
+		x, err := T.Decode[T.BoardAttention](b)
+		if err != nil {
+			return refused("UNAVAILABLE", 3, nil)
+		}
+		v = x
+		identity = A.Identity{BoardID: x.BoardID, Incarnation: x.Incarnation}
 	case "card list", "card search":
 		x, err := T.Decode[T.CardSearchRead](b)
 		if err != nil || x.Result.Query.Q != q.query || !searchEcho(x.Result.Query.Lane, q.lane) || !searchEcho(x.Result.Query.Owner, q.owner) || !searchEcho(x.Result.Query.Priority, q.priority) || string(x.Result.Query.Archive) != q.archive {

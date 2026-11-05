@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/localswim/localswim/internal/board/attention"
 	"github.com/localswim/localswim/internal/board/grants"
 	"github.com/localswim/localswim/internal/board/policy"
 	"github.com/localswim/localswim/internal/contract"
@@ -131,6 +132,9 @@ func inspect(r writer.Read, req T.WorkflowPreviewRequest, checkRevision bool) (T
 		}
 	}
 	changes := T.WorkflowChanges{Renamed: []T.WorkflowRename{}, Added: []A.WorkflowLane{}, Retired: []A.WorkflowLane{}}
+	beforeContext := attention.Context(current, A.PolicyVersion(version))
+	afterContext := attention.Context(&req.Workflow, req.Workflow.Revision)
+	changes.Attention = T.WorkflowAttentionChange{BeforeSource: beforeContext.Source, AfterSource: afterContext.Source, Before: beforeContext.Assignments, After: afterContext.Assignments, Changed: beforeContext.Source != afterContext.Source || !reflect.DeepEqual(beforeContext.Assignments, afterContext.Assignments)}
 	for _, lane := range req.Workflow.Lanes {
 		old, exists := oldLanes[lane.ID]
 		if !exists {
@@ -195,7 +199,17 @@ func inspect(r writer.Read, req T.WorkflowPreviewRequest, checkRevision bool) (T
 	if err = r.Scan("SELECT count(*) FROM card WHERE incarnation=? AND current_approval_id IS NOT NULL", []any{inc}, &preserved); err != nil {
 		return out, nil, err
 	}
+	currentAttention, err := attention.Count(r, inc, current)
+	if err != nil {
+		return out, nil, err
+	}
+	candidateAttention, err := attention.Count(r, inc, &req.Workflow)
+	if err != nil {
+		return out, nil, err
+	}
 	out = T.WorkflowPreview{APIVersion: 1, BoardID: req.BoardID, Incarnation: req.Incarnation, Revision: A.Number(revision), PolicyVersion: A.PolicyVersion(version), CurrentWorkflow: current, Candidate: req.Workflow, WouldChange: changed, NextPolicyVersion: A.PolicyVersion(next), Changes: changes, Occupancy: occupancy, Approval: T.WorkflowApproval{PreservedCurrentCount: A.Number(preserved), Rule: "retained-issuing-policy"}, Capacity: T.WorkflowCapacity{PolicyRecords: A.Number(len(history)), PolicyRecordsAfter: A.Number(len(after)), CanonicalPolicyBytesAfter: A.Number(len(bytes)), MaxPolicyRecords: 128, MaxCanonicalPolicyBytes: 8388608}}
+	out.CurrentAttention = currentAttention
+	out.CandidateAttention = candidateAttention
 	return out, nil, nil
 }
 func rightChanges(before, after []string) T.WorkflowRightsChange {

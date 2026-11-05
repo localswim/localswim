@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/localswim/localswim/internal/board/attention"
 	"github.com/localswim/localswim/internal/board/cards"
 	"github.com/localswim/localswim/internal/board/credentials"
 	"github.com/localswim/localswim/internal/board/grants"
@@ -369,6 +370,8 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request, q route, current 
 		var e error
 		if q.kind == "search" {
 			value, e = h.search(rd, q, string(current.ActorID), search)
+		} else if q.kind == "attention" {
+			value, e = attention.ReadCurrent(rd, q.board, string(current.Grant.Incarnation))
 		} else {
 			value, e = project(rd, q)
 		}

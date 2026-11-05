@@ -1,6 +1,7 @@
 import { BoardClient, WorkflowPreviewRefusal } from "./client.js";
 import { configuredWorkflowFixture } from "../board/workflow.test.js";
 import { emptySearch } from "./search.js";
+import { resolvedAttention, sameWorkflow, validateAttentionAssignments } from "./workflow.js";
 import type { BoardRead, SessionRead, WorkflowPreview, WorkflowPreviewRequest } from "../../generated/transport/contracts.js";
 
 // Controlled transport responses; actual backend evidence is separate.
@@ -38,14 +39,24 @@ export async function runWorkflowPreviewContextProbe(input: BoardRead, session: 
   Object.assign(candidate, { revision: 2, lanes: current.lanes.map((lane, index) => index === 0 ? { ...lane, label: "Changed" } : lane) });
   const request: WorkflowPreviewRequest = { apiVersion: 1, boardId: input.result.identity.boardId, incarnation: input.result.identity.incarnation, expectedRevision: 5, expectedPolicyVersion: 1, workflow: candidate };
   const preview: WorkflowPreview = { apiVersion: 1, boardId: request.boardId, incarnation: request.incarnation, revision: 5, policyVersion: 1, currentWorkflow: current, candidate, wouldChange: true, nextPolicyVersion: 2,
-    changes: { renamed: [{ laneId: current.lanes[0]!.id, before: current.lanes[0]!.label, after: "Changed" }], orderChanged: false, added: [], retired: [], transitionsChanged: false, rights: { human: { added: [], removed: [] }, automation: { added: [], removed: [] } } },
+    changes: { renamed: [{ laneId: current.lanes[0]!.id, before: current.lanes[0]!.label, after: "Changed" }], orderChanged: false, added: [], retired: [], transitionsChanged: false, rights: { human: { added: [], removed: [] }, automation: { added: [], removed: [] } }, attention: { beforeSource: "implicit", afterSource: "implicit", before: resolvedAttention(current), after: resolvedAttention(candidate), changed: false } },
     occupancy: current.lanes.map(lane => ({ laneId: lane.id, currentCards: 0, archivedCards: 0 })).sort((a,b) => a.laneId < b.laneId ? -1 : 1),
+    currentAttention: { blocked: { state: "not_configured", value: null }, needsTerry: { state: "not_configured", value: null }, readyForReview: { state: "known", value: 0 } },
+    candidateAttention: { blocked: { state: "not_configured", value: null }, needsTerry: { state: "not_configured", value: null }, readyForReview: { state: "known", value: 0 } },
     approval: { preservedCurrentCount: 0, rule: "retained-issuing-policy" }, capacity: { policyRecords: 1, policyRecordsAfter: 2, canonicalPolicyBytesAfter: 1000, maxPolicyRecords: 128, maxCanonicalPolicyBytes: 8388608 } };
   let response: unknown = structuredClone(preview), status = 200, count = 0;
   const client = await BoardClient.open({ installationId: "00000000-0000-4000-8000-000000000090", profileId: "synthetic-workflow-preview",
     transport: "local-cookie", selection: { mode: "standalone", boardId: input.result.identity.boardId, incarnation: input.result.identity.incarnation, actorId: session.actorId, grantId: session.grant.grantId },
     credential: () => "synthetic", fetch: (async () => new Response(JSON.stringify(response), { status })) as typeof fetch });
   try {
+    const explicit = { ...current, attention: resolvedAttention(current) };
+    if (sameWorkflow(current, explicit)) throw Error("Attention presence omitted from workflow identity");
+    count++;
+    const invalid = { ...current, attention: { blocked: [current.lanes.find(lane => lane.role === "initial")!.id], needsTerry: [], readyForReview: [] } };
+    let mappingRefused = false;
+    try { validateAttentionAssignments(invalid); } catch { mappingRefused = true; }
+    if (!mappingRefused) throw Error("Initial-role Attention mapping accepted");
+    count++;
     await client.previewWorkflow(request); count++;
     const mutations: Array<(value: WorkflowPreview) => void> = [
       value => Object.assign(value, { occupancy: [] }),
@@ -54,6 +65,8 @@ export async function runWorkflowPreviewContextProbe(input: BoardRead, session: 
       value => Object.assign(value.capacity, { policyRecords: 2 }),
       value => Object.assign(value, { wouldChange: false }),
       value => Object.assign(value.changes, { renamed: [] }),
+      value => { Object.assign(value.changes.attention, { afterSource: "explicit" }); },
+      value => { Object.assign(value.candidateAttention.readyForReview, { value: 1 }); },
     ];
     for (const mutate of mutations) {
       const next = structuredClone(preview); mutate(next); response = next;

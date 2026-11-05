@@ -196,6 +196,11 @@ export type RequestWorkflowEdit = {
   readonly automation: ReadonlyArray<"attach" | "comment" | "create" | "edit" | "export" | "read" | "read-own-outcome" | "review-handoff">;
   readonly human: ReadonlyArray<"approve" | "attach" | "comment" | "create" | "edit" | "export" | "read" | "read-own-outcome" | "review-handoff">;
 };
+  readonly attention?: {
+  readonly blocked: ReadonlyArray<string>;
+  readonly needsTerry: ReadonlyArray<string>;
+  readonly readyForReview: ReadonlyArray<string>;
+};
   readonly lanes: ReadonlyArray<{
   readonly id: string;
   readonly label: string;

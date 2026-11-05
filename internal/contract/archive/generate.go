@@ -10,7 +10,7 @@ import (
 	"github.com/localswim/localswim/internal/contract"
 )
 
-var models = []any{Workflow{}, WorkflowPolicy{}, WorkflowLane{}, WorkflowTransition{}, WorkflowActorRights{}, Identity{}, CardRef{}, Retention{}, Floors{}, Coverage{}, Gap{}, GapSelection{}, Entry{}, ByteFact{}, Lineage{}, Manifest{}, Actor{}, Card{}, Comment{}, Link{}, Attachment{}, Approval{}, EntityTombstone{}, Board{}, SnapshotState{}, SnapshotReferences{}, Removal{}, Snapshot{}, History{}, FactRef{}, Event{}, Activity{}, Target{}, FullOutcome{}, Operation{}, SourceArchive{}, Outcomes{}, HistoryKey{}, ActivityKey{}, OutcomeKey{}, PreviewCounts{}, PreviewBytes{}, PreviewInventory{}, PreviewRequest{}, Preview{}, Confirmation{}, TargetInventory{}, Receipt{}, RestoreResult{}, Status{}}
+var models = []any{AttentionAssignments{}, Workflow{}, WorkflowPolicy{}, WorkflowLane{}, WorkflowTransition{}, WorkflowActorRights{}, Identity{}, CardRef{}, Retention{}, Floors{}, Coverage{}, Gap{}, GapSelection{}, Entry{}, ByteFact{}, Lineage{}, Manifest{}, Actor{}, Card{}, Comment{}, Link{}, Attachment{}, Approval{}, EntityTombstone{}, Board{}, SnapshotState{}, SnapshotReferences{}, Removal{}, Snapshot{}, History{}, FactRef{}, Event{}, Activity{}, Target{}, FullOutcome{}, Operation{}, SourceArchive{}, Outcomes{}, HistoryKey{}, ActivityKey{}, OutcomeKey{}, PreviewCounts{}, PreviewBytes{}, PreviewInventory{}, PreviewRequest{}, Preview{}, Confirmation{}, TargetInventory{}, Receipt{}, RestoreResult{}, Status{}}
 
 // GeneratedFiles has no filesystem effects. Callers aggregate these disjoint
 // paths with the C01 bundle in the common contractgen command.

@@ -39,12 +39,14 @@ func validateSupported(ctx context.Context, c *sql.Conn, id schema.Identity) err
 	case 8:
 		return schema.ValidateV8(ctx, c, id)
 	case 9:
+		return schema.ValidateV9(ctx, c, id)
+	case 10:
 		return schema.Validate(ctx, c, id)
 	}
 	return errors.New("unsupported physical layout")
 }
 
-// InspectStorage is existing-only and accepts exactly the independently frozen5/6/7/8 or current9 layout.
+// InspectStorage is existing-only and accepts exactly the independently frozen5/6/7/8/9 or current10 layout.
 func InspectStorage(ctx context.Context, dir string, id schema.Identity) (out StorageInspection, err error) {
 	out.BoardID = id.BoardID
 	out.Incarnation = id.Incarnation
@@ -90,7 +92,7 @@ func UpgradeStorageTo(ctx context.Context, dir string, id schema.Identity, from,
 // SupportedUpgradeStep reports the explicit adjacent storage upgrades accepted
 // by both the native store and its application adapters.
 func SupportedUpgradeStep(from, to int) bool {
-	return from == 5 && to == 6 || from == 6 && to == 7 || from == 7 && to == 8 || from == 8 && to == 9
+	return from == 5 && to == 6 || from == 6 && to == 7 || from == 7 && to == 8 || from == 8 && to == 9 || from == 9 && to == 10
 }
 
 // fault is a private deterministic test seam; a failure at committed means reply
@@ -215,8 +217,10 @@ func upgradeStorageStep(ctx context.Context, dir string, id schema.Identity, fro
 		if err = rebuildWorkflow(ctx, c, inject); err != nil {
 			return false, err
 		}
-	} else if err = rebuildPolicies(ctx, c, inject); err != nil {
-		return false, err
+	} else if from == 8 {
+		if err = rebuildPolicies(ctx, c, inject); err != nil {
+			return false, err
+		}
 	}
 	if err = inject("ddl"); err != nil {
 		return false, err

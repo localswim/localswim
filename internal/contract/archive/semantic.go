@@ -118,6 +118,10 @@ func semantics(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case AttentionAssignments:
+		if err := validateAttentionShape(x); err != nil {
+			return err
+		}
 	case Workflow:
 		if err := ValidateWorkflow(&x); err != nil {
 			return err

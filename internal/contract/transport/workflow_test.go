@@ -171,11 +171,14 @@ func TestWorkflowPreviewRejectsContradictoryFacts(t *testing.T) {
 	for _, lane := range current.Lanes {
 		preview.Occupancy = append(preview.Occupancy, WorkflowOccupancy{LaneID: A.Lane(lane.ID)})
 	}
+	preview.Changes.Attention = WorkflowAttentionChange{BeforeSource: "implicit", AfterSource: "implicit", Before: A.ResolveWorkflowAttention(current), After: A.ResolveWorkflowAttention(candidate)}
+	preview.CurrentAttention = previewAttention(preview.Changes.Attention.Before, preview.Occupancy)
+	preview.CandidateAttention = previewAttention(preview.Changes.Attention.After, preview.Occupancy)
 	if err := Validate(preview); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := json.Marshal(preview)
-	for name, mutate := range map[string]func(*WorkflowPreview){"missing occupancy": func(v *WorkflowPreview) { v.Occupancy = []WorkflowOccupancy{} }, "wrong next": func(v *WorkflowPreview) { v.NextPolicyVersion = 99 }, "wrong record count": func(v *WorkflowPreview) { v.Capacity.PolicyRecordsAfter = 128 }, "wrong current count": func(v *WorkflowPreview) { v.Capacity.PolicyRecords = 2 }, "missing differences": func(v *WorkflowPreview) { v.Changes.Renamed = []WorkflowRename{} }, "changed identity": func(v *WorkflowPreview) { v.Candidate.WorkflowID = "00000000-0000-4000-8000-000000000099" }} {
+	for name, mutate := range map[string]func(*WorkflowPreview){"wrong attention": func(v *WorkflowPreview) { v.CurrentAttention.ReadyForReview.Value = nil }, "wrong attention source": func(v *WorkflowPreview) { v.Changes.Attention.AfterSource = "explicit" }, "missing occupancy": func(v *WorkflowPreview) { v.Occupancy = []WorkflowOccupancy{} }, "wrong next": func(v *WorkflowPreview) { v.NextPolicyVersion = 99 }, "wrong record count": func(v *WorkflowPreview) { v.Capacity.PolicyRecordsAfter = 128 }, "wrong current count": func(v *WorkflowPreview) { v.Capacity.PolicyRecords = 2 }, "missing differences": func(v *WorkflowPreview) { v.Changes.Renamed = []WorkflowRename{} }, "changed identity": func(v *WorkflowPreview) { v.Candidate.WorkflowID = "00000000-0000-4000-8000-000000000099" }} {
 		t.Run(name, func(t *testing.T) {
 			var v WorkflowPreview
 			json.Unmarshal(raw, &v)

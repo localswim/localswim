@@ -88,6 +88,9 @@ func selectRoute(r *http.Request) (route, int) {
 	case len(p) == 5:
 		q.kind = "board"
 		method = "GET"
+	case len(p) == 6 && p[5] == "attention":
+		q.kind = "attention"
+		method = "GET"
 	case len(p) == 6 && p[5] == "workflow":
 		q.kind = "mutation"
 		q.command = "workflow.edit"

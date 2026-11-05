@@ -78,7 +78,7 @@ func ReadWorkflowPolicies(ctx context.Context, c *sql.Conn, id Identity) ([]A.Wo
 	if err = c.QueryRowContext(ctx, "SELECT policy_version FROM policy WHERE incarnation=?", id.Incarnation).Scan(&current); err != nil || current != int64(len(policies)) {
 		return nil, errors.New("workflow current pointer mismatch")
 	}
-	original, err := ReadWorkflowV8(ctx, c, id)
+	original, err := readWorkflowDefinition(ctx, c, id, false)
 	if err != nil {
 		return nil, err
 	}

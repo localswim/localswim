@@ -201,6 +201,92 @@
       ],
       "type": "object"
     },
+    "AttentionAssignments": {
+      "additionalProperties": false,
+      "properties": {
+        "blocked": {
+          "items": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Ready for Work",
+                  "In Progress",
+                  "Ready for Review",
+                  "Completed"
+                ]
+              },
+              {
+                "not": {
+                  "const": "00000000-0000-0000-0000-000000000000"
+                },
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "type": "string"
+              }
+            ]
+          },
+          "maxItems": 12,
+          "type": "array",
+          "uniqueItems": true,
+          "x-order": "exact lane ID ascending"
+        },
+        "needsTerry": {
+          "items": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Ready for Work",
+                  "In Progress",
+                  "Ready for Review",
+                  "Completed"
+                ]
+              },
+              {
+                "not": {
+                  "const": "00000000-0000-0000-0000-000000000000"
+                },
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "type": "string"
+              }
+            ]
+          },
+          "maxItems": 12,
+          "type": "array",
+          "uniqueItems": true,
+          "x-order": "exact lane ID ascending"
+        },
+        "readyForReview": {
+          "items": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Ready for Work",
+                  "In Progress",
+                  "Ready for Review",
+                  "Completed"
+                ]
+              },
+              {
+                "not": {
+                  "const": "00000000-0000-0000-0000-000000000000"
+                },
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "type": "string"
+              }
+            ]
+          },
+          "maxItems": 1,
+          "type": "array",
+          "uniqueItems": true,
+          "x-order": "exact lane ID ascending"
+        }
+      },
+      "required": [
+        "blocked",
+        "needsTerry",
+        "readyForReview"
+      ],
+      "type": "object"
+    },
     "Board": {
       "additionalProperties": false,
       "properties": {
@@ -2914,6 +3000,44 @@
                   ],
                   "type": "object"
                 },
+                "attention": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "blocked": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "maxItems": 12,
+                      "type": "array",
+                      "uniqueItems": true,
+                      "x-order": "ASCII ascending"
+                    },
+                    "needsTerry": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "maxItems": 12,
+                      "type": "array",
+                      "uniqueItems": true,
+                      "x-order": "ASCII ascending"
+                    },
+                    "readyForReview": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "maxItems": 1,
+                      "type": "array",
+                      "uniqueItems": true,
+                      "x-order": "ASCII ascending"
+                    }
+                  },
+                  "required": [
+                    "blocked",
+                    "needsTerry",
+                    "readyForReview"
+                  ],
+                  "type": "object"
+                },
                 "lanes": {
                   "items": {
                     "additionalProperties": false,
@@ -4337,6 +4461,9 @@
       "properties": {
         "actorRights": {
           "$ref": "#/$defs/WorkflowActorRights"
+        },
+        "attention": {
+          "$ref": "#/$defs/AttentionAssignments"
         },
         "lanes": {
           "items": {

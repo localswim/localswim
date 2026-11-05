@@ -149,3 +149,9 @@ the caller's transaction, including implicit policy1. `schema.ReadWorkflow`
 returns the exact current definition. Public projections omit history until the
 first edit. Restore initializes with the original policy1 and calls
 `schema.InstallWorkflowPolicies` inside its transaction before installing cards.
+
+Physical10 requires the explicit adjacent9->10 offline upgrade before startup.
+The upgrade validates frozen9, changes only user_version, validates current10
+and compares the entire typed-row digest before committing. Repeat10 is
+NO_CHANGE. Precommit faults preserve9; postcommit reply or cleanup ambiguity
+returns UNKNOWN for deliberate inspection. Inspection accepts both versions.

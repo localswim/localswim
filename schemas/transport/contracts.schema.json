@@ -1,6 +1,147 @@
 {
   "$comment": "Select a $defs entry. Strict Go decoding and cross-field/reference checks are required. Structure is never terminal authenticity. Secret bodies are ephemeral only; no HTTP, auth, storage, multipart or native implementation.",
   "$defs": {
+    "AttentionContext": {
+      "additionalProperties": false,
+      "properties": {
+        "assignments": {
+          "$ref": "../archive/contracts.schema.json#/$defs/AttentionAssignments"
+        },
+        "lanes": {
+          "items": {
+            "$ref": "#/$defs/AttentionLane"
+          },
+          "type": "array"
+        },
+        "policyVersion": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "profile": {
+          "enum": [
+            "default",
+            "configured"
+          ]
+        },
+        "source": {
+          "enum": [
+            "implicit",
+            "explicit"
+          ]
+        },
+        "workflowId": {
+          "anyOf": [
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "assignments",
+        "lanes",
+        "policyVersion",
+        "profile",
+        "source",
+        "workflowId"
+      ],
+      "type": "object"
+    },
+    "AttentionLane": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "enum": [
+                "Ready for Work",
+                "In Progress",
+                "Ready for Review",
+                "Completed"
+              ]
+            },
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          ]
+        },
+        "label": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "waiting",
+            "review"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "role"
+      ],
+      "type": "object"
+    },
+    "BoardAttention": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "attention": {
+          "$ref": "#/$defs/CatalogAttention"
+        },
+        "attentionContext": {
+          "$ref": "#/$defs/AttentionContext"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "attention",
+        "attentionContext",
+        "boardId",
+        "incarnation",
+        "revision"
+      ],
+      "type": "object"
+    },
     "BoardBootstrapRequest": {
       "additionalProperties": false,
       "properties": {
@@ -575,40 +716,10 @@
       "additionalProperties": false,
       "properties": {
         "blocked": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/CatalogCount"
-            },
-            {
-              "properties": {
-                "state": {
-                  "const": "not_configured"
-                },
-                "value": {
-                  "type": "null"
-                }
-              },
-              "type": "object"
-            }
-          ]
+          "$ref": "#/$defs/CatalogCount"
         },
         "needsTerry": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/CatalogCount"
-            },
-            {
-              "properties": {
-                "state": {
-                  "const": "not_configured"
-                },
-                "value": {
-                  "type": "null"
-                }
-              },
-              "type": "object"
-            }
-          ]
+          "$ref": "#/$defs/CatalogCount"
         },
         "readyForReview": {
           "$ref": "#/$defs/CatalogCount"
@@ -11093,6 +11204,40 @@
       ],
       "type": "object"
     },
+    "WorkflowAttentionChange": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "$ref": "../archive/contracts.schema.json#/$defs/AttentionAssignments"
+        },
+        "afterSource": {
+          "enum": [
+            "implicit",
+            "explicit"
+          ]
+        },
+        "before": {
+          "$ref": "../archive/contracts.schema.json#/$defs/AttentionAssignments"
+        },
+        "beforeSource": {
+          "enum": [
+            "implicit",
+            "explicit"
+          ]
+        },
+        "changed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "after",
+        "afterSource",
+        "before",
+        "beforeSource",
+        "changed"
+      ],
+      "type": "object"
+    },
     "WorkflowCapacity": {
       "additionalProperties": false,
       "properties": {
@@ -11136,6 +11281,9 @@
           },
           "type": "array"
         },
+        "attention": {
+          "$ref": "#/$defs/WorkflowAttentionChange"
+        },
         "orderChanged": {
           "type": "boolean"
         },
@@ -11160,6 +11308,7 @@
       },
       "required": [
         "added",
+        "attention",
         "orderChanged",
         "renamed",
         "retired",
@@ -11230,11 +11379,17 @@
         "candidate": {
           "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
         },
+        "candidateAttention": {
+          "$ref": "#/$defs/CatalogAttention"
+        },
         "capacity": {
           "$ref": "#/$defs/WorkflowCapacity"
         },
         "changes": {
           "$ref": "#/$defs/WorkflowChanges"
+        },
+        "currentAttention": {
+          "$ref": "#/$defs/CatalogAttention"
         },
         "currentWorkflow": {
           "$ref": "../archive/contracts.schema.json#/$defs/Workflow"
@@ -11276,8 +11431,10 @@
         "approval",
         "boardId",
         "candidate",
+        "candidateAttention",
         "capacity",
         "changes",
+        "currentAttention",
         "incarnation",
         "nextPolicyVersion",
         "occupancy",
@@ -11739,7 +11896,54 @@
           ]
         },
         "attention": {
-          "$ref": "#/$defs/CatalogAttention"
+          "additionalProperties": false,
+          "properties": {
+            "blocked": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CatalogCount"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "not_configured"
+                    },
+                    "value": {
+                      "type": "null"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            },
+            "needsTerry": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CatalogCount"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "not_configured"
+                    },
+                    "value": {
+                      "type": "null"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            },
+            "readyForReview": {
+              "$ref": "#/$defs/CatalogCount"
+            }
+          },
+          "required": [
+            "blocked",
+            "needsTerry",
+            "readyForReview"
+          ],
+          "type": "object"
         },
         "availability": {
           "enum": [

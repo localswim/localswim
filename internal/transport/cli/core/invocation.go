@@ -55,7 +55,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	case "card list", "card search":
 		q.method = "GET"
 		q.archive = "active"
-	case "board read", "workflow show":
+	case "board read", "workflow show", "attention show":
 		q.method = "GET"
 	case "card read", "card history", "card children", "card relationships", "operation read":
 		q.method = "GET"
@@ -80,7 +80,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	default:
 		return q, "INVOCATION_OR_IO", 1
 	}
-	if q.kind != "board read" && q.kind != "workflow show" && q.kind != "workflow preview" && q.kind != "workflow edit" && q.kind != "card create" && q.kind != "card list" && q.kind != "card search" {
+	if q.kind != "board read" && q.kind != "workflow show" && q.kind != "attention show" && q.kind != "workflow preview" && q.kind != "workflow edit" && q.kind != "card create" && q.kind != "card list" && q.kind != "card search" {
 		if i >= len(args) || !uuid(args[i]) {
 			return q, "INVOCATION_OR_IO", 1
 		}
@@ -166,6 +166,8 @@ func parse(args []string) (q invocation, code string, exit int) {
 	base := "/api/v1/boards/" + q.selected.BoardID
 	q.path = base
 	switch q.kind {
+	case "attention show":
+		q.path = base + "/attention"
 	case "workflow preview":
 		q.path = base + "/workflow/preview"
 	case "card list", "card search":

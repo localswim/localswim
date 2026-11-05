@@ -1,6 +1,6 @@
 package schema
 
-// Current physical-nine DDL. Older layouts have independent frozen manifests.
+// Current physical-ten DDL. Older layouts have independent frozen manifests.
 // Registry rows preserve typed entity existence after authorized compaction.
 // A tombstone is never made merely to satisfy an attempted refused reference.
 const ddl = `CREATE TABLE board (

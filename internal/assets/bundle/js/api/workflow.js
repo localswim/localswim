@@ -28,8 +28,28 @@ export function moveLanes(from, session, workflow) {
     return workflow.lanes.filter(lane => ["initial", "in_progress", "waiting"].includes(lane.role) && workflowEdge(from, lane.id, session, "edit", workflow));
 }
 export function sameWorkflow(a, b) {
-    const project = (w) => [w.workflowId, w.revision, w.profile, w.lanes.map(lane => [lane.id, lane.label, lane.role]), w.transitions.map(edge => [edge.from, edge.to, edge.actors]), w.actorRights.human, w.actorRights.automation];
+    const project = (w) => [w.workflowId, w.revision, w.profile, w.lanes.map(lane => [lane.id, lane.label, lane.role]), w.transitions.map(edge => [edge.from, edge.to, edge.actors]), w.actorRights.human, w.actorRights.automation, w.attention === undefined ? null : attentionFacts(w.attention)];
     return a === undefined || b === undefined ? a === b : JSON.stringify(project(a)) === JSON.stringify(project(b));
+}
+const attentionKeys = ["blocked", "needsTerry", "readyForReview"];
+const attentionFacts = (value) => attentionKeys.map(key => value[key]);
+export function resolvedAttention(workflow) {
+    return workflow?.attention ? structuredClone(workflow.attention) : { blocked: [], needsTerry: [], readyForReview: [roleLane("review", workflow)] };
+}
+export function validateAttentionAssignments(workflow) {
+    if (!workflow?.attention)
+        return;
+    const seen = new Set();
+    for (const key of attentionKeys) {
+        const lanes = workflow.attention[key];
+        if (!Array.isArray(lanes) || lanes.length > (key === "readyForReview" ? 1 : 12))
+            throw Error("Invalid Attention assignments");
+        for (const [index, id] of lanes.entries()) {
+            if (typeof id !== "string" || seen.has(id) || index > 0 && lanes[index - 1] >= id || laneRole(id, workflow) !== (key === "readyForReview" ? "review" : "waiting"))
+                throw Error("Invalid Attention lane");
+            seen.add(id);
+        }
+    }
 }
 // Historical state pins resolve solely within the coherent selected-board read.
 export function workflowAtVersion(current, policies, version = 1) {
@@ -46,6 +66,7 @@ export function workflowAtVersion(current, policies, version = 1) {
     return policy.workflow;
 }
 export function validateWorkflowPolicies(current, policies, policyVersion = current?.revision ?? 1) {
+    validateAttentionAssignments(current);
     if (!Number.isSafeInteger(policyVersion) || policyVersion < 1 || policyVersion !== (current?.revision ?? 1))
         throw Error("Current policy version mismatch");
     if (policies === undefined) {
@@ -63,6 +84,7 @@ export function validateWorkflowPolicies(current, policies, policyVersion = curr
         if (policy.policyVersion !== index + 1 || index > 0 && !policy.workflow)
             throw Error("Incomplete workflow history");
         const workflow = policy.workflow;
+        validateAttentionAssignments(workflow);
         if (workflow && (workflow.revision !== policy.policyVersion || workflow.profile !== profile || workflow.workflowId !== current.workflowId))
             throw Error("Workflow identity changed");
         if (index === 0)
@@ -110,6 +132,8 @@ export function validateCurrentWorkflowCards(cards, current, policies, actors, a
 // reject contradictory server data before a caller can present it as a plan.
 export function validateWorkflowPreview(preview) {
     const current = preview.currentWorkflow, candidate = preview.candidate;
+    validateAttentionAssignments(current);
+    validateAttentionAssignments(candidate);
     const version = current?.revision ?? 1;
     if (preview.policyVersion !== version || candidate.revision !== version + 1 || current && (candidate.workflowId !== current.workflowId || candidate.profile !== current.profile) || !current && candidate.profile !== "default")
         throw Error("Workflow preview version mismatch");
@@ -127,7 +151,14 @@ export function validateWorkflowPreview(preview) {
     const human = rightChanges("human"), automation = rightChanges("automation"), changes = preview.changes;
     if (!same(changes.renamed.map(row => [row.laneId, row.before, row.after]), renamed) || changes.orderChanged !== orderChanged || !same(laneFacts(changes.added), laneFacts(added)) || !same(laneFacts(changes.retired), laneFacts(retired)) || changes.transitionsChanged !== transitionsChanged || !same(changes.rights.human.added, human.added) || !same(changes.rights.human.removed, human.removed) || !same(changes.rights.automation.added, automation.added) || !same(changes.rights.automation.removed, automation.removed))
         throw Error("Workflow preview changes mismatch");
-    const changed = !same(laneFacts(currentLanes), laneFacts(candidate.lanes)) || transitionsChanged || human.added.length > 0 || human.removed.length > 0 || automation.added.length > 0 || automation.removed.length > 0;
+    const beforeAttention = resolvedAttention(current), afterAttention = resolvedAttention(candidate);
+    const beforeSource = current?.attention === undefined ? "implicit" : "explicit";
+    const afterSource = candidate.attention === undefined ? "implicit" : "explicit";
+    const attentionChanged = beforeSource !== afterSource || !same(attentionFacts(beforeAttention), attentionFacts(afterAttention));
+    const diff = changes.attention;
+    if (diff.beforeSource !== beforeSource || diff.afterSource !== afterSource || diff.changed !== attentionChanged || !same(attentionFacts(diff.before), attentionFacts(beforeAttention)) || !same(attentionFacts(diff.after), attentionFacts(afterAttention)))
+        throw Error("Workflow Attention preview mismatch");
+    const changed = !same(laneFacts(currentLanes), laneFacts(candidate.lanes)) || transitionsChanged || human.added.length > 0 || human.removed.length > 0 || automation.added.length > 0 || automation.removed.length > 0 || attentionChanged;
     if (preview.wouldChange !== changed || preview.nextPolicyVersion !== version + (changed ? 1 : 0))
         throw Error("Workflow preview progression mismatch");
     if (preview.occupancy.length !== currentLanes.length)
@@ -135,6 +166,19 @@ export function validateWorkflowPreview(preview) {
     for (const [index, row] of preview.occupancy.entries())
         if (!before.has(row.laneId) || row.archivedCards > row.currentCards || index > 0 && preview.occupancy[index - 1].laneId >= row.laneId)
             throw Error("Workflow preview occupancy mismatch");
+    for (const [counts, assignments] of [[preview.currentAttention, beforeAttention], [preview.candidateAttention, afterAttention]]) {
+        for (const key of attentionKeys) {
+            const lanes = assignments[key];
+            const value = lanes.reduce((sum, id) => {
+                const row = preview.occupancy.find(item => item.laneId === id);
+                return sum + (row ? row.currentCards - row.archivedCards : 0);
+            }, 0);
+            if (!Number.isSafeInteger(value))
+                throw Error("Workflow Attention count overflow");
+            if (counts[key].state !== (lanes.length ? "known" : "not_configured") || counts[key].value !== (lanes.length ? value : null))
+                throw Error("Workflow Attention preview counts mismatch");
+        }
+    }
     const capacity = preview.capacity;
     if (capacity.policyRecords !== version || capacity.policyRecordsAfter !== version + (changed ? 1 : 0) || capacity.policyRecordsAfter > 128 || capacity.canonicalPolicyBytesAfter < 1 || capacity.canonicalPolicyBytesAfter > 8388608 || capacity.maxPolicyRecords !== 128 || capacity.maxCanonicalPolicyBytes !== 8388608 || preview.approval.rule !== "retained-issuing-policy")
         throw Error("Workflow preview capacity mismatch");

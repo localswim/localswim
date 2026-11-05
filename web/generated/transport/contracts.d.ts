@@ -4,6 +4,38 @@
 import type * as Archive from '../archive/contracts';
 import type * as Mutation from '../contracts';
 
+export type AttentionLane = {
+  readonly id: string;
+  readonly label: string;
+  readonly role: string;
+};
+
+export type AttentionContext = {
+  readonly assignments: Archive.AttentionAssignments;
+  readonly lanes: ReadonlyArray<AttentionLane>;
+  readonly policyVersion: number;
+  readonly profile: string;
+  readonly source: string;
+  readonly workflowId: string | null;
+};
+
+export type BoardAttention = {
+  readonly apiVersion: 1;
+  readonly attention: CatalogAttention;
+  readonly attentionContext: AttentionContext;
+  readonly boardId: string;
+  readonly incarnation: string;
+  readonly revision: number;
+};
+
+export type WorkflowAttentionChange = {
+  readonly after: Archive.AttentionAssignments;
+  readonly afterSource: string;
+  readonly before: Archive.AttentionAssignments;
+  readonly beforeSource: string;
+  readonly changed: boolean;
+};
+
 export type WorkflowPreviewRequest = {
   readonly apiVersion: 1;
   readonly boardId: string;
@@ -18,8 +50,10 @@ export type WorkflowPreview = {
   readonly approval: WorkflowApproval;
   readonly boardId: string;
   readonly candidate: Archive.Workflow;
+  readonly candidateAttention: CatalogAttention;
   readonly capacity: WorkflowCapacity;
   readonly changes: WorkflowChanges;
+  readonly currentAttention: CatalogAttention;
   readonly currentWorkflow?: Archive.Workflow;
   readonly incarnation: string;
   readonly nextPolicyVersion: number;
@@ -47,6 +81,7 @@ export type WorkflowActorRightsChange = {
 
 export type WorkflowChanges = {
   readonly added: ReadonlyArray<Archive.WorkflowLane>;
+  readonly attention: WorkflowAttentionChange;
   readonly orderChanged: boolean;
   readonly renamed: ReadonlyArray<WorkflowRename>;
   readonly retired: ReadonlyArray<Archive.WorkflowLane>;

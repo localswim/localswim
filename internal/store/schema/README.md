@@ -1,6 +1,6 @@
-# Version-nine physical relational layout
+# Version-ten physical relational layout
 
-Version and PRAGMA user_version are9; retained board.schema_version stays5
+Version and PRAGMA user_version are10; retained board.schema_version stays5
 as the immutable base-schema discriminator, including fresh physical9 stores.
 Validation checks both intended values and exact schema, not a header alone.
 
@@ -199,3 +199,9 @@ It adds only the initial policy record and nullable current and snapshot pin met
 foreign-key, integrity, policy and typed-row conservation checks precede COMMIT.
 An interrupted precommit candidate rolls back. Postcommit uncertainty remains
 UNKNOWN. Startup requires an explicit adjacent upgrade before opening physical8.
+
+Physical10 retains the exact physical9 table and trigger inventory. Its optional
+attention mapping is stored only inside canonical workflow definitions. Frozen9
+uses an independent inventory and rejects new workflow members before shared
+validation, including nested workflow.edit originals. The explicit9->10 offline
+upgrade changes only the version marker and checks every typed row and rowid.

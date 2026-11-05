@@ -1,4 +1,4 @@
-// Package schema defines the version-nine physical storage layout. Admission, canonical
+// Package schema defines the version-ten physical storage layout. Admission, canonical
 // wire validation, retention execution and domain transactions belong to callers.
 package schema
 
@@ -13,7 +13,7 @@ import (
 	A "github.com/localswim/localswim/internal/contract/archive"
 )
 
-const Version = 9
+const Version = 10
 const BaseSchemaVersion = 5
 const ApplicationID = 0x4c535731 // LSW1
 const MaxInteger int64 = 9007199254740991

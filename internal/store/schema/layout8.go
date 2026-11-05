@@ -15,6 +15,10 @@ import (
 // ReadWorkflow returns nil for the exact default profile. It never fabricates a
 // definition, accepts JSON null, or trusts a row's scalar metadata alone.
 func ReadWorkflowV8(ctx context.Context, c *sql.Conn, id Identity) (*A.Workflow, error) {
+	return readWorkflowDefinition(ctx, c, id, true)
+}
+
+func readWorkflowDefinition(ctx context.Context, c *sql.Conn, id Identity, frozen bool) (*A.Workflow, error) {
 	var boardID, incarnation string
 	if err := c.QueryRowContext(ctx, "SELECT board_id,incarnation FROM board WHERE singleton=1").Scan(&boardID, &incarnation); err != nil || boardID != id.BoardID || incarnation != id.Incarnation {
 		return nil, errors.New("workflow storage identity mismatch")
@@ -29,7 +33,7 @@ func ReadWorkflowV8(ctx context.Context, c *sql.Conn, id Identity) (*A.Workflow,
 		return nil, err
 	}
 	var raw map[string]json.RawMessage
-	if json.Unmarshal([]byte(definition), &raw) != nil || raw["profile"] != nil {
+	if json.Unmarshal([]byte(definition), &raw) != nil || raw["profile"] != nil || frozen && raw["attention"] != nil {
 		return nil, errors.New("invalid frozen workflow profile")
 	}
 	w, err := A.DecodeWorkflow([]byte(definition))

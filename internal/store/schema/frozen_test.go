@@ -17,6 +17,7 @@ func TestFrozenLayoutsRemainIndependent(t *testing.T) {
 		{"five", frozenFive, "c861603906f958245553a543e2b34198a7bb73f8d9fb5fed165c9a8de0dbb9ec", StatementsV5},
 		{"six", frozenSix, "976025eb1565d378044ae8697a8eb45080fbaf6d290f5e74725c6357f40a9f68", StatementsV6},
 		{"seven", frozenSeven, "a544db45d15621ee1a2ff574d32f9713eeb2f66f9d8df7d0f4fbffd6d7d898c1", StatementsV7},
+		{"nine", frozenNine, "c9f1346e1ea4a0d1534005649ade96352536eca35f59c8b667da94ac914f54c0", StatementsV9},
 		{"eight", frozenEight, "36dd653f214938aebbf92c4bb4ab4c760d67c0d2a59739e5c47bda77370af9f7", StatementsV8},
 	} {
 		t.Run(v.name, func(t *testing.T) {
@@ -30,13 +31,13 @@ func TestFrozenLayoutsRemainIndependent(t *testing.T) {
 				t.Fatal("shared mutable statements")
 			}
 			for _, q := range original {
-				if v.name != "seven" && v.name != "eight" && strings.Contains(q, "'related'") {
+				if v.name != "seven" && v.name != "eight" && v.name != "nine" && strings.Contains(q, "'related'") {
 					t.Fatal("new kinds inherited by frozen source")
 				}
 			}
 		})
 	}
-	if Version != 9 || BaseSchemaVersion != 5 {
+	if Version != 10 || BaseSchemaVersion != 5 {
 		t.Fatal("version domains changed")
 	}
 	link := strings.Join(LinkStatements(), "\n")

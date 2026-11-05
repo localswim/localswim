@@ -90,12 +90,12 @@ func catalogSchema(t reflect.Type, m map[string]any) {
 	if t == reflect.TypeFor[WorkspaceCatalog]() {
 		m["properties"].(map[string]any)["entries"].(map[string]any)["maxItems"] = 256
 	}
-	if t == reflect.TypeFor[CatalogAttention]() {
-		for _, n := range []string{"blocked", "needsTerry"} {
-			m["properties"].(map[string]any)[n] = map[string]any{"allOf": []any{schema(reflect.TypeFor[CatalogCount](), false), props(map[string]any{"state": map[string]any{"const": "not_configured"}, "value": null})}}
-		}
-	}
 	if t == reflect.TypeFor[WorkspaceCatalogEntry]() {
+		attention := schema(reflect.TypeFor[CatalogAttention](), true)
+		for _, key := range []string{"blocked", "needsTerry"} {
+			attention["properties"].(map[string]any)[key] = map[string]any{"allOf": []any{schema(reflect.TypeFor[CatalogCount](), false), props(map[string]any{"state": map[string]any{"const": "not_configured"}, "value": null})}}
+		}
+		m["properties"].(map[string]any)["attention"] = attention
 		allowed := []string{}
 		for _, state := range enums["WorkspaceAvailability"] {
 			if state != "pending" {

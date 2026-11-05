@@ -6,6 +6,14 @@ import "reflect"
 // Unicode EqualFold labels and edge/right relationships remain Go invariants.
 func workflowSchema(t reflect.Type, p, m map[string]any) {
 	switch t {
+	case reflect.TypeFor[AttentionAssignments]():
+		for _, key := range []string{"blocked", "needsTerry", "readyForReview"} {
+			limit := 12
+			if key == "readyForReview" {
+				limit = 1
+			}
+			p[key] = map[string]any{"type": "array", "items": scalarSchema(reflect.TypeFor[Lane](), ""), "maxItems": limit, "uniqueItems": true, "x-order": "exact lane ID ascending"}
+		}
 	case reflect.TypeFor[Workflow]():
 		p["profile"] = map[string]any{"const": "default"}
 		p["lanes"].(map[string]any)["minItems"] = 4

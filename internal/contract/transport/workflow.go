@@ -29,6 +29,7 @@ type WorkflowActorRightsChange struct {
 	Automation WorkflowRightsChange `json:"automation"`
 }
 type WorkflowChanges struct {
+	Attention          WorkflowAttentionChange   `json:"attention"`
 	Renamed            []WorkflowRename          `json:"renamed"`
 	OrderChanged       bool                      `json:"orderChanged"`
 	Added              []A.WorkflowLane          `json:"added"`
@@ -53,19 +54,21 @@ type WorkflowCapacity struct {
 	MaxCanonicalPolicyBytes   A.Number `json:"maxCanonicalPolicyBytes"`
 }
 type WorkflowPreview struct {
-	APIVersion        A.Version           `json:"apiVersion"`
-	BoardID           A.UUID              `json:"boardId"`
-	Incarnation       A.UUID              `json:"incarnation"`
-	Revision          A.Number            `json:"revision"`
-	PolicyVersion     A.PolicyVersion     `json:"policyVersion"`
-	CurrentWorkflow   *A.Workflow         `json:"currentWorkflow,omitempty"`
-	Candidate         A.Workflow          `json:"candidate"`
-	WouldChange       bool                `json:"wouldChange"`
-	NextPolicyVersion A.PolicyVersion     `json:"nextPolicyVersion"`
-	Changes           WorkflowChanges     `json:"changes"`
-	Occupancy         []WorkflowOccupancy `json:"occupancy"`
-	Approval          WorkflowApproval    `json:"approval"`
-	Capacity          WorkflowCapacity    `json:"capacity"`
+	CurrentAttention   CatalogAttention    `json:"currentAttention"`
+	CandidateAttention CatalogAttention    `json:"candidateAttention"`
+	APIVersion         A.Version           `json:"apiVersion"`
+	BoardID            A.UUID              `json:"boardId"`
+	Incarnation        A.UUID              `json:"incarnation"`
+	Revision           A.Number            `json:"revision"`
+	PolicyVersion      A.PolicyVersion     `json:"policyVersion"`
+	CurrentWorkflow    *A.Workflow         `json:"currentWorkflow,omitempty"`
+	Candidate          A.Workflow          `json:"candidate"`
+	WouldChange        bool                `json:"wouldChange"`
+	NextPolicyVersion  A.PolicyVersion     `json:"nextPolicyVersion"`
+	Changes            WorkflowChanges     `json:"changes"`
+	Occupancy          []WorkflowOccupancy `json:"occupancy"`
+	Approval           WorkflowApproval    `json:"approval"`
+	Capacity           WorkflowCapacity    `json:"capacity"`
 }
 
 func DecodeWorkflowPreviewRequest(data []byte) (WorkflowPreviewRequest, error) {
@@ -111,6 +114,8 @@ func validateWorkflowPreview(v WorkflowPreview) error {
 		return fmt.Errorf("workflow preview identity mismatch")
 	}
 	expected := WorkflowChanges{Renamed: []WorkflowRename{}, Added: []A.WorkflowLane{}, Retired: []A.WorkflowLane{}}
+	expected.Attention = WorkflowAttentionChange{BeforeSource: attentionSource(v.CurrentWorkflow), AfterSource: attentionSource(&v.Candidate), Before: A.ResolveWorkflowAttention(v.CurrentWorkflow), After: A.ResolveWorkflowAttention(&v.Candidate)}
+	expected.Attention.Changed = expected.Attention.BeforeSource != expected.Attention.AfterSource || !reflect.DeepEqual(expected.Attention.Before, expected.Attention.After)
 	old := map[A.UUID]A.WorkflowLane{}
 	newer := map[A.UUID]A.WorkflowLane{}
 	oldOrder, newOrder := []A.UUID{}, []A.UUID{}
@@ -172,6 +177,9 @@ func validateWorkflowPreview(v WorkflowPreview) error {
 		if row.ArchivedCards > row.CurrentCards || A.WorkflowRole(v.CurrentWorkflow, row.LaneID) == "" || (i > 0 && v.Occupancy[i-1].LaneID >= row.LaneID) {
 			return fmt.Errorf("invalid workflow occupancy")
 		}
+	}
+	if !reflect.DeepEqual(v.CurrentAttention, previewAttention(expected.Attention.Before, v.Occupancy)) || !reflect.DeepEqual(v.CandidateAttention, previewAttention(expected.Attention.After, v.Occupancy)) {
+		return fmt.Errorf("workflow preview attention mismatch")
 	}
 	for i, row := range v.Changes.Renamed {
 		if row.Before == row.After || (i > 0 && v.Changes.Renamed[i-1].LaneID >= row.LaneID) {

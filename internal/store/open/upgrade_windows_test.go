@@ -21,7 +21,7 @@ func TestSupportedUpgradeSteps(t *testing.T) {
 		allowed  bool
 	}{
 		{5, 6, true}, {6, 7, true}, {7, 8, true}, {8, 9, true},
-		{4, 5, false}, {5, 7, false}, {8, 8, false}, {8, 10, false}, {9, 10, false},
+		{4, 5, false}, {5, 7, false}, {8, 8, false}, {8, 10, false}, {9, 10, true},
 	} {
 		t.Run(fmt.Sprintf("%d-%d", test.from, test.to), func(t *testing.T) {
 			if SupportedUpgradeStep(test.from, test.to) != test.allowed {
@@ -139,6 +139,9 @@ func TestHierarchyUpgradeRollbackConservationAndUnknown(t *testing.T) {
 	}
 	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 8, 9); e != nil || !changed {
 		t.Fatal("explicit8->9", e)
+	}
+	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 9, 10); e != nil || !changed {
+		t.Fatal("explicit9->10", e)
 	}
 	s, e := Existing(ctx(t), p, identity)
 	if e != nil {

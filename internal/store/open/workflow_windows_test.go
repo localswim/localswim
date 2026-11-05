@@ -88,6 +88,9 @@ func TestWorkflowUpgradeConservesExactRowsAndRequiresExplicitStep(t *testing.T) 
 	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 8, 9); e != nil || !changed {
 		t.Fatal("explicit8->9", e)
 	}
+	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 9, 10); e != nil || !changed {
+		t.Fatal("explicit9->10", e)
+	}
 	s, e := Existing(ctx(t), p, identity)
 	if e != nil {
 		t.Fatal(e)

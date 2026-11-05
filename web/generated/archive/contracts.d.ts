@@ -200,6 +200,11 @@ export type IntentWorkflowEdit = {
   readonly automation: ReadonlyArray<"attach" | "comment" | "create" | "edit" | "export" | "read" | "read-own-outcome" | "review-handoff">;
   readonly human: ReadonlyArray<"approve" | "attach" | "comment" | "create" | "edit" | "export" | "read" | "read-own-outcome" | "review-handoff">;
 };
+  readonly attention?: {
+  readonly blocked: ReadonlyArray<string>;
+  readonly needsTerry: ReadonlyArray<string>;
+  readonly readyForReview: ReadonlyArray<string>;
+};
   readonly lanes: ReadonlyArray<{
   readonly id: string;
   readonly label: string;
@@ -297,8 +302,15 @@ export type ClearInput = {
   readonly throughTime: string;
 };
 
+export type AttentionAssignments = {
+  readonly blocked: ReadonlyArray<string>;
+  readonly needsTerry: ReadonlyArray<string>;
+  readonly readyForReview: ReadonlyArray<string>;
+};
+
 export type Workflow = {
   readonly actorRights: WorkflowActorRights;
+  readonly attention?: AttentionAssignments;
   readonly lanes: ReadonlyArray<WorkflowLane>;
   readonly profile?: string;
   readonly revision: number;

@@ -10,12 +10,13 @@ import (
 // Workflow is an immutable board-scoped policy. A nil workflow means the exact
 // legacy profile; it must never be synthesized into an exported definition.
 type Workflow struct {
-	Profile     string               `json:"profile,omitempty"`
-	WorkflowID  UUID                 `json:"workflowId"`
-	Revision    PolicyVersion        `json:"revision"`
-	Lanes       []WorkflowLane       `json:"lanes"`
-	Transitions []WorkflowTransition `json:"transitions"`
-	ActorRights WorkflowActorRights  `json:"actorRights"`
+	Attention   *AttentionAssignments `json:"attention,omitempty" validate:"nonnull"`
+	Profile     string                `json:"profile,omitempty"`
+	WorkflowID  UUID                  `json:"workflowId"`
+	Revision    PolicyVersion         `json:"revision"`
+	Lanes       []WorkflowLane        `json:"lanes"`
+	Transitions []WorkflowTransition  `json:"transitions"`
+	ActorRights WorkflowActorRights   `json:"actorRights"`
 }
 type WorkflowPolicy struct {
 	PolicyVersion PolicyVersion `json:"policyVersion"`
@@ -100,6 +101,9 @@ func ValidateWorkflow(w *Workflow) error {
 		if roles[role] == "" {
 			return fail()
 		}
+	}
+	if err := ValidateAttentionAssignments(w.Attention, w); err != nil {
+		return err
 	}
 	for _, kind := range []Kind{"human", "automation"} {
 		rights := w.ActorRights.Automation

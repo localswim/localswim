@@ -249,3 +249,9 @@ upgrade. The [workflow-change guide](docs/runbooks/m07-workflow-changes.txt)
 covers these commands, rights, limits and original-outcome handling. Ordinary
 browser workflow editing belongs to M07.03, with full joined qualification and
 the extracted-kit handoff in M07.04/.05. Category-based Attention remains M08.
+
+M08.02 adds category assignments within retained workflow policies, current
+single-board Attention reads and the explicit physical9-to10 upgrade. The
+[category configuration guide](docs/runbooks/m08-category-configuration.txt)
+covers actual CLI preview, edit, observation, compatibility and recovery.
+Workspace category projection and browser controls follow in their M08 slices.

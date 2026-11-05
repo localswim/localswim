@@ -14,12 +14,23 @@ import (
 func focusedRead(value any) (string, bool) {
 	var out strings.Builder
 	switch x := value.(type) {
+	case T.BoardAttention:
+		fmt.Fprintf(&out, "Board %s/%s revision %d; policy %d; profile %s; source %s\n", x.BoardID, x.Incarnation, x.Revision, x.AttentionContext.PolicyVersion, x.AttentionContext.Profile, x.AttentionContext.Source)
+		writeAttentionCounts(&out, x.Attention)
+		for _, lane := range x.AttentionContext.Lanes {
+			fmt.Fprintf(&out, "  Lane %s [%s] %s\n", lane.ID, lane.Role, advisoryText(lane.Label))
+		}
 	case T.WorkflowPreview:
 		fmt.Fprintf(&out, "Board %s/%s revision %d; current policy %d; proposed policy %d\nChange %t; retained approvals %d (%s)\nPolicy capacity %d/%d records; %d/%d canonical bytes after save\n", x.BoardID, x.Incarnation, x.Revision, x.PolicyVersion, x.NextPolicyVersion, x.WouldChange, x.Approval.PreservedCurrentCount, x.Approval.Rule, x.Capacity.PolicyRecordsAfter, x.Capacity.MaxPolicyRecords, x.Capacity.CanonicalPolicyBytesAfter, x.Capacity.MaxCanonicalPolicyBytes)
 		out.WriteString("Current workflow\n")
 		writeWorkflow(&out, x.CurrentWorkflow)
 		out.WriteString("Candidate workflow\n")
 		writeWorkflow(&out, &x.Candidate)
+		fmt.Fprintf(&out, "Attention source %s -> %s; changed %t\n", x.Changes.Attention.BeforeSource, x.Changes.Attention.AfterSource, x.Changes.Attention.Changed)
+		out.WriteString("Current Attention\n")
+		writeAttentionCounts(&out, x.CurrentAttention)
+		out.WriteString("Candidate Attention\n")
+		writeAttentionCounts(&out, x.CandidateAttention)
 		fmt.Fprintf(&out, "Lane order changed %t; transitions changed %t\n", x.Changes.OrderChanged, x.Changes.TransitionsChanged)
 		for _, rename := range x.Changes.Renamed {
 			fmt.Fprintf(&out, "Renamed lane %s from %s to %s\n", rename.LaneID, advisoryText(rename.Before), advisoryText(rename.After))

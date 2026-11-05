@@ -64,6 +64,43 @@ func writeWorkflow(out *strings.Builder, w *A.Workflow) {
 		fmt.Fprintf(out, "  Edge %s -> %s: %s\n", e.From, e.To, strings.Join(actors, ", "))
 	}
 	fmt.Fprintf(out, "  Human rights: %s\n  Automation rights: %s\n", strings.Join(w.ActorRights.Human, ", "), strings.Join(w.ActorRights.Automation, ", "))
+	assignments := A.ResolveWorkflowAttention(w)
+	source := "implicit"
+	if w.Attention != nil {
+		source = "explicit"
+	}
+	fmt.Fprintf(out, "  Attention source %s\n", source)
+	for _, category := range []struct {
+		name  string
+		lanes []A.Lane
+	}{{"Blocked", assignments.Blocked}, {"Needs Terry", assignments.NeedsTerry}, {"Ready for Review", assignments.ReadyForReview}} {
+		ids := make([]string, len(category.lanes))
+		for i, lane := range category.lanes {
+			ids[i] = string(lane)
+		}
+		label := "Not configured"
+		if len(ids) > 0 {
+			label = strings.Join(ids, ", ")
+		}
+		fmt.Fprintf(out, "  %s: %s\n", category.name, label)
+	}
+}
+
+func writeAttentionCounts(out *strings.Builder, counts T.CatalogAttention) {
+	for _, category := range []struct {
+		name  string
+		count T.CatalogCount
+	}{{"Blocked", counts.Blocked}, {"Needs Terry", counts.NeedsTerry}, {"Ready for Review", counts.ReadyForReview}} {
+		if category.count.Value == nil {
+			label := "Unavailable"
+			if category.count.State == "not_configured" {
+				label = "Not configured"
+			}
+			fmt.Fprintf(out, "  %s: %s\n", category.name, label)
+		} else {
+			fmt.Fprintf(out, "  %s: %d (%s)\n", category.name, *category.count.Value, category.count.State)
+		}
+	}
 }
 
 func historicalWorkflow(current *A.Workflow, policies []A.WorkflowPolicy, pin *A.PolicyVersion) *A.Workflow {

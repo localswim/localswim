@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/localswim/localswim/internal/contract"
+	T "github.com/localswim/localswim/internal/contract/transport"
 	"github.com/localswim/localswim/internal/store/schema"
 )
 
@@ -19,6 +20,7 @@ type invocation struct {
 	json, native, lookup                          bool
 	kind, id, input, file, method, path           string
 	archive, cursor, query, lane, owner, priority string
+	from, through                                 string
 	command                                       contract.Command
 }
 
@@ -55,7 +57,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	case "card list", "card search":
 		q.method = "GET"
 		q.archive = "active"
-	case "board read", "workflow show", "attention show":
+	case "board read", "workflow show", "attention show", "activity read":
 		q.method = "GET"
 	case "card read", "card history", "card children", "card relationships", "operation read":
 		q.method = "GET"
@@ -82,7 +84,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	default:
 		return q, "INVOCATION_OR_IO", 1
 	}
-	if q.kind != "board read" && q.kind != "workflow show" && q.kind != "attention show" && q.kind != "workflow preview" && q.kind != "workflow edit" && q.kind != "card create" && q.kind != "card list" && q.kind != "card search" {
+	if q.kind != "board read" && q.kind != "workflow show" && q.kind != "attention show" && q.kind != "workflow preview" && q.kind != "workflow edit" && q.kind != "card create" && q.kind != "card list" && q.kind != "card search" && q.kind != "activity read" {
 		if i >= len(args) || !uuid(args[i]) {
 			return q, "INVOCATION_OR_IO", 1
 		}
@@ -114,6 +116,15 @@ func parse(args []string) (q invocation, code string, exit int) {
 				return q, "INVOCATION_OR_IO", 1
 			}
 			q.archive = args[i]
+		} else if q.kind == "activity read" && k == "--cursor" {
+			if !T.ValidActivityCursor(args[i]) {
+				return q, "INVOCATION_OR_IO", 1
+			}
+			q.cursor = args[i]
+		} else if q.kind == "activity read" && k == "--from" {
+			q.from = args[i]
+		} else if q.kind == "activity read" && k == "--through" {
+			q.through = args[i]
 		} else if k == "--cursor" && (q.kind == "card list" || q.kind == "card search") {
 			if len(args[i]) == 0 || len(args[i]) > 2048 {
 				return q, "INVOCATION_OR_IO", 1
@@ -168,6 +179,19 @@ func parse(args []string) (q invocation, code string, exit int) {
 	base := "/api/v1/boards/" + q.selected.BoardID
 	q.path = base
 	switch q.kind {
+	case "activity read":
+		values := url.Values{"incarnation": {q.selected.Incarnation}}
+		if seen["--from"] || seen["--through"] {
+			if q.cursor != "" || activitySpan(q.from, q.through) == 0 {
+				return q, "INVOCATION_OR_IO", 1
+			}
+			values.Set("from", q.from)
+			values.Set("through", q.through)
+		}
+		if q.cursor != "" {
+			values.Set("cursor", q.cursor)
+		}
+		q.path = base + "/activity?" + values.Encode()
 	case "attention show":
 		q.path = base + "/attention"
 	case "workflow preview":

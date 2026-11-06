@@ -30,6 +30,7 @@ var production = []string{
 	"api/preferences", "workspace-ui/pins",
 	"board/details",
 	"api/history",
+	"api/activity", "board/activity",
 	"api/catalog", "workspace-ui/view", "workspace-ui/refresh",
 	"api/runtime", "api/workspace-session", "session-ui/window-state", "session-ui/window-controller",
 	"app", "api/boundary", "api/client", "api/local-session", "api/schema-data", "api/w03-session", "archive-ui/view", "board/advisory", "board/view", "recovery/indexeddb", "recovery/local-readiness", "recovery/store", "recovery/types", "recovery-ui/admin", "recovery-ui/coordination", "recovery-ui/view", "session-ui/local-view", "session-ui/view", "session-ui/workspace",
@@ -53,6 +54,7 @@ var bindings = []string{
 	"internal/contract/transport/preferences.go",
 	"internal/contract/transport/card_search.go",
 	"internal/contract/transport/files.go",
+	"internal/contract/transport/activity.go",
 }
 
 type manifest struct {

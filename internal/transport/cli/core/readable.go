@@ -14,6 +14,8 @@ import (
 func focusedRead(value any) (string, bool) {
 	var out strings.Builder
 	switch x := value.(type) {
+	case T.ActivityRead:
+		writeActivity(&out, x.Result)
 	case T.BoardAttention:
 		fmt.Fprintf(&out, "Board %s/%s revision %d; policy %d; profile %s; source %s\n", x.BoardID, x.Incarnation, x.Revision, x.AttentionContext.PolicyVersion, x.AttentionContext.Profile, x.AttentionContext.Source)
 		writeAttentionCounts(&out, x.Attention)

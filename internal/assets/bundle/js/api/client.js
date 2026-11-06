@@ -4,6 +4,7 @@ import { RecoveryError } from "../recovery/types.js";
 import { validateCardRead, validateHistoryRead } from "./history.js";
 import { validateBoardHierarchy } from "./hierarchy.js";
 import { boardBoundaryVerifier, canonical, object, parse, prepare, sha256, validate } from "./boundary.js";
+import { activityReadMaximum, ActivityCursorStale, validateActivityPage } from "./activity.js";
 import { validSearch, validateSearchRead } from "./search.js";
 import { laneRole, sameWorkflow, validateWorkflowPolicies, workflowAtVersion, validateCurrentWorkflowCards, validateWorkflowPreview } from "./workflow.js";
 import { fileReadMaximum, FilesReadRefusal, validateFileRead, validateFilesRead } from "./files.js";
@@ -115,7 +116,7 @@ export class BoardClient {
         const local = this.options.transport === "local-cookie", credential = this.connection();
         const response = await this.fetcher(path, { ...init, credentials: local ? "same-origin" : "omit", cache: "no-store", redirect: "error",
             headers: { ...(local ? { "X-Localswim-Client": "browser" } : { "Authorization": "Bearer " + credential }), ...(typeof init.body === "string" ? { "Content-Type": "application/json" } : {}) } });
-        if (response.status === 401 || response.status === 403)
+        if (!init.signal?.aborted && (response.status === 401 || response.status === 403))
             this.options.authenticationUnavailable?.(credential);
         try {
             this.sameConnection(credential);
@@ -239,16 +240,46 @@ export class BoardClient {
         this.workflowRead(history.result.identity, history.result.workflow, []);
         return history;
     }
-    async fileRead(path) {
-        const { response, credential } = await this.raw(path, { signal: AbortSignal.timeout(20_000) });
-        const declared = response.headers.get("Content-Length");
-        if (declared !== null && (!/^(0|[1-9][0-9]*)$/.test(declared) || Number(declared) > fileReadMaximum)) {
+    async activity(identity, signal, previous) {
+        const path = this.path(identity.boardId);
+        if (!uuid.test(identity.incarnation) || identity.incarnation === "00000000-0000-0000-0000-000000000000" ||
+            this.options.selection && identity.incarnation !== this.options.selection.incarnation)
+            throw Error("Activity identity mismatch");
+        const query = new URLSearchParams({ incarnation: identity.incarnation });
+        if (previous) {
+            if (!previous.nextCursor)
+                throw Error("Activity continuation unavailable");
+            query.set("cursor", previous.nextCursor);
+        }
+        const { response, credential } = await this.raw(path + "/activity?" + query, {
+            signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+        });
+        if (response.headers.get("Cache-Control") !== "no-store" ||
+            !/^application\/json(?:\s*;|$)/i.test(response.headers.get("Content-Type") ?? "")) {
             await response.body?.cancel().catch(() => { });
-            throw Error("Files response size unavailable");
+            throw Error("Activity response unavailable");
+        }
+        const value = await this.boundedRead(response, credential, activityReadMaximum);
+        if (response.status !== 200) {
+            validate("transport:NonterminalRefusal", value);
+            if (previous && response.status === 409 && object(object(value).error).code === "CURSOR_STALE")
+                throw new ActivityCursorStale();
+            throw Error("Activity response unavailable");
+        }
+        validate("transport:ActivityRead", value);
+        const page = value.result;
+        validateActivityPage(page, identity, previous);
+        return page;
+    }
+    async boundedRead(response, credential, maximum) {
+        const declared = response.headers.get("Content-Length");
+        if (declared !== null && (!/^(0|[1-9][0-9]*)$/.test(declared) || Number(declared) > maximum)) {
+            await response.body?.cancel().catch(() => { });
+            throw Error("Response size unavailable");
         }
         const reader = response.body?.getReader();
         if (!reader)
-            throw Error("Files unavailable");
+            throw Error("Response unavailable");
         const chunks = [];
         let size = 0;
         try {
@@ -257,13 +288,13 @@ export class BoardClient {
                 if (done)
                     break;
                 size += value.byteLength;
-                if (size > fileReadMaximum)
-                    throw Error("Files response too large");
+                if (size > maximum)
+                    throw Error("Response too large");
                 chunks.push(value);
             }
             this.sameConnection(credential);
             if (declared !== null && size !== Number(declared))
-                throw Error("Incomplete files response");
+                throw Error("Incomplete response");
         }
         catch (error) {
             await reader.cancel().catch(() => { });
@@ -275,7 +306,11 @@ export class BoardClient {
             bytes.set(chunk, offset);
             offset += chunk.byteLength;
         }
-        const value = parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes));
+        return parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes));
+    }
+    async fileRead(path) {
+        const { response, credential } = await this.raw(path, { signal: AbortSignal.timeout(20_000) });
+        const value = await this.boundedRead(response, credential, fileReadMaximum);
         if (!response.ok) {
             validate("transport:NonterminalRefusal", value);
             throw new FilesReadRefusal(String(object(object(value).error).code));

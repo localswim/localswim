@@ -19,6 +19,7 @@ import type { DetailsSelection } from "./details.js";
 import type { CoverEdit, FileBase } from "./files.js";
 import type { CoverPreview } from "./cover-preview.js";
 import { CardSearch } from "./search.js";
+import { BoardActivity } from "./activity.js";
 import type { PrivateSearch } from "./search.js";
 import { sameIdentity, validParentRef, validateBoardHierarchy, hierarchyOrder } from "../api/hierarchy.js";
 import type { ParentRef, HierarchyCard } from "../api/hierarchy.js";
@@ -96,6 +97,7 @@ export class BoardView {
   private readonly details: CardDetails;
   private readonly stopRevision: () => void;
   private readonly search: CardSearch;
+  private readonly activity: BoardActivity;
   private readonly archiveStatus = element("select");
   private readonly cardCovers: CoverPreview[] = [];
   private observed?: { identity: Identity; revision: number };
@@ -125,6 +127,7 @@ export class BoardView {
     this.search = new CardSearch(client, boardId, this.archiveStatus, (cardId, identity, opener) => {
       if (!this.destroyed && !this.suspended) this.details.open(cardId, identity, opener);
     }, options.searchCheckpoint, options.search);
+    this.activity = new BoardActivity(client);
     this.details = new CardDetails(client, this.search.find, focused => {
       const current = this.board, card = current?.result.cards.find(row => row.cardId === focused.result.card.cardId);
       if (!current || !card || current.result.identity.boardId !== focused.result.identity.boardId ||
@@ -137,11 +140,12 @@ export class BoardView {
         edit: cover => this.editCover(cover), allowed: cover => this.canEditCover(cover), refresh: () => this.refresh(),
         observeRevision: (identity, revision) => this.observeRevision(identity, revision) });
     this.stopRevision = client.onReadRevision?.((identity, revision) => this.details.observeRevision(identity, revision)) ?? (() => {});
+    // Append new controls after existing children so persisted focus paths keep their indices.
     root.replaceChildren(this.heading, this.actor, this.readState, read,
-      this.create, this.workflowEdit, this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
+      this.create, this.workflowEdit, this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes, this.activity.host);
   }
   async open(): Promise<void> { await this.refresh(); }
-  suspend(): void { this.suspended = true; this.refreshing = false; this.generation++; this.clearCardCovers(); this.details.suspend(); this.search.suspend(); }
+  suspend(): void { this.suspended = true; this.refreshing = false; this.generation++; this.clearCardCovers(); this.details.suspend(); this.search.suspend(); this.activity.reset(); }
   resume(): void {
     this.suspended = false;
     this.details.resume();
@@ -239,7 +243,7 @@ export class BoardView {
     } catch { this.readState.textContent = "Own window draft unavailable. Private records retained; no input was submitted."; }
   }
   // Owning session adapter invokes on logout/revocation; it preserves private data.
-  destroy(): void { this.destroyed = true; this.stopRevision(); this.clearCardCovers(); this.details.suspend(); this.search.suspend(); this.stopPersistence(); this.generation++; this.editor?.workflowEditor?.destroy(); this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
+  destroy(): void { this.destroyed = true; this.stopRevision(); this.suspend(); this.stopPersistence(); this.editor?.workflowEditor?.destroy(); this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
   connectionUnavailable(): void {
     if (this.destroyed) return;
     this.generation++;
@@ -248,6 +252,7 @@ export class BoardView {
     this.clearCardCovers();
     this.details.invalidate();
     this.search.invalidate();
+    this.activity.reset();
     this.create.disabled = this.workflowEdit.disabled = true;
     this.readState.textContent = "Connection unavailable. Read the current board to resume. Private input and original outcomes are retained.";
     this.updateSave();
@@ -256,6 +261,7 @@ export class BoardView {
     if (this.destroyed || this.suspended) return;
     const generation = ++this.generation;
     this.refreshing = true;
+    this.activity.reset();
     this.clearCardCovers();
     this.details.invalidate();
     this.updateSave();
@@ -274,11 +280,13 @@ export class BoardView {
       this.details.completeBoardRead(board);
       this.details.boardRead(board.result.identity);
       this.search.boardRead(board.result.identity, board.result.revision, board.result.workflow);
+      this.activity.boardRead(board.result.identity);
     } catch {
       if (this.destroyed || generation !== this.generation) return;
       this.refreshing = false;
       this.stale = true;
       this.search.invalidate();
+      this.activity.reset();
       this.readState.textContent = this.board ? "Unavailable; displayed board is stale. Editor input and original base retained." : "Unavailable; no current board loaded.";
     }
     this.updateSave();

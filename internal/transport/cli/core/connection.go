@@ -125,7 +125,11 @@ func newPinned(c setup.ConnectionContext, m CredentialMetadata, token T.SecretTo
 }
 
 func (c *Connection) request(ctx context.Context, method, path string, body io.Reader) (int, []byte, error) {
-	status, h, b, err := c.requestRaw(ctx, method, path, body, "application/json", "application/json", 32*1024*1024)
+	return c.requestJSON(ctx, method, path, body, 32*1024*1024)
+}
+
+func (c *Connection) requestJSON(ctx context.Context, method, path string, body io.Reader, maxBytes int64) (int, []byte, error) {
+	status, h, b, err := c.requestRaw(ctx, method, path, body, "application/json", "application/json", maxBytes)
 	if err != nil {
 		return 0, nil, err
 	}

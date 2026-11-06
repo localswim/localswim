@@ -268,6 +268,9 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 	if q.command != "" {
 		return client.Dispatch(ctx, r.Evidence, contract.ResolvedRoute{Command: q.command, BoardID: q.selected.BoardID, TargetID: q.id}, wire, stderr).r
 	}
+	if q.kind == "activity read" {
+		return readActivity(ctx, c, q)
+	}
 	status, b, err := c.request(ctx, q.method, q.path, bytes.NewReader(wire))
 	if err != nil {
 		return refused("UNAVAILABLE", 3, nil)

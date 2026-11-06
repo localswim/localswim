@@ -27,6 +27,7 @@ const workspaceCLIHelp = `  localswim --workspace DIR [--json] workspace catalog
   localswim --workspace DIR --project PROJECT [--json] board register --key KEY --label LABEL --root DIR [--expected-identity FILE]
   localswim --workspace DIR --project PROJECT --board BOARD [--json] board status [--root DIR] [--expected-identity FILE]
   localswim --workspace DIR --project PROJECT --board BOARD [--json] board read
+  localswim --workspace DIR --project PROJECT --board BOARD [--json] activity read [--from UTC --through UTC | --cursor TOKEN]
   localswim --workspace DIR --project PROJECT --board BOARD [--json] card|comment|attachment|export|operation COMMAND ...
 Workspace selection and --data are mutually exclusive. Domain commands require both keys.
 An expected identity file contains only installationId, boardId and incarnation.`

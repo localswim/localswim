@@ -1,0 +1,45 @@
+Read committed activity from the running Localswim host
+
+Use the same data directory or workspace selection you use for board read.
+The command uses the selected board's current CLI credential. It reads one
+page and creates no operation receipt.
+
+  localswim --data DIR activity read
+  localswim --workspace DIR --project PROJECT --board BOARD --json activity read
+
+The server chooses the last seven days for a fresh read without bounds. For
+an explicit window, supply both bounds as UTC whole seconds. The lower bound
+is exclusive, the upper bound inclusive; the span must be positive and at most
+seven days, and the upper bound cannot be in the server's future.
+
+  localswim --data DIR activity read --from 2026-11-05T12:00:00Z --through 2026-11-06T12:00:00Z
+
+Each page returns at most 20 events, newest first. With the same selection,
+copy the token after Next cursor (JSON: result.nextCursor). Do not add bounds
+to the next-page command. A missing cursor means there are no more retained
+events in this inspection.
+
+  localswim --data DIR activity read --cursor TOKEN
+  localswim --data DIR activity read
+
+The second command starts fresh. Do this deliberately if the host reports
+CURSOR_STALE, for example after a board change or host restart. Repeat your
+original bounds without the cursor if you want to reopen that exact interval.
+
+Read the selection, interval and coverage above the events. Each event shows
+its original board/incarnation and event ID, time, type, board revision and
+recorded actor kind and ID (when present). Restored rows keep their origin.
+
+  complete  Recorded coverage spans the interval. An empty page means no
+            activity in that interval.
+  gapped    Some evidence is missing. Retained rows can still be shown.
+  expired   The selected board's retention floor covers the whole interval.
+
+Coverage describes the requested interval, including when no retained rows
+remain. It does not reconstruct events or establish whether an alert was sent.
+
+With --json, stdout contains one activity envelope on success, or a bounded
+refusal envelope on failure; stderr contains the fixed diagnostic code on
+failure. Exit 0 confirms a valid page, 1 is invocation/IO, 2 is refusal
+(including stale), and 3 means unavailable. A refusal or unavailable response
+does not establish that the interval is empty.

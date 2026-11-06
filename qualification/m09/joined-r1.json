@@ -1,0 +1,988 @@
+{
+  "scope": "M09.05 joined card-file lifecycle qualification",
+  "status": "PASS_M09_05",
+  "qualifiedSource": "215f165a4cb58cc0faf92b121c6ac98063545812",
+  "binarySHA256": "f83706354e4c3b047b92599ea8b6a03aa6b31d316a97ab8a23c67f62df5463ca",
+  "versions": {
+    "physical": 11,
+    "baseSchema": 5,
+    "api": 1,
+    "archive": 1,
+    "fingerprint": 1
+  },
+  "contract": "v2-architecture/docs/decisions/m09-file-lifecycle-contract-2026-11-05.txt, amendment A1",
+  "cleanBuilds": {
+    "count": 2,
+    "sourceFiles": 1062,
+    "identicalOutputFiles": 96
+  },
+  "fullGo": {
+    "pass": 2025,
+    "fail": 0,
+    "skip": 0
+  },
+  "nodeScripts": 19,
+  "nativeInventory": {
+    "root": {
+      "required": 3,
+      "pass": 3,
+      "fail": 0,
+      "skip": 0
+    },
+    "transaction": {
+      "required": 8,
+      "pass": 8,
+      "fail": 0,
+      "skip": 0
+    },
+    "archive": {
+      "required": 14,
+      "pass": 14,
+      "fail": 0,
+      "skip": 0
+    },
+    "transactionChild": {
+      "required": 7,
+      "pass": 7,
+      "fail": 0,
+      "skip": 0
+    },
+    "archiveChild": {
+      "required": 4,
+      "pass": 4,
+      "fail": 0,
+      "skip": 0
+    },
+    "archiveRows": {
+      "required": 6,
+      "pass": 6,
+      "fail": 0,
+      "skip": 0
+    }
+  },
+  "nativeProviders": 473,
+  "browserInventory": {
+    "passed": 21,
+    "failed": 0,
+    "skipped": 0,
+    "retries": 0
+  },
+  "normalJourneyChecks": {
+    "workflow": 270,
+    "browser": 136,
+    "reopen-browser": 24
+  },
+  "focusedDOM": {
+    "detachGroupsPassed": 21,
+    "fileGroupsPassed": 22,
+    "uploadGroupsPassed": 30,
+    "boundaryChecks": 24,
+    "clientChecks": 22
+  },
+  "compatibilityChecks": 135,
+  "conservation": {
+    "profiles": [
+      "default",
+      "configured"
+    ],
+    "nativeRestoreGenerationsPerProfile": 2,
+    "ordinaryOriginalsByProfile": [
+      37,
+      47
+    ],
+    "controlledFullOriginalsPerProfile": 4,
+    "controlledMixedOperationsPerProfile": 8,
+    "comparison": "Complete members, exact C01 canonical intent/result bytes, blob bytes, pins, tombstones, policies and lineage"
+  },
+  "acceptanceMatrix": "F01-F35 and F37-F40 qualification proof complete; F36 extracted-kit proof belongs to M09.06.",
+  "limits": [
+    "Synthetic Windows amd64/local NTFS and loopback qualification.",
+    "Controlled clients, direct fixture preparation and injected barriers/faults are identified separately from ordinary browser/CLI journeys.",
+    "Earlier slice evidence is reused only with relevant-source equality or superseded by final-candidate reruns.",
+    "The browser inventory original wrapper failure is retained. It incorrectly rejected valid diagnostic events and the same saved evidence was independently revalidated.",
+    "The existing inventory contains one unclassified LOCAL console event. Each of five large-label/pagination browser runs also contains one unclassified sanitized console event; functional checks pass.",
+    "The admitted file-read snapshot is proven complete before detach commits. Native DELETE-journal locking prevents the test from forcing Read return after detach commit. Export delivery after detach is separately proven.",
+    "F40 hydration uses three observation-only calls in a private source overlay. It measures calls and candidate counts, not heap usage.",
+    "Original comparison uses exact C01 canonical intent/result bytes under the archive contract. Archive formatting can change raw stored JSON whitespace. The physical 10-to-11 upgrade separately preserves raw row bytes.",
+    "Physical power-loss behavior was not tested.",
+    "The fresh extracted-kit demonstration and final delivery review belong to M09.06."
+  ],
+  "privateEvidenceRoot": "artifacts/2026-11-05-m09-development/m09-05",
+  "evidence": {
+    "fullGate": {
+      "path": "../gate-c0dd2967/result.json",
+      "sha256": "8e62745a9aed30106d7772b091229a4b33acc551ad76a50d970a05a462f600bf"
+    },
+    "cleanBuilds": {
+      "path": "two-build-comparison.json",
+      "sha256": "619e3eb4c88813a65ee8a2e8acec2e4ff189949a7e8b8818043c554307a8518a"
+    },
+    "hundredCandidateHydration": {
+      "path": "f40-hydration-cdcc1903/result.json",
+      "sha256": "f4d97b5d7f18c95ea38a8cff9949ce5b563ea771ef7e2c3b51ab27359ea7fb28"
+    },
+    "cliExactCap": {
+      "path": "cli-cap/attempt-6cb3a292/result.json",
+      "sha256": "4201ade2195fc2ae826b3e7b26659cb8685fbbaf9cf653fc958c3f0fbf9c29e4"
+    },
+    "detachInterleavings": {
+      "path": "interleavings/run-41be23cc/result.json",
+      "sha256": "432d315cbc965646ca35512300186adda0d6d851207ae30e686e3b7034fab6a5"
+    },
+    "historyTombstoneRead": {
+      "path": "f03-224e676b/result.json",
+      "sha256": "183adf336c05cf51c9e1ebeef1e264608411e78e0685f0e7a41bfa7c75b2e767"
+    },
+    "distinctActorRaces": {
+      "path": "supplemental-cd35a533/result.json",
+      "sha256": "f59443db20e3eab4cefc63a5d36b89c8d7d3e45f78587222498d9ef37ba52eff"
+    },
+    "nativeInventory": {
+      "path": "native/native-46d1184c/report.json",
+      "sha256": "81ce0c00b707983133fce3b3f3f834d0ba89cb50bda67b31b8ed2c93d57e54e0"
+    },
+    "browserInventory": {
+      "path": "browser-summary.json",
+      "sha256": "b9086ae3951f4ef60c0a7fcfd4f34caf596de2087ac176ede128f8a72e06887d"
+    },
+    "normalJourney": {
+      "path": "normal-demo-d94c88f5/result.json",
+      "sha256": "2e79401166a4fbd1956b73d24d296786ba684ef01d30f5a6b083d0af3f80b78a"
+    },
+    "normalConservation": {
+      "path": "conservation/native-c0e98790/result.json",
+      "sha256": "ea1916a3f77a2f23c968a4817df2e95d778e65aee0e41fdd8979e3b98ddb6d5f"
+    },
+    "mixedConservation": {
+      "path": "conservation/controlled/native-1f3d9ba0/result.json",
+      "sha256": "3253f208e17051e703c72dcaa2212b49e6c34d8253970d0dcc02c202d2cef758"
+    },
+    "compatibility": {
+      "path": "compatibility/REPORT.json",
+      "sha256": "bf65bf8270caceb7130c901ff2082e767fd40aa07a9b9228e2539f5584486421"
+    },
+    "focusedDOM": {
+      "path": "dom/joined-result.json",
+      "sha256": "f795821e302eddc9a18fa50db3231636c955247e2bd5ad96e40c63dcada3a54b"
+    },
+    "nearLimitLabel": {
+      "path": "large-label/summary.json",
+      "sha256": "b2f052323cf0e6f956a00d6861b41713561e9d7ba595cf8cdcc4e5e8517a79e2"
+    },
+    "ordinaryLabelPagination": {
+      "path": "large-label/paging-summary.json",
+      "sha256": "9b696434f789c049593485245b9f8297b3a630cef6d01ef5d32550e9721a0a68"
+    },
+    "browserContextsAndCap": {
+      "path": "context-proof/summary.json",
+      "sha256": "2ce882210fa6aaa90a7db62f6823af11a72d2e0d1463c0e5e4a8952a5b03731f"
+    },
+    "coverage": {
+      "path": "coverage-report.json",
+      "sha256": "788cc944fc44696636ab2db1ac4df439a6a27e27f1a952770cf307e96f3448cd"
+    }
+  },
+  "independentReview": {
+    "status": "PASS_SCOPED_M09_05_INDEPENDENT_REVIEW",
+    "openFindings": 0,
+    "path": "review.json",
+    "sha256": "7d828c1b0d409f7cba1bf5ebd7fcf1e3ec7f7510844774012b752f4ad8770def"
+  },
+  "acceptanceCases": [
+    {
+      "id": "F01",
+      "owner": "M09.02",
+      "acceptedSetup": "two boards, equal ticket, different files",
+      "acceptedAction": "attachment.list current and attachment.inspect selected card",
+      "acceptedExpect": {
+        "otherBoardFiles": 0,
+        "otherCardFiles": 0,
+        "identityExact": true,
+        "emptyListSucceeds": true
+      },
+      "classification": [
+        "native",
+        "ordinary"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "native gate-c0dd2967 and m09-05/normal-demo-d94c88f5",
+      "scopeAndLimitations": "Current exact candidate joined default/configured multi-board identity and CLI/browser paths. Controlled negative contexts remain separately labelled."
+    },
+    {
+      "id": "F02",
+      "owner": "M09.02",
+      "acceptedSetup": "current and retained full attachment metadata on one card",
+      "acceptedAction": "list both views and inspect each ID",
+      "acceptedExpect": {
+        "viewsDisjoint": true,
+        "retainedDownloadState": "not_current",
+        "retainedMetadataVisible": true
+      },
+      "classification": [
+        "native",
+        "ordinary"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/normal-demo-d94c88f5 and current detach native tests",
+      "scopeAndLimitations": "Genuine detach creates retained state; current and retained remain disjoint. Earlier physical10 synthetic retained setup is historical evidence only."
+    },
+    {
+      "id": "F03",
+      "owner": "M09.02",
+      "acceptedSetup": "full snapshot, compact snapshot and attachment tombstone",
+      "acceptedAction": "existing history read and file inspect",
+      "acceptedExpect": {
+        "exactHistoryProvenance": true,
+        "coverageExplicit": true,
+        "tombstoneInspect": "NOT_FOUND",
+        "noInventedMetadata": true
+      },
+      "classification": [
+        "controlled-native-authenticated-handler"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/f03-224e676b/result.json and f03_history_windows_test.go",
+      "scopeAndLimitations": "PASS on default/configured fresh restores. Exact full/compact HistoryRead and tombstone/metadata Inspect. Clone-only enrichment adds current read grant and one compact-history reference to an existing tombstone; accepted source archives remain unchanged."
+    },
+    {
+      "id": "F04",
+      "owner": "M09.02",
+      "acceptedSetup": "103 attachments with equal timestamp groups and known ascending IDs",
+      "acceptedAction": "list limit100 then next cursor",
+      "acceptedExpect": {
+        "pageLengths": [
+          100,
+          3
+        ],
+        "sortKeys": [
+          "createdAt",
+          "attachmentId"
+        ],
+        "duplicates": 0,
+        "omissions": 0,
+        "lastCursor": null
+      },
+      "classification": [
+        "native"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "gate-c0dd2967/go-tests.log and attachments/files_windows_test.go",
+      "scopeAndLimitations": "Exact103-item ordering/pagination fixture through native service; current production source and aggregate run are bound."
+    },
+    {
+      "id": "F05",
+      "owner": "M09.02",
+      "acceptedSetup": "captured list cursor",
+      "acceptedAction": "test limits0,101,01; unknown/duplicate query; corrupt/overlong/wrong-context cursor; mutate then continue",
+      "acceptedExpect": {
+        "malformed": "INVALID_INPUT",
+        "stale": "REVISION_CONFLICT",
+        "staleItems": 0
+      },
+      "classification": [
+        "native",
+        "unit",
+        "controlled-browser-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "attachments/files_test.go; files_windows_test.go; web/src/api/files.test.ts; web/src/board/files.test.ts; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Malformed query and stale cursor are controlled boundary cases, not all ordinary browser gestures. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F06",
+      "owner": "M09.02",
+      "acceptedSetup": "read-only, attach-only, own-outcome-only, revoked and native-owner credentials",
+      "acceptedAction": "list inspect download with each",
+      "acceptedExpect": {
+        "readOnlyAllowed": true,
+        "othersDenied": true,
+        "noMetadataLeak": true
+      },
+      "classification": [
+        "native",
+        "unit-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "attachments/files_windows_test.go; attachments_windows_test.go TestOwnOutcomeRevocationAndReadRights; files-client.test.ts; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Read authority enforced before existence. Native-owner/attach-only rights rely on existing shared admission tests plus file service checks. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F07",
+      "owner": "M09.02",
+      "acceptedSetup": "default/configured active, archived and Completed cards",
+      "acceptedAction": "read files with current read authority",
+      "acceptedExpect": {
+        "allReadable": true,
+        "sameAuthorityRules": true,
+        "configuredRoleResolved": true
+      },
+      "classification": [
+        "native",
+        "ordinary-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-04/normal-demo-434a3194; files_windows_test.go; workflow role helpers; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Ordinary default/configured active/archived/Completed context evidence reviewed through scripts and result records. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F08",
+      "owner": "M09.02",
+      "acceptedSetup": "live add receipt; restored source receipt; compact add receipt; activity-only evidence; absent evidence; conflicting actor evidence",
+      "acceptedAction": "inspect attribution",
+      "acceptedExpect": {
+        "basisOrder": [
+          "operation",
+          "activity",
+          "unavailable"
+        ],
+        "sourceActorPreserved": true,
+        "absentActor": null,
+        "conflictingEvidence": "UNAVAILABLE"
+      },
+      "classification": [
+        "native",
+        "controlled-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "files_windows_test.go TestCardFileRetainedAttributionEvidence; m09-04/conservation/native-9bb3dced; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Synthetic source rows in M09.02 are controlled evidence. Actual restored-source attribution is separately covered by native/ordinary export restoration. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F09",
+      "owner": "M09.02",
+      "acceptedSetup": "empty and binary blob fixtures, current refs",
+      "acceptedAction": "browser download and actual CLI download",
+      "acceptedExpect": {
+        "exactBytes": true,
+        "browserOutcome": "offered",
+        "nativeVerifiedPublication": true,
+        "generatedBinName": true
+      },
+      "classification": [
+        "native",
+        "ordinary-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-03 normal-demo; m09-04/normal-demo-434a3194/browser.json; attachments_windows_test.go; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Browser verifies offer and actual CLI compares published bytes. Browser save completion is not claimed. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F10",
+      "owner": "M09.02",
+      "acceptedSetup": "current metadata with missing/corrupt required blob using isolated fault setup",
+      "acceptedAction": "download",
+      "acceptedExpect": {
+        "successBytes": 0,
+        "integrityFailure": true,
+        "storeFenced": true
+      },
+      "classification": [
+        "native-fault-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "attachments_windows_test.go TestIntegrityCollisionAndDownloadFence; web/src/api/files-client.test.ts; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Storage corruption is injected native fault evidence. Browser corrupt transport is adapter evidence. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F11",
+      "owner": "M09.02",
+      "acceptedSetup": "native existing destination, protected root, link/path escape and interrupted publication fixtures",
+      "acceptedAction": "actual CLI download",
+      "acceptedExpect": {
+        "overwrite": false,
+        "protectedPathWrite": false,
+        "escapeWrite": false,
+        "uncertainPublicationNeverRetried": true
+      },
+      "classification": [
+        "native-fault-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "transport/cli publication tests and existing native inventory; m09-02/publication-review.txt; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Path protection and unknown publication are existing actual CLI/native tests. Current full native inventory binding remains parent/native-worker owned. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F12",
+      "owner": "M09.02",
+      "acceptedSetup": "inert control/markup/path-like metadata name and non-ASCII fixture",
+      "acceptedAction": "inspect browser and download",
+      "acceptedExpect": {
+        "exactStoredName": true,
+        "htmlExecuted": false,
+        "nameInHeaderOrPath": false,
+        "byteIntegrity": true
+      },
+      "classification": [
+        "native",
+        "ordinary",
+        "controlled-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-03 ordinary binary filename flow; web/src/board/files.test.ts; files-client.test.ts; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Inert markup/control names tested by controlled DOM and native path/header contract. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F13",
+      "owner": "M09.03",
+      "acceptedSetup": "fresh mutable cards, empty/binary/10MiB/10MiB+1 inputs",
+      "acceptedAction": "browser and actual CLI attachment.add",
+      "acceptedExpect": {
+        "validSizes": [
+          0,
+          6,
+          10485760
+        ],
+        "oversize": "INVALID_INPUT",
+        "exactBytes": true,
+        "actualActorAttribution": true
+      },
+      "classification": [
+        "ordinary",
+        "native-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-03/normal-demo-fa979277; m09-04/normal-demo-434a3194; attachments_windows_test.go; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Empty/binary/max/over-limit coverage exists in joined scripts. Current exact candidate rerun parent-owned. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F14",
+      "owner": "M09.03",
+      "acceptedSetup": "exact64MiB protected union using distinct digests",
+      "acceptedAction": "add new byte then duplicate content",
+      "acceptedExpect": {
+        "newDigest": "BYTE_QUOTA_EXCEEDED",
+        "duplicateDigestAllowed": true,
+        "distinctAttachmentIds": true,
+        "deduplicatedQuota": true
+      },
+      "classification": [
+        "native-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "attachments_windows_test.go TestProtectedQuotaInclusiveAndDedup; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Exact quota and duplicate digest are native controlled fixtures; not an ordinary 64MiB browser journey. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F15",
+      "owner": "M09.03",
+      "acceptedSetup": "invalid UTF8, overlong name/media, hash mismatch, malformed multipart and truncated file",
+      "acceptedAction": "attachment.add",
+      "acceptedExpect": {
+        "commits": 0,
+        "partialBlobs": 0,
+        "partialReferences": 0,
+        "draftPreserved": true
+      },
+      "classification": [
+        "native-fault",
+        "adapter-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "attachments_windows_test.go TestRawMismatchPreterminalAndRefusals; transport/attachments multipart tests; web/src/archive-ui/upload.test.ts; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Invalid wire and truncated upload are transport/fault cases. Do not claim every malformed input came from ordinary UI. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F16",
+      "owner": "M09.03",
+      "acceptedSetup": "chosen raw file and dirty metadata draft",
+      "acceptedAction": "reload, reopen, explicit reselection then explicit discard",
+      "acceptedExpect": {
+        "durableRawBytes": false,
+        "autoSubmit": false,
+        "reselectionRequired": true,
+        "changedFileRequiresReplacement": true
+      },
+      "classification": [
+        "ordinary",
+        "controlled-browser-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "web/src/archive-ui/upload.test.ts; m09-03 normal-demo; m09-04 normal-demo-434a3194; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Ordinary reload/reselection and controlled asynchronous File ownership are separate claims. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F17",
+      "owner": "M09.03",
+      "acceptedSetup": "private prepare/readback failure and storage faults before commit",
+      "acceptedAction": "attachment.add",
+      "acceptedExpect": {
+        "partialDomainMutation": false,
+        "falseSuccess": false,
+        "inputRetained": true
+      },
+      "classification": [
+        "native-fault",
+        "controlled-browser-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "attachments_windows_test.go TestRollbackAndBlockedCommitNoOrphan; upload.test.ts preparation failure; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Preparation failure DOM probe is synthetic. Native storage rollback prevents partial state. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F18",
+      "owner": "M09.03,M09.04",
+      "acceptedSetup": "add or detach, after-COMMIT response loss and failed reconciliation",
+      "acceptedAction": "reload, read list, deliberate original lookup",
+      "acceptedExpect": {
+        "autoReplay": false,
+        "autoLookup": false,
+        "interimOutcome": "UNKNOWN",
+        "exactOriginalResolves": true,
+        "singleCommit": true,
+        "sourceArchiveCannotResolveCurrent": true
+      },
+      "classification": [
+        "controlled-real-browser",
+        "native-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-03/fault-proof/verification.json; m09-04/fault-proof/verification-final-ui.json; detach replay tests; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Fault proxy forwards real mutation then loses its response. Exact UNKNOWN/reload/deliberate lookup proven. No power-loss claim. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F19",
+      "owner": "M09.03,M09.04",
+      "acceptedSetup": "same base revisions with add/detach/card-edit/archive/workflow-edit/approve contenders",
+      "acceptedAction": "dispatch pair behind barrier",
+      "acceptedExpect": {
+        "maximumCommits": 1,
+        "loser": "REVISION_CONFLICT",
+        "partialEffects": false
+      },
+      "classification": [
+        "controlled-native"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/supplemental-cd35a533/result.json and frozen supplemental_windows_test.go",
+      "scopeAndLimitations": "Twelve pairs include distinct-actor add/add, detach/detach, add/detach, edit/archive/workflow/approve contenders. Both arrive before release. Exact original bytes, immutable metadata, revisions/events/history/pins/blob/ByteFacts and schema/export validation. Default policy fixture; scheduling after release is unconstrained."
+    },
+    {
+      "id": "F20",
+      "owner": "M09.03,M09.04",
+      "acceptedSetup": "default/configured completed roles, archived unfinished, lowered attach ceiling",
+      "acceptedAction": "select and attempt add/detach",
+      "acceptedExpect": {
+        "completed": "COMPLETED",
+        "archivedUnfinishedAllowed": true,
+        "archivedExplicitSelection": true,
+        "ceilingLoss": "FORBIDDEN",
+        "labelBasedRoleInference": false
+      },
+      "classification": [
+        "native",
+        "ordinary",
+        "controlled-browser-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-04 detach eligibility reports/probes; upload.test.ts; detach_windows_test.go; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Configured Completed/ceiling controls independently inspected. Archive context requires explicit selection. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F21",
+      "owner": "M09.04",
+      "acceptedSetup": "detachRequest state, current approval and multiple file refs",
+      "acceptedAction": "attachment.detach",
+      "acceptedExpect": {
+        "outcome": "committed",
+        "boardRevision": 13,
+        "cardRevision": 5,
+        "approvalCleared": true,
+        "priorSnapshotComplete": true,
+        "oneReferenceRemoved": true,
+        "oneCurrentPinRemoved": true,
+        "metadataUnchanged": true,
+        "entityRemovedAt": null,
+        "activityEventsAdded": 1,
+        "byteFacts": []
+      },
+      "classification": [
+        "native",
+        "ordinary-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "attachments/detach_windows_test.go TestDetachPreservesMetadataHistoryPinsAndExactReplay and TestDetachInvalidatesApprovalAndPreservesPriorReference; M09.04 ordinary reports; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Approval is controlled native fixture; ordinary detach independently verifies endpoint and retained state. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F22",
+      "owner": "M09.04",
+      "acceptedSetup": "successfully detached file and current revisions",
+      "acceptedAction": "new opId detach again, then stale new opId, then original opId lookup",
+      "acceptedExpect": {
+        "freshRepeat": "NO_CHANGE",
+        "staleRepeat": "REVISION_CONFLICT",
+        "original": "committed",
+        "noChangeDomainDelta": 0
+      },
+      "classification": [
+        "native",
+        "ordinary-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "detach_windows_test.go TestDetachPreservesMetadataHistoryPinsAndExactReplay; m09-04 ordinary browser/CLI; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Fresh NO_CHANGE, stale conflict and original retained receipt are distinct assertions. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F23",
+      "owner": "M09.04",
+      "acceptedSetup": "foreign-card ID, missing ID and tombstone ID",
+      "acceptedAction": "fresh authorized detach with exact base",
+      "acceptedExpect": {
+        "code": "NOT_FOUND",
+        "partialEffects": false
+      },
+      "classification": [
+        "controlled-native"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/interleavings/run-9e05a2a4/result.json and frozen interleavings_windows_test.go",
+      "scopeAndLimitations": "Explicit absent, foreign-card, detached-NO_CHANGE and tombstoned ID checks preserve state; final distinct-actor rerun binding follows in F25."
+    },
+    {
+      "id": "F24",
+      "owner": "M09.04",
+      "acceptedSetup": "newly detached file with full add/history/export protection",
+      "acceptedAction": "inspect retained, raw download, compare pin union and quota",
+      "acceptedExpect": {
+        "retainedMetadataVisible": true,
+        "rawDownload": "NOT_FOUND",
+        "protectedBlobExact": true,
+        "quotaNotReleasedByDetach": true,
+        "noNewTombstone": true
+      },
+      "classification": [
+        "native",
+        "ordinary-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "detach_windows_test.go; m09-04 normal-demo-434a3194; F26 retention test; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Historical/add/export protection remains separate from current raw-download eligibility. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F25",
+      "owner": "M09.04",
+      "acceptedSetup": "barrier-controlled export/read and detach plus authorized recovery contender",
+      "acceptedAction": "capture before/after authoritative results",
+      "acceptedExpect": {
+        "exportWholeBeforeOrAfter": true,
+        "admittedReadMayFinish": true,
+        "postDetachRead": "NOT_FOUND",
+        "mixedPins": false,
+        "duplicateCommit": false
+      },
+      "classification": [
+        "controlled-native-interleavings"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/interleavings/run-41be23cc/result.json and frozen interleavings_windows_test.go",
+      "scopeAndLimitations": "Actual read/detach, export snapshot/delivery and recovery writer-order barriers pass. Final recovery/detach contenders use independent authenticated actors/grants. Before/after snapshots, verified admitted bytes, post-detach NOT_FOUND and consistent pins are checked."
+    },
+    {
+      "id": "F26",
+      "owner": "M09.04",
+      "acceptedSetup": "detached file, separately authorized history/original pruning through existing recovery",
+      "acceptedAction": "compact all eligible protection then export/restore",
+      "acceptedExpect": {
+        "compactReferencesPreserved": true,
+        "genuineTombstoneWhenEligible": true,
+        "exactRetainedByteFacts": true,
+        "noImplicitDetachGC": true
+      },
+      "classification": [
+        "native-authorized-retention-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "attachments/detach_retention_windows_test.go TestDetachAuthorizedLaterRetentionAndNativeRestore; m09-04/review-core-f26-tests.log; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Real history.clear preview+confirm twice. First phase removes byte protection while full detach retains metadata; second compacts detach and produces genuine tombstone. Exact add ByteFact and full metadata compared in source/restores. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F27",
+      "owner": "M09.04",
+      "acceptedSetup": "exact valid physical10 fixture and frozen10 validators",
+      "acceptedAction": "explicit10to11 then reopen then repeat upgrade",
+      "acceptedExpect": {
+        "physicalVersion": 11,
+        "baseSchema": 5,
+        "logicalRowsUnchanged": true,
+        "canonicalBytesUnchanged": true,
+        "repeat": "NO_CHANGE",
+        "frozen10RejectsDetach": true
+      },
+      "classification": [
+        "actual-old/new-CLI",
+        "native"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/compatibility/REPORT.json and native/native-46d1184c/report.json",
+      "scopeAndLimitations": "Four old10-created original/restored default/configured roots. Exact SQL values/rowids/canonical bytes preserved; repeat NO_CHANGE, current11/base5 and old10 rejection verified."
+    },
+    {
+      "id": "F28",
+      "owner": "M09.04",
+      "acceptedSetup": "old10 executable, physical11 root and detach-bearing archive including refused-only original",
+      "acceptedAction": "old startup and old import",
+      "acceptedExpect": {
+        "safeRefusalBeforeWrite": true,
+        "rootUnchanged": true,
+        "unsupportedCommandsNotSkipped": true
+      },
+      "classification": [
+        "actual-old-executable"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/compatibility/REPORT.json",
+      "scopeAndLimitations": "Old10 accepts old-vocabulary controls and rejects eight committed/refused-only current/source detach archives before publication. Physical11 startup refusal preserves bytes."
+    },
+    {
+      "id": "F29",
+      "owner": "M09.04",
+      "acceptedSetup": "active/wrong/future/corrupt upgrade root, precommit and postcommit failures",
+      "acceptedAction": "explicit upgrade",
+      "acceptedExpect": {
+        "precommitSourceUnchanged": true,
+        "activeOwnerRefused": true,
+        "postcommitUncertainty": "UNKNOWN",
+        "noBlindRetry": true
+      },
+      "classification": [
+        "native-fault",
+        "actual-CLI"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "gate-c0dd2967; native/native-46d1184c; compatibility/REPORT.json",
+      "scopeAndLimitations": "Exact10to11 fault stages and UNKNOWN preserve source. Existing generic unsafe-root/active-owner checks remain unchanged and rerun in current native inventory; actual supported-root startup guidance separately checked."
+    },
+    {
+      "id": "F30",
+      "owner": "M09.02",
+      "acceptedSetup": "two boards/equal tickets, delayed read and authority revocation",
+      "acceptedAction": "navigate then deliver old response; refresh; switch card",
+      "acceptedExpect": {
+        "wrongContextRender": false,
+        "selectionByStableId": true,
+        "staleMetadataErasedAfterDeniedRefresh": true
+      },
+      "classification": [
+        "controlled-real-browser-contexts"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/context-proof/summary.json and report.json",
+      "scopeAndLimitations": "Seven in-page checks release old board A list/inspect after selecting B and deny refresh. Uses current production CardFiles in real Chromium with controlled clients; no stale rows/details/offers survive."
+    },
+    {
+      "id": "F31",
+      "owner": "M09.03,M09.04",
+      "acceptedSetup": "dirty add/detach state in independent private windows",
+      "acceptedAction": "keyboard/composition/narrow layout, navigation, confirmation and discard",
+      "acceptedExpect": {
+        "crossWindowDraftOverwrite": false,
+        "implicitMutation": false,
+        "confirmationExactTarget": true,
+        "focusAndInputPreserved": true
+      },
+      "classification": [
+        "controlled-real-browser-contexts",
+        "ordinary-layout"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/context-proof/summary.json; dom/joined-result.json; normal-demo-d94c88f5",
+      "scopeAndLimitations": "Two independent private contexts preserve distinct dirty names/files across refresh and other-window detach. Keyboard open/cancel/focus/one-confirm/no-replay checked. Current narrow ordinary layouts and upload composition/implicit submit probes are separate evidence."
+    },
+    {
+      "id": "F32",
+      "owner": "M09.04",
+      "acceptedSetup": "full and compact detach originals, mismatched attachment/card/result refs, illegal ByteFact",
+      "acceptedAction": "generated/archive/schema validation",
+      "acceptedExpect": {
+        "validFullCompactAccepted": true,
+        "foreignRefsRejected": true,
+        "detachByteFactRejected": true,
+        "fullRequiresFullMetadata": true,
+        "compactMayResolveTombstone": true
+      },
+      "classification": [
+        "unit",
+        "native-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "contract/archive/detach_test.go; store/schema detach tests; transport detach validators; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "Full/compact exact refs, illegal bytefacts and tombstone distinctions are model/schema tests. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F33",
+      "owner": "M09.02,M09.03",
+      "acceptedSetup": "accepted pre-M09 canonical originals and physical10 archive fixtures",
+      "acceptedAction": "regenerate/read/refreeze and reopen",
+      "acceptedExpect": {
+        "canonicalIntentBytesUnchanged": true,
+        "fingerprintsUnchanged": true,
+        "noNewStoredFields": true,
+        "physicalVersion": 10
+      },
+      "classification": [
+        "actual-CLI",
+        "native",
+        "generated-reused"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "compatibility/REPORT-R2.json; frozen10 checks; prior M09.02/03 canonical checks; current aggregate gate-c0dd2967 and complete native/native-46d1184c",
+      "scopeAndLimitations": "M09.04 intentionally current physical11. F33 physical10 expectation belongs pre-detach M09.02/03 boundary; frozen old input is preserved, not current physical version. Earlier focused evidence is preserved; current full-source native/Go inventory revalidates the unchanged mechanisms. Scope remains native/adapter where indicated."
+    },
+    {
+      "id": "F34",
+      "owner": "M09.03,M09.04",
+      "acceptedSetup": "complete mixed current/historical add/detach source fixture",
+      "acceptedAction": "export and first runnable restore",
+      "acceptedExpect": {
+        "allRecordsCompared": true,
+        "allOriginalBytesCompared": true,
+        "allProtectedBlobBytesCompared": true,
+        "onlyDocumentedTransforms": true,
+        "readAndAttributionParity": true
+      },
+      "classification": [
+        "actual-CLI-export",
+        "native-restore"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/conservation/native-c0e98790/result.json and frozen conservation_windows_test.go",
+      "scopeAndLimitations": "Current default/configured ordinary exports pass exhaustive first and second native document/original/blob/pin comparisons with explicit identity/source-ledger/lineage transforms."
+    },
+    {
+      "id": "F35",
+      "owner": "M09.05",
+      "acceptedSetup": "first restored source of F34 with old/source compact/full originals",
+      "acceptedAction": "export first restore and second runnable restore",
+      "acceptedExpect": {
+        "allRecordsCompared": true,
+        "allOriginalBytesCompared": true,
+        "allProtectedBlobBytesCompared": true,
+        "lineageAndSourceLedgersCompared": true,
+        "pinUnionCompared": true
+      },
+      "classification": [
+        "actual-CLI-export",
+        "controlled-native-restore"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/conservation/native-c0e98790/result.json; conservation/controlled/native-1f3d9ba0/result.json and summary.txt",
+      "scopeAndLimitations": "Both generations compare complete member sets and original/blob bytes. Separate controlled old-incarnation full/compact add/detach fixtures check eight source operations/two source groups, five exact ByteFacts, current/history/operation pins, tombstone and policy pins. Genuine authorized retention is separately F26."
+    },
+    {
+      "id": "F36",
+      "owner": "M09.06",
+      "acceptedSetup": "fresh extracted exact qualified kit, default/configured multi-board workspace",
+      "acceptedAction": "browser add -> CLI inspect/download -> CLI add -> browser inspect/download -> detach -> retained inspect -> saved-port reopen",
+      "acceptedExpect": {
+        "joinedLifecycle": true,
+        "retainedRawDownload": "NOT_FOUND",
+        "exactBytes": true,
+        "currentReadParity": true,
+        "ownedCleanup": true
+      },
+      "classification": [
+        "ordinary-joined-M09.05"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/normal-demo-d94c88f5/result.json; browser.json; workflow.json; reopen.json",
+      "scopeAndLimitations": "PASS for current126 qualification joined lifecycle/default+configured multi-board workspace and saved-port reopen. Fresh extracted final customer-kit execution belongs to127/M09.06, deferred there and does not block126 acceptance."
+    },
+    {
+      "id": "F37",
+      "owner": "M09.02",
+      "acceptedSetup": "two independent fixtures: one attachment with legacy20KiB actor label;50 attachments with legacy5000Bytes actor labels",
+      "acceptedAction": "authoritative list/inspect, ordinary browser and actual CLI",
+      "acceptedExpect": {
+        "exactLabel": true,
+        "allSurfacesAccept": true,
+        "physicalVersion": 10,
+        "newStoredLabelLimit": false
+      },
+      "classification": [
+        "native",
+        "actual-CLI",
+        "ordinary-browser"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/supplemental-e968d943/result.json; large-label/paging-summary.json",
+      "scopeAndLimitations": "Both independent accepted fixtures pass. One20KiB label and50x5000-byte labels preserve exact inspector text; latter actual complete wire281989 bytes. One unclassified sanitized console event per browser fixture is retained separately; functional assertions and HTTP checks pass."
+    },
+    {
+      "id": "F38",
+      "owner": "M09.02",
+      "acceptedSetup": "three items sharing repeated600KiB actor label; separate singleton2MiB followed by a small item",
+      "acceptedAction": "list limit50 and traverse all continuation cursors",
+      "acceptedExpect": {
+        "repeatedLabelPageLengths": [
+          1,
+          1,
+          1
+        ],
+        "singletonPageLengths": [
+          1,
+          1
+        ],
+        "shortNonterminalPageAccepted": true,
+        "emptyNonterminalPageRejected": true,
+        "wireBudgetIncludesRepeatedLabelsAndEnvelope": true,
+        "duplicates": 0,
+        "omissions": 0
+      },
+      "classification": [
+        "native",
+        "actual-CLI",
+        "ordinary-browser"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/supplemental-e968d943; interleavings/run-9e05a2a4; large-label/paging-summary.json",
+      "scopeAndLimitations": "3x600KiB produces1/1/1 and large-singleton then small produces1/1 with full cursor traversal, exact labels, no omissions/duplicates. Actual singleton/small wire2098490/897 bytes. Empty nonterminal refusal remains current adapter assertion."
+    },
+    {
+      "id": "F39",
+      "owner": "M09.02",
+      "acceptedSetup": "unicodeNearArchiveLimit accepted source member with HTML-significant and U+2028/U+2029 text",
+      "acceptedAction": "restore, list singleton, inspect, ordinary browser/actual CLI and export",
+      "acceptedExpect": {
+        "exactDecodedLabel": true,
+        "responseBytesAtMost": 134217728,
+        "optionalHTMLEscapesDisabled": true,
+        "sourceArchiveLimitUnchanged": true,
+        "allSurfacesAccept": true
+      },
+      "classification": [
+        "controlled-native-archive",
+        "actual-CLI",
+        "ordinary-browser"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "m09-05/supplemental-fb1e3915/result.json and f39-roundtrip.json; large-label/summary.json",
+      "scopeAndLimitations": "Accepted33552373-byte board member carries33550434-byte exact label. Native export/restore/source attribution/re-export passes; actual CLI list55918311 and inspect55918272 bytes plus ordinary browser pass within128MiB. One unclassified sanitized console event retained; no functional assertion failure."
+    },
+    {
+      "id": "F40",
+      "owner": "M09.02",
+      "acceptedSetup": "overLabelBound, overLabelBoundMultibyte and overLabelBoundEmbeddedNul isolated stores; controlled exact-cap/cap+1 body fixtures;100 candidates with repeated large labels",
+      "acceptedAction": "authoritative read and client streamed decoders",
+      "acceptedExpect": {
+        "overLabelBound": "UNAVAILABLE",
+        "overHardCap": "UNAVAILABLE",
+        "exactCapAcceptedWhenValid": true,
+        "partialSuccess": false,
+        "labelTruncation": false,
+        "sqlLengthExpression": "length(CAST(label AS BLOB))",
+        "multibyteCountedInBytes": true,
+        "embeddedNulSuffixCounted": true,
+        "oneItemHydration": true,
+        "sourceUnchanged": true
+      },
+      "classification": [
+        "native-preflight",
+        "production-client-adapters",
+        "controlled-observation"
+      ],
+      "auditStatus": "PASS_SCOPED",
+      "sourceAndEvidence": "gate-c0dd2967; context-proof/summary.json and cap.stdout.json; cli-cap/attempt-6cb3a292/result.json; f40-hydration-cdcc1903/result.json and hydration.json",
+      "scopeAndLimitations": "ASCII/UTF8/embedded-NUL overlabel refusal and HTTP hard-cap pre-success failure pass. Production browser adapter accepts four valid exact128MiB list/inspect declared/chunked cases and refuses cap+1. Controlled loopback CLI Runner accepts four exact-cap and rejects four cap+1 bodies. A three-observation-only native overlay with100 actual adds sees one-item batches and two label hydrations for a615747-byte first page; overbound NUL label executes byte preflight and zero label hydrations. No heap benchmark or full installed-credential claim."
+    }
+  ]
+}

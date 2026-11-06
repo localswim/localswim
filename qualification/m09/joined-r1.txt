@@ -1,0 +1,38 @@
+M09.05 JOINED QUALIFICATION
+
+PASS. Independent Sol / High review reports zero open findings.
+F01–F35 and F37–F40 proof is complete. F36 final extracted-kit delivery remains M09.06.
+
+Qualified source 215f165a4cb58cc0faf92b121c6ac98063545812
+Executable SHA256 f83706354e4c3b047b92599ea8b6a03aa6b31d316a97ab8a23c67f62df5463ca
+Physical 11, base 5, API/archive/fingerprint 1.
+
+Regression and ordinary paths
+- Two independent clean builds match all 96 generated outputs and the executable.
+- Full Go gate passes 2,025 tests, zero failures/skips. All 19 script tests pass.
+- Mandatory native inventory passes all root/transaction/archive/child/row sets,
+  with 473 provider bindings. All 21 browser inventory cases pass with zero retries.
+- Joined ordinary workflow/file/reopen checks pass 270/136/24.
+- Focused current-source DOM suites pass 21 detach, 22 files, 30 upload, 24 boundary and 22 client checks.
+- Physical 10 to 11 and old-executable/archive boundaries pass 135 checks.
+
+Conservation and boundaries
+- Both default/configured ordinary exports survive two native restore generations
+  with complete member and exact C01 canonical intent/result byte comparisons.
+- Mixed full/compact older-source fixtures preserve exact C01 canonical originals, attachment
+  tombstones, ByteFacts, blob/policy pins and lineage through two generations.
+- Actual CLI and ordinary browser preserve a 33,550,434-byte actor label. Four
+  additional ordinary fixtures prove 20 KiB, 50 × 5,000-byte aggregate and full pagination.
+- Final targeted matrix and barrier/response-cap proofs are indexed in JSON.
+
+Limits
+- Synthetic Windows amd64/local NTFS and loopback qualification.
+- Controlled clients, direct fixture preparation and injected barriers/faults are identified separately from ordinary browser/CLI journeys.
+- Earlier slice evidence is reused only with relevant-source equality or superseded by final-candidate reruns.
+- The browser inventory original wrapper failure is retained. It incorrectly rejected valid diagnostic events and the same saved evidence was independently revalidated.
+- The existing inventory contains one unclassified LOCAL console event. Each of five large-label/pagination browser runs also contains one unclassified sanitized console event; functional checks pass.
+- The admitted file-read snapshot is proven complete before detach commits. Native DELETE-journal locking prevents the test from forcing Read return after detach commit. Export delivery after detach is separately proven.
+- F40 hydration uses three observation-only calls in a private source overlay. It measures calls and candidate counts, not heap usage.
+- Original comparison uses exact C01 canonical intent/result bytes under the archive contract. Archive formatting can change raw stored JSON whitespace. The physical 10-to-11 upgrade separately preserves raw row bytes.
+- Physical power-loss behavior was not tested.
+- The fresh extracted-kit demonstration and final delivery review belong to M09.06.

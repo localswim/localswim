@@ -1,0 +1,400 @@
+M12.01 FIXED-TARGET LOCAL NOTICE CONTRACT
+2026-11-06 | M12-LOCAL-NOTICES-R1 | #0184
+
+One existing local or workspace host runs a monitor for one selected physical
+board and publishes sanitized notices to that board's private local inbox.
+Scope authority is M12-PLUS-JOINT-R2 and M12-R1. M11 interactive activity,
+board mutations, archive/restore and the administrative monitor keep their own
+contracts. M13 owns interrupted restart and broader reconciliation, M14 owns
+live reload and retarget, and M15 owns Codex delivery.
+
+1. Binding and authority
+
+Use the native exclusive board-root handle already held by the selected local
+engine, plus one serialized monitor state machine within that engine. Native
+exclusion must hold across standalone/workspace entry points and competing
+processes, including aliases that resolve to the same root. Refuse unsupported
+paths and identities. A PID, lock file's existence or heartbeat confers no
+ownership. Retain engine exclusion until all admitted monitor work has stopped
+and its state is safely closed. Close or detach the engine through this same
+drain; keep the handle while any worker can still use board or notice storage.
+
+Bind private state to the pinned native physical root and main database file
+identities (volume and file IDs), installation ID, selected board ID and
+incarnation. This binding is the source lineage. Persist a randomly allocated
+target UUID on first configuration and never replace it in M12. A different
+root, database file, installation, board, incarnation, or regressed committed
+counter relative to a retained cut means continuity is unproved. Refuse to
+reuse the state, leave it intact, and surface a bounded foreign-scope status.
+Never copy runtime state into an archive or restore it with board data. A
+normal restored destination gets its own target, baseline and lineage when
+configured. Its retained source events retain their M11 origin and never
+become newly committed destination activity. Protection assumes the qualified
+local filesystem and account ACL boundary, including ordinary supported
+restore, with no hostile rollback of all files by the owning account.
+
+Controls use the existing selected-board HTTP/auth boundary with exact
+installation/board/incarnation and current read admission, including durable
+enabled grant and workflow permission. Limit M12 to the installed human
+browser actor/grant or installed automation CLI actor/grant resolved by the
+engine. Native ownership alone authorizes no operator command. Check current
+authority in the board read snapshot before returning or altering private
+monitor state, and check the serialized monitor precondition before changing
+it. Do not disclose monitor state on failed admission. Browser and CLI can
+inspect or stop each other's authorized runs through their ordinary credentials.
+Use an opaque, canonical UUIDv4 controlGeneration for each engine lifetime
+and each admitted control transition. Status returns the current generation
+even when unconfigured. Configure, start and stop must supply that exact
+generation from deliberate status. Compare it under monitor serialization
+after current authority and before changing any state. A stale value returns
+409 CONTROL_STALE with no monitor change. Rotate the generation on each
+admitted lifecycle transition, including entry to drain and completion of
+drain or a guard. A true idempotent no-op may retain it. A fresh engine always
+generates a new value, including when reopening the same stopped target.
+No private notice or receipt identity depends on this generation.
+Complete bounded board authority validation before entering the short control
+gate. Under the gate recheck the same live engine, selection, request validity,
+generation and state, then claim the transition and rotate as appropriate.
+Release the gate before waiting, performing board reads, or doing native I/O.
+Use one serialized state writer for durable publications. A claimed transition
+holds its reservation until completion and competing incompatible controls get
+CONTROL_BUSY or CONTROL_STALE without effects. Stop may fence a running worker
+while an already admitted effect is in flight. Status can report the reserved
+transition and last known durable facts during I/O.
+An explicit start binds the worker to the starting mode/actor/grant and
+credential for that run, held only in memory. Revalidate through ordinary
+current-read admission at each observation/capture, final suppression or
+delivery admission. Deliberate guarded lookup uses only the current caller's
+ordinary authority. It can resolve original retained proof after the starting
+session ends or its grant is revoked. Background revalidation must leave
+browser idle expiry untouched. Revocation, expiry, workflow denial
+or invalid selection closes admission, preserves unresolved state and reports
+an authority pause to a later authorized operator. No worker impersonation or
+automatic restart using a renewed credential. A newly authorized deliberate
+start may continue a quiescent, valid clean state with no unresolved effect.
+
+2. Durable interval evidence
+
+The authoritative interval is (lowerEvent, upperEvent] on the selected
+incarnation's own committed event sequence. Initial configuration records a
+baseline lower cut from the board row (next_event - 1), without scanning or
+notifying about pre-configuration history. Configuration to first start and
+clean stops to subsequent starts remain eligible for catch-up. Record board
+revision, local high-water, sampled UTC, selected activity floor and the
+maximum native gap_id of selected-origin activity gaps (zero if absent) at
+each cut. The gap watermark is private and meaningful only within the same
+physical lineage, where normal board writes append coverage gaps. A regressed
+floor or watermark makes continuity unproved. Canonical UTC seconds are
+display and coverage evidence. They neither filter the event sequence nor
+exclude late, equal-time, future-dated or clock-regressed committed rows.
+
+Within one bounded reader transaction establish authority, validate lineage and
+the lower cut, capture the board row and exact upperEvent = next_event - 1,
+and read all required pages and coverage facts for this upper cut. Scan the
+selected incarnation and exact selected origin in ascending event ID, bounded
+by lowerEvent < eventId <= upperEvent. Continue strictly above the last ID
+within that same snapshot using pages of at most 20 rows, with a maximum of
+1,000 expected events per capture and the existing bounded reader deadline.
+Verify exact sequence coverage from lowerEvent+1 to upperEvent, including page
+seams and final exhaustion. Intersecting selected-origin activity gaps or
+retention evidence can only reduce confidence. Inherited origin rows and
+gaps remain M11 history and cannot fill local sequence holes. Later commits,
+even those with earlier timestamps, remain outside the cut. Close the reader
+successfully before publishing any classification. Keep the existing M11
+interactive timestamp window, opaque cursors, response and behavior unchanged.
+
+Reuse M11 allowed event types, metadata validation and actor attribution by
+selected-incarnation actor ID. Rows from another origin are never automation
+evidence for this interval. Unknown attribution is a valid event classification.
+Malformed rows, failed reads, ambiguous scope or truncation cannot count as
+complete. Match an automation event only when its authoritative kind is
+automation and its actor ID equals the selected installation's configured
+automation actor ID. Another automation actor belongs to the conservative
+other-actor class. The private source returns a validated aggregate and cut,
+not card payloads, public continuation tokens or open SQL handles. Freeze a
+classified aggregate and exact cut with any pending intent before delivery.
+Never re-query a different upper bound under that pending delivery ID.
+
+Complete requires a valid authoritative read and no missing sequence positions
+or applicable local loss. Use the closed coverage envelope [low, high] of the
+sampled cut times and validated event times, with low the minimum and high the
+maximum. A nonempty loss range (a, b] intersects it when b >= low and a < high
+(null a has no lower bound). This includes a covered single instant when both
+cuts are in the same second. On a nonempty event interval treat a floor at or
+beyond high as expired if rows are missing. Otherwise a floor reaching low,
+an intersecting local activity gap, or any missing ID is gapped.
+On equal event cuts, compare the stored lower and captured upper coverage.
+A newly advanced floor contributes the loss range (oldFloor, newFloor]. Only
+selected-origin activity gaps with gap_id above the lower watermark are new.
+An unchanged floor and existing gaps do not reclassify an equal-cut interval.
+If a newly advanced floor covers the entire envelope, classify expired. If a
+new floor range or new nondegenerate gap intersects any part, classify gapped.
+Otherwise a valid admitted observation is observed-empty. Equal cuts alone
+without an admitted observation are idle. This rule covers same-second cuts,
+with a new range ending at that instant intersecting and a new range starting
+there excluded.
+Preserve valid retained rows for classification only after the coverage
+decision. A malformed, overflowing, failed or over-budget query is unavailable.
+Use M11 projected-gap validation and its bound of 32 applicable distinct gap
+tuples. A source upper cut may be retained as a gap boundary after an
+incomplete capture only with its full valid counter and coverage descriptor.
+When no trustworthy upper cut exists, preserve the lower checkpoint and a
+gap with unknown upper. Scope/authority refusal is separate
+from an evidence failure under valid scope. A foreign input cannot publish
+into the current inbox. An admitted monitor may report its own scoped source
+continuity problem as foreign status, with no foreign data or reassignment.
+
+3. Observation, classification and stop
+
+Poll authoritative high-water at most once per second during normal idle.
+Relevant observed board DB/WAL changes may open or extend a batch as wake
+hints, including writes that leave no new committed activity. A conservative
+native file change indicator or validated file signature suffices. Initial
+signature sampling, empty periodic polls, ordinary reads, private sidecar and
+service metadata writes alone cannot open a batch. A positive counter advance,
+changed local coverage watermark or floor, relevant wake or first admitted
+source failure opens a durable observation
+with a new UUID, prior checkpoint and first/latest observed UTC. Persist it
+before treating the wake as handled. Coalesce only new observed changes and
+use monotonic run time for a 2-second quiet window and 10-second maximum age
+from first observation. At the earlier deadline freeze one exact upper cut.
+Repeated polls of an unchanged signal cannot extend quiet or maximum age.
+Observe later activity for the next batch. File writes, wake counts and
+transaction counts are never expected event counts.
+
+Outcome precedence for an admitted observation:
+
+- Complete, nonempty, all verified configured automation: suppress. Durably
+  advance the checkpoint and clear that observation together. Emit no notice.
+- Complete, nonempty, any other classification: human, mixed, unknown-actor
+  or other-actor notice. Any unknown attribution takes precedence, then a
+  combination of actor classes is mixed, then human, then other-actor. An
+  accepted receipt advances the checkpoint and clears the observation.
+- Confirmed observation with equal event cuts and no applicable new loss:
+  observed-empty notice. On acceptance, store the verified upper cut as the
+  next lower cut, including its updated time and coverage fields. Keep the
+  observation ID distinct across multiple
+  such batches with the same event bounds. True idle generates no intent,
+  notice, receipt or checkpoint rewrite.
+- Expired, gapped or unavailable: sanitized notice with that reason and a
+  durable gap. Retain the gap even after notice acceptance. Advance past a
+  known affected range only with the gap and disposition both durable. Store
+  the full verified upper descriptor as the new lower cut even when the event
+  ID is unchanged. With unknown upper retain the checkpoint, report the gap
+  and pause observation until deliberate authorized intervention or later
+  scoped recovery.
+
+Store at most one open observation and one pending notice per board. Preserve
+them under pressure. Retain up to 64 unresolved gaps, each tied to the original
+observation/cut and bounded class. At capacity preserve existing evidence,
+retain the outstanding observation, and pause with capacity status. Gap
+recording, pending intent publication and checkpoint changes must preserve the
+applicable interval under interruption. A bounded gap never implies missing
+events were recovered, even if subsequent intervals can be proved complete.
+
+Stop serializes with configuration, start, lookup and worker admission. It
+closes new observation admission, promptly freezes/drains an already admitted
+batch using its captured upper or one final authorized cut if still open, and
+waits at most two seconds from authorized Stop admission for the request
+response, outside the control gate. Return stopped only once
+the worker and all admitted effects are quiescent and the clean stop state is
+durable. If draining exceeds the request bound, return partial-drain, retain
+ownership and expose the later actual state. If quiescent with unresolved
+evidence, report guarded/failed as appropriate and retain its state. Closing
+the HTTP request, browser view or caller process cannot release a worker lease.
+Do not drop a batch, reopen or launch a second worker during drain. A clean
+same-target start compares current high-water to its durable checkpoint,
+processes downtime activity once, and retains earlier inbox/receipt evidence.
+On unclean reopen surface retained pending/observation as guarded; M12 does
+not automatically process interrupted work or reinterpret its original cut.
+
+4. Private intent, notice and receipt
+
+Use one bounded, versioned, account-private native state file at a reserved
+board-runtime name outside served assets and archive/export/restore state.
+Reuse the validated NTFS path, account/SYSTEM ACL, flush and atomic write-through
+publication used by the local host. Avoid following reparses, accepting shared
+files or adopting stale staging files. Strictly validate complete records and
+scope before use. Serialize updates, propagate storage errors and compare
+identity before writes. A failed or ambiguous update cannot authorize a new
+effect. State size limit is 256 KiB including serialization. The sidecar has
+no credentials, paths, actor IDs from events, card text or activity payloads.
+
+For a notice persist immutable pending intent with schema version, source
+binding, observation UUID, exact lower and optional upper cuts, fixed target
+UUID, class and projected count (nullable when unverified). Derive deliveryId
+as 64 lowercase hexadecimal digits of SHA-256 over a versioned canonical
+ordered encoding of those identity fields (source binding, target, observation
+and cuts), with an explicit null upper representation. Keep immutable content
+and require an exact match on reuse of an ID. Validate IDs and exact pending
+binding at every transition. The target is the single fixed local inbox and
+the product accepts no destination URL, path, or alternate target.
+
+Publish the notice and its receipt together in one durable state update after
+intent. Its receipt binds targetId, deliveryId and the exact immutable intent,
+and records acceptedAt as canonical UTC. An accepted notice and receipt have
+one entry, one acceptance time and one stable identity. Receipt confirmation
+means the local inbox accepted this notice, independent of display or reading.
+Finalize the checkpoint/gap disposition in a later durable update. A lost
+response after acceptance, or fault between acceptance and finalization, can
+leave a receipt and unresolved pending. Do not return a new acceptance until
+the original durable acceptance boundary is proved. A known refusal before
+acceptance (for example capacity before the acceptance update) is failed and
+retains intent. A missing result or unverifiable publication is UNKNOWN and
+retains intent. Both prevent automatic resend in M12. Persist a dirty run
+marker before admission; when publication itself is uncertain the prior state
+or this marker must keep the reopen guarded.
+
+Inbox and receipts share a hard cap of 64 pairs, at most 1 KiB per pair in the
+public projection. Keep finalized pairs for at least seven days from acceptedAt
+and keep any pair matching unresolved intent pinned regardless of age. Reclaim
+only finalized expired pairs in an authorized serialized update, as a pair,
+without changing checkpoint or gap evidence. At capacity with no eligible pair
+return failed/capacity and retain pending. Clock regression may delay reclaim.
+Reads do not acknowledge, purge, retry or checkpoint. Historical receipt
+absence, expiry, corruption, inaccessible state, foreign binding or a new
+incarnation cannot establish original non-effect.
+
+Exact lookup requires a deliberate command with the original deliveryId and
+targetId and current exact board authority. Look up only within the same
+binding and match all immutable fields against pending before reconciliation.
+Matching durable positive proof may finish that pending checkpoint/gap once
+while quiescent, without a second acceptance. Verify quiescence and the
+current pending identity again under monitor serialization and rotate the
+control generation if lookup changes lifecycle state. During an active run
+or drain, lookup may report an exact retained receipt without finalizing or
+changing the lifecycle. Lookup of a retained finalized receipt returns it
+with no state change. Missing, invalid or foreign evidence
+leaves UNKNOWN and the guard intact. No resend, retarget, manual state edit,
+discard, or implicit force-start path in M12. A positively reconciled, clean
+state still requires explicit start to observe new work. Unresolved dirty state
+without an exact intent/receipt remains guarded for M13.
+
+5. Ordinary operator surfaces
+
+Use the existing port and credential/selection mechanisms. Provide matching
+selected-board operations `notices configure`, `notices start`, `notices status`,
+`notices inbox`, `notices lookup --target-id ID --delivery-id ID` and `notices
+stop` in the native CLI, with existing standalone/workspace selection options
+and readable/JSON output. Provide the same deliberate controls in a small
+selected-board Notices browser view. Configure requires exact incarnation and
+returns the existing target idempotently or creates it once. There is no raw
+sidecar or SQLite CLI fallback. On HTTP, use the selected-board `/notices/`
+subresources `configure`, `start`, `status`, `inbox`, `lookup`, `stop`; status
+and inbox are GET, the other four are POST. All requests bind the exact
+incarnation. Configure, start and stop also require controlGeneration. Lookup
+carries targetId and deliveryId. Apply normal
+bounded parsing, duplicate/unknown input refusal, authority, origin/fetch and
+no-store. Lookup is POST because positive reconciliation can persist progress.
+The CLI may fetch status once immediately before a deliberate configure,
+start or stop and submit that generation once. The browser uses the generation
+from the displayed status for that action. Both report a stale conflict and
+require a fresh deliberate action after reading status again. Neither retries
+the rejected action with a newer generation.
+
+One versioned Go transport model (with generated browser contract) defines
+{apiVersion, scope: "notices", result}; result always includes selected identity
+{boardId, incarnation}. Status/control results expose controlGeneration,
+targetId (nullable),
+state (unconfigured, stopped, running, draining, partial-drain, guarded, failed),
+bounded reason (including authority, foreign, capacity, storage and unknown),
+last outcome and cut, gap count and exact pending ID/cut when authorized.
+Inbox returns at most 64 notice/receipt pairs ordered newest acceptance first
+(deliveryId tie-break), with no continuation; maximum response is 128 KiB.
+Pair fields are targetId, deliveryId, acceptedAt, class, lowerEvent, upperEvent
+and eventCount. Cut/event numbers are nonnegative exact JS-safe integers and
+unavailable upper/count fields are null. Lookup returns accepted with the
+matching receipt or unknown, including after loss of original proof. Render
+bounded class labels and numbers as text, never private file or native keys,
+grant/token data, paths, prose, raw errors or unvalidated response bodies.
+
+The browser validates response envelope and exact scope and cancels or ignores
+outstanding results on view, selection, authority or request generation change,
+including A-to-B-to-A. Read status deliberately while retaining the user's
+editor drafts/focus. Preserve keyboard access, narrow layout, same-origin and
+CSP. Stop, partial drain, guarded uncertainty and failure have distinct labels.
+Never resend a control automatically after timeout or selection change. Shared
+queue diagnostics use only the fixed bounded sanitized development schema.
+
+6. Executable acceptance matrix
+
+S1 (.02) Seed 45 local events with tied and regressed timestamps and a restored
+origin with overlapping local IDs. Capture a lower/upper, append between
+pages, and assert three pages in exact local-ID order and original upper, with
+each later ID only in the next interval. Assert the retained origins in M11,
+no board writes from either read, exact restart/catch-up lower and refusal of
+regressed/foreign continuity. Inject a middle and end sequence hole, exact
+retention boundary, expired/gapped empty, overflow, malformed row, interrupted
+read and failure after outer admission. Verify no false complete, no stale
+M11 cursor behavior change, and no revoked or wrong-board read.
+With equal event cuts, exercise unchanged historic loss, new loss outside the
+envelope, and a new floor or gap covering the same sampled second. Only the
+first two may be observed-empty. A new gap with lower endpoint exactly at
+that second does not cover it. Reject malformed or regressed coverage evidence.
+
+S2 (.03) For one selected target exercise repeated ID calculation, distinct
+empty observations with the same cuts, same-ID mismatch refusal, notice/receipt
+atomicity, capacity with 64 fresh entries, expiration of a finalized pair and
+pinning of unresolved acceptance. Inject faults before intent publication,
+after intent/before acceptance, after acceptance/before reply, and after reply/
+before checkpoint. Assert durable state, exact row counts, guard and unchanged
+pending identity at each boundary. For deliberate lookup exercise matching,
+missing, expired, malformed and foreign cases. Only matching positive proof
+may finalize once. Revoke the original run credential and prove a different
+currently authorized caller can settle that exact retained proof. Inject
+capacity and uncertain publication failures without
+blind replay. Scan persisted and public output for redaction sentinels.
+
+S3 (.04) Use default and configured synthetic boards. Compete for the same
+physical root from two real native processes and distinct entry points, then
+start different roots independently. Assert one owner, exact selected target,
+and no writer or administrative monitor changes. Feed a burst under quiet time
+and one continually changing past max age. Verify true idle, observed-empty,
+human, mixed, unknown, another automation actor, incomplete/unavailable notices
+and only all-configured-bot suppression. After accepting an observed-empty
+notice or an equal-cut gap notice, poll unchanged coverage across another
+max-age window and assert no second observation, intent or receipt. Inject an
+admitted drain stall, assert
+partial-drain and owner retention within two seconds of authorized Stop
+admission even when native I/O remains stalled. Verify status stays available
+while drain is pending, release the stall and verify terminal state. Stop
+cleanly, commit during downtime, reopen the same target and assert one catch-up
+receipt. Delay a control with the old generation across stop/start and across
+engine reopen, assert stale conflict and unchanged new run. Race competing
+controls at one generation and prove the accepted transition serializes the
+others. Exercise permission revocation before capture and final admission,
+gap-ledger capacity, scope replacement and a real archive restore with no
+source inbox/checkpoint inheritance. Distinguish controlled faults from normal
+proof. Process/fault injection establishes observed boundaries, not power-loss
+certification.
+
+C1 (.05) Use the built binary with actual standalone and workspace selection.
+Run all six commands, compare readable and JSON results, and compare exact IDs,
+classes and receipts with host records. Test authority denial, cross-board
+target, guarded lookup, capacity, partial drain and clean catch-up. Verify
+stale-generation conflict after status and before command admission, with no
+automatic retry. Verify stable exit/refusal conventions, redaction and no local
+file fallback.
+
+B1 (.06) In the ordinary browser use the same six controls with two synthetic
+boards and compare to C1. Hold and release stale status, inbox and lookup
+responses across selection A-to-B-to-A and authority changes. Assert no stale
+paint, replay or lost drafts. Delay a Stop request across a successful Stop
+and Start on the same incarnation. The stale command must leave the new run
+active and require fresh deliberate action. Exercise keyboard, focus, narrow layout, same-
+origin/CSP, refused controls, partial drain and UNKNOWN. Use the shared queue
+for diagnostic evidence only; assert product state independently.
+
+Q1 (.07) Run pinned gates, mandatory current native and real-browser inventories,
+two isolated clean builds with complete output comparison, and S1-S3/C1/B1 on
+the exact candidate. Record source, tool pins, fixture, binary/asset digests,
+cleanup and fresh independent review. Label ordinary, controlled, fault and
+reused evidence separately. Justify reuse against exact binding.
+
+D1 (.08) Verify the manifest and checksums of an extracted kit in a fresh
+location. With the shipped binary/guides and fresh synthetic default and
+configured boards, configure/start, show sanitized human/mixed notice and exact
+receipt in CLI and browser, show bot-only suppression, idle and observed-empty,
+then safely stop and reopen the same target with catch-up. Show guarded
+uncertainty separately with its setup disclosed. Record owned cleanup and
+durable source-bound publication and obtain fresh independent review.

@@ -400,3 +400,20 @@ func TestPinnedHTTPSAttachmentRawRoundTrip(t *testing.T) {
 		t.Fatal("pinned byte exact download")
 	}
 }
+
+func TestNativeDetachUsesOrdinaryMutationStatus(t *testing.T) {
+	f := freshNative(t)
+	body, media := f.upload(t, []byte("retained"), 2, 1)
+	added := nativeTerminal(t, f.call("POST", f.path(), media, f.token, body, nil), 201)
+	id := attachmentID(t, added)
+	wire := f.wire(t, f.card, 3, 2, map[string]any{"attachmentId": id})
+	path := "/api/v1/boards/" + nativeBoard + "/cards/" + f.card + "/attachment-detach"
+	detached := nativeTerminal(t, f.call("POST", path, "application/json", f.token, wire, nil), 200)
+	if detached.Outcome != "committed" || detached.Command != "attachment.detach" || len(detached.ByteFacts) != 0 {
+		t.Fatal("detach terminal")
+	}
+	replay := nativeTerminal(t, f.call("POST", path, "application/json", f.token, wire, nil), 200)
+	if replay.Fingerprint != detached.Fingerprint || f.value(t, "SELECT count(*) FROM activity WHERE type='attachment.detach'") != 1 {
+		t.Fatal("detach replay")
+	}
+}

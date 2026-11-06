@@ -6,6 +6,8 @@ downloads through the ordinary browser and actual CLI. Its delivery evidence is
 maintained separately from the remaining upload and detach lifecycle work.
 The [upload guide](docs/runbooks/m09-upload.txt) covers captured file identity,
 explicit archived-card selection and retained input through failed submissions.
+The [detach guide](docs/runbooks/m09-detach.txt) explains deliberate removal,
+retained evidence and the explicit layout10-to11 upgrade.
 
 Fresh Go and TypeScript implementation of localswim, beginning with Spike 01.
 This repository is under development; no qualified product release is claimed.

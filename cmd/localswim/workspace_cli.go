@@ -172,7 +172,7 @@ func parseWorkspaceCommand(q localInvocation) (workspaceCommand, []string, error
 		// They never reach credential resolution, evidence or an HTTP request.
 		grammar := append([]string{"--installation", "00000000-0000-4000-8000-000000000001", "--board", "00000000-0000-4000-8000-000000000002", "--incarnation", "00000000-0000-4000-8000-000000000003", "--grant", "00000000-0000-4000-8000-000000000004"}, args...)
 		var err error
-		if c.family == "attachment" || c.family == "export" {
+		if archiveCommand(c.family, c.action) {
 			err = archive.ValidateInvocation(grammar)
 		} else {
 			err = core.ValidateInvocation(grammar)
@@ -390,7 +390,7 @@ func runWorkspaceCLI(ctx context.Context, q localInvocation, in io.Reader, out, 
 			prefix = append([]string{"--json"}, prefix...)
 		}
 		args := append(prefix, domain...)
-		if domain[0] == "attachment" || domain[0] == "export" {
+		if archiveCommand(c.family, c.action) {
 			return (archive.Runner{Provider: selection.Provider(), Evidence: store, ProtectedRoots: []string{q.workspace, selection.DataDir()}}).Run(ctx, args, in, out, diagnostic)
 		}
 		return (core.Runner{Provider: selection.Provider(), Evidence: store}).Run(ctx, args, in, out, diagnostic)

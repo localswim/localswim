@@ -612,6 +612,29 @@ func (r *registry) operation(o Operation, board UUID) error {
 		}
 		_ = resultCard
 	}
+	if o.Command == "attachment.detach" && o.Full != nil {
+		var original struct {
+			Payload struct {
+				AttachmentID UUID `json:"attachmentId"`
+			} `json:"payload"`
+		}
+		if json.Unmarshal(o.Full.Intent, &original) != nil {
+			return fmt.Errorf("DETACH_INTENT")
+		}
+		a, ok := r.attachments[original.Payload.AttachmentID]
+		if !ok || a.CardID != owner {
+			return fmt.Errorf("COMMITTED_REFERENCE")
+		}
+		matched := false
+		for _, f := range o.ResultRefs {
+			if f.Kind == "attachment" && f.ID == original.Payload.AttachmentID {
+				matched = true
+			}
+		}
+		if !matched {
+			return fmt.Errorf("DETACH_RESULT_MAPPING")
+		}
+	}
 	if o.Command == "attachment.add" {
 		var attachment *FactRef
 		var card *FactRef

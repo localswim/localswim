@@ -44,13 +44,14 @@ func sample(command Command, target string, input string) []byte {
 }
 func samples() map[Command]string {
 	return map[Command]string{
-		"card.create":    `{"title":"Alpha","description":""}`,
-		"card.edit":      `{"description":"<>&  雪é😀\r\n\u0000\t"}`,
-		"comment.add":    `{"text":"Check"}`,
-		"attachment.add": fmt.Sprintf(`{"name":"a.txt","mediaLabel":"text/plain","byteLength":0,"sha256":%q}`, hash),
-		"link.add":       fmt.Sprintf(`{"kind":"blocking","targetCardId":%q}`, cardD),
-		"link.remove":    fmt.Sprintf(`{"linkId":%q}`, cardD),
-		"review-handoff": `{}`, "approve": `{"policyVersion":1}`,
+		"card.create":       `{"title":"Alpha","description":""}`,
+		"card.edit":         `{"description":"<>&  雪é😀\r\n\u0000\t"}`,
+		"comment.add":       `{"text":"Check"}`,
+		"attachment.add":    fmt.Sprintf(`{"name":"a.txt","mediaLabel":"text/plain","byteLength":0,"sha256":%q}`, hash),
+		"attachment.detach": fmt.Sprintf(`{"attachmentId":%q}`, cardD),
+		"link.add":          fmt.Sprintf(`{"kind":"blocking","targetCardId":%q}`, cardD),
+		"link.remove":       fmt.Sprintf(`{"linkId":%q}`, cardD),
+		"review-handoff":    `{}`, "approve": `{"policyVersion":1}`,
 		"grant.create": fmt.Sprintf(`{"granteeActorId":%q,"kind":"human","rights":["approve","read"]}`, cardD),
 		"grant.revoke": `{}`, "history.clear": `{"throughTime":"2026-10-01T00:00:00Z"}`,
 		"retention.set": `{"historyDays":90,"activityDays":365,"outcomeDays":180}`,

@@ -129,6 +129,9 @@ func TestRelationshipUpgradeConservesCompleteTypedRows(t *testing.T) {
 	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 9, 10); e != nil || !changed {
 		t.Fatal("explicit9->10", e)
 	}
+	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 10, 11); e != nil || !changed {
+		t.Fatal(e)
+	}
 	s, e := Existing(ctx(t), p, identity)
 	if e != nil {
 		t.Fatal(e)

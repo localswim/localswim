@@ -30,7 +30,9 @@ func (c commands) run(ctx context.Context, args []string, in io.Reader, out, dia
 		case "grant", "credential", "recovery", "session":
 			return c.admin.Run(ctx, args, in, out, diagnostic)
 		case "attachment", "export", "restore":
-			return c.archive.Run(ctx, args, in, out, diagnostic)
+			if len(p.Args) < 2 || archiveCommand(p.Args[0], p.Args[1]) {
+				return c.archive.Run(ctx, args, in, out, diagnostic)
+			}
 		}
 	}
 	return c.core.Run(ctx, args, in, out, diagnostic)
@@ -51,4 +53,10 @@ func setupInvocation(args []string) bool {
 		break
 	}
 	return false
+}
+
+// Keep the owning parser and runner aligned across explicit, local and workspace
+// entry points. Detach is an ordinary JSON mutation with no byte-transfer input.
+func archiveCommand(family, action string) bool {
+	return family == "export" || family == "restore" || family == "attachment" && action != "detach"
 }

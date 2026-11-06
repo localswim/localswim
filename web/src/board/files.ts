@@ -1,4 +1,4 @@
-import type { CardFile, CardFilesRead } from "../../generated/transport/contracts.js";
+import type { CardFile, CardFileRead, CardFilesRead } from "../../generated/transport/contracts.js";
 import type { BoardClient } from "../api/client.js";
 import { compareFiles, FilesReadRefusal } from "../api/files.js";
 import type { FileSelection, FileView } from "../api/files.js";
@@ -33,7 +33,7 @@ export class CardFiles {
   private inspection = 0;
   private active = true;
   private downloading: AbortController | undefined;
-  constructor(private readonly client: FilesClient) {
+  constructor(private readonly client: FilesClient, private readonly detach?: (read: CardFileRead) => void, private readonly canDetach?: (read: CardFileRead) => boolean) {
     this.host.setAttribute("aria-label", "Card files"); this.host.style.maxWidth = "100%";
     this.status.setAttribute("role", "status"); this.detail.setAttribute("aria-label", "File details");
     this.host.append(node("h3", "Files"), this.current, this.retained, this.refresh, this.next, this.status, this.rows, this.detail);
@@ -123,6 +123,11 @@ export class CardFiles {
         const state = node("p"); state.setAttribute("role", "status");
         const offer = button("Offer file download", () => { void this.download(file, selected, offer, state, valid); });
         this.detail.append(offer, state);
+        if (this.detach && this.view === "current" && file.referenceState === "current") {
+          const detach = button("Detach file", () => { if (valid() && (!this.canDetach || this.canDetach(read))) this.detach!(structuredClone(read)); });
+          detach.disabled = !!this.canDetach && !this.canDetach(read);
+          this.detail.append(detach);
+        }
       } else this.detail.append(node("p", "Download unavailable because this file is no longer attached."));
     } catch {
       if (valid()) this.detail.replaceChildren(node("p", "File details unavailable. Refresh files to read current metadata."));

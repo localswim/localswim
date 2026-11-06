@@ -6,7 +6,7 @@ import (
 )
 
 func TestWorkflowHelpExplainsExistingBoardEditsAndUpgrade(t *testing.T) {
-	for _, text := range []string{"workflow show", "workflow preview --input FILE", "workflow edit --input FILE", "attention show", "configured revision1 workflow for a new board", "replacement candidates for an existing board", "--from-version 9 --to-version 10", "Physical10 retains base-schema marker5"} {
+	for _, text := range []string{"workflow show", "workflow preview --input FILE", "workflow edit --input FILE", "attention show", "configured revision1 workflow for a new board", "replacement candidates for an existing board", "--from-version 9 --to-version 10", "--from-version 10 --to-version 11", "Physical11 retains base-schema marker5"} {
 		if !strings.Contains(localDomainCLIHelp, text) {
 			t.Fatalf("workflow help missing %q", text)
 		}

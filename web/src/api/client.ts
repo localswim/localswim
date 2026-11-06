@@ -348,7 +348,7 @@ export class BoardClient {
     const r = object(parse(evidence.requestBytes));
     const target = r.target === null ? null : object(r.target!);
     const base = this.path(evidence.context.boardId) + "/cards";
-    const suffix: Record<PreparedCommand, string> = { "workflow.edit": "", "attachment.add": "/attachments", "history.clear": "", "retention.set": "", "card.create": "", "card.edit": "", "comment.add": "/comments", "link.add": "/link-add", "link.remove": "/link-remove", "review-handoff": "/review-handoff", "approve": "/approve" };
+    const suffix: Record<PreparedCommand, string> = { "workflow.edit": "", "attachment.add": "/attachments", "attachment.detach": "/attachment-detach", "history.clear": "", "retention.set": "", "card.create": "", "card.edit": "", "comment.add": "/comments", "link.add": "/link-add", "link.remove": "/link-remove", "review-handoff": "/review-handoff", "approve": "/approve" };
     const path = intent.command === "workflow.edit" ? this.path(evidence.context.boardId) + "/workflow" : intent.command === "history.clear" || intent.command === "retention.set" ? this.path(evidence.context.boardId) + "/recovery/confirm" : base + (target ? "/" + String(target.cardId) : "") + suffix[intent.command];
     let result: OriginalOutcome;
     try {

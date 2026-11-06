@@ -67,6 +67,8 @@ func parse(args []string) (q invocation, code string, exit int) {
 		q.command = "card.create"
 	case "card edit", "card move", "card archive", "card unarchive", "card set-parent", "card clear-parent", "card relationships-replace":
 		q.command = "card.edit"
+	case "attachment detach":
+		q.command = "attachment.detach"
 	case "comment add":
 		q.command = "comment.add"
 	case "card link-add":

@@ -41,12 +41,14 @@ func validateSupported(ctx context.Context, c *sql.Conn, id schema.Identity) err
 	case 9:
 		return schema.ValidateV9(ctx, c, id)
 	case 10:
+		return schema.ValidateV10(ctx, c, id)
+	case 11:
 		return schema.Validate(ctx, c, id)
 	}
 	return errors.New("unsupported physical layout")
 }
 
-// InspectStorage is existing-only and accepts exactly the independently frozen5/6/7/8/9 or current10 layout.
+// InspectStorage is existing-only and accepts exactly the independently frozen5/6/7/8/9/10 or current11 layout.
 func InspectStorage(ctx context.Context, dir string, id schema.Identity) (out StorageInspection, err error) {
 	out.BoardID = id.BoardID
 	out.Incarnation = id.Incarnation
@@ -92,7 +94,7 @@ func UpgradeStorageTo(ctx context.Context, dir string, id schema.Identity, from,
 // SupportedUpgradeStep reports the explicit adjacent storage upgrades accepted
 // by both the native store and its application adapters.
 func SupportedUpgradeStep(from, to int) bool {
-	return from == 5 && to == 6 || from == 6 && to == 7 || from == 7 && to == 8 || from == 8 && to == 9 || from == 9 && to == 10
+	return from == 5 && to == 6 || from == 6 && to == 7 || from == 7 && to == 8 || from == 8 && to == 9 || from == 9 && to == 10 || from == 10 && to == 11
 }
 
 // fault is a private deterministic test seam; a failure at committed means reply
@@ -215,6 +217,10 @@ func upgradeStorageStep(ctx context.Context, dir string, id schema.Identity, fro
 		}
 	} else if from == 7 {
 		if err = rebuildWorkflow(ctx, c, inject); err != nil {
+			return false, err
+		}
+	} else if from == 10 {
+		if err = rebuildDetach(ctx, c, inject); err != nil {
 			return false, err
 		}
 	} else if from == 8 {
@@ -465,7 +471,7 @@ func rebuildPolicies(ctx context.Context, c *sql.Conn, inject func(string) error
 			return err
 		}
 	}
-	statements := schema.Statements()
+	statements := schema.StatementsV9()
 	for _, q := range statements {
 		for _, table := range tables {
 			if strings.HasPrefix(q, "CREATE TABLE "+table+" (") {
@@ -504,6 +510,89 @@ func rebuildPolicies(ctx context.Context, c *sql.Conn, inject func(string) error
 	if _, err := c.ExecContext(ctx, `INSERT INTO workflow_policy(incarnation,policy_version,workflow_id,definition) SELECT p.incarnation,1,w.workflow_id,w.definition FROM policy p LEFT JOIN workflow_definition w USING(incarnation)`); err != nil {
 		return err
 	}
+	for _, table := range tables {
+		if _, err := c.ExecContext(ctx, `DROP TABLE temp."upgrade_`+table+`"`); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Rebuild only the two CHECK-vocabulary tables, retaining every explicit column,
+// rowid, trigger and index under the existing exclusive offline transaction.
+func rebuildDetach(ctx context.Context, c *sql.Conn, inject func(string) error) error {
+	tables := []string{"operation", "activity"}
+	if _, err := c.ExecContext(ctx, "PRAGMA defer_foreign_keys=ON"); err != nil {
+		return err
+	}
+	columns := map[string]string{}
+	for _, table := range tables {
+		rows, err := c.QueryContext(ctx, `PRAGMA table_info("`+table+`")`)
+		if err != nil {
+			return err
+		}
+		var names []string
+		for rows.Next() {
+			var cid, notnull, pk int
+			var name, typ string
+			var def any
+			if err = rows.Scan(&cid, &name, &typ, &notnull, &def, &pk); err != nil {
+				rows.Close()
+				return err
+			}
+			names = append(names, `"`+name+`"`)
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		columns[table] = strings.Join(names, ",")
+		if _, err = c.ExecContext(ctx, `CREATE TEMP TABLE "upgrade_`+table+`" AS SELECT rowid AS original_rowid,`+columns[table]+` FROM "`+table+`"`); err != nil {
+			return err
+		}
+	}
+	for n := len(tables) - 1; n >= 0; n-- {
+		table := tables[n]
+		if _, err := c.ExecContext(ctx, `DROP TABLE "`+table+`"`); err != nil {
+			return err
+		}
+		if err := inject(table + "-dropped"); err != nil {
+			return err
+		}
+	}
+	statements := schema.Statements()
+	for _, q := range statements {
+		for _, table := range tables {
+			if strings.HasPrefix(q, "CREATE TABLE "+table+" (") {
+				if _, err := c.ExecContext(ctx, q); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	for _, table := range tables {
+		if _, err := c.ExecContext(ctx, `INSERT INTO "`+table+`"(rowid,`+columns[table]+`) SELECT original_rowid,`+columns[table]+` FROM "upgrade_`+table+`" ORDER BY original_rowid`); err != nil {
+			return err
+		}
+		if err := inject(table + "-copied"); err != nil {
+			return err
+		}
+	}
+	for _, q := range statements {
+		if strings.HasPrefix(q, "CREATE TABLE ") {
+			continue
+		}
+		for _, table := range tables {
+			if strings.Contains(q, " ON "+table+" ") || strings.Contains(q, " ON "+table+"(") {
+				if _, err := c.ExecContext(ctx, q); err != nil {
+					return err
+				}
+				break
+			}
+		}
+	}
+
 	for _, table := range tables {
 		if _, err := c.ExecContext(ctx, `DROP TABLE temp."upgrade_`+table+`"`); err != nil {
 			return err

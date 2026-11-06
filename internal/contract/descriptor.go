@@ -79,6 +79,7 @@ func Commands() []CommandDescriptor {
 		{"card.edit", "card", "PATCH", "/api/v1/boards/{boardId}/cards/{cardId}", edit, false},
 		{"comment.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/comments", obj(map[string]Field{"text": req(text("comment"))}), false},
 		{"attachment.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/attachments", obj(map[string]Field{"name": req(text("attachment-name")), "mediaLabel": req(text("media-label")), "byteLength": req(number(0, 10485760)), "sha256": req(digest)}), false},
+		{"attachment.detach", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/attachment-detach", obj(map[string]Field{"attachmentId": req(uuid)}), false},
 		{"link.add", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/link-add", linkAdd, false},
 		{"link.remove", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/link-remove", obj(map[string]Field{"linkId": req(uuid)}), false},
 		{"review-handoff", "card", "POST", "/api/v1/boards/{boardId}/cards/{cardId}/review-handoff", empty, false},

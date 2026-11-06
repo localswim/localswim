@@ -1,4 +1,4 @@
-// Package schema defines the version-ten physical storage layout. Admission, canonical
+// Package schema defines the version-eleven physical storage layout. Admission, canonical
 // wire validation, retention execution and domain transactions belong to callers.
 package schema
 
@@ -13,7 +13,7 @@ import (
 	A "github.com/localswim/localswim/internal/contract/archive"
 )
 
-const Version = 10
+const Version = 11
 const BaseSchemaVersion = 5
 const ApplicationID = 0x4c535731 // LSW1
 const MaxInteger int64 = 9007199254740991
@@ -291,6 +291,11 @@ func validateLayout(ctx context.Context, c *sql.Conn, id Identity, version int, 
 	rows.Close()
 	if err != nil {
 		return errors.New("storage byte integrity check failed")
+	}
+	if version < 11 {
+		if err := validateV10Vocabulary(ctx, c); err != nil {
+			return err
+		}
 	}
 	if forest {
 		if version == 6 {

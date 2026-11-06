@@ -1,9 +1,10 @@
-// Package attachments adapts only attachment.add and authorized raw download.
+// Package attachments adapts attachment mutations and authorized file reads.
 package attachments
 
 import (
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -50,7 +51,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.guarded.ServeHTTP(w, r)
 }
 
-type route struct{ board, card, attachment string }
+type route struct {
+	board, card, attachment string
+	detach                  bool
+}
 
 func selectRoute(r *http.Request) (route, int) {
 	if r.URL.ForceQuery || r.URL.RawPath != "" {
@@ -59,6 +63,15 @@ func selectRoute(r *http.Request) (route, int) {
 	p := strings.Split(r.URL.Path, "/")
 	if len(p) < 6 || p[0] != "" || p[1] != "api" || p[2] != "v1" || p[3] != "boards" || !schema.ValidUUID(p[4]) {
 		return route{}, 404
+	}
+	if len(p) == 8 && p[5] == "cards" && schema.ValidUUID(p[6]) && p[7] == "attachment-detach" {
+		if r.Method != http.MethodPost {
+			return route{}, 405
+		}
+		if r.URL.RawQuery != "" {
+			return route{}, 400
+		}
+		return route{board: p[4], card: p[6], detach: true}, 0
 	}
 	if len(p) == 8 && p[5] == "cards" && schema.ValidUUID(p[6]) && p[7] == "attachments" {
 		if r.Method != http.MethodPost && r.Method != http.MethodGet {
@@ -185,6 +198,31 @@ func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.Itoa(len(out.Bytes)))
 		w.WriteHeader(200)
 		_, _ = w.Write(out.Bytes)
+		return
+	}
+	if route.detach {
+		media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if err != nil || media != "application/json" {
+			refuse(w, 400, "INVALID_INPUT")
+			return
+		}
+		raw, err := io.ReadAll(io.LimitReader(r.Body, maxMetadata+1))
+		if err != nil || len(raw) > maxMetadata {
+			refuse(w, 400, "INVALID_INPUT")
+			return
+		}
+		intent, err := T.FreezeMutation(raw, contract.ResolvedRoute{Command: "attachment.detach", BoardID: route.board, TargetID: route.card}, contract.AuthenticatedActor{ActorID: string(current.ActorID)})
+		if err != nil {
+			refuse(w, 400, "INVALID_INPUT")
+			return
+		}
+		id, _, _, _, _, err := intent.Context()
+		if err != nil {
+			refuse(w, 400, "INVALID_INPUT")
+			return
+		}
+		result, _ := h.service.Detach(r.Context(), g, B.Route{BoardID: route.board, Incarnation: id.Incarnation, CardID: route.card}, intent)
+		respondResult(w, result, false)
 		return
 	}
 	body, status := multipartBody(w, r)

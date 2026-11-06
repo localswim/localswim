@@ -25,15 +25,20 @@ export async function mountSyntheticBoard(boardInput: BoardRead, sessionInput: S
           const cardId = path.split("/cards/")[1]!.split("/")[0]!, b = board.result, card = b.cards.find(row => row.cardId === cardId)!;
           const comments = b.comments.filter(row => card.commentIds.includes(row.commentId)), links = b.links.filter(row => card.linkIds.includes(row.linkId)),
             attachments = b.attachments.filter(row => card.attachmentIds.includes(row.attachmentId)), approvals = b.approvals.filter(row => row.cardId === cardId);
+          if (path.includes("/attachments")) {
+            const items = attachments.map(attachment => ({ attachment, referenceState: "current", downloadState: "current_reference", attribution: { state: "unavailable", actorId: null, actorKind: null, actorLabel: null, basis: null } }));
+            const fileId = path.split("/attachments/")[1];
+            return json({ apiVersion: 1, scope: fileId ? "card-file" : "card-files", result: { identity: b.identity, revision: b.revision, cardId, cardRevision: card.revision, ...(fileId ? { file: items.find(row => row.attachment.attachmentId === fileId) } : { view: "current", items, nextCursor: null }) } });
+          }
           const actorIds = new Set([card.ownerId, ...comments.map(row => row.actorId), ...approvals.map(row => row.actorId)].filter(Boolean));
           return json({ apiVersion: 1, scope: "card", result: { identity: b.identity, revision: b.revision, card,
-            actors: b.actors.filter(row => actorIds.has(row.actorId)), comments, links, attachments, approvals, coverage: b.coverage, historyReferences: [] } });
+            actors: b.actors.filter(row => actorIds.has(row.actorId)), comments, links, attachments, approvals, coverage: b.coverage, historyReferences: [], workflow: b.workflow, workflowPolicies: b.workflowPolicies } });
         }
         return json(board);
       }
       state.mutations++; state.wire.push(String(init.body));
       const request = JSON.parse(String(init.body));
-      const command: BoardCommand = path.endsWith("/comments") ? "comment.add" : path.endsWith("/link-add") ? "link.add" : path.endsWith("/link-remove") ? "link.remove" : path.endsWith("/review-handoff") ? "review-handoff" : path.endsWith("/approve") ? "approve" : init.method === "PATCH" ? "card.edit" : "card.create";
+      const command: BoardCommand = path.endsWith("/attachment-detach") ? "attachment.detach" : path.endsWith("/comments") ? "comment.add" : path.endsWith("/link-add") ? "link.add" : path.endsWith("/link-remove") ? "link.remove" : path.endsWith("/review-handoff") ? "review-handoff" : path.endsWith("/approve") ? "approve" : init.method === "PATCH" ? "card.edit" : "card.create";
       if (state.mode === "conflict") return json({ apiVersion: 1, outcome: "refused", opId: request.opId, error: { code: "REVISION_CONFLICT", message: "Synthetic conflict", field: null }, conflict: { incarnation: board.result.identity.incarnation, revision: board.result.revision, cardId: request.target.cardId, cardRevision: board.result.cards[0]!.revision } }, 409);
       if (state.mode === "http403") return json({ apiVersion: 1, outcome: "refused", opId: request.opId, error: { code: "FORBIDDEN", message: "Synthetic refusal", field: null }, conflict: null }, 403);
       const context = client.context(board, auth), e = await prepare(command, request, context, crypto.randomUUID());
@@ -65,6 +70,7 @@ export async function mountSyntheticBoard(boardInput: BoardRead, sessionInput: S
         (card!.commentIds as string[]).push(result.commentId);
       }
       if (command === "link.add" || command === "link.remove") result.linkId = request.input.linkId ?? crypto.randomUUID();
+      if (command === "attachment.detach") result.attachmentId = request.input.attachmentId;
       if (command === "approve") result.approvalId = crypto.randomUUID();
       const terminal = { apiVersion: 1, actorId: auth.actorId, boardId: context.boardId, incarnation: context.incarnation, opId: request.opId,
         fingerprintVersion: 1, fingerprint: e.fingerprint, command, target: request.target, expectedRevision: request.expectedRevision,

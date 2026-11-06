@@ -578,7 +578,7 @@ func compactReferences(o Operation) error {
 	switch o.Command {
 	case "comment.add":
 		kinds = append(kinds, "comment")
-	case "attachment.add":
+	case "attachment.add", "attachment.detach":
 		kinds = append(kinds, "attachment")
 	case "link.add", "link.remove":
 		kinds = append(kinds, "link")
@@ -648,6 +648,17 @@ func fullReferences(o Operation) error {
 			if !found {
 				return fmt.Errorf("result reference binding")
 			}
+		}
+	}
+	if o.Command == "attachment.detach" {
+		var original struct {
+			Payload struct {
+				AttachmentID UUID `json:"attachmentId"`
+			} `json:"payload"`
+		}
+		var attachment UUID
+		if json.Unmarshal(o.Full.Intent, &original) != nil || json.Unmarshal(result["attachmentId"], &attachment) != nil || attachment != original.Payload.AttachmentID {
+			return fmt.Errorf("detach result original binding")
 		}
 	}
 	if o.Command == "workflow.edit" {

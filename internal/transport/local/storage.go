@@ -72,6 +72,21 @@ func storage(ctx context.Context, dataDir string, expected schema.Identity, upgr
 	allowed := map[string]bool{"identity.json": true, "local.lock": true, "cli-evidence": true}
 	boardDir := filepath.Join(dataDir, "board")
 	if id.Version == 2 {
+		// A completed restored root retains its publication lock. Acquire that exact
+		// private, single-link file as well as local.lock before examining evidence.
+		restoreLock, lockErr := workspaceExistingRestoreLock(p.path)
+		if lockErr != nil {
+			var cleanup WorkspaceCleanup
+			if errors.As(lockErr, &cleanup) {
+				owned.cleanup = cleanup
+			}
+			return out, false, lockErr
+		}
+		owned.restoreLock = restoreLock
+		info, statErr := restoreLock.Stat()
+		if statErr != nil || info.Size() != 0 {
+			return out, false, errLocal
+		}
 		if _, e = restoreEvidence(dataDir, id, id.RestoredRequestID); e != nil {
 			return out, false, e
 		}
@@ -79,6 +94,7 @@ func storage(ctx context.Context, dataDir string, expected schema.Identity, upgr
 		allowed["data"] = true
 		allowed["restore-receipt.json"] = true
 		allowed["local-restore.json"] = true
+		allowed["restore.lock"] = true
 	} else {
 		allowed["board"] = true
 	}

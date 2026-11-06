@@ -43,6 +43,9 @@ func TestAttentionUpgradeConservesEveryTypedRowAndRequiresExplicitStep(t *testin
 		if changed, err := UpgradeStorageTo(ctx(t), p, identity, 9, 10); err != nil || changed {
 			t.Fatal("repeat", err)
 		}
+		if changed, err := UpgradeStorageTo(ctx(t), p, identity, 10, 11); err != nil || !changed {
+			t.Fatal(err)
+		}
 		s, err := Existing(ctx(t), p, identity)
 		if err != nil {
 			t.Fatal(err)
@@ -177,6 +180,9 @@ func TestFrozenNineRealOriginalConservation(t *testing.T) {
 	}
 	if before != supportedDigest(t, p) {
 		t.Fatal("legacy original row bytes changed")
+	}
+	if _, err := UpgradeStorageTo(ctx(t), p, identity, 10, 11); err != nil {
+		t.Fatal(err)
 	}
 	if err := InspectExisting(ctx(t), p, identity, func(r InspectionRead) error {
 		var raw []byte

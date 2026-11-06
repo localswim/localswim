@@ -83,6 +83,10 @@ type AttachmentInput struct {
 	ByteLength uint64 `json:"byteLength"`
 	SHA256     string `json:"sha256"`
 }
+type AttachmentDetachInput struct {
+	AttachmentID string `json:"attachmentId"`
+}
+
 type LinkAddInput struct {
 	Kind         string   `json:"kind"`
 	TargetCardID string   `json:"targetCardId,omitempty"`
@@ -114,18 +118,19 @@ type RetentionSetInput struct {
 	OutcomeDays  uint64 `json:"outcomeDays"`
 }
 
-func (CreateInput) commandInput()       {}
-func (EditInput) commandInput()         {}
-func (CommentInput) commandInput()      {}
-func (AttachmentInput) commandInput()   {}
-func (LinkAddInput) commandInput()      {}
-func (LinkRemoveInput) commandInput()   {}
-func (EmptyInput) commandInput()        {}
-func (WorkflowEditInput) commandInput() {}
-func (ApproveInput) commandInput()      {}
-func (GrantCreateInput) commandInput()  {}
-func (HistoryClearInput) commandInput() {}
-func (RetentionSetInput) commandInput() {}
+func (CreateInput) commandInput()           {}
+func (EditInput) commandInput()             {}
+func (CommentInput) commandInput()          {}
+func (AttachmentInput) commandInput()       {}
+func (AttachmentDetachInput) commandInput() {}
+func (LinkAddInput) commandInput()          {}
+func (LinkRemoveInput) commandInput()       {}
+func (EmptyInput) commandInput()            {}
+func (WorkflowEditInput) commandInput()     {}
+func (ApproveInput) commandInput()          {}
+func (GrantCreateInput) commandInput()      {}
+func (HistoryClearInput) commandInput()     {}
+func (RetentionSetInput) commandInput()     {}
 
 type Identity struct {
 	BoardID     string `json:"boardId"`
@@ -189,6 +194,8 @@ func (i Intent) Input() (CommandInput, error) {
 		out = &CommentInput{}
 	case "attachment.add":
 		out = &AttachmentInput{}
+	case "attachment.detach":
+		out = &AttachmentDetachInput{}
 	case "link.add":
 		out = &LinkAddInput{}
 	case "link.remove":

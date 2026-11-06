@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/localswim/localswim/internal/assets"
+	S "github.com/localswim/localswim/internal/store/open"
 	"github.com/localswim/localswim/internal/transport/cli/archive"
 	"github.com/localswim/localswim/internal/transport/cli/core"
 	"github.com/localswim/localswim/internal/transport/cli/evidence"
@@ -170,7 +172,7 @@ func run(ctx context.Context, args []string, in io.Reader, out, diagnostic io.Wr
 		}
 		if e != nil {
 			_ = finishServe(r)
-			return entryFailure(nil, out, diagnostic, "UNAVAILABLE", 3)
+			return startupFailure(out, diagnostic, e)
 		}
 		if out == nil {
 			_ = finishServe(r)
@@ -208,8 +210,18 @@ func run(ctx context.Context, args []string, in io.Reader, out, diagnostic io.Wr
 	}
 	p := localCLIProvider{q.data}
 	all := append(prefix, q.args...)
-	if len(q.args) > 0 && (q.args[0] == "attachment" || q.args[0] == "export") {
+	if len(q.args) >= 2 && archiveCommand(q.args[0], q.args[1]) {
 		return (archive.Runner{Provider: p, Evidence: store, ProtectedRoots: []string{q.data}}).Run(ctx, all, in, out, diagnostic)
 	}
 	return (core.Runner{Provider: p, Evidence: store}).Run(ctx, all, in, out, diagnostic)
+}
+
+// Only a typed, validated old layout earns upgrade guidance. Never echo a
+// dependency error, which may contain private paths or other local material.
+func startupFailure(out, diagnostic io.Writer, err error) int {
+	var upgrade *S.UpgradeRequiredError
+	if errors.As(err, &upgrade) && S.SupportedUpgradeStep(upgrade.From, upgrade.To) && diagnostic != nil {
+		_, _ = fmt.Fprintf(diagnostic, "Startup refused. Storage physical version %d requires explicit offline upgrade %d->%d before startup. Run storage inspect, then storage upgrade --from-version %d --to-version %d with the selected data directory and exact board identity.\n", upgrade.From, upgrade.From, upgrade.To, upgrade.From, upgrade.To)
+	}
+	return entryFailure(nil, out, diagnostic, "UNAVAILABLE", 3)
 }

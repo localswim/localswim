@@ -4,7 +4,10 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -98,6 +101,63 @@ func TestWorkspaceCLIControlsAndBoardIsolation(t *testing.T) {
 	if read("two").Result.Revision != two.Result.Revision {
 		t.Fatal("sibling board revision changed")
 	}
+	// Exercise both normal entry paths against the selected live board. Parser-only
+	// tests cannot detect a later dispatch to the byte-transfer runner.
+	current := read("one")
+	cardID := string(terminal.ResultRefs[0].ID)
+	raw := []byte("native CLI detach entry point fixture")
+	source := filepath.Join(root, "attachment.bin")
+	if err := os.WriteFile(source, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(raw)
+	request := func(board T.BoardRead, input map[string]any) []byte {
+		t.Helper()
+		card := board.Result.Cards[0]
+		value := map[string]any{"opId": bridgeUUID(t), "incarnation": board.Result.Identity.Incarnation, "target": map[string]any{"cardId": cardID}, "expectedRevision": board.Result.Revision, "expectedCardRevision": card.Revision, "input": input}
+		wire, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return wire
+	}
+	for _, localEntry := range []bool{false, true} {
+		added, err := T.Decode[T.Terminal](call(0, "harbor", "one", request(current, map[string]any{"name": "detach.bin", "mediaLabel": "application/octet-stream", "byteLength": len(raw), "sha256": fmt.Sprintf("%x", digest)}), "attachment", "add", cardID, "--input", "-", "--file", source))
+		if err != nil || added.Outcome != "committed" {
+			t.Fatal("detach setup attachment failed")
+		}
+		attachmentID := ""
+		for _, ref := range added.ResultRefs {
+			if ref.Kind == "attachment" {
+				attachmentID = string(ref.ID)
+			}
+		}
+		if attachmentID == "" {
+			t.Fatal("attachment result missing")
+		}
+		current = read("one")
+		wire := request(current, map[string]any{"attachmentId": attachmentID})
+		var detached []byte
+		if localEntry {
+			var out, diagnostic bytes.Buffer
+			args := []string{"--data", filepath.Join(project, "one"), "--json", "attachment", "detach", cardID, "--input", "-"}
+			if exit := run(t.Context(), args, bytes.NewReader(wire), &out, &diagnostic); exit != 0 {
+				t.Fatalf("single-board detach exit %d", exit)
+			}
+			detached = out.Bytes()
+		} else {
+			detached = call(0, "harbor", "one", wire, "attachment", "detach", cardID, "--input", "-")
+		}
+		result, err := T.Decode[T.Terminal](detached)
+		if err != nil || result.Command != "attachment.detach" || result.Outcome != "committed" {
+			t.Fatal("actual entry did not confirm detach")
+		}
+		current = read("one")
+		if len(current.Result.Cards[0].AttachmentIDs) != 0 || read("two").Result.Revision != two.Result.Revision {
+			t.Fatal("detach current reference or sibling isolation failed")
+		}
+	}
+
 	status, err := T.Decode[T.WorkspaceControlResult](call(0, "harbor", "one", nil, "board", "status"))
 	if err != nil || status.Status != "registered" || status.Identity == nil || status.Identity.BoardID != one.Result.Identity.BoardID {
 		t.Fatal("focused control status lost identity")

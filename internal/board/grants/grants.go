@@ -199,7 +199,7 @@ func commandRights(c contract.Command) []string {
 		return []string{"edit"}
 	case "comment.add":
 		return []string{"comment"}
-	case "attachment.add":
+	case "attachment.add", "attachment.detach":
 		return []string{"attach"}
 	case "review-handoff":
 		return []string{"review-handoff"}

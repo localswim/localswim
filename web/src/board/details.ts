@@ -1,7 +1,7 @@
 import { completedLane, laneText, workflowAtVersion } from "../api/workflow.js";
 import { CardRelationships } from "./relationships.js";
 import type { RelationshipActionHandler } from "./relationships.js";
-import type { BoardRead, CardRead, HistoryRead } from "../../generated/transport/contracts.js";
+import type { BoardRead, CardRead, CardFileRead, HistoryRead } from "../../generated/transport/contracts.js";
 import type { Actor, Comment, Coverage, Identity, Snapshot } from "../../generated/archive/contracts.js";
 import type { BoardClient } from "../api/client.js";
 import { CardHierarchy } from "./hierarchy.js";
@@ -70,7 +70,7 @@ export class CardDetails {
   private readonly files?: CardFiles;
   constructor(private readonly client: Pick<BoardClient, "card" | "history">, private readonly fallback: HTMLButtonElement,
     private readonly archiveAction?: (read: CardRead) => void, private readonly focusRoot?: HTMLElement,
-    hierarchy?: { client: Pick<BoardClient, "board">; action?: (action: HierarchyAction, card: HierarchyCard, read: BoardRead) => void; fallback?: HTMLButtonElement; relationshipAction?: RelationshipActionHandler }, filesClient?: FilesClient) {
+    hierarchy?: { client: Pick<BoardClient, "board">; action?: (action: HierarchyAction, card: HierarchyCard, read: BoardRead) => void; fallback?: HTMLButtonElement; relationshipAction?: RelationshipActionHandler }, filesClient?: FilesClient, detach?: (read: CardFileRead) => void, canDetach?: (read: CardFileRead) => boolean) {
     this.host.hidden = true; this.host.setAttribute("aria-label", "Card details"); this.host.setAttribute("role", "region");
     this.heading.tabIndex = -1; this.status.setAttribute("role", "status");
     this.parentAnnouncement.setAttribute("role", "status"); this.parentAnnouncement.setAttribute("aria-label", "Current parent announcement");
@@ -86,7 +86,7 @@ export class CardDetails {
       this.relationships = new CardRelationships(hierarchy.client, (cardId, identity, opener) => this.open(cardId, identity, opener, true), hierarchy.relationshipAction);
       this.host.insertBefore(this.relationships.host, this.comments);
     }
-    if (filesClient) { this.files = new CardFiles(filesClient); this.host.insertBefore(this.files.host, this.comments); }
+    if (filesClient) { this.files = new CardFiles(filesClient, detach, canDetach); this.host.insertBefore(this.files.host, this.comments); }
   }
   open(cardId: string, identity: Identity, opener: HTMLButtonElement, hierarchyOrigin = false): void {
     this.request++; this.selected = cardId; this.expected = identity; this.opener = opener;

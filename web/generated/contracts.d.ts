@@ -107,6 +107,24 @@ export type ResultAttachmentAdd = {
   readonly cardId: string;
 };
 
+export type RequestAttachmentDetach = {
+  readonly expectedCardRevision: number;
+  readonly expectedRevision: number;
+  readonly incarnation: string;
+  readonly input: {
+  readonly attachmentId: string;
+};
+  readonly opId: string;
+  readonly target: {
+  readonly cardId: string;
+};
+};
+
+export type ResultAttachmentDetach = {
+  readonly attachmentId: string;
+  readonly cardId: string;
+};
+
 export type RequestLinkAdd = {
   readonly expectedCardRevision: number;
   readonly expectedRevision: number;
@@ -312,5 +330,5 @@ export type RefusalResult = {
 };
 };
 
-export type MutationRequest = RequestCardCreate | RequestCardEdit | RequestCommentAdd | RequestAttachmentAdd | RequestLinkAdd | RequestLinkRemove | RequestReviewHandoff | RequestApprove | RequestWorkflowEdit | RequestGrantCreate | RequestGrantRevoke | RequestHistoryClear | RequestRetentionSet;
-export type Command = "card.create" | "card.edit" | "comment.add" | "attachment.add" | "link.add" | "link.remove" | "review-handoff" | "approve" | "workflow.edit" | "grant.create" | "grant.revoke" | "history.clear" | "retention.set";
+export type MutationRequest = RequestCardCreate | RequestCardEdit | RequestCommentAdd | RequestAttachmentAdd | RequestAttachmentDetach | RequestLinkAdd | RequestLinkRemove | RequestReviewHandoff | RequestApprove | RequestWorkflowEdit | RequestGrantCreate | RequestGrantRevoke | RequestHistoryClear | RequestRetentionSet;
+export type Command = "card.create" | "card.edit" | "comment.add" | "attachment.add" | "attachment.detach" | "link.add" | "link.remove" | "review-handoff" | "approve" | "workflow.edit" | "grant.create" | "grant.revoke" | "history.clear" | "retention.set";

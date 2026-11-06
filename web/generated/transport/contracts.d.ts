@@ -1156,6 +1156,102 @@ export type TerminalAttachmentAddNotcommittedCompact = {
   readonly terminalAt: string;
 };
 
+export type TerminalAttachmentDetachCommittedFull = {
+  readonly actorId: string;
+  readonly apiVersion: 1;
+  readonly boardId: string;
+  readonly byteFacts: ReadonlyArray<Archive.ByteFact>;
+  readonly cardRevision: number;
+  readonly code: 'OK';
+  readonly command: "attachment.detach";
+  readonly expectedCardRevision: number;
+  readonly expectedRevision: number;
+  readonly fingerprint: string;
+  readonly fingerprintVersion: 1;
+  readonly incarnation: string;
+  readonly opId: string;
+  readonly outcome: "committed";
+  readonly removal: null;
+  readonly result: Mutation.ResultAttachmentDetach;
+  readonly resultRefs: ReadonlyArray<Archive.FactRef>;
+  readonly retention: "full";
+  readonly revision: number;
+  readonly target: { readonly cardId: string };
+  readonly terminalAt: string;
+};
+
+export type TerminalAttachmentDetachCommittedCompact = {
+  readonly actorId: string;
+  readonly apiVersion: 1;
+  readonly boardId: string;
+  readonly byteFacts: ReadonlyArray<Archive.ByteFact>;
+  readonly cardRevision: number;
+  readonly code: 'OK';
+  readonly command: "attachment.detach";
+  readonly expectedCardRevision: number;
+  readonly expectedRevision: number;
+  readonly fingerprint: string;
+  readonly fingerprintVersion: 1;
+  readonly incarnation: string;
+  readonly opId: string;
+  readonly outcome: "committed";
+  readonly removal: Archive.Removal;
+  readonly result: null;
+  readonly resultRefs: ReadonlyArray<Archive.FactRef>;
+  readonly retention: "compact";
+  readonly revision: number;
+  readonly target: { readonly cardId: string };
+  readonly terminalAt: string;
+};
+
+export type TerminalAttachmentDetachNotcommittedFull = {
+  readonly actorId: string;
+  readonly apiVersion: 1;
+  readonly boardId: string;
+  readonly byteFacts: ReadonlyArray<Archive.ByteFact>;
+  readonly cardRevision: null;
+  readonly code: string;
+  readonly command: "attachment.detach";
+  readonly expectedCardRevision: number;
+  readonly expectedRevision: number;
+  readonly fingerprint: string;
+  readonly fingerprintVersion: 1;
+  readonly incarnation: string;
+  readonly opId: string;
+  readonly outcome: "not_committed";
+  readonly removal: null;
+  readonly result: RefusalResult;
+  readonly resultRefs: readonly [];
+  readonly retention: "full";
+  readonly revision: null;
+  readonly target: { readonly cardId: string };
+  readonly terminalAt: string;
+};
+
+export type TerminalAttachmentDetachNotcommittedCompact = {
+  readonly actorId: string;
+  readonly apiVersion: 1;
+  readonly boardId: string;
+  readonly byteFacts: ReadonlyArray<Archive.ByteFact>;
+  readonly cardRevision: null;
+  readonly code: string;
+  readonly command: "attachment.detach";
+  readonly expectedCardRevision: number;
+  readonly expectedRevision: number;
+  readonly fingerprint: string;
+  readonly fingerprintVersion: 1;
+  readonly incarnation: string;
+  readonly opId: string;
+  readonly outcome: "not_committed";
+  readonly removal: Archive.Removal;
+  readonly result: null;
+  readonly resultRefs: readonly [];
+  readonly retention: "compact";
+  readonly revision: null;
+  readonly target: { readonly cardId: string };
+  readonly terminalAt: string;
+};
+
 export type TerminalLinkAddCommittedFull = {
   readonly actorId: string;
   readonly apiVersion: 1;
@@ -2020,7 +2116,7 @@ export type TerminalRetentionSetNotcommittedCompact = {
   readonly terminalAt: string;
 };
 
-export type Terminal = TerminalCardCreateCommittedFull | TerminalCardCreateCommittedCompact | TerminalCardCreateNotcommittedFull | TerminalCardCreateNotcommittedCompact | TerminalCardEditCommittedFull | TerminalCardEditCommittedCompact | TerminalCardEditNotcommittedFull | TerminalCardEditNotcommittedCompact | TerminalCommentAddCommittedFull | TerminalCommentAddCommittedCompact | TerminalCommentAddNotcommittedFull | TerminalCommentAddNotcommittedCompact | TerminalAttachmentAddCommittedFull | TerminalAttachmentAddCommittedCompact | TerminalAttachmentAddNotcommittedFull | TerminalAttachmentAddNotcommittedCompact | TerminalLinkAddCommittedFull | TerminalLinkAddCommittedCompact | TerminalLinkAddNotcommittedFull | TerminalLinkAddNotcommittedCompact | TerminalLinkRemoveCommittedFull | TerminalLinkRemoveCommittedCompact | TerminalLinkRemoveNotcommittedFull | TerminalLinkRemoveNotcommittedCompact | TerminalReviewHandoffCommittedFull | TerminalReviewHandoffCommittedCompact | TerminalReviewHandoffNotcommittedFull | TerminalReviewHandoffNotcommittedCompact | TerminalApproveCommittedFull | TerminalApproveCommittedCompact | TerminalApproveNotcommittedFull | TerminalApproveNotcommittedCompact | TerminalWorkflowEditCommittedFull | TerminalWorkflowEditCommittedCompact | TerminalWorkflowEditNotcommittedFull | TerminalWorkflowEditNotcommittedCompact | TerminalGrantCreateCommittedFull | TerminalGrantCreateCommittedCompact | TerminalGrantCreateNotcommittedFull | TerminalGrantCreateNotcommittedCompact | TerminalGrantRevokeCommittedFull | TerminalGrantRevokeCommittedCompact | TerminalGrantRevokeNotcommittedFull | TerminalGrantRevokeNotcommittedCompact | TerminalHistoryClearCommittedFull | TerminalHistoryClearCommittedCompact | TerminalHistoryClearNotcommittedFull | TerminalHistoryClearNotcommittedCompact | TerminalRetentionSetCommittedFull | TerminalRetentionSetCommittedCompact | TerminalRetentionSetNotcommittedFull | TerminalRetentionSetNotcommittedCompact;
+export type Terminal = TerminalCardCreateCommittedFull | TerminalCardCreateCommittedCompact | TerminalCardCreateNotcommittedFull | TerminalCardCreateNotcommittedCompact | TerminalCardEditCommittedFull | TerminalCardEditCommittedCompact | TerminalCardEditNotcommittedFull | TerminalCardEditNotcommittedCompact | TerminalCommentAddCommittedFull | TerminalCommentAddCommittedCompact | TerminalCommentAddNotcommittedFull | TerminalCommentAddNotcommittedCompact | TerminalAttachmentAddCommittedFull | TerminalAttachmentAddCommittedCompact | TerminalAttachmentAddNotcommittedFull | TerminalAttachmentAddNotcommittedCompact | TerminalAttachmentDetachCommittedFull | TerminalAttachmentDetachCommittedCompact | TerminalAttachmentDetachNotcommittedFull | TerminalAttachmentDetachNotcommittedCompact | TerminalLinkAddCommittedFull | TerminalLinkAddCommittedCompact | TerminalLinkAddNotcommittedFull | TerminalLinkAddNotcommittedCompact | TerminalLinkRemoveCommittedFull | TerminalLinkRemoveCommittedCompact | TerminalLinkRemoveNotcommittedFull | TerminalLinkRemoveNotcommittedCompact | TerminalReviewHandoffCommittedFull | TerminalReviewHandoffCommittedCompact | TerminalReviewHandoffNotcommittedFull | TerminalReviewHandoffNotcommittedCompact | TerminalApproveCommittedFull | TerminalApproveCommittedCompact | TerminalApproveNotcommittedFull | TerminalApproveNotcommittedCompact | TerminalWorkflowEditCommittedFull | TerminalWorkflowEditCommittedCompact | TerminalWorkflowEditNotcommittedFull | TerminalWorkflowEditNotcommittedCompact | TerminalGrantCreateCommittedFull | TerminalGrantCreateCommittedCompact | TerminalGrantCreateNotcommittedFull | TerminalGrantCreateNotcommittedCompact | TerminalGrantRevokeCommittedFull | TerminalGrantRevokeCommittedCompact | TerminalGrantRevokeNotcommittedFull | TerminalGrantRevokeNotcommittedCompact | TerminalHistoryClearCommittedFull | TerminalHistoryClearCommittedCompact | TerminalHistoryClearNotcommittedFull | TerminalHistoryClearNotcommittedCompact | TerminalRetentionSetCommittedFull | TerminalRetentionSetCommittedCompact | TerminalRetentionSetNotcommittedFull | TerminalRetentionSetNotcommittedCompact;
 
 export type RequestCardCreate = Omit<Mutation.RequestCardCreate, 'expectedCardRevision'> & { readonly expectedCardRevision: null };
 
@@ -2029,6 +2125,8 @@ export type RequestCardEdit = Omit<Mutation.RequestCardEdit, 'expectedCardRevisi
 export type RequestCommentAdd = Omit<Mutation.RequestCommentAdd, 'expectedCardRevision'> & { readonly expectedCardRevision: number };
 
 export type RequestAttachmentAdd = Omit<Mutation.RequestAttachmentAdd, 'expectedCardRevision'> & { readonly expectedCardRevision: number };
+
+export type RequestAttachmentDetach = Omit<Mutation.RequestAttachmentDetach, 'expectedCardRevision'> & { readonly expectedCardRevision: number };
 
 export type RequestLinkAdd = Omit<Mutation.RequestLinkAdd, 'expectedCardRevision'> & { readonly expectedCardRevision: number };
 
@@ -2048,7 +2146,7 @@ export type RequestHistoryClear = Omit<Mutation.RequestHistoryClear, 'expectedCa
 
 export type RequestRetentionSet = Omit<Mutation.RequestRetentionSet, 'expectedCardRevision'> & { readonly expectedCardRevision: null };
 
-export type MutationRequest = RequestCardCreate | RequestCardEdit | RequestCommentAdd | RequestAttachmentAdd | RequestLinkAdd | RequestLinkRemove | RequestReviewHandoff | RequestApprove | RequestWorkflowEdit | RequestGrantCreate | RequestGrantRevoke | RequestHistoryClear | RequestRetentionSet;
+export type MutationRequest = RequestCardCreate | RequestCardEdit | RequestCommentAdd | RequestAttachmentAdd | RequestAttachmentDetach | RequestLinkAdd | RequestLinkRemove | RequestReviewHandoff | RequestApprove | RequestWorkflowEdit | RequestGrantCreate | RequestGrantRevoke | RequestHistoryClear | RequestRetentionSet;
 
 export type RuntimeMode = StandaloneRuntimeMode | WorkspaceRuntimeMode;
 

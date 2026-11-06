@@ -127,6 +127,7 @@ func TestWorkspaceCLIExplicitGrammar(t *testing.T) {
 		{"--project", "harbor", "--board", "main", "board", "status"},
 		{"--project", "harbor", "--board", "main", "--json", "board", "read"},
 		{"--project", "harbor", "--board", "main", "card", "create", "--input", "-"},
+		{"--project", "harbor", "--board", "main", "attachment", "detach", "00000000-0000-4000-8000-000000000001", "--input", "-"},
 		{"--project", "harbor", "--board", "main", "attachment", "add", "00000000-0000-4000-8000-000000000001", "--input", "-", "--file", `C:\synthetic\attachment.bin`},
 		{"--project", "harbor", "--board", "main", "export", "create", "--destination", `C:\synthetic\export.zip`},
 		{"--project", "harbor", "--board", "main", "operation", "read", "00000000-0000-4000-8000-000000000001", "--evidence", `C:\synthetic\original.json`},

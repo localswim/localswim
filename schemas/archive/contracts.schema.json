@@ -1316,6 +1316,9 @@
           "$ref": "#/$defs/IntentAttachmentAdd"
         },
         {
+          "$ref": "#/$defs/IntentAttachmentDetach"
+        },
+        {
           "$ref": "#/$defs/IntentLinkAdd"
         },
         {
@@ -1520,6 +1523,105 @@
             "mediaLabel",
             "name",
             "sha256"
+          ],
+          "type": "object"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "cardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardId"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "actorId",
+        "boardId",
+        "command",
+        "expectedCardRevision",
+        "expectedRevision",
+        "fingerprintVersion",
+        "incarnation",
+        "opId",
+        "payload",
+        "target"
+      ],
+      "type": "object"
+    },
+    "IntentAttachmentDetach": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "command": {
+          "enum": [
+            "attachment.detach"
+          ],
+          "type": "string"
+        },
+        "expectedCardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fingerprintVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attachmentId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "attachmentId"
           ],
           "type": "object"
         },
@@ -3332,6 +3434,7 @@
             "card.edit",
             "comment.add",
             "attachment.add",
+            "attachment.detach",
             "link.add",
             "link.remove",
             "review-handoff",
@@ -4044,6 +4147,9 @@
         },
         {
           "$ref": "../mutation-requests.schema.json#/$defs/ResultAttachmentAdd"
+        },
+        {
+          "$ref": "../mutation-requests.schema.json#/$defs/ResultAttachmentDetach"
         },
         {
           "$ref": "../mutation-requests.schema.json#/$defs/ResultLinkAdd"

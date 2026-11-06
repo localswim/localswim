@@ -109,6 +109,23 @@ export type IntentAttachmentAdd = {
 };
 };
 
+export type IntentAttachmentDetach = {
+  readonly actorId: string;
+  readonly boardId: string;
+  readonly command: "attachment.detach";
+  readonly expectedCardRevision: number;
+  readonly expectedRevision: number;
+  readonly fingerprintVersion: number;
+  readonly incarnation: string;
+  readonly opId: string;
+  readonly payload: {
+  readonly attachmentId: string;
+};
+  readonly target: {
+  readonly cardId: string;
+};
+};
+
 export type IntentLinkAdd = {
   readonly actorId: string;
   readonly boardId: string;
@@ -294,9 +311,9 @@ export type IntentRetentionSet = {
   readonly target: null;
 };
 
-export type Intent = IntentCardCreate | IntentCardEdit | IntentCommentAdd | IntentAttachmentAdd | IntentLinkAdd | IntentLinkRemove | IntentReviewHandoff | IntentApprove | IntentWorkflowEdit | IntentGrantCreate | IntentGrantRevoke | IntentHistoryClear | IntentRetentionSet;
+export type Intent = IntentCardCreate | IntentCardEdit | IntentCommentAdd | IntentAttachmentAdd | IntentAttachmentDetach | IntentLinkAdd | IntentLinkRemove | IntentReviewHandoff | IntentApprove | IntentWorkflowEdit | IntentGrantCreate | IntentGrantRevoke | IntentHistoryClear | IntentRetentionSet;
 
-export type RetainedResult = Mutation.RefusalResult | Mutation.ResultCardCreate | Mutation.ResultCardEdit | Mutation.ResultCommentAdd | Mutation.ResultAttachmentAdd | Mutation.ResultLinkAdd | Mutation.ResultLinkRemove | Mutation.ResultReviewHandoff | Mutation.ResultApprove | Mutation.ResultWorkflowEdit | Mutation.ResultGrantCreate | Mutation.ResultGrantRevoke | Mutation.ResultHistoryClear | Mutation.ResultRetentionSet;
+export type RetainedResult = Mutation.RefusalResult | Mutation.ResultCardCreate | Mutation.ResultCardEdit | Mutation.ResultCommentAdd | Mutation.ResultAttachmentAdd | Mutation.ResultAttachmentDetach | Mutation.ResultLinkAdd | Mutation.ResultLinkRemove | Mutation.ResultReviewHandoff | Mutation.ResultApprove | Mutation.ResultWorkflowEdit | Mutation.ResultGrantCreate | Mutation.ResultGrantRevoke | Mutation.ResultHistoryClear | Mutation.ResultRetentionSet;
 
 export type ClearInput = {
   readonly throughTime: string;
@@ -596,7 +613,7 @@ export type Operation = {
   readonly actorId: string;
   readonly byteFacts: ReadonlyArray<ByteFact>;
   readonly code: string;
-  readonly command: "card.create" | "card.edit" | "comment.add" | "attachment.add" | "link.add" | "link.remove" | "review-handoff" | "approve" | "grant.create" | "grant.revoke" | "history.clear" | "retention.set" | "workflow.edit";
+  readonly command: "card.create" | "card.edit" | "comment.add" | "attachment.add" | "attachment.detach" | "link.add" | "link.remove" | "review-handoff" | "approve" | "grant.create" | "grant.revoke" | "history.clear" | "retention.set" | "workflow.edit";
   readonly committedCardRevision: number | null;
   readonly committedRevision: number | null;
   readonly expectedCardRevision: number | null;

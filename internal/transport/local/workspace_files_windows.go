@@ -161,6 +161,11 @@ func workspaceLock(root string) (*os.File, error) {
 func workspaceExistingLock(root string) (*os.File, error) {
 	return workspaceOpen(filepath.Join(root, "local.lock"), windows.GENERIC_READ, windows.OPEN_EXISTING, 0)
 }
+
+// Hold the existing publication exclusion without creating or changing its file.
+func workspaceExistingRestoreLock(root string) (*os.File, error) {
+	return workspaceOpen(filepath.Join(root, "restore.lock"), windows.GENERIC_READ, windows.OPEN_EXISTING, 0)
+}
 func workspaceRead(path string, limit int64) (b []byte, err error) {
 	f, e := workspaceOpen(path, windows.GENERIC_READ, windows.OPEN_EXISTING, windows.FILE_SHARE_READ)
 	if errors.Is(e, ErrWorkspaceMissing) {

@@ -20,6 +20,15 @@ import (
 var ErrFenced = errors.New("storage writes fenced pending recovery")
 var ErrClosed = errors.New("storage closed")
 
+// UpgradeRequiredError identifies a fully validated older layout. Its numeric
+// versions are safe presentation facts; all corrupt or unknown layouts retain
+// their ordinary unavailable errors.
+type UpgradeRequiredError struct{ From, To int }
+
+func (e *UpgradeRequiredError) Error() string {
+	return fmt.Sprintf("storage physical version %d requires explicit offline upgrade %d->%d before startup", e.From, e.From, e.To)
+}
+
 // Store owns an OS path/exclusion lease plus one writer and at most two readers.
 // Close refuses while leases remain: callers must release all readers (including
 // export snapshots) before shutdown. A reader can block COMMIT in DELETE mode.
@@ -112,8 +121,8 @@ func startWorkflow(ctx context.Context, dir string, id schema.Identity, create b
 	if err = schema.Validate(ctx, c, id); err != nil {
 		// Only an independently validated older layout earns actionable upgrade advice.
 		var v int
-		if c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v) == nil && (v == 5 || v == 6 || v == 7 || v == 8 || v == 9) && validateSupported(ctx, c, id) == nil {
-			return nil, fmt.Errorf("storage physical version %d requires explicit offline upgrade %d->%d before startup", v, v, v+1)
+		if c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v) == nil && (v == 5 || v == 6 || v == 7 || v == 8 || v == 9 || v == 10) && validateSupported(ctx, c, id) == nil {
+			return nil, &UpgradeRequiredError{From: v, To: v + 1}
 		}
 		return nil, err
 	}

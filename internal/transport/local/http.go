@@ -292,7 +292,7 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, q *http.Request) {
 			switch {
 			case len(p) >= 6 && p[5] == "exports":
 				r.export.ServeHTTP(w, q)
-			case len(p) >= 6 && p[5] == "attachments" || len(p) >= 8 && p[7] == "attachments":
+			case len(p) >= 6 && p[5] == "attachments" || len(p) >= 8 && (p[7] == "attachments" || p[7] == "attachment-detach"):
 				r.attachment.ServeHTTP(w, q)
 			default:
 				r.board.ServeHTTP(w, q)

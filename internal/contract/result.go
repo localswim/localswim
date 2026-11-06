@@ -12,7 +12,7 @@ func ResultType(command Command) *Type {
 	case "card.create", "card.edit", "review-handoff":
 	case "comment.add":
 		f["commentId"] = req(uuid)
-	case "attachment.add":
+	case "attachment.add", "attachment.detach":
 		f["attachmentId"] = req(uuid)
 	case "link.add", "link.remove":
 		f["linkId"] = req(uuid)

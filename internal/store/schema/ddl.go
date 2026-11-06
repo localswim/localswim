@@ -175,7 +175,7 @@ CREATE TABLE operation (
  origin_incarnation TEXT NOT NULL CHECK({{u:origin_incarnation}}), op_id TEXT NOT NULL CHECK({{u:op_id}}),
  current_ledger INTEGER NOT NULL CHECK(current_ledger IN (0,1)), actor_id TEXT NOT NULL,
  fingerprint_version INTEGER NOT NULL DEFAULT 1 CHECK(fingerprint_version=1), fingerprint TEXT NOT NULL CHECK({{h:fingerprint}}),
- command TEXT NOT NULL CHECK(command IN ('card.create','card.edit','comment.add','attachment.add','link.add','link.remove','review-handoff','approve','grant.create','grant.revoke','history.clear','retention.set','workflow.edit')),
+ command TEXT NOT NULL CHECK(command IN ('card.create','card.edit','comment.add','attachment.add','attachment.detach','link.add','link.remove','review-handoff','approve','grant.create','grant.revoke','history.clear','retention.set','workflow.edit')),
  target_kind TEXT CHECK(target_kind IN ('card','grant')), target_id TEXT CHECK(target_id IS NULL OR {{u:target_id}}),
  expected_revision INTEGER NOT NULL CHECK({{n:expected_revision}}), expected_card_revision INTEGER CHECK(expected_card_revision IS NULL OR {{p:expected_card_revision}}),
  terminal_class TEXT NOT NULL CHECK(terminal_class IN ('COMMITTED','NOT_COMMITTED')), code TEXT NOT NULL,
@@ -230,7 +230,7 @@ CREATE TABLE operation_blob_pin (
 CREATE TABLE activity (
  incarnation TEXT NOT NULL REFERENCES board(incarnation), origin_board TEXT NOT NULL CHECK({{u:origin_board}}), origin_incarnation TEXT NOT NULL CHECK({{u:origin_incarnation}}),
  event_id INTEGER NOT NULL CHECK({{p:event_id}}), actor_id TEXT NOT NULL, op_id TEXT CHECK(op_id IS NULL OR {{u:op_id}}),
- type TEXT NOT NULL CHECK(type IN ('card.create','card.edit','comment.add','attachment.add','link.add','link.remove','review-handoff','approve','grant.create','grant.revoke','history.clear','retention.set','workflow.edit','recovery.expire')),
+ type TEXT NOT NULL CHECK(type IN ('card.create','card.edit','comment.add','attachment.add','attachment.detach','link.add','link.remove','review-handoff','approve','grant.create','grant.revoke','history.clear','retention.set','workflow.edit','recovery.expire')),
  board_revision INTEGER NOT NULL CHECK({{n:board_revision}}), at TEXT NOT NULL CHECK({{t:at}}),
  affected TEXT NOT NULL CHECK(json_valid(affected)), PRIMARY KEY(incarnation,origin_board,origin_incarnation,event_id),
  FOREIGN KEY(incarnation,actor_id) REFERENCES actor(incarnation,actor_id), CHECK((op_id IS NULL)=(type='recovery.expire'))

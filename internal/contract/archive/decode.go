@@ -17,7 +17,7 @@ import (
 var uuidRE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 var digestRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var timeRE = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$`)
-var commandValues = []string{"card.create", "card.edit", "comment.add", "attachment.add", "link.add", "link.remove", "review-handoff", "approve", "grant.create", "grant.revoke", "history.clear", "retention.set", "workflow.edit"}
+var commandValues = []string{"card.create", "card.edit", "comment.add", "attachment.add", "attachment.detach", "link.add", "link.remove", "review-handoff", "approve", "grant.create", "grant.revoke", "history.clear", "retention.set", "workflow.edit"}
 var enums = map[string][]string{
 	"Priority": {"P0", "P1", "P2", "P3", "P4", "P5"}, "Kind": {"human", "automation"}, "Reason": {"cleared", "expired"}, "GapClass": {"history", "activity", "outcome_payload"}, "FactKind": {"board", "card", "comment", "link", "attachment", "approval", "grant", "workflow"}, "Command": commandValues, "RecoveryCommand": {"history.clear", "retention.set"}, "TerminalClass": {"COMMITTED", "NOT_COMMITTED"}, "Phase": {"preparing", "prepared", "published"}, "ReceiptResult": {"incomplete", "complete", "failed"}, "RestoreOutcome": {"confirmed", "failed", "unknown"}, "HashAlgorithm": {"sha256"}, "RestoreScope": {"restore"}, "LinkKind": {"blocking", "informational", "related", "reference", "duplicate"}, "EntityKind": {"card", "comment", "link", "attachment"},
 }

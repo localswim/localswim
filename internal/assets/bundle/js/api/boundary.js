@@ -189,7 +189,7 @@ export function validate(name, value) {
         invalid();
 }
 export const commands = {
-    "workflow.edit": "WorkflowEdit", "attachment.add": "AttachmentAdd", "history.clear": "HistoryClear", "retention.set": "RetentionSet",
+    "workflow.edit": "WorkflowEdit", "attachment.add": "AttachmentAdd", "attachment.detach": "AttachmentDetach", "history.clear": "HistoryClear", "retention.set": "RetentionSet",
     "card.create": "CardCreate", "card.edit": "CardEdit", "comment.add": "CommentAdd",
     "link.add": "LinkAdd", "link.remove": "LinkRemove", "review-handoff": "ReviewHandoff", "approve": "Approve",
 };
@@ -297,7 +297,7 @@ export const boardBoundaryVerifier = {
                 return false;
             if (terminal.target && (terminal.expectedCardRevision === null || terminal.cardRevision !== terminal.expectedCardRevision + 1))
                 return false;
-            const extra = { "attachment.add": "attachment", "comment.add": "comment", "link.add": "link", "link.remove": "link", "approve": "approval" };
+            const extra = { "attachment.add": "attachment", "attachment.detach": "attachment", "comment.add": "comment", "link.add": "link", "link.remove": "link", "approve": "approval" };
             const kinds = ["card", ...(extra[e.command] ? [extra[e.command]] : [])];
             if (terminal.resultRefs.length !== kinds.length || new Set(terminal.resultRefs.map(r => r.kind)).size !== kinds.length)
                 return false;
@@ -311,6 +311,8 @@ export const boardBoundaryVerifier = {
                 else if (ref.revision !== null)
                     return false;
             }
+            if (e.command === "attachment.detach" && !terminal.resultRefs.some(ref => ref.kind === "attachment" && ref.id === object(object(parse(e.requestBytes)).input).attachmentId))
+                return false;
             if (terminal.retention === "full") {
                 for (const [field, id] of Object.entries(terminal.result)) {
                     if (!terminal.resultRefs.some(ref => ref.id === id && ref.kind === field.replace(/Id$/, "")))

@@ -320,9 +320,9 @@ func InspectBoardDefinition(ctx context.Context, dataDir string, expected *Board
 }
 
 type workspaceInspectionOwner struct {
-	root           *WorkspacePath
-	lock, identity io.Closer
-	cleanup        WorkspaceCleanup
+	root                        *WorkspacePath
+	lock, identity, restoreLock io.Closer
+	cleanup                     WorkspaceCleanup
 }
 
 func (o *workspaceInspectionOwner) Close() error {
@@ -331,6 +331,12 @@ func (o *workspaceInspectionOwner) Close() error {
 			return ErrWorkspaceFiles
 		}
 		o.cleanup = nil
+	}
+	if o.restoreLock != nil {
+		if o.restoreLock.Close() != nil {
+			return ErrWorkspaceFiles
+		}
+		o.restoreLock = nil
 	}
 	if o.identity != nil {
 		if o.identity.Close() != nil {

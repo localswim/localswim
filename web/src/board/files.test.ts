@@ -6,6 +6,7 @@ import { CardFiles } from "./files.js";
 // Actual DOM probe with controlled responses, separate from real-service evidence.
 export async function runCardFilesProbe(): Promise<number> {
   let checks = 0, mode = "normal", downloads = 0, offers = 0, revoked = 0;
+  const detached: CardFileRead[] = [];
   const pending: Array<() => void> = [];
   const root = document.createElement("main"), editor = document.createElement("textarea"); editor.value = "Private editor input";
   const originalCreate = URL.createObjectURL, originalRevoke = URL.revokeObjectURL, originalClick = HTMLAnchorElement.prototype.click;
@@ -35,7 +36,7 @@ export async function runCardFilesProbe(): Promise<number> {
       if (mode === "late-download") await new Promise<void>(resolve => pending.push(resolve));
       if (mode === "broken" || signal.aborted) throw Error("No complete bytes"); return new ArrayBuffer(0);
     },
-  });
+  }, read => detached.push(read));
   root.append(panel.host, editor); document.body.replaceChildren(root);
   const flush = async (): Promise<void> => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
   const check = (value: boolean, message: string): void => { if (!value) throw Error(message); checks++; };
@@ -48,6 +49,9 @@ export async function runCardFilesProbe(): Promise<number> {
     editor.focus(); inspect(); await flush();
     check(document.activeElement === editor && editor.value === "Private editor input", "Inspection changed editor/focus");
     check(panel.host.textContent!.includes("Added by: <em>Actor</em>") && panel.host.textContent!.includes("Created in:") && !panel.host.querySelector("em"), "Attribution/provenance was hidden or executed");
+    button("Detach file").click();
+    check(detached.length === 1 && detached[0]!.result.cardId === fileSelectionFixture.cardId && detached[0]!.result.revision === 4 && detached[0]!.result.cardRevision === 3 && detached[0]!.result.file.attachment.attachmentId === fileFixture().attachment.attachmentId, "Detach lost exact selected metadata or revisions");
+    check(document.activeElement === editor && editor.value === "Private editor input", "Detach callback changed private input/focus");
     button("Offer file download").click(); await flush(); await new Promise(resolve => setTimeout(resolve, 1));
     check(offers === 1 && revoked === 1 && panel.host.textContent!.includes("offered after complete byte verification"), "Verified offer or URL cleanup mismatch");
     mode = "broken"; button("Offer file download").click(); await flush();
@@ -64,7 +68,7 @@ export async function runCardFilesProbe(): Promise<number> {
     editor.focus(); panel.open(fileSelectionFixture); await flush();
     check(document.activeElement === editor, "Same-card refresh stole unrelated editor focus");
     mode = "retained"; button("Retained files").click(); await flush(); inspect(); await flush();
-    check(!button("Offer file download") && panel.host.textContent!.includes("no longer attached") && panel.host.textContent!.includes("attribution unavailable"), "Retained file enabled download or fabricated attribution");
+    check(!button("Offer file download") && !button("Detach file") && panel.host.textContent!.includes("no longer attached") && panel.host.textContent!.includes("attribution unavailable"), "Retained file enabled download or fabricated attribution");
     mode = "paging"; button("Current files").click(); await flush(); button("Next files").focus(); button("Next files").click(); await flush();
     check(document.activeElement === button("Refresh files") && panel.host.textContent!.includes(fileFixture(5).attachment.attachmentId) && !button("Inspect file " + fileFixture().attachment.attachmentId), "Paging merged rows or lost focus");
     mode = "stale"; button("Refresh files").click(); await flush(); button("Next files").click(); await flush();

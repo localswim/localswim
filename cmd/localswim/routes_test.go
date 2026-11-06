@@ -140,3 +140,20 @@ func TestActualCLIRunnersRefuseWithoutAuthority(t *testing.T) {
 		}
 	}
 }
+
+type routeRecorder struct{ calls int }
+
+func (r *routeRecorder) Run(context.Context, []string, io.Reader, io.Writer, io.Writer) int {
+	r.calls++
+	return 0
+}
+func TestDetachRoutesToOrdinaryCore(t *testing.T) {
+	c, a, x := &routeRecorder{}, &routeRecorder{}, &routeRecorder{}
+	runners := commands{c, a, x}
+	for _, action := range []string{"detach", "add", "list", "read", "download"} {
+		runners.run(context.Background(), []string{"attachment", action, testCard, "--input", "original.json"}, nil, io.Discard, io.Discard)
+	}
+	if c.calls != 1 || a.calls != 0 || x.calls != 4 {
+		t.Fatal("detach bypassed ordinary evidence workflow or replaced other attachment commands")
+	}
+}

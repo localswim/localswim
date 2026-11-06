@@ -3,7 +3,7 @@ import { completedLane, laneText, moveLanes, roleLane, workflowEdge, workflowRig
 import { completeOwnedRelationships, relationshipKinds, forwardLabels, validRelationships } from "../api/relationships.js";
 import type { RelationshipRow } from "../api/relationships.js";
 import type { RelationshipAction } from "./relationships.js";
-import type { BoardRead, MutationRequest, SessionRead, CatalogCount } from "../../generated/transport/contracts.js";
+import type { BoardRead, CardFileRead, MutationRequest, SessionRead, CatalogCount } from "../../generated/transport/contracts.js";
 import type { Card } from "../../generated/archive/contracts.js";
 import type { BoardCommand, Value } from "../api/boundary.js";
 import { BoardClient, WorkflowPreviewRefusal } from "../api/client.js";
@@ -22,6 +22,8 @@ import { sameIdentity, validParentRef, validateBoardHierarchy, hierarchyOrder } 
 import type { ParentRef, HierarchyCard } from "../api/hierarchy.js";
 import type { HierarchyAction } from "./hierarchy.js";
 
+type DetachFile = Pick<CardFileRead["result"], "identity" | "cardId" | "revision" | "cardRevision"> & { attachment: CardFileRead["result"]["file"]["attachment"] };
+
 type HierarchyEdit = { action: HierarchyAction; parent?: ParentRef };
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = ""): HTMLElementTagNameMap[K] {
@@ -37,6 +39,7 @@ type Editor = {
   sequence: number; submitted: boolean; persisted: number; start: boolean; genericMove?: boolean; archive?: boolean;
   workflowEditor?: WorkflowEditor; workflowPreview?: string; workflowPreviewBusy?: boolean; workflowPreviewSequence?: number; workflowPreviewFailure?: string;
   hierarchy?: HierarchyEdit;
+  detach?: DetachFile;
   relationshipsReplace?: boolean;
   renderRelationships?: () => void;
   hierarchyFollow?: { selection: DetailsSelection; generation: number };
@@ -111,7 +114,7 @@ export class BoardView {
         this.readState.textContent = "Read current board before archiving this focused card; its independently read facts differ from the board base."; return;
       }
       this.edit("card.edit", card, false, undefined, !card.archived);
-    }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read, relationshipAction: (action, card, read, row) => this.relationshipEdit(action, card, read, row) }, client);
+    }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read, relationshipAction: (action, card, read, row) => this.relationshipEdit(action, card, read, row) }, client, read => this.detachFile(read), read => this.canDetachFile(read.result, read.result.file.attachment.attachmentId));
     root.replaceChildren(this.heading, this.actor, this.readState, read,
       this.create, this.workflowEdit, this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
   }
@@ -140,7 +143,7 @@ export class BoardView {
       if (reference.context.boardId !== this.boardId) return;
       const draft = await this.persistence.read(() => this.client.recovery.loadDraft(reference.context, reference.draftId));
       if (!draft || this.destroyed || this.editor || generation !== this.generation) return;
-      const payload = parse(draft.input) as unknown as { command: BoardCommand; base: BoardRead; card?: Card; input: Record<string, Value>; start?: boolean; genericMove?: boolean; hierarchy?: HierarchyEdit };
+      const payload = parse(draft.input) as unknown as { command: BoardCommand; base: BoardRead; card?: Card; input: Record<string, Value>; start?: boolean; genericMove?: boolean; hierarchy?: HierarchyEdit; detach?: DetachFile };
       if (!payload || typeof payload !== "object" || typeof payload.command !== "string" || !Object.hasOwn(commands, payload.command) || ["attachment.add", "history.clear", "retention.set"].includes(payload.command) || !payload.base || !payload.input) return;
       validate("transport:BoardRead", payload.base as unknown as import("../api/boundary.js").Value);
       validateBoardHierarchy(payload.base);
@@ -167,6 +170,12 @@ export class BoardView {
         if (parent !== null && !payload.base.result.cards.some(row => row.cardId === (parent as ParentRef).cardId)) return;
       }
       if (Object.hasOwn(payload.input, "relationships") && (payload.command !== "card.create" && payload.command !== "card.edit" || payload.command === "card.edit" && (!card || Object.keys(payload.input).length !== 1))) return;
+      if (payload.command === "attachment.detach") {
+        const file = payload.detach;
+        if (!card || !file || file.identity.boardId !== identity.boardId || file.identity.incarnation !== identity.incarnation || file.cardId !== card.cardId || file.revision !== payload.base.result.revision || file.cardRevision !== card.revision || payload.input.attachmentId !== file.attachment.attachmentId || Object.keys(payload.input).length !== 1 || !card.attachmentIds.includes(file.attachment.attachmentId)) return;
+        validate("archive:Attachment", file.attachment as unknown as Value);
+        if (file.attachment.cardId !== card.cardId) return;
+      } else if (payload.detach) return;
       const inventory = await this.persistence.read(() => this.client.recovery.inventory());
       const rows = inventory.submissions.filter(row => row.draftId === reference.draftId && Object.entries(reference.context).every(([key, value]) => value === row.context[key as keyof Context]));
       const originals = await Promise.all(rows.map(async row => ({ row, submission: await this.client.recovery.loadSubmission(row.context, row.opId) })));
@@ -182,7 +191,7 @@ export class BoardView {
       const retainedFocus = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : undefined;
       const retainedSelection = retainedFocus instanceof HTMLInputElement || retainedFocus instanceof HTMLTextAreaElement
         ? [retainedFocus.selectionStart, retainedFocus.selectionEnd, retainedFocus.selectionDirection ?? undefined] as const : undefined;
-      this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive as boolean | undefined, hierarchy, payload.command === "card.edit" && Object.hasOwn(payload.input, "relationships"), undefined, payload.genericMove === true);
+      this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive as boolean | undefined, hierarchy, payload.command === "card.edit" && Object.hasOwn(payload.input, "relationships"), undefined, payload.genericMove === true, payload.detach);
       const restored = this.editor as Editor | undefined;
       if (restored) restored.submitted = rows.some(row => row.outcome !== "not_committed");
       if (rows.some(row => row.outcome === "committed")) this.readState.textContent = "Retained original was committed. This editor remains submitted; read current text and deliberately open new work.";
@@ -304,7 +313,7 @@ export class BoardView {
         canCreate: !this.stale && !this.blocked() && editor.persisted === editor.sequence && editor.workflowPreview === JSON.stringify(this.input(editor)),
         message: editor.recovery.textContent ?? "" });
     }
-    if (this.editor) this.editor.save.disabled = this.stale || this.editor.submitted || this.editor.composing || this.editor.confirming || this.blocked() || this.editor.hierarchy?.action === "set-parent" && !this.editor.fields.parent?.value;
+    if (this.editor) this.editor.save.disabled = !!this.editor.detach && !this.canDetachFile(this.editor.detach, this.editor.detach.attachment.attachmentId) || this.stale || this.editor.submitted || this.editor.composing || this.editor.confirming || this.blocked() || this.editor.hierarchy?.action === "set-parent" && !this.editor.fields.parent?.value;
   }
   private hierarchyEdit(action: HierarchyAction, card: HierarchyCard, read: BoardRead): void {
     const current = this.board;
@@ -323,30 +332,44 @@ export class BoardView {
     if (!target || target.revision !== card.revision || completedLane(target.lane, current.result.workflow) || action === "remove" && (!row?.owned || row.owner.cardId !== target.cardId)) return;
     this.edit(action === "replace" ? "card.edit" : action === "add" ? "link.add" : "link.remove", target, false, undefined, undefined, undefined, action === "replace", row?.linkId);
   }
-  private edit(command: BoardCommand, card?: Card, start = false, restore?: { base: BoardRead; reference: EditorReference; revision: number; input: Record<string, Value> }, archive?: boolean, hierarchy?: HierarchyEdit, relationshipsReplace = false, removeLinkId?: string, genericMove = false): void {
+  private canDetachFile(selected: Pick<DetachFile, "identity" | "cardId" | "revision" | "cardRevision">, attachmentId: string): boolean {
+    const base = this.board, session = this.session, card = base?.result.cards.find(row => row.cardId === selected.cardId);
+    return !this.destroyed && !this.suspended && !this.stale && !!base && !!session && !!card &&
+      sameIdentity(base.result.identity, selected.identity) && base.result.revision === selected.revision && card.revision === selected.cardRevision &&
+      card.attachmentIds.includes(attachmentId) && !completedLane(card.lane, base.result.workflow) && workflowRight(session, "attach", base.result.workflow);
+  }
+  private detachFile(read: CardFileRead): void {
+    const selected = read.result;
+    if (selected.file.referenceState !== "current" || !this.canDetachFile(selected, selected.file.attachment.attachmentId)) return;
+    const card = this.board!.result.cards.find(row => row.cardId === selected.cardId)!;
+    this.edit("attachment.detach", card, false, undefined, undefined, undefined, false, undefined, false, structuredClone({ identity: selected.identity, cardId: selected.cardId, revision: selected.revision, cardRevision: selected.cardRevision, attachment: selected.file.attachment }));
+  }
+  private edit(command: BoardCommand, card?: Card, start = false, restore?: { base: BoardRead; reference: EditorReference; revision: number; input: Record<string, Value> }, archive?: boolean, hierarchy?: HierarchyEdit, relationshipsReplace = false, removeLinkId?: string, genericMove = false, detach?: DetachFile): void {
     if (this.destroyed || !this.board || !this.session || this.stale) { this.readState.textContent = "Read a current board before editing."; return; }
     if (!this.canLeave) { this.readState.textContent = "Private recovery is pending or failed. Retain this input until saved or explicitly discard the editor."; return; }
+    if (command === "attachment.detach" && !restore && (!detach || !this.canDetachFile(detach, detach.attachment.attachmentId))) return;
     if (this.editor && !this.editor.submitted && this.dirty(this.editor)) {
-      if (archive !== undefined || hierarchy !== undefined || relationshipsReplace || removeLinkId !== undefined) {
+      if (archive !== undefined || hierarchy !== undefined || relationshipsReplace || removeLinkId !== undefined || detach !== undefined) {
         const opener = document.activeElement as HTMLElement | null;
         this.cancelEditor(this.editor, () => {
           const replacement = [...this.root.querySelectorAll<HTMLButtonElement>("button")].find(row => row.dataset.focusKey === opener?.dataset.focusKey);
-          (replacement ?? (opener?.isConnected ? opener : undefined))?.focus({ preventScroll: true }); this.edit(command, card, start, restore, archive, hierarchy, relationshipsReplace, removeLinkId, genericMove);
+          (replacement ?? (opener?.isConnected ? opener : undefined))?.focus({ preventScroll: true }); this.edit(command, card, start, restore, archive, hierarchy, relationshipsReplace, removeLinkId, genericMove, detach);
         });
         return;
       }
       this.readState.textContent = "Current editor has unsaved intent. Finish it or explicitly discard it before opening another editor.";
       return;
     }
-    if (!restore && this.board.result.workflow) {
-      const right = command === "card.create" ? "create" : command === "comment.add" ? "comment" : command === "review-handoff" || command === "approve" ? command : "edit";
+    if (!restore && (this.board.result.workflow || command === "attachment.detach")) {
+      const right = command === "attachment.detach" ? "attach" : command === "card.create" ? "create" : command === "comment.add" ? "comment" : command === "review-handoff" || command === "approve" ? command : "edit";
       if (!workflowRight(this.session, right, this.board.result.workflow)) { this.readState.textContent = "Current workflow and grant do not offer this action. The server remains authoritative."; return; }
     }
+    if (command === "attachment.detach" && (!card || completedLane(card.lane, (restore?.base ?? this.board).result.workflow))) return;
     const base = restore?.base ?? this.board, context = this.client.context(base, this.session), form = element("form");
     form.addEventListener("submit", event => event.preventDefault());
     const recovery = element("p", "Recovery pending"); recovery.setAttribute("role", "status");
     const editor: Editor = { id: restore?.reference.draftId ?? crypto.randomUUID(), revision: restore?.revision ?? 0, command, context, base, card,
-      fields: {}, form, recovery, save: button("Save", () => { void this.save(editor); }), composing: false,
+      ...(detach ? { detach } : {}), fields: {}, form, recovery, save: button("Save", () => { void this.save(editor); }), composing: false,
       sequence: 0, submitted: false, persisted: -1, start, ...(genericMove ? { genericMove: true } : {}), ...(archive === undefined ? {} : { archive }), ...(hierarchy ? { hierarchy } : {}), ...(relationshipsReplace ? { relationshipsReplace: true } : {}), initial: "", initialFields: {}, opener: document.activeElement as HTMLElement | null,
       confirmation: element("section"), confirming: false, confirmingEnter: false };
     const title = element("h2", command + " · original board revision " + base.result.revision + (card ? ", card revision " + card.revision : ""));
@@ -471,6 +494,17 @@ export class BoardView {
       field("linkId", removeLinkId ?? "", ["", ...links.map(link => link.linkId)]);
       for (const option of [...(editor.fields.linkId as HTMLSelectElement).options].slice(1)) { const link = links.find(link => link.linkId === option.value)!; option.textContent = link.kind + " · " + link.target.boardId + "/" + link.target.incarnation + "/" + link.target.cardId + " · " + link.linkId; }
     }
+    else if (command === "attachment.detach" && detach) {
+      editor.save.textContent = "Confirm detach file";
+      const confirmation = element("section"); confirmation.setAttribute("aria-label", "Detach file confirmation");
+      confirmation.style.overflowWrap = "anywhere"; confirmation.style.whiteSpace = "pre-wrap"; confirmation.style.minWidth = "0";
+      confirmation.append(element("p", "Detach this exact file from the current card? Ordinary download becomes unavailable after detach. Retained metadata, bytes and prior evidence remain available under their retention rules."),
+        element("p", "File " + detach.attachment.name + " · " + detach.attachment.attachmentId),
+        element("p", "Card #" + card!.ticket + " " + card!.title + " · " + card!.cardId),
+        element("p", "Board " + base.result.identity.boardId + " · incarnation " + base.result.identity.incarnation),
+        element("p", "Captured board revision " + detach.revision + " · card revision " + detach.cardRevision));
+      form.append(confirmation);
+    }
     else if (command === "approve") field("policyVersion", String(base.result.policyVersion), [String(base.result.policyVersion)]);
     else form.append(element("p", "Explicit Save submits this review handoff."));
     form.addEventListener("compositionstart", () => { editor.composing = true; this.updateSave(); });
@@ -500,7 +534,7 @@ export class BoardView {
     });
     editor.initialFields = Object.fromEntries(Object.entries(editor.fields).map(([name, control]) => [name, control.value]));
     if (!editor.initial) editor.initial = JSON.stringify(this.input(editor));
-    form.append(recovery, editor.save, button("Read current text", () => { void this.currentText(editor); }), button(archive === undefined ? "Discard current editor input" : archive ? "Cancel archive" : "Cancel unarchive", () => this.cancelEditor(editor)), editor.confirmation);
+    form.append(recovery, editor.save, button("Read current text", () => { void this.currentText(editor); }), button(command === "attachment.detach" ? "Cancel detach file" : archive === undefined ? "Discard current editor input" : archive ? "Cancel archive" : "Cancel unarchive", () => this.cancelEditor(editor)), editor.confirmation);
     this.editor?.workflowEditor?.destroy(); this.editor = editor; this.editorHost.replaceChildren(form); this.current.replaceChildren();
     if (restore) for (const [name, control] of Object.entries(editor.fields)) {
       if (name !== "workflow" && (Object.hasOwn(restore.input, name) || name === "targetCardId" && Object.hasOwn(restore.input, "target"))) control.value = name === "relationships" ? typeof restore.input[name] === "string" ? restore.input[name] as string : JSON.stringify(restore.input[name], null, 2) : name === "targetCardId" && validParentRef(restore.input.target) ? (restore.input.target as unknown as ParentRef).cardId : name === "parent" && validParentRef(restore.input[name]) ? (restore.input[name] as unknown as ParentRef).cardId : String(restore.input[name] ?? "");
@@ -547,6 +581,7 @@ export class BoardView {
   }
   private input(editor: Editor): Record<string, Value> {
     if (editor.command === "workflow.edit") return { expectedPolicyVersion: editor.base.result.policyVersion, workflow: parse(editor.fields.workflow!.value) };
+    if (editor.detach) return { attachmentId: editor.detach.attachment.attachmentId };
     if (editor.archive !== undefined) return { archived: editor.archive };
     if (editor.hierarchy?.action === "clear-parent") return { parent: null };
     if (editor.hierarchy?.action === "set-parent") return { parent: editor.fields.parent?.value ? { ...editor.base.result.identity, cardId: editor.fields.parent.value } : null };
@@ -571,7 +606,7 @@ export class BoardView {
     // Prose and original non-secret base only; no credential/session DTO enters storage.
     const input = JSON.stringify({ command: editor.command, target: editor.card ? { cardId: editor.card.cardId } : null,
       expectedRevision: editor.base.result.revision, expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor), base: editor.base, start: editor.start, ...(editor.genericMove ? { genericMove: true } : {}),
-      ...(editor.hierarchy ? { hierarchy: editor.hierarchy } : {}), ...(editor.card ? { card: editor.card } : {}) });
+      ...(editor.hierarchy ? { hierarchy: editor.hierarchy } : {}), ...(editor.detach ? { detach: editor.detach } : {}), ...(editor.card ? { card: editor.card } : {}) });
     editor.recovery.textContent = editor.workflowPreviewFailure ?? "Recovery pending";
     void this.persistence.persist(async () => {
       try {
@@ -666,6 +701,7 @@ export class BoardView {
   }
   private async save(editor: Editor): Promise<void> {
     if (this.destroyed || this.suspended || this.editor !== editor || editor.command === "workflow.edit" && editor.workflowPreview !== JSON.stringify(this.input(editor)) || editor.composing || editor.confirmingEnter || editor.confirming || editor.submitted || this.stale || this.blocked() || editor.hierarchy?.action === "set-parent" && !editor.fields.parent?.value) return;
+    if (editor.detach && !this.canDetachFile(editor.detach, editor.detach.attachment.attachmentId)) return;
     const submittedInput = this.input(editor);
     if (editor.command === "workflow.edit" && editor.persisted !== editor.sequence) return;
     if (Object.hasOwn(submittedInput, "relationships") && !validRelationships(submittedInput.relationships)) { editor.recovery.textContent = "Relationships refused: select at most 100 unique relationships to exact target cards. Visible input retained; no operation submitted."; return; }

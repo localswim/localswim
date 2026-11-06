@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	S "github.com/localswim/localswim/internal/store/open"
 	"os"
 	"path/filepath"
 	"testing"
@@ -68,5 +71,31 @@ func TestNormalEntryDispatchesReadOnlyRestoreStatus(t *testing.T) {
 	output.Reset()
 	if run(context.Background(), []string{"--help"}, nil, &output, &diagnostic) != 0 || !bytes.Contains(output.Bytes(), []byte("restore-status")) {
 		t.Fatal("normal help omitted restore entry")
+	}
+}
+
+func TestStartupUpgradeGuidanceUsesValidatedTypedCause(t *testing.T) {
+	for _, test := range []struct {
+		err      error
+		guidance bool
+	}{
+		{fmt.Errorf("private-path secret: %w", &S.UpgradeRequiredError{From: 10, To: 11}), true},
+		{errors.New("storage physical version 10 requires explicit offline upgrade; private-path secret"), false},
+		{&S.UpgradeRequiredError{From: 10, To: 99}, false},
+	} {
+		var out, diagnostic bytes.Buffer
+		if startupFailure(&out, &diagnostic, test.err) != 3 {
+			t.Fatal("startup exit changed")
+		}
+		got := diagnostic.String()
+		if bytes.Contains(diagnostic.Bytes(), []byte("private-path")) || bytes.Contains(diagnostic.Bytes(), []byte("secret")) {
+			t.Fatal("raw dependency error leaked")
+		}
+		if bytes.Contains(diagnostic.Bytes(), []byte("upgrade --from-version 10 --to-version 11")) != test.guidance {
+			t.Fatalf("typed upgrade guidance mismatch %q", got)
+		}
+		if !bytes.Contains(out.Bytes(), []byte("UNAVAILABLE")) {
+			t.Fatal("startup failure envelope changed")
+		}
 	}
 }

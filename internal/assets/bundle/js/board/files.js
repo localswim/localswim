@@ -18,6 +18,8 @@ const key = (value) => value.identity.boardId + "/" + value.identity.incarnation
 // Shares CardDetails' exact selection, with no editor or private-draft state.
 export class CardFiles {
     client;
+    detach;
+    canDetach;
     host = node("section");
     status = node("p");
     rows = node("div");
@@ -33,8 +35,10 @@ export class CardFiles {
     inspection = 0;
     active = true;
     downloading;
-    constructor(client) {
+    constructor(client, detach, canDetach) {
         this.client = client;
+        this.detach = detach;
+        this.canDetach = canDetach;
         this.host.setAttribute("aria-label", "Card files");
         this.host.style.maxWidth = "100%";
         this.status.setAttribute("role", "status");
@@ -149,6 +153,12 @@ export class CardFiles {
                 state.setAttribute("role", "status");
                 const offer = button("Offer file download", () => { void this.download(file, selected, offer, state, valid); });
                 this.detail.append(offer, state);
+                if (this.detach && this.view === "current" && file.referenceState === "current") {
+                    const detach = button("Detach file", () => { if (valid() && (!this.canDetach || this.canDetach(read)))
+                        this.detach(structuredClone(read)); });
+                    detach.disabled = !!this.canDetach && !this.canDetach(read);
+                    this.detail.append(detach);
+                }
             }
             else
                 this.detail.append(node("p", "Download unavailable because this file is no longer attached."));

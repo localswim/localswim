@@ -69,7 +69,7 @@ export class CardDetails {
     hierarchyFallback;
     hierarchyOrigin = false;
     files;
-    constructor(client, fallback, archiveAction, focusRoot, hierarchy, filesClient) {
+    constructor(client, fallback, archiveAction, focusRoot, hierarchy, filesClient, detach, canDetach) {
         this.client = client;
         this.fallback = fallback;
         this.archiveAction = archiveAction;
@@ -94,7 +94,7 @@ export class CardDetails {
             this.host.insertBefore(this.relationships.host, this.comments);
         }
         if (filesClient) {
-            this.files = new CardFiles(filesClient);
+            this.files = new CardFiles(filesClient, detach, canDetach);
             this.host.insertBefore(this.files.host, this.comments);
         }
     }

@@ -16,3 +16,5 @@ func workspaceRead(string, int64) ([]byte, error)        { return nil, ErrWorksp
 func workspaceIdentity(string) (*os.File, []byte, error) { return nil, nil, ErrWorkspaceFiles }
 func workspacePublish(string, []byte, bool) error        { return ErrWorkspaceFiles }
 func workspaceRemove(string) error                       { return ErrWorkspaceFiles }
+
+func workspaceExistingRestoreLock(string) (*os.File, error) { return nil, ErrWorkspaceFiles }

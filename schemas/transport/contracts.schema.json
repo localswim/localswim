@@ -2727,6 +2727,9 @@
           "$ref": "#/$defs/RequestAttachmentAdd"
         },
         {
+          "$ref": "#/$defs/RequestAttachmentDetach"
+        },
+        {
           "$ref": "#/$defs/RequestLinkAdd"
         },
         {
@@ -2852,6 +2855,26 @@
       "allOf": [
         {
           "$ref": "../mutation-requests.schema.json#/$defs/RequestAttachmentAdd"
+        },
+        {
+          "properties": {
+            "expectedCardRevision": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "expectedCardRevision"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "RequestAttachmentDetach": {
+      "allOf": [
+        {
+          "$ref": "../mutation-requests.schema.json#/$defs/RequestAttachmentDetach"
         },
         {
           "properties": {
@@ -4126,6 +4149,18 @@
           "$ref": "#/$defs/TerminalAttachmentAddNotcommittedCompact"
         },
         {
+          "$ref": "#/$defs/TerminalAttachmentDetachCommittedFull"
+        },
+        {
+          "$ref": "#/$defs/TerminalAttachmentDetachCommittedCompact"
+        },
+        {
+          "$ref": "#/$defs/TerminalAttachmentDetachNotcommittedFull"
+        },
+        {
+          "$ref": "#/$defs/TerminalAttachmentDetachNotcommittedCompact"
+        },
+        {
           "$ref": "#/$defs/TerminalLinkAddCommittedFull"
         },
         {
@@ -5301,6 +5336,590 @@
         },
         "command": {
           "const": "attachment.add"
+        },
+        "expectedCardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "fingerprintVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "outcome": {
+          "const": "not_committed"
+        },
+        "removal": {
+          "type": "null"
+        },
+        "result": {
+          "$ref": "#/$defs/RefusalResult"
+        },
+        "resultRefs": {
+          "maxItems": 0,
+          "type": "array"
+        },
+        "retention": {
+          "const": "full"
+        },
+        "revision": {
+          "type": "null"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "cardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardId"
+          ],
+          "type": "object"
+        },
+        "terminalAt": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        }
+      },
+      "required": [
+        "actorId",
+        "apiVersion",
+        "boardId",
+        "byteFacts",
+        "cardRevision",
+        "code",
+        "command",
+        "expectedCardRevision",
+        "expectedRevision",
+        "fingerprint",
+        "fingerprintVersion",
+        "incarnation",
+        "opId",
+        "outcome",
+        "removal",
+        "result",
+        "resultRefs",
+        "retention",
+        "revision",
+        "target",
+        "terminalAt"
+      ],
+      "type": "object"
+    },
+    "TerminalAttachmentDetachCommittedCompact": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "byteFacts": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/ByteFact"
+          },
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array"
+        },
+        "cardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "code": {
+          "const": "OK"
+        },
+        "command": {
+          "const": "attachment.detach"
+        },
+        "expectedCardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "fingerprintVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "outcome": {
+          "const": "committed"
+        },
+        "removal": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Removal"
+        },
+        "result": {
+          "type": "null"
+        },
+        "resultRefs": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/FactRef"
+          },
+          "type": "array"
+        },
+        "retention": {
+          "const": "compact"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "cardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardId"
+          ],
+          "type": "object"
+        },
+        "terminalAt": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        }
+      },
+      "required": [
+        "actorId",
+        "apiVersion",
+        "boardId",
+        "byteFacts",
+        "cardRevision",
+        "code",
+        "command",
+        "expectedCardRevision",
+        "expectedRevision",
+        "fingerprint",
+        "fingerprintVersion",
+        "incarnation",
+        "opId",
+        "outcome",
+        "removal",
+        "result",
+        "resultRefs",
+        "retention",
+        "revision",
+        "target",
+        "terminalAt"
+      ],
+      "type": "object"
+    },
+    "TerminalAttachmentDetachCommittedFull": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "byteFacts": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/ByteFact"
+          },
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array"
+        },
+        "cardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "code": {
+          "const": "OK"
+        },
+        "command": {
+          "const": "attachment.detach"
+        },
+        "expectedCardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "fingerprintVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "outcome": {
+          "const": "committed"
+        },
+        "removal": {
+          "type": "null"
+        },
+        "result": {
+          "$ref": "../mutation-requests.schema.json#/$defs/ResultAttachmentDetach"
+        },
+        "resultRefs": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/FactRef"
+          },
+          "type": "array"
+        },
+        "retention": {
+          "const": "full"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "cardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardId"
+          ],
+          "type": "object"
+        },
+        "terminalAt": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        }
+      },
+      "required": [
+        "actorId",
+        "apiVersion",
+        "boardId",
+        "byteFacts",
+        "cardRevision",
+        "code",
+        "command",
+        "expectedCardRevision",
+        "expectedRevision",
+        "fingerprint",
+        "fingerprintVersion",
+        "incarnation",
+        "opId",
+        "outcome",
+        "removal",
+        "result",
+        "resultRefs",
+        "retention",
+        "revision",
+        "target",
+        "terminalAt"
+      ],
+      "type": "object"
+    },
+    "TerminalAttachmentDetachNotcommittedCompact": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "byteFacts": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/ByteFact"
+          },
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array"
+        },
+        "cardRevision": {
+          "type": "null"
+        },
+        "code": {
+          "minLength": 1,
+          "not": {
+            "const": "OK"
+          },
+          "type": "string"
+        },
+        "command": {
+          "const": "attachment.detach"
+        },
+        "expectedCardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "fingerprintVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "opId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "outcome": {
+          "const": "not_committed"
+        },
+        "removal": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Removal"
+        },
+        "result": {
+          "type": "null"
+        },
+        "resultRefs": {
+          "maxItems": 0,
+          "type": "array"
+        },
+        "retention": {
+          "const": "compact"
+        },
+        "revision": {
+          "type": "null"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "cardId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardId"
+          ],
+          "type": "object"
+        },
+        "terminalAt": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        }
+      },
+      "required": [
+        "actorId",
+        "apiVersion",
+        "boardId",
+        "byteFacts",
+        "cardRevision",
+        "code",
+        "command",
+        "expectedCardRevision",
+        "expectedRevision",
+        "fingerprint",
+        "fingerprintVersion",
+        "incarnation",
+        "opId",
+        "outcome",
+        "removal",
+        "result",
+        "resultRefs",
+        "retention",
+        "revision",
+        "target",
+        "terminalAt"
+      ],
+      "type": "object"
+    },
+    "TerminalAttachmentDetachNotcommittedFull": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "byteFacts": {
+          "items": {
+            "$ref": "../archive/contracts.schema.json#/$defs/ByteFact"
+          },
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array"
+        },
+        "cardRevision": {
+          "type": "null"
+        },
+        "code": {
+          "minLength": 1,
+          "not": {
+            "const": "OK"
+          },
+          "type": "string"
+        },
+        "command": {
+          "const": "attachment.detach"
         },
         "expectedCardRevision": {
           "maximum": 9007199254740991,

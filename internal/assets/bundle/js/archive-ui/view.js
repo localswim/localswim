@@ -1,3 +1,4 @@
+import { completedLane, workflowRight } from "../api/workflow.js";
 import { button, element } from "../recovery-ui/view.js";
 import { recoveryCoordinator } from "../recovery-ui/coordination.js";
 const digest = async (bytes) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(n => n.toString(16).padStart(2, "0")).join("");
@@ -10,6 +11,7 @@ export class ArchiveView {
     heading = element("h2", "Attachments and export");
     status = element("p", "Attachment/export controls unavailable; read a current board first.");
     cards = element("select");
+    archiveContext = element("select");
     editorHost = element("section");
     attachments = element("section");
     outcomes = element("section");
@@ -45,26 +47,40 @@ export class ArchiveView {
         this.status.setAttribute("role", "status");
         this.cards.setAttribute("aria-label", "Attachment target card");
         this.outcomes.setAttribute("aria-label", "Original attachment outcomes");
+        this.archiveContext.setAttribute("aria-label", "Attachment archive context");
+        for (const [value, label] of [["active", "Active cards"], ["archived", "Archived cards"]]) {
+            const option = element("option", label);
+            option.value = value;
+            this.archiveContext.append(option);
+        }
+        this.archiveContext.addEventListener("change", () => { this.renderTargets(); this.update(); });
+        this.cards.addEventListener("change", () => this.update());
         this.attachButton = button("Open attachment editor", () => this.edit());
         this.exportButton = button("Offer current board export", () => { void this.export(); });
-        root.replaceChildren(this.heading, button("Read current attachment board", () => { void this.refresh(); }), this.status, this.cards, this.attachButton, this.exportButton, this.editorHost, this.attachments, this.outcomes);
+        root.replaceChildren(this.heading, button("Read current attachment board", () => { void this.refresh(); }), this.status, this.archiveContext, this.cards, this.attachButton, this.exportButton, this.editorHost, this.attachments, this.outcomes);
         this.update();
     }
     destroy() { this.destroyed = true; this.stopPersistence(); this.generation++; for (const controller of this.downloads)
         controller.abort(); this.downloads.clear(); this.editor = undefined; this.context = undefined; this.base = undefined; this.root.replaceChildren(); }
-    get canLeave() { return !this.editor || this.editor.persisted === this.editor.sequence && this.editor.submitted; }
+    get canLeave() { return !this.editor || this.editor.persisted === this.editor.sequence && this.editor.committed; }
     async flushPrivateInput() { await this.persistence.settled(); return this.canLeave; }
     discardInput() { if (this.editor)
-        this.editor.selection++; this.editor = undefined; this.editorHost.replaceChildren(); }
+        this.editor.selection++; this.editor = undefined; this.editorHost.replaceChildren(); this.update(); }
     suspend() { this.suspended = true; this.generation++; for (const controller of this.downloads)
         controller.abort(); this.downloads.clear(); }
     resume() { this.suspended = false; const callbacks = [...this.deferred.values()]; this.deferred.clear(); for (const render of callbacks)
         render(); }
+    maySubmit(editor) {
+        const current = this.base?.result.cards.find(card => card.cardId === editor.cardId);
+        return !!current && !!this.context && this.mayAttach && this.context.boardId === editor.context.boardId &&
+            this.context.incarnation === editor.context.incarnation && this.context.actorId === editor.context.actorId &&
+            !completedLane(current.lane, this.base.result.workflow);
+    }
     update() {
-        this.attachButton.disabled = !this.context || !this.mayAttach || this.unresolved || this.destroyed;
+        this.attachButton.disabled = !this.context || !this.mayAttach || !this.cards.value || this.unresolved || this.destroyed;
         this.exportButton.disabled = !this.context || !this.mayExport || this.destroyed || this.exportPending;
         if (this.editor)
-            this.editor.save.disabled = !this.editor.raw || !this.editor.facts || this.editor.composing || this.editor.submitted || this.unresolved || this.destroyed;
+            this.editor.save.disabled = !this.maySubmit(this.editor) || !this.editor.raw || !this.editor.facts || this.editor.capturing || this.editor.composing || this.editor.submitted || this.unresolved || this.destroyed;
     }
     async refresh() {
         const generation = ++this.generation;
@@ -76,18 +92,10 @@ export class ArchiveView {
                 return;
             this.base = base;
             this.context = context;
-            this.mayAttach = session.grant.rights.includes("attach");
+            this.mayAttach = workflowRight(session, "attach", base.result.workflow);
             this.mayExport = session.grant.rights.includes("export");
             this.status.textContent = "Current board " + context.boardId + " · incarnation " + context.incarnation + " · actor " + context.actorId + " · revision " + base.result.revision;
-            const selected = this.cards.value;
-            this.cards.replaceChildren();
-            for (const card of base.result.cards.filter(c => c.lane !== "Completed")) {
-                const option = element("option", "#" + card.ticket + " " + card.title);
-                option.value = card.cardId;
-                this.cards.append(option);
-            }
-            if ([...this.cards.options].some(o => o.value === selected))
-                this.cards.value = selected;
+            this.renderTargets();
             this.renderAttachments();
         }
         catch {
@@ -100,6 +108,19 @@ export class ArchiveView {
         }
         this.update();
     }
+    renderTargets() {
+        const selected = this.cards.value, archived = this.archiveContext.value === "archived";
+        this.cards.replaceChildren();
+        if (!this.base)
+            return;
+        for (const card of this.base.result.cards.filter(card => card.archived === archived && !completedLane(card.lane, this.base.result.workflow))) {
+            const option = element("option", "#" + card.ticket + " " + card.title + (archived ? " · Archived" : ""));
+            option.value = card.cardId;
+            this.cards.append(option);
+        }
+        if ([...this.cards.options].some(option => option.value === selected))
+            this.cards.value = selected;
+    }
     edit() {
         if (!this.canLeave) {
             this.status.textContent = "Keep attachment input until private metadata is saved and the file is submitted, or explicitly discard it. File bytes exist only in memory.";
@@ -108,23 +129,25 @@ export class ArchiveView {
         if (!this.context || !this.base || !this.mayAttach || this.unresolved || this.destroyed)
             return;
         const card = this.base.result.cards.find(c => c.cardId === this.cards.value);
-        if (!card || card.lane === "Completed")
+        if (!card || completedLane(card.lane, this.base.result.workflow) || card.archived !== (this.archiveContext.value === "archived"))
             return;
         const form = element("form"), name = element("input"), media = element("input"), file = element("input"), status = element("p", "Select one file; private recovery pending.");
+        const source = element("p", "No complete file captured.");
+        source.setAttribute("aria-label", "Captured attachment source");
         file.type = "file";
         media.value = "application/octet-stream";
         status.setAttribute("role", "status");
         const editor = { context: structuredClone(this.context), base: structuredClone(this.base), cardId: card.cardId, cardRevision: card.revision,
             draftId: crypto.randomUUID(), draftRevision: 0, sequence: 0, persisted: -1, name, media, file,
-            raw: undefined, facts: undefined, status, save: button("Attach once", () => { void this.save(editor); }), composing: false, submitted: false, selection: 0 };
+            raw: undefined, facts: undefined, status, source, save: button("Attach once", () => { void this.save(editor); }), composing: false, submitted: false, committed: false, capturing: false, selection: 0 };
         form.addEventListener("submit", event => event.preventDefault());
-        form.append(element("h3", "Attachment · original card " + card.cardId + " revision " + card.revision + " · original board revision " + this.base.result.revision));
+        form.append(element("h3", "Attachment · original card " + card.cardId + " revision " + card.revision + " · original board revision " + this.base.result.revision + (card.archived ? " · Archived context" : " · Active context")));
         for (const [labelText, input] of [["Attachment display name", name], ["Attachment media label", media], ["Attachment file", file]]) {
             const label = element("label", labelText + " ");
             label.append(input);
             form.append(label);
         }
-        const changed = () => { editor.submitted = false; this.persist(editor); this.update(); };
+        const changed = () => { editor.submitted = false; editor.committed = false; this.persist(editor); this.update(); };
         name.addEventListener("input", changed);
         media.addEventListener("input", changed);
         file.addEventListener("change", () => { void this.capture(editor); });
@@ -132,7 +155,7 @@ export class ArchiveView {
         form.addEventListener("compositionend", () => { editor.composing = false; changed(); });
         form.addEventListener("keydown", event => { if (event.isComposing && event.key === "Enter")
             event.preventDefault(); });
-        form.append(status, editor.save, button("Discard current attachment input", () => this.discardInput()), element("p", "Attachment input is retained in this window. Finish submission or explicitly discard it before leaving, even when private metadata was saved. File bytes exist only in memory. Forced reload cannot restore the attachment editor or selected file bytes. After a lost response, use the original operation lookup. Reload never uploads bytes or creates a replacement operation."));
+        form.append(source, status, editor.save, button("Discard current attachment input", () => this.discardInput()), element("p", "Attachment input is retained in this window. Finish submission or explicitly discard it before leaving, even when private metadata was saved. File bytes exist only in memory. Forced reload cannot restore the attachment editor or selected file bytes. After a lost response, use the original operation lookup. Reload never uploads bytes or creates a replacement operation."));
         this.editor = editor;
         this.editorHost.replaceChildren(form);
         this.persist(editor);
@@ -140,30 +163,38 @@ export class ArchiveView {
         name.focus();
     }
     async capture(editor) {
-        editor.submitted = false;
         const selection = ++editor.selection, file = editor.file.files?.[0], persistenceGeneration = this.persistence.generation;
-        editor.raw = undefined;
-        editor.facts = undefined;
+        // Cancellation and failed replacements retain the last complete capture.
+        if (file)
+            editor.committed = false;
+        editor.capturing = !!file;
         this.update();
-        if (file && !editor.name.value)
-            editor.name.value = file.name;
-        this.persist(editor);
         if (!file)
             return;
         if (file.size > 10 * 1024 * 1024) {
-            editor.sequence++;
-            editor.status.textContent = "File exceeds 10 MiB; not dispatched.";
+            editor.capturing = false;
+            editor.status.textContent = "File exceeds 10 MiB; previous complete selection retained. Not dispatched.";
+            this.update();
             return;
         }
         try {
-            // One raw buffer is retained privately and never mutated or persisted.
-            const raw = await file.arrayBuffer(), sha256 = await digest(raw);
+            const raw = await file.arrayBuffer();
             if (this.destroyed || this.editor !== editor || selection !== editor.selection)
                 return;
             if (raw.byteLength !== file.size || raw.byteLength > 10 * 1024 * 1024)
                 throw Error("Incomplete file");
-            editor.raw = raw;
-            editor.facts = { sha256, byteLength: raw.byteLength };
+            // Own the complete bytes before hashing or any other asynchronous work.
+            const captured = raw.slice(0), sha256 = await digest(captured);
+            if (this.destroyed || this.editor !== editor || selection !== editor.selection)
+                return;
+            editor.raw = captured;
+            editor.facts = { sha256, byteLength: captured.byteLength };
+            editor.source.textContent = "Using file " + file.name + " · " + captured.byteLength + " bytes";
+            editor.submitted = false;
+            editor.committed = false;
+            editor.capturing = false;
+            if (!editor.name.value)
+                editor.name.value = file.name;
             if (persistenceGeneration === this.persistence.generation)
                 this.persist(editor);
             else
@@ -172,8 +203,9 @@ export class ArchiveView {
         }
         catch {
             if (!this.destroyed && this.editor === editor && selection === editor.selection) {
-                editor.sequence++;
-                editor.status.textContent = "Complete file bytes unavailable; not dispatched.";
+                editor.capturing = false;
+                editor.status.textContent = "Complete file bytes unavailable; previous complete selection retained. Not dispatched.";
+                this.update();
             }
         }
     }
@@ -199,12 +231,12 @@ export class ArchiveView {
         });
     }
     async save(editor) {
-        if (this.destroyed || this.editor !== editor || editor.submitted || editor.composing || !editor.raw || !editor.facts || this.unresolved)
+        if (this.destroyed || this.editor !== editor || !this.maySubmit(editor) || editor.submitted || editor.capturing || editor.composing || !editor.raw || !editor.facts || this.unresolved)
             return;
         editor.submitted = true;
         this.unresolved = true;
         this.update();
-        const bytes = editor.raw;
+        const bytes = editor.raw.slice(0), sequence = editor.sequence, selection = editor.selection;
         const request = { opId: crypto.randomUUID(), incarnation: editor.context.incarnation, target: { cardId: editor.cardId }, expectedRevision: editor.base.result.revision, expectedCardRevision: editor.cardRevision,
             input: { name: editor.name.value, mediaLabel: editor.media.value, ...editor.facts } };
         const row = element("article"), state = element("p");
@@ -239,6 +271,7 @@ export class ArchiveView {
                 row.append(waiting);
             }
             if (outcome.state === "committed") {
+                editor.committed = editor.sequence === sequence && editor.selection === selection;
                 this.context = undefined;
                 this.status.textContent = "Confirmed attachment saved. Displayed metadata is stale; read the current board.";
             }

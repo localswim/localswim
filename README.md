@@ -4,6 +4,8 @@ The M09 [card-file reader](docs/runbooks/m09-card-files.txt) adds selected-card
 current/retained metadata, source-based attribution, bounded paging and verified
 downloads through the ordinary browser and actual CLI. Its delivery evidence is
 maintained separately from the remaining upload and detach lifecycle work.
+The [upload guide](docs/runbooks/m09-upload.txt) covers captured file identity,
+explicit archived-card selection and retained input through failed submissions.
 
 Fresh Go and TypeScript implementation of localswim, beginning with Spike 01.
 This repository is under development; no qualified product release is claimed.

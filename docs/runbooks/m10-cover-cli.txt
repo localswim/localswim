@@ -1,5 +1,19 @@
 M10 CARD COVERS IN THE CLI
 
+Existing storage
+
+Stop the owned service before an offline upgrade. Use the exact data root,
+board UUID and incarnation retained from that board's current records.
+
+  localswim --data DIR --json storage inspect --board-id BOARD_UUID --incarnation INCARNATION_UUID
+  localswim --data DIR --json storage upgrade --from-version 11 --to-version 12 --board-id BOARD_UUID --incarnation INCARNATION_UUID
+  localswim --data DIR --json storage inspect --board-id BOARD_UUID --incarnation INCARNATION_UUID
+
+Reopen the same root after successful inspection. Omit a port override to
+reuse its stored port. Earlier layouts require their individual adjacent
+steps. Startup requires physical layout 12 and base schema 5. An uncertain
+upgrade requires deliberate inspection before another action.
+
 Select the board with --workspace DIR --project KEY --board KEY, or use
 --data DIR with the standalone host. Read the card by its UUID and use that
 read's incarnation, board revision and card revision for the request.

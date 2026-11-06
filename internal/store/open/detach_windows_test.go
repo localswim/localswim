@@ -39,16 +39,14 @@ func TestDetachUpgradeConservesAllTypedRowsAndExplicitBoundary(t *testing.T) {
 	if changed, err := UpgradeStorageTo(ctx(t), p, identity, 10, 11); err != nil || changed {
 		t.Fatal("repeat", err)
 	}
-	s, err := Existing(ctx(t), p, identity)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	withWriter(t, s, func(c *sql.Conn) {
-		if schema.ValidateV10(ctx(t), c, identity) == nil {
+	if err := inspectExisting(ctx(t), p, identity, func(r InspectionRead) error {
+		if schema.ValidateV10(ctx(t), r.(*inspectionReader).conn, identity) == nil {
 			t.Fatal("ten accepted11")
 		}
-	})
+		return nil
+	}, schema.ValidateV11); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestDetachUpgradeRollbackAndUnknown(t *testing.T) {

@@ -129,6 +129,7 @@ type Card struct {
 	CommentIDs            []UUID         `json:"commentIds"`
 	LinkIDs               []UUID         `json:"linkIds"`
 	AttachmentIDs         []UUID         `json:"attachmentIds"`
+	CoverAttachmentID     *UUID          `json:"coverAttachmentId,omitempty" validate:"nonnull"`
 	CreatedIn             Identity       `json:"createdIn"`
 }
 type Comment struct {
@@ -208,6 +209,7 @@ type SnapshotState struct {
 	Parent                *CardRef       `json:"parent,omitempty"`
 	OwnerID               *UUID          `json:"ownerId,omitempty"`
 	CurrentApprovalID     *UUID          `json:"currentApprovalId"`
+	CoverAttachmentID     *UUID          `json:"coverAttachmentId,omitempty" validate:"nonnull"`
 }
 type SnapshotReferences struct {
 	CommentIDs    []UUID `json:"commentIds"`

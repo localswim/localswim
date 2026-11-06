@@ -660,6 +660,29 @@
             {
               "additionalProperties": false,
               "properties": {
+                "coverAttachmentId": {
+                  "anyOf": [
+                    {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "coverAttachmentId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
                 "description": {
                   "type": "string",
                   "x-max-utf8-bytes": 65536
@@ -709,6 +732,20 @@
           "properties": {
             "archived": {
               "type": "boolean"
+            },
+            "coverAttachmentId": {
+              "anyOf": [
+                {
+                  "not": {
+                    "const": "00000000-0000-0000-0000-000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "description": {
               "type": "string",

@@ -61,7 +61,7 @@ func nonce(t *testing.T) string {
 	}
 	return hex.EncodeToString(b[:])
 }
-func fresh(t *testing.T) *fixture {
+func fresh(t *testing.T, workflows ...*A.Workflow) *fixture {
 	t.Helper()
 	root := os.Getenv("S01_TEST_ROOT")
 	if root == "" {
@@ -87,7 +87,11 @@ func fresh(t *testing.T) *fixture {
 	if e = windows.CreateDirectory(windows.StringToUTF16Ptr(dir), &windows.SecurityAttributes{Length: uint32(unsafe.Sizeof(windows.SecurityAttributes{})), SecurityDescriptor: sd}); e != nil {
 		t.Fatal(e)
 	}
-	s, e := S.Create(tc(t), dir, schema.Identity{BoardID: board, Incarnation: inc})
+	var wf *A.Workflow
+	if len(workflows) > 0 {
+		wf = workflows[0]
+	}
+	s, e := S.CreateWorkflow(tc(t), dir, schema.Identity{BoardID: board, Incarnation: inc}, wf)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -158,6 +162,10 @@ func (f *fixture) value(t *testing.T, q string) uint64 {
 }
 func (f *fixture) intent(t *testing.T, cmd, id string, rev, cr uint64, input map[string]any) contract.Intent {
 	t.Helper()
+	return f.intentAs(t, actor, cmd, id, rev, cr, input)
+}
+func (f *fixture) intentAs(t *testing.T, actorID, cmd, id string, rev, cr uint64, input map[string]any) contract.Intent {
+	t.Helper()
 	op := nonce(t)
 	op = op[:8] + "-" + op[8:12] + "-" + op[12:16] + "-" + op[16:20] + "-" + op[20:]
 	var target, cardRev any
@@ -166,7 +174,7 @@ func (f *fixture) intent(t *testing.T, cmd, id string, rev, cr uint64, input map
 		cardRev = cr
 	}
 	b, _ := json.Marshal(map[string]any{"opId": op, "incarnation": inc, "target": target, "expectedRevision": rev, "expectedCardRevision": cardRev, "input": input})
-	i, e := T.FreezeMutation(b, contract.ResolvedRoute{Command: contract.Command(cmd), BoardID: board, TargetID: id}, contract.AuthenticatedActor{ActorID: actor})
+	i, e := T.FreezeMutation(b, contract.ResolvedRoute{Command: contract.Command(cmd), BoardID: board, TargetID: id}, contract.AuthenticatedActor{ActorID: actorID})
 	if e != nil {
 		t.Fatal(e)
 	}

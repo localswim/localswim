@@ -1,6 +1,6 @@
 # Storage ownership boundary
 
-This package is the version-nine physical schema/open boundary. It uses the Q02 qualified
+This package is the version-twelve physical schema/open boundary. It uses the Q02 qualified
 `database/sql` binding on native Windows/amd64 and a fixed local NTFS drive.
 It does not implement domain admission, permissions, outcome reconciliation,
 history clearing, restore, HTTP or CLI behavior.
@@ -29,9 +29,11 @@ garbage collection or database mutation. Inspection establishes neither online
 authorization nor a complete logical/native archive-inventory proof; its caller
 must retain wider offline ownership and perform that proof inside the callback.
 
-Physical layout9 is distinct from the immutable base-schema marker5. Existing
-never migrates/repairs. Explicit offline exact5->6 then6->7 then7->8 then8->9 upgrades require existing-only
-native path/identity/exclusion and one validated transaction. Read-only inspect
+Physical layout 12 is distinct from the immutable base-schema marker 5. Existing
+stores require explicit offline adjacent upgrades from physical 5 through 12.
+Each upgrade checks native path, identity and exclusion, then applies the change
+in one validated transaction. The 11→12 step adds the empty cover table and
+conserves all prior records. Read-only inspect
 reports physical/base versions separately. Unknown/corrupt/dirty-sidecar sources
 refuse unchanged; post-commit cleanup/inspection/delivery uncertainty remains
 UNKNOWN, never definite refusal. API/archive/fingerprint versions stay1 with

@@ -58,6 +58,15 @@ func (s *Service) Admit(ctx context.Context, r writer.Read, i contract.Intent) (
 		return deny("FORBIDDEN"), nil
 	}
 	rights := commandRights(e.Command)
+	if e.Command == "card.edit" {
+		in, err := i.Input()
+		if err != nil {
+			return deny("INVALID_INPUT"), nil
+		}
+		if in.(*contract.EditInput).CoverAttachmentID.Present {
+			rights = commandRights("attachment.add")
+		}
+	}
 	if rights == nil {
 		return deny("FORBIDDEN"), nil
 	}

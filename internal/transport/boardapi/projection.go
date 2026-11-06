@@ -1,8 +1,10 @@
 package boardapi
 
 import (
+	"cmp"
 	"database/sql"
 	"errors"
+	"slices"
 
 	"github.com/localswim/localswim/internal/board/policy"
 	A "github.com/localswim/localswim/internal/contract/archive"
@@ -91,12 +93,12 @@ func project(r writer.Read, q route) (any, error) {
 	if e != nil {
 		return nil, e
 	}
-	e = rows(r, `SELECT c.card_id,t.ticket,c.revision,c.title,c.description,c.priority,c.lane,c.workflow_policy_version,c.archived,c.current_approval_id,c.owner_id,e.origin_board,e.origin_incarnation,p.parent_id FROM card c JOIN ticket t USING(incarnation,card_id) JOIN entity e ON e.incarnation=c.incarnation AND e.kind='card' AND e.entity_id=c.card_id LEFT JOIN card_parent p ON p.incarnation=c.incarnation AND p.child_id=c.card_id WHERE c.incarnation=? ORDER BY t.ticket,c.card_id`, []any{inc}, func(rs *sql.Rows) error {
+	e = rows(r, `SELECT c.card_id,t.ticket,c.revision,c.title,c.description,c.priority,c.lane,c.workflow_policy_version,c.archived,c.current_approval_id,c.owner_id,e.origin_board,e.origin_incarnation,p.parent_id,cover.attachment_id FROM card c JOIN ticket t USING(incarnation,card_id) JOIN entity e ON e.incarnation=c.incarnation AND e.kind='card' AND e.entity_id=c.card_id LEFT JOIN card_parent p ON p.incarnation=c.incarnation AND p.child_id=c.card_id LEFT JOIN card_cover cover ON cover.incarnation=c.incarnation AND cover.card_id=c.card_id WHERE c.incarnation=? ORDER BY t.ticket,c.card_id`, []any{inc}, func(rs *sql.Rows) error {
 		var c A.Card
-		var approval, owner, parent sql.NullString
+		var approval, owner, parent, cover sql.NullString
 		var archived int
 		var pin sql.NullInt64
-		e := rs.Scan(&c.CardID, &c.Ticket, &c.Revision, &c.Title, &c.Description, &c.Priority, &c.Lane, &pin, &archived, &approval, &owner, &c.CreatedIn.BoardID, &c.CreatedIn.Incarnation, &parent)
+		e := rs.Scan(&c.CardID, &c.Ticket, &c.Revision, &c.Title, &c.Description, &c.Priority, &c.Lane, &pin, &archived, &approval, &owner, &c.CreatedIn.BoardID, &c.CreatedIn.Incarnation, &parent, &cover)
 		if q.card != "" && string(c.CardID) != q.card {
 			return e
 		}
@@ -110,6 +112,7 @@ func project(r writer.Read, q route) (any, error) {
 		}
 		c.CurrentApprovalID = uuidPtr(approval)
 		c.OwnerID = uuidPtr(owner)
+		c.CoverAttachmentID = uuidPtr(cover)
 		if q.kind != "history" && c.OwnerID != nil {
 			p.actors[*c.OwnerID] = true
 		}
@@ -173,7 +176,17 @@ func project(r writer.Read, q route) (any, error) {
 		return nil, e
 	}
 	if q.kind == "history" {
+		for _, record := range p.records {
+			if record.State != nil && !p.validCover(record.CardID, record.State.CoverAttachmentID, record.References.AttachmentIDs) {
+				return nil, ErrUnavailable
+			}
+		}
 		return T.HistoryRead{APIVersion: 1, Scope: "history", Result: T.HistoryView{Workflow: p.board.Workflow, WorkflowPolicies: p.board.WorkflowPolicies, Identity: p.board.Identity, Revision: p.board.Revision, CardID: A.UUID(q.card), CardRevision: p.board.Cards[0].Revision, Coverage: p.board.Coverage, Records: p.records, Actors: p.board.Actors, Comments: p.board.Comments, Links: p.board.Links, Attachments: p.board.Attachments, Approvals: p.board.Approvals, Tombstones: p.tombstones}}, nil
+	}
+	for _, card := range p.board.Cards {
+		if !p.validCover(card.CardID, card.CoverAttachmentID, card.AttachmentIDs) {
+			return nil, ErrUnavailable
+		}
 	}
 	if q.kind == "card" {
 		refs := []T.HistoryReference{}
@@ -189,6 +202,21 @@ func project(r writer.Read, q route) (any, error) {
 		return T.CardRead{APIVersion: 1, Scope: "card", Result: T.CardView{Workflow: p.board.Workflow, WorkflowPolicies: p.board.WorkflowPolicies, Identity: p.board.Identity, Revision: p.board.Revision, Card: p.board.Cards[0], Actors: p.board.Actors, Comments: p.board.Comments, Links: p.board.Links, Attachments: p.board.Attachments, Approvals: p.board.Approvals, HistoryReferences: refs, Coverage: p.board.Coverage}}, nil
 	}
 	return T.BoardRead{APIVersion: 1, Scope: "board", Result: p.board}, nil
+}
+
+// Both lists are projected in attachment UUID order. Check the exact reference
+// list first, then require the full row for that same card.
+func (p *projection) validCover(card A.UUID, cover *A.UUID, refs []A.UUID) bool {
+	if cover == nil {
+		return true
+	}
+	if _, found := slices.BinarySearch(refs, *cover); !found || A.Validate(*cover) != nil {
+		return false
+	}
+	i, found := slices.BinarySearchFunc(p.board.Attachments, *cover, func(a A.Attachment, id A.UUID) int {
+		return cmp.Compare(a.AttachmentID, id)
+	})
+	return found && p.board.Attachments[i].CardID == card
 }
 
 func (p *projection) history(r writer.Read, inc, card string) error {

@@ -452,6 +452,13 @@
           "uniqueItems": true,
           "x-order": "ASCII ascending"
         },
+        "coverAttachmentId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
         "createdIn": {
           "$ref": "#/$defs/Identity"
         },
@@ -1926,187 +1933,230 @@
           "type": "string"
         },
         "payload": {
-          "additionalProperties": false,
-          "properties": {
-            "archived": {
-              "type": "boolean"
-            },
-            "description": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "x-max-utf8-bytes": 65536
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "archived": {
+                  "type": "boolean"
                 },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "lane": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "In Progress"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "laneId": {
-              "type": "string"
-            },
-            "ownerId": {
-              "anyOf": [
-                {
-                  "not": {
-                    "const": "00000000-0000-0000-0000-000000000000"
-                  },
-                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "parent": {
-              "anyOf": [
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "boardId": {
-                      "not": {
-                        "const": "00000000-0000-0000-0000-000000000000"
-                      },
-                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                      "type": "string"
+                "description": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "x-max-utf8-bytes": 65536
                     },
-                    "cardId": {
-                      "not": {
-                        "const": "00000000-0000-0000-0000-000000000000"
-                      },
-                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                      "type": "string"
-                    },
-                    "incarnation": {
-                      "not": {
-                        "const": "00000000-0000-0000-0000-000000000000"
-                      },
-                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                      "type": "string"
+                    {
+                      "type": "null"
                     }
-                  },
-                  "required": [
-                    "boardId",
-                    "cardId",
-                    "incarnation"
-                  ],
-                  "type": "object"
+                  ]
                 },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "priority": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "P0",
-                    "P1",
-                    "P2",
-                    "P3",
-                    "P4",
-                    "P5"
-                  ],
+                "lane": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "In Progress"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "laneId": {
                   "type": "string"
                 },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "relationships": {
-              "items": {
-                "additionalProperties": false,
-                "properties": {
-                  "kind": {
-                    "enum": [
-                      "blocking",
-                      "informational",
-                      "related",
-                      "reference",
-                      "duplicate"
-                    ],
-                    "type": "string"
-                  },
-                  "target": {
+                "ownerId": {
+                  "anyOf": [
+                    {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "parent": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "boardId": {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        "cardId": {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        },
+                        "incarnation": {
+                          "not": {
+                            "const": "00000000-0000-0000-0000-000000000000"
+                          },
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "boardId",
+                        "cardId",
+                        "incarnation"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "priority": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "P0",
+                        "P1",
+                        "P2",
+                        "P3",
+                        "P4",
+                        "P5"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "relationships": {
+                  "items": {
                     "additionalProperties": false,
                     "properties": {
-                      "boardId": {
-                        "not": {
-                          "const": "00000000-0000-0000-0000-000000000000"
-                        },
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "kind": {
+                        "enum": [
+                          "blocking",
+                          "informational",
+                          "related",
+                          "reference",
+                          "duplicate"
+                        ],
                         "type": "string"
                       },
-                      "cardId": {
-                        "not": {
-                          "const": "00000000-0000-0000-0000-000000000000"
+                      "target": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "boardId": {
+                            "not": {
+                              "const": "00000000-0000-0000-0000-000000000000"
+                            },
+                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                            "type": "string"
+                          },
+                          "cardId": {
+                            "not": {
+                              "const": "00000000-0000-0000-0000-000000000000"
+                            },
+                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                            "type": "string"
+                          },
+                          "incarnation": {
+                            "not": {
+                              "const": "00000000-0000-0000-0000-000000000000"
+                            },
+                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                            "type": "string"
+                          }
                         },
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "type": "string"
-                      },
-                      "incarnation": {
-                        "not": {
-                          "const": "00000000-0000-0000-0000-000000000000"
-                        },
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "type": "string"
+                        "required": [
+                          "boardId",
+                          "cardId",
+                          "incarnation"
+                        ],
+                        "type": "object"
                       }
                     },
                     "required": [
-                      "boardId",
-                      "cardId",
-                      "incarnation"
+                      "kind",
+                      "target"
                     ],
                     "type": "object"
-                  }
+                  },
+                  "maxItems": 100,
+                  "type": "array",
+                  "uniqueItems": true
                 },
-                "required": [
-                  "kind",
-                  "target"
-                ],
-                "type": "object"
+                "title": {
+                  "anyOf": [
+                    {
+                      "maxLength": 200,
+                      "minLength": 1,
+                      "type": "string",
+                      "x-nonblank": true
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
               },
-              "maxItems": 100,
-              "type": "array",
-              "uniqueItems": true
+              "required": [
+                "description",
+                "lane",
+                "priority",
+                "title"
+              ],
+              "type": "object"
             },
-            "title": {
-              "anyOf": [
-                {
-                  "maxLength": 200,
-                  "minLength": 1,
-                  "type": "string",
-                  "x-nonblank": true
+            {
+              "additionalProperties": false,
+              "properties": {
+                "coverAttachmentId": {
+                  "anyOf": [
+                    {
+                      "not": {
+                        "const": "00000000-0000-0000-0000-000000000000"
+                      },
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                {
+                "description": {
+                  "type": "null"
+                },
+                "lane": {
+                  "type": "null"
+                },
+                "priority": {
+                  "type": "null"
+                },
+                "title": {
                   "type": "null"
                 }
-              ]
+              },
+              "required": [
+                "coverAttachmentId",
+                "description",
+                "lane",
+                "priority",
+                "title"
+              ],
+              "type": "object"
             }
-          },
-          "required": [
-            "description",
-            "lane",
-            "priority",
-            "title"
-          ],
-          "type": "object"
+          ]
         },
         "target": {
           "additionalProperties": false,
@@ -4338,6 +4388,13 @@
       "properties": {
         "archived": {
           "type": "boolean"
+        },
+        "coverAttachmentId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
         },
         "currentApprovalId": {
           "anyOf": [

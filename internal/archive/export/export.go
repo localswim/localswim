@@ -12,7 +12,9 @@ import (
 	"io"
 	"sort"
 
+	"github.com/localswim/localswim/internal/archive/cover"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	"github.com/localswim/localswim/internal/coverimage"
 	S "github.com/localswim/localswim/internal/store/open"
 	"github.com/localswim/localswim/internal/store/recovery"
 	"github.com/localswim/localswim/internal/store/writer"
@@ -249,6 +251,7 @@ func assemble(ctx context.Context, b A.Board, h A.History, a A.Activity, o A.Out
 			return nil, e
 		}
 	}
+	coverPaths := cover.BlobPaths(b, h)
 	for _, f := range facts {
 		if e = ctx.Err(); e != nil {
 			return nil, e
@@ -260,7 +263,11 @@ func assemble(ctx context.Context, b A.Board, h A.History, a A.Activity, o A.Out
 		if uint64(len(data)) != uint64(f.ByteLength) || digest(data) != f.SHA256 {
 			return nil, errors.New("protected blob integrity failure")
 		}
-		p.members = append(p.members, member{"blobs/sha256-" + string(f.SHA256), data})
+		path := "blobs/sha256-" + string(f.SHA256)
+		if coverPaths[path] && !coverimage.Eligible(data) {
+			return nil, errors.New("invalid protected cover bytes")
+		}
+		p.members = append(p.members, member{path, data})
 	}
 	p.members = append(p.members, member{"COMPLETE", []byte(string(p.digest) + "\n")})
 	return p, nil

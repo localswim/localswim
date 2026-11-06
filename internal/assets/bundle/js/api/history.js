@@ -119,6 +119,9 @@ export function validateHistoryRead(history) {
                 invalid();
         }
         const refs = row.references;
+        const cover = row.state?.coverAttachmentId;
+        if (cover !== undefined && !refs.attachmentIds.includes(cover))
+            invalid();
         for (const [kind, ids] of [["comment", refs.commentIds], ["link", refs.linkIds],
             ["attachment", refs.attachmentIds], ["approval", refs.approvalIds]]) {
             ordered(ids, id => id);
@@ -168,6 +171,8 @@ export function validateCardRead(card) {
     if (!laneRole(current.lane, workflowAtVersion(view.workflow, view.workflowPolicies, current.workflowPolicyVersion)))
         invalid();
     if (view.revision === 0 || current.createdIn.boardId !== boardId)
+        invalid();
+    if (current.coverAttachmentId !== undefined && !current.attachmentIds.includes(current.coverAttachmentId))
         invalid();
     if (Object.hasOwn(current, "parent")) {
         const parent = current.parent;

@@ -43,12 +43,14 @@ func validateSupported(ctx context.Context, c *sql.Conn, id schema.Identity) err
 	case 10:
 		return schema.ValidateV10(ctx, c, id)
 	case 11:
+		return schema.ValidateV11(ctx, c, id)
+	case schema.Version:
 		return schema.Validate(ctx, c, id)
 	}
 	return errors.New("unsupported physical layout")
 }
 
-// InspectStorage is existing-only and accepts exactly the independently frozen5/6/7/8/9/10 or current11 layout.
+// InspectStorage is existing-only and accepts the exact frozen or current layouts.
 func InspectStorage(ctx context.Context, dir string, id schema.Identity) (out StorageInspection, err error) {
 	out.BoardID = id.BoardID
 	out.Incarnation = id.Incarnation
@@ -94,7 +96,7 @@ func UpgradeStorageTo(ctx context.Context, dir string, id schema.Identity, from,
 // SupportedUpgradeStep reports the explicit adjacent storage upgrades accepted
 // by both the native store and its application adapters.
 func SupportedUpgradeStep(from, to int) bool {
-	return from == 5 && to == 6 || from == 6 && to == 7 || from == 7 && to == 8 || from == 8 && to == 9 || from == 9 && to == 10 || from == 10 && to == 11
+	return from >= 5 && from <= 11 && to == from+1
 }
 
 // fault is a private deterministic test seam; a failure at committed means reply
@@ -227,6 +229,10 @@ func upgradeStorageStep(ctx context.Context, dir string, id schema.Identity, fro
 		if err = rebuildPolicies(ctx, c, inject); err != nil {
 			return false, err
 		}
+	} else if from == 11 {
+		if _, err = c.ExecContext(ctx, schema.CoverStatement()); err != nil {
+			return false, err
+		}
 	}
 	if err = inject("ddl"); err != nil {
 		return false, err
@@ -240,9 +246,8 @@ func upgradeStorageStep(ctx context.Context, dir string, id schema.Identity, fro
 	if err = validateSupported(ctx, c, id); err != nil {
 		return false, err
 	}
-	// Recheck all conserved typed rows after candidate validation. The only added
-	// table in5->6 is empty;6->7 preserves the entire row stream including rowids.
-	conserved, e := recordsDigestUpgrade(ctx, c, from == 5, from == 7, from == 8)
+	// Recheck all conserved typed rows and rowids after candidate validation.
+	conserved, e := recordsDigestUpgrade(ctx, c, from)
 	if e != nil || conserved != before {
 		return false, errors.New("storage upgrade changed retained records")
 	}
@@ -293,15 +298,19 @@ func rebuildLinks(ctx context.Context, c *sql.Conn, inject func(string) error) e
 // Freeze every baseline table row and SQLite scalar/blob type. Layout checks
 // freeze DDL separately; this proves the preflight snapshot was not replaced.
 func recordsDigest(ctx context.Context, c *sql.Conn) ([32]byte, error) {
-	return recordsDigestExcept(ctx, c, false)
+	return recordsDigestUpgrade(ctx, c, 0)
 }
-func recordsDigestExcept(ctx context.Context, c *sql.Conn, emptyHierarchy bool) ([32]byte, error) {
-	return recordsDigestExcluding(ctx, c, emptyHierarchy, false)
-}
-func recordsDigestExcluding(ctx context.Context, c *sql.Conn, emptyHierarchy, emptyWorkflow bool) ([32]byte, error) {
-	return recordsDigestUpgrade(ctx, c, emptyHierarchy, emptyWorkflow, false)
-}
-func recordsDigestUpgrade(ctx context.Context, c *sql.Conn, emptyHierarchy, emptyWorkflow, policyUpgrade bool) ([32]byte, error) {
+func recordsDigestUpgrade(ctx context.Context, c *sql.Conn, from int) ([32]byte, error) {
+	var newEmptyTable string
+	switch from {
+	case 5:
+		newEmptyTable = "card_parent"
+	case 7:
+		newEmptyTable = "workflow_definition"
+	case 11:
+		newEmptyTable = "card_cover"
+	}
+	policyUpgrade := from == 8
 	var zero [32]byte
 	rows, err := c.QueryContext(ctx, "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT GLOB 'sqlite_*' ORDER BY name")
 	if err != nil {
@@ -323,7 +332,7 @@ func recordsDigestUpgrade(ctx context.Context, c *sql.Conn, emptyHierarchy, empt
 	}
 	h := sha256.New()
 	for _, table := range tables {
-		if emptyHierarchy && table == "card_parent" || emptyWorkflow && table == "workflow_definition" {
+		if table == newEmptyTable {
 			var count int
 			if err := c.QueryRowContext(ctx, `SELECT count(*) FROM "`+table+`"`).Scan(&count); err != nil || count != 0 {
 				return zero, errors.New("new extension table is not empty")
@@ -561,7 +570,7 @@ func rebuildDetach(ctx context.Context, c *sql.Conn, inject func(string) error) 
 			return err
 		}
 	}
-	statements := schema.Statements()
+	statements := schema.StatementsV11()
 	for _, q := range statements {
 		for _, table := range tables {
 			if strings.HasPrefix(q, "CREATE TABLE "+table+" (") {

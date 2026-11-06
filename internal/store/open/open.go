@@ -121,7 +121,7 @@ func startWorkflow(ctx context.Context, dir string, id schema.Identity, create b
 	if err = schema.Validate(ctx, c, id); err != nil {
 		// Only an independently validated older layout earns actionable upgrade advice.
 		var v int
-		if c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v) == nil && (v == 5 || v == 6 || v == 7 || v == 8 || v == 9 || v == 10) && validateSupported(ctx, c, id) == nil {
+		if c.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v) == nil && SupportedUpgradeStep(v, v+1) && validateSupported(ctx, c, id) == nil {
 			return nil, &UpgradeRequiredError{From: v, To: v + 1}
 		}
 		return nil, err

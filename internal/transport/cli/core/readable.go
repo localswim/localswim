@@ -85,7 +85,7 @@ func focusedRead(value any) (string, bool) {
 		writeWorkflow(&out, b.Workflow)
 		c := b.Card
 		fmt.Fprintf(&out, "Committed current card #%d: %s\nCard UUID: %s\nBoard/incarnation: %s\nBoard revision: %d; card revision: %d\nCreated in: %s\n", c.Ticket, advisoryText(c.Title), c.CardID, originText(b.Identity), b.Revision, c.Revision, originText(c.CreatedIn))
-		writeState(&out, c.Description, A.Lane(laneText(b.Workflow, c.Lane)), c.Priority, c.Archived, c.OwnerID, c.CurrentApprovalID, b.Actors)
+		writeState(&out, c.Description, A.Lane(laneText(b.Workflow, c.Lane)), c.Priority, c.Archived, c.OwnerID, c.CurrentApprovalID, c.CoverAttachmentID, b.Actors)
 		writeFacts(&out, b.Actors, b.Comments, b.Links, b.Attachments, b.Approvals)
 		refs := append([]T.HistoryReference(nil), b.HistoryReferences...)
 		sort.Slice(refs, func(i, j int) bool {
@@ -118,7 +118,7 @@ func focusedRead(value any) (string, bool) {
 					pin = *s.WorkflowPolicyVersion
 				}
 				fmt.Fprintf(&out, "Recorded workflow policy %d\n", pin)
-				writeState(&out, s.Description, A.Lane(laneText(historicalWorkflow(b.Workflow, b.WorkflowPolicies, s.WorkflowPolicyVersion), s.Lane)), s.Priority, s.Archived, s.OwnerID, s.CurrentApprovalID, b.Actors)
+				writeState(&out, s.Description, A.Lane(laneText(historicalWorkflow(b.Workflow, b.WorkflowPolicies, s.WorkflowPolicyVersion), s.Lane)), s.Priority, s.Archived, s.OwnerID, s.CurrentApprovalID, s.CoverAttachmentID, b.Actors)
 			} else {
 				out.WriteString("Old state text unavailable.\n")
 			}
@@ -197,12 +197,17 @@ func writeProse(out *strings.Builder, label, text string) {
 		fmt.Fprintf(out, "  | %s\n", advisoryText(line))
 	}
 }
-func writeState(out *strings.Builder, description string, lane A.Lane, priority A.Priority, archived bool, owner, approval *A.UUID, actors []A.Actor) {
+func writeState(out *strings.Builder, description string, lane A.Lane, priority A.Priority, archived bool, owner, approval, cover *A.UUID, actors []A.Actor) {
 	fmt.Fprintf(out, "Lane: %s; explicit priority: %s; archived: %t\nOwner: %s\nCurrent approval ID: ", lane, priority, archived, optionalActor(owner, actors))
 	if approval == nil {
 		out.WriteString("none\n")
 	} else {
 		fmt.Fprintf(out, "%s\n", *approval)
+	}
+	if cover == nil {
+		out.WriteString("Cover attachment ID: unset\n")
+	} else {
+		fmt.Fprintf(out, "Cover attachment ID: %s\n", *cover)
 	}
 	writeProse(out, "Description", description)
 }

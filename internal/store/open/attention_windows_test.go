@@ -43,18 +43,15 @@ func TestAttentionUpgradeConservesEveryTypedRowAndRequiresExplicitStep(t *testin
 		if changed, err := UpgradeStorageTo(ctx(t), p, identity, 9, 10); err != nil || changed {
 			t.Fatal("repeat", err)
 		}
+		assertPredecessorRefuses(t, p, schema.ValidateV9, schema.ValidateV10)
 		if changed, err := UpgradeStorageTo(ctx(t), p, identity, 10, 11); err != nil || !changed {
 			t.Fatal(err)
 		}
+		advanceCoverLayout(t, p)
 		s, err := Existing(ctx(t), p, identity)
 		if err != nil {
 			t.Fatal(err)
 		}
-		withWriter(t, s, func(c *sql.Conn) {
-			if schema.ValidateV9(ctx(t), c, identity) == nil {
-				t.Fatal("old reader accepted10")
-			}
-		})
 		if err = s.Close(); err != nil {
 			t.Fatal(err)
 		}
@@ -184,6 +181,7 @@ func TestFrozenNineRealOriginalConservation(t *testing.T) {
 	if _, err := UpgradeStorageTo(ctx(t), p, identity, 10, 11); err != nil {
 		t.Fatal(err)
 	}
+	advanceCoverLayout(t, p)
 	if err := InspectExisting(ctx(t), p, identity, func(r InspectionRead) error {
 		var raw []byte
 		var fingerprint string

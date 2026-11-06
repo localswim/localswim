@@ -10,7 +10,9 @@ import (
 	"errors"
 	"io"
 
+	"github.com/localswim/localswim/internal/archive/cover"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	"github.com/localswim/localswim/internal/coverimage"
 )
 
 const (
@@ -202,6 +204,15 @@ func documents(ctx context.Context, ms []member) error {
 	_, e = A.ValidateDocuments(m, b, h, a, o)
 	if e != nil {
 		return ErrInvalid
+	}
+	coverPaths := cover.BlobPaths(b, h)
+	for _, member := range ms[5 : len(ms)-1] {
+		if e := ctx.Err(); e != nil {
+			return e
+		}
+		if coverPaths[member.name] && !coverimage.Eligible(member.data) {
+			return ErrInvalid
+		}
 	}
 	return nil
 }

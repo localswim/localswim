@@ -23,6 +23,19 @@ func (o *OwnerInput) UnmarshalJSON(b []byte) error {
 func (o OwnerInput) IsZero() bool                 { return !o.Present }
 func (o OwnerInput) MarshalJSON() ([]byte, error) { return json.Marshal(o.Value) }
 
+// CoverInput preserves omission versus explicit null (clear the choice).
+type CoverInput struct {
+	Present bool
+	Value   *string
+}
+
+func (c *CoverInput) UnmarshalJSON(b []byte) error {
+	c.Present = true
+	return json.Unmarshal(b, &c.Value)
+}
+func (c CoverInput) IsZero() bool                 { return !c.Present }
+func (c CoverInput) MarshalJSON() ([]byte, error) { return json.Marshal(c.Value) }
+
 // CardRef is an exact current or historical card identity, never a ticket.
 type CardRef struct {
 	BoardID     string `json:"boardId"`
@@ -64,15 +77,16 @@ type CreateInput struct {
 	Priority      *string           `json:"priority"`
 }
 type EditInput struct {
-	Relationships RelationshipSpecs `json:"relationships,omitzero"`
-	Parent        ParentInput       `json:"parent,omitzero"`
-	OwnerID       OwnerInput        `json:"ownerId,omitzero"`
-	Archived      *bool             `json:"archived,omitempty"`
-	Title         *string           `json:"title"`
-	Description   *string           `json:"description"`
-	Priority      *string           `json:"priority"`
-	Lane          *string           `json:"lane"`
-	LaneID        *string           `json:"laneId,omitempty"`
+	CoverAttachmentID CoverInput        `json:"coverAttachmentId,omitzero"`
+	Relationships     RelationshipSpecs `json:"relationships,omitzero"`
+	Parent            ParentInput       `json:"parent,omitzero"`
+	OwnerID           OwnerInput        `json:"ownerId,omitzero"`
+	Archived          *bool             `json:"archived,omitempty"`
+	Title             *string           `json:"title"`
+	Description       *string           `json:"description"`
+	Priority          *string           `json:"priority"`
+	Lane              *string           `json:"lane"`
+	LaneID            *string           `json:"laneId,omitempty"`
 }
 type CommentInput struct {
 	Text string `json:"text"`

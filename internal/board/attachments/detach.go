@@ -96,6 +96,8 @@ func (s *Service) Detach(ctx context.Context, g *grants.Service, route Route, i 
 		if e = exec("DELETE FROM current_attachment_pin WHERE incarnation=? AND attachment_id=?", route.Incarnation, p.AttachmentID); e != nil {
 			return writer.Effect{}, e
 		}
+		// The exact-reference FK clears this card's cover only if it names
+		// this attachment. The prior choice and pins are already captured.
 		if e = exec("DELETE FROM current_reference WHERE incarnation=? AND card_id=? AND kind='attachment' AND entity_id=?", route.Incarnation, route.CardID, p.AttachmentID); e != nil {
 			return writer.Effect{}, e
 		}

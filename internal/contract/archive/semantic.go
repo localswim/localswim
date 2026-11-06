@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -135,6 +136,10 @@ func semantics(v reflect.Value) error {
 				return err
 			}
 		}
+	case Card:
+		if x.CoverAttachmentID != nil && !slices.Contains(x.AttachmentIDs, *x.CoverAttachmentID) {
+			return fmt.Errorf("card cover attachment reference")
+		}
 	case ByteFact:
 		if x.ByteLength > 10485760 {
 			return fmt.Errorf("byte fact length")
@@ -157,6 +162,9 @@ func semantics(v reflect.Value) error {
 		}
 		if (x.State == nil) == (x.Removal == nil) {
 			return fmt.Errorf("snapshot availability")
+		}
+		if x.State != nil && x.State.CoverAttachmentID != nil && !slices.Contains(x.References.AttachmentIDs, *x.State.CoverAttachmentID) {
+			return fmt.Errorf("snapshot cover attachment reference")
 		}
 	case Event:
 		found := x.Type == "recovery.expire"

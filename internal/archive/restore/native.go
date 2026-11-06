@@ -9,9 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/localswim/localswim/internal/archive/cover"
 	E "github.com/localswim/localswim/internal/archive/export"
 	V "github.com/localswim/localswim/internal/archive/validate"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	"github.com/localswim/localswim/internal/coverimage"
 	S "github.com/localswim/localswim/internal/store/open"
 	"github.com/localswim/localswim/internal/store/schema"
 	"github.com/localswim/localswim/internal/store/writer"
@@ -260,6 +262,7 @@ func projectRead(r writer.Read, id A.Identity, revision A.Number, at A.Timestamp
 		if !bytes.Equal(a, b) {
 			return ErrInvalid
 		}
+		coverPaths := cover.BlobPaths(d.Board, d.History)
 		var blobTotal A.Number
 		for _, f := range facts {
 			if f.ByteLength > V.MaxBlobBytes || blobTotal > V.MaxBlobTotalBytes-f.ByteLength {
@@ -274,7 +277,11 @@ func projectRead(r writer.Read, id A.Identity, revision A.Number, at A.Timestamp
 			if e = r.Scan("SELECT bytes FROM blob WHERE incarnation=? AND sha256=? AND byte_length=? AND length(bytes)=?", []any{id.Incarnation, f.SHA256, f.ByteLength, actual}, &data); e != nil || len(data) != int(f.ByteLength) || hash(data) != f.SHA256 {
 				return ErrInvalid
 			}
-			p.members["blobs/sha256-"+string(f.SHA256)] = data
+			path := "blobs/sha256-" + string(f.SHA256)
+			if coverPaths[path] && !coverimage.Eligible(data) {
+				return ErrInvalid
+			}
+			p.members[path] = data
 		}
 		p.manifest = m
 		out = p
@@ -464,6 +471,11 @@ func (p *Prepared) insert(ctx context.Context, c *sql.Conn) error {
 						return e
 					}
 				}
+			}
+		}
+		if v.CoverAttachmentID != nil {
+			if e := put("card_cover", "incarnation,card_id,attachment_id", i, v.CardID, *v.CoverAttachmentID); e != nil {
+				return e
 			}
 		}
 	}

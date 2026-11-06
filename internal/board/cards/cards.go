@@ -33,6 +33,7 @@ type envelope struct {
 		Archived                                         *bool
 		Parent                                           contract.ParentInput        `json:"parent"`
 		OwnerID                                          contract.OwnerInput         `json:"ownerId"`
+		CoverAttachmentID                                contract.CoverInput         `json:"coverAttachmentId"`
 		Relationships                                    []contract.RelationshipSpec `json:"relationships"`
 	}
 }
@@ -42,7 +43,7 @@ func decode(i contract.Intent) (envelope, error) {
 	err := json.Unmarshal(i.CanonicalBytes(), &e)
 	return e, err
 }
-func sameOwner(a *string, b *A.UUID) bool {
+func sameOptionalUUID(a *string, b *A.UUID) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
 	}
@@ -132,7 +133,11 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 		if A.WorkflowRole(w, A.Lane(lane)) == "completed" {
 			return deny("COMPLETED"), nil
 		}
-		if e.Command == "card.edit" {
+		if e.Payload.CoverAttachmentID.Present {
+			if d, err := admitCover(r, e, route.CardID); d != nil || err != nil {
+				return d, err
+			}
+		} else if e.Command == "card.edit" {
 			if w != nil && w.Profile != "default" && e.Payload.Lane != nil || w == nil && e.Payload.LaneID != nil {
 				return deny("INVALID_INPUT"), nil
 			}
@@ -169,7 +174,7 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 				}
 			}
 			changed = changed || e.Payload.Archived != nil && *e.Payload.Archived != current.Archived
-			changed = changed || e.Payload.OwnerID.Present && !sameOwner(e.Payload.OwnerID.Value, current.OwnerID)
+			changed = changed || e.Payload.OwnerID.Present && !sameOptionalUUID(e.Payload.OwnerID.Value, current.OwnerID)
 			for _, f := range []struct {
 				supplied *string
 				current  string
@@ -208,12 +213,16 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 		return nil, nil
 	}
 	return writer.Callbacks{Authority: s.grants.Authority, Admit: admit, Apply: func(ctx context.Context, w writer.Write, i contract.Intent, at A.Timestamp) (writer.Effect, error) {
-		if d, err := admit(ctx, w, i); err != nil || d != nil {
-			return writer.Effect{}, errors.New("card admission changed")
-		}
 		e, err := decode(i)
 		if err != nil {
 			return writer.Effect{}, err
+		}
+		// Cover admission already verified the candidate bytes in this same
+		// writer transaction. No intervening write changes their membership.
+		if !e.Payload.CoverAttachmentID.Present {
+			if d, err := admit(ctx, w, i); err != nil || d != nil {
+				return writer.Effect{}, errors.New("card admission changed")
+			}
 		}
 		var relationshipPlan relationships.Plan
 		if e.Payload.Relationships != nil {
@@ -282,6 +291,11 @@ func (s *Service) Callbacks(route Route) writer.Callbacks {
 				return writer.Effect{}, err
 			}
 			if e.Command == "card.edit" {
+				if e.Payload.CoverAttachmentID.Present {
+					if err = writeCover(w, e.Incarnation, id, e.Payload.CoverAttachmentID.Value); err != nil {
+						return writer.Effect{}, err
+					}
+				}
 				if e.Payload.Archived != nil {
 					if err = exec("UPDATE card SET archived=? WHERE incarnation=? AND card_id=?", *e.Payload.Archived, e.Incarnation, id); err != nil {
 						return writer.Effect{}, err

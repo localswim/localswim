@@ -1,18 +1,23 @@
-# Version-ten physical relational layout
+# Version-twelve physical relational layout
 
-Version and PRAGMA user_version are10; retained board.schema_version stays5
-as the immutable base-schema discriminator, including fresh physical9 stores.
-Validation checks both intended values and exact schema, not a header alone.
+Version and `PRAGMA user_version` are 12. `board.schema_version` remains 5
+as the immutable base-schema discriminator. Validation checks both values and
+the exact schema inventory.
 
 Layout6 adds card_parent and its parent index without rebuilding base tables or
 rewriting old rows. Roots have no edge; unique child/same-incarnation full-card
 foreign keys/self refusal protect adjacency. Go admission and full validation
 enforce acyclicity,64-edge/1,000-card family bounds (not total board-card limits).
 
-Ordinary open never migrates. Explicit offline exact5->6 then6->7 then7->8 then8->9 upgrades under existing-only
-native exclusion and one validated transaction preserves old rows/canonical bytes.
-Unknown layouts, corruption and dirty sidecars refuse without repair. API/archive/
-fingerprint versions stay1 with optional parent fields. See
+Ordinary open requires each supported adjacent upgrade from physical 5 through
+12 to run explicitly offline. The 11→12 step adds an empty `card_cover` table
+under existing-only native exclusion and preserves every old row, rowid and
+payload byte. Prior layouts refuse cover fields in full snapshots and original
+payloads. The current layout requires exact same-card attachment membership.
+Deleting a current attachment reference also clears its cover choice, while
+history validates each choice against its own origin and revision references.
+Unknown layouts, corruption and dirty sidecars refuse without repair. API,
+archive and fingerprint versions remain 1. See
 [the hierarchy guide](../../../docs/runbooks/m04-hierarchy.txt).
 
 The schema identifies a board and one storage incarnation. Every relation carries

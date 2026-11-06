@@ -22,12 +22,25 @@ func TestSupportedUpgradeSteps(t *testing.T) {
 	}{
 		{5, 6, true}, {6, 7, true}, {7, 8, true}, {8, 9, true},
 		{4, 5, false}, {5, 7, false}, {8, 8, false}, {8, 10, false}, {9, 10, true},
+		{10, 11, true}, {11, 12, true}, {11, 13, false}, {12, 13, false},
 	} {
 		t.Run(fmt.Sprintf("%d-%d", test.from, test.to), func(t *testing.T) {
 			if SupportedUpgradeStep(test.from, test.to) != test.allowed {
 				t.Fatal("unexpected supported upgrade step")
 			}
 		})
+	}
+}
+
+func assertPredecessorRefuses(t *testing.T, p string, predecessor, destination func(context.Context, *sql.Conn, schema.Identity) error) {
+	t.Helper()
+	if err := inspectExisting(ctx(t), p, identity, func(r InspectionRead) error {
+		if err := predecessor(ctx(t), r.(*inspectionReader).conn, identity); err == nil {
+			return errors.New("predecessor accepted adjacent destination")
+		}
+		return nil
+	}, destination); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -146,6 +159,7 @@ func TestHierarchyUpgradeRollbackConservationAndUnknown(t *testing.T) {
 	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 10, 11); e != nil || !changed {
 		t.Fatal(e)
 	}
+	advanceCoverLayout(t, p)
 	s, e := Existing(ctx(t), p, identity)
 	if e != nil {
 		t.Fatal(e)
@@ -257,7 +271,7 @@ func TestHierarchyUpgradePreservesOpaqueLegacyStates(t *testing.T) {
 			}
 			// Compare every typed baseline row; only the new empty hierarchy is excluded.
 			e = inspectExisting(ctx(t), p, identity, func(r InspectionRead) error {
-				after, err := recordsDigestExcept(ctx(t), r.(*inspectionReader).conn, true)
+				after, err := recordsDigestUpgrade(ctx(t), r.(*inspectionReader).conn, 5)
 				if err != nil || before != after {
 					t.Fatal("baseline rows changed", err)
 				}

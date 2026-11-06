@@ -19,6 +19,7 @@ func TestFrozenLayoutsRemainIndependent(t *testing.T) {
 		{"seven", frozenSeven, "a544db45d15621ee1a2ff574d32f9713eeb2f66f9d8df7d0f4fbffd6d7d898c1", StatementsV7},
 		{"nine", frozenNine, "c9f1346e1ea4a0d1534005649ade96352536eca35f59c8b667da94ac914f54c0", StatementsV9},
 		{"ten", frozenTen, "c9f1346e1ea4a0d1534005649ade96352536eca35f59c8b667da94ac914f54c0", StatementsV10},
+		{"eleven", frozenEleven, "d2e8d8f8b968d18482baf6b5349a5cd61c9a2a8e5bdc14dc665c8be5beb082ef", StatementsV11},
 		{"eight", frozenEight, "36dd653f214938aebbf92c4bb4ab4c760d67c0d2a59739e5c47bda77370af9f7", StatementsV8},
 	} {
 		t.Run(v.name, func(t *testing.T) {
@@ -32,14 +33,19 @@ func TestFrozenLayoutsRemainIndependent(t *testing.T) {
 				t.Fatal("shared mutable statements")
 			}
 			for _, q := range original {
-				if v.name != "seven" && v.name != "eight" && v.name != "nine" && v.name != "ten" && strings.Contains(q, "'related'") {
+				if (v.name == "five" || v.name == "six") && strings.Contains(q, "'related'") {
 					t.Fatal("new kinds inherited by frozen source")
 				}
 			}
 		})
 	}
-	if Version != 11 || BaseSchemaVersion != 5 {
+	if Version != 12 || BaseSchemaVersion != 5 {
 		t.Fatal("version domains changed")
+	}
+	previous := StatementsV11()
+	current := Statements()
+	if len(current) != len(previous)+1 || strings.Join(previous, "\n") != strings.Join(current[:len(previous)], "\n") || current[len(previous)] != CoverStatement() {
+		t.Fatal("cover layout changed the previous inventory")
 	}
 	link := strings.Join(LinkStatements(), "\n")
 	for _, kind := range []string{"blocking", "informational", "related", "reference", "duplicate"} {

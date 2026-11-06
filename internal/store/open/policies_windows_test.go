@@ -53,7 +53,7 @@ func policyUpgradeDigest(t *testing.T, p string) [32]byte {
 	var digest [32]byte
 	err := inspectExisting(ctx(t), p, identity, func(r InspectionRead) error {
 		var err error
-		digest, err = recordsDigestUpgrade(ctx(t), r.(*inspectionReader).conn, false, false, true)
+		digest, err = recordsDigestUpgrade(ctx(t), r.(*inspectionReader).conn, 8)
 		return err
 	}, validateSupported)
 	if err != nil {
@@ -85,20 +85,19 @@ func TestPolicyUpgradeConservesEveryTypedRowAndRequiresExplicitStep(t *testing.T
 			if changed, err := UpgradeStorageTo(ctx(t), p, identity, 8, 9); err != nil || changed {
 				t.Fatal("repeat was not no-change", err)
 			}
+			assertPredecessorRefuses(t, p, schema.ValidateV8, schema.ValidateV9)
 			if _, err := UpgradeStorageTo(ctx(t), p, identity, 9, 10); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := UpgradeStorageTo(ctx(t), p, identity, 10, 11); err != nil {
 				t.Fatal(err)
 			}
+			advanceCoverLayout(t, p)
 			s, err := Existing(ctx(t), p, identity)
 			if err != nil {
 				t.Fatal(err)
 			}
 			withWriter(t, s, func(c *sql.Conn) {
-				if err := schema.ValidateV8(ctx(t), c, identity); err == nil {
-					t.Fatal("frozen8 accepted9")
-				}
 				policies, err := schema.ReadWorkflowPolicies(ctx(t), c, identity)
 				if err != nil || len(policies) != 1 || (policies[0].Workflow != nil) != configured {
 					t.Fatal("initial policy", err)
@@ -200,10 +199,8 @@ func TestEditedDefaultPreservesOpaqueHistoryAndStrictCurrentPinOne(t *testing.T)
 		if err := schema.InstallWorkflowPolicies(ctx(t), c, identity, policies); err != nil {
 			t.Fatal(err)
 		}
-	}, schema.Validate)
-	if _, err := UpgradeStorageTo(ctx(t), p, identity, 10, 11); err != nil {
-		t.Fatal(err)
-	}
+	}, schema.ValidateV11)
+	advanceCoverLayout(t, p)
 	s, err := Existing(ctx(t), p, identity)
 	if err != nil {
 		t.Fatal(err)
@@ -266,6 +263,7 @@ func TestPolicyUpgradeRacingOwnersAndBadSchemaRefuseWithoutChanges(t *testing.T)
 	if _, err := UpgradeStorageTo(ctx(t), p, identity, 10, 11); err != nil {
 		t.Fatal(err)
 	}
+	advanceCoverLayout(t, p)
 	s, err := Existing(ctx(t), p, identity)
 	if err != nil {
 		t.Fatal(err)

@@ -14,9 +14,9 @@ import (
 func loadSnapshot(r writer.Read, e envelope, id string) (A.SnapshotState, error) {
 	var s A.SnapshotState
 	var archived int
-	var approval, owner, parent sql.NullString
+	var approval, owner, parent, cover sql.NullString
 	var pin sql.NullInt64
-	err := r.Scan(`SELECT t.ticket,c.title,c.description,c.priority,c.lane,c.archived,c.current_approval_id,c.owner_id,p.parent_id,c.workflow_policy_version FROM card c JOIN ticket t USING(incarnation,card_id) LEFT JOIN card_parent p ON p.incarnation=c.incarnation AND p.child_id=c.card_id WHERE c.incarnation=? AND c.card_id=?`, []any{e.Incarnation, id}, &s.Ticket, &s.Title, &s.Description, &s.Priority, &s.Lane, &archived, &approval, &owner, &parent, &pin)
+	err := r.Scan(`SELECT t.ticket,c.title,c.description,c.priority,c.lane,c.archived,c.current_approval_id,c.owner_id,p.parent_id,c.workflow_policy_version,cc.attachment_id FROM card c JOIN ticket t USING(incarnation,card_id) LEFT JOIN card_parent p ON p.incarnation=c.incarnation AND p.child_id=c.card_id LEFT JOIN card_cover cc ON cc.incarnation=c.incarnation AND cc.card_id=c.card_id WHERE c.incarnation=? AND c.card_id=?`, []any{e.Incarnation, id}, &s.Ticket, &s.Title, &s.Description, &s.Priority, &s.Lane, &archived, &approval, &owner, &parent, &pin, &cover)
 	s.Archived = archived != 0
 	if pin.Valid {
 		value := A.PolicyVersion(pin.Int64)
@@ -37,6 +37,10 @@ func loadSnapshot(r writer.Read, e envelope, id string) (A.SnapshotState, error)
 	if approval.Valid {
 		a := A.UUID(approval.String)
 		s.CurrentApprovalID = &a
+	}
+	if cover.Valid {
+		id := A.UUID(cover.String)
+		s.CoverAttachmentID = &id
 	}
 	if err != nil {
 		return s, err

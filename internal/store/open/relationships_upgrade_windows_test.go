@@ -120,6 +120,7 @@ func TestRelationshipUpgradeConservesCompleteTypedRows(t *testing.T) {
 		old.Close()
 		t.Fatal("startup accepted frozen7 without upgrade")
 	}
+	assertPredecessorRefuses(t, p, schema.ValidateV6, schema.ValidateV7)
 	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 7, 8); e != nil || !changed {
 		t.Fatal("explicit7->8", e)
 	}
@@ -132,15 +133,13 @@ func TestRelationshipUpgradeConservesCompleteTypedRows(t *testing.T) {
 	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 10, 11); e != nil || !changed {
 		t.Fatal(e)
 	}
+	advanceCoverLayout(t, p)
 	s, e := Existing(ctx(t), p, identity)
 	if e != nil {
 		t.Fatal(e)
 	}
 	defer s.Close()
 	withWriter(t, s, func(c *sql.Conn) {
-		if e := schema.ValidateV6(ctx(t), c, identity); e == nil {
-			t.Fatal("old6 validator accepted7")
-		}
 		execute(t, c, "BEGIN IMMEDIATE")
 		insert := func(id, owner, target, kind string, active int) {
 			execute(t, c, "INSERT INTO entity(incarnation,kind,entity_id,card_id,origin_board,origin_incarnation) VALUES(?,'link',?,?,?,?)", incarnation, id, owner, boardID, incarnation)

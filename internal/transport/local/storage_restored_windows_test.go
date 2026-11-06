@@ -42,7 +42,7 @@ func TestStorageRestoredPublicationLockIsValidatedAndPreserved(t *testing.T) {
 	expected := schema.Identity{BoardID: id.BoardID, Incarnation: id.Incarnation}
 	before := restoreHashes(t, destination)
 	inspect, changed, err := Storage(context.Background(), destination, expected, false)
-	if err != nil || changed || inspect.PhysicalVersion != 11 {
+	if err != nil || changed || inspect.PhysicalVersion != schema.Version {
 		t.Fatal("restored inspect", err)
 	}
 	if !reflect.DeepEqual(before, restoreHashes(t, destination)) {

@@ -151,6 +151,11 @@ type Engine struct {
 
 var errSourceAuthority = errors.New("source authority unavailable")
 
+// ErrIntegrity marks a confirmed integrity failure found by a transaction
+// callback. The writer rolls back, fences further writes and reconciles the
+// exact operation normally.
+var ErrIntegrity = errors.New("mutation storage integrity failure")
+
 func identityUnknown(o A.Operation, err error) Result {
 	if errors.Is(err, errSourceAuthority) {
 		return unknown(o, "SOURCE_AUTHORITY_UNAVAILABLE")
@@ -356,6 +361,9 @@ func (e *Engine) Submit(ctx context.Context, i contract.Intent, cb Callbacks) Re
 			}
 			return x
 		})
+		if errors.Is(err, ErrIntegrity) {
+			e.store.Fence()
+		}
 	}
 	closeErr := l.Close()
 	if direct != nil && err == nil && closeErr == nil {

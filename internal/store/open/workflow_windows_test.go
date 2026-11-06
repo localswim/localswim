@@ -52,7 +52,7 @@ func workflowDigest(t *testing.T, p string) [32]byte {
 	var digest [32]byte
 	err := inspectExisting(ctx(t), p, identity, func(r InspectionRead) error {
 		var e error
-		digest, e = recordsDigestExcluding(ctx(t), r.(*inspectionReader).conn, false, true)
+		digest, e = recordsDigestUpgrade(ctx(t), r.(*inspectionReader).conn, 7)
 		return e
 	}, schema.ValidateV8)
 	if err != nil {
@@ -85,6 +85,7 @@ func TestWorkflowUpgradeConservesExactRowsAndRequiresExplicitStep(t *testing.T) 
 	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 7, 8); e != nil || changed {
 		t.Fatal("matching8 not no-change", e)
 	}
+	assertPredecessorRefuses(t, p, schema.ValidateV7, schema.ValidateV8)
 	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 8, 9); e != nil || !changed {
 		t.Fatal("explicit8->9", e)
 	}
@@ -94,15 +95,13 @@ func TestWorkflowUpgradeConservesExactRowsAndRequiresExplicitStep(t *testing.T) 
 	if changed, e := UpgradeStorageTo(ctx(t), p, identity, 10, 11); e != nil || !changed {
 		t.Fatal(e)
 	}
+	advanceCoverLayout(t, p)
 	s, e := Existing(ctx(t), p, identity)
 	if e != nil {
 		t.Fatal(e)
 	}
 	defer s.Close()
 	withWriter(t, s, func(c *sql.Conn) {
-		if e := schema.ValidateV7(ctx(t), c, identity); e == nil {
-			t.Fatal("frozen7 accepted8")
-		}
 		w, e := schema.ReadWorkflow(ctx(t), c, identity)
 		if e != nil || w != nil {
 			t.Fatal("default fabricated workflow", e)

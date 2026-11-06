@@ -100,6 +100,8 @@ export function validateHistoryRead(history: HistoryRead): void {
       if (!validParentRef(parent, row.origin) || parent.cardId === row.cardId) invalid();
     }
     const refs = row.references;
+    const cover = row.state?.coverAttachmentId;
+    if (cover !== undefined && !refs.attachmentIds.includes(cover)) invalid();
     for (const [kind, ids] of [["comment", refs.commentIds], ["link", refs.linkIds],
       ["attachment", refs.attachmentIds], ["approval", refs.approvalIds]] as const) {
       ordered(ids, id => id);
@@ -141,6 +143,7 @@ export function validateCardRead(card: CardRead): void {
   if (view.workflow && (laneRole(current.lane, view.workflow) === "completed" ? !currentApprovalValid(current, view.workflow, view.workflowPolicies, view.actors, view.approvals) : current.currentApprovalId !== null)) invalid();
   if (!laneRole(current.lane, workflowAtVersion(view.workflow, view.workflowPolicies, current.workflowPolicyVersion))) invalid();
   if (view.revision === 0 || current.createdIn.boardId !== boardId) invalid();
+  if (current.coverAttachmentId !== undefined && !current.attachmentIds.includes(current.coverAttachmentId)) invalid();
   if (Object.hasOwn(current, "parent")) {
     const parent = (current as { parent?: unknown }).parent;
     if (!validParentRef(parent, view.identity) || parent.cardId === current.cardId) invalid();

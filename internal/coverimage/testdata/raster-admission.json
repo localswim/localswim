@@ -1,0 +1,347 @@
+[
+  {
+    "name": "empty",
+    "base64": "",
+    "header": null
+  },
+  {
+    "name": "svg",
+    "base64": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz4=",
+    "header": null
+  },
+  {
+    "name": "png-real",
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4byAAAANxAUBCPvq0AAAAAElFTkSuQmCC",
+    "header": {
+      "mime": "image/png",
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "name": "png-axis-and-area-limits",
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAEAAAAAQACAIAAADuUAud",
+    "header": {
+      "mime": "image/png",
+      "width": 4096,
+      "height": 1024
+    }
+  },
+  {
+    "name": "png-byte-limit",
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1Pe",
+    "zeroPaddedLength": 10485760,
+    "header": {
+      "mime": "image/png",
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "name": "png-over-byte-limit",
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1Pe",
+    "zeroPaddedLength": 10485761,
+    "header": null
+  },
+  {
+    "name": "png-signature-only",
+    "base64": "iVBORw0KGgo=",
+    "header": null
+  },
+  {
+    "name": "png-truncated-ihdr",
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1M=",
+    "header": null
+  },
+  {
+    "name": "png-wrong-first-chunk",
+    "base64": "iVBORw0KGgoAAAANSURBVAAAAAEAAAABCAIAAACQd1Pe",
+    "header": null
+  },
+  {
+    "name": "png-bad-crc",
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1Pf",
+    "header": null
+  },
+  {
+    "name": "png-illegal-depth-for-color",
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABBAIAAABVh77f",
+    "header": null
+  },
+  {
+    "name": "png-illegal-compression",
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIBAACRtTnp",
+    "header": null
+  },
+  {
+    "name": "png-zero-width",
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAAAAAAAABCAIAAAB/tTjg",
+    "header": null
+  },
+  {
+    "name": "png-uint32-overflow-dimensions",
+    "base64": "iVBORw0KGgoAAAANSUhEUv//////////CAIAAABdlLlp",
+    "header": null
+  },
+  {
+    "name": "png-over-axis-limit",
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAEAEAAAABCAIAAAA+gZcV",
+    "header": null
+  },
+  {
+    "name": "png-over-area-limit",
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAEAAAAAQBCAIAAAAlDNg4",
+    "header": null
+  },
+  {
+    "name": "jpeg-baseline-sof",
+    "base64": "/9j/4QAEGiv/wAALCAACAAMBAREA",
+    "header": {
+      "mime": "image/jpeg",
+      "width": 3,
+      "height": 2
+    }
+  },
+  {
+    "name": "jpeg-extended-sof",
+    "base64": "/9j/4QAEGiv/wQALDAACAAMBAREA",
+    "header": {
+      "mime": "image/jpeg",
+      "width": 3,
+      "height": 2
+    }
+  },
+  {
+    "name": "jpeg-progressive-sof",
+    "base64": "/9j/4QAEGiv/wgALCAACAAMBAREA",
+    "header": {
+      "mime": "image/jpeg",
+      "width": 3,
+      "height": 2
+    }
+  },
+  {
+    "name": "jpeg-signature-only",
+    "base64": "/9g=",
+    "header": null
+  },
+  {
+    "name": "jpeg-truncated-sof",
+    "base64": "/9j/4QAEGiv/wAALCAACAAMBARE=",
+    "header": null
+  },
+  {
+    "name": "jpeg-wrong-component-count",
+    "base64": "/9j/4QAEGiv/wAALCAACAAMCAREA",
+    "header": null
+  },
+  {
+    "name": "jpeg-invalid-precision",
+    "base64": "/9j/4QAEGiv/wAALDAACAAMBAREA",
+    "header": null
+  },
+  {
+    "name": "jpeg-unsupported-lossless-sof",
+    "base64": "/9j/4QAEGiv/wwALCAACAAMBAREA",
+    "header": null
+  },
+  {
+    "name": "jpeg-scan-before-sof",
+    "base64": "/9j/2gAC/8AACwgAAgADAQERAA==",
+    "header": null
+  },
+  {
+    "name": "jpeg-app-segment-out-of-bounds",
+    "base64": "/9j/4f///8AACwgAAgADAQERAA==",
+    "header": null
+  },
+  {
+    "name": "jpeg-zero-height",
+    "base64": "/9j/4QAEGiv/wAALCAAAAAMBAREA",
+    "header": null
+  },
+  {
+    "name": "jpeg-over-area-limit",
+    "base64": "/9j/4QAEGiv/wAALCAQBEAABAREA",
+    "header": null
+  },
+  {
+    "name": "gif87a-still",
+    "base64": "R0lGODdhAQABAIAAAAAAAP///ywAAAAAAQABAAACAkQBADs=",
+    "header": {
+      "mime": "image/gif",
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "name": "gif89a-two-frames",
+    "base64": "R0lGODlhAwACAIAAAAAAAP///ywAAAAAAQABAAACAkQBACwCAAEAAQABAAACAkQBADs=",
+    "header": {
+      "mime": "image/gif",
+      "width": 3,
+      "height": 2
+    }
+  },
+  {
+    "name": "gif89a-later-frame-outside-canvas",
+    "base64": "R0lGODlhAwACAIAAAAAAAP///ywAAAAAAQABAAACAkQBACwCAAAAAgABAAACAkQBADs=",
+    "header": null
+  },
+  {
+    "name": "gif89a-zero-frame-height",
+    "base64": "R0lGODlhAwACAIAAAAAAAP///ywAAAAAAQAAAAACAkQBADs=",
+    "header": null
+  },
+  {
+    "name": "gif89a-no-frame",
+    "base64": "R0lGODlhAwACAIAAAAAAAP///zs=",
+    "header": null
+  },
+  {
+    "name": "gif89a-truncated-color-table",
+    "base64": "R0lGODlhAwACAIAAAAAAAP//",
+    "header": null
+  },
+  {
+    "name": "gif89a-truncated-local-color-table",
+    "base64": "R0lGODlhAwACAIAAAAAAAP///ywAAAAAAQABAIACAkQBADs=",
+    "header": null
+  },
+  {
+    "name": "gif89a-truncated-image-sub-block",
+    "base64": "R0lGODlhAwACAIAAAAAAAP///ywAAAAAAQABAAACAkQ7",
+    "header": null
+  },
+  {
+    "name": "gif89a-missing-trailer",
+    "base64": "R0lGODlhAwACAIAAAAAAAP///ywAAAAAAQABAAACAkQBAA==",
+    "header": null
+  },
+  {
+    "name": "gif89a-over-axis-limit",
+    "base64": "R0lGODlhARABAIAAAAAAAP///ywAAAAAAQABAAACAkQBADs=",
+    "header": null
+  },
+  {
+    "name": "webp-vp8",
+    "base64": "UklGRhYAAABXRUJQVlA4IAoAAAAQAACdASoDAAIA",
+    "header": {
+      "mime": "image/webp",
+      "width": 3,
+      "height": 2
+    }
+  },
+  {
+    "name": "webp-vp8l",
+    "base64": "UklGRhIAAABXRUJQVlA4TAUAAAAvAkAAAAA=",
+    "header": {
+      "mime": "image/webp",
+      "width": 3,
+      "height": 2
+    }
+  },
+  {
+    "name": "webp-vp8x",
+    "base64": "UklGRiQAAABXRUJQVlA4WAoAAAAAAAAAAgAAAQAAVlA4TAUAAAAvAkAAAAA=",
+    "header": {
+      "mime": "image/webp",
+      "width": 3,
+      "height": 2
+    }
+  },
+  {
+    "name": "webp-vp8x-animated",
+    "base64": "UklGRnAAAABXRUJQVlA4WAoAAAACAAAAAgAAAQAAQU5JTQYAAAAAAAAAAABBTk1GHgAAAAAAAAAAAAAAAAAAABQAAABWUDhMBQAAAC8AAAAAAEFOTUYeAAAAAQAAAAAAAAAAAAAAFAAAAFZQOEwFAAAALwAAAAAA",
+    "header": {
+      "mime": "image/webp",
+      "width": 3,
+      "height": 2
+    }
+  },
+  {
+    "name": "webp-signature-only",
+    "base64": "UklGRgQAAABXRUJQ",
+    "header": null
+  },
+  {
+    "name": "webp-wrong-form",
+    "base64": "UklGRhYAAABXQVZFVlA4IAoAAAAQAACdASoDAAIA",
+    "header": null
+  },
+  {
+    "name": "webp-truncated-riff-extent",
+    "base64": "UklGRhIAAABXRUJQVlA4TAUAAAAvAkAAAA==",
+    "header": null
+  },
+  {
+    "name": "webp-bad-chunk-length",
+    "base64": "UklGRhIAAABXRUJQVlA4TP////8vAAAAAAA=",
+    "header": null
+  },
+  {
+    "name": "webp-missing-padding",
+    "base64": "UklGRhEAAABXRUJQVlA4TAUAAAAvAkAAAA==",
+    "header": null
+  },
+  {
+    "name": "webp-nonzero-padding",
+    "base64": "UklGRhIAAABXRUJQVlA4TAUAAAAvAkAAAP8=",
+    "header": null
+  },
+  {
+    "name": "webp-vp8-missing-key-frame",
+    "base64": "UklGRhYAAABXRUJQVlA4IAoAAAARAACdASoDAAIA",
+    "header": null
+  },
+  {
+    "name": "webp-vp8-partition-out-of-bounds",
+    "base64": "UklGRhYAAABXRUJQVlA4IAoAAAAwAACdASoDAAIA",
+    "header": null
+  },
+  {
+    "name": "webp-vp8-zero-width",
+    "base64": "UklGRhYAAABXRUJQVlA4IAoAAAAQAACdASoAAAIA",
+    "header": null
+  },
+  {
+    "name": "webp-vp8l-unsupported-version",
+    "base64": "UklGRhIAAABXRUJQVlA4TAUAAAAvAkAAIAA=",
+    "header": null
+  },
+  {
+    "name": "webp-vp8x-no-contained-raster",
+    "base64": "UklGRhYAAABXRUJQVlA4WAoAAAAAAAAAAgAAAQAA",
+    "header": null
+  },
+  {
+    "name": "webp-vp8x-conflicting-still-dimensions",
+    "base64": "UklGRiQAAABXRUJQVlA4WAoAAAAAAAAAAgAAAQAAVlA4TAUAAAAvA0AAAAA=",
+    "header": null
+  },
+  {
+    "name": "webp-vp8x-over-area-limit",
+    "base64": "UklGRiQAAABXRUJQVlA4WAoAAAAAAAAA/w8AAAQAVlA4TAUAAAAv/w8AAQA=",
+    "header": null
+  },
+  {
+    "name": "webp-vp8x-animation-missing-control",
+    "base64": "UklGRjwAAABXRUJQVlA4WAoAAAACAAAAAgAAAQAAQU5NRh4AAAAAAAAAAAAAAAAAAAAUAAAAVlA4TAUAAAAvAAAAAAA=",
+    "header": null
+  },
+  {
+    "name": "webp-vp8x-later-frame-outside-canvas",
+    "base64": "UklGRnAAAABXRUJQVlA4WAoAAAACAAAAAgAAAQAAQU5JTQYAAAAAAAAAAABBTk1GHgAAAAAAAAAAAAAAAAAAABQAAABWUDhMBQAAAC8AAAAAAEFOTUYeAAAAAQAAAAAAAQAAAAAAFAAAAFZQOEwFAAAALwAAAAAA",
+    "header": null
+  },
+  {
+    "name": "webp-vp8x-frame-raster-larger-than-rectangle",
+    "base64": "UklGRkoAAABXRUJQVlA4WAoAAAACAAAAAgAAAQAAQU5JTQYAAAAAAAAAAABBTk1GHgAAAAAAAAAAAAAAAAAAABQAAABWUDhMBQAAAC8CQAAAAA==",
+    "header": null
+  },
+  {
+    "name": "webp-vp8x-truncated-nested-chunk",
+    "base64": "UklGRkgAAABXRUJQVlA4WAoAAAACAAAAAgAAAQAAQU5JTQYAAAAAAAAAAABBTk1GHAAAAAAAAAAAAAAAAAAAABQAAABWUDhMBQAAAC8CQAA=",
+    "header": null
+  }
+]

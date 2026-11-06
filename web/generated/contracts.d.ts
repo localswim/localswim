@@ -38,6 +38,7 @@ export type RequestCardEdit = {
   readonly incarnation: string;
   readonly input: {
   readonly archived?: boolean;
+  readonly coverAttachmentId?: (string | null);
   readonly description?: string;
   readonly lane?: "In Progress";
   readonly laneId?: string;

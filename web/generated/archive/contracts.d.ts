@@ -45,7 +45,7 @@ export type IntentCardEdit = {
   readonly fingerprintVersion: number;
   readonly incarnation: string;
   readonly opId: string;
-  readonly payload: {
+  readonly payload: ({
   readonly archived?: boolean;
   readonly description: (string | null);
   readonly lane: ("In Progress" | null);
@@ -66,7 +66,13 @@ export type IntentCardEdit = {
 };
 }>;
   readonly title: (string | null);
-};
+} | {
+  readonly coverAttachmentId: (string | null);
+  readonly description: null;
+  readonly lane: null;
+  readonly priority: null;
+  readonly title: null;
+});
   readonly target: {
   readonly cardId: string;
 };
@@ -448,6 +454,7 @@ export type Card = {
   readonly attachmentIds: ReadonlyArray<string>;
   readonly cardId: string;
   readonly commentIds: ReadonlyArray<string>;
+  readonly coverAttachmentId?: string;
   readonly createdIn: Identity;
   readonly currentApprovalId: string | null;
   readonly description: string;
@@ -536,6 +543,7 @@ export type Board = {
 
 export type SnapshotState = {
   readonly archived: boolean;
+  readonly coverAttachmentId?: string;
   readonly currentApprovalId: string | null;
   readonly description: string;
   readonly lane: string;

@@ -1,4 +1,4 @@
-// Package schema defines the version-eleven physical storage layout. Admission, canonical
+// Package schema defines the version-twelve physical storage layout. Admission, canonical
 // wire validation, retention execution and domain transactions belong to callers.
 package schema
 
@@ -13,7 +13,7 @@ import (
 	A "github.com/localswim/localswim/internal/contract/archive"
 )
 
-const Version = 11
+const Version = 12
 const BaseSchemaVersion = 5
 const ApplicationID = 0x4c535731 // LSW1
 const MaxInteger int64 = 9007199254740991
@@ -44,7 +44,8 @@ func ValidUUID(v string) bool {
 func Statements() []string {
 	statements := append(statementsFrom(ddl), HierarchyStatements()...)
 	statements = append(statements, WorkflowStatements()...)
-	return append(statements, WorkflowPolicyStatements()...)
+	statements = append(statements, WorkflowPolicyStatements()...)
+	return append(statements, CoverStatement())
 }
 
 // LinkStatements is the exact current link inventory used by the guarded rebuild.
@@ -167,7 +168,10 @@ func InitializeWorkflow(ctx context.Context, c *sql.Conn, id Identity, workflow 
 // Validate checks the exact layout as well as stored constraints. It never writes,
 // repairs, migrates, deletes unknown objects, or changes journal mode.
 func Validate(ctx context.Context, c *sql.Conn, id Identity) error {
-	if err := validateLayout(ctx, c, id, Version, Statements(), consistencyChecks, true); err != nil {
+	if err := validateLayout(ctx, c, id, Version, Statements(), consistencyChecksV11, true); err != nil {
+		return err
+	}
+	if err := validateHistoricalCovers(ctx, c); err != nil {
 		return err
 	}
 	return validateWorkflow(ctx, c, id)
@@ -297,6 +301,11 @@ func validateLayout(ctx context.Context, c *sql.Conn, id Identity, version int, 
 			return err
 		}
 	}
+	if version < 12 {
+		if err := validateV11Vocabulary(ctx, c); err != nil {
+			return err
+		}
+	}
 	if forest {
 		if version == 6 {
 			return validateHierarchyV6(ctx, c, id)
@@ -313,7 +322,7 @@ func validateLayout(ctx context.Context, c *sql.Conn, id Identity, version int, 
 // CHECKs while references are inserted in sequence. Open audits these joins;
 // S02/S03 must preserve them at their transaction boundary. These checks do not
 // substitute for canonical-intent, authorization, workflow or archive validation.
-var consistencyChecks = []string{
+var consistencyChecksV11 = []string{
 	`SELECT count(*) FROM operation_reference r WHERE r.kind='workflow' AND NOT EXISTS(SELECT 1 FROM workflow_policy p WHERE p.incarnation=r.incarnation AND p.workflow_id=r.entity_id AND p.policy_version=r.revision)`,
 	// Current new kinds require full exact local peers. Historical/unavailable and
 	// legacy rows keep their accepted evidence scope. The related index uses this

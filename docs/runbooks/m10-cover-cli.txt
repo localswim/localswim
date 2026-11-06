@@ -1,0 +1,46 @@
+M10 CARD COVERS IN THE CLI
+
+Select the board with --workspace DIR --project KEY --board KEY, or use
+--data DIR with the standalone host. Read the card by its UUID and use that
+read's incarnation, board revision and card revision for the request.
+
+  localswim --data DIR --json card read CARD_UUID
+  localswim --data DIR --json attachment list CARD_UUID --view current
+
+Save one UTF-8 JSON request in a private file. Replace the UUID placeholders
+and both numeric revisions with the exact values for this operation. Generate
+a fresh opId for a new, deliberate edit.
+
+  {
+    "opId": "NEW_OPERATION_UUID",
+    "incarnation": "INCARNATION_UUID",
+    "target": {"cardId": "CARD_UUID"},
+    "expectedRevision": 17,
+    "expectedCardRevision": 5,
+    "input": {"coverAttachmentId": "ATTACHMENT_UUID"}
+  }
+
+The UUID must identify a current attachment of that card with an admitted PNG,
+JPEG, GIF or WebP raster header. Use {"coverAttachmentId": null} to clear the
+explicit choice and return to browser fallback. A cover edit takes only that
+input key. An ordinary card edit that omits the field preserves the choice.
+Cover edits require current attach authority and are refused on Completed cards.
+
+  localswim --data DIR --json card edit CARD_UUID --input REQUEST_FILE
+  localswim --data DIR card read CARD_UUID
+  localswim --data DIR card history CARD_UUID
+
+Readable output labels the saved UUID or unset for the current card and each
+retained full prior state. JSON includes coverAttachmentId when explicitly set.
+A repeated choice or clear of an unset choice returns NO_CHANGE on a fresh base.
+
+If delivery is uncertain, retain the original request and the CLI's immutable
+evidence. Deliberately look up the same operation in the original selection.
+Use the saved cli-evidence/OP_UUID.json from the selected member root.
+
+  localswim --data DIR --json operation read OP_UUID --evidence EVIDENCE_FILE
+
+Exit 4 reports an uncertain outcome. Current card state and browser fallback
+cannot settle that original. An authoritative lookup can return the retained
+terminal outcome. A separate deliberate edit starts from a fresh read and uses
+its own request file and opId.

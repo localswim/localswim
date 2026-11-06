@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/localswim/localswim/internal/board/grants"
+	"github.com/localswim/localswim/internal/store/attachmentblob"
 	"github.com/localswim/localswim/internal/store/schema"
 )
 
@@ -73,25 +74,13 @@ func (s *Service) Read(ctx context.Context, g *grants.Service, board, inc, actor
 		if e != nil {
 			return e
 		}
-		var stored, actual uint64
-		e = r.Scan("SELECT byte_length,length(bytes) FROM blob WHERE incarnation=? AND sha256=?", []any{inc, hash}, &stored, &actual)
-		if e != nil && !errors.Is(e, sql.ErrNoRows) {
-			return e
-		}
-		if e != nil || length > MaxFileBytes || stored != length || actual != length {
+		out.Bytes, e = attachmentblob.Read(r, inc, hash, length)
+		if errors.Is(e, ErrIntegrity) {
 			s.store.Fence()
 			cause = ErrIntegrity
 			return nil
 		}
-		if e = r.Scan("SELECT bytes FROM blob WHERE incarnation=? AND sha256=?", []any{inc, hash}, &out.Bytes); e != nil {
-			return e
-		}
-		if uint64(len(out.Bytes)) != length || digest(out.Bytes) != hash {
-			s.store.Fence()
-			out = Download{}
-			cause = ErrIntegrity
-		}
-		return nil
+		return e
 	})
 	closeErr := l.Close()
 	if e != nil || closeErr != nil {

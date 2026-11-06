@@ -17,15 +17,16 @@ import (
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
+	"github.com/localswim/localswim/internal/store/attachmentblob"
 	S "github.com/localswim/localswim/internal/store/open"
 	"github.com/localswim/localswim/internal/store/recovery"
 	"github.com/localswim/localswim/internal/store/schema"
 	"github.com/localswim/localswim/internal/store/writer"
 )
 
-const MaxFileBytes = 10 * 1024 * 1024
+const MaxFileBytes = attachmentblob.MaxFileBytes
 
-var ErrIntegrity = errors.New("attachment integrity unavailable")
+var ErrIntegrity = attachmentblob.ErrIntegrity
 var ErrUnavailable = errors.New("attachment unavailable")
 var ErrNotFound = errors.New("attachment not found")
 

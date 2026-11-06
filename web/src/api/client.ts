@@ -153,6 +153,18 @@ export class BoardClient {
     if (board.result.identity.boardId !== boardId) throw Error("Board identity mismatch");
     if (this.options.selection && board.result.identity.incarnation !== this.options.selection.incarnation) throw Error("Selected incarnation mismatch");
     validateBoardHierarchy(board);
+    if (board.result.cards.some(card => card.coverAttachmentId !== undefined)) {
+      const owners = new Map<string, string | null>();
+      for (const item of board.result.attachments) {
+        owners.set(item.attachmentId, owners.has(item.attachmentId) ? null : item.cardId);
+      }
+      for (const card of board.result.cards) {
+        const cover = card.coverAttachmentId;
+        if (cover !== undefined && (!card.attachmentIds.includes(cover) || owners.get(cover) !== card.cardId)) {
+          throw Error("Current cover unavailable");
+        }
+      }
+    }
     validateWorkflowPolicies(board.result.workflow, board.result.workflowPolicies, board.result.policyVersion);
     validateCurrentWorkflowCards(board.result.cards, board.result.workflow, board.result.workflowPolicies, board.result.actors, board.result.approvals);
     this.workflowRead(board.result.identity, board.result.workflow, board.result.cards.map(card => card.lane));

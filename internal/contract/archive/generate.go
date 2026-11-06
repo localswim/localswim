@@ -264,6 +264,22 @@ func generateCommandObjects(defs map[string]any, ts *strings.Builder) {
 			f[k] = field
 		}
 		payload = &contract.Type{Kind: "object", Fields: f, Variants: d.Input.Variants}
+		if d.Command == "card.edit" {
+			// Cover-only wire edits retain the legacy null slots in C01.
+			coverFields := map[string]contract.Field{
+				"coverAttachmentId": {Type: f["coverAttachmentId"].Type},
+			}
+			delete(f, "coverAttachmentId")
+			for k := range f {
+				if !contract.PreservesInputOmission(k) {
+					coverFields[k] = contract.Field{Type: &contract.Type{Kind: "null"}}
+				}
+			}
+			payload.Variants = []*contract.Type{
+				{Kind: "object", Fields: f},
+				{Kind: "object", Fields: coverFields},
+			}
+		}
 		if d.Recovery {
 			payload = &contract.Type{Kind: "object", Fields: map[string]contract.Field{"input": {Type: payload}, "previewHash": {Type: &contract.Type{Kind: "string", Format: "sha256"}}}}
 		}

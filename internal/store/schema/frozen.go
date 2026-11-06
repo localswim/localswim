@@ -36,3 +36,8 @@ func StatementsV9() []string { return frozenStatements(frozenNine) }
 var frozenTen []byte
 
 func StatementsV10() []string { return frozenStatements(frozenTen) }
+
+//go:embed layout11-statements.json
+var frozenEleven []byte
+
+func StatementsV11() []string { return frozenStatements(frozenEleven) }

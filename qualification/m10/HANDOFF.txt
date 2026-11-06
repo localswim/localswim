@@ -1,0 +1,64 @@
+M10 FINAL REVIEW KIT AND NORMAL DEMONSTRATION
+
+Delivered candidate
+- Qualified source 5486ce680c8f68a495c769bd5295e7d8d397dd32.
+- Qualification publication 9715ea4c2bc33f20cc886ae55920b859bd37b64a.
+- Guide correction publication 574922cabc6209b9faf9bc7457b9340b466d8571.
+- Executable SHA256 aeea67a781d8cb64efeb7e6d7579d952977ac534814c7dde79d2abd76ff0fff9.
+- Kit localswim-m10-review-kit-win-amd64-r3.zip.
+- ZIP SHA256 1da40e1abab84c6593aca7505af4e19c0f48872d6d0c2a32c8a0d7fd52da734a.
+- ZIP size 12,431,593 bytes. Verified local delivery is accompanied by the
+  manifest and checksum because the ZIP exceeds the 10 MiB board limit.
+
+Package
+- All 56 payload files and 58 total files pass exact manifest, checksum,
+  extraction and CRC checks. Current guides link to the exact qualified
+  source and separately identified documentation publication.
+- All 486 schema references and three declaration imports resolve. Ten
+  runtime modules and their 22 upstream notice files match the executable.
+- Start at extracted START-HERE.txt, then guides/START-USE-RECOVERY.txt,
+  guides/CLI.txt and guides/DEMO.txt. Runtime data stays in a private root
+  outside the extracted kit.
+
+Fresh normal demonstration
+- The extracted executable, actual PowerShell 7 CLI and ordinary pinned
+  Chrome controls passed 171 normal browser assertions and 16 saved-port
+  reopen assertions on fresh default and configured boards.
+- The browser set, changed and cleared explicit covers, used the first
+  eligible fallback, detached selected and unrelated files, and verified
+  current download bytes and retained-only refusal. Fresh preview checks used
+  PNG and JPEG. Static GIF/WebP preview qualification is recorded in the
+  separately bound M10.03 evidence.
+- Exact guide snippets passed native cover set/clear and file
+  add/inspect/download/detach/original lookup. Download bytes matched the
+  generated guide input. Setup included actual CLI-created fixtures.
+- Both native restores preserved exact current card and full history facts,
+  cover bytes and retained-file refusal. Authenticated HTTP and actual CLI
+  complete board reads agreed after restoring.
+- All four owned hosts exited 0 and their listeners closed. Ten diagnostic
+  messages were validated and the owned mailbox deleted. The two browser
+  phases recorded zero page exceptions. Four generic console error events
+  remain unclassified in their original sanitized records.
+
+Qualification and review
+The complete source-bound native/browser/fault/conservation qualification
+is recorded in qualification/m10/joined-r1.txt and .json. This extracted-kit
+demonstration is a fresh normal run with separate evidence. Fresh independent Sol / High final review passed with no open findings.
+
+Retained attempts and scope
+R1 retained guide line-ending issues. R2 retained a duplicate literal escape
+and an incomplete source-runbook upgrade cross-reference. R3 corrects those
+guides. Earlier normal-demo attempts retained native fixture setup and
+harness errors involving source/destination separation, restored identity,
+history field names and a Python variable shadow. The passing run is
+normal-demo-e6c66f58, with exact runner and input hashes.
+
+Recorded qualification scope is synthetic Windows amd64, local NTFS and
+numeric loopback. Prior failure and injected-fault evidence retains its
+own classification and source binding.
+
+Timing and owner control
+Approved allowance is 235 active elapsed minutes base plus 100 reserve,
+335 total. M10.00 readiness is included. The final clock and board receipt
+include implementation, corrections, tests, reviews, delivery and publication.
+Terry retains final review and control of Completed.

@@ -71,6 +71,9 @@ func Readable(v any) ([]byte, error) {
 		return nil, e
 	}
 	b, e := A.Readable(v)
+	if limit := noticeByteLimit(reflect.Indirect(reflect.ValueOf(v)).Type()); limit > 0 && len(b) > limit {
+		return nil, fmt.Errorf("notice message exceeds limit")
+	}
 	if rv := reflect.Indirect(reflect.ValueOf(v)); rv.Type() == reflect.TypeFor[ActivityRead]() && len(b) > ActivityReadResponseLimit {
 		return nil, fmt.Errorf("activity response exceeds limit")
 	}

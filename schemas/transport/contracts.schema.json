@@ -3049,6 +3049,369 @@
       ],
       "type": "object"
     },
+    "NoticeControlRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedControlGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expectedControlGeneration",
+        "incarnation"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 1024
+    },
+    "NoticeCut": {
+      "additionalProperties": false,
+      "properties": {
+        "class": {
+          "enum": [
+            "human",
+            "mixed",
+            "unknown-actor",
+            "other-actor",
+            "observed-empty",
+            "expired",
+            "gapped",
+            "unavailable",
+            "suppressed"
+          ],
+          "type": "string"
+        },
+        "deliveryId": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "eventCount": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lowerEvent": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upperEvent": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "class",
+        "deliveryId",
+        "eventCount",
+        "lowerEvent",
+        "upperEvent"
+      ],
+      "type": "object"
+    },
+    "NoticeLookup": {
+      "additionalProperties": false,
+      "properties": {
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoticePair"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "enum": [
+            "accepted",
+            "unknown"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "receipt",
+        "state"
+      ],
+      "type": "object"
+    },
+    "NoticeLookupRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "deliveryId": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "targetId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "deliveryId",
+        "incarnation",
+        "targetId"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 1024
+    },
+    "NoticePair": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedAt": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        },
+        "class": {
+          "enum": [
+            "human",
+            "mixed",
+            "unknown-actor",
+            "other-actor",
+            "observed-empty",
+            "expired",
+            "gapped",
+            "unavailable",
+            "suppressed"
+          ],
+          "type": "string"
+        },
+        "deliveryId": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "eventCount": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lowerEvent": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "targetId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "upperEvent": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "acceptedAt",
+        "class",
+        "deliveryId",
+        "eventCount",
+        "lowerEvent",
+        "targetId",
+        "upperEvent"
+      ],
+      "type": "object"
+    },
+    "NoticeResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "result": {
+          "$ref": "#/$defs/NoticeView"
+        },
+        "scope": {
+          "enum": [
+            "notices"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "result",
+        "scope"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 131072
+    },
+    "NoticeView": {
+      "additionalProperties": false,
+      "properties": {
+        "checkpoint": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "controlGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/NoticePair"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "gapCount": {
+          "maximum": 64,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "identity": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Identity"
+        },
+        "last": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoticeCut"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lookup": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoticeLookup"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoticeCut"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "authority",
+                "foreign",
+                "capacity",
+                "storage",
+                "unknown",
+                "unavailable"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "enum": [
+            "unconfigured",
+            "stopped",
+            "running",
+            "draining",
+            "partial-drain",
+            "guarded",
+            "failed"
+          ],
+          "type": "string"
+        },
+        "targetId": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "checkpoint",
+        "controlGeneration",
+        "entries",
+        "gapCount",
+        "identity",
+        "last",
+        "lookup",
+        "pending",
+        "reason",
+        "state",
+        "targetId"
+      ],
+      "type": "object"
+    },
     "Preview": {
       "$ref": "../archive/contracts.schema.json#/$defs/Preview"
     },

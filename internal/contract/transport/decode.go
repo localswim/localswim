@@ -15,7 +15,12 @@ import (
 )
 
 var enums = map[string][]string{
-	"ActivityScope": {"activity"}, "ActivityActorKind": {"human", "automation", "unknown"},
+	"NoticeScope":       {"notices"},
+	"NoticePhase":       {"unconfigured", "stopped", "running", "draining", "partial-drain", "guarded", "failed"},
+	"NoticeReason":      {"authority", "foreign", "capacity", "storage", "unknown", "unavailable"},
+	"NoticeClass":       {"human", "mixed", "unknown-actor", "other-actor", "observed-empty", "expired", "gapped", "unavailable", "suppressed"},
+	"NoticeLookupState": {"accepted", "unknown"},
+	"ActivityScope":     {"activity"}, "ActivityActorKind": {"human", "automation", "unknown"},
 	"ActivityCoverageStatus": {"complete", "gapped", "expired"}, "ActivityGapReason": {"cleared", "expired"},
 	"ActivityEventType":    {"card.create", "card.edit", "comment.add", "attachment.add", "attachment.detach", "link.add", "link.remove", "review-handoff", "approve", "grant.create", "grant.revoke", "history.clear", "retention.set", "workflow.edit", "recovery.expire"},
 	"FileAttributionState": {"known", "unavailable"}, "FileAttributionBasis": {"operation", "activity"}, "FileReferenceState": {"current", "retained"}, "FileDownloadState": {"current_reference", "not_current"}, "CardFilesScope": {"card-files"}, "CardFileScope": {"card-file"},
@@ -41,6 +46,9 @@ var fieldRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_
 // It proves boundary validity only, never that a terminal claim is authentic.
 func Decode[T any](data []byte) (T, error) {
 	var out T
+	if limit := noticeByteLimit(reflect.TypeFor[T]()); limit > 0 && len(data) > limit {
+		return out, fmt.Errorf("notice message exceeds limit")
+	}
 	if reflect.TypeFor[T]() == reflect.TypeFor[ActivityRead]() && len(data) > ActivityReadResponseLimit {
 		return out, fmt.Errorf("activity response exceeds limit")
 	}
@@ -210,6 +218,23 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case NoticeView:
+		if e := noticeView(x); e != nil {
+			return e
+		}
+	case NoticeCut:
+		if !noticeRange(x.Class, x.LowerEvent, x.UpperEvent, x.EventCount) ||
+			(x.Class == "suppressed") != (x.DeliveryID == nil) {
+			return fmt.Errorf("invalid notice cut")
+		}
+	case NoticePair:
+		if x.Class == "suppressed" || !noticeRange(x.Class, x.LowerEvent, x.UpperEvent, x.EventCount) {
+			return fmt.Errorf("invalid notice receipt")
+		}
+	case NoticeLookup:
+		if (x.State == "accepted") != (x.Receipt != nil) {
+			return fmt.Errorf("invalid notice lookup")
+		}
 	case ActivityView:
 		if e := activityView(x); e != nil {
 			return e

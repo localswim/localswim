@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/localswim/localswim/internal/board/noticemonitor"
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	T "github.com/localswim/localswim/internal/contract/transport"
@@ -232,6 +233,8 @@ type Runtime struct {
 	effectiveOrigin, workspaceID string
 	store                        *S.Store
 	auth                         *authority
+	notices                      *noticemonitor.Monitor
+	noticeState                  *noticeNativeState
 	server                       *http.Server
 	listener                     net.Listener
 	done                         chan struct{}
@@ -274,6 +277,19 @@ func (r *Runtime) Close() error {
 		}
 	}
 	r.requests.Wait()
+	if r.notices != nil {
+		drain, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ne := r.notices.Close(drain)
+		cancel()
+		if ne != nil {
+			return errors.Join(e, ne)
+		}
+	}
+	if r.noticeState != nil {
+		if ne := r.noticeState.close(); ne != nil {
+			return errors.Join(e, ne)
+		}
+	}
 	r.auth.close()
 	// Metadata removal happens while the exclusive root lock is still held.
 	rm := r.removeMetadata()
@@ -363,7 +379,8 @@ func openEngine(ctx context.Context, o EngineOptions, assets http.Handler) (*Run
 	}
 	// Registered members must already exist. A missing expected root must not
 	// create even a new exclusion file, much less initialize replacement bytes.
-	release, e := pinRoot(o.DataDir, o.ExpectedIdentity == nil)
+	var rootKey func() (string, error)
+	release, e := pinRootWithKey(o.DataDir, o.ExpectedIdentity == nil, &rootKey)
 	if e != nil {
 		return nil, e
 	}
@@ -477,6 +494,10 @@ func openEngine(ctx context.Context, o EngineOptions, assets http.Handler) (*Run
 		return nil, e
 	}
 	r.export, e = exportapi.NewAuthenticated(store, r.auth, r)
+	if e != nil {
+		return nil, e
+	}
+	r.notices, e = r.openNotices(rootKey, boardDir)
 	if e != nil {
 		return nil, e
 	}

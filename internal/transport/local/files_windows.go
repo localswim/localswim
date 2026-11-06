@@ -4,6 +4,7 @@ package local
 
 import (
 	"errors"
+	"fmt"
 	"golang.org/x/sys/windows"
 	"io"
 	"os"
@@ -103,6 +104,10 @@ func safeDir(p string) bool {
 
 // pinRoot refuses reparse ancestors and keeps them pinned until release.
 func pinRoot(root string, create bool) (func(), error) {
+	return pinRootWithKey(root, create, nil)
+}
+
+func pinRootWithKey(root string, create bool, key *func() (string, error)) (func(), error) {
 	if !safeDir(root) {
 		return nil, errLocal
 	}
@@ -149,6 +154,16 @@ func pinRoot(root string, create bool) (func(), error) {
 		if j == len(parts)-1 && checkPrivate(h, true) != nil {
 			release()
 			return nil, errLocal
+		}
+	}
+	if key != nil {
+		rootHandle := hs[len(hs)-1]
+		*key = func() (string, error) {
+			var info windows.ByHandleFileInformation
+			if checkPrivate(rootHandle, true) != nil || windows.GetFileInformationByHandle(rootHandle, &info) != nil {
+				return "", errLocal
+			}
+			return fmt.Sprintf("%08x:%08x%08x", info.VolumeSerialNumber, info.FileIndexHigh, info.FileIndexLow), nil
 		}
 	}
 	return release, nil

@@ -4,6 +4,7 @@ package open
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -19,6 +20,16 @@ import (
 type pathGuard struct {
 	path    string
 	handles []windows.Handle
+}
+
+func (g *pathGuard) databaseFileKey() (string, error) {
+	var info windows.ByHandleFileInformation
+	// The main database is the final handle acquired by acquirePathMode.
+	if len(g.handles) == 0 || windows.GetFileInformationByHandle(g.handles[len(g.handles)-1], &info) != nil ||
+		info.NumberOfLinks != 1 || info.FileAttributes&(windows.FILE_ATTRIBUTE_DIRECTORY|windows.FILE_ATTRIBUTE_REPARSE_POINT) != 0 {
+		return "", errors.New("storage database identity unavailable")
+	}
+	return fmt.Sprintf("%08x:%08x%08x", info.VolumeSerialNumber, info.FileIndexHigh, info.FileIndexLow), nil
 }
 
 func (g *pathGuard) close() error {

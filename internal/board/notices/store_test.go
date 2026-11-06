@@ -382,20 +382,47 @@ func TestQuiescentLookupOfUnconfirmedAcceptance(t *testing.T) {
 				t.Fatal("unconfirmed acceptance and settlement exposed positive proof")
 			}
 			if lands {
+				f.failNext = true
 				p, changed, err = s.Lookup(target, i.DeliveryID, true)
 				requireErr(t, err, ErrUnknown)
 				if p != nil || changed {
 					t.Fatal("visible but unconfirmed settlement exposed positive proof")
 				}
-				s = f.open(t)
 			}
 			p, changed, err = s.Lookup(target, i.DeliveryID, true)
 			requireErr(t, err, nil)
-			if p == nil || changed == lands || s.Snapshot().Pending != nil || s.Snapshot().Dirty || len(s.Inbox()) != 1 {
+			if p == nil || !changed || s.Snapshot().Pending != nil || s.Snapshot().Dirty || len(s.Inbox()) != 1 {
 				t.Fatal("durable recovery lost the original exact receipt")
 			}
 		})
 	}
+}
+
+func TestQuiescentLookupConfirmsCheckpointAfterLostWriteResult(t *testing.T) {
+	s, f, target := start(t)
+	upper := baseline
+	upper.Event++
+	i := prepare(t, s, complete(Human, upper, 1))
+	accepted, err := s.Accept(target, i.DeliveryID, sample)
+	requireErr(t, err, nil)
+	f.failNext, f.land = true, true
+	requireErr(t, s.Finalize(target, i.DeliveryID), ErrStorage)
+	requireErr(t, s.EndRun(), ErrGuarded)
+
+	p, changed, err := s.Lookup(target, i.DeliveryID, true)
+	requireErr(t, err, nil)
+	state := s.Snapshot()
+	if !changed || p == nil || p.DeliveryID != accepted.DeliveryID || p.AcceptedAt != accepted.AcceptedAt ||
+		state.Dirty || state.Pending != nil || state.Checkpoint != upper || s.Uncertain() || len(s.Inbox()) != 1 {
+		t.Fatal("exact lookup did not confirm the original checkpoint and receipt")
+	}
+	writes := f.writes
+	_, changed, err = s.Lookup(target, i.DeliveryID, true)
+	requireErr(t, err, nil)
+	if changed || f.writes != writes {
+		t.Fatal("finalized lookup rewrote the notice state")
+	}
+	requireErr(t, s.BeginRun(), nil)
 }
 
 func TestCapacityRetentionAndPinnedAcceptance(t *testing.T) {

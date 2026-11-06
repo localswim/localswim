@@ -4,6 +4,60 @@
 import type * as Archive from '../archive/contracts';
 import type * as Mutation from '../contracts';
 
+export type NoticeResponse = {
+  readonly apiVersion: 1;
+  readonly result: NoticeView;
+  readonly scope: "notices";
+};
+
+export type NoticeView = {
+  readonly checkpoint: number | null;
+  readonly controlGeneration: string;
+  readonly entries: ReadonlyArray<NoticePair>;
+  readonly gapCount: number;
+  readonly identity: Archive.Identity;
+  readonly last: NoticeCut | null;
+  readonly lookup: NoticeLookup | null;
+  readonly pending: NoticeCut | null;
+  readonly reason: "authority" | "foreign" | "capacity" | "storage" | "unknown" | "unavailable" | null;
+  readonly state: "unconfigured" | "stopped" | "running" | "draining" | "partial-drain" | "guarded" | "failed";
+  readonly targetId: string | null;
+};
+
+export type NoticeCut = {
+  readonly class: "human" | "mixed" | "unknown-actor" | "other-actor" | "observed-empty" | "expired" | "gapped" | "unavailable" | "suppressed";
+  readonly deliveryId: string | null;
+  readonly eventCount: number | null;
+  readonly lowerEvent: number;
+  readonly upperEvent: number | null;
+};
+
+export type NoticePair = {
+  readonly acceptedAt: string;
+  readonly class: "human" | "mixed" | "unknown-actor" | "other-actor" | "observed-empty" | "expired" | "gapped" | "unavailable" | "suppressed";
+  readonly deliveryId: string;
+  readonly eventCount: number | null;
+  readonly lowerEvent: number;
+  readonly targetId: string;
+  readonly upperEvent: number | null;
+};
+
+export type NoticeLookup = {
+  readonly receipt: NoticePair | null;
+  readonly state: "accepted" | "unknown";
+};
+
+export type NoticeControlRequest = {
+  readonly expectedControlGeneration: string;
+  readonly incarnation: string;
+};
+
+export type NoticeLookupRequest = {
+  readonly deliveryId: string;
+  readonly incarnation: string;
+  readonly targetId: string;
+};
+
 export type ActivityRead = {
   readonly apiVersion: 1;
   readonly result: ActivityView;

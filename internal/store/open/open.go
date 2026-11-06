@@ -42,6 +42,17 @@ type Store struct {
 	closed, fenced, broken bool
 }
 
+// DatabaseFileKey identifies the main file from the same native handle that
+// excludes its replacement. It is private host lineage, never API output.
+func (s *Store) DatabaseFileKey() (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return "", ErrClosed
+	}
+	return s.guard.databaseFileKey()
+}
+
 // Create exclusively creates board.sqlite in an existing private directory. A
 // failed create is retained for investigation; it is never recursively removed,
 // adopted, overwritten or automatically retried as a fresh database.

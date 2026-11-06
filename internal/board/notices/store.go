@@ -1,6 +1,7 @@
 package notices
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"slices"
@@ -35,6 +36,9 @@ type Store struct {
 	mu      sync.Mutex
 	running bool
 	refused bool
+	// settlement retains the one exact pending proof a quiescent lookup used
+	// when its disposition publication returned an uncertain result.
+	settlement *durable
 }
 
 // Open reads the pinned board's state without mutating it. The host callbacks
@@ -340,10 +344,10 @@ func (s *Store) Accept(target A.UUID, deliveryID string, at A.Timestamp) (*Pair,
 	return &pair, nil
 }
 
-func (s *Store) finalize(d *durable, idx int, quiescent bool) error {
+func finalizedState(d *durable, idx int, quiescent bool) (*durable, error) {
 	e := d.Inbox[idx]
 	if e.Finalized || d.Pending == nil || !e.Intent.exact(*d.Pending) {
-		return ErrUnknown
+		return nil, ErrUnknown
 	}
 	next := *d
 	next.Inbox = slices.Clone(d.Inbox)
@@ -354,7 +358,33 @@ func (s *Store) finalize(d *durable, idx int, quiescent bool) error {
 		next.Checkpoint = *outcome.Upper
 		next.Dirty = !quiescent
 	}
-	return s.publish(&next)
+	return &next, nil
+}
+
+func (s *Store) finalize(d *durable, idx int, quiescent bool) error {
+	next, err := finalizedState(d, idx, quiescent)
+	if err != nil {
+		return err
+	}
+	return s.publish(next)
+}
+
+// confirmFinalization settles an ambiguous checkpoint write for an already
+// confirmed acceptance. Only the exact expected disposition can be adopted.
+func (s *Store) confirmFinalization(current, observed *durable, idx int) error {
+	expected, err := finalizedState(current, idx, !observed.Dirty)
+	if err != nil {
+		return err
+	}
+	want, wantErr := expected.encode()
+	got, gotErr := observed.encode()
+	if wantErr != nil || gotErr != nil || !bytes.Equal(want, got) {
+		return ErrUnknown
+	}
+	if expected.Last.Upper != nil {
+		expected.Dirty = false
+	}
+	return s.publish(expected)
 }
 
 func (s *Store) Finalize(target A.UUID, deliveryID string) error {
@@ -397,7 +427,8 @@ func (s *Store) Lookup(target A.UUID, deliveryID string, quiescent bool) (*Pair,
 	}
 	e := d.Inbox[idx]
 	confirmed := false
-	if priorIdx := current.find(target, deliveryID); priorIdx >= 0 {
+	priorIdx := current.find(target, deliveryID)
+	if priorIdx >= 0 {
 		prior := current.Inbox[priorIdx]
 		if prior.AcceptedAt != e.AcceptedAt || !prior.Intent.exact(e.Intent) {
 			return nil, false, ErrUnknown
@@ -405,16 +436,20 @@ func (s *Store) Lookup(target A.UUID, deliveryID string, quiescent bool) (*Pair,
 		confirmed = true
 	}
 	pair := e.project()
-	if !quiescent || e.Finalized {
+	if !quiescent {
 		if !confirmed {
 			return nil, false, ErrUnknown
 		}
 		return &pair, false, nil
 	}
+	if e.Finalized {
+		return s.lookupFinalized(current, d, priorIdx, e)
+	}
 	if current.Pending == nil || d.Pending == nil || !current.Pending.exact(*d.Pending) {
 		return nil, false, ErrUnknown
 	}
 	s.running = false
+	s.settlement = d
 	if err := s.finalize(d, idx, true); err != nil {
 		// When acceptance publication itself was ambiguous, visible bytes
 		// alone do not establish a newly accepted effect in this engine.
@@ -423,9 +458,42 @@ func (s *Store) Lookup(target A.UUID, deliveryID string, quiescent bool) (*Pair,
 		}
 		return &pair, false, err
 	}
+	s.clearGuard()
+	return &pair, true, nil
+}
+
+func (s *Store) lookupFinalized(current, observed *durable, priorIdx int, e entry) (*Pair, bool, error) {
+	pair := e.project()
+	confirmed := priorIdx >= 0
+	if confirmed && current.Inbox[priorIdx].Finalized {
+		return &pair, false, nil
+	}
+	proof := current
+	if !confirmed {
+		proof = s.settlement
+		if proof == nil || proof.Pending == nil || current.Pending == nil || !proof.Pending.exact(*current.Pending) {
+			return nil, false, ErrUnknown
+		}
+		priorIdx = proof.find(e.Intent.TargetID, e.Intent.DeliveryID)
+		if priorIdx < 0 || proof.Inbox[priorIdx].AcceptedAt != e.AcceptedAt || !proof.Inbox[priorIdx].Intent.exact(e.Intent) {
+			return nil, false, ErrUnknown
+		}
+	}
+	if err := s.confirmFinalization(proof, observed, priorIdx); err != nil {
+		if !confirmed || errors.Is(err, ErrUnknown) {
+			return nil, false, ErrUnknown
+		}
+		return &pair, false, err
+	}
+	s.clearGuard()
+	return &pair, true, nil
+}
+
+func (s *Store) clearGuard() {
+	s.running = false
 	s.fault.Store(false)
 	s.refused = false
-	return &pair, true, nil
+	s.settlement = nil
 }
 
 func (s *Store) Inbox() []Pair {

@@ -54,6 +54,10 @@ func (a *authority) browser() (T.SecretToken, error) {
 	return t, nil
 }
 func (a *authority) verify(mode string, t T.SecretToken, now time.Time) (grants.Credential, error) {
+	return a.verifyCredential(mode, t, now, true)
+}
+
+func (a *authority) verifyCredential(mode string, t T.SecretToken, now time.Time, touchIdle bool) (grants.Credential, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	key := sha256.Sum256([]byte(t))
@@ -61,7 +65,7 @@ func (a *authority) verify(mode string, t T.SecretToken, now time.Time) (grants.
 	if a.closed || !ok || c.Mode != mode || now.Before(c.IssuedAt) || !now.Before(c.ExpiresAt) || (mode == "browser" && !now.Before(c.IdleExpiresAt)) {
 		return grants.Credential{}, grants.ErrDenied
 	}
-	if mode == "browser" {
+	if mode == "browser" && touchIdle {
 		c.IdleExpiresAt = now.Add(30 * time.Minute)
 		if c.IdleExpiresAt.After(c.ExpiresAt) {
 			c.IdleExpiresAt = c.ExpiresAt

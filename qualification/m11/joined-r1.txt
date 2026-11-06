@@ -1,0 +1,58 @@
+M11.05 Joined activity qualification
+
+PASS. Fresh independent Sol / High review cleared the exact candidate.
+
+Qualified source 589ea9dff24f735001ad83f1f4a33807e8d6db96
+Windows amd64 executable SHA-256
+5161a572d40443ba0140b422fbf1090d1cfc28737f54f07494ede08bb86c73f9
+
+Reproducibility and mandatory inventories
+
+- The source inventory matches the committed Git archive for all 1,110
+  files. Two isolated trees with independent Go build caches and separate
+  offline npm installs matched all 104 generated, staged and executable
+  outputs. Two separate post-test builds reproduced the executable. Each passed Go module verification, contract and asset checks,
+  TypeScript check/build, 2,196 Go tests, Go vet, 78 Node script/raster tests
+  and the focused Activity API test.
+- The native compiler, transaction and archive inventories passed against
+  500 current internal provider bindings. The mandatory pinned Chrome
+  inventory passed all 21 cases on the same executable.
+
+Activity journeys
+
+- Native standalone and workspace CLI calls and ordinary Chrome reads
+  agreed on selected identity, captured interval, attributed events and
+  coverage. The checks include deliberate paging, genuine complete-empty
+  coverage, foreign cursor refusal, stale restart and a fresh read. The
+  reads conserved board facts and operation receipts. Chrome preserved the
+  private draft, and the Activity region excluded card and draft prose.
+- Fresh native checks exercised wrong selection, credential revocation,
+  replacement, expiry, no-read grants, native-owner refusal and storage
+  failure. Native workflow preview refused definitions that removed the
+  mandatory ordinary read right for either actor type.
+- A genuine export and restore retained exact source attribution,
+  revisions, order and coverage across two pages. A post-capture commit
+  inside the same interval invalidated the prior cursor. Production expiry
+  pruned both source and destination rows, persisted the attributed
+  recovery.expire event without an operation receipt, and invalidated a
+  second cursor. Fresh reads showed retained gapped rows and expired empty
+  coverage.
+
+Evidence boundaries
+
+- The activity journeys use synthetic boards on Windows, local NTFS and
+  numeric loopback. Test-only setup controls synthetic event timestamps, retention policy
+  and maintenance verifier. Late response delivery, altered response
+  bodies, credential faults and the T01 private setup overlay are labeled
+  separately in the evidence.
+- A Node reporter mismatch interrupted the evidence runner after passing
+  tests. The retained output was checked and qualification resumed on the
+  same inputs. The first browser attempt with a long persistent profile
+  path could not initialize IndexedDB. The short private path retry used
+  the same executable and mandatory inventory.
+- The redundant native run in the second tree passed, but its cleanup
+  removed the detailed attempt directory. The independently verified first
+  tree supplies the complete native inventory and retained attempt. Owned
+  browsers, services and diagnostic mailboxes were closed.
+- The extracted review kit and its fresh ordinary demonstration are
+  tracked separately in M11.06.

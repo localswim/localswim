@@ -29,7 +29,9 @@ export class LocalSessionView {
     root.replaceChildren(element("h1", "Localswim"), reconnect, status, content);
     this.workspace = new SessionWorkspace(content, access.client, access.initial, { local: true, ...options });
     this.unsubscribe = access.onUnavailable(() => {
-      if (!this.destroyed) status.textContent = "Local connection unavailable. Input and private originals retained; reconnect to continue. Reconnect never resubmits a save.";
+      if (this.destroyed) return;
+      this.workspace.connectionUnavailable();
+      status.textContent = "Local connection unavailable. Input and private originals retained; reconnect to continue. Reconnect never resubmits a save.";
     });
     ready();
     window.addEventListener("beforeunload", this.beforeUnload);

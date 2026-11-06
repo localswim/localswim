@@ -20,6 +20,7 @@ import (
 )
 
 var production = []string{
+	"api/raster-cover", "board/cover-preview",
 	"api/files", "board/files",
 	"api/workflow", "api/configured-workflow", "recovery/workflow-setup",
 	"workspace-ui/workflow-editor", "workspace-ui/workflow-setup",

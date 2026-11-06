@@ -1,0 +1,50 @@
+M10 BROWSER CARD COVERS
+
+Open the numeric-loopback address printed by the current localswim executable.
+Choose the exact project and board in the workspace. On an existing data root,
+use the saved port. Physical layout 12 uses base schema 5. See
+m10-cover-cli.txt for explicit offline upgrade and original lookup.
+
+Choose and clear
+
+1. Open the card details. Card cover preview labels an explicit selection or
+   automatic fallback. Fallback uses the first eligible current attachment in
+   creation-time and attachment UUID order.
+2. Under Files, choose Current files and inspect the intended attachment.
+   Wait for verified image eligibility. Choose Set card cover or Change card
+   cover, then confirm the exact file, card, board, incarnation and revisions.
+3. Use Clear card cover in details and confirm to return to automatic fallback.
+   Removing the selected file also clears its explicit selection. Its prior
+   choice and attachment references remain in committed history.
+4. Choose Refresh card cover to obtain current facts after a change elsewhere.
+   Use the Archive status selector or a deliberate archived search to inspect an
+   archived card. A Completed card can be read. Cover changes require the
+   current attach right and applicable workflow ceiling on an unfinished card.
+
+Preview and download
+
+PNG, JPEG, GIF and WebP render as static previews. Preview checks use verified
+file bytes and bounded dimensions. Names and media labels are descriptive text.
+The renderer draws a bounded canvas in the browser, with a maximum 512 pixels on
+either axis. Preview state can say unavailable when bytes or authorization have
+changed. The selected cover remains recorded until deliberately changed,
+cleared or detached.
+
+Offer file download verifies current membership, length and digest. It reports
+the offer. Use the actual CLI download for verified native publication.
+Retained-only files can still have readable metadata and history.
+
+Recover an interrupted change
+
+- If a revision has changed, use Refresh card cover and deliberately choose a
+  new current selection after resolving the previous input. The captured
+  confirmation retains its original board/card revision.
+- Cancel card cover edit returns to the opener after any required explicit
+  discard. Pending or UNKNOWN cover operations retain the original editor.
+- When the service reconnects, use Read current board. Open Original operation
+  outcomes and choose Look up original outcome for the exact saved request.
+  Reload, refresh and reconnect preserve the private record. A later preview
+  alone cannot establish the disposition of an uncertain save.
+- For an incomplete or cancelled download, inspect current metadata and
+  deliberately retry the read. The browser reports whether it made a verified
+  offer. See m09-upload.txt and m09-detach.txt for their separate recovery steps.

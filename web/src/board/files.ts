@@ -4,6 +4,8 @@ import { compareFiles, FilesReadRefusal } from "../api/files.js";
 import type { FileSelection, FileView } from "../api/files.js";
 import { canonical } from "../api/boundary.js";
 import type { Value } from "../api/boundary.js";
+import type { Attachment } from "../../generated/archive/contracts.js";
+import { CoverPreview } from "./cover-preview.js";
 
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, text = ""): HTMLElementTagNameMap[K] {
   const result = document.createElement(tag); result.textContent = text;
@@ -14,6 +16,12 @@ function button(text: string, run: () => void): HTMLButtonElement {
   const result = node("button", text); result.type = "button"; result.addEventListener("click", run); return result;
 }
 export type FilesClient = Pick<BoardClient, "cardFiles" | "cardFile" | "downloadAttachment">;
+export type FileBase = Pick<CardFileRead["result"], "identity" | "cardId" | "revision" | "cardRevision">;
+export type CoverEdit = FileBase & { attachment: Attachment | null };
+export type CoverActions = Readonly<{ edit: (cover: CoverEdit) => void; allowed: (cover: CoverEdit) => boolean }>;
+export async function coverBytes(client: Pick<BoardClient, "coverBytes">, selection: FileSelection, attachment: Attachment, signal: AbortSignal): Promise<Uint8Array> {
+  return new Uint8Array(await client.coverBytes(selection, attachment, signal));
+}
 const key = (value: FileSelection): string => value.identity.boardId + "/" + value.identity.incarnation + "/" + value.cardId;
 
 // Shares CardDetails' exact selection, with no editor or private-draft state.
@@ -33,22 +41,34 @@ export class CardFiles {
   private inspection = 0;
   private active = true;
   private downloading: AbortController | undefined;
-  constructor(private readonly client: FilesClient, private readonly detach?: (read: CardFileRead) => void, private readonly canDetach?: (read: CardFileRead) => boolean) {
+  private coverPreview?: CoverPreview;
+  private coverAction?: HTMLButtonElement;
+  private coverStatus?: HTMLElement;
+  private coverBase?: FileBase & { explicit?: string };
+  constructor(private readonly client: FilesClient, private readonly detach?: (read: CardFileRead) => void, private readonly canDetach?: (read: CardFileRead) => boolean, private readonly cover?: CoverActions & Pick<BoardClient, "coverBytes">,
+    private readonly observeRevision?: (identity: FileBase["identity"], revision: number) => void) {
     this.host.setAttribute("aria-label", "Card files"); this.host.style.maxWidth = "100%";
     this.status.setAttribute("role", "status"); this.detail.setAttribute("aria-label", "File details");
     this.host.append(node("h3", "Files"), this.current, this.retained, this.refresh, this.next, this.status, this.rows, this.detail);
     this.update();
   }
-  open(selected: FileSelection): void {
+  open(selected: FileSelection, coverBase?: FileBase & { explicit?: string }): void {
     if (!this.selection || key(this.selection) !== key(selected)) this.view = "current";
-    this.selection = structuredClone(selected); this.active = true; void this.load();
+    this.selection = structuredClone(selected); this.coverBase = coverBase; this.active = true; void this.load();
   }
   close(): void { this.selection = undefined; this.invalidate(); this.rows.replaceChildren(); this.update(); }
   suspend(): void { this.active = false; this.invalidate(); }
   resume(): void { this.active = true; this.update(); }
+  observeBoardRevision(identity: FileBase["identity"], revision: number): void {
+    const base = this.coverBase;
+    if (!base || base.identity.boardId !== identity.boardId || base.identity.incarnation !== identity.incarnation || base.revision >= revision) return;
+    this.disposeCover(true);
+    this.coverBase = undefined;
+  }
   invalidate(): void {
     const restoreFocus = this.rows.contains(document.activeElement) || this.detail.contains(document.activeElement);
     this.generation++; this.inspection++; this.downloading?.abort(); this.downloading = undefined;
+    this.disposeCover(); this.coverBase = undefined;
     this.page = undefined; this.rows.replaceChildren(); this.detail.replaceChildren();
     this.status.textContent = "Files stale. Refresh files from the first page."; this.update();
     if (restoreFocus && !this.refresh.disabled) this.refresh.focus();
@@ -67,6 +87,7 @@ export class CardFiles {
     const restoreRemovedFocus = this.rows.contains(document.activeElement) || this.detail.contains(document.activeElement);
     const generation = ++this.generation;
     this.inspection++; this.downloading?.abort(); this.downloading = undefined;
+    this.disposeCover();
     this.page = undefined; this.rows.replaceChildren(); this.detail.replaceChildren(); this.update();
     if (restoreRemovedFocus) this.refresh.focus();
     this.status.textContent = "Reading " + view + " files…";
@@ -76,6 +97,7 @@ export class CardFiles {
       if (!valid()) return;
       const result = read.result;
       if (result.identity.boardId !== selected.identity.boardId || result.identity.incarnation !== selected.identity.incarnation || result.cardId !== selected.cardId || result.view !== view) throw Error("Files context mismatch");
+      this.observeRevision?.(result.identity, result.revision);
       if (previous && (result.revision !== previous.result.revision || result.cardRevision !== previous.result.cardRevision ||
           result.items.length > 0 && compareFiles(previous.result.items.at(-1)!, result.items[0]!) >= 0)) throw new FilesReadRefusal("REVISION_CONFLICT");
       this.page = read;
@@ -100,6 +122,7 @@ export class CardFiles {
     if (!this.active || !this.selection || !this.page) return;
     const selected = this.selection, page = this.page, generation = this.generation, inspection = ++this.inspection;
     this.downloading?.abort(); this.downloading = undefined;
+    this.disposeCover();
     this.detail.replaceChildren(node("p", "Reading file details…"));
     const valid = (): boolean => this.active && generation === this.generation && inspection === this.inspection;
     try {
@@ -107,6 +130,7 @@ export class CardFiles {
       if (!valid()) return;
       if (read.result.identity.boardId !== selected.identity.boardId || read.result.identity.incarnation !== selected.identity.incarnation ||
           read.result.cardId !== selected.cardId || read.result.file.attachment.attachmentId !== row.attachment.attachmentId) throw Error("File context mismatch");
+      this.observeRevision?.(read.result.identity, read.result.revision);
       if (read.result.revision !== page.result.revision || read.result.cardRevision !== page.result.cardRevision ||
           canonical(read.result.file as unknown as Value) !== canonical(row as unknown as Value)) {
         this.invalidate(); return;
@@ -128,10 +152,55 @@ export class CardFiles {
           detach.disabled = !!this.canDetach && !this.canDetach(read);
           this.detail.append(detach);
         }
+        if (this.cover && this.view === "current" && file.referenceState === "current") this.inspectCover(read, valid);
       } else this.detail.append(node("p", "Download unavailable because this file is no longer attached."));
     } catch {
       if (valid()) this.detail.replaceChildren(node("p", "File details unavailable. Refresh files to read current metadata."));
     }
+  }
+  private disposeCover(stale = false): void {
+    const restoreFocus = stale && this.coverAction === document.activeElement;
+    this.coverPreview?.dispose(); this.coverPreview = undefined;
+    if (this.coverAction) this.coverAction.disabled = true;
+    if (stale && this.coverStatus) this.coverStatus.textContent = "Cover information is stale. Refresh card cover before choosing a cover.";
+    this.coverAction = undefined;
+    this.coverStatus = undefined;
+    if (restoreFocus && !this.refresh.disabled) this.refresh.focus();
+  }
+  private inspectCover(read: CardFileRead, valid: () => boolean): void {
+    const base = this.coverBase, actions = this.cover!;
+    const { identity, cardId, revision, cardRevision, file } = read.result, attachment = file.attachment;
+    if (!base || base.cardId !== cardId || base.identity.boardId !== identity.boardId ||
+        base.identity.incarnation !== identity.incarnation || base.revision !== revision || base.cardRevision !== cardRevision) return;
+    if (base.explicit === attachment.attachmentId) {
+      this.coverStatus = node("p", "This file is the explicit card cover.");
+      this.detail.append(this.coverStatus); return;
+    }
+    const candidate = { identity, cardId, revision, cardRevision, attachment };
+    const state = node("p"); state.setAttribute("role", "status");
+    this.coverStatus = state;
+    let eligible = false;
+    const set = button(base.explicit ? "Change card cover" : "Set card cover", () => {
+      if (eligible && valid() && actions.allowed(candidate)) { set.focus(); actions.edit(candidate); }
+    });
+    set.dataset.focusKey = cardId + ":cover:" + attachment.attachmentId;
+    this.coverAction = set;
+    set.disabled = true; this.detail.append(state, set);
+    if (!actions.allowed(candidate)) { state.textContent = "Cover selection unavailable for this card and current access."; return; }
+    const canvas = node("canvas");
+    canvas.hidden = true; // Eligibility uses the same verified decode path as displayed covers.
+    const preview = new CoverPreview({
+      canvas, priority: "details", isCurrent: valid,
+      fetchBytes: (a, signal) => coverBytes(actions, { identity, cardId }, a, signal),
+      onState: result => {
+        eligible = result.status === "ready";
+        set.disabled = !eligible || !actions.allowed(candidate);
+        state.textContent = eligible ? "Verified image eligible for card cover." : result.status === "loading" ?
+          "Checking card cover eligibility…" : result.status === "ineligible" ? "This file cannot be displayed as a card cover." :
+            "Card cover eligibility unavailable. Inspect this file again to retry.";
+      },
+    });
+    this.coverPreview = preview; preview.start([attachment], attachment.attachmentId);
   }
   private async download(file: CardFile, selected: FileSelection, offer: HTMLButtonElement, state: HTMLElement, valid: () => boolean): Promise<void> {
     if (!valid() || this.downloading) return;

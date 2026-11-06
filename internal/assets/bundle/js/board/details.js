@@ -1,7 +1,8 @@
 import { completedLane, laneText, workflowAtVersion } from "../api/workflow.js";
 import { CardRelationships } from "./relationships.js";
 import { CardHierarchy } from "./hierarchy.js";
-import { CardFiles } from "./files.js";
+import { CardFiles, coverBytes } from "./files.js";
+import { CoverPreview } from "./cover-preview.js";
 function node(tag, text = "") {
     const result = document.createElement(tag);
     result.textContent = text;
@@ -40,12 +41,35 @@ function coverage(host, value) {
             (gap.fromExclusive ?? "unbounded start") + " exclusive through " + gap.throughInclusive + " inclusive · " + gap.reason +
             " · recorded " + gap.recordedAt + " at board revision " + gap.boardRevision));
 }
+export function presentCover(host, client, identity, card, attachments, isCurrent, observe) {
+    const canvas = node("canvas"), status = node("p");
+    host.setAttribute("aria-label", "Card cover preview");
+    if (!observe)
+        status.setAttribute("role", "status");
+    status.textContent = card.coverAttachmentId ? "Explicit cover · " + card.coverAttachmentId : "Automatic cover fallback";
+    canvas.style.maxWidth = "100%";
+    canvas.style.height = "auto";
+    host.append(status, canvas);
+    const preview = new CoverPreview({ canvas, priority: observe ? "card" : "details", observe, isCurrent,
+        fetchBytes: (a, signal) => coverBytes(client, { identity, cardId: card.cardId }, a, signal),
+        onState: state => {
+            const label = state.mode === "explicit" ? "Explicit cover · " + card.coverAttachmentId : "Automatic cover fallback";
+            const facts = state.status === "ready" ? "Image ready · " + state.attachmentId : state.status === "empty" ? "No cover image" :
+                state.status === "loading" ? "Checking cover image…" : state.status === "ineligible" ? "Selected image cannot be displayed" : "Cover preview unavailable";
+            status.textContent = label + " · " + facts;
+        },
+    });
+    const ids = new Set(card.attachmentIds);
+    preview.start(attachments.filter(a => a.cardId === card.cardId && ids.has(a.attachmentId)), card.coverAttachmentId);
+    return preview;
+}
 // One board-local nonmodal reader. It never reads or writes editor/recovery state.
 export class CardDetails {
     client;
     fallback;
     archiveAction;
     focusRoot;
+    cover;
     host = node("section");
     selected;
     expected;
@@ -69,11 +93,19 @@ export class CardDetails {
     hierarchyFallback;
     hierarchyOrigin = false;
     files;
-    constructor(client, fallback, archiveAction, focusRoot, hierarchy, filesClient, detach, canDetach) {
+    coverHost = node("section");
+    refreshCover = control("Refresh card cover", () => {
+        if (this.active && this.selected)
+            void this.cover?.refresh();
+    });
+    coverPreview;
+    observed;
+    constructor(client, fallback, archiveAction, focusRoot, hierarchy, filesClient, detach, canDetach, cover) {
         this.client = client;
         this.fallback = fallback;
         this.archiveAction = archiveAction;
         this.focusRoot = focusRoot;
+        this.cover = cover;
         this.host.hidden = true;
         this.host.setAttribute("aria-label", "Card details");
         this.host.setAttribute("role", "region");
@@ -93,8 +125,12 @@ export class CardDetails {
             this.relationships = new CardRelationships(hierarchy.client, (cardId, identity, opener) => this.open(cardId, identity, opener, true), hierarchy.relationshipAction);
             this.host.insertBefore(this.relationships.host, this.comments);
         }
+        if (cover) {
+            this.host.insertBefore(this.refreshCover, this.comments);
+            this.host.insertBefore(this.coverHost, this.comments);
+        }
         if (filesClient) {
-            this.files = new CardFiles(filesClient, detach, canDetach);
+            this.files = new CardFiles(filesClient, detach, canDetach, cover, (identity, revision) => this.observeRevision(identity, revision));
             this.host.insertBefore(this.files.host, this.comments);
         }
     }
@@ -105,6 +141,7 @@ export class CardDetails {
         this.opener = opener;
         this.hierarchyOrigin = hierarchyOrigin;
         this.files?.close();
+        this.disposeCover();
         this.current = undefined;
         this.history = undefined;
         this.host.hidden = false;
@@ -126,6 +163,7 @@ export class CardDetails {
         this.hierarchy?.close();
         this.relationships?.close();
         this.files?.close();
+        this.disposeCover();
         const scope = this.focusRoot ?? this.fallback.parentElement;
         const replacement = scope?.isConnected ? [...scope.querySelectorAll("button[data-open-card]")]
             .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0)
@@ -143,6 +181,7 @@ export class CardDetails {
         this.hierarchy?.markStale();
         this.relationships?.markStale();
         this.files?.invalidate();
+        this.disposeCover();
         this.historicalComments.replaceChildren(node("p", "History comments stale; a deliberate refresh is required."));
         if (this.selected) {
             this.status.textContent = "Card details stale. Deliberately refresh card details to read current facts.";
@@ -158,7 +197,21 @@ export class CardDetails {
         }
         void this.refresh();
     }
-    completeBoardRead(read) { this.hierarchy?.boardRead(read); this.relationships?.boardRead(read); }
+    completeBoardRead(read) {
+        this.observeRevision(read.result.identity, read.result.revision);
+        this.hierarchy?.boardRead(read);
+        this.relationships?.boardRead(read);
+    }
+    observeRevision(identity, revision) {
+        if (!this.observed || !same(this.observed.identity, identity) || revision > this.observed.revision)
+            this.observed = { identity, revision };
+        this.files?.observeBoardRevision(identity, revision);
+        if (this.coverPreview && this.current && same(this.current.result.identity, identity) && revision > this.current.result.revision) {
+            this.disposeCover();
+            this.coverHost.append(node("p", "Cover preview stale. Refresh card cover to read current facts."));
+        }
+        this.cover?.observeRevision(identity, revision);
+    }
     captureSelection() {
         return this.active && this.selected && this.expected ? { cardId: this.selected, identity: { ...this.expected }, request: this.request } : undefined;
     }
@@ -198,6 +251,7 @@ export class CardDetails {
             return;
         const generation = ++this.request, cardId = this.selected, identity = this.expected;
         this.files?.invalidate();
+        this.disposeCover();
         const valid = () => this.active && generation === this.request && this.selected === cardId;
         this.commentPage = 0;
         this.historyPage = 0;
@@ -207,8 +261,16 @@ export class CardDetails {
         this.status.textContent = "Reading current card and separate history snapshots…";
         this.older.replaceChildren(node("p", "History unavailable while reading."));
         this.historicalComments.replaceChildren(node("p", "History comments unavailable while reading."));
-        const currentPromise = this.client.card(identity.boardId, cardId);
-        const historyPromise = this.client.history(identity.boardId, cardId);
+        const currentPromise = this.client.card(identity.boardId, cardId).then(read => {
+            if (valid() && same(read.result.identity, identity) && read.result.card.cardId === cardId)
+                this.observeRevision(identity, read.result.revision);
+            return read;
+        });
+        const historyPromise = this.client.history(identity.boardId, cardId).then(read => {
+            if (valid() && same(read.result.identity, identity) && read.result.cardId === cardId)
+                this.observeRevision(identity, read.result.revision);
+            return read;
+        });
         const [current, history] = await Promise.allSettled([currentPromise, historyPromise]);
         if (!valid())
             return;
@@ -220,7 +282,29 @@ export class CardDetails {
             return;
         }
         this.current = current.value;
-        this.files?.open({ identity, cardId });
+        const { revision, card, attachments } = current.value.result;
+        const base = { identity, cardId, revision, cardRevision: card.revision };
+        const coherentCover = !this.observed || !same(this.observed.identity, identity) || revision >= this.observed.revision;
+        this.files?.open({ identity, cardId }, coherentCover ? { ...base, explicit: card.coverAttachmentId } : undefined);
+        if (this.cover && !coherentCover) {
+            this.coverHost.append(node("p", "Cover preview stale. Refresh card cover to read current facts."));
+        }
+        else if (this.cover) {
+            const actions = this.cover;
+            this.coverPreview = presentCover(this.coverHost, actions, identity, card, attachments, valid);
+            if (card.coverAttachmentId) {
+                const clear = control("Clear card cover", () => {
+                    if (valid() && actions.allowed(candidate)) {
+                        clear.focus();
+                        actions.edit(candidate);
+                    }
+                });
+                const candidate = { ...base, attachment: null };
+                clear.disabled = !actions.allowed(candidate);
+                clear.dataset.focusKey = cardId + ":cover:clear";
+                this.coverHost.append(clear);
+            }
+        }
         this.hierarchy?.observeRevision(current.value.result.identity, current.value.result.revision);
         this.relationships?.observeRevision(current.value.result.identity, current.value.result.revision);
         this.renderCurrent();
@@ -243,6 +327,14 @@ export class CardDetails {
         this.renderHistoricalComments();
         this.status.textContent = "Refreshed returned coverage: " + c.comments.length + " comments and " +
             priorHistory(h.records, h.identity, cardId, h.cardRevision).length + " prior history rows and " + h.comments.length + " history comments. Pages reset to 1. Board revision " + c.revision + ", card revision " + c.card.revision + ".";
+    }
+    disposeCover() {
+        const moveFocus = this.active && !this.host.hidden && this.coverHost.contains(document.activeElement);
+        this.coverPreview?.dispose();
+        this.coverPreview = undefined;
+        this.coverHost.replaceChildren();
+        if (moveFocus)
+            this.refreshCover.focus({ preventScroll: true });
     }
     page(host, rows, page, label, change, render) {
         const start = page * 20, stop = Math.min(rows.length, start + 20), list = node("div");
@@ -309,6 +401,7 @@ export class CardDetails {
             if (row.state) {
                 const parent = row.state.parent;
                 article.append(node("p", parent ? "Historical parent: " + origin(parent) + "/" + parent.cardId + " · unresolved/unavailable in this history view" : "Historical parent: No parent"));
+                article.append(node("p", "Historical explicit cover · " + (row.state.coverAttachmentId ?? "Unset")));
             }
             if (row.removal)
                 article.append(node("p", "State removed: " + row.removal.reason + " · " + row.removal.removedAt + " · board revision " + row.removal.boardRevision));

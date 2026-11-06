@@ -73,6 +73,14 @@ export async function runFilesClientTests(): Promise<number> {
     const facts = { ...fileSelectionFixture.identity, cardId: fileSelectionFixture.cardId, byteLength: 3, sha256 };
     mode = "download";
     check(new Uint8Array(await client.downloadAttachment(fileSelectionFixture.identity.boardId, fileFixture().attachment.attachmentId, facts, new AbortController().signal)).join() === payload.join(), "Verified bytes changed");
+    const current = { ...fileFixture().attachment, byteLength: payload.byteLength, sha256 };
+    const previewRequests = requests;
+    const cover = await client.coverBytes(fileSelectionFixture, current, new AbortController().signal);
+    check(new Uint8Array(cover).join() === payload.join() && requests === previewRequests + 1, "Cover preview must reuse the verified raw request");
+    let foreignCover = false;
+    try { await client.coverBytes(fileSelectionFixture, { ...current, cardId: current.attachmentId }, new AbortController().signal); }
+    catch { foreignCover = true; }
+    check(foreignCover && requests === previewRequests + 1, "Cross-card cover attempted a transfer");
     for (mode of ["download-retained", "download-mime", "download-nosniff", "download-truncated", "download-hash"]) {
       let refused = false;
       try { await client.downloadAttachment(fileSelectionFixture.identity.boardId, fileFixture().attachment.attachmentId, facts, new AbortController().signal); } catch { refused = true; }
@@ -83,5 +91,34 @@ export async function runFilesClientTests(): Promise<number> {
     try { await client.downloadAttachment(fileSelectionFixture.identity.boardId, fileFixture().attachment.attachmentId, facts, cancelledDownload.signal); } catch { interrupted = true; }
     check(interrupted, "Interrupted download succeeded");
     return checks;
+  } finally { client.close(); }
+}
+
+// Controlled HTTPS page. Legacy bearer sessions have no preselected local member.
+export async function runCoverBearerProbe(): Promise<number> {
+  const payload = new Uint8Array([1, 4, 16]);
+  const sha256 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", payload))]
+    .map(value => value.toString(16).padStart(2, "0")).join("");
+  const attachment = { ...fileFixture().attachment, byteLength: payload.length, sha256 };
+  let requests = 0;
+  const fetcher: typeof fetch = async (input, init) => {
+    if (String(input) !== "/api/v1/boards/" + fileSelectionFixture.identity.boardId + "/attachments/" + attachment.attachmentId ||
+        init?.credentials !== "omit" || new Headers(init.headers).get("Authorization") !== "Bearer synthetic-probe") {
+      throw Error("Unexpected preview bearer transport");
+    }
+    requests++;
+    return new Response(payload, { headers: {
+      "Content-Type": "application/octet-stream", "Content-Length": "3", "X-Content-Type-Options": "nosniff",
+      "Content-Disposition": 'attachment; filename="attachment-' + attachment.attachmentId + '.bin"',
+    } });
+  };
+  const client = await BoardClient.open({
+    installationId: "00000000-0000-4000-8000-000000000030", profileId: "bearer-probe",
+    credential: () => "synthetic-probe", databaseName: "localswim-bearer-probe-" + crypto.randomUUID(), fetch: fetcher,
+  });
+  try {
+    const verified = await client.coverBytes(fileSelectionFixture, attachment, new AbortController().signal);
+    if (requests !== 1 || new Uint8Array(verified).join() !== payload.join()) throw Error("Bearer preview bytes changed");
+    return 2;
   } finally { client.close(); }
 }

@@ -16,7 +16,7 @@ import { validSearch, validateSearchRead } from "./search.js";
 import type { SearchFilters } from "./search.js";
 import { laneRole, sameWorkflow, validateWorkflowPolicies, workflowAtVersion, validateCurrentWorkflowCards, validateWorkflowPreview } from "./workflow.js";
 import type { CardFileRead, CardFilesRead } from "../../generated/transport/contracts.js";
-import type { Attachment } from "../../generated/archive/contracts.js";
+import type { Attachment, Identity } from "../../generated/archive/contracts.js";
 import { fileReadMaximum, FilesReadRefusal, validateFileRead, validateFilesRead } from "./files.js";
 import type { FileSelection, FileView } from "./files.js";
 
@@ -60,6 +60,14 @@ export class BoardClient {
   private closed = false;
   private readonly commitObservers = new Set<() => void>();
   onCommitted(callback: () => void): () => void { this.commitObservers.add(callback); return () => { this.commitObservers.delete(callback); }; }
+  private readonly readObservers = new Set<(identity: Identity, revision: number) => void>();
+  onReadRevision(callback: (identity: Identity, revision: number) => void): () => void {
+    this.readObservers.add(callback);
+    return () => { this.readObservers.delete(callback); };
+  }
+  private observeRead(identity: Identity, revision: number): void {
+    for (const callback of this.readObservers) callback(identity, revision);
+  }
   private readonly previews = new Map<string, Preview>();
   private readonly inFlight = new Set<string>();
   private readonly workflows = new Map<string, Workflow | undefined>();
@@ -98,7 +106,7 @@ export class BoardClient {
     this.recovery = new RecoveryStore(driver, options.installationId,
       options.profileId, boardBoundaryVerifier, options.qualification);
   }
-  close(): void { this.closed = true; this.commitObservers.clear(); this.driver.close(); }
+  close(): void { this.closed = true; this.commitObservers.clear(); this.readObservers.clear(); this.driver.close(); }
   private path(boardId: string): string {
     if (!uuid.test(boardId) || boardId === "00000000-0000-0000-0000-000000000000") throw Error("Invalid board identity");
     if (this.options.selection && boardId !== this.options.selection.boardId) throw Error("Selected board mismatch");
@@ -168,6 +176,7 @@ export class BoardClient {
     validateWorkflowPolicies(board.result.workflow, board.result.workflowPolicies, board.result.policyVersion);
     validateCurrentWorkflowCards(board.result.cards, board.result.workflow, board.result.workflowPolicies, board.result.actors, board.result.approvals);
     this.workflowRead(board.result.identity, board.result.workflow, board.result.cards.map(card => card.lane));
+    this.observeRead(board.result.identity, board.result.revision);
     return board;
   }
   async card(boardId: string, cardId: string): Promise<CardRead> {
@@ -197,6 +206,7 @@ export class BoardClient {
     validateSearchRead(read, filters);
     validateWorkflowPolicies(read.result.workflow, read.result.workflowPolicies);
     this.workflowRead(read.result.identity, read.result.workflow, [...read.result.items.map(card => card.lane), ...(read.result.query.lane === null ? [] : [read.result.query.lane])]);
+    this.observeRead(read.result.identity, read.result.revision);
     return read;
   }
   async history(boardId: string, cardId: string): Promise<HistoryRead> {
@@ -430,6 +440,28 @@ export class BoardClient {
       if (!attachment || !board.result.cards.some(card => card.cardId === attachment!.cardId && card.attachmentIds.includes(id))) throw Error("Attachment is no longer current");
     }
     if (!credential || this.options.credential() !== credential || attachment.sha256 !== facts.sha256 || attachment.byteLength !== facts.byteLength) throw Error("Attachment metadata changed");
+    return this.verifiedAttachmentBytes(boardId, id, facts, signal, credential);
+  }
+  // Preview callers capture an attachment from an already authorized, coherent
+  // card read. The raw route still checks live attachment membership.
+  async coverBytes(selection: FileSelection, attachment: Attachment, signal: AbortSignal): Promise<ArrayBuffer> {
+    const { identity, cardId } = structuredClone(selection);
+    const facts = structuredClone(attachment);
+    const selected = this.options.selection, credential = this.options.credential();
+    if (!credential || signal.aborted ||
+        selected && (identity.boardId !== selected.boardId || identity.incarnation !== selected.incarnation) ||
+        !uuid.test(identity.incarnation) || identity.incarnation === "00000000-0000-0000-0000-000000000000" ||
+        facts.cardId !== cardId || facts.createdIn.boardId !== identity.boardId ||
+        !uuid.test(facts.attachmentId) || facts.attachmentId === "00000000-0000-0000-0000-000000000000" ||
+        !/^[0-9a-f]{64}$/.test(facts.sha256) ||
+        !Number.isSafeInteger(facts.byteLength) || facts.byteLength < 0 || facts.byteLength > 10485760) {
+      throw Error("Cover bytes unavailable");
+    }
+    return this.verifiedAttachmentBytes(identity.boardId, facts.attachmentId, facts,
+      AbortSignal.any([signal, AbortSignal.timeout(10_000)]), credential);
+  }
+  private async verifiedAttachmentBytes(boardId: string, id: string,
+    facts: Readonly<{ sha256: string; byteLength: number }>, signal: AbortSignal, credential: string): Promise<ArrayBuffer> {
     const bytes = await this.binary(this.path(boardId) + "/attachments/" + id, "application/octet-stream", 10485760, { signal }, 'attachment; filename="attachment-' + id + '.bin"');
     if (bytes.byteLength !== facts.byteLength || await digestBytes(bytes) !== facts.sha256 || signal.aborted || this.options.credential() !== credential) throw Error("Attachment bytes mismatch");
     return bytes;

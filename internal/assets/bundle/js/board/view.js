@@ -4,10 +4,21 @@ import { completeOwnedRelationships, relationshipKinds, forwardLabels, validRela
 import { WorkflowPreviewRefusal } from "../api/client.js";
 import { recoveryCoordinator } from "../recovery-ui/coordination.js";
 import { dependencyAdvisory } from "./advisory.js";
-import { commands, parse, validate } from "../api/boundary.js";
-import { CardDetails } from "./details.js";
+import { canonical, commands, parse, validate } from "../api/boundary.js";
+import { CardDetails, presentCover } from "./details.js";
 import { CardSearch } from "./search.js";
 import { sameIdentity, validParentRef, validateBoardHierarchy, hierarchyOrder } from "../api/hierarchy.js";
+function coverMatches(base, card, cover) {
+    const { identity, revision, attachments } = base.result, file = cover.attachment;
+    if (!sameIdentity(identity, cover.identity) || cover.revision !== revision ||
+        card.cardId !== cover.cardId || card.revision !== cover.cardRevision)
+        return false;
+    if (!file)
+        return card.coverAttachmentId !== undefined;
+    const current = attachments.find(row => row.attachmentId === file.attachmentId && row.cardId === card.cardId);
+    return !!current && card.attachmentIds.includes(file.attachmentId) &&
+        canonical(current) === canonical(file);
+}
 function element(tag, text = "") {
     const node = document.createElement(tag);
     node.textContent = text;
@@ -51,11 +62,15 @@ export class BoardView {
     destroyed = false;
     generation = 0;
     suspended = false;
+    refreshing = false;
     persistence;
     stopPersistence;
     details;
+    stopRevision;
     search;
     archiveStatus = element("select");
+    cardCovers = [];
+    observed;
     constructor(root, client, boardId, checkpoint = () => { }, options = {}) {
         this.root = root;
         this.client = client;
@@ -106,11 +121,14 @@ export class BoardView {
                 return;
             }
             this.edit("card.edit", card, false, undefined, !card.archived);
-        }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read, relationshipAction: (action, card, read, row) => this.relationshipEdit(action, card, read, row) }, client, read => this.detachFile(read), read => this.canDetachFile(read.result, read.result.file.attachment.attachmentId));
+        }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read, relationshipAction: (action, card, read, row) => this.relationshipEdit(action, card, read, row) }, client, read => this.detachFile(read), read => this.canDetachFile(read.result, read.result.file.attachment.attachmentId), { coverBytes: (selection, attachment, signal) => client.coverBytes(selection, attachment, signal),
+            edit: cover => this.editCover(cover), allowed: cover => this.canEditCover(cover), refresh: () => this.refresh(),
+            observeRevision: (identity, revision) => this.observeRevision(identity, revision) });
+        this.stopRevision = client.onReadRevision?.((identity, revision) => this.details.observeRevision(identity, revision)) ?? (() => { });
         root.replaceChildren(this.heading, this.actor, this.readState, read, this.create, this.workflowEdit, this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
     }
     async open() { await this.refresh(); }
-    suspend() { this.suspended = true; this.generation++; this.details.suspend(); this.search.suspend(); }
+    suspend() { this.suspended = true; this.refreshing = false; this.generation++; this.clearCardCovers(); this.details.suspend(); this.search.suspend(); }
     resume() {
         this.suspended = false;
         this.details.resume();
@@ -121,6 +139,8 @@ export class BoardView {
                 this.showOutcome(outcome, context);
             this.reflectCommitted(outcome);
         }
+        if (this.board && !this.stale)
+            this.renderCards();
         this.updateSave();
     }
     get canLeave() { return !this.editor || this.editor.persisted === this.editor.sequence; }
@@ -197,6 +217,20 @@ export class BoardView {
             }
             else if (payload.detach)
                 return;
+            if (Object.hasOwn(payload.input, "coverAttachmentId") || Object.hasOwn(payload, "cover")) {
+                const cover = payload.cover;
+                if (payload.command !== "card.edit" || !card || !cover || payload.start || payload.genericMove || hierarchy || archive !== undefined ||
+                    Object.keys(payload.input).length !== 1 || payload.target?.cardId !== card.cardId ||
+                    payload.expectedRevision !== payload.base.result.revision || payload.expectedCardRevision !== card.revision ||
+                    payload.input.coverAttachmentId !== (cover.attachment === null ? null : cover.attachment?.attachmentId) ||
+                    completedLane(card.lane, payload.base.result.workflow))
+                    return;
+                validate("archive:Identity", cover.identity);
+                if (cover.attachment !== null)
+                    validate("archive:Attachment", cover.attachment);
+                if (!coverMatches(payload.base, card, cover))
+                    return;
+            }
             const inventory = await this.persistence.read(() => this.client.recovery.inventory());
             const rows = inventory.submissions.filter(row => row.draftId === reference.draftId && Object.entries(reference.context).every(([key, value]) => value === row.context[key]));
             const originals = await Promise.all(rows.map(async (row) => ({ row, submission: await this.client.recovery.loadSubmission(row.context, row.opId) })));
@@ -215,7 +249,7 @@ export class BoardView {
             const retainedFocus = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : undefined;
             const retainedSelection = retainedFocus instanceof HTMLInputElement || retainedFocus instanceof HTMLTextAreaElement
                 ? [retainedFocus.selectionStart, retainedFocus.selectionEnd, retainedFocus.selectionDirection ?? undefined] : undefined;
-            this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive, hierarchy, payload.command === "card.edit" && Object.hasOwn(payload.input, "relationships"), undefined, payload.genericMove === true, payload.detach);
+            this.edit(payload.command, card, payload.start === true, { base: payload.base, reference, revision: draft.revision, input: payload.input }, archive, hierarchy, payload.command === "card.edit" && Object.hasOwn(payload.input, "relationships"), undefined, payload.genericMove === true, payload.detach, payload.cover);
             const restored = this.editor;
             if (restored)
                 restored.submitted = rows.some(row => row.outcome !== "not_committed");
@@ -237,17 +271,34 @@ export class BoardView {
         }
     }
     // Owning session adapter invokes on logout/revocation; it preserves private data.
-    destroy() { this.destroyed = true; this.details.suspend(); this.search.suspend(); this.stopPersistence(); this.generation++; this.editor?.workflowEditor?.destroy(); this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
+    destroy() { this.destroyed = true; this.stopRevision(); this.clearCardCovers(); this.details.suspend(); this.search.suspend(); this.stopPersistence(); this.generation++; this.editor?.workflowEditor?.destroy(); this.editor = undefined; this.board = undefined; this.session = undefined; this.root.replaceChildren(); }
+    connectionUnavailable() {
+        if (this.destroyed)
+            return;
+        this.generation++;
+        this.refreshing = false;
+        this.stale = true;
+        this.clearCardCovers();
+        this.details.invalidate();
+        this.search.invalidate();
+        this.create.disabled = this.workflowEdit.disabled = true;
+        this.readState.textContent = "Connection unavailable. Read the current board to resume. Private input and original outcomes are retained.";
+        this.updateSave();
+    }
     async refresh() {
         if (this.destroyed || this.suspended)
             return;
         const generation = ++this.generation;
+        this.refreshing = true;
+        this.clearCardCovers();
         this.details.invalidate();
+        this.updateSave();
         try {
             const session = await this.client.session(), board = await this.client.board(this.boardId);
             this.client.context(board, session);
             if (this.destroyed || generation !== this.generation)
                 return;
+            this.refreshing = false;
             this.session = session;
             this.board = board;
             this.stale = false;
@@ -264,24 +315,57 @@ export class BoardView {
         catch {
             if (this.destroyed || generation !== this.generation)
                 return;
+            this.refreshing = false;
             this.stale = true;
             this.search.invalidate();
             this.readState.textContent = this.board ? "Unavailable; displayed board is stale. Editor input and original base retained." : "Unavailable; no current board loaded.";
         }
         this.updateSave();
     }
+    observeRevision(identity, revision) {
+        if (!this.observed || !sameIdentity(this.observed.identity, identity) || revision > this.observed.revision)
+            this.observed = { identity, revision };
+        if (!this.board || !sameIdentity(this.board.result.identity, identity) || this.board.result.revision >= revision)
+            return;
+        this.clearCardCovers();
+        this.updateSave();
+    }
+    currentCoverBoard(base) {
+        return !this.refreshing && !this.stale && (!this.observed || !sameIdentity(this.observed.identity, base.result.identity) || base.result.revision >= this.observed.revision);
+    }
+    clearCardCovers() {
+        for (const preview of this.cardCovers)
+            preview.dispose();
+        this.cardCovers.length = 0;
+        for (const preview of this.cards.querySelectorAll('[aria-label="Card cover preview"]'))
+            preview.remove();
+    }
     renderCards() {
+        this.clearCardCovers();
         const focused = this.cards.contains(document.activeElement) ? document.activeElement?.dataset.focusKey : undefined;
         this.cards.replaceChildren();
         const visible = visibleCards(this.board.result.cards, this.archiveStatus.value);
         this.cards.append(element("p", visible.length + " cards visible · Archive status: " + this.archiveStatus.selectedOptions[0].textContent));
-        const workflow = this.board.result.workflow;
+        const base = this.board, workflow = base.result.workflow, generation = this.generation;
+        const filesByCard = new Map();
+        for (const file of base.result.attachments) {
+            const group = filesByCard.get(file.cardId);
+            if (group)
+                group.push(file);
+            else
+                filesByCard.set(file.cardId, [file]);
+        }
         for (const lane of workflow ? workflowLanes(workflow) : [undefined]) {
             if (lane)
                 this.cards.append(element("h2", laneText(lane.id, workflow)));
             for (const card of lane ? visible.filter(row => row.lane === lane.id) : visible) {
                 const article = element("article");
                 article.append(element("h2", "#" + card.ticket + " " + card.title), element("p", card.cardId), element("p", card.description), element("p", "Assignee: " + this.assignee(card.ownerId, this.board.result.actors)), element("p", card.priority + " · " + laneText(card.lane, this.board.result.workflow) + " · card revision " + card.revision + " · " + (card.archived ? "Archived" : "Active")));
+                if (this.currentCoverBoard(base)) {
+                    const preview = element("section");
+                    article.append(preview);
+                    this.cardCovers.push(presentCover(preview, this.client, base.result.identity, card, filesByCard.get(card.cardId) ?? [], () => !this.destroyed && !this.suspended && this.board === base && this.currentCoverBoard(base) && this.generation === generation && article.isConnected, article));
+                }
                 const commentCount = this.board.result.comments.filter(c => c.cardId === card.cardId).length;
                 article.append(element("p", commentCount + " comments returned. Open card to read paged comments and history."));
                 for (const link of this.board.result.links.filter(l => l.cardId === card.cardId && l.active)) {
@@ -363,7 +447,7 @@ export class BoardView {
                 message: editor.recovery.textContent ?? "" });
         }
         if (this.editor)
-            this.editor.save.disabled = !!this.editor.detach && !this.canDetachFile(this.editor.detach, this.editor.detach.attachment.attachmentId) || this.stale || this.editor.submitted || this.editor.composing || this.editor.confirming || this.blocked() || this.editor.hierarchy?.action === "set-parent" && !this.editor.fields.parent?.value;
+            this.editor.save.disabled = !!this.editor.detach && !this.canDetachFile(this.editor.detach, this.editor.detach.attachment.attachmentId) || !!this.editor.cover && !this.canEditCover(this.editor.cover) || this.stale || this.editor.submitted || this.editor.composing || this.editor.confirming || this.blocked() || this.editor.hierarchy?.action === "set-parent" && !this.editor.fields.parent?.value;
     }
     hierarchyEdit(action, card, read) {
         const current = this.board;
@@ -400,7 +484,18 @@ export class BoardView {
         const card = this.board.result.cards.find(row => row.cardId === selected.cardId);
         this.edit("attachment.detach", card, false, undefined, undefined, undefined, false, undefined, false, structuredClone({ identity: selected.identity, cardId: selected.cardId, revision: selected.revision, cardRevision: selected.cardRevision, attachment: selected.file.attachment }));
     }
-    edit(command, card, start = false, restore, archive, hierarchy, relationshipsReplace = false, removeLinkId, genericMove = false, detach) {
+    canEditCover(cover) {
+        const base = this.board, session = this.session, card = base?.result.cards.find(row => row.cardId === cover.cardId);
+        return !this.destroyed && !this.suspended && !!base && this.currentCoverBoard(base) && !!session && !!card &&
+            coverMatches(base, card, cover) && !completedLane(card.lane, base.result.workflow) && workflowRight(session, "attach", base.result.workflow);
+    }
+    editCover(cover) {
+        if (!this.canEditCover(cover))
+            return;
+        const card = this.board.result.cards.find(row => row.cardId === cover.cardId);
+        this.edit("card.edit", card, false, undefined, undefined, undefined, false, undefined, false, undefined, structuredClone(cover));
+    }
+    edit(command, card, start = false, restore, archive, hierarchy, relationshipsReplace = false, removeLinkId, genericMove = false, detach, cover) {
         if (this.destroyed || !this.board || !this.session || this.stale) {
             this.readState.textContent = "Read a current board before editing.";
             return;
@@ -411,21 +506,29 @@ export class BoardView {
         }
         if (command === "attachment.detach" && !restore && (!detach || !this.canDetachFile(detach, detach.attachment.attachmentId)))
             return;
+        if (cover && !restore && !this.canEditCover(cover))
+            return;
+        if (this.editor?.cover && this.editor.submitted && (this.editor.coverDispatching || this.blocked())) {
+            this.readState.textContent = "The original cover operation is pending or unknown. Retain this editor until its original outcome is known.";
+            return;
+        }
         if (this.editor && !this.editor.submitted && this.dirty(this.editor)) {
-            if (archive !== undefined || hierarchy !== undefined || relationshipsReplace || removeLinkId !== undefined || detach !== undefined) {
+            if (archive !== undefined || hierarchy !== undefined || relationshipsReplace || removeLinkId !== undefined || detach !== undefined || cover !== undefined) {
                 const opener = document.activeElement;
                 this.cancelEditor(this.editor, () => {
                     const replacement = [...this.root.querySelectorAll("button")].find(row => row.dataset.focusKey === opener?.dataset.focusKey);
+                    if (cover && (!opener?.isConnected || this.details.host.hidden || !this.details.host.contains(opener)))
+                        return;
                     (replacement ?? (opener?.isConnected ? opener : undefined))?.focus({ preventScroll: true });
-                    this.edit(command, card, start, restore, archive, hierarchy, relationshipsReplace, removeLinkId, genericMove, detach);
+                    this.edit(command, card, start, restore, archive, hierarchy, relationshipsReplace, removeLinkId, genericMove, detach, cover);
                 });
                 return;
             }
             this.readState.textContent = "Current editor has unsaved intent. Finish it or explicitly discard it before opening another editor.";
             return;
         }
-        if (!restore && (this.board.result.workflow || command === "attachment.detach")) {
-            const right = command === "attachment.detach" ? "attach" : command === "card.create" ? "create" : command === "comment.add" ? "comment" : command === "review-handoff" || command === "approve" ? command : "edit";
+        if (!restore && (this.board.result.workflow || command === "attachment.detach" || cover)) {
+            const right = command === "attachment.detach" || cover ? "attach" : command === "card.create" ? "create" : command === "comment.add" ? "comment" : command === "review-handoff" || command === "approve" ? command : "edit";
             if (!workflowRight(this.session, right, this.board.result.workflow)) {
                 this.readState.textContent = "Current workflow and grant do not offer this action. The server remains authoritative.";
                 return;
@@ -438,7 +541,7 @@ export class BoardView {
         const recovery = element("p", "Recovery pending");
         recovery.setAttribute("role", "status");
         const editor = { id: restore?.reference.draftId ?? crypto.randomUUID(), revision: restore?.revision ?? 0, command, context, base, card,
-            ...(detach ? { detach } : {}), fields: {}, form, recovery, save: button("Save", () => { void this.save(editor); }), composing: false,
+            ...(detach ? { detach } : {}), ...(cover ? { cover } : {}), fields: {}, form, recovery, save: button("Save", () => { void this.save(editor); }), composing: false,
             sequence: 0, submitted: false, persisted: -1, start, ...(genericMove ? { genericMove: true } : {}), ...(archive === undefined ? {} : { archive }), ...(hierarchy ? { hierarchy } : {}), ...(relationshipsReplace ? { relationshipsReplace: true } : {}), initial: "", initialFields: {}, opener: document.activeElement,
             confirmation: element("section"), confirming: false, confirmingEnter: false };
         const title = element("h2", command + " · original board revision " + base.result.revision + (card ? ", card revision " + card.revision : ""));
@@ -576,6 +679,15 @@ export class BoardView {
             editor.save.textContent = archive ? "Confirm archive card" : "Confirm unarchive card";
             form.append(element("p", (archive ? "Archive" : "Unarchive") + " card #" + card.ticket + "? Recorded lane " + laneText(card.lane, base.result.workflow) + " and retained card facts remain. This submits one explicit edit."));
         }
+        else if (cover) {
+            editor.initial = JSON.stringify({ coverAttachmentId: card.coverAttachmentId ?? null });
+            editor.save.textContent = cover.attachment ? card.coverAttachmentId ? "Confirm change card cover" : "Confirm set card cover" : "Confirm clear card cover";
+            const confirmation = element("section");
+            confirmation.setAttribute("aria-label", "Card cover confirmation");
+            confirmation.style.overflowWrap = "anywhere";
+            confirmation.append(element("p", cover.attachment ? "Select this exact file as the explicit card cover." : "Clear the explicit card cover and restore automatic fallback."), element("p", cover.attachment ? "File " + cover.attachment.name + " · " + cover.attachment.attachmentId : "Explicit cover " + card.coverAttachmentId), element("p", "Card #" + card.ticket + " " + card.title + " · " + cover.cardId), element("p", "Board " + cover.identity.boardId + " · incarnation " + cover.identity.incarnation), element("p", "Captured board revision " + cover.revision + " · card revision " + cover.cardRevision));
+            form.append(confirmation);
+        }
         else if (start) {
             if (base.result.workflow) {
                 const choices = [...moveLanes(card.lane, this.session, base.result.workflow).filter(lane => genericMove || lane.role === "in_progress")];
@@ -687,7 +799,7 @@ export class BoardView {
         editor.initialFields = Object.fromEntries(Object.entries(editor.fields).map(([name, control]) => [name, control.value]));
         if (!editor.initial)
             editor.initial = JSON.stringify(this.input(editor));
-        form.append(recovery, editor.save, button("Read current text", () => { void this.currentText(editor); }), button(command === "attachment.detach" ? "Cancel detach file" : archive === undefined ? "Discard current editor input" : archive ? "Cancel archive" : "Cancel unarchive", () => this.cancelEditor(editor)), editor.confirmation);
+        form.append(recovery, editor.save, button("Read current text", () => { void this.currentText(editor); }), button(command === "attachment.detach" ? "Cancel detach file" : cover ? "Cancel card cover edit" : archive === undefined ? "Discard current editor input" : archive ? "Cancel archive" : "Cancel unarchive", () => this.cancelEditor(editor)), editor.confirmation);
         this.editor?.workflowEditor?.destroy();
         this.editor = editor;
         this.editorHost.replaceChildren(form);
@@ -758,6 +870,8 @@ export class BoardView {
             return { expectedPolicyVersion: editor.base.result.policyVersion, workflow: parse(editor.fields.workflow.value) };
         if (editor.detach)
             return { attachmentId: editor.detach.attachment.attachmentId };
+        if (editor.cover)
+            return { coverAttachmentId: editor.cover.attachment?.attachmentId ?? null };
         if (editor.archive !== undefined)
             return { archived: editor.archive };
         if (editor.hierarchy?.action === "clear-parent")
@@ -805,7 +919,7 @@ export class BoardView {
         // Prose and original non-secret base only; no credential/session DTO enters storage.
         const input = JSON.stringify({ command: editor.command, target: editor.card ? { cardId: editor.card.cardId } : null,
             expectedRevision: editor.base.result.revision, expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor), base: editor.base, start: editor.start, ...(editor.genericMove ? { genericMove: true } : {}),
-            ...(editor.hierarchy ? { hierarchy: editor.hierarchy } : {}), ...(editor.detach ? { detach: editor.detach } : {}), ...(editor.card ? { card: editor.card } : {}) });
+            ...(editor.hierarchy ? { hierarchy: editor.hierarchy } : {}), ...(editor.detach ? { detach: editor.detach } : {}), ...(editor.cover ? { cover: editor.cover } : {}), ...(editor.card ? { card: editor.card } : {}) });
         editor.recovery.textContent = editor.workflowPreviewFailure ?? "Recovery pending";
         void this.persistence.persist(async () => {
             try {
@@ -919,6 +1033,8 @@ export class BoardView {
             return;
         if (editor.detach && !this.canDetachFile(editor.detach, editor.detach.attachment.attachmentId))
             return;
+        if (editor.cover && !this.canEditCover(editor.cover))
+            return;
         const submittedInput = this.input(editor);
         if (editor.command === "workflow.edit" && editor.persisted !== editor.sequence)
             return;
@@ -935,12 +1051,15 @@ export class BoardView {
         editor.hierarchyFollow = selection && selection.cardId === sourceId && selection.identity.boardId === editor.context.boardId && selection.identity.incarnation === editor.context.incarnation
             ? { selection, generation: this.generation } : undefined;
         editor.submitted = true;
+        if (editor.cover)
+            editor.coverDispatching = true;
         this.updateSave();
         // Capture synchronous immutable input before storage, session or network awaits.
         const request = JSON.parse(JSON.stringify({ opId: crypto.randomUUID(), incarnation: editor.context.incarnation,
             target: editor.card ? { cardId: editor.card.cardId } : null, expectedRevision: editor.base.result.revision,
             expectedCardRevision: editor.card?.revision ?? null, input: this.input(editor) }));
         const announce = (outcome) => {
+            editor.coverDispatching = false;
             this.records.set(outcome.opId, outcome);
             if (outcome.state === "unsent" || outcome.state === "not_committed") {
                 editor.submitted = false;
@@ -958,6 +1077,13 @@ export class BoardView {
         await this.persistence.admit(async (evidenceReady) => {
             if (this.destroyed)
                 return;
+            if (editor.cover && (this.editor !== editor || !this.canEditCover(editor.cover))) {
+                editor.submitted = false;
+                editor.coverDispatching = false;
+                editor.recovery.textContent = "Current cover context changed. Private input retained; no operation submitted.";
+                this.updateSave();
+                return;
+            }
             return this.client.submit({ command: editor.command, request, draftId: editor.id, context: editor.context }, outcome => {
                 if (outcome.state === "pending" || outcome.state === "unsent")
                     evidenceReady();
@@ -996,6 +1122,7 @@ export class BoardView {
         if (terminal || !this.restoredCommits.has(outcome.opId))
             this.search.invalidate();
         this.stale = true;
+        this.clearCardCovers();
         let hierarchyRefreshed = false;
         const editor = this.editor, follow = editor?.hierarchyFollow;
         if (identity && original && terminal?.outcome === "committed" && terminal.cardRevision !== null && editor?.hierarchy && follow && follow.generation === this.generation &&
@@ -1068,7 +1195,14 @@ export class BoardView {
             const read = await this.client.card(editor.context.boardId, editor.card.cardId);
             if (this.destroyed || this.editor !== editor || generation !== this.generation)
                 return;
+            if (editor.cover && (!sameIdentity(read.result.identity, editor.context) || read.result.card.cardId !== editor.card.cardId))
+                throw Error("Current card identity changed");
+            if (sameIdentity(read.result.identity, editor.context) && read.result.card.cardId === editor.card.cardId) {
+                this.details.observeRevision(read.result.identity, read.result.revision);
+            }
             host.replaceChildren(element("h2", "Current confirmed text · board revision " + read.result.revision), element("p", read.result.card.title), element("p", read.result.card.description), element("p", "Assignee: " + this.assignee(read.result.card.ownerId, read.result.actors)));
+            if (editor.cover)
+                host.append(element("p", "Current explicit cover · " + (read.result.card.coverAttachmentId ?? "Unset")));
             for (const comment of read.result.comments)
                 host.append(element("p", comment.actorId + ": " + comment.text));
             host.append(element("p", "Your editor retains its original base. Read the current board, then deliberately open a new editor to reconcile."));

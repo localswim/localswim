@@ -29,6 +29,15 @@ export class BoardClient {
     closed = false;
     commitObservers = new Set();
     onCommitted(callback) { this.commitObservers.add(callback); return () => { this.commitObservers.delete(callback); }; }
+    readObservers = new Set();
+    onReadRevision(callback) {
+        this.readObservers.add(callback);
+        return () => { this.readObservers.delete(callback); };
+    }
+    observeRead(identity, revision) {
+        for (const callback of this.readObservers)
+            callback(identity, revision);
+    }
     previews = new Map();
     inFlight = new Set();
     workflows = new Map();
@@ -75,7 +84,7 @@ export class BoardClient {
         this.fetcher = options.fetch ?? globalThis.fetch.bind(globalThis);
         this.recovery = new RecoveryStore(driver, options.installationId, options.profileId, boardBoundaryVerifier, options.qualification);
     }
-    close() { this.closed = true; this.commitObservers.clear(); this.driver.close(); }
+    close() { this.closed = true; this.commitObservers.clear(); this.readObservers.clear(); this.driver.close(); }
     path(boardId) {
         if (!uuid.test(boardId) || boardId === "00000000-0000-0000-0000-000000000000")
             throw Error("Invalid board identity");
@@ -167,6 +176,7 @@ export class BoardClient {
         validateWorkflowPolicies(board.result.workflow, board.result.workflowPolicies, board.result.policyVersion);
         validateCurrentWorkflowCards(board.result.cards, board.result.workflow, board.result.workflowPolicies, board.result.actors, board.result.approvals);
         this.workflowRead(board.result.identity, board.result.workflow, board.result.cards.map(card => card.lane));
+        this.observeRead(board.result.identity, board.result.revision);
         return board;
     }
     async card(boardId, cardId) {
@@ -206,6 +216,7 @@ export class BoardClient {
         validateSearchRead(read, filters);
         validateWorkflowPolicies(read.result.workflow, read.result.workflowPolicies);
         this.workflowRead(read.result.identity, read.result.workflow, [...read.result.items.map(card => card.lane), ...(read.result.query.lane === null ? [] : [read.result.query.lane])]);
+        this.observeRead(read.result.identity, read.result.revision);
         return read;
     }
     async history(boardId, cardId) {
@@ -528,6 +539,26 @@ export class BoardClient {
         }
         if (!credential || this.options.credential() !== credential || attachment.sha256 !== facts.sha256 || attachment.byteLength !== facts.byteLength)
             throw Error("Attachment metadata changed");
+        return this.verifiedAttachmentBytes(boardId, id, facts, signal, credential);
+    }
+    // Preview callers capture an attachment from an already authorized, coherent
+    // card read. The raw route still checks live attachment membership.
+    async coverBytes(selection, attachment, signal) {
+        const { identity, cardId } = structuredClone(selection);
+        const facts = structuredClone(attachment);
+        const selected = this.options.selection, credential = this.options.credential();
+        if (!credential || signal.aborted ||
+            selected && (identity.boardId !== selected.boardId || identity.incarnation !== selected.incarnation) ||
+            !uuid.test(identity.incarnation) || identity.incarnation === "00000000-0000-0000-0000-000000000000" ||
+            facts.cardId !== cardId || facts.createdIn.boardId !== identity.boardId ||
+            !uuid.test(facts.attachmentId) || facts.attachmentId === "00000000-0000-0000-0000-000000000000" ||
+            !/^[0-9a-f]{64}$/.test(facts.sha256) ||
+            !Number.isSafeInteger(facts.byteLength) || facts.byteLength < 0 || facts.byteLength > 10485760) {
+            throw Error("Cover bytes unavailable");
+        }
+        return this.verifiedAttachmentBytes(identity.boardId, facts.attachmentId, facts, AbortSignal.any([signal, AbortSignal.timeout(10_000)]), credential);
+    }
+    async verifiedAttachmentBytes(boardId, id, facts, signal, credential) {
         const bytes = await this.binary(this.path(boardId) + "/attachments/" + id, "application/octet-stream", 10485760, { signal }, 'attachment; filename="attachment-' + id + '.bin"');
         if (bytes.byteLength !== facts.byteLength || await digestBytes(bytes) !== facts.sha256 || signal.aborted || this.options.credential() !== credential)
             throw Error("Attachment bytes mismatch");

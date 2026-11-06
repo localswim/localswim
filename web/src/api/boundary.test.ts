@@ -1,5 +1,5 @@
 import { boardBoundaryVerifier, canonical, parse, prepare, validate } from "./boundary.js";
-import type { BoardCommand } from "./boundary.js";
+import type { BoardCommand, Value } from "./boundary.js";
 import type { MutationRequest } from "../../generated/transport/contracts.js";
 import type { Context } from "../recovery/types.js";
 
@@ -107,4 +107,51 @@ export async function runArchiveParity(): Promise<number> {
     if (!refused) throw Error("Invalid/mixed archive input accepted"); checks++;
   }
   return checks;
+}
+
+export async function runCoverBoundaryParity(): Promise<number> {
+  const context: Context = {
+    installationId: "00000000-0000-4000-8000-000000000090",
+    boardId: "00000000-0000-4000-8000-000000000001",
+    incarnation: "00000000-0000-4000-8000-000000000002",
+    actorId: "00000000-0000-4000-8000-000000000003",
+  };
+  const base = {
+    opId: "00000000-0000-4000-8000-000000000006", incarnation: context.incarnation,
+    expectedRevision: 5, expectedCardRevision: 4,
+    target: { cardId: "00000000-0000-4000-8000-00000000000b" },
+  };
+  const file = "00000000-0000-4000-8000-00000000000f";
+  const fingerprints = new Set<string>();
+  for (const cover of [undefined, null, file]) {
+    const input = cover === undefined ? {} : { coverAttachmentId: cover };
+    const wire = { ...base, input } as MutationRequest;
+    const prepared = await prepare("card.edit", wire, context, crypto.randomUUID());
+    const payload: Record<string, Value> = { title: null, description: null, priority: null, lane: null };
+    if (cover !== undefined) payload.coverAttachmentId = cover;
+    const expected = canonical({
+      fingerprintVersion: 1, boardId: context.boardId, actorId: context.actorId,
+      command: "card.edit", ...base, payload,
+    });
+    if (prepared.canonicalBytes !== expected || !await boardBoundaryVerifier.prepared(prepared, wire)) {
+      throw Error("Cover freeze or recovery mismatch");
+    }
+    const changed = { ...wire, input: { coverAttachmentId: cover === null ? file : null } } as MutationRequest;
+    if (await boardBoundaryVerifier.prepared(prepared, changed)) throw Error("Changed cover evidence accepted");
+    fingerprints.add(prepared.fingerprint);
+  }
+  if (fingerprints.size !== 3) throw Error("Cover set, clear and omission must remain distinct");
+  const invalidInputs = [
+    { coverAttachmentId: file, title: "Mixed" }, { coverAttachmentId: null, archived: false },
+    { coverAttachmentId: 0 }, { coverAttachmentId: file.toUpperCase() },
+    { coverAttachmentId: "00000000-0000-0000-0000-000000000000" },
+  ];
+  for (const input of invalidInputs) {
+    let refused = false;
+    try {
+      await prepare("card.edit", { ...base, input } as MutationRequest, context, crypto.randomUUID());
+    } catch { refused = true; }
+    if (!refused) throw Error("Invalid or mixed cover input accepted");
+  }
+  return 7 + invalidInputs.length;
 }

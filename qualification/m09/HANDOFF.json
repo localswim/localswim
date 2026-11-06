@@ -1,0 +1,83 @@
+{
+  "status": "M09_06_HANDOFF_READY_FOR_OWNER_REVIEW",
+  "qualifiedSource": "215f165a4cb58cc0faf92b121c6ac98063545812",
+  "qualificationPublication": "dcf8dfc",
+  "binarySHA256": "f83706354e4c3b047b92599ea8b6a03aa6b31d316a97ab8a23c67f62df5463ca",
+  "kit": {
+    "name": "localswim-m09-review-kit-win-amd64-r2.zip",
+    "sha256": "b8949271ebd853f2dbf586b57dfca5416f228c124719e5903bf1feaaaae919ff",
+    "bytes": 12622916,
+    "payloadFiles": 146,
+    "totalFiles": 148,
+    "delivery": "Verified local ZIP, manifest and SHA256 sidecar. ZIP exceeds the board 10 MiB attachment limit.",
+    "schemaReferences": 486,
+    "moduleDependencies": 10,
+    "moduleNoticeFiles": 22,
+    "declarationImports": 3
+  },
+  "normalDemo": {
+    "evidence": "normal-demo-e9e9e526",
+    "workflowChecks": 270,
+    "fileChecks": 156,
+    "reopenChecks": 24,
+    "workflowCLICommands": 140,
+    "fileCLICommands": 56,
+    "guideCLICommands": 9,
+    "guideExample": {
+      "exit": 0,
+      "scriptSHA256": "7f9ee8cc5a853165b10e9d013aeb71d573236c7caa491c5a3b612b67f1b1b631",
+      "downloadExact": true
+    },
+    "guideDownloadExact": true,
+    "retainedRawDownload": "Four actual CLI NOT_FOUND/no-file checks and four authenticated raw HTTP404/NOT_FOUND checks",
+    "validatedQueueMessages": 16,
+    "boards": 3,
+    "projects": 2,
+    "savedPortReused": true,
+    "fullCurrentReadParity": true,
+    "ownedCleanup": true,
+    "fileDiagnostics": {
+      "pageErrors": 0,
+      "favicon404": 0,
+      "otherHttpErrors": 0
+    }
+  },
+  "phaseBudgetMinutes": {
+    "base": 245,
+    "reserve": 90,
+    "cap": 335
+  },
+  "preflightSeparateMinutes": 8.791115845,
+  "timingReceipt": "Continuous development actuals, including corrections, reviews and publication, are recorded in the final board closure and private clock receipt.",
+  "limits": [
+    "Synthetic Windows amd64, local NTFS and loopback qualification.",
+    "The fresh extracted demonstration is distinct from the controlled faults, fixtures and private observation overlays in M09.05.",
+    "M09.05 retains one unclassified LOCAL console event plus one in each of five large-label/pagination browser runs. Functional checks passed.",
+    "Canonical original comparisons follow C01 semantics. Archive formatting may change raw stored JSON whitespace.",
+    "Physical power-loss qualification is outside this evidence."
+  ],
+  "retainedAttempts": [
+    "r1 demonstrates the earlier guide revision but lacks an explicit retained raw-download refusal attempt.",
+    "First r2 attempt read the refusal code from the wrong JSON field. Its expected CLI exit was correct. The corrected proof uses error.code and a fresh workspace.",
+    "The next raw-HTTP probe omitted the required browser client marker. The final probe uses the actual authenticated browser transport headers and a fresh workspace."
+  ],
+  "processLessons": [
+    "Map each acceptance clause to an executable proof before declaring coverage complete.",
+    "Use distinct actors and explicit barriers for concurrent cases.",
+    "Verify canonical-byte comparisons at the contract boundary and label raw representation separately.",
+    "Freeze complete runnable guides before packaging, then execute their actual shell examples."
+  ],
+  "privateEvidenceRoot": "artifacts/2026-11-05-m09-development/m09-06",
+  "evidenceSHA256": {
+    "result.json": "53c63d9049d2dd4cd8c0a3c6ee64f02a7284c78ff82a0ff6e2859201c612effb",
+    "workflow.json": "fa9374d00b936b05e6aed760107dd752e079bd8bb8ed80530036c1a1f55806cd",
+    "browser.json": "c6879d2b610c71a9505634afd3726cb62938796846f3dd2c8cd8686a29c03910",
+    "reopen-browser.json": "bbc419f3f9dd7e5aeda0cc1b5e9b368a87b8e6fea3deea0c5deb221f5e281caf"
+  },
+  "independentReview": {
+    "status": "PASS_SCOPED_M09_06_INDEPENDENT_REVIEW",
+    "openFindings": 0,
+    "path": "review.json",
+    "sha256": "1b4b8cfc12ac7c4b03b1569d8bb2aa73b85a03b2067ac8322b48f9cb136ccbb4"
+  }
+}

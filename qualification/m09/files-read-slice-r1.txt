@@ -1,0 +1,44 @@
+M09.02 selected-card file reads
+2026-11-05
+
+Delivered behavior
+Card details provides current and retained file lists, exact metadata inspection,
+source-based attribution and verified current-reference downloads. Actual CLI
+attachment list/inspect use the same authoritative service. A1 bounds responses
+and byte-limited pages while preserving supported large retained labels.
+
+Candidate and review
+Product source fa19496. Runtime executable SHA256
+2e959b0f8b203b9608071c9139de23e7070ae5ba07b53a8c0b59388501373c2c.
+Fresh independent service and browser reviews passed after correcting response
+limits and local keyboard focus. Contract amendment A1 is architecture51d771e.
+
+Verification
+- Pinned broad gate passed1992 Go tests, zero failed/skipped, and19 script tests.
+  Contracts, TypeScript, assets, executable, module verification and vet passed.
+  The final input guard detected the README added during execution. Reconciliation
+  showed that README was the only changed captured input; all executable inputs
+  matched. Two touched test files were subsequently normalized CRLF-to-LF, matching
+  Git's committed text. Complete final-source qualification follows in M09.05.
+- Focused native read tests cover current/retained snapshots, source/compact/
+  activity attribution, revoked reads, malformed/stale cursors and A1 large-label
+  bounds. Controlled retained records are explicit synthetic setup.
+- Controlled real-browser DOM proof passed20 groups; strict boundary24 and
+  client22 cases passed. Independent exact-cap/legacy-label adapter probes passed.
+- Final real-service journey passed70 checks and26 recorded actual CLI commands,
+  including browser upload/CLI read, CLI upload/browser read, list pages,
+  inspection and creator attribution on default/configured boards.
+- Complete current reads matched through graceful saved-port reopen. The24
+  reopened checks compare stable catalog facts and separately validate observation
+  times. A retained failure compared timestamps from separate observations;
+  captured pairs confirmed only observedAt/lastObservedAt differed.
+- Twelve shared-queue messages were validated. Both owned hosts exited0,
+  listeners closed and the owned mailbox was deleted.
+
+Limits and carryover
+Physical10/base5 and stored canonical formats remain unchanged. This read slice
+introduces no stored data mutation. Existing upload setup uses accepted methods.
+A startup attempt exposed a missing runtime asset declaration, which was fixed
+before the final passing run. The configured Completed upload selector remains
+M09.03 scope. Detach and complete joined lifecycle qualification follow.
+This evidence covers synthetic Windows amd64/local NTFS/loopback operation.

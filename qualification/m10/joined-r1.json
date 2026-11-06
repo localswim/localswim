@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "qualifiedSource": "5486ce680c8f68a495c769bd5295e7d8d397dd32",
+  "productSource": "a560b00b0717bfd5ee8547fbbe7f8e2c94e6641f",
+  "architectureContract": "739fc3deb8e3b8ea346d8b05c57831829bfec792",
+  "executableSHA256": "aeea67a781d8cb64efeb7e6d7579d952977ac534814c7dde79d2abd76ff0fff9",
+  "scope": "Synthetic Windows amd64, local NTFS and numeric loopback.",
+  "physicalLayout": 12,
+  "baseSchema": 5,
+  "apiArchiveFingerprint": 1,
+  "sourceFiles": 1090,
+  "cleanBuilds": 2,
+  "matchingOutputs": 100,
+  "goPassesPerTree": 2144,
+  "nodePassesPerTree": 78,
+  "nativeProviderBindings": 491,
+  "browserInventoryCases": 21,
+  "controlledNativeTerminals": 22,
+  "coverChecks": {
+    "liveAndLabeledRecovery": 444,
+    "savedPortReopen": 16,
+    "queueDiagnostics": 21
+  },
+  "rasterBoundaryChecks": {
+    "live": 47,
+    "savedPortReopen": 16,
+    "queueDiagnostics": 8
+  },
+  "compatibilityChecks": 147,
+  "historicalOnlyArchiveAdditional": true,
+  "chainedRestoreGenerations": 6,
+  "independentReview": "Sol / High PASS",
+  "scopeRemaining": "COV-12 exact extracted review kit and fresh ordinary demonstration are M10.04.",
+  "evidenceSHA256": {
+    "finalGate": "395f88302f2c72b2d259ef1e4e45d39f215746552fb1777597dd2c77cebf8ebc",
+    "cleanBuildEquality": "337b0f0804a78ee9495d14d8ee805fa5410f882782c649e90c396a4cba121167",
+    "cleanATests": "29e9335c98efdc068e084b9f0021742abc4901684b62b915f0f6dc5a284c214c",
+    "cleanBTests": "fbd59023444292542ff1b27709a4bfbcc9e6ff557bfb4a0620fe5e94afff2fe9",
+    "native": "82e3d8ffe33cedb47d5dc6918211eeff37988461f6c028747824456f6baded01",
+    "nativeControlled": "d6d5a0d2ae8b28e6e63d264cd5fab5a552c08c19a5c870a63cc3f238caca9916",
+    "browserInventory": "964852b2ad33d10b8fe1fcb5fc2e51ce8fae7c68d0b4f31690fb9dc93ff5ec0a",
+    "browserCover": "e946d95667f394a00c6bcf9f3159bd27ddb2024d354ceb8e02b9726aaed8fa52",
+    "browserBoundary": "70c0180bb0ef61dd598eb850c63788ed67ccc02b35f847a96a296ebc0836131e",
+    "browserOriginalAudit": "bf7027c00dfbd8ac4d814d6a85b32a36e21a2d887418b0451b8b464a7210c9c0",
+    "standaloneCli": "6f48f45047ecbd8bbd3b191ce4e2ee041f738cd98efd316e3b09feb4e3692ee3",
+    "joinedCli": "dca02713a2d9badecbd6ab5116abacf7cfd836f04692f209b6bf236c52250464",
+    "powerShellGuideAndByteLimits": "bbf8f31355a523c1028e821b27a922ac6fb97f8ebf507f32cb378fffc46d61e9",
+    "historicalOnlyArchive": "e39e13f77988116a9178e4b139a46cf8b9ea9d8866d4984dc4504d56344fa507",
+    "chainedRestores": "81f7f035aa3bf4127eaa2896af4c8cf65f4f4e02b08656b3d381ad474269469b"
+  },
+  "postTestRebuilds": 2
+}

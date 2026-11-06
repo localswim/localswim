@@ -9,15 +9,16 @@ explicit, small and independently written in TypeScript for bounded comparisons.
 Neither declaration types nor JSON Schema alone validate runtime data.
 
 Run
-Use native Windows/amd64, Go 1.27.3, Node 26.13.0, npm 12.2.1 and released
+Use native Windows/amd64, Go 1.27.3, Node 26.13.0, npm 12.2.2 and released
 TypeScript 7.0.2 with @typescript/typescript-win32-x64 7.0.2. All paths supplied
 below must be absolute. Use a fresh private work directory, outside this source.
 
-1. Verify official Node ZIP SHA256 and npm tarball SHA512 against environment.json.
-   Extract privately; invoke that Node executable and exact npm-cli.js explicitly.
+1. Verify official Node ZIP SHA256 and npm tarball SHA512 against
+   qualification/toolchain/current.json. Extract privately and invoke the verified
+   Node executable and exact npm-cli.js explicitly.
    Copy web/package.json and package-lock.json into a private install directory.
    Run: NODE NPM_CLI --prefix PRIVATE_INSTALL ci --ignore-scripts --no-audit --no-fund
-   This uses the unchanged accepted lock. No lifecycle scripts or global installs.
+   This uses the current repository lock. No lifecycle scripts or global installs.
 2. Set process-local GOTOOLCHAIN=local, CGO_ENABLED=0, GOOS=windows, GOARCH=amd64,
    GOFLAGS=-mod=readonly. Optionally select private GOCACHE and GOMODCACHE paths.
 3. Set Q03_NODE to that node.exe; Q03_NPM_CLI to exact npm bin/npm-cli.js;

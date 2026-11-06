@@ -6,16 +6,16 @@
   "type": "module",
   "engines": {
     "node": "26.13.0",
-    "npm": "12.2.1"
+    "npm": "12.2.2"
   },
-  "packageManager": "npm@12.2.1",
+  "packageManager": "npm@12.2.2",
   "scripts": {
     "check": "node scripts/tsc.mjs check",
     "build": "node scripts/tsc.mjs build",
     "qualification:browser": "node scripts/qualification-browser.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.1",
+    "@playwright/test": "1.65.0",
     "typescript": "7.0.2"
   }
 }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "observedDate": "2026-11-04",
+  "observedDate": "2026-11-06",
   "status": "PINNED_CURRENT_JS_SELECTION",
   "scope": "Current JavaScript build/test toolchain; application remains self-contained Go",
   "node": {
@@ -12,10 +12,10 @@
     "lts": "Lithium"
   },
   "npm": {
-    "version": "12.2.1",
-    "integrity": "sha512-bKCmFRVT/BB+YPEYbZwQ1XUI3N5t4xKSpU1MxOjo7z3iWzKBJ0ZXRC1xFdEN+TC7N5TdywaBzf2dMXGJq/e2PQ==",
-    "archiveSHA256": "228bd64aaef23270dbdbd2cf3d5ef5c467602ef38c4066246cef1984adab9a67",
-    "source": "https://registry.npmjs.org/npm/-/npm-12.2.1.tgz"
+    "version": "12.2.2",
+    "integrity": "sha512-KglgbZyacf7jH+FHuNRqVuCzQi8VhI2a7J87Ix43FsPTuZoGWmIXXGdZtBUOA79vwL+IJREqURVzupA7PsQTcA==",
+    "archiveSHA256": "07fecbf753e2c3bc10ebeb3e9ed8738f6a0cc1292998b79e2e9f1dd2a5525e0c",
+    "source": "https://registry.npmjs.org/npm/-/npm-12.2.2.tgz"
   },
   "directDependencies": {
     "typescript": {
@@ -24,9 +24,9 @@
       "source": "https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz"
     },
     "@playwright/test": {
-      "version": "1.64.1",
-      "integrity": "sha512-IaYGml/nSOiZWROfPtuIL7neuu9qDOZ3TNvNljUIrhDMxiGTgPjzj/g9p9RxpS2tSepPDRY+UwAaEeiKtUvIAg==",
-      "source": "https://registry.npmjs.org/@playwright/test/-/test-1.64.1.tgz"
+      "version": "1.65.0",
+      "integrity": "sha512-iGURLGuKDLakSEl7Pgfv8h7f+XLT+V861Wfhz0zlEl5nyFuKUopdkFBPKqTllTUp06aOwPuH8iuUEb3yp3MpbQ==",
+      "source": "https://registry.npmjs.org/@playwright/test/-/test-1.65.0.tgz"
     }
   },
   "nativeCompiler": {

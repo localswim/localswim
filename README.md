@@ -86,7 +86,7 @@ Real boards, credentials and private operational/recovery records stay outside
 the repository. Tests use synthetic fixtures.
 
 The current [JavaScript build/test toolchain](qualification/toolchain/README.txt)
-uses Node26.13.0 and npm12.2.1, with TypeScript7.0.2 and Playwright1.64.1.
+uses Node26.13.0 and npm12.2.2, with TypeScript7.0.2 and Playwright1.65.0.
 These are development/qualification tools; the packaged Go application remains
 self-contained. Earlier qualification records retain their original tool pins.
 

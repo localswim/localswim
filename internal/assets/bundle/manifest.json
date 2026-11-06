@@ -570,7 +570,7 @@
     "internal/contract/transport/workspace.go": "e140e9d5701ce7390aea0118067d10f66a790e174bf6993aed080b62d29ff210",
     "internal/contract/workflow.go": "63f938edabae50ad7cd3769d1d86ca0e3b1f0d2e703b16bda4b48c0a28a146b9",
     "internal/hierarchy/forest.go": "842061b61de75e3f1f1e3be92e3b48820df5e431cce8e8ee06b71c6a9c71e2e5",
-    "qualification/toolchain/current.json": "373bd8a405a802a46de56f2c2b77469d07a8eac59e834cbfe5240e4fb16b082d",
+    "qualification/toolchain/current.json": "79e80efdc0656c4ca45bf3bcb9bd75b99761da072b73b47d69c32cd693f4258a",
     "schemas/archive/contracts.schema.json": "4b0e80db26b8c465449c7f22eead1682553a112ebaff166588385247db85c507",
     "schemas/mutation-requests.schema.json": "28b2b0448080face7fbfd1d6ab0b93282a974efa67686484bf6ff2ab1fdb4ead",
     "schemas/transport/contracts.schema.json": "612ff04080a6943d4cb429585b511cdfe29f09eed75a441b5e6dbf576df44aab",
@@ -578,8 +578,8 @@
     "web/generated/contracts.d.ts": "36cdf8b4916754ba8ab06b4b2d275294896bba60aecabdf1049310a3dc542fdf",
     "web/generated/transport/contracts.d.ts": "11fadf8ac9e926546d8aee5168942e4ec12dd4c50a41d963fd0740b9057e76f8",
     "web/index.html": "3ee9dcffccde6acbab9ba0323af53dde9e9fe16ec3fa0d8a2fe0c20e89cc96c4",
-    "web/package-lock.json": "56d51ff29facbac53cd97617fab2ca6b387ae69c09c0a71af4f4d3d69d722a24",
-    "web/package.json": "5df8c6b70adaa6be79aac3b324dd8319d1d1f10ea72207d5a58e2644bce438ad",
+    "web/package-lock.json": "29f45725992d79c0be2091dc558fe2494fa39bbbf02296b5771d6277e7ee7a35",
+    "web/package.json": "cdb703c368285faf82338b6ca75d300fb6fa3c7d25bf24c1c7ff5f6de371e061",
     "web/src/api/boundary.ts": "1a7d74cc99e562045e6777a5be222eca67f653f4d8dd6866ed636498d9e683a5",
     "web/src/api/catalog.ts": "b9b53ae88b1e1ddc70cc73a2565114a55f7dce862659a1be1bc3853d23d3cf67",
     "web/src/api/client.ts": "7e16500444abeda0d4565fbf4ed97944511b3abb1e2038b240fd023dc998237d",
@@ -626,7 +626,7 @@
     "web/src/workspace-ui/workflow-editor.ts": "3b6eee7d24ff21d1cebdd4a3a5117fee2b9a5d40060acaa2751a02c92088e552",
     "web/src/workspace-ui/workflow-setup.ts": "7f454eaa6ee3e1672dc5730bc559087bc20dcadfd8ea2113be2df5f41e52aa34",
     "web/styles/app.css": "f0de7bfe578831de9e5e74a332fb39126ca66b518b953cffcb7ae2916945693c",
-    "web/tsconfig.json": "68b102cd0417ce7a7d419495db3b32d215d1014ef5bff1305e8a925612228b12"
+    "web/tsconfig.json": "65bfef9dc54456877da042f6546da680a4df7c1e42e0ef9e77cfa2ab3a55e5de"
   },
   "files": {
     "index.html": "3ee9dcffccde6acbab9ba0323af53dde9e9fe16ec3fa0d8a2fe0c20e89cc96c4",

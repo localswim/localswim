@@ -11,7 +11,7 @@ import (
 	A "github.com/localswim/localswim/internal/contract/archive"
 )
 
-var models = []any{AttentionLane{}, AttentionContext{}, BoardAttention{}, WorkflowAttentionChange{}, WorkflowPreviewRequest{}, WorkflowPreview{}, WorkflowRename{}, WorkflowRightsChange{}, WorkflowActorRightsChange{}, WorkflowChanges{}, WorkflowOccupancy{}, WorkflowApproval{}, WorkflowCapacity{}, Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardSearchRead{}, CardSearchView{}, CardSearchQuery{}, CardSummary{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, ConfiguredWorkspaceBoardRequest{}, ConfiguredWorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}, CatalogCount{}, CatalogAttention{}, CatalogActivity{}, WorkspaceCatalogEntry{}, WorkspaceCatalog{}, WorkspacePinReference{}, WorkspacePreferences{}, WorkspacePreferencesRequest{}, WorkspacePreferencesError{}}
+var models = []any{FileAttribution{}, CardFile{}, CardFilesRead{}, CardFilesView{}, CardFileRead{}, CardFileView{}, AttentionLane{}, AttentionContext{}, BoardAttention{}, WorkflowAttentionChange{}, WorkflowPreviewRequest{}, WorkflowPreview{}, WorkflowRename{}, WorkflowRightsChange{}, WorkflowActorRightsChange{}, WorkflowChanges{}, WorkflowOccupancy{}, WorkflowApproval{}, WorkflowCapacity{}, Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardSearchRead{}, CardSearchView{}, CardSearchQuery{}, CardSummary{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, ConfiguredWorkspaceBoardRequest{}, ConfiguredWorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}, CatalogCount{}, CatalogAttention{}, CatalogActivity{}, WorkspaceCatalogEntry{}, WorkspaceCatalog{}, WorkspacePinReference{}, WorkspacePreferences{}, WorkspacePreferencesRequest{}, WorkspacePreferencesError{}}
 
 // GeneratedFiles is pure and returns disjoint paths for the common generator.
 // Shared D02 rows reference the C03 artifact; command results reference C01.
@@ -126,6 +126,7 @@ func schema(t reflect.Type, inline bool) map[string]any {
 		cardSearchSchema(t, m)
 		workflowPreviewSchema(t, m)
 		attentionSchema(t, m)
+		fileSchema(t, m)
 		if t == reflect.TypeFor[WorkspaceMember]() {
 			unavailable := []string{}
 			for _, v := range enums["WorkspaceAvailability"] {
@@ -476,4 +477,31 @@ func terminalDeclarations(defs map[string]any, ts *strings.Builder) {
 	}
 	defs["Terminal"] = map[string]any{"oneOf": variants}
 	fmt.Fprintf(ts, "export type Terminal = %s;\n\n", strings.Join(names, " | "))
+}
+
+func fileSchema(t reflect.Type, m map[string]any) {
+	if t == reflect.TypeFor[FileAttribution]() {
+		branches := []any{}
+		for _, state := range []string{"known", "unavailable"} {
+			p := map[string]any{"state": map[string]any{"const": state}}
+			for _, field := range fields(t) {
+				if field.Name == "State" {
+					continue
+				}
+				if state == "known" {
+					p[fieldName(field)] = schema(field.Type.Elem(), false)
+				} else {
+					p[fieldName(field)] = map[string]any{"type": "null"}
+				}
+			}
+			branches = append(branches, map[string]any{"type": "object", "properties": p})
+		}
+		m["oneOf"] = branches
+	}
+	if t == reflect.TypeFor[CardFile]() {
+		m["oneOf"] = []any{map[string]any{"type": "object", "properties": map[string]any{"referenceState": map[string]any{"const": "current"}, "downloadState": map[string]any{"const": "current_reference"}}}, map[string]any{"type": "object", "properties": map[string]any{"referenceState": map[string]any{"const": "retained"}, "downloadState": map[string]any{"const": "not_current"}}}}
+	}
+	if t == reflect.TypeFor[CardFilesView]() {
+		m["properties"].(map[string]any)["items"].(map[string]any)["maxItems"] = 100
+	}
 }

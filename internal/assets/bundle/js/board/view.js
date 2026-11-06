@@ -106,7 +106,7 @@ export class BoardView {
                 return;
             }
             this.edit("card.edit", card, false, undefined, !card.archived);
-        }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read, relationshipAction: (action, card, read, row) => this.relationshipEdit(action, card, read, row) });
+        }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read, relationshipAction: (action, card, read, row) => this.relationshipEdit(action, card, read, row) }, client);
         root.replaceChildren(this.heading, this.actor, this.readState, read, this.create, this.workflowEdit, this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
     }
     async open() { await this.refresh(); }

@@ -88,7 +88,7 @@ export class ArchiveView {
             }
             if ([...this.cards.options].some(o => o.value === selected))
                 this.cards.value = selected;
-            this.renderAttachments(base);
+            this.renderAttachments();
         }
         catch {
             if (!this.destroyed && generation === this.generation) {
@@ -280,32 +280,8 @@ export class ArchiveView {
             setTimeout(() => URL.revokeObjectURL(url), 0);
         }
     }
-    renderAttachments(base) {
-        const focused = document.activeElement?.dataset.attachmentFocus;
-        this.attachments.replaceChildren();
-        for (const attachment of base.result.attachments) {
-            const state = element("p"), row = element("article", attachment.name + " · " + attachment.mediaLabel + " · " + attachment.byteLength + " bytes · SHA-256 " + attachment.sha256);
-            state.setAttribute("role", "status");
-            const offer = button("Offer attachment download", () => {
-                const generation = this.generation, controller = new AbortController();
-                this.downloads.add(controller);
-                offer.disabled = true;
-                const cancel = button("Cancel attachment download", () => { controller.abort(); state.textContent = "Download cancelled; local save unverified."; cancel.remove(); });
-                row.append(cancel);
-                void this.client.downloadAttachment(this.boardId, attachment.attachmentId, { sha256: attachment.sha256, byteLength: attachment.byteLength }, controller.signal).then(bytes => {
-                    if (this.destroyed || controller.signal.aborted || generation !== this.generation)
-                        return;
-                    this.offer(bytes, "application/octet-stream", "attachment-" + attachment.attachmentId + ".bin");
-                    state.textContent = "Attachment download offered after complete byte verification. Local save unverified.";
-                }, () => { if (!this.destroyed && !controller.signal.aborted)
-                    state.textContent = "Attachment bytes unavailable or incomplete; no verified download offered."; }).finally(() => { this.downloads.delete(controller); cancel.remove(); offer.disabled = false; });
-            });
-            offer.dataset.attachmentFocus = attachment.attachmentId;
-            row.append(offer, state);
-            this.attachments.append(row);
-        }
-        if (focused)
-            ([...this.attachments.querySelectorAll("button")].find(n => n.dataset.attachmentFocus === focused) ?? this.heading).focus();
+    renderAttachments() {
+        this.attachments.replaceChildren(element("p", "Open a card in the board view to list current or retained files, inspect metadata and offer an eligible download."));
     }
     async export() {
         if (!this.context || !this.base || !this.mayExport || this.destroyed || this.exportPending)

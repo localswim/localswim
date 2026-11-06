@@ -93,6 +93,7 @@ func verified(source fs.FS) (map[string][]byte, error) {
 }
 
 var declared = map[string]bool{
+	"js/api/files.js": true, "js/board/files.js": true,
 	"js/api/workflow.js": true, "js/api/configured-workflow.js": true, "js/recovery/workflow-setup.js": true,
 	"js/workspace-ui/workflow-editor.js": true, "js/workspace-ui/workflow-setup.js": true,
 	"js/api/relationships.js": true, "js/board/relationships.js": true,

@@ -1,6 +1,8 @@
 package archive
 
 import (
+	B "github.com/localswim/localswim/internal/board/attachments"
+	"net/url"
 	"strings"
 
 	"github.com/localswim/localswim/internal/store/schema"
@@ -11,6 +13,7 @@ type invocation struct {
 	selected                                            core.Selectors
 	json                                                bool
 	kind, id, input, file, destination, source, request string
+	attachment, query                                   string
 }
 
 func validID(s string) bool { return schema.ValidUUID(s) }
@@ -33,7 +36,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	q.kind = args[i] + " " + args[i+1]
 	i += 2
 	switch q.kind {
-	case "attachment add", "attachment download":
+	case "attachment add", "attachment download", "attachment list", "attachment inspect":
 		if i == len(args) || !validID(args[i]) {
 			return bad()
 		}
@@ -43,6 +46,14 @@ func parse(args []string) (q invocation, code string, exit int) {
 	default:
 		return bad()
 	}
+	if q.kind == "attachment inspect" {
+		if i == len(args) || !validID(args[i]) {
+			return bad()
+		}
+		q.attachment = args[i]
+		i++
+	}
+	values := url.Values{}
 	for i < len(args) {
 		k := args[i]
 		i++
@@ -53,11 +64,13 @@ func parse(args []string) (q invocation, code string, exit int) {
 		v := args[i]
 		i++
 		switch {
+		case q.kind == "attachment list" && (k == "--view" || k == "--limit" || k == "--cursor"):
+			values.Set(strings.TrimPrefix(k, "--"), v)
 		case k == "--input" && q.kind == "attachment add":
 			q.input = v
 		case k == "--file" && q.kind == "attachment add":
 			q.file = v
-		case k == "--destination" && q.kind != "attachment add":
+		case k == "--destination" && (q.kind == "attachment download" || q.kind == "export create" || strings.HasPrefix(q.kind, "restore ")):
 			q.destination = v
 		case k == "--source" && q.kind == "restore create":
 			q.source = v
@@ -76,6 +89,16 @@ func parse(args []string) (q invocation, code string, exit int) {
 	if err := core.ValidateSelectors(q.selected, false); err != nil {
 		code, exit := fixedFailure(err)
 		return q, code, exit
+	}
+	if q.kind == "attachment list" {
+		q.query = values.Encode()
+		if _, e := B.ParseListQuery(q.query); e != nil {
+			return bad()
+		}
+		return q, "", 0
+	}
+	if q.kind == "attachment inspect" {
+		return q, "", 0
 	}
 	if q.kind == "attachment add" && (q.file == "" || q.input == "") || q.kind != "attachment add" && q.destination == "" {
 		return bad()

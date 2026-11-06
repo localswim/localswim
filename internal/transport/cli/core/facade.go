@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	B "github.com/localswim/localswim/internal/board/attachments"
 	"github.com/localswim/localswim/internal/contract"
 	T "github.com/localswim/localswim/internal/contract/transport"
 	"github.com/localswim/localswim/internal/transport/cli/evidence"
@@ -165,11 +166,21 @@ func (c *Client) Request(ctx context.Context, method, path string, body io.Reade
 }
 func ordinaryReadPath(board, method, path string) bool {
 	u, e := url.ParseRequestURI(path)
-	if e != nil || u.RawQuery != "" || u.ForceQuery || u.RawPath != "" {
+	if e != nil || u.ForceQuery || u.RawPath != "" {
 		return false
 	}
 	p := strings.Split(u.Path, "/")
 	if len(p) < 5 || strings.Join(p[:4], "/") != "/api/v1/boards" || p[4] != board {
+		return false
+	}
+	if method == "GET" && len(p) >= 8 && p[5] == "cards" && uuid(p[6]) && p[7] == "attachments" {
+		if len(p) == 8 {
+			_, e := B.ParseListQuery(u.RawQuery)
+			return e == nil
+		}
+		return len(p) == 9 && uuid(p[8]) && u.RawQuery == ""
+	}
+	if u.RawQuery != "" {
 		return false
 	}
 	if method == "GET" {

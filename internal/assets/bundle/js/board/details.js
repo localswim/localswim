@@ -1,6 +1,7 @@
 import { completedLane, laneText, workflowAtVersion } from "../api/workflow.js";
 import { CardRelationships } from "./relationships.js";
 import { CardHierarchy } from "./hierarchy.js";
+import { CardFiles } from "./files.js";
 function node(tag, text = "") {
     const result = document.createElement(tag);
     result.textContent = text;
@@ -67,7 +68,8 @@ export class CardDetails {
     relationships;
     hierarchyFallback;
     hierarchyOrigin = false;
-    constructor(client, fallback, archiveAction, focusRoot, hierarchy) {
+    files;
+    constructor(client, fallback, archiveAction, focusRoot, hierarchy, filesClient) {
         this.client = client;
         this.fallback = fallback;
         this.archiveAction = archiveAction;
@@ -91,6 +93,10 @@ export class CardDetails {
             this.relationships = new CardRelationships(hierarchy.client, (cardId, identity, opener) => this.open(cardId, identity, opener, true), hierarchy.relationshipAction);
             this.host.insertBefore(this.relationships.host, this.comments);
         }
+        if (filesClient) {
+            this.files = new CardFiles(filesClient);
+            this.host.insertBefore(this.files.host, this.comments);
+        }
     }
     open(cardId, identity, opener, hierarchyOrigin = false) {
         this.request++;
@@ -98,6 +104,7 @@ export class CardDetails {
         this.expected = identity;
         this.opener = opener;
         this.hierarchyOrigin = hierarchyOrigin;
+        this.files?.close();
         this.current = undefined;
         this.history = undefined;
         this.host.hidden = false;
@@ -118,6 +125,7 @@ export class CardDetails {
         this.host.hidden = true;
         this.hierarchy?.close();
         this.relationships?.close();
+        this.files?.close();
         const scope = this.focusRoot ?? this.fallback.parentElement;
         const replacement = scope?.isConnected ? [...scope.querySelectorAll("button[data-open-card]")]
             .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0)
@@ -126,14 +134,15 @@ export class CardDetails {
         if (target.isConnected && !target.disabled && target.getClientRects().length > 0)
             target.focus();
     }
-    suspend() { this.active = false; this.invalidate(); this.hierarchy?.suspend(); this.relationships?.suspend(); }
-    resume() { this.active = true; this.hierarchy?.resume(); this.relationships?.resume(); }
+    suspend() { this.active = false; this.invalidate(); this.hierarchy?.suspend(); this.relationships?.suspend(); this.files?.suspend(); }
+    resume() { this.active = true; this.hierarchy?.resume(); this.relationships?.resume(); this.files?.resume(); }
     invalidate() {
         this.request++;
         this.history = undefined;
         this.parentAnnouncement.textContent = "";
         this.hierarchy?.markStale();
         this.relationships?.markStale();
+        this.files?.invalidate();
         this.historicalComments.replaceChildren(node("p", "History comments stale; a deliberate refresh is required."));
         if (this.selected) {
             this.status.textContent = "Card details stale. Deliberately refresh card details to read current facts.";
@@ -188,6 +197,7 @@ export class CardDetails {
         if (!this.active || !this.selected || !this.expected)
             return;
         const generation = ++this.request, cardId = this.selected, identity = this.expected;
+        this.files?.invalidate();
         const valid = () => this.active && generation === this.request && this.selected === cardId;
         this.commentPage = 0;
         this.historyPage = 0;
@@ -210,6 +220,7 @@ export class CardDetails {
             return;
         }
         this.current = current.value;
+        this.files?.open({ identity, cardId });
         this.hierarchy?.observeRevision(current.value.result.identity, current.value.result.revision);
         this.relationships?.observeRevision(current.value.result.identity, current.value.result.revision);
         this.renderCurrent();

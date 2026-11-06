@@ -1,0 +1,53 @@
+M09 CARD FILE INSPECTION AND DOWNLOAD
+
+Use the current local executable and an explicitly selected board. The browser
+and CLI read the same authoritative service. Select --data DIR or the complete
+--workspace DIR --project KEY --board KEY tuple.
+
+Ordinary CLI reads
+  localswim --data DIR --json attachment list CARD-UUID
+  localswim --data DIR --json attachment list CARD-UUID --view retained
+  localswim --data DIR --json attachment list CARD-UUID --limit 25
+  localswim --data DIR --json attachment list CARD-UUID --limit 25 --cursor CURSOR
+  localswim --data DIR --json attachment inspect CARD-UUID ATTACHMENT-UUID
+  localswim --data DIR --json attachment download ATTACHMENT-UUID --destination NEWFILE
+
+List defaults to current attachments and a maximum of50 items. Use --view retained
+for surviving full metadata belonging to the selected card without a current
+reference. These views are disjoint. Inspect names the card and attachment
+explicitly. Both reads include current identity, board/card revisions, exact
+metadata, source identity, attribution and current-reference download state.
+Current read authority is required for archived and Completed cards as well.
+
+Ordering is creation time then attachment UUID ascending. Requested limits are
+1..100. A response may contain fewer items because pages also have a1MiB target.
+A supported large singleton can exceed that target. Follow the returned cursor
+with the same board, card, view and captured revisions. On REVISION_CONFLICT,
+discard partial pagination and explicitly start at page1. Cursors grant no
+authority. Complete responses have a128MiB hard limit. Actor labels exceeding
+32MiB UTF-8 are unavailable under the bounded read contract, preserving stored
+data. Names and labels are never truncated to fabricate a successful read.
+
+Browser use
+Open a card's details and use the Files section. Current files and Retained files
+switch the selected view. Inspect file opens metadata for that exact attachment.
+Next files advances one bounded page. Refresh files begins again from page1.
+Refresh preserves unrelated editing input. Stale or delayed results cannot
+replace another card or board's selection.
+
+Known attribution comes from retained matching committed add evidence, with
+activity as a fallback. Unavailable attribution means the required evidence is
+absent. It does not identify the current reader or restore actor as creator.
+Conflicting or broken attribution evidence fails closed.
+
+Offer file download is available only for a current reference. Retained metadata
+and historical snapshots do not grant raw-byte access. The byte request checks
+current authority, length and SHA256 again. Downloaded content uses a generated
+attachment-UUID.bin name and an inert application/octet-stream offer. Browser
+status reports an offer with local save unverified. The CLI succeeds only after
+its existing no-overwrite native publication and readback checks. Cancellation,
+missing/corrupt bytes and interrupted delivery keep their explicit failure state.
+
+This read slice keeps physical10/base5 and existing API/archive/fingerprint1.
+Its additive read DTOs leave stored records and original-operation bytes intact.
+Upload and detach have their own M09 delivery evidence and lifecycle rules.

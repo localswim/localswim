@@ -195,7 +195,7 @@ func TestNativeOwnedAdapterRegistrationAndDenial(t *testing.T) {
 		{"POST", base + "/recovery/preview", "{", 400},
 		{"POST", base + "/recovery/confirm", "{", 400},
 		{"POST", base + "/operations/" + testCard, "", 405},
-		{"GET", base + "/cards/" + testCard + "/attachments", "", 405},
+		{"GET", base + "/cards/" + testCard + "/attachments", "", 404},
 		{"POST", base + "/attachments/" + testCard, "", 405},
 		{"GET", base + "/exports", "", 405},
 		{"POST", base + "/exports", "{", 400},

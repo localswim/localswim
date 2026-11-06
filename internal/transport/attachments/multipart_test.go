@@ -123,7 +123,7 @@ func TestExactRoutes(t *testing.T) {
 	for _, tt := range []struct {
 		method, path string
 		status       int
-	}{{"POST", upload, 0}, {"GET", download, 0}, {"GET", upload, 405}, {"POST", download, 405}, {"HEAD", download, 405}, {"GET", download + "/", 404}, {"DELETE", download, 405}, {"POST", upload + "?x=1", 400}, {"POST", upload + "?", 400}, {"GET", "/api/v1/boards/invalid/attachments/" + c, 404}, {"GET", download + "/replace", 404}} {
+	}{{"POST", upload, 0}, {"GET", download, 0}, {"GET", upload, 0}, {"POST", download, 405}, {"HEAD", download, 405}, {"GET", download + "/", 404}, {"DELETE", download, 405}, {"POST", upload + "?x=1", 400}, {"POST", upload + "?", 400}, {"GET", "/api/v1/boards/invalid/attachments/" + c, 404}, {"GET", download + "/replace", 404}} {
 		r := httptest.NewRequest(tt.method, "https://invalid.localhost"+tt.path, nil)
 		_, s := selectRoute(r)
 		if s != tt.status {

@@ -35,6 +35,12 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 		out = r.execute(ctx, q, stdin, stderr)
 	}
 	if !q.json && stdout != nil {
+		if text, ok := readableFiles(out.value); ok {
+			if _, e := io.WriteString(stdout, text); e != nil {
+				return 1
+			}
+			return out.exit
+		}
 		label := map[int]string{0: "confirmed", 1: "failed", 2: "refused", 3: "unavailable", 4: "unknown"}[out.exit]
 		board := "unavailable"
 		if validID(q.selected.BoardID) {
@@ -57,7 +63,14 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 	if stdout == nil {
 		return outputFailure(out, q)
 	}
-	b, e := T.Readable(out.value)
+	var b []byte
+	var e error
+	switch out.value.(type) {
+	case T.CardFilesRead, T.CardFileRead:
+		b, e = T.FileReadBytes(out.value)
+	default:
+		b, e = T.Readable(out.value)
+	}
 	if e != nil {
 		if out.localComplete {
 			return 4
@@ -88,7 +101,7 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 	if ctx == nil || ctx.Err() != nil {
 		return refused("UNAVAILABLE", 3)
 	}
-	if q.kind != "attachment add" && r.ProtectedRoots == nil {
+	if q.kind != "attachment add" && q.kind != "attachment list" && q.kind != "attachment inspect" && r.ProtectedRoots == nil {
 		return refused("UNSAFE_LOCAL_MATERIAL", 1)
 	}
 	var metadata, raw []byte
@@ -112,6 +125,9 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 	if q.kind == "attachment add" {
 		out := c.DispatchAttachment(ctx, r.Evidence, contract.ResolvedRoute{Command: "attachment.add", BoardID: q.selected.BoardID, TargetID: q.id}, metadata, raw, stderr)
 		return result{value: out.Value(), exit: out.Exit()}
+	}
+	if q.kind == "attachment list" || q.kind == "attachment inspect" {
+		return readFiles(ctx, c, q)
 	}
 	board, failed := currentBoard(ctx, c, q)
 	if failed != nil {

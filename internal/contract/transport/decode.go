@@ -15,6 +15,7 @@ import (
 )
 
 var enums = map[string][]string{
+	"FileAttributionState": {"known", "unavailable"}, "FileAttributionBasis": {"operation", "activity"}, "FileReferenceState": {"current", "retained"}, "FileDownloadState": {"current_reference", "not_current"}, "CardFilesScope": {"card-files"}, "CardFileScope": {"card-file"},
 	"CardSearchScope": {"card-search"}, "CardArchiveMode": {"active", "archived", "all"},
 	"Priority":                  {"P0", "P1", "P2", "P3", "P4", "P5"},
 	"WorkspacePreferenceAction": {"pin", "unpin", "reorder"},
@@ -37,6 +38,9 @@ var fieldRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_
 // It proves boundary validity only, never that a terminal claim is authentic.
 func Decode[T any](data []byte) (T, error) {
 	var out T
+	if (reflect.TypeFor[T]() == reflect.TypeFor[CardFilesRead]() || reflect.TypeFor[T]() == reflect.TypeFor[CardFileRead]()) && len(data) > FileReadResponseLimit {
+		return out, fmt.Errorf("file response exceeds limit")
+	}
 	if reflect.TypeFor[T]() == reflect.TypeFor[WorkflowPreviewRequest]() && len(data) > 800000 {
 		return out, fmt.Errorf("workflow preview exceeds limit")
 	}
@@ -200,6 +204,35 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case FileAttribution:
+		known := x.ActorID != nil && x.ActorKind != nil && x.ActorLabel != nil && x.Basis != nil
+		empty := x.ActorID == nil && x.ActorKind == nil && x.ActorLabel == nil && x.Basis == nil
+		if x.State == "known" && !known || x.State == "unavailable" && !empty {
+			return fmt.Errorf("attribution availability")
+		}
+	case CardFile:
+		if x.ReferenceState == "current" && x.DownloadState != "current_reference" || x.ReferenceState == "retained" && x.DownloadState != "not_current" {
+			return fmt.Errorf("file availability")
+		}
+	case CardFilesView:
+		if e := cardFilesContinuation(x); e != nil {
+			return e
+		}
+		if len(x.Items) > 100 {
+			return fmt.Errorf("file page bound")
+		}
+		prior := ""
+		for _, f := range x.Items {
+			k := string(f.Attachment.CreatedAt) + string(f.Attachment.AttachmentID)
+			if f.Attachment.CardID != x.CardID || f.Attachment.CreatedIn.BoardID != x.Identity.BoardID || f.ReferenceState != x.View || k <= prior {
+				return fmt.Errorf("file page binding")
+			}
+			prior = k
+		}
+	case CardFileView:
+		if x.File.Attachment.CardID != x.CardID || x.File.Attachment.CreatedIn.BoardID != x.Identity.BoardID {
+			return fmt.Errorf("file binding")
+		}
 	case AttentionLane:
 		if (x.Role != "waiting" && x.Role != "review") || utf8.RuneCountInString(x.Label) < 1 || utf8.RuneCountInString(x.Label) > 80 || strings.TrimSpace(x.Label) != x.Label {
 			return fmt.Errorf("invalid attention lane")

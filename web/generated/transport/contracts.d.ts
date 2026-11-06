@@ -4,6 +4,51 @@
 import type * as Archive from '../archive/contracts';
 import type * as Mutation from '../contracts';
 
+export type FileAttribution = {
+  readonly actorId: string | null;
+  readonly actorKind: 'human' | 'automation' | null;
+  readonly actorLabel: string | null;
+  readonly basis: "operation" | "activity" | null;
+  readonly state: "known" | "unavailable";
+};
+
+export type CardFile = {
+  readonly attachment: Archive.Attachment;
+  readonly attribution: FileAttribution;
+  readonly downloadState: "current_reference" | "not_current";
+  readonly referenceState: "current" | "retained";
+};
+
+export type CardFilesRead = {
+  readonly apiVersion: 1;
+  readonly result: CardFilesView;
+  readonly scope: "card-files";
+};
+
+export type CardFilesView = {
+  readonly cardId: string;
+  readonly cardRevision: number;
+  readonly identity: Archive.Identity;
+  readonly items: ReadonlyArray<CardFile>;
+  readonly nextCursor: string | null;
+  readonly revision: number;
+  readonly view: "current" | "retained";
+};
+
+export type CardFileRead = {
+  readonly apiVersion: 1;
+  readonly result: CardFileView;
+  readonly scope: "card-file";
+};
+
+export type CardFileView = {
+  readonly cardId: string;
+  readonly cardRevision: number;
+  readonly file: CardFile;
+  readonly identity: Archive.Identity;
+  readonly revision: number;
+};
+
 export type AttentionLane = {
   readonly id: string;
   readonly label: string;

@@ -53,7 +53,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type route struct{ board, card, attachment string }
 
 func selectRoute(r *http.Request) (route, int) {
-	if r.URL.RawQuery != "" || r.URL.ForceQuery || r.URL.RawPath != "" {
+	if r.URL.ForceQuery || r.URL.RawPath != "" {
 		return route{}, 400
 	}
 	p := strings.Split(r.URL.Path, "/")
@@ -61,14 +61,29 @@ func selectRoute(r *http.Request) (route, int) {
 		return route{}, 404
 	}
 	if len(p) == 8 && p[5] == "cards" && schema.ValidUUID(p[6]) && p[7] == "attachments" {
-		if r.Method != http.MethodPost {
+		if r.Method != http.MethodPost && r.Method != http.MethodGet {
 			return route{}, 405
 		}
+		if r.Method == http.MethodPost && r.URL.RawQuery != "" {
+			return route{}, 400
+		}
 		return route{board: p[4], card: p[6]}, 0
+	}
+	if len(p) == 9 && p[5] == "cards" && schema.ValidUUID(p[6]) && p[7] == "attachments" && schema.ValidUUID(p[8]) {
+		if r.Method != http.MethodGet {
+			return route{}, 405
+		}
+		if r.URL.RawQuery != "" {
+			return route{}, 400
+		}
+		return route{board: p[4], card: p[6], attachment: p[8]}, 0
 	}
 	if len(p) == 7 && p[5] == "attachments" && schema.ValidUUID(p[6]) {
 		if r.Method != http.MethodGet {
 			return route{}, 405
+		}
+		if r.URL.RawQuery != "" {
+			return route{}, 400
 		}
 		return route{board: p[4], attachment: p[6]}, 0
 	}
@@ -105,6 +120,42 @@ func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request) {
 	g, e := h.sessions.Admission(mode, token)
 	if e != nil {
 		refuse(w, 401, "UNAUTHENTICATED")
+		return
+	}
+
+	if r.Method == http.MethodGet && route.card != "" {
+		empty, e := ioEmpty(r)
+		if e != nil || !empty {
+			refuse(w, 400, "INVALID_INPUT")
+			return
+		}
+		var value any
+		if route.attachment == "" {
+			q, err := B.ParseListQuery(r.URL.RawQuery)
+			if err != nil {
+				refuse(w, 400, "INVALID_INPUT")
+				return
+			}
+			value, e = h.service.List(r.Context(), g, route.board, string(current.Grant.Incarnation), string(current.ActorID), route.card, q)
+		} else {
+			value, e = h.service.Inspect(r.Context(), g, route.board, string(current.Grant.Incarnation), string(current.ActorID), route.card, route.attachment)
+		}
+		if e != nil {
+			switch {
+			case errors.Is(e, grants.ErrDenied):
+				refuse(w, 403, "FORBIDDEN")
+			case errors.Is(e, B.ErrNotFound):
+				refuse(w, 404, "NOT_FOUND")
+			case errors.Is(e, B.ErrInvalidInput):
+				refuse(w, 400, "INVALID_INPUT")
+			case errors.Is(e, B.ErrRevisionConflict):
+				refuse(w, 409, "REVISION_CONFLICT")
+			default:
+				refuse(w, 503, "UNAVAILABLE")
+			}
+			return
+		}
+		respond(w, 200, value)
 		return
 	}
 	if route.attachment != "" {
@@ -162,7 +213,14 @@ func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func respond(w http.ResponseWriter, status int, v any) {
-	b, e := T.Readable(v)
+	var b []byte
+	var e error
+	switch v.(type) {
+	case T.CardFilesRead, T.CardFileRead:
+		b, e = T.FileReadBytes(v)
+	default:
+		b, e = T.Readable(v)
+	}
 	if e != nil {
 		status = 503
 		b, _ = T.Readable(T.NonterminalRefusal{APIVersion: 1, Outcome: "refused", Error: T.Error{Code: "UNAVAILABLE", Message: "Request refused"}})

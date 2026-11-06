@@ -111,7 +111,7 @@ export class BoardView {
         this.readState.textContent = "Read current board before archiving this focused card; its independently read facts differ from the board base."; return;
       }
       this.edit("card.edit", card, false, undefined, !card.archived);
-    }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read, relationshipAction: (action, card, read, row) => this.relationshipEdit(action, card, read, row) });
+    }, root, { client, action: (action, card, read) => this.hierarchyEdit(action, card, read), fallback: read, relationshipAction: (action, card, read, row) => this.relationshipEdit(action, card, read, row) }, client);
     root.replaceChildren(this.heading, this.actor, this.readState, read,
       this.create, this.workflowEdit, this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes);
   }

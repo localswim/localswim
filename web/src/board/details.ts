@@ -7,6 +7,8 @@ import type { BoardClient } from "../api/client.js";
 import { CardHierarchy } from "./hierarchy.js";
 import type { HierarchyAction } from "./hierarchy.js";
 import type { HierarchyCard, ParentRef } from "../api/hierarchy.js";
+import { CardFiles } from "./files.js";
+import type { FilesClient } from "./files.js";
 
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, text = ""): HTMLElementTagNameMap[K] {
   const result = document.createElement(tag); result.textContent = text;
@@ -65,9 +67,10 @@ export class CardDetails {
   private readonly relationships?: CardRelationships;
   private readonly hierarchyFallback?: HTMLButtonElement;
   private hierarchyOrigin = false;
+  private readonly files?: CardFiles;
   constructor(private readonly client: Pick<BoardClient, "card" | "history">, private readonly fallback: HTMLButtonElement,
     private readonly archiveAction?: (read: CardRead) => void, private readonly focusRoot?: HTMLElement,
-    hierarchy?: { client: Pick<BoardClient, "board">; action?: (action: HierarchyAction, card: HierarchyCard, read: BoardRead) => void; fallback?: HTMLButtonElement; relationshipAction?: RelationshipActionHandler }) {
+    hierarchy?: { client: Pick<BoardClient, "board">; action?: (action: HierarchyAction, card: HierarchyCard, read: BoardRead) => void; fallback?: HTMLButtonElement; relationshipAction?: RelationshipActionHandler }, filesClient?: FilesClient) {
     this.host.hidden = true; this.host.setAttribute("aria-label", "Card details"); this.host.setAttribute("role", "region");
     this.heading.tabIndex = -1; this.status.setAttribute("role", "status");
     this.parentAnnouncement.setAttribute("role", "status"); this.parentAnnouncement.setAttribute("aria-label", "Current parent announcement");
@@ -83,10 +86,12 @@ export class CardDetails {
       this.relationships = new CardRelationships(hierarchy.client, (cardId, identity, opener) => this.open(cardId, identity, opener, true), hierarchy.relationshipAction);
       this.host.insertBefore(this.relationships.host, this.comments);
     }
+    if (filesClient) { this.files = new CardFiles(filesClient); this.host.insertBefore(this.files.host, this.comments); }
   }
   open(cardId: string, identity: Identity, opener: HTMLButtonElement, hierarchyOrigin = false): void {
     this.request++; this.selected = cardId; this.expected = identity; this.opener = opener;
     this.hierarchyOrigin = hierarchyOrigin;
+    this.files?.close();
     this.current = undefined; this.history = undefined; this.host.hidden = false;
     this.parentAnnouncement.textContent = "";
     this.heading.textContent = "Card details · " + cardId;
@@ -97,6 +102,7 @@ export class CardDetails {
   close(): void {
     this.request++; this.selected = undefined; this.host.hidden = true;
     this.hierarchy?.close(); this.relationships?.close();
+    this.files?.close();
     const scope = this.focusRoot ?? this.fallback.parentElement;
     const replacement = scope?.isConnected ? [...scope.querySelectorAll<HTMLButtonElement>("button[data-open-card]")]
       .find(row => row.dataset.focusKey === this.opener?.dataset.focusKey && row.dataset.openCard === this.opener?.dataset.openCard && !row.disabled && row.getClientRects().length > 0)
@@ -104,12 +110,13 @@ export class CardDetails {
     const target = replacement ?? (this.hierarchyOrigin ? this.hierarchyFallback ?? this.fallback : this.fallback);
     if (target.isConnected && !target.disabled && target.getClientRects().length > 0) target.focus();
   }
-  suspend(): void { this.active = false; this.invalidate(); this.hierarchy?.suspend(); this.relationships?.suspend(); }
-  resume(): void { this.active = true; this.hierarchy?.resume(); this.relationships?.resume(); }
+  suspend(): void { this.active = false; this.invalidate(); this.hierarchy?.suspend(); this.relationships?.suspend(); this.files?.suspend(); }
+  resume(): void { this.active = true; this.hierarchy?.resume(); this.relationships?.resume(); this.files?.resume(); }
   invalidate(): void {
     this.request++; this.history = undefined;
     this.parentAnnouncement.textContent = "";
     this.hierarchy?.markStale(); this.relationships?.markStale();
+    this.files?.invalidate();
     this.historicalComments.replaceChildren(node("p", "History comments stale; a deliberate refresh is required."));
     if (this.selected) {
       this.status.textContent = "Card details stale. Deliberately refresh card details to read current facts.";
@@ -148,6 +155,7 @@ export class CardDetails {
   async refresh(minimum?: Readonly<{ boardRevision: number; cardRevision: number; announceParent?: boolean }>): Promise<void> {
     if (!this.active || !this.selected || !this.expected) return;
     const generation = ++this.request, cardId = this.selected, identity = this.expected;
+    this.files?.invalidate();
     const valid = (): boolean => this.active && generation === this.request && this.selected === cardId;
     this.commentPage = 0; this.historyPage = 0; this.historicalCommentPage = 0; this.history = undefined;
     this.parentAnnouncement.textContent = "";
@@ -165,6 +173,7 @@ export class CardDetails {
       this.older.replaceChildren(node("p", "History unavailable without a matching current card read.")); return;
     }
     this.current = current.value;
+    this.files?.open({ identity, cardId });
     this.hierarchy?.observeRevision(current.value.result.identity, current.value.result.revision); this.relationships?.observeRevision(current.value.result.identity, current.value.result.revision);
     this.renderCurrent();
     if (minimum?.announceParent) {

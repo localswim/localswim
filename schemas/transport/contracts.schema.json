@@ -285,6 +285,209 @@
       ],
       "type": "object"
     },
+    "CardFile": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "downloadState": {
+              "const": "current_reference"
+            },
+            "referenceState": {
+              "const": "current"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "downloadState": {
+              "const": "not_current"
+            },
+            "referenceState": {
+              "const": "retained"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "attachment": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Attachment"
+        },
+        "attribution": {
+          "$ref": "#/$defs/FileAttribution"
+        },
+        "downloadState": {
+          "enum": [
+            "current_reference",
+            "not_current"
+          ],
+          "type": "string"
+        },
+        "referenceState": {
+          "enum": [
+            "current",
+            "retained"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "attachment",
+        "attribution",
+        "downloadState",
+        "referenceState"
+      ],
+      "type": "object"
+    },
+    "CardFileRead": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "result": {
+          "$ref": "#/$defs/CardFileView"
+        },
+        "scope": {
+          "enum": [
+            "card-file"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "result",
+        "scope"
+      ],
+      "type": "object"
+    },
+    "CardFileView": {
+      "additionalProperties": false,
+      "properties": {
+        "cardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "cardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "file": {
+          "$ref": "#/$defs/CardFile"
+        },
+        "identity": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Identity"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cardId",
+        "cardRevision",
+        "file",
+        "identity",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "CardFilesRead": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "result": {
+          "$ref": "#/$defs/CardFilesView"
+        },
+        "scope": {
+          "enum": [
+            "card-files"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "result",
+        "scope"
+      ],
+      "type": "object"
+    },
+    "CardFilesView": {
+      "additionalProperties": false,
+      "properties": {
+        "cardId": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "cardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "identity": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Identity"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/CardFile"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "view": {
+          "enum": [
+            "current",
+            "retained"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "cardId",
+        "cardRevision",
+        "identity",
+        "items",
+        "nextCursor",
+        "revision",
+        "view"
+      ],
+      "type": "object"
+    },
     "CardRead": {
       "additionalProperties": false,
       "properties": {
@@ -2110,6 +2313,132 @@
           "type": "object"
         }
       ]
+    },
+    "FileAttribution": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "actorId": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            "actorKind": {
+              "enum": [
+                "human",
+                "automation"
+              ],
+              "type": "string"
+            },
+            "actorLabel": {
+              "type": "string"
+            },
+            "basis": {
+              "enum": [
+                "operation",
+                "activity"
+              ],
+              "type": "string"
+            },
+            "state": {
+              "const": "known"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "actorId": {
+              "type": "null"
+            },
+            "actorKind": {
+              "type": "null"
+            },
+            "actorLabel": {
+              "type": "null"
+            },
+            "basis": {
+              "type": "null"
+            },
+            "state": {
+              "const": "unavailable"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "actorId": {
+          "anyOf": [
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorKind": {
+          "anyOf": [
+            {
+              "enum": [
+                "human",
+                "automation"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorLabel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "basis": {
+          "anyOf": [
+            {
+              "enum": [
+                "operation",
+                "activity"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "enum": [
+            "known",
+            "unavailable"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "actorId",
+        "actorKind",
+        "actorLabel",
+        "basis",
+        "state"
+      ],
+      "type": "object"
     },
     "HistoryRead": {
       "additionalProperties": false,

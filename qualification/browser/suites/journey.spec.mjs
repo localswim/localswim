@@ -413,8 +413,10 @@ scenario('V02-BYTES-01', 'DOM attachment and browser/CLI downloads preserve exac
   const attachment = board(run).attachments.find(row => row.cardId === card.cardId); expect(attachment).toBeTruthy();
   expect(attachment.sha256).toBe(createHash('sha256').update(bytes).digest('hex')); expect(attachment.byteLength).toBe(bytes.length);
   await app.getByRole('button', { name: 'Read current attachment board', exact: true }).click();
+  await app.locator('button[data-open-card="' + card.cardId + '"]').click();
+  await app.getByRole('region', { name: 'Card files', exact: true }).getByRole('button', { name: 'Inspect file ' + attachment.attachmentId, exact: true }).click();
   const downloadPromise = app.waitForEvent('download');
-  await app.getByRole('article').filter({ hasText: attachment.sha256 }).getByRole('button', { name: 'Offer attachment download', exact: true }).click();
+  await app.getByRole('region', { name: 'File details', exact: true }).getByRole('button', { name: 'Offer file download', exact: true }).click();
   const download = await downloadPromise, path = await download.path(); expect(await download.failure()).toBeNull(); expect(readFileSync(path).equals(bytes)).toBe(true);
   // Fresh attempt directory supplies uniqueness; leave room for the native
   // publication partial suffix within its accepted Windows path bound.

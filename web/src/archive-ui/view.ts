@@ -79,7 +79,7 @@ export class ArchiveView {
       const selected = this.cards.value; this.cards.replaceChildren();
       for (const card of base.result.cards.filter(c => c.lane !== "Completed")) { const option = element("option", "#" + card.ticket + " " + card.title); option.value = card.cardId; this.cards.append(option); }
       if ([...this.cards.options].some(o => o.value === selected)) this.cards.value = selected;
-      this.renderAttachments(base);
+      this.renderAttachments();
     } catch { if (!this.destroyed && generation === this.generation) { this.context = undefined; this.mayAttach = false; this.mayExport = false; this.status.textContent = this.base ? "Attachment board unavailable; displayed metadata is stale. Existing editor retains its original base." : "Attachment board unavailable."; } }
     this.update();
   }
@@ -178,20 +178,8 @@ export class ArchiveView {
     const url = URL.createObjectURL(new Blob([bytes], { type })), link = element("a"); link.href = url; link.download = name; link.hidden = true; this.root.append(link);
     try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 0); }
   }
-  private renderAttachments(base: BoardRead): void {
-    const focused = (document.activeElement as HTMLElement | null)?.dataset.attachmentFocus; this.attachments.replaceChildren();
-    for (const attachment of base.result.attachments) {
-      const state = element("p"), row = element("article", attachment.name + " · " + attachment.mediaLabel + " · " + attachment.byteLength + " bytes · SHA-256 " + attachment.sha256); state.setAttribute("role", "status");
-      const offer = button("Offer attachment download", () => {
-        const generation = this.generation, controller = new AbortController(); this.downloads.add(controller); offer.disabled = true;
-        const cancel = button("Cancel attachment download", () => { controller.abort(); state.textContent = "Download cancelled; local save unverified."; cancel.remove(); }); row.append(cancel);
-        void this.client.downloadAttachment(this.boardId, attachment.attachmentId, { sha256: attachment.sha256, byteLength: attachment.byteLength }, controller.signal).then(bytes => {
-          if (this.destroyed || controller.signal.aborted || generation !== this.generation) return;
-          this.offer(bytes, "application/octet-stream", "attachment-" + attachment.attachmentId + ".bin"); state.textContent = "Attachment download offered after complete byte verification. Local save unverified.";
-        }, () => { if (!this.destroyed && !controller.signal.aborted) state.textContent = "Attachment bytes unavailable or incomplete; no verified download offered."; }).finally(() => { this.downloads.delete(controller); cancel.remove(); offer.disabled = false; });
-      }); offer.dataset.attachmentFocus = attachment.attachmentId; row.append(offer, state); this.attachments.append(row);
-    }
-    if (focused) ([...this.attachments.querySelectorAll<HTMLButtonElement>("button")].find(n => n.dataset.attachmentFocus === focused) ?? this.heading).focus();
+  private renderAttachments(): void {
+    this.attachments.replaceChildren(element("p", "Open a card in the board view to list current or retained files, inspect metadata and offer an eligible download."));
   }
   private async export(): Promise<void> {
     if (!this.context || !this.base || !this.mayExport || this.destroyed || this.exportPending) return;

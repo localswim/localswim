@@ -166,7 +166,7 @@ func (c *Connection) requestRaw(ctx context.Context, method, path string, body i
 		return 0, nil, nil, errors.New("response unavailable")
 	}
 	defer resp.Body.Close()
-	if len(resp.Header.Values("Content-Encoding")) != 0 || resp.Uncompressed {
+	if len(resp.Header.Values("Content-Encoding")) != 0 || resp.Uncompressed || resp.ContentLength > maxBytes {
 		return 0, nil, nil, errors.New("response unavailable")
 	}
 	b, e := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))

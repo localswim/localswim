@@ -300,3 +300,50 @@ type PreviewRequest = A.PreviewRequest
 type Preview = A.Preview
 type Confirmation = A.Confirmation
 type RestoreStatus = A.Status
+
+// Card-file reads project immutable metadata and bounded retained attribution.
+type FileAttributionState string
+type FileAttributionBasis string
+type FileReferenceState string
+type FileDownloadState string
+type CardFilesScope string
+type CardFileScope string
+type FileAttribution struct {
+	State      FileAttributionState  `json:"state"`
+	ActorID    *A.UUID               `json:"actorId"`
+	ActorKind  *A.Kind               `json:"actorKind"`
+	ActorLabel *string               `json:"actorLabel"`
+	Basis      *FileAttributionBasis `json:"basis"`
+}
+type CardFile struct {
+	Attachment     A.Attachment       `json:"attachment"`
+	ReferenceState FileReferenceState `json:"referenceState"`
+	DownloadState  FileDownloadState  `json:"downloadState"`
+	Attribution    FileAttribution    `json:"attribution"`
+}
+type CardFilesRead struct {
+	APIVersion A.Version      `json:"apiVersion"`
+	Scope      CardFilesScope `json:"scope"`
+	Result     CardFilesView  `json:"result"`
+}
+type CardFilesView struct {
+	Identity     A.Identity         `json:"identity"`
+	Revision     A.Number           `json:"revision"`
+	CardID       A.UUID             `json:"cardId"`
+	CardRevision A.Positive         `json:"cardRevision"`
+	View         FileReferenceState `json:"view"`
+	Items        []CardFile         `json:"items"`
+	NextCursor   *string            `json:"nextCursor"`
+}
+type CardFileRead struct {
+	APIVersion A.Version     `json:"apiVersion"`
+	Scope      CardFileScope `json:"scope"`
+	Result     CardFileView  `json:"result"`
+}
+type CardFileView struct {
+	Identity     A.Identity `json:"identity"`
+	Revision     A.Number   `json:"revision"`
+	CardID       A.UUID     `json:"cardId"`
+	CardRevision A.Positive `json:"cardRevision"`
+	File         CardFile   `json:"file"`
+}

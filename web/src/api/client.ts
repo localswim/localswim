@@ -15,6 +15,10 @@ import type { CardSearchRead } from "../../generated/transport/contracts.js";
 import { validSearch, validateSearchRead } from "./search.js";
 import type { SearchFilters } from "./search.js";
 import { laneRole, sameWorkflow, validateWorkflowPolicies, workflowAtVersion, validateCurrentWorkflowCards, validateWorkflowPreview } from "./workflow.js";
+import type { CardFileRead, CardFilesRead } from "../../generated/transport/contracts.js";
+import type { Attachment } from "../../generated/archive/contracts.js";
+import { fileReadMaximum, FilesReadRefusal, validateFileRead, validateFilesRead } from "./files.js";
+import type { FileSelection, FileView } from "./files.js";
 
 export class WorkflowPreviewRefusal extends Error {
   constructor(readonly code: string) { super("Workflow preview refused"); }
@@ -197,6 +201,59 @@ export class BoardClient {
     this.workflowRead(history.result.identity, history.result.workflow, []);
     return history;
   }
+  private async fileRead(path: string): Promise<Value> {
+    const { response, credential } = await this.raw(path, { signal: AbortSignal.timeout(20_000) });
+    const declared = response.headers.get("Content-Length");
+    if (declared !== null && (!/^(0|[1-9][0-9]*)$/.test(declared) || Number(declared) > fileReadMaximum)) {
+      await response.body?.cancel().catch(() => {}); throw Error("Files response size unavailable");
+    }
+    const reader = response.body?.getReader();
+    if (!reader) throw Error("Files unavailable");
+    const chunks: Uint8Array[] = []; let size = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read(); if (done) break;
+        size += value.byteLength;
+        if (size > fileReadMaximum) throw Error("Files response too large");
+        chunks.push(value);
+      }
+      this.sameConnection(credential);
+      if (declared !== null && size !== Number(declared)) throw Error("Incomplete files response");
+    } catch (error) { await reader.cancel().catch(() => {}); throw error; }
+    const bytes = new Uint8Array(size); let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    const value = parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes));
+    if (!response.ok) {
+      validate("transport:NonterminalRefusal", value);
+      throw new FilesReadRefusal(String(object(object(value).error!).code));
+    }
+    return value;
+  }
+  private fileSelection(selected: FileSelection): void {
+    this.path(selected.identity.boardId);
+    if (!uuid.test(selected.cardId) || selected.cardId === "00000000-0000-0000-0000-000000000000" ||
+        !uuid.test(selected.identity.incarnation) || selected.identity.incarnation === "00000000-0000-0000-0000-000000000000" ||
+        this.options.selection && selected.identity.incarnation !== this.options.selection.incarnation) throw Error("Invalid file selection");
+  }
+  async cardFiles(selected: FileSelection, view: FileView = "current", cursor?: string, limit = 50): Promise<CardFilesRead> {
+    selected = structuredClone(selected); this.fileSelection(selected);
+    if (!["current", "retained"].includes(view) || !Number.isInteger(limit) || limit < 1 || limit > 100 ||
+        cursor !== undefined && !/^[A-Za-z0-9_-]{1,1024}$/.test(cursor)) throw Error("Invalid file query");
+    const query = new URLSearchParams({ view, limit: String(limit) });
+    if (cursor !== undefined) query.set("cursor", cursor);
+    const value = await this.fileRead(this.path(selected.identity.boardId) + "/cards/" + selected.cardId + "/attachments?" + query);
+    validate("transport:CardFilesRead", value);
+    const read = value as unknown as CardFilesRead;
+    validateFilesRead(read, selected, view, limit); return read;
+  }
+  async cardFile(selected: FileSelection, attachmentId: string): Promise<CardFileRead> {
+    selected = structuredClone(selected); this.fileSelection(selected);
+    if (!uuid.test(attachmentId) || attachmentId === "00000000-0000-0000-0000-000000000000") throw Error("Invalid attachment identity");
+    const value = await this.fileRead(this.path(selected.identity.boardId) + "/cards/" + selected.cardId + "/attachments/" + attachmentId);
+    validate("transport:CardFileRead", value);
+    const read = value as unknown as CardFileRead;
+    validateFileRead(read, selected, attachmentId); return read;
+  }
   async previewWorkflow(request: WorkflowPreviewRequest): Promise<WorkflowPreview> {
     const submitted = structuredClone(request), body = JSON.stringify(submitted);
     validate("transport:WorkflowPreviewRequest", parse(body));
@@ -322,11 +379,12 @@ export class BoardClient {
     this.previews.clear(); this.previews.set(preview.previewHash, structuredClone(preview));
     return structuredClone(preview);
   }
-  private async binary(path: string, type: string, maximum: number, init: RequestInit): Promise<ArrayBuffer> {
+  private async binary(path: string, type: string, maximum: number, init: RequestInit, disposition?: string): Promise<ArrayBuffer> {
     const credential = this.options.credential();
     const { response, credential: presented } = await this.raw(path, init);
     const length = response.headers.get("Content-Length");
-    if (response.status !== 200 || response.headers.get("Content-Type") !== type || response.headers.has("Content-Encoding") || !length || !/^(0|[1-9][0-9]*)$/.test(length) || Number(length) > maximum || !/^attachment(?:;|$)/.test(response.headers.get("Content-Disposition") ?? "")) { await response.body?.cancel(); throw Error("Download unavailable"); }
+    if (response.status !== 200 || response.headers.get("Content-Type") !== type || response.headers.has("Content-Encoding") || !length || !/^(0|[1-9][0-9]*)$/.test(length) || Number(length) > maximum || !/^attachment(?:;|$)/.test(response.headers.get("Content-Disposition") ?? "") ||
+        disposition !== undefined && (response.headers.get("Content-Disposition") !== disposition || response.headers.get("X-Content-Type-Options") !== "nosniff")) { await response.body?.cancel(); throw Error("Download unavailable"); }
     const expected = Number(length), reader = response.body?.getReader();
     if (!reader) throw Error("Incomplete download");
     const chunks: Uint8Array[] = []; let size = 0;
@@ -344,14 +402,23 @@ export class BoardClient {
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
     return bytes.buffer;
   }
-  async downloadAttachment(boardId: string, id: string, facts: Readonly<{ sha256: string; byteLength: number }>, signal: AbortSignal): Promise<ArrayBuffer> {
+  async downloadAttachment(boardId: string, id: string, facts: Readonly<{ sha256: string; byteLength: number; incarnation?: string; cardId?: string }>, signal: AbortSignal): Promise<ArrayBuffer> {
     facts = structuredClone(facts);
     const credential = this.options.credential();
     if (!uuid.test(id) || id === "00000000-0000-0000-0000-000000000000") throw Error("Invalid attachment identity");
-    // Read current authenticated metadata; a stale editor's claim cannot select bytes.
-    const board = await this.board(boardId), attachment = board.result.attachments.find(a => a.attachmentId === id);
-    if (!credential || this.options.credential() !== credential || !attachment || attachment.sha256 !== facts.sha256 || attachment.byteLength !== facts.byteLength) throw Error("Attachment metadata changed");
-    const bytes = await this.binary(this.path(boardId) + "/attachments/" + id, "application/octet-stream", 10485760, { signal });
+    // Re-read current membership; a retained metadata record never selects bytes.
+    let attachment: Attachment | undefined;
+    if (facts.incarnation !== undefined && facts.cardId !== undefined) {
+      const read = await this.cardFile({ identity: { boardId, incarnation: facts.incarnation }, cardId: facts.cardId }, id);
+      if (read.result.file.downloadState !== "current_reference") throw Error("Attachment is no longer current");
+      attachment = read.result.file.attachment;
+    } else {
+      const board = await this.board(boardId);
+      attachment = board.result.attachments.find(a => a.attachmentId === id);
+      if (!attachment || !board.result.cards.some(card => card.cardId === attachment!.cardId && card.attachmentIds.includes(id))) throw Error("Attachment is no longer current");
+    }
+    if (!credential || this.options.credential() !== credential || attachment.sha256 !== facts.sha256 || attachment.byteLength !== facts.byteLength) throw Error("Attachment metadata changed");
+    const bytes = await this.binary(this.path(boardId) + "/attachments/" + id, "application/octet-stream", 10485760, { signal }, 'attachment; filename="attachment-' + id + '.bin"');
     if (bytes.byteLength !== facts.byteLength || await digestBytes(bytes) !== facts.sha256 || signal.aborted || this.options.credential() !== credential) throw Error("Attachment bytes mismatch");
     return bytes;
   }

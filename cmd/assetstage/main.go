@@ -20,6 +20,7 @@ import (
 )
 
 var production = []string{
+	"api/files", "board/files",
 	"api/workflow", "api/configured-workflow", "recovery/workflow-setup",
 	"workspace-ui/workflow-editor", "workspace-ui/workflow-setup",
 	"api/relationships", "board/relationships",
@@ -50,6 +51,7 @@ var bindings = []string{
 	"internal/contract/transport/catalog.go",
 	"internal/contract/transport/preferences.go",
 	"internal/contract/transport/card_search.go",
+	"internal/contract/transport/files.go",
 }
 
 type manifest struct {

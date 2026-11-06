@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "independentReview": "Fresh Sol / High PASS",
+  "qualifiedSource": "589ea9dff24f735001ad83f1f4a33807e8d6db96",
+  "qualificationPublication": "cf04bda0e3877817c7239bfdd011717da257a810",
+  "platform": "Windows amd64, local NTFS, numeric loopback",
+  "artifact": {
+    "archive": "localswim-m11-windows-amd64.zip",
+    "bytes": 12605235,
+    "zipSHA256": "5b37f6daa6331285dbc87aa0560680844fd9391811e6552f31283b09e51a868e",
+    "files": 35,
+    "manifestSHA256": "4d4f1e06efc05b47b81ef6e5aaf794885911ca3aabd226e90c7ed68bee510436",
+    "checksumsSHA256": "754d72e06cdf0407284e07a678e0ae26a8c6b451fb68bf3ceec83dc394fac04c",
+    "executableSHA256": "5161a572d40443ba0140b422fbf1090d1cfc28737f54f07494ede08bb86c73f9",
+    "qualificationPublication": "cf04bda0e3877817c7239bfdd011717da257a810",
+    "qualificationSource": "589ea9dff24f735001ad83f1f4a33807e8d6db96",
+    "verifiedCRC": true,
+    "verifiedPayloads": 33
+  },
+  "extractedDemo": {
+    "run": "proof-7fbad348",
+    "runnerChecks": 76,
+    "browserChecks": 141,
+    "captures": 8,
+    "queueMessages": 12,
+    "browserClosed": true,
+    "hostsExitedAndListenersClosed": 3,
+    "reusedSavedPort": true,
+    "mailboxDeleted": true,
+    "privateRuntimeRemoved": true
+  },
+  "controlledCoverage": {
+    "syntheticActivityFloorOnly": true,
+    "retainedActivityRows": 1,
+    "updatedRows": 1
+  },
+  "evidenceSHA256": {
+    "packageVerification": "e3fff369d01b11733c5e8722472c593284492689703c10539379c010326008eb",
+    "packagedPowerShellGuide": "5cc8e97986fda5d6794abe715888d0a5ad530d9011ff12c50e4c45e3c8affa6f",
+    "demoRun": "cf5e06f5f1eb565b5eda4308b392b9b9d222e4819af64eee4a11c90f253f908a",
+    "browserChecks": "2324ba020f699cd4a7afeb5586dbcc4cea448ecf32c9127f4d2830c02eac64e7",
+    "controlledCoverageSetup": "abbd1bc8a6850371782d130aa440bf1fd39e45b188b482b87c7bc99dbf78205d",
+    "validatedQueue": "c41018fa66a34b7f58de0e13151d77b4d4f2cc0526c9d84acbffd93c8cb5a0ae",
+    "demoRunner": "4f94223df669bea5d4453113d66b4c88be7dc06b95af21c667beb4d19eb8986d",
+    "demoBrowserDriver": "2aa8455edd390eac457be73e29c1dd7cac8d3c8f7a23ffaab3f9d36be3dfc153",
+    "controlledCoverageWrapper": "e410d16ab6b79bef55e32401df59126156698c475569981ef57a485640b3fdbc",
+    "controlledCoverageOverlay": "9cfd5f086a427c9603691595e052c0d4756dc6cf575655dc0a3b8c516dfc48c5"
+  }
+}

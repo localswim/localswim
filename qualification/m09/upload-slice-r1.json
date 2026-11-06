@@ -1,0 +1,12 @@
+{
+  "source": "86d4b71",
+  "binarySHA256": "69e9ffb993a73cfb99424a10afda7e00217c76cd4be3d932c5f4a489ed2a9c8e",
+  "controlledDOMGroups": 30,
+  "normalChecks": 94,
+  "actualCLICommands": 32,
+  "reopenChecks": 24,
+  "responseLossChecks": 34,
+  "firstRestoreProfiles": 2,
+  "reviews": "source/recovery/visual PASS",
+  "physicalVersion": 10
+}

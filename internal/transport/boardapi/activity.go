@@ -290,16 +290,8 @@ func projectActivityCoverage(r writer.Read, view *T.ActivityView) error {
 		ORDER BY origin_board COLLATE BINARY,origin_incarnation COLLATE BINARY,from_exclusive COLLATE BINARY,
 		through_inclusive COLLATE BINARY,reason COLLATE BINARY LIMIT ?`,
 		[]any{view.Identity.Incarnation, view.From, view.Through, T.ActivityGapLimit + 1}, func(rows *sql.Rows) error {
-			var gap T.ActivityGap
-			var from sql.NullString
-			if err := rows.Scan(&gap.Origin.BoardID, &gap.Origin.Incarnation, &from, &gap.ThroughInclusive, &gap.Reason); err != nil {
-				return err
-			}
-			if from.Valid {
-				lower := A.Timestamp(from.String)
-				gap.FromExclusive = &lower
-			}
-			if err := T.Validate(gap); err != nil {
+			gap, err := scanActivityGap(rows)
+			if err != nil {
 				return err
 			}
 			coverage.Gaps = append(coverage.Gaps, gap)
@@ -317,11 +309,26 @@ func projectActivityCoverage(r writer.Read, view *T.ActivityView) error {
 	return nil
 }
 
+func scanActivityGap(rows *sql.Rows) (T.ActivityGap, error) {
+	var gap T.ActivityGap
+	var from sql.NullString
+	if err := rows.Scan(&gap.Origin.BoardID, &gap.Origin.Incarnation, &from, &gap.ThroughInclusive, &gap.Reason); err != nil {
+		return gap, err
+	}
+	if from.Valid {
+		lower := A.Timestamp(from.String)
+		gap.FromExclusive = &lower
+	}
+	return gap, T.Validate(gap)
+}
+
+const activityEventProjection = `a.origin_board,a.origin_incarnation,a.event_id,a.at,a.type,a.board_revision,a.actor_id,
+	(SELECT CASE WHEN count(*)=1 THEN min(kind) END FROM actor WHERE incarnation=a.incarnation AND actor_id=a.actor_id)`
+
 func projectActivityEvents(r writer.Read, view *T.ActivityView, last activityPosition) error {
 	view.Events = []T.ActivityEvent{}
-	query := `SELECT a.origin_board,a.origin_incarnation,a.event_id,a.at,a.type,a.board_revision,a.actor_id,
-		(SELECT CASE WHEN count(*)=1 THEN min(kind) END FROM actor WHERE incarnation=a.incarnation AND actor_id=a.actor_id)
-		FROM activity a WHERE a.incarnation=? AND a.at COLLATE BINARY > ? AND a.at COLLATE BINARY <= ?
+	query := `SELECT ` + activityEventProjection + ` FROM activity a
+		WHERE a.incarnation=? AND a.at COLLATE BINARY > ? AND a.at COLLATE BINARY <= ?
 		AND (a.origin_board<>? OR a.origin_incarnation<>? OR a.event_id<=?)`
 	args := []any{view.Identity.Incarnation, view.From, view.Through, view.Identity.BoardID, view.Identity.Incarnation, view.LocalEventUpper}
 	if last.EventID != 0 {
@@ -331,22 +338,27 @@ func projectActivityEvents(r writer.Read, view *T.ActivityView, last activityPos
 	query += ` ORDER BY a.at COLLATE BINARY DESC,a.origin_board COLLATE BINARY DESC,a.origin_incarnation COLLATE BINARY DESC,a.event_id DESC LIMIT ?`
 	args = append(args, T.ActivityEventLimit+1)
 	return searchRows(r, query, args, func(rows *sql.Rows) error {
-		var event T.ActivityEvent
-		var actorID, kind sql.NullString
-		if err := rows.Scan(&event.Origin.BoardID, &event.Origin.Incarnation, &event.EventID, &event.At, &event.Type, &event.BoardRevision, &actorID, &kind); err != nil {
-			return err
-		}
-		event.ActorKind = "unknown"
-		if actorID.Valid && schema.ValidUUID(actorID.String) {
-			event.ActorID = uuidPtr(actorID)
-			if kind.Valid && (kind.String == "human" || kind.String == "automation") {
-				event.ActorKind = T.ActivityActorKind(kind.String)
-			}
-		}
-		if err := T.Validate(event); err != nil {
+		event, err := scanActivityEvent(rows)
+		if err != nil {
 			return err
 		}
 		view.Events = append(view.Events, event)
 		return nil
 	})
+}
+
+func scanActivityEvent(rows *sql.Rows) (T.ActivityEvent, error) {
+	var event T.ActivityEvent
+	var actorID, kind sql.NullString
+	if err := rows.Scan(&event.Origin.BoardID, &event.Origin.Incarnation, &event.EventID, &event.At, &event.Type, &event.BoardRevision, &actorID, &kind); err != nil {
+		return event, err
+	}
+	event.ActorKind = "unknown"
+	if actorID.Valid && schema.ValidUUID(actorID.String) {
+		event.ActorID = uuidPtr(actorID)
+		if kind.Valid && (kind.String == "human" || kind.String == "automation") {
+			event.ActorKind = T.ActivityActorKind(kind.String)
+		}
+	}
+	return event, T.Validate(event)
 }

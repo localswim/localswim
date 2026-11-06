@@ -472,6 +472,18 @@ func TestNativeBoundaryBrowserAndRevocation(t *testing.T) {
 	if f.call("GET", f.path(), browser.Token, nil, func(r *http.Request) { r.Header.Set("Sec-Fetch-Site", "same-origin") }).Code != 200 {
 		t.Fatal("browser safe current read")
 	}
+	activityPath := f.path() + "/activity?incarnation=" + nativeInc
+	cliActivity := f.call("GET", activityPath, f.token, nil, nil)
+	browserActivity := f.call("GET", activityPath, browser.Token, nil, func(r *http.Request) { r.Header.Set("Sec-Fetch-Site", "same-origin") })
+	for _, w := range []*httptest.ResponseRecorder{cliActivity, browserActivity} {
+		activity, err := T.Decode[T.ActivityRead](w.Body.Bytes())
+		if w.Code != 200 || err != nil || len(activity.Result.Events) != 2 || activity.Result.Identity.Incarnation != nativeInc {
+			t.Fatal("T01 ordinary activity read")
+		}
+	}
+	if w := f.call("GET", activityPath, f.owner, nil, nil); w.Code != 403 {
+		t.Fatal("T01 activity native-owner shortcut")
+	}
 	b := f.wire(t, f.card, 2, 1, map[string]any{"description": "Browser"})
 	if f.call("PATCH", f.cardPath(), browser.Token, b, nil).Code != 403 {
 		t.Fatal("browser write Origin")

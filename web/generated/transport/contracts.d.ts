@@ -4,6 +4,46 @@
 import type * as Archive from '../archive/contracts';
 import type * as Mutation from '../contracts';
 
+export type ActivityRead = {
+  readonly apiVersion: 1;
+  readonly result: ActivityView;
+  readonly scope: "activity";
+};
+
+export type ActivityView = {
+  readonly coverage: ActivityCoverage;
+  readonly events: ReadonlyArray<ActivityEvent>;
+  readonly from: string;
+  readonly identity: Archive.Identity;
+  readonly localEventUpper: number;
+  readonly nextCursor: string | null;
+  readonly revision: number;
+  readonly through: string;
+};
+
+export type ActivityEvent = {
+  readonly actorId: string | null;
+  readonly actorKind: "human" | "automation" | "unknown";
+  readonly at: string;
+  readonly boardRevision: number;
+  readonly eventId: number;
+  readonly origin: Archive.Identity;
+  readonly type: "card.create" | "card.edit" | "comment.add" | "attachment.add" | "attachment.detach" | "link.add" | "link.remove" | "review-handoff" | "approve" | "grant.create" | "grant.revoke" | "history.clear" | "retention.set" | "workflow.edit" | "recovery.expire";
+};
+
+export type ActivityCoverage = {
+  readonly activityFloor: string | null;
+  readonly gaps: ReadonlyArray<ActivityGap>;
+  readonly status: "complete" | "gapped" | "expired";
+};
+
+export type ActivityGap = {
+  readonly fromExclusive: string | null;
+  readonly origin: Archive.Identity;
+  readonly reason: "cleared" | "expired";
+  readonly throughInclusive: string;
+};
+
 export type FileAttribution = {
   readonly actorId: string | null;
   readonly actorKind: 'human' | 'automation' | null;

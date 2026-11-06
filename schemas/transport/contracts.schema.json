@@ -1,6 +1,253 @@
 {
   "$comment": "Select a $defs entry. Strict Go decoding and cross-field/reference checks are required. Structure is never terminal authenticity. Secret bodies are ephemeral only; no HTTP, auth, storage, multipart or native implementation.",
   "$defs": {
+    "ActivityCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "activityFloor": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+              "type": "string",
+              "x-year-minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gaps": {
+          "items": {
+            "$ref": "#/$defs/ActivityGap"
+          },
+          "maxItems": 32,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "gapped",
+            "expired"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "activityFloor",
+        "gaps",
+        "status"
+      ],
+      "type": "object"
+    },
+    "ActivityEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "anyOf": [
+            {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorKind": {
+          "enum": [
+            "human",
+            "automation",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "at": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        },
+        "boardRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "eventId": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "origin": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Identity"
+        },
+        "type": {
+          "enum": [
+            "card.create",
+            "card.edit",
+            "comment.add",
+            "attachment.add",
+            "attachment.detach",
+            "link.add",
+            "link.remove",
+            "review-handoff",
+            "approve",
+            "grant.create",
+            "grant.revoke",
+            "history.clear",
+            "retention.set",
+            "workflow.edit",
+            "recovery.expire"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "actorId",
+        "actorKind",
+        "at",
+        "boardRevision",
+        "eventId",
+        "origin",
+        "type"
+      ],
+      "type": "object"
+    },
+    "ActivityGap": {
+      "additionalProperties": false,
+      "properties": {
+        "fromExclusive": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+              "type": "string",
+              "x-year-minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "origin": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Identity"
+        },
+        "reason": {
+          "enum": [
+            "cleared",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "throughInclusive": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        }
+      },
+      "required": [
+        "fromExclusive",
+        "origin",
+        "reason",
+        "throughInclusive"
+      ],
+      "type": "object"
+    },
+    "ActivityRead": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "result": {
+          "$ref": "#/$defs/ActivityView"
+        },
+        "scope": {
+          "enum": [
+            "activity"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "result",
+        "scope"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 32768
+    },
+    "ActivityView": {
+      "additionalProperties": false,
+      "properties": {
+        "coverage": {
+          "$ref": "#/$defs/ActivityCoverage"
+        },
+        "events": {
+          "items": {
+            "$ref": "#/$defs/ActivityEvent"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "from": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        },
+        "identity": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Identity"
+        },
+        "localEventUpper": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "pattern": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "through": {
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string",
+          "x-year-minimum": 1
+        }
+      },
+      "required": [
+        "coverage",
+        "events",
+        "from",
+        "identity",
+        "localEventUpper",
+        "nextCursor",
+        "revision",
+        "through"
+      ],
+      "type": "object"
+    },
     "AttentionContext": {
       "additionalProperties": false,
       "properties": {

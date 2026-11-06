@@ -213,7 +213,7 @@
   },
   {
     "path": "internal/assets/bundle/js/api/schema-data.js",
-    "sha256": "b23ecd148a32cd6190b4092b87c0c3cc28c2552cc4a8724af308087edd905545"
+    "sha256": "b25af3805f3bd7f45dfe7c3c1eab6d9c4dccfed481cb26fb465f6fe7f24fefb6"
   },
   {
     "path": "internal/assets/bundle/js/api/search.js",
@@ -345,7 +345,7 @@
   },
   {
     "path": "internal/assets/bundle/manifest.json",
-    "sha256": "9f7bd73751b67db6c7ccc968d2778bac9dd27536676196b1dcea0fee859d51f8"
+    "sha256": "5f1eede28f731cdd0abba1d54746c1fe0ebe5b47061ab43493632716ff4a32c2"
   },
   {
     "path": "internal/assets/bundle/styles/app.css",
@@ -521,7 +521,7 @@
   },
   {
     "path": "internal/board/grants/grants.go",
-    "sha256": "367af1a00b0984213e85275624b32cefdec85fb91792ce6ec26bea765ba8211f"
+    "sha256": "489d8efb3c510d6dee0031649b5d8fb477255db4951b2be7721d6b25431bbc97"
   },
   {
     "path": "internal/board/grants/grants_windows_test.go",
@@ -740,6 +740,14 @@
     "sha256": "f84506d41291a472f9641b2c0501f82c259f4ed8ccf527e5bb96890b39541d5f"
   },
   {
+    "path": "internal/contract/transport/activity.go",
+    "sha256": "d3a410fb551954e4a5ae51866fe496c20d30f3d14330cc8c05597b6d6e6e55b9"
+  },
+  {
+    "path": "internal/contract/transport/activity_test.go",
+    "sha256": "65b63ad6c2a9d27f5630e5d09e767b62295a4459acfb5a891c916506321018ab"
+  },
+  {
     "path": "internal/contract/transport/attention.go",
     "sha256": "5051f8acea7d177caf7b8cb924fd7b31d8a5da41893b2828dfa09b507d258cee"
   },
@@ -765,11 +773,11 @@
   },
   {
     "path": "internal/contract/transport/decode.go",
-    "sha256": "19d16fc58ef50f01713b8a0c780a71c3d54a74de497964cdd33ea293de41616d"
+    "sha256": "9cfee3983b7f0c11edc43771c15048062b9c67fbd8d213f86bc1da6092ee97d5"
   },
   {
     "path": "internal/contract/transport/encode.go",
-    "sha256": "8cdec53ed351ac0c81a4a29b058ac4a60bcd475adc07b4e196823ef5d7366aeb"
+    "sha256": "9a7e883d07d9754e7851ba0b0daf436e9ee8848f2de423ca8129267073cca836"
   },
   {
     "path": "internal/contract/transport/file_limits.go",
@@ -789,7 +797,7 @@
   },
   {
     "path": "internal/contract/transport/generate.go",
-    "sha256": "4ff2b8456e7ed88544f74314f56b7085641e93dd04cf4ff5501e6c1c2da2a738"
+    "sha256": "95dba034dcc6e26e1fd6071aad7cab100d10ead1523cf2d26d17f92188bf9c50"
   },
   {
     "path": "internal/contract/transport/local.go",
@@ -1212,16 +1220,24 @@
     "sha256": "844263ea19e605c6875ee865f8f94f0352fc8e07892a03c7515325352e281282"
   },
   {
+    "path": "internal/transport/boardapi/activity.go",
+    "sha256": "0b3daf95ef662b42d2fd4068fc4bbaf3d720f089185266de5c51e050d356b791"
+  },
+  {
+    "path": "internal/transport/boardapi/activity_test.go",
+    "sha256": "cb359b402b3716d6cef2407b0c1c1c40aa1b0af79689142825e47bdbd763c111"
+  },
+  {
     "path": "internal/transport/boardapi/authenticated.go",
     "sha256": "26cfba198a1fc8a2e70f393f7ca0d143c72bef2b42e51b92bc95dce0cfa046fc"
   },
   {
     "path": "internal/transport/boardapi/handlers.go",
-    "sha256": "d9be65d54dcb81fc2be2254510bb3af0ddc6718a8584198fb91c3b1852b928f5"
+    "sha256": "11c5faf7d116fdf51e633e220a534bb2c20fc13060b9e0e244f61ee9f129619e"
   },
   {
     "path": "internal/transport/boardapi/native_windows_test.go",
-    "sha256": "2ba47ea50b34219a0612bebfc341fbb48d6f955c098aa7268b1e52fb411f2795"
+    "sha256": "bb50a2fa9a5dd3db57fe833d4e21ba2973d43aad5edfe9f71da245c36393ae6b"
   },
   {
     "path": "internal/transport/boardapi/projection.go",
@@ -1229,7 +1245,7 @@
   },
   {
     "path": "internal/transport/boardapi/routes.go",
-    "sha256": "1332c45c240307203ddde4fba5daf536507ca1c9b8a16f26d6c50bc41554e877"
+    "sha256": "833f9daca531c473f43915772bfa8bc054e7428eea9a0832d5c69694eda35f1e"
   },
   {
     "path": "internal/transport/boardapi/routes_test.go",
@@ -1674,6 +1690,10 @@
   {
     "path": "internal/transport/local/WORKFLOW.txt",
     "sha256": "3593c82caa7a507cd8ac4cf12aca9827c7ac37afa95c9a57e2b39f4901e44f11"
+  },
+  {
+    "path": "internal/transport/local/activity_windows_test.go",
+    "sha256": "57f25c55d5e04ceea60cf03b57dc4167088bc218031e7d80a444c0c453aeb41d"
   },
   {
     "path": "internal/transport/local/attention_windows_test.go",

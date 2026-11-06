@@ -4,6 +4,7 @@ package grants
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 )
 
 var ErrDenied = errors.New("current authority unavailable")
+var ErrUnauthenticated = errors.New("current credential unavailable")
 
 // Credential is the result of independently verifying a live credential. It is
 // NOT itself authority and contains no rights. Only Verifier may supply it.
@@ -78,16 +80,25 @@ func (s *Service) current(ctx context.Context, r writer.Read, board, inc, actor 
 	}
 	now := s.now().UTC()
 	c, err := s.verify(ctx, r, now)
-	if err != nil || c.InstallationID != s.installation || c.Origin != s.origin || !schema.ValidUUID(c.ActorID) || c.ActorID != actor || !schema.ValidUUID(board) || !schema.ValidUUID(inc) || c.IssuedAt.IsZero() || now.Before(c.IssuedAt) || !now.Before(c.ExpiresAt) {
+	if err != nil || c.InstallationID != s.installation || c.Origin != s.origin || c.IssuedAt.IsZero() || now.Before(c.IssuedAt) || !now.Before(c.ExpiresAt) {
+		return p, ErrUnauthenticated
+	}
+	if !schema.ValidUUID(c.ActorID) || c.ActorID != actor || !schema.ValidUUID(board) || !schema.ValidUUID(inc) {
 		return p, ErrDenied
 	}
 	var actualBoard, actualInc string
-	if err := r.Scan("SELECT board_id,incarnation FROM board WHERE singleton=1", nil, &actualBoard, &actualInc); err != nil || board != actualBoard || inc != actualInc {
+	if err := r.Scan("SELECT board_id,incarnation FROM board WHERE singleton=1", nil, &actualBoard, &actualInc); err != nil {
+		return p, err
+	}
+	if board != actualBoard || inc != actualInc {
 		return p, ErrDenied
 	}
 	// Historical attribution must exist independently of a supplied actor claim.
 	if err := r.Scan("SELECT kind FROM actor WHERE incarnation=? AND actor_id=?", []any{inc, actor}, &p.kind); err != nil {
-		return principal{}, ErrDenied
+		if errors.Is(err, sql.ErrNoRows) {
+			return principal{}, ErrDenied
+		}
+		return principal{}, err
 	}
 	p.credential = c
 	if c.Mode == "native-owner" {
@@ -100,29 +111,33 @@ func (s *Service) current(ctx context.Context, r writer.Read, board, inc, actor 
 		return principal{}, ErrDenied
 	}
 	if c.Mode == "cli" && (c.ExpiresAt.After(c.IssuedAt.Add(30*24*time.Hour)) || !c.IdleExpiresAt.IsZero()) {
-		return principal{}, ErrDenied
+		return principal{}, ErrUnauthenticated
 	}
 	if c.Mode == "browser" && (c.ExpiresAt.After(c.IssuedAt.Add(8*time.Hour)) || c.IdleExpiresAt.IsZero() || !now.Before(c.IdleExpiresAt) || c.IdleExpiresAt.After(now.Add(30*time.Minute))) {
-		return principal{}, ErrDenied
+		return principal{}, ErrUnauthenticated
 	}
 	var enabled int
 	var grantedActor string
-	if err := r.Scan("SELECT actor_id,enabled FROM grant_record WHERE incarnation=? AND grant_id=?", []any{inc, c.GrantID}, &grantedActor, &enabled); err != nil || enabled != 1 || grantedActor != actor {
+	if err := r.Scan("SELECT actor_id,enabled FROM grant_record WHERE incarnation=? AND grant_id=?", []any{inc, c.GrantID}, &grantedActor, &enabled); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return principal{}, err
+	} else if err != nil || enabled != 1 || grantedActor != actor {
 		return principal{}, ErrDenied
 	}
 	rows, err := r.Query("SELECT right_name FROM grant_right WHERE incarnation=? AND grant_id=? ORDER BY right_name", inc, c.GrantID)
 	if err != nil {
-		return principal{}, ErrDenied
+		return principal{}, err
 	}
-	defer rows.Close()
 	for rows.Next() {
 		var right string
-		if err := rows.Scan(&right); err != nil {
-			return principal{}, ErrDenied
+		if err = rows.Scan(&right); err != nil {
+			break
 		}
 		p.rights = append(p.rights, right)
 	}
-	if rows.Err() != nil || ValidateRights(p.kind, p.rights) != nil {
+	if err = errors.Join(err, rows.Err(), rows.Close()); err != nil {
+		return principal{}, err
+	}
+	if ValidateRights(p.kind, p.rights) != nil {
 		return principal{}, ErrDenied
 	}
 	return p, nil
@@ -144,12 +159,37 @@ func has(p principal, rights ...string) bool {
 // Require checks ordinary reads/export/etc in the caller's current snapshot.
 // Native owner has no ordinary rights, including read or read-own-outcome.
 func (s *Service) Require(ctx context.Context, r writer.Read, board, inc, actor string, rights ...string) error {
+	if err := s.require(ctx, r, board, inc, actor, "", "", rights...); err != nil {
+		return ErrDenied
+	}
+	return nil
+}
+
+// RequireCurrent also binds the snapshot credential to the mode and grant
+// resolved by the ordinary request boundary.
+func (s *Service) RequireCurrent(ctx context.Context, r writer.Read, board, inc, actor, mode, grant string, rights ...string) error {
+	if (mode != "cli" && mode != "browser") || !schema.ValidUUID(grant) {
+		return ErrDenied
+	}
+	return s.require(ctx, r, board, inc, actor, mode, grant, rights...)
+}
+
+func (s *Service) require(ctx context.Context, r writer.Read, board, inc, actor, mode, grant string, rights ...string) error {
 	p, err := s.current(ctx, r, board, inc, actor)
-	if err != nil || p.credential.Mode == "native-owner" || !has(p, rights...) {
+	if err != nil {
+		return err
+	}
+	if p.credential.Mode == "native-owner" || !has(p, rights...) {
+		return ErrDenied
+	}
+	if mode != "" && (p.credential.Mode != mode || p.credential.GrantID != grant) {
 		return ErrDenied
 	}
 	w, err := policy.Load(r, inc)
-	if err != nil || !policy.AllowsRights(w, p.kind, rights...) {
+	if err != nil {
+		return err
+	}
+	if !policy.AllowsRights(w, p.kind, rights...) {
 		return ErrDenied
 	}
 	return nil
@@ -171,7 +211,7 @@ func (s *Service) Authority(ctx context.Context, r writer.Read, req writer.Autho
 	}
 	p, err := s.current(ctx, r, req.Identity.BoardID, req.Identity.Incarnation, req.Identity.ActorID)
 	if err != nil {
-		return err
+		return ErrDenied
 	}
 	if purpose != writer.Submission && purpose != writer.OwnOutcome {
 		return ErrDenied

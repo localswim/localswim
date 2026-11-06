@@ -91,6 +91,9 @@ func selectRoute(r *http.Request) (route, int) {
 	case len(p) == 6 && p[5] == "attention":
 		q.kind = "attention"
 		method = "GET"
+	case len(p) == 6 && p[5] == "activity":
+		q.kind = "activity"
+		method = "GET"
 	case len(p) == 6 && p[5] == "workflow":
 		q.kind = "mutation"
 		q.command = "workflow.edit"
@@ -148,7 +151,7 @@ func selectRoute(r *http.Request) (route, int) {
 	default:
 		return route{}, 404
 	}
-	if q.kind != "lookup" && q.kind != "search" && r.URL.RawQuery != "" {
+	if q.kind != "lookup" && q.kind != "search" && q.kind != "activity" && r.URL.RawQuery != "" {
 		return route{}, 400
 	}
 	if r.Method != method {

@@ -61,6 +61,10 @@ func respond(w http.ResponseWriter, status int, value any) {
 		status = 503
 		b, _ = T.Readable(T.NonterminalRefusal{APIVersion: 1, Outcome: "refused", Error: T.Error{Code: "UNAVAILABLE", Message: "Request refused"}})
 	}
+	respondJSON(w, status, b)
+}
+
+func respondJSON(w http.ResponseWriter, status int, b []byte) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -231,6 +235,10 @@ func (h *Handler) ordinary(w http.ResponseWriter, r *http.Request, q route) {
 	}
 	if r.Method == "GET" {
 		if !empty(w, r) {
+			return
+		}
+		if q.kind == "activity" {
+			h.readActivity(w, r, q, mode, current, a)
 			return
 		}
 		h.read(w, r, q, current, a)

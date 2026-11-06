@@ -70,7 +70,11 @@ func Readable(v any) ([]byte, error) {
 	if e := Validate(v); e != nil {
 		return nil, e
 	}
-	return A.Readable(v)
+	b, e := A.Readable(v)
+	if rv := reflect.Indirect(reflect.ValueOf(v)); rv.Type() == reflect.TypeFor[ActivityRead]() && len(b) > ActivityReadResponseLimit {
+		return nil, fmt.Errorf("activity response exceeds limit")
+	}
+	return b, e
 }
 func hasSecret(t reflect.Type) bool {
 	if t == nil {

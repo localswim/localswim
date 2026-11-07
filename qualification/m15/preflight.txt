@@ -1,0 +1,36 @@
+M15.00 — FRESH LOCAL BASELINE READINESS
+November 7, 2026 | All execution gates PASS; fresh final review bound separately
+
+The unchanged current baseline 92ff9a4 passes fresh readiness. Every applicable
+active tool/direct-dependency/pinned-browser selection is current on stable
+publisher metadata. No pin, functional source or curated-rule refresh was needed.
+This is baseline readiness, not new M15 notice-text/Copy qualification.
+
+- Two isolated clean trees each pass 2646 Go tests/subtests and 94 Node tests,
+  with zero failed/skipped tests. All 108 generated/staged/web/embedded/executable
+  outputs match, and both post-test builds reproduce the executable.
+- Fresh Q02 three repeats, Q03 thirteen compiler vectors, all V04 transaction/
+  continuation/archive/interruption 8/7/14/4 terminals and every archive row pass.
+  All 533 providers and 9 tagged actual-CLI terminals pass; full tagged vet passes.
+- Mandatory real Chrome 21 cases pass. 45 sanitized diagnostics validate through
+  the shared queue; owned mailbox/browser/native/test roots are removed.
+- gofmt 486 tracked Go files, full ordinary/tagged go vet and strict existing TS
+  checks pass. Curated Python rules bind the current separately qualified shared
+  CLI, not stale M14 configuration. Stable TS7 API/parser compatibility still
+  gates optional typed lint; no unsupported parser/second compiler was installed.
+- Accepted M14 lifecycle 72 cases are explicitly reused only for identical
+  baseline code/tool/binary/proof hashes. Independent source/proof rehash
+  confirmed the binding. Fresh tests above are separate; no new feature claim.
+
+The public JSON binds exact source/lock/tool/archive/output/executed-harness and
+report digests, primary release sources/date and qualified reuse. Historical
+reports retain their original pins and ordinary/controlled/UNKNOWN disclosures.
+Compiler-cache seeding is explicit; this is not a cold-cache timing claim.
+
+Executable SHA256
+2e37b4d5f0efeb059f3d144fee38a926f73a78b7b98646d4aca4f049cb04589d
+
+Final fresh independent Sol / High readiness review is a separate closing gate
+recorded before story handoff. preflight-review.json binds its result.
+Scope remains synthetic Windows/NTFS/loopback; process interruption is not
+physical power-loss certification, external delivery or general release.

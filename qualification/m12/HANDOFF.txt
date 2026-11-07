@@ -1,0 +1,52 @@
+M12 extracted fixed-target local notices review kit
+
+PASS. Fresh independent Sol / High review cleared the final archive and proofs.
+
+Extract the Windows amd64 ZIP and open START-HERE.txt. DEMO.txt walks through
+default and configured synthetic boards. NOTICES-CLI.txt and NOTICES-BROWSER.txt
+describe normal controls, exact receipt lookup and guarded outcomes.
+
+Qualified product source 725b936f8b46a9b40ab7870199f231fc50e5105d
+Native qualification input 971190b14c4993a35968588db73642a5e2314c33
+Joined qualification publication 814d0955cef8947fcdc90fd166c9c270128f46ab
+Executable SHA-256
+74347020e8ebca0fef3ce57d46dc9eb2014dd43d0849751e042427dfaa355a92
+Kit localswim-m12-windows-amd64.zip
+ZIP SHA-256
+609587fc31002d48ebe542af89541ff999b66caac853f05c16d95f4e8d8a94ed
+
+The archive has 41 files and 39 allowlisted payloads. CRC, confined
+extraction, manifest, payload checksums, license and guide dependencies
+passed. Its 12,674,448 bytes exceed the board attachment channel. The
+board carries the small manifest and checksum and references the local ZIP.
+
+Fresh extracted demonstration
+
+- The exact final archive passed 212 fixture and runner checks and 299
+  browser and CLI checks. On both default and configured boards the
+  browser operated the fixed target and the actual CLI confirmed the
+  selected board, checkpoint, inbox and original receipt. Ordinary idle,
+  bot-only suppression, human and mixed notices, and an observed-empty
+  notice from a deliberate NO_CHANGE edit were demonstrated.
+- The normal journey stopped each monitor, committed while it was stopped,
+  gracefully reopened the host on the saved port, and caught up under the
+  original target. The later acceptance had a new exact receipt.
+- A second fresh extraction ran all six actual CLI commands and compared
+  readable output with validated JSON facts. The 182-check supplement also
+  exercised same-root ownership refusal, independent roots, and original-target
+  reopen. The owner-private fixture and its listeners were cleaned up.
+- A separate controlled synthetic interruption stopped only an owned test
+  process after verifying its durable running marker and no pending intent.
+  The extracted executable reopened the original target guarded. The browser
+  and CLI returned UNKNOWN for an unrecognized exact receipt ID without
+  advancing the cut or adding a notice.
+- Seven sanitized queue diagnostics validated. The mailbox and private
+  fixture were removed. Normal hosts exited zero and listeners closed.
+- The final package corrects earlier guide omissions and stale browser
+  write instructions. Earlier package and harness attempts remain separate.
+  The executable and qualified embedded assets are byte-identical across
+  package revisions.
+
+Joined qualification for these exact executable bytes is in joined-r1.txt
+and joined-r1.json. This handoff uses synthetic local Windows amd64/NTFS
+fixtures and numeric loopback. Terry controls final acceptance.

@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "independentReview": "Fresh Sol / High PASS",
+  "qualifiedProductSource": "725b936f8b46a9b40ab7870199f231fc50e5105d",
+  "publishedNativeInput": "971190b14c4993a35968588db73642a5e2314c33",
+  "qualificationPublication": "814d0955cef8947fcdc90fd166c9c270128f46ab",
+  "platform": "Synthetic Windows amd64, local NTFS and numeric loopback",
+  "artifact": {
+    "revision": "R3",
+    "archive": "localswim-m12-windows-amd64.zip",
+    "bytes": 12674448,
+    "zipSHA256": "609587fc31002d48ebe542af89541ff999b66caac853f05c16d95f4e8d8a94ed",
+    "files": 41,
+    "payloads": 39,
+    "manifestSHA256": "8ea9d9bac74ed63007e88abb70c7586a987db301ebe48280644636923682bf58",
+    "checksumsSHA256": "8cacd46cddb9fc06e8ba98e262d87cc2ba8500ecb6269d1c9cb0912a2fbc492a",
+    "executableSHA256": "74347020e8ebca0fef3ce57d46dc9eb2014dd43d0849751e042427dfaa355a92",
+    "verifiedCRC": true
+  },
+  "extractedDemo": {
+    "run": "proof-d991a0a8",
+    "runnerChecks": 212,
+    "browserAndCLIAssertions": 299,
+    "queueMessages": 7,
+    "boardTypes": [
+      "default",
+      "configured"
+    ],
+    "browserClosed": true,
+    "normalHostsExitedAndListenersClosed": true,
+    "reusedSavedPort": true,
+    "sameTargetCatchUp": true,
+    "mailboxDeleted": true,
+    "privateRuntimeRemoved": true
+  },
+  "controlledGuardedDemo": {
+    "actualExtractedExecutable": true,
+    "ownedSyntheticHostInterrupted": true,
+    "idleRunWithNoPendingIntent": true,
+    "retainedTargetAndCheckpoint": true,
+    "missingExactReceipt": "UNKNOWN",
+    "newAcceptance": false,
+    "ownedListenerClosed": true
+  },
+  "extractedCLISupplement": {
+    "checks": 182,
+    "commands": [
+      "configure",
+      "start",
+      "status",
+      "inbox",
+      "lookup",
+      "stop"
+    ],
+    "readableAndJSONMatch": true,
+    "nativeOwnershipAndReopen": true,
+    "privateRuntimeRemoved": true
+  },
+  "evidenceSHA256": {
+    "packageVerification": "7bfe5443ff2db60410520e8109a44e7a86929585423330d30a2d49ba68e196fc",
+    "manifest": "8ea9d9bac74ed63007e88abb70c7586a987db301ebe48280644636923682bf58",
+    "checksums": "8cacd46cddb9fc06e8ba98e262d87cc2ba8500ecb6269d1c9cb0912a2fbc492a",
+    "mainDemo": "e19e0c48f2c80a41da9a99ff328e93c26f630d755a1bd51311f28169b230769a",
+    "browser": "e77894a8d3e76c09686e9bbb6c0f3feecc1116a9e3b3fc65c3794f63ae2808ad",
+    "diagnostics": "d80cbc0b74b22687edbfdb7e5e8a68ce9a101d253dbf47138b66ec1987902c82",
+    "demoIndex": "2df4d393bd9a7aafc180307aed2c395609721d2801c407cbdbfe10e9f578ee7e",
+    "extractedCLI": "380a732d3118658982243ae03988e32d1afb1110162729ed983db8fb0313581b",
+    "independentReview": "400aa5e8e2e4f8ae27c0e6880f7c2b77351f4484b0d420e6c803826c2c7b827e"
+  }
+}

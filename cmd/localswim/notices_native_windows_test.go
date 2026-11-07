@@ -193,6 +193,10 @@ func TestNoticesActualBuiltCLI(t *testing.T) {
 	if v, err := T.Decode[T.NonterminalRefusal](refusal); err != nil || v.Error.Code != "UNAVAILABLE" {
 		t.Fatal("closed host did not yield bounded refusal")
 	}
+	refusal = p.call(append(args, "--json"), nil, 3, "UNAVAILABLE", "notices", "recover")
+	if v, err := T.Decode[T.NonterminalRefusal](refusal); err != nil || v.Error.Code != "UNAVAILABLE" {
+		t.Fatal("recovery fell back to closed host's local state")
+	}
 	activityModifyStoppedFixture(t, data, info, "DELETE FROM grant_right WHERE incarnation=? AND grant_id=? AND right_name='read'", info.Incarnation, info.GrantID)
 	standalone, err = local.Start(t.Context(), local.Options{DataDir: data, Assets: http.NotFoundHandler()})
 	if err != nil {
@@ -202,20 +206,45 @@ func TestNoticesActualBuiltCLI(t *testing.T) {
 	if v, err := T.Decode[T.NonterminalRefusal](refusal); err != nil || v.Error.Code != "FORBIDDEN" {
 		t.Fatal("denied authority did not yield bounded refusal")
 	}
+	refusal = p.call(append(args, "--json"), nil, 2, "FORBIDDEN", "notices", "recover")
+	if v, err := T.Decode[T.NonterminalRefusal](refusal); err != nil || v.Error.Code != "FORBIDDEN" {
+		t.Fatal("denied recovery did not yield bounded refusal")
+	}
 	t.Log("C1 built CLI: all six actions, default standalone and configured workspace selection, clean reopen catch-up, exact host receipt parity, foreign lookup, authority refusal, no stopped-host fallback, readable and JSON redaction")
 	t.Run("stale-control", func(t *testing.T) {
 		p.t = t
-		testNoticeCLIStaleControl(t, p)
+		testNoticeCLIControlBoundary(t, p, "start", "stale")
 	})
 }
 
-func testNoticeCLIStaleControl(t *testing.T, p activityCLIProof) {
+func TestNoticeRecoverActualBuiltCLIBoundary(t *testing.T) {
+	base, binary := os.Getenv("M12_CLI_ROOT"), os.Getenv("M12_CLI_BINARY")
+	if !safeAbsolute(base) || !safeAbsolute(binary) {
+		t.Fatal("explicit private synthetic root and built executable required")
+	}
+	root, err := os.MkdirTemp(base, "r1-")
+	if err != nil {
+		t.Fatal("private synthetic root unavailable")
+	}
+	t.Cleanup(func() {
+		if os.RemoveAll(root) != nil {
+			t.Error("synthetic data cleanup failed")
+		}
+	})
+	for _, mode := range []string{"stale", "lost-after-admission", "wrong-scope"} {
+		t.Run(mode, func(t *testing.T) {
+			testNoticeCLIControlBoundary(t, activityCLIProof{t, binary, root}, "recover", mode)
+		})
+	}
+}
+
+func testNoticeCLIControlBoundary(t *testing.T, p activityCLIProof, action, scenario string) {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal("controlled loopback listener unavailable")
 	}
 	defer listener.Close()
-	data := filepath.Join(p.root, "g")
+	data := filepath.Join(p.root, "g-"+scenario)
 	workspaceID := bridgeUUID(t)
 	engine, err := local.OpenEngine(t.Context(), local.EngineOptions{DataDir: data, Origin: "http://" + listener.Addr().String(), WorkspaceID: workspaceID})
 	if err != nil {
@@ -228,7 +257,9 @@ func testNoticeCLIStaleControl(t *testing.T, p activityCLIProof) {
 		t.Fatal("controlled mode response unavailable")
 	}
 	path := "/api/v1/boards/" + info.BoardID + "/notices/"
-	var statusCalls, startCalls, competingStatus atomic.Int32
+	var statusCalls, actionCalls, admittedStatus atomic.Int32
+	var wrongScope atomic.Bool
+	foreignBoard := A.UUID(bridgeUUID(t))
 	server := &http.Server{ReadHeaderTimeout: 5 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		switch req.URL.Path {
 		case "/api/v1/runtime-mode":
@@ -237,8 +268,33 @@ func testNoticeCLIStaleControl(t *testing.T, p activityCLIProof) {
 			return
 		case path + "status":
 			statusCalls.Add(1)
-		case path + "start":
-			if startCalls.Add(1) == 1 {
+			if wrongScope.Load() {
+				recorder := httptest.NewRecorder()
+				engine.ServeHTTP(recorder, req)
+				view, err := T.Decode[T.NoticeResponse](recorder.Body.Bytes())
+				view.Result.Identity.BoardID = foreignBoard
+				wire, encodeErr := T.Readable(view)
+				if err != nil || encodeErr != nil || recorder.Code != http.StatusOK {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write(wire)
+				admittedStatus.Store(http.StatusOK)
+				return
+			}
+		case path + action:
+			if actionCalls.Add(1) == 1 {
+				if scenario == "lost-after-admission" {
+					recorder := httptest.NewRecorder()
+					engine.ServeHTTP(recorder, req)
+					admittedStatus.Store(int32(recorder.Code))
+					conn, _, err := http.NewResponseController(w).Hijack()
+					if err == nil {
+						_ = conn.Close()
+					}
+					return
+				}
 				body, err := io.ReadAll(io.LimitReader(req.Body, T.NoticeRequestLimit+1))
 				if err != nil {
 					w.WriteHeader(500)
@@ -247,10 +303,11 @@ func testNoticeCLIStaleControl(t *testing.T, p activityCLIProof) {
 				// Admit a competing Start using the current generation before
 				// handing the CLI request to the same real engine.
 				competing := req.Clone(req.Context())
+				competing.URL.Path = path + "start"
 				competing.Body = io.NopCloser(bytes.NewReader(body))
 				recorder := httptest.NewRecorder()
 				engine.ServeHTTP(recorder, competing)
-				competingStatus.Store(int32(recorder.Code))
+				admittedStatus.Store(int32(recorder.Code))
 				req.Body = io.NopCloser(bytes.NewReader(body))
 			}
 		}
@@ -266,19 +323,51 @@ func testNoticeCLIStaleControl(t *testing.T, p activityCLIProof) {
 	args := []string{"--data", data, "--json"}
 	p.call(args, nil, 0, "", "notices", "configure")
 	statusCalls.Store(0)
-	wire := p.call(args, nil, 2, "CONTROL_STALE", "notices", "start")
-	refusal, err := T.Decode[T.NonterminalRefusal](wire)
-	if err != nil || refusal.Error.Code != "CONTROL_STALE" || competingStatus.Load() != 200 ||
-		startCalls.Load() != 1 || statusCalls.Load() != 1 {
-		t.Fatal("real admission did not refuse the stale CLI generation without replay")
+	if scenario == "wrong-scope" {
+		wrongScope.Store(true)
+		wire := p.call(args, nil, 3, "UNAVAILABLE", "notices", action)
+		refusal, err := T.Decode[T.NonterminalRefusal](wire)
+		if err != nil || refusal.Error.Code != "UNAVAILABLE" || actionCalls.Load() != 0 ||
+			statusCalls.Load() != 1 || admittedStatus.Load() != http.StatusOK ||
+			bytes.Contains(wire, []byte(foreignBoard)) {
+			t.Fatal("wrong selected-board status was not rejected without a submission")
+		}
+		t.Log("C1 controlled wrong-scope status: one status, zero submissions")
+		return
 	}
-	wire = p.call(args, nil, 0, "", "notices", "status")
+	if scenario == "lost-after-admission" {
+		wire := p.call(args, nil, 4, "OUTCOME_UNKNOWN", "notices", action)
+		unknown, err := A.Decode[struct {
+			APIVersion A.Version        `json:"apiVersion"`
+			Outcome    T.UnknownOutcome `json:"outcome"`
+			Error      T.Error          `json:"error"`
+		}](wire)
+		if err != nil || unknown.Outcome != "unknown" || unknown.Error.Code != "OUTCOME_UNKNOWN" ||
+			!strings.Contains(unknown.Error.Message, "Read notices status") {
+			t.Fatal("CLI did not retain uncertainty after admitted action lost its response")
+		}
+		checkNoticeRedaction(t, wire, p.root, info)
+	} else {
+		wire := p.call(args, nil, 2, "CONTROL_STALE", "notices", action)
+		refusal, err := T.Decode[T.NonterminalRefusal](wire)
+		if err != nil || refusal.Error.Code != "CONTROL_STALE" {
+			t.Fatal("real admission did not refuse the stale CLI generation")
+		}
+	}
+	if admittedStatus.Load() != 200 || actionCalls.Load() != 1 || statusCalls.Load() != 1 {
+		t.Fatal("controlled admission, status count or single POST invariant failed")
+	}
+	wire := p.call(args, nil, 0, "", "notices", "status")
 	status, err := T.Decode[T.NoticeResponse](wire)
-	if err != nil || status.Result.State != "running" {
-		t.Fatal("stale CLI action changed the competing run")
+	want := T.NoticePhase("running")
+	if scenario == "lost-after-admission" {
+		want = "stopped"
+	}
+	if err != nil || status.Result.State != want {
+		t.Fatal("deliberate status did not confirm the authoritative state")
 	}
 	p.call(args, nil, 0, "", "notices", "stop")
-	t.Log("C1 controlled timing: one status and one stale submission after a competing real engine admission, with no replay")
+	t.Log("C1 controlled timing: one status and one submission through real engine admission, with no replay")
 }
 
 func checkNoticeRedaction(t *testing.T, wire []byte, root string, info local.ClientInfo) {

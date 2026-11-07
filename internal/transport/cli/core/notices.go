@@ -30,7 +30,7 @@ func runNotices(ctx context.Context, c *Connection, q invocation, action string)
 	var request any
 	incarnation := A.UUID(q.selected.Incarnation)
 	switch action {
-	case "configure", "start", "stop":
+	case "configure", "start", "stop", "recover":
 		status := requestNotices(ctx, c, q, "status", http.MethodGet, noticePath(q.selected, "status", http.MethodGet), nil)
 		if status.exit != 0 {
 			return status

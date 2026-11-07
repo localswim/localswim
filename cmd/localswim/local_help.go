@@ -8,7 +8,7 @@ const localDomainCLIHelp = `  localswim --data NEWDIR [--json] board init --work
   localswim --data DIR [--json] workflow edit --input FILE
   localswim --data DIR [--json] board read
   localswim --data DIR [--json] activity read [--from UTC --through UTC | --cursor TOKEN]
-  localswim --data DIR [--json] notices configure|start|status|inbox|stop
+  localswim --data DIR [--json] notices configure|start|status|inbox|stop|recover
   localswim --data DIR [--json] notices lookup --target-id ID --delivery-id ID
   localswim --data DIR [--json] card read CARD-UUID
   localswim --data DIR [--json] card history CARD-UUID
@@ -59,4 +59,5 @@ Exits: 0 confirmed; 1 invocation/IO; 2 refused or definite noncommit;
        3 unavailable before dispatch; 4 original outcome unknown.
 See docs/runbooks/m02-cli-read-edit.txt for envelope and recovery examples.
 See docs/runbooks/m11-activity-cli.txt for activity examples and
-docs/runbooks/m12-notices-cli.txt for notice controls and recovery.`
+docs/runbooks/m12-notices-cli.txt for notice controls and
+docs/runbooks/m13-notice-recovery-cli.txt for interrupted notice recovery.`

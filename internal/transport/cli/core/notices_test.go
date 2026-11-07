@@ -13,8 +13,14 @@ import (
 )
 
 func TestNoticeControlNeverReplays(t *testing.T) {
+	for _, action := range []string{"stop", "recover"} {
+		t.Run(action, func(t *testing.T) { testNoticeControlNeverReplays(t, action) })
+	}
+}
+
+func testNoticeControlNeverReplays(t *testing.T, action string) {
 	const private = "SYNTHETIC_PRIVATE_PROSE"
-	for _, mode := range []string{"stale", "lost-response", "invalid-response", "unavailable-response", "wrong-board", "oversized-status", "denied-status"} {
+	for _, mode := range []string{"stale", "lost-response", "invalid-response", "unavailable-response", "wrong-board", "oversized-status", "denied-status", "denied-post"} {
 		t.Run(mode, func(t *testing.T) {
 			view := T.NoticeView{Identity: A.Identity{BoardID: testBoard, Incarnation: testInc}, ControlGeneration: testGrant,
 				State: "unconfigured", Entries: []T.NoticePair{}}
@@ -63,21 +69,23 @@ func TestNoticeControlNeverReplays(t *testing.T) {
 					return 200, []byte(private), nil
 				case "unavailable-response":
 					return 503, refusal("UNAVAILABLE"), nil
+				case "denied-post":
+					return 403, refusal("FORBIDDEN"), nil
 				}
 				return 409, refusal("CONTROL_STALE"), nil
 			})}
 			var out, diagnostic bytes.Buffer
-			exit := (Runner{Provider: p}).Run(t.Context(), args("notices", "stop"), nil, &out, &diagnostic)
+			exit := (Runner{Provider: p}).Run(t.Context(), args("notices", action), nil, &out, &diagnostic)
 			code, expectedExit := "UNAVAILABLE", 3
 			want := []string{"GET /api/v1/boards/" + testBoard + "/notices/status?incarnation=" + testInc}
 			switch mode {
-			case "stale", "lost-response", "invalid-response", "unavailable-response":
-				want = append(want, "POST /api/v1/boards/"+testBoard+"/notices/stop")
+			case "stale", "lost-response", "invalid-response", "unavailable-response", "denied-post":
+				want = append(want, "POST /api/v1/boards/"+testBoard+"/notices/"+action)
 			}
 			switch mode {
 			case "stale":
 				code, expectedExit = "CONTROL_STALE", 2
-			case "denied-status":
+			case "denied-status", "denied-post":
 				code, expectedExit = "FORBIDDEN", 2
 			case "lost-response", "invalid-response", "unavailable-response":
 				code, expectedExit = "OUTCOME_UNKNOWN", 4

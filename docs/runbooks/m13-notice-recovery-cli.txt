@@ -1,0 +1,42 @@
+Recover interrupted notices with the native CLI
+
+Use the running service for the board that retained the interruption.
+Select the board explicitly and inspect status before recovering.
+
+  localswim --data DIR notices status
+  localswim --data DIR notices recover
+  localswim --workspace DIR --project PROJECT --board BOARD notices status
+  localswim --workspace DIR --project PROJECT --board BOARD notices recover
+
+Place --json before notices for the versioned response. Recover reads the
+selected board's status and submits its current control generation once.
+The running service selects the retained observation or pending delivery
+from its durable state. Recover takes no target or delivery arguments.
+
+Read the resulting state even when the command exits 0.
+
+- Stopped means the service settled the retained work or confirmed a clean
+  state. Check the target, checkpoint, last disposition and gap count.
+- Guarded with reason unknown retains the exact pending delivery and its cuts
+  until positive proof exists. Guarded with reason unavailable can retain an
+  unknown upper cut. Preserve the displayed checkpoint and gaps.
+- A failed state reports a bounded reason such as capacity or storage.
+  Read status before deciding on further action.
+
+To verify acceptance, use the selected board's inbox or look up the exact
+target and delivery shown in status. An accepted result includes the original
+acceptance time and bounds.
+
+  localswim --data DIR notices inbox
+  localswim --data DIR notices lookup --target-id UUID --delivery-id DIGEST
+
+Use the same workspace, project and board prefix for workspace lookups.
+After status confirms stopped, a later explicit notices start processes
+eligible later events from the proved checkpoint.
+
+Exit 2 with CONTROL_STALE, CONTROL_BUSY or FORBIDDEN is a bounded refusal.
+Read status and act deliberately with the current selection and authority.
+Exit 3 means the CLI could not get a usable selection or status. Exit 4
+with OUTCOME_UNKNOWN means the submitted request's effect is uncertain.
+Read notices status before deciding whether a new action is needed. The CLI
+sends each recovery submission once and uses the selected service API.

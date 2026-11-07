@@ -62,7 +62,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 		q.method = "GET"
 	case "notices status", "notices inbox":
 		q.method = "GET"
-	case "notices configure", "notices start", "notices stop", "notices lookup":
+	case "notices configure", "notices start", "notices stop", "notices recover", "notices lookup":
 		q.method = "POST"
 	case "card read", "card history", "card children", "card relationships", "operation read":
 		q.method = "GET"

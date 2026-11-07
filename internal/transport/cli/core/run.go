@@ -89,6 +89,9 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 	} else {
 		out = r.execute(ctx, q, stdin, stderr)
 	}
+	if NoticeTextIntent(args) {
+		return writeOriginalNotice(out, q, stdout, stderr)
+	}
 	b, e := T.Readable(out.value)
 	if h, ok := out.value.(HierarchyRead); ok {
 		b, e = A.Readable(h)

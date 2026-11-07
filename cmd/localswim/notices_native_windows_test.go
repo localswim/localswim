@@ -148,9 +148,33 @@ func TestNoticesActualBuiltCLI(t *testing.T) {
 		t.Fatal("actual CLI inbox lost the original rich captured payload")
 	}
 	originalPayload := P.Clone(pair.Payload)
+	text := func(prefix []string, pair T.NoticePair, want int, code string) []byte {
+		t.Helper()
+		got := p.call(prefix, nil, want, code, "notices", "text", "--target", string(pair.TargetID), "--delivery", string(pair.DeliveryID))
+		if want == 0 && (pair.Payload == nil || !bytes.Equal(got, []byte(pair.Payload.Text))) || want != 0 && len(got) != 0 {
+			t.Fatal("raw text output changed original bytes or leaked on refusal")
+		}
+		return got
+	}
+	text(args, pair, 0, "")
+	if got := p.call(append(append([]string(nil), args...), "--json"), nil, 1, "INVOCATION_OR_IO", "notices", "text", "--target", string(pair.TargetID), "--delivery", string(pair.DeliveryID)); len(got) != 0 {
+		t.Fatal("incompatible JSON contaminated raw stdout")
+	}
+	// A later current-board mutation cannot alter the retained original.
+	_, cookies = httpRequest("POST", "/api/v1/local/bootstrap", []byte("{}"), nil)
+	httpRequest("POST", cards, bridgeCreateWire(t, info, 1, "Different current card"), cookies[0])
+	text(args, pair, 0, "")
 	if read(args, info, "stop").State != "stopped" {
 		t.Fatal("reopened monitor did not stop cleanly")
 	}
+	// Reopen the actual host; raw text still exposes the saved original.
+	stop(standalone)
+	standalone, err = local.Start(t.Context(), local.Options{DataDir: data, Assets: http.NotFoundHandler()})
+	if err != nil {
+		t.Fatal("original reopen failed")
+	}
+	info = activityReadFixture(t, data)
+	text(args, pair, 0, "")
 	inbox = read(args, info, "inbox")
 	hostWire, _ := httpRequest("GET", "/api/v1/boards/"+info.BoardID+"/notices/inbox?incarnation="+url.QueryEscape(info.Incarnation), nil, nil)
 	host, err := T.Decode[T.NoticeResponse](hostWire)
@@ -198,13 +222,69 @@ func TestNoticesActualBuiltCLI(t *testing.T) {
 		len(read(memberArgs, memberInfo, "inbox").Entries) != 0 {
 		t.Fatal("workspace control or inbox crossed scope")
 	}
+	text(memberArgs, pair, 3, "UNAVAILABLE")
+	// Capture a human interval through the configured workspace member.
+	savedInfo := info
+	info = memberInfo
+	bootstrapWire, _ := T.Readable(T.BoardBootstrapRequest{APIVersion: 1, InstallationID: T.UUIDv4(info.InstallationID), Incarnation: A.UUID(info.Incarnation)})
+	_, memberCookies := httpRequest("POST", "/api/v1/boards/"+info.BoardID+"/local/bootstrap", bootstrapWire, nil)
+	httpRequest("POST", "/api/v1/boards/"+info.BoardID+"/cards", bridgeCreateWire(t, info, 0, "Configured current card"), memberCookies[0])
+	info = savedInfo
+	deadline := time.Now().Add(12 * time.Second)
+	var memberInbox T.NoticeView
+	for {
+		memberInbox = read(memberArgs, memberInfo, "inbox")
+		if len(memberInbox.Entries) > 0 && memberInbox.Pending == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("configured notice unavailable")
+		}
+		time.Sleep(80 * time.Millisecond)
+	}
+	if memberInbox.Entries[0].Payload == nil || memberInbox.Entries[0].Payload.Facts == nil || memberInbox.Entries[0].Payload.Facts.Label != "Synthetic" {
+		t.Fatal("configured original label missing")
+	}
+	text(memberArgs, memberInbox.Entries[0], 0, "")
 	foreign := read(memberArgs, memberInfo, "lookup", flags...)
 	if foreign.Lookup == nil || foreign.Lookup.State != "unknown" || foreign.Lookup.Receipt != nil ||
 		read(memberArgs, memberInfo, "stop").State != "stopped" {
 		t.Fatal("workspace exposed a foreign receipt or did not stop")
 	}
+	// Register the same stopped physical member into a fresh configured
+	// workspace with a renamed label using existing product config operations.
+	// No current-config rename API exists; do not edit private catalog files.
+	memberOriginal := memberInbox.Entries[0]
+	stop(w)
+	renamedWS := filepath.Join(root, "renamed-workspace")
+	renamedHost, renameErr := workspace.Start(t.Context(), workspace.Options{DataDir: renamedWS, Port: bridgePort(t), Assets: http.NotFoundHandler()})
+	if renameErr != nil {
+		t.Fatal("renamed workspace unavailable")
+	}
+	defer stop(renamedHost)
+	p.call([]string{"--workspace", renamedWS}, nil, 0, "", "project", "create", "--key", "demo", "--label", "Renamed project", "--root", project)
+	p.call([]string{"--workspace", renamedWS, "--project", "demo"}, nil, 0, "", "board", "register", "--key", "board", "--label", "Renamed current board", "--root", member)
+	renamedArgs := []string{"--workspace", renamedWS, "--project", "demo", "--board", "board"}
+	renameDeadline := time.Now().Add(10 * time.Second)
+	for {
+		current, e := local.ReadClient(member)
+		if e == nil && current.Origin == renamedHost.Origin() {
+			break
+		}
+		if time.Now().After(renameDeadline) {
+			t.Fatal("renamed registered member did not activate")
+		}
+		time.Sleep(80 * time.Millisecond)
+	}
+	text(renamedArgs, memberOriginal, 0, "")
+	renamedInfo := activityReadFixture(t, member)
+	renamedInbox := read(renamedArgs, renamedInfo, "inbox")
+	if len(renamedInbox.Entries) != 1 || !P.Equal(renamedInbox.Entries[0].Payload, memberOriginal.Payload) {
+		t.Fatal("renamed configured reopen rewrote original")
+	}
 	stop(standalone)
 	standalone = nil
+	text(args, pair, 3, "UNAVAILABLE")
 	refusal := p.call(append(args, "--json"), nil, 3, "UNAVAILABLE", "notices", "inbox")
 	if v, err := T.Decode[T.NonterminalRefusal](refusal); err != nil || v.Error.Code != "UNAVAILABLE" {
 		t.Fatal("closed host did not yield bounded refusal")
@@ -218,6 +298,7 @@ func TestNoticesActualBuiltCLI(t *testing.T) {
 	if err != nil {
 		t.Fatal("authority fixture reopen unavailable")
 	}
+	text(args, pair, 2, "FORBIDDEN")
 	refusal = p.call(append(args, "--json"), nil, 2, "FORBIDDEN", "notices", "configure")
 	if v, err := T.Decode[T.NonterminalRefusal](refusal); err != nil || v.Error.Code != "FORBIDDEN" {
 		t.Fatal("denied authority did not yield bounded refusal")

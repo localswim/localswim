@@ -112,6 +112,9 @@ func entryFailure(args []string, out, diagnostic io.Writer, code string, exit in
 	if diagnostic != nil {
 		_, _ = fmt.Fprintln(diagnostic, code)
 	}
+	if core.NoticeTextIntent(args) {
+		return exit
+	}
 	if out == nil {
 		if exit == 4 {
 			return 4

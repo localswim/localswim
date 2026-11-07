@@ -11,6 +11,7 @@ const localDomainCLIHelp = `  localswim --data NEWDIR [--json] board init --work
   localswim --data DIR [--json] notices configure|start|status|inbox|stop|recover|reload
   localswim --data DIR [--json] notices retarget --target-id UUID
   localswim --data DIR [--json] notices lookup --target-id ID --delivery-id ID
+  localswim --data DIR notices text --target UUIDv4 --delivery DIGEST
   localswim --data DIR [--json] card read CARD-UUID
   localswim --data DIR [--json] card history CARD-UUID
   localswim --data DIR [--json] card children CARD-UUID [--page N]

@@ -60,7 +60,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 		q.archive = "active"
 	case "board read", "workflow show", "attention show", "activity read":
 		q.method = "GET"
-	case "notices status", "notices inbox":
+	case "notices status", "notices inbox", "notices text":
 		q.method = "GET"
 	case "notices configure", "notices start", "notices stop", "notices recover", "notices reload", "notices retarget", "notices lookup":
 		q.method = "POST"
@@ -121,6 +121,10 @@ func parse(args []string) (q invocation, code string, exit int) {
 				return q, "INVOCATION_OR_IO", 1
 			}
 			q.archive = args[i]
+		} else if q.kind == "notices text" && k == "--target" {
+			q.noticeTarget = args[i]
+		} else if q.kind == "notices text" && k == "--delivery" {
+			q.noticeDelivery = args[i]
 		} else if (q.kind == "notices lookup" || q.kind == "notices retarget") && k == "--target-id" {
 			q.noticeTarget = args[i]
 		} else if q.kind == "notices lookup" && k == "--delivery-id" {
@@ -191,8 +195,14 @@ func parse(args []string) (q invocation, code string, exit int) {
 		if q.kind == "notices retarget" && !v4(q.noticeTarget) {
 			return q, "INVOCATION_OR_IO", 1
 		}
+		if q.kind == "notices text" && (q.json || !validNoticePair(q.noticeTarget, q.noticeDelivery)) {
+			return q, "INVOCATION_OR_IO", 1
+		}
 		if q.kind == "notices lookup" && !validNoticePair(q.noticeTarget, q.noticeDelivery) {
 			return q, "INVOCATION_OR_IO", 1
+		}
+		if q.kind == "notices text" {
+			action = "inbox"
 		}
 		q.path = noticePath(q.selected, action, q.method)
 	}

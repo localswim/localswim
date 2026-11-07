@@ -1,0 +1,29 @@
+M15 local original notice text (November 7, 2026)
+
+Read a retained original on the explicitly selected board:
+
+  localswim --data DIR notices text --target UUIDv4 --delivery DIGEST
+  localswim --workspace DIR --project PROJECT --board BOARD notices text --target UUIDv4 --delivery DIGEST
+
+Obtain the original target and delivery digest from notices inbox. Ordinary
+readable inspection keeps receipt identity, accepted time and event cuts, and
+reports whether original text is available. notices inbox --json retains the
+structured payload and evidence. The future target may differ from an original.
+
+Successful text output is exactly the validated captured UTF-8 text, without a
+terminal newline, BOM, header, metadata or JSON wrapper. Redirect using a binary-
+safe tool when exact bytes matter. --json is incompatible with notices text.
+A partial stdout write fails; any bytes already written cannot be withdrawn.
+
+The command freshly GETs the selected inbox with current authority. It selects
+both the original target UUIDv4 and delivery digest, including retained originals
+from earlier targets. It does not invoke Lookup, Recover or any control mutation,
+read private notice storage, or reconstruct text from current cards or labels.
+Current changes and reopen do not rewrite a retained original.
+
+Captured fallback is a valid original and prints exactly. Missing, expired,
+legacy, foreign, malformed, denied or unavailable evidence cannot supply text.
+These failures produce no intentional stdout and only a bounded diagnostic code
+on stderr. Missing text does not prove nonacceptance or authorize a retry.
+Printing is human forwarding convenience, not product delivery acceptance or
+future external delivery permission. Existing local controls remain unchanged.

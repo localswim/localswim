@@ -9,8 +9,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	A "github.com/localswim/localswim/internal/contract/archive"
+	P "github.com/localswim/localswim/internal/contract/noticetext"
 	T "github.com/localswim/localswim/internal/contract/transport"
 )
 
@@ -27,6 +29,9 @@ func noticePath(selected Selectors, action, method string) string {
 }
 
 func runNotices(ctx context.Context, c *Connection, q invocation, action string) result {
+	if action == "text" {
+		return requestNotices(ctx, c, q, "inbox", http.MethodGet, q.path, nil)
+	}
 	var request any
 	incarnation := A.UUID(q.selected.Incarnation)
 	if q.method == http.MethodPost {
@@ -144,6 +149,11 @@ func writeNotices(out *strings.Builder, v T.NoticeView) {
 
 func writeNoticePair(out *strings.Builder, p T.NoticePair) {
 	fmt.Fprintf(out, "  Target %s, delivery %s, accepted %s\n  %s\n", p.TargetID, p.DeliveryID, p.AcceptedAt, noticeCutText(p.Class, p.LowerEvent, p.UpperEvent, p.EventCount))
+	if p.Payload == nil {
+		out.WriteString("  Original text: unavailable (legacy)\n")
+	} else {
+		fmt.Fprintf(out, "  Original text: available (%s); use notices text --target %s --delivery %s\n", p.Payload.Kind, p.TargetID, p.DeliveryID)
+	}
 }
 
 func noticeCutText(class T.NoticeClass, lower A.Number, upper, count *A.Number) string {
@@ -155,4 +165,55 @@ func noticeNumber(n *A.Number) string {
 		return "unavailable"
 	}
 	return strconv.FormatUint(uint64(*n), 10)
+}
+
+// NoticeTextIntent also recognizes malformed raw invocations so refusal paths
+// never mix evidence envelopes into the raw output channel.
+func NoticeTextIntent(args []string) bool {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "notices" && args[i+1] == "text" {
+			return true
+		}
+	}
+	return false
+}
+
+// WriteExactText writes a bounded UTF-8 text value without decoration. A short
+// write is an error even when the writer omits one; partial output is not undone.
+func WriteExactText(out io.Writer, text string) error {
+	if out == nil || len(text) > P.MaxTextBytes || !utf8.ValidString(text) {
+		return io.ErrShortWrite
+	}
+	n, err := io.WriteString(out, text)
+	if err != nil {
+		return err
+	}
+	if n != len(text) {
+		return io.ErrShortWrite
+	}
+	return nil
+}
+
+func writeOriginalNotice(out result, q invocation, stdout, stderr io.Writer) int {
+	if out.exit == 0 {
+		response, ok := out.value.(T.NoticeResponse)
+		if ok {
+			for _, p := range response.Result.Entries {
+				if string(p.TargetID) == q.noticeTarget && string(p.DeliveryID) == q.noticeDelivery && p.Payload != nil && P.Validate(*p.Payload) == nil {
+					if WriteExactText(stdout, p.Payload.Text) == nil {
+						return 0
+					}
+					if stderr != nil {
+						_, _ = io.WriteString(stderr, "INVOCATION_OR_IO\n")
+					}
+					return 1
+				}
+			}
+		}
+		out = refused("UNAVAILABLE", 3, nil)
+	}
+	if stderr != nil {
+		_, _ = fmt.Fprintf(stderr, "%s\n", diagnostic(out.value))
+	}
+	return out.exit
 }

@@ -2,13 +2,19 @@ import type { Identity } from "../../generated/archive/contracts.js";
 import type { NoticeCut, NoticePair, NoticeView } from "../../generated/transport/contracts.js";
 import type { BoardClient } from "../api/client.js";
 import { NoticeRefusal } from "../api/notices.js";
-import type { NoticeCommand } from "../api/notices.js";
+import type { NoticeCommand, NoticeControl } from "../api/notices.js";
 import { button, element } from "../recovery-ui/view.js";
 
 const phases: Record<NoticeView["state"], string> = {
   unconfigured: "Unconfigured", stopped: "Stopped", running: "Running", draining: "Draining",
-  "partial-drain": "Partial drain", guarded: "Guarded · outcome UNKNOWN", failed: "Failed",
+  "partial-drain": "Partial drain", guarded: "Guarded", failed: "Failed",
 };
+function phase(view: NoticeView): string {
+  const suffix = view.reason ? " · " + view.reason : "";
+  if (view.state !== "guarded") return phases[view.state] + suffix;
+  if (view.reason === "unavailable") return "Guarded · unavailable";
+  return "Guarded · outcome UNKNOWN" + (view.reason === "unknown" ? "" : suffix);
+}
 const classes: Record<NoticeCut["class"], string> = {
   human: "Human", mixed: "Mixed", "unknown-actor": "Unknown actor", "other-actor": "Other actor",
   "observed-empty": "Observed empty", expired: "Expired", gapped: "Gapped",
@@ -29,7 +35,7 @@ export class BoardNotices {
     this.panel.hidden = false;
     this.open.setAttribute("aria-expanded", "true");
     this.selection.textContent = "Board " + this.identity.boardId + " · incarnation " + this.identity.incarnation;
-    this.message.textContent = "Choose Read status before configuring, starting or stopping.";
+    this.message.textContent = "Choose Read status before using a control.";
   });
   private readonly selection = element("p");
   private readonly message = element("p");
@@ -42,6 +48,7 @@ export class BoardNotices {
     configure: button("Configure", () => { void this.control("configure"); }),
     start: button("Start", () => { void this.control("start"); }),
     stop: button("Stop", () => { void this.control("stop"); }),
+    recover: button("Recover", () => { void this.control("recover"); }),
   };
   private readonly readStatus = button("Read status", () => { void this.run({ action: "status" }); });
   private readonly readInbox = button("Read inbox", () => { void this.run({ action: "inbox" }); });
@@ -120,14 +127,20 @@ export class BoardNotices {
 
   private updateControls(): void {
     const busy = this.request !== undefined;
-    for (const control of Object.values(this.controls)) control.setAttribute("aria-disabled", String(busy || !this.displayed));
+    for (const [action, control] of Object.entries(this.controls)) {
+      control.setAttribute("aria-disabled", String(busy || !this.displayed || action === "recover" && !this.canRecover()));
+    }
     this.readStatus.setAttribute("aria-disabled", String(busy));
     this.readInbox.setAttribute("aria-disabled", String(busy));
     this.lookup.setAttribute("aria-disabled", String(busy || !targetPattern.test(this.target.value) || !deliveryPattern.test(this.delivery.value)));
   }
 
-  private async control(action: "configure" | "start" | "stop"): Promise<void> {
-    if (!this.displayed) return;
+  private canRecover(): boolean {
+    return !!this.displayed?.targetId && (this.displayed.state === "guarded" || this.displayed.state === "failed");
+  }
+
+  private async control(action: NoticeControl): Promise<void> {
+    if (!this.displayed || action === "recover" && !this.canRecover()) return;
     await this.run({ action, expectedControlGeneration: this.displayed.controlGeneration });
   }
 
@@ -145,11 +158,11 @@ export class BoardNotices {
     const control = "expectedControlGeneration" in command;
     if (command.action !== "inbox") {
       this.displayed = undefined;
-      this.status.replaceChildren();
+      if (command.action !== "recover") this.status.replaceChildren();
     }
     if (command.action === "inbox") this.inbox.replaceChildren();
     if (command.action === "lookup") this.lookupResult.replaceChildren();
-    this.message.textContent = "Notice request in progress…";
+    this.message.textContent = command.action === "recover" ? "Recovery in progress… Showing the last read status." : "Notice request in progress…";
     this.updateControls();
     try {
       const result = await this.client.notices(identity, command, request.signal);
@@ -162,7 +175,8 @@ export class BoardNotices {
         if (match) this.showStatus(result);
         this.lookupResult.textContent = match ? "Accepted receipt · " + receipt(match) : "Receipt outcome UNKNOWN.";
       }
-      const summary = result.reason ? phases[result.state] + " · " + result.reason + "." : "Notice request complete.";
+      const summary = command.action === "recover" ? this.recoverySummary(result) :
+        result.reason ? phase(result) + "." : "Notice request complete.";
       this.message.textContent = control || command.action === "lookup" ? summary + " Read status before another control." : summary;
     } catch (error) {
       if (this.request !== request) return;
@@ -171,7 +185,8 @@ export class BoardNotices {
           : error.kind === "busy" ? "Control refused while the monitor is busy or guarded. Read status."
           : "Notice request refused.";
       } else {
-        this.message.textContent = control ? "Control outcome UNKNOWN. Read status before choosing another action."
+        this.message.textContent = command.action === "recover" ? "Recovery outcome UNKNOWN. Showing the last read status. Read status before choosing another action."
+          : control ? "Control outcome UNKNOWN. Read status before choosing another action."
           : command.action === "lookup" ? "Receipt outcome UNKNOWN. Lookup response unavailable."
           : "Notice response unavailable.";
       }
@@ -183,10 +198,15 @@ export class BoardNotices {
     }
   }
 
+  private recoverySummary(view: NoticeView): string {
+    if (view.state === "stopped") return "Recovery settled. Monitor stopped.";
+    return "Recovery status · " + phase(view) + ".";
+  }
+
   private showStatus(view: NoticeView): void {
-    const { checkpoint, targetId, last, pending, state, reason, gapCount } = view;
-    this.status.append(element("h3", "Monitor status"),
-      element("p", phases[state] + (reason ? " · " + reason : "") + (state === "running" && !last && !pending ? " · awaiting first outcome" : "")),
+    const { checkpoint, targetId, last, pending, state, gapCount } = view;
+    this.status.replaceChildren(element("h3", "Monitor status"),
+      element("p", phase(view) + (state === "running" && !last && !pending ? " · awaiting first outcome" : "")),
       element("p", "Target " + (targetId ?? "unconfigured") + " · checkpoint " + (checkpoint ?? "unavailable") + " · gaps " + gapCount));
     if (last) this.status.append(element("p", "Last outcome · " + cut(last)));
     if (pending) this.status.append(element("p", "Pending · " + cut(pending)));

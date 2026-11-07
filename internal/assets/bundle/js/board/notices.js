@@ -2,8 +2,16 @@ import { NoticeRefusal } from "../api/notices.js";
 import { button, element } from "../recovery-ui/view.js";
 const phases = {
     unconfigured: "Unconfigured", stopped: "Stopped", running: "Running", draining: "Draining",
-    "partial-drain": "Partial drain", guarded: "Guarded · outcome UNKNOWN", failed: "Failed",
+    "partial-drain": "Partial drain", guarded: "Guarded", failed: "Failed",
 };
+function phase(view) {
+    const suffix = view.reason ? " · " + view.reason : "";
+    if (view.state !== "guarded")
+        return phases[view.state] + suffix;
+    if (view.reason === "unavailable")
+        return "Guarded · unavailable";
+    return "Guarded · outcome UNKNOWN" + (view.reason === "unknown" ? "" : suffix);
+}
 const classes = {
     human: "Human", mixed: "Mixed", "unknown-actor": "Unknown actor", "other-actor": "Other actor",
     "observed-empty": "Observed empty", expired: "Expired", gapped: "Gapped",
@@ -24,7 +32,7 @@ export class BoardNotices {
         this.panel.hidden = false;
         this.open.setAttribute("aria-expanded", "true");
         this.selection.textContent = "Board " + this.identity.boardId + " · incarnation " + this.identity.incarnation;
-        this.message.textContent = "Choose Read status before configuring, starting or stopping.";
+        this.message.textContent = "Choose Read status before using a control.";
     });
     selection = element("p");
     message = element("p");
@@ -37,6 +45,7 @@ export class BoardNotices {
         configure: button("Configure", () => { void this.control("configure"); }),
         start: button("Start", () => { void this.control("start"); }),
         stop: button("Stop", () => { void this.control("stop"); }),
+        recover: button("Recover", () => { void this.control("recover"); }),
     };
     readStatus = button("Read status", () => { void this.run({ action: "status" }); });
     readInbox = button("Read inbox", () => { void this.run({ action: "inbox" }); });
@@ -109,14 +118,18 @@ export class BoardNotices {
     }
     updateControls() {
         const busy = this.request !== undefined;
-        for (const control of Object.values(this.controls))
-            control.setAttribute("aria-disabled", String(busy || !this.displayed));
+        for (const [action, control] of Object.entries(this.controls)) {
+            control.setAttribute("aria-disabled", String(busy || !this.displayed || action === "recover" && !this.canRecover()));
+        }
         this.readStatus.setAttribute("aria-disabled", String(busy));
         this.readInbox.setAttribute("aria-disabled", String(busy));
         this.lookup.setAttribute("aria-disabled", String(busy || !targetPattern.test(this.target.value) || !deliveryPattern.test(this.delivery.value)));
     }
+    canRecover() {
+        return !!this.displayed?.targetId && (this.displayed.state === "guarded" || this.displayed.state === "failed");
+    }
     async control(action) {
-        if (!this.displayed)
+        if (!this.displayed || action === "recover" && !this.canRecover())
             return;
         await this.run({ action, expectedControlGeneration: this.displayed.controlGeneration });
     }
@@ -135,13 +148,14 @@ export class BoardNotices {
         const control = "expectedControlGeneration" in command;
         if (command.action !== "inbox") {
             this.displayed = undefined;
-            this.status.replaceChildren();
+            if (command.action !== "recover")
+                this.status.replaceChildren();
         }
         if (command.action === "inbox")
             this.inbox.replaceChildren();
         if (command.action === "lookup")
             this.lookupResult.replaceChildren();
-        this.message.textContent = "Notice request in progress…";
+        this.message.textContent = command.action === "recover" ? "Recovery in progress… Showing the last read status." : "Notice request in progress…";
         this.updateControls();
         try {
             const result = await this.client.notices(identity, command, request.signal);
@@ -159,7 +173,8 @@ export class BoardNotices {
                     this.showStatus(result);
                 this.lookupResult.textContent = match ? "Accepted receipt · " + receipt(match) : "Receipt outcome UNKNOWN.";
             }
-            const summary = result.reason ? phases[result.state] + " · " + result.reason + "." : "Notice request complete.";
+            const summary = command.action === "recover" ? this.recoverySummary(result) :
+                result.reason ? phase(result) + "." : "Notice request complete.";
             this.message.textContent = control || command.action === "lookup" ? summary + " Read status before another control." : summary;
         }
         catch (error) {
@@ -171,9 +186,10 @@ export class BoardNotices {
                         : "Notice request refused.";
             }
             else {
-                this.message.textContent = control ? "Control outcome UNKNOWN. Read status before choosing another action."
-                    : command.action === "lookup" ? "Receipt outcome UNKNOWN. Lookup response unavailable."
-                        : "Notice response unavailable.";
+                this.message.textContent = command.action === "recover" ? "Recovery outcome UNKNOWN. Showing the last read status. Read status before choosing another action."
+                    : control ? "Control outcome UNKNOWN. Read status before choosing another action."
+                        : command.action === "lookup" ? "Receipt outcome UNKNOWN. Lookup response unavailable."
+                            : "Notice response unavailable.";
             }
         }
         finally {
@@ -183,9 +199,14 @@ export class BoardNotices {
             }
         }
     }
+    recoverySummary(view) {
+        if (view.state === "stopped")
+            return "Recovery settled. Monitor stopped.";
+        return "Recovery status · " + phase(view) + ".";
+    }
     showStatus(view) {
-        const { checkpoint, targetId, last, pending, state, reason, gapCount } = view;
-        this.status.append(element("h3", "Monitor status"), element("p", phases[state] + (reason ? " · " + reason : "") + (state === "running" && !last && !pending ? " · awaiting first outcome" : "")), element("p", "Target " + (targetId ?? "unconfigured") + " · checkpoint " + (checkpoint ?? "unavailable") + " · gaps " + gapCount));
+        const { checkpoint, targetId, last, pending, state, gapCount } = view;
+        this.status.replaceChildren(element("h3", "Monitor status"), element("p", phase(view) + (state === "running" && !last && !pending ? " · awaiting first outcome" : "")), element("p", "Target " + (targetId ?? "unconfigured") + " · checkpoint " + (checkpoint ?? "unavailable") + " · gaps " + gapCount));
         if (last)
             this.status.append(element("p", "Last outcome · " + cut(last)));
         if (pending)

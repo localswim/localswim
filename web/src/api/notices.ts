@@ -2,9 +2,11 @@ import type { Identity } from "../../generated/archive/contracts.js";
 import type { NoticeCut, NoticePair, NoticeView } from "../../generated/transport/contracts.js";
 import { sameIdentity } from "./hierarchy.js";
 
+export type NoticeControl = "configure" | "start" | "stop" | "recover";
+
 export type NoticeCommand =
   | Readonly<{ action: "status" | "inbox" }>
-  | Readonly<{ action: "configure" | "start" | "stop"; expectedControlGeneration: string }>
+  | Readonly<{ action: NoticeControl; expectedControlGeneration: string }>
   | Readonly<{ action: "lookup"; targetId: string; deliveryId: string }>;
 
 export const noticeReadMaximum = 131_072;

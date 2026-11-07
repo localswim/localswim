@@ -17,7 +17,12 @@ const (
 	MaxStateBytes = 256 * 1024
 	MaxPairs      = 64
 	MaxGaps       = 64
-	version       = 1
+	intentVersion = 1
+	legacyVersion = 1
+	stateVersion  = 2
+
+	prepared  = "prepared"
+	attempted = "attempted"
 
 	Human         = "human"
 	Mixed         = "mixed"
@@ -97,7 +102,7 @@ func (i Intent) identity() string {
 }
 
 func (i Intent) valid(binding Binding, target A.UUID) bool {
-	return i.Version == version && i.Binding == binding && i.TargetID == target &&
+	return i.Version == intentVersion && i.Binding == binding && i.TargetID == target &&
 		validUUID4(i.ObservationID) && intervalValid(i.Class, i.Lower, i.Upper, i.Count) &&
 		A.Validate(A.Digest(i.DeliveryID)) == nil && i.DeliveryID == i.identity()
 }
@@ -144,7 +149,8 @@ type entry struct {
 type durable struct {
 	Version int `json:"version"`
 	State
-	Inbox []entry `json:"inbox"`
+	Inbox          []entry `json:"inbox"`
+	PendingAttempt *string `json:"pendingAttempt"`
 }
 
 type Pair struct {

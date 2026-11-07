@@ -1,7 +1,6 @@
 package notices
 
 import (
-	"bytes"
 	"errors"
 	"io/fs"
 	"slices"
@@ -36,6 +35,9 @@ type Store struct {
 	mu      sync.Mutex
 	running bool
 	refused bool
+	// acceptance is the exact state an actual acceptance write might have
+	// published before returning an error. A fence never establishes it.
+	acceptance *durable
 	// settlement retains the one exact pending proof a quiescent lookup used
 	// when its disposition publication returned an uncertain result.
 	settlement *durable
@@ -89,6 +91,9 @@ func (s *Store) publish(next *durable) error {
 	if next.Binding != s.binding {
 		return ErrForeign
 	}
+	if next.Version == legacyVersion && next.Pending == nil {
+		next.Version = stateVersion
+	}
 	encoded, err := next.encode()
 	if err != nil {
 		return err
@@ -134,7 +139,7 @@ func (s *Store) Configure(baseline noticeinterval.Cut) (A.UUID, error) {
 	if err != nil {
 		return "", err
 	}
-	next := &durable{Version: version, State: State{Binding: s.binding, TargetID: id, Checkpoint: baseline, Gaps: []Gap{}}, Inbox: []entry{}}
+	next := &durable{Version: stateVersion, State: State{Binding: s.binding, TargetID: id, Checkpoint: baseline, Gaps: []Gap{}}, Inbox: []entry{}}
 	if err := s.publish(next); err != nil {
 		return "", err
 	}
@@ -233,6 +238,10 @@ func (s *Store) Suppress(upper noticeinterval.Cut) error {
 	if err != nil {
 		return err
 	}
+	return s.suppress(d, upper, false)
+}
+
+func (s *Store) suppress(d *durable, upper noticeinterval.Cut, quiescent bool) error {
 	if d.Observation == nil || d.Pending != nil || !upper.Follows(d.Checkpoint) || upper.Event <= d.Checkpoint.Event {
 		return ErrInvalid
 	}
@@ -240,6 +249,7 @@ func (s *Store) Suppress(upper noticeinterval.Cut) error {
 	next := *d
 	next.Last = &Outcome{d.Observation.ID, d.Checkpoint, &upper, Suppressed, &count, ""}
 	next.Checkpoint, next.Observation = upper, nil
+	next.Dirty = !quiescent
 	return s.publish(&next)
 }
 
@@ -254,10 +264,14 @@ func (s *Store) Prepare(evidence noticeinterval.Evidence) (*Intent, error) {
 	if err != nil {
 		return nil, err
 	}
+	return s.prepare(d, evidence)
+}
+
+func (s *Store) prepare(d *durable, evidence noticeinterval.Evidence) (*Intent, error) {
 	if d.Observation == nil || evidence.Class == Suppressed || !intervalValid(evidence.Class, d.Checkpoint, evidence.Upper, evidence.Count) {
 		return nil, ErrInvalid
 	}
-	i := Intent{Version: version, Binding: d.Binding, ObservationID: d.Observation.ID, Lower: d.Checkpoint,
+	i := Intent{Version: intentVersion, Binding: d.Binding, ObservationID: d.Observation.ID, Lower: d.Checkpoint,
 		Upper: copyValue(evidence.Upper), TargetID: d.TargetID, Class: evidence.Class, Count: copyValue(evidence.Count)}
 	i.DeliveryID = i.identity()
 	if d.Pending != nil {
@@ -267,6 +281,8 @@ func (s *Store) Prepare(evidence noticeinterval.Evidence) (*Intent, error) {
 		return i.clone(), nil
 	}
 	next := *d
+	marker := prepared
+	next.Version, next.PendingAttempt = stateVersion, &marker
 	next.Pending = &i
 	if isLoss(i.Class) {
 		if len(d.Gaps) == MaxGaps {
@@ -296,21 +312,9 @@ func (d *durable) find(target A.UUID, deliveryID string) int {
 	return -1
 }
 
-func (s *Store) Accept(target A.UUID, deliveryID string, at A.Timestamp) (*Pair, error) {
-	if s == nil {
-		return nil, ErrUnknown
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, err := s.admitted()
-	if err != nil {
-		return nil, err
-	}
-	if !d.pendingMatches(target, deliveryID) || A.Validate(at) != nil {
+func retainedPairs(d *durable, at A.Timestamp) ([]entry, error) {
+	if A.Validate(at) != nil {
 		return nil, ErrInvalid
-	}
-	if d.find(target, deliveryID) >= 0 {
-		return nil, ErrGuarded
 	}
 	now, err := time.Parse(time.RFC3339, string(at))
 	if err != nil {
@@ -328,20 +332,9 @@ func (s *Store) Accept(target A.UUID, deliveryID string, at A.Timestamp) (*Pair,
 		}
 	}
 	if len(retained) == MaxPairs {
-		s.refused = true
 		return nil, ErrCapacity
 	}
-	e := entry{Intent: *d.Pending, AcceptedAt: at}
-	next := *d
-	next.Inbox = append(retained, e)
-	if err := s.publish(&next); err != nil {
-		if s.Uncertain() {
-			return nil, ErrUnknown
-		}
-		return nil, err
-	}
-	pair := e.project()
-	return &pair, nil
+	return retained, nil
 }
 
 func finalizedState(d *durable, idx int, quiescent bool) (*durable, error) {
@@ -353,7 +346,8 @@ func finalizedState(d *durable, idx int, quiescent bool) (*durable, error) {
 	next.Inbox = slices.Clone(d.Inbox)
 	next.Inbox[idx].Finalized = true
 	outcome := e.Intent.outcome()
-	next.Observation, next.Pending, next.Last = nil, nil, &outcome
+	next.Version = stateVersion
+	next.Observation, next.Pending, next.PendingAttempt, next.Last = nil, nil, nil, &outcome
 	if outcome.Upper != nil {
 		next.Checkpoint = *outcome.Upper
 		next.Dirty = !quiescent
@@ -376,9 +370,7 @@ func (s *Store) confirmFinalization(current, observed *durable, idx int) error {
 	if err != nil {
 		return err
 	}
-	want, wantErr := expected.encode()
-	got, gotErr := observed.encode()
-	if wantErr != nil || gotErr != nil || !bytes.Equal(want, got) {
+	if !statesExact(expected, observed) {
 		return ErrUnknown
 	}
 	if expected.Last.Upper != nil {
@@ -393,7 +385,10 @@ func (s *Store) Finalize(target A.UUID, deliveryID string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	d, err := s.admitted()
+	if _, err := s.admitted(); err != nil {
+		return err
+	}
+	d, err := s.confirmed()
 	if err != nil {
 		return err
 	}
@@ -430,7 +425,7 @@ func (s *Store) Lookup(target A.UUID, deliveryID string, quiescent bool) (*Pair,
 	priorIdx := current.find(target, deliveryID)
 	if priorIdx >= 0 {
 		prior := current.Inbox[priorIdx]
-		if prior.AcceptedAt != e.AcceptedAt || !prior.Intent.exact(e.Intent) {
+		if prior.AcceptedAt != e.AcceptedAt || !prior.Intent.exact(e.Intent) || (prior.Finalized && !e.Finalized) {
 			return nil, false, ErrUnknown
 		}
 		confirmed = true
@@ -445,7 +440,14 @@ func (s *Store) Lookup(target A.UUID, deliveryID string, quiescent bool) (*Pair,
 	if e.Finalized {
 		return s.lookupFinalized(current, d, priorIdx, e)
 	}
-	if current.Pending == nil || d.Pending == nil || !current.Pending.exact(*d.Pending) {
+	// Positive evidence is eligible for mutation only when the entire
+	// observed state equals the confirmed state or the exact acceptance
+	// attempted by this owner. Unrelated changes must never be adopted.
+	proof := current
+	if !confirmed {
+		proof = s.acceptance
+	}
+	if !statesExact(proof, d) {
 		return nil, false, ErrUnknown
 	}
 	s.running = false
@@ -467,6 +469,9 @@ func (s *Store) lookupFinalized(current, observed *durable, priorIdx int, e entr
 	confirmed := priorIdx >= 0
 	if confirmed && current.Inbox[priorIdx].Finalized {
 		return &pair, false, nil
+	}
+	if !s.Uncertain() {
+		return nil, false, ErrUnknown
 	}
 	proof := current
 	if !confirmed {
@@ -493,6 +498,7 @@ func (s *Store) clearGuard() {
 	s.running = false
 	s.fault.Store(false)
 	s.refused = false
+	s.acceptance = nil
 	s.settlement = nil
 }
 

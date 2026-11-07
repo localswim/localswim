@@ -102,6 +102,27 @@ func accept(t *testing.T, s *Store, i *Intent, at A.Timestamp) *Pair {
 	return pair
 }
 
+// Accept exercises the ordinary two-step acceptance in store-only tests.
+func (s *Store) Accept(target A.UUID, deliveryID string, at A.Timestamp) (*Pair, error) {
+	s.mu.Lock()
+	d, err := s.admitted()
+	if err != nil {
+		s.mu.Unlock()
+		return nil, err
+	}
+	if !d.pendingMatches(target, deliveryID) {
+		s.mu.Unlock()
+		return nil, ErrInvalid
+	}
+	intent := d.Pending.clone()
+	s.mu.Unlock()
+	accept, err := s.Fence(intent, at, false)
+	if err != nil {
+		return nil, err
+	}
+	return accept(at)
+}
+
 func TestImmutableIntentAndSanitizedProjection(t *testing.T) {
 	s, f, target := start(t)
 	if reused, err := s.Configure(baseline); err != nil || reused != target || f.writes != 2 {
@@ -233,8 +254,10 @@ func TestPublicationFaultBoundaries(t *testing.T) {
 				requireErr(t, err, ErrStorage)
 			} else {
 				requireErr(t, err, nil)
+				invoke, err := s.Fence(i, sample, false)
+				requireErr(t, err, nil)
 				f.failNext = tt.phase == "accept"
-				pair, err := s.Accept(target, i.DeliveryID, sample)
+				pair, err := invoke(sample)
 				if tt.phase == "accept" {
 					requireErr(t, err, ErrUnknown)
 					if pair != nil {
@@ -371,8 +394,10 @@ func TestQuiescentLookupOfUnconfirmedAcceptance(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			s, f, target := start(t)
 			i := prepare(t, s, complete(ObservedEmpty, baseline, 0))
+			invoke, err := s.Fence(i, sample, false)
+			requireErr(t, err, nil)
 			f.failNext, f.land = true, true
-			_, err := s.Accept(target, i.DeliveryID, sample)
+			_, err = invoke(sample)
 			requireErr(t, err, ErrUnknown)
 			requireErr(t, s.EndRun(), ErrGuarded)
 			f.failNext, f.land = true, lands
@@ -501,6 +526,14 @@ func TestGapCapacityUnknownUpperAndSuppression(t *testing.T) {
 		if len(state.Gaps) != MaxGaps || f.writes != writes || *state.Observation != *before || state.Pending != nil {
 			t.Fatal("gap capacity displaced unresolved evidence")
 		}
+		reopened := f.open(t)
+		recoveryPlan(t, reopened, RecoveryCapture)
+		_, err = reopened.PrepareRecovery(noticeinterval.Evidence{Upper: &upper, Class: Gapped})
+		requireErr(t, err, ErrCapacity)
+		if after := reopened.Snapshot(); f.writes != writes || *after.Observation != *before ||
+			len(after.Gaps) != MaxGaps || after.Pending != nil || after.Checkpoint != state.Checkpoint {
+			t.Fatal("recovery gap capacity changed unresolved evidence")
+		}
 	})
 	t.Run("unknown-and-suppression", func(t *testing.T) {
 		s, f, target := start(t)
@@ -567,7 +600,7 @@ func TestActiveLookupDuringUnconfirmedAcceptance(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	s, err := Open(selected, f.read, func(b Binding, data []byte) error {
 		err := f.write(b, data)
-		if f.writes == 5 {
+		if f.writes == 6 {
 			// The bytes are visible to a concurrent reader before the
 			// host confirms its write-through acceptance boundary.
 			close(entered)

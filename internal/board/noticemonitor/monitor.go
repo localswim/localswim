@@ -486,15 +486,33 @@ func (m *Monitor) Lookup(ctx context.Context, target A.UUID, id string, auth Aut
 	}
 	m.gate.Unlock()
 
-	pair, changed, err := m.store.Lookup(target, id, quiescent)
+	var changed bool
 	if quiescent {
-		m.gate.Lock()
-		m.reserved = false
-		if changed {
-			m.generation = generation
-			m.phase, m.reason = m.durableStatus()
+		defer func() {
+			m.gate.Lock()
+			defer m.gate.Unlock()
+			m.reserved = false
+			if changed {
+				m.generation = generation
+				m.phase, m.reason = m.durableStatus()
+			}
+		}()
+		state := m.store.Snapshot()
+		if state != nil && state.Pending != nil && state.Pending.TargetID == target && state.Pending.DeliveryID == id {
+			if _, err := m.recoveryCut(ctx, auth, pendingBound(state.Pending)); err != nil {
+				if isAuthority(err) || errors.Is(err, notices.ErrForeign) {
+					return nil, err
+				}
+				return nil, notices.ErrUnknown
+			}
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 		}
-		m.gate.Unlock()
+	}
+	pair, changed, err := m.store.Lookup(target, id, quiescent)
+	if readErr := m.authorize(ctx, auth); readErr != nil {
+		return nil, readErr
 	}
 	return pair, err
 }

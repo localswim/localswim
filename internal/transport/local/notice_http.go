@@ -41,7 +41,7 @@ func parseNoticeRequest(w http.ResponseWriter, q *http.Request, prefix string) (
 		if A.Validate(x.selected) != nil {
 			return x, http.StatusBadRequest
 		}
-	case "configure", "start", "stop", "lookup":
+	case "configure", "start", "stop", "lookup", "recover":
 		if q.Method != http.MethodPost {
 			return x, http.StatusMethodNotAllowed
 		}
@@ -104,7 +104,7 @@ func (r *Runtime) serveNotices(w http.ResponseWriter, q *http.Request) {
 	}
 	var err error
 	var receipt *notices.Pair
-	var stopped *noticemonitor.Status
+	var captured *noticemonitor.Status
 	switch x.action {
 	case "configure":
 		err = m.Configure(ctx, x.generation, auth)
@@ -113,7 +113,11 @@ func (r *Runtime) serveNotices(w http.ResponseWriter, q *http.Request) {
 	case "stop":
 		var result noticemonitor.Status
 		result, err = m.StopView(ctx, x.generation, auth)
-		stopped = &result
+		captured = &result
+	case "recover":
+		var result noticemonitor.Status
+		result, err = m.RecoverView(ctx, x.generation, auth)
+		captured = &result
 	case "lookup":
 		receipt, err = m.Lookup(ctx, x.target, x.delivery, auth)
 		// A missing/unconfirmed receipt is a successful lookup with unknown
@@ -130,9 +134,11 @@ func (r *Runtime) serveNotices(w http.ResponseWriter, q *http.Request) {
 		refuseNotice(w, err)
 		return
 	}
-	status := m.Snapshot()
-	if stopped != nil {
-		status = *stopped
+	var status noticemonitor.Status
+	if captured != nil {
+		status = *captured
+	} else {
+		status = m.Snapshot()
 	}
 	view := noticeView(identity, status)
 	if x.action == "inbox" {

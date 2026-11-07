@@ -443,7 +443,7 @@ func TestQuiescentLookupByDifferentAuthority(t *testing.T) {
 		f.mu.Lock()
 		f.writeHook = func() error {
 			writes++
-			if writes == 2 { // acceptance succeeds, then final disposition is denied
+			if writes == 3 { // prepare, fence, accept, then final disposition is denied
 				close(revoked)
 			}
 			return nil

@@ -12,7 +12,16 @@ func (d *durable) encode() ([]byte, error) {
 	if !d.valid() {
 		return nil, ErrInvalid
 	}
-	b, err := json.Marshal(d)
+	var wire any = d
+	if d.Version == legacyVersion {
+		// Preserve the original field order and the absence of pendingAttempt.
+		wire = struct {
+			Version int `json:"version"`
+			State
+			Inbox []entry `json:"inbox"`
+		}{d.Version, d.State, d.Inbox}
+	}
+	b, err := json.Marshal(wire)
 	if err != nil || len(b) > MaxStateBytes {
 		return nil, ErrInvalid
 	}
@@ -37,7 +46,7 @@ func decode(raw []byte, binding Binding) (*durable, error) {
 }
 
 func (d *durable) valid() bool {
-	if d.Version != version || !d.Binding.valid() || !validUUID4(d.TargetID) || !d.Checkpoint.Valid() ||
+	if !d.validAttempt() || !d.Binding.valid() || !validUUID4(d.TargetID) || !d.Checkpoint.Valid() ||
 		d.Gaps == nil || len(d.Gaps) > MaxGaps || d.Inbox == nil || len(d.Inbox) > MaxPairs {
 		return false
 	}
@@ -51,6 +60,20 @@ func (d *durable) valid() bool {
 	}
 	gaps, ok := d.validGaps()
 	return ok && d.validOutcome(gaps) && d.validInbox(gaps)
+}
+
+func (d *durable) validAttempt() bool {
+	switch d.Version {
+	case legacyVersion:
+		return d.PendingAttempt == nil
+	case stateVersion:
+		if d.Pending == nil {
+			return d.PendingAttempt == nil
+		}
+		return d.PendingAttempt != nil && (*d.PendingAttempt == prepared || *d.PendingAttempt == attempted)
+	default:
+		return false
+	}
 }
 
 func (d *durable) validGaps() (map[A.UUID]Gap, bool) {
@@ -116,7 +139,7 @@ func (d *durable) validOutcome(gaps map[A.UUID]Gap) bool {
 	if o.Class == Suppressed {
 		return o.DeliveryID == ""
 	}
-	i := Intent{version, d.Binding, o.ObservationID, o.Lower, o.Upper, d.TargetID, o.Class, o.Count, o.DeliveryID}
+	i := Intent{intentVersion, d.Binding, o.ObservationID, o.Lower, o.Upper, d.TargetID, o.Class, o.Count, o.DeliveryID}
 	return i.valid(d.Binding, d.TargetID)
 }
 
@@ -133,7 +156,8 @@ func (d *durable) validInbox(gaps map[A.UUID]Gap) bool {
 		}
 		seen[i.ObservationID], prior = true, i.Upper
 		if !e.Finalized {
-			if idx != len(d.Inbox)-1 || d.Pending == nil || !i.exact(*d.Pending) {
+			if idx != len(d.Inbox)-1 || d.Pending == nil || !i.exact(*d.Pending) ||
+				(d.Version == stateVersion && *d.PendingAttempt != attempted) {
 				return false
 			}
 			continue

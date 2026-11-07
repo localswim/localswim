@@ -1,0 +1,289 @@
+M13.01 INTERRUPTED LOCAL NOTICE RECOVERY
+2026-11-06 | M13-INTERRUPTED-NOTICES-R1 | #0193
+
+Scope is #0158, M12-PLUS-JOINT-R2 and M13-R1. Extend the M12 fixed-target
+notice contract in this directory. The same selected local or workspace
+engine owns the board and its private inbox. Reopen exposes retained evidence.
+An explicit Recover settles eligible interrupted work. A separate Start
+performs normal catch-up. Live reload, retarget and Codex delivery belong to
+M14/M15. The shared diagnostic queue carries test evidence only.
+
+1. Owner, selection and authority
+
+Reuse the M12 native exclusive board-root handle, including exclusion through
+aliases and across standalone/workspace processes. Take it before loading the
+sidecar. Keep it through authority reads, recovery reservations, pending native
+I/O, drain and detach. A second process cannot recover or start on that physical
+root while it is owned. An independent board remains available. A PID or stale
+lock-file artifact grants no authority.
+
+Reuse the full native root/database file identities, installation, board ID
+and incarnation binding. Recover the saved target UUID and validate lineage
+against the retained checkpoint and any known pending upper. A physical or
+logical mismatch, or regressed revision, event counter, floor or gap watermark,
+refuses reuse. Keep foreign state intact and project no foreign IDs or cuts.
+Inaccessible or corrupt evidence fails closed. Before settling a frozen intent
+or clearing a dirty idle marker, positively verify current lineage, including
+readable and valid coverage metadata. A failed or malformed lineage read keeps
+the saved state guarded. This differs from classifying incomplete activity for
+a retained observation whose current lineage is established. Ordinary archive/restore excludes
+the sidecar and uses independent target and checkpoint configuration.
+
+Require the same selected-board origin/credential/read admission as M12,
+including the current installed actor/grant, durable grant enablement and
+workflow permission. The prior run's credential confers no recovery right.
+The currently authorized human or automation caller can settle original proof.
+Check current authority before private status or reservation, then again at
+each capture, before intent or suppression publication, before the attempt
+fence, before inbox acceptance and before checkpoint disposition. Keep request
+checks bounded and use existing board snapshots. Admission linearizes at the
+successful phase check. A subsequently revoked caller may have one already
+admitted effect finish, and cannot admit a later phase. Checks for background
+work do not renew browser idle expiry. Denied admission reveals no private state.
+
+Recover requires a quiescent engine and the generation from a deliberate
+status read. An unconfigured engine permits only the read-only no-op below.
+After current authority, use the short monitor gate to recheck exact live
+selection, generation, quiescence and reservation, then pin the retained
+snapshot and reserve any mutating transition. Serialize Recover with
+Start, Stop, Configure, mutating Lookup and owner close. A stale request is
+CONTROL_STALE and an incompatible in-flight request is CONTROL_BUSY, with no
+effects. Rotate generation on admission and completion of an actual recovery
+transition. A proven no-op can retain it. New engine lifetimes always rotate.
+Keep the gate free during board reads and native I/O. Status reports the last
+confirmed facts during the reservation. A closed client or detach cannot end
+ownership before all admitted recovery work is quiescent. Recheck authority
+before returning private results. No worker is started by Recover.
+
+2. Durable evidence and one permitted acceptance attempt
+
+Keep the existing account-private, bounded, strictly decoded atomic sidecar.
+Use the M12 native path and binding checks, account/SYSTEM ACL, flush and
+atomic write-through publication. The private sidecar format v2 adds one
+required nullable field `pendingAttempt`. It is null exactly when no pending
+intent exists. With a pending intent its value is one of the following.
+
+- `prepared` is written atomically with the immutable intent and any gap.
+  Every v2 acceptance path must first durably move this exact pending to
+  `attempted`. An exact, valid `prepared` record from a confirmed sidecar,
+  with no matching receipt, therefore proves acceptance was never attempted.
+- `attempted` means the fence is durable and acceptance may have been invoked.
+  It stays set until the pending is disposed. The fence is conservative even
+  if interruption or revocation prevented the actual acceptance call.
+
+Split the sidecar format version from the immutable intent encoding version.
+Keep M12's version-1 delivery identity and exact content binding, including the
+root/database/installation/board/incarnation, target, observation, complete
+lower/upper descriptors (explicit null upper), class and count. Class and count
+are checked on exact comparison even though the v1 delivery hash omits them.
+Marker, generation, attempt time and recovery caller do not enter the hash.
+An acceptance pair is valid only with the same exact immutable intent and
+acceptance time. A live v2 pending with an accepted pair must be `attempted`.
+The acceptance pair and receipt publish together. Finalization clears the
+pending, marker and observation with checkpoint/disposition atomically.
+
+Read v1 with its original strict encoding and invariants. Honor a valid v1
+receipt on the same evidence terms. A v1 pending with no exact durable receipt
+is UNKNOWN and cannot be marked `prepared` or attempted. Leave that pending
+in v1. States without pending may upgrade lazily on the next authorized write
+without changing identity or evidence. A positive v1 finalization may upgrade
+as part of its atomic disposition. Refuse malformed encodings, version/marker
+contradictions, unknown versions, mismatched receipts and invalid partial
+records. Never fall back to unconfigured for an invalid or unreadable file.
+
+The store owns the exact comparisons and durable transitions. Both ordinary
+delivery and Recover use the same sequence under one writer and a host
+reservation or worker lease.
+
+1. Load confirmed evidence for the saved target and pending. For a new v2
+   intent publish `prepared` with its observation and gap. Before fencing,
+   check pair capacity using the existing seven-day eligibility rule. A
+   refusal before the fence preserves `prepared`; it is safe to recheck on a
+   later deliberate Recover. Reclaim eligible pairs only with acceptance.
+2. After fresh authority, compare the exact pending again and durably publish
+   `attempted`. Only a successful publication grants a private, single-use
+   permission in the current serialized operation to invoke acceptance for
+   that intent. A durable `attempted` record alone grants no permission when
+   reloaded. An error or ambiguous result from the fence grants none.
+3. After another current authority check, consume that permission once, compare
+   exact pending and commit at most one notice/receipt pair. Never persist or
+   reconstitute the permission. Do not reset the fence if admission, capacity
+   or acceptance fails after it. An accepted pair keeps its original acceptedAt.
+4. Check current authority again. Require the matching durable receipt before
+   finalizing. Finalization may be repeated as reconciliation of that receipt,
+   with no second acceptance. It advances only to the exact saved upper cut
+   when known, including equal-event coverage changes, and preserves gaps.
+
+A write error that may have published invalidates reliance on the current
+owner's cached state for recovery mutations. While that owner is uncertain,
+Recover cannot authorize another attempt, clear dirty state or recapture from
+cached evidence. Use existing exact Lookup for positive-only settlement under
+its durable confirmation rules, or release ownership safely and reopen the
+native engine. On fresh reopen re-read and validate the actual durable state.
+While resolving a live ambiguous write, visible replacement bytes alone are
+insufficient to claim a new acceptance or checkpoint. M12 Lookup can confirm
+positive evidence already held by the owner. It can also confirm the exact
+disposition by validating the original pending and matching receipt, then
+durably publishing the expected finalized state under the same writer. If
+that publication is uncertain, leave settlement guarded.
+Never adopt staging files. A failed finalization retains the pending receipt or
+reopens to the exact completed state, depending on which update persisted.
+
+Retain M12 limits of one observation, one pending, 64 gaps, 64 inbox/receipt
+pairs, and 256 KiB state. Pin the pair matching unresolved intent regardless
+of age. Reclaim only finalized expired pairs under the existing policy. Gap
+capacity preserves the outstanding observation, and inbox capacity preserves
+the exact pending. Preserve all other gaps and never truncate evidence to
+make room. Status, inbox and failed proof do not purge anything. State and
+public projections keep M12 redaction and account privacy.
+
+3. Recovery decision matrix
+
+Apply in this order using confirmed native state and the current authority.
+Each Recover processes at most the one retained observation or pending. It
+performs at most one bounded capture and one acceptance attempt. It never
+scans later intervals or loops to resolve failures in the same action.
+
+- Unconfigured or clean stopped. Return the current view without allocating a
+  target, recording an observation, moving a checkpoint or writing a receipt.
+- Valid exact positive receipt for pending (v1 or v2). Finalize original
+  acceptance once. Preserve acceptance time and exact bounds. Clear dirty and
+  settle to stopped with the exact known checkpoint. With null upper, settle
+  the receipt, keep the prior checkpoint and unknown-upper gap, and remain
+  guarded/unavailable. Repeating cannot duplicate acceptance or move the cut.
+- Exact v2 `prepared` pending with no receipt. Use the single fenced attempt
+  on its exact content. No activity capture for an already frozen intent.
+  After accepted proof, apply the same checkpoint rule as above. If pair
+  capacity blocks before the fence, report failed/capacity with `prepared`
+  retained. Post-fence without durable acceptance stays guarded.
+- Pending without sufficient proof. V1 pending without its exact receipt,
+  v2 `attempted` without its exact receipt, missing/expired historical proof,
+  or uncertain acceptance remains UNKNOWN. Preserve target, original pending,
+  checkpoint and gaps. Absence, timeout, expiry, a counter advance or a client
+  response cannot prove non-effect. Invalid or foreign state is refused with
+  its bounded storage or foreign reason. No resend, replacement ID, recapture,
+  force-start, target change, discard or manual sidecar edit is a recovery path.
+- Dirty, with a retained observation, no pending and no finalized unknown upper. The
+  atomic sidecar proves no intent was frozen for this observation. Preserve
+  its ID, original lower and existing gaps. Take one bounded M12 capture
+  from that lower under the current caller, without a
+  new quiet window or a worker. Use the new upper only because no immutable
+  intent existed. Apply M12 classification and suppression or freeze a v2
+  intent with any required gap. A genuine retained observation may yield
+  observed-empty on equal cuts. Suppression atomically clears dirty and the
+  observation with its verified upper and no receipt. Failed authority,
+  scope or lineage checks stop processing. Incomplete source evidence follows
+  the M12 gap rules, including null upper and no checkpoint advance without a
+  trustworthy boundary. A failed/ambiguous write follows section 2.
+- Dirty, no observation or pending. A finalized unknown-upper gap stays
+  guarded/unavailable with its original checkpoint and gap. Otherwise clear
+  only dirty at the unchanged validated checkpoint. This includes a completed
+  checkpoint update followed by interruption before clean stop, and a dirty
+  idle run with no durable observation. No synthetic empty notice for idle or
+  for a wake with no durable observation. Later committed events remain
+  eligible for Start through the normal high-water check.
+
+With an unchanged durable checkpoint or exact final disposition proved and
+dirty cleared, a later explicit Start uses the current caller and unchanged
+M12 catch-up. Events strictly beyond the checkpoint go through ordinary
+complete interval proof, once-only acceptance and bot-only suppression.
+Restarting after interruption at any recovery publication boundary applies
+the same matrix. Earlier incomplete intervals stay recorded as gaps even if
+later intervals are complete. Start never bypasses a pending or unknown upper.
+
+4. Selected-board interfaces
+
+Add POST `/notices/recover` beside the existing selected-board subresources.
+Reuse `NoticeControlRequest` with `incarnation` and
+`expectedControlGeneration`, and the existing `NoticeResponse` status view.
+No target, receipt or retry mode in the request. The validated selected route
+and pinned generation identify the operation; only the store's exact pending
+is eligible. Apply existing strict bounded parsing, same-origin/fetch checks,
+no-store, sanitized refusals and generated Go/browser boundary validation.
+
+After admission, return ordinary status for a settled or retained guard,
+including exact pending ID/cuts, saved target, checkpoint, last disposition and
+gap count when authorized. Reuse stopped, guarded/unknown, guarded/unavailable
+and failed/capacity or failed/storage as applicable. Unproved outcome must not
+be presented as stopped. Existing exact Lookup remains the deliberate positive
+receipt view (and positive-only reconciliation). Inbox remains read-only.
+Neither performs an acceptance attempt. Keep existing HTTP refusal behavior
+for malformed, stale, busy and denied controls. Do not expose the private marker
+or classify a transport failure as evidence of non-effect.
+
+Add `notices recover` to the actual native CLI with existing selected-board
+standalone/workspace options and readable/JSON output. Use one status request
+and one POST per deliberate invocation. The ordinary Notices browser view
+offers Recover for a guarded or failed selected target using displayed status.
+Keep the original pending identity and bounds visible while guarded, and show
+proof through the exact Lookup or inbox, with its original acceptance time.
+Display stopped, retained uncertainty and subsequent catch-up distinctly.
+Neither client replays on timeout, lost response, stale generation or selection
+change. Show the bounded refusal or uncertainty and require deliberate status
+and a new action if needed. Browser must discard late results on selection,
+window, request or authority generation change, including A-to-B-to-A. Preserve
+keyboard focus, editor drafts, same-origin/CSP and existing notice controls.
+
+5. Executable acceptance
+
+S1 (#0194) Use strict fixtures for both private formats. At each transition
+inject before-write and replacement-visible/error cases for dirty marker,
+observation, intent+gap, attempt fence, acceptance pair and finalization.
+Reopen each durable state and run Recover repeatedly. Assert exact IDs, cuts,
+receipt count and acceptedAt, unchanged prior checkpoint until disposition,
+gap conservation, no effect from stale cached bytes and zero acceptance calls
+for attempted/unknown, exact positive receipt or finalized state. For prepared,
+assert at most one invocation even across interruption while recovering. Check
+v1 positive and receipt-free pending, clean upgrade, unknown/corrupt formats,
+missing/mismatched/expired receipt, null upper, equal-cut coverage changes,
+both caps, expired finalized reclaim, pinning, state size and redaction. Test
+recovery-time storage and authority failures and exact positive Lookup after
+ambiguous finalization. Archive/restore must carry no runtime state.
+
+S2 (#0195) Use actual native processes. Interrupt/reopen at original durable
+intent before acceptance, acceptance before disposition, attempted with no
+receipt, and after disposition before clean stop. Compare same target, pending
+and checkpoint before and after. Include dirty idle and retained observation.
+Prove same-root exclusion through standalone/workspace aliases, independent
+other-root operation, owner retention through stalled Recover and detach,
+competing Recover/Start/Stop/Lookup, old generation across engine reopen, and
+revocation at each phase admission with a currently authorized later caller.
+Verify foreign DB/scope and regressed counter/coverage refusal. For frozen
+pending and dirty idle, exercise unreadable or malformed coverage and assert
+guarded state without writes. Commit after
+the original cut and during downtime. Start deliberately from the proved cut
+and show the later interval once, including bot-only suppression and clean
+stop/start regressions. Null upper stays guarded with no Start.
+
+C1 (#0196) Run actual CLI against standalone and workspace selections. Compare
+status/Recover/Lookup/inbox/start in readable and JSON modes. Verify exact
+saved target, original IDs and cuts, receipt identity/time, guarded reason and
+catch-up. Exercise stale/denied/wrong scope, lost result and one POST per action
+without local file fallback. Compare stored state independently.
+
+B1 (#0197) Run the ordinary browser in pinned real Chrome with two synthetic
+boards. Compare the same evidence with C1. Hold stale requests or replies
+through A-to-B-to-A, authority/window changes and a competing transition.
+Verify no stale repaint, replay or lost draft, distinct uncertainty and receipt
+labels, keyboard/focus, same origin and CSP. Use the shared queue only for
+bounded diagnostics and assert the actual product outcome independently.
+
+Q1 (#0198) Join exact-source S1/S2/C1/B1 evidence, pinned gates and current
+mandatory native/browser inventories, plus two isolated clean builds with
+complete output comparison. Bind fixtures, toolchain, executable and assets by
+digest, distinguish ordinary, controlled, injected and reused evidence, and
+obtain fresh independent review. Process termination or controlled I/O faults
+demonstrate observed process boundaries, not native power-loss qualification.
+
+D1 (#0199) Verify a fresh extraction of the qualified Windows kit, manifest,
+hashes and runnable guides. On synthetic boards interrupt a real run with the
+original intent durable before acceptance. Record original ID/cuts and reopen
+with the same target. Show that pending through the extracted CLI and ordinary
+browser. Demonstrate prepared recovery and the original exact receipt, plus a
+separate already-accepted interrupted case that finalizes without reaccepting.
+Demonstrate a separate missing-proof guard with the exact pending preserved.
+Then show ordinary catch-up once, successful clean stop and owned cleanup.
+For precisely timed interruption use a controlled process fixture and disclose
+its setup, source and stage. Test scaffolding stays outside the shipped product.
+The extracted product must perform the demonstrated recovery. Bind evidence to
+the extracted kit and obtain fresh independent review.

@@ -234,8 +234,7 @@ func (m *Monitor) disposition(ctx context.Context, auth Authority, o *observatio
 		return err
 	}
 	if evidence.Class == "all-automation" {
-		if evidence.Upper == nil || evidence.Count == nil || *evidence.Count == 0 ||
-			*evidence.Count > 1000 || *evidence.Count != evidence.Upper.Event-lower.Event {
+		if !validSuppression(evidence, lower) {
 			return notices.ErrInvalid
 		}
 		if err := m.store.Suppress(*evidence.Upper); err != nil {
@@ -253,19 +252,45 @@ func (m *Monitor) disposition(ctx context.Context, auth Authority, o *observatio
 	return nil
 }
 
+func validSuppression(evidence noticeinterval.Evidence, lower noticeinterval.Cut) bool {
+	return evidence.Upper != nil && evidence.Count != nil && *evidence.Count > 0 &&
+		*evidence.Count <= 1000 && *evidence.Count == evidence.Upper.Event-lower.Event
+}
+
 func (m *Monitor) deliver(ctx context.Context, auth Authority, evidence noticeinterval.Evidence) error {
 	intent, err := m.store.Prepare(evidence)
 	if err != nil {
 		return err
 	}
-	if err := m.authorize(ctx, auth); err != nil {
-		return err
-	}
-	if _, err := m.store.Accept(intent.TargetID, intent.DeliveryID, stamp(time.Now())); err != nil {
+	if err := m.acceptIntent(ctx, auth, intent, false); err != nil {
 		return err
 	}
 	if err := m.authorize(ctx, auth); err != nil {
 		return err
 	}
 	return m.store.Finalize(intent.TargetID, intent.DeliveryID)
+}
+
+func (m *Monitor) acceptIntent(ctx context.Context, auth Authority, intent *notices.Intent, recovery bool) error {
+	check := func() error {
+		if recovery {
+			if _, err := m.recoveryCut(ctx, auth, pendingBound(intent)); err != nil {
+				return err
+			}
+			return ctx.Err()
+		}
+		return m.authorize(ctx, auth)
+	}
+	if err := check(); err != nil {
+		return err
+	}
+	accept, err := m.store.Fence(intent, stamp(time.Now()), recovery)
+	if err != nil {
+		return err
+	}
+	if err := check(); err != nil {
+		return err
+	}
+	_, err = accept(stamp(time.Now()))
+	return err
 }

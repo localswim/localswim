@@ -1,0 +1,455 @@
+M14.01 LIVE MONITOR RELOAD AND RETARGET
+2026-11-07 | M14-LIVE-CONTROL-R2 | #0202
+
+Reload cooperatively replaces a running monitor. Retarget changes the local
+destination for future observations. Both use the existing selected-board
+service and physical owner. Neither resolves uncertain delivery by retrying.
+
+Authority: M14 #0159 and its November 7 kickoff, M12-PLUS-JOINT-R2, and the
+accepted M12/M13 contracts in this directory. Baseline product is 4d3980f
+(M14 preflight); accepted M13 handoff is 7e2b17a. Keep the original bindings
+of earlier qualification. This contract changes the private sidecar and
+selected-board notice interfaces, not SQLite layout or activity semantics.
+M15 retains external Codex delivery. The shared queue is diagnostics only.
+
+1. Two different versions and one physical scope
+
+- configurationRevision is an exact canonical JSON integer, 0 only for
+  unconfigured and 1..9007199254740991 for configured state. It is durable
+  per physical source binding. Initial Configure writes 1; each different
+  future target writes old+1 exactly once. No wrap, reset or reuse. Reaching
+  the maximum refuses a different target with CONFIGURATION_EXHAUSTED and
+  preserves all state. A same-target no-op remains possible at the maximum.
+- controlGeneration remains a canonical UUIDv4, allocated anew on engine
+  lifetime and actual control admission/completion. It is not durable and
+  is not a configuration revision. Reload and ordinary lifecycle controls
+  do not increment configurationRevision. Reserve both generation values
+  before admission so allocation failure cannot strand an active transition.
+- Controls bind the exact installation, selected board/incarnation, native
+  root and database identities, current caller authority, displayed control
+  generation and exact configuration revision. No caller supplies physical
+  paths or adopts another board's configuration. Reopen rotates generation
+  while preserving the confirmed configuration revision and future target.
+
+Use the existing installed human/browser or automation/CLI read admission,
+durable enabled grant and workflow permission. Complete bounded authority
+reads outside the short memory gate; then under that gate recheck the same
+live selection, request validity, generation, revision and reservation.
+Foreign or denied admission reveals no private target, cuts or receipt.
+Keep the native root lease while any borrowed call, worker, control task or
+admitted native effect can use the engine. Root aliases and standalone versus
+workspace entry points must exclude each other; independent roots continue.
+No port, listener, engine root or database replacement is part of Reload.
+
+2. Bounded local destination references
+
+The sole target reference is targetId: exactly 36 ASCII bytes in canonical
+lowercase UUIDv4 form, including valid variant bits. No whitespace, case
+normalization, empty/nil UUID, URL, filesystem path, credential, display
+name or external delivery configuration is accepted. Configure still
+allocates a random target. Retarget accepts a deliberately supplied targetId.
+
+A target names a logical partition of this board's account-private local
+inbox, not another board or a global address. A valid new UUID needs no
+external registration or network probe. Reusing A after A-to-B-to-A means
+the same partition within this source binding. It does not restore a prior
+configuration revision or match a stale request. Do not maintain an unbounded
+target registry. Existing retained intents/pairs carry their own target IDs;
+the entire inbox continues to have one 64-pair cap across all targets.
+
+3. Future work and immutable original evidence
+
+Retarget's boundary is a confirmed atomic configuration publication after
+predecessor effects are quiescent. Every durable observation captures the
+then-current targetId and configurationRevision when it first opens. Extending
+its wake/quiet window does not change either. Pending intent construction
+uses that captured target, including an open observation recovered after a
+retarget. An event timestamp, capture start, HTTP reply or target field in a
+later status is not the boundary. Events beyond the observation's frozen
+upper remain eligible for a subsequent observation at the future target.
+
+Closing admission prevents new observations by the predecessor. It may
+finish an already admitted observation with the M12 final bounded capture
+under its original authority. Retarget never recaptures an immutable pending
+intent or moves an open observation to the new target. If authority, storage
+or proof prevents that original work from finishing, preserve it and report
+the guard. After confirmed future configuration publication, deliberate
+Recover can settle eligible original evidence; a later explicit Start can
+observe subsequent work at the new target. Retarget itself grants no recovery
+attempt permission and cannot clear an unknown-upper gap.
+
+Keep immutable intent encoding version 1 and its exact hash input/order,
+including the explicit null upper, unchanged. Preserve source binding,
+observation ID, original target, delivery ID, complete cuts, class/count and
+acceptedAt. Configuration revision, lifecycle generation and control caller
+do not enter the delivery hash. M13 prepared/attempted permission rules and
+exact positive-only Lookup remain authoritative. An attempted record alone
+never reconstructs a single-use permission.
+
+Last stores its original target too, even when no pending or receipt remains.
+Suppressed Last also records its observation target but has no delivery ID.
+Retarget without pending preserves old Last and receipts unchanged. Strict
+store and transport validators must validate historical intent/Last/pair
+targets in their own records, not require equality with the future target.
+Match pending reconciliation against the full original immutable intent.
+Inbox returns the same bounded mixed-target list, with existing acceptance
+time/delivery ordering. Exact Lookup accepts the original target/delivery
+pair after arbitrary target changes. Wrong target or missing/expired proof
+returns unknown; it cannot prove non-effect. Never relabel acceptedAt.
+
+4. Private format and compatibility
+
+Write private sidecar format v3 using the existing native account/SYSTEM ACL,
+validated non-reparse path/identity, flush and atomic write-through boundary.
+Retain strict canonical complete encoding, version rejection and 256 KiB cap.
+The new durable fields are configurationRevision, observation.targetId,
+observation.configurationRevision and last.targetId. State.targetId remains
+the future target. Pending and inbox retain unchanged version-1 intents.
+Observation revision must be positive and no greater than configurationRevision;
+if equal, its target must equal the future target. Last's target is canonical
+and reconstructs its own original version-1 delivery identity when applicable.
+Pending must match its observation's captured target as well as ID/lower cut.
+
+Read accepted private v1/v2 strictly with their original validators first.
+Project their fixed target as logical revision 1 without writing on read.
+Their observation/Last capture that fixed target and observation revision 1.
+The next authorized serialized write may migrate atomically to v3. Migration
+itself does not increment revision. A retarget from legacy writes revision 2
+and the migration in the same publication, or publishes neither.
+
+v3 pendingAttempt is null exactly without pending; with pending it is prepared,
+attempted, or legacy-unknown. Preserve v2 markers exactly. A v1 pending migrates
+as legacy-unknown, with or without retained positive proof. This explicitly
+supersedes M13's instruction to leave receipt-free v1 pending in format v1:
+it permits lossless future configuration while preserving the old uncertainty.
+legacy-unknown never grants an attempt, never converts to prepared and can
+only settle by exact positive receipt proof. An accepted pair for a new v3
+intent requires attempted; an imported legacy-unknown may retain its original
+pair. New observations/intents cannot create legacy-unknown. Fresh reopen
+must apply these rules repeatedly without inventing evidence or credentials.
+
+Keep one observation, one pending, 64 gaps and 64 receipt pairs. Preserve all
+checkpoint/coverage descriptors and gaps. Keep ordinary seven-day finalized
+pair reclamation, pinned unresolved proof and conservative clock regression.
+Retarget/Reload do not reclaim, acknowledge or evict anything. Do not remove
+evidence or reset checkpoint to fit v3 under the cap; refuse capacity safely.
+Runtime sidecar, target configuration and credentials remain outside archive,
+export and restore. A restored destination has its own independent lineage.
+
+5. Serialized control lifecycle
+
+Every mutating control takes one reservation spanning native work. Configure,
+Start, Stop, Reload, Retarget, Recover, mutating Lookup and Close cannot run
+incompatible transitions concurrently. Status/inbox may read confirmed snapshots
+without waiting on stalled I/O after current authority. A true read-only Lookup
+may return exact durable proof but cannot mutate through another reservation.
+Under a reservation, stale generation/revision returns CONTROL_STALE first;
+a matching current request incompatible with it returns CONTROL_BUSY. Neither
+changes state. Revalidate authority before each later effect admission and
+before disclosing a private response. Do not hold the short memory gate while
+reading the board, doing native I/O, waiting for a writer or draining.
+
+Configure: unconfigured -> initial baseline, target and revision 1. Configured
+Configure is a no-op after exact preconditions; it never resets target/cut.
+Start: only clean quiescent state; bind this caller's in-memory credential and
+use ordinary catch-up. Guarded state requires deliberate M13 proof/recovery.
+Recover: existing bounded one-observation/one-attempt settlement, no worker.
+Stop: fence new admission, drain admitted work and retain the M12 deadline.
+Lookup: read original positive proof; if it could settle pending, require both
+exact versions and reserve quiescence before mutation. No acceptance attempt.
+
+Reload: require configured state. If quiescent, it is a no-op preserving
+stopped/guarded/failed state, evidence, target and revision. If running, reserve
+the transition, rotate admission generation, close predecessor observation
+admission and drain all its effects. Only after full predecessor quiescence,
+confirmed clean state, unchanged scope/revision and fresh current reload-caller
+authority may one replacement worker be admitted under that caller. It uses
+ordinary Start lineage/catch-up and dirty publication, not recovery. A guard or
+denial ends the replacement plan without a worker. The old worker's effects
+still use its original run authority at every phase; Reload cannot lend it
+the new caller's credentials. No automatic restart after later reauthorization.
+
+Retarget: require configured confirmed state and canonical new target. An
+unconfigured Reload or Retarget refuses CONTROL_BUSY with no allocation. Same
+target is a true no-op after exact preconditions, with no drain or revision
+change. For a different target, reserve and close predecessor admission. Drain
+its admitted effects under their original authority. After quiescence, freshly
+validate retarget-caller authority, source lineage and exact old configuration;
+publish new future target/revision atomically with all preserved evidence.
+Guarded pending/observation does not itself prohibit future-only configuration
+when state is confirmed and lineage valid. Foreign, corrupt or live uncertain
+state does prohibit it. If the predecessor was running, restart under the
+retarget caller only if state is now clean and authority remains valid. If
+previously stopped/guarded, retain that posture: never start implicitly.
+
+Revocation after a successful phase check may allow that one admitted effect
+to finish, but cannot admit the next phase. Recheck after a drain, immediately
+before configuration publication, before replacement dirty/start publication
+and replacement admission. Background checks never renew browser idle expiry.
+If target publication succeeded and later authority fails, retain the confirmed
+new target/revision and guarded authority state; do not roll it back or restart.
+
+Close is a terminal fence: close new calls and any replacement plan, and join
+borrowed calls, reservations and workers. It may supersede replacement admission
+but cannot abandon admitted native work or undo a confirmed target publication.
+Only successful full Close permits engine/lease release. A canceled/timed-out
+Close leaves ownership retained for eventual join. No detached second owner.
+
+6. Deadlines, interrupted publication and actual outcomes
+
+Stop/Reload/Retarget have an absolute server response-decision deadline two
+seconds after authorized control admission. It includes waiting for drain,
+configuration publication, replacement startup and final response authority;
+it does not bound network delivery or the initial pre-admission authority read.
+The response coordinator waits for operation completion for at most one second,
+then begins fresh response authorization with the remaining time to that same
+two-second deadline. Earlier operation completion begins this check immediately.
+After successful authorization, capture the admitted operation's terminal view,
+or its partial-drain view if still incomplete, without further native I/O.
+Returning partial-drain before two seconds is allowed. This gives response
+authority its own bounded opportunity without extending the absolute deadline.
+
+If that check denies authority, fails or does not finish by the deadline,
+return only the redacted OUTCOME_UNKNOWN envelope in section 7. Never disclose
+a private partial/terminal view using admission authority alone, or wait another
+native reader deadline after the response deadline. An uncancelable authority
+read may finish later, but cannot publish a late response and retains its own
+borrow of the engine until it ends. It cannot block the response coordinator or
+cause ownership to be released early. Native operation phase checks keep their
+own existing bounds and do not inherit expiration of the response timer.
+
+The response deadline is not permission to cancel an admitted atomic effect,
+release the reservation or report success. Keep the reservation/lease and
+complete the one admitted transition asynchronously. Status then reports eventual
+actual state. A lost
+HTTP response, canceled client/view or caller process does not cancel that
+transition or authorize a second request. Failure to reauthorize ends further
+effects truthfully, with retained evidence. Eventual completion does not
+rewrite an already captured partial response into a later operation's result.
+Cancellation before reservation admits no control. After reservation use the
+owned operation lifetime for drain/publication, while retaining the original
+caller credential and all phase authority checks; detaching the request never
+creates fresh or extended authority. A partial response does not retain that
+credential beyond the one operation and any explicitly admitted replacement run.
+
+Before publication failure and replacement-visible/error are different fault
+fixtures; both must fail closed when the writer cannot prove the outcome.
+An ambiguous configuration write marks the live store uncertain, exposes only
+last confirmed facts with failed/storage and admits no replacement or further
+configuration mutation from cached bytes. Do not infer success merely because
+replacement bytes are visible. Safely close/reopen under the same native
+exclusion, validate durable v3 bytes and reveal whichever exact old/new revision
+actually persisted. Reopen never resumes a replacement plan or grants an attempt
+permission. Retain guarded interrupted state and require deliberate status and
+Start/Recover as appropriate. An idle interruption with clean bytes stays
+stopped. No journal, request replay or synthetic effect is needed for a control
+whose current durable outcome can be read after reopen.
+
+7. Selected-board HTTP, actual CLI and ordinary browser
+
+Reuse /api/v1/boards/{boardId}/notices/ and existing same-origin/auth/fetch,
+no-store, CSP, method/media and bounded strict parser rules. GET status/inbox
+still requires only exact incarnation. Add POST reload and retarget.
+
+NoticeControlRequest for configure/start/stop/recover/reload has exactly:
+  incarnation, expectedControlGeneration, expectedConfigurationRevision.
+NoticeRetargetRequest has exactly those fields plus targetId.
+NoticeLookupRequest adds expectedControlGeneration and
+expectedConfigurationRevision to its existing incarnation/targetId/deliveryId.
+Use exact versions for Lookup even when it turns out read-only, so a caller
+cannot accidentally settle using stale displayed control context. All POSTs
+reject missing, unknown, duplicate, noncanonical or out-of-bound fields; retain
+1024-byte request and 128-KiB response limits. Update Go, generated schemas,
+TypeScript and production validators together. Existing API version stays 1;
+this is a strict coordinated client/server additive contract, not support for
+old mutation clients omitting the new precondition.
+
+NoticeView retains identity/controlGeneration/targetId/state/reason/checkpoint/
+gapCount/last/pending/entries/lookup; add configurationRevision (0 unconfigured).
+targetId explicitly means future target. NoticeCut adds required targetId for
+pending and Last, including suppression. Add nullable controlOperation with
+values configure/start/stop/recover/reload/retarget/lookup while an actual
+reservation is outstanding; null after completion. Existing running/stopped/
+draining/partial-drain/guarded/failed phases and reasons remain. Partial-drain
+means the reserved operation is incomplete, including a stalled post-drain
+publication, not just a guess about thread state. Foreign views redact target,
+revision to 0, all cuts/pairs and private operation facts. Never project raw
+physical IDs, sidecar format/attempt markers, credentials or exceptions.
+
+Successful POST returns that admitted operation's captured terminal/partial
+NoticeResponse after fresh current read authority, even if another operation
+wins before the reply. The response coordinator captures only this operation's
+result, never a later operation's snapshot. Before control admission, return
+409 CONTROL_STALE for either version mismatch,
+409 CONTROL_BUSY for incompatible reservation/guarded Start, 409
+CONFIGURATION_EXHAUSTED for actual revision overflow, 400 INVALID_INPUT for
+invalid target/encoding, and existing 401/403/503 refusals. These refusals prove
+this request admitted no effect. After admission, authority denial/expiry,
+unavailable response authority or expiration of its response deadline returns
+HTTP 503 with this exact public envelope, never a NoticeView or generic 401/403:
+  {"apiVersion":1,"outcome":"unknown","error":{"code":"OUTCOME_UNKNOWN",
+   "message":"Notice request outcome is unknown. Read notices status before taking further action."}}
+This bounded generated/validated envelope contains no identity, generation,
+revision, target, operation phase, receipt or other private fact. It says the
+request may have had an effect; it does not confirm whether it was admitted.
+Use it even if the server knows target publication or replacement admission
+succeeded but cannot currently disclose that result. Do not roll back those
+effects or return a no-effect refusal. This post-admission rule applies to all
+notice POSTs, including Configure/Start/Recover and mutating Lookup, not just
+Reload/Retarget. An authorized admitted guarded/storage/capacity outcome may
+return its truthful NoticeView. Client disconnect/transport failure remains
+unknown too; no response body can prove non-effect when it was never received.
+
+Actual CLI adds notices reload and notices retarget --target-id UUID, using
+existing standalone/workspace selectors. For each mutating invocation, including
+Lookup, GET status once and POST once using exactly that status's two versions.
+Retain readable/versioned JSON and existing exit conventions: confirmed status
+exit 0, invocation/I/O setup 1, confirmed pre-admission refusal 2, unavailable
+GET 3, unconfirmed POST outcome 4/OUTCOME_UNKNOWN. The validated HTTP 503 unknown
+envelope maps to exit 4, including when denial followed durable effects. Never
+classify it as FORBIDDEN/refused or retry it. Print future target/revision separately from
+pending/Last target, original ID/cuts and accepted receipt time. Existing exact
+Lookup positional/option syntax remains; only its internal status binding changes.
+Never read a sidecar or SQL as a CLI fallback.
+
+Browser offers Reload, a bounded future-target input and deliberate Retarget.
+Controls use displayed generation and configurationRevision, with one request
+per action. Exact Lookup also requires displayed status. Show incomplete control
+and later actual status distinctly. Preserve the last displayed original pending
+while work is outstanding, label future versus original targets and show accepted
+receipt time without implying acceptance means delivery outside the local inbox.
+After stale/busy, pre-admission denial, partial or lost reply require deliberate
+status/new action; never silently refresh preconditions and repost. The HTTP
+503 unknown envelope displays outcome UNKNOWN and that the request may have
+taken effect; it must not display a refused action or clear pending/target
+drafts on an assumption of no effect. Later authorized status is a separate
+observation, not a replacement of the original unknown result. Read-only status can
+observe completion but cannot replay a control. Preserve drafts, keyboard access,
+focus return and narrow layout. Fence all late status/control/inbox/lookup replies
+by view/request instance, board/incarnation, window and authority context epochs;
+identity equality alone fails A-to-B-to-A. A later displayed control context
+also fences an earlier in-flight read. Response mismatch is unknown/refused,
+never a repaint or automatic retry. All ordinary product traffic stays on the
+same selected service/port; diagnostics through the shared queue remain bounded.
+
+8. Executable normal, fault and race matrix
+
+Each row below requires deterministic assertions on exact native state, effect
+counts and client requests, not screenshots alone. Use fresh synthetic source
+bindings and independently compute expected IDs/cuts. Inject a bounded pause at
+the named phase; release it after asserting refusal/ownership. Fault rows cover
+both failure before replacement and replacement-visible/error wherever writes
+occur. Record fixture, phase and source/output digests. No test may modify a
+real board or ship a product test backdoor.
+
+S1 (#0203 / M14.02): Configure revision 1; retarget A->B->A yields 2 then 3;
+same-target/configured Configure no-op preserves bytes/revision; max overflow
+refuses; stale revisions do not write. Round-trip strict v1/v2/v3, malformed/
+unknown/foreign scope, repeated reopen, size/gap/pair caps, canonical target
+validation and archive exclusion. Migrate clean, dirty idle, open observation,
+prepared, attempted, legacy pending without proof and legacy positive receipt.
+Assert no changed delivery bytes/hash/cuts/count/acceptedAt or invented attempt.
+
+S2 (#0203): Freeze pending at A, retarget B, recover/Lookup original A proof;
+future observation goes B only after original settlement and deliberate Start.
+Open observation with no pending captures A before retarget and Recover still
+uses A. With no pending but retained Last and receipt at A, retarget B, reopen,
+read mixed-target inbox after later B delivery, Lookup both, then retarget A.
+Keep old Last target valid even after its eligible pair is normally reclaimed.
+Assert checkpoint/gaps unchanged by retarget, 64 pairs global, seven-day reclaim
+only at ordinary acceptance, unresolved pair pinned and clock regression safe.
+
+S3 (#0203): Fault migration/config publication before and after replacement;
+live owner never adopts uncertain bytes or admits effects; reopen exposes exact
+persisted revision/target with a fresh generation. Repeat retarget with known
+old versus new revision only after deliberate status. Inject attempt fence,
+acceptance and disposition faults across old/future targets; M13 permissions,
+positive-only Lookup and full expected-state reconciliation remain unchanged.
+
+L1 (#0204 / M14.03): Native running reload at same root/port: gate closes new
+observations, admitted batch finishes once, old effects reach zero before one
+replacement starts; revision/target unchanged, catch-up/suppression preserved.
+Reload stopped/guarded/unconfigured (unconfigured refuses CONTROL_BUSY) and
+same-target Retarget prove no worker, no capture and no evidence mutation.
+Retarget clean running resumes only after publication; stopped stays stopped;
+guarded pending can change future target but retains guard and old intent.
+
+L2 (#0204): Pause predecessor source read, observation publish, attempt fence,
+acceptance and disposition separately; issue Stop/Reload/Retarget. Assert the
+two-second partial response, reservation and root lease retained, current status
+responsive, no replacement effects. Release pause and assert eventual confirmed
+completion, original partial response unchanged and no duplicate worker. Pause
+configuration write and replacement startup too; apply the same deadline rule.
+Separately pause the final response-authority read before any operation effect,
+after successful target publication and after replacement admission. Assert the
+HTTP 503 unknown envelope is decided by the absolute two-second deadline with
+no private fields; the read/operation keep the lease while outstanding, no
+late private response is published, and a later authorized status exposes the
+actual old/new revision and worker state without replay. Also let final response
+authority complete within budget while work remains paused: assert a private
+partial view only after this successful fresh check, with the captured operation.
+Run same-root alias and standalone/workspace competing native processes while
+paused, plus independent-root operation. Close cannot release ownership early.
+
+L3 (#0204): Pairwise compete Configure/Start/Stop/Reload/Retarget/Recover/
+mutating Lookup at the short reservation boundary. Exactly one incompatible
+transition wins; old expected versions are stale and current matching versions
+are busy. Add Close before claim, during drain, publication and replacement
+admission; it prevents replacement after its fence while joining admitted work.
+Assert no control-gate I/O wait and no lease release with outstanding effects.
+
+L4 (#0204): Revoke/expire workflow or grant before initial check, after reserve,
+during stalled I/O, after drain, before configuration write, after write and
+before replacement admission; test each later M13 delivery phase too. Only
+already admitted effects may finish. Current caller can later inspect/Recover;
+background does not renew idle authority. Changed selection/incarnation/root/
+database and regressed cuts refuse; old generations fail after reopen. Interrupt
+before/after configuration write and between drain/replacement startup; reopen
+never resumes the control or turns dirty/attempted into a new permission.
+
+L5 (#0204): Deny/revoke specifically at the final response-authority check after
+successful target publication and, separately, after replacement admission.
+Assert HTTP 503/OUTCOME_UNKNOWN, no NoticeView or generic 401/403, no rollback,
+no second transition, and later authorized exact state. Contrast pre-admission
+401/403, which changes nothing. Repeat with authority-read failure/timeout, not
+only denial. Existing admitted worker phases still enforce current authority.
+
+C1 (#0205 / M14.04): Actual built CLI in standalone and workspace modes runs
+S2/L1 and exact receipt proof. Count one status GET and one POST per invocation;
+race between them returns stale without retry. Cover normal, overflow, malformed
+target, denied/revoked, partial-drain, storage failure and lost reply; readable
+and JSON show the same original/future distinction and original acceptedAt.
+Run L2 response-authority timeout and L5 post-publication/post-replacement denial
+through the actual CLI: exact unknown JSON/readable warning and exit 4, versus
+exit 2 for pre-admission refusal. One GET/one POST, later status only by a new
+deliberate action, no replay and authoritative effects equal the original run.
+Compare authoritative state independently; no raw storage fallback.
+
+B1 (#0206 / M14.05): Pinned real Chrome, two synthetic boards, ordinary product
+handlers and shared-queue diagnostics. Exercise S2/L1, CLI comparison, partial
+then eventual status, exact proof and bot-only suppression. Hold each status,
+control, inbox and lookup reply through A->B->A, panel close/reopen, window/
+authority changes and competing controls. No stale repaint/replay; target draft,
+card editor drafts, keyboard focus and return focus survive expected actions.
+Verify same-origin/CSP and usable narrow layout; release UI control before
+reading diagnostics. Disclose controlled delay/loss setup separately.
+Run L2 final-authority timeout and L5 post-effect denial through production
+browser handlers: show UNKNOWN, never a refused/no-effect claim; keep draft and
+original evidence. Compare later authorized status/CLI to exact persisted effect
+and assert zero replay. No private view from a timed-out/denied response may paint.
+
+Q1 (#0207 / M14.06): Join S/L/C/B rows to one exact candidate, current pinned
+gates/native/browser inventories, two isolated clean builds and complete output
+comparison. Bind source, tools, fixtures, generated contracts, assets and binary
+digests. Reused evidence needs exact compatible binding and independent reason.
+Fresh Sol / High validation resolves findings and repeats affected proof.
+
+D1 (#0208 / M14.07): Fully extract the qualified kit and verify every payload
+digest/guide reference. Actual extracted CLI/browser show pending A/future B,
+Reload retaining scope/ownership, original A receipt ID/cuts/acceptedAt, later
+B work and bot-only suppression. Separately disclose controlled partial/stale
+and unknown-proof cases; prove independent board/same port. Preserve evidence,
+then stop owned hosts, prove listener closure and clean owned fixtures/mailboxes.
+Keep private harness/runtime state outside kit. Fresh independent Sol / High
+review precedes RFR; Terry retains Completed. Process interruption and injected
+I/O errors qualify observed boundaries, not native power-loss durability.

@@ -284,8 +284,9 @@ export class BoardClient {
         if (command.action === "lookup" || "expectedControlGeneration" in command) {
             const body = JSON.stringify(command.action === "lookup"
                 ? { incarnation, targetId: command.targetId, deliveryId: command.deliveryId, expectedControlGeneration: command.expectedControlGeneration, expectedConfigurationRevision: command.expectedConfigurationRevision }
-                : { incarnation, expectedControlGeneration: command.expectedControlGeneration, expectedConfigurationRevision: command.expectedConfigurationRevision });
-            validate(command.action === "lookup" ? "transport:NoticeLookupRequest" : "transport:NoticeControlRequest", parse(body));
+                : command.action === "retarget" ? { incarnation, targetId: command.targetId, expectedControlGeneration: command.expectedControlGeneration, expectedConfigurationRevision: command.expectedConfigurationRevision }
+                    : { incarnation, expectedControlGeneration: command.expectedControlGeneration, expectedConfigurationRevision: command.expectedConfigurationRevision });
+            validate(command.action === "lookup" ? "transport:NoticeLookupRequest" : command.action === "retarget" ? "transport:NoticeRetargetRequest" : "transport:NoticeControlRequest", parse(body));
             init.method = "POST";
             init.body = body;
         }
@@ -301,15 +302,17 @@ export class BoardClient {
         const value = await this.boundedRead(response, credential, noticeReadMaximum);
         requestSignal.throwIfAborted();
         if (response.status !== 200) {
+            if (response.status === 503 && object(value).outcome === "unknown") {
+                validate("transport:NoticeOutcomeUnknown", value);
+                throw Error("Notice outcome UNKNOWN");
+            }
             validate("transport:NonterminalRefusal", value);
             const code = object(object(value).error).code;
             if (response.status === 409 && code === "CONTROL_STALE")
                 throw new NoticeRefusal("stale");
             if (response.status === 409 && code === "CONTROL_BUSY")
                 throw new NoticeRefusal("busy");
-            if (response.status < 500)
-                throw new NoticeRefusal("refused");
-            throw Error("Notice response unavailable");
+            throw new NoticeRefusal("refused");
         }
         validate("transport:NoticeResponse", value);
         const result = value.result;

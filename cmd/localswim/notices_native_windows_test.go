@@ -337,11 +337,7 @@ func testNoticeCLIControlBoundary(t *testing.T, p activityCLIProof, action, scen
 	}
 	if scenario == "lost-after-admission" {
 		wire := p.call(args, nil, 4, "OUTCOME_UNKNOWN", "notices", action)
-		unknown, err := A.Decode[struct {
-			APIVersion A.Version        `json:"apiVersion"`
-			Outcome    T.UnknownOutcome `json:"outcome"`
-			Error      T.Error          `json:"error"`
-		}](wire)
+		unknown, err := T.Decode[T.NoticeOutcomeUnknown](wire)
 		if err != nil || unknown.Outcome != "unknown" || unknown.Error.Code != "OUTCOME_UNKNOWN" ||
 			!strings.Contains(unknown.Error.Message, "Read notices status") {
 			t.Fatal("CLI did not retain uncertainty after admitted action lost its response")

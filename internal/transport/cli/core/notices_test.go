@@ -13,14 +13,14 @@ import (
 )
 
 func TestNoticeControlNeverReplays(t *testing.T) {
-	for _, action := range []string{"stop", "recover"} {
+	for _, action := range []string{"configure", "start", "stop", "recover", "reload", "retarget"} {
 		t.Run(action, func(t *testing.T) { testNoticeControlNeverReplays(t, action) })
 	}
 }
 
 func testNoticeControlNeverReplays(t *testing.T, action string) {
 	const private = "SYNTHETIC_PRIVATE_PROSE"
-	for _, mode := range []string{"stale", "lost-response", "invalid-response", "unavailable-response", "wrong-board", "oversized-status", "denied-status", "denied-post"} {
+	for _, mode := range []string{"stale", "lost-response", "invalid-response", "unavailable-response", "wrong-board", "oversized-status", "denied-status", "denied-post", "unknown-response", "malformed-unknown", "busy", "overflow"} {
 		t.Run(mode, func(t *testing.T) {
 			view := T.NoticeView{Identity: A.Identity{BoardID: testBoard, Incarnation: testInc}, ControlGeneration: testGrant,
 				State: "unconfigured", Entries: []T.NoticePair{}}
@@ -58,7 +58,18 @@ func testNoticeControlNeverReplays(t *testing.T, action string) {
 					return 200, wire, nil
 				}
 				body, err := io.ReadAll(r.Body)
-				q, decodeErr := T.Decode[T.NoticeControlRequest](body)
+				var q T.NoticeControlRequest
+				var decodeErr error
+				if action == "retarget" {
+					x, e := T.Decode[T.NoticeRetargetRequest](body)
+					decodeErr = e
+					if x.TargetID != testActor {
+						t.Fatal("retarget lost canonical target")
+					}
+					q = T.NoticeControlRequest{Incarnation: x.Incarnation, ExpectedControlGeneration: x.ExpectedControlGeneration, ExpectedConfigurationRevision: x.ExpectedConfigurationRevision}
+				} else {
+					q, decodeErr = T.Decode[T.NoticeControlRequest](body)
+				}
 				if err != nil || decodeErr != nil || q.Incarnation != testInc || q.ExpectedControlGeneration != testGrant || r.GetBody != nil {
 					t.Fatal("control request lost exact generation or permitted replay")
 				}
@@ -67,6 +78,15 @@ func testNoticeControlNeverReplays(t *testing.T, action string) {
 					return 0, nil, errors.New(private)
 				case "invalid-response":
 					return 200, []byte(private), nil
+				case "unknown-response":
+					b, _ := T.Readable(T.NoticeOutcomeUnknown{APIVersion: 1, Outcome: "unknown", Error: T.NoticeUnknownError{Code: "OUTCOME_UNKNOWN", Message: T.NoticeUnknownMessage}})
+					return 503, b, nil
+				case "malformed-unknown":
+					return 503, []byte(`{"apiVersion":1,"outcome":"unknown","error":{"code":"OUTCOME_UNKNOWN","message":"private"}}`), nil
+				case "busy":
+					return 409, refusal("CONTROL_BUSY"), nil
+				case "overflow":
+					return 409, refusal("CONFIGURATION_EXHAUSTED"), nil
 				case "unavailable-response":
 					return 503, refusal("UNAVAILABLE"), nil
 				case "denied-post":
@@ -75,19 +95,29 @@ func testNoticeControlNeverReplays(t *testing.T, action string) {
 				return 409, refusal("CONTROL_STALE"), nil
 			})}
 			var out, diagnostic bytes.Buffer
-			exit := (Runner{Provider: p}).Run(t.Context(), args("notices", action), nil, &out, &diagnostic)
+			command := []string{"notices", action}
+			if action == "retarget" {
+				command = append(command, "--target-id", testActor)
+			}
+			exit := (Runner{Provider: p}).Run(t.Context(), args(command...), nil, &out, &diagnostic)
 			code, expectedExit := "UNAVAILABLE", 3
 			want := []string{"GET /api/v1/boards/" + testBoard + "/notices/status?incarnation=" + testInc}
 			switch mode {
-			case "stale", "lost-response", "invalid-response", "unavailable-response", "denied-post":
+			case "stale", "lost-response", "invalid-response", "unavailable-response", "denied-post", "unknown-response", "malformed-unknown", "busy", "overflow":
 				want = append(want, "POST /api/v1/boards/"+testBoard+"/notices/"+action)
 			}
 			switch mode {
 			case "stale":
 				code, expectedExit = "CONTROL_STALE", 2
+			case "busy":
+				code, expectedExit = "CONTROL_BUSY", 2
+			case "overflow":
+				code, expectedExit = "CONFIGURATION_EXHAUSTED", 2
+			case "unavailable-response":
+				code, expectedExit = "UNAVAILABLE", 2
 			case "denied-status", "denied-post":
 				code, expectedExit = "FORBIDDEN", 2
-			case "lost-response", "invalid-response", "unavailable-response":
+			case "lost-response", "invalid-response", "unknown-response", "malformed-unknown":
 				code, expectedExit = "OUTCOME_UNKNOWN", 4
 				v, err := A.Decode[noticeOutcomeUnknown](out.Bytes())
 				if err != nil || v.Outcome != "unknown" || v.Error.Code != code {
@@ -199,5 +229,74 @@ func TestNoticeStopConveysPartialDrainAndOutputUncertainty(t *testing.T) {
 	}
 	if exit := runner.Run(t.Context(), args("notices", "stop"), nil, nil, io.Discard); exit != 4 || calls != 2 {
 		t.Fatal("lost output downgraded a submitted notice control or replayed it")
+	}
+}
+
+func TestNoticeRetargetRejectsNoncanonicalInvocation(t *testing.T) {
+	for _, flags := range [][]string{
+		nil, {"--target-id", ""}, {"--target-id", strings.ToUpper(testActor)},
+		{"--target-id", " " + testActor}, {"--target-id", testActor + " "},
+		{"--target-id", "00000000-0000-0000-0000-000000000000"},
+		{"--target-id", "https://example.invalid/target"}, {"--target-id", strings.Repeat("a", 4096)},
+		{"--target-id", testActor, "--target-id", testActor},
+		{"--target-id", testActor, "--delivery-id", strings.Repeat("a", 64)},
+	} {
+		p := &provider{}
+		var out bytes.Buffer
+		command := append([]string{"notices", "retarget"}, flags...)
+		if exit := (Runner{Provider: p}).Run(t.Context(), args(command...), nil, &out, io.Discard); exit != 1 || p.opened != 0 {
+			t.Fatal("invalid target invocation reached credentials or service")
+		}
+	}
+}
+
+func TestNoticeRetargetPreservesHistoricalOutputAndExactVersions(t *testing.T) {
+	future, original := T.UUIDv4(testActor), T.UUIDv4(testGrant)
+	zero, one := A.Number(0), A.Number(1)
+	delivery := A.Digest(strings.Repeat("a", 64))
+	op := T.NoticeOperation("retarget")
+	cut := &T.NoticeCut{TargetID: original, Class: "human", LowerEvent: zero, UpperEvent: &one, EventCount: &one, DeliveryID: &delivery}
+	view := T.NoticeView{Identity: A.Identity{BoardID: testBoard, Incarnation: testInc}, ControlGeneration: testGrant,
+		ConfigurationRevision: 9007199254740991, State: "partial-drain", ControlOperation: &op, TargetID: &future, Checkpoint: &zero,
+		Last: cut, Pending: cut, Entries: []T.NoticePair{}}
+	wire, err := T.Readable(T.NoticeResponse{APIVersion: 1, Scope: "notices", Result: view})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, jsonMode := range []bool{false, true} {
+		calls := 0
+		p := &provider{conn: connection(t, func(r *http.Request) (int, []byte, error) {
+			calls++
+			if calls == 1 && r.Method != http.MethodGet || calls == 2 && r.Method != http.MethodPost {
+				t.Fatal("control did not use one status then one POST")
+			}
+			if r.Method == http.MethodPost {
+				b, e := io.ReadAll(r.Body)
+				q, de := T.Decode[T.NoticeRetargetRequest](b)
+				if e != nil || de != nil || q.ExpectedConfigurationRevision != view.ConfigurationRevision || q.ExpectedControlGeneration != view.ControlGeneration || q.TargetID != future {
+					t.Fatal("exact versions/target lost")
+				}
+			}
+			return 200, wire, nil
+		})}
+		command := append(prefix()[1:], "notices", "retarget", "--target-id", string(future))
+		if jsonMode {
+			command = args("notices", "retarget", "--target-id", string(future))
+		}
+		var out bytes.Buffer
+		if exit := (Runner{Provider: p}).Run(t.Context(), command, nil, &out, io.Discard); exit != 0 || calls != 2 {
+			t.Fatal("confirmed partial control did not retain single submission")
+		}
+		if jsonMode {
+			if !bytes.Equal(out.Bytes(), wire) {
+				t.Fatal("versioned JSON changed original evidence")
+			}
+		} else {
+			for _, want := range []string{"Future target: " + string(future), "Configuration revision: 9007199254740991", "Pending original target: " + string(original), "Last original target: " + string(original), "Pending delivery: " + string(delivery), "events (0, 1], count 1", "Incomplete control: retarget"} {
+				if !strings.Contains(out.String(), want) {
+					t.Fatal("readable output concealed original versus future evidence")
+				}
+			}
+		}
 	}
 }

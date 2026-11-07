@@ -29,7 +29,7 @@ func noticePath(selected Selectors, action, method string) string {
 func runNotices(ctx context.Context, c *Connection, q invocation, action string) result {
 	var request any
 	incarnation := A.UUID(q.selected.Incarnation)
-	if action == "configure" || action == "start" || action == "stop" || action == "recover" || action == "lookup" {
+	if q.method == http.MethodPost {
 		status := requestNotices(ctx, c, q, "status", http.MethodGet, noticePath(q.selected, "status", http.MethodGet), nil)
 		if status.exit != 0 {
 			return status
@@ -37,6 +37,8 @@ func runNotices(ctx context.Context, c *Connection, q invocation, action string)
 		view := status.value.(T.NoticeResponse).Result
 		if action == "lookup" {
 			request = T.NoticeLookupRequest{Incarnation: incarnation, TargetID: T.UUIDv4(q.noticeTarget), DeliveryID: A.Digest(q.noticeDelivery), ExpectedControlGeneration: view.ControlGeneration, ExpectedConfigurationRevision: view.ConfigurationRevision}
+		} else if action == "retarget" {
+			request = T.NoticeRetargetRequest{Incarnation: incarnation, TargetID: T.UUIDv4(q.noticeTarget), ExpectedControlGeneration: view.ControlGeneration, ExpectedConfigurationRevision: view.ConfigurationRevision}
 		} else {
 			request = T.NoticeControlRequest{Incarnation: incarnation, ExpectedControlGeneration: view.ControlGeneration, ExpectedConfigurationRevision: view.ConfigurationRevision}
 		}
@@ -65,6 +67,17 @@ func requestNotices(ctx context.Context, c *Connection, q invocation, action, me
 		return unconfirmed
 	}
 	if status != http.StatusOK {
+		if method == http.MethodPost && status == http.StatusServiceUnavailable {
+			if unknown, err := T.Decode[T.NoticeOutcomeUnknown](wire); err == nil {
+				return result{unknown, 4}
+			}
+			// Only a strict refusal envelope proves pre-admission non-effect.
+			// A malformed, lost or unknown result must never become a refusal.
+			if refusal, err := T.Decode[T.NonterminalRefusal](wire); err == nil {
+				return refused(refusal.Error.Code, 2, nil)
+			}
+			return unconfirmed
+		}
 		failure := classifyReadFailure(status, wire, nil)
 		if failure.exit != 2 {
 			return unconfirmed
@@ -96,20 +109,24 @@ func writeNotices(out *strings.Builder, v T.NoticeView) {
 	if v.Reason != nil {
 		fmt.Fprintf(out, "Reason: %s\n", *v.Reason)
 	}
+	fmt.Fprintf(out, "Configuration revision: %d\n", v.ConfigurationRevision)
+	if v.ControlOperation != nil {
+		fmt.Fprintf(out, "Incomplete control: %s; read notices status for eventual actual state.\n", *v.ControlOperation)
+	}
 	if v.TargetID == nil {
-		out.WriteString("Target: unavailable\n")
+		out.WriteString("Future target: unavailable\n")
 	} else {
-		fmt.Fprintf(out, "Target: %s\nCheckpoint: %d\n", *v.TargetID, *v.Checkpoint)
+		fmt.Fprintf(out, "Future target: %s\nCheckpoint: %d\n", *v.TargetID, *v.Checkpoint)
 	}
 	fmt.Fprintf(out, "Gap count: %d\n", v.GapCount)
 	if v.Last != nil {
-		fmt.Fprintf(out, "Last: %s\n", noticeCutText(v.Last.Class, v.Last.LowerEvent, v.Last.UpperEvent, v.Last.EventCount))
+		fmt.Fprintf(out, "Last original target: %s\nLast: %s\n", v.Last.TargetID, noticeCutText(v.Last.Class, v.Last.LowerEvent, v.Last.UpperEvent, v.Last.EventCount))
 		if v.Last.DeliveryID != nil {
 			fmt.Fprintf(out, "Last delivery: %s\n", *v.Last.DeliveryID)
 		}
 	}
 	if v.Pending != nil {
-		fmt.Fprintf(out, "Pending: %s\n", noticeCutText(v.Pending.Class, v.Pending.LowerEvent, v.Pending.UpperEvent, v.Pending.EventCount))
+		fmt.Fprintf(out, "Pending original target: %s\nPending: %s\n", v.Pending.TargetID, noticeCutText(v.Pending.Class, v.Pending.LowerEvent, v.Pending.UpperEvent, v.Pending.EventCount))
 		if v.Pending.DeliveryID != nil {
 			fmt.Fprintf(out, "Pending delivery: %s\n", *v.Pending.DeliveryID)
 		}

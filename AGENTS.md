@@ -58,9 +58,12 @@ the service PATH. Queue acceptance is not completed work or a ticket authorizati
 For queued alerts inspect sanitized `activity monitor-between SINCE UNTIL --json`
 first, with bounded pagination. Only valid, complete, nonempty all-Bot metadata
 permits suppression; otherwise inspect focused indicated cards and honor normal
-work gates. Keep legacy watchers off; preserve target/cursor/pending/lock files.
-Never kill a remembered PID. Authorized legacy cleanup uses verified exact owner
-paths and documented cooperative stop, followed by verification. Project caches,
+work gates. Legacy filesystem watcher/pool commands and their optional extra are
+retired: do not launch/reload/stop old interfaces, reinstall the native watcher
+dependency or recreate local watchers from historical code. Stale launchers fail
+with built-in guidance; no compatibility flag/environment override enables old
+startup. Preserve legacy target/cursor/pending/lock files and never act on a
+remembered PID without verifying current process/ownership. Project caches,
 runtime and test evidence stay outside the shared installation.
 
 ## Mandatory shared message queue workflow for web-client development

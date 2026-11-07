@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS_REQUIRED_KIT_PROOF",
+  "independentReview": "Fresh nonauthor Sol / High PASS",
+  "qualifiedProductSource": "ae2b4d6c65a10bc3cd424ee44e5d16a57a67e6b0",
+  "qualificationPublication": "be58a8c91139594857b88a6dc138b006a6fa8d4c",
+  "contract": "M15-LOCAL-TEXT-R3",
+  "platform": "Synthetic Windows amd64, local NTFS and numeric loopback",
+  "archive": {
+    "name": "localswim-m15-windows-amd64.zip",
+    "sha256": "da534b97fa38a1a9f8558379853bd9df90ec76be8b70448c5cc8b044e72bc05b",
+    "bytes": 12889613,
+    "files": 54,
+    "payloads": 52,
+    "checksummedFiles": 53,
+    "completeFreshExclusiveExtraction": true,
+    "boardAttachmentLimitExceeded": true
+  },
+  "executableSHA256": "3dcf6dcac9192798ba7830443355dd8c9383a2f6361274d5116043f47d8cb1db",
+  "embeddedManifestSHA256": "399b9543a53f97a8d6ab053a7b863b9f84bd88733578173ba9607ef07ecca76d",
+  "runtimeModules": [
+    {
+      "module": "github.com/dustin/go-humanize",
+      "version": "v1.1.0"
+    },
+    {
+      "module": "github.com/google/uuid",
+      "version": "v1.6.0"
+    },
+    {
+      "module": "github.com/mattn/go-isatty",
+      "version": "v0.0.24"
+    },
+    {
+      "module": "github.com/ncruces/go-strftime",
+      "version": "v1.1.0"
+    },
+    {
+      "module": "github.com/remyoudompheng/bigfft",
+      "version": "v0.0.0-20230129092748-24d4a6f8daec"
+    },
+    {
+      "module": "golang.org/x/sys",
+      "version": "v0.49.0"
+    },
+    {
+      "module": "modernc.org/libc",
+      "version": "v1.80.1"
+    },
+    {
+      "module": "modernc.org/mathutil",
+      "version": "v1.7.1"
+    },
+    {
+      "module": "modernc.org/memory",
+      "version": "v1.12.1"
+    },
+    {
+      "module": "modernc.org/sqlite",
+      "version": "v1.62.0"
+    }
+  ],
+  "freshExactArchiveDemo": {
+    "ordinaryExecutesExactExtractedPath": true,
+    "ordinaryCLIPrintsExactCanonicalUTF8LF": true,
+    "browserWriteTextArgumentExactLF": "Production helper/component checks; same bound helper code in ordinary extracted browser",
+    "nativeClipboardRepresentation": "Exact expected Windows CRLF only; no received normalization/BOM/terminal newline",
+    "caseResults": {
+      "default": {
+        "checks": 18,
+        "diagnostics": 6,
+        "boundary": "ordinary shipped"
+      },
+      "default-reopen": {
+        "checks": 10,
+        "diagnostics": 3,
+        "boundary": "ordinary shipped"
+      },
+      "workspace": {
+        "checks": 18,
+        "diagnostics": 6,
+        "boundary": "ordinary shipped"
+      },
+      "workspace-reopen": {
+        "checks": 10,
+        "diagnostics": 3,
+        "boundary": "ordinary shipped"
+      },
+      "mixed-default": {
+        "checks": 10,
+        "diagnostics": 3,
+        "boundary": "Ordinary extracted host+CLI; actual human and automation API setup before deliberate Start captures mixed interval"
+      },
+      "mixed-workspace": {
+        "checks": 10,
+        "diagnostics": 3,
+        "boundary": "Ordinary extracted host+CLI; actual human and automation API setup before deliberate Start captures mixed interval"
+      },
+      "fallback": {
+        "checks": 10,
+        "diagnostics": 3,
+        "boundary": "separately controlled admitted source-unavailable; genuine new Go fallback receipt/native clipboard"
+      },
+      "legacy": {
+        "checks": 6,
+        "diagnostics": 3,
+        "boundary": "old qualified ordinary binary creates v3 record; current shipped binary reads it without text retrofit"
+      }
+    },
+    "humanAndMixedOnDefaultAndConfiguredBoards": true,
+    "sourceMutationAndReopenPreserveOriginal": true,
+    "readableAndJSONRetainIdentityCutsAcceptedAt": true,
+    "literalShippedPowerShellBlock": "PASS; exact extracted DEMO automation block, guarded outcomes",
+    "completeBotOnlySuppressionAndOriginalPairsUnchanged": {
+      "standaloneLiteralGuide": true,
+      "configuredFreshExactExtraction": true,
+      "configuredActualUpper": 2,
+      "configuredCheckpoint": 2,
+      "configuredLast": "suppressed"
+    },
+    "legacyUnavailableAndNewCapturedFallbackDistinct": true,
+    "realNativeClipboardDenialFocusAndDraftChecks": true,
+    "controlledBrowserFaults": "Held/late route close/A-B-A and synthetic current401 auth refusal are controlled transport conditions; production component/clipboard probes are separately labeled. These are not real server grant revocation or native delayed-OS-write claims."
+  },
+  "evidenceUse": {
+    "ordinary": "Default/configured human/mixed/reopen browser and actual CLI invoke the exact extracted qualified executable, not a rebuilt substitute.",
+    "controlled": "Source-unavailable fallback uses separately controlled Go binary; genuine old-version legacy creator separate. Ordinary default/workspace/mixed/reopen hosts and every actual CLI use the exact extracted executable.",
+    "legacy": "Exact older qualified ordinary binary creates a genuine old-format record solely for current upgrade/unavailable disclosure.",
+    "historical": "Initial unguarded-guide package retained separately; final rebuilt ZIP is fully reverified and freshly executed. Earlier M15 failed source/harness attempts remain in joined evidence.",
+    "sourceProvenance": "Actual setup/control sourceDirectory is exact completed clean B. A retained frozen scope.source label says clean A; all qualified A/B source and binary bytes independently match. Frozen evidence is preserved, and ordinary runs execute the exact extracted kit path."
+  },
+  "cleanup": {
+    "allBrowsersClosed": true,
+    "allOwnedMailboxesDeleted": true,
+    "allOwnedHostsAndListenersClosed": true,
+    "nativeRootsRemoved": true,
+    "liveExtractedExecutables": [],
+    "extractionRemoved": true
+  },
+  "ownerNotifications": "Current shared built-in owner notifications enabled for verified owning chat at explicit owner request; no legacy watcher/pool.",
+  "limits": [
+    "No native physical power-loss certification or general-release/owner-acceptance claim.",
+    "Copy/print/local receipt is not external Codex delivery, negative acceptance or future send permission.",
+    "Windows clipboard follows its native CRLF convention; use raw CLI for exact LF byte stream.",
+    "Terry retains Completed; project progress checkpoint changes only after milestone owner completion."
+  ],
+  "evidenceSHA256": {
+    "packageVerification": "39da361396471633689f2ce22ce7e6e6cd7cb0d2d6d09d0c725c5237404b848a",
+    "manifest": "7239da53eb7e594516d87e4ae91ecd3533572cd3c765d0a0b09e9804f80b9e01",
+    "checksums": "bf8a1f6ea56a886437861356fcf8aec61e13a16ba1639278bbd7ca8292880c40",
+    "freshFinalDemo": "d51b351cd16dce9658a9319c7a6e8a72d00aba45610fda09566b0b0383a2b1e8",
+    "freshDemoRuntime": "d00db69d64f82a26a91032c4ce30ded440d8546dff3886ae70516533028b5cf8",
+    "freshExtraction": "078cb811a250014bc0d43c19ca7f24dcc5edfad5207e0829c05bd6d1ad7a8b68",
+    "configuredSuppressionSupplement": "817b3f5848664eedcc7cc5f4538167c6a73461e4bf272a57b3f40cfe79bcbfac",
+    "initialPackageReview": "0f6db956e3bdc0b211c2a10aa9267958907d21c0b639c1fc519617d8ff2021de",
+    "independentPackageReview": "85a40ed510cd2910bd19ab86381e890fcef1a26cea203a18c36da2cc4ae95c07"
+  }
+}

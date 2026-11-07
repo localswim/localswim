@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "independentReview": "Fresh Sol / High PASS",
+  "qualifiedProductSource": "d883c2c7e4e5d3403e72886e6424b66994260714",
+  "qualifiedNativeInput": "806cdb6b97bfe87fdfaf923f4c442ec3ce770796",
+  "nativeOnlyChangedPath": "qualification/native/transaction/providers.json",
+  "nativeProviderSHA256": "c6f097bc3d5a088f28d70ec306806e397c831c0651c34b7605591b8cb3a623e9",
+  "executableSHA256": "c927637c8fe579682e43ced8e1e66f1a48291b459713683d992b034682d7c5f8",
+  "embeddedManifestSHA256": "f61f8d86ad9984719f10177536a3d592b4bf582ceefbbfc04b546d13c0878766",
+  "lockfileSHA256": "29f45725992d79c0be2091dc558fe2494fa39bbbf02296b5771d6277e7ee7a35",
+  "platform": "Synthetic Windows amd64, local NTFS and numeric loopback",
+  "tools": {
+    "go": "1.27.3",
+    "node": "26.13.0",
+    "npm": "12.2.2",
+    "typescript": "7.0.2",
+    "playwright": "1.65.0",
+    "chrome": "157.0.8103.38"
+  },
+  "toolExecutableSHA256": {
+    "go": "83b7ba66215e696414fa49462d0db2da4f4cf15c7bebd42f0b189fa04866999d",
+    "node": "14319838b3f355e0398c13569a90270bce4fc68f25189f58c59b03dadae0e6d5",
+    "npm": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+    "browser": "b299662ff2155d34b7aa8475d287940aa9461fc538defecff6fdd566054541b1"
+  },
+  "sourceFiles": 1155,
+  "cleanBuilds": 2,
+  "matchingOutputs": 108,
+  "postTestRebuilds": 2,
+  "goTestsPerTree": 2368,
+  "nodeTestsPerTree": 94,
+  "nativeProviders": 528,
+  "nativeCompilerVectors": 13,
+  "nativeCompilerMatchingBuilds": 2,
+  "nativePassed": {
+    "transaction": 8,
+    "transactionChild": 7,
+    "archive": 14,
+    "archiveChild": 4,
+    "archiveInventoryRows": 6,
+    "taggedCLI": 6
+  },
+  "mandatoryBrowserCases": 21,
+  "mandatoryBrowserDiagnostics": 45,
+  "exactCandidateClientChecks": {
+    "actualCLI": 110,
+    "chrome": 86,
+    "runner": 32,
+    "diagnostics": 8
+  },
+  "freshControlledProcessChecks": 136,
+  "freshControlledAuthorityChecks": 80,
+  "evidenceSHA256": {
+    "builds": "6f0f3c1422e792af5afe67f879f6d8c4a7df8c3ef7229883f59edf313817ff78",
+    "sourceInventory": "f8184d6aedb73b48fcec910b318a1a74e14835a91d2be2daaf01d7d80512d060",
+    "outputs": "fecdcef476c4993f757a5f20b4db5b156ab5a753ef70de3a404d5201e9995c8b",
+    "native": "8927aef3382c8474c059c5ea15a52ed4a1de4600ca10c1c3e99636b81a40c3c9",
+    "nativeSource": "afffb3f0c8f88001be0ffa8f78f17dc0ed7a012ad536af954348619921c80b0d",
+    "nativeCleanup": "1156d43d7ed8220e9a5dc07dc417f4a1b4d5f3995f43ba94ca8778c5bd279807",
+    "taggedCLI": "818fcccb0d89be709b8fc67a18c7cf3dcb5a9cb926cb19e815d56ca602f3405e",
+    "nativeReceiptIndex": "00b77e063390f0ab9c869ffdfd9234412d9cb608b9afa1e7d19e6f922d73f189",
+    "chrome": "c7b74a6e8b30efefb92cd5defe12ca9325d7fb46751b14d9a771ae7360b41f3c",
+    "chromeFinal": "7aa6ae0cbb3c4d2a991ac21fd70aea638c2a18b7b72f9e97f8b71a00763a2b57",
+    "chromeCoverage": "ddec00f5893785f80a4c0d9580d10b0c175f04fac418109ab468d12e65cd11db",
+    "chromeDiagnostics": "5bf83dace551d2308a2369febb86ec7c88a07c28093207fb1c8f21f08c1e0afe",
+    "process": "0ad62bf40662ec8aabb0b574ce85fa930d332e1625c58b2eec1b5e86653dd4a3",
+    "authority": "d0e0901787363122e8921cd4074fa28a54fb777cb358a2196c452fc3e03246cf",
+    "clients": "83b04299c18185d8225e0da5b4bc37c9f1b9d9edde956510f34522eb3364a9b9",
+    "independentReview": "4994a97d46e50d6e5246fc00546917c07ce5098c8088ed31cd0ddcfe36e43d9b",
+    "cleanBuildFixtureCleanup": "eb7319bca99de124939af4f277c36b10a545deaf1e389815148ff20ae263a90d"
+  }
+}

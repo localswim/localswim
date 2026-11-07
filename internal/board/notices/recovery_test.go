@@ -190,7 +190,7 @@ func TestLegacyRecoveryEncodingAndIdentity(t *testing.T) {
 			t.Fatal("legacy no-op rewrote original evidence")
 		}
 		requireErr(t, s.BeginRun(), nil)
-		want := bytes.Replace([]byte(v1), []byte(`"version":1`), []byte(`"version":3`), 1)
+		want := bytes.Replace([]byte(v1), []byte(`"version":1`), []byte(`"version":4`), 1)
 		want = bytes.Replace(want, []byte(`"checkpoint":`), []byte(`"configurationRevision":1,"checkpoint":`), 1)
 		want = bytes.Replace(want, []byte(`"dirty":false`), []byte(`"dirty":true`), 1)
 		want = append(want[:len(want)-1], []byte(`,"pendingAttempt":null}`)...)
@@ -208,6 +208,8 @@ func TestLegacyRecoveryEncodingAndIdentity(t *testing.T) {
 			d, err := decode(f.data, selected)
 			requireErr(t, err, nil)
 			d.Version, d.PendingAttempt = legacyVersion, nil
+			legacyFixture(d)
+			i = legacyFixtureIntent(i)
 			f.data, err = d.encode()
 			requireErr(t, err, nil)
 			writes := f.writes
@@ -236,8 +238,8 @@ func TestStrictAttemptDecodingAndFreshProof(t *testing.T) {
 	i := prepare(t, s, complete(ObservedEmpty, baseline, 0))
 	canonical := bytes.Clone(f.data)
 	bad := [][]byte{
-		bytes.Replace(canonical, []byte(`"version":3`), []byte(`"version":4`), 1),
-		bytes.Replace(canonical, []byte(`"version":3`), []byte(`"version":1`), 1),
+		bytes.Replace(canonical, []byte(`"version":4`), []byte(`"version":5`), 1),
+		bytes.Replace(canonical, []byte(`"version":4`), []byte(`"version":1`), 1),
 		bytes.Replace(canonical, []byte(`,"pendingAttempt":"prepared"`), nil, 1),
 		bytes.Replace(canonical, []byte(`"pendingAttempt":"prepared"`), []byte(`"pendingAttempt":null`), 1),
 		bytes.Replace(canonical, []byte(`"pendingAttempt":"prepared"`), []byte(`"pendingAttempt":"new"`), 1),

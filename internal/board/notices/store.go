@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/localswim/localswim/internal/board/noticeinterval"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	"github.com/localswim/localswim/internal/contract/noticetext"
 )
 
 var (
@@ -295,7 +296,7 @@ func (s *Store) suppress(d *durable, upper noticeinterval.Cut, quiescent bool) e
 	}
 	count := upper.Event - d.Checkpoint.Event
 	next := *d
-	next.Last = &Outcome{d.Observation.ID, d.Checkpoint, &upper, Suppressed, &count, "", d.Observation.TargetID}
+	next.Last = &Outcome{ObservationID: d.Observation.ID, Lower: d.Checkpoint, Upper: &upper, Class: Suppressed, Count: &count, TargetID: d.Observation.TargetID}
 	next.Checkpoint, next.Observation = upper, nil
 	next.Dirty = !quiescent
 	return s.publish(&next)
@@ -321,6 +322,14 @@ func (s *Store) prepare(d *durable, evidence noticeinterval.Evidence) (*Intent, 
 	}
 	i := Intent{Version: intentVersion, Binding: d.Binding, ObservationID: d.Observation.ID, Lower: d.Checkpoint,
 		Upper: copyValue(evidence.Upper), TargetID: d.Observation.TargetID, Class: evidence.Class, Count: copyValue(evidence.Count)}
+	// Capture the original once before any prepared/attempted publication. A
+	// loss or observed-empty interval cannot claim complete facts.
+	facts := evidence.Facts
+	if isLoss(evidence.Class) || evidence.Class == ObservedEmpty {
+		facts = nil
+	}
+	payload := noticetext.Build(facts)
+	i.Payload = noticetext.Clone(&payload)
 	i.DeliveryID = i.identity()
 	if d.Pending != nil {
 		if !i.exact(*d.Pending) {

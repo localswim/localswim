@@ -6,6 +6,7 @@ import (
 
 	"github.com/localswim/localswim/internal/board/noticeinterval"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	"github.com/localswim/localswim/internal/contract/noticetext"
 )
 
 func (d *durable) encode() ([]byte, error) {
@@ -17,8 +18,11 @@ func (d *durable) encode() ([]byte, error) {
 		wire = d.legacyWire()
 	}
 	b, err := json.Marshal(wire)
-	if err != nil || len(b) > MaxStateBytes {
+	if err != nil {
 		return nil, ErrInvalid
+	}
+	if len(b) > MaxStateBytes {
+		return nil, ErrCapacity
 	}
 	return b, nil
 }
@@ -50,7 +54,7 @@ func decode(raw []byte, binding Binding) (*durable, error) {
 func (d *durable) valid() bool {
 	if !d.validAttempt() || !d.Binding.valid() || !validUUID4(d.TargetID) || !d.Checkpoint.Valid() ||
 		d.ConfigurationRevision < 1 || d.ConfigurationRevision > MaxConfigurationRevision ||
-		(d.Version != stateVersion && d.ConfigurationRevision != 1) ||
+		(d.Version < configurationVersion && d.ConfigurationRevision != 1) ||
 		d.Gaps == nil || len(d.Gaps) > MaxGaps || d.Inbox == nil || len(d.Inbox) > MaxPairs {
 		return false
 	}
@@ -58,11 +62,11 @@ func (d *durable) valid() bool {
 		A.Validate(o.FirstAt) != nil || A.Validate(o.LatestAt) != nil || !validUUID4(o.TargetID) ||
 		o.ConfigurationRevision < 1 || o.ConfigurationRevision > d.ConfigurationRevision ||
 		(o.ConfigurationRevision == d.ConfigurationRevision && o.TargetID != d.TargetID) ||
-		(d.Version != stateVersion && (o.ConfigurationRevision != 1 || o.TargetID != d.TargetID))) {
+		(d.Version < configurationVersion && (o.ConfigurationRevision != 1 || o.TargetID != d.TargetID))) {
 		return false
 	}
 	if p := d.Pending; p != nil && (d.Observation == nil || p.ObservationID != d.Observation.ID ||
-		p.Lower != d.Observation.Lower || p.Class == Suppressed || !p.valid(d.Binding, d.Observation.TargetID)) {
+		p.Lower != d.Observation.Lower || p.Class == Suppressed || !d.validIntent(*p, d.Observation.TargetID)) {
 		return false
 	}
 	gaps, ok := d.validGaps()
@@ -73,12 +77,12 @@ func (d *durable) validAttempt() bool {
 	switch d.Version {
 	case legacyVersion:
 		return d.PendingAttempt == nil
-	case attemptVersion, stateVersion:
+	case attemptVersion, configurationVersion, stateVersion:
 		if d.Pending == nil {
 			return d.PendingAttempt == nil
 		}
 		return d.PendingAttempt != nil && (*d.PendingAttempt == prepared || *d.PendingAttempt == attempted ||
-			d.Version == stateVersion && *d.PendingAttempt == legacyUnknown)
+			d.Version >= configurationVersion && *d.PendingAttempt == legacyUnknown)
 	default:
 		return false
 	}
@@ -134,7 +138,7 @@ func (d *durable) validOutcome(gaps map[A.UUID]Gap) bool {
 		return len(d.Inbox) == 0 || (len(d.Inbox) == 1 && !d.Inbox[0].Finalized)
 	}
 	if !validUUID4(o.ObservationID) || !validUUID4(o.TargetID) ||
-		(d.Version != stateVersion && o.TargetID != d.TargetID) ||
+		(d.Version < configurationVersion && o.TargetID != d.TargetID) ||
 		!intervalValid(o.Class, o.Lower, o.Upper, o.Count) || !matchesGap(*o, gaps) ||
 		(d.Observation != nil && d.Observation.ID == o.ObservationID) {
 		return false
@@ -147,10 +151,19 @@ func (d *durable) validOutcome(gaps map[A.UUID]Gap) bool {
 		return false
 	}
 	if o.Class == Suppressed {
-		return o.DeliveryID == ""
+		return o.DeliveryID == "" && o.Payload == nil
 	}
-	i := Intent{intentVersion, d.Binding, o.ObservationID, o.Lower, o.Upper, o.TargetID, o.Class, o.Count, o.DeliveryID}
-	return i.valid(d.Binding, o.TargetID)
+	version := legacyIntentVersion
+	if o.Payload != nil {
+		version = intentVersion
+	}
+	i := Intent{Version: version, Binding: d.Binding, ObservationID: o.ObservationID, Lower: o.Lower,
+		Upper: o.Upper, TargetID: o.TargetID, Class: o.Class, Count: o.Count, Payload: o.Payload, DeliveryID: o.DeliveryID}
+	return d.validIntent(i, o.TargetID)
+}
+
+func (d *durable) validIntent(i Intent, target A.UUID) bool {
+	return (d.Version == stateVersion || i.Version == legacyIntentVersion) && i.valid(d.Binding, target)
 }
 
 func (d *durable) validInbox(gaps map[A.UUID]Gap) bool {
@@ -159,8 +172,8 @@ func (d *durable) validInbox(gaps map[A.UUID]Gap) bool {
 	lastFound := false
 	for idx, e := range d.Inbox {
 		i := e.Intent
-		if i.Class == Suppressed || !i.valid(d.Binding, i.TargetID) ||
-			(d.Version != stateVersion && i.TargetID != d.TargetID) || !matchesGap(i.outcome(), gaps) ||
+		if i.Class == Suppressed || !d.validIntent(i, i.TargetID) ||
+			(d.Version < configurationVersion && i.TargetID != d.TargetID) || !matchesGap(i.outcome(), gaps) ||
 			A.Validate(e.AcceptedAt) != nil || seen[i.ObservationID] ||
 			(idx > 0 && (prior == nil || !i.Lower.Follows(*prior))) {
 			return false
@@ -169,7 +182,7 @@ func (d *durable) validInbox(gaps map[A.UUID]Gap) bool {
 		if !e.Finalized {
 			if idx != len(d.Inbox)-1 || d.Pending == nil || !i.exact(*d.Pending) ||
 				(d.Version != legacyVersion && *d.PendingAttempt != attempted &&
-					!(d.Version == stateVersion && *d.PendingAttempt == legacyUnknown)) {
+					!(d.Version >= configurationVersion && *d.PendingAttempt == legacyUnknown)) {
 				return false
 			}
 			continue
@@ -180,7 +193,7 @@ func (d *durable) validInbox(gaps map[A.UUID]Gap) bool {
 		if d.Last != nil && i.ObservationID == d.Last.ObservationID {
 			o := d.Last
 			if o.TargetID != i.TargetID || o.DeliveryID != i.DeliveryID || o.Class != i.Class || !same(o.Count, i.Count) ||
-				o.Lower != i.Lower || !same(o.Upper, i.Upper) ||
+				o.Lower != i.Lower || !same(o.Upper, i.Upper) || !noticetext.Equal(o.Payload, i.Payload) ||
 				(idx < len(d.Inbox)-1 && d.Inbox[idx+1].Finalized) {
 				return false
 			}
@@ -190,6 +203,6 @@ func (d *durable) validInbox(gaps map[A.UUID]Gap) bool {
 		}
 	}
 	// An acceptance may reclaim the prior last pair before its own finalize.
-	return d.Version == stateVersion || d.Last == nil || d.Last.DeliveryID == "" || lastFound ||
+	return d.Version >= configurationVersion || d.Last == nil || d.Last.DeliveryID == "" || lastFound ||
 		(len(d.Inbox) > 0 && !d.Inbox[len(d.Inbox)-1].Finalized)
 }

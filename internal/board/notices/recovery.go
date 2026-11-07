@@ -181,7 +181,7 @@ func (s *Store) Fence(intent *Intent, at A.Timestamp, recovery bool) (func(A.Tim
 	if d.recoveryAction() != RecoveryAttempt || !d.Pending.exact(*intent) {
 		return nil, ErrGuarded
 	}
-	_, err = retainedPairs(d, at)
+	retained, err := retainedPairs(d, at)
 	if err != nil {
 		if err == ErrCapacity && !recovery {
 			s.refused = true
@@ -191,6 +191,16 @@ func (s *Store) Fence(intent *Intent, at A.Timestamp, recovery bool) (func(A.Tim
 	next := *d
 	marker := attempted
 	next.PendingAttempt = &marker
+	// Prove the combined acceptance fits before consuming the one-use attempt.
+	// Expiry may reclaim only the existing retention policy's eligible pairs.
+	prospective := next
+	prospective.Inbox = append(retained, entry{Intent: *d.Pending, AcceptedAt: at})
+	if _, err := prospective.encode(); err != nil {
+		if err == ErrCapacity && !recovery {
+			s.refused = true
+		}
+		return nil, err
+	}
 	if err := s.publish(&next); err != nil {
 		return nil, err
 	}

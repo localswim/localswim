@@ -161,7 +161,7 @@ func TestImmutableIntentAndSanitizedProjection(t *testing.T) {
 	}
 	changed := *i
 	changed.Class = UnknownActor
-	if changed.identity() != i.DeliveryID || changed.exact(*i) {
+	if changed.identity() == i.DeliveryID || changed.exact(*i) {
 		t.Fatal("identity encoding failed to distinguish immutable content validation")
 	}
 	_, err = s.Accept(target, strings.Repeat("f", 64), sample)

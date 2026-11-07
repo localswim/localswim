@@ -172,7 +172,7 @@ func TestOpenObservationCapturesTargetAcrossRetarget(t *testing.T) {
 }
 
 func TestLegacyVersionsMigrateLosslesslyOnRetarget(t *testing.T) {
-	for _, version := range []int{legacyVersion, attemptVersion} {
+	for _, version := range []int{legacyVersion, attemptVersion, configurationVersion} {
 		for _, phase := range []string{"clean", "idle", "observation", "prepared", "attempted", "receipt", "finalized"} {
 			t.Run(fmt.Sprintf("v%d/%s", version, phase), func(t *testing.T) {
 				s, f, target := start(t)
@@ -201,6 +201,8 @@ func TestLegacyVersionsMigrateLosslesslyOnRetarget(t *testing.T) {
 				}
 				d := *s.current.Load()
 				d.Version = version
+				legacyFixture(&d)
+				i = legacyFixtureIntent(i)
 				if version == legacyVersion {
 					d.PendingAttempt = nil
 				}
@@ -257,13 +259,17 @@ func TestLegacyVersionsMigrateLosslesslyOnRetarget(t *testing.T) {
 }
 
 func TestConfigurationPublicationFaultsAndReopen(t *testing.T) {
-	for _, version := range []int{legacyVersion, attemptVersion, stateVersion} {
+	for _, version := range []int{legacyVersion, attemptVersion, configurationVersion, stateVersion} {
 		for _, land := range []bool{false, true} {
 			t.Run(fmt.Sprintf("v%d/visible=%t", version, land), func(t *testing.T) {
 				s, f, target := start(t)
 				i := prepare(t, s, complete(ObservedEmpty, baseline, 0))
 				d := *s.current.Load()
 				d.Version = version
+				if version < stateVersion {
+					legacyFixture(&d)
+					i = legacyFixtureIntent(i)
+				}
 				if version == legacyVersion {
 					d.PendingAttempt = nil
 				}
@@ -327,8 +333,8 @@ func TestVersionedTargetsRejectMalformedAndForeignState(t *testing.T) {
 		{`"configurationRevision":1`, `"configurationRevision":9007199254740992`},
 		{`"configurationRevision":1`, `"configurationRevision":1.0`},
 		{`"configurationRevision":1`, `"configurationRevision":1,"configurationRevision":1`},
-		{`"version":3`, `"version":2`},
-		{`"version":3`, `"version":99`},
+		{`"version":4`, `"version":2`},
+		{`"version":4`, `"version":99`},
 	}
 	for _, pair := range replacements {
 		raw := bytes.Replace(canonical, []byte(pair[0]), []byte(pair[1]), 1)

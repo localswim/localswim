@@ -71,7 +71,7 @@ func decodeLegacy(raw []byte) (*durable, error) {
 		d.Observation = &Observation{o.ID, o.Lower, o.FirstAt, o.LatestAt, old.TargetID, 1}
 	}
 	if o := old.Last; o != nil {
-		d.Last = &Outcome{o.ObservationID, o.Lower, o.Upper, o.Class, o.Count, o.DeliveryID, old.TargetID}
+		d.Last = &Outcome{ObservationID: o.ObservationID, Lower: o.Lower, Upper: o.Upper, Class: o.Class, Count: o.Count, DeliveryID: o.DeliveryID, TargetID: old.TargetID}
 	}
 	return d, nil
 }

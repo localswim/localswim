@@ -284,7 +284,7 @@ func TestNativeNoticeArchiveRestoreUsesSeparateTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	pairs := r.notices.Inbox()
-	if len(pairs) != 1 || pairs[0].Class != notices.Human {
+	if len(pairs) != 1 || pairs[0].Class != notices.Human || pairs[0].Payload == nil || pairs[0].Payload.Kind != "complete" {
 		t.Fatal("archive fixture did not produce one source notice and receipt")
 	}
 	body, err := json.Marshal(map[string]any{"incarnation": info.Incarnation, "expectedRevision": 1, "input": map[string]any{}})
@@ -308,7 +308,8 @@ func TestNativeNoticeArchiveRestoreUsesSeparateTarget(t *testing.T) {
 		if err := errors.Join(err, f.Close()); err != nil {
 			t.Fatal(err)
 		}
-		if entry.Name == noticeStateName || bytes.Contains(data, []byte(target)) || bytes.Contains(data, []byte(pairs[0].DeliveryID)) {
+		if entry.Name == noticeStateName || bytes.Contains(data, []byte(target)) || bytes.Contains(data, []byte(pairs[0].DeliveryID)) ||
+			bytes.Contains(data, []byte(pairs[0].Payload.Text)) || bytes.Contains(data, []byte(`"payload":{"version":1,"kind":"complete"`)) {
 			t.Fatal("export included source notice state")
 		}
 	}

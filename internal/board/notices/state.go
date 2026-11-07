@@ -11,16 +11,19 @@ import (
 
 	"github.com/localswim/localswim/internal/board/noticeinterval"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	"github.com/localswim/localswim/internal/contract/noticetext"
 )
 
 const (
 	MaxStateBytes                     = 256 * 1024
 	MaxPairs                          = 64
 	MaxGaps                           = 64
-	intentVersion                     = 1
+	intentVersion                     = 2
+	legacyIntentVersion               = 1
 	legacyVersion                     = 1
 	attemptVersion                    = 2
-	stateVersion                      = 3
+	configurationVersion              = 3
+	stateVersion                      = 4
 	MaxConfigurationRevision A.Number = 9007199254740991
 
 	prepared      = "prepared"
@@ -78,18 +81,37 @@ type Gap struct {
 }
 
 type Intent struct {
-	Version       int                 `json:"version"`
-	Binding       Binding             `json:"binding"`
-	ObservationID A.UUID              `json:"observationId"`
-	Lower         noticeinterval.Cut  `json:"lower"`
-	Upper         *noticeinterval.Cut `json:"upper"`
-	TargetID      A.UUID              `json:"targetId"`
-	Class         string              `json:"class"`
-	Count         *A.Number           `json:"count"`
-	DeliveryID    string              `json:"deliveryId"`
+	Version       int                    `json:"version"`
+	Binding       Binding                `json:"binding"`
+	ObservationID A.UUID                 `json:"observationId"`
+	Lower         noticeinterval.Cut     `json:"lower"`
+	Upper         *noticeinterval.Cut    `json:"upper"`
+	TargetID      A.UUID                 `json:"targetId"`
+	Class         string                 `json:"class"`
+	Count         *A.Number              `json:"count"`
+	Payload       *noticetext.NoticeText `json:"payload,omitempty"`
+	DeliveryID    string                 `json:"deliveryId"`
 }
 
 func (i Intent) identity() string {
+	if i.Version == intentVersion {
+		encoded, err := json.Marshal(struct {
+			Version       int                    `json:"version"`
+			Binding       Binding                `json:"binding"`
+			ObservationID A.UUID                 `json:"observationId"`
+			Lower         noticeinterval.Cut     `json:"lower"`
+			Upper         *noticeinterval.Cut    `json:"upper"`
+			TargetID      A.UUID                 `json:"targetId"`
+			Class         string                 `json:"class"`
+			Count         *A.Number              `json:"count"`
+			Payload       *noticetext.NoticeText `json:"payload"`
+		}{i.Version, i.Binding, i.ObservationID, i.Lower, i.Upper, i.TargetID, i.Class, i.Count, i.Payload})
+		if err != nil {
+			return ""
+		}
+		digest := sha256.Sum256(encoded)
+		return hex.EncodeToString(digest[:])
+	}
 	// Field order and the explicit null upper are part of version 1's encoding.
 	encoded, err := json.Marshal(struct {
 		Version       int                 `json:"version"`
@@ -107,29 +129,35 @@ func (i Intent) identity() string {
 }
 
 func (i Intent) valid(binding Binding, target A.UUID) bool {
-	return i.Version == intentVersion && i.Binding == binding && validUUID4(target) && i.TargetID == target &&
+	validPayload := i.Version == legacyIntentVersion && i.Payload == nil ||
+		i.Version == intentVersion && i.Class != Suppressed && i.Payload != nil && noticetext.Validate(*i.Payload) == nil &&
+			(!(isLoss(i.Class) || i.Class == ObservedEmpty) || i.Payload.Kind == "fallback")
+	return validPayload && i.Binding == binding && validUUID4(target) && i.TargetID == target &&
 		validUUID4(i.ObservationID) && intervalValid(i.Class, i.Lower, i.Upper, i.Count) &&
 		A.Validate(A.Digest(i.DeliveryID)) == nil && i.DeliveryID == i.identity()
 }
 
 func (i Intent) outcome() Outcome {
-	return Outcome{i.ObservationID, i.Lower, i.Upper, i.Class, i.Count, i.DeliveryID, i.TargetID}
+	return Outcome{i.ObservationID, i.Lower, copyValue(i.Upper), i.Class, copyValue(i.Count), i.DeliveryID, i.TargetID, noticetext.Clone(i.Payload)}
 }
 
 func (i Intent) exact(other Intent) bool {
 	iUpper, iCount, otherUpper, otherCount := i.Upper, i.Count, other.Upper, other.Count
+	iPayload, otherPayload := i.Payload, other.Payload
 	i.Upper, i.Count, other.Upper, other.Count = nil, nil, nil, nil
-	return i == other && same(iUpper, otherUpper) && same(iCount, otherCount)
+	i.Payload, other.Payload = nil, nil
+	return i == other && same(iUpper, otherUpper) && same(iCount, otherCount) && noticetext.Equal(iPayload, otherPayload)
 }
 
 type Outcome struct {
-	ObservationID A.UUID              `json:"observationId"`
-	Lower         noticeinterval.Cut  `json:"lower"`
-	Upper         *noticeinterval.Cut `json:"upper"`
-	Class         string              `json:"class"`
-	Count         *A.Number           `json:"count"`
-	DeliveryID    string              `json:"deliveryId"`
-	TargetID      A.UUID              `json:"targetId"`
+	ObservationID A.UUID                 `json:"observationId"`
+	Lower         noticeinterval.Cut     `json:"lower"`
+	Upper         *noticeinterval.Cut    `json:"upper"`
+	Class         string                 `json:"class"`
+	Count         *A.Number              `json:"count"`
+	DeliveryID    string                 `json:"deliveryId"`
+	TargetID      A.UUID                 `json:"targetId"`
+	Payload       *noticetext.NoticeText `json:"payload,omitempty"`
 }
 
 // State is a private monitor snapshot. Use Pair for operator projection.
@@ -161,18 +189,19 @@ type durable struct {
 }
 
 type Pair struct {
-	TargetID   A.UUID      `json:"targetId"`
-	DeliveryID string      `json:"deliveryId"`
-	AcceptedAt A.Timestamp `json:"acceptedAt"`
-	Class      string      `json:"class"`
-	LowerEvent A.Number    `json:"lowerEvent"`
-	UpperEvent *A.Number   `json:"upperEvent"`
-	EventCount *A.Number   `json:"eventCount"`
+	TargetID   A.UUID                 `json:"targetId"`
+	DeliveryID string                 `json:"deliveryId"`
+	AcceptedAt A.Timestamp            `json:"acceptedAt"`
+	Class      string                 `json:"class"`
+	LowerEvent A.Number               `json:"lowerEvent"`
+	UpperEvent *A.Number              `json:"upperEvent"`
+	EventCount *A.Number              `json:"eventCount"`
+	Payload    *noticetext.NoticeText `json:"payload,omitempty"`
 }
 
 func (e entry) project() Pair {
 	p := Pair{TargetID: e.Intent.TargetID, DeliveryID: e.Intent.DeliveryID, AcceptedAt: e.AcceptedAt,
-		Class: e.Intent.Class, LowerEvent: e.Intent.Lower.Event, EventCount: copyValue(e.Intent.Count)}
+		Class: e.Intent.Class, LowerEvent: e.Intent.Lower.Event, EventCount: copyValue(e.Intent.Count), Payload: noticetext.Clone(e.Intent.Payload)}
 	if e.Intent.Upper != nil {
 		upper := e.Intent.Upper.Event
 		p.UpperEvent = &upper
@@ -196,6 +225,7 @@ func (i *Intent) clone() *Intent {
 	p := copyValue(i)
 	if p != nil {
 		p.Upper, p.Count = copyValue(p.Upper), copyValue(p.Count)
+		p.Payload = noticetext.Clone(p.Payload)
 	}
 	return p
 }
@@ -211,6 +241,7 @@ func (d *durable) snapshot() *State {
 	s.Last = copyValue(s.Last)
 	if s.Last != nil {
 		s.Last.Upper, s.Last.Count = copyValue(s.Last.Upper), copyValue(s.Last.Count)
+		s.Last.Payload = noticetext.Clone(s.Last.Payload)
 	}
 	return &s
 }

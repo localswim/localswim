@@ -73,7 +73,9 @@ export class WindowBoardController {
     this.report({ ...this.routeStatus, phase: "blocked", message: "Save or explicitly discard unpersisted private input before navigating." });
     return false;
   }
-  async reconnect(): Promise<void> { this.generation++; await this.connection.reconnect?.(); }
+  async reconnect(): Promise<void> {
+    await this.withSelectionFence(async () => { await this.connection.reconnect?.(); });
+  }
   private readonly beforeUnload = (event: BeforeUnloadEvent): void => {
     if (this.active) this.capture(this.active);
     if (!this.canLeave) { event.preventDefault(); event.returnValue = ""; }
@@ -171,9 +173,19 @@ export class WindowBoardController {
     for (const [node, x, y] of view.offsets) { node.scrollLeft = x; node.scrollTop = y; }
     window.scrollTo(...view.scroll);
   }
+  private async withSelectionFence<T>(work: (generation: number) => Promise<T>): Promise<T> {
+    const generation = ++this.generation;
+    this.active?.view.noticesSelectionChanging(true);
+    try { return await work(generation); }
+    finally {
+      if (generation === this.generation && !this.destroyed) this.active?.view.noticesSelectionChanging(false);
+    }
+  }
   async select(projectKey: string, boardKey: string, renewBoard = false, expectedIdentity?: WorkspaceIdentity): Promise<boolean> {
     if (this.destroyed || !boardRoute("/board/" + projectKey + "/" + boardKey)) return false;
-    const generation = ++this.generation;
+    return this.withSelectionFence(generation => this.selectBoard(generation, projectKey, boardKey, renewBoard, expectedIdentity));
+  }
+  private async selectBoard(generation: number, projectKey: string, boardKey: string, renewBoard: boolean, expectedIdentity?: WorkspaceIdentity): Promise<boolean> {
     const persisted = await this.flushPrivateInput();
     if (generation !== this.generation || this.destroyed) return false;
     if (!persisted) return this.blocked();
@@ -246,17 +258,18 @@ export class WindowBoardController {
     }
   }
   async showPendingShell(path = "/"): Promise<boolean> {
-    const generation = ++this.generation;
-    const persisted = await this.flushPrivateInput();
-    if (generation !== this.generation || this.destroyed) return false;
-    if (!persisted) return this.blocked();
-    this.suspend();
-    if (path === "/") this.root.replaceChildren();
-    else {
-      this.report({ ...this.routeStatus, phase: "unavailable" });
-      this.root.replaceChildren(element("h1", "Selected board unavailable"), element("p", "This route does not identify a registered board. Choose an explicit board from the workspace."));
-    }
-    return true;
+    return this.withSelectionFence(async generation => {
+      const persisted = await this.flushPrivateInput();
+      if (generation !== this.generation || this.destroyed) return false;
+      if (!persisted) return this.blocked();
+      this.suspend();
+      if (path === "/") this.root.replaceChildren();
+      else {
+        this.report({ ...this.routeStatus, phase: "unavailable" });
+        this.root.replaceChildren(element("h1", "Selected board unavailable"), element("p", "This route does not identify a registered board. Choose an explicit board from the workspace."));
+      }
+      return true;
+    });
   }
   destroy(): void {
     this.destroyed = true; this.generation++; this.navigationGeneration++; this.routeObservers.clear(); this.commitObservers.clear();

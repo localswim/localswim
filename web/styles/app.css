@@ -112,3 +112,10 @@ section:has(> .workspace-shell) { margin: 0; }
   background: var(--workspace-surface);
   border: 1px solid var(--workspace-line);
 }
+
+.board-notices { min-width: 0; overflow-wrap: anywhere; }
+.notice-controls { display: flex; flex-wrap: wrap; }
+.notice-lookup { min-width: 0; }
+.notice-lookup label { display: grid; justify-items: start; }
+.notice-lookup input { box-sizing: border-box; width: min(30rem, 100%); margin-inline: 0; }
+.board-notices button[aria-disabled=true] { opacity: .55; cursor: default; }

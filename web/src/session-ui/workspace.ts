@@ -34,6 +34,7 @@ export class SessionWorkspace {
   suspend(): void { this.board.suspend(); this.recovery.suspend(); this.archive.suspend(); }
   resume(): void { this.board.resume(); this.archive.resume(); }
   connectionUnavailable(): void { this.board.connectionUnavailable(); }
+  noticesSelectionChanging(pending: boolean): void { this.board.noticesSelectionChanging(pending); }
   activate(): void { this.root.querySelector<HTMLElement>('form input, form textarea, form select, textarea[aria-label="Retained private draft text"]')?.focus({ preventScroll: true }); }
   get canLeave(): boolean { return this.board.canLeave && this.recovery.canLeave && this.archive.canLeave; }
   async flushPrivateInput(): Promise<boolean> { await Promise.all([this.board.flushPrivateInput(), this.recovery.flushPrivateInput(), this.archive.flushPrivateInput()]); return this.canLeave; }

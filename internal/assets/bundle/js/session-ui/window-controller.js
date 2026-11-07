@@ -81,7 +81,9 @@ export class WindowBoardController {
         this.report({ ...this.routeStatus, phase: "blocked", message: "Save or explicitly discard unpersisted private input before navigating." });
         return false;
     }
-    async reconnect() { this.generation++; await this.connection.reconnect?.(); }
+    async reconnect() {
+        await this.withSelectionFence(async () => { await this.connection.reconnect?.(); });
+    }
     beforeUnload = (event) => {
         if (this.active)
             this.capture(this.active);
@@ -227,10 +229,23 @@ export class WindowBoardController {
         }
         window.scrollTo(...view.scroll);
     }
+    async withSelectionFence(work) {
+        const generation = ++this.generation;
+        this.active?.view.noticesSelectionChanging(true);
+        try {
+            return await work(generation);
+        }
+        finally {
+            if (generation === this.generation && !this.destroyed)
+                this.active?.view.noticesSelectionChanging(false);
+        }
+    }
     async select(projectKey, boardKey, renewBoard = false, expectedIdentity) {
         if (this.destroyed || !boardRoute("/board/" + projectKey + "/" + boardKey))
             return false;
-        const generation = ++this.generation;
+        return this.withSelectionFence(generation => this.selectBoard(generation, projectKey, boardKey, renewBoard, expectedIdentity));
+    }
+    async selectBoard(generation, projectKey, boardKey, renewBoard, expectedIdentity) {
         const persisted = await this.flushPrivateInput();
         if (generation !== this.generation || this.destroyed)
             return false;
@@ -340,20 +355,21 @@ export class WindowBoardController {
         }
     }
     async showPendingShell(path = "/") {
-        const generation = ++this.generation;
-        const persisted = await this.flushPrivateInput();
-        if (generation !== this.generation || this.destroyed)
-            return false;
-        if (!persisted)
-            return this.blocked();
-        this.suspend();
-        if (path === "/")
-            this.root.replaceChildren();
-        else {
-            this.report({ ...this.routeStatus, phase: "unavailable" });
-            this.root.replaceChildren(element("h1", "Selected board unavailable"), element("p", "This route does not identify a registered board. Choose an explicit board from the workspace."));
-        }
-        return true;
+        return this.withSelectionFence(async (generation) => {
+            const persisted = await this.flushPrivateInput();
+            if (generation !== this.generation || this.destroyed)
+                return false;
+            if (!persisted)
+                return this.blocked();
+            this.suspend();
+            if (path === "/")
+                this.root.replaceChildren();
+            else {
+                this.report({ ...this.routeStatus, phase: "unavailable" });
+                this.root.replaceChildren(element("h1", "Selected board unavailable"), element("p", "This route does not identify a registered board. Choose an explicit board from the workspace."));
+            }
+            return true;
+        });
     }
     destroy() {
         this.destroyed = true;

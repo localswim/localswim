@@ -5,6 +5,7 @@ import { validateCardRead, validateHistoryRead } from "./history.js";
 import { validateBoardHierarchy } from "./hierarchy.js";
 import { boardBoundaryVerifier, canonical, object, parse, prepare, sha256, validate } from "./boundary.js";
 import { activityReadMaximum, ActivityCursorStale, validateActivityPage } from "./activity.js";
+import { noticeReadMaximum, NoticeRefusal, validateNotices } from "./notices.js";
 import { validSearch, validateSearchRead } from "./search.js";
 import { laneRole, sameWorkflow, validateWorkflowPolicies, workflowAtVersion, validateCurrentWorkflowCards, validateWorkflowPreview } from "./workflow.js";
 import { fileReadMaximum, FilesReadRefusal, validateFileRead, validateFilesRead } from "./files.js";
@@ -270,6 +271,50 @@ export class BoardClient {
         const page = value.result;
         validateActivityPage(page, identity, previous);
         return page;
+    }
+    async notices(identity, command, signal) {
+        const path = this.path(identity.boardId) + "/notices/" + command.action;
+        if (!uuid.test(identity.incarnation) || identity.incarnation === "00000000-0000-0000-0000-000000000000" ||
+            this.options.selection && identity.incarnation !== this.options.selection.incarnation)
+            throw Error("Notice identity mismatch");
+        const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(20_000)]);
+        const incarnation = identity.incarnation;
+        let requestPath = path;
+        const init = { signal: requestSignal };
+        if (command.action === "lookup" || "expectedControlGeneration" in command) {
+            const body = JSON.stringify(command.action === "lookup"
+                ? { incarnation, targetId: command.targetId, deliveryId: command.deliveryId }
+                : { incarnation, expectedControlGeneration: command.expectedControlGeneration });
+            validate(command.action === "lookup" ? "transport:NoticeLookupRequest" : "transport:NoticeControlRequest", parse(body));
+            init.method = "POST";
+            init.body = body;
+        }
+        else {
+            requestPath += "?" + new URLSearchParams({ incarnation });
+        }
+        const { response, credential } = await this.raw(requestPath, init);
+        if (response.headers.get("Cache-Control") !== "no-store" ||
+            !/^application\/json(?:\s*;|$)/i.test(response.headers.get("Content-Type") ?? "")) {
+            await response.body?.cancel().catch(() => { });
+            throw Error("Notice response unavailable");
+        }
+        const value = await this.boundedRead(response, credential, noticeReadMaximum);
+        requestSignal.throwIfAborted();
+        if (response.status !== 200) {
+            validate("transport:NonterminalRefusal", value);
+            const code = object(object(value).error).code;
+            if (response.status === 409 && code === "CONTROL_STALE")
+                throw new NoticeRefusal("stale");
+            if (response.status === 409 && code === "CONTROL_BUSY")
+                throw new NoticeRefusal("busy");
+            if (response.status < 500)
+                throw new NoticeRefusal("refused");
+            throw Error("Notice response unavailable");
+        }
+        validate("transport:NoticeResponse", value);
+        const result = value.result;
+        validateNotices(result, identity, command);
+        return result;
     }
     async boundedRead(response, credential, maximum) {
         const declared = response.headers.get("Content-Length");

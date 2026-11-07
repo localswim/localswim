@@ -38,6 +38,7 @@ export class LocalSessionView {
   }
   suspend(): void { this.workspace.suspend(); }
   resume(): void { this.workspace.resume(); }
+  noticesSelectionChanging(pending: boolean): void { this.workspace.noticesSelectionChanging(pending); }
   activate(): void { this.workspace.activate(); }
   get ready(): Promise<void> { return this.workspace.ready; }
   get canLeave(): boolean { return this.workspace.canLeave; }

@@ -31,6 +31,7 @@ export class SessionWorkspace {
     suspend() { this.board.suspend(); this.recovery.suspend(); this.archive.suspend(); }
     resume() { this.board.resume(); this.archive.resume(); }
     connectionUnavailable() { this.board.connectionUnavailable(); }
+    noticesSelectionChanging(pending) { this.board.noticesSelectionChanging(pending); }
     activate() { this.root.querySelector('form input, form textarea, form select, textarea[aria-label="Retained private draft text"]')?.focus({ preventScroll: true }); }
     get canLeave() { return this.board.canLeave && this.recovery.canLeave && this.archive.canLeave; }
     async flushPrivateInput() { await Promise.all([this.board.flushPrivateInput(), this.recovery.flushPrivateInput(), this.archive.flushPrivateInput()]); return this.canLeave; }

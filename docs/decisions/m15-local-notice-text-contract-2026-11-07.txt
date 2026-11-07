@@ -1,10 +1,12 @@
 M15.01 — ORIGINAL LOCAL NOTICE TEXT AND COPY
-November 7, 2026 | M15-LOCAL-TEXT-R2
+November 7, 2026 | M15-LOCAL-TEXT-R3
 
 Scope
 
-Enrich existing accepted local inbox notices with captured safe text. Ordinary
-browser Copy and actual CLI text/JSON expose the same original bytes. The owner
+Enrich existing accepted local inbox notices with captured safe text. Stored
+payloads, actual CLI text/JSON and the string passed to browser writeText retain
+the same original LF text. Native clipboard representation follows the platform
+conventions described in section 6. The owner
 authorized forecast A for this local M15; recipient configuration, adapter
 probes, external briefings and delivery remain later milestones.
 
@@ -252,6 +254,23 @@ Recheck selection/window/board/incarnation/authority/request epochs before
 clipboard invocation. Use production navigator.clipboard.writeText on validated
 text only. Unsupported/denied/failed/expired gesture remains honest; success only
 after actual clipboard success. No cached fallback after a failed fresh read.
+
+Canonical LF text is the exact writeText argument; the application does not
+rewrite the saved original for the OS. On the qualified Windows host, writeText
+uses native CRLF line endings. Native read-back therefore must equal exactly
+payload.text with each LF replaced by CRLF, with no BOM, terminal newline,
+trimming, normalization of received data or other content change. Fallback is
+single-line and unchanged. This is an OS representation boundary, not a new
+payload encoding or a claim of byte-identical native clipboard storage. Raw
+CLI output and retained/transport payloads remain exact canonical UTF-8 with LF.
+
+Qualification independently proves both the exact original writeText argument
+and successful native read-back against that strict platform expectation. It
+retains prior raw-equality failures as failures. Sources: W3C Clipboard API
+Working Draft section 7.3.4 (Windows note), and Microsoft CF_UNICODETEXT format:
+https://www.w3.org/TR/clipboard-apis/#dom-clipboard-writetext
+https://learn.microsoft.com/en-us/windows/win32/dataxchg/standard-clipboard-formats
+
 Do not clear drafts, move focus or repaint another scope. A-to-B-to-A and late/
 denied replies cannot cross-copy. Once an OS clipboard write is admitted, a
 later navigation/cancellation cannot promise to undo it; suppress stale success
@@ -279,7 +298,8 @@ scope, clock regression, complete bot suppression and exact fallback.
 identity/payload, deep-copy/exactness, total capacity, native publication/fault/
 interruption/retention and archive/export exclusion.
 .04 owns complete generated/production-validation boundary and limits.
-.05/.06 own real CLI/browser exact-byte, fresh-authority, stale-selection,
+.05/.06 own real CLI exact-byte/browser exact-argument and native-representation,
+fresh-authority, stale-selection,
 clipboard-denial/failure and legacy/refusal cases.
 .07 owns full CURRENT mandatory suites/providers/native/compiler/driver/archive/
 all rows/actual CLI/real browser, two isolated clean builds/ALL outputs and fresh

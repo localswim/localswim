@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "contract": "M15-LOCAL-TEXT-R2",
+  "contract": "M15-LOCAL-TEXT-R3",
   "limits": {
     "maxLabelUTF8Bytes": 96,
     "maxTextUTF8Bytes": 512,
@@ -745,5 +745,12 @@
     "byteLimit": 131072,
     "maxInboxPairs": 64,
     "otherRContractsUnchanged": true
+  },
+  "clipboardRepresentation": {
+    "canonicalPayloadAndWriteTextArgument": "Exact original LF text; no terminal newline",
+    "qualifiedWindowsNativeReadBack": "Exact payload.text with each LF replaced by CRLF; no other transformation or terminal newline",
+    "receivedDataNormalizationPermitted": false,
+    "rawCLI": "Exact original UTF-8 LF bytes",
+    "runtimeFormatAndIdentityChanged": false
   }
 }

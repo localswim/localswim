@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-07",
+  "status": "PASS",
+  "scope": "M14 preflight buildchain refresh; no M14 feature or general release claim",
+  "baseSource": "7e2b17a912b69edf4001c1ca8ff570c86b0cd599",
+  "sourceBinding": "Exact content-frozen working-tree candidate; documentary publication closure is separate",
+  "sourceArchiveSHA256": "3f4107ff44bee60a7416d9ae58df7fa37767d5c5e5cce58b4c3b132a56b737f1",
+  "sourceInventorySHA256": "3e3dd5471b9b067472aab8a8f5b16bbb1f2cb1018ab77f299b10be345ff93ff2",
+  "commonNativeAndIntegratedFiles": 1159,
+  "allCommonHashesIdentical": true,
+  "nativeAdditionalDocumentation": [
+    "qualification/toolchain/refresh-2026-11-07-sqlite.txt"
+  ],
+  "nativeAdditionalDocumentationSHA256": "6f363707edc1c45877e62af3a0cb6d196466bde0f4dc7df97bc5c34bafaae6dd",
+  "dependencySelection": {
+    "modernc.org/sqlite": "v1.62.0",
+    "modernc.org/libc": "v1.80.1"
+  },
+  "stablePublisherAudit": [
+    {
+      "name": "Go",
+      "version": "go1.27.3",
+      "source": "https://go.dev/dl/?mode=json",
+      "observedAt": "2026-11-07T06:12:07.2883808-05:00"
+    },
+    {
+      "name": "Node",
+      "version": "v26.13.0",
+      "source": "https://nodejs.org/dist/index.json",
+      "observedAt": "2026-11-07T06:12:07.4223915-05:00"
+    },
+    {
+      "name": "npm",
+      "version": "12.2.2",
+      "source": "https://registry.npmjs.org/npm/latest",
+      "observedAt": "2026-11-07T06:12:07.5051151-05:00"
+    },
+    {
+      "name": "TypeScript",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/typescript/latest",
+      "observedAt": "2026-11-07T06:12:07.5397667-05:00"
+    },
+    {
+      "name": "Playwright",
+      "version": "1.65.0",
+      "source": "https://registry.npmjs.org/@playwright/test/latest",
+      "observedAt": "2026-11-07T06:12:07.6762912-05:00"
+    },
+    {
+      "name": "TypeScript Windows compiler",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-win32-x64/latest",
+      "observedAt": "2026-11-07T06:12:07.8497836-05:00"
+    },
+    {
+      "name": "Playwright library",
+      "version": "1.65.0",
+      "source": "https://registry.npmjs.org/playwright/latest",
+      "observedAt": "2026-11-07T06:12:07.8872955-05:00"
+    },
+    {
+      "name": "Playwright core",
+      "version": "1.65.0",
+      "source": "https://registry.npmjs.org/playwright-core/latest",
+      "observedAt": "2026-11-07T06:12:07.9278837-05:00"
+    },
+    {
+      "name": "Required libc",
+      "version": "v1.80.1",
+      "source": "https://proxy.golang.org/modernc.org/libc/@latest",
+      "observedAt": "2026-11-07T06:12:07.9929258-05:00"
+    },
+    {
+      "name": "Chrome Stable",
+      "version": "157.0.8103.38",
+      "source": "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json",
+      "observedAt": "2026-11-07T06:12:08.0292556-05:00"
+    },
+    {
+      "name": "google/uuid",
+      "version": "v1.6.0",
+      "source": "https://proxy.golang.org/github.com/google/uuid/@latest",
+      "observedAt": "2026-11-07T06:12:08.0778904-05:00"
+    },
+    {
+      "name": "x/sys",
+      "version": "v0.49.0",
+      "source": "https://proxy.golang.org/golang.org/x/sys/@latest",
+      "observedAt": "2026-11-07T06:12:08.1871479-05:00"
+    },
+    {
+      "name": "modernc sqlite",
+      "version": "v1.62.0",
+      "source": "https://proxy.golang.org/modernc.org/sqlite/@latest",
+      "observedAt": "2026-11-07T06:12:08.2435213-05:00"
+    },
+    {
+      "name": "uv",
+      "version": "0.13.7",
+      "source": "https://pypi.org/pypi/uv/json",
+      "observedAt": "2026-11-07T06:12:09.0153515-05:00"
+    },
+    {
+      "name": "uv_build",
+      "version": "0.13.7",
+      "source": "https://pypi.org/pypi/uv_build/json",
+      "observedAt": "2026-11-07T06:12:09.5768341-05:00"
+    },
+    {
+      "name": "click",
+      "version": "8.5.1",
+      "source": "https://pypi.org/pypi/click/json",
+      "observedAt": "2026-11-07T06:12:09.6981696-05:00"
+    },
+    {
+      "name": "watchfiles",
+      "version": "1.3.0",
+      "source": "https://pypi.org/pypi/watchfiles/json",
+      "observedAt": "2026-11-07T06:12:09.9828053-05:00"
+    },
+    {
+      "name": "pyright",
+      "version": "1.1.414",
+      "source": "https://pypi.org/pypi/pyright/json",
+      "observedAt": "2026-11-07T06:12:10.074913-05:00"
+    },
+    {
+      "name": "pytest",
+      "version": "9.2.0",
+      "source": "https://pypi.org/pypi/pytest/json",
+      "observedAt": "2026-11-07T06:12:10.1851836-05:00"
+    },
+    {
+      "name": "ruff",
+      "version": "0.17.4",
+      "source": "https://pypi.org/pypi/ruff/json",
+      "observedAt": "2026-11-07T06:12:10.9591697-05:00"
+    },
+    {
+      "name": "actionlint",
+      "version": "v1.7.12",
+      "source": "https://api.github.com/repos/rhysd/actionlint/releases/latest",
+      "observedAt": "2026-11-07T06:12:11.0940395-05:00"
+    },
+    {
+      "name": "ShellCheck",
+      "version": "v0.11.0",
+      "source": "https://api.github.com/repos/koalaman/shellcheck/releases/latest",
+      "observedAt": "2026-11-07T06:12:11.230757-05:00"
+    },
+    {
+      "name": "checkout",
+      "version": "v7.0.1",
+      "source": "https://api.github.com/repos/actions/checkout/releases/latest",
+      "observedAt": "2026-11-07T06:12:11.3379299-05:00"
+    },
+    {
+      "name": "setup-uv",
+      "version": "v10.3.3",
+      "source": "https://api.github.com/repos/astral-sh/setup-uv/releases/latest",
+      "observedAt": "2026-11-07T06:12:11.4348067-05:00"
+    }
+  ],
+  "wrapperTools": {
+    "PowerShell": "7.6.9",
+    "GitForWindows": "2.56.0.windows.4",
+    "archivePreparation": "Python3.15.2 stdlib / .NET; no external bsdtar build dependency"
+  },
+  "toolSHA256": {
+    "go": "83b7ba66215e696414fa49462d0db2da4f4cf15c7bebd42f0b189fa04866999d",
+    "git": "20d0dde30a65afb6e5810a883700a94dcd77fbf3b44b32868d45bf7c9b30137c",
+    "node": "14319838b3f355e0398c13569a90270bce4fc68f25189f58c59b03dadae0e6d5",
+    "npm": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+    "browser": "b299662ff2155d34b7aa8475d287940aa9461fc538defecff6fdd566054541b1"
+  },
+  "inputSHA256": {
+    "web/package.json": "cdb703c368285faf82338b6ca75d300fb6fa3c7d25bf24c1c7ff5f6de371e061",
+    "web/package-lock.json": "29f45725992d79c0be2091dc558fe2494fa39bbbf02296b5771d6277e7ee7a35",
+    "qualification/browser/inventory.json": "18768e01251cca9fa6a3659d02906fdb54168e01d567c3824920bcf0e9be890b",
+    "go.mod": "0b1f0ea13a6d231e5886d0ce7ea9837153beae1399851e186b0e11f1770f1eb1",
+    "web/tsconfig.json": "65bfef9dc54456877da042f6546da680a4df7c1e42e0ef9e77cfa2ab3a55e5de",
+    "qualification/native/transaction/providers.json": "2d3d67f55c07cc774d97a6876d64202f668f5ce5e9261b1bb359a7a2d384a3dc",
+    "go.sum": "8ae30b632ae23b1fd187c518fa8cb91d6dbdfe41f2c3f06c3d1f008df51c9842",
+    "qualification/native/inventory.json": "3c7386cf18bb955ca0f2cdcb742c6361cfa09f275b997292439a91eadf3f0d87",
+    "qualification/native/archive/inventory.json": "033dbe5b908253ac84d91ee3fbe74a7ae6f12fe81a8230deb3e1e04205ced5e4"
+  },
+  "cleanBuilds": 2,
+  "matchingOutputs": 108,
+  "outputCounts": {
+    "schemas": 3,
+    "web/generated": 3,
+    "web/dist": 49,
+    "internal/assets/bundle": 52,
+    "dist": 1
+  },
+  "goTestsPerTree": 2368,
+  "nodeTestsPerTree": 94,
+  "postTestRebuilds": 2,
+  "executableSHA256": "2dd0bd73168c23cbb9410b1e6f3f3d8b5c8fbab14dec3642fa3a282e7ed4ee7d",
+  "native": {
+    "driverRepetitions": 3,
+    "physicalConnectionsPerRepetition": 5,
+    "compileOptions": 57,
+    "sqlite": "3.54.1",
+    "compilerVectors": 13,
+    "matchingSampleBuilds": 2,
+    "transaction": 8,
+    "continuation": 7,
+    "archive": 14,
+    "interruption": 4,
+    "archiveRows": 6,
+    "providers": 528,
+    "finalGeneratedBindingV04": true
+  },
+  "browser": {
+    "mandatoryChromeCases": 21,
+    "validatedDiagnostics": 45,
+    "sharedQueueOwnedMailboxDeleted": true,
+    "ownedFixtureRemoved": true,
+    "sameExecutableAsBothCleanBuilds": true
+  },
+  "staticPolicy": {
+    "go": "gofmt / standard vet",
+    "typescript": "strict / noFallthroughCasesInSwitch / noImplicitReturns / noEmitOnError",
+    "trials": {
+      "noUncheckedIndexedAccess": 31,
+      "exactOptionalPropertyTypes": 50
+    },
+    "typedLint": "Deferred until stable compiler API and stable parser support align",
+    "python": "Current curated Ruff / strict Pyright; unchanged exact-source/config evidence reused"
+  },
+  "pythonReuse": {
+    "originalSource": "4873cf63178acf1aa1f302a2ae9270ba03cd1d4a",
+    "currentSource": "97ebbd3e0717a55f583c05232bf66857d4cd359c",
+    "delta": "Documentation only; implementation and configuration hashes unchanged"
+  },
+  "evidenceSHA256": {
+    "builds": "a73d6357b8f66f192018fda0d3799c78e4ae94a121eef1f74703900444ab34b2",
+    "outputs": "2391d3b19e387986221ff1d56d1c629521a53069b1fcda65975b61443a38e321",
+    "browser": "5ba9c4809a241d33da7b68aa11b899439b25d21f869cfc96d50331848204013d",
+    "native": "2656cccee56519d99423074f25390b371266cd81590c19a5147d77ebb8e1999e",
+    "nativeCleanup": "e211ea62341d7c3127909ae867b065f6877be9da529007fe16c55ffd115e398e",
+    "releaseAudit": "2ccd808d9aace588b4dfbf879a2bc502bac0423b362a8df846dc2f6ee1d72636",
+    "sourceReconciliation": "52186935537aee86a16f4d21dbb698731147f8ab60d7a5745fc72289b8ed3a2b",
+    "baseline": "7975aeb0b9b65b01d61b5d8be19d248bacb70bad68bcf9931968a0d19067e26b",
+    "pythonReuse": "2d3e4d5e54097a6c2f5335ab64ab97db82fef70ed9b20cf2b5fca9a5db731f05"
+  },
+  "cleanup": "Both clean-tree runtime roots and Chrome fixture/mailbox removed. Native runtime leaves exported/removed; immutable qualification proof retained privately. No shared service or parent roots removed.",
+  "independentReview": "Fresh Sol / High PASS; no open material findings",
+  "limits": "Synthetic Windows amd64, local NTFS and numeric loopback. Compiler caches seeded; no cold-cache timing, race-detector, physical power-loss, M14 feature or general release claim."
+}

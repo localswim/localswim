@@ -7,6 +7,11 @@ and five checked physical connections per repetition. The seven assertion groups
 below passed in every repetition. This is isolated binding evidence; fresh
 independent review and owner acceptance remain separate gates.
 
+The 2026-11-07 maintenance rerun selects sqlite v1.62.0 and its exact libc
+v1.80.1 requirement. All three repetitions passed the same assertions; see
+[`refresh-2026-11-07-sqlite.txt`](../toolchain/refresh-2026-11-07-sqlite.txt).
+Earlier evidence files retain their original module pins and review status.
+
 The first readonly build stopped before compilation because the original Q01
 manifest lacked eight required indirect declarations. Its LIMITED_NOT_QUALIFIED
 evidence remains in `evidence-initial-manifest-limit-r1.json`. The primary applied
@@ -15,7 +20,7 @@ the exact additive repair documented in
 The original run checked both manifest hashes, unchanged go.sum and the complete
 selected version set against Q01. Its evidence remains historical. The active
 runner now checks exact manifest hashes and the selected module graph against
-qualification/toolchain/go-current.json for the 2026-11-04 maintenance selection.
+qualification/toolchain/go-current.json for the current maintenance selection.
 
 This harness is intended to qualify only exact native Windows/amd64, local NTFS
 binding behavior recorded in `evidence-r1.json`. It uses synthetic tables and bytes,
@@ -42,7 +47,7 @@ private. The runner does not download modules, alter pins, install software,
 change persistent environment settings, or clean unrelated paths.
 
 The executable independently verifies Go, platform, CGO and exact linked
-`modernc.org/sqlite v1.61.1` / `modernc.org/libc v1.79.0`. It queries the native
+`modernc.org/sqlite v1.62.0` / `modernc.org/libc v1.80.1`. It queries the native
 filesystem type, SQLite version/source ID and complete compile options. Every
 physical connection, including clean reopen, must report FK=1, journal=delete,
 synchronous=2, read_uncommitted=0, locking=normal and busy_timeout=150 ms, and
@@ -71,13 +76,13 @@ only on different physical connections. No `Conn.Raw` or internal driver API is
 used; no connection has overlapping application calls.
 
 The compile option `MUTEX_NOOP` is not treated as a safety proof or a universal
-failure claim. The locked binding's `doc.go:156-177` documents per-connection
+failure claim. The locked binding's `doc.go:171-192` documents per-connection
 state and forbids concurrent use of a driver connection obtained with Raw.
 `conn.go:109-123` requests FULLMUTEX; Windows-selected `lib/mutex.go:5-33`
 installs custom SQLite mutex callbacks and `lib/mutex.go:39-95` defines Go-backed
 mutex state. These source observations explain the tested ownership boundary;
 they do not prove all driver code race-free. See the
-[locked binding documentation](https://pkg.go.dev/modernc.org/sqlite@v1.61.0),
+[locked binding documentation](https://pkg.go.dev/modernc.org/sqlite@v1.62.0),
 [SQLite threading modes](https://www.sqlite.org/threadsafe.html), and
 [SQLite rollback locking](https://www.sqlite.org/lockingv3.html).
 

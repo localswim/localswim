@@ -40,9 +40,10 @@ The last command requires a fresh private localfixture manifest/profile and
 pinned browser, supplied automatically by the qualification preparation flow.
 It is not a manual profile-approval or trust ceremony. Current active compiler
 and browser qualification guards use Node26; no Node24 fallback is accepted.
-Go1.27.3 remains current. SQLite is selected at v1.61.1 and golang.org/x/sys
-is a direct dependency at v0.49.0; see go-current.json. Domain behavior changes
-are outside this maintenance scope.
+Go1.27.3 remains current. SQLite is selected at v1.62.0 with its exact required
+libc v1.80.1; golang.org/x/sys is a direct dependency at v0.49.0. See
+go-current.json and refresh-2026-11-07-sqlite.txt for the current selection and
+native maintenance verification. Domain behavior changes are outside this scope.
 V04 still verifies final integrated dispatch and two clean product builds.
 
 Lint and type-check policy

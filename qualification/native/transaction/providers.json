@@ -361,7 +361,7 @@
   },
   {
     "path": "internal/assets/bundle/manifest.json",
-    "sha256": "f61f8d86ad9984719f10177536a3d592b4bf582ceefbbfc04b546d13c0878766"
+    "sha256": "922c966fd9ee80c866586e5da0da18855d4010665e68834f4b598ca84536c155"
   },
   {
     "path": "internal/assets/bundle/styles/app.css",

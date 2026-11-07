@@ -67,7 +67,7 @@ try {
     foreach ($file in @('go.mod', 'go.sum')) { if ($lockedBefore[$file] -ne $hashes[$file]) { throw 'Dependency lock changed.' } }
     $bindingHashes = [ordered]@{}
     foreach ($file in @('doc.go', 'conn.go', 'lib/mutex.go')) {
-        $bindingHashes["modernc.org/sqlite@v1.61.1/$file"] = (Get-FileHash (Join-Path $cache "modernc.org/sqlite@v1.61.1/$file") -Algorithm SHA256).Hash.ToLowerInvariant()
+        $bindingHashes["modernc.org/sqlite@v1.62.0/$file"] = (Get-FileHash (Join-Path $cache "modernc.org/sqlite@v1.62.0/$file") -Algorithm SHA256).Hash.ToLowerInvariant()
     }
     $evidence = [ordered]@{
         schema_version = 1

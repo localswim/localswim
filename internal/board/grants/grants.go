@@ -78,8 +78,11 @@ func (s *Service) current(ctx context.Context, r writer.Read, board, inc, actor 
 	if s == nil || s.verify == nil || s.now == nil || ctx == nil || r == nil || ctx.Err() != nil {
 		return p, ErrDenied
 	}
+	c, err := s.verify(ctx, r, s.now().UTC())
+	// The verifier may wait while another request refreshes the credential.
+	// Validate its returned copy against a fresh clock, including expiries that
+	// elapsed during verification and the maximum remaining browser idle time.
 	now := s.now().UTC()
-	c, err := s.verify(ctx, r, now)
 	if err != nil || c.InstallationID != s.installation || c.Origin != s.origin || c.IssuedAt.IsZero() || now.Before(c.IssuedAt) || !now.Before(c.ExpiresAt) {
 		return p, ErrUnauthenticated
 	}

@@ -536,8 +536,12 @@
     "sha256": "2f6d62355e7c62a769cfc2d5445f030b4df92cf847848ef9972076ac844e7ad7"
   },
   {
+    "path": "internal/board/grants/current_test.go",
+    "sha256": "c6573416599d0b381f75ac727d05f2dbb0ed0ca3f14032f9079dcba85e0b3a64"
+  },
+  {
     "path": "internal/board/grants/grants.go",
-    "sha256": "489d8efb3c510d6dee0031649b5d8fb477255db4951b2be7721d6b25431bbc97"
+    "sha256": "ecc5b91fb38e1b4f5cb8b63a2fbf3fb8c6cea14137c57da6bc213a1d597a7a4f"
   },
   {
     "path": "internal/board/grants/grants_windows_test.go",

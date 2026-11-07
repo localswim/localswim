@@ -34,6 +34,35 @@ serial work in the parent, provide evidence without prescribing a verdict, and
 describe actual independence truthfully. Preserve task authorization, required
 verification and explicit model/effort, depth and concurrency limits.
 
+## Shared board owner notifications
+
+Use the built-in owner notifications in the healthy shared board service from
+`C:\Projects\localswim`. No legacy JSON watcher, pool, optional monitor extra or
+duplicate service is needed. The browser SSE/status-bar indicator is separate.
+
+For an explicit connect request, use an absolute owned BOARD path and a chat UUID
+verified from current Codex app metadata. Run the shared frozen CLI's
+`notifications status --json`, then `notifications target THREAD_UUID` only if
+needed, `notifications enable` only if disabled, and verify status/identity/target.
+Use `uv run --project C:\Projects\localswim --frozen --offline localswim-cli BOARD`.
+Check exits and inspect status after uncertain writes; never blindly replay.
+Target changes preserve enabled state; disable retains the target. Documentation
+or service startup alone does not activate delivery. Honor explicit shutdown.
+
+Committed Human edits coalesce after 15 seconds of quiet, then one bounded public
+`codex queue` attempt can wake the owning chat without Terry typing a prompt.
+Bot edits do not notify. Delivery is best effort: no durable cursor, catch-up or
+retry, and shutdown can lose a pending burst. Windows needs native `codex.exe` on
+the service PATH. Queue acceptance is not completed work or a ticket authorization.
+
+For queued alerts inspect sanitized `activity monitor-between SINCE UNTIL --json`
+first, with bounded pagination. Only valid, complete, nonempty all-Bot metadata
+permits suppression; otherwise inspect focused indicated cards and honor normal
+work gates. Keep legacy watchers off; preserve target/cursor/pending/lock files.
+Never kill a remembered PID. Authorized legacy cleanup uses verified exact owner
+paths and documented cooperative stop, followed by verification. Project caches,
+runtime and test evidence stay outside the shared installation.
+
 ## Mandatory shared message queue workflow for web-client development
 
 Terry approved the Valkey/Webdis replacement on 2026-11-05. This section

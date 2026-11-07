@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS_REQUIRED_GATES",
+  "independentReview": "Fresh Sol / High PASS",
+  "qualifiedProductSource": "ae2b4d6c65a10bc3cd424ee44e5d16a57a67e6b0",
+  "contract": "M15-LOCAL-TEXT-R3",
+  "contractSHA256": "9dca2de3063c42f357be881261a0a694e8aa3f44fae26e8be80b0a38e9258fc0",
+  "platform": "Synthetic Windows amd64, local NTFS and numeric loopback",
+  "executableSHA256": "3dcf6dcac9192798ba7830443355dd8c9383a2f6361274d5116043f47d8cb1db",
+  "sourceFiles": 1202,
+  "cleanBuilds": 2,
+  "matchingOutputs": 112,
+  "outputCounts": {
+    "schemas": 3,
+    "web/generated": 3,
+    "web/dist": 51,
+    "internal/assets/bundle": 54,
+    "dist": 1
+  },
+  "goTestsPerTree": {
+    "pass": 2835,
+    "fail": 0,
+    "skip": 0,
+    "packagesPassed": 43
+  },
+  "nodeTestsPerTree": 136,
+  "postTestRebuilds": 2,
+  "cachePolicy": "Each clean tree starts without outputs/dependencies and gets a separate copy of the pinned Go compiler cache; tests execute with count=1.",
+  "tools": {
+    "go": "1.27.3",
+    "node": "26.13.0",
+    "npm": "12.2.2",
+    "typescript": "7.0.2",
+    "python": "3.15.2",
+    "uv": "0.13.7",
+    "playwright": "1.65.0",
+    "chrome": "157.0.8103.38"
+  },
+  "toolExecutableSHA256": {
+    "go": "83b7ba66215e696414fa49462d0db2da4f4cf15c7bebd42f0b189fa04866999d",
+    "node": "14319838b3f355e0398c13569a90270bce4fc68f25189f58c59b03dadae0e6d5",
+    "npm": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+    "browser": "b299662ff2155d34b7aa8475d287940aa9461fc538defecff6fdd566054541b1"
+  },
+  "locks": {
+    "go.mod": "0b1f0ea13a6d231e5886d0ce7ea9837153beae1399851e186b0e11f1770f1eb1",
+    "go.sum": "8ae30b632ae23b1fd187c518fa8cb91d6dbdfe41f2c3f06c3d1f008df51c9842",
+    "web/package.json": "cdb703c368285faf82338b6ca75d300fb6fa3c7d25bf24c1c7ff5f6de371e061",
+    "web/package-lock.json": "29f45725992d79c0be2091dc558fe2494fa39bbbf02296b5771d6277e7ee7a35"
+  },
+  "native": {
+    "providers": {
+      "count": 547,
+      "completeSortedUniqueExactBytes": true,
+      "manifestSHA256": "de43eee013fc1397b4ce283e43cb46f86b68c6a3837195fea99788c9127332ed"
+    },
+    "compilerVectors": 13,
+    "driverRepetitions": 3,
+    "requiredInventories": {
+      "transaction": 8,
+      "transactionChild": 7,
+      "archive": 14,
+      "archiveChild": 4,
+      "archiveRows": 6
+    },
+    "allCurrentArchiveRowsPassed": true,
+    "lifecycleMandatoryCases": 72,
+    "newPayloadCases": 6,
+    "lifecycleCases": 78,
+    "assertions": 2704,
+    "capturedHosts": 139,
+    "ordinaryControlledAndRootProbeReproduced": true,
+    "taggedLocalCLI": {
+      "topLevel": 41,
+      "terminals": 82,
+      "rawTextBoundaryModes": 9,
+      "zeroFailSkip": true
+    },
+    "retainedLegacyP01": {
+      "scope": "Retained isolated legacy HTTPS/config/credential P01 compatibility using scoped root and private main-to-runLegacy overlays; not ordinary shipped loopback entry",
+      "topLevel": 5,
+      "terminals": 17,
+      "missingOverlayAndRootGuards": true,
+      "newNativeFSUnchanged": true,
+      "ordinaryEntryUnchanged": true
+    },
+    "allSixTagVet": "PASS; private P01 sentinel overlays only for retained legacy-tag compilation"
+  },
+  "browser": {
+    "mandatoryInventoryCases": 21,
+    "mandatoryValidatedDiagnostics": 45,
+    "inheritedControls": {
+      "componentChecks": 126,
+      "ordinaryChecks": 136,
+      "controlledChecks": 80
+    },
+    "newCopyCases": [
+      "default",
+      "default-reopen",
+      "workspace",
+      "workspace-reopen",
+      "fallback",
+      "legacy"
+    ],
+    "newCopyValidatedDiagnostics": 24,
+    "representation": "Canonical stored/API/CLI UTF-8 and writeText argument retain LF; exact Windows native read-back uses CRLF only, no terminal newline or other changed content. R3 strict expected-native equality; no normalization of received data."
+  },
+  "historicalFailuresRetained": [
+    "Initial service seam omitted the new API module runtime allowlist entry; two-file correction and fresh independent R2 shipped-start evidence passed.",
+    "Focused Copy native-disabled busy state lost keyboard focus; aria-disabled correction and focused production/native checks passed.",
+    "Initial raw clipboard equality failed because Windows inserted exactly two CRs. R3 clarification was independently reviewed; prior failures remain failed and fresh strict-native checks pass.",
+    "An empty permission grant did not revoke prior grants in the private denial fixture; explicit reset/denial was verified before fresh tests.",
+    "Native workspace fixture inherited a default member port; supported ephemeral initialization/register and pre-launch guard replaced that allocation, with the full fresh matrix repeated.",
+    "A prior native positive Lookup assertion failed without retained response. Its original cause remains unproven. A separate current controlled publication proves permitted UNKNOWN with one POST/no retry; positive-case entry now proves quiescence before its first Lookup.",
+    "The expanded tagged command suite lacked locked Playwright dependencies; offline lockfile installation and the full unchanged suite passed.",
+    "A mandatory browser download destination exceeded the native publication path bound; a shorter owned artifact path qualified the unchanged full inventory.",
+    "An inherited private grant guard retained its old fixture prefix; scoped prefix correction and reliable primary failure capture preceded a complete fresh client run."
+  ],
+  "evidenceUse": {
+    "current": "All required current runtime cases freshly executed on exact committed code and matching ordinary candidate. No historical result substitutes for current qualification.",
+    "controlled": "Native I/O/phase/authority overlays, source-unavailable fallback, permission/transport faults and retained legacy entry are separately labeled and excluded from ordinary shipping claims.",
+    "legacy": "An exact older qualified ordinary binary seeds genuine old-format notice evidence solely for current upgrade/read-unavailable proof.",
+    "unchanged": "Latest-stable preflight release/rule decisions retain their separately dated input bindings."
+  },
+  "cleanup": {
+    "allOwnedHostsAndListenersClosed": true,
+    "allNativeRootsRemoved": true,
+    "allOwnedMailboxesDeleted": true,
+    "administrativeBuiltInOwnerNotifications": "Enabled at explicit owner reconnection request for verified owning chat; legacy JSON watcher/pool remain off"
+  },
+  "limits": [
+    "Injected I/O and process interruption do not certify physical power loss.",
+    "Q02/Q03 remain isolated synthetic harnesses.",
+    "Local receipt/Copy/print is not external Codex delivery, no-effect evidence or future permission.",
+    "M15.08 independently qualifies the exact extracted kit and fresh ordinary demonstration. Terry controls Completed."
+  ],
+  "evidenceSHA256": {
+    "cleanBuilds": "82e95cae0ff2b1912b4ff0d437ebd04fe2a5345f33456bb7958c94d05e81b1ab",
+    "sources": "af298029c982cb80cddd1bc452a82c820ed551ff0047e542b6def3b05eee06de",
+    "outputs": "a9974e7665120b90c0f2951b8c58cf7d4b04ae71015e67415182b3c688bbef87",
+    "nativeGates": "6b77d0c4ce993e72c8345edbeb2ab6cb785361b146fea2d5c93b5483ba1c2afc",
+    "nativeCLI": "ed51d2bfeafd68590cb1b76e1a2dd73a011337e8be56291171e2ad3668d56ed6",
+    "nativeProof": "523831d1951b7c3f7a44b794e0bd52f75aab71cc38e29787e85d30889a27767c",
+    "nativeCleanup": "3b932f6180362bc7c014bd4bfc39088535a24d18d0fd68a323fd9e5fbf5f8623",
+    "lifecycle": "daeffb064e8f3bd776e933a5fc986c66429c6318af0f3ecc11cd216010221917",
+    "lifecycleManifest": "f6d9655f35878a74af584930504c224a988c1e1a01c1b61dcc46612cca07e21f",
+    "lifecycleCleanup": "f5d9a41d7738d7f1c65c07c18068c6772ad3c0ec44364d5c64688e74ec1f9019",
+    "retainedLegacyP01": "b64d949411dd8302eb2a49bb0edd09b8e7b4ebb81bda6e462558dde56c9355ea",
+    "allTagVet": "244520aafa7320321d2728cb67c7a0b4264ede6c42bead7a5d3d42dc0503dc77",
+    "mandatoryBrowser": "07cb7a22bca1037aef156681e759cdd70685892e5fea686dd9bedc7f280582f5",
+    "inheritedClients": "0e7afcc388ecd4a0784db8d8273ac4c7cc04937ff28b1f5149def8425eb59b4f",
+    "newCopyClients": "2bee03a3c8ba87d66fabf44c00ca5dc301279f44d6578fe7d8beaf2e77c67de2",
+    "contractClarificationReview": "f11fd5c8fb506632194e9bc20280c89be7d27e0140e4be5cff4db99ca365a03d",
+    "serviceSeamCorrectionReview": "961c2386df0b7453afdee0e1b7cb97a602bc8e594825e466eaa1a9a17a5f5cd3",
+    "CLIStoryReview": "bb73565110b5f2628ed2db93a168042814aea1a4b5bd9a40f47e213a4afad076",
+    "CopyStoryReview": "bfbc7b9ac13dee1bb4b6d882af59416504f6362447f331925a21d67136e3a843",
+    "independentReview": "43fcb8a674b59e81ecc12a0e168f920eeb4252243c3dc4a665e7afd3704ecc1e"
+  }
+}

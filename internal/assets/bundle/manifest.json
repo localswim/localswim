@@ -536,7 +536,7 @@
     "compiler/typescript/vendor/vscode-jsonrpc/typings/thenable.d.ts": "65b9243c80068ec9696b1fbdd23c9acf80d51df02f97b2d7a0514312b0a9fe7d",
     "go.mod": "0b1f0ea13a6d231e5886d0ce7ea9837153beae1399851e186b0e11f1770f1eb1",
     "go.sum": "8ae30b632ae23b1fd187c518fa8cb91d6dbdfe41f2c3f06c3d1f008df51c9842",
-    "internal/assets/assets.go": "a88cb0b6243e79ed030e50eb416660e9f28a51b4905290730e34c09fb6ae4b1a",
+    "internal/assets/assets.go": "0104350bb3f4a04b85ff4fa248e8382e76e8757411345ad597ac8fae5fc07f2e",
     "internal/board/relationships/relationships.go": "f818f872b18494fd8381f35abc68eb0ea300ab62a9cd9a23a68e81c2f1de5211",
     "internal/contract/archive/decode.go": "9f25bda67ac59431da21a99285a9f2db6547be760b0407cd35c856bb1e6957e8",
     "internal/contract/archive/generate.go": "3f65bbd494f75ae3c283a4bd793b5fd85ee1b15b85d8d22fef710dda7661c948",

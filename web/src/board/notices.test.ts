@@ -1,7 +1,7 @@
 // Production component handlers with controlled asynchronous responses. Real
 // selected-board/native journeys are separate from these boundary probes.
 import type { Identity } from "../../generated/archive/contracts.js";
-import type { NoticeView } from "../../generated/transport/contracts.js";
+import type { NoticePair, NoticeText, NoticeView } from "../../generated/transport/contracts.js";
 import { BoardClient } from "../api/client.js";
 import { NoticeRefusal } from "../api/notices.js";
 import type { NoticeCommand } from "../api/notices.js";
@@ -108,5 +108,112 @@ export async function runNoticesProbe(): Promise<number> {
     check(malformed instanceof Error && !(malformed instanceof NoticeRefusal) && fetchCount === 4, "Malformed refusal cannot prove no effect and must not retry");
     credential = "connection-B";
   } finally { client.close(); }
+  return checks + await runOriginalCopyProbe();
+}
+
+// Controlled component/clipboard proof only: this deliberately replaces the OS
+// API and gesture state. Native user-gesture/clipboard evidence is separate.
+async function runOriginalCopyProbe(): Promise<number> {
+  let checks = 0;
+  const check = (condition: boolean, label: string): void => { if (!condition) throw Error(label); checks++; };
+  const payload: NoticeText = { version: 1, kind: "complete",
+    facts: { label: "Original Ω", from: "2026-11-07T00:00:00Z", through: "2026-11-07T00:00:01Z", tickets: [7, 9] },
+    text: "Board: Original Ω\nObserved: 2026-11-07T00:00:00Z to 2026-11-07T00:00:01Z\nTickets: #7, #9" };
+  const pair: NoticePair = { ...pending, acceptedAt: "2026-11-07T00:00:02Z", payload };
+  let entries = [structuredClone(pair)], reads = 0, holdRead = false, failure: unknown;
+  let releaseRead: ((value: NoticeView) => void) | undefined;
+  let writeMode = "success", active = true, clipboardAvailable = true;
+  const writes: string[] = [];
+  let resolveWrite: (() => void) | undefined, rejectWrite: (() => void) | undefined;
+  const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  const activationDescriptor = Object.getOwnPropertyDescriptor(navigator, "userActivation");
+  Object.defineProperty(navigator, "userActivation", { configurable: true, get: () => ({ isActive: active }) });
+  Object.defineProperty(navigator, "clipboard", { configurable: true, get: () => clipboardAvailable ? {
+    writeText: (text: string): Promise<void> => {
+      writes.push(text);
+      if (writeMode === "denied") return Promise.reject(new DOMException("Controlled", "NotAllowedError"));
+      if (writeMode === "held") return new Promise((resolve, reject) => { resolveWrite = resolve; rejectWrite = () => reject(Error("Controlled")); });
+      return Promise.resolve();
+    },
+  } : undefined });
+  const view = (): NoticeView => ({ ...structuredClone(original), entries: structuredClone(entries) });
+  const notices = new BoardNotices({ notices: async (_identity, command) => {
+    if (command.action !== "inbox") return { ...structuredClone(original), entries: [] };
+    reads++;
+    if (failure) throw failure;
+    if (holdRead) return new Promise(resolve => { releaseRead = resolve; });
+    return view();
+  } });
+  const root = document.createElement("div"); root.append(notices.host); document.body.append(root);
+  const button = (label: string): HTMLButtonElement => [...root.querySelectorAll("button")].find(node => node.textContent === label)!;
+  const field = (): HTMLInputElement => root.querySelector("input")!;
+  const load = async (): Promise<void> => {
+    holdRead = false; failure = undefined; entries = [structuredClone(pair)];
+    notices.boardRead(identity); button("Notices").click(); button("Read inbox").click(); await tick();
+  };
+  try {
+    await load(); field().value = targetB; field().focus();
+    button("Copy original text").click(); await tick();
+    check(reads === 2 && writes.length === 1 && writes[0] === payload.text, "Copy requires fresh inbox and writes exact captured UTF-8 text without LF");
+    check(root.textContent!.includes("Original notice text copied.") && document.activeElement === field() && field().value === targetB, "Resolved clipboard alone announces success and preserves focus/draft");
+    await load(); holdRead = true; writeMode = "held";
+    const focusedCopy = button("Copy original text"); focusedCopy.focus(); focusedCopy.click(); await tick();
+    check(document.activeElement === focusedCopy && !focusedCopy.disabled && focusedCopy.getAttribute("aria-disabled") === "true", "Focused Copy retains focus while fresh read is pending");
+    const pendingReads = reads; focusedCopy.click(); await tick();
+    check(reads === pendingReads, "Transient aria-disabled Copy cannot dispatch another read");
+    releaseRead!(view()); await tick();
+    check(document.activeElement === focusedCopy && !focusedCopy.disabled && focusedCopy.getAttribute("aria-disabled") === "true", "Focused Copy retains focus while clipboard promise is pending");
+    resolveWrite!(); await tick();
+    check(document.activeElement === focusedCopy && focusedCopy.getAttribute("aria-disabled") === "false" && root.textContent!.includes("Original notice text copied."), "Focused Copy retains focus after resolved clipboard success");
+    holdRead = false; writeMode = "success";
+    for (const scenario of ["changed", "deleted", "legacy", "read-failed", "refused"]) {
+      await load(); const before = writes.length;
+      if (scenario === "changed") entries = [{ ...entries[0]!, payload: { version: 1, kind: "fallback", facts: null, text: "Inspect the selected board for changes." } }];
+      if (scenario === "deleted") entries = [];
+      if (scenario === "legacy") entries = [{ ...entries[0]!, payload: null }];
+      if (scenario === "read-failed") failure = Error("Controlled");
+      if (scenario === "refused") failure = new NoticeRefusal("refused");
+      button("Copy original text").click(); await tick();
+      check(writes.length === before && !root.textContent!.includes("Original notice text copied."), "Fresh " + scenario + " cannot use cached text");
+      if (scenario === "refused") check(!root.textContent!.includes(payload.text) && !button("Copy original text"), "Known refusal clears Copy evidence");
+    }
+    await load(); entries = [{ ...pair, payload: null }]; button("Read inbox").click(); await tick();
+    check(button("Copy original text").disabled && root.textContent!.includes("legacy notice"), "Legacy original is inspectable and unavailable to Copy");
+    entries = [{ ...pair, payload: { version: 1, kind: "fallback", facts: null, text: "Inspect the selected board for changes." } }];
+    button("Read inbox").click(); await tick(); button("Copy original text").click(); await tick();
+    check(writes.at(-1) === "Inspect the selected board for changes.", "Captured new fallback is copiable exactly");
+    for (const scenario of ["unsupported", "expired", "denied"]) {
+      await load(); const before = writes.length;
+      clipboardAvailable = scenario !== "unsupported"; active = scenario !== "expired"; writeMode = scenario === "denied" ? "denied" : "success";
+      button("Copy original text").click(); await tick();
+      check(!root.textContent!.includes("Original notice text copied.") && writes.length === before + (scenario === "denied" ? 1 : 0), "Clipboard " + scenario + " remains honest");
+      clipboardAvailable = active = true; writeMode = "success";
+    }
+    for (const phase of ["read", "write"]) {
+      for (const transition of ["close", "selection", "window", "authority", "incarnation"]) {
+        await load(); const before = writes.length;
+        holdRead = phase === "read"; writeMode = phase === "write" ? "held" : "success";
+        button("Copy original text").click(); await tick();
+        check(!root.textContent!.includes("Original notice text copied."), "Pending " + phase + " cannot announce success");
+        if (transition === "close") button("Close notices").click();
+        if (transition === "selection") { notices.selectionChanging(true); notices.boardRead({ boardId: id(9), incarnation: id(10) }); notices.selectionChanging(false); notices.selectionChanging(true); notices.boardRead(identity); notices.selectionChanging(false); }
+        if (transition === "window") { notices.suspend(); notices.resume(); }
+        if (transition === "authority") { notices.reset(); notices.boardRead(identity); }
+        if (transition === "incarnation") { notices.boardRead({ ...identity, incarnation: id(11) }); notices.boardRead(identity); }
+        button("Notices").click();
+        if (phase === "read") releaseRead!(view()); else resolveWrite!();
+        await tick();
+        check(writes.length === before + (phase === "write" ? 1 : 0) && !root.textContent!.includes("Original notice text copied.") && !root.textContent!.includes(payload.text), "Late " + phase + " after " + transition + " is fenced, without promising OS undo");
+        check(field().value === targetB, "Copy transition preserves source-bound draft");
+        writeMode = "success";
+      }
+    }
+    await load(); writeMode = "held"; field().focus(); button("Copy original text").click(); await tick(); rejectWrite!(); await tick();
+    check(!root.textContent!.includes("Original notice text copied.") && document.activeElement === field() && field().value === targetB, "Rejected held clipboard preserves focus/draft and never announces success");
+  } finally {
+    notices.suspend(); root.remove();
+    if (clipboardDescriptor) Object.defineProperty(navigator, "clipboard", clipboardDescriptor); else Reflect.deleteProperty(navigator, "clipboard");
+    if (activationDescriptor) Object.defineProperty(navigator, "userActivation", activationDescriptor); else Reflect.deleteProperty(navigator, "userActivation");
+  }
   return checks;
 }

@@ -3,7 +3,9 @@ import type { NoticeCut, NoticePair, NoticeView } from "../../generated/transpor
 import type { BoardClient } from "../api/client.js";
 import { NoticeRefusal } from "../api/notices.js";
 import type { NoticeCommand, NoticeControl } from "../api/notices.js";
+import { validNoticeText } from "../api/notice-text.js";
 import { button, element } from "../recovery-ui/view.js";
+import { copyOriginal, originalSnapshot, sameOriginal } from "./original-text.js";
 
 const phases: Record<NoticeView["state"], string> = {
   unconfigured: "Unconfigured", stopped: "Stopped", running: "Running", draining: "Draining",
@@ -64,6 +66,7 @@ export class BoardNotices {
   private suspended = false;
   private request?: AbortController;
   private displayed?: NoticeView;
+  private readonly copyEvidence = new Map<NoticePair, HTMLButtonElement>();
 
   constructor(private readonly client: Pick<BoardClient, "notices">) {
     this.open.disabled = true;
@@ -148,6 +151,7 @@ export class BoardNotices {
     this.request?.abort();
     this.request = undefined;
     this.displayed = undefined;
+    this.copyEvidence.clear();
     this.panel.hidden = true;
     this.open.setAttribute("aria-expanded", "false");
     this.selection.textContent = this.message.textContent = this.originalOutcome.textContent = "";
@@ -167,6 +171,10 @@ export class BoardNotices {
     this.readInbox.setAttribute("aria-disabled", String(busy));
     this.retarget.setAttribute("aria-disabled", String(busy || !this.displayed?.targetId || !targetPattern.test(this.futureTarget.value)));
     this.lookup.setAttribute("aria-disabled", String(busy || !this.displayed || !targetPattern.test(this.target.value) || !deliveryPattern.test(this.delivery.value)));
+    for (const [pair, control] of this.copyEvidence) {
+      control.disabled = !!this.panel.hidden || this.suspended || this.selectionPending || !validNoticeText(pair.payload);
+      control.setAttribute("aria-disabled", String(busy || control.disabled));
+    }
   }
 
   private canRecover(): boolean {
@@ -219,6 +227,7 @@ export class BoardNotices {
     } catch (error) {
       if (!current()) return;
       if (error instanceof NoticeRefusal) {
+        this.clearCopyEvidence();
         this.message.textContent = error.kind === "stale" ? "Control generation or configuration revision is stale. Read status, then choose the control again."
           : error.kind === "busy" ? "Control refused while the monitor is busy or guarded. Read status."
           : "Notice request refused.";
@@ -253,13 +262,61 @@ export class BoardNotices {
   }
 
   private showInbox(view: NoticeView): void {
+    this.clearCopyEvidence();
     this.inbox.replaceChildren(element("h3", "Local notice inbox"));
     if (!view.entries.length) {
       this.inbox.append(element("p", view.reason ? "Inbox unavailable." : "No retained notices."));
       return;
     }
     const list = element("ol");
-    for (const entry of view.entries) list.append(element("li", receipt(entry)));
+    for (const entry of view.entries) {
+      const pair = originalSnapshot(entry);
+      const row = element("li", receipt(pair));
+      const copy = button("Copy original text", () => { void this.copyPair(pair); });
+      this.copyEvidence.set(pair, copy);
+      const text = element(validNoticeText(pair.payload) ? "pre" : "p", validNoticeText(pair.payload) ? pair.payload.text : "Original text unavailable (legacy notice).");
+      text.style.whiteSpace = "pre-wrap";
+      text.style.overflowWrap = "anywhere";
+      row.append(text, copy);
+      list.append(row);
+    }
     this.inbox.append(list);
+  }
+
+  private clearCopyEvidence(): void {
+    for (const control of this.copyEvidence.values()) control.disabled = true;
+    this.copyEvidence.clear();
+    this.inbox.replaceChildren();
+  }
+
+  private async copyPair(pair: NoticePair): Promise<void> {
+    const identity = this.identity;
+    if (!identity || !this.copyEvidence.has(pair) || !validNoticeText(pair.payload) || this.request || this.panel.hidden || this.suspended || this.selectionPending) return;
+    const request = new AbortController();
+    this.request = request;
+    const epoch = ++this.epoch;
+    const current = (): boolean => this.request === request && this.epoch === epoch && this.copyEvidence.has(pair) &&
+      this.identity?.boardId === identity.boardId && this.identity.incarnation === identity.incarnation &&
+      !this.panel.hidden && !this.suspended && !this.selectionPending;
+    this.message.textContent = "Checking original notice before Copy…";
+    this.updateControls();
+    try {
+      const fresh = await this.client.notices(identity, { action: "inbox" }, request.signal);
+      if (!current()) return;
+      const retained = fresh.entries.find(entry => sameOriginal(pair, entry));
+      if (!retained) { this.clearCopyEvidence(); this.message.textContent = "Original text unavailable or changed. Read inbox again."; return; }
+      const result = await copyOriginal(pair, current);
+      if (!current() || result === "stale") return;
+      this.message.textContent = result === "copied" ? "Original notice text copied." :
+        result === "unsupported" ? "Clipboard unavailable in this browser. Original text was not copied." :
+        result === "expired" ? "Copy gesture expired. Choose Copy original text again." :
+        "Clipboard write did not complete successfully. Original text was not confirmed copied.";
+    } catch (error) {
+      if (!current()) return;
+      if (error instanceof NoticeRefusal) { this.displayed = undefined; this.clearCopyEvidence(); }
+      this.message.textContent = "Fresh notice read unavailable or refused. Original text was not copied. Read inbox again.";
+    } finally {
+      if (this.request === request) { this.request = undefined; this.updateControls(); }
+    }
   }
 }

@@ -1,0 +1,295 @@
+M15.01 — ORIGINAL LOCAL NOTICE TEXT AND COPY
+November 7, 2026 | M15-LOCAL-TEXT-R2
+
+Scope
+
+Enrich existing accepted local inbox notices with captured safe text. Ordinary
+browser Copy and actual CLI text/JSON expose the same original bytes. The owner
+authorized forecast A for this local M15; recipient configuration, adapter
+probes, external briefings and delivery remain later milestones.
+
+Go remains authoritative. The accepted M12-M14 ownership, current authority,
+original cuts/targets/receipt identity/acceptedAt, UNKNOWN/no replay and local
+Configure/Start/Stop/Reload/Retarget/Recover/Lookup behavior remain. Administrative
+built-in owner notifications in the separately owned Python service are an
+operator facility, not this Go product's delivery surface or a source dependency.
+
+Design-only eventual external invariants
+
+The approved m15-fixed-delivery-six-split-2026-11-07 plan retains these later
+first-effect constraints. They do not authorize/implement M16-M21 capabilities,
+create a receiver prerequisite for local M15, or turn text into send permission.
+
+- Freeze original destination, policy, payload, cuts, identity, receipt and
+  acceptedAt. External references and local UUID inbox partitions remain distinct.
+- First effect requires current effect AND private-disclosure authority, native
+  ownership SESSION AND RUN one-use reservation and durable attempted fencing
+  BEFORE invocation. No background idle-authority renewal or arbitrary client
+  executable/arguments/network endpoint is permitted.
+- Session/run end, Stop/Close before physical admission, disable/revoke or
+  generation invalidation permanently invalidate unconsumed eligibility. A
+  historical/reopened/interrupted/pre-attempt record, same-host new run or new
+  nonce cannot reconstruct it. Dirty/UNKNOWN originals stay guarded.
+- Exact genuine positive evidence reconciles only its own original identity;
+  otherwise preserve UNKNOWN, no resend, no invented negative lookup/idempotency,
+  human receipt or exactly-once claim. Already physically admitted effects keep
+  native ownership until actual process/descendant join, including partial drain.
+- Later live-host monitoring and proven-clean resume cannot settle historical
+  originals by silently dropping cuts/gaps or resetting permission. The later
+  external controls milestone owns deliberate guarded recovery/retarget/reload.
+
+1. A pure bounded format
+
+Introduce internal/contract/noticetext as a state-free reusable Go contract
+helper. It owns NoticeTextFacts, NoticeText and canonical validation/formatting.
+No clock, filesystem, service lookup or mutable global is consulted by formatting.
+Production TypeScript validation and shared vectors agree with these rules.
+
+NoticeTextFacts has label, from, through and tickets. Times are exact canonical
+UTC second timestamps YYYY-MM-DDTHH:mm:ssZ, years 0001-9999, from<=through.
+Tickets is a non-null array of strictly ascending distinct integers in
+1..9007199254740991. At most 32 distinct tickets may be represented.
+
+A label is valid UTF-8, at most 96 UTF-8 bytes, contains a non-whitespace scalar,
+and is single-line. Reject C0/C1 controls, DEL, U+2028/U+2029, U+061C,
+U+200E/U+200F, U+202A-U+202E, U+2066-U+2069 and U+FEFF. Use identical explicit
+scalar tests in Go and TypeScript; do not depend on divergent Unicode-category
+versions. Whitespace for the nonblank test is the fixed Unicode White_Space set
+(0009-000D,0020,0085,00A0,1680,2000-200A,2028,2029,202F,205F,3000). Preserve
+allowed label content exactly: no trimming, case folding or normalization.
+
+NoticeText has four required fields:
+
+- version: integer 1
+- kind: "complete" or "fallback"
+- facts: valid NoticeTextFacts for complete, null for fallback
+- text: exact canonical UTF-8 below, at most 512 bytes
+
+Complete text is exactly these three lines, with LF between lines and NO final
+newline, BOM, extra header or metadata:
+
+Board: <label>
+Observed: <from> to <through>
+Tickets: #1, #2
+
+The ticket sequence uses decimal digits without padding, "#" before every
+number and ", " between numbers. A proved empty ticket set is rendered "none"
+instead of numbers. Template delimiters are literal ASCII.
+
+Fallback text is exactly:
+
+Inspect the selected board for changes.
+
+It has kind=fallback and facts=null. It is captured as a new original, not
+regenerated at read/copy time. Invalid/unprovable/over-budget complete facts
+produce this whole fallback; never truncate a purported complete ticket list.
+Read validation refuses malformed/noncanonical payloads rather than repairing.
+Suppressions have no emitted payload. New observed-empty/loss/unavailable
+notices use fallback; complete actor attribution is not a promise of text facts.
+
+2. Authoritative capture and label provenance
+
+Preserve the existing admitted pinned SQLite reader, exact physical/source
+identity, fixed event upper bound, coverage/gap checks and bounded activity scan
+(1000 events, existing absolute source-read budget). No card title, description,
+comment body, file name, operation_full.intent/result, raw provider object,
+error/stack or URL field is read to assemble text.
+
+The database has no board-label column. Add an optional server-only frozen
+notice label to local runtime/engine construction. Existing registered
+activation captures member.Label by value with its validated physical mapping
+and ExpectedIdentity. New board creation may pass its already validated
+workspace creation label before engine publication, binding it to the actual
+created identity. This is existing authorized configuration input, never a
+notice endpoint/client text override. Both construction paths must be covered.
+
+The runtime freezes a safe label for its physical engine lifetime. An absent or
+unsafe configured label selects the explicit deterministic identity label
+"Board <canonical board UUID>"; do not crop or alter configuration. Standalone
+--data mode uses this identity label unless its server construction supplies a
+valid configured label. Label changes on future engine construction affect only
+future captures. The label is a separately frozen server scope attribute, not
+falsely represented as an atomic SQLite column or current live workspace name.
+
+Extend noticeinterval.Evidence with optional NoticeTextFacts. Preserve existing
+CaptureNoticeInterval callers by using the identity label default; the production
+runtime supplies its frozen label through a new labeled/internal capture path.
+Validate identity/admission first. Refused authority/foreign source never becomes
+a fallback notice. A post-admission source failure retains only the already
+validated upper-bound behavior of M12-M14.
+
+Ticket extraction uses only local retained metadata on the SAME pinned reader:
+
+- Match activity op_id to operation by full storage incarnation and exact
+  origin board/incarnation. Require COMMITTED, matching command/event type,
+  actor, terminal timestamp and committed board revision.
+- Current commands match event types. Card field/cover/parent/relationships/
+  archive/lane changes remain card.edit. recovery.expire alone has no op_id.
+- For card commands, immutable compact operation_reference has exactly one
+  card fact. Validate its ID/revision and committed_card_revision. Creation
+  has no route target and requires committed card revision 1; other card
+  commands cross-check their immutable target and expected+1 revision.
+- Map that exact card ID through the immutable retained ticket allocation
+  table. Do not expand current relationships or union unrelated targets.
+- Known grant/board/workflow-only events prove an empty local ticket set
+  after supported metadata validation. recovery.expire validates its existing
+  no-operation shape. Missing/mismatched/unsupported metadata cannot establish
+  empty or complete tickets and selects fallback.
+- Do not use mutable current card bodies. Do not assume activity.affected is
+  protected by an UPDATE-immutability trigger. Do not require card_revision
+  snapshots for creation: they record PRIOR revisions only after later edits.
+
+Collect a sorted unique union across the admitted interval, never one event per
+filesystem write. The observed time envelope is min/max of valid lower/upper
+sample times AND admitted event timestamps; clock regression is permitted.
+Event-sequence cuts select coverage. The displayed envelope is not an event
+selection predicate or a claim that sample time equals each event's timestamp.
+
+Only complete nonempty all-automation metadata suppresses, as before. Suppressed
+intervals need not collect text facts. Human/mixed/unknown/other/empty/failed/
+malformed/gapped/expired results remain conservative. For an alerting interval,
+unprovable text facts select captured fallback without fabricating tickets.
+All metadata queries/results stay bounded and source cleanup/authority failures
+preserve existing semantics. No new SQL layout, archive or base-schema version.
+
+3. Original persistence and legacy compatibility
+
+Private sidecar format becomes 4; versions 1/2/3 remain strictly validated and
+losslessly projected. Version 3 retains full existing configuration revisions
+and historical/future target behavior; do not accidentally apply versions
+1/2's initial-target restrictions to version 3.
+
+New emitted/acceptance intents use encoding version 2 and carry a required valid
+NoticeText. Version-2 delivery identity hashes canonical Go struct JSON in this
+explicit order: version,binding,observationId,lower,upper,targetId,class,count,
+payload. Payload is canonical and part of new identity. Preserve version-1
+encoding/key order/IDs byte-for-byte. Suppressed text-free outcomes retain
+version-1 identity semantics and are never accepted as notices. Old intents
+have no payload and cannot
+gain one through projection or read. Neither old receipt nor acceptedAt is
+relabeled, rewritten or manufactured.
+
+Format text ONCE after new authorized capture and before prepared/attempted/
+acceptance publication. Keep the exact payload through pending, last/outcome,
+receipt, recovery, lookup, retention and future local Retarget. Never derive a
+legacy or saved payload from a later board/name/card state.
+
+Deep-clone facts/ticket slices across capture, snapshot, outcome, inbox and
+lookup boundaries. Exact intent/receipt comparisons include modern payload
+contents, not pointer identity. A caller cannot mutate accepted private state
+through returned data. Capacity stays MaxStateBytes=256KiB, MaxPairs=64,
+MaxGaps=64 and current retention. Combined serialized capacity is enforced;
+no new receipt/interval is accepted by silent history dropping or truncation.
+Native account/physical binding, flush/atomic publication, uncertainty latches,
+single-use attempt permission and ownership until actual join remain.
+
+Legacy retained pairs have payload unavailable. They stay inspectable as
+legacy evidence; Copy original and raw text refuse unavailable. Never invent a
+generic fallback on reading an old receipt. New fallback payloads, in contrast,
+are actual captured originals and may be copied exactly.
+
+4. Complete service and production-validation seam
+
+Add optional payload to NoticePair (entries and positive lookup receipt);
+missing/null means legacy unavailable. A present payload must be fully valid.
+Do not weaken unknown/duplicate-field, integer, Unicode, scope or authority
+validation. Existing status/control/request contracts remain, including original
+pending/Last evidence; no new mutation endpoint is needed for Copy/text.
+API/archive/fingerprint versions remain 1. Schemas/declarations and actual
+production TypeScript validators change together under .04 ownership.
+
+Encoding disposition: NoticeResponse emission uses validated compact D02 C bytes
+(no indentation or final newline), including HTTP and notice --json output.
+T.Readable must special-case NoticeResponse after normal secret-free semantic
+validation, then apply the unchanged 128KiB limit. Strict transport decoding
+continues accepting structurally valid C or R JSON. All other transport/archive
+R encodings and mutation fingerprint/terminal bytes remain unchanged. In
+particular, raw CLI notice text still has its separate exact-byte contract.
+Pretty D02 R is not a valid size-bound assumption: a valid maximum rich inbox
+can exceed 128KiB when indented. Do not discard retained pairs or enlarge the
+limit to hide this. .04 must prove compact maximum complete/fallback/legacy
+inboxes plus maximum legal status/lookup/escaping cases stay within the cap,
+and prove both browser and actual CLI use the same encoding policy.
+
+GET notices/inbox returns retained positive pairs across original targets.
+Select by exact target UUIDv4 PLUS delivery digest under the existing selected
+board/incarnation/current authority. A missing/expired/foreign/malformed pair
+does not prove nonacceptance. Read/copy paths NEVER invoke mutating POST Lookup,
+Recover or a control replay. Keep response limit 128KiB and prove a valid
+maximum inbox plus status projection fits; preserve refusal if bounds fail.
+
+Fresh independent Sol / High .04 seam PASS precedes BOTH clients. Client-found
+material seam changes return to .04 for correction/re-review before handoff.
+
+5. Actual CLI exact text
+
+Add notices text --target <UUIDv4> --delivery <digest> with ordinary explicit
+workspace/board or --data selection. It performs the pure GET inbox path and
+matches the exact retained positive pair. It is raw-text-only; incompatible
+--json use is refused. Existing notices inbox --json exposes the payload in its
+ordinary structured evidence envelope; readable inspection keeps identity/cuts.
+
+Success writes exactly payload.text's UTF-8 bytes: no final newline/header/BOM/
+diagnostic/JSON wrapper. A reusable bounded exact-text writer handles errors
+honestly. Partial stdout failure is not success and must not be described as
+complete output. Refusal/unavailable/legacy writes no intentional payload;
+raw text errors/refusals keep stdout empty apart from unavoidable partial writer
+output, with bounded stderr diagnostics and no raw received body/token/prose.
+Missing/legacy payload is unavailable, not a negative receipt or retry grant.
+Both default/configured boards, changes/reopen, mixed targets, fallback, stale/
+denied/uncertain responses and binary-safe exact output receive actual-executable
+proof. No direct storage/SQL fallback or mutating replay.
+
+6. Ordinary browser Copy
+
+Copy is an explicit user gesture on one selected retained positive pair. Take an
+owned immutable selected-pair snapshot; freshly GET the exact current inbox,
+validate scope/authority and match key PLUS identical captured payload. Missing,
+legacy, changed or denied evidence refuses Copy. Do not regenerate current text.
+The read is foreground ordinary authority, not background idle renewal.
+
+Recheck selection/window/board/incarnation/authority/request epochs before
+clipboard invocation. Use production navigator.clipboard.writeText on validated
+text only. Unsupported/denied/failed/expired gesture remains honest; success only
+after actual clipboard success. No cached fallback after a failed fresh read.
+Do not clear drafts, move focus or repaint another scope. A-to-B-to-A and late/
+denied replies cannot cross-copy. Once an OS clipboard write is admitted, a
+later navigation/cancellation cannot promise to undo it; suppress stale success
+UI without asserting that the clipboard was restored.
+
+Known auth suspension/refusal disables/clears Copy evidence; prior authorized
+disclosure cannot be erased from human memory. No post-revocation read response
+may populate/copy private text. Preserve local controls, routing, editor/IME
+behavior, auth/origin/CSP. Use the maintained bounded real-browser/shared-queue
+feedback loop with sanitized operation/phase/code only, never notice text.
+
+Copy/print means human forwarding convenience, NOT product adapter acceptance,
+no-effect proof, absence of independent forwarding or future delivery permission.
+
+7. Acceptance and evidence ownership
+
+Shared vectors: fixtures/contracts/notice-text/v1.json. Cover canonical Unicode
+and byte limits, empty/unsorted/duplicate/unsafe tickets, unsafe labels, exact
+fallback and no terminal newline; Go and production TS agree.
+
+.02 owns admitted metadata/fact and label-composition cases, including untouched
+creation, post-compaction refs, noncard events, invalid association/foreign
+scope, clock regression, complete bot suppression and exact fallback.
+.03 owns versions 1/2/3/4, unchanged legacy IDs/targets/cuts/acceptedAt, new
+identity/payload, deep-copy/exactness, total capacity, native publication/fault/
+interruption/retention and archive/export exclusion.
+.04 owns complete generated/production-validation boundary and limits.
+.05/.06 own real CLI/browser exact-byte, fresh-authority, stale-selection,
+clipboard-denial/failure and legacy/refusal cases.
+.07 owns full CURRENT mandatory suites/providers/native/compiler/driver/archive/
+all rows/actual CLI/real browser, two isolated clean builds/ALL outputs and fresh
+integrated nonauthor High review, normal fixes and material re-review.
+.08 owns exact full kit/extraction/member/digest/schema-guide-license closure,
+NEW ordinary shipped-browser+actual-CLI new-feature demo on default/configured
+boards, separately controlled proof, fresh package review, owned cleanup,
+source/evidence publication and clock/remaining-turn reconciliation.
+
+No historical count is a ceiling, no old evidence is blanket new-feature proof,
+and no process interruption result certifies physical power loss. Every story
+stays In Progress through fresh nonauthor review; only the owner controls
+Completed. Existing M14 source/evidence bindings remain under their original pins.

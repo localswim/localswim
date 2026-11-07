@@ -562,7 +562,7 @@
     "internal/contract/transport/generate.go": "73c154d5121dca095ce4a8fbf357d7931bf8edb1ad410040a757820303a7f020",
     "internal/contract/transport/local.go": "26da73586bce5d86e6ecc536ee6f077fc358c38ac1a1c06f6a63be4c762691ec",
     "internal/contract/transport/mutation.go": "7fc360c092d72921967fd6b564bbd5128bbb67216277769d63248e0d1f8838e6",
-    "internal/contract/transport/notices.go": "69c863784b09e3bdf1ea96a805cfcdb0bb028ee8a44306f30dce9fd4bdb182d0",
+    "internal/contract/transport/notices.go": "5a844e6db8f08fe757b4488cd190a01761822e52fc0d2796cecc394dc3120dac",
     "internal/contract/transport/preferences.go": "b6479e6d075a3f912dcc0e72e86571dabc7442da5d9981c55680c38106dc87f8",
     "internal/contract/transport/references.go": "7485d5e2f8d7fe8f48e03b8d6c5da9794058937902d65408caaa1c4b81452fbc",
     "internal/contract/transport/session_code_cli.go": "a386ac52df202a858aa4b30609f74f80f6301115db59cad565c0cad20e23c908",

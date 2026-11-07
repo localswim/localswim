@@ -1,4 +1,4 @@
-// Package notices stores fixed-target delivery evidence for one selected board.
+// Package notices stores revisioned target configuration and original delivery evidence for one selected board.
 // The host owns native exclusion, authority checks and worker quiescence.
 package notices
 
@@ -14,15 +14,18 @@ import (
 )
 
 const (
-	MaxStateBytes = 256 * 1024
-	MaxPairs      = 64
-	MaxGaps       = 64
-	intentVersion = 1
-	legacyVersion = 1
-	stateVersion  = 2
+	MaxStateBytes                     = 256 * 1024
+	MaxPairs                          = 64
+	MaxGaps                           = 64
+	intentVersion                     = 1
+	legacyVersion                     = 1
+	attemptVersion                    = 2
+	stateVersion                      = 3
+	MaxConfigurationRevision A.Number = 9007199254740991
 
-	prepared  = "prepared"
-	attempted = "attempted"
+	prepared      = "prepared"
+	attempted     = "attempted"
+	legacyUnknown = "legacy-unknown"
 
 	Human         = "human"
 	Mixed         = "mixed"
@@ -59,10 +62,12 @@ func (b Binding) valid() bool {
 }
 
 type Observation struct {
-	ID       A.UUID             `json:"id"`
-	Lower    noticeinterval.Cut `json:"lower"`
-	FirstAt  A.Timestamp        `json:"firstAt"`
-	LatestAt A.Timestamp        `json:"latestAt"`
+	ID                    A.UUID             `json:"id"`
+	Lower                 noticeinterval.Cut `json:"lower"`
+	FirstAt               A.Timestamp        `json:"firstAt"`
+	LatestAt              A.Timestamp        `json:"latestAt"`
+	TargetID              A.UUID             `json:"targetId"`
+	ConfigurationRevision A.Number           `json:"configurationRevision"`
 }
 
 type Gap struct {
@@ -102,13 +107,13 @@ func (i Intent) identity() string {
 }
 
 func (i Intent) valid(binding Binding, target A.UUID) bool {
-	return i.Version == intentVersion && i.Binding == binding && i.TargetID == target &&
+	return i.Version == intentVersion && i.Binding == binding && validUUID4(target) && i.TargetID == target &&
 		validUUID4(i.ObservationID) && intervalValid(i.Class, i.Lower, i.Upper, i.Count) &&
 		A.Validate(A.Digest(i.DeliveryID)) == nil && i.DeliveryID == i.identity()
 }
 
 func (i Intent) outcome() Outcome {
-	return Outcome{i.ObservationID, i.Lower, i.Upper, i.Class, i.Count, i.DeliveryID}
+	return Outcome{i.ObservationID, i.Lower, i.Upper, i.Class, i.Count, i.DeliveryID, i.TargetID}
 }
 
 func (i Intent) exact(other Intent) bool {
@@ -124,18 +129,20 @@ type Outcome struct {
 	Class         string              `json:"class"`
 	Count         *A.Number           `json:"count"`
 	DeliveryID    string              `json:"deliveryId"`
+	TargetID      A.UUID              `json:"targetId"`
 }
 
 // State is a private monitor snapshot. Use Pair for operator projection.
 type State struct {
-	Binding     Binding            `json:"binding"`
-	TargetID    A.UUID             `json:"targetId"`
-	Checkpoint  noticeinterval.Cut `json:"checkpoint"`
-	Dirty       bool               `json:"dirty"`
-	Observation *Observation       `json:"observation"`
-	Gaps        []Gap              `json:"gaps"`
-	Pending     *Intent            `json:"pending"`
-	Last        *Outcome           `json:"last"`
+	Binding               Binding            `json:"binding"`
+	TargetID              A.UUID             `json:"targetId"`
+	ConfigurationRevision A.Number           `json:"configurationRevision"`
+	Checkpoint            noticeinterval.Cut `json:"checkpoint"`
+	Dirty                 bool               `json:"dirty"`
+	Observation           *Observation       `json:"observation"`
+	Gaps                  []Gap              `json:"gaps"`
+	Pending               *Intent            `json:"pending"`
+	Last                  *Outcome           `json:"last"`
 }
 
 // entry is one notice and receipt. Both share the exact intent and one

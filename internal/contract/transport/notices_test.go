@@ -7,7 +7,7 @@ import (
 	A "github.com/localswim/localswim/internal/contract/archive"
 )
 
-func TestNoticeResponseRejectsUnverifiedAndForeignReceipts(t *testing.T) {
+func TestNoticeResponseRejectsUnverifiedAndInvalidReceipts(t *testing.T) {
 	const board = "10000000-0000-4000-8000-000000000001"
 	const inc = "10000000-0000-4000-8000-000000000002"
 	target := UUIDv4("10000000-0000-4000-8000-000000000003")
@@ -28,9 +28,9 @@ func TestNoticeResponseRejectsUnverifiedAndForeignReceipts(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, input := range map[string][]byte{
-		"foreign":    bytes.Replace(wire, []byte(target), []byte(board), 1),
-		"unverified": bytes.Replace(wire, []byte(`"accepted"`), []byte(`"unknown"`), 1),
-		"oversized":  append(bytes.Repeat([]byte(" "), NoticeResponseLimit), wire...),
+		"invalid-target": bytes.ReplaceAll(wire, []byte(target), []byte("10000000-0000-4000-7000-000000000003")),
+		"unverified":     bytes.Replace(wire, []byte(`"accepted"`), []byte(`"unknown"`), 1),
+		"oversized":      append(bytes.Repeat([]byte(" "), NoticeResponseLimit), wire...),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if bytes.Equal(input, wire) {
@@ -40,5 +40,25 @@ func TestNoticeResponseRejectsUnverifiedAndForeignReceipts(t *testing.T) {
 				t.Fatal("accepted invalid notice response")
 			}
 		})
+	}
+}
+
+func TestNoticeResponseAllowsOriginalReceiptAfterRetarget(t *testing.T) {
+	target := UUIDv4("10000000-0000-4000-8000-000000000003")
+	oldTarget := UUIDv4("10000000-0000-4000-8000-000000000005")
+	upper, count := A.Number(7), A.Number(1)
+	pair := NoticePair{TargetID: oldTarget, DeliveryID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		AcceptedAt: "2026-11-06T12:00:00Z", Class: "human", LowerEvent: 6, UpperEvent: &upper, EventCount: &count}
+	response := NoticeResponse{APIVersion: 1, Scope: "notices", Result: NoticeView{
+		Identity:          A.Identity{BoardID: "10000000-0000-4000-8000-000000000001", Incarnation: "10000000-0000-4000-8000-000000000002"},
+		ControlGeneration: "10000000-0000-4000-8000-000000000004", TargetID: &target, State: "stopped", Checkpoint: &upper,
+		Entries: []NoticePair{pair}, Lookup: &NoticeLookup{State: "accepted", Receipt: &pair},
+	}}
+	wire, err := Readable(response)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Decode[NoticeResponse](wire); err != nil {
+		t.Fatal(err)
 	}
 }

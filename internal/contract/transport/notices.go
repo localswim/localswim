@@ -113,7 +113,7 @@ func noticeView(v NoticeView) error {
 	}
 	seen := map[A.Digest]bool{}
 	for i, p := range v.Entries {
-		if v.TargetID == nil || p.TargetID != *v.TargetID || seen[p.DeliveryID] {
+		if v.TargetID == nil || seen[p.DeliveryID] {
 			return fmt.Errorf("invalid notice inbox identity")
 		}
 		seen[p.DeliveryID] = true
@@ -124,7 +124,7 @@ func noticeView(v NoticeView) error {
 			}
 		}
 	}
-	if v.Lookup != nil && v.Lookup.Receipt != nil && (v.TargetID == nil || v.Lookup.Receipt.TargetID != *v.TargetID) {
+	if v.Lookup != nil && v.Lookup.Receipt != nil && v.TargetID == nil {
 		return fmt.Errorf("invalid notice receipt identity")
 	}
 	return nil

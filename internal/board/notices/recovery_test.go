@@ -190,7 +190,8 @@ func TestLegacyRecoveryEncodingAndIdentity(t *testing.T) {
 			t.Fatal("legacy no-op rewrote original evidence")
 		}
 		requireErr(t, s.BeginRun(), nil)
-		want := bytes.Replace([]byte(v1), []byte(`"version":1`), []byte(`"version":2`), 1)
+		want := bytes.Replace([]byte(v1), []byte(`"version":1`), []byte(`"version":3`), 1)
+		want = bytes.Replace(want, []byte(`"checkpoint":`), []byte(`"configurationRevision":1,"checkpoint":`), 1)
 		want = bytes.Replace(want, []byte(`"dirty":false`), []byte(`"dirty":true`), 1)
 		want = append(want[:len(want)-1], []byte(`,"pendingAttempt":null}`)...)
 		if s.Snapshot().TargetID != before.TargetID || !bytes.Equal(f.data, want) {
@@ -235,8 +236,8 @@ func TestStrictAttemptDecodingAndFreshProof(t *testing.T) {
 	i := prepare(t, s, complete(ObservedEmpty, baseline, 0))
 	canonical := bytes.Clone(f.data)
 	bad := [][]byte{
-		bytes.Replace(canonical, []byte(`"version":2`), []byte(`"version":3`), 1),
-		bytes.Replace(canonical, []byte(`"version":2`), []byte(`"version":1`), 1),
+		bytes.Replace(canonical, []byte(`"version":3`), []byte(`"version":4`), 1),
+		bytes.Replace(canonical, []byte(`"version":3`), []byte(`"version":1`), 1),
 		bytes.Replace(canonical, []byte(`,"pendingAttempt":"prepared"`), nil, 1),
 		bytes.Replace(canonical, []byte(`"pendingAttempt":"prepared"`), []byte(`"pendingAttempt":null`), 1),
 		bytes.Replace(canonical, []byte(`"pendingAttempt":"prepared"`), []byte(`"pendingAttempt":"new"`), 1),
@@ -272,12 +273,12 @@ func TestStrictAttemptDecodingAndFreshProof(t *testing.T) {
 	requireErr(t, err, ErrUnknown)
 	f.readErr = ErrForeign
 	_, _, err = reopened.RecoveryPlan()
-	requireErr(t, err, ErrForeign)
+	requireErr(t, err, ErrUnknown)
 	f.readErr = errors.New("unavailable")
 	_, _, err = reopened.RecoveryPlan()
-	requireErr(t, err, ErrStorage)
-	if f.writes != writes {
-		t.Fatal("failed evidence check wrote state")
+	requireErr(t, err, ErrUnknown)
+	if f.writes != writes || !reopened.Uncertain() {
+		t.Fatal("failed evidence check wrote state or lost the confirmation fence")
 	}
 	projection, err := json.Marshal(accepted)
 	requireErr(t, err, nil)

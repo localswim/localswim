@@ -361,7 +361,7 @@
   },
   {
     "path": "internal/assets/bundle/manifest.json",
-    "sha256": "922c966fd9ee80c866586e5da0da18855d4010665e68834f4b598ca84536c155"
+    "sha256": "af5ba2b6f27bf08a80ea4b3dcde85a776644fa93a57dc45e17396529e09652f5"
   },
   {
     "path": "internal/assets/bundle/styles/app.css",
@@ -572,28 +572,36 @@
     "sha256": "5e10ceda399e2d6277b33e36e9b3f8d2b257e77e3eaf1a0914c75460d0974a67"
   },
   {
+    "path": "internal/board/notices/legacy.go",
+    "sha256": "07bcc02003af985b680ffedfdb59b5526d0fa9a6c04cc156f6591480f40c513d"
+  },
+  {
     "path": "internal/board/notices/recovery.go",
-    "sha256": "fa90442d25d2cb899cdf98feec9ea8aa6c47e287fe7e236e15c31165f237898f"
+    "sha256": "2b6f3446d0c121fff569805715d0d58d54377930e97fe54a9e38426af3c64687"
   },
   {
     "path": "internal/board/notices/recovery_test.go",
-    "sha256": "c027346d74f49bad01297148953901baa4586786ff17447c9046ccae3d4baa4c"
+    "sha256": "8a0b0115c795ef88b85e4b66adee112db43c3592a0678f7cb82bfb14e1eb275b"
   },
   {
     "path": "internal/board/notices/state.go",
-    "sha256": "454be7914dfb9d0961a28ea37607b7990ed81e1f9aff33497a6dce6b8564bf1b"
+    "sha256": "ac8b88849e7eecec9cae51ae4897f641e01121cd182dc4295adf1c6920948f43"
   },
   {
     "path": "internal/board/notices/store.go",
-    "sha256": "b3d6c39b4c1c2ea2e86b38f0b93f9a6498de18a3f928e19e9cadc5cb12772e14"
+    "sha256": "1fafda64e32d3f70b0d0d0f67f3de66a30a218aa74c1b24cb46a6589077d95bf"
   },
   {
     "path": "internal/board/notices/store_test.go",
     "sha256": "fc043e7040bb08d7cd3cb500f3c9f0465277f2c67e667c08c1b028db40811bee"
   },
   {
+    "path": "internal/board/notices/target_test.go",
+    "sha256": "9f80c91337d6e9a1dfdb09b2ceba28bf9fc34f454187a0562f0ec1a469677d83"
+  },
+  {
     "path": "internal/board/notices/validation.go",
-    "sha256": "09b0725035e593357aa9aa06fc693a5b2da1fd172294f6e1197c9acb12329bec"
+    "sha256": "8b467f98697de9ef1676d213aeec59f466351a47a9e4d4e49a0d4a359d5d5a3a"
   },
   {
     "path": "internal/board/policy/policy.go",
@@ -881,11 +889,11 @@
   },
   {
     "path": "internal/contract/transport/notices.go",
-    "sha256": "69c863784b09e3bdf1ea96a805cfcdb0bb028ee8a44306f30dce9fd4bdb182d0"
+    "sha256": "5a844e6db8f08fe757b4488cd190a01761822e52fc0d2796cecc394dc3120dac"
   },
   {
     "path": "internal/contract/transport/notices_test.go",
-    "sha256": "578d67018c5616f02c9bfd34551388fa6ca5d6a9929b9d3bcec4b2ad1245962a"
+    "sha256": "32ad57032c234cca3f4ef8c4102294b2b90f0c95e3b8121bed0f018c9c56cb8e"
   },
   {
     "path": "internal/contract/transport/preferences.go",

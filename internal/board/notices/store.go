@@ -15,12 +15,14 @@ import (
 )
 
 var (
-	ErrStorage  = errors.New("notice state storage unavailable")
-	ErrInvalid  = errors.New("invalid notice state or input")
-	ErrForeign  = errors.New("foreign notice scope")
-	ErrGuarded  = errors.New("notice state guarded")
-	ErrCapacity = errors.New("notice capacity reached")
-	ErrUnknown  = errors.New("notice acceptance unknown")
+	ErrStorage                = errors.New("notice state storage unavailable")
+	ErrInvalid                = errors.New("invalid notice state or input")
+	ErrForeign                = errors.New("foreign notice scope")
+	ErrGuarded                = errors.New("notice state guarded")
+	ErrCapacity               = errors.New("notice capacity reached")
+	ErrUnknown                = errors.New("notice acceptance unknown")
+	ErrStale                  = errors.New("notice configuration revision stale")
+	ErrConfigurationExhausted = errors.New("notice configuration revision exhausted")
 )
 
 // Store publishes immutable snapshots independently of its serialized writer.
@@ -91,9 +93,7 @@ func (s *Store) publish(next *durable) error {
 	if next.Binding != s.binding {
 		return ErrForeign
 	}
-	if next.Version == legacyVersion && next.Pending == nil {
-		next.Version = stateVersion
-	}
+	next.upgrade()
 	encoded, err := next.encode()
 	if err != nil {
 		return err
@@ -139,11 +139,50 @@ func (s *Store) Configure(baseline noticeinterval.Cut) (A.UUID, error) {
 	if err != nil {
 		return "", err
 	}
-	next := &durable{Version: stateVersion, State: State{Binding: s.binding, TargetID: id, Checkpoint: baseline, Gaps: []Gap{}}, Inbox: []entry{}}
+	next := &durable{Version: stateVersion, State: State{Binding: s.binding, TargetID: id, ConfigurationRevision: 1, Checkpoint: baseline, Gaps: []Gap{}}, Inbox: []entry{}}
 	if err := s.publish(next); err != nil {
 		return "", err
 	}
 	return id, nil
+}
+
+// Retarget changes only future configuration. The host must first close
+// observation admission, drain admitted effects, and verify current authority
+// and source lineage while retaining its lifecycle reservation and native lease.
+// A guard with original evidence is allowed. A different target requires a
+// quiescent owner; an exact same-target no-op does not drain a running owner.
+func (s *Store) Retarget(target A.UUID, expectedRevision A.Number) error {
+	if s == nil {
+		return ErrStorage
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !validUUID4(target) || expectedRevision < 1 || expectedRevision > MaxConfigurationRevision {
+		return ErrInvalid
+	}
+	d := s.current.Load()
+	if d == nil || s.Uncertain() {
+		return ErrGuarded
+	}
+	if d.ConfigurationRevision != expectedRevision {
+		return ErrStale
+	}
+	d, err := s.confirmed()
+	if err != nil {
+		return err
+	}
+	if target == d.TargetID {
+		return nil
+	}
+	if s.running {
+		return ErrGuarded
+	}
+	if d.ConfigurationRevision == MaxConfigurationRevision {
+		return ErrConfigurationExhausted
+	}
+	next := *d
+	next.TargetID, next.ConfigurationRevision = target, d.ConfigurationRevision+1
+	return s.publish(&next)
 }
 
 func (s *Store) BeginRun() error {
@@ -223,7 +262,7 @@ func (s *Store) Observe(at A.Timestamp) error {
 		if err != nil {
 			return err
 		}
-		next.Observation = &Observation{id, d.Checkpoint, at, at}
+		next.Observation = &Observation{id, d.Checkpoint, at, at, d.TargetID, d.ConfigurationRevision}
 	}
 	return s.publish(&next)
 }
@@ -247,7 +286,7 @@ func (s *Store) suppress(d *durable, upper noticeinterval.Cut, quiescent bool) e
 	}
 	count := upper.Event - d.Checkpoint.Event
 	next := *d
-	next.Last = &Outcome{d.Observation.ID, d.Checkpoint, &upper, Suppressed, &count, ""}
+	next.Last = &Outcome{d.Observation.ID, d.Checkpoint, &upper, Suppressed, &count, "", d.Observation.TargetID}
 	next.Checkpoint, next.Observation = upper, nil
 	next.Dirty = !quiescent
 	return s.publish(&next)
@@ -272,7 +311,7 @@ func (s *Store) prepare(d *durable, evidence noticeinterval.Evidence) (*Intent, 
 		return nil, ErrInvalid
 	}
 	i := Intent{Version: intentVersion, Binding: d.Binding, ObservationID: d.Observation.ID, Lower: d.Checkpoint,
-		Upper: copyValue(evidence.Upper), TargetID: d.TargetID, Class: evidence.Class, Count: copyValue(evidence.Count)}
+		Upper: copyValue(evidence.Upper), TargetID: d.Observation.TargetID, Class: evidence.Class, Count: copyValue(evidence.Count)}
 	i.DeliveryID = i.identity()
 	if d.Pending != nil {
 		if !i.exact(*d.Pending) {
@@ -302,11 +341,9 @@ func (d *durable) pendingMatches(target A.UUID, deliveryID string) bool {
 }
 
 func (d *durable) find(target A.UUID, deliveryID string) int {
-	if target == d.TargetID {
-		for idx, e := range d.Inbox {
-			if e.Intent.DeliveryID == deliveryID {
-				return idx
-			}
+	for idx, e := range d.Inbox {
+		if e.Intent.TargetID == target && e.Intent.DeliveryID == deliveryID {
+			return idx
 		}
 	}
 	return -1

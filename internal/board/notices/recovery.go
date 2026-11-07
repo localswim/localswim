@@ -23,16 +23,21 @@ const (
 
 // confirmed rereads the sidecar and requires the exact last confirmed state.
 // A mutation never adopts bytes from an unconfirmed or unexpected write.
+// Every caller holds the writer mutex. Once confirmation fails, cached facts
+// cannot authorize later effects, even if a transient read fault disappears.
+// Safe reopen or the existing exact positive-only Lookup may resolve the guard.
 func (s *Store) confirmed() (*durable, error) {
 	if s.Uncertain() {
 		return nil, ErrUnknown
 	}
 	observed, err := s.load()
 	if err != nil {
+		s.fault.Store(true)
 		return nil, err
 	}
 	current := s.current.Load()
 	if !statesExact(current, observed) {
+		s.fault.Store(true)
 		return nil, ErrUnknown
 	}
 	return current, nil
@@ -52,10 +57,10 @@ func (d *durable) recoveryAction() RecoveryAction {
 	case d == nil || !d.Dirty:
 		return RecoveryNoop
 	case d.Pending != nil:
-		if d.find(d.TargetID, d.Pending.DeliveryID) >= 0 {
+		if d.find(d.Pending.TargetID, d.Pending.DeliveryID) >= 0 {
 			return RecoveryFinalize
 		}
-		if d.Version == stateVersion && *d.PendingAttempt == prepared {
+		if d.Version != legacyVersion && *d.PendingAttempt == prepared {
 			return RecoveryAttempt
 		}
 		return RecoveryUnknown
@@ -247,7 +252,7 @@ func (s *Store) FinalizeRecovery(intent *Intent) error {
 	if d.recoveryAction() != RecoveryFinalize || !d.Pending.exact(*intent) {
 		return ErrUnknown
 	}
-	if err := s.finalize(d, d.find(d.TargetID, intent.DeliveryID), true); err != nil {
+	if err := s.finalize(d, d.find(intent.TargetID, intent.DeliveryID), true); err != nil {
 		return err
 	}
 	s.clearGuard()

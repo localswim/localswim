@@ -1,0 +1,42 @@
+M13 extracted interrupted notice recovery review kit
+
+PASS. Fresh independent Sol / High review cleared the archive and evidence.
+
+Extract the Windows amd64 ZIP and open START-HERE.txt. DEMO.txt walks through
+a fresh synthetic board and describes the separately controlled interruption
+cases. NOTICES-CLI.txt and NOTICES-BROWSER.txt cover routine operation.
+
+Qualified product source d883c2c7e4e5d3403e72886e6424b66994260714
+Qualified native input 806cdb6b97bfe87fdfaf923f4c442ec3ce770796
+Joined qualification publication 07ae22f87357d6f266f0cd4d94d5ac4f553e49aa
+
+Executable SHA-256
+c927637c8fe579682e43ced8e1e66f1a48291b459713683d992b034682d7c5f8
+Kit localswim-m13-windows-amd64.zip
+ZIP SHA-256
+e06e46d8820bb49d6143c3ecd8cdd55e52076e27e36458f93de311d3c77a1e62
+
+- The archive has 44 files and 42 allowlisted payloads. CRC, confined
+  extraction, complete checksums and guide references passed. Its
+  12,709,821 bytes exceed the board attachment limit. The card carries
+  the manifest and checksum and references the local ZIP.
+- A fresh extraction passed 141 runner and 52 Chrome checks. The ordinary
+  shipped application reopened the original target and pending ID after
+  a separately controlled synthetic owner was interrupted. Browser and
+  actual CLI showed prepared recovery, exact receipt proof, a missing-proof
+  guard, and deliberate Start catching up from the saved cut once.
+- The separate extracted CLI case for a receipt committed before checkpoint
+  disposition preserved its exact ID and acceptance time. The fenced case
+  with no receipt preserved the original guard without another acceptance.
+- All 11 fixture listeners closed. Six ordinary hosts exited gracefully
+  and five controlled children were intentionally interrupted at their
+  known stages. The owned fixture, extraction and mailbox were removed.
+  Three bounded diagnostic messages include a classified optional favicon
+  HTTP 404. Product and cleanup assertions passed independently.
+- A separate ordinary packaged command sequence passed 12 checks, including
+  configure, receipt lookup, Stop, clean reopen and catch-up.
+
+The controlled setup is separate from the shipped kit. The verified scope
+is synthetic Windows amd64, local NTFS and numeric loopback. Joined proof
+and exact evidence hashes are recorded in joined-r1.json and HANDOFF.json.
+Terry controls final acceptance.

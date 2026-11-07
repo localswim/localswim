@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "independentReview": "Fresh Sol / High PASS",
+  "qualifiedProductSource": "d883c2c7e4e5d3403e72886e6424b66994260714",
+  "qualifiedNativeInput": "806cdb6b97bfe87fdfaf923f4c442ec3ce770796",
+  "qualificationPublication": "07ae22f87357d6f266f0cd4d94d5ac4f553e49aa",
+  "platform": "Synthetic Windows amd64, local NTFS and numeric loopback",
+  "artifact": {
+    "archive": "localswim-m13-windows-amd64.zip",
+    "bytes": 12709821,
+    "zipSHA256": "e06e46d8820bb49d6143c3ecd8cdd55e52076e27e36458f93de311d3c77a1e62",
+    "executableSHA256": "c927637c8fe579682e43ced8e1e66f1a48291b459713683d992b034682d7c5f8",
+    "files": 44,
+    "payloads": 42,
+    "manifestSHA256": "b3e48684fd3676b14dac85bf9fb3f8d022f322aa22e926c6c3845cb7349fd446",
+    "checksumsSHA256": "e462be6bc911b3afad5f5078eecfbd5e5e55dd00dacb6ab965ade1d6cce45777"
+  },
+  "extractedDemo": {
+    "run": "proof-df7d339a",
+    "runnerChecks": 141,
+    "chromeChecks": 52,
+    "ordinaryGuideChecks": 12,
+    "listenersClosed": 11,
+    "ordinaryHostExits": 6,
+    "controlledInterruptions": 5,
+    "exactAcceptedTimePreserved": true,
+    "missingProofGuarded": true,
+    "separateCatchUp": true,
+    "queueMessages": 3,
+    "classifiedOptionalFavicon404": 1,
+    "fixtureRemoved": true,
+    "extractionRemoved": true,
+    "ownedMailboxDeleted": true
+  },
+  "evidenceSHA256": {
+    "packageVerification": "68e080352b5d5a0cffd506655983c95fea6597dbea2a1ab6edbbbc7d9968bf2f",
+    "manifest": "b3e48684fd3676b14dac85bf9fb3f8d022f322aa22e926c6c3845cb7349fd446",
+    "checksums": "e462be6bc911b3afad5f5078eecfbd5e5e55dd00dacb6ab965ade1d6cce45777",
+    "extractedDemo": "980d87d46952510479ab50c2dc35ceeb2f3675fa79968edfbb99fd9cf1d5629b",
+    "browser": "e279100b6e595d9ea0689f2443cf5e577d5dbeca0f94234ad84ecaf31d14f78b",
+    "diagnostics": "f1c74158d24ec3bd0ccbd5ce524a4f26f7d6a30ac976b0159250ed04eacc0bc9",
+    "ordinaryGuide": "114baa5bbdde494fbe4d4b5b26e293a07bc14f63aa4843ceea1b1f1fd3aa6233",
+    "independentReview": "2253389341fc04190841fe7a8a6492ee81000aa505c8307a38951392d65a9808"
+  }
+}

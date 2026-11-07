@@ -9,6 +9,7 @@ import (
 	"github.com/localswim/localswim/internal/board/grants"
 	"github.com/localswim/localswim/internal/board/noticeinterval"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	"github.com/localswim/localswim/internal/contract/noticetext"
 	T "github.com/localswim/localswim/internal/contract/transport"
 	S "github.com/localswim/localswim/internal/store/open"
 	"github.com/localswim/localswim/internal/store/writer"
@@ -41,13 +42,19 @@ func ObserveNoticeCut(ctx context.Context, store *S.Store, identity A.Identity, 
 // lineage. Source failure after admission can retain a validated upper cut, but
 // only after successful lease cleanup. Authority and scope failures expose no cut.
 func CaptureNoticeInterval(ctx context.Context, store *S.Store, identity A.Identity, automation A.UUID, lower noticeinterval.Cut, authorize func(context.Context, writer.Read) error) (noticeinterval.Evidence, error) {
+	return CaptureNoticeIntervalWithLabel(ctx, store, identity, automation, lower, "", authorize)
+}
+
+// CaptureNoticeIntervalWithLabel uses an engine-lifetime server scope label,
+// separately frozen from SQL facts. Unsafe/absent labels use the board identity.
+func CaptureNoticeIntervalWithLabel(ctx context.Context, store *S.Store, identity A.Identity, automation A.UUID, lower noticeinterval.Cut, label string, authorize func(context.Context, writer.Read) error) (noticeinterval.Evidence, error) {
 	if A.Validate(automation) != nil {
 		return noticeinterval.Evidence{}, ErrUnavailable
 	}
 	var evidence noticeinterval.Evidence
 	admitted, err := readNoticeSource(ctx, store, identity, authorize, func(r writer.Read) error {
 		var err error
-		evidence, err = captureNoticeInterval(r, identity, automation, lower, time.Now())
+		evidence, err = captureNoticeIntervalWithLabel(r, identity, automation, lower, time.Now(), label)
 		return err
 	})
 	if err != nil {
@@ -159,6 +166,10 @@ func noticeCut(r writer.Read, identity A.Identity, now time.Time) (noticeinterva
 }
 
 func captureNoticeInterval(r writer.Read, identity A.Identity, automation A.UUID, lower noticeinterval.Cut, now time.Time) (noticeinterval.Evidence, error) {
+	return captureNoticeIntervalWithLabel(r, identity, automation, lower, now, "")
+}
+
+func captureNoticeIntervalWithLabel(r writer.Read, identity A.Identity, automation A.UUID, lower noticeinterval.Cut, now time.Time, label string) (noticeinterval.Evidence, error) {
 	if !lower.Valid() {
 		return noticeinterval.Evidence{}, ErrUnavailable
 	}
@@ -192,6 +203,13 @@ func captureNoticeInterval(r writer.Read, identity A.Identity, automation A.UUID
 	if evidence.Class == "" {
 		evidence.Class = facts.actors.class()
 		evidence.Count = &expected
+		// Suppression and observed-empty behavior do not depend on text facts.
+		if expected > 0 && evidence.Class != "all-automation" {
+			evidence.Facts, err = captureNoticeTextFacts(r, identity, lower, upper, noticetext.SafeLabel(label, identity.BoardID), facts.low, facts.high)
+			if err != nil {
+				return noticeinterval.Evidence{Upper: &upper}, err
+			}
+		}
 	}
 	return evidence, nil
 }

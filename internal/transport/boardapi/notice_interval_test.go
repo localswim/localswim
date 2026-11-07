@@ -36,7 +36,7 @@ func newNoticeFixture(t *testing.T, path string) (noticeFixture, *sql.DB) {
 	// Deliberately omit validation constraints to exercise corrupt evidence.
 	f.exec(`CREATE TABLE board(singleton INTEGER,board_id TEXT,incarnation TEXT,revision INTEGER,next_event INTEGER,activity_floor TEXT);
 		CREATE TABLE actor(incarnation TEXT,actor_id TEXT,kind TEXT);
-		CREATE TABLE activity(incarnation TEXT,origin_board TEXT,origin_incarnation TEXT,event_id INTEGER,at TEXT,type TEXT,board_revision INTEGER,actor_id TEXT,affected TEXT);
+		CREATE TABLE activity(incarnation TEXT,origin_board TEXT,origin_incarnation TEXT,event_id INTEGER,at TEXT,type TEXT,board_revision INTEGER,actor_id TEXT,affected TEXT,op_id TEXT);
 		CREATE TABLE coverage_gap(gap_id INTEGER PRIMARY KEY,incarnation TEXT,origin_board TEXT,origin_incarnation TEXT,class TEXT,from_exclusive TEXT,through_inclusive TEXT,reason TEXT);`)
 	f.exec("INSERT INTO board VALUES(1,?,?,9,1,NULL)", testBoard, testInc)
 	f.exec("INSERT INTO actor VALUES(?,?,'human'),(?,?,'automation'),(?,?,'automation')", testInc, testActor, testInc, testCard, testInc, sourceInc)
@@ -122,7 +122,7 @@ func TestNoticeIntervalPinnedPages(t *testing.T) {
 		starts = append(starts, start)
 		if start == 20 {
 			_, err := db.ExecContext(f.ctx, `BEGIN IMMEDIATE;
-				INSERT INTO activity SELECT incarnation,origin_board,origin_incarnation,46,'2026-09-29T00:00:00Z',type,10,?,affected
+				INSERT INTO activity(incarnation,origin_board,origin_incarnation,event_id,at,type,board_revision,actor_id,affected) SELECT incarnation,origin_board,origin_incarnation,46,'2026-09-29T00:00:00Z',type,10,?,affected
 				FROM activity WHERE incarnation=? AND origin_board=? AND origin_incarnation=? AND event_id=45;
 				UPDATE board SET next_event=47,revision=10; COMMIT;`, testActor, testInc, testBoard, testInc)
 			return err

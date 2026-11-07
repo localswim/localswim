@@ -108,7 +108,7 @@ func (f activityFixture) exec(q string, args ...any) {
 
 func (f activityFixture) event(board, inc string, id int, at, typ string, revision int, actor string) {
 	f.t.Helper()
-	f.exec("INSERT INTO activity VALUES(?,?,?,?,?,?,?,?,'PRIVATE-AFFECTED')", testInc, board, inc, id, at, typ, revision, actor)
+	f.exec("INSERT INTO activity(incarnation,origin_board,origin_incarnation,event_id,at,type,board_revision,actor_id,affected) VALUES(?,?,?,?,?,?,?,?,'PRIVATE-AFFECTED')", testInc, board, inc, id, at, typ, revision, actor)
 }
 
 var activityIdentity = A.Identity{BoardID: testBoard, Incarnation: testInc}

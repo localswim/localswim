@@ -319,7 +319,7 @@ func (r *Runtime) createBoard(w http.ResponseWriter, q *http.Request, v T.Worksp
 	var id T.WorkspaceIdentity
 	var engine *L.Runtime
 	if v.Action == "create" {
-		engine, e = L.OpenEngine(r.ctx, L.EngineOptions{DataDir: g.Path(), Origin: r.Origin(), WorkspaceID: string(c.WorkspaceID), Workflow: v.Workflow})
+		engine, e = L.OpenEngine(r.ctx, L.EngineOptions{DataDir: g.Path(), Origin: r.Origin(), WorkspaceID: string(c.WorkspaceID), Workflow: v.Workflow, NoticeLabel: string(v.Label)})
 		if e != nil {
 			r.retainEngine(engine)
 			r.result(w, c, "UNKNOWN", v.ProjectKey, &v.BoardKey, nil)

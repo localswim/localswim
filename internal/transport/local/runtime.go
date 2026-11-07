@@ -24,6 +24,7 @@ import (
 	"github.com/localswim/localswim/internal/board/noticemonitor"
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	"github.com/localswim/localswim/internal/contract/noticetext"
 	T "github.com/localswim/localswim/internal/contract/transport"
 	S "github.com/localswim/localswim/internal/store/open"
 	"github.com/localswim/localswim/internal/store/schema"
@@ -63,6 +64,7 @@ type EngineOptions struct {
 	WorkspaceID      string
 	ExpectedIdentity *BoardIdentity
 	Workflow         *A.Workflow // new initialization only; never changes an existing board
+	NoticeLabel      string      // server construction metadata, frozen for this engine lifetime
 }
 
 func (ClientInfo) String() string               { return "local connection [redacted]" }
@@ -235,6 +237,7 @@ type Runtime struct {
 	auth                         *authority
 	notices                      *noticemonitor.Monitor
 	noticeState                  *noticeNativeState
+	noticeLabel                  string
 	server                       *http.Server
 	listener                     net.Listener
 	done                         chan struct{}
@@ -251,6 +254,7 @@ type Runtime struct {
 }
 
 func (r *Runtime) Origin() string { return r.effectiveOrigin }
+
 func (r *Runtime) Identity() BoardIdentity {
 	return BoardIdentity{r.id.InstallationID, r.id.BoardID, r.id.Incarnation}
 }
@@ -484,6 +488,7 @@ func openEngine(ctx context.Context, o EngineOptions, assets http.Handler) (*Run
 		effectiveOrigin = origin(id.Port)
 	}
 	r := &Runtime{id: id, epoch: uuid(), root: o.DataDir, store: store, done: make(chan struct{}), release: cleanup, assets: assets, effectiveOrigin: effectiveOrigin, workspaceID: o.WorkspaceID}
+	r.noticeLabel = noticetext.SafeLabel(o.NoticeLabel, A.UUID(id.BoardID))
 	r.auth = newAuthority(store, id, r.Origin(), bot)
 	r.board, e = boardapi.NewAuthenticated(store, r.auth, r)
 	if e != nil {

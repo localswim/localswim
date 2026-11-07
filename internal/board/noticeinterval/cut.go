@@ -2,7 +2,10 @@
 // authorized activity source and the fixed-target notice worker.
 package noticeinterval
 
-import A "github.com/localswim/localswim/internal/contract/archive"
+import (
+	A "github.com/localswim/localswim/internal/contract/archive"
+	"github.com/localswim/localswim/internal/contract/noticetext"
+)
 
 // Cut identifies a position and its coverage within one physical lineage.
 // An empty Floor represents the absence of a selected activity floor.
@@ -37,4 +40,6 @@ type Evidence struct {
 	Upper *Cut
 	Class string
 	Count *A.Number
+	// Facts is absent when complete safe text facts cannot be established.
+	Facts *noticetext.NoticeTextFacts
 }

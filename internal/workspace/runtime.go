@@ -342,7 +342,7 @@ func (r *Runtime) startActivation(m member) {
 			r.finish(k, nil, classify(e))
 			return
 		}
-		engine, e := L.OpenWorkspaceEngine(r.ctx, acquirectx, L.EngineOptions{DataDir: g.Path(), Origin: r.Origin(), WorkspaceID: string(c.WorkspaceID), ExpectedIdentity: localIdentity(m.Identity)})
+		engine, e := L.OpenWorkspaceEngine(r.ctx, acquirectx, L.EngineOptions{DataDir: g.Path(), Origin: r.Origin(), WorkspaceID: string(c.WorkspaceID), ExpectedIdentity: localIdentity(m.Identity), NoticeLabel: string(m.Label)})
 		if e != nil {
 			r.retainEngine(engine)
 			r.finish(k, nil, classify(e))

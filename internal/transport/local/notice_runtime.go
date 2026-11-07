@@ -204,7 +204,7 @@ func (r *Runtime) openNotices(rootKey func() (string, error), boardDir string) (
 			if err := verify(); err != nil {
 				return noticeinterval.Evidence{}, err
 			}
-			evidence, err := boardapi.CaptureNoticeInterval(ctx, r.store, selected, A.UUID(r.id.BotID), lower, auth)
+			evidence, err := boardapi.CaptureNoticeIntervalWithLabel(ctx, r.store, selected, A.UUID(r.id.BotID), lower, r.noticeLabel, auth)
 			if err == nil {
 				err = verify()
 			}

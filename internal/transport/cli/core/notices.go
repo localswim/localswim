@@ -29,20 +29,16 @@ func noticePath(selected Selectors, action, method string) string {
 func runNotices(ctx context.Context, c *Connection, q invocation, action string) result {
 	var request any
 	incarnation := A.UUID(q.selected.Incarnation)
-	switch action {
-	case "configure", "start", "stop", "recover":
+	if action == "configure" || action == "start" || action == "stop" || action == "recover" || action == "lookup" {
 		status := requestNotices(ctx, c, q, "status", http.MethodGet, noticePath(q.selected, "status", http.MethodGet), nil)
 		if status.exit != 0 {
 			return status
 		}
-		// Bind this deliberate action to the generation just observed. Send
-		// once even if the host reports that the generation has changed.
-		request = T.NoticeControlRequest{
-			Incarnation: incarnation, ExpectedControlGeneration: status.value.(T.NoticeResponse).Result.ControlGeneration,
-		}
-	case "lookup":
-		request = T.NoticeLookupRequest{
-			Incarnation: incarnation, TargetID: T.UUIDv4(q.noticeTarget), DeliveryID: A.Digest(q.noticeDelivery),
+		view := status.value.(T.NoticeResponse).Result
+		if action == "lookup" {
+			request = T.NoticeLookupRequest{Incarnation: incarnation, TargetID: T.UUIDv4(q.noticeTarget), DeliveryID: A.Digest(q.noticeDelivery), ExpectedControlGeneration: view.ControlGeneration, ExpectedConfigurationRevision: view.ConfigurationRevision}
+		} else {
+			request = T.NoticeControlRequest{Incarnation: incarnation, ExpectedControlGeneration: view.ControlGeneration, ExpectedConfigurationRevision: view.ConfigurationRevision}
 		}
 	}
 	var body io.Reader
@@ -61,7 +57,7 @@ func requestNotices(ctx context.Context, c *Connection, q invocation, action, me
 	if method == http.MethodPost {
 		unconfirmed = result{noticeOutcomeUnknown{
 			APIVersion: 1, Outcome: "unknown",
-			Error: T.Error{Code: "OUTCOME_UNKNOWN", Message: "Notice request outcome is unknown. Read notices status before taking further action."},
+			Error: T.NoticeUnknownError{Code: "OUTCOME_UNKNOWN", Message: T.NoticeUnknownMessage},
 		}, 4}
 	}
 	status, wire, err := c.requestJSON(ctx, method, path, body, T.NoticeResponseLimit)
@@ -93,11 +89,7 @@ func requestNotices(ctx context.Context, c *Connection, q invocation, action, me
 
 // A notice POST has no D03 operation ID. Report uncertainty without fabricating
 // operation evidence or claiming that the service refused the request.
-type noticeOutcomeUnknown struct {
-	APIVersion A.Version        `json:"apiVersion"`
-	Outcome    T.UnknownOutcome `json:"outcome"`
-	Error      T.Error          `json:"error"`
-}
+type noticeOutcomeUnknown = T.NoticeOutcomeUnknown
 
 func writeNotices(out *strings.Builder, v T.NoticeView) {
 	fmt.Fprintf(out, "Notices for board/incarnation %s\nState: %s\nControl generation: %s\n", originText(v.Identity), v.State, v.ControlGeneration)

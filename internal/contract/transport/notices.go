@@ -20,6 +20,7 @@ type NoticePhase string
 type NoticeReason string
 type NoticeClass string
 type NoticeLookupState string
+type NoticeOperation string
 
 type NoticeResponse struct {
 	APIVersion A.Version   `json:"apiVersion"`
@@ -28,20 +29,23 @@ type NoticeResponse struct {
 }
 
 type NoticeView struct {
-	Identity          A.Identity    `json:"identity"`
-	ControlGeneration UUIDv4        `json:"controlGeneration"`
-	TargetID          *UUIDv4       `json:"targetId"`
-	State             NoticePhase   `json:"state"`
-	Reason            *NoticeReason `json:"reason"`
-	Checkpoint        *A.Number     `json:"checkpoint"`
-	GapCount          A.Number      `json:"gapCount"`
-	Last              *NoticeCut    `json:"last"`
-	Pending           *NoticeCut    `json:"pending"`
-	Entries           []NoticePair  `json:"entries"`
-	Lookup            *NoticeLookup `json:"lookup"`
+	Identity              A.Identity       `json:"identity"`
+	ControlGeneration     UUIDv4           `json:"controlGeneration"`
+	ConfigurationRevision A.Number         `json:"configurationRevision"`
+	ControlOperation      *NoticeOperation `json:"controlOperation"`
+	TargetID              *UUIDv4          `json:"targetId"`
+	State                 NoticePhase      `json:"state"`
+	Reason                *NoticeReason    `json:"reason"`
+	Checkpoint            *A.Number        `json:"checkpoint"`
+	GapCount              A.Number         `json:"gapCount"`
+	Last                  *NoticeCut       `json:"last"`
+	Pending               *NoticeCut       `json:"pending"`
+	Entries               []NoticePair     `json:"entries"`
+	Lookup                *NoticeLookup    `json:"lookup"`
 }
 
 type NoticeCut struct {
+	TargetID   UUIDv4      `json:"targetId"`
 	Class      NoticeClass `json:"class"`
 	LowerEvent A.Number    `json:"lowerEvent"`
 	UpperEvent *A.Number   `json:"upperEvent"`
@@ -65,14 +69,37 @@ type NoticeLookup struct {
 }
 
 type NoticeControlRequest struct {
-	Incarnation               A.UUID `json:"incarnation"`
-	ExpectedControlGeneration UUIDv4 `json:"expectedControlGeneration"`
+	Incarnation                   A.UUID   `json:"incarnation"`
+	ExpectedControlGeneration     UUIDv4   `json:"expectedControlGeneration"`
+	ExpectedConfigurationRevision A.Number `json:"expectedConfigurationRevision"`
 }
 
+type NoticeRetargetRequest struct {
+	Incarnation                   A.UUID   `json:"incarnation"`
+	ExpectedControlGeneration     UUIDv4   `json:"expectedControlGeneration"`
+	ExpectedConfigurationRevision A.Number `json:"expectedConfigurationRevision"`
+	TargetID                      UUIDv4   `json:"targetId"`
+}
+
+type NoticeUnknownError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type NoticeOutcomeUnknown struct {
+	APIVersion A.Version          `json:"apiVersion"`
+	Outcome    UnknownOutcome     `json:"outcome"`
+	Error      NoticeUnknownError `json:"error"`
+}
+
+const NoticeUnknownMessage = "Notice request outcome is unknown. Read notices status before taking further action."
+
 type NoticeLookupRequest struct {
-	Incarnation A.UUID   `json:"incarnation"`
-	TargetID    UUIDv4   `json:"targetId"`
-	DeliveryID  A.Digest `json:"deliveryId"`
+	ExpectedControlGeneration     UUIDv4   `json:"expectedControlGeneration"`
+	ExpectedConfigurationRevision A.Number `json:"expectedConfigurationRevision"`
+	Incarnation                   A.UUID   `json:"incarnation"`
+	TargetID                      UUIDv4   `json:"targetId"`
+	DeliveryID                    A.Digest `json:"deliveryId"`
 }
 
 func noticeRange(class NoticeClass, lower A.Number, upper, count *A.Number) bool {
@@ -94,9 +121,9 @@ func noticeRange(class NoticeClass, lower A.Number, upper, count *A.Number) bool
 
 func noticeByteLimit(t reflect.Type) int {
 	switch t {
-	case reflect.TypeFor[NoticeResponse]():
+	case reflect.TypeFor[NoticeResponse](), reflect.TypeFor[NoticeOutcomeUnknown]():
 		return NoticeResponseLimit
-	case reflect.TypeFor[NoticeControlRequest](), reflect.TypeFor[NoticeLookupRequest]():
+	case reflect.TypeFor[NoticeControlRequest](), reflect.TypeFor[NoticeLookupRequest](), reflect.TypeFor[NoticeRetargetRequest]():
 		return NoticeRequestLimit
 	default:
 		return 0
@@ -106,6 +133,8 @@ func noticeByteLimit(t reflect.Type) int {
 func noticeView(v NoticeView) error {
 	if v.GapCount > NoticeGapLimit || len(v.Entries) > NoticeInboxLimit ||
 		(v.TargetID == nil) != (v.Checkpoint == nil) ||
+		(v.TargetID == nil) != (v.ConfigurationRevision == 0) ||
+		v.Reason != nil && *v.Reason == "foreign" && (v.TargetID != nil || v.ControlOperation != nil || v.Lookup != nil && v.Lookup.Receipt != nil) ||
 		v.State == "unconfigured" && v.TargetID != nil ||
 		v.TargetID == nil && (v.GapCount != 0 || v.Last != nil || v.Pending != nil || len(v.Entries) != 0) ||
 		v.Pending != nil && v.Pending.Class == "suppressed" {
@@ -133,12 +162,15 @@ func noticeView(v NoticeView) error {
 func noticeSchema(t reflect.Type, m map[string]any) {
 	p := m["properties"].(map[string]any)
 	switch t {
-	case reflect.TypeFor[NoticeResponse]():
+	case reflect.TypeFor[NoticeResponse](), reflect.TypeFor[NoticeOutcomeUnknown]():
 		m["x-max-utf8-bytes"] = NoticeResponseLimit
+	case reflect.TypeFor[NoticeUnknownError]():
+		p["code"].(map[string]any)["const"] = "OUTCOME_UNKNOWN"
+		p["message"].(map[string]any)["const"] = NoticeUnknownMessage
 	case reflect.TypeFor[NoticeView]():
 		p["entries"].(map[string]any)["maxItems"] = NoticeInboxLimit
 		p["gapCount"].(map[string]any)["maximum"] = NoticeGapLimit
-	case reflect.TypeFor[NoticeControlRequest](), reflect.TypeFor[NoticeLookupRequest]():
+	case reflect.TypeFor[NoticeControlRequest](), reflect.TypeFor[NoticeLookupRequest](), reflect.TypeFor[NoticeRetargetRequest]():
 		m["x-max-utf8-bytes"] = NoticeRequestLimit
 	}
 }

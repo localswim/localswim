@@ -203,7 +203,7 @@ func TestRecoverRechecksAuthorityBetweenEffects(t *testing.T) {
 				return nil
 			}
 			_, err := m.RecoverView(ctx, before.Generation, auth)
-			if !errors.Is(err, ErrAuthority) || writes != revokeAfter ||
+			if !errors.Is(err, ErrOutcomeUnknown) || writes != revokeAfter ||
 				m.Snapshot().State.Checkpoint.Event != before.State.Checkpoint.Event {
 				t.Fatal("authority loss crossed a later effect boundary", err)
 			}

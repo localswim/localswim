@@ -42,7 +42,12 @@ func (m *Monitor) work(r *run, auth Authority, initial observation) {
 	if !errors.Is(err, notices.ErrForeign) {
 		// Foreign scope must leave the durable state untouched. All other
 		// exits may clear the dirty marker only if no effect is unresolved.
-		endErr := m.store.EndRun()
+		endErr := m.authorize(context.Background(), auth)
+		if endErr == nil {
+			endErr = m.store.EndRun()
+		} else {
+			m.store.AbandonRun()
+		}
 		if err == nil || (endErr != nil && !errors.Is(endErr, notices.ErrGuarded)) {
 			err = endErr
 			if errors.Is(endErr, notices.ErrGuarded) {
@@ -57,7 +62,10 @@ func (m *Monitor) work(r *run, auth Authority, initial observation) {
 	if !r.stopAt.IsZero() && r.partial.Phase == "" && !time.Now().Before(r.stopAt.Add(m.timing.stop)) {
 		m.recordPartialDrain(r)
 	}
-	m.run, m.generation = nil, r.completion
+	m.run = nil
+	if !m.reserved {
+		m.generation = r.completion
+	}
 	m.phase, m.reason = m.durableStatus()
 	if err != nil {
 		m.phase, m.reason = faultStatus(err)

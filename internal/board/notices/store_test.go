@@ -647,3 +647,43 @@ func TestActiveLookupDuringUnconfirmedAcceptance(t *testing.T) {
 		t.Fatal("active lookup failed to report confirmed receipt read-only")
 	}
 }
+
+func TestAbandonRunRetainsEveryDurableFact(t *testing.T) {
+	for _, stage := range []string{"idle", "observation", "prepared", "attempted", "accepted"} {
+		t.Run(stage, func(t *testing.T) {
+			s, f, _ := start(t)
+			var intent *Intent
+			if stage != "idle" {
+				upper := baseline
+				upper.Event++
+				requireErr(t, s.Observe(sample), nil)
+				if stage != "observation" {
+					var err error
+					intent, err = s.Prepare(complete(Human, upper, 1))
+					requireErr(t, err, nil)
+					if stage == "attempted" || stage == "accepted" {
+						attempt, err := s.Fence(intent, sample, false)
+						requireErr(t, err, nil)
+						if stage == "accepted" {
+							_, err = attempt(sample)
+							requireErr(t, err, nil)
+						}
+					}
+				}
+			}
+			original, writes := bytes.Clone(f.data), f.writes
+			s.AbandonRun()
+			if s.running || !bytes.Equal(original, f.data) || f.writes != writes || !s.Snapshot().Dirty {
+				t.Fatal("runtime release changed dirty evidence")
+			}
+			requireErr(t, s.BeginRun(), ErrGuarded)
+			if intent != nil && s.Snapshot().Pending.DeliveryID != intent.DeliveryID {
+				t.Fatal("runtime release lost original pending")
+			}
+			requireErr(t, s.Retarget("20000000-0000-4000-8000-000000000099", 1), nil)
+			if !s.Snapshot().Dirty || intent != nil && s.Snapshot().Pending.TargetID != intent.TargetID {
+				t.Fatal("future-only configuration lent old attempt authority")
+			}
+		})
+	}
+}

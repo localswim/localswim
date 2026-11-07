@@ -123,7 +123,7 @@ export class BoardNotices {
         }
         this.readStatus.setAttribute("aria-disabled", String(busy));
         this.readInbox.setAttribute("aria-disabled", String(busy));
-        this.lookup.setAttribute("aria-disabled", String(busy || !targetPattern.test(this.target.value) || !deliveryPattern.test(this.delivery.value)));
+        this.lookup.setAttribute("aria-disabled", String(busy || !this.displayed || !targetPattern.test(this.target.value) || !deliveryPattern.test(this.delivery.value)));
     }
     canRecover() {
         return !!this.displayed?.targetId && (this.displayed.state === "guarded" || this.displayed.state === "failed");
@@ -131,13 +131,13 @@ export class BoardNotices {
     async control(action) {
         if (!this.displayed || action === "recover" && !this.canRecover())
             return;
-        await this.run({ action, expectedControlGeneration: this.displayed.controlGeneration });
+        await this.run({ action, expectedControlGeneration: this.displayed.controlGeneration, expectedConfigurationRevision: this.displayed.configurationRevision });
     }
     async lookupReceipt() {
         const targetId = this.target.value, deliveryId = this.delivery.value;
-        if (!targetPattern.test(targetId) || !deliveryPattern.test(deliveryId))
+        if (!this.displayed || !targetPattern.test(targetId) || !deliveryPattern.test(deliveryId))
             return;
-        await this.run({ action: "lookup", targetId, deliveryId });
+        await this.run({ action: "lookup", targetId, deliveryId, expectedControlGeneration: this.displayed.controlGeneration, expectedConfigurationRevision: this.displayed.configurationRevision });
     }
     async run(command) {
         const identity = this.identity;
@@ -145,7 +145,7 @@ export class BoardNotices {
             return;
         const request = new AbortController();
         this.request = request;
-        const control = "expectedControlGeneration" in command;
+        const control = command.action !== "lookup" && "expectedControlGeneration" in command;
         if (command.action !== "inbox") {
             this.displayed = undefined;
             if (command.action !== "recover")

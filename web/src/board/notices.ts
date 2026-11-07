@@ -132,7 +132,7 @@ export class BoardNotices {
     }
     this.readStatus.setAttribute("aria-disabled", String(busy));
     this.readInbox.setAttribute("aria-disabled", String(busy));
-    this.lookup.setAttribute("aria-disabled", String(busy || !targetPattern.test(this.target.value) || !deliveryPattern.test(this.delivery.value)));
+    this.lookup.setAttribute("aria-disabled", String(busy || !this.displayed || !targetPattern.test(this.target.value) || !deliveryPattern.test(this.delivery.value)));
   }
 
   private canRecover(): boolean {
@@ -141,13 +141,13 @@ export class BoardNotices {
 
   private async control(action: NoticeControl): Promise<void> {
     if (!this.displayed || action === "recover" && !this.canRecover()) return;
-    await this.run({ action, expectedControlGeneration: this.displayed.controlGeneration });
+    await this.run({ action, expectedControlGeneration: this.displayed.controlGeneration, expectedConfigurationRevision: this.displayed.configurationRevision });
   }
 
   private async lookupReceipt(): Promise<void> {
     const targetId = this.target.value, deliveryId = this.delivery.value;
-    if (!targetPattern.test(targetId) || !deliveryPattern.test(deliveryId)) return;
-    await this.run({ action: "lookup", targetId, deliveryId });
+    if (!this.displayed || !targetPattern.test(targetId) || !deliveryPattern.test(deliveryId)) return;
+    await this.run({ action: "lookup", targetId, deliveryId, expectedControlGeneration: this.displayed.controlGeneration, expectedConfigurationRevision: this.displayed.configurationRevision });
   }
 
   private async run(command: NoticeCommand): Promise<void> {
@@ -155,7 +155,7 @@ export class BoardNotices {
     if (!identity || this.selectionPending || this.suspended || this.panel.hidden || this.request) return;
     const request = new AbortController();
     this.request = request;
-    const control = "expectedControlGeneration" in command;
+    const control = command.action !== "lookup" && "expectedControlGeneration" in command;
     if (command.action !== "inbox") {
       this.displayed = undefined;
       if (command.action !== "recover") this.status.replaceChildren();

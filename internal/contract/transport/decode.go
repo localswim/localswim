@@ -15,6 +15,7 @@ import (
 )
 
 var enums = map[string][]string{
+	"NoticeOperation":   {"configure", "start", "stop", "recover", "reload", "retarget", "lookup"},
 	"NoticeScope":       {"notices"},
 	"NoticePhase":       {"unconfigured", "stopped", "running", "draining", "partial-drain", "guarded", "failed"},
 	"NoticeReason":      {"authority", "foreign", "capacity", "storage", "unknown", "unavailable"},
@@ -218,6 +219,14 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case NoticeUnknownError:
+		if x.Code != "OUTCOME_UNKNOWN" || x.Message != NoticeUnknownMessage {
+			return fmt.Errorf("invalid notice unknown error")
+		}
+	case NoticeOutcomeUnknown:
+		if x.Error.Code != "OUTCOME_UNKNOWN" || x.Error.Message != NoticeUnknownMessage {
+			return fmt.Errorf("invalid notice unknown envelope")
+		}
 	case NoticeView:
 		if e := noticeView(x); e != nil {
 			return e

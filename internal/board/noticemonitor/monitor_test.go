@@ -18,16 +18,17 @@ import (
 )
 
 type fixture struct {
-	mu           sync.Mutex
-	data         []byte
-	writeHook    func() error
-	captureHook  func()
-	observeError error
-	foreign      bool
-	cut          noticeinterval.Cut
-	signature    string
-	class        string
-	captures     []noticeinterval.Cut
+	mu             sync.Mutex
+	data           []byte
+	writeHook      func() error
+	writeAfterHook func() error
+	captureHook    func()
+	observeError   error
+	foreign        bool
+	cut            noticeinterval.Cut
+	signature      string
+	class          string
+	captures       []noticeinterval.Cut
 }
 
 func (f *fixture) store(t *testing.T) *notices.Store {
@@ -57,6 +58,9 @@ func (f *fixture) store(t *testing.T) *notices.Store {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		f.data = slices.Clone(data)
+		if f.writeAfterHook != nil {
+			return f.writeAfterHook()
+		}
 		return nil
 	})
 	if err != nil {
@@ -286,22 +290,16 @@ func TestStopKeepsOwnerThroughStalledPublication(t *testing.T) {
 		if err := m.Start(ctx, m.Snapshot().Generation, allow); !errors.Is(err, ErrBusy) {
 			t.Fatalf("draining Start returned %v", err)
 		}
-		go doStop(m.Snapshot().Generation)
-		synctest.Wait()
-		select {
-		case <-result:
-			t.Fatal("duplicate Stop returned before the existing drain deadline")
-		default:
+		if err := m.Stop(ctx, m.Snapshot().Generation, allow); !errors.Is(err, ErrBusy) {
+			t.Fatalf("matching duplicate Stop bypassed reservation: %v", err)
 		}
-		for range 2 {
-			got := <-result
-			must(t, got.err)
-			if got.view.Phase != "partial-drain" || !got.view.State.Dirty {
-				t.Fatal("Stop response did not retain the admitted drain view")
-			}
+		got := <-result
+		must(t, got.err)
+		if got.view.Phase != "partial-drain" || !got.view.State.Dirty {
+			t.Fatal("Stop lost partial operation result")
 		}
 		s := m.Snapshot()
-		if time.Since(startAt) != 2*time.Second || s.Phase != "partial-drain" || !s.State.Dirty {
+		if time.Since(startAt) != time.Second || s.Phase != "partial-drain" || !s.State.Dirty {
 			t.Fatalf("Stop returned after %v with %s", time.Since(startAt), s.Phase)
 		}
 		closeCtx, cancel := context.WithTimeout(ctx, time.Millisecond)
@@ -621,9 +619,6 @@ func TestStopFencesUndiscoveredWakeAndBindsResult(t *testing.T) {
 		defer release()
 		start(t, m, allow)
 		<-entered
-		m.gate.Lock()
-		firstRun := m.run
-		m.gate.Unlock()
 
 		result := make(chan Status, 1)
 		errs := make(chan error, 1)
@@ -646,7 +641,7 @@ func TestStopFencesUndiscoveredWakeAndBindsResult(t *testing.T) {
 		}
 
 		must(t, m.Start(ctx, view.Generation, allow))
-		if old := m.awaitDrain(firstRun); old.Phase != "stopped" || old.Generation != view.Generation ||
+		if old := view; old.Phase != "stopped" || old.Generation != view.Generation ||
 			old.Generation == m.Snapshot().Generation {
 			t.Fatal("completed Stop response changed to a later run")
 		}

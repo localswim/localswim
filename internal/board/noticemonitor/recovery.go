@@ -5,63 +5,7 @@ import (
 
 	"github.com/localswim/localswim/internal/board/noticeinterval"
 	"github.com/localswim/localswim/internal/board/notices"
-	A "github.com/localswim/localswim/internal/contract/archive"
 )
-
-// RecoverView settles at most one retained observation or notice and returns
-// its status before a later control can change the view.
-func (m *Monitor) RecoverView(ctx context.Context, expected A.UUID, auth Authority) (Status, error) {
-	if !m.borrow() {
-		return Status{}, ErrBusy
-	}
-	defer m.release()
-	if err := m.authorize(ctx, auth); err != nil {
-		return Status{}, err
-	}
-	admission, err := nextGeneration()
-	if err != nil {
-		return Status{}, err
-	}
-	completion, err := nextGeneration()
-	if err != nil {
-		return Status{}, err
-	}
-
-	m.gate.Lock()
-	if err := m.precondition(ctx, expected); err != nil {
-		m.gate.Unlock()
-		return Status{}, err
-	}
-	if m.run != nil {
-		m.gate.Unlock()
-		return Status{}, ErrBusy
-	}
-	if m.fault != nil || m.reason == "foreign" {
-		view := m.snapshotLocked()
-		m.gate.Unlock()
-		return view, nil
-	}
-	m.reserved, m.generation = true, admission
-	m.gate.Unlock()
-
-	err = m.recover(ctx, auth)
-	readErr := m.authorize(ctx, auth)
-	m.gate.Lock()
-	m.reserved, m.generation = false, completion
-	m.phase, m.reason = m.durableStatus()
-	if err != nil {
-		m.phase, m.reason = faultStatus(err)
-	}
-	view := m.snapshotLocked()
-	m.gate.Unlock()
-	if readErr != nil {
-		return Status{}, readErr
-	}
-	if isAuthority(err) {
-		return Status{}, err
-	}
-	return view, nil
-}
 
 // recoveryCut proves current lineage through a read that validates coverage,
 // including when ordinary notice status may tolerate unavailable metadata.

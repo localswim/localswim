@@ -6,8 +6,8 @@ export type NoticeControl = "configure" | "start" | "stop" | "recover";
 
 export type NoticeCommand =
   | Readonly<{ action: "status" | "inbox" }>
-  | Readonly<{ action: NoticeControl; expectedControlGeneration: string }>
-  | Readonly<{ action: "lookup"; targetId: string; deliveryId: string }>;
+  | Readonly<{ action: NoticeControl; expectedControlGeneration: string; expectedConfigurationRevision: number }>
+  | Readonly<{ action: "lookup"; targetId: string; deliveryId: string; expectedControlGeneration: string; expectedConfigurationRevision: number }>;
 
 export const noticeReadMaximum = 131_072;
 export class NoticeRefusal extends Error {
@@ -28,7 +28,7 @@ function validRange(row: NoticeCut | NoticePair): boolean {
 }
 
 function validPair(row: NoticePair, target: string | null): boolean {
-  return row.targetId === target && row.class !== "suppressed" && validRange(row);
+  return target !== null && row.class !== "suppressed" && validRange(row);
 }
 
 // The generated exact schema validates shape and scalar limits. These checks
@@ -36,6 +36,7 @@ function validPair(row: NoticePair, target: string | null): boolean {
 export function validateNotices(view: NoticeView, identity: Identity, command: NoticeCommand): void {
   const { targetId, checkpoint, entries, last, pending, lookup } = view;
   if (!sameIdentity(view.identity, identity) || (targetId === null) !== (checkpoint === null) ||
+      (targetId === null) !== (view.configurationRevision === 0) ||
       view.state === "unconfigured" && targetId !== null ||
       targetId === null && (view.gapCount !== 0 || last !== null || pending !== null || entries.length !== 0) ||
       last && !validCut(last) || pending && (pending.class === "suppressed" || !validCut(pending)) ||

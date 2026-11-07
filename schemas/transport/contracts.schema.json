@@ -3052,6 +3052,11 @@
     "NoticeControlRequest": {
       "additionalProperties": false,
       "properties": {
+        "expectedConfigurationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
         "expectedControlGeneration": {
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
           "type": "string"
@@ -3065,6 +3070,7 @@
         }
       },
       "required": [
+        "expectedConfigurationRevision",
         "expectedControlGeneration",
         "incarnation"
       ],
@@ -3116,6 +3122,10 @@
           "minimum": 0,
           "type": "integer"
         },
+        "targetId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
         "upperEvent": {
           "anyOf": [
             {
@@ -3134,6 +3144,7 @@
         "deliveryId",
         "eventCount",
         "lowerEvent",
+        "targetId",
         "upperEvent"
       ],
       "type": "object"
@@ -3172,6 +3183,15 @@
           "pattern": "^[0-9a-f]{64}$",
           "type": "string"
         },
+        "expectedConfigurationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expectedControlGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
         "incarnation": {
           "not": {
             "const": "00000000-0000-0000-0000-000000000000"
@@ -3186,11 +3206,40 @@
       },
       "required": [
         "deliveryId",
+        "expectedConfigurationRevision",
+        "expectedControlGeneration",
         "incarnation",
         "targetId"
       ],
       "type": "object",
       "x-max-utf8-bytes": 1024
+    },
+    "NoticeOutcomeUnknown": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "error": {
+          "$ref": "#/$defs/NoticeUnknownError"
+        },
+        "outcome": {
+          "enum": [
+            "unknown"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "error",
+        "outcome"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 131072
     },
     "NoticePair": {
       "additionalProperties": false,
@@ -3291,6 +3340,57 @@
       "type": "object",
       "x-max-utf8-bytes": 131072
     },
+    "NoticeRetargetRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedConfigurationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expectedControlGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "targetId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expectedConfigurationRevision",
+        "expectedControlGeneration",
+        "incarnation",
+        "targetId"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 1024
+    },
+    "NoticeUnknownError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "const": "OUTCOME_UNKNOWN",
+          "type": "string"
+        },
+        "message": {
+          "const": "Notice request outcome is unknown. Read notices status before taking further action.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
     "NoticeView": {
       "additionalProperties": false,
       "properties": {
@@ -3306,9 +3406,33 @@
             }
           ]
         },
+        "configurationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
         "controlGeneration": {
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
           "type": "string"
+        },
+        "controlOperation": {
+          "anyOf": [
+            {
+              "enum": [
+                "configure",
+                "start",
+                "stop",
+                "recover",
+                "reload",
+                "retarget",
+                "lookup"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "entries": {
           "items": {
@@ -3399,7 +3523,9 @@
       },
       "required": [
         "checkpoint",
+        "configurationRevision",
         "controlGeneration",
+        "controlOperation",
         "entries",
         "gapCount",
         "identity",

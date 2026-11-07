@@ -19,9 +19,13 @@ import (
 	T "github.com/localswim/localswim/internal/contract/transport"
 )
 
-func nativeRecoverBody(t *testing.T, incarnation string, generation T.UUIDv4) []byte {
+func nativeRecoverBody(t *testing.T, incarnation string, generation T.UUIDv4, revisions ...A.Number) []byte {
 	t.Helper()
-	body, err := T.Readable(T.NoticeControlRequest{Incarnation: A.UUID(incarnation), ExpectedControlGeneration: generation})
+	revision := A.Number(1)
+	if len(revisions) > 0 {
+		revision = revisions[0]
+	}
+	body, err := T.Readable(T.NoticeControlRequest{ExpectedConfigurationRevision: revision, Incarnation: A.UUID(incarnation), ExpectedControlGeneration: generation})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +54,7 @@ func TestNativeNoticeRecoveryHTTPAdmission(t *testing.T) {
 		return nativeRecoveryView(t, request(t, r, "GET", r.boardPath()+"notices/status?incarnation="+info.Incarnation, nil, info.Token, nil, nil), info)
 	}
 	initial := read()
-	initialBody := nativeRecoverBody(t, info.Incarnation, initial.ControlGeneration)
+	initialBody := nativeRecoverBody(t, info.Incarnation, initial.ControlGeneration, 0)
 	if v := nativeRecoveryView(t, request(t, r, "POST", path, initialBody, info.Token, nil, nil), info); v.State != "unconfigured" || v.TargetID != nil {
 		t.Fatal("unconfigured recovery did not return a read-only view")
 	}

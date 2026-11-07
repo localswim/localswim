@@ -21,13 +21,14 @@ function validRange(row) {
     }
 }
 function validPair(row, target) {
-    return row.targetId === target && row.class !== "suppressed" && validRange(row);
+    return target !== null && row.class !== "suppressed" && validRange(row);
 }
 // The generated exact schema validates shape and scalar limits. These checks
 // bind evidence to the requested action and enforce relationships among fields.
 export function validateNotices(view, identity, command) {
     const { targetId, checkpoint, entries, last, pending, lookup } = view;
     if (!sameIdentity(view.identity, identity) || (targetId === null) !== (checkpoint === null) ||
+        (targetId === null) !== (view.configurationRevision === 0) ||
         view.state === "unconfigured" && targetId !== null ||
         targetId === null && (view.gapCount !== 0 || last !== null || pending !== null || entries.length !== 0) ||
         last && !validCut(last) || pending && (pending.class === "suppressed" || !validCut(pending)) ||

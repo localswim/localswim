@@ -20,6 +20,7 @@ type noticeRequest struct {
 	action     string
 	selected   A.UUID
 	generation A.UUID
+	revision   A.Number
 	target     A.UUID
 	delivery   string
 }
@@ -41,7 +42,7 @@ func parseNoticeRequest(w http.ResponseWriter, q *http.Request, prefix string) (
 		if A.Validate(x.selected) != nil {
 			return x, http.StatusBadRequest
 		}
-	case "configure", "start", "stop", "lookup", "recover":
+	case "configure", "start", "stop", "lookup", "recover", "reload", "retarget":
 		if q.Method != http.MethodPost {
 			return x, http.StatusMethodNotAllowed
 		}
@@ -55,12 +56,20 @@ func parseNoticeRequest(w http.ResponseWriter, q *http.Request, prefix string) (
 				return x, http.StatusBadRequest
 			}
 			x.selected, x.target, x.delivery = body.Incarnation, A.UUID(body.TargetID), string(body.DeliveryID)
+			x.generation, x.revision = A.UUID(body.ExpectedControlGeneration), body.ExpectedConfigurationRevision
+		} else if action == "retarget" {
+			body, err := T.Decode[T.NoticeRetargetRequest](b)
+			if err != nil {
+				return x, http.StatusBadRequest
+			}
+			x.selected, x.target = body.Incarnation, A.UUID(body.TargetID)
+			x.generation, x.revision = A.UUID(body.ExpectedControlGeneration), body.ExpectedConfigurationRevision
 		} else {
 			body, err := T.Decode[T.NoticeControlRequest](b)
 			if err != nil {
 				return x, http.StatusBadRequest
 			}
-			x.selected, x.generation = body.Incarnation, A.UUID(body.ExpectedControlGeneration)
+			x.selected, x.generation, x.revision = body.Incarnation, A.UUID(body.ExpectedControlGeneration), body.ExpectedConfigurationRevision
 		}
 	default:
 		return x, http.StatusNotFound
@@ -95,49 +104,23 @@ func (r *Runtime) serveNotices(w http.ResponseWriter, q *http.Request) {
 		return
 	}
 	identity := A.Identity{BoardID: A.UUID(r.id.BoardID), Incarnation: x.selected}
-	if err := m.Check(ctx, auth); err != nil {
-		if errors.Is(err, notices.ErrForeign) && noticeForeignView(w, m, identity, x.action) {
-			return
-		}
-		refuseNotice(w, err)
-		return
-	}
-	var err error
-	var receipt *notices.Pair
-	var captured *noticemonitor.Status
-	switch x.action {
-	case "configure":
-		err = m.Configure(ctx, x.generation, auth)
-	case "start":
-		err = m.Start(ctx, x.generation, auth)
-	case "stop":
-		var result noticemonitor.Status
-		result, err = m.StopView(ctx, x.generation, auth)
-		captured = &result
-	case "recover":
-		var result noticemonitor.Status
-		result, err = m.RecoverView(ctx, x.generation, auth)
-		captured = &result
-	case "lookup":
-		receipt, err = m.Lookup(ctx, x.target, x.delivery, auth)
-		// A missing/unconfirmed receipt is a successful lookup with unknown
-		// evidence. An accepted receipt remains meaningful if reconciliation
-		// fails, which the returned monitor status reports separately.
-		if errors.Is(err, notices.ErrUnknown) || receipt != nil {
-			err = nil
-		}
-	}
-	if err != nil {
-		if errors.Is(err, notices.ErrForeign) && noticeForeignView(w, m, identity, x.action) {
-			return
-		}
-		refuseNotice(w, err)
-		return
-	}
 	var status noticemonitor.Status
-	if captured != nil {
-		status = *captured
+	var receipt *notices.Pair
+	if q.Method == http.MethodPost {
+		result, err := m.Control(ctx, x.action, x.generation, x.revision, x.target, x.delivery, auth)
+		if err != nil {
+			refuseNotice(w, err)
+			return
+		}
+		status, receipt = result.Status, result.Lookup
 	} else {
+		if err := m.Check(ctx, auth); err != nil {
+			if errors.Is(err, notices.ErrForeign) && noticeForeignView(w, m, identity, x.action) {
+				return
+			}
+			refuseNotice(w, err)
+			return
+		}
 		status = m.Snapshot()
 	}
 	view := noticeView(identity, status)
@@ -161,7 +144,7 @@ func noticeForeignView(w http.ResponseWriter, m *noticemonitor.Monitor, identity
 		return false
 	}
 	s := m.Snapshot()
-	s.Phase, s.Reason, s.State = "failed", "foreign", nil
+	s.Phase, s.Reason, s.State, s.Operation = "failed", "foreign", nil, ""
 	view := noticeView(identity, s)
 	if action == "lookup" {
 		view.Lookup = &T.NoticeLookup{State: "unknown"}
@@ -182,12 +165,22 @@ func writeNoticeView(w http.ResponseWriter, view T.NoticeView) {
 
 func refuseNotice(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, noticemonitor.ErrOutcomeUnknown):
+		b, encodeErr := T.Readable(T.NoticeOutcomeUnknown{APIVersion: 1, Outcome: "unknown", Error: T.NoticeUnknownError{Code: "OUTCOME_UNKNOWN", Message: T.NoticeUnknownMessage}})
+		if encodeErr != nil {
+			panic("invalid fixed notice unknown envelope")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write(b)
+	case errors.Is(err, notices.ErrConfigurationExhausted):
+		refuse(w, http.StatusConflict, "CONFIGURATION_EXHAUSTED")
+	case errors.Is(err, notices.ErrStale), errors.Is(err, noticemonitor.ErrStale):
+		refuse(w, http.StatusConflict, "CONTROL_STALE")
 	case errors.Is(err, grants.ErrUnauthenticated):
 		refuse(w, http.StatusUnauthorized, "UNAUTHENTICATED")
 	case errors.Is(err, grants.ErrDenied), errors.Is(err, noticemonitor.ErrAuthority):
 		refuse(w, http.StatusForbidden, "FORBIDDEN")
-	case errors.Is(err, noticemonitor.ErrStale):
-		refuse(w, http.StatusConflict, "CONTROL_STALE")
 	case errors.Is(err, noticemonitor.ErrBusy), errors.Is(err, notices.ErrGuarded):
 		refuse(w, http.StatusConflict, "CONTROL_BUSY")
 	case errors.Is(err, notices.ErrInvalid):
@@ -203,8 +196,8 @@ func noticePair(p notices.Pair) T.NoticePair {
 		UpperEvent: p.UpperEvent, EventCount: p.EventCount}
 }
 
-func noticeCut(class string, lower noticeinterval.Cut, upper *noticeinterval.Cut, count *A.Number, id string) *T.NoticeCut {
-	cut := &T.NoticeCut{Class: T.NoticeClass(class), LowerEvent: lower.Event, EventCount: count}
+func noticeCut(target A.UUID, class string, lower noticeinterval.Cut, upper *noticeinterval.Cut, count *A.Number, id string) *T.NoticeCut {
+	cut := &T.NoticeCut{TargetID: T.UUIDv4(target), Class: T.NoticeClass(class), LowerEvent: lower.Event, EventCount: count}
 	if upper != nil {
 		cut.UpperEvent = &upper.Event
 	}
@@ -218,18 +211,23 @@ func noticeCut(class string, lower noticeinterval.Cut, upper *noticeinterval.Cut
 func noticeView(identity A.Identity, s noticemonitor.Status) T.NoticeView {
 	view := T.NoticeView{Identity: identity, ControlGeneration: T.UUIDv4(s.Generation),
 		State: T.NoticePhase(s.Phase), Entries: []T.NoticePair{}}
+	if s.Operation != "" {
+		operation := T.NoticeOperation(s.Operation)
+		view.ControlOperation = &operation
+	}
 	if s.Reason != "" {
 		reason := T.NoticeReason(s.Reason)
 		view.Reason = &reason
 	}
 	if d := s.State; d != nil {
+		view.ConfigurationRevision = d.ConfigurationRevision
 		target := T.UUIDv4(d.TargetID)
 		view.TargetID, view.Checkpoint, view.GapCount = &target, &d.Checkpoint.Event, A.Number(len(d.Gaps))
 		if last := d.Last; last != nil {
-			view.Last = noticeCut(last.Class, last.Lower, last.Upper, last.Count, last.DeliveryID)
+			view.Last = noticeCut(last.TargetID, last.Class, last.Lower, last.Upper, last.Count, last.DeliveryID)
 		}
 		if pending := d.Pending; pending != nil {
-			view.Pending = noticeCut(pending.Class, pending.Lower, pending.Upper, pending.Count, pending.DeliveryID)
+			view.Pending = noticeCut(pending.TargetID, pending.Class, pending.Lower, pending.Upper, pending.Count, pending.DeliveryID)
 		}
 	}
 	return view

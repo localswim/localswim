@@ -16,7 +16,7 @@ func TestNoticeResponseRejectsUnverifiedAndInvalidReceipts(t *testing.T) {
 	pair := NoticePair{TargetID: target, DeliveryID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		AcceptedAt: "2026-11-06T12:00:00Z", Class: "human", LowerEvent: 6, UpperEvent: &checkpoint, EventCount: &count}
 	message := NoticeResponse{APIVersion: 1, Scope: "notices", Result: NoticeView{
-		Identity: A.Identity{BoardID: board, Incarnation: inc}, ControlGeneration: generation, TargetID: &target,
+		Identity: A.Identity{BoardID: board, Incarnation: inc}, ConfigurationRevision: 1, ControlGeneration: generation, TargetID: &target,
 		State: "stopped", Checkpoint: &checkpoint, Entries: []NoticePair{pair},
 		Lookup: &NoticeLookup{State: "accepted", Receipt: &pair},
 	}}
@@ -50,8 +50,8 @@ func TestNoticeResponseAllowsOriginalReceiptAfterRetarget(t *testing.T) {
 	pair := NoticePair{TargetID: oldTarget, DeliveryID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		AcceptedAt: "2026-11-06T12:00:00Z", Class: "human", LowerEvent: 6, UpperEvent: &upper, EventCount: &count}
 	response := NoticeResponse{APIVersion: 1, Scope: "notices", Result: NoticeView{
-		Identity:          A.Identity{BoardID: "10000000-0000-4000-8000-000000000001", Incarnation: "10000000-0000-4000-8000-000000000002"},
-		ControlGeneration: "10000000-0000-4000-8000-000000000004", TargetID: &target, State: "stopped", Checkpoint: &upper,
+		Identity:              A.Identity{BoardID: "10000000-0000-4000-8000-000000000001", Incarnation: "10000000-0000-4000-8000-000000000002"},
+		ConfigurationRevision: 1, ControlGeneration: "10000000-0000-4000-8000-000000000004", TargetID: &target, State: "stopped", Checkpoint: &upper,
 		Entries: []NoticePair{pair}, Lookup: &NoticeLookup{State: "accepted", Receipt: &pair},
 	}}
 	wire, err := Readable(response)

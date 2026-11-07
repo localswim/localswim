@@ -377,10 +377,11 @@ func TestNativeNoticeWorkspaceDetachRetainsExclusionDuringDrain(t *testing.T) {
 	unblock := func() { release.Do(func() { close(resume) }) }
 	defer unblock()
 	var calls atomic.Int32
+	var started atomic.Bool
 	stalled := func(ctx context.Context, rd writer.Read) error {
-		// Start checks authority, then reads its initial cut. Stall the first
-		// subsequent worker snapshot after those two deliberate admissions.
-		if calls.Add(1) == 3 {
+		// Arm after Start's own phase and response checks have finished.
+		// The first later worker snapshot retains the original run authority.
+		if started.Load() && calls.Add(1) == 1 {
 			close(entered)
 			<-resume
 		}
@@ -389,6 +390,7 @@ func TestNativeNoticeWorkspaceDetachRetainsExclusionDuringDrain(t *testing.T) {
 	if err := r.notices.Start(ctx, r.notices.Snapshot().Generation, stalled); err != nil {
 		t.Fatal(err)
 	}
+	started.Store(true)
 	select {
 	case <-entered:
 	case <-time.After(5 * time.Second):

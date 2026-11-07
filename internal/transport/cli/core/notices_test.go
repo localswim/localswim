@@ -120,7 +120,7 @@ func TestNoticeLookupExactReceipt(t *testing.T) {
 			}
 			wire, err := T.Readable(T.NoticeResponse{APIVersion: 1, Scope: "notices", Result: T.NoticeView{
 				Identity: A.Identity{BoardID: testBoard, Incarnation: testInc}, ControlGeneration: testActor, State: "guarded",
-				TargetID: &target, Checkpoint: &zero, Entries: []T.NoticePair{}, Lookup: lookup,
+				ConfigurationRevision: 1, TargetID: &target, Checkpoint: &zero, Entries: []T.NoticePair{}, Lookup: lookup,
 			}})
 			if err != nil {
 				t.Fatal("invalid lookup fixture")
@@ -128,12 +128,20 @@ func TestNoticeLookupExactReceipt(t *testing.T) {
 			calls := 0
 			p := &provider{conn: connection(t, func(r *http.Request) (int, []byte, error) {
 				calls++
+				if r.Method == http.MethodGet {
+					status := T.NoticeView{Identity: A.Identity{BoardID: testBoard, Incarnation: testInc}, ControlGeneration: testActor, ConfigurationRevision: 1, State: "guarded", TargetID: &target, Checkpoint: &zero, Entries: []T.NoticePair{}}
+					b, e := T.Readable(T.NoticeResponse{APIVersion: 1, Scope: "notices", Result: status})
+					if e != nil {
+						t.Fatal(e)
+					}
+					return 200, b, nil
+				}
 				if r.Method != http.MethodPost || r.URL.RequestURI() != "/api/v1/boards/"+testBoard+"/notices/lookup" {
 					t.Fatal("lookup did not use its exact POST route")
 				}
 				body, err := io.ReadAll(r.Body)
 				q, decodeErr := T.Decode[T.NoticeLookupRequest](body)
-				if err != nil || decodeErr != nil || q.Incarnation != testInc || q.TargetID != target || q.DeliveryID != digest {
+				if err != nil || decodeErr != nil || q.Incarnation != testInc || q.TargetID != target || q.DeliveryID != digest || q.ExpectedControlGeneration != testActor || q.ExpectedConfigurationRevision != 1 {
 					t.Fatal("lookup lost exact scope or receipt ID")
 				}
 				return 200, wire, nil
@@ -144,7 +152,7 @@ func TestNoticeLookupExactReceipt(t *testing.T) {
 			if mode == "different-delivery" || mode == "missing-lookup" {
 				want = 4
 			}
-			if exit != want || calls != 1 || (want == 0 && !bytes.Equal(out.Bytes(), wire)) ||
+			if exit != want || calls != 2 || (want == 0 && !bytes.Equal(out.Bytes(), wire)) ||
 				(want != 0 && bytes.Contains(out.Bytes(), []byte(pair.DeliveryID))) {
 				t.Fatal("lookup accepted wrong evidence or redacted a valid result")
 			}
@@ -156,7 +164,7 @@ func TestNoticeStopConveysPartialDrainAndOutputUncertainty(t *testing.T) {
 	target, zero, reason := T.UUIDv4(testGrant), A.Number(0), T.NoticeReason("capacity")
 	v := T.NoticeView{
 		Identity: A.Identity{BoardID: testBoard, Incarnation: testInc}, ControlGeneration: testActor,
-		State: "partial-drain", TargetID: &target, Checkpoint: &zero, Entries: []T.NoticePair{},
+		State: "partial-drain", ConfigurationRevision: 1, TargetID: &target, Checkpoint: &zero, Entries: []T.NoticePair{},
 	}
 	wire := func(view T.NoticeView) []byte {
 		t.Helper()

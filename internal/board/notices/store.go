@@ -226,6 +226,15 @@ func (s *Store) EndRun() error {
 	return s.publish(&next)
 }
 
+// AbandonRun releases only the in-memory worker flag after authority is lost.
+// The host must join every old worker effect before calling it.
+// It preserves the dirty marker and all original evidence for deliberate recovery.
+func (s *Store) AbandonRun() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.running = false
+}
+
 func (s *Store) admitted() (*durable, error) {
 	d := s.current.Load()
 	if !s.running || s.Uncertain() || s.refused || d == nil || !d.Dirty ||

@@ -17,10 +17,11 @@ import (
 )
 
 var (
-	ErrStale       = errors.New("notice control generation stale")
-	ErrBusy        = errors.New("notice control busy")
-	ErrAuthority   = errors.New("notice authority refused")
-	ErrUnavailable = errors.New("notice source unavailable")
+	ErrStale          = errors.New("notice control generation stale")
+	ErrBusy           = errors.New("notice control busy")
+	ErrAuthority      = errors.New("notice authority refused")
+	ErrUnavailable    = errors.New("notice source unavailable")
+	ErrOutcomeUnknown = errors.New("notice request outcome unknown")
 )
 
 type Authority func(context.Context, writer.Read) error
@@ -36,6 +37,7 @@ type Source struct {
 
 type Status struct {
 	Generation A.UUID
+	Operation  string
 	Phase      string
 	Reason     string
 	State      *notices.State
@@ -67,6 +69,7 @@ type Monitor struct {
 	reason          string
 	closed          bool
 	reserved        bool
+	operation       *operation
 	run             *run
 	calls           int
 	closeGeneration A.UUID
@@ -148,6 +151,9 @@ func (m *Monitor) Snapshot() Status {
 
 func (m *Monitor) snapshotLocked() Status {
 	s := Status{Generation: m.generation, Phase: m.phase, Reason: m.reason}
+	if m.operation != nil && m.reason != "foreign" {
+		s.Operation = m.operation.action
+	}
 	if m.reason != "foreign" {
 		s.State = m.store.Snapshot()
 	}
@@ -183,7 +189,7 @@ func (m *Monitor) release() {
 }
 
 func (m *Monitor) closeIfQuiescent() {
-	if m.closed && m.calls == 0 && m.run == nil {
+	if m.closed && m.calls == 0 && m.run == nil && !m.reserved {
 		select {
 		case <-m.closedDone:
 		default:
@@ -215,14 +221,14 @@ func (m *Monitor) Check(ctx context.Context, auth Authority) error {
 }
 
 // precondition runs under the gate, after current authority was checked.
-func (m *Monitor) precondition(ctx context.Context, expected A.UUID) error {
+func (m *Monitor) precondition(ctx context.Context, expected A.UUID, revision A.Number) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if m.closed {
 		return ErrBusy
 	}
-	if expected != m.generation {
+	if expected != m.generation || revision != m.revision() {
 		return ErrStale
 	}
 	if m.reserved {
@@ -231,198 +237,309 @@ func (m *Monitor) precondition(ctx context.Context, expected A.UUID) error {
 	return nil
 }
 
-func (m *Monitor) Configure(ctx context.Context, expected A.UUID, auth Authority) error {
+// Control is the coordinated selected-board control boundary. Only a successful
+// reservation detaches from the HTTP lifetime; all later effects retain auth.
+// The returned view belongs to this operation, even if another control wins.
+func (m *Monitor) Control(ctx context.Context, action string, expected A.UUID, revision A.Number, target A.UUID, delivery string, auth Authority) (Result, error) {
 	if !m.borrow() {
-		return ErrBusy
+		return Result{}, ErrBusy
 	}
 	defer m.release()
 	if err := m.authorize(ctx, auth); err != nil {
-		return err
+		return Result{}, err
 	}
-	generation, err := nextGeneration()
-	if err != nil {
-		return err
-	}
-	m.gate.Lock()
-	if err := m.precondition(ctx, expected); err != nil {
-		m.gate.Unlock()
-		return err
-	}
-	if m.fault != nil || m.reason == "foreign" {
-		err := m.fault
-		if err == nil {
-			err = notices.ErrForeign
+	switch action {
+	case "configure", "start", "stop", "reload", "recover":
+	case "retarget":
+		parsed, err := uuid.Parse(string(target))
+		if err != nil || parsed.Version() != 4 || parsed.Variant() != uuid.RFC4122 || parsed.String() != string(target) {
+			return Result{}, notices.ErrInvalid
 		}
-		m.gate.Unlock()
-		return err
+	case "lookup":
+		parsed, err := uuid.Parse(string(target))
+		if err != nil || parsed.Version() != 4 || parsed.Variant() != uuid.RFC4122 || parsed.String() != string(target) || A.Validate(A.Digest(delivery)) != nil {
+			return Result{}, notices.ErrInvalid
+		}
+	default:
+		return Result{}, notices.ErrInvalid
 	}
-	if m.store.Snapshot() != nil {
-		m.gate.Unlock()
-		return nil
+	// Refuse unconfigured live controls before allocating transition IDs.
+	m.gate.Lock()
+	firstErr := m.precondition(ctx, expected, revision)
+	if firstErr == nil && (action == "reload" || action == "retarget") && m.store.Snapshot() == nil {
+		firstErr = ErrBusy
 	}
-	m.reserved, m.generation = true, generation
 	m.gate.Unlock()
-
-	baseline, err := m.source.Observe(ctx, auth)
-	if err == nil {
-		_, err = m.store.Configure(baseline)
+	if firstErr != nil {
+		return Result{}, firstErr
 	}
-	m.finishControl(err)
-	return err
-}
-
-func (m *Monitor) Start(ctx context.Context, expected A.UUID, auth Authority) error {
-	if !m.borrow() {
-		return ErrBusy
-	}
-	defer m.release()
-	if err := m.authorize(ctx, auth); err != nil {
-		return err
-	}
-	generation, err := nextGeneration()
+	admission, err := nextGeneration()
 	if err != nil {
-		return err
+		return Result{}, err
 	}
 	completion, err := nextGeneration()
 	if err != nil {
-		return err
+		return Result{}, err
+	}
+	workerCompletion, err := nextGeneration()
+	if err != nil {
+		return Result{}, err
 	}
 	m.gate.Lock()
-	if err := m.precondition(ctx, expected); err != nil {
+	if err := m.precondition(ctx, expected, revision); err != nil {
 		m.gate.Unlock()
-		return err
+		return Result{}, err
 	}
 	if m.fault != nil || m.reason == "foreign" {
-		err := m.fault
-		if err == nil {
-			err = notices.ErrForeign
-		}
 		m.gate.Unlock()
-		return err
-	}
-	if m.run != nil {
-		m.gate.Unlock()
-		return ErrBusy
+		return Result{}, notices.ErrForeign
 	}
 	state := m.store.Snapshot()
-	if state == nil || state.Dirty || m.store.Uncertain() {
+	if (action == "reload" || action == "retarget") && state == nil {
 		m.gate.Unlock()
-		return notices.ErrGuarded
+		return Result{}, ErrBusy
 	}
-	m.reserved, m.generation = true, generation
+	if action == "start" && (m.run != nil || state == nil || state.Dirty || m.store.Uncertain()) {
+		m.gate.Unlock()
+		return Result{}, notices.ErrGuarded
+	}
+	if action == "recover" && m.run != nil {
+		m.gate.Unlock()
+		return Result{}, ErrBusy
+	}
+	if action == "retarget" && target != state.TargetID && state.ConfigurationRevision == notices.MaxConfigurationRevision {
+		m.gate.Unlock()
+		return Result{}, notices.ErrConfigurationExhausted
+	}
+	// These no-ops preserve both versions. Same-target Retarget still validates
+	// fresh confirmed bytes under the reservation, outside the memory gate.
+	noop := action == "configure" && state != nil || action == "stop" && m.run == nil ||
+		action == "reload" && m.run == nil || action == "retarget" && target == state.TargetID ||
+		action == "lookup" && (m.run != nil || state == nil || state.Pending == nil || state.Pending.TargetID != target || state.Pending.DeliveryID != delivery)
+	op := &operation{action: action, done: make(chan struct{}), completion: completion, workerCompletion: workerCompletion, noop: noop}
+	m.reserved, m.operation = true, op
+	if !noop {
+		m.generation = admission
+	}
+	predecessor := m.run
+	if (action == "stop" || action == "reload" || action == "retarget" && !noop) && predecessor != nil {
+		m.beginDrain(predecessor, m.generation)
+	}
+	// Operation ownership survives a canceled caller and the response deadline.
+	m.calls++
+	deadline := time.Now().Add(2 * time.Second)
 	m.gate.Unlock()
+	go m.perform(op, predecessor, revision, target, delivery, auth)
+	return m.respond(op, deadline, auth)
+}
 
-	cut, err := m.source.Observe(ctx, auth)
-	if err == nil && !cut.Follows(state.Checkpoint) {
-		err = notices.ErrForeign
+type Result struct {
+	Status
+	Lookup *notices.Pair
+}
+
+type operation struct {
+	action                       string
+	done                         chan struct{}
+	completion, workerCompletion A.UUID
+	noop                         bool
+	result                       Result
+}
+
+// respond gives a fresh response authority read its own bounded opportunity.
+// The goroutine owns a borrow even if its native read ignores cancellation.
+// It never writes a response; only this coordinator can disclose a result.
+func (m *Monitor) respond(op *operation, deadline time.Time, auth Authority) (Result, error) {
+	wait := time.NewTimer(min(time.Second, time.Until(deadline)))
+	select {
+	case <-op.done:
+	case <-wait.C:
 	}
-	initial := observation{cut: state.Checkpoint}
-	if err == nil {
-		// Establish the wake baseline before Start can return. A subsequent
-		// eventless write is eligible even if it beats the first worker poll.
-		signature, signalErr := m.source.Signal()
-		switch {
-		case errors.Is(signalErr, notices.ErrForeign):
-			err = signalErr
-		case signalErr == nil:
-			initial.signature, initial.sampled = signature, true
+	wait.Stop()
+	responseCtx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	authorized := make(chan error, 1)
+	m.gate.Lock()
+	m.calls++
+	m.gate.Unlock()
+	go func() {
+		defer m.release()
+		authorized <- m.authorize(responseCtx, auth)
+	}()
+	select {
+	case err := <-authorized:
+		if err != nil || !time.Now().Before(deadline) {
+			return Result{}, ErrOutcomeUnknown
+		}
+	case <-responseCtx.Done():
+		return Result{}, ErrOutcomeUnknown
+	}
+	m.gate.Lock()
+	defer m.gate.Unlock()
+	select {
+	case <-op.done:
+		return op.result, nil
+	default:
+		// Snapshot the admitted operation while it still owns the reservation.
+		// No native read is permitted after final response authorization.
+		if m.operation == op {
+			m.phase = "partial-drain"
+		}
+		result := Result{Status: m.snapshotLocked()}
+		result.Phase, result.Operation = "partial-drain", op.action
+		return result, nil
+	}
+}
+
+func (m *Monitor) perform(op *operation, predecessor *run, revision A.Number, target A.UUID, delivery string, auth Authority) {
+	defer m.release()
+	ctx := context.Background()
+	var err error
+	var pair *notices.Pair
+	switch op.action {
+	case "configure":
+		if !op.noop {
+			var baseline noticeinterval.Cut
+			baseline, err = m.source.Observe(ctx, auth)
+			if err == nil {
+				err = m.authorize(ctx, auth)
+			}
+			if err == nil {
+				_, err = m.store.Configure(baseline)
+			}
+		}
+	case "start":
+		err = m.startWorker(op, auth)
+	case "stop", "reload", "retarget":
+		if predecessor != nil && !op.noop {
+			<-predecessor.done
+		}
+		if op.action == "retarget" {
+			if m.store.Uncertain() {
+				err = notices.ErrStorage
+			} else {
+				state := m.store.Snapshot()
+				bound := state.Checkpoint
+				if state.Pending != nil {
+					bound = pendingBound(state.Pending)
+				}
+				_, err = m.recoveryCut(ctx, auth, bound)
+				if err == nil {
+					err = m.authorize(ctx, auth)
+				}
+				if err == nil {
+					err = m.store.Retarget(target, revision)
+				}
+			}
+		}
+		if err == nil && predecessor != nil && !op.noop && op.action != "stop" {
+			state := m.store.Snapshot()
+			if !m.store.Uncertain() && state != nil && !state.Dirty && state.Pending == nil && state.Observation == nil {
+				err = m.startWorker(op, auth)
+			}
+		}
+	case "recover":
+		err = m.recover(ctx, auth)
+	case "lookup":
+		state := m.store.Snapshot()
+		reconcile := predecessor == nil && state != nil && state.Pending != nil && state.Pending.TargetID == target && state.Pending.DeliveryID == delivery
+		if reconcile {
+			_, err = m.recoveryCut(ctx, auth, pendingBound(state.Pending))
+		}
+		if err == nil {
+			err = m.authorize(ctx, auth)
+		}
+		if err == nil {
+			pair, _, err = m.store.Lookup(target, delivery, reconcile)
+		}
+		if errors.Is(err, notices.ErrUnknown) {
+			err = nil
 		}
 	}
-	if err == nil {
-		err = m.store.BeginRun()
+	m.gate.Lock()
+	m.reserved, m.operation = false, nil
+	if !op.noop {
+		m.generation = op.completion
+	}
+	if m.run == nil {
+		// A quiescent no-op preserves an existing guarded/failed posture.
+		if !op.noop {
+			m.phase, m.reason = m.durableStatus()
+		}
+		if predecessor != nil && predecessor.terminal.Reason != "" && op.action != "lookup" && op.action != "recover" {
+			m.phase, m.reason = predecessor.terminal.Phase, predecessor.terminal.Reason
+		}
+	} else if m.run.stopAt.IsZero() {
+		m.phase, m.reason = "running", ""
 	}
 	if err != nil {
-		m.finishControl(err)
+		m.phase, m.reason = faultStatus(err)
+	}
+	op.result = Result{Status: m.snapshotLocked(), Lookup: pair}
+	close(op.done)
+	m.closeIfQuiescent()
+	m.gate.Unlock()
+}
+
+// startWorker is shared by Start and clean replacement. It cannot lend this
+// caller's authority to the predecessor and never runs a recovery action.
+func (m *Monitor) startWorker(op *operation, auth Authority) error {
+	ctx := context.Background()
+	state := m.store.Snapshot()
+	if state == nil || state.Dirty || m.store.Uncertain() {
+		return notices.ErrGuarded
+	}
+	cut, err := m.recoveryCut(ctx, auth, state.Checkpoint)
+	_ = cut
+	if err != nil {
 		return err
 	}
-
-	r := &run{stop: make(chan struct{}), done: make(chan struct{}), completion: completion}
+	initial := observation{cut: state.Checkpoint}
+	signature, signalErr := m.source.Signal()
+	if errors.Is(signalErr, notices.ErrForeign) {
+		return signalErr
+	}
+	if signalErr == nil {
+		initial.signature, initial.sampled = signature, true
+	}
+	if err = m.authorize(ctx, auth); err != nil {
+		return err
+	}
 	m.gate.Lock()
-	m.reserved, m.run = false, r
-	m.phase, m.reason = "running", ""
-	draining := m.closed
-	if draining {
-		m.beginDrain(r, m.closeGeneration)
-	}
+	closed := m.closed
 	m.gate.Unlock()
-	if draining {
-		go m.awaitDrain(r)
+	if closed {
+		return ErrBusy
 	}
+	if err = m.store.BeginRun(); err != nil {
+		return err
+	}
+	// A dirty publication and worker admission are separate phase admissions.
+	if err = m.authorize(ctx, auth); err != nil {
+		m.store.AbandonRun()
+		return err
+	}
+	r := &run{stop: make(chan struct{}), done: make(chan struct{}), completion: op.workerCompletion}
+	m.gate.Lock()
+	if m.closed {
+		m.gate.Unlock()
+		m.store.AbandonRun()
+		return ErrBusy
+	}
+	m.run, m.phase, m.reason = r, "running", ""
+	m.gate.Unlock()
 	go m.work(r, auth, initial)
 	return nil
 }
 
-func (m *Monitor) finishControl(err error) {
-	m.gate.Lock()
-	defer m.gate.Unlock()
-	m.reserved = false
-	m.phase, m.reason = m.durableStatus()
-	if err != nil {
-		m.phase, m.reason = faultStatus(err)
-	}
-}
-
-func (m *Monitor) Stop(ctx context.Context, expected A.UUID, auth Authority) error {
-	_, err := m.StopView(ctx, expected, auth)
-	return err
-}
-
-// StopView returns the outcome of the admitted Stop, even when a later Start
-// changes the current status before the request can publish its response.
-func (m *Monitor) StopView(ctx context.Context, expected A.UUID, auth Authority) (Status, error) {
-	if !m.borrow() {
-		return Status{}, ErrBusy
-	}
-	defer m.release()
-	if err := m.authorize(ctx, auth); err != nil {
-		return Status{}, err
-	}
-	generation, err := nextGeneration()
-	if err != nil {
-		return Status{}, err
-	}
-	m.gate.Lock()
-	if err := m.precondition(ctx, expected); err != nil {
-		m.gate.Unlock()
-		return Status{}, err
-	}
-	r := m.run
-	if r == nil {
-		s := m.snapshotLocked()
-		m.gate.Unlock()
-		return s, nil
-	}
-	if r.stopAt.IsZero() {
-		m.beginDrain(r, generation)
-	}
-	m.gate.Unlock()
-	return m.awaitDrain(r), nil
-}
-
-// beginDrain runs under the gate and never waits for the worker.
+// beginDrain is the short-gate observation admission fence. It never waits.
 func (m *Monitor) beginDrain(r *run, generation A.UUID) {
+	if !r.stopAt.IsZero() {
+		return
+	}
 	r.stopAt = time.Now()
-	m.generation = generation
-	m.phase, m.reason = "draining", ""
+	m.generation, m.phase, m.reason = generation, "draining", ""
 	close(r.stop)
-}
-
-func (m *Monitor) awaitDrain(r *run) Status {
-	timer := time.NewTimer(time.Until(r.stopAt.Add(m.timing.stop)))
-	defer timer.Stop()
-	select {
-	case <-r.done:
-	case <-timer.C:
-	}
-	m.gate.Lock()
-	defer m.gate.Unlock()
-	if m.run == r && r.partial.Phase == "" {
-		m.recordPartialDrain(r)
-	}
-	if r.partial.Phase != "" {
-		return r.partial
-	}
-	return r.terminal
 }
 
 func (m *Monitor) recordPartialDrain(r *run) {
@@ -430,8 +547,8 @@ func (m *Monitor) recordPartialDrain(r *run) {
 	r.partial = m.snapshotLocked()
 }
 
-// Close fences new access and drains an active worker. A deadline does not
-// transfer ownership: the caller may release the native lease only on success.
+// Close is terminal. A timeout retains the native owner until every operation,
+// borrowed authority read and worker has joined.
 func (m *Monitor) Close(ctx context.Context) error {
 	generation, err := nextGeneration()
 	if err != nil {
@@ -441,9 +558,8 @@ func (m *Monitor) Close(ctx context.Context) error {
 	if !m.closed {
 		m.closed, m.closeGeneration = true, generation
 	}
-	if r := m.run; r != nil && r.stopAt.IsZero() {
+	if r := m.run; r != nil {
 		m.beginDrain(r, m.closeGeneration)
-		go m.awaitDrain(r)
 	}
 	m.closeIfQuiescent()
 	m.gate.Unlock()
@@ -455,66 +571,40 @@ func (m *Monitor) Close(ctx context.Context) error {
 	}
 }
 
+// These package wrappers keep existing in-process callers on the same control
+// implementation. Network callers must supply both exact versions to Control.
+func (m *Monitor) revision() A.Number {
+	if s := m.store.Snapshot(); s != nil {
+		return s.ConfigurationRevision
+	}
+	return 0
+}
+func (m *Monitor) Configure(ctx context.Context, expected A.UUID, auth Authority) error {
+	_, err := m.Control(ctx, "configure", expected, m.revision(), "", "", auth)
+	return err
+}
+func (m *Monitor) Start(ctx context.Context, expected A.UUID, auth Authority) error {
+	_, err := m.Control(ctx, "start", expected, m.revision(), "", "", auth)
+	return err
+}
+func (m *Monitor) Stop(ctx context.Context, expected A.UUID, auth Authority) error {
+	_, err := m.StopView(ctx, expected, auth)
+	return err
+}
+func (m *Monitor) StopView(ctx context.Context, expected A.UUID, auth Authority) (Status, error) {
+	r, err := m.Control(ctx, "stop", expected, m.revision(), "", "", auth)
+	return r.Status, err
+}
+func (m *Monitor) RecoverView(ctx context.Context, expected A.UUID, auth Authority) (Status, error) {
+	r, err := m.Control(ctx, "recover", expected, m.revision(), "", "", auth)
+	return r.Status, err
+}
 func (m *Monitor) Lookup(ctx context.Context, target A.UUID, id string, auth Authority) (*notices.Pair, error) {
-	if !m.borrow() {
-		return nil, ErrBusy
+	r, err := m.Control(ctx, "lookup", m.Snapshot().Generation, m.revision(), target, id, auth)
+	if err == nil && r.Lookup == nil {
+		err = notices.ErrUnknown
 	}
-	defer m.release()
-	if err := m.authorize(ctx, auth); err != nil {
-		return nil, err
-	}
-	generation, err := nextGeneration()
-	if err != nil {
-		return nil, err
-	}
-	m.gate.Lock()
-	if err := ctx.Err(); err != nil {
-		m.gate.Unlock()
-		return nil, err
-	}
-	if m.closed || m.reserved {
-		m.gate.Unlock()
-		return nil, ErrBusy
-	}
-	if m.fault != nil || m.reason == "foreign" {
-		m.gate.Unlock()
-		return nil, notices.ErrUnknown
-	}
-	quiescent := m.run == nil
-	if quiescent {
-		m.reserved = true
-	}
-	m.gate.Unlock()
-
-	var changed bool
-	if quiescent {
-		defer func() {
-			m.gate.Lock()
-			defer m.gate.Unlock()
-			m.reserved = false
-			if changed {
-				m.generation = generation
-				m.phase, m.reason = m.durableStatus()
-			}
-		}()
-		state := m.store.Snapshot()
-		if state != nil && state.Pending != nil && state.Pending.TargetID == target && state.Pending.DeliveryID == id {
-			if _, err := m.recoveryCut(ctx, auth, pendingBound(state.Pending)); err != nil {
-				if isAuthority(err) || errors.Is(err, notices.ErrForeign) {
-					return nil, err
-				}
-				return nil, notices.ErrUnknown
-			}
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-		}
-	}
-	pair, changed, err := m.store.Lookup(target, id, quiescent)
-	if readErr := m.authorize(ctx, auth); readErr != nil {
-		return nil, readErr
-	}
-	return pair, err
+	return r.Lookup, err
 }
 
 func isAuthority(err error) bool {

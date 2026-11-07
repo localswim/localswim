@@ -12,7 +12,9 @@ export type NoticeResponse = {
 
 export type NoticeView = {
   readonly checkpoint: number | null;
+  readonly configurationRevision: number;
   readonly controlGeneration: string;
+  readonly controlOperation: "configure" | "start" | "stop" | "recover" | "reload" | "retarget" | "lookup" | null;
   readonly entries: ReadonlyArray<NoticePair>;
   readonly gapCount: number;
   readonly identity: Archive.Identity;
@@ -29,6 +31,7 @@ export type NoticeCut = {
   readonly deliveryId: string | null;
   readonly eventCount: number | null;
   readonly lowerEvent: number;
+  readonly targetId: string;
   readonly upperEvent: number | null;
 };
 
@@ -48,14 +51,35 @@ export type NoticeLookup = {
 };
 
 export type NoticeControlRequest = {
+  readonly expectedConfigurationRevision: number;
   readonly expectedControlGeneration: string;
   readonly incarnation: string;
 };
 
 export type NoticeLookupRequest = {
   readonly deliveryId: string;
+  readonly expectedConfigurationRevision: number;
+  readonly expectedControlGeneration: string;
   readonly incarnation: string;
   readonly targetId: string;
+};
+
+export type NoticeRetargetRequest = {
+  readonly expectedConfigurationRevision: number;
+  readonly expectedControlGeneration: string;
+  readonly incarnation: string;
+  readonly targetId: string;
+};
+
+export type NoticeOutcomeUnknown = {
+  readonly apiVersion: 1;
+  readonly error: NoticeUnknownError;
+  readonly outcome: "unknown";
+};
+
+export type NoticeUnknownError = {
+  readonly code: string;
+  readonly message: string;
 };
 
 export type ActivityRead = {

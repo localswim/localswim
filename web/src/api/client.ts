@@ -265,8 +265,8 @@ export class BoardClient {
     const init: RequestInit = { signal: requestSignal };
     if (command.action === "lookup" || "expectedControlGeneration" in command) {
       const body = JSON.stringify(command.action === "lookup"
-        ? { incarnation, targetId: command.targetId, deliveryId: command.deliveryId }
-        : { incarnation, expectedControlGeneration: command.expectedControlGeneration });
+        ? { incarnation, targetId: command.targetId, deliveryId: command.deliveryId, expectedControlGeneration: command.expectedControlGeneration, expectedConfigurationRevision: command.expectedConfigurationRevision }
+        : { incarnation, expectedControlGeneration: command.expectedControlGeneration, expectedConfigurationRevision: command.expectedConfigurationRevision });
       validate(command.action === "lookup" ? "transport:NoticeLookupRequest" : "transport:NoticeControlRequest", parse(body));
       init.method = "POST";
       init.body = body;

@@ -59,7 +59,7 @@ func TestNoticeNativeOrdinaryHTTP(t *testing.T) {
 		if generation == "" {
 			t.Fatal("missing control generation")
 		}
-		body, err := T.Readable(T.NoticeControlRequest{Incarnation: inc, ExpectedControlGeneration: generation})
+		body, err := T.Readable(T.NoticeControlRequest{Incarnation: inc, ExpectedControlGeneration: generation, ExpectedConfigurationRevision: noticeTestRevision(r)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -108,7 +108,7 @@ func TestNoticeNativeOrdinaryHTTP(t *testing.T) {
 		return v.Pending == nil && v.Last != nil && v.Last.Class == "human" && len(v.Entries) > 0
 	})
 	p := delivered.Entries[0]
-	body, err := T.Readable(T.NoticeLookupRequest{Incarnation: inc, TargetID: p.TargetID, DeliveryID: p.DeliveryID})
+	body, err := T.Readable(T.NoticeLookupRequest{Incarnation: inc, ExpectedControlGeneration: read("status").ControlGeneration, ExpectedConfigurationRevision: 1, TargetID: p.TargetID, DeliveryID: p.DeliveryID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,4 +126,11 @@ func TestNoticeNativeOrdinaryHTTP(t *testing.T) {
 	configuredGrantSQL(t, r, "DELETE FROM grant_right WHERE incarnation=? AND grant_id=? AND right_name='read'", r.id.Incarnation, r.id.BotGrant)
 	denied := request(t, r, "GET", prefix+"inbox?incarnation="+string(inc), nil, info.Token, nil, nil)
 	assertActivityRefusal(t, denied.status, denied.b, http.StatusForbidden, "FORBIDDEN")
+}
+
+func noticeTestRevision(r *Runtime) A.Number {
+	if s := r.notices.Snapshot().State; s != nil {
+		return s.ConfigurationRevision
+	}
+	return 0
 }

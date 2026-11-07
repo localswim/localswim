@@ -12,6 +12,7 @@ import (
 	"github.com/localswim/localswim/internal/board/noticemonitor"
 	"github.com/localswim/localswim/internal/board/notices"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	P "github.com/localswim/localswim/internal/contract/noticetext"
 	T "github.com/localswim/localswim/internal/contract/transport"
 	H "github.com/localswim/localswim/internal/transport/https"
 )
@@ -193,7 +194,7 @@ func refuseNotice(w http.ResponseWriter, err error) {
 func noticePair(p notices.Pair) T.NoticePair {
 	return T.NoticePair{TargetID: T.UUIDv4(p.TargetID), DeliveryID: A.Digest(p.DeliveryID),
 		AcceptedAt: p.AcceptedAt, Class: T.NoticeClass(p.Class), LowerEvent: p.LowerEvent,
-		UpperEvent: p.UpperEvent, EventCount: p.EventCount}
+		UpperEvent: p.UpperEvent, EventCount: p.EventCount, Payload: P.Clone(p.Payload)}
 }
 
 func noticeCut(target A.UUID, class string, lower noticeinterval.Cut, upper *noticeinterval.Cut, count *A.Number, id string) *T.NoticeCut {

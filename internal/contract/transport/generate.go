@@ -9,9 +9,10 @@ import (
 
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	P "github.com/localswim/localswim/internal/contract/noticetext"
 )
 
-var models = []any{NoticeResponse{}, NoticeView{}, NoticeCut{}, NoticePair{}, NoticeLookup{}, NoticeControlRequest{}, NoticeLookupRequest{}, NoticeRetargetRequest{}, NoticeOutcomeUnknown{}, NoticeUnknownError{}, ActivityRead{}, ActivityView{}, ActivityEvent{}, ActivityCoverage{}, ActivityGap{}, FileAttribution{}, CardFile{}, CardFilesRead{}, CardFilesView{}, CardFileRead{}, CardFileView{}, AttentionLane{}, AttentionContext{}, BoardAttention{}, WorkflowAttentionChange{}, WorkflowPreviewRequest{}, WorkflowPreview{}, WorkflowRename{}, WorkflowRightsChange{}, WorkflowActorRightsChange{}, WorkflowChanges{}, WorkflowOccupancy{}, WorkflowApproval{}, WorkflowCapacity{}, Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardSearchRead{}, CardSearchView{}, CardSearchQuery{}, CardSummary{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, ConfiguredWorkspaceBoardRequest{}, ConfiguredWorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}, CatalogCount{}, CatalogAttention{}, CatalogActivity{}, WorkspaceCatalogEntry{}, WorkspaceCatalog{}, WorkspacePinReference{}, WorkspacePreferences{}, WorkspacePreferencesRequest{}, WorkspacePreferencesError{}}
+var models = []any{P.NoticeText{}, P.NoticeTextFacts{}, NoticeResponse{}, NoticeView{}, NoticeCut{}, NoticePair{}, NoticeLookup{}, NoticeControlRequest{}, NoticeLookupRequest{}, NoticeRetargetRequest{}, NoticeOutcomeUnknown{}, NoticeUnknownError{}, ActivityRead{}, ActivityView{}, ActivityEvent{}, ActivityCoverage{}, ActivityGap{}, FileAttribution{}, CardFile{}, CardFilesRead{}, CardFilesView{}, CardFileRead{}, CardFileView{}, AttentionLane{}, AttentionContext{}, BoardAttention{}, WorkflowAttentionChange{}, WorkflowPreviewRequest{}, WorkflowPreview{}, WorkflowRename{}, WorkflowRightsChange{}, WorkflowActorRightsChange{}, WorkflowChanges{}, WorkflowOccupancy{}, WorkflowApproval{}, WorkflowCapacity{}, Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardSearchRead{}, CardSearchView{}, CardSearchQuery{}, CardSummary{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, ConfiguredWorkspaceBoardRequest{}, ConfiguredWorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}, CatalogCount{}, CatalogAttention{}, CatalogActivity{}, WorkspaceCatalogEntry{}, WorkspaceCatalog{}, WorkspacePinReference{}, WorkspacePreferences{}, WorkspacePreferencesRequest{}, WorkspacePreferencesError{}}
 
 // GeneratedFiles is pure and returns disjoint paths for the common generator.
 // Shared D02 rows reference the C03 artifact; command results reference C01.
@@ -103,7 +104,7 @@ func schema(t reflect.Type, inline bool) map[string]any {
 			n := fieldName(f)
 			typ := f.Type
 			optional := strings.Contains(f.Tag.Get("json"), ",omitempty")
-			if optional && typ.Kind() == reflect.Pointer {
+			if optional && typ.Kind() == reflect.Pointer && !(t == reflect.TypeFor[NoticePair]() && f.Name == "Payload") {
 				typ = typ.Elem()
 			}
 			if !optional {
@@ -247,11 +248,14 @@ func typescript(t reflect.Type, inline bool) string {
 			optional := ""
 			if strings.Contains(f.Tag.Get("json"), ",omitempty") {
 				optional = "?"
-				if typ.Kind() == reflect.Pointer {
+				if typ.Kind() == reflect.Pointer && !(t == reflect.TypeFor[NoticePair]() && f.Name == "Payload") {
 					typ = typ.Elem()
 				}
 			}
 			s := typescript(typ, false)
+			if t == reflect.TypeFor[P.NoticeText]() && f.Name == "Kind" {
+				s = "\"complete\" | \"fallback\""
+			}
 			if t == reflect.TypeFor[ExportResult]() && f.Name == "Destination" {
 				s = "null"
 			}

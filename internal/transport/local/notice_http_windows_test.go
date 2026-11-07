@@ -12,6 +12,7 @@ import (
 	"time"
 
 	A "github.com/localswim/localswim/internal/contract/archive"
+	P "github.com/localswim/localswim/internal/contract/noticetext"
 	T "github.com/localswim/localswim/internal/contract/transport"
 )
 
@@ -48,6 +49,10 @@ func TestNoticeNativeOrdinaryHTTP(t *testing.T) {
 		if x.status != http.StatusOK || err != nil || out.Result.Identity.Incarnation != inc ||
 			string(out.Result.Identity.BoardID) != info.BoardID || bytes.Contains(x.b, []byte("PRIVATE-")) {
 			t.Fatalf("invalid notice response: status=%d decode=%v", x.status, err)
+		}
+		canonical, err := A.Canonical(out)
+		if err != nil || !bytes.Equal(canonical, x.b) {
+			t.Fatal("HTTP notice response is not compact D02 C")
 		}
 		return out.Result
 	}
@@ -108,13 +113,35 @@ func TestNoticeNativeOrdinaryHTTP(t *testing.T) {
 		return v.Pending == nil && v.Last != nil && v.Last.Class == "human" && len(v.Entries) > 0
 	})
 	p := delivered.Entries[0]
+	private := r.notices.Inbox()[0]
+	if p.Payload == nil || p.Payload.Kind != "complete" || !P.Equal(p.Payload, private.Payload) ||
+		p.Payload.Facts.Label != "Board "+info.BoardID || len(p.Payload.Facts.Tickets) != 1 || p.Payload.Facts.Tickets[0] != 2 {
+		t.Fatal("HTTP inbox lost original captured payload")
+	}
+	beforeRead := noticeTestBytes(t, filepath.Join(root, noticeStateName))
+	browserInbox := view(request(t, r, "GET", prefix+"inbox?incarnation="+string(inc), nil, "", cookie, nil))
+	if len(browserInbox.Entries) != 1 || !P.Equal(browserInbox.Entries[0].Payload, private.Payload) {
+		t.Fatal("browser read changed original text")
+	}
+	if !bytes.Equal(beforeRead, noticeTestBytes(t, filepath.Join(root, noticeStateName))) {
+		t.Fatal("inbox read mutated original private state")
+	}
+	for _, denied := range []response{
+		request(t, r, "GET", prefix+"inbox?incarnation="+string(inc), nil, "", nil, nil),
+		request(t, r, "GET", prefix+"inbox?incarnation=10000000-0000-4000-8000-000000000099", nil, info.Token, nil, nil),
+		request(t, r, "GET", prefix+"inbox?incarnation="+string(inc), nil, "", cookie, func(q *http.Request) { q.Header.Set("Origin", "http://127.0.0.1:1") }),
+	} {
+		if denied.status == http.StatusOK || bytes.Contains(denied.b, []byte("payload")) || bytes.Contains(denied.b, []byte(p.Payload.Text)) {
+			t.Fatal("denied read disclosed original text")
+		}
+	}
 	body, err := T.Readable(T.NoticeLookupRequest{Incarnation: inc, ExpectedControlGeneration: read("status").ControlGeneration, ExpectedConfigurationRevision: 1, TargetID: p.TargetID, DeliveryID: p.DeliveryID})
 	if err != nil {
 		t.Fatal(err)
 	}
 	lookup := view(request(t, r, "POST", prefix+"lookup", body, info.Token, nil, nil))
 	if lookup.Lookup == nil || lookup.Lookup.State != "accepted" || lookup.Lookup.Receipt == nil ||
-		lookup.Lookup.Receipt.DeliveryID != p.DeliveryID {
+		lookup.Lookup.Receipt.DeliveryID != p.DeliveryID || !P.Equal(lookup.Lookup.Receipt.Payload, p.Payload) {
 		t.Fatal("lookup did not return the original receipt")
 	}
 	stale = control("stop", configured.ControlGeneration, false)

@@ -61,7 +61,8 @@ func MarshalEphemeral(v any) ([]byte, error) {
 	return A.Readable(plain(v))
 }
 
-// Readable emits D02 R bytes only after validating a secret-free public boundary.
+// Readable emits D02 R bytes, except NoticeResponse uses compact D02 C bytes.
+// Both encodings follow validation of the secret-free public boundary.
 // No arbitrary unsafe received body is rendered for diagnostics.
 func Readable(v any) ([]byte, error) {
 	if hasSecret(reflect.TypeOf(v)) {
@@ -70,7 +71,13 @@ func Readable(v any) ([]byte, error) {
 	if e := Validate(v); e != nil {
 		return nil, e
 	}
-	b, e := A.Readable(v)
+	var b []byte
+	var e error
+	if reflect.Indirect(reflect.ValueOf(v)).Type() == reflect.TypeFor[NoticeResponse]() {
+		b, e = A.Canonical(v)
+	} else {
+		b, e = A.Readable(v)
+	}
 	if limit := noticeByteLimit(reflect.Indirect(reflect.ValueOf(v)).Type()); limit > 0 && len(b) > limit {
 		return nil, fmt.Errorf("notice message exceeds limit")
 	}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	P "github.com/localswim/localswim/internal/contract/noticetext"
 )
 
 var enums = map[string][]string{
@@ -219,6 +220,14 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case P.NoticeText:
+		if err := P.Validate(x); err != nil {
+			return err
+		}
+	case P.NoticeTextFacts:
+		if err := P.ValidateFacts(x); err != nil {
+			return err
+		}
 	case NoticeUnknownError:
 		if x.Code != "OUTCOME_UNKNOWN" || x.Message != NoticeUnknownMessage {
 			return fmt.Errorf("invalid notice unknown error")
@@ -239,6 +248,9 @@ func walk(v reflect.Value) error {
 	case NoticePair:
 		if x.Class == "suppressed" || !noticeRange(x.Class, x.LowerEvent, x.UpperEvent, x.EventCount) {
 			return fmt.Errorf("invalid notice receipt")
+		}
+		if x.Payload != nil && x.Payload.Kind != "fallback" && (x.Class == "observed-empty" || x.Class == "expired" || x.Class == "gapped" || x.Class == "unavailable") {
+			return fmt.Errorf("invalid notice fallback class")
 		}
 	case NoticeLookup:
 		if (x.State == "accepted") != (x.Receipt != nil) {

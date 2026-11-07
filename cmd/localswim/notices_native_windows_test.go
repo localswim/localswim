@@ -18,6 +18,7 @@ import (
 	"time"
 
 	A "github.com/localswim/localswim/internal/contract/archive"
+	P "github.com/localswim/localswim/internal/contract/noticetext"
 	T "github.com/localswim/localswim/internal/contract/transport"
 	"github.com/localswim/localswim/internal/transport/local"
 	"github.com/localswim/localswim/internal/workspace"
@@ -49,6 +50,10 @@ func TestNoticesActualBuiltCLI(t *testing.T) {
 		view, err := T.Decode[T.NoticeResponse](wire)
 		if err != nil || view.Result.Identity != (A.Identity{BoardID: A.UUID(info.BoardID), Incarnation: A.UUID(info.Incarnation)}) {
 			t.Fatal("notice result lost selected identity")
+		}
+		canonical, err := A.Canonical(view)
+		if err != nil || !bytes.Equal(wire, canonical) {
+			t.Fatal("actual CLI --json notice output is not exact compact D02 C")
 		}
 		checkNoticeRedaction(t, wire, root, info)
 		return view.Result
@@ -138,6 +143,11 @@ func TestNoticesActualBuiltCLI(t *testing.T) {
 		*pair.UpperEvent != 1 || pair.EventCount == nil || *pair.EventCount != 1 {
 		t.Fatal("catch-up receipt did not identify the downtime event")
 	}
+	if pair.Payload == nil || pair.Payload.Kind != "complete" || P.Validate(*pair.Payload) != nil ||
+		pair.Payload.Facts.Label != "Board "+info.BoardID || len(pair.Payload.Facts.Tickets) != 1 || pair.Payload.Facts.Tickets[0] != 1 {
+		t.Fatal("actual CLI inbox lost the original rich captured payload")
+	}
+	originalPayload := P.Clone(pair.Payload)
 	if read(args, info, "stop").State != "stopped" {
 		t.Fatal("reopened monitor did not stop cleanly")
 	}
@@ -147,10 +157,16 @@ func TestNoticesActualBuiltCLI(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(host.Result, inbox) {
 		t.Fatal("CLI inbox differs from authoritative host records")
 	}
+	if len(inbox.Entries) != 1 || !P.Equal(inbox.Entries[0].Payload, originalPayload) {
+		t.Fatal("actual CLI repeated read changed the original captured payload")
+	}
 	flags := []string{"--target-id", string(pair.TargetID), "--delivery-id", string(pair.DeliveryID)}
 	lookup := read(args, info, "lookup", flags...)
 	if lookup.Lookup == nil || lookup.Lookup.State != "accepted" || !reflect.DeepEqual(lookup.Lookup.Receipt, &pair) {
 		t.Fatal("lookup did not identify the exact accepted receipt")
+	}
+	if !P.Equal(lookup.Lookup.Receipt.Payload, originalPayload) {
+		t.Fatal("actual CLI lookup changed original rich payload")
 	}
 	readable := p.call(args, nil, 0, "", append([]string{"notices", "lookup"}, flags...)...)
 	checkNoticeRedaction(t, readable, root, info)

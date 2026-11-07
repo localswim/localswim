@@ -4,6 +4,20 @@
 import type * as Archive from '../archive/contracts';
 import type * as Mutation from '../contracts';
 
+export type NoticeText = {
+  readonly facts: NoticeTextFacts | null;
+  readonly kind: "complete" | "fallback";
+  readonly text: string;
+  readonly version: 1;
+};
+
+export type NoticeTextFacts = {
+  readonly from: string;
+  readonly label: string;
+  readonly through: string;
+  readonly tickets: ReadonlyArray<number>;
+};
+
 export type NoticeResponse = {
   readonly apiVersion: 1;
   readonly result: NoticeView;
@@ -41,6 +55,7 @@ export type NoticePair = {
   readonly deliveryId: string;
   readonly eventCount: number | null;
   readonly lowerEvent: number;
+  readonly payload?: NoticeText | null;
   readonly targetId: string;
   readonly upperEvent: number | null;
 };

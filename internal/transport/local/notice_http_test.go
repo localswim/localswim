@@ -10,8 +10,27 @@ import (
 	"github.com/localswim/localswim/internal/board/noticemonitor"
 	"github.com/localswim/localswim/internal/board/notices"
 	A "github.com/localswim/localswim/internal/contract/archive"
+	P "github.com/localswim/localswim/internal/contract/noticetext"
 	T "github.com/localswim/localswim/internal/contract/transport"
 )
+
+func TestNoticePairProjectionPreservesOwnedOriginal(t *testing.T) {
+	payload := P.Build(&P.NoticeTextFacts{Label: "Frozen original", From: "2026-11-07T00:00:00Z", Through: "2026-11-07T00:00:01Z", Tickets: []A.Positive{7}})
+	saved := notices.Pair{Payload: &payload}
+	projected := noticePair(saved)
+	if !P.Equal(projected.Payload, saved.Payload) {
+		t.Fatal("projection changed captured original")
+	}
+	projected.Payload.Facts.Tickets[0] = 99
+	projected.Payload.Facts.Label = "Changed"
+	projected.Payload.Text = "Changed"
+	if payload.Facts.Tickets[0] != 7 || payload.Facts.Label != "Frozen original" || payload.Text == "Changed" {
+		t.Fatal("projection aliases retained payload")
+	}
+	if noticePair(notices.Pair{}).Payload != nil {
+		t.Fatal("legacy projection manufactured text")
+	}
+}
 
 func TestNoticeLiveControlStrictRequests(t *testing.T) {
 	const inc = "10000000-0000-4000-8000-000000000001"

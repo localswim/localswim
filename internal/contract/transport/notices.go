@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	A "github.com/localswim/localswim/internal/contract/archive"
+	P "github.com/localswim/localswim/internal/contract/noticetext"
 )
 
 const (
@@ -54,13 +55,14 @@ type NoticeCut struct {
 }
 
 type NoticePair struct {
-	TargetID   UUIDv4      `json:"targetId"`
-	DeliveryID A.Digest    `json:"deliveryId"`
-	AcceptedAt A.Timestamp `json:"acceptedAt"`
-	Class      NoticeClass `json:"class"`
-	LowerEvent A.Number    `json:"lowerEvent"`
-	UpperEvent *A.Number   `json:"upperEvent"`
-	EventCount *A.Number   `json:"eventCount"`
+	TargetID   UUIDv4        `json:"targetId"`
+	DeliveryID A.Digest      `json:"deliveryId"`
+	AcceptedAt A.Timestamp   `json:"acceptedAt"`
+	Class      NoticeClass   `json:"class"`
+	LowerEvent A.Number      `json:"lowerEvent"`
+	UpperEvent *A.Number     `json:"upperEvent"`
+	EventCount *A.Number     `json:"eventCount"`
+	Payload    *P.NoticeText `json:"payload,omitempty"`
 }
 
 type NoticeLookup struct {
@@ -162,6 +164,18 @@ func noticeView(v NoticeView) error {
 func noticeSchema(t reflect.Type, m map[string]any) {
 	p := m["properties"].(map[string]any)
 	switch t {
+	case reflect.TypeFor[P.NoticeText]():
+		p["kind"].(map[string]any)["enum"] = []string{"complete", "fallback"}
+		p["text"].(map[string]any)["x-max-utf8-bytes"] = P.MaxTextBytes
+	case reflect.TypeFor[P.NoticeTextFacts]():
+		p["label"].(map[string]any)["x-max-utf8-bytes"] = P.MaxLabelBytes
+		p["label"].(map[string]any)["minLength"] = 1
+		p["tickets"].(map[string]any)["maxItems"] = P.MaxTickets
+		p["tickets"].(map[string]any)["uniqueItems"] = true
+		p["tickets"].(map[string]any)["x-order"] = "strictly ascending"
+		for _, name := range []string{"from", "through"} {
+			p[name] = schema(reflect.TypeFor[A.Timestamp](), false)
+		}
 	case reflect.TypeFor[NoticeResponse](), reflect.TypeFor[NoticeOutcomeUnknown]():
 		m["x-max-utf8-bytes"] = NoticeResponseLimit
 	case reflect.TypeFor[NoticeUnknownError]():

@@ -21,6 +21,7 @@ type invocation struct {
 	kind, id, input, file, method, path           string
 	archive, cursor, query, lane, owner, priority string
 	from, through                                 string
+	noticeTarget, noticeDelivery                  string
 	command                                       contract.Command
 }
 
@@ -59,6 +60,10 @@ func parse(args []string) (q invocation, code string, exit int) {
 		q.archive = "active"
 	case "board read", "workflow show", "attention show", "activity read":
 		q.method = "GET"
+	case "notices status", "notices inbox":
+		q.method = "GET"
+	case "notices configure", "notices start", "notices stop", "notices lookup":
+		q.method = "POST"
 	case "card read", "card history", "card children", "card relationships", "operation read":
 		q.method = "GET"
 	case "workflow preview":
@@ -84,7 +89,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	default:
 		return q, "INVOCATION_OR_IO", 1
 	}
-	if q.kind != "board read" && q.kind != "workflow show" && q.kind != "attention show" && q.kind != "workflow preview" && q.kind != "workflow edit" && q.kind != "card create" && q.kind != "card list" && q.kind != "card search" && q.kind != "activity read" {
+	if group != "notices" && q.kind != "board read" && q.kind != "workflow show" && q.kind != "attention show" && q.kind != "workflow preview" && q.kind != "workflow edit" && q.kind != "card create" && q.kind != "card list" && q.kind != "card search" && q.kind != "activity read" {
 		if i >= len(args) || !uuid(args[i]) {
 			return q, "INVOCATION_OR_IO", 1
 		}
@@ -116,6 +121,10 @@ func parse(args []string) (q invocation, code string, exit int) {
 				return q, "INVOCATION_OR_IO", 1
 			}
 			q.archive = args[i]
+		} else if q.kind == "notices lookup" && k == "--target-id" {
+			q.noticeTarget = args[i]
+		} else if q.kind == "notices lookup" && k == "--delivery-id" {
+			q.noticeDelivery = args[i]
 		} else if q.kind == "activity read" && k == "--cursor" {
 			if !T.ValidActivityCursor(args[i]) {
 				return q, "INVOCATION_OR_IO", 1
@@ -178,6 +187,12 @@ func parse(args []string) (q invocation, code string, exit int) {
 	}
 	base := "/api/v1/boards/" + q.selected.BoardID
 	q.path = base
+	if group == "notices" {
+		if q.kind == "notices lookup" && !validNoticePair(q.noticeTarget, q.noticeDelivery) {
+			return q, "INVOCATION_OR_IO", 1
+		}
+		q.path = noticePath(q.selected, action, q.method)
+	}
 	switch q.kind {
 	case "activity read":
 		values := url.Values{"incarnation": {q.selected.Incarnation}}

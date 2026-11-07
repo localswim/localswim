@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"unicode"
 
 	"github.com/localswim/localswim/internal/contract"
@@ -39,7 +40,7 @@ func refused(code string, exit int, original *evidence.Record) result {
 }
 func safeCode(code string) string {
 	switch code {
-	case "INVOCATION_OR_IO", "CREDENTIAL_SELECTION_REQUIRED", "CREDENTIAL_EXPIRED", "CREDENTIAL_DISABLED", "CREDENTIAL_CONTEXT_MISMATCH", "CREDENTIAL_UNAVAILABLE", "UNSAFE_LOCAL_MATERIAL", "UNAVAILABLE", "INVALID_INPUT", "INPUT_TOO_LARGE", "UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "CURSOR_STALE", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH", "OUTCOME_UNKNOWN", "SOURCE_AUTHORITY_UNAVAILABLE", "CONFIRMATION_REQUIRED", "CONFIRMATION_REFUSED", "POLICY_CONFLICT", "WORKFLOW_INCOMPATIBLE":
+	case "INVOCATION_OR_IO", "CREDENTIAL_SELECTION_REQUIRED", "CREDENTIAL_EXPIRED", "CREDENTIAL_DISABLED", "CREDENTIAL_CONTEXT_MISMATCH", "CREDENTIAL_UNAVAILABLE", "UNSAFE_LOCAL_MATERIAL", "UNAVAILABLE", "INVALID_INPUT", "INPUT_TOO_LARGE", "UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "CURSOR_STALE", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH", "OUTCOME_UNKNOWN", "SOURCE_AUTHORITY_UNAVAILABLE", "CONFIRMATION_REQUIRED", "CONFIRMATION_REFUSED", "POLICY_CONFLICT", "WORKFLOW_INCOMPATIBLE", "CONTROL_STALE", "CONTROL_BUSY":
 		return code
 	}
 	return "UNAVAILABLE"
@@ -94,6 +95,9 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 	}
 	if h, ok := out.value.(relationshipObservation); ok {
 		b, e = A.Readable(h.read)
+	}
+	if unknown, ok := out.value.(noticeOutcomeUnknown); ok {
+		b, e = A.Readable(unknown)
 	}
 	if e != nil {
 		out = refused("UNAVAILABLE", out.exit, nil)
@@ -162,7 +166,8 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 	return out.exit
 }
 func outputFailure(exit int, q invocation) int {
-	if q.lookup || q.command != "" && (exit == 0 || exit == 4) {
+	mayHaveChanged := q.command != "" || q.method == "POST" && strings.HasPrefix(q.kind, "notices ")
+	if q.lookup || mayHaveChanged && (exit == 0 || exit == 4) {
 		return 4
 	}
 	return 1
@@ -173,6 +178,8 @@ func diagnostic(v any) string {
 	case T.NonterminalRefusal:
 		code = x.Error.Code
 	case T.KnownIdentityUnknown:
+		code = x.Error.Code
+	case noticeOutcomeUnknown:
 		code = x.Error.Code
 	case T.Terminal:
 		code = x.Code
@@ -270,6 +277,9 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 	}
 	if q.kind == "activity read" {
 		return readActivity(ctx, c, q)
+	}
+	if action, ok := strings.CutPrefix(q.kind, "notices "); ok {
+		return runNotices(ctx, c, q, action)
 	}
 	status, b, err := c.request(ctx, q.method, q.path, bytes.NewReader(wire))
 	if err != nil {

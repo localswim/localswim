@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS_M16_EXACT_EXTRACTED_REVIEW_KIT",
+  "date": "2026-11-08",
+  "milestone": "M16",
+  "stories": [
+    301,
+    302,
+    303,
+    304,
+    305,
+    306
+  ],
+  "scope": "Configuration only: one private fixed recipient policy; save, exact status and reopen; saved does not activate delivery.",
+  "qualifiedSource": "3509fbae267ae58e31c753e73c87efd2cfe88034",
+  "qualificationPublication": "38d6be45f6cad3a2e32ba1d5d3e45346d5309bf3",
+  "architecturePublication": "27ef2488257ddfe18abfaace9fbfdff5ab1553d3",
+  "archive": {
+    "name": "localswim-m16-windows-amd64.zip",
+    "bytes": 13008442,
+    "sha256": "6c389c1eed413abb1cda7b8092b28d8675f26c2458226220a5a8b201c0db9c06",
+    "payloads": 59,
+    "members": 61,
+    "ordinaryExecutableSHA256": "33907ddacec6b6fe4787432f6013a86840489ac741ec98c864bb2d56be0b2a3d",
+    "fullExclusiveFreshExtraction": true,
+    "allMembersCRCSizeDigest": true
+  },
+  "demonstration": {
+    "executionPath": "Literal fresh extracted kit/localswim.exe for all application hosts and CLI commands; no substitute app build or copied executable.",
+    "hosts": 9,
+    "checks": 26,
+    "shippedCLIRuns": [
+      {
+        "name": "default-cli",
+        "status": "PASS",
+        "phase": "save-once-and-fixed-refusals",
+        "saveConfirmed": true,
+        "fixedRefusals": 2,
+        "privateInputUnchanged": true,
+        "expectedFactsRetained": true,
+        "deliveryActivated": false
+      },
+      {
+        "name": "default-cli-reopen",
+        "status": "PASS",
+        "phase": "inspect-after-reopen",
+        "durableBindingConserved": true,
+        "runtimeGenerationChanged": true,
+        "mutationCommands": 0,
+        "deliveryActivated": false
+      },
+      {
+        "name": "configured-cli",
+        "status": "PASS",
+        "phase": "save-once-and-fixed-refusals",
+        "saveConfirmed": true,
+        "fixedRefusals": 2,
+        "privateInputUnchanged": true,
+        "expectedFactsRetained": true,
+        "deliveryActivated": false
+      },
+      {
+        "name": "configured-cli-reopen",
+        "status": "PASS",
+        "phase": "inspect-after-reopen",
+        "durableBindingConserved": true,
+        "runtimeGenerationChanged": true,
+        "mutationCommands": 0,
+        "deliveryActivated": false
+      }
+    ],
+    "browserRuns": [
+      {
+        "name": "default",
+        "status": "PASS",
+        "browserClosed": true,
+        "mailboxDeleted": true,
+        "diagnostics": 12,
+        "componentChecks": 54,
+        "boundary": "ordinary shipped browser"
+      },
+      {
+        "name": "default-reopen",
+        "status": "PASS",
+        "browserClosed": true,
+        "mailboxDeleted": true,
+        "diagnostics": 10,
+        "componentChecks": 0,
+        "boundary": "ordinary shipped browser"
+      },
+      {
+        "name": "configured",
+        "status": "PASS",
+        "browserClosed": true,
+        "mailboxDeleted": true,
+        "diagnostics": 11,
+        "componentChecks": 0,
+        "boundary": "ordinary shipped browser"
+      },
+      {
+        "name": "configured-reopen",
+        "status": "PASS",
+        "browserClosed": true,
+        "mailboxDeleted": true,
+        "diagnostics": 10,
+        "componentChecks": 0,
+        "boundary": "ordinary shipped browser"
+      },
+      {
+        "name": "controlled-unknown",
+        "status": "PASS",
+        "browserClosed": true,
+        "mailboxDeleted": true,
+        "diagnostics": 12,
+        "componentChecks": 0,
+        "boundary": "Controlled malformed reply AFTER actual save"
+      }
+    ],
+    "controlledDOMAssertions": 54,
+    "validatedQueueMessages": 55,
+    "allOwnedHostsJoined": true,
+    "allListenersClosed": true,
+    "allBrowsersClosed": true,
+    "allOwnedMailboxesDeleted": true,
+    "privateFixtureRemoved": true,
+    "sourceUnchanged": true
+  },
+  "qualification": {
+    "report": "joined-r1.json",
+    "cleanBuilds": 2,
+    "matchingOutputs": 116,
+    "perBuildGoTestsAndSubtests": 2907,
+    "perBuildNodeTests": 144,
+    "failures": 0,
+    "skips": 0,
+    "integratedIndependentStatus": "PASS_INDEPENDENT_INTEGRATED_CONFIGURATION_QUALIFICATION"
+  },
+  "review": {
+    "package": "PASS_PACKAGE_AUDIT",
+    "finalEvidence": "PASS_INDEPENDENT_FINAL_KIT_DEMO_EVIDENCE_REVIEW",
+    "independentNonAuthors": true,
+    "remainingMaterialFindings": []
+  },
+  "proposals": {
+    "status": "Reviewed complete proposals only; no new numerical/support/behavior decision adopted.",
+    "documents": [
+      "m16-operating-budget-proposal-2026-11-07.txt",
+      "m16-propagation-status-proposal-2026-11-07.txt",
+      "m16-operator-nudge-proposal-2026-11-07.txt"
+    ]
+  },
+  "limitations": [
+    "No actual executable/capability probe, external send, activation, retarget, transport or new nudge capability.",
+    "UNKNOWN remains ambiguous; current facts never settle a lost original correlation. No replay or inferred no-effect.",
+    "Recipient references and policy stay private; archive/restore conservation independently qualified separately.",
+    "Controlled DOM/response cases are labeled; no controlled Go app or native power-loss claim in extracted demonstration.",
+    "Workspace demo caller supplies the exact selected member data directory; public CLI does not discover it.",
+    "Review kit is for Windows amd64 and PowerShell 7.6+; development toolchains are not needed to run the kit.",
+    "M16 awaits Terry final acceptance/Completed. M17 and future work require separate authorized kickoff and entry gates."
+  ],
+  "privateEvidenceBindings": {
+    "artifacts/2026-11-08-m16-review-kit/package/package-verification.json": "1d17ec12ef810ad8d3d762c00e4ba9355c8eecea8721b1885fe7fa6ff0a36cc1",
+    "artifacts/2026-11-08-m16-review-kit/package/MANIFEST.json": "c3a909a4cc70a2b128933010a06ac3a5cd1e0ec647da4ed34579c473a3baa523",
+    "artifacts/2026-11-08-m16-review-kit/package/SHA256SUMS.txt": "8e6f880d50b35d7ed2dd5ed7a683fa60c61c6520176304a108f16db824180505",
+    "artifacts/2026-11-08-m16-review-kit/demo/exact-r1/result.json": "a2313674026b91aa67b4b73b0c4e93fcc3aeae858f07ae6e51e0ea192a0503e8",
+    "artifacts/2026-11-08-m16-review-kit/demo/exact-r1/executed-wrapper.py": "1bf899f0c4313f4641e481b8029af25fd66bd8e05f1c980cf053b0cf90dfd196",
+    "artifacts/2026-11-08-m16-review-kit/demo/exact-r1/executed-browser.mjs": "760618b46a28a139d31861fceaa1aae3c1843762859fa74b5e6c3386a8d519a5",
+    "artifacts/2026-11-08-m16-review-kit/demo/proof-boundary-note.txt": "38f08e22bdcf84afc46698326cba8b3270c53c756c78e8aaf5af63233adc603c",
+    "artifacts/2026-11-07-m16-qualification/integrated-review-final.json": "6bec1dc86209dd8e734974ac8759a4bd9e56d7e0c7155dd17d16b2c288a573a7",
+    "artifacts/2026-11-08-m16-review-kit/package-review-r1.json": "1d6224e02cdafd60d104b4e3c061e7de004a6f2ea0c89467705fe258f882abb9",
+    "artifacts/2026-11-08-m16-review-kit/package-review-r1.txt": "22373a2a2cef6c12836b4ffebb8202ffbd6ef8c01054643ac65c642d87dd324d",
+    "artifacts/2026-11-08-m16-review-kit/final-review-r1.json": "593090ea8913eabeb1b7dbae931d1b66452895f7b7c2130df098fc317aad2eab",
+    "artifacts/2026-11-08-m16-review-kit/final-review-r1.txt": "37c7b4b80145a324be7655e0b54c07ff3853947311bc20d5f9eab71ecddebc89"
+  },
+  "sourceToolLockBinding": {
+    "qualifiedSource": "3509fbae267ae58e31c753e73c87efd2cfe88034",
+    "runtimeProfileSHA256": "4c98c96a78d5ed631a2df66fd9c8ad100d873fd8b6ed7a5c56cddccc4b08beab",
+    "joinedQualificationJSONSHA256": "59e67dd8a1803dac8c8b49840fec7ef0c2d01cd1c261234dd27e328cc3e47c8c",
+    "sourceFiles": {
+      "go.mod": "0b1f0ea13a6d231e5886d0ce7ea9837153beae1399851e186b0e11f1770f1eb1",
+      "go.sum": "8ae30b632ae23b1fd187c518fa8cb91d6dbdfe41f2c3f06c3d1f008df51c9842",
+      "web/package.json": "cdb703c368285faf82338b6ca75d300fb6fa3c7d25bf24c1c7ff5f6de371e061",
+      "web/package-lock.json": "29f45725992d79c0be2091dc558fe2494fa39bbbf02296b5771d6277e7ee7a35"
+    },
+    "retainedQualification": "All compiler/dependency/browser pins, full source and fixture hashes and same-turn explicit native source rebind are retained by joined-r1.json and its immutable private reports. Metadata-only HANDOFF/README additions do not alter runtime source, locks, assets or executable."
+  }
+}

@@ -1,5 +1,14 @@
 # localswim
 
+M16 adds one fixed private recipient policy through the ordinary browser and
+[actual CLI](docs/runbooks/m16-recipient-cli.txt). Save once, reopen and inspect
+the exact binding; equivalent replacement requests refuse. The
+[browser guide](docs/runbooks/m16-recipient-browser.txt) covers private input,
+current scope and ambiguous outcomes. Saving does not activate delivery.
+[Exact review-kit handoff](qualification/m16/HANDOFF.txt) and
+[current qualification](qualification/m16/joined-r1.txt) record the verified
+configuration scope; executable probes and external delivery remain later work.
+
 The M09 [card-file reader](docs/runbooks/m09-card-files.txt) adds selected-card
 current/retained metadata, source-based attribution, bounded paging and verified
 downloads through the ordinary browser and actual CLI. Its delivery evidence is

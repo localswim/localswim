@@ -1,0 +1,360 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS_FULL_CURRENT_QUALIFICATION",
+  "date": "2026-11-08",
+  "contract": "M16-RECIPIENT-R2",
+  "currentSourceCommit": "3509fbae267ae58e31c753e73c87efd2cfe88034",
+  "sourceFiles": 1237,
+  "ordinaryExecutableSHA256": "33907ddacec6b6fe4787432f6013a86840489ac741ec98c864bb2d56be0b2a3d",
+  "cleanBuilds": 2,
+  "matchingOutputs": 116,
+  "outputCounts": {
+    "schemas": 3,
+    "web/generated": 3,
+    "web/dist": 53,
+    "internal/assets/bundle": 56,
+    "dist": 1
+  },
+  "perBuild": {
+    "go": {
+      "pass": 2907,
+      "fail": 0,
+      "skip": 0,
+      "packagesPassed": 44
+    },
+    "node": 144,
+    "postTestExact": true
+  },
+  "cachePolicy": "Each clean tree starts without outputs/dependencies and gets a separate copy of the pinned Go compiler cache; tests execute with count=1.",
+  "currentInventories": {
+    "providers": {
+      "count": 564,
+      "completeSortedUniqueExactBytes": true,
+      "manifestSHA256": "eb9224bad7eff6a91b5b53c56d826cc88635826e7e397d38dcd55ff24ab36cd8"
+    },
+    "compilerVectors": 13,
+    "driverRepeats": 3,
+    "nativeInventories": {
+      "transaction": 8,
+      "transactionChild": 7,
+      "archive": 14,
+      "archiveChild": 4,
+      "archiveRows": 6
+    },
+    "actualCLI": {
+      "topLevel": 45,
+      "terminals": 97,
+      "rawTextModes": 9
+    },
+    "lifecycle": {
+      "cases": 78,
+      "assertions": 2675,
+      "hosts": 139
+    },
+    "mandatoryBrowser": 21,
+    "copyCases": [
+      "default",
+      "default-reopen",
+      "workspace",
+      "workspace-reopen",
+      "fallback",
+      "legacy"
+    ],
+    "recipientCases": [
+      "default",
+      "default-reopen",
+      "configured",
+      "configured-reopen",
+      "controlled-unknown"
+    ],
+    "recipientControlledDOMChecks": 54,
+    "configuredArchiveRestoreCases": 2
+  },
+  "currentInventoriesSHA256": "1cf590f0625e7bffc5f08f4e875d77185eff5c847cdbc2564651555c5fbd3b86",
+  "latestStable": {
+    "observedAt": "2026-11-08T04:03:18.246204+00:00",
+    "status": "METADATA_CAPTURED_REQUIRES_PIN_COMPARISON",
+    "tools": {
+      "go": {
+        "source": "https://go.dev/dl/?mode=json",
+        "version": "go1.27.3"
+      },
+      "node": {
+        "source": "https://nodejs.org/dist/index.json",
+        "version": "v26.13.0"
+      },
+      "npm": {
+        "source": "https://registry.npmjs.org/npm/latest",
+        "version": "12.2.2"
+      },
+      "typescript": {
+        "source": "https://registry.npmjs.org/typescript/latest",
+        "version": "7.0.2"
+      },
+      "playwright": {
+        "source": "https://registry.npmjs.org/@playwright/test/latest",
+        "version": "1.65.0"
+      },
+      "typescript_eslint": {
+        "source": "https://registry.npmjs.org/typescript-eslint/latest",
+        "version": "8.72.1"
+      },
+      "uv": {
+        "source": "https://api.github.com/repos/astral-sh/uv/releases/latest",
+        "version": "0.13.7"
+      },
+      "git": {
+        "source": "https://api.github.com/repos/git-for-windows/git/releases/latest",
+        "version": "v2.56.0.windows.4"
+      },
+      "powershell": {
+        "source": "https://api.github.com/repos/PowerShell/PowerShell/releases/latest",
+        "version": "v7.6.9"
+      },
+      "browser": {
+        "source": "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json",
+        "version": "157.0.8103.38"
+      },
+      "python": {
+        "source": "https://www.python.org/api/v2/downloads/release/?is_published=true&limit=100",
+        "version": "Python 3.15.2"
+      },
+      "uuid": {
+        "source": "https://proxy.golang.org/github.com/google/uuid/@latest",
+        "version": "v1.6.0"
+      },
+      "xsys": {
+        "source": "https://proxy.golang.org/golang.org/x/sys/@latest",
+        "version": "v0.49.0"
+      },
+      "sqlite": {
+        "source": "https://proxy.golang.org/modernc.org/sqlite/@latest",
+        "version": "v1.62.0"
+      },
+      "native_typescript": {
+        "source": "https://registry.npmjs.org/@typescript/typescript-win32-x64/latest",
+        "version": "7.0.2"
+      },
+      "playwright_runtime": {
+        "source": "https://registry.npmjs.org/playwright/latest",
+        "version": "1.65.0"
+      },
+      "playwright_core": {
+        "source": "https://registry.npmjs.org/playwright-core/latest",
+        "version": "1.65.0"
+      },
+      "libc": {
+        "source": "https://proxy.golang.org/modernc.org/libc/@latest",
+        "version": "v1.80.1"
+      },
+      "mathutil": {
+        "source": "https://proxy.golang.org/modernc.org/mathutil/@latest",
+        "version": "v1.7.1"
+      },
+      "memory": {
+        "source": "https://proxy.golang.org/modernc.org/memory/@latest",
+        "version": "v1.12.1"
+      },
+      "humanize": {
+        "source": "https://proxy.golang.org/github.com/dustin/go-humanize/@latest",
+        "version": "v1.1.0"
+      },
+      "isatty": {
+        "source": "https://proxy.golang.org/github.com/mattn/go-isatty/@latest",
+        "version": "v0.0.24"
+      },
+      "strftime": {
+        "source": "https://proxy.golang.org/github.com/ncruces/go-strftime/@latest",
+        "version": "v1.1.0"
+      },
+      "bigfft": {
+        "source": "https://proxy.golang.org/github.com/remyoudompheng/bigfft/@latest",
+        "version": "v0.0.0-20230129092748-24d4a6f8daec"
+      },
+      "click": {
+        "source": "https://pypi.org/pypi/click/json",
+        "version": "8.5.1"
+      },
+      "uv_build": {
+        "source": "https://pypi.org/pypi/uv_build/json",
+        "version": "0.13.7"
+      },
+      "pytest": {
+        "source": "https://pypi.org/pypi/pytest/json",
+        "version": "9.2.0"
+      },
+      "ruff": {
+        "source": "https://pypi.org/pypi/ruff/json",
+        "version": "0.17.4"
+      },
+      "pyright": {
+        "source": "https://pypi.org/pypi/pyright/json",
+        "version": "1.1.414"
+      }
+    }
+  },
+  "toolExecutableSHA256": {
+    "go": "83b7ba66215e696414fa49462d0db2da4f4cf15c7bebd42f0b189fa04866999d",
+    "node": "14319838b3f355e0398c13569a90270bce4fc68f25189f58c59b03dadae0e6d5",
+    "npm": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+    "browser": "b299662ff2155d34b7aa8475d287940aa9461fc538defecff6fdd566054541b1"
+  },
+  "locks": {
+    "go.mod": "0b1f0ea13a6d231e5886d0ce7ea9837153beae1399851e186b0e11f1770f1eb1",
+    "go.sum": "8ae30b632ae23b1fd187c518fa8cb91d6dbdfe41f2c3f06c3d1f008df51c9842",
+    "web/package.json": "cdb703c368285faf82338b6ca75d300fb6fa3c7d25bf24c1c7ff5f6de371e061",
+    "web/package-lock.json": "29f45725992d79c0be2091dc558fe2494fa39bbbf02296b5771d6277e7ee7a35"
+  },
+  "sameTurnUnchangedRuntimeRebind": {
+    "status": "PASS_EXACT_SAME_TURN_UNCHANGED_RUNTIME_REBIND",
+    "executedSourceCommit": "4edbd42e91055bfcdda3491eb30bae85c516081b",
+    "currentSourceCommit": "3509fbae267ae58e31c753e73c87efd2cfe88034",
+    "changedPaths": [
+      "web/scripts/recipient.test.mjs"
+    ],
+    "change": "Node test compiler outputs are isolated per process. No product/runtime, native test, compiler/driver, generated declaration/schema, production TS, asset, lock or dependency changed.",
+    "sourceFilesCompared": 1237,
+    "sourceDifferences": [
+      "web/scripts/recipient.test.mjs"
+    ],
+    "matchingOutputs": 116,
+    "ordinaryExecutableSHA256": "33907ddacec6b6fe4787432f6013a86840489ac741ec98c864bb2d56be0b2a3d",
+    "currentFullBuilds": "Fulfilled: fresh corrected full-source two-build proof passes; the original rebind record remains unchanged under its evidence hash.",
+    "reusedSameTurnScope": [
+      "Native compiler/driver/V04 current provider/all-row proof executed on prior source",
+      "Full dynamic tagged actual CLI and native cleanup",
+      "Current78-case lifecycle and three-binary reproduction",
+      "Retained P01/all-six-tag vet proof"
+    ],
+    "boundary": "These are explicitly same-turn unchanged-runtime evidence at the named executed source; they are NOT relabeled as freshly executed under the corrected commit. Every remaining browser/current case still runs."
+  },
+  "currentFullBuildRequirementFulfilled": true,
+  "resourceAttribution": {
+    "status": "PASS_EXACT_BOUNDED_RESOURCE_ATTRIBUTION",
+    "groups": [
+      {
+        "group": "mandatory",
+        "queueMessages": 45,
+        "queueConsoleErrors": 2,
+        "queueRequestFailures": 1,
+        "capturedEvents": 3,
+        "allEmittedErrorsExactlyMatched": true
+      },
+      {
+        "group": "copy",
+        "queueMessages": 24,
+        "queueConsoleErrors": 8,
+        "queueRequestFailures": 4,
+        "capturedEvents": 14,
+        "allEmittedErrorsExactlyMatched": true
+      },
+      {
+        "group": "inherited",
+        "queueMessages": 6,
+        "queueConsoleErrors": 2,
+        "queueRequestFailures": 0,
+        "capturedEvents": 2,
+        "allEmittedErrorsExactlyMatched": true
+      }
+    ],
+    "sourcePremises": [
+      "Mandatory journey V02-RELOAD-01 and localfixture delivery.go deliberately truncate an actual post-commit response after declaring Content-Length. Exact cards POST and console ERR_CONTENT_LENGTH_MISMATCH captured.",
+      "Copy default/workspace deliberately cancel the exact fresh inbox GET on close/navigation and fulfill one401 to test current-authentication refusal. Captured GET ERR_ABORTED plus exact inbox401 response/console; no mutation replay.",
+      "Every other captured console event is exactly current-owned optional favicon404. No unowned/unclassified/unexplained network or page failure admitted."
+    ],
+    "boundaries": [
+      "Original queue sender/schema and every diagnostic message retained unchanged.",
+      "Observer is private test-only instrumentation, records only bounded fixed resource/method/status/error identifiers, never URLs/errors/card prose/credentials.",
+      "All earlier unclassified reports remain historical; no retroactive attribution or hidden discard."
+    ],
+    "evidenceSHA256": {
+      "artifacts\\2026-11-07-m16-qualification\\mandatory-resources-r2\\resource-efa7d52a-a2b9-4a63-b616-3d20b414e0b1.json": "024ed27f7a5078158d91f96c893a66b42e45fc0ef9845c97bdc1fe3cf8b71870",
+      "m16qv-bc0e1ef6\\browser-diagnostics.json": "48b7d9f510dd476ca69564b65166e7bad3025526c5835547f7624ecc5cd1ee62",
+      "artifacts\\2026-11-07-m16-qualification\\copy-resources\\resource-14a457c1-8f97-4b2c-ba88-0a492cce3946.json": "5121125c866298a72b393a4142949db14bf60f674daefb2c19e551aab7598181",
+      "artifacts\\2026-11-07-m16-qualification\\copy-resources\\resource-48746f4f-40cf-4d12-a168-b3e4658bdd39.json": "7a32d5d1529ef8e5ec276e1f2012b674cdb7cd099acbd0b9651462cb414fda16",
+      "artifacts\\2026-11-07-m16-qualification\\copy-resources\\resource-4adc5612-78a0-4d6d-bed6-cf46d2ea526a.json": "cb39c7c10d3dc8e92d145e75f848921d0786944d7a27cd285681d05d217444b4",
+      "artifacts\\2026-11-07-m16-qualification\\copy-resources\\resource-aaba5726-029e-4252-b6c0-1c387358ffa8.json": "66f4efe6133f8cd6fbb2164e4941dc3c738fa9a5a0b5feb431eceaa62e659f1a",
+      "artifacts\\2026-11-07-m16-qualification\\copy-resources\\resource-ae266c77-cba6-45ff-b27c-27be4bb37d8e.json": "c15a646cb31c4f896610cbcdf990ee1587fee4c7e701a73b48e578174beb0eff",
+      "artifacts\\2026-11-07-m16-qualification\\copy-resources\\resource-bb23333d-0e7f-4330-a3cd-659f01213fea.json": "e412f6eb201426115ca1716dad56700d3ebbccb2ba5388c29cf8806f864beb30",
+      "artifacts\\2026-11-07-m16-qualification\\copy-4813df33\\default-diagnostics.json": "3566e0c0441f72602f8778a3529661f687f9bd8692774f2b2cf5baa0e1deb7fb",
+      "artifacts\\2026-11-07-m16-qualification\\copy-4813df33\\default-reopen-diagnostics.json": "957355c1d4e3b8781fac528f8caa98ec059e3366f6842edfa701fd428cc20163",
+      "artifacts\\2026-11-07-m16-qualification\\copy-4813df33\\fallback-diagnostics.json": "0bac00f03320d24d2a1aa292c2cf9e8eefd94b10634c48bc4abdfa356b416c2b",
+      "artifacts\\2026-11-07-m16-qualification\\copy-4813df33\\legacy-diagnostics.json": "569554f9e2c512452917596f5383fe3be20805532eb8e9bcdd797b56113f5936",
+      "artifacts\\2026-11-07-m16-qualification\\copy-4813df33\\workspace-diagnostics.json": "bdab3729d41270b7181f28557f1f243029887b9546ce23ffb2e8b05e3085fb39",
+      "artifacts\\2026-11-07-m16-qualification\\copy-4813df33\\workspace-reopen-diagnostics.json": "42c9800b1872e9de5fe22391412b83b10c4f32cf0aaf40053f9bac604f7fc9ff",
+      "artifacts\\2026-11-07-m16-qualification\\inherited-resources\\resource-38bd16eb-728f-4d8b-a7b8-77ae4ad60c13.json": "41648dcded9973daad4777233771ffc58c81dea4373b0d04dad6fb3ca0c59864",
+      "artifacts\\2026-11-07-m16-qualification\\inherited-resources\\resource-666541e5-e65f-49aa-8fcf-345978d59117.json": "bb65eb34831ae8f746195fb823db3079aa577e0ac286b308bf27ce310b6cceae",
+      "artifacts\\2026-11-07-m16-qualification\\inherited-clients\\proof-3b6e3152\\ordinary-diagnostics.json": "d7d08e10f72189ecd97b4ac8c0328c6259daa431d69e94004c443a641b8c920a",
+      "artifacts\\2026-11-07-m16-qualification\\inherited-clients\\proof-3b6e3152\\controlled-diagnostics.json": "cce7e75f891c4a2cbd4d1e15f6c2755359d1246a367e7dee4a52383a7832bded"
+    },
+    "observerBindingSHA256": "9b9c2af01cc6e559472cd5ac109aaffa69b15a9599cfe5026ad765bbfc04d452"
+  },
+  "archiveRestore": {
+    "boundary": "in-process Go hosts from byte-bound candidate source; actual candidate executable CLI",
+    "candidateSourceBoundGoFiles": 494,
+    "workflows": [
+      "default",
+      "genuinely configured"
+    ],
+    "allMembersRawAndDecodedExcludePrivateRecipient": true,
+    "sourcePolicyAndLocalOriginalReceiptsConserved": true,
+    "exactDomainHistoryActivityCanonicalOriginalsAndLineageConserved": true,
+    "independentRestoredInstallIncActorGrantToken": true,
+    "sourceCredentialRejected": true,
+    "restoredRecipientUnconfigured": true
+  },
+  "failuresRetained": [
+    "Initial clean4627fc25A failed a shared TypeScript emit/read race. Isolated per-process outputs retain all tests and default file concurrency; fresh two full builds on corrected test commit pass.",
+    "Archive R1-R3 failed an overlapping source-archive-parent/destination fixture; original correlation was lost and remains UNKNOWN. No absence/non-effect claim or old target replay. Fresh disjoint fixtures capture exact originals and pass.",
+    "Archive R4 failed a qualification comparison of differently indented raw JSON. Corrected comparison preserves exact protected canonical originals and accepted restored-namespace transforms. Prior report unchanged.",
+    "An initial mandatory-browser invocation pointed at failed cleanA and was refused before UI/mailbox/native fixture; corrected fresh A was used without bypassing the guard."
+  ],
+  "evidenceUse": {
+    "fresh": "Corrected full source: two clean full Go/Node/all-output runs, mandatory browser and all current inherited/new browser groups.",
+    "sameTurnRebound": "Native compiler/driver/V04/CLI/lifecycle/P01 proofs executed at prior4ed source are explicitly rebound only after all runtime/native/generated/asset/lock bytes and executable match; only Node test setup differs.",
+    "controlled": "I/O/authority/process/output/transport/DOM fixtures stay separately labeled; no synthetic adapter substitutes for an actual future probe.",
+    "legacy": "Older qualified ordinary binary only creates genuine legacy local-notice data for current unavailable/read proof."
+  },
+  "cleanup": {
+    "allOwnedHostsJoined": true,
+    "listenersClosed": true,
+    "nativeFixtureRootsRemoved": true,
+    "browserMailboxesDeleted": true,
+    "sharedServicesChanged": false
+  },
+  "limits": [
+    "Configuration only; no actual probe, external send, activation, retarget, new transport or nudge.",
+    "New numerical/support/behavior proposal decisions remain Terry-owned.",
+    "Process interruption/I/O injection is not physical power-loss or general-release certification.",
+    "Exact extracted kit and NEW both-client demonstration remain M16.05/#0306."
+  ],
+  "evidenceSHA256": {
+    "build": "874e7b2dc80461cf7de4d8b039cd24c41c92b0de66b3b8f1b06d96efe8f8a966",
+    "sources": "4278922ad95c99c1f825aee70e192091daf109e2c3d62bfabd38a376495a07d8",
+    "outputs": "abac5868b765dbd43027bb3688d45bf1b0d5da6015954450caf7fca32da420b8",
+    "native": "19df436cd913573cc096df9ed321be5a923e3fcd1a8ee20196f22551280d4892",
+    "cli": "48085e170c70afcbeb3adbe37649df3323b99fcd9135f367526372356c830854",
+    "nativeProof": "fab755e0d31bdd64fea7c29ee59aab1d0d45c7edd8f5e07f75fba43aef571a25",
+    "nativeCleanup": "8645265910b666df854d854e88fa9357e93f691cc87fa610e0c19059e82b941e",
+    "lifecycle": "9a50c0aeabba760cb2d7cf9052014ca144e60ee8b1ef952e47956e2d444c0c43",
+    "lifecycleCleanup": "b9696e6ab155aec07326d388f8871115007e708efc253a49c59085c004c95d7d",
+    "mandatory": "d9a02a85ddbf0656cacb1d6a1c59518c68ca61607512b1b7feae191fbf1dce47",
+    "copy": "7ff69a9339e2010c3aa6d1553f8e586a8ffc3652ff250655dfd782685b0df0c3",
+    "inherited": "e9827accd5e6319498c1d812bb1e2a31b5ce34cc7628a55913ef15f673519b72",
+    "recipient": "931c8d38a4017563276ff69f912e56f951d98132eb839993c782f50286160c65",
+    "archive": "238d36be72fcfe54dec4bab9f5fe5eb941d8c4dc6a4b0b2b774e38535d86029e",
+    "archiveAttribution": "8b98c66fcc5ea5e3241a252546d4af321fa285468a8e5525bbc8215e13e9f733",
+    "archiveHarness": "4d9b9e45961f9c38a5ff439b5bff2ceb10f43f12d2a460c40a5b82c08f3ec8fc",
+    "legacy": "dcd5f63df0b7f0950db744478d23732099736d69299db320cf39dd3a8af99790",
+    "rebind": "63eecead0aa4ccfa375095fa3a5fea733d881cacc4fa3e4e7d5b78bbb4089449",
+    "metadata": "460fffdd8f68dea82828be876bc5d4f145e9c715a63bbc43b28fd9421196d1e6",
+    "testFixReview": "3bc20b0e389759cbb220ea364dc40a9b02739a0d73d571fe754a0de51643a821",
+    "resourceAttribution": "bff1ed71d93dfee676640a07bffc4521724dd9004a6fe1340dc6e23722c3b8ba",
+    "failedFixtureCleanup": "94bbfc16300d211b2430a5dddf4cf08a47e510935989f9539c4776a10fbf0ae9"
+  },
+  "independentReview": {
+    "result": "Fresh independent nonauthor Sol / High PASS",
+    "reportSHA256": "95370f9e480b540aaa2a03b01d339a044e3365aca338d22fb19f3530f9f89914",
+    "reviewedAggregateSHA256": "544a169f1998ad7da561319c78ce50437347e9a104faab517a5b608a0f7ee881"
+  }
+}

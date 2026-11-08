@@ -1,0 +1,338 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS_BASELINE_READINESS",
+  "milestone": "M16.00",
+  "observedDate": "2026-11-07",
+  "scope": "Fresh unchanged M15 baseline readiness for configuration-only M16; no new recipient feature/probe/effect qualification",
+  "baselineSource": "3c7f92a9c71005f74d4e8016347dfbb8e6eaa6a0",
+  "executableSHA256": "3dcf6dcac9192798ba7830443355dd8c9383a2f6361274d5116043f47d8cb1db",
+  "sourceFiles": 1206,
+  "cleanBuilds": 2,
+  "matchingOutputs": 112,
+  "outputCounts": {
+    "schemas": 3,
+    "web/generated": 3,
+    "web/dist": 51,
+    "internal/assets/bundle": 54,
+    "dist": 1
+  },
+  "perBuild": {
+    "go": {
+      "pass": 2835,
+      "fail": 0,
+      "skip": 0,
+      "packagesPassed": 43
+    },
+    "node": 136,
+    "postTestReproduced": true
+  },
+  "auditedStablePins": [
+    {
+      "name": "go",
+      "version": "go1.27.3",
+      "source": "https://go.dev/dl/?mode=json"
+    },
+    {
+      "name": "node",
+      "version": "v26.13.0",
+      "source": "https://nodejs.org/dist/index.json"
+    },
+    {
+      "name": "npm",
+      "version": "12.2.2",
+      "source": "https://registry.npmjs.org/npm/latest"
+    },
+    {
+      "name": "typescript",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/typescript/latest"
+    },
+    {
+      "name": "playwright",
+      "version": "1.65.0",
+      "source": "https://registry.npmjs.org/@playwright/test/latest"
+    },
+    {
+      "name": "native_typescript",
+      "version": "7.0.2",
+      "source": "https://registry.npmjs.org/@typescript/typescript-win32-x64/latest"
+    },
+    {
+      "name": "playwright_runtime",
+      "version": "1.65.0",
+      "source": "https://registry.npmjs.org/playwright/latest"
+    },
+    {
+      "name": "playwright_core",
+      "version": "1.65.0",
+      "source": "https://registry.npmjs.org/playwright-core/latest"
+    },
+    {
+      "name": "uv",
+      "version": "0.13.7",
+      "source": "https://api.github.com/repos/astral-sh/uv/releases/latest"
+    },
+    {
+      "name": "git",
+      "version": "v2.56.0.windows.4",
+      "source": "https://api.github.com/repos/git-for-windows/git/releases/latest"
+    },
+    {
+      "name": "powershell",
+      "version": "v7.6.9",
+      "source": "https://api.github.com/repos/PowerShell/PowerShell/releases/latest"
+    },
+    {
+      "name": "browser",
+      "version": "157.0.8103.38",
+      "source": "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json"
+    },
+    {
+      "name": "python",
+      "version": "Python 3.15.2",
+      "source": "https://www.python.org/api/v2/downloads/release/?is_published=true&limit=100"
+    },
+    {
+      "name": "uuid",
+      "version": "v1.6.0",
+      "source": "https://proxy.golang.org/github.com/google/uuid/@latest"
+    },
+    {
+      "name": "xsys",
+      "version": "v0.49.0",
+      "source": "https://proxy.golang.org/golang.org/x/sys/@latest"
+    },
+    {
+      "name": "sqlite",
+      "version": "v1.62.0",
+      "source": "https://proxy.golang.org/modernc.org/sqlite/@latest"
+    },
+    {
+      "name": "libc",
+      "version": "v1.80.1",
+      "source": "https://proxy.golang.org/modernc.org/libc/@latest"
+    },
+    {
+      "name": "mathutil",
+      "version": "v1.7.1",
+      "source": "https://proxy.golang.org/modernc.org/mathutil/@latest"
+    },
+    {
+      "name": "memory",
+      "version": "v1.12.1",
+      "source": "https://proxy.golang.org/modernc.org/memory/@latest"
+    },
+    {
+      "name": "humanize",
+      "version": "v1.1.0",
+      "source": "https://proxy.golang.org/github.com/dustin/go-humanize/@latest"
+    },
+    {
+      "name": "isatty",
+      "version": "v0.0.24",
+      "source": "https://proxy.golang.org/github.com/mattn/go-isatty/@latest"
+    },
+    {
+      "name": "strftime",
+      "version": "v1.1.0",
+      "source": "https://proxy.golang.org/github.com/ncruces/go-strftime/@latest"
+    },
+    {
+      "name": "bigfft",
+      "version": "v0.0.0-20230129092748-24d4a6f8daec",
+      "source": "https://proxy.golang.org/github.com/remyoudompheng/bigfft/@latest"
+    },
+    {
+      "name": "click",
+      "version": "8.5.1",
+      "source": "https://pypi.org/pypi/click/json"
+    },
+    {
+      "name": "uv_build",
+      "version": "0.13.7",
+      "source": "https://pypi.org/pypi/uv_build/json"
+    },
+    {
+      "name": "pytest",
+      "version": "9.2.0",
+      "source": "https://pypi.org/pypi/pytest/json"
+    },
+    {
+      "name": "ruff",
+      "version": "0.17.4",
+      "source": "https://pypi.org/pypi/ruff/json"
+    },
+    {
+      "name": "pyright",
+      "version": "1.1.414",
+      "source": "https://pypi.org/pypi/pyright/json"
+    }
+  ],
+  "currentInventories": {
+    "providers": {
+      "count": 547,
+      "completeSortedUniqueExactBytes": true,
+      "manifestSHA256": "de43eee013fc1397b4ce283e43cb46f86b68c6a3837195fea99788c9127332ed"
+    },
+    "compilerVectors": 13,
+    "driverRepeats": 3,
+    "native": {
+      "transaction": 8,
+      "transactionChild": 7,
+      "archive": 14,
+      "archiveChild": 4,
+      "archiveRows": 6
+    },
+    "taggedCLI": {
+      "topLevel": 41,
+      "allTerminals": 82,
+      "rawTextModes": 9
+    },
+    "lifecycle": {
+      "cases": 78,
+      "assertions": 2683,
+      "hosts": 139
+    },
+    "mandatoryBrowserCases": 21,
+    "copyCases": [
+      "default",
+      "default-reopen",
+      "workspace",
+      "workspace-reopen",
+      "fallback",
+      "legacy"
+    ],
+    "legacy": {
+      "topLevel": 5,
+      "terminals": 17
+    }
+  },
+  "currentInventoriesSHA256": "fe4f26cfaf061add469aef93f6b931976d4b85379097680afd40d8320f9e0aa8",
+  "rules": {
+    "decision": "Retain current curated checks; no source/rule/dependency upgrade required",
+    "active": [
+      "gofmt and ordinary Go vet",
+      "All six current tagged Go vet contexts",
+      "TypeScript strict, noFallthroughCasesInSwitch, noImplicitReturns, noEmitOnError",
+      "Shared Python operator: stable selected Ruff rules, strict Pyright/pytest configuration retained, fresh Ruff smoke"
+    ],
+    "trials": [
+      {
+        "trial": "flow",
+        "flags": [
+          "--allowUnreachableCode",
+          "false",
+          "--allowUnusedLabels",
+          "false"
+        ],
+        "exit": 0,
+        "diagnostics": 0,
+        "codes": []
+      },
+      {
+        "trial": "unused",
+        "flags": [
+          "--noUnusedLocals",
+          "--noUnusedParameters"
+        ],
+        "exit": 1,
+        "diagnostics": 4,
+        "codes": [
+          "6138",
+          "6196"
+        ]
+      },
+      {
+        "trial": "indexed-optional",
+        "flags": [
+          "--noUncheckedIndexedAccess",
+          "--exactOptionalPropertyTypes"
+        ],
+        "exit": 1,
+        "diagnostics": 84,
+        "codes": [
+          "18048",
+          "2345",
+          "2375",
+          "2379",
+          "2412",
+          "2532"
+        ]
+      }
+    ],
+    "rationale": "Unused trial reports three stored fields and one type import; indexed/optional trial requires 84 source adaptations. No recurring defect evidence justifies broad cleanup during this config slice. Flow trial passes without changes. Retain existing strict, high-signal checks; no blanket new rules or unsupported lint framework.",
+    "typedLint": "TypeScript 7.0.2 metadata exposes compiler APIs only under unstable exports; typescript-eslint8.72.1 peers >=4.8.4 <6.1.0. Stable compiler API and stable parser support are not jointly available. Upgrade card0046 remains future review; no older compiler or unsupported parser installed.",
+    "sources": [
+      "https://pkg.go.dev/cmd/vet",
+      "https://www.typescriptlang.org/tsconfig/",
+      "https://typescript-eslint.io/users/dependency-versions/",
+      "https://registry.npmjs.org/typescript/latest",
+      "https://registry.npmjs.org/typescript-eslint/latest"
+    ],
+    "applicability": "V2 repository has no CI workflow or actionlint/ShellCheck dependency. Shared Python board service is the separately maintained unchanged administrative operator; its CI workflow tools are not invoked by V2 and were not changed. No native adapter runs or probes ship in configuration-only M16."
+  },
+  "toolExecutableSHA256": {
+    "go": "83b7ba66215e696414fa49462d0db2da4f4cf15c7bebd42f0b189fa04866999d",
+    "node": "14319838b3f355e0398c13569a90270bce4fc68f25189f58c59b03dadae0e6d5",
+    "npm": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+    "browser": "b299662ff2155d34b7aa8475d287940aa9461fc538defecff6fdd566054541b1",
+    "git": "20d0dde30a65afb6e5810a883700a94dcd77fbf3b44b32868d45bf7c9b30137c"
+  },
+  "wrapperSHA256": {
+    "python": "f8272f38e992aa66c581e3b6a30837257d7571765f102e64f89b1c8b09b4c1cb",
+    "uv": "1791d7a9ed5b6df13ccf80f102e025c333010d96326b4ff0262aa3b578835c5a",
+    "powershell": "2a6769a3330dc1084d0154bfde7d164ab750ca7f700f313f9d417c1be78b2233"
+  },
+  "locks": {
+    "go.mod": "0b1f0ea13a6d231e5886d0ce7ea9837153beae1399851e186b0e11f1770f1eb1",
+    "go.sum": "8ae30b632ae23b1fd187c518fa8cb91d6dbdfe41f2c3f06c3d1f008df51c9842",
+    "web/package.json": "cdb703c368285faf82338b6ca75d300fb6fa3c7d25bf24c1c7ff5f6de371e061",
+    "web/package-lock.json": "29f45725992d79c0be2091dc558fe2494fa39bbbf02296b5771d6277e7ee7a35"
+  },
+  "cachePolicy": "Each clean tree starts without outputs/dependencies and gets a separate copy of the pinned Go compiler cache; tests execute with count=1.",
+  "nativeAndOrdinarySourcesIdentical": true,
+  "liveCompilerExactCleanLockInstall": true,
+  "evidenceUse": {
+    "current": "Every applicable current baseline suite freshly executed; no prior PASS substitutes for this run.",
+    "controlled": "Native I/O/authority/process fault overlays and retained legacy entry are separately labeled.",
+    "legacy": "Older qualified ordinary binary used solely to create genuine old-format sidecar for current Copy read/unavailable proof."
+  },
+  "failureRetained": "copy-01492116 failed a direct live legacy-sidecar read with PermissionError. All five earlier browser journeys passed and owned resources were closed. Correction moved the unchanged legacy version assertion after actual host stop/join. Fresh copy-b00c0794 passes all six; no mutation replay or product change.",
+  "cleanup": {
+    "nativeRootsRemoved": true,
+    "ownedProcessesJoined": true,
+    "ownedListenersClosed": true,
+    "ownedBrowserMailboxesDeleted": true,
+    "proofExportedBeforeCleanup": true,
+    "sharedServicesChanged": false
+  },
+  "limits": [
+    "Synthetic Windows amd64/local NTFS/loopback proof; process interruption does not certify physical power loss.",
+    "No external send, probe, activation, transport change or general-release claim."
+  ],
+  "evidenceSHA256": {
+    "builds": "1b6428a56fc3c6fafb8f8417760205734119b54ad13dd026ad998583002f4651",
+    "sources": "64511d6a58bdf1c6c5e3ef272e1aa785f0bbf2357f944781d38685717dc79ab1",
+    "outputs": "a9974e7665120b90c0f2951b8c58cf7d4b04ae71015e67415182b3c688bbef87",
+    "native": "90496ea97e595f83f6155888ef58bf14ebf880f33ee75e0cf5bc87d3bc226793",
+    "cli": "808507981dd56c14e019c3c831fabcfb16bc383a4c0242ec26ce4e97b8b44279",
+    "nativeCleanup": "76f6d47cb64987057c9b05a83ff31ef132f1ff8d75ce7279864dde50d5ecb87d",
+    "lifecycle": "c41c87ab6987fe31ae1938f798f99911e54b981a4510612d85d51e650ba70c59",
+    "lifecycleCleanup": "c80c6f1f6996c597a7ea02b7dca6e19047e56ab8c47c984efe81bc079cc83543",
+    "reproduction": "c18207bcb0594facc46081dd8b4ed8a50d423faa66ac7633491bcc77bc58381d",
+    "mandatoryBrowser": "5429c6c15f71b527b9d262c9c3279d8f03b5e211d04f68b500c8161f06b64d41",
+    "copy": "8f5c444f5fbd753654e923dc008126279368b3a370572cc1a80ffe4a4b205f3c",
+    "failedCopy": "2a3283168e06786437a9dfa3eecf8439eb706410c26ee9f0f8fa93307183c5a5",
+    "inherited": "bf3864a2d277e0f80c08556128ded79e3aed10966d775023a59f1db86d7dceb0",
+    "legacy": "251743432e17cd14647ab9fd133b950ef56c2df091a6a0d81ca0dae3928a1a23",
+    "binding": "5b5ce84656d50f3308c748f18d5a7214f602c13af6b1764eea2a2e1380b8b93b",
+    "metadata": "e8b23a2f1fb415980d77c51a91d66bc75f76edbb7fed3d5b01277b931f555c54",
+    "ruleTrials": "3e6fae5ecd5f8ba90994d4d90180a8e3cc7c00affe907a2032fe5c799132295f"
+  },
+  "independentReview": {
+    "result": "Fresh nonauthor Sol / High PASS; no material findings",
+    "reportSHA256": "9c5ac560d2c367a44679be39bb0df08f2e1b8edd9b74923fd49286e5d6fa812b",
+    "validationSHA256": "be753c019cb0fe4363ba345efdb73f4b30035856e268a2010ed1fd71407e728f",
+    "reviewedAggregateSHA256": "baf62b56d9df353f9460372ee189179fdc59b54a8a56cdde1f713216ad9f6317"
+  }
+}

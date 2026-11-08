@@ -1,0 +1,47 @@
+M16 private recipient policy CLI
+
+Select the live board explicitly:
+
+  localswim --data DIR [--json] recipient status
+  localswim --data DIR [--json] recipient configure --input C:\PRIVATE\recipient.json
+
+Configured workspace selection uses:
+
+  localswim --workspace DIR --project PROJECT --board BOARD [--json] recipient status
+  localswim --workspace DIR --project PROJECT --board BOARD [--json] recipient configure --input C:\PRIVATE\recipient.json
+
+The explicit input is a regular, single-link, non-reparse private NTFS file,
+owned by the current account and readable only by that account and SYSTEM.
+Its native ancestry is pinned and must contain no reparse component. Use its
+canonical absolute path. The CLI reads it once, at most 1,024 bytes, and leaves
+the file unchanged. No stdin, search path or environment/default target exists.
+
+Synthetic input (replace only the canonical lowercase UUID with the intended
+reference; syntax does not prove that the reference exists or belongs to you):
+
+{"version":1,"recipient":{"kind":"codex-thread","threadId":"00000000-0000-7000-8000-000000000016"},"policy":"conservative-metadata-v1"}
+
+Configure reads current status, freezes one request identity and input in this
+invocation, then submits at most one save. A bound or guarded status prevents
+that submission. Every fresh configure after binding refuses, including an
+identical input. There is no replacement, rekey, retarget or idempotent replay.
+
+Saved means exactly "Saved; delivery is not activated". Configuration does not
+start a worker, sender or probe, enable delivery, change the local inbox target,
+or modify the board and existing local notice originals. Status shows current
+authorized facts; it never claims to settle a lost invocation's original.
+
+Readable and --json modes use the same outcome rules:
+
+- Exit 0: a valid current status, or an exactly correlated save confirmation.
+- Exit 1: invalid invocation, unsafe/unreadable input or local pre-dispatch I/O.
+- Exit 2: strict input/authority/stale/busy/fixed pre-admission refusal.
+- Exit 3: current status or pre-dispatch service availability failure.
+- Exit 4: possible save outcome UNKNOWN, including lost, malformed, truncated,
+  oversized, mismatched, generic server-error or failed output after dispatch.
+
+UNKNOWN output is a fixed safe envelope with no recipient input or correlation
+dump. Retain the original input file and inspect status deliberately. Do not
+resubmit, create another request identity, infer non-effect from empty state,
+or treat a new process/status observation as crash-durable original proof.
+Existing local notices commands and their independent controls are unchanged.

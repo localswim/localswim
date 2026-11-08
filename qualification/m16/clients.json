@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS_SCOPED_CONFIGURATION_CLIENTS",
+  "date": "2026-11-07",
+  "contract": "M16-RECIPIENT-R2",
+  "prerequisiteCompleteSeam": "8e380d6491482b255c6e2e41b5e54d292997fafc",
+  "independentReview": "Fresh nonauthor Sol / High PASS; no findings",
+  "reviewedSourceSHA256": {
+    "cmd/assetstage/main.go": "06e4c1cb4c942288f23b00919184ea80bc7112b85d630a339bfd7632b289cf7d",
+    "cmd/localswim/local_help.go": "27aa159aecc13f091e79ef4bc82a5bfd41216b20235c33fc44fdaa32c39f4218",
+    "cmd/localswim/recipient_native_windows_test.go": "94c55f64204ce6d85976533df73a54e19a170973864d9f01bce2a4425f47a61c",
+    "cmd/localswim/workspace_cli.go": "b2526fc6eaec881f1781857cc3c9a13e85b9bed1d3c8e352548f615df123094d",
+    "docs/runbooks/m16-recipient-browser.txt": "8abffb3d0c20b0f3c3b6420624d02ce29431febe31db1ca008b063ef74236b06",
+    "docs/runbooks/m16-recipient-cli.txt": "f8f46629db8c88cc6ad528fc7d3ea0ccffc74bf910bccca0fcd73862af8cfd56",
+    "internal/assets/assets.go": "4383cec38a8fdf9ee049f5184571d86974477926325980eee30f3da72e31e717",
+    "internal/assets/bundle/js/board/recipient.js": "0e6e245e85a4e6854edaae47cc86377048e4e1f6c245fbebf4e8038ed174b334",
+    "internal/assets/bundle/js/board/view.js": "aafccca6f8dd61b37225c08300a4162f44b26665a233067ee7c59e4546e39a14",
+    "internal/assets/bundle/manifest.json": "67183e9ce69c7abe1f68b3bb30376c2ce94134f99d6aaa65aa8295acaa216bb3",
+    "internal/assets/bundle/styles/app.css": "a480c7066ca0ed2eed7bb63664cf24229acc74d82d560c0bcb69a1c39951b6f7",
+    "internal/transport/cli/core/invocation.go": "e9654a38659287a13672a48e5af7d8dd6344b472eacda3190dacfba6f6fe337a",
+    "internal/transport/cli/core/readable.go": "47e5633d226b5aca0df4ca902bc50e2f624dbecef9adad1c7daff0485e84cc30",
+    "internal/transport/cli/core/recipient_input_unsupported.go": "d33d4e1e88dac32b68b1fbbde45aecd74646c5e43b56dc52c2084559137d5926",
+    "internal/transport/cli/core/recipient_input_windows.go": "a5008ea77eda4e70d9f919567abd27029e0bbe4824eea00fb6ba9f0b291a879b",
+    "internal/transport/cli/core/recipient_test.go": "9e746187ed5acfde0ca5800f1ccdb618be45a72a58ed2a1325157a2e9ac48e4a",
+    "internal/transport/cli/core/recipient.go": "5fd8448a8a188fd8bcb858a8793718b39e4a1251a1faa1c57a22257a272bb22f",
+    "internal/transport/cli/core/run.go": "7c24e468b12963fe492946aa20ecf4bfb67b56ece0919248465a52e4d2b32b6b",
+    "web/src/board/recipient.test.ts": "45ffb0820717e397c5bb08f7f9e5d59e120e0fe80dcc06fc592f94389ef1057d",
+    "web/src/board/recipient.ts": "b2c341a3b70de3d7967b9c8e4554cc72678e7825681d3b6ccbda58d14f126775",
+    "web/src/board/view.ts": "6a8fd6f8cd92b1a70e02ce2e5f1ddd41f2c699683783efb398142dd223be1091",
+    "web/styles/app.css": "a480c7066ca0ed2eed7bb63664cf24229acc74d82d560c0bcb69a1c39951b6f7",
+    "web/tsconfig.json": "a86f790ee203f23e089907dbb593fda31f34901e33df1da2c3efa10bb362c8fb"
+  },
+  "ordinaryExecutableSHA256": "33907ddacec6b6fe4787432f6013a86840489ac741ec98c864bb2d56be0b2a3d",
+  "tests": {
+    "cliNativeTestsAndSubtests": 46,
+    "cliCoreCommandRegressionTestsAndSubtests": 500,
+    "independentGoTestsAndSubtests": 31,
+    "independentNodeTests": 6,
+    "failed": 0,
+    "skipped": 0,
+    "ordinaryBrowserJourneys": 4,
+    "controlledAmbiguousAfterActualSaveJourneys": 1,
+    "controlledProductionDOMChecks": 54,
+    "validatedDiagnostics": 55
+  },
+  "browser": [
+    {
+      "name": "default",
+      "boundary": "ordinary shipped browser",
+      "browserClosed": true,
+      "ownedMailboxDeleted": true
+    },
+    {
+      "name": "default-reopen",
+      "boundary": "ordinary shipped browser",
+      "browserClosed": true,
+      "ownedMailboxDeleted": true
+    },
+    {
+      "name": "configured",
+      "boundary": "ordinary shipped browser",
+      "browserClosed": true,
+      "ownedMailboxDeleted": true
+    },
+    {
+      "name": "configured-reopen",
+      "boundary": "ordinary shipped browser",
+      "browserClosed": true,
+      "ownedMailboxDeleted": true
+    },
+    {
+      "name": "controlled-unknown",
+      "boundary": "Controlled malformed reply AFTER actual save",
+      "browserClosed": true,
+      "ownedMailboxDeleted": true
+    }
+  ],
+  "behavior": [
+    "Actual CLI and ordinary shipped browser save/reopen exact policy on default and genuine configured workflows",
+    "Exact original/request/runtime/input correlation; every fresh bound replacement refuses without replay",
+    "Strict private CLI input, readable/JSON and safe output/transport UNKNOWN handling",
+    "Private window RAM retains bounded drafts/originals with navigation/authority/request fences",
+    "Unrelated input/focus and local notice/board facts remain unchanged; no activation/probe/effect controls"
+  ],
+  "diagnostics": "Every queue message retained and strictly validated. Five optional favicon404 console events are narrowly classified and each confirmed by a separate bounded owned-origin GET; no other errors. Diagnostic acceptance is not product success.",
+  "failureRetained": "Browser R1 stopped after its consumer rejected one unclassified console diagnostic despite the first DOM journey passing. Its exact resource was not captured, and the run remains failed. A fresh source-identical R2 records the narrow favicon classification and completes every journey without product changes.",
+  "cleanup": {
+    "ownedBrowsersClosed": true,
+    "nativeHostsJoined": true,
+    "listenersClosed": true,
+    "ownedRootRemoved": true,
+    "mailboxesDeletedAfterExport": true
+  },
+  "limits": [
+    "Full current source/native/browser/CLI inventories and two clean builds remain M16.04.",
+    "Exact extracted review-kit/new both-client demonstration remains M16.05.",
+    "Controlled DOM/response/output faults are distinct from ordinary HTTP/browser cases.",
+    "No future probe/delivery, crash-durable client journal, physical power-loss or general release is claimed."
+  ],
+  "evidenceSHA256": {
+    "review": "0c42f3f33b688b62723c0670dc6bdff540b29232201ff01541fa33e33ace380c",
+    "reviewedSources": "72bf829656412921395b18c5425b5a98da839bf5f88d35e4f1a3a486ef140f49",
+    "cliNative": "545ffdbfbb6a977e35513d58b358bfb0cf6fe81ed64cf852b0135fd385c54965",
+    "cliRegression": "4aa42a78a092bc79216e3f4ba07c65ea179f8626c19f29cd0c79f296843a3778",
+    "browser": "70fb9101a391ffa5a0682cfcfb669a688ec8ba48d64479cee8161ca5dad317ac",
+    "priorFailedBrowser": "6700f53086c57ab433fd0ed117dc9b543883acc673753071e58338bce7ec99f6",
+    "default": "3ec32fbdcc14f71cbdd383858f3c1cdadb58c0a96b082049d509484e92391ad6",
+    "defaultDiagnostics": "03839e02875c464fa00442ed13a2a8f066573be68b23346d6da59e93f0b37c8f",
+    "default-reopen": "d4515aeb22e5ecbfebe2ef084f0ab7ce6b7d36f7c7935f0512cce4ad1fd5e0d6",
+    "default-reopenDiagnostics": "c827a68792f115b1a7d9ad933554923fd323465763b3a0166eff49972bec9aae",
+    "configured": "59e355606ba30cb1f48049481233538043375fc93a4ecfc97d1754623a4cc219",
+    "configuredDiagnostics": "88fae5c0506c7e9e5228432e3b1e1c81f6f612170fb9791c7f5ce84a6aa83b5c",
+    "configured-reopen": "e9f24735fccfd9549480a1ee5f22f2996b812a4820e1cd06efea7c0bb2180e2e",
+    "configured-reopenDiagnostics": "57323ed1fa1b14fd2bab4998f18a5a3b6e0ec894614d0b24280355e9009fbe49",
+    "controlled-unknown": "339b53f604cf05712f90408b241ebbe8d20936d2a5a687552a1b0e2c0b42cc3f",
+    "controlled-unknownDiagnostics": "023b0d71f5b0729086e7ffb9984b8ed5fc39fe83b6cf69eb5e4f255906489f47"
+  }
+}

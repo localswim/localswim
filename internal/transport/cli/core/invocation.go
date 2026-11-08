@@ -60,9 +60,9 @@ func parse(args []string) (q invocation, code string, exit int) {
 		q.archive = "active"
 	case "board read", "workflow show", "attention show", "activity read":
 		q.method = "GET"
-	case "notices status", "notices inbox", "notices text":
+	case "recipient status", "notices status", "notices inbox", "notices text":
 		q.method = "GET"
-	case "notices configure", "notices start", "notices stop", "notices recover", "notices reload", "notices retarget", "notices lookup":
+	case "recipient configure", "notices configure", "notices start", "notices stop", "notices recover", "notices reload", "notices retarget", "notices lookup":
 		q.method = "POST"
 	case "card read", "card history", "card children", "card relationships", "operation read":
 		q.method = "GET"
@@ -89,7 +89,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	default:
 		return q, "INVOCATION_OR_IO", 1
 	}
-	if group != "notices" && q.kind != "board read" && q.kind != "workflow show" && q.kind != "attention show" && q.kind != "workflow preview" && q.kind != "workflow edit" && q.kind != "card create" && q.kind != "card list" && q.kind != "card search" && q.kind != "activity read" {
+	if group != "recipient" && group != "notices" && q.kind != "board read" && q.kind != "workflow show" && q.kind != "attention show" && q.kind != "workflow preview" && q.kind != "workflow edit" && q.kind != "card create" && q.kind != "card list" && q.kind != "card search" && q.kind != "activity read" {
 		if i >= len(args) || !uuid(args[i]) {
 			return q, "INVOCATION_OR_IO", 1
 		}
@@ -173,7 +173,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 				return q, "INVOCATION_OR_IO", 1
 			}
 			q.priority = v
-		} else if k == "--input" && (q.command != "" || q.kind == "workflow preview") {
+		} else if k == "--input" && (q.command != "" || q.kind == "workflow preview" || q.kind == "recipient configure") {
 			q.input = args[i]
 		} else if k == "--evidence" && q.lookup {
 			q.file = args[i]
@@ -186,11 +186,17 @@ func parse(args []string) (q invocation, code string, exit int) {
 		code, exit := failure(err)
 		return q, code, exit
 	}
-	if ((q.command != "" || q.kind == "workflow preview") && q.input == "") || (q.lookup && q.file == "") {
+	if ((q.command != "" || q.kind == "workflow preview" || q.kind == "recipient configure") && q.input == "") || (q.lookup && q.file == "") {
 		return q, "INVOCATION_OR_IO", 1
 	}
 	base := "/api/v1/boards/" + q.selected.BoardID
 	q.path = base
+	if group == "recipient" {
+		if q.kind == "recipient configure" && q.input == "-" {
+			return q, "INVOCATION_OR_IO", 1
+		}
+		q.path = recipientPath(q.selected, action)
+	}
 	if group == "notices" {
 		if q.kind == "notices retarget" && !v4(q.noticeTarget) {
 			return q, "INVOCATION_OR_IO", 1

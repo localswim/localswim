@@ -1,0 +1,28 @@
+Save a private recipient policy
+
+Open the selected board and choose Recipient policy. Read recipient status
+deliberately, enter the exact Codex chat UUID, then choose Save once. The fixed
+conservative metadata policy is saved with that reference. A syntactically valid
+UUID does not establish that the chat exists or that you own it.
+
+Saved; delivery is not activated. The panel shows the authorized saved reference,
+policy, revision and saved generation. Saving creates no notice or delivery and
+does not change the existing local Notices controls. Further saves are refused,
+including the same reference. Replacement and activation are unavailable here.
+
+If the save is UNKNOWN, it may have taken effect. The original reference and
+request remain in this window's memory. Use Read recipient status; only exactly
+matching saved details confirm that original. Another saved reference or an
+unconfigured observation cannot settle it. There is no retry or automatic save.
+
+Drafts and original save details survive ordinary board navigation in this window,
+with at most 20 contexts and 1,024 UTF-8 input bytes per context. A pending original
+allows inspection only. Closing/reloading the window loses this correlation;
+later status shows current facts only and cannot settle that old original.
+These drafts have no new crash-durable browser storage promise. Authority loss
+clears displayed saved facts while retaining the bounded private input.
+
+Tab and button activation operate the controls. Enter in the reference field
+does not save. Escape or Close recipient policy closes the panel and returns
+focus. Failure retains the draft and does not replace an editor or its input.
+Reopen the same host/board and read status to inspect the persistent binding.

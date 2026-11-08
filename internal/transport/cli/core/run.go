@@ -40,7 +40,7 @@ func refused(code string, exit int, original *evidence.Record) result {
 }
 func safeCode(code string) string {
 	switch code {
-	case "INVOCATION_OR_IO", "CREDENTIAL_SELECTION_REQUIRED", "CREDENTIAL_EXPIRED", "CREDENTIAL_DISABLED", "CREDENTIAL_CONTEXT_MISMATCH", "CREDENTIAL_UNAVAILABLE", "UNSAFE_LOCAL_MATERIAL", "UNAVAILABLE", "INVALID_INPUT", "INPUT_TOO_LARGE", "UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "CURSOR_STALE", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH", "OUTCOME_UNKNOWN", "SOURCE_AUTHORITY_UNAVAILABLE", "CONFIRMATION_REQUIRED", "CONFIRMATION_REFUSED", "POLICY_CONFLICT", "WORKFLOW_INCOMPATIBLE", "CONTROL_STALE", "CONTROL_BUSY", "CONFIGURATION_EXHAUSTED":
+	case "INVOCATION_OR_IO", "CREDENTIAL_SELECTION_REQUIRED", "CREDENTIAL_EXPIRED", "CREDENTIAL_DISABLED", "CREDENTIAL_CONTEXT_MISMATCH", "CREDENTIAL_UNAVAILABLE", "UNSAFE_LOCAL_MATERIAL", "UNAVAILABLE", "INVALID_INPUT", "INPUT_TOO_LARGE", "UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "CURSOR_STALE", "REVISION_CONFLICT", "INCARNATION_CONFLICT", "OPERATION_MISMATCH", "OUTCOME_UNKNOWN", "SOURCE_AUTHORITY_UNAVAILABLE", "CONFIRMATION_REQUIRED", "CONFIRMATION_REFUSED", "POLICY_CONFLICT", "WORKFLOW_INCOMPATIBLE", "CONTROL_STALE", "CONTROL_BUSY", "CONFIGURATION_EXHAUSTED", "CONFIGURATION_FIXED":
 		return code
 	}
 	return "UNAVAILABLE"
@@ -102,6 +102,11 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 	if unknown, ok := out.value.(noticeOutcomeUnknown); ok {
 		b, e = A.Readable(unknown)
 	}
+	if e != nil && q.kind == "recipient configure" && (out.exit == 0 || out.exit == 4) {
+		out = recipientUnknown()
+		b, _ = T.Readable(out.value)
+		e = nil
+	}
 	if e != nil {
 		out = refused("UNAVAILABLE", out.exit, nil)
 		if out.exit == 0 {
@@ -110,7 +115,7 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 		b, _ = T.Readable(out.value)
 	}
 	if stdout == nil {
-		return outputFailure(out.exit, q)
+		return reportOutputFailure(out.exit, q, stderr)
 	}
 	if !q.json {
 		label := "confirmed"
@@ -122,44 +127,44 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 			board = q.selected.BoardID
 		}
 		if _, e = fmt.Fprintf(stdout, "%s board %s\n", label, board); e != nil {
-			return outputFailure(out.exit, q)
+			return reportOutputFailure(out.exit, q, stderr)
 		}
 		if h, ok := out.value.(HierarchyRead); out.exit == 0 && ok {
 			text := readableHierarchy(h, q.page)
 			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
-				return outputFailure(out.exit, q)
+				return reportOutputFailure(out.exit, q, stderr)
 			}
 			return out.exit
 		}
 		if h, ok := out.value.(relationshipObservation); out.exit == 0 && ok {
 			text := readableRelationships(h, q.page)
 			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
-				return outputFailure(out.exit, q)
+				return reportOutputFailure(out.exit, q, stderr)
 			}
 			return out.exit
 		}
 		if board, ok := out.value.(T.BoardRead); out.exit == 0 && ok && q.kind == "workflow show" {
 			text := readableWorkflowShow(board)
 			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
-				return outputFailure(out.exit, q)
+				return reportOutputFailure(out.exit, q, stderr)
 			}
 			return out.exit
 		}
 		if text, ok := focusedRead(out.value); out.exit == 0 && ok {
 			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
-				return outputFailure(out.exit, q)
+				return reportOutputFailure(out.exit, q, stderr)
 			}
 			return out.exit
 		}
 	}
 	if n, err := stdout.Write(b); err != nil || n != len(b) {
-		return outputFailure(out.exit, q)
+		return reportOutputFailure(out.exit, q, stderr)
 	}
 	if !q.json && out.exit == 0 {
 		if board, ok := out.value.(T.BoardRead); ok {
 			text := boardAdvisory(board.Result)
 			if n, err := io.WriteString(stdout, text); err != nil || n != len(text) {
-				return outputFailure(out.exit, q)
+				return reportOutputFailure(out.exit, q, stderr)
 			}
 		}
 	}
@@ -168,8 +173,15 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 	}
 	return out.exit
 }
+func reportOutputFailure(exit int, q invocation, stderr io.Writer) int {
+	result := outputFailure(exit, q)
+	if result == 4 && q.kind == "recipient configure" && stderr != nil {
+		_, _ = io.WriteString(stderr, "OUTCOME_UNKNOWN\n")
+	}
+	return result
+}
 func outputFailure(exit int, q invocation) int {
-	mayHaveChanged := q.command != "" || q.method == "POST" && strings.HasPrefix(q.kind, "notices ")
+	mayHaveChanged := q.command != "" || q.method == "POST" && (strings.HasPrefix(q.kind, "notices ") || q.kind == "recipient configure")
 	if q.lookup || mayHaveChanged && (exit == 0 || exit == 4) {
 		return 4
 	}
@@ -183,6 +195,8 @@ func diagnostic(v any) string {
 	case T.KnownIdentityUnknown:
 		code = x.Error.Code
 	case noticeOutcomeUnknown:
+		code = x.Error.Code
+	case T.RecipientOutcomeUnknown:
 		code = x.Error.Code
 	case T.Terminal:
 		code = x.Code
@@ -213,6 +227,18 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 		if q.native && i.Command != "grant.create" && i.Command != "grant.revoke" {
 			return refused("OPERATION_MISMATCH", 4, original)
 		}
+	}
+	var recipientInput *T.RecipientInput
+	if q.kind == "recipient configure" {
+		raw, e := readRecipientInput(q.input)
+		if e != nil {
+			return refused("UNSAFE_LOCAL_MATERIAL", 1, nil)
+		}
+		input, e := T.Decode[T.RecipientInput](raw)
+		if e != nil {
+			return refused("INVALID_INPUT", 2, nil)
+		}
+		recipientInput = &input
 	}
 	var wire []byte
 	if q.command != "" || q.kind == "workflow preview" {
@@ -280,6 +306,9 @@ func (r Runner) execute(ctx context.Context, q invocation, stdin io.Reader, stde
 	}
 	if q.kind == "activity read" {
 		return readActivity(ctx, c, q)
+	}
+	if strings.HasPrefix(q.kind, "recipient ") {
+		return runRecipient(ctx, c, q, recipientInput)
 	}
 	if action, ok := strings.CutPrefix(q.kind, "notices "); ok {
 		return runNotices(ctx, c, q, action)

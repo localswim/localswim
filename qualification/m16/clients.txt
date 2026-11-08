@@ -1,0 +1,25 @@
+M16.02 — CONFIGURE AND REOPEN THROUGH BOTH CLIENTS
+November 7, 2026 | M16-RECIPIENT-R2 | Fresh independent Sol / High PASS
+
+Actual CLI and ordinary browser save/reopen the same fixed private policy.
+Readable/JSON and default/configured workflows preserve exact original facts;
+fresh replacement, including equivalent input, refuses. Delivery stays inactive.
+
+- Focused actual/native CLI passes 46 test/subtest cases; core/command regression
+  passes 500. Private file, malformed/uncertain transport, exact correlation,
+  output faults and no replay are covered with explicit ordinary/control labels.
+- Fresh real Chrome passes default and configured save/reopen, plus a controlled
+  malformed reply after an actual save. All 54 controlled production DOM checks
+  pass, including A-B-A, authority/window changes, input/focus and bounded memory.
+- All 55 bounded diagnostics validate. Narrow optional favicon404 console events
+  remain recorded and separately probed; no other errors occur. An earlier
+  incomplete run remains failed. No message was silently discarded.
+- Independent Go 31 and Node six checks pass. Source bytes, wide/narrow screenshots,
+  original correlation, lifecycle, cleanup and scope received fresh review.
+
+clients.json binds the exact 23-file client source set, executable and evidence.
+All owned browsers/hosts/listeners/native roots/mailboxes are closed after export.
+Input files are unchanged; private browser originals are window-lifetime RAM,
+not a new durable journal. No future effect/probe/activation operation is offered.
+
+Full joined qualification and the exact extracted review kit remain M16.04/.05.

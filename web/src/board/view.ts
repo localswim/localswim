@@ -21,6 +21,7 @@ import type { CoverPreview } from "./cover-preview.js";
 import { CardSearch } from "./search.js";
 import { BoardActivity } from "./activity.js";
 import { BoardNotices } from "./notices.js";
+import { BoardRecipient } from "./recipient.js";
 import type { PrivateSearch } from "./search.js";
 import { sameIdentity, validParentRef, validateBoardHierarchy, hierarchyOrder } from "../api/hierarchy.js";
 import type { ParentRef, HierarchyCard } from "../api/hierarchy.js";
@@ -100,6 +101,7 @@ export class BoardView {
   private readonly search: CardSearch;
   private readonly activity: BoardActivity;
   private readonly notices: BoardNotices;
+  private readonly recipient: BoardRecipient;
   private readonly archiveStatus = element("select");
   private readonly cardCovers: CoverPreview[] = [];
   private observed?: { identity: Identity; revision: number };
@@ -131,6 +133,7 @@ export class BoardView {
     }, options.searchCheckpoint, options.search);
     this.activity = new BoardActivity(client);
     this.notices = new BoardNotices(client);
+    this.recipient = new BoardRecipient(client);
     this.details = new CardDetails(client, this.search.find, focused => {
       const current = this.board, card = current?.result.cards.find(row => row.cardId === focused.result.card.cardId);
       if (!current || !card || current.result.identity.boardId !== focused.result.identity.boardId ||
@@ -145,16 +148,17 @@ export class BoardView {
     this.stopRevision = client.onReadRevision?.((identity, revision) => this.details.observeRevision(identity, revision)) ?? (() => {});
     // Append new controls after existing children so persisted focus paths keep their indices.
     root.replaceChildren(this.heading, this.actor, this.readState, read,
-      this.create, this.workflowEdit, this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes, this.activity.host, this.notices.host);
+      this.create, this.workflowEdit, this.search.host, this.cards, this.details.host, this.editorHost, this.current, this.outcomes, this.activity.host, this.notices.host, this.recipient.host);
   }
   async open(): Promise<void> { await this.refresh(); }
-  suspend(): void { this.suspended = true; this.refreshing = false; this.generation++; this.clearCardCovers(); this.details.suspend(); this.search.suspend(); this.activity.reset(); this.notices.suspend(); }
-  noticesSelectionChanging(pending: boolean): void { this.notices.selectionChanging(pending); }
+  suspend(): void { this.suspended = true; this.refreshing = false; this.generation++; this.clearCardCovers(); this.details.suspend(); this.search.suspend(); this.activity.reset(); this.notices.suspend(); this.recipient.suspend(); }
+  noticesSelectionChanging(pending: boolean): void { this.notices.selectionChanging(pending); this.recipient.selectionChanging(pending); }
   resume(): void {
     this.suspended = false;
     this.details.resume();
     this.search.resume();
     this.notices.resume();
+    this.recipient.resume();
     for (const outcome of this.records.values()) {
       const context = outcome.evidence?.context ?? this.editor?.context;
       if (context) this.showOutcome(outcome, context);
@@ -259,6 +263,7 @@ export class BoardView {
     this.search.invalidate();
     this.activity.reset();
     this.notices.reset();
+    this.recipient.reset();
     this.create.disabled = this.workflowEdit.disabled = true;
     this.readState.textContent = "Connection unavailable. Read the current board to resume. Private input and original outcomes are retained.";
     this.updateSave();
@@ -269,6 +274,7 @@ export class BoardView {
     this.refreshing = true;
     this.activity.reset();
     this.notices.reset();
+    this.recipient.reset();
     this.clearCardCovers();
     this.details.invalidate();
     this.updateSave();
@@ -302,6 +308,7 @@ export class BoardView {
   private bindNotices(): void {
     if (this.board && this.session?.kind === "human" && workflowRight(this.session, "read", this.board.result.workflow)) {
       this.notices.boardRead(this.board.result.identity);
+      this.recipient.boardRead(this.client.context(this.board, this.session));
     }
   }
   private observeRevision(identity: Identity, revision: number): void {
@@ -891,7 +898,7 @@ export class BoardView {
     // but is not a new mutation relative to this reload's independent searches.
     // Fresh receipts and live outcomes retain normal search invalidation.
     if (terminal || !this.restoredCommits.has(outcome.opId)) this.search.invalidate();
-    if (terminal?.command === "workflow.edit" || outcome.evidence?.command === "workflow.edit") this.notices.reset();
+    if (terminal?.command === "workflow.edit" || outcome.evidence?.command === "workflow.edit") { this.notices.reset(); this.recipient.reset(); }
     this.stale = true;
     this.clearCardCovers();
     let hierarchyRefreshed = false;

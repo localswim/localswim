@@ -102,7 +102,7 @@ var declared = map[string]bool{
 	"js/api/search.js": true, "js/board/search.js": true,
 	"js/api/history.js": true, "js/board/details.js": true,
 	"js/api/activity.js": true, "js/board/activity.js": true,
-	"js/api/recipient.js": true, "js/api/notices.js": true, "js/api/notice-text.js": true, "js/board/notices.js": true, "js/board/original-text.js": true,
+	"js/api/recipient.js": true, "js/board/recipient.js": true, "js/api/notices.js": true, "js/api/notice-text.js": true, "js/board/notices.js": true, "js/board/original-text.js": true,
 	"js/api/preferences.js": true, "js/workspace-ui/pins.js": true,
 	"js/api/catalog.js": true, "js/workspace-ui/view.js": true, "js/workspace-ui/refresh.js": true,
 	"js/api/runtime.js": true, "js/api/workspace-session.js": true, "js/session-ui/window-state.js": true, "js/session-ui/window-controller.js": true,

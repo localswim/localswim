@@ -14,6 +14,8 @@ import (
 func focusedRead(value any) (string, bool) {
 	var out strings.Builder
 	switch x := value.(type) {
+	case T.RecipientResponse:
+		writeRecipient(&out, x.Result)
 	case T.NoticeResponse:
 		writeNotices(&out, x.Result)
 	case T.ActivityRead:

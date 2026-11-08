@@ -119,3 +119,7 @@ section:has(> .workspace-shell) { margin: 0; }
 .notice-lookup label { display: grid; justify-items: start; }
 .notice-lookup input { box-sizing: border-box; width: min(30rem, 100%); margin-inline: 0; }
 .board-notices button[aria-disabled=true] { opacity: .55; cursor: default; }
+.board-recipient { min-width: 0; overflow-wrap: anywhere; }
+.board-recipient label { display: grid; justify-items: start; }
+.board-recipient input { box-sizing: border-box; width: min(30rem, 100%); margin-inline: 0; }
+.board-recipient button[aria-disabled=true] { opacity: .55; cursor: default; }

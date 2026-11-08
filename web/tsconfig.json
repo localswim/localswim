@@ -31,6 +31,7 @@
     "src/api/w03-session.ts",
     "src/archive-ui/view.ts",
     "src/board/view.ts",
+    "src/board/recipient.ts",
     "src/board/hierarchy.ts",
     "src/recovery/indexeddb.ts",
     "src/recovery/local-readiness.ts",

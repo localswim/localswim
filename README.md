@@ -8,6 +8,8 @@ not established. Inspection runs no installed command and establishes no
 version, capability or delivery readiness. The
 [inspection contract](docs/decisions/m17-installation-inspector-contract-2026-11-08.txt)
 records the supported managed installation and current-authority checks.
+[Current qualification](qualification/m17/joined-r1.txt) records the complete
+candidate evidence; exact extracted-kit handoff follows separately.
 
 M16 adds one fixed private recipient policy through the ordinary browser and
 [actual CLI](docs/runbooks/m16-recipient-cli.txt). Save once, reopen and inspect

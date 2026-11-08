@@ -1,5 +1,10 @@
 M17 INSTALLATION INSPECTOR AND COMPLETE NATIVE IDENTITY MODEL
-November 8, 2026 | M17-INSPECTOR-R2 | #0316 model for independent review
+November 8, 2026 | M17-INSPECTOR-R3 | #0316 reviewed model
+
+Parent and independent Sol/High review passed R2 before #0317 implementation.
+R3's complete controlled evidence, final wording and exact design source received
+fresh independent Sol/High review and parent consensus before adoption.
+The refusal-shape clarification preserves the existing transport schema.
 
 1. Authority, delivered outcome and exclusions
 
@@ -36,9 +41,11 @@ The only discovery slot is the fixed relative path
 under that verified profile. No arbitrary PATH search, recursive enumeration,
 registry executable override, Appx/cache fallback or caller selection is used.
 
-The slot may be a plain directory or a Windows mount-point junction used ONLY
-for discovery. A symbolic link, unknown reparse tag or malformed reparse data
-is unqualified. Resolve the opened slot to a concrete absolute local path.
+The supported slot is a Windows mount-point junction used ONLY for discovery.
+A present plain directory is SOURCE_UNQUALIFIED: it cannot identify the
+required concrete release path. A symbolic link, unknown reparse tag or
+malformed reparse data is unqualified. Resolve the opened junction to a
+concrete absolute local path.
 Its only permitted destination is one direct child of the same profile's
   .codex/packages/standalone/releases
 with basename <version>-x86_64-pc-windows-msvc. <version> is strict ASCII SemVer
@@ -268,7 +275,8 @@ and, for these codes, "Inspection could not complete". A definite policy refusal
 says "This installation was not qualified by the supported inspection policy".
 Neither wording declares the installation unsafe, absent or unusable.
 
-Use the existing strict NonterminalRefusal shape with null opId/conflict/field,
+Use the existing strict NonterminalRefusal shape: omitted opId, null conflict
+and null error.field,
 fixed message "Request refused" and no result/private details:
   400 INVALID_INPUT; 401 UNAUTHENTICATED; 403 FORBIDDEN;
   409 CONTROL_STALE; 409 CONTROL_BUSY; 409 IDENTITY_CHANGED;
@@ -339,17 +347,57 @@ subdirectories. No inherited cloud/proxy/token/Node/Python/shell injection or
 caller values. This reduces ambient configuration; it is not a sandbox against
 a malicious same-account signed executable. Preserve existing trust limits.
 
+The admitted native identity profile is strict: no child-process entitlement
+or console requirement is supported. This narrows supported behavior; a tool
+requiring either remains unsupported. It does not lower the sixteen TOTAL
+process acceptance ceiling or reinterpret it as job-members-only accounting.
+The strict controlled profile has observed one process; qualification must
+count console hosts and any out-of-job helper as well as job members.
+An unexpected helper/process or incomplete observation prevents a positive
+claim. Any known ceiling violation fails qualification, even if cleanup succeeds.
+
 Create a non-inheritable unnamed job first, set KILL_ON_JOB_CLOSE and
 ACTIVE_PROCESS_LIMIT=16 (including root); neither BREAKAWAY_OK nor
 SILENT_BREAKAWAY_OK is enabled. Create root with CREATE_SUSPENDED and
-EXTENDED_STARTUPINFO_PRESENT, using PROC_THREAD_ATTRIBUTE_JOB_LIST to associate
-that job atomically at creation, then verify membership before any resume.
+EXTENDED_STARTUPINFO_PRESENT and mandatory DETACHED_PROCESS, using
+PROC_THREAD_ATTRIBUTE_JOB_LIST to associate that job atomically at creation.
+Also require PROC_THREAD_ATTRIBUTE_CHILD_PROCESS_POLICY with
+PROCESS_CREATION_CHILD_PROCESS_RESTRICTED. Before any resume, verify job
+membership and GetProcessMitigationPolicy(ProcessChildProcessPolicy):
+NoChildProcessCreation=true, AuditNoChildProcessCreation=false and
+AllowSecureProcessCreation=false. Missing/unsupported/contradictory policy or
+configuration failure refuses the profile; terminate/join any suspended root.
+There is no no-policy fallback, alternate invocation, no-window substitute or
+retry under weaker restrictions. In the future probe DTO, a proven unsupported
+profile is unsupported/TOOL_UNSUPPORTED with null positive fields; incomplete
+cleanup takes precedence as incomplete/DRAIN_INCOMPLETE.
+
+DETACHED_PROCESS controls initial console association only. It is not, by
+itself, a ban on later AllocConsole. CREATE_NEW_CONSOLE is forbidden and
+CREATE_NO_WINDOW is not used to claim that it prevents console hosts. The
+combined strict profile requires controlled AllocConsole/FreeConsole churn and
+direct/default/new-console child-attempt evidence, with total-process and
+actual-join checks. A process-policy bit alone is not that evidence.
 This closes the parent-exit gap between suspended creation and later assignment.
 Retain job/root/thread identities and handles. If nested job rules, atomic
 assignment or verification fail, terminate/join any created suspended root;
 refuse without an unowned CreateProcess fallback. Pass the canonical executable
 as non-null lpApplicationName and a separately encoded fixed writable command
-line. No detached child, shell, brokered launch or auto-elevation is permitted.
+line. No unowned or job-breakaway child, shell, brokered launch or auto-elevation
+is permitted. DETACHED_PROCESS changes console association only; it never
+detaches the root or any descendant from the owned job or its lifetime, and
+never relaxes atomic job custody.
+
+Windows documents that child restriction is not an independent sandbox when
+the process can acquire privileged handles to other processes. The current
+trusted/cooperative same-account boundary is retained: this proposal adds no
+AppContainer, restricted-token or hostile same-account guarantee. No WMI or
+brokered-process experiment is authorized by R3. Such bypasses are outside the
+supported profile, not silently counted as compliant behavior. Future M18 must
+qualify the exact installed literal interface under these restrictions; its
+failure is an explicit compatibility/readiness issue, never permission to turn
+off the policy or invoke an alternative tool. Current M17 invokes no installed
+Codex executable and cannot certify that compatibility.
 
 Use STARTUPINFOEX/PROC_THREAD_ATTRIBUTE_HANDLE_LIST, STARTF_USESTDHANDLES and
 bInheritHandles=TRUE restricted to that explicit list. Only intended stdout,
@@ -382,6 +430,20 @@ The job handle remains available until zero-process evidence is established,
 then closes last among process-supervision handles. Parent process exit closes
 its noninherited kill-on-close job; recovery never identifies children by PID
 alone or assumes externally surviving effects are absent.
+
+An ambiguous native Close may permanently quarantine the operation in its
+current runtime. In that state public Close remains bounded and reports
+incomplete; the slot, retained resource record and physical ownership remain.
+No numeric handle/provider-state Close is replayed without lifetime proof.
+Ending the owning process lets Windows reclaim resources; it is not a false
+successful in-process join or permission for an overlapping successor.
+
+Before future M18 production use, the caller must bind current authority,
+runtime/configuration generation and physical-scope invalidation to the active
+operation context. Observed revocation/replacement/Close cancels that context
+and thereby requests whole-job termination/join. The dormant component's
+admission check alone is not a live-authority subscription. M17 has no such
+production runner or idle renewal; M18 must qualify this caller binding.
 
 Future Stop requires exact installation/board/incarnation/runtime/configuration/
 probe generation and fresh current authority. Stale/foreign/denied controls
@@ -455,6 +517,15 @@ failed close/incomplete custody and eventual actual join. Every helper is owned,
 synthetic and labeled component evidence. Installed command execution is absent
 from all M17 tests, qualification and extracted demonstrations.
 
+Two controlled profiles have different evidentiary roles. Only the strict
+detached/no-child profile above is proposed for future admission. A test-only
+unrestricted diagnostic profile may deliberately create descendants, consoles
+and inherited pipes to exercise kill-on-close, process ceilings, draining,
+ambiguous cleanup and actual joins. Those diagnostics preserve the original
+descendant-custody coverage; they do not qualify the unrestricted profile for
+production, prove the strict total bound, or create a selectable production
+mode. The API/CLI has no flag/environment input that selects that diagnostic.
+
 Joined candidate qualification includes all current inventories, two isolated
 clean builds and all generated/staged/web/embedded/executable outputs, complete
 existing browser/CLI/native/transaction/archive/notice regressions, scoped queue
@@ -478,4 +549,6 @@ Primary model references (checked November8,2026)
 - https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-wthelperprovdatafromstatedata
 - https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-wthelpergetprovsignerfromchain
 - https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute
+- https://learn.microsoft.com/en-us/windows/desktop/ProcThread/process-creation-flags
+- https://learn.microsoft.com/en-us/windows/console/creation-of-a-console
 - https://semver.org/spec/v2.0.0.html

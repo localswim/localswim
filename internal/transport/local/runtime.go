@@ -242,7 +242,7 @@ type Runtime struct {
 	noticeLabel                  string
 	recipient                    *R.Store
 	recipientState               *recipientNativeState
-	installation                 *I.Inspector
+	installation                 installationEngine
 	server                       *http.Server
 	listener                     net.Listener
 	done                         chan struct{}

@@ -24,20 +24,23 @@ const (
 )
 
 var (
-	errBusy       = errors.New("custody busy")
-	errClosed     = errors.New("custody closed")
-	isInJob       = windows.NewLazySystemDLL("kernel32.dll").NewProc("IsProcessInJob")
-	getMitigation = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetProcessMitigationPolicy")
+	errBusy               = errors.New("custody busy")
+	errClosed             = errors.New("custody closed")
+	errProfileUnsupported = errors.New("strict native profile unavailable")
+	isInJob               = windows.NewLazySystemDLL("kernel32.dll").NewProc("IsProcessInJob")
+	getMitigation         = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetProcessMitigationPolicy")
 )
 
-// spec is intentionally package-private. It is not a supported invocation API.
-// The future authority adapter must supply its last-moment file/authority check.
-// M17 never calls this package outside controlled owned-helper tests.
+// spec is package-private. Production uses only the fixed identity bridge.
+// The installation adapter supplies fresh held-file and current authority checks.
+// Hooks are private controlled-test seams, with no command/environment selector.
 type spec struct {
 	executable, root, systemRoot string
 	check                        func() error
 	// hooks exist only at ownership boundaries, never substitute a native pass.
 	beforeResume func()
+	// Private negative-control boundary after real mitigation verification.
+	beforeResumeBoundary func()
 	// closeBefore may refuse BEFORE CloseHandle, proving the same object remains
 	// owned. Actual CloseHandle errors are ambiguous and never retried.
 	closeBefore func(string) bool
@@ -77,6 +80,7 @@ type operation struct {
 	stdin, stdoutWrite, stderrWrite, stdoutRead, stderrRead ownedHandle
 	pid                                                     uint32
 	assigned                                                bool
+	resumeAttempted                                         bool
 	created                                                 chan struct{}
 	stopTermination, terminationDone                        chan struct{}
 }
@@ -295,7 +299,7 @@ func (p *operation) prepare() error {
 	defer attrs.Delete()
 	childPolicy := uint32(1) // PROCESS_CREATION_CHILD_PROCESS_RESTRICTED; no weaker profile
 	if err = attrs.Update(0x0002000e, unsafe.Pointer(&childPolicy), unsafe.Sizeof(childPolicy)); err != nil {
-		return err
+		return classifyProfileError(err)
 	}
 	handles := []windows.Handle{p.stdin.h, p.stdoutWrite.h, p.stderrWrite.h}
 	if err = attrs.Update(windows.PROC_THREAD_ATTRIBUTE_HANDLE_LIST, unsafe.Pointer(&handles[0]), uintptr(len(handles))*unsafe.Sizeof(handles[0])); err != nil {
@@ -303,7 +307,7 @@ func (p *operation) prepare() error {
 	}
 	jobs := []windows.Handle{job}
 	if err = attrs.Update(attributeJobList, unsafe.Pointer(&jobs[0]), unsafe.Sizeof(jobs[0])); err != nil {
-		return err
+		return classifyProfileError(err)
 	}
 	app, err := windows.UTF16PtrFromString(p.spec.executable)
 	if err != nil {
@@ -327,7 +331,7 @@ func (p *operation) prepare() error {
 	var pi windows.ProcessInformation
 	err = windows.CreateProcess(app, cmd, nil, nil, true, windows.CREATE_SUSPENDED|windows.EXTENDED_STARTUPINFO_PRESENT|windows.CREATE_UNICODE_ENVIRONMENT|windows.DETACHED_PROCESS, &env[0], cwd, &si.StartupInfo, &pi)
 	if err != nil {
-		return err
+		return classifyProfileError(err)
 	}
 	p.process = ownedHandle{h: pi.Process, name: "process"}
 	p.thread = ownedHandle{h: pi.Thread, name: "thread"}
@@ -337,14 +341,14 @@ func (p *operation) prepare() error {
 	close(p.created)
 	var member int32
 	if err = isInJob.Find(); err != nil {
-		return err
+		return errors.Join(errProfileUnsupported, err)
 	}
 	ok, _, callErr := isInJob.Call(uintptr(pi.Process), uintptr(job), uintptr(unsafe.Pointer(&member)))
 	if ok == 0 {
 		return callErr
 	}
 	if member != 1 {
-		return errors.New("root not assigned to owned job")
+		return errProfileUnsupported
 	}
 	p.assigned = true
 	if err = verifyChildPolicy(p.process.h); err != nil {
@@ -363,15 +367,15 @@ func validChildPolicy(flags uint32) bool { return flags == 1 }
 
 func verifyChildPolicy(process windows.Handle) error {
 	if err := getMitigation.Find(); err != nil {
-		return err
+		return errors.Join(errProfileUnsupported, err)
 	}
 	var flags uint32
 	ok, _, err := getMitigation.Call(uintptr(process), 13, uintptr(unsafe.Pointer(&flags)), unsafe.Sizeof(flags))
 	if ok == 0 {
-		return err
+		return classifyProfileError(err)
 	}
 	if !validChildPolicy(flags) {
-		return errors.New("required child-process mitigation not established")
+		return errProfileUnsupported
 	}
 	return nil
 }
@@ -384,6 +388,16 @@ type accounting struct {
 func (p *operation) activeProcesses() (uint32, error) {
 	var a accounting
 	err := windows.QueryInformationJobObject(p.job.h, windows.JobObjectBasicAccountingInformation, uintptr(unsafe.Pointer(&a)), uint32(unsafe.Sizeof(a)), nil)
+	if err == nil && a.Total > 1 {
+		if errors.Is(p.ctx.Err(), context.DeadlineExceeded) {
+			p.code("TIMED_OUT")
+		} else if p.ctx.Err() != nil {
+			p.code("CANCELLED")
+		} else {
+			p.code("TOOL_UNSUPPORTED")
+		}
+		p.cancel()
+	}
 	return a.Active, err
 }
 
@@ -451,13 +465,14 @@ func (p *operation) drain(h *ownedHandle, stderr bool, done chan<- struct{}) {
 }
 
 func (p *operation) run() {
-	defer p.cancel()
 	err := p.prepare()
 	if err != nil {
 		if errors.Is(p.ctx.Err(), context.DeadlineExceeded) {
 			p.code("TIMED_OUT")
 		} else if p.ctx.Err() != nil {
 			p.code("CANCELLED")
+		} else if errors.Is(err, errProfileUnsupported) {
+			p.code("TOOL_UNSUPPORTED")
 		} else {
 			p.code("CREATE_FAILED")
 		}
@@ -475,12 +490,23 @@ func (p *operation) run() {
 		if err == nil {
 			err = verifyChildPolicy(p.process.h)
 		}
+		if err == nil && p.spec.beforeResumeBoundary != nil {
+			p.spec.beforeResumeBoundary()
+		}
+		// The mitigation query can be uninterruptible. A cancellation/deadline
+		// observed while it ran must never become a late ResumeThread call.
 		if err == nil {
+			err = p.ctx.Err()
+		}
+		if err == nil {
+			p.resumeAttempted = true
 			_, err = windows.ResumeThread(p.thread.h)
 		}
 		if err != nil {
 			if errors.Is(p.ctx.Err(), context.DeadlineExceeded) {
 				p.code("TIMED_OUT")
+			} else if p.ctx.Err() == nil && errors.Is(err, errProfileUnsupported) {
+				p.code("TOOL_UNSUPPORTED")
 			} else {
 				p.code("CANCELLED")
 			}
@@ -528,5 +554,13 @@ func (p *operation) run() {
 	p.owner.mu.Lock()
 	p.owner.active = nil
 	p.owner.mu.Unlock()
+	p.cancel()
 	close(p.done)
+}
+
+func classifyProfileError(err error) error {
+	if errors.Is(err, windows.ERROR_NOT_SUPPORTED) || errors.Is(err, windows.ERROR_INVALID_PARAMETER) || errors.Is(err, windows.ERROR_CALL_NOT_IMPLEMENTED) || errors.Is(err, windows.ERROR_PROC_NOT_FOUND) {
+		return errors.Join(errProfileUnsupported, err)
+	}
+	return err
 }

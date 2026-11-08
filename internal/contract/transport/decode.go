@@ -16,6 +16,7 @@ import (
 )
 
 var enums = map[string][]string{
+	"ProbeKind": {"identity"}, "ProbeState": {"supported", "unavailable", "unsupported", "unknown", "incomplete"}, "ProbeCode": {"OK", "TOOL_MISSING", "PLATFORM_UNQUALIFIED", "TOOL_UNSUPPORTED", "PARSE_UNSUPPORTED", "EXIT_FAILED", "PARSE_ERROR", "OUTPUT_LIMIT", "TIMED_OUT", "CANCELLED", "DRAIN_INCOMPLETE"}, "ProbeControlScope": {"identity-control"}, "ProbeStopScope": {"identity-stop"}, "ProbeControlPhase": {"ready", "running", "draining"}, "ProbeStopPhase": {"joined", "incomplete"},
 	"InstallationInspectionScope": {"installation-inspection"}, "InstallationInspectionState": {"candidate", "missing", "unqualified"}, "InstallationInspectionCode": {"CANDIDATE_PRESENT", "TOOL_MISSING", "PLATFORM_UNQUALIFIED", "SOURCE_UNQUALIFIED", "PATH_UNQUALIFIED", "PUBLISHER_UNQUALIFIED", "FILE_CHANGED", "INSPECTION_UNKNOWN", "INSPECTION_TIMED_OUT"},
 	"RecipientScope": {"recipient"}, "RecipientState": {"unconfigured", "configured", "unavailable", "unknown"}, "RecipientReason": {"storage", "foreign", "unknown"}, "RecipientKind": {"codex-thread"}, "RecipientPolicy": {"conservative-metadata-v1"},
 	"NoticeOperation":   {"configure", "start", "stop", "recover", "reload", "retarget", "lookup"},
@@ -51,6 +52,9 @@ var fieldRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_
 // It proves boundary validity only, never that a terminal claim is authentic.
 func Decode[T any](data []byte) (T, error) {
 	var out T
+	if limit := probeByteLimit(reflect.TypeFor[T]()); limit > 0 && len(data) > limit {
+		return out, fmt.Errorf("identity probe message exceeds limit")
+	}
 	if reflect.TypeFor[T]() == reflect.TypeFor[InstallationInspectionResponse]() && len(data) > InstallationInspectionResponseLimit {
 		return out, fmt.Errorf("installation response exceeds limit")
 	}
@@ -237,6 +241,26 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case ProbeResult:
+		if e := probeValid(x); e != nil {
+			return e
+		}
+	case ProbeToolVersion:
+		if len(x) > 96 || !probeSemverRE.MatchString(string(x)) {
+			return fmt.Errorf("invalid identity version")
+		}
+	case ProbeControlView:
+		if x.Joined != (x.Phase == "ready") {
+			return fmt.Errorf("invalid identity control join")
+		}
+	case ProbeStopView:
+		if x.Joined != (x.Phase == "joined") {
+			return fmt.Errorf("invalid identity stop join")
+		}
+	case ProbeUnknownError:
+		if x.Code != "OUTCOME_UNKNOWN" || x.Message != ProbeUnknownMessage {
+			return fmt.Errorf("invalid identity unknown")
+		}
 	case RecipientThreadID:
 		if !recipientThreadRE.MatchString(string(x)) {
 			return fmt.Errorf("invalid recipient thread")

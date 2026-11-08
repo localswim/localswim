@@ -75,6 +75,9 @@ func (a *authority) verifyCredential(mode string, t T.SecretToken, now time.Time
 	return c, nil
 }
 func (a *authority) Admission(mode string, t T.SecretToken) (*grants.Service, error) {
+	return a.admission(mode, t, true)
+}
+func (a *authority) admission(mode string, t T.SecretToken, touchIdle bool) (*grants.Service, error) {
 	if mode != "cli" && mode != "browser" {
 		return nil, grants.ErrDenied
 	}
@@ -82,7 +85,7 @@ func (a *authority) Admission(mode string, t T.SecretToken) (*grants.Service, er
 		if ctx == nil || ctx.Err() != nil || r == nil {
 			return grants.Credential{}, grants.ErrDenied
 		}
-		return a.verify(mode, t, now)
+		return a.verifyCredential(mode, t, now, touchIdle)
 	})
 }
 
@@ -98,13 +101,19 @@ func (s snapshot) Query(q string, args ...any) (*sql.Rows, error) {
 	return s.c.QueryContext(s.ctx, q, args...)
 }
 func (a *authority) Current(ctx context.Context, mode string, t T.SecretToken) (T.SessionRead, error) {
+	return a.current(ctx, mode, t, true)
+}
+
+// current keeps ordinary user reads renewable while native identity admission
+// uses the same checks without extending browser idle authority.
+func (a *authority) current(ctx context.Context, mode string, t T.SecretToken, touchIdle bool) (T.SessionRead, error) {
 	var out T.SessionRead
 	if ctx == nil || ctx.Err() != nil {
 		return out, grants.ErrDenied
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	admission, e := a.Admission(mode, t)
+	admission, e := a.admission(mode, t, touchIdle)
 	if e != nil {
 		return out, e
 	}
@@ -116,7 +125,7 @@ func (a *authority) Current(ctx context.Context, mode string, t T.SecretToken) (
 		if _, e := c.ExecContext(ctx, "BEGIN"); e != nil {
 			return e
 		}
-		credential, e := a.verify(mode, t, time.Now().UTC())
+		credential, e := a.verifyCredential(mode, t, time.Now().UTC(), touchIdle)
 		if e != nil {
 			return e
 		}

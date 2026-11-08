@@ -14,6 +14,29 @@ testing. Check readiness with the following command. Do not start another stack.
 
   & 'C:\Projects\shared-message-queue\queue.ps1' -Action Status
 
+Console-free shared queue startup (2026-11-08)
+
+- Use C:\Projects\shared-message-queue\queue.ps1 -Action Start, Stop or Status.
+  Start reuses Agent Message Queue; never launch -Action Run, WSL, Valkey,
+  Webdis or a private keeper directly.
+- The task action is C:\Projects\shared-message-queue\QueueTaskLauncher.exe,
+  with adjacent QueueTaskLauncher.cs. This GUI root starts WSL using
+  UseShellExecute=false and CreateNoWindow=true. WindowStyle Hidden alone
+  exposed a Windows Terminal window on this host; no console/taskbar window
+  should remain. Preserve login trigger, user identity and independent OS owner.
+- The task-root owns four total attempts, 60-second waits between failures,
+  concurrent stdout/stderr drains to separate private per-launch files under
+  %LOCALAPPDATA%\agent-message-queue\logs, and the final exit code.
+- Explicit Stop cancels the task/retry owner and Linux unit. Verify keeper exit
+  and HTTP state; closing a console is not a supported Stop. Qualified Stop
+  stayed down beyond 60 seconds and the final restart was healthy/console-free.
+  The actual next sign-in lifecycle remains unobserved.
+- Shared host maintenance requires Terry's authorization and one coordinated
+  operator. Other agents pause dependent testing and check health; they do not
+  race to recover the host. Stop loses volatile messages. Resume with fresh
+  mailboxes and preserve/export evidence before authorized maintenance.
+
+
 Register a fresh logical mailbox
 The native client checks PING readiness and creates a cryptographically random
 UUIDv4 address. It does not create a directory. Check exit status before parsing
@@ -28,6 +51,11 @@ stdout; failures have a structured error code and operation on stderr.
   if ($keys -cne 'id' -or $registration.id -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$') { throw 'Invalid mailbox response' }
   $env:LOCALPOST_REGISTRATION_ID = $registration.id
   $env:LOCALPOST_RUN_ID = [guid]::NewGuid().ToString().ToLowerInvariant()
+
+Persist the mailbox ID and run ID in the private harness journal before any
+sender/browser launch, so an interruption does not lose owned cleanup identity.
+Registration alone only checks readiness and creates an address; first send
+creates the broker stream. Do not discover/delete other agents' mailboxes.
 
 LOCALPOST_REGISTRATION_ID retains the harness configuration name and now means
 a queue mailbox ID. Run the normal fresh preparation and full qualification

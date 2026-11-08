@@ -3744,6 +3744,461 @@
     "PreviewRequest": {
       "$ref": "../archive/contracts.schema.json#/$defs/PreviewRequest"
     },
+    "ProbeControlResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "result": {
+          "$ref": "#/$defs/ProbeControlView"
+        },
+        "scope": {
+          "enum": [
+            "identity-control"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "result",
+        "scope"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 2048
+    },
+    "ProbeControlView": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "joined": {
+              "const": true
+            },
+            "phase": {
+              "const": "ready"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "joined": {
+              "const": false
+            },
+            "phase": {
+              "enum": [
+                "running",
+                "draining"
+              ]
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "configurationGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "identity": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Identity"
+        },
+        "joined": {
+          "type": "boolean"
+        },
+        "phase": {
+          "enum": [
+            "ready",
+            "running",
+            "draining"
+          ],
+          "type": "string"
+        },
+        "probeGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "runtimeGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "configurationGeneration",
+        "identity",
+        "joined",
+        "phase",
+        "probeGeneration",
+        "runtimeGeneration"
+      ],
+      "type": "object"
+    },
+    "ProbeOutcomeUnknown": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "error": {
+          "$ref": "#/$defs/ProbeUnknownError"
+        },
+        "outcome": {
+          "enum": [
+            "unknown"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "error",
+        "outcome"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 2048
+    },
+    "ProbeRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedConfigurationGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "expectedRuntimeGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "probeGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expectedConfigurationGeneration",
+        "expectedRuntimeGeneration",
+        "incarnation",
+        "probeGeneration"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 512
+    },
+    "ProbeResult": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "code": {
+              "enum": [
+                "OK"
+              ]
+            },
+            "joined": {
+              "const": true
+            },
+            "state": {
+              "const": "supported"
+            },
+            "toolVersion": {
+              "maxLength": 96,
+              "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "code": {
+              "enum": [
+                "TOOL_MISSING",
+                "PLATFORM_UNQUALIFIED"
+              ]
+            },
+            "joined": {
+              "const": true
+            },
+            "state": {
+              "const": "unavailable"
+            },
+            "toolVersion": {
+              "type": "null"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "code": {
+              "enum": [
+                "TOOL_UNSUPPORTED",
+                "PARSE_UNSUPPORTED"
+              ]
+            },
+            "joined": {
+              "const": true
+            },
+            "state": {
+              "const": "unsupported"
+            },
+            "toolVersion": {
+              "type": "null"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "code": {
+              "enum": [
+                "EXIT_FAILED",
+                "PARSE_ERROR",
+                "OUTPUT_LIMIT",
+                "TIMED_OUT",
+                "CANCELLED"
+              ]
+            },
+            "joined": {
+              "const": true
+            },
+            "state": {
+              "const": "unknown"
+            },
+            "toolVersion": {
+              "type": "null"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "code": {
+              "enum": [
+                "DRAIN_INCOMPLETE"
+              ]
+            },
+            "joined": {
+              "const": false
+            },
+            "state": {
+              "const": "incomplete"
+            },
+            "toolVersion": {
+              "type": "null"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "capability": {
+          "type": "null"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "TOOL_MISSING",
+            "PLATFORM_UNQUALIFIED",
+            "TOOL_UNSUPPORTED",
+            "PARSE_UNSUPPORTED",
+            "EXIT_FAILED",
+            "PARSE_ERROR",
+            "OUTPUT_LIMIT",
+            "TIMED_OUT",
+            "CANCELLED",
+            "DRAIN_INCOMPLETE"
+          ],
+          "type": "string"
+        },
+        "configurationGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "identity": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Identity"
+        },
+        "joined": {
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "identity"
+          ],
+          "type": "string"
+        },
+        "probeGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "runtimeGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "supported",
+            "unavailable",
+            "unsupported",
+            "unknown",
+            "incomplete"
+          ],
+          "type": "string"
+        },
+        "toolVersion": {
+          "anyOf": [
+            {
+              "maxLength": 96,
+              "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "capability",
+        "code",
+        "configurationGeneration",
+        "identity",
+        "joined",
+        "kind",
+        "probeGeneration",
+        "runtimeGeneration",
+        "state",
+        "toolVersion",
+        "version"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 2048
+    },
+    "ProbeStopResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "result": {
+          "$ref": "#/$defs/ProbeStopView"
+        },
+        "scope": {
+          "enum": [
+            "identity-stop"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "result",
+        "scope"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 2048
+    },
+    "ProbeStopView": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "joined": {
+              "const": true
+            },
+            "phase": {
+              "const": "joined"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "joined": {
+              "const": false
+            },
+            "phase": {
+              "const": "incomplete"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "configurationGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "identity": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Identity"
+        },
+        "joined": {
+          "type": "boolean"
+        },
+        "phase": {
+          "enum": [
+            "joined",
+            "incomplete"
+          ],
+          "type": "string"
+        },
+        "probeGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "runtimeGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "configurationGeneration",
+        "identity",
+        "joined",
+        "phase",
+        "probeGeneration",
+        "runtimeGeneration"
+      ],
+      "type": "object"
+    },
+    "ProbeUnknownError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "const": "OUTCOME_UNKNOWN"
+        },
+        "message": {
+          "const": "Identity check outcome unknown"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
     "RecipientConfigureRequest": {
       "additionalProperties": false,
       "properties": {

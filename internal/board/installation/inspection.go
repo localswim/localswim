@@ -1,4 +1,4 @@
-// Package installation performs metadata-only inspection. It cannot launch a process.
+// Package installation owns metadata inspection and the authority-bound identity engine.
 package installation
 
 import (
@@ -67,7 +67,13 @@ type active struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 	// Retains custody after ambiguous cleanup; never invoked again without proof.
-	quarantined func() error
+	quarantined    func() error
+	probe          *probeTuple
+	phase          string
+	refusal        error
+	workerDone     bool
+	observers      int
+	nextGeneration string
 }
 type Inspector struct {
 	mu              sync.Mutex
@@ -76,11 +82,31 @@ type Inspector struct {
 	current         *active
 	closing         bool
 	deadline, drain time.Duration
+	checkInterval   time.Duration
+	checkGate       chan struct{}
+	changed         chan struct{}
+	admissions      map[*controlAdmission]struct{}
+	available       string
+	tombstone       *probeTuple
+	binding         candidateBinding
+	fresh           func() (string, error)
+	probeBackend    probeBackend
+	shutdown        context.Context
+	shutdownCancel  context.CancelFunc
 }
 
 func New(generation string) *Inspector { return newInspector(generation, inspectNative) }
 func newInspector(generation string, backend Backend) *Inspector {
-	return &Inspector{generation: generation, backend: backend, deadline: 10 * time.Second, drain: 2 * time.Second}
+	return newInspectorWithEntropy(generation, backend, freshGeneration)
+}
+func newInspectorWithEntropy(generation string, backend Backend, fresh func() (string, error)) *Inspector {
+	s := &Inspector{generation: generation, backend: backend, deadline: 10 * time.Second, drain: 2 * time.Second, checkInterval: 100 * time.Millisecond, checkGate: make(chan struct{}, 1), changed: make(chan struct{}), admissions: make(map[*controlAdmission]struct{}), fresh: fresh, probeBackend: probeNative}
+	s.shutdown, s.shutdownCancel = context.WithCancel(context.Background())
+	s.checkGate <- struct{}{}
+	if value, err := s.fresh(); err == nil && isGeneration(value) {
+		s.available = value
+	}
+	return s
 }
 func (s *Inspector) Inspect(ctx context.Context, generation string, check Check) (Observation, error) {
 	s.mu.Lock()
@@ -105,7 +131,7 @@ func (s *Inspector) Inspect(ctx context.Context, generation string, check Check)
 		var out answer
 		if check == nil {
 			out.err = ErrClosed
-		} else if out.err = check(work); out.err == nil {
+		} else if out.err = s.checked(work, check); out.err == nil {
 			var cleanup func() error
 			out.observation, cleanup = s.backend(work)
 			if !out.observation.Valid() {
@@ -131,7 +157,7 @@ func (s *Inspector) Inspect(ctx context.Context, generation string, check Check)
 			if closing {
 				out.err = ErrClosed
 			} else {
-				out.err = check(ctx)
+				out.err = s.checked(ctx, check)
 			}
 		}
 		cancel()
@@ -145,6 +171,7 @@ func (s *Inspector) Inspect(ctx context.Context, generation string, check Check)
 		}
 		s.current = nil
 		close(a.done)
+		s.notifyLocked()
 		s.mu.Unlock()
 		result <- out
 	}()
@@ -168,20 +195,28 @@ func (s *Inspector) Inspect(ctx context.Context, generation string, check Check)
 func (s *Inspector) Close() error {
 	s.mu.Lock()
 	s.closing = true
-	a := s.current
-	if a != nil {
-		a.cancel()
+	s.shutdownCancel()
+	if s.current != nil {
+		s.current.cancel()
+	}
+	for admission := range s.admissions {
+		admission.cancel()
 	}
 	s.mu.Unlock()
-	if a == nil {
-		return nil
-	}
 	timer := time.NewTimer(s.drain)
 	defer timer.Stop()
-	select {
-	case <-a.done:
-		return nil
-	case <-timer.C:
-		return ErrIncomplete
+	for {
+		s.mu.Lock()
+		complete := s.current == nil && len(s.admissions) == 0
+		changed := s.changed
+		s.mu.Unlock()
+		if complete {
+			return nil
+		}
+		select {
+		case <-changed:
+		case <-timer.C:
+			return ErrIncomplete
+		}
 	}
 }

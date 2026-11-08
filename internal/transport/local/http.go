@@ -112,6 +112,9 @@ func sessionCookie(q *http.Request, name string) (value string, present, ok bool
 }
 
 func (r *Runtime) authenticate(w http.ResponseWriter, q *http.Request) (string, T.SecretToken, bool) {
+	return r.authenticateRenewal(w, q, true)
+}
+func (r *Runtime) authenticateRenewal(w http.ResponseWriter, q *http.Request, touchIdle bool) (string, T.SecretToken, bool) {
 	cookie, hasCookie, validCookies := sessionCookie(q, r.cookieName())
 	if !validCookies {
 		refuse(w, 401, "UNAUTHENTICATED")
@@ -145,7 +148,7 @@ func (r *Runtime) authenticate(w http.ResponseWriter, q *http.Request) (string, 
 		mode = "browser"
 		token = T.SecretToken(cookie)
 	}
-	if _, e := r.auth.Current(q.Context(), mode, token); e != nil {
+	if _, e := r.auth.current(q.Context(), mode, token, touchIdle); e != nil {
 		refuse(w, 401, "UNAUTHENTICATED")
 		return "", "", false
 	}
@@ -159,11 +162,15 @@ func (r *Runtime) authenticate(w http.ResponseWriter, q *http.Request) (string, 
 // Wrap is mandatory for every domain adapter. It resolves a live ephemeral
 // credential before dispatch; G01/S02 revalidate it and durable rights again.
 func (r *Runtime) Wrap(next http.Handler) http.Handler {
+	return r.wrapRenewal(next, true)
+}
+func (r *Runtime) wrapProbe(next http.Handler) http.Handler { return r.wrapRenewal(next, false) }
+func (r *Runtime) wrapRenewal(next http.Handler, touchIdle bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, q *http.Request) {
 		if !r.boundary(w, q) {
 			return
 		}
-		mode, token, ok := r.authenticate(w, q)
+		mode, token, ok := r.authenticateRenewal(w, q, touchIdle)
 		if !ok {
 			return
 		}
@@ -292,6 +299,8 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, q *http.Request) {
 			switch {
 			case q.URL.Path == r.boardPath()+"recipient/tool/inspect":
 				r.Wrap(http.HandlerFunc(r.serveInstallation)).ServeHTTP(w, q)
+			case q.URL.Path == r.boardPath()+"recipient/tool/probe-control" || q.URL.Path == r.boardPath()+"recipient/tool/probe-version" || q.URL.Path == r.boardPath()+"recipient/tool/stop":
+				r.wrapProbe(http.HandlerFunc(r.serveProbe)).ServeHTTP(w, q)
 			case len(p) >= 6 && p[5] == "recipient":
 				r.Wrap(http.HandlerFunc(r.serveRecipient)).ServeHTTP(w, q)
 			case len(p) >= 6 && p[5] == "notices":

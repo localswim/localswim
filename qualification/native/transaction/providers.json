@@ -153,11 +153,11 @@
   },
   {
     "path": "internal/assets/assets.go",
-    "sha256": "03b818b0eb0185247904b64dda35e637882fc2980215316a75f1856c61fe9d7c"
+    "sha256": "0d660be0525269e9501621bcaa8fc7900257f3fd7158ed91c3de674be384a7e1"
   },
   {
     "path": "internal/assets/assets_test.go",
-    "sha256": "6f52140f93c9f864ce4019b07d6c622438b9759d52831ed7509688eba266ffc9"
+    "sha256": "57a08966f453853cc290136d8816cb6cf1078ce5bb713668573b3a49d09984dc"
   },
   {
     "path": "internal/assets/bundle/index.html",
@@ -194,6 +194,10 @@
   {
     "path": "internal/assets/bundle/js/api/history.js",
     "sha256": "7b105e0f2eadbeae496dadbea7709be84afa8f120151ab9419f66fcb4aba1eba"
+  },
+  {
+    "path": "internal/assets/bundle/js/api/identity-probe.js",
+    "sha256": "b44170cfd19cb4e829435425de650d253fa2060fbcc03422078730a30d976916"
   },
   {
     "path": "internal/assets/bundle/js/api/installation.js",
@@ -233,7 +237,7 @@
   },
   {
     "path": "internal/assets/bundle/js/api/schema-data.js",
-    "sha256": "5965dad3f6dafeab669dda769141e60396d4b3b127f1e6acfc0109acfa640c17"
+    "sha256": "07046178622ac77fbc97679968f16eb0cbee318b36fb16b95a53776e564abae0"
   },
   {
     "path": "internal/assets/bundle/js/api/search.js",
@@ -381,7 +385,7 @@
   },
   {
     "path": "internal/assets/bundle/manifest.json",
-    "sha256": "5bf5ffa7e053166b3fcb814c5d457877b9af480cf7ed84fd339a2fb0b3397345"
+    "sha256": "b19b47abf1a5c354a90882f0c1badd061798ca214886c391909097b1cd5e7530"
   },
   {
     "path": "internal/assets/bundle/styles/app.css",
@@ -572,12 +576,24 @@
     "sha256": "03919a86a57339caeeccb8010340a5add1091d1fe7f265a68c9d47a9e1bf8953"
   },
   {
+    "path": "internal/board/installation/README.txt",
+    "sha256": "a9b84f89e614c14dfa8042cdf663e18951bda4d68f30d923e55415ed6daca8e7"
+  },
+  {
     "path": "internal/board/installation/actual_metadata_windows_test.go",
     "sha256": "995edd078b3459d4eeb60f233ce43215ab0bd3c840fb1e27b05a587de3b82b75"
   },
   {
+    "path": "internal/board/installation/identity.go",
+    "sha256": "a1d114be0cb04fa141f6c84db1ed613b2f813a68f60c82702991648b16b26db7"
+  },
+  {
+    "path": "internal/board/installation/identity_test.go",
+    "sha256": "d7a5eacc395f29f53664705734f30fe657d23fef27a1c6a09d2934c7bb5a1ce7"
+  },
+  {
     "path": "internal/board/installation/inspection.go",
-    "sha256": "3be1422aaa2658df90fa536aa59fbb39c42fd952f8e0de2e2e5d1fe756608046"
+    "sha256": "9ce88ebd30cfecd30b4ac8876aead52d24ceb4ad6e9f316fd6f5ece32804cbb8"
   },
   {
     "path": "internal/board/installation/inspection_test.go",
@@ -585,15 +601,27 @@
   },
   {
     "path": "internal/board/installation/native_unsupported.go",
-    "sha256": "f5704a27d802be5e6a6a77ae5c31896b595c20b745e723d527a9100b465c54d1"
+    "sha256": "4ffe81b0cf204cb8fbe1b4a879a0417f23d95a95a5c3aeb70ba5a78154a8b5f3"
   },
   {
     "path": "internal/board/installation/native_windows.go",
-    "sha256": "c32ba9acc3ab01678999f78c10a724c623e69c32ff4ec6d2aff74f68f023d0f0"
+    "sha256": "b5f8533ae2e7c71dc8ab08ba1d0e14dac074c3e96330a6c8a743afb49b2652aa"
   },
   {
     "path": "internal/board/installation/native_windows_test.go",
     "sha256": "d8b41129b14267dba5a9d77abcd33e085df7aad4bde9d2c5fe7bce0d71507729"
+  },
+  {
+    "path": "internal/board/installation/probe.go",
+    "sha256": "b03c67b7d28cf24bd3f88ec7d58184b1819e1faaec0ce45118e3cff31a754111"
+  },
+  {
+    "path": "internal/board/installation/probe_test.go",
+    "sha256": "8c9917bb3eb4b2a65583799e5350d76d7f74f6bbfcafb006226897ab5c084686"
+  },
+  {
+    "path": "internal/board/installation/probe_windows.go",
+    "sha256": "e6005fff9604f98d3105d612d6683f9721769c14fe149df756ba38205d235f4b"
   },
   {
     "path": "internal/board/installation/resolver_native_windows_test.go",
@@ -606,6 +634,14 @@
   {
     "path": "internal/board/installation/trust_windows_test.go",
     "sha256": "43d490fde7e44d4bd5fd7bafd751351ee2e9d921798d1fcdc05049c12cd0cd32"
+  },
+  {
+    "path": "internal/board/installation/workspace_windows.go",
+    "sha256": "f58c40e38cf0279126d9488e0e726762294f3dca4274ef36f179ee1b0af638f3"
+  },
+  {
+    "path": "internal/board/installation/workspace_windows_test.go",
+    "sha256": "ec1c0f7e53f04b5d62ebb4052c776cf521deacfd77c5e0345faab58d873446e4"
   },
   {
     "path": "internal/board/noticeinterval/cut.go",
@@ -937,11 +973,11 @@
   },
   {
     "path": "internal/contract/transport/decode.go",
-    "sha256": "a37380ef2b0dec4efc2b8a23d18bef842e0f269242b2fa11896db724a0c5eabf"
+    "sha256": "cb4c3ca43e5ca9fcb676f1c0ba17c6fd6a4cc5febf9757a2516e3857d60d8342"
   },
   {
     "path": "internal/contract/transport/encode.go",
-    "sha256": "6650413c2e26a197bb300b830122f5023cd616336dad568512b99330f52a8928"
+    "sha256": "6d3e1fd11ba02cd91a0d5bb88978d6c2b4a0ab266b46a4be2ea0acb8852c859f"
   },
   {
     "path": "internal/contract/transport/file_limits.go",
@@ -961,7 +997,15 @@
   },
   {
     "path": "internal/contract/transport/generate.go",
-    "sha256": "0dd22879cd7991ee473de83f7f7cdef80e944a25a2d5c695483c651ac832ee57"
+    "sha256": "b28410a5a6388e090e9f8b490317f0f549abe9e0093ce3bfe688705929c21ced"
+  },
+  {
+    "path": "internal/contract/transport/identity_probe.go",
+    "sha256": "546467ae7520fbfc12407488acd31a51f7a1f2f493ef719796e679e67a88cb01"
+  },
+  {
+    "path": "internal/contract/transport/identity_probe_test.go",
+    "sha256": "a9590af33a31c00070d073639346556638498b63c19e3fdd46a59e848e0d3782"
   },
   {
     "path": "internal/contract/transport/installation.go",
@@ -1038,6 +1082,10 @@
   {
     "path": "internal/contract/transport/session_code_native_test.go",
     "sha256": "646f811e06977d5019098f1efa0022ae067b1f87f2a191f9b27572d1b90e5577"
+  },
+  {
+    "path": "internal/contract/transport/testdata/identity-probe-vectors.json",
+    "sha256": "ca9f7af6528e46349a4508f4dbf0b10aea0ecc22f276301d6fca095a406bebf8"
   },
   {
     "path": "internal/contract/transport/testdata/installation-inspection-vectors.json",
@@ -1125,11 +1173,11 @@
   },
   {
     "path": "internal/nativecustody/README.txt",
-    "sha256": "cb083a956e3e6c09884f7c4addedf97a978109f93f70e268e7e8d18fadb1bff9"
+    "sha256": "20fc27575a61e9110c1c0fe1829e888893db7c9e1959c4172f3d757281af91cf"
   },
   {
     "path": "internal/nativecustody/custody_windows.go",
-    "sha256": "1c653c3b155c851a1710ac6c54d4e5a7a4ca494ee451ca8153cdcaf7d1e14feb"
+    "sha256": "4fb0e1f0b146c4d4c45a8345d0784081c2c4ef77c330d472811d3a99ddab4370"
   },
   {
     "path": "internal/nativecustody/custody_windows_test.go",
@@ -1137,11 +1185,27 @@
   },
   {
     "path": "internal/nativecustody/doc.go",
-    "sha256": "c87a43d3f114be87a16648cfa549a8f86eac20c9868967779544a50bd2dbe5c8"
+    "sha256": "9bcf4c8899740bae4c0781f246ca829e879d69aed1ba1bfac6bcfea5bfeb5f1c"
+  },
+  {
+    "path": "internal/nativecustody/policy_windows_test.go",
+    "sha256": "7b020c0453c026ba7cded57f7f3fc46bc99f221e1eb4d3d0c28c698c90f3753b"
+  },
+  {
+    "path": "internal/nativecustody/resume_boundary_windows_test.go",
+    "sha256": "68679e83e97b42de70db1936dada4bb3965531bde34162c5eac796ee1e47c334"
   },
   {
     "path": "internal/nativecustody/testdata/helper/main.go",
     "sha256": "a9a7d92825e7569bb41c954e5185f5b65903cd3cbf89c0d69363f7011e73f4bf"
+  },
+  {
+    "path": "internal/nativecustody/version_windows.go",
+    "sha256": "b2de47de9a812add8d25dc5d17be52b47dddba7e59c916dbd9c0e7a27723863e"
+  },
+  {
+    "path": "internal/nativecustody/version_windows_test.go",
+    "sha256": "ceceb631e3bd0dc1d7d6ee6f156e5567aa88225967ff09240599d9ed704f9823"
   },
   {
     "path": "internal/store/attachmentblob/read.go",
@@ -1985,7 +2049,7 @@
   },
   {
     "path": "internal/transport/local/authority.go",
-    "sha256": "f29cf66a05482992fc040a4b0b942e0ab118e02a2afd582910dac662bb511758"
+    "sha256": "b27fe7f35fe16f281e5ac8f83398bf8d5741351bf280caf141be845dbbe4d74e"
   },
   {
     "path": "internal/transport/local/cookie_test.go",
@@ -2001,7 +2065,19 @@
   },
   {
     "path": "internal/transport/local/http.go",
-    "sha256": "f9e3a116f884659e82c52a4fabfb5b3633c57c95a6af7f992d02b9fc56e23d18"
+    "sha256": "eb9bd846ea1bf718db3f10686ff4f6ddf4e4a3842b9a7348aa26a5616173bd5c"
+  },
+  {
+    "path": "internal/transport/local/identity_probe.go",
+    "sha256": "443bcb9c46b28c6d538e2b73775e96ad554de612ab95489a3a74d187d69bcdc5"
+  },
+  {
+    "path": "internal/transport/local/identity_probe_test.go",
+    "sha256": "c0093cff5abb442fbfef50e96803ced3f65203d86e3ece9355e2967bea0b7a1b"
+  },
+  {
+    "path": "internal/transport/local/identity_probe_windows_test.go",
+    "sha256": "065ccba40dc52dcf968917a79662e5d8f74a1f0fb0aae834e12f8723cb3f292c"
   },
   {
     "path": "internal/transport/local/installation.go",
@@ -2089,7 +2165,7 @@
   },
   {
     "path": "internal/transport/local/runtime.go",
-    "sha256": "94d0765a70eacf6b6a2ccc3593cbd96e867aa68ec387a0ad996fcc3ed6e82a4f"
+    "sha256": "30aef99e8c679a54dabbcc4738c5b4e6cec31e4bc4ab592f2f9b018d9a9514cc"
   },
   {
     "path": "internal/transport/local/runtime_windows_test.go",

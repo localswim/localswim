@@ -8,9 +8,9 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"unsafe"
 
@@ -20,26 +20,7 @@ import (
 
 const maxExecutable = 536870912
 
-var versionRE = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`)
-
-func validVersion(s string) bool {
-	if len(s) > 96 || !versionRE.MatchString(s) {
-		return false
-	}
-	pre, ok := strings.CutPrefix(strings.SplitN(s, "+", 2)[0], strings.SplitN(s, "-", 2)[0]+"-")
-	if ok {
-		for _, part := range strings.Split(pre, ".") {
-			numeric := true
-			for _, c := range part {
-				numeric = numeric && c >= '0' && c <= '9'
-			}
-			if numeric && len(part) > 1 && part[0] == '0' {
-				return false
-			}
-		}
-	}
-	return true
-}
+var errNativeEvidence = errors.New("native preparation evidence unavailable")
 
 type packageManifest struct {
 	LayoutVersion A.Version `json:"layoutVersion"`
@@ -343,6 +324,9 @@ func inspectNative(ctx context.Context) (Observation, func() error) {
 	return observation, closeOnce(cleanup, closeToken)
 }
 func inspectProfile(ctx context.Context, profile string, user *windows.SID) (Observation, func() error) {
+	return resolveProfile(ctx, profile, user, nil)
+}
+func resolveProfile(ctx context.Context, profile string, user *windows.SID, candidate **nativeCandidate) (Observation, func() error) {
 	sys, e := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
 	if e != nil {
 		return Unqualified("INSPECTION_UNKNOWN"), nil
@@ -390,7 +374,8 @@ func inspectProfile(ctx context.Context, profile string, user *windows.SID) (Obs
 		return fail("SOURCE_UNQUALIFIED")
 	}
 	release := filepath.Base(target)
-	if _, e = p.chain(ctx, target); e != nil {
+	releaseDirectory, e := p.chain(ctx, target)
+	if e != nil {
 		return fail("PATH_UNQUALIFIED")
 	}
 	if _, e = p.chain(ctx, filepath.Join(target, "bin")); e != nil {
@@ -443,5 +428,80 @@ func inspectProfile(ctx context.Context, profile string, user *windows.SID) (Obs
 	if !p.unchanged() {
 		return fail("FILE_CHANGED")
 	}
+	if candidate != nil {
+		m, _ := A.Decode[packageManifest](b)
+		*candidate = &nativeCandidate{pins: p, releaseDirectory: releaseDirectory, manifest: manifest, executable: executable, manifestBytes: append([]byte(nil), b...), version: m.Version, profile: profile, user: user}
+	}
 	return Observation{"candidate", "CANDIDATE_PRESENT"}, p.close
+}
+
+type nativeCandidate struct {
+	pins                                   *pins
+	releaseDirectory, manifest, executable *pin
+	manifestBytes                          []byte
+	version, profile                       string
+	user                                   *windows.SID
+}
+
+func (c *nativeCandidate) fingerprint() string {
+	key := strings.ToLower(c.executable.path)
+	for _, x := range []*pin{c.releaseDirectory, c.manifest, c.executable} {
+		key += fmt.Sprintf("/%08x:%08x%08x:%s", x.info.VolumeSerialNumber, x.info.FileIndexHigh, x.info.FileIndexLow, x.security)
+	}
+	key += fmt.Sprintf("/%x/%x", c.executable.digest, sha256.Sum256(c.manifestBytes))
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(key)))
+}
+func (c *nativeCandidate) recheck(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	for _, x := range c.pins.items {
+		var now windows.ByHandleFileInformation
+		if windows.GetFileInformationByHandle(x.h, &now) != nil {
+			return errNativeEvidence
+		}
+		if now.VolumeSerialNumber != x.info.VolumeSerialNumber || now.FileIndexHigh != x.info.FileIndexHigh || now.FileIndexLow != x.info.FileIndexLow || now.FileAttributes != x.info.FileAttributes || now.CreationTime != x.info.CreationTime || now.NumberOfLinks != x.info.NumberOfLinks {
+			return ErrIdentityChanged
+		}
+		if now.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY == 0 && (now.FileSizeHigh != x.info.FileSizeHigh || now.FileSizeLow != x.info.FileSizeLow || now.LastWriteTime != x.info.LastWriteTime) {
+			return ErrIdentityChanged
+		}
+		sd, err := windows.GetSecurityInfo(x.h, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+		if err != nil {
+			return errNativeEvidence
+		}
+		if sd.String() != x.security {
+			return ErrIdentityChanged
+		}
+		if _, _, err = c.pins.validateSecurity(sd, len(x.path) == 3); err != nil {
+			return errNativeEvidence
+		}
+		if len(x.path) > 3 {
+			path, err := finalPath(x.h)
+			if err != nil {
+				return errNativeEvidence
+			}
+			if !strings.EqualFold(path, x.path) {
+				return ErrIdentityChanged
+			}
+		}
+	}
+	b, err := readPinned(c.manifest, 4096)
+	if err != nil {
+		return errNativeEvidence
+	}
+	if !bytes.Equal(b, c.manifestBytes) {
+		return ErrIdentityChanged
+	}
+	digest := c.executable.digest
+	if !hashPE(ctx, c.executable) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return errNativeEvidence
+	}
+	if digest != c.executable.digest {
+		return ErrIdentityChanged
+	}
+	return ctx.Err()
 }

@@ -4,6 +4,130 @@
 import type * as Archive from '../archive/contracts';
 import type * as Mutation from '../contracts';
 
+export type ProbeRequest = {
+  readonly expectedConfigurationGeneration: string;
+  readonly expectedRuntimeGeneration: string;
+  readonly incarnation: string;
+  readonly probeGeneration: string;
+};
+
+export type ProbeResult = {
+  readonly capability: null;
+  readonly code: "OK";
+  readonly configurationGeneration: string;
+  readonly identity: Archive.Identity;
+  readonly joined: true;
+  readonly kind: "identity";
+  readonly probeGeneration: string;
+  readonly runtimeGeneration: string;
+  readonly state: "supported";
+  readonly toolVersion: string;
+  readonly version: 1;
+} | {
+  readonly capability: null;
+  readonly code: "TOOL_MISSING" | "PLATFORM_UNQUALIFIED";
+  readonly configurationGeneration: string;
+  readonly identity: Archive.Identity;
+  readonly joined: true;
+  readonly kind: "identity";
+  readonly probeGeneration: string;
+  readonly runtimeGeneration: string;
+  readonly state: "unavailable";
+  readonly toolVersion: null;
+  readonly version: 1;
+} | {
+  readonly capability: null;
+  readonly code: "TOOL_UNSUPPORTED" | "PARSE_UNSUPPORTED";
+  readonly configurationGeneration: string;
+  readonly identity: Archive.Identity;
+  readonly joined: true;
+  readonly kind: "identity";
+  readonly probeGeneration: string;
+  readonly runtimeGeneration: string;
+  readonly state: "unsupported";
+  readonly toolVersion: null;
+  readonly version: 1;
+} | {
+  readonly capability: null;
+  readonly code: "EXIT_FAILED" | "PARSE_ERROR" | "OUTPUT_LIMIT" | "TIMED_OUT" | "CANCELLED";
+  readonly configurationGeneration: string;
+  readonly identity: Archive.Identity;
+  readonly joined: true;
+  readonly kind: "identity";
+  readonly probeGeneration: string;
+  readonly runtimeGeneration: string;
+  readonly state: "unknown";
+  readonly toolVersion: null;
+  readonly version: 1;
+} | {
+  readonly capability: null;
+  readonly code: "DRAIN_INCOMPLETE";
+  readonly configurationGeneration: string;
+  readonly identity: Archive.Identity;
+  readonly joined: false;
+  readonly kind: "identity";
+  readonly probeGeneration: string;
+  readonly runtimeGeneration: string;
+  readonly state: "incomplete";
+  readonly toolVersion: null;
+  readonly version: 1;
+};
+
+export type ProbeControlView = {
+  readonly configurationGeneration: string;
+  readonly identity: Archive.Identity;
+  readonly joined: true;
+  readonly phase: "ready";
+  readonly probeGeneration: string;
+  readonly runtimeGeneration: string;
+} | {
+  readonly configurationGeneration: string;
+  readonly identity: Archive.Identity;
+  readonly joined: false;
+  readonly phase: "running" | "draining";
+  readonly probeGeneration: string;
+  readonly runtimeGeneration: string;
+};
+
+export type ProbeStopView = {
+  readonly configurationGeneration: string;
+  readonly identity: Archive.Identity;
+  readonly joined: true;
+  readonly phase: "joined";
+  readonly probeGeneration: string;
+  readonly runtimeGeneration: string;
+} | {
+  readonly configurationGeneration: string;
+  readonly identity: Archive.Identity;
+  readonly joined: false;
+  readonly phase: "incomplete";
+  readonly probeGeneration: string;
+  readonly runtimeGeneration: string;
+};
+
+export type ProbeControlResponse = {
+  readonly apiVersion: 1;
+  readonly result: ProbeControlView;
+  readonly scope: "identity-control";
+};
+
+export type ProbeStopResponse = {
+  readonly apiVersion: 1;
+  readonly result: ProbeStopView;
+  readonly scope: "identity-stop";
+};
+
+export type ProbeOutcomeUnknown = {
+  readonly apiVersion: 1;
+  readonly error: ProbeUnknownError;
+  readonly outcome: "unknown";
+};
+
+export type ProbeUnknownError = {
+  readonly code: "OUTCOME_UNKNOWN";
+  readonly message: "Identity check outcome unknown";
+};
+
 export type InstallationInspectionResponse = {
   readonly apiVersion: 1;
   readonly result: InstallationInspectionResult;

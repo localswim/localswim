@@ -16,7 +16,7 @@ func TestEmbeddedInventoryAndCanonicalRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{"/", "/index.html", "/js/app.js", "/styles/app.css", "/js/api/hierarchy.js", "/js/board/hierarchy.js"} {
+	for _, p := range []string{"/", "/index.html", "/js/app.js", "/styles/app.css", "/js/api/hierarchy.js", "/js/board/hierarchy.js", "/js/api/identity-probe.js"} {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest("GET", p, nil))
 		if w.Code != 200 {

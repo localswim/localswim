@@ -138,6 +138,29 @@ Use one shared queue. Retire duplicate project collectors under normal ticket
 gates. Thin senders/consumers are permitted; persistent watchers and direct chat
 notifications require separate scope.
 
+### Console-free shared queue startup (2026-11-08)
+
+- Use C:\Projects\shared-message-queue\queue.ps1 -Action Start, Stop or Status.
+  Start reuses Agent Message Queue; never launch -Action Run, WSL, Valkey,
+  Webdis or a private keeper directly.
+- The task action is C:\Projects\shared-message-queue\QueueTaskLauncher.exe,
+  with adjacent QueueTaskLauncher.cs. This GUI root starts WSL using
+  UseShellExecute=false and CreateNoWindow=true. WindowStyle Hidden alone
+  exposed a Windows Terminal window on this host; no console/taskbar window
+  should remain. Preserve login trigger, user identity and independent OS owner.
+- The task-root owns four total attempts, 60-second waits between failures,
+  concurrent stdout/stderr drains to separate private per-launch files under
+  %LOCALAPPDATA%\agent-message-queue\logs, and the final exit code.
+- Explicit Stop cancels the task/retry owner and Linux unit. Verify keeper exit
+  and HTTP state; closing a console is not a supported Stop. Qualified Stop
+  stayed down beyond 60 seconds and the final restart was healthy/console-free.
+  The actual next sign-in lifecycle remains unobserved.
+- Shared host maintenance requires Terry's authorization and one coordinated
+  operator. Other agents pause dependent testing and check health; they do not
+  race to recover the host. Stop loses volatile messages. Resume with fresh
+  mailboxes and preserve/export evidence before authorized maintenance.
+
+
 ### Current V2 diagnostic workflow
 
 The maintained V2 browser harness forwards its fixed diagnostic schema through
@@ -146,3 +169,32 @@ native registration, bounded reads, validated exports and owned mailbox deletion
 Retain earlier qualification evidence under its original source/protocol binding.
 Preserve genuine application APIs, synthetic fixtures, authoritative reports and
 the separately owned board monitor.
+
+## Actual installed identity safety
+
+The reviewed M18 contract is docs/decisions/m18-identity-probe-contract-2026-11-08.txt.
+Preserve its full incorporated M16/M17-R3 model, one shared metadata/probe slot,
+one-use server generations, current nonrenewing identity-route admission and
+active-only cancellation. No arbitrary image/argv/environment, alternate native
+profile, automatic probe or retry is permitted.
+
+Keep primary signer/ACL/file custody, atomic suspended job assignment, verified
+no-child policy, 16 total processes including console/out-of-job helpers,
+combined 64 KiB capture, a 10-second command deadline from reservation and up to
+2 seconds of foreground drain reporting. Cleanup may outlast that report; retain
+ownership until actual join, including checks, drains and every owned
+resource; ambiguous close retains custody without numeric-handle replay.
+Source-safety review precedes installed invocation; actual native evidence closure
+precedes client implementation. Synthetic helpers do not prove installed support.
+
+## Approved V1 UX acceptance floor
+
+Terry established on 2026-11-08 that approved V1 UX is V2's minimum acceptance
+baseline by the end of V2. Different architecture is welcome when it preserves
+or improves outcomes and guarantees. An intentional-difference label is not a
+parity waiver. Map incoming approved behavior to existing future milestones or
+explicit closing gaps; do not expand the current milestone or bypass entry,
+review or owner-acceptance gates.
+
+Source policy:
+https://github.com/TerryOtt/localswim/blob/54f4b23183ebd0932eb12980dbad1f81b9d427b3/AGENTS.md#terry-approved-v1-work-and-the-v2-ux-floor

@@ -1,5 +1,5 @@
-// Package nativecustody contains dormant Windows process-custody primitives.
-// It has no production caller. M17 tests use only privately built helpers;
-// installation qualification, authority, identity parsing and invocation remain
-// separately gated work. No CLI or HTTP entry point is provided here.
+// Package nativecustody provides the fixed Windows --version process-custody
+// bridge for the authority-bound installation engine. Qualification tests use
+// only owned synthetic helpers. It exposes no argv/profile/test-hook selector;
+// installed invocation remains subject to the complete M18 source-safety gate.
 package nativecustody

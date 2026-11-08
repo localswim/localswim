@@ -12,7 +12,7 @@ import (
 	P "github.com/localswim/localswim/internal/contract/noticetext"
 )
 
-var models = []any{InstallationInspectionResponse{}, InstallationInspectionResult{}, RecipientResponse{}, RecipientView{}, RecipientReference{}, RecipientInput{}, RecipientConfigureRequest{}, RecipientOutcomeUnknown{}, RecipientUnknownError{}, P.NoticeText{}, P.NoticeTextFacts{}, NoticeResponse{}, NoticeView{}, NoticeCut{}, NoticePair{}, NoticeLookup{}, NoticeControlRequest{}, NoticeLookupRequest{}, NoticeRetargetRequest{}, NoticeOutcomeUnknown{}, NoticeUnknownError{}, ActivityRead{}, ActivityView{}, ActivityEvent{}, ActivityCoverage{}, ActivityGap{}, FileAttribution{}, CardFile{}, CardFilesRead{}, CardFilesView{}, CardFileRead{}, CardFileView{}, AttentionLane{}, AttentionContext{}, BoardAttention{}, WorkflowAttentionChange{}, WorkflowPreviewRequest{}, WorkflowPreview{}, WorkflowRename{}, WorkflowRightsChange{}, WorkflowActorRightsChange{}, WorkflowChanges{}, WorkflowOccupancy{}, WorkflowApproval{}, WorkflowCapacity{}, Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardSearchRead{}, CardSearchView{}, CardSearchQuery{}, CardSummary{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, ConfiguredWorkspaceBoardRequest{}, ConfiguredWorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}, CatalogCount{}, CatalogAttention{}, CatalogActivity{}, WorkspaceCatalogEntry{}, WorkspaceCatalog{}, WorkspacePinReference{}, WorkspacePreferences{}, WorkspacePreferencesRequest{}, WorkspacePreferencesError{}}
+var models = []any{ProbeRequest{}, ProbeResult{}, ProbeControlView{}, ProbeStopView{}, ProbeControlResponse{}, ProbeStopResponse{}, ProbeOutcomeUnknown{}, ProbeUnknownError{}, InstallationInspectionResponse{}, InstallationInspectionResult{}, RecipientResponse{}, RecipientView{}, RecipientReference{}, RecipientInput{}, RecipientConfigureRequest{}, RecipientOutcomeUnknown{}, RecipientUnknownError{}, P.NoticeText{}, P.NoticeTextFacts{}, NoticeResponse{}, NoticeView{}, NoticeCut{}, NoticePair{}, NoticeLookup{}, NoticeControlRequest{}, NoticeLookupRequest{}, NoticeRetargetRequest{}, NoticeOutcomeUnknown{}, NoticeUnknownError{}, ActivityRead{}, ActivityView{}, ActivityEvent{}, ActivityCoverage{}, ActivityGap{}, FileAttribution{}, CardFile{}, CardFilesRead{}, CardFilesView{}, CardFileRead{}, CardFileView{}, AttentionLane{}, AttentionContext{}, BoardAttention{}, WorkflowAttentionChange{}, WorkflowPreviewRequest{}, WorkflowPreview{}, WorkflowRename{}, WorkflowRightsChange{}, WorkflowActorRightsChange{}, WorkflowChanges{}, WorkflowOccupancy{}, WorkflowApproval{}, WorkflowCapacity{}, Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardSearchRead{}, CardSearchView{}, CardSearchQuery{}, CardSummary{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, ConfiguredWorkspaceBoardRequest{}, ConfiguredWorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}, CatalogCount{}, CatalogAttention{}, CatalogActivity{}, WorkspaceCatalogEntry{}, WorkspaceCatalog{}, WorkspacePinReference{}, WorkspacePreferences{}, WorkspacePreferencesRequest{}, WorkspacePreferencesError{}}
 
 // GeneratedFiles is pure and returns disjoint paths for the common generator.
 // Shared D02 rows reference the C03 artifact; command results reference C01.
@@ -132,6 +132,7 @@ func schema(t reflect.Type, inline bool) map[string]any {
 		noticeSchema(t, m)
 		recipientSchema(t, m)
 		installationSchema(t, m)
+		probeSchema(t, m)
 		if t == reflect.TypeFor[WorkspaceMember]() {
 			unavailable := []string{}
 			for _, v := range enums["WorkspaceAvailability"] {
@@ -185,6 +186,9 @@ func schema(t reflect.Type, inline bool) map[string]any {
 		case "UUID":
 			m["pattern"] = `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`
 			m["not"] = map[string]any{"const": "00000000-0000-0000-0000-000000000000"}
+		case "ProbeToolVersion":
+			m["pattern"] = probeSemverRE.String()
+			m["maxLength"] = 96
 		case "RecipientThreadID":
 			m["pattern"] = recipientThreadRE.String()
 		case "UUIDv4":
@@ -229,6 +233,30 @@ func typescript(t reflect.Type, inline bool) string {
 	}
 	switch t.Kind() {
 	case reflect.Struct:
+		if t == reflect.TypeFor[ProbeResult]() {
+			variants := []string{}
+			for _, state := range []ProbeState{"supported", "unavailable", "unsupported", "unknown", "incomplete"} {
+				version := "null"
+				if state == "supported" {
+					version = "string"
+				}
+				joined := "true"
+				if state == "incomplete" {
+					joined = "false"
+				}
+				variants = append(variants, replacedDeclaration(t, map[string]string{"capability": "null", "state": fmt.Sprintf("%q", state), "code": quoted(probePairs[state]), "joined": joined, "toolVersion": version}))
+			}
+			return strings.Join(variants, " | ")
+		}
+		if t == reflect.TypeFor[ProbeUnknownError]() {
+			return replacedDeclaration(t, map[string]string{"code": "\"OUTCOME_UNKNOWN\"", "message": fmt.Sprintf("%q", ProbeUnknownMessage)})
+		}
+		if t == reflect.TypeFor[ProbeControlView]() {
+			return replacedDeclaration(t, map[string]string{"phase": "\"ready\"", "joined": "true"}) + " | " + replacedDeclaration(t, map[string]string{"phase": "\"running\" | \"draining\"", "joined": "false"})
+		}
+		if t == reflect.TypeFor[ProbeStopView]() {
+			return replacedDeclaration(t, map[string]string{"phase": "\"joined\"", "joined": "true"}) + " | " + replacedDeclaration(t, map[string]string{"phase": "\"incomplete\"", "joined": "false"})
+		}
 		if t == reflect.TypeFor[CatalogCount]() {
 			return "{ readonly state: 'known' | 'stale'; readonly value: number } | { readonly state: 'unknown' | 'not_configured'; readonly value: null }"
 		}

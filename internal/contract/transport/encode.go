@@ -78,6 +78,13 @@ func Readable(v any) ([]byte, error) {
 		}
 		return b, nil
 	}
+	if limit := probeByteLimit(reflect.Indirect(reflect.ValueOf(v)).Type()); limit > 0 {
+		b, e := A.Canonical(v)
+		if e != nil || len(b) > limit {
+			return nil, fmt.Errorf("identity probe message exceeds limit")
+		}
+		return b, nil
+	}
 	if limit := recipientByteLimit(reflect.Indirect(reflect.ValueOf(v)).Type()); limit > 0 {
 		b, e := A.Canonical(v)
 		if e != nil || len(b) > limit {

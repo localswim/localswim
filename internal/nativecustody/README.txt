@@ -1,5 +1,5 @@
-DORMANT WINDOWS CUSTODY COMPONENT
-M17-INSPECTOR-R3 section 6; no production caller or invocation API.
+RESTRICTED WINDOWS IDENTITY CUSTODY
+M17-INSPECTOR-R3 section 6 and M18-IDENTITY-R3.
 
 The package-private owner reserves one operation until actual native cleanup.
 CreateProcess uses an explicit image and fixed --version argv, CREATE_SUSPENDED,
@@ -17,13 +17,18 @@ may therefore later allow that same owned object to close. Foreground Wait/Close
 may report DRAIN_INCOMPLETE while exclusion remains held. The 10-second deadline
 does not promise bounded kernel execution; Close reporting is bounded to 2 seconds.
 
-This is not installation selection, trust validation, an identity parser or an
-engine adapter. Future production integration must independently supply all
-accepted file/authority/private-directory checks. M17 exposes none of Launch,
-Resume, Probe or Stop through a production command, route or environment flag.
-The supplied context MUST be cancelled on live authority or generation loss;
-check is admission-only. There is no autonomous authority refresh/renewal here.
-That future caller adapter is not implemented or qualified by M17.
+The only production bridge is ExecuteVersion. Its installation caller owns fresh
+qualified-image/file/trust/private-root custody, live current authority and exact
+runtime/configuration/probe binding. It returns private bounded evidence only
+after actual native join. There is no public argv, alternate profile, hook or
+environment selector. The installation engine owns the active-only authority
+watcher and holds physical Runtime custody while this bridge remains active.
+The bridge obtains Windows system paths from Windows APIs, never ambient values.
+
+The strict job also refuses a recorded additional process in its cumulative job
+accounting. The job's 16-member setting is not a claim that total host/process
+qualification has been completed: the later installed and controlled matrix must
+independently cover console/out-of-job helpers and the 16 TOTAL acceptance bound.
 
 Controlled native qualification (Windows amd64, owner account)
 - Tag: nativecustodyqualification. Untagged builds contain no helper tests.
@@ -34,7 +39,8 @@ Controlled native qualification (Windows amd64, owner account)
 - NATIVECUSTODY_GO is that exact Go executable, never a PATH fallback.
 - NATIVECUSTODY_TEST_ROOT is a fresh protected account/SYSTEM-only directory.
   TEMP and TMP must also be beneath that protected root. The maintained private
-  root helper is adapted only to the unique m17c- prefix; refuse existing paths.
+  fixture must be freshly/exclusively created with exact owned-path tracking;
+  refuse existing paths and never repair another fixture.
 - Run: go test -count=1 -json -timeout=90s -tags=nativecustodyqualification
   ./internal/nativecustody
 - Run full default vet with the same tag. Missing setup fails; no skipped or
@@ -51,6 +57,9 @@ TestNativeCloseErrorIsNotRetried
 TestAmbiguousCloseTerminatesSuspendedRoot
 TestCallerRevocationCancelsWholeJob
 TestParentDeathKillsOwnedJob
+TestProductionVersionBridgeWithOwnedHelper
+TestCancellationAfterPolicyQueryCannotResume (Stop/deadline boundary variants)
+TestStrictPolicyBitsAndKnownProfileFailures
 
 Tests build only testdata/helper, copy it to declared deterministic helper modes,
 and never inspect or invoke installed codex.exe. Parent-death proof uses a held

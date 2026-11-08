@@ -1,14 +1,30 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import test from 'node:test';
+import { tmpdir } from 'node:os';
+import { basename, dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import test, { after } from 'node:test';
+import { localTool, webRoot } from './local-tool.mjs';
 
 // Exercise emitted production modules and the actual generated schema, together.
-const built = spawnSync(process.execPath, ['scripts/tsc.mjs', 'build'], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
+// Each test process owns its output. The aggregate entry also imports this file,
+// so a shared web/dist build would race default parallel Node file execution.
+const outputRoot = mkdtempSync(resolve(tmpdir(), 'localswim-recipient-api-'));
+const output = resolve(outputRoot, 'js');
+writeFileSync(resolve(outputRoot, 'package.json'), '{"type":"module"}\n');
+after(() => {
+  const target = realpathSync(outputRoot);
+  assert.equal(dirname(target), realpathSync(tmpdir()));
+  assert.match(basename(target), /^localswim-recipient-api-[A-Za-z0-9_-]+$/);
+  rmSync(target, { recursive: true, force: true });
+});
+const built = spawnSync(process.execPath, [localTool('typescript', 'tsc'), '-p', resolve(webRoot, 'tsconfig.json'), '--outDir', output, '--noEmitOnError'],
+  { cwd: webRoot, encoding: 'utf8', timeout: 120_000 });
 assert.equal(built.status, 0, built.stdout + built.stderr);
-const { BoardClient } = await import('../dist/js/api/client.js');
-const { parse, validate } = await import('../dist/js/api/boundary.js');
-const { RecipientRefusal, RecipientUnknown, validateRecipient } = await import('../dist/js/api/recipient.js');
+const { BoardClient } = await import(pathToFileURL(resolve(output, 'api/client.js')));
+const { parse, validate } = await import(pathToFileURL(resolve(output, 'api/boundary.js')));
+const { RecipientRefusal, RecipientUnknown, validateRecipient } = await import(pathToFileURL(resolve(output, 'api/recipient.js')));
 const vectors = JSON.parse(readFileSync(new URL('../../internal/contract/transport/testdata/recipient-vectors.json', import.meta.url), 'utf8'));
 const identity = { boardId: '00000000-0000-4000-8000-000000000002', incarnation: '00000000-0000-4000-8000-000000000003' };
 const input = JSON.parse(vectors[0].json);

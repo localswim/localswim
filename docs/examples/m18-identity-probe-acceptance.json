@@ -1,0 +1,2644 @@
+{
+  "schemaVersion": 1,
+  "status": "EXECUTABLE_ACCEPTANCE_INVENTORY_NOT_EXECUTED",
+  "contract": "M18-IDENTITY-R3",
+  "identity": {
+    "boardId": "00000000-0000-4000-8000-000000000001",
+    "incarnation": "00000000-0000-4000-8000-000000000002"
+  },
+  "generations": {
+    "runtime": "00000000-0000-4000-8000-000000000003",
+    "configuration": "00000000-0000-4000-8000-000000000004",
+    "probe": "00000000-0000-4000-8000-000000000005"
+  },
+  "coverage": {
+    "requiredGroups": [
+      "nonce",
+      "trust",
+      "profile",
+      "parser",
+      "authority",
+      "join",
+      "wire",
+      "clients",
+      "conservation",
+      "delivery"
+    ],
+    "caseCount": 88,
+    "rule": "Every stable ID requires concrete source-bound test evidence at its specified phase; no missing/zero-case/skipped substitute. Planned bindings are obligations, not PASS claims."
+  },
+  "illustrativeParserVectors": [
+    {
+      "id": "IDENTITY-OK",
+      "stdout": "codex-cli 1.2.3\n",
+      "stderr": "",
+      "exit": 0,
+      "manifestVersion": "1.2.3",
+      "joined": true,
+      "state": "supported",
+      "code": "OK",
+      "toolVersion": "1.2.3"
+    },
+    {
+      "id": "IDENTITY-CRLF",
+      "stdout": "codex-cli 1.2.3\r\n",
+      "stderr": "",
+      "exit": 0,
+      "manifestVersion": "1.2.3",
+      "joined": true,
+      "state": "supported",
+      "code": "OK"
+    },
+    {
+      "id": "IDENTITY-EXTRA-LINE",
+      "stdout": "codex-cli 1.2.3\nextra\n",
+      "stderr": "",
+      "exit": 0,
+      "joined": true,
+      "state": "unsupported",
+      "code": "PARSE_UNSUPPORTED"
+    },
+    {
+      "id": "IDENTITY-STDERR",
+      "stdout": "codex-cli 1.2.3\n",
+      "stderr": "warning\n",
+      "exit": 0,
+      "joined": true,
+      "state": "unsupported",
+      "code": "PARSE_UNSUPPORTED"
+    },
+    {
+      "id": "IDENTITY-LEADING-ZERO",
+      "stdout": "codex-cli 01.2.3\n",
+      "stderr": "",
+      "exit": 0,
+      "joined": true,
+      "state": "unsupported",
+      "code": "PARSE_UNSUPPORTED"
+    },
+    {
+      "id": "IDENTITY-MANIFEST-MISMATCH",
+      "stdout": "codex-cli 1.2.4\n",
+      "stderr": "",
+      "exit": 0,
+      "manifestVersion": "1.2.3",
+      "joined": true,
+      "state": "unsupported",
+      "code": "PARSE_UNSUPPORTED"
+    },
+    {
+      "id": "INCOMPLETE-PRECEDENCE",
+      "nativeCause": "TIMED_OUT",
+      "joined": false,
+      "state": "incomplete",
+      "code": "DRAIN_INCOMPLETE",
+      "positiveFields": null
+    },
+    {
+      "id": "AUTHORITY-LOSS",
+      "nativeCause": "OK",
+      "joined": true,
+      "http": 403,
+      "code": "FORBIDDEN",
+      "resultAbsent": true
+    },
+    {
+      "id": "NONCE-REPLAY",
+      "sequence": [
+        "GET ready generation A",
+        "POST A admitted",
+        "A actually joins",
+        "POST A repeated"
+      ],
+      "http": 409,
+      "code": "CONTROL_STALE",
+      "nativeLaunches": 1
+    },
+    {
+      "id": "STOP-STALE",
+      "sequence": [
+        "A joins",
+        "B admitted",
+        "Stop A"
+      ],
+      "http": 409,
+      "code": "CONTROL_STALE",
+      "BChanged": false
+    }
+  ],
+  "inventory": [
+    {
+      "id": "N01",
+      "group": "nonce",
+      "setup": {
+        "slot": "ready",
+        "policy": "configured"
+      },
+      "action": {
+        "operation": "GET probe-control"
+      },
+      "expect": {
+        "phase": "ready",
+        "joined": true,
+        "nativeLaunches": 0
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "N01"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "N02",
+      "group": "nonce",
+      "setup": {
+        "slot": "ready",
+        "generation": "A"
+      },
+      "action": {
+        "operation": "POST A; await actual join; POST A again"
+      },
+      "expect": {
+        "firstLaunches": 1,
+        "repeatedHTTP": 409,
+        "repeatedCode": "CONTROL_STALE",
+        "totalLaunches": 1
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "N02"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "N03",
+      "group": "nonce",
+      "setup": {
+        "slot": "running",
+        "generation": "A"
+      },
+      "action": {
+        "operation": "POST A or B concurrently"
+      },
+      "expect": {
+        "http": 409,
+        "code": "CONTROL_BUSY",
+        "additionalLaunches": 0
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "N03"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "N04",
+      "group": "nonce",
+      "setup": {
+        "joined": "A",
+        "active": "B"
+      },
+      "action": {
+        "operation": "Stop A"
+      },
+      "expect": {
+        "http": 409,
+        "code": "CONTROL_STALE",
+        "BChanged": false
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "N04"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "N05",
+      "group": "nonce",
+      "setup": {
+        "joinedTombstone": "A",
+        "slot": "ready"
+      },
+      "action": {
+        "operation": "Stop A twice"
+      },
+      "expect": {
+        "joined": true,
+        "additionalLaunches": 0,
+        "versionDisclosed": false
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "N05"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "N06",
+      "group": "nonce",
+      "setup": {
+        "slot": "metadata-inspection"
+      },
+      "action": {
+        "operation": "GET control; POST probe; Stop available probe nonce"
+      },
+      "expect": {
+        "getCode": "CONTROL_BUSY",
+        "postCode": "CONTROL_BUSY",
+        "stopCode": "CONTROL_STALE",
+        "metadataCancelled": false
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "N06"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "N07",
+      "group": "nonce",
+      "setup": {
+        "entropy": "unavailable"
+      },
+      "action": {
+        "operation": "Create/rotate available generation"
+      },
+      "expect": {
+        "http": 503,
+        "code": "UNAVAILABLE",
+        "nativeLaunches": 0,
+        "fallback": false
+      },
+      "layers": [
+        "go"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "N07"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "N08",
+      "group": "nonce",
+      "setup": {
+        "policy": "unconfigured"
+      },
+      "action": {
+        "operation": "Control/probe requested"
+      },
+      "expect": {
+        "http": 503,
+        "code": "UNAVAILABLE",
+        "nativeLaunches": 0
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "N08"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "N09",
+      "group": "nonce",
+      "setup": {
+        "expectedContext": "old"
+      },
+      "action": {
+        "operation": "Control/start/Stop"
+      },
+      "expect": {
+        "http": 409,
+        "code": "CONTROL_STALE",
+        "nativeLaunches": 0
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [
+        "runtime generation",
+        "configuration generation",
+        "probe generation"
+      ],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "N09"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "N10",
+      "group": "nonce",
+      "setup": {
+        "runtime": "reopened",
+        "oldTombstone": "A"
+      },
+      "action": {
+        "operation": "Stop/replay A"
+      },
+      "expect": {
+        "http": 409,
+        "code": "CONTROL_STALE",
+        "nativeLaunches": 0
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "N10"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "T01",
+      "group": "trust",
+      "setup": {
+        "candidate": "actual qualified managed installation",
+        "policy": "configured"
+      },
+      "action": {
+        "operation": "Literal installed --version"
+      },
+      "expect": {
+        "state": "supported",
+        "code": "OK",
+        "joined": true,
+        "manifestAgrees": true,
+        "capability": null
+      },
+      "layers": [
+        "native",
+        "http"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "T01"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "T02",
+      "group": "trust",
+      "setup": {
+        "candidate": "positively missing supported slot"
+      },
+      "action": {
+        "operation": "Probe"
+      },
+      "expect": {
+        "state": "unavailable",
+        "code": "TOOL_MISSING",
+        "joined": true,
+        "positiveFields": null,
+        "nativeLaunches": 0
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "T02"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "T03",
+      "group": "trust",
+      "setup": {
+        "candidate": "present but qualification refused"
+      },
+      "action": {
+        "operation": "Prepare probe"
+      },
+      "expect": {
+        "code": "TOOL_UNSUPPORTED",
+        "positiveFields": null,
+        "nativeLaunches": 0
+      },
+      "layers": [
+        "native"
+      ],
+      "variants": [
+        "positively foreign owner",
+        "null/uninterpretable/mutating ACL policy",
+        "unsafe ancestry/junction/reparse/path shape",
+        "definitively different verified primary publisher",
+        "invalid manifest/PE/link/size policy"
+      ],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "T03"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "T04",
+      "group": "trust",
+      "setup": {
+        "candidatePin": "changed"
+      },
+      "action": {
+        "operation": "Recheck before create/resume/disclosure"
+      },
+      "expect": {
+        "http": 409,
+        "code": "IDENTITY_CHANGED",
+        "resultAbsent": true,
+        "automaticRebind": false
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [
+        "before create",
+        "before resume",
+        "before disclosure"
+      ],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "T04"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "T05",
+      "group": "trust",
+      "setup": {
+        "inspectorObservation": "candidate"
+      },
+      "action": {
+        "operation": "Start first actual engine attempt"
+      },
+      "expect": {
+        "freshQualificationRequired": true,
+        "inspectionDoesNotPopulatePin": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "T05"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "T06",
+      "group": "trust",
+      "setup": {
+        "enginePin": "A",
+        "newCandidate": "B"
+      },
+      "action": {
+        "operation": "Later probe"
+      },
+      "expect": {
+        "http": 409,
+        "code": "IDENTITY_CHANGED",
+        "nativeLaunches": 0,
+        "automaticRebind": false
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "T06"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "T07",
+      "group": "trust",
+      "setup": {
+        "trustOrPinClose": "ambiguous"
+      },
+      "action": {
+        "operation": "Cleanup"
+      },
+      "expect": {
+        "joined": false,
+        "code": "DRAIN_INCOMPLETE",
+        "ownershipRetained": true,
+        "rawCloseRetried": false
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "T07"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "T08",
+      "group": "trust",
+      "setup": {
+        "qualification": "INSPECTION_UNKNOWN",
+        "cleanup": "actually joined"
+      },
+      "action": {
+        "operation": "Classify unknown preparation"
+      },
+      "expect": {
+        "state": "unknown",
+        "code": "EXIT_FAILED",
+        "joined": true,
+        "positiveFields": null,
+        "nativeLaunches": 0
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [
+        "cached revocation information unavailable",
+        "absent/ambiguous provider state",
+        "wrong/unprovable verified-signature index"
+      ],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "T08"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "T09",
+      "group": "trust",
+      "setup": {
+        "qualification": "INSPECTION_UNKNOWN",
+        "firstCause": "deadline",
+        "cleanup": "actually joined"
+      },
+      "action": {
+        "operation": "Classify deadline-first preparation"
+      },
+      "expect": {
+        "state": "unknown",
+        "code": "TIMED_OUT",
+        "joined": true,
+        "positiveFields": null,
+        "nativeLaunches": 0
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "T09"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "T10",
+      "group": "trust",
+      "setup": {
+        "qualification": "INSPECTION_UNKNOWN",
+        "cleanup": "unjoined"
+      },
+      "action": {
+        "operation": "Classify retained preparation cleanup"
+      },
+      "expect": {
+        "state": "incomplete",
+        "code": "DRAIN_INCOMPLETE",
+        "joined": false,
+        "positiveFields": null,
+        "nativeLaunches": 0,
+        "ownershipRetained": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "T10"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "P01",
+      "group": "profile",
+      "setup": {
+        "root": "owned helper"
+      },
+      "action": {
+        "operation": "Create suspended; associate job; verify; resume"
+      },
+      "expect": {
+        "atomicJob": true,
+        "noBreakaway": true,
+        "strictChildPolicy": true,
+        "unexpectedInheritance": false
+      },
+      "layers": [
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "P01"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "P02",
+      "group": "profile",
+      "setup": {
+        "nativePolicy": "unsupported or contradictory"
+      },
+      "action": {
+        "operation": "Prepare/resume"
+      },
+      "expect": {
+        "code": "TOOL_UNSUPPORTED",
+        "positiveFields": null,
+        "resumed": false,
+        "cleanupRequired": true
+      },
+      "layers": [
+        "native"
+      ],
+      "variants": [
+        "JOB_LIST unavailable",
+        "membership false",
+        "child mitigation missing",
+        "audit/secure-child bit set"
+      ],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "P02"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "P03",
+      "group": "profile",
+      "setup": {
+        "profile": "strict owned helper"
+      },
+      "action": {
+        "operation": "Attempt children/console churn"
+      },
+      "expect": {
+        "totalProcessCountAtMost": 16,
+        "unqualifiedOnUnexpectedProcess": true
+      },
+      "layers": [
+        "native"
+      ],
+      "variants": [
+        "direct child",
+        "default child",
+        "new-console child",
+        "AllocConsole/FreeConsole"
+      ],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "P03"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "P04",
+      "group": "profile",
+      "setup": {
+        "profile": "server private"
+      },
+      "action": {
+        "operation": "Inspect helper stdin/environment/handles"
+      },
+      "expect": {
+        "stdinClosed": true,
+        "ambientSecrets": false,
+        "onlyDeclaredStdioInherited": true
+      },
+      "layers": [
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "P04"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "P05",
+      "group": "profile",
+      "setup": {
+        "stdoutBytes": 32768,
+        "stderrBytes": 32769
+      },
+      "action": {
+        "operation": "Capture"
+      },
+      "expect": {
+        "code": "OUTPUT_LIMIT",
+        "positiveFields": null,
+        "boundedBytes": 65536,
+        "terminationRequested": true
+      },
+      "layers": [
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "P05"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "P06",
+      "group": "profile",
+      "setup": {
+        "profile": "diagnostic unrestricted owned helper",
+        "descendant": "holds pipe after root exit"
+      },
+      "action": {
+        "operation": "Observe Stop/Close"
+      },
+      "expect": {
+        "rootExitNotJoin": true,
+        "jobAndPipesActuallyJoined": true,
+        "notProductionQualification": true
+      },
+      "layers": [
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "P06"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "P07",
+      "group": "profile",
+      "setup": {
+        "profile": "strict and diagnostic separately owned"
+      },
+      "action": {
+        "operation": "End parent"
+      },
+      "expect": {
+        "killOnClose": true,
+        "childHandleProof": true,
+        "notPowerLossClaim": true
+      },
+      "layers": [
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "P07"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "P08",
+      "group": "profile",
+      "setup": {
+        "prepare": "fails before resume"
+      },
+      "action": {
+        "operation": "Cleanup suspended root"
+      },
+      "expect": {
+        "resumed": false,
+        "allCreatedResourcesJoined": true,
+        "noUnownedFallback": true
+      },
+      "layers": [
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "P08"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "R01",
+      "group": "parser",
+      "setup": {
+        "stdout": "one exact codex-cli SemVer",
+        "stderr": "",
+        "exit": 0,
+        "manifestVersionMatches": true
+      },
+      "action": {
+        "operation": "Parse only after join"
+      },
+      "expect": {
+        "state": "supported",
+        "code": "OK",
+        "capability": null
+      },
+      "layers": [
+        "go",
+        "typescript"
+      ],
+      "variants": [
+        "no final newline",
+        "one LF",
+        "one CRLF",
+        "valid prerelease/build metadata",
+        "96 version bytes"
+      ],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "R01"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "R02",
+      "group": "parser",
+      "setup": {
+        "stdout": "unrecognized complete UTF-8"
+      },
+      "action": {
+        "operation": "Parse"
+      },
+      "expect": {
+        "state": "unsupported",
+        "code": "PARSE_UNSUPPORTED",
+        "positiveFields": null
+      },
+      "layers": [
+        "go",
+        "typescript"
+      ],
+      "variants": [
+        "leading zero numeric",
+        "97 version bytes",
+        "wrong prefix",
+        "extra line",
+        "extra whitespace",
+        "nonempty stderr",
+        "manifest version mismatch"
+      ],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "R02"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "R03",
+      "group": "parser",
+      "setup": {
+        "stdout": "malformed/partial encoding"
+      },
+      "action": {
+        "operation": "Parse"
+      },
+      "expect": {
+        "state": "unknown",
+        "code": "PARSE_ERROR",
+        "positiveFields": null
+      },
+      "layers": [
+        "go",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "R03"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "R04",
+      "group": "parser",
+      "setup": {
+        "stdout": "valid",
+        "exit": 1
+      },
+      "action": {
+        "operation": "Join then classify"
+      },
+      "expect": {
+        "state": "unknown",
+        "code": "EXIT_FAILED",
+        "positiveFields": null
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "R04"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "R05",
+      "group": "parser",
+      "setup": {
+        "nativeCause": "CREATE_FAILED or EXIT_UNKNOWN",
+        "joined": true
+      },
+      "action": {
+        "operation": "Classify"
+      },
+      "expect": {
+        "state": "unknown",
+        "code": "EXIT_FAILED",
+        "positiveFields": null,
+        "noFabricatedExitFact": true
+      },
+      "layers": [
+        "go"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "R05"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "R06",
+      "group": "parser",
+      "setup": {
+        "reservationDeadline": "expired"
+      },
+      "action": {
+        "operation": "Before create/resume or during run"
+      },
+      "expect": {
+        "code": "TIMED_OUT",
+        "noLateResume": true,
+        "actualJoinRequired": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "R06"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "R07",
+      "group": "parser",
+      "setup": {
+        "cause": "explicit Stop or original request cancellation"
+      },
+      "action": {
+        "operation": "Cancel"
+      },
+      "expect": {
+        "code": "CANCELLED",
+        "firstAuthoritativeCauseRetained": true,
+        "actualJoinRequired": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "R07"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "A01",
+      "group": "authority",
+      "setup": {
+        "current": "denied"
+      },
+      "action": {
+        "operation": "Admission or final disclosure"
+      },
+      "expect": {
+        "http": 403,
+        "code": "FORBIDDEN",
+        "resultAbsent": true
+      },
+      "layers": [
+        "go",
+        "http",
+        "native"
+      ],
+      "variants": [
+        "before preparation",
+        "before create",
+        "before resume",
+        "after valid output"
+      ],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "A01"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "A02",
+      "group": "authority",
+      "setup": {
+        "current": "revoked during held native work"
+      },
+      "action": {
+        "operation": "Active-only invalidation"
+      },
+      "expect": {
+        "contextCancelled": true,
+        "wholeJobTermination": true,
+        "noIdleRenewal": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "A02"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "A03",
+      "group": "authority",
+      "setup": {
+        "check": "held/uninterruptible",
+        "deadline": "expires"
+      },
+      "action": {
+        "operation": "Observe lifecycle"
+      },
+      "expect": {
+        "foregroundNoStaleFacts": true,
+        "nativeDeadlineIndependent": true,
+        "checkLifetimeRetained": true,
+        "successorBlockedUntilJoin": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "A03"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "A04",
+      "group": "authority",
+      "setup": {
+        "physical": "root/database replaced"
+      },
+      "action": {
+        "operation": "Revalidate"
+      },
+      "expect": {
+        "code": "IDENTITY_CHANGED",
+        "resultAbsent": true,
+        "workCancelled": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "A04"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "A05",
+      "group": "authority",
+      "setup": {
+        "configuration": "lost/corrupt/foreign after bound"
+      },
+      "action": {
+        "operation": "Check and disclose"
+      },
+      "expect": {
+        "resultAbsent": true,
+        "workCancelled": true,
+        "noRepair": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "A05"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "A06",
+      "group": "authority",
+      "setup": {
+        "clientViews": [
+          "A",
+          "B",
+          "A"
+        ],
+        "originalRequest": "first A"
+      },
+      "action": {
+        "operation": "Deliver late response"
+      },
+      "expect": {
+        "oldFactsNotPainted": true,
+        "newerDraftPreserved": true,
+        "serverDoesNotReceiveViewEpoch": true
+      },
+      "layers": [
+        "typescript",
+        "browser"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "browser-identity",
+        "caseKey": "A06"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "A07",
+      "group": "authority",
+      "setup": {
+        "view": "own request closes"
+      },
+      "action": {
+        "operation": "Abort"
+      },
+      "expect": {
+        "ownAttemptCancelled": true,
+        "otherWindowUntouched": true
+      },
+      "layers": [
+        "go",
+        "browser"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "browser-identity",
+        "caseKey": "A07"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "A08",
+      "group": "authority",
+      "setup": {
+        "runtime": "Close while active"
+      },
+      "action": {
+        "operation": "Fence/cancel/close"
+      },
+      "expect": {
+        "admissionClosed": true,
+        "reportIncompleteIfUnjoined": true,
+        "physicalOwnershipRetained": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "A08"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "A09",
+      "group": "authority",
+      "setup": {
+        "stopAdmission": "expires before fresh checks complete"
+      },
+      "action": {
+        "operation": "Checks later return"
+      },
+      "expect": {
+        "lateCancellationForbidden": true,
+        "exactTupleRechecked": true,
+        "requestLifetimeRetained": true
+      },
+      "layers": [
+        "go",
+        "http",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "A09"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "A10",
+      "group": "authority",
+      "setup": {
+        "stopAdmission": "slow SQL/native check"
+      },
+      "action": {
+        "operation": "Observe timing"
+      },
+      "expect": {
+        "noTwoSecondAdmissionSLA": true,
+        "twoSecondDrainAfterValidAdmission": true,
+        "timeoutNoJoinFact": true
+      },
+      "layers": [
+        "go",
+        "http"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "A10"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "A11",
+      "group": "authority",
+      "setup": {
+        "credential": "browser active check"
+      },
+      "action": {
+        "operation": "Repeated active-only checks"
+      },
+      "expect": {
+        "idleExpiryNotRenewed": true,
+        "noIdleWorker": true,
+        "atMostOneCheckInFlight": true
+      },
+      "layers": [
+        "go"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "A11"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "J01",
+      "group": "join",
+      "setup": {
+        "root": "exited",
+        "jobActive": 0,
+        "drains": "done",
+        "handles": "closed",
+        "watcher": "joined",
+        "cleanup": "resolved"
+      },
+      "action": {
+        "operation": "Publish join"
+      },
+      "expect": {
+        "joined": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "J01"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "J02",
+      "group": "join",
+      "setup": {
+        "root": "exited",
+        "remaining": "any job/pipe/handle/check"
+      },
+      "action": {
+        "operation": "Foreground ends"
+      },
+      "expect": {
+        "joined": false,
+        "code": "DRAIN_INCOMPLETE",
+        "positiveFields": null,
+        "ownershipRetained": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "J02"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "J03",
+      "group": "join",
+      "setup": {
+        "close": "ambiguous numeric handle failure"
+      },
+      "action": {
+        "operation": "Repeat Stop/Close"
+      },
+      "expect": {
+        "rawCloseRetried": false,
+        "ownershipRetained": true,
+        "successorBlocked": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "J03"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "J04",
+      "group": "join",
+      "setup": {
+        "closeHook": "proven refused before actual close"
+      },
+      "action": {
+        "operation": "Allow later close of same still-owned object"
+      },
+      "expect": {
+        "retryOnlyWithLifetimeProof": true
+      },
+      "layers": [
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "J04"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "J05",
+      "group": "join",
+      "setup": {
+        "cleanup": "over2seconds"
+      },
+      "action": {
+        "operation": "Stop then eventual join"
+      },
+      "expect": {
+        "firstPhase": "incomplete",
+        "laterPhase": "joined",
+        "newNonceOnlyAfterActualJoin": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "J05"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "J06",
+      "group": "join",
+      "setup": {
+        "controls": [
+          "Stop",
+          "Close",
+          "Stop"
+        ]
+      },
+      "action": {
+        "operation": "Race"
+      },
+      "expect": {
+        "oneOperation": true,
+        "noNewLaunch": true,
+        "actualJoinRequired": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "J06"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "J07",
+      "group": "join",
+      "setup": {
+        "privateRoot": "collision or unsafe ancestry"
+      },
+      "action": {
+        "operation": "Create"
+      },
+      "expect": {
+        "refused": true,
+        "noRepair": true,
+        "noUnownedDeletion": true
+      },
+      "layers": [
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "J07"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "J08",
+      "group": "join",
+      "setup": {
+        "privateRoot": "child-created reparse to outside canary"
+      },
+      "action": {
+        "operation": "Cleanup"
+      },
+      "expect": {
+        "outsideCanaryUnchanged": true,
+        "reparseNotTraversed": true,
+        "exactOwnedRootOnly": true
+      },
+      "layers": [
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "native-identity",
+        "caseKey": "J08"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "J09",
+      "group": "join",
+      "setup": {
+        "privateCleanup": "unresolved"
+      },
+      "action": {
+        "operation": "Close/report"
+      },
+      "expect": {
+        "joined": false,
+        "ownershipRetained": true,
+        "noFalseSuccess": true
+      },
+      "layers": [
+        "go",
+        "native"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "native-identity",
+        "caseKey": "J09"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "W01",
+      "group": "wire",
+      "setup": {
+        "fixture": "all valid result/control/stop/unknown envelopes"
+      },
+      "action": {
+        "operation": "Decode in Go/schema/production TS"
+      },
+      "expect": {
+        "allLayersAgree": true,
+        "strictUnknownEnvelope": true
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "W01"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "W02",
+      "group": "wire",
+      "setup": {
+        "fixture": "wrong shape"
+      },
+      "action": {
+        "operation": "Decode"
+      },
+      "expect": {
+        "refused": true
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [
+        "unknown/duplicate key",
+        "missing field",
+        "wrong type",
+        "BOM/trailing JSON",
+        "null in required field",
+        "zero/invalid UUID4",
+        "capability kind"
+      ],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "W02"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "W03",
+      "group": "wire",
+      "setup": {
+        "fixture": "all state/code/positive/null/join combinations"
+      },
+      "action": {
+        "operation": "Decode"
+      },
+      "expect": {
+        "onlyFrozenPairsAccepted": true,
+        "positiveFieldsOnlySupportedJoined": true
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "W03"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "W04",
+      "group": "wire",
+      "setup": {
+        "fixture": "encoded limits"
+      },
+      "action": {
+        "operation": "Read/encode"
+      },
+      "expect": {
+        "inclusiveLimits": true,
+        "requestMaximum": 512,
+        "responseMaximum": 2048,
+        "queryMaximum": 384
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [
+        "limit exactly",
+        "limit plus one",
+        "escaped/UTF-8 byte accounting"
+      ],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "W04"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "W05",
+      "group": "wire",
+      "setup": {
+        "response": "bad transport"
+      },
+      "action": {
+        "operation": "Read"
+      },
+      "expect": {
+        "noFacts": true
+      },
+      "layers": [
+        "http",
+        "typescript",
+        "cli"
+      ],
+      "variants": [
+        "redirect",
+        "encoding",
+        "framing/declared size",
+        "content type",
+        "cache control",
+        "truncation"
+      ],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "identity-boundary",
+        "caseKey": "W05"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "W06",
+      "group": "wire",
+      "setup": {
+        "response": "wrong context"
+      },
+      "action": {
+        "operation": "Validate"
+      },
+      "expect": {
+        "resultRejected": true,
+        "noOldFacts": true
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [
+        "board",
+        "incarnation",
+        "runtime",
+        "configuration",
+        "probe"
+      ],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "W06"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "W07",
+      "group": "wire",
+      "setup": {
+        "operation": "pre-POST GET",
+        "response": "strict refusal vs malformed"
+      },
+      "action": {
+        "operation": "CLI classify"
+      },
+      "expect": {
+        "strictExit": 2,
+        "malformedExit": 3,
+        "nativePostSent": false
+      },
+      "layers": [
+        "go",
+        "cli"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "identity-boundary",
+        "caseKey": "W07"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "W08",
+      "group": "wire",
+      "setup": {
+        "operation": "native POST",
+        "status": 503,
+        "body": "strict refusal"
+      },
+      "action": {
+        "operation": "CLI/browser classify"
+      },
+      "expect": {
+        "exit": 4,
+        "code": "OUTCOME_UNKNOWN",
+        "executionFactAbsent": true,
+        "automaticRetry": false
+      },
+      "layers": [
+        "go",
+        "typescript",
+        "cli"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "identity-boundary",
+        "caseKey": "W08"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "W09",
+      "group": "wire",
+      "setup": {
+        "operation": "native POST",
+        "status": "400/401/403/404/405/409",
+        "body": "recognized strict pair"
+      },
+      "action": {
+        "operation": "Classify"
+      },
+      "expect": {
+        "exit": 2,
+        "noNativeNonExecutionClaim": true,
+        "noJoinClaim": true,
+        "automaticRetry": false
+      },
+      "layers": [
+        "go",
+        "typescript",
+        "cli"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "identity-boundary",
+        "caseKey": "W09"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "W10",
+      "group": "wire",
+      "setup": {
+        "operation": "native POST",
+        "response": "lost/malformed/context mismatch/unknown status"
+      },
+      "action": {
+        "operation": "Classify"
+      },
+      "expect": {
+        "exit": 4,
+        "unknownEnvelopeNoPrivateOrJoinFields": true,
+        "automaticRetry": false
+      },
+      "layers": [
+        "go",
+        "typescript",
+        "cli"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "identity-boundary",
+        "caseKey": "W10"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "W11",
+      "group": "wire",
+      "setup": {
+        "command": "existing metadata inspect"
+      },
+      "action": {
+        "operation": "Run unchanged"
+      },
+      "expect": {
+        "protocolUnchanged": true,
+        "nativeLaunches": 0
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "identity-boundary",
+        "caseKey": "W11"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "W12",
+      "group": "wire",
+      "setup": {
+        "request": "arbitrary path/argv/env/recipient or capability selector"
+      },
+      "action": {
+        "operation": "Parse"
+      },
+      "expect": {
+        "http": 400,
+        "nativeLaunches": 0
+      },
+      "layers": [
+        "go",
+        "http",
+        "schema",
+        "typescript"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.02",
+        "suite": "identity-boundary",
+        "caseKey": "W12"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "C01",
+      "group": "clients",
+      "setup": {
+        "workflow": "default",
+        "recipient": "configured by existing M16 flow"
+      },
+      "action": {
+        "operation": "Actual extracted check"
+      },
+      "expect": {
+        "actualVersionQualified": true,
+        "originalPolicyUnchanged": true
+      },
+      "layers": [
+        "cli",
+        "browser"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.06",
+        "suite": "browser-identity",
+        "caseKey": "C01"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "C02",
+      "group": "clients",
+      "setup": {
+        "workflow": "genuinely configured",
+        "recipient": "bound"
+      },
+      "action": {
+        "operation": "Actual extracted check/Stop"
+      },
+      "expect": {
+        "actualVersionQualified": true,
+        "currentAuthorityRequired": true
+      },
+      "layers": [
+        "cli",
+        "browser"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.06",
+        "suite": "browser-identity",
+        "caseKey": "C02"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "C03",
+      "group": "clients",
+      "setup": {
+        "policy": "unconfigured"
+      },
+      "action": {
+        "operation": "Open tools and request check"
+      },
+      "expect": {
+        "configureGuidance": true,
+        "nativePostSent": false
+      },
+      "layers": [
+        "cli",
+        "browser"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "browser-identity",
+        "caseKey": "C03"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "C04",
+      "group": "clients",
+      "setup": {
+        "events": [
+          "open",
+          "navigate",
+          "reload",
+          "reconnect",
+          "paint"
+        ]
+      },
+      "action": {
+        "operation": "Observe traffic"
+      },
+      "expect": {
+        "nativeProbeOrStopRequests": 0,
+        "automaticControlPolling": false
+      },
+      "layers": [
+        "cli",
+        "browser"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "browser-identity",
+        "caseKey": "C04"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "C05",
+      "group": "clients",
+      "setup": {
+        "pending": "old generation",
+        "newIntent": "different generation"
+      },
+      "action": {
+        "operation": "Late result"
+      },
+      "expect": {
+        "newerStateNotCleared": true,
+        "noVersionLeak": true
+      },
+      "layers": [
+        "typescript",
+        "browser"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "browser-identity",
+        "caseKey": "C05"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "C06",
+      "group": "clients",
+      "setup": {
+        "authority": "late denied",
+        "draft": "newer user input"
+      },
+      "action": {
+        "operation": "Render"
+      },
+      "expect": {
+        "factsCleared": true,
+        "draftAndFocusPreserved": true
+      },
+      "layers": [
+        "typescript",
+        "browser"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "browser-identity",
+        "caseKey": "C06"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "C07",
+      "group": "clients",
+      "setup": {
+        "stop": "joined",
+        "probeResult": "lost"
+      },
+      "action": {
+        "operation": "Render"
+      },
+      "expect": {
+        "doesNotClaimVersionOrNoExecution": true,
+        "noReplay": true
+      },
+      "layers": [
+        "typescript",
+        "browser",
+        "cli"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "browser-identity",
+        "caseKey": "C07"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "C08",
+      "group": "clients",
+      "setup": {
+        "M16Original": "UNKNOWN",
+        "probe": "any outcome"
+      },
+      "action": {
+        "operation": "Observe recipient recovery"
+      },
+      "expect": {
+        "oldOriginalNeverSettled": true,
+        "submittedAndUnsentProseSeparate": true
+      },
+      "layers": [
+        "browser",
+        "cli"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "browser-identity",
+        "caseKey": "C08"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "C09",
+      "group": "clients",
+      "setup": {
+        "input": "keyboard/space/enter/close"
+      },
+      "action": {
+        "operation": "Use named controls"
+      },
+      "expect": {
+        "singleActivation": true,
+        "visibleFocus": true,
+        "sourceFocusRestored": true
+      },
+      "layers": [
+        "browser"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "browser-identity",
+        "caseKey": "C09"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "C10",
+      "group": "clients",
+      "setup": {
+        "format": "readable versus JSON"
+      },
+      "action": {
+        "operation": "Run status/probe/Stop"
+      },
+      "expect": {
+        "sameExitAndCorrelationRules": true,
+        "jsonOneValidatedObject": true,
+        "noRawToolOutput": true
+      },
+      "layers": [
+        "cli"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "identity-boundary",
+        "caseKey": "C10"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "C11",
+      "group": "clients",
+      "setup": {
+        "positiveVersion": "displayed"
+      },
+      "action": {
+        "operation": "Reload/close/deny"
+      },
+      "expect": {
+        "noVersionPersistence": true,
+        "noCopyActivationOrNewSelector": true
+      },
+      "layers": [
+        "browser",
+        "cli"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "browser-identity",
+        "caseKey": "C11"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "D01",
+      "group": "conservation",
+      "setup": {
+        "domainSnapshot": "captured"
+      },
+      "action": {
+        "operation": "Probe/Stop"
+      },
+      "expect": {
+        "boardAndSQLiteUnchanged": true,
+        "noAuditInvented": true
+      },
+      "layers": [
+        "native",
+        "qualification"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.05",
+        "suite": "native-identity",
+        "caseKey": "D01"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "D02",
+      "group": "conservation",
+      "setup": {
+        "recipientAndNoticeOriginals": "captured"
+      },
+      "action": {
+        "operation": "All native outcomes"
+      },
+      "expect": {
+        "exactOriginalsTargetsCutsReceiptsPreserved": true,
+        "noActivation": true
+      },
+      "layers": [
+        "native",
+        "qualification"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.05",
+        "suite": "native-identity",
+        "caseKey": "D02"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "D03",
+      "group": "conservation",
+      "setup": {
+        "source": "export/restore with native private runtime"
+      },
+      "action": {
+        "operation": "Restore"
+      },
+      "expect": {
+        "freshIncarnation": true,
+        "recipientUnconfigured": true,
+        "noPrivateDirsPinsProbeJournalImported": true
+      },
+      "layers": [
+        "native",
+        "qualification"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.05",
+        "suite": "native-identity",
+        "caseKey": "D03"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "D04",
+      "group": "delivery",
+      "setup": {
+        "source": "full current candidate"
+      },
+      "action": {
+        "operation": "Run all maintained inventories"
+      },
+      "expect": {
+        "requiredCasesMissingSkippedOrZeroFail": true,
+        "priorPassNotSubstitute": true
+      },
+      "layers": [
+        "qualification"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.05",
+        "suite": "identity-boundary",
+        "caseKey": "D04"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "D05",
+      "group": "delivery",
+      "setup": {
+        "trees": 2
+      },
+      "action": {
+        "operation": "Clean build and compare"
+      },
+      "expect": {
+        "allGeneratedStagedWebEmbeddedExecutablePostTestOutputsEqual": true
+      },
+      "layers": [
+        "qualification"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.05",
+        "suite": "identity-boundary",
+        "caseKey": "D05"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "D06",
+      "group": "delivery",
+      "setup": {
+        "sourceSafetyReview": "not passed"
+      },
+      "action": {
+        "operation": "Attempt actual installed invocation"
+      },
+      "expect": {
+        "forbidden": true
+      },
+      "layers": [
+        "qualification"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "identity-boundary",
+        "caseKey": "D06"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "D07",
+      "group": "delivery",
+      "setup": {
+        "nativeEvidenceClosure": "not passed"
+      },
+      "action": {
+        "operation": "Begin clients"
+      },
+      "expect": {
+        "forbidden": true
+      },
+      "layers": [
+        "qualification"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.04",
+        "suite": "identity-boundary",
+        "caseKey": "D07"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "D08",
+      "group": "delivery",
+      "setup": {
+        "proof": "controlled helper"
+      },
+      "action": {
+        "operation": "Claim installed support"
+      },
+      "expect": {
+        "forbidden": true,
+        "actualLiteralProofSeparate": true
+      },
+      "layers": [
+        "qualification"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.03",
+        "suite": "identity-boundary",
+        "caseKey": "D08"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "D09",
+      "group": "delivery",
+      "setup": {
+        "kit": "fresh extracted exact candidate"
+      },
+      "action": {
+        "operation": "Normal default/configured host and actual CLI demo"
+      },
+      "expect": {
+        "literalExtractedImageVerified": true,
+        "normalControlledFaultEvidenceSeparated": true
+      },
+      "layers": [
+        "qualification",
+        "browser",
+        "cli"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.06",
+        "suite": "browser-identity",
+        "caseKey": "D09"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    },
+    {
+      "id": "D10",
+      "group": "delivery",
+      "setup": {
+        "resources": "captured owned"
+      },
+      "action": {
+        "operation": "Export/cleanup/publish"
+      },
+      "expect": {
+        "onlyOwnedResourcesTouched": true,
+        "failuresRetained": true,
+        "guidesSchemasLicensesComplete": true,
+        "commitAndPushVerified": true
+      },
+      "layers": [
+        "qualification"
+      ],
+      "variants": [],
+      "plannedBinding": {
+        "phase": "M18.06",
+        "suite": "identity-boundary",
+        "caseKey": "D10"
+      },
+      "executionEvidence": null,
+      "status": "PLANNED_NOT_EXECUTED"
+    }
+  ],
+  "expectationSemantics": {
+    "nativeLaunches": "New launches caused by the tested action; pre-existing fixture operations excluded unless totalLaunches is specified",
+    "plannedBinding": "Later phase/suite/case binding obligation, not evidence of execution"
+  }
+}

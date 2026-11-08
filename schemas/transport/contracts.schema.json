@@ -2844,6 +2844,117 @@
       ],
       "type": "object"
     },
+    "InstallationInspectionResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "result": {
+          "$ref": "#/$defs/InstallationInspectionResult"
+        },
+        "scope": {
+          "enum": [
+            "installation-inspection"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "result",
+        "scope"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 2048
+    },
+    "InstallationInspectionResult": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "code": {
+              "const": "CANDIDATE_PRESENT"
+            },
+            "state": {
+              "const": "candidate"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "code": {
+              "const": "TOOL_MISSING"
+            },
+            "state": {
+              "const": "missing"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "code": {
+              "enum": [
+                "PLATFORM_UNQUALIFIED",
+                "SOURCE_UNQUALIFIED",
+                "PATH_UNQUALIFIED",
+                "PUBLISHER_UNQUALIFIED",
+                "FILE_CHANGED",
+                "INSPECTION_UNKNOWN",
+                "INSPECTION_TIMED_OUT"
+              ]
+            },
+            "state": {
+              "const": "unqualified"
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "CANDIDATE_PRESENT",
+            "TOOL_MISSING",
+            "PLATFORM_UNQUALIFIED",
+            "SOURCE_UNQUALIFIED",
+            "PATH_UNQUALIFIED",
+            "PUBLISHER_UNQUALIFIED",
+            "FILE_CHANGED",
+            "INSPECTION_UNKNOWN",
+            "INSPECTION_TIMED_OUT"
+          ],
+          "type": "string"
+        },
+        "identity": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Identity"
+        },
+        "runtimeGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "candidate",
+            "missing",
+            "unqualified"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "identity",
+        "runtimeGeneration",
+        "state"
+      ],
+      "type": "object"
+    },
     "KnownIdentityUnknown": {
       "additionalProperties": false,
       "properties": {

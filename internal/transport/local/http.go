@@ -290,6 +290,8 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, q *http.Request) {
 		p := strings.Split(q.URL.Path, "/")
 		if len(p) >= 5 && p[1] == "api" && p[2] == "v1" && p[3] == "boards" && p[4] == r.id.BoardID {
 			switch {
+			case q.URL.Path == r.boardPath()+"recipient/tool/inspect":
+				r.Wrap(http.HandlerFunc(r.serveInstallation)).ServeHTTP(w, q)
 			case len(p) >= 6 && p[5] == "recipient":
 				r.Wrap(http.HandlerFunc(r.serveRecipient)).ServeHTTP(w, q)
 			case len(p) >= 6 && p[5] == "notices":

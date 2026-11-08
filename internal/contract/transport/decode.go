@@ -16,6 +16,7 @@ import (
 )
 
 var enums = map[string][]string{
+	"InstallationInspectionScope": {"installation-inspection"}, "InstallationInspectionState": {"candidate", "missing", "unqualified"}, "InstallationInspectionCode": {"CANDIDATE_PRESENT", "TOOL_MISSING", "PLATFORM_UNQUALIFIED", "SOURCE_UNQUALIFIED", "PATH_UNQUALIFIED", "PUBLISHER_UNQUALIFIED", "FILE_CHANGED", "INSPECTION_UNKNOWN", "INSPECTION_TIMED_OUT"},
 	"RecipientScope": {"recipient"}, "RecipientState": {"unconfigured", "configured", "unavailable", "unknown"}, "RecipientReason": {"storage", "foreign", "unknown"}, "RecipientKind": {"codex-thread"}, "RecipientPolicy": {"conservative-metadata-v1"},
 	"NoticeOperation":   {"configure", "start", "stop", "recover", "reload", "retarget", "lookup"},
 	"NoticeScope":       {"notices"},
@@ -50,6 +51,9 @@ var fieldRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_
 // It proves boundary validity only, never that a terminal claim is authentic.
 func Decode[T any](data []byte) (T, error) {
 	var out T
+	if reflect.TypeFor[T]() == reflect.TypeFor[InstallationInspectionResponse]() && len(data) > InstallationInspectionResponseLimit {
+		return out, fmt.Errorf("installation response exceeds limit")
+	}
 	if limit := recipientByteLimit(reflect.TypeFor[T]()); limit > 0 && len(data) > limit {
 		return out, fmt.Errorf("recipient message exceeds limit")
 	}
@@ -247,6 +251,10 @@ func walk(v reflect.Value) error {
 		}
 	case RecipientView:
 		if e := recipientValid(x); e != nil {
+			return e
+		}
+	case InstallationInspectionResult:
+		if e := installationValid(x); e != nil {
 			return e
 		}
 	case RecipientUnknownError:

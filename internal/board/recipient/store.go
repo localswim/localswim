@@ -117,6 +117,9 @@ type Store struct {
 	failed                string
 }
 
+// RuntimeGeneration is immutable for this store's lifetime and discloses no policy.
+func (s *Store) RuntimeGeneration() A.UUID { return s.generation }
+
 func New(binding Binding, backend Backend) (*Store, error) {
 	var b [16]byte
 	if _, e := rand.Read(b[:]); e != nil {

@@ -4,6 +4,19 @@
 import type * as Archive from '../archive/contracts';
 import type * as Mutation from '../contracts';
 
+export type InstallationInspectionResponse = {
+  readonly apiVersion: 1;
+  readonly result: InstallationInspectionResult;
+  readonly scope: "installation-inspection";
+};
+
+export type InstallationInspectionResult = {
+  readonly code: "CANDIDATE_PRESENT" | "TOOL_MISSING" | "PLATFORM_UNQUALIFIED" | "SOURCE_UNQUALIFIED" | "PATH_UNQUALIFIED" | "PUBLISHER_UNQUALIFIED" | "FILE_CHANGED" | "INSPECTION_UNKNOWN" | "INSPECTION_TIMED_OUT";
+  readonly identity: Archive.Identity;
+  readonly runtimeGeneration: string;
+  readonly state: "candidate" | "missing" | "unqualified";
+};
+
 export type RecipientResponse = {
   readonly apiVersion: 1;
   readonly result: RecipientView;

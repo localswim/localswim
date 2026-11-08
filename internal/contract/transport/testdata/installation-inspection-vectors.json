@@ -1,0 +1,87 @@
+[
+  {
+    "name": "CANDIDATE_PRESENT",
+    "valid": true,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"candidate\",\"code\":\"CANDIDATE_PRESENT\"}}"
+  },
+  {
+    "name": "TOOL_MISSING",
+    "valid": true,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"missing\",\"code\":\"TOOL_MISSING\"}}"
+  },
+  {
+    "name": "PLATFORM_UNQUALIFIED",
+    "valid": true,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"unqualified\",\"code\":\"PLATFORM_UNQUALIFIED\"}}"
+  },
+  {
+    "name": "SOURCE_UNQUALIFIED",
+    "valid": true,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"unqualified\",\"code\":\"SOURCE_UNQUALIFIED\"}}"
+  },
+  {
+    "name": "PATH_UNQUALIFIED",
+    "valid": true,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"unqualified\",\"code\":\"PATH_UNQUALIFIED\"}}"
+  },
+  {
+    "name": "PUBLISHER_UNQUALIFIED",
+    "valid": true,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"unqualified\",\"code\":\"PUBLISHER_UNQUALIFIED\"}}"
+  },
+  {
+    "name": "FILE_CHANGED",
+    "valid": true,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"unqualified\",\"code\":\"FILE_CHANGED\"}}"
+  },
+  {
+    "name": "INSPECTION_UNKNOWN",
+    "valid": true,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"unqualified\",\"code\":\"INSPECTION_UNKNOWN\"}}"
+  },
+  {
+    "name": "INSPECTION_TIMED_OUT",
+    "valid": true,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"unqualified\",\"code\":\"INSPECTION_TIMED_OUT\"}}"
+  },
+  {
+    "name": "duplicateState",
+    "valid": false,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"candidate\",\"state\":\"candidate\",\"code\":\"CANDIDATE_PRESENT\"}}"
+  },
+  {
+    "name": "unknownCode",
+    "valid": false,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"candidate\",\"code\":\"OK\"}}"
+  },
+  {
+    "name": "nullState",
+    "valid": false,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":null,\"code\":\"CANDIDATE_PRESENT\"}}"
+  },
+  {
+    "name": "oversize",
+    "valid": false,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"candidate\",\"code\":\"CANDIDATE_PRESENT\"}}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                "
+  },
+  {
+    "name": "wrongPair",
+    "valid": false,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"candidate\",\"code\":\"TOOL_MISSING\"}}"
+  },
+  {
+    "name": "badGeneration",
+    "valid": false,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-7000-8000-000000000019\",\"state\":\"candidate\",\"code\":\"CANDIDATE_PRESENT\"}}"
+  },
+  {
+    "name": "extraField",
+    "valid": false,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"path\":\"private\",\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"candidate\",\"code\":\"CANDIDATE_PRESENT\"}}"
+  },
+  {
+    "name": "trailing",
+    "valid": false,
+    "json": "{\"apiVersion\":1,\"scope\":\"installation-inspection\",\"result\":{\"identity\":{\"boardId\":\"00000000-0000-4000-8000-000000000017\",\"incarnation\":\"00000000-0000-4000-8000-000000000018\"},\"runtimeGeneration\":\"00000000-0000-4000-8000-000000000019\",\"state\":\"candidate\",\"code\":\"CANDIDATE_PRESENT\"}}{}"
+  }
+]

@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	I "github.com/localswim/localswim/internal/board/installation"
 	"github.com/localswim/localswim/internal/board/noticemonitor"
 	R "github.com/localswim/localswim/internal/board/recipient"
 	"github.com/localswim/localswim/internal/contract"
@@ -241,6 +242,7 @@ type Runtime struct {
 	noticeLabel                  string
 	recipient                    *R.Store
 	recipientState               *recipientNativeState
+	installation                 *I.Inspector
 	server                       *http.Server
 	listener                     net.Listener
 	done                         chan struct{}
@@ -274,6 +276,11 @@ func (r *Runtime) Close() error {
 	r.reqMu.Lock()
 	r.closing = true
 	r.reqMu.Unlock()
+	if r.installation != nil {
+		if err := r.installation.Close(); err != nil {
+			return err
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	var e error
@@ -518,6 +525,7 @@ func openEngine(ctx context.Context, o EngineOptions, assets http.Handler) (*Run
 	if e != nil {
 		return nil, e
 	}
+	r.installation = I.New(string(r.recipient.RuntimeGeneration()))
 	var rendezvous any = metadata{id, r.epoch, r.Origin(), string(bot)}
 	if o.WorkspaceID != "" {
 		rendezvous = workspaceMetadata{2, id, r.epoch, r.Origin(), string(bot), workspaceMetadataHost{"workspace", o.WorkspaceID}}

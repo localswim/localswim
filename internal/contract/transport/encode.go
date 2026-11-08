@@ -71,6 +71,13 @@ func Readable(v any) ([]byte, error) {
 	if e := Validate(v); e != nil {
 		return nil, e
 	}
+	if reflect.Indirect(reflect.ValueOf(v)).Type() == reflect.TypeFor[InstallationInspectionResponse]() {
+		b, e := A.Canonical(v)
+		if e != nil || len(b) > InstallationInspectionResponseLimit {
+			return nil, fmt.Errorf("installation response exceeds limit")
+		}
+		return b, nil
+	}
 	if limit := recipientByteLimit(reflect.Indirect(reflect.ValueOf(v)).Type()); limit > 0 {
 		b, e := A.Canonical(v)
 		if e != nil || len(b) > limit {

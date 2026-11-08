@@ -1,0 +1,39 @@
+{
+  "evidenceSHA256": {
+    "packageReview": "8bacf1ac99b31acfa0eba77f630d9e7c47cbeb55b887a49af7469819d10e60e8",
+    "browser": "836c64946457d76b3472ffa3866421d59ef92034f86cc211719bf70818c5f82f",
+    "packageVerification": "fa2355fd76c3d49df5e1a162a30a448499d4a344a18866d4df4c6d781b3f8210",
+    "ownedHandoff": "27fd235f58fa3690af2d42f8b80aa0b0b0b097df4a2911a9ecf044914997cb24",
+    "qualification": "ccb297a85ca27b0fc15eec044cdbc9ce4207aeee5b0bed75e8d4e48aeb84b9e2"
+  },
+  "independentReview": "Sol / High PASS",
+  "executableSHA256": "c6dc2503de30968d318826731602980e127c6b4eccb537d0cc7641ade89e735c",
+  "status": "READY_FOR_OWNER_REVIEW",
+  "date": "2026-11-08",
+  "qualifiedSource": "efc66966e8c00427635c0c96e73c294e27bf9d06",
+  "milestone": "M17",
+  "nextMilestone": "M18 requires owner acceptance and a fresh kickoff; actual installed interface remains unqualified",
+  "schemaVersion": 1,
+  "demonstration": {
+    "controlledResponseScenarios": 11,
+    "controlledCliResults": 16,
+    "shippedCliRuns": 4,
+    "browserJourneys": 5,
+    "existingControlledDOM": 54,
+    "ownedCleanup": true,
+    "diagnostics": 60,
+    "controlledCliTopLevel": 3,
+    "literalExtractedApplication": true,
+    "newControlledDOM": 38,
+    "literalBrowserFixtureCliPaths": 12
+  },
+  "qualificationPublication": "30dfbe1647e94b2a5b14a8611de915743e955162",
+  "installedCodexInvoked": false,
+  "archive": {
+    "payloads": 63,
+    "name": "localswim-m17-windows-amd64.zip",
+    "members": 65,
+    "sha256": "c10e58d42c46deb5fefc7ddfe0e11c50f4fc9485d8ec2e128dbcda9b66d14a1b",
+    "bytes": 13104440
+  }
+}

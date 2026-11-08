@@ -99,7 +99,7 @@ func storage(ctx context.Context, dataDir string, expected schema.Identity, upgr
 		allowed["board"] = true
 	}
 	for _, entry := range entries {
-		if !allowed[entry.Name()] && !noticeRuntimeEntry(entry.Name()) {
+		if !allowed[entry.Name()] && !noticeRuntimeEntry(entry.Name()) && !recipientRuntimeEntry(entry.Name()) {
 			return out, false, errLocal
 		}
 	}

@@ -9,6 +9,7 @@ import { noticeReadMaximum, NoticeRefusal, validateNotices } from "./notices.js"
 import { validSearch, validateSearchRead } from "./search.js";
 import { laneRole, sameWorkflow, validateWorkflowPolicies, workflowAtVersion, validateCurrentWorkflowCards, validateWorkflowPreview } from "./workflow.js";
 import { fileReadMaximum, FilesReadRefusal, validateFileRead, validateFilesRead } from "./files.js";
+import { RecipientRefusal, RecipientUnknown, validateRecipient } from "./recipient.js";
 export class WorkflowPreviewRefusal extends Error {
     code;
     constructor(code) {
@@ -318,6 +319,57 @@ export class BoardClient {
         const result = value.result;
         validateNotices(result, identity, command);
         return result;
+    }
+    async recipient(identity, command, signal) {
+        identity = structuredClone(identity);
+        command = structuredClone(command);
+        const post = command.action === "configure";
+        const credential = this.options.credential();
+        const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(20_000)]);
+        const path = this.path(identity.boardId) + "/recipient/" + command.action;
+        if (!uuid.test(identity.incarnation) || identity.incarnation === "00000000-0000-0000-0000-000000000000" ||
+            this.options.selection && identity.incarnation !== this.options.selection.incarnation || !credential || requestSignal.aborted)
+            throw new RecipientRefusal("INVALID_INPUT");
+        let body;
+        if (command.action === "configure") {
+            body = JSON.stringify({ incarnation: identity.incarnation, expectedRuntimeGeneration: command.expectedRuntimeGeneration,
+                expectedConfigurationRevision: command.expectedConfigurationRevision, requestId: command.requestId, input: command.input });
+            validate("transport:RecipientConfigureRequest", parse(body));
+            if (new TextEncoder().encode(body).length > 2048 || new TextEncoder().encode(JSON.stringify(command.input)).length > 1024)
+                throw new RecipientRefusal("INVALID_INPUT");
+        }
+        try {
+            const { response, credential: presented } = await this.raw(post ? path : path + "?" + new URLSearchParams({ incarnation: identity.incarnation }), { method: post ? "POST" : "GET", body, signal: requestSignal });
+            if (response.headers.get("Cache-Control") !== "no-store" || response.headers.has("Content-Encoding") ||
+                !/^application\/json(?:\s*;|$)/i.test(response.headers.get("Content-Type") ?? "")) {
+                await response.body?.cancel().catch(() => { });
+                throw Error("Recipient response unavailable");
+            }
+            const value = await this.boundedRead(response, presented, 4096);
+            requestSignal.throwIfAborted();
+            if (this.options.credential() !== credential)
+                throw Error("Recipient authority changed");
+            if (response.status !== 200) {
+                validate("transport:NonterminalRefusal", value);
+                const refusal = object(value), error = object(refusal.error);
+                const pair = String(response.status) + "/" + String(error.code);
+                if (refusal.opId === undefined && refusal.conflict === null && error.field === null && error.message === "Request refused" &&
+                    ["400/INVALID_INPUT", "401/UNAUTHENTICATED", "403/FORBIDDEN", "409/CONTROL_STALE", "409/CONTROL_BUSY", "409/CONFIGURATION_FIXED"].includes(pair))
+                    throw new RecipientRefusal(String(error.code));
+                throw Error("Recipient response unavailable");
+            }
+            validate("transport:RecipientResponse", value);
+            const result = value.result;
+            validateRecipient(result, identity, command);
+            return structuredClone(result);
+        }
+        catch (error) {
+            if (error instanceof RecipientRefusal)
+                throw error;
+            if (post)
+                throw new RecipientUnknown();
+            throw Error("Recipient status unavailable");
+        }
     }
     async boundedRead(response, credential, maximum) {
         const declared = response.headers.get("Content-Length");

@@ -16,6 +16,7 @@ import (
 )
 
 var enums = map[string][]string{
+	"RecipientScope": {"recipient"}, "RecipientState": {"unconfigured", "configured", "unavailable", "unknown"}, "RecipientReason": {"storage", "foreign", "unknown"}, "RecipientKind": {"codex-thread"}, "RecipientPolicy": {"conservative-metadata-v1"},
 	"NoticeOperation":   {"configure", "start", "stop", "recover", "reload", "retarget", "lookup"},
 	"NoticeScope":       {"notices"},
 	"NoticePhase":       {"unconfigured", "stopped", "running", "draining", "partial-drain", "guarded", "failed"},
@@ -39,6 +40,7 @@ var enums = map[string][]string{
 	"SessionCodeScope": {"session-code"}, "SessionCodeCommand": {"issue"}, "SessionCodeOutcome": {"presented", "refused", "failed", "unavailable", "unknown"},
 }
 var rights = []string{"approve", "attach", "comment", "create", "edit", "export", "grant-admin", "history-admin", "read", "read-own-outcome", "restore", "review-handoff"}
+var recipientThreadRE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 var v4RE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 var workspaceKeyRE = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 var fieldRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$`)
@@ -48,6 +50,9 @@ var fieldRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_
 // It proves boundary validity only, never that a terminal claim is authentic.
 func Decode[T any](data []byte) (T, error) {
 	var out T
+	if limit := recipientByteLimit(reflect.TypeFor[T]()); limit > 0 && len(data) > limit {
+		return out, fmt.Errorf("recipient message exceeds limit")
+	}
 	if limit := noticeByteLimit(reflect.TypeFor[T]()); limit > 0 && len(data) > limit {
 		return out, fmt.Errorf("notice message exceeds limit")
 	}
@@ -59,6 +64,14 @@ func Decode[T any](data []byte) (T, error) {
 	}
 	if reflect.TypeFor[T]() == reflect.TypeFor[WorkflowPreviewRequest]() && len(data) > 800000 {
 		return out, fmt.Errorf("workflow preview exceeds limit")
+	}
+	if reflect.TypeFor[T]() == reflect.TypeFor[RecipientConfigureRequest]() {
+		var x struct {
+			Input json.RawMessage `json:"input"`
+		}
+		if json.Unmarshal(data, &x) != nil || len(x.Input) > 1024 {
+			return out, fmt.Errorf("recipient input exceeds limit")
+		}
 	}
 	if !supported(reflect.TypeFor[T]()) {
 		return out, fmt.Errorf("unsupported transport boundary")
@@ -220,6 +233,26 @@ func walk(v reflect.Value) error {
 		}
 	}
 	switch x := v.Interface().(type) {
+	case RecipientThreadID:
+		if !recipientThreadRE.MatchString(string(x)) {
+			return fmt.Errorf("invalid recipient thread")
+		}
+	case RecipientInput:
+		if !recipientInputBytes(x) {
+			return fmt.Errorf("invalid recipient input")
+		}
+	case RecipientConfigureRequest:
+		if x.ExpectedConfigurationRevision != 0 {
+			return fmt.Errorf("invalid recipient revision")
+		}
+	case RecipientView:
+		if e := recipientValid(x); e != nil {
+			return e
+		}
+	case RecipientUnknownError:
+		if x.Code != "OUTCOME_UNKNOWN" || x.Message != RecipientUnknownMessage {
+			return fmt.Errorf("invalid recipient unknown")
+		}
 	case P.NoticeText:
 		if err := P.Validate(x); err != nil {
 			return err

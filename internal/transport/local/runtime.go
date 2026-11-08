@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/localswim/localswim/internal/board/noticemonitor"
+	R "github.com/localswim/localswim/internal/board/recipient"
 	"github.com/localswim/localswim/internal/contract"
 	A "github.com/localswim/localswim/internal/contract/archive"
 	"github.com/localswim/localswim/internal/contract/noticetext"
@@ -238,6 +239,8 @@ type Runtime struct {
 	notices                      *noticemonitor.Monitor
 	noticeState                  *noticeNativeState
 	noticeLabel                  string
+	recipient                    *R.Store
+	recipientState               *recipientNativeState
 	server                       *http.Server
 	listener                     net.Listener
 	done                         chan struct{}
@@ -281,6 +284,11 @@ func (r *Runtime) Close() error {
 		}
 	}
 	r.requests.Wait()
+	if r.recipient != nil {
+		if re := r.recipient.Close(); re != nil {
+			return errors.Join(e, re)
+		}
+	}
 	if r.notices != nil {
 		drain, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		ne := r.notices.Close(drain)
@@ -503,6 +511,10 @@ func openEngine(ctx context.Context, o EngineOptions, assets http.Handler) (*Run
 		return nil, e
 	}
 	r.notices, e = r.openNotices(rootKey, boardDir)
+	if e != nil {
+		return nil, e
+	}
+	r.recipient, e = r.openRecipient(rootKey)
 	if e != nil {
 		return nil, e
 	}

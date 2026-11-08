@@ -3633,6 +3633,327 @@
     "PreviewRequest": {
       "$ref": "../archive/contracts.schema.json#/$defs/PreviewRequest"
     },
+    "RecipientConfigureRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedConfigurationRevision": {
+          "const": 0,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expectedRuntimeGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "incarnation": {
+          "not": {
+            "const": "00000000-0000-0000-0000-000000000000"
+          },
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/RecipientInput"
+        },
+        "requestId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expectedConfigurationRevision",
+        "expectedRuntimeGeneration",
+        "incarnation",
+        "input",
+        "requestId"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 2048
+    },
+    "RecipientInput": {
+      "additionalProperties": false,
+      "properties": {
+        "policy": {
+          "enum": [
+            "conservative-metadata-v1"
+          ],
+          "type": "string"
+        },
+        "recipient": {
+          "$ref": "#/$defs/RecipientReference"
+        },
+        "version": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy",
+        "recipient",
+        "version"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 1024
+    },
+    "RecipientOutcomeUnknown": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "error": {
+          "$ref": "#/$defs/RecipientUnknownError"
+        },
+        "outcome": {
+          "enum": [
+            "unknown"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "error",
+        "outcome"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 4096
+    },
+    "RecipientReference": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "codex-thread"
+          ],
+          "type": "string"
+        },
+        "threadId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "threadId"
+      ],
+      "type": "object"
+    },
+    "RecipientResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": 1,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "result": {
+          "$ref": "#/$defs/RecipientView"
+        },
+        "scope": {
+          "enum": [
+            "recipient"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "result",
+        "scope"
+      ],
+      "type": "object",
+      "x-max-utf8-bytes": 4096
+    },
+    "RecipientUnknownError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "const": "OUTCOME_UNKNOWN",
+          "type": "string"
+        },
+        "message": {
+          "const": "Recipient request outcome is unknown. Inspect status; do not submit again.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
+    "RecipientView": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "configurationGeneration": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            "configurationRevision": {
+              "const": 1
+            },
+            "input": {
+              "$ref": "#/$defs/RecipientInput"
+            },
+            "reason": {
+              "type": "null"
+            },
+            "requestId": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            "state": {
+              "const": "configured"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "configurationGeneration": {
+              "type": "null"
+            },
+            "configurationRevision": {
+              "const": 0
+            },
+            "input": {
+              "type": "null"
+            },
+            "reason": {
+              "type": "null"
+            },
+            "requestId": {
+              "type": "null"
+            },
+            "state": {
+              "const": "unconfigured"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "configurationGeneration": {
+              "type": "null"
+            },
+            "configurationRevision": {
+              "const": 0
+            },
+            "input": {
+              "type": "null"
+            },
+            "reason": {
+              "enum": [
+                "storage",
+                "foreign",
+                "unknown"
+              ]
+            },
+            "requestId": {
+              "type": "null"
+            },
+            "state": {
+              "enum": [
+                "unavailable",
+                "unknown"
+              ]
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "configurationGeneration": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "configurationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "identity": {
+          "$ref": "../archive/contracts.schema.json#/$defs/Identity"
+        },
+        "input": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecipientInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "storage",
+                "foreign",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requestId": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runtimeGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "unconfigured",
+            "configured",
+            "unavailable",
+            "unknown"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "configurationGeneration",
+        "configurationRevision",
+        "identity",
+        "input",
+        "reason",
+        "requestId",
+        "runtimeGeneration",
+        "state"
+      ],
+      "type": "object"
+    },
     "RefusalResult": {
       "additionalProperties": false,
       "properties": {

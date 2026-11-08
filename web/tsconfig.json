@@ -20,6 +20,7 @@
     "src/app.ts",
     "src/api/boundary.ts",
     "src/api/client.ts",
+    "src/api/recipient.ts",
     "src/api/catalog.ts",
     "src/api/preferences.ts",
     "src/api/local-session.ts",

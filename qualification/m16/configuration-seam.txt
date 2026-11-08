@@ -1,0 +1,25 @@
+M16.01 — FIXED PRIVATE RECIPIENT CONFIGURATION SEAM
+November 7, 2026 | M16-RECIPIENT-R2 | Fresh independent Sol / High PASS
+
+The reviewed native/service boundary saves and reopens one fixed private policy.
+Every fresh replacement request refuses, including equivalent content. Saving
+does not activate delivery or change any local notice original/target/receipt.
+
+- Full original model review passed before storage implementation. A distinct
+  complete Go/HTTP/generated/production-TypeScript seam review now passes.
+- Protected native storage, current authority, physical binding, exact generation,
+  short read/save reservation, guarded UNKNOWN and pure inspection are covered.
+- Native short-write/Sync/Close/rename/removal/cleanup and create-once faults pass.
+  Author checks pass 41 Go test/subtest events across three packages; independent
+  checks pass 32 across two packages. Production TS matrix passes four tests.
+- Fresh ordinary executable HTTP proof passes 73 assertions on default and actual
+  configured-workflow boards, exact reopen/refusal/local-notice conservation and
+  a separately labeled copied-foreign-sidecar refusal. All owned resources close.
+
+configuration-seam.json binds the exact 32-file source set, executable, model,
+independent reviews and retained current proof. Earlier failed attempts remain
+failed; no source or oracle was weakened to hide them.
+
+Recipient CLI/browser work remains M16.02. Full current joined qualification and
+the exact extracted review kit remain M16.04/.05. Future probes, effects and
+activation are absent. No physical power-loss or general-release claim follows.

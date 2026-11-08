@@ -12,7 +12,7 @@ import (
 	P "github.com/localswim/localswim/internal/contract/noticetext"
 )
 
-var models = []any{P.NoticeText{}, P.NoticeTextFacts{}, NoticeResponse{}, NoticeView{}, NoticeCut{}, NoticePair{}, NoticeLookup{}, NoticeControlRequest{}, NoticeLookupRequest{}, NoticeRetargetRequest{}, NoticeOutcomeUnknown{}, NoticeUnknownError{}, ActivityRead{}, ActivityView{}, ActivityEvent{}, ActivityCoverage{}, ActivityGap{}, FileAttribution{}, CardFile{}, CardFilesRead{}, CardFilesView{}, CardFileRead{}, CardFileView{}, AttentionLane{}, AttentionContext{}, BoardAttention{}, WorkflowAttentionChange{}, WorkflowPreviewRequest{}, WorkflowPreview{}, WorkflowRename{}, WorkflowRightsChange{}, WorkflowActorRightsChange{}, WorkflowChanges{}, WorkflowOccupancy{}, WorkflowApproval{}, WorkflowCapacity{}, Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardSearchRead{}, CardSearchView{}, CardSearchQuery{}, CardSummary{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, ConfiguredWorkspaceBoardRequest{}, ConfiguredWorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}, CatalogCount{}, CatalogAttention{}, CatalogActivity{}, WorkspaceCatalogEntry{}, WorkspaceCatalog{}, WorkspacePinReference{}, WorkspacePreferences{}, WorkspacePreferencesRequest{}, WorkspacePreferencesError{}}
+var models = []any{RecipientResponse{}, RecipientView{}, RecipientReference{}, RecipientInput{}, RecipientConfigureRequest{}, RecipientOutcomeUnknown{}, RecipientUnknownError{}, P.NoticeText{}, P.NoticeTextFacts{}, NoticeResponse{}, NoticeView{}, NoticeCut{}, NoticePair{}, NoticeLookup{}, NoticeControlRequest{}, NoticeLookupRequest{}, NoticeRetargetRequest{}, NoticeOutcomeUnknown{}, NoticeUnknownError{}, ActivityRead{}, ActivityView{}, ActivityEvent{}, ActivityCoverage{}, ActivityGap{}, FileAttribution{}, CardFile{}, CardFilesRead{}, CardFilesView{}, CardFileRead{}, CardFileView{}, AttentionLane{}, AttentionContext{}, BoardAttention{}, WorkflowAttentionChange{}, WorkflowPreviewRequest{}, WorkflowPreview{}, WorkflowRename{}, WorkflowRightsChange{}, WorkflowActorRightsChange{}, WorkflowChanges{}, WorkflowOccupancy{}, WorkflowApproval{}, WorkflowCapacity{}, Error{}, Conflict{}, RefusalResult{}, KnownIdentityUnknown{}, NonterminalRefusal{}, BoardRead{}, BoardView{}, CardSearchRead{}, CardSearchView{}, CardSearchQuery{}, CardSummary{}, CardRead{}, CardView{}, HistoryReference{}, HistoryRead{}, HistoryView{}, SessionGrant{}, SessionRead{}, CodeRequest{}, CodeSecret{}, ExchangeRequest{}, ExchangeSecret{}, CredentialSecret{}, SessionRevoked{}, CredentialError{}, CredentialResult{}, CredentialCLI{}, EmptyInput{}, ExportRequest{}, ExportResult{}, ExportStatus{}, SessionCodeResult{}, SessionCodeCLI{}, StandaloneRuntimeMode{}, WorkspaceRuntimeMode{}, BoardBootstrapRequest{}, LocalBootstrap{}, WorkspaceBootstrap{}, WorkspaceIdentity{}, WorkspaceProject{}, WorkspaceProjectRequest{}, WorkspaceBoardRequest{}, WorkspaceStatusRequest{}, ConfiguredWorkspaceBoardRequest{}, ConfiguredWorkspaceStatusRequest{}, WorkspaceProjects{}, WorkspaceMember{}, WorkspaceBoards{}, WorkspaceResolve{}, WorkspaceControlResult{}, WorkspaceControlError{}, CatalogCount{}, CatalogAttention{}, CatalogActivity{}, WorkspaceCatalogEntry{}, WorkspaceCatalog{}, WorkspacePinReference{}, WorkspacePreferences{}, WorkspacePreferencesRequest{}, WorkspacePreferencesError{}}
 
 // GeneratedFiles is pure and returns disjoint paths for the common generator.
 // Shared D02 rows reference the C03 artifact; command results reference C01.
@@ -130,6 +130,7 @@ func schema(t reflect.Type, inline bool) map[string]any {
 		fileSchema(t, m)
 		activitySchema(t, m)
 		noticeSchema(t, m)
+		recipientSchema(t, m)
 		if t == reflect.TypeFor[WorkspaceMember]() {
 			unavailable := []string{}
 			for _, v := range enums["WorkspaceAvailability"] {
@@ -183,6 +184,8 @@ func schema(t reflect.Type, inline bool) map[string]any {
 		case "UUID":
 			m["pattern"] = `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`
 			m["not"] = map[string]any{"const": "00000000-0000-0000-0000-000000000000"}
+		case "RecipientThreadID":
+			m["pattern"] = recipientThreadRE.String()
 		case "UUIDv4":
 			m["pattern"] = v4RE.String()
 		case "Digest":

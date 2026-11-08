@@ -71,6 +71,13 @@ func Readable(v any) ([]byte, error) {
 	if e := Validate(v); e != nil {
 		return nil, e
 	}
+	if limit := recipientByteLimit(reflect.Indirect(reflect.ValueOf(v)).Type()); limit > 0 {
+		b, e := A.Canonical(v)
+		if e != nil || len(b) > limit {
+			return nil, fmt.Errorf("recipient message exceeds limit")
+		}
+		return b, nil
+	}
 	var b []byte
 	var e error
 	if reflect.Indirect(reflect.ValueOf(v)).Type() == reflect.TypeFor[NoticeResponse]() {

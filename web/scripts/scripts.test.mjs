@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { webRoot } from './local-tool.mjs';
 import './localpost.test.mjs';
+import './recipient.test.mjs';
 
 function fixture(t) {
   const root = mkdtempSync(resolve(tmpdir(), 'localswim-package-scripts-'));

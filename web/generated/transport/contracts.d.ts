@@ -4,6 +4,53 @@
 import type * as Archive from '../archive/contracts';
 import type * as Mutation from '../contracts';
 
+export type RecipientResponse = {
+  readonly apiVersion: 1;
+  readonly result: RecipientView;
+  readonly scope: "recipient";
+};
+
+export type RecipientView = {
+  readonly configurationGeneration: string | null;
+  readonly configurationRevision: number;
+  readonly identity: Archive.Identity;
+  readonly input: RecipientInput | null;
+  readonly reason: "storage" | "foreign" | "unknown" | null;
+  readonly requestId: string | null;
+  readonly runtimeGeneration: string;
+  readonly state: "unconfigured" | "configured" | "unavailable" | "unknown";
+};
+
+export type RecipientReference = {
+  readonly kind: "codex-thread";
+  readonly threadId: string;
+};
+
+export type RecipientInput = {
+  readonly policy: "conservative-metadata-v1";
+  readonly recipient: RecipientReference;
+  readonly version: 1;
+};
+
+export type RecipientConfigureRequest = {
+  readonly expectedConfigurationRevision: number;
+  readonly expectedRuntimeGeneration: string;
+  readonly incarnation: string;
+  readonly input: RecipientInput;
+  readonly requestId: string;
+};
+
+export type RecipientOutcomeUnknown = {
+  readonly apiVersion: 1;
+  readonly error: RecipientUnknownError;
+  readonly outcome: "unknown";
+};
+
+export type RecipientUnknownError = {
+  readonly code: string;
+  readonly message: string;
+};
+
 export type NoticeText = {
   readonly facts: NoticeTextFacts | null;
   readonly kind: "complete" | "fallback";

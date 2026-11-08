@@ -27,6 +27,8 @@ import type { FileSelection, FileView } from "./files.js";
 import { RecipientRefusal, RecipientUnknown, validateRecipient } from "./recipient.js";
 import type { RecipientCommand } from "./recipient.js";
 import type { RecipientResponse, RecipientView } from "../../generated/transport/contracts.js";
+import { inspectInstallation } from "./installation.js";
+import type { InstallationInspectionResult } from "../../generated/transport/contracts.js";
 
 export class WorkflowPreviewRefusal extends Error {
   constructor(readonly code: string) { super("Workflow preview refused"); }
@@ -301,6 +303,15 @@ export class BoardClient {
     const result = (value as unknown as NoticeResponse).result;
     validateNotices(result, identity, command);
     return result;
+  }
+  async installationInspection(identity: Identity, expectedRuntimeGeneration: string, signal: AbortSignal,
+    assertCurrent: () => void): Promise<InstallationInspectionResult> {
+    identity = structuredClone(identity);
+    this.path(identity.boardId);
+    if (this.options.selection && identity.incarnation !== this.options.selection.incarnation) throw Error("Selected incarnation mismatch");
+    const credential = this.connection();
+    return inspectInstallation({ raw: (path, init) => this.raw(path, init), sameConnection: value => this.sameConnection(value),
+      assertCurrent: () => { this.sameConnection(credential); assertCurrent(); } }, identity, expectedRuntimeGeneration, signal);
   }
   async recipient(identity: Identity, command: RecipientCommand, signal: AbortSignal): Promise<RecipientView> {
     identity = structuredClone(identity); command = structuredClone(command);

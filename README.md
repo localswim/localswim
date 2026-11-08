@@ -1,5 +1,14 @@
 # localswim
 
+M17 adds deliberate installation inspection through the
+[ordinary browser](docs/runbooks/m17-installation-browser.txt) and
+[actual CLI](docs/runbooks/m17-installation-cli.txt). It reports a current
+candidate, absence from the supported installation location, or qualification
+not established. Inspection runs no installed command and establishes no
+version, capability or delivery readiness. The
+[inspection contract](docs/decisions/m17-installation-inspector-contract-2026-11-08.txt)
+records the supported managed installation and current-authority checks.
+
 M16 adds one fixed private recipient policy through the ordinary browser and
 [actual CLI](docs/runbooks/m16-recipient-cli.txt). Save once, reopen and inspect
 the exact binding; equivalent replacement requests refuse. The

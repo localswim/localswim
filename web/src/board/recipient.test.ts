@@ -1,10 +1,11 @@
 // Actual production DOM handlers, controlled asynchronous client responses.
 // The primary runs this probe in qualified Chrome; it is not ordinary HTTP proof.
-import type { RecipientView } from "../../generated/transport/contracts.js";
+import type { InstallationInspectionResult, RecipientView } from "../../generated/transport/contracts.js";
 import type { Identity } from "../../generated/archive/contracts.js";
 import { RecipientRefusal, RecipientUnknown } from "../api/recipient.js";
 import type { RecipientCommand } from "../api/recipient.js";
 import { BoardRecipient, RecipientMemory } from "./recipient.js";
+import { InstallationInspectionRefusal } from "../api/installation.js";
 const id = (n: number): string => "00000000-0000-4000-8000-" + String(n).padStart(12, "0");
 const context = { installationId: id(1), boardId: id(2), incarnation: id(3), actorId: id(4) };
 const empty: RecipientView = { identity: { boardId: context.boardId, incarnation: context.incarnation }, runtimeGeneration: id(5),
@@ -16,7 +17,7 @@ export async function runRecipientProbe(): Promise<number> {
   const calls: RecipientCommand[] = [];
   let result = structuredClone(empty), failure: unknown, hold = false;
   let release: ((value: RecipientView) => void) | undefined;
-  const client = { recipient: async (identity: Identity, command: RecipientCommand): Promise<RecipientView> => {
+  const client = { installationInspection: async (): Promise<never> => { throw Error("Unexpected installation inspection"); }, recipient: async (identity: Identity, command: RecipientCommand): Promise<RecipientView> => {
     calls.push(structuredClone(command));
     if (hold) return new Promise(resolve => { release = resolve; });
     if (failure) throw failure;
@@ -98,5 +99,99 @@ export async function runRecipientProbe(): Promise<number> {
     for (let i = 0; i < 20; i++) check(bounded.get(String(i)) !== undefined, "Bounded retained context " + i);
     check(bounded.get("21") === undefined && bounded.get("0") !== undefined, "Context capacity refuses without eviction");
   } finally { panel.suspend(); root.remove(); }
+  return checks;
+}
+
+// Controlled production DOM checks only. Actual selected-service metadata
+// observations belong to the separately executed parent browser journey.
+export async function runInstallationProbe(): Promise<number> {
+  let checks = 0, statusCalls = 0, inspectionCalls = 0, saveCalls = 0;
+  const check = (ok: boolean, label: string): void => { if (!ok) throw Error(label); checks++; };
+  let status = structuredClone(empty), outcome: InstallationInspectionResult = {
+    identity: { boardId: context.boardId, incarnation: context.incarnation }, runtimeGeneration: id(5), state: "candidate", code: "CANDIDATE_PRESENT" };
+  let fail: unknown, heldStatus = false, heldInspection = false;
+  let releaseStatus: ((value: RecipientView) => void) | undefined;
+  let releaseInspection: ((value: InstallationInspectionResult) => void) | undefined;
+  let savedCommand: Extract<RecipientCommand, { action: "configure" }> | undefined;
+  const client = {
+    recipient: async (_identity: Identity, command: RecipientCommand): Promise<RecipientView> => {
+      if (command.action === "configure") { saveCalls++; savedCommand = command; throw new RecipientUnknown(); }
+      statusCalls++;
+      if (heldStatus) return new Promise(resolve => { releaseStatus = resolve; });
+      return structuredClone(status);
+    },
+    installationInspection: async (_identity: Identity, generation: string, _signal: AbortSignal, guard: () => void): Promise<InstallationInspectionResult> => {
+      inspectionCalls++; check(generation === status.runtimeGeneration, "Inspection uses same-action status generation"); guard();
+      if (heldInspection) return new Promise(resolve => { releaseInspection = resolve; });
+      if (fail) throw fail;
+      return structuredClone(outcome);
+    },
+  };
+  const root = document.createElement("div"), view = new BoardRecipient(client, new RecipientMemory());
+  root.append(view.host); document.body.append(root);
+  const button = (name: string): HTMLButtonElement => [...root.querySelectorAll("button")].find(node => node.textContent === name)!;
+  const input = (): HTMLInputElement => root.querySelector("input")!;
+  const open = (): void => button("Recipient policy").click();
+  const inspect = async (): Promise<void> => { button("Inspect installation").click(); await tick(); };
+  const choose = (selected = context): void => {
+    view.boardRead(selected); status = { ...empty, identity: { boardId: selected.boardId, incarnation: selected.incarnation } };
+    outcome = { ...outcome, identity: status.identity, runtimeGeneration: status.runtimeGeneration }; open();
+  };
+  try {
+    choose();
+    check(statusCalls === 0 && inspectionCalls === 0, "Mount and open do not inspect or read automatically");
+    check(button("Inspect installation").type === "button", "Inspection cannot implicitly submit a form");
+    input().value = id(7); input().dispatchEvent(new Event("input")); input().focus();
+    await inspect();
+    check(statusCalls === 1 && inspectionCalls === 1 && saveCalls === 0, "One deliberate status and one inspect GET; no save");
+    check(root.textContent!.includes("Candidate present; no command was run"), "Candidate wording makes no invocation claim");
+    check(input().value === id(7) && document.activeElement === input(), "Inspection preserves recipient input and focus");
+    outcome = { ...outcome, state: "missing", code: "TOOL_MISSING" }; await inspect();
+    check(root.textContent!.includes("No candidate in the supported installation location") && !root.textContent!.includes("not installed"), "Missing is scoped to supported location");
+    for (const code of ["PATH_UNQUALIFIED", "INSPECTION_UNKNOWN", "INSPECTION_TIMED_OUT"] as const) {
+      outcome = { ...outcome, state: "unqualified", code }; await inspect();
+      check(root.textContent!.includes("Qualification not established"), "Unqualified is not unsafe or ready: " + code);
+      check(root.textContent!.includes(code === "PATH_UNQUALIFIED" ? "This installation was not qualified by the supported inspection policy" : "Inspection could not complete"), "Exact policy/incomplete wording " + code);
+    }
+    heldInspection = true; void inspect(); await tick(); const before = inspectionCalls;
+    button("Inspect installation").click(); await tick(); check(inspectionCalls === before, "Busy duplicate click has no second request");
+    releaseInspection!(structuredClone(outcome)); await tick(); heldInspection = false;
+
+    for (const transition of ["selection", "close", "authority", "suspend"]) {
+      choose(); heldInspection = true; void inspect(); await tick(); const release = releaseInspection!;
+      if (transition === "selection") { view.selectionChanging(true); choose({ ...context, boardId: id(20), incarnation: id(21) }); view.selectionChanging(false); view.selectionChanging(true); choose(); view.selectionChanging(false); }
+      if (transition === "close") button("Close recipient policy").click();
+      if (transition === "authority") view.reset();
+      if (transition === "suspend") { view.suspend(); view.resume(); }
+      open(); release({ ...outcome, state: "candidate", code: "CANDIDATE_PRESENT" }); await tick();
+      check(!root.textContent!.includes("Candidate present"), "Late result discarded after " + transition);
+      heldInspection = false;
+    }
+    choose(); heldStatus = true; const count = inspectionCalls; void inspect(); await tick();
+    view.suspend(); view.resume(); open(); releaseStatus!(status); await tick(); heldStatus = false;
+    check(inspectionCalls === count, "Late status cannot start inspection after suspend");
+
+    choose({ ...context, boardId: id(30), incarnation: id(31) });
+    button("Read recipient status").click(); await tick(); input().value = id(32); input().dispatchEvent(new Event("input"));
+    button("Save once").click(); await tick();
+    check(saveCalls === 1 && root.textContent!.includes("Save outcome UNKNOWN"), "Controlled original remains pending for inspection test");
+    status = { ...status, state: "configured", configurationRevision: 1, configurationGeneration: id(33),
+      requestId: savedCommand!.requestId, input: savedCommand!.input };
+    outcome = { ...outcome, identity: status.identity, state: "candidate", code: "CANDIDATE_PRESENT" };
+    await inspect();
+    check(!root.textContent!.includes("Original save confirmed") && root.textContent!.includes("Save outcome UNKNOWN") && saveCalls === 1,
+      "Inspection status cannot settle/replay a recipient original");
+    check(input().value === id(32), "Unknown original input remains exact");
+    button("Read recipient status").click(); await tick();
+    check(root.textContent!.includes("Codex chat:"), "Configured facts available before denied inspection");
+    fail = new InstallationInspectionRefusal("FORBIDDEN"); await inspect();
+    check(!root.textContent!.includes("Codex chat:") && !root.textContent!.includes("Candidate present"), "Authority refusal clears displayed private facts and observation");
+    check(input().value === id(32), "Authority loss retains bounded input");
+    fail = undefined;
+    const separate = new BoardRecipient(client, new RecipientMemory()); root.append(separate.host); separate.boardRead(context);
+    check(!separate.host.textContent!.includes("Candidate present"), "Another window view has no inspection observation"); separate.suspend(); separate.host.remove();
+    button("Close recipient policy").focus(); button("Close recipient policy").click();
+    check(document.activeElement === button("Recipient policy"), "Close restores explicit opener focus");
+  } finally { view.suspend(); root.remove(); }
   return checks;
 }

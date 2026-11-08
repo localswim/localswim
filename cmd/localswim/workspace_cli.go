@@ -29,6 +29,7 @@ const workspaceCLIHelp = `  localswim --workspace DIR [--json] workspace catalog
   localswim --workspace DIR --project PROJECT --board BOARD [--json] board read
   localswim --workspace DIR --project PROJECT --board BOARD [--json] activity read [--from UTC --through UTC | --cursor TOKEN]
   localswim --workspace DIR --project PROJECT --board BOARD [--json] recipient status
+  localswim --workspace DIR --project PROJECT --board BOARD [--json] recipient tool inspect
   localswim --workspace DIR --project PROJECT --board BOARD [--json] recipient configure --input PRIVATE.json
   localswim --workspace DIR --project PROJECT --board BOARD [--json] notices configure|start|status|inbox|stop|recover|reload
   localswim --workspace DIR --project PROJECT --board BOARD [--json] notices retarget --target-id UUID

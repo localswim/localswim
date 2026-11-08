@@ -12,7 +12,7 @@ const root = mkdtempSync(resolve(tmpdir(), 'localswim-installation-api-'));
 const output = resolve(root, 'js');
 writeFileSync(resolve(root, 'package.json'), '{"type":"module"}\n');
 writeFileSync(resolve(root, 'tsconfig.json'), JSON.stringify({ extends: resolve(webRoot, 'tsconfig.json'),
-  files: [resolve(webRoot, 'src/api/installation.ts')], compilerOptions: { outDir: output } }));
+  files: [resolve(webRoot, 'src/api/installation.ts'), resolve(webRoot, 'src/api/client.ts'), resolve(webRoot, 'src/board/recipient.test.ts')], compilerOptions: { outDir: output } }));
 after(() => {
   const target = realpathSync(root);
   assert.equal(dirname(target), realpathSync(tmpdir()));
@@ -23,6 +23,7 @@ const built = spawnSync(process.execPath, [localTool('typescript', 'tsc'), '-p',
   { cwd: webRoot, encoding: 'utf8', timeout: 120_000 });
 assert.equal(built.status, 0, built.stdout + built.stderr);
 const api = await import(pathToFileURL(resolve(output, 'api/installation.js')));
+const { BoardClient } = await import(pathToFileURL(resolve(output, 'api/client.js')));
 const { parse, validate } = await import(pathToFileURL(resolve(output, 'api/boundary.js')));
 const vectors = JSON.parse(readFileSync(resolve(webRoot, '../internal/contract/transport/testdata/installation-inspection-vectors.json'), 'utf8'));
 const identity = { boardId: '00000000-0000-4000-8000-000000000002', incarnation: '00000000-0000-4000-8000-000000000003' };
@@ -153,4 +154,25 @@ test('installation response streaming enforces media, bytes, UTF-8 and cancellat
   }), { headers }) });
   await assert.rejects(lateBody.run(), api.InstallationInspectionUnavailable);
   assert.equal(cancelled, true);
+});
+
+test('BoardClient installation method delegates only through its current authenticated selected transport', async () => {
+  const client = Object.create(BoardClient.prototype);
+  client.options = { selection: identity };
+  client.path = board => { assert.equal(board, identity.boardId); return '/api/v1/boards/' + board; };
+  client.connection = () => 'current';
+  client.sameConnection = credential => { assert.equal(credential, 'current'); };
+  let calls = 0, checks = 0;
+  client.raw = async (path, init) => {
+    calls++;
+    assert.equal(path, api.installationInspectionPath(identity, generation));
+    assert.equal(init.method, 'GET'); assert.equal(init.body, undefined);
+    return { response: new Response(JSON.stringify(response()), { headers }), credential: 'current' };
+  };
+  assert.deepEqual(await client.installationInspection(identity, generation, new AbortController().signal, () => { checks++; }), response().result);
+  assert.equal(calls, 1); assert.ok(checks >= 3);
+  await assert.rejects(client.installationInspection({ ...identity, incarnation: other }, generation, new AbortController().signal, () => {}));
+  assert.equal(calls, 1, 'foreign selected incarnation never dispatches');
+  await assert.rejects(client.installationInspection(identity, generation, new AbortController().signal, () => { throw Error('stale view'); }), api.InstallationInspectionUnavailable);
+  assert.equal(calls, 1, 'stale current view never dispatches');
 });

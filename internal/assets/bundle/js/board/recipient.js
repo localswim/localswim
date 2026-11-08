@@ -1,4 +1,5 @@
 import { RecipientRefusal, sameRecipientInput } from "../api/recipient.js";
+import { InstallationInspectionRefusal, validateInstallationInspection } from "../api/installation.js";
 import { button, element } from "../recovery-ui/view.js";
 // One ES module instance per window. No browser storage, timer or durable journal.
 export class RecipientMemory {
@@ -24,6 +25,7 @@ export class BoardRecipient {
     facts = element("div");
     originalResult = element("p");
     input = element("input");
+    inspection = element("p");
     open = button("Recipient policy", () => {
         if (this.open.disabled || !this.panel.hidden)
             return;
@@ -35,6 +37,7 @@ export class BoardRecipient {
     });
     read = button("Read recipient status", () => { void this.run({ action: "status" }); });
     save = button("Save once", () => this.configure());
+    inspect = button("Inspect installation", () => { void this.inspectInstallation(); });
     context;
     draft;
     displayed;
@@ -50,6 +53,8 @@ export class BoardRecipient {
         this.panel.setAttribute("aria-label", "Recipient policy");
         this.open.setAttribute("aria-expanded", "false");
         this.message.setAttribute("role", "status");
+        this.inspection.setAttribute("aria-live", "polite");
+        this.inspection.setAttribute("aria-label", "Installation inspection");
         this.input.maxLength = 1024;
         this.input.autocomplete = "off";
         this.input.spellcheck = false;
@@ -74,7 +79,7 @@ export class BoardRecipient {
                 this.close();
             }
         });
-        this.panel.append(element("h2", "Recipient policy"), element("p", "Save one private Codex chat reference with the conservative metadata policy. Saving does not activate delivery. This reference cannot be replaced here."), label, this.read, this.save, this.message, this.originalResult, this.facts, button("Close recipient policy", () => this.close()));
+        this.panel.append(element("h2", "Recipient policy"), element("p", "Save one private Codex chat reference with the conservative metadata policy. Saving does not activate delivery. This reference cannot be replaced here."), label, this.read, this.save, this.inspect, this.message, this.originalResult, this.facts, this.inspection, button("Close recipient policy", () => this.close()));
         this.host.append(this.open, this.panel);
         this.update();
     }
@@ -100,6 +105,7 @@ export class BoardRecipient {
         this.panel.hidden = true;
         this.facts.replaceChildren();
         this.originalResult.textContent = "";
+        this.inspection.textContent = "";
         this.open.setAttribute("aria-expanded", "false");
         this.update();
         if (restoreFocus && ownedFocus && !this.open.disabled)
@@ -112,6 +118,7 @@ export class BoardRecipient {
         const locked = !!original && original.outcome !== "refused";
         this.input.readOnly = busy || locked;
         this.read.setAttribute("aria-disabled", String(!available || busy || this.panel.hidden));
+        this.inspect.setAttribute("aria-disabled", String(!available || busy || this.panel.hidden));
         this.save.setAttribute("aria-disabled", String(!available || busy || this.panel.hidden || !this.draft || locked ||
             this.displayed?.state !== "unconfigured" || !thread.test(this.input.value)));
     }
@@ -125,6 +132,55 @@ export class BoardRecipient {
         this.draft.original = { command: structuredClone(command), outcome: "pending" };
         void this.run(command);
     }
+    async inspectInstallation() {
+        const context = this.context;
+        if (!context || this.inspect.getAttribute("aria-disabled") === "true")
+            return;
+        const key = scopeKey(context), request = new AbortController(), epoch = ++this.epoch;
+        const identity = { boardId: context.boardId, incarnation: context.incarnation };
+        this.request = request;
+        this.inspection.textContent = "Inspecting installation…";
+        this.update();
+        const current = () => this.request === request && this.epoch === epoch && !!this.context && scopeKey(this.context) === key &&
+            !this.suspended && !this.selecting && !this.panel.hidden && !request.signal.aborted;
+        try {
+            // This read only obtains the current engine generation for this action.
+            // It cannot settle, repaint or change an original recipient save.
+            const status = await this.client.recipient(identity, { action: "status" }, request.signal);
+            if (!current())
+                return;
+            const result = await this.client.installationInspection(identity, status.runtimeGeneration, request.signal, () => {
+                if (!current())
+                    throw Error("Inspection view changed");
+            });
+            if (!current())
+                return;
+            validateInstallationInspection(result, identity, status.runtimeGeneration);
+            this.inspection.textContent = result.state === "candidate" ? "Candidate present; no command was run" :
+                result.state === "missing" ? "No candidate in the supported installation location" :
+                    "Qualification not established. " + (result.code === "INSPECTION_UNKNOWN" || result.code === "INSPECTION_TIMED_OUT"
+                        ? "Inspection could not complete" : "This installation was not qualified by the supported inspection policy");
+        }
+        catch (error) {
+            if (current()) {
+                if ((error instanceof InstallationInspectionRefusal || error instanceof RecipientRefusal) &&
+                    ["UNAUTHENTICATED", "FORBIDDEN", "IDENTITY_CHANGED"].includes(error.code)) {
+                    this.displayed = undefined;
+                    this.facts.replaceChildren();
+                    this.originalResult.textContent = "";
+                }
+                this.inspection.textContent = error instanceof InstallationInspectionRefusal
+                    ? "Installation inspection refused (" + error.code + "). Inspect again only as a new deliberate action."
+                    : "Installation inspection unavailable. No qualification was established.";
+            }
+        }
+        finally {
+            if (this.request === request) {
+                this.request = undefined;
+                this.update();
+            }
+        }
+    }
     async run(command) {
         const context = this.context, draft = this.draft;
         if (!context || this.suspended || this.selecting || this.panel.hidden || this.request ||
@@ -134,6 +190,7 @@ export class BoardRecipient {
         const original = command.action === "configure" ? draft?.original : undefined;
         const identity = { boardId: context.boardId, incarnation: context.incarnation };
         this.request = request;
+        this.inspection.textContent = "";
         this.message.textContent = command.action === "status" ? "Reading recipient policy…" : "Saving recipient policy once…";
         this.update();
         const current = () => this.request === request && this.epoch === epoch && !!this.context && scopeKey(this.context) === key &&

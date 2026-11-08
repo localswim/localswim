@@ -1,0 +1,36 @@
+Inspect the supported installation without running it
+
+Open the ordinary local board, or select the exact board in the workspace.
+Choose Recipient policy, then Inspect installation deliberately. The action
+reads the current engine generation and requests one installation inspection.
+Opening the panel, reading recipient status, reconnecting or navigating does
+not inspect automatically. Inspection does not save a recipient or run Codex.
+
+Interpret the result
+- Candidate present; no command was run: current installation metadata passed
+  the supported inspection policy. This is not an executable version, interface,
+  capability, target permission, delivery or future launch-readiness result.
+- No candidate in the supported installation location: that bounded location
+  or its qualified executable was absent. Another installation may exist.
+- Qualification not established: the supported inspection policy could not
+  qualify this installation. This does not declare it unsafe or unusable.
+  Inspection could not complete means required evidence was unavailable or the
+  inspection deadline elapsed; a definite policy refusal is labeled separately.
+
+While an inspection is pending, duplicate inspection and recipient-save actions
+are disabled. Your recipient draft, saved policy, unresolved original save and
+card editor remain separate. Inspection cannot settle or replay a recipient save.
+It also works before a recipient has been configured and adds no delivery right.
+
+Close recipient policy or Escape cancels waiting and returns focus to its opener.
+Navigation, an authority change or a host-generation change clears the displayed
+observation. A late response cannot paint another board, a reopened panel or
+another window. Native cleanup can continue under the service's ownership after
+the browser stops waiting; closing the panel does not prove that cleanup ended.
+
+On refused or unavailable inspection, retain your input and inspect again only
+as a new deliberate action if needed. No automatic retry, install, command, Stop,
+Copy, activation or delivery action is provided. The same-origin selected-board
+service remains authoritative; private paths, hashes and signer details are not
+displayed. The existing M16 recipient and M12-M15 notice controls keep their own
+scope, original evidence and recovery rules.

@@ -10,6 +10,7 @@ import { validSearch, validateSearchRead } from "./search.js";
 import { laneRole, sameWorkflow, validateWorkflowPolicies, workflowAtVersion, validateCurrentWorkflowCards, validateWorkflowPreview } from "./workflow.js";
 import { fileReadMaximum, FilesReadRefusal, validateFileRead, validateFilesRead } from "./files.js";
 import { RecipientRefusal, RecipientUnknown, validateRecipient } from "./recipient.js";
+import { inspectInstallation } from "./installation.js";
 export class WorkflowPreviewRefusal extends Error {
     code;
     constructor(code) {
@@ -319,6 +320,15 @@ export class BoardClient {
         const result = value.result;
         validateNotices(result, identity, command);
         return result;
+    }
+    async installationInspection(identity, expectedRuntimeGeneration, signal, assertCurrent) {
+        identity = structuredClone(identity);
+        this.path(identity.boardId);
+        if (this.options.selection && identity.incarnation !== this.options.selection.incarnation)
+            throw Error("Selected incarnation mismatch");
+        const credential = this.connection();
+        return inspectInstallation({ raw: (path, init) => this.raw(path, init), sameConnection: value => this.sameConnection(value),
+            assertCurrent: () => { this.sameConnection(credential); assertCurrent(); } }, identity, expectedRuntimeGeneration, signal);
     }
     async recipient(identity, command, signal) {
         identity = structuredClone(identity);

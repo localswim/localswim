@@ -3,6 +3,7 @@ import type { RecipientInput, RecipientView } from "../../generated/transport/co
 import type { BoardClient } from "../api/client.js";
 import { RecipientRefusal, sameRecipientInput } from "../api/recipient.js";
 import type { RecipientCommand } from "../api/recipient.js";
+import { InstallationInspectionRefusal, validateInstallationInspection } from "../api/installation.js";
 import type { Context } from "../recovery/types.js";
 import { button, element } from "../recovery-ui/view.js";
 
@@ -28,6 +29,7 @@ export class BoardRecipient {
   private readonly facts = element("div");
   private readonly originalResult = element("p");
   private readonly input = element("input");
+  private readonly inspection = element("p");
   private readonly open = button("Recipient policy", () => {
     if (this.open.disabled || !this.panel.hidden) return;
     this.panel.hidden = false; this.open.setAttribute("aria-expanded", "true");
@@ -37,6 +39,7 @@ export class BoardRecipient {
   });
   private readonly read = button("Read recipient status", () => { void this.run({ action: "status" }); });
   private readonly save = button("Save once", () => this.configure());
+  private readonly inspect = button("Inspect installation", () => { void this.inspectInstallation(); });
   private context?: Context;
   private draft?: Draft;
   private displayed?: RecipientView;
@@ -45,11 +48,13 @@ export class BoardRecipient {
   private suspended = false;
   private selecting = false;
 
-  constructor(private readonly client: Pick<BoardClient, "recipient">, private readonly memory = windowMemory) {
+  constructor(private readonly client: Pick<BoardClient, "recipient" | "installationInspection">, private readonly memory = windowMemory) {
     this.panel.hidden = true; this.panel.className = "board-recipient";
     this.panel.setAttribute("aria-label", "Recipient policy");
     this.open.setAttribute("aria-expanded", "false");
     this.message.setAttribute("role", "status");
+    this.inspection.setAttribute("aria-live", "polite");
+    this.inspection.setAttribute("aria-label", "Installation inspection");
     this.input.maxLength = 1024; this.input.autocomplete = "off"; this.input.spellcheck = false;
     const label = element("label", "Codex chat UUID"); label.append(this.input);
     this.input.addEventListener("input", () => {
@@ -63,7 +68,7 @@ export class BoardRecipient {
     });
     this.panel.append(element("h2", "Recipient policy"),
       element("p", "Save one private Codex chat reference with the conservative metadata policy. Saving does not activate delivery. This reference cannot be replaced here."),
-      label, this.read, this.save, this.message, this.originalResult, this.facts,
+      label, this.read, this.save, this.inspect, this.message, this.originalResult, this.facts, this.inspection,
       button("Close recipient policy", () => this.close()));
     this.host.append(this.open, this.panel); this.update();
   }
@@ -82,6 +87,7 @@ export class BoardRecipient {
     const ownedFocus = this.panel.contains(document.activeElement);
     this.epoch++; this.request?.abort(); this.request = undefined; this.displayed = undefined;
     this.panel.hidden = true; this.facts.replaceChildren(); this.originalResult.textContent = "";
+    this.inspection.textContent = "";
     this.open.setAttribute("aria-expanded", "false"); this.update();
     if (restoreFocus && ownedFocus && !this.open.disabled) this.open.focus({ preventScroll: true });
   }
@@ -92,6 +98,7 @@ export class BoardRecipient {
     const locked = !!original && original.outcome !== "refused";
     this.input.readOnly = busy || locked;
     this.read.setAttribute("aria-disabled", String(!available || busy || this.panel.hidden));
+    this.inspect.setAttribute("aria-disabled", String(!available || busy || this.panel.hidden));
     this.save.setAttribute("aria-disabled", String(!available || busy || this.panel.hidden || !this.draft || locked ||
       this.displayed?.state !== "unconfigured" || !thread.test(this.input.value)));
   }
@@ -104,6 +111,42 @@ export class BoardRecipient {
     this.draft.original = { command: structuredClone(command), outcome: "pending" };
     void this.run(command);
   }
+  private async inspectInstallation(): Promise<void> {
+    const context = this.context;
+    if (!context || this.inspect.getAttribute("aria-disabled") === "true") return;
+    const key = scopeKey(context), request = new AbortController(), epoch = ++this.epoch;
+    const identity: Identity = { boardId: context.boardId, incarnation: context.incarnation };
+    this.request = request; this.inspection.textContent = "Inspecting installation…"; this.update();
+    const current = (): boolean => this.request === request && this.epoch === epoch && !!this.context && scopeKey(this.context) === key &&
+      !this.suspended && !this.selecting && !this.panel.hidden && !request.signal.aborted;
+    try {
+      // This read only obtains the current engine generation for this action.
+      // It cannot settle, repaint or change an original recipient save.
+      const status = await this.client.recipient(identity, { action: "status" }, request.signal);
+      if (!current()) return;
+      const result = await this.client.installationInspection(identity, status.runtimeGeneration, request.signal, () => {
+        if (!current()) throw Error("Inspection view changed");
+      });
+      if (!current()) return;
+      validateInstallationInspection(result, identity, status.runtimeGeneration);
+      this.inspection.textContent = result.state === "candidate" ? "Candidate present; no command was run" :
+        result.state === "missing" ? "No candidate in the supported installation location" :
+        "Qualification not established. " + (result.code === "INSPECTION_UNKNOWN" || result.code === "INSPECTION_TIMED_OUT"
+          ? "Inspection could not complete" : "This installation was not qualified by the supported inspection policy");
+    } catch (error) {
+      if (current()) {
+        if ((error instanceof InstallationInspectionRefusal || error instanceof RecipientRefusal) &&
+            ["UNAUTHENTICATED", "FORBIDDEN", "IDENTITY_CHANGED"].includes(error.code)) {
+          this.displayed = undefined; this.facts.replaceChildren(); this.originalResult.textContent = "";
+        }
+        this.inspection.textContent = error instanceof InstallationInspectionRefusal
+          ? "Installation inspection refused (" + error.code + "). Inspect again only as a new deliberate action."
+          : "Installation inspection unavailable. No qualification was established.";
+      }
+    } finally {
+      if (this.request === request) { this.request = undefined; this.update(); }
+    }
+  }
   private async run(command: RecipientCommand): Promise<void> {
     const context = this.context, draft = this.draft;
     if (!context || this.suspended || this.selecting || this.panel.hidden || this.request ||
@@ -111,7 +154,7 @@ export class BoardRecipient {
     const key = scopeKey(context), request = new AbortController(), epoch = ++this.epoch;
     const original = command.action === "configure" ? draft?.original : undefined;
     const identity: Identity = { boardId: context.boardId, incarnation: context.incarnation };
-    this.request = request; this.message.textContent = command.action === "status" ? "Reading recipient policy…" : "Saving recipient policy once…"; this.update();
+    this.request = request; this.inspection.textContent = ""; this.message.textContent = command.action === "status" ? "Reading recipient policy…" : "Saving recipient policy once…"; this.update();
     const current = (): boolean => this.request === request && this.epoch === epoch && !!this.context && scopeKey(this.context) === key &&
       !this.suspended && !this.selecting && !this.panel.hidden && !request.signal.aborted;
     try {

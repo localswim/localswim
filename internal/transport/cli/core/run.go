@@ -126,7 +126,8 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 		if uuid(q.selected.BoardID) {
 			board = q.selected.BoardID
 		}
-		if _, e = fmt.Fprintf(stdout, "%s board %s\n", label, board); e != nil {
+		header := fmt.Sprintf("%s board %s\n", label, board)
+		if n, err := io.WriteString(stdout, header); err != nil || q.kind == installationInspectKind && n != len(header) {
 			return reportOutputFailure(out.exit, q, stderr)
 		}
 		if h, ok := out.value.(HierarchyRead); out.exit == 0 && ok {
@@ -175,12 +176,18 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 }
 func reportOutputFailure(exit int, q invocation, stderr io.Writer) int {
 	result := outputFailure(exit, q)
+	if q.kind == installationInspectKind && stderr != nil {
+		_, _ = io.WriteString(stderr, "UNAVAILABLE\n")
+	}
 	if result == 4 && q.kind == "recipient configure" && stderr != nil {
 		_, _ = io.WriteString(stderr, "OUTCOME_UNKNOWN\n")
 	}
 	return result
 }
 func outputFailure(exit int, q invocation) int {
+	if q.kind == installationInspectKind {
+		return 3
+	}
 	mayHaveChanged := q.command != "" || q.method == "POST" && (strings.HasPrefix(q.kind, "notices ") || q.kind == "recipient configure")
 	if q.lookup || mayHaveChanged && (exit == 0 || exit == 4) {
 		return 4

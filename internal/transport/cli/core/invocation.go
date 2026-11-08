@@ -54,13 +54,24 @@ func parse(args []string) (q invocation, code string, exit int) {
 	group, action := args[i], args[i+1]
 	i += 2
 	q.kind = group + " " + action
+	if q.kind == "recipient tool" {
+		// Trailing malformed words cannot turn this read-only grammar into an
+		// original-operation lookup with mutation-uncertainty exit semantics.
+		q.lookup = false
+		if i >= len(args) || args[i] != "inspect" {
+			return q, "INVOCATION_OR_IO", 1
+		}
+		i++
+		q.kind = installationInspectKind
+		action = "tool/inspect"
+	}
 	switch q.kind {
 	case "card list", "card search":
 		q.method = "GET"
 		q.archive = "active"
 	case "board read", "workflow show", "attention show", "activity read":
 		q.method = "GET"
-	case "recipient status", "notices status", "notices inbox", "notices text":
+	case "recipient status", installationInspectKind, "notices status", "notices inbox", "notices text":
 		q.method = "GET"
 	case "recipient configure", "notices configure", "notices start", "notices stop", "notices recover", "notices reload", "notices retarget", "notices lookup":
 		q.method = "POST"

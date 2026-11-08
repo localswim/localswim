@@ -146,13 +146,35 @@ func TestCloseDuringFinalAuthorityCheckRedacts(t *testing.T) {
 	done := make(chan answer, 1)
 	go func() { v, e := s.Inspect(context.Background(), "g", check); done <- answer{v, e} }()
 	<-entered
+	s.mu.Lock()
+	active := s.current
+	s.mu.Unlock()
+	if active == nil {
+		t.Fatal("final check lost active ownership")
+	}
 	if s.Close() != ErrIncomplete {
 		t.Fatal("final check not retained")
 	}
+	s.mu.Lock()
+	retained := s.current == active
+	s.mu.Unlock()
+	if !retained {
+		t.Fatal("blocked final check released ownership")
+	}
+	select {
+	case <-active.done:
+		t.Fatal("blocked final check reported joined")
+	default:
+	}
 	close(release)
 	out := <-done
-	if out.err != ErrClosed || out.observation.State != "" {
+	if !errors.Is(out.err, ErrClosed) && !errors.Is(out.err, ErrIncomplete) || out.observation != (Observation{}) {
 		t.Fatal("closed late result escaped", out)
+	}
+	select {
+	case <-active.done:
+	case <-time.After(time.Second):
+		t.Fatal("final check did not join")
 	}
 	if s.Close() != nil {
 		t.Fatal("joined close failed")

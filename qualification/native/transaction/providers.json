@@ -581,7 +581,7 @@
   },
   {
     "path": "internal/board/installation/inspection_test.go",
-    "sha256": "266c9713c32f7a0ca38b4475910e03fae10e95bb5a2f250a418c283c79817670"
+    "sha256": "6b84459fc6ac7e11f0ad519f16547a0c98bf53ffd4e1f1334323dc31a758cc4f"
   },
   {
     "path": "internal/board/installation/native_unsupported.go",

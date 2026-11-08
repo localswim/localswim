@@ -88,10 +88,32 @@ func (s *Inspector) checked(ctx context.Context, check Check) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := check(ctx); err != nil {
-		return err
+	err := check(ctx)
+	// A cancelled check can translate its cancellation into an authority/storage
+	// error. Only a live-context callback result is a current observation.
+	if contextErr := ctx.Err(); contextErr != nil {
+		return contextErr
 	}
-	return ctx.Err()
+	return err
+}
+
+// A non-context error from checked was observed before its context cancelled.
+// Later orderly stopping must not erase it. A nested context error while the
+// outer check is still live also remains an authoritative failure.
+func observedCheckFailure(ctx context.Context, err error) bool {
+	return err != nil && (ctx.Err() == nil || (!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)))
+}
+
+// Classify the returned preparation cause, rather than a later context state.
+// The engine still resolves owned cleanup before publishing joined=true.
+func preparationCauseObservation(err error) ProbeObservation {
+	code := "EXIT_FAILED"
+	if errors.Is(err, context.DeadlineExceeded) {
+		code = "TIMED_OUT"
+	} else if errors.Is(err, context.Canceled) {
+		code = "CANCELLED"
+	}
+	return nativeFailure(code, true)
 }
 
 // beginControl retains each started admission independently of its HTTP caller.
@@ -293,7 +315,10 @@ func (s *Inspector) runProbe(caller, work context.Context, a *active, check Chec
 					return
 				case <-ticker.C:
 					if err := s.checked(watchCtx, check); err != nil {
-						if watchCtx.Err() == nil || (!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)) {
+						// checked normalizes cancellation at callback completion. Preserve
+						// a completed live-context failure even if this watcher is stopped
+						// before it records that already observed failure.
+						if observedCheckFailure(watchCtx, err) {
 							s.mu.Lock()
 							if a.refusal == nil {
 								a.refusal = err

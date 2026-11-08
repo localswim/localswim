@@ -16,14 +16,15 @@ var trustVerify = trustDLL.NewProc("WinVerifyTrust")
 var providerData = trustDLL.NewProc("WTHelperProvDataFromStateData")
 var providerSigner = trustDLL.NewProc("WTHelperGetProvSignerFromChain")
 
-// Native SDK prefixes, through the fields read. Pointer fields use uintptr/pointers
-// so Go's Windows/amd64 ABI inserts the required eight-byte alignment.
+// Native SDK prefixes, through the fields read. Native address words remain
+// uintptr, so copied provider bytes can never become Go pointer fields. The
+// Windows/amd64 ABI inserts the SDK's required eight-byte alignment.
 type providerPrefix struct {
 	Size                    uint32
-	Data                    *windows.WinTrustData
+	Data                    uintptr
 	Opened                  uint32
 	Window                  windows.Handle
-	Action                  *windows.GUID
+	Action                  uintptr
 	Provider                windows.Handle
 	Error, Security, Policy uint32
 	Functions               uintptr
@@ -35,12 +36,22 @@ type providerPrefix struct {
 	Message                 windows.Handle
 	SignerCount             uint32
 	Signers                 uintptr
+	PrivateCount            uint32
+	PrivateData             uintptr
+	SubjectChoice           uint32
+	Subject                 uintptr
+	UsageOID                uintptr
+	Recall                  int32
+	SystemTime              windows.Filetime
+	CTLSignerUsageOID       uintptr
+	Flags                   uint32
+	FinalError              uint32
 }
 type signerPrefix struct {
 	Size                uint32
 	Verified            windows.Filetime
 	Count               uint32
-	Certificates        *providerCertificate
+	Certificates        uintptr
 	Type                uint32
 	Signer              uintptr
 	Error, CounterCount uint32
@@ -49,8 +60,19 @@ type signerPrefix struct {
 }
 type providerCertificate struct {
 	Size        uint32
-	Certificate *windows.CertContext
+	Certificate uintptr
 }
+
+// CERT_CONTEXT has no cbStruct. Mirror its fixed Windows/amd64 SDK layout using
+// address words, never Go pointers populated by untrusted native memory.
+type providerCertContext struct {
+	Encoding uint32
+	Encoded  uintptr
+	Length   uint32
+	Info     uintptr
+	Store    uintptr
+}
+
 type trustState struct {
 	data        windows.WinTrustData
 	file        windows.WinTrustFileInfo
@@ -83,11 +105,7 @@ func (s *trustState) close() error {
 	s.data.StateData = 0
 	return nil
 }
-func publisherSubject(der []byte) bool {
-	c, e := x509.ParseCertificate(der)
-	if e != nil {
-		return false
-	}
+func publisherSubject(c *x509.Certificate) bool {
 	var names pkix.RDNSequence
 	rest, e := asn1.Unmarshal(c.RawSubject, &names)
 	if e != nil || len(rest) != 0 {
@@ -138,8 +156,8 @@ func verifyTrust(x *pin) (*trustState, string) {
 	if pd == 0 {
 		return s, "INSPECTION_UNKNOWN"
 	}
-	p, valid := readProviderValue[providerPrefix](pd)
-	if !valid || p.Size < uint32(unsafe.Sizeof(p)) || p.Error != 0 || p.SignerCount != 1 {
+	p, valid := readProviderState(pd)
+	if !valid || p.SignerCount != 1 {
 		return s, "INSPECTION_UNKNOWN"
 	}
 	ps, _, _ := providerSigner.Call(pd, 0, 0, 0)
@@ -159,22 +177,96 @@ func verifyTrust(x *pin) (*trustState, string) {
 // validates the native address; no Go uintptr-to-pointer lifetime is invented.
 func readProviderValue[T any](address uintptr) (T, bool) {
 	var out T
+	size := unsafe.Sizeof(out)
+	if address == 0 || size == 0 || address%unsafe.Alignof(out) != 0 || address > ^uintptr(0)-(size-1) {
+		return out, false
+	}
 	var n uintptr
-	err := windows.ReadProcessMemory(windows.CurrentProcess(), address, (*byte)(unsafe.Pointer(&out)), unsafe.Sizeof(out), &n)
-	return out, err == nil && n == unsafe.Sizeof(out)
+	err := windows.ReadProcessMemory(windows.CurrentProcess(), address, (*byte)(unsafe.Pointer(&out)), size, &n)
+	return out, err == nil && n == size
+}
+func readProviderState(address uintptr) (providerPrefix, bool) {
+	size, valid := readProviderValue[uint32](address)
+	if !valid || size < uint32(unsafe.Sizeof(providerPrefix{})) {
+		return providerPrefix{}, false
+	}
+	p, valid := readProviderValue[providerPrefix](address)
+	return p, valid && p.Size == size && providerErrorsClear(&p)
+}
+
+const maxProviderCertificateDER = 1 << 20
+
+func readProviderDER(address uintptr, length uint32) ([]byte, bool) {
+	if address == 0 || length == 0 || length > maxProviderCertificateDER || address > ^uintptr(0)-(uintptr(length)-1) {
+		return nil, false
+	}
+	out := make([]byte, int(length))
+	var n uintptr
+	err := windows.ReadProcessMemory(windows.CurrentProcess(), address, &out[0], uintptr(length), &n)
+	if err != nil || n != uintptr(length) {
+		return nil, false
+	}
+	return out, true
+}
+
+// TRUSTERROR_MAX_STEPS is the complete SDK error-slot inventory, including final
+// provider steps through slot 37. Microsoft WinTrust.h uses pack(8); the amd64
+// provider prefix through dwFinalError is 208 bytes (dwFinalError offset 204).
+// https://github.com/microsoft/win32metadata/blob/main/generation/WinSDK/RecompiledIdlHeaders/um/WinTrust.h
+// https://learn.microsoft.com/windows/win32/api/wintrust/ns-wintrust-crypt_provider_data
+const trustErrorMaxSteps = 38
+
+func providerErrorsClear(p *providerPrefix) bool {
+	if p == nil || p.Size < uint32(unsafe.Sizeof(*p)) || p.Error != 0 || p.FinalError != 0 || p.ErrorCount != trustErrorMaxSteps || p.Errors == 0 {
+		return false
+	}
+	var steps [trustErrorMaxSteps]uint32
+	size := unsafe.Sizeof(steps)
+	if p.Errors%unsafe.Alignof(steps[0]) != 0 || p.Errors > ^uintptr(0)-(size-1) {
+		return false
+	}
+	var read uintptr
+	// ReadProcessMemory validates the entire bounded native range. Never cast an
+	// untrusted native address into a Go slice or accept a partial readable prefix.
+	err := windows.ReadProcessMemory(windows.CurrentProcess(), p.Errors, (*byte)(unsafe.Pointer(&steps[0])), size, &read)
+	if err != nil || read != size {
+		return false
+	}
+	for _, step := range steps {
+		if step != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // primaryPublisher consumes only the primary signer obtained from the successful
 // pinned-file verification state; countersigner/independent certificates are absent.
 func primaryPublisher(p *providerPrefix, signer *signerPrefix) string {
-	if p == nil || p.Size < uint32(unsafe.Sizeof(*p)) || p.Error != 0 || p.SignerCount != 1 || signer == nil || signer.Size < uint32(unsafe.Sizeof(*signer)) || signer.Error != 0 || signer.Count == 0 || signer.Certificates == nil {
+	if !providerErrorsClear(p) || p.SignerCount != 1 || signer == nil || signer.Size < uint32(unsafe.Sizeof(*signer)) || signer.Error != 0 || signer.Count == 0 || signer.Certificates == 0 {
 		return "INSPECTION_UNKNOWN"
 	}
-	cert := signer.Certificates.Certificate
-	if cert == nil || cert.EncodedCert == nil || cert.Length == 0 || cert.Length > 1<<20 {
+	size, valid := readProviderValue[uint32](signer.Certificates)
+	if !valid || size < uint32(unsafe.Sizeof(providerCertificate{})) {
 		return "INSPECTION_UNKNOWN"
 	}
-	if !publisherSubject(unsafe.Slice(cert.EncodedCert, int(cert.Length))) {
+	chain, valid := readProviderValue[providerCertificate](signer.Certificates)
+	if !valid || chain.Size != size || chain.Certificate == 0 {
+		return "INSPECTION_UNKNOWN"
+	}
+	cert, valid := readProviderValue[providerCertContext](chain.Certificate)
+	if !valid || cert.Encoding&windows.X509_ASN_ENCODING == 0 || cert.Encoding&^(uint32(windows.X509_ASN_ENCODING)|uint32(windows.PKCS_7_ASN_ENCODING)) != 0 {
+		return "INSPECTION_UNKNOWN"
+	}
+	der, valid := readProviderDER(cert.Encoded, cert.Length)
+	if !valid {
+		return "INSPECTION_UNKNOWN"
+	}
+	parsed, err := x509.ParseCertificate(der)
+	if err != nil {
+		return "INSPECTION_UNKNOWN"
+	}
+	if !publisherSubject(parsed) {
 		return "PUBLISHER_UNQUALIFIED"
 	}
 	return ""

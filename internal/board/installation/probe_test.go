@@ -647,3 +647,344 @@ func TestHeldEntropyCannotDiscloseAfterRevocationOrDeadline(t *testing.T) {
 		})
 	}
 }
+
+func TestOrderlyWatcherStopDoesNotInventAuthorityRefusal(t *testing.T) {
+	for _, translated := range []error{ErrUnavailable, errors.New("translated SQL cancellation")} {
+		t.Run(translated.Error(), func(t *testing.T) {
+			entered := make(chan struct{})
+			var calls atomic.Int32
+			check := func(ctx context.Context) error {
+				if calls.Add(1) == 3 {
+					close(entered)
+					<-ctx.Done()
+					return translated
+				}
+				return nil
+			}
+			s := controlledInspector(func(context.Context, Check, *candidateBinding) (ProbeObservation, func() error, error) {
+				<-entered
+				return nativeFailure("EXIT_FAILED", true), nil, nil
+			})
+			nonce := controlGeneration(t, s)
+			out, err := s.Probe(context.Background(), "runtime", "configuration", nonce, check)
+			if err != nil || out.Code != "EXIT_FAILED" || !out.Joined || calls.Load() < 4 {
+				t.Fatal("orderly watcher cancellation invented refusal", out, err, calls.Load())
+			}
+		})
+	}
+}
+func TestObservedWatcherDenialBeforeOrderlyStopStaysRedacted(t *testing.T) {
+	denied := errors.New("genuine authority revocation")
+	var calls atomic.Int32
+	check := func(context.Context) error {
+		if calls.Add(1) == 3 {
+			return denied
+		}
+		return nil
+	}
+	s := controlledInspector(func(ctx context.Context, _ Check, _ *candidateBinding) (ProbeObservation, func() error, error) {
+		<-ctx.Done()
+		return nativeFailure("CANCELLED", true), nil, nil
+	})
+	nonce := controlGeneration(t, s)
+	out, err := s.Probe(context.Background(), "runtime", "configuration", nonce, check)
+	if err != denied || out.State != "" || out.ToolVersion != nil || calls.Load() < 4 {
+		t.Fatal("observed denial was lost after cancellation", out, err, calls.Load())
+	}
+}
+
+func TestCancelledWatcherCheckDoesNotInventRefusal(t *testing.T) {
+	for _, cause := range []string{"owned-stop", "deadline", "current-denied"} {
+		t.Run(cause, func(t *testing.T) {
+			entered := make(chan struct{})
+			var calls atomic.Int32
+			var deniedNow atomic.Bool
+			denied := errors.New("current authority denied")
+			check := func(ctx context.Context) error {
+				if calls.Add(1) == 3 {
+					close(entered)
+					<-ctx.Done()
+					return ErrUnavailable
+				}
+				if deniedNow.Load() {
+					return denied
+				}
+				return nil
+			}
+			s := controlledInspector(func(ctx context.Context, _ Check, _ *candidateBinding) (ProbeObservation, func() error, error) {
+				<-ctx.Done()
+				return cancellationObservation(ctx), nil, nil
+			})
+			s.drain = 100 * time.Millisecond
+			if cause == "deadline" {
+				s.deadline = 40 * time.Millisecond
+			}
+			nonce := controlGeneration(t, s)
+			done := make(chan probeAnswer, 1)
+			go func() {
+				v, e := s.Probe(context.Background(), "runtime", "configuration", nonce, check)
+				done <- probeAnswer{v, e}
+			}()
+			<-entered
+			if cause != "deadline" {
+				if cause == "current-denied" {
+					deniedNow.Store(true)
+				}
+				s.mu.Lock()
+				operation := s.current
+				s.mu.Unlock()
+				operation.cancel()
+			}
+			out := <-done
+			if cause == "current-denied" {
+				if out.err != denied || out.observation.State != "" {
+					t.Fatal("final current denial lost", out)
+				}
+			} else {
+				want := "CANCELLED"
+				if cause == "deadline" {
+					want = "TIMED_OUT"
+				}
+				if out.err != nil || out.observation.Code != want || !out.observation.Joined {
+					t.Fatal("cancelled watcher invented authority loss", out)
+				}
+			}
+		})
+	}
+}
+
+// This injected adapter models the three direct native admission boundaries.
+// Kernel custody remains covered separately by the owned native helper suite.
+func directPhaseBackend(ctx context.Context, check Check, _ *candidateBinding) (ProbeObservation, func() error, error) {
+	for range 3 {
+		if err := check(ctx); err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return cancellationObservation(ctx), nil, nil
+			}
+			return ProbeObservation{}, nil, err
+		}
+	}
+	return joinedBackend(ctx, check, nil)
+}
+func TestDirectPhaseCancelledCheckDeadlineTranslation(t *testing.T) {
+	for _, phase := range []struct {
+		name string
+		call int32
+	}{{"before-create", 4}, {"before-resume", 5}} {
+		t.Run(phase.name, func(t *testing.T) {
+			var calls atomic.Int32
+			check := func(ctx context.Context) error {
+				if calls.Add(1) == phase.call {
+					<-ctx.Done()
+					return ErrUnavailable
+				}
+				return nil
+			}
+			s := controlledInspector(directPhaseBackend)
+			s.deadline = 40 * time.Millisecond
+			s.drain = 200 * time.Millisecond
+			s.checkInterval = time.Hour
+			nonce := controlGeneration(t, s)
+			out, err := s.Probe(context.Background(), "runtime", "configuration", nonce, check)
+			if err != nil || out.Code != "TIMED_OUT" || !out.Joined || out.ToolVersion != nil {
+				t.Fatal("direct deadline cancellation invented refusal", out, err)
+			}
+			if err = s.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+func TestDirectPhaseCancelledCheckAfterAuthorizedStop(t *testing.T) {
+	for _, phase := range []struct {
+		name string
+		call int32
+	}{{"before-create", 5}, {"before-resume", 6}} {
+		t.Run(phase.name, func(t *testing.T) {
+			backendEntered, releaseBackend := make(chan struct{}), make(chan struct{})
+			stopEntered, releaseStop, directEntered := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			var calls atomic.Int32
+			check := func(ctx context.Context) error {
+				switch calls.Add(1) {
+				case 3:
+					close(stopEntered)
+					<-releaseStop
+				case phase.call:
+					close(directEntered)
+					<-ctx.Done()
+					return ErrUnavailable
+				}
+				return nil
+			}
+			s := controlledInspector(func(ctx context.Context, c Check, b *candidateBinding) (ProbeObservation, func() error, error) {
+				close(backendEntered)
+				<-releaseBackend
+				return directPhaseBackend(ctx, c, b)
+			})
+			s.deadline = 2 * time.Second
+			s.drain = 200 * time.Millisecond
+			s.checkInterval = time.Hour
+			nonce := controlGeneration(t, s)
+			probeDone := make(chan probeAnswer, 1)
+			go func() {
+				out, err := s.Probe(context.Background(), "runtime", "configuration", nonce, check)
+				probeDone <- probeAnswer{out, err}
+			}()
+			<-backendEntered
+			stopDone := make(chan struct {
+				out StopObservation
+				err error
+			}, 1)
+			go func() {
+				out, err := s.Stop(context.Background(), "runtime", "configuration", nonce, check)
+				stopDone <- struct {
+					out StopObservation
+					err error
+				}{out, err}
+			}()
+			<-stopEntered
+			// Stop has fresh admission. Hold only the short state gate so the next direct
+			// phase can enter after that Check releases its separate serialization gate.
+			s.mu.Lock()
+			close(releaseStop)
+			close(releaseBackend)
+			select {
+			case <-directEntered:
+			case <-time.After(time.Second):
+				s.mu.Unlock()
+				t.Fatal("direct phase did not enter before admitted Stop")
+			}
+			s.mu.Unlock()
+			stopped := <-stopDone
+			if stopped.err != nil || !stopped.out.Joined || stopped.out.Phase != "joined" {
+				t.Fatal("authorized Stop did not observe actual join", stopped)
+			}
+			out := <-probeDone
+			if out.err != nil || out.observation.Code != "CANCELLED" || !out.observation.Joined || out.observation.ToolVersion != nil {
+				t.Fatal("direct Stop cancellation invented refusal", out)
+			}
+			if err := s.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+func TestDirectPhaseLiveDenialAndFinalFreshCheckRemainAuthoritative(t *testing.T) {
+	for _, phase := range []struct {
+		name string
+		call int32
+	}{{"before-create", 4}, {"before-resume", 5}, {"final-disclosure", 6}} {
+		t.Run(phase.name, func(t *testing.T) {
+			denied := errors.New("live authority denied")
+			var calls atomic.Int32
+			check := func(context.Context) error {
+				if calls.Add(1) == phase.call {
+					return denied
+				}
+				return nil
+			}
+			s := controlledInspector(directPhaseBackend)
+			s.checkInterval = time.Hour
+			nonce := controlGeneration(t, s)
+			out, err := s.Probe(context.Background(), "runtime", "configuration", nonce, check)
+			if err != denied || out.State != "" || out.ToolVersion != nil {
+				t.Fatal("live direct/final denial lost", out, err)
+			}
+			if err = s.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestCompletedLiveCheckFailureSurvivesLaterCancellation(t *testing.T) {
+	s := controlledInspector(joinedBackend)
+	ctx, cancel := context.WithCancel(context.Background())
+	observed := errors.New("already observed live denial")
+	result := s.checked(ctx, func(context.Context) error { return observed })
+	if result != observed {
+		t.Fatal("live check error changed", result)
+	}
+	cancel()
+	if !observedCheckFailure(ctx, result) {
+		t.Fatal("later watcher stop erased completed live failure")
+	}
+	live := context.Background()
+	if result = s.checked(live, func(context.Context) error { return context.DeadlineExceeded }); result != context.DeadlineExceeded || !observedCheckFailure(live, result) {
+		t.Fatal("live outer check lost nested deadline failure", result)
+	}
+	cancelled, cancelCheck := context.WithCancel(context.Background())
+	entered := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- s.checked(cancelled, func(ctx context.Context) error { close(entered); <-ctx.Done(); return ErrUnavailable })
+	}()
+	<-entered
+	cancelCheck()
+	result = <-done
+	if !errors.Is(result, context.Canceled) || observedCheckFailure(cancelled, result) {
+		t.Fatal("cancelled callback created an authority observation", result)
+	}
+}
+
+func TestWorkspacePreparationUsesReturnedCauseAndCleanupPrecedence(t *testing.T) {
+	realFailure := errors.New("real workspace failure")
+	for _, row := range []struct {
+		name string
+		err  error
+		code string
+	}{{"cancelled", context.Canceled, "CANCELLED"}, {"deadline", context.DeadlineExceeded, "TIMED_OUT"}, {"wrapped-cancelled", errors.Join(errors.New("preparation"), context.Canceled), "CANCELLED"}, {"real-failure", realFailure, "EXIT_FAILED"}} {
+		t.Run(row.name, func(t *testing.T) {
+			out := preparationCauseObservation(row.err)
+			if out.Code != row.code || !out.Joined || out.ToolVersion != nil {
+				t.Fatal("wrong preparation cause", out)
+			}
+		})
+	}
+	later, cancel := context.WithCancel(context.Background())
+	cancel()
+	if later.Err() == nil || preparationCauseObservation(realFailure).Code != "EXIT_FAILED" {
+		t.Fatal("later cancellation replaced the returned real failure")
+	}
+	s := controlledInspector(func(context.Context, Check, *candidateBinding) (ProbeObservation, func() error, error) {
+		return preparationCauseObservation(context.DeadlineExceeded), func() error { return ErrIncomplete }, nil
+	})
+	nonce := controlGeneration(t, s)
+	out, err := s.Probe(context.Background(), "runtime", "configuration", nonce, allow)
+	if err != nil || out.Code != "DRAIN_INCOMPLETE" || out.Joined || out.ToolVersion != nil {
+		t.Fatal("cleanup uncertainty lost precedence", out, err)
+	}
+	if err = s.Close(); err != ErrIncomplete {
+		t.Fatal("unresolved preparation cleanup released custody", err)
+	}
+}
+
+func TestMetadataReservationDiscardsJoinedProbeTombstoneOnly(t *testing.T) {
+	s := controlledInspector(joinedBackend)
+	first := controlGeneration(t, s)
+	out, err := s.Probe(context.Background(), "runtime", "configuration", first, allow)
+	if err != nil || !out.Joined {
+		t.Fatal(out, err)
+	}
+	ready, err := s.Control(context.Background(), "runtime", "configuration", allow)
+	if err != nil || ready.Phase != "ready" || ready.ProbeGeneration == first {
+		t.Fatal(ready, err)
+	}
+	inspected, err := s.Inspect(context.Background(), "runtime", allow)
+	if err != nil || inspected.State != "candidate" {
+		t.Fatal(inspected, err)
+	}
+	after, err := s.Control(context.Background(), "runtime", "configuration", allow)
+	if err != nil || after != ready {
+		t.Fatal("metadata consumed/rotated the available probe generation", ready, after, err)
+	}
+	if _, err = s.Stop(context.Background(), "runtime", "configuration", first, allow); err != ErrStale {
+		t.Fatal("metadata reservation retained obsolete probe tombstone", err)
+	}
+	if _, err = s.Probe(context.Background(), "runtime", "configuration", first, allow); err != ErrStale {
+		t.Fatal("obsolete probe generation replayed", err)
+	}
+	if err = s.Close(); err != nil {
+		t.Fatal(err)
+	}
+}

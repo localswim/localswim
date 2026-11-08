@@ -150,7 +150,7 @@ func TestPrivateCleanupDoesNotTraverseChildReparseCanary(t *testing.T) {
 }
 func TestPrivateWorkspaceRejectsUnsafeExistingBaseWithoutRepair(t *testing.T) {
 	profile, sid := workspaceFixture(t)
-	base := filepath.Join(profile, "AppData", "Local", "localswim")
+	base := filepath.Join(profile, ".localswim-native-runtime")
 	if err := os.Mkdir(base, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -169,5 +169,73 @@ func TestPrivateWorkspaceRejectsUnsafeExistingBaseWithoutRepair(t *testing.T) {
 	b, err := os.ReadFile(marker)
 	if err != nil || strings.TrimSpace(string(b)) != "preserve" {
 		t.Fatal("unowned content changed", err)
+	}
+}
+
+func TestPrivateWorkspacePreservesExistingSharedApplicationDirectory(t *testing.T) {
+	for _, unsafeAppLocal := range []bool{false, true} {
+		name := "normal"
+		if unsafeAppLocal {
+			name = "unsafe-AppLocal"
+		}
+		t.Run(name, func(t *testing.T) {
+			profile, sid := workspaceFixture(t)
+			appLocal := filepath.Join(profile, "AppData", "Local")
+			shared := filepath.Join(appLocal, "localswim")
+			if err := os.Mkdir(shared, 0700); err != nil {
+				t.Fatal(err)
+			}
+			marker := filepath.Join(shared, "preserve.txt")
+			const content = "existing application state\n"
+			if err := os.WriteFile(marker, []byte(content), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if unsafeAppLocal {
+				sd, err := windows.SecurityDescriptorFromString("O:" + sid.String() + "D:P(A;OICI;FA;;;" + sid.String() + ")(A;OICI;FA;;;SY)(A;OICI;GW;;;WD)")
+				if err != nil {
+					t.Fatal(err)
+				}
+				acl, _, err := sd.DACL()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = windows.SetNamedSecurityInfo(appLocal, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, acl, nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, err := windows.GetNamedSecurityInfo(shared, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+			if err != nil {
+				t.Fatal(err)
+			}
+			appBefore, err := windows.GetNamedSecurityInfo(appLocal, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+			if err != nil {
+				t.Fatal(err)
+			}
+			w, cleanup, err := createNativeWorkspace(context.Background(), profile, sid, uuid.NewString(), uuid.NewString())
+			if err != nil {
+				t.Fatal("unselected application ancestry prevented dedicated private work", err)
+			}
+			if filepath.Dir(w.runtime) != filepath.Join(profile, ".localswim-native-runtime") {
+				t.Fatal("native workspace did not use fixed verified-profile child")
+			}
+			if err = cleanup(); err != nil {
+				t.Fatal(err)
+			}
+			after, err := windows.GetNamedSecurityInfo(shared, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+			if err != nil || after.String() != before.String() {
+				t.Fatal("shared application ACL changed", err)
+			}
+			appAfter, err := windows.GetNamedSecurityInfo(appLocal, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+			if err != nil || appAfter.String() != appBefore.String() {
+				t.Fatal("unselected AppLocal ACL changed", err)
+			}
+			bytes, err := os.ReadFile(marker)
+			if err != nil || string(bytes) != content {
+				t.Fatal("shared application state changed", err)
+			}
+			if info, err := os.Stat(shared); err != nil || !info.IsDir() {
+				t.Fatal("shared application directory removed", err)
+			}
+		})
 	}
 }

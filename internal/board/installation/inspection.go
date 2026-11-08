@@ -125,6 +125,9 @@ func (s *Inspector) Inspect(ctx context.Context, generation string, check Check)
 	work, cancel := context.WithTimeout(ctx, s.deadline)
 	a := &active{cancel: cancel, done: make(chan struct{})}
 	s.current = a
+	// Every shared-slot reservation supersedes the prior actual-operation tombstone.
+	// Metadata does not consume or rotate the available probe generation.
+	s.tombstone = nil
 	s.mu.Unlock()
 	result := make(chan answer, 1)
 	go func() {

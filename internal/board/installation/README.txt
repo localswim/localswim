@@ -18,7 +18,10 @@ Check is current credential/read authority, exact saved configuration generation
 and physical board/root/database binding, supplied by the selected Runtime. It
 must not renew browser idle expiry. All callbacks are serialized separately from
 state and file work. The active-only watcher has a 100 ms target interval; no
-worker runs while idle. Check cancellation is cooperative, never an SQL/native
+worker runs while idle. Errors from a cancelled watcher check do not invent an
+authority-loss observation; live-context denials stay retained and disclosure
+rechecks current authority after the watcher joins. Check cancellation is
+cooperative, never an SQL/native
 completion SLA. Started Control/Stop/final-disclosure checks retain Runtime
 custody until they actually return, including after the HTTP caller has ended.
 
@@ -33,11 +36,17 @@ resolver. Its held release directory, manifest and executable identities/securit
 and exact executable/manifest digests form the private runtime fingerprint.
 A later changed qualified candidate requires a new Runtime; it never rebinds.
 Held file cursors are used sequentially; the authority watcher never hashes them.
+Provider qualification requires the SDK's complete 38-step zero-error inventory
+and zero provider/final/signer errors. Native provider, signer, certificate and
+CERT_CONTEXT address words remain uintptr through bounded ReadProcessMemory
+copies; only at most 1 MiB of copied DER reaches the Go certificate parser.
+Unavailable, partial or contradictory native evidence is INSPECTION_UNKNOWN.
 
-The work subtree is fixed beneath the verified process token's profile:
-  AppData/Local/localswim/native-runtime/runtime-UUID/probe-UUID
-The two application parents must be exact protected account/SYSTEM-only private
-directories; absent parents are created with that ACL. Existing unsafe state is
+The work subtree is fixed directly beneath the verified process token's profile
+(PROFILE below comes only from that native token/profile API):
+  PROFILE/.localswim-native-runtime/runtime-UUID/probe-UUID
+The dedicated application base must be an exact protected account/SYSTEM-only
+private directory; an absent base is created with that ACL. Existing unsafe state is
 refused, never repaired. Runtime/probe leaves are exclusively created, with pinned
 non-reparse ancestry and empty private home/appdata/temp/CODEX_HOME children.
 No request or ambient HOME/TEMP value chooses a production path. Cleanup uses

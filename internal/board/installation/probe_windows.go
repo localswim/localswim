@@ -37,7 +37,7 @@ func probeNative(ctx context.Context, check Check, binding *candidateBinding) (P
 	workspace, workspaceCleanup, err := createNativeWorkspace(ctx, profile, user.User.Sid, binding.runtime, binding.probe)
 	cleanup = closeOnce(workspaceCleanup, closePins, closeToken)
 	if err != nil {
-		return nativeFailure("EXIT_FAILED", true), cleanup, nil
+		return preparationCauseObservation(err), cleanup, nil
 	}
 	var phaseError error
 	guarded := func(work context.Context) error {

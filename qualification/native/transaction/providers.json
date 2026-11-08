@@ -577,7 +577,7 @@
   },
   {
     "path": "internal/board/installation/README.txt",
-    "sha256": "a9b84f89e614c14dfa8042cdf663e18951bda4d68f30d923e55415ed6daca8e7"
+    "sha256": "29f8183b7a55b38906e58aaafd6db4cf675181e9bace7ed162cf825a086c7bef"
   },
   {
     "path": "internal/board/installation/actual_metadata_windows_test.go",
@@ -593,7 +593,7 @@
   },
   {
     "path": "internal/board/installation/inspection.go",
-    "sha256": "9ce88ebd30cfecd30b4ac8876aead52d24ceb4ad6e9f316fd6f5ece32804cbb8"
+    "sha256": "dedf258763c392fff62d62ab10380a0d781222cdb5521afca797b557f1b7c5f6"
   },
   {
     "path": "internal/board/installation/inspection_test.go",
@@ -613,35 +613,39 @@
   },
   {
     "path": "internal/board/installation/probe.go",
-    "sha256": "b03c67b7d28cf24bd3f88ec7d58184b1819e1faaec0ce45118e3cff31a754111"
+    "sha256": "e2918d4a36a37b508ce949e3bc27e42ef61f2b9e07d3ba24b820a7d6605f3e68"
   },
   {
     "path": "internal/board/installation/probe_test.go",
-    "sha256": "8c9917bb3eb4b2a65583799e5350d76d7f74f6bbfcafb006226897ab5c084686"
+    "sha256": "b093782bb8fe0d556fd9b00d0febdba97a30bf308a038f89329d1a03c046ff4d"
   },
   {
     "path": "internal/board/installation/probe_windows.go",
-    "sha256": "e6005fff9604f98d3105d612d6683f9721769c14fe149df756ba38205d235f4b"
+    "sha256": "d618d8327418f75f4fa6b2e341b1a7def52259934e7d24350c7b0c102ae3ccb2"
   },
   {
     "path": "internal/board/installation/resolver_native_windows_test.go",
     "sha256": "52a0364fdceabde82eec789ff5ea2c4d7d39cda19b2447deb96429e785cd59dc"
   },
   {
+    "path": "internal/board/installation/trust_memory_windows_test.go",
+    "sha256": "d3fd7e2696b6baa5a3c057977bb600b045520b71da954c312b1ec00b17623f81"
+  },
+  {
     "path": "internal/board/installation/trust_windows.go",
-    "sha256": "d2191a3a3c74da8be9fae777d6d1a1f475e4efe49d3f0b68e4b64a07dcef0265"
+    "sha256": "b41d5c3ba1c2704bdb5fae21ad07142c57e60775ad7a2318862c120b5da1f406"
   },
   {
     "path": "internal/board/installation/trust_windows_test.go",
-    "sha256": "43d490fde7e44d4bd5fd7bafd751351ee2e9d921798d1fcdc05049c12cd0cd32"
+    "sha256": "e9a4644aba3aaf32844ec0df3df1ed488ca0cff898a6acc2c209617f128e3ba0"
   },
   {
     "path": "internal/board/installation/workspace_windows.go",
-    "sha256": "f58c40e38cf0279126d9488e0e726762294f3dca4274ef36f179ee1b0af638f3"
+    "sha256": "3451997e3501ebadb4382bb82480c643e30f47dfbf9b4130fcee30a79bbf7b8f"
   },
   {
     "path": "internal/board/installation/workspace_windows_test.go",
-    "sha256": "ec1c0f7e53f04b5d62ebb4052c776cf521deacfd77c5e0345faab58d873446e4"
+    "sha256": "4d53bc7fcbc4f0a7b1f177b59278ac9672e80ce74c6432ff7fe18b0df3af0477"
   },
   {
     "path": "internal/board/noticeinterval/cut.go",

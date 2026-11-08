@@ -92,7 +92,7 @@ func createNativeWorkspace(ctx context.Context, profile string, user *windows.SI
 		return fail(err)
 	}
 	w.policy = &pins{user: user, system: system, admin: admin, installer: installer}
-	base := filepath.Join(profile, "AppData", "Local")
+	base := profile
 	if _, err = w.policy.chain(ctx, base); err != nil {
 		return fail(err)
 	}
@@ -101,7 +101,7 @@ func createNativeWorkspace(ctx context.Context, profile string, user *windows.SI
 		return fail(err)
 	}
 	sa := &windows.SecurityAttributes{Length: uint32(unsafe.Sizeof(windows.SecurityAttributes{})), SecurityDescriptor: sd}
-	for _, name := range []string{"localswim", "native-runtime"} {
+	for _, name := range []string{".localswim-native-runtime"} {
 		if err = ctx.Err(); err != nil {
 			return fail(err)
 		}

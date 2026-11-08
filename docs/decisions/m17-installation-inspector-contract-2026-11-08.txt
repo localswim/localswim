@@ -1,0 +1,481 @@
+M17 INSTALLATION INSPECTOR AND COMPLETE NATIVE IDENTITY MODEL
+November 8, 2026 | M17-INSPECTOR-R2 | #0316 model for independent review
+
+1. Authority, delivered outcome and exclusions
+
+Current M17 epic #0243, the accepted split I and its six-story execution
+breakdown govern. M16-RECIPIENT-R2 remains the baseline. Older references that
+call actual identity invocation M17 describe source-era scope: current M17
+inspects installation metadata without running it; current M18 implements the
+complete identity runner. Current M19 owns distinct capability qualification.
+This document freezes the whole native model before dormant preparation, and
+separately specifies the M17 user feature. It makes no runtime PASS claim.
+
+The M17 user deliberately requests a fresh selected-board observation: a
+qualified native installation candidate is present, the supported discovery
+slot is missing, or qualification was not established. No process is created.
+This observes installation metadata, not safety, executable interface/version,
+capability, policy readiness, target existence, receiver permission or delivery.
+No prior observation grants future launch authority.
+
+No new recipient value, selector, configurable path, environment override,
+shell, command argument, URL, credential, activation, polling, persisted result,
+history, Copy control or automatic retry is introduced. M16 configure/status,
+private originals, local notices and all domain/archive formats stay unchanged.
+Opening, reconnecting, navigating, restoring a view and background refresh
+cannot request installation inspection or create a native process.
+
+2. Supported discovery policy: managed standalone Windows installation
+
+M17 supports Windows amd64 and one server-owned discovery policy, named
+managed-standalone-v1 internally. Obtain the service account SID and its profile
+directory from the current process token and Windows profile API, not from
+request values, PATH, USERPROFILE, HOME, CODEX_HOME or other environment values.
+The only discovery slot is the fixed relative path
+  .codex/packages/standalone/current
+under that verified profile. No arbitrary PATH search, recursive enumeration,
+registry executable override, Appx/cache fallback or caller selection is used.
+
+The slot may be a plain directory or a Windows mount-point junction used ONLY
+for discovery. A symbolic link, unknown reparse tag or malformed reparse data
+is unqualified. Resolve the opened slot to a concrete absolute local path.
+Its only permitted destination is one direct child of the same profile's
+  .codex/packages/standalone/releases
+with basename <version>-x86_64-pc-windows-msvc. <version> is strict ASCII SemVer
+2.0.0, at most 96 bytes; neither directory names nor the manifest establish an
+installed executable version. Comparison uses Windows ordinal case-insensitive
+path-component identity, never a textual prefix containment test. Reject UNC,
+device, ADS, relative, dot/dotdot, trailing dot/space and alternate-volume paths.
+Maximum canonical path is 4096 UTF-16 code units and 32 ancestor components.
+
+Open the concrete release's fixed codex-package.json (maximum4096 bytes) and
+bin/codex.exe (positive length, maximum536870912 bytes). Both must be regular,
+single-link files. The manifest is strict UTF-8 JSON without BOM, duplicate or
+unknown keys, trailing values, invalid Unicode or null. Exact fields are:
+  layoutVersion:1, version:<the same SemVer>, target:"x86_64-pc-windows-msvc",
+  variant:"codex", entrypoint:"bin/codex.exe",
+  resourcesDir:"codex-resources", pathDir:"codex-path".
+Values are validated, never used to select another executable/path. Check the
+PE as bounded bytes: valid MZ/PE headers and offsets, AMD64, PE32+, executable
+and not DLL, no CLR runtime header. A PE cannot prove its behavior; signature
+and installation qualification below are also required.
+
+Only a positively verified absent discovery slot, or absent fixed executable
+under an otherwise qualified slot, produces missing. Missing parent/profile,
+denied access, malformed/broken alias, missing/malformed manifest, file-type,
+size, path or layout mismatch and unsupported installation/platform do not
+prove absence and return unqualified with the corresponding bounded code.
+Another installed copy may exist outside this policy. UI missing wording must
+say "No candidate in the supported installation location", never "not installed".
+
+3. Native metadata custody, ACL and signer qualification
+
+Discovery is not authority. Before consuming manifest or executable bytes,
+reopen and hold the concrete path from volume root to each file. Directory
+handles use OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS and
+FILE_FLAG_OPEN_REPARSE_POINT; deny share-delete. The allowed discovery junction
+has its own retained reparse-point handle and exact target comparison; it is
+not a permitted component of the canonical executable path. Hold the slot so
+its target cannot be replaced while the observation is in progress. All actual
+canonical components must be non-reparse directories, and files non-reparse.
+Open files for read/READ_CONTROL with share-read only, refusing any incompatible
+existing writer. Do not resolve aliases again through an unpinned path.
+
+Use handle-based final path, volume/file identity, file type, link count, size,
+attributes and security descriptors. Directory handles remain until all file,
+trust and identity work finishes. A failed close retains the handle and the
+operation slot until actual closure; no metadata success precedes that join.
+Path normalization alone, timestamps, same-name files and final-file checks
+without ancestor custody are insufficient. No ACL or installation is repaired.
+
+Installation ACL validation is separate from stricter private board/runtime
+file validation; do not weaken those existing private-root checks. Independently
+require an accepted OWNER SID on EVERY pinned file, directory and discovery
+junction: exactly the current account SID, LocalSystem or built-in Administrators.
+The only additional accepted owner is the OS-resolved exact TrustedInstaller
+service SID on the volume-root ancestor itself; it is not allowed on a candidate,
+manifest, profile descendant or discovery junction. Missing/unreadable/unknown
+or foreign ownership is PATH_UNQUALIFIED, even with a read-only DACL or an
+OWNER_RIGHTS ACE. Account/display-name similarity cannot satisfy SID identity.
+This closes the owner's implicit WRITE_DAC path independently of DACL grants.
+Record and recheck that same owner SID before disclosure; a changed owner is
+FILE_CHANGED and an unreadable recheck is INSPECTION_UNKNOWN.
+
+For every effective allow ACE on a candidate/manifest or their ancestors,
+including the discovery junction, reject mutation
+rights granted outside the current account SID, LocalSystem and built-in
+Administrators. The same exact TrustedInstaller SID may control only the
+volume-root ancestor, matching the narrow owner exception above.
+Mutation includes write/append/add-file/add-directory, write EA/attributes,
+DELETE, DELETE_CHILD, WRITE_DAC, WRITE_OWNER and corresponding generic masks.
+Accept read/execute/traverse/synchronize/READ_CONTROL for other principals.
+Reject null/absent DACL, unknown ACE kinds or masks that cannot be interpreted;
+evaluate generic mappings and INHERIT_ONLY flags, not names or string heuristics.
+Unknown capability SIDs are not implicitly trusted.
+
+One bounded ancestor exception is structural, not publisher-specific: on the
+volume root, an untrusted CreateDirectories-only effective grant and inherit-only
+descendant grants are permitted if the next existing ancestor is DACL-protected,
+does not inherit those grants, and all remaining components pass the policy.
+No untrusted effective delete/delete-child/DACL/owner/write-file right is allowed
+there. This permits the observed Windows root layout without treating permission
+to create an unrelated sibling as authority to replace the protected candidate
+chain. Security descriptors are checked again before disclosure. Unknown or
+changing security state is unqualified, not a successful exception.
+
+Compute SHA-256 over the complete pinned executable in bounded streaming chunks.
+Run Windows Authenticode verification for that exact pinned file using
+WINTRUST_FILE_INFO with BOTH its canonical pcwszFilePath and its held hFile,
+never a different pathname, independent byte copy or certificate source. Use
+WTD_UI_NONE and WTD_STATEACTION_VERIFY,
+WTD_CACHE_ONLY_URL_RETRIEVAL and WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT, without
+WTD_LIFETIME_SIGNING_FLAG; use WINTRUST_ACTION_GENERIC_VERIFY_V2 and
+WTD_CHOICE_FILE. Freeze WINTRUST_SIGNATURE_SETTINGS to WSS_VERIFY_SPECIFIC,
+dwIndex=0 (the primary embedded signature), and require returned
+dwVerifiedSigIndex=0. Only the WinVerifyTrust LONG return value exactly0 is
+success; never use SUCCEEDED, GetLastError or a positive nonzero result as trust.
+
+Publisher identity must come from THAT successful verification's provider state,
+via WTHelperProvDataFromStateData and primary signer index0 with
+WTHelperGetProvSignerFromChain(...,0,FALSE,0). Require provider csSigners==1,
+one unambiguous primary signer and its end-entity certificate in the verified
+chain, with no provider/signer errors or mismatched selected signature. Parse
+only that signing
+certificate's subject fields: CN and O both OpenAI OpCo, LLC;
+C=US, S=California, L=San Francisco; no conflicting duplicate subject attributes.
+Secondary/nested signatures cannot substitute for the selected primary, and a
+countersigner/timestamp certificate, unrelated embedded certificate or separately
+enumerated certificate cannot satisfy publisher identity. Missing, ambiguous or
+mismatched signer/provider state is INSPECTION_UNKNOWN; a definitively different
+verified primary publisher is PUBLISHER_UNQUALIFIED. No alternate-signature retry.
+Use parsed certificate fields, not substring matching. Do not pin a rotating leaf
+thumbprint or treat certificate expiry alone as failed timestamped trust.
+
+The same owner holds verification state from VERIFY through signer extraction
+and WTD_STATEACTION_CLOSE on EVERY success/failure path, with WTD_UI_NONE on
+both calls. CLOSE applies to that original state object only. No pointers or
+certificate contexts may outlive it. Copy only bounded required identity data
+before CLOSE. Incomplete/failed CLOSE retains custody and the operation slot;
+no candidate result is emitted until verification state actually closes.
+Unavailable provider APIs or unprovable state ownership is INSPECTION_UNKNOWN,
+never permission to fall back to independently queried certificate information.
+
+OS distrust, revocation, absent/malformed signature, wrong publisher or untrusted
+chain makes PUBLISHER_UNQUALIFIED. Incomplete cached trust/revocation information,
+provider failure, a verifier timeout or a status that cannot be classified makes
+INSPECTION_UNKNOWN/TIMED_OUT; there is no no-revocation or network retry fallback.
+This policy is qualified in .02 without invoking the candidate. Failure to obtain
+complete trust may legitimately prevent a positive observation on a host.
+
+Recheck manifest/candidate identities, slot target, canonical paths, size and
+security descriptors against their held initial observations. Revalidate current
+selected-board authority and physical board binding before disclosure. Changed
+identity/target/security yields FILE_CHANGED or a redacted identity refusal.
+Hash/identity remain private transient evidence; neither is returned or persisted.
+M17 retains no trusted candidate across observations. Future M18 independently
+qualifies and pins its engine candidate; M17 inspection cannot populate that pin.
+
+The private preflight found a signed concrete standalone release whose observed
+path/ACL shape is compatible with this policy. It has not executed this full
+resolver or the exact cached-revocation policy; .02 must qualify those checks.
+A separate app-cache candidate matches a registered Store
+package's native bytes but has an unexplained writable capability on ancestors.
+This policy does not waive that concern or silently switch to that copy. Exact
+account paths, file keys, hashes and signer certificates stay in private evidence.
+
+4. Deliberate inspection admission, deadline and lifecycle
+
+Use the existing installed Human/browser or Bot/CLI read authority and current
+workflow read ceiling through the selected-board native admission. Owner labels,
+saved recipient values, a successful earlier read and workspace access grant no
+authority. Native-owner credentials retain their existing restrictions. Inspect
+works for configured and unconfigured recipient state; it neither reads nor
+discloses the saved recipient input and does not modify its unknown/fixed guard.
+
+Internal context includes installationId, physical root/database keys, boardId,
+incarnation, runtimeGeneration, current credential/principal and request epoch.
+The runtimeGeneration is the existing M16 recipient-engine lifetime generation.
+The query supplies exact incarnation/runtime generation only; other identity
+comes from selected routing and current native state. No board revision CAS is
+needed for this nonmutating observation. Concurrent card activity can occur.
+
+Reserve one inspection/native-operation slot per physical board with a short
+nonblocking memory gate. There are zero queued automatic inspections/probes.
+The slot owns all operation/custody bookkeeping. Do not use the independent M16
+save/status reservation as a second inspector queue or hold any memory mutex
+across SQL, path, file, hashing, trust, pipe, wait or Close I/O. Current read
+admission and physical verification run outside the gate before metadata work
+and after it. Recheck closing/generation/cancellation before starting each phase.
+
+Inspection deadline is10 seconds from reservation; check it between streaming
+chunks and phases. Cancel outstanding cancellable work on expiry/disconnect.
+Do not create a helper process to enforce this deadline. Uninterruptible native
+metadata/trust work continues only in its one owned worker with its handles held.
+After at most2 additional seconds of foreground cleanup reporting, return
+unqualified/INSPECTION_TIMED_OUT if current authority can still be established;
+otherwise return only the appropriate safe refusal/unavailable response.
+An independent admitted-work lease survives the HTTP handler/request ending.
+The worker slot and board ownership remain retained until actual work/handles
+join. New requests receive CONTROL_BUSY. Deadline is not a promise of bounded
+native-driver execution or permission to abandon handles/SQL readers.
+
+Runtime Close first fences admission, cancels inspection and future native work,
+and attempts actual join. Foreground Close waits at most2 seconds for this
+component, then reports incomplete through the existing host close machinery.
+It retains its engine/physical ownership and cleanup responsibility until join;
+no successor is allowed to overlap it. This limit does not shorten a stricter
+existing host drain contract or permit a false successful Close.
+
+5. Exact M17 wire and client contract
+
+GET /api/v1/boards/{boardId}/recipient/tool/inspect
+  ?incarnation=<canonical board incarnation>
+  &expectedRuntimeGeneration=<canonical UUIDv4>
+
+Exactly those two query keys, each once, total raw query<=256 bytes; no body,
+fragment, alternative spelling or extra keys. Existing exact Host/Origin,
+credential/cookie, no-CORS, no-store and CSP boundaries apply. No new endpoint
+outside selected board routing exists. An existing explicit status read may
+obtain the runtime generation at the start of the SAME deliberate user action;
+it must not cause inspection or be an automatic retry after failure.
+
+Success is HTTP200 application/json, Cache-Control:no-store, at most2048 UTF-8
+bytes, exactly:
+  {apiVersion:1,scope:"installation-inspection",result:{
+    identity:{boardId,incarnation},runtimeGeneration,state,code}}
+
+Identity uses the existing strict Identity shape and UUID grammar. Generation
+is canonical UUIDv4. state/code pair is exactly one row below; all fields are
+required, none permits null, no optional/native/source/private fields exist.
+Unknown/duplicate keys, noncanonical scalars, BOM, invalid Unicode, extra JSON
+values, wrong content type, overflow and mismatched pairs are rejected by Go,
+generated JSON schema and production TypeScript validation together.
+
+state         code                     Meaning
+candidate     CANDIDATE_PRESENT        All current metadata qualification passed.
+missing       TOOL_MISSING             Positive absence in the supported slot.
+unqualified   PLATFORM_UNQUALIFIED     Platform/provider is outside this policy.
+unqualified   SOURCE_UNQUALIFIED       Present slot/layout/manifest not admitted.
+unqualified   PATH_UNQUALIFIED         Type/ancestry/ACL/path/size rule not admitted.
+unqualified   PUBLISHER_UNQUALIFIED    Definite signer/trust qualification failure.
+unqualified   FILE_CHANGED             Slot/file/security evidence changed.
+unqualified   INSPECTION_UNKNOWN       Required evidence unavailable or incomplete.
+unqualified   INSPECTION_TIMED_OUT     Deadline expired; no qualified observation.
+
+Unknown is deliberately represented by the last two unqualified codes, not
+missing and not a positive candidate. UI says "Qualification not established"
+and, for these codes, "Inspection could not complete". A definite policy refusal
+says "This installation was not qualified by the supported inspection policy".
+Neither wording declares the installation unsafe, absent or unusable.
+
+Use the existing strict NonterminalRefusal shape with null opId/conflict/field,
+fixed message "Request refused" and no result/private details:
+  400 INVALID_INPUT; 401 UNAUTHENTICATED; 403 FORBIDDEN;
+  409 CONTROL_STALE; 409 CONTROL_BUSY; 409 IDENTITY_CHANGED;
+  503 UNAVAILABLE (including closed/unavailable board or failed final admission).
+Unsupported methods use405/INVALID_INPUT; unknown routes404/NOT_FOUND. Never
+return candidate metadata alongside a refusal. Identity loss/authority loss
+after work suppresses all result fields, including previously valid facts.
+
+Actual CLI grammar, with existing mutually exclusive selectors:
+  localswim [--data DIR | --workspace DIR --project KEY --board KEY]
+            [--json] recipient tool inspect
+No input file, positional argument, path/version flag, stdin, environment or
+selection fallback. CLI connects through the ordinary authenticated provider,
+may read recipient status once for runtime generation, then performs one inspect
+GET. No direct filesystem inspection or executable launch in the CLI adapter.
+Readable output names board/incarnation and the three-state meaning above;
+JSON returns the exact wire envelope. Valid HTTP200 observations use exit0,
+including missing/unqualified. Recognized refusal uses existing exit2,
+transport/invalid/unusable response exit3, invocation grammar error exit1.
+This read never creates a domain operation/UNKNOWN receipt or uses exit4 to
+claim a possibly committed command. A failed read is simply unavailable.
+
+The browser adds one explicit Inspect installation action in Recipient policy.
+Display "Candidate present; no command was run" for candidate and the precise
+missing/unqualified wording above. Button action may do the same single status
+read followed by one inspect request. Disable duplicate action while pending;
+never dispatch from mount/render/status refresh/reconnect/navigation. There is
+no Stop/probe/control UI in M17. Closing the view cancels waiting and invalidates
+its local request epoch; server cleanup remains independently owned.
+
+Capture exact selected installation/board/incarnation/runtime, window/view epoch
+and request sequence. Validate wire fields plus identity/generation equality
+after every await and immediately before display. A-B-A creates a new epoch;
+an old A response cannot paint the new A, B or another window. Credential loss,
+board replacement or host-generation change clears displayed observation and
+redacts late results. Drafts/focus and immutable recipient originals survive
+per existing policy; this read cannot clear, rekey, settle or submit them.
+
+6. Complete original native identity model: future M18, dormant M17 components
+
+The following model is frozen before component preparation but is NOT an M17
+process entry point. M17 may expose no production Launch/Resume/Probe/Stop
+route, CLI command, feature flag or environment bypass. Controlled component
+tests may create only owned deterministic helper children. Such tests cannot
+call installed codex.exe or certify a complete production runner.
+
+Before every future actual invocation, independently qualify the exact native
+installation using sections2-3, bind its file identity/hash to the engine's
+chosen candidate and recheck it immediately before launch/resume. Changed
+installation invalidates the pin; no automatic rebinding or rerun occurs.
+Inspection results are never this authority. Require current read/disclosure
+authority, saved configuration generation and exact physical/runtime context
+again. One current probe per physical board, zero automatic queue; coalescing
+different callers must not share authority/results. Admission holds only the
+short memory gate, with no native/SQL I/O under it.
+
+Only the frozen identity argv ["--version"] is enabled by future M18. The
+source-era capability argv ["queue","--help"] remains design input for M19,
+not another M18 fallback. Never invoke a shell, wrapper, executable selected by
+PATH, recipient/payload, arbitrary args, remote endpoint or credentials.
+
+Use a server-owned account-private per-run cwd/home/temp beneath existing
+runtime ownership, with no inherited config, credential or input files. Child
+stdin is a closed/NUL read handle. Environment is built from scratch: trusted
+Windows SystemRoot/WINDIR, system-directory-only PATH, and USERPROFILE,
+LOCALAPPDATA, APPDATA, TEMP, TMP and CODEX_HOME set to private empty per-run
+subdirectories. No inherited cloud/proxy/token/Node/Python/shell injection or
+caller values. This reduces ambient configuration; it is not a sandbox against
+a malicious same-account signed executable. Preserve existing trust limits.
+
+Create a non-inheritable unnamed job first, set KILL_ON_JOB_CLOSE and
+ACTIVE_PROCESS_LIMIT=16 (including root); neither BREAKAWAY_OK nor
+SILENT_BREAKAWAY_OK is enabled. Create root with CREATE_SUSPENDED and
+EXTENDED_STARTUPINFO_PRESENT, using PROC_THREAD_ATTRIBUTE_JOB_LIST to associate
+that job atomically at creation, then verify membership before any resume.
+This closes the parent-exit gap between suspended creation and later assignment.
+Retain job/root/thread identities and handles. If nested job rules, atomic
+assignment or verification fail, terminate/join any created suspended root;
+refuse without an unowned CreateProcess fallback. Pass the canonical executable
+as non-null lpApplicationName and a separately encoded fixed writable command
+line. No detached child, shell, brokered launch or auto-elevation is permitted.
+
+Use STARTUPINFOEX/PROC_THREAD_ATTRIBUTE_HANDLE_LIST, STARTF_USESTDHANDLES and
+bInheritHandles=TRUE restricted to that explicit list. Only intended stdout,
+stderr and closed-stdin/NUL handles are inheritable; never job, process, thread,
+board/credential, file-pin or parent-read handles. Close parent copies of child
+pipe ends at the correct handoff. Read stdout/stderr concurrently with one
+shared combined 65536-byte capture budget; retain only bounded bytes/counters.
+Do not block one pipe waiting for the other. Overflow immediately requests
+termination; continue owned draining/closure without accumulating more bytes.
+
+The command deadline is10 seconds from native-operation reservation, including
+preparation. Recheck deadline/cancellation/authority just before CreateProcess
+and ResumeThread; an expired attempt cannot resume. Timeout, cancellation,
+authority loss, parser/output failure and Stop/Close request termination of the
+owned whole job. Native control is serialized by operation identity, not a
+memory lock held over kernel waits. Report foreground cleanup for at most2
+additional seconds; if not fully joined, state is incomplete/DRAIN_INCOMPLETE.
+Keep operation slot, handles, engine and physical board exclusion until actual
+join. No successor/start/retry can pass an incomplete operation.
+
+joined=true requires root wait completion, actual job active-process count0,
+both drain workers completed, all parent/child pipe copies and thread/process/
+job/file-pin/other run-owned handles actually closed, and no retained cleanup.
+Root exit, timeout, cancellation, a signaled job event, requested termination,
+connection close or an elapsed spinner alone proves none of that. A close
+failure is retained by the owner and cannot be reported as joined. Cleanup
+never blindly retries a numeric handle that may have closed or been reused;
+the tracked object/lifetime must still be proven before another close.
+The job handle remains available until zero-process evidence is established,
+then closes last among process-supervision handles. Parent process exit closes
+its noninherited kill-on-close job; recovery never identifies children by PID
+alone or assumes externally surviving effects are absent.
+
+Future Stop requires exact installation/board/incarnation/runtime/configuration/
+probe generation and fresh current authority. Stale/foreign/denied controls
+refuse without changing another operation. A valid repeated Stop is a request
+for the same owned termination/join, not a second command or new generation.
+Internal Close needs no external credential, first closes admission and then
+terminates/drains all owned work; retain ownership on incomplete cleanup.
+View closure/request cancellation may cancel its own attempt, never another
+window's operation. No background authority refresh, restart resumption or
+automatic native retry is introduced.
+
+Identity parser: exactly one ASCII line "codex-cli " followed by strict SemVer
+2.0.0 (no leading-zero numeric identifiers), at most96 version bytes, optional
+single terminal LF or CRLF, no other stdout and empty stderr, exit0. Parse only
+after complete capture and actual join. Unknown line/extra output never becomes
+a substring match. This is the model to qualify against actual output in M18;
+absence of support is explicit, not a reason to broaden the grammar silently.
+
+Future result remains the exact M16 section7 design shape, <=2048 bytes:
+  {version:1,identity,runtimeGeneration,configurationGeneration,
+   probeGeneration,kind,state,code,toolVersion,capability,joined}
+Positive identity is supported/OK, kind identity, joined=true, strict version,
+capability:null. All unsupported/unavailable/unknown/incomplete cases have null
+positive fields. Retain the frozen code mapping, including TOOL_MISSING,
+PLATFORM_UNQUALIFIED, TOOL_UNSUPPORTED, PARSE_UNSUPPORTED, EXIT_FAILED,
+PARSE_ERROR, OUTPUT_LIMIT, TIMED_OUT, CANCELLED and DRAIN_INCOMPLETE. Incomplete
+has joined=false; no other state may hide retained native work as joined=true.
+Denied/changed context yields a redacted refusal, not this result. Future HTTP/
+CLI control grammar must be reviewed in M18 before production exposure; none
+is generated or accessible in M17. Capability requires distinct M19 evidence.
+
+7. Ownership, acceptance and review gates
+
+M17.02 owns installation resolver, inspection reservation/runtime, dormant
+Windows resource custody and Go/HTTP/generated/production-TS contracts.
+M17.03 owns actual CLI/browser adapters. Shared generated files are regenerated
+through existing tools, never hand-edited. No board schema, private recipient
+format, notice state, canonical intent, archive or restore change is required.
+
+Before any implementation, fresh nonauthor Sol/High review and parent consensus
+must cover this COMPLETE model. Before clients, a new whole-seam review covers
+resolver/custody/source, actual metadata evidence, Go/HTTP/generated schema and
+production-TS validation. A model/semantic change repeats affected model/seam
+review; client discoveries cannot bypass that order.
+
+Required .02/.03 cases include exact positive supported-slot observation without
+process creation; positively missing slot; safe unqualified UI; absent/denied/
+malformed/oversize/duplicate manifest; nonregular/multilink/reparse/escape/alias
+swap; wrong signer/signature/revocation-unavailable; file/ACL replacement; unknown
+ACE/generic/inherit-only/ancestor rights; current/foreign/revoked/stale/busy/closed
+contexts; blocked metadata/cleanup; A-B-A/two-window/late-denied results; exact
+wire byte/query bounds, no null/unknown fields; CLI parity and no automatic call.
+
+Owner cases specifically include foreign owner plus read-only DACL on the
+executable, manifest, ancestor and discovery junction; missing/unreadable owner;
+unknown owner SID; TrustedInstaller accepted only at volume root and refused
+below it; owner changing during hash/trust work; and owner recheck denied.
+None can produce candidate through permissive DACL or OWNER_RIGHTS treatment.
+Signature cases specifically include WinVerifyTrust0 versus positive/negative
+nonzero return, absent provider state, primary signer missing/ambiguous, wrong
+verified index, valid non-OpenAI primary plus unrelated OpenAI certificate,
+OpenAI countersigner only, nested/secondary OpenAI substitution, pinned-file
+mismatch, subject ambiguity, and VERIFY/CLOSE error/incomplete cleanup. Qualify
+primary-index selection and same-provider signer extraction before positive
+inspection; an independent certificate parse plus a separate trust PASS fails.
+
+Controlled dormant tests cover suspended root assignment and pre-resume failure,
+root exits while descendant holds pipe, descendant process ceiling, parent end,
+output overflow on both pipes, exact handle inheritance, timeout/cancel/Stop/Close,
+failed close/incomplete custody and eventual actual join. Every helper is owned,
+synthetic and labeled component evidence. Installed command execution is absent
+from all M17 tests, qualification and extracted demonstrations.
+
+Joined candidate qualification includes all current inventories, two isolated
+clean builds and all generated/staged/web/embedded/executable outputs, complete
+existing browser/CLI/native/transaction/archive/notice regressions, scoped queue
+diagnostics, independent review and owned cleanup. Extracted default/configured
+board demonstrations use only the deliberate inspector and preserve recipient
+originals/drafts/domain state. No same-account isolation, hardware power-loss,
+actual installed version/interface or delivery qualification is claimed.
+
+Primary model references (checked November8,2026)
+- M16-RECIPIENT-R2 section7; accepted M17 split I and execution breakdown.
+- https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew
+- https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew
+- https://learn.microsoft.com/en-us/windows/win32/fileio/file-security-and-access-rights
+- https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-ace_header
+- https://learn.microsoft.com/en-us/windows/win32/secauthz/owner-of-a-new-object
+- https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-winverifytrust
+- https://learn.microsoft.com/en-us/windows/win32/seccrypto/time-stamping-authenticode-signatures
+- https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects
+- https://learn.microsoft.com/en-us/windows/win32/api/wintrust/ns-wintrust-wintrust_data
+- https://learn.microsoft.com/en-us/windows/win32/api/wintrust/ns-wintrust-wintrust_signature_settings
+- https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-wthelperprovdatafromstatedata
+- https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-wthelpergetprovsignerfromchain
+- https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute
+- https://semver.org/spec/v2.0.0.html

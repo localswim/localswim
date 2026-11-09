@@ -5,6 +5,11 @@ import type { Identity } from "../../generated/archive/contracts.js";
 import { RecipientRefusal, RecipientUnknown } from "../api/recipient.js";
 import type { RecipientCommand } from "../api/recipient.js";
 import { BoardRecipient, RecipientMemory } from "./recipient.js";
+
+const unexpectedProbe = {
+  checkInstalledVersion: async (): Promise<never> => { throw Error("Unexpected identity check"); },
+  stopInstalledVersion: async (): Promise<never> => { throw Error("Unexpected identity stop"); },
+};
 import { InstallationInspectionRefusal } from "../api/installation.js";
 const id = (n: number): string => "00000000-0000-4000-8000-" + String(n).padStart(12, "0");
 const context = { installationId: id(1), boardId: id(2), incarnation: id(3), actorId: id(4) };
@@ -17,7 +22,7 @@ export async function runRecipientProbe(): Promise<number> {
   const calls: RecipientCommand[] = [];
   let result = structuredClone(empty), failure: unknown, hold = false;
   let release: ((value: RecipientView) => void) | undefined;
-  const client = { installationInspection: async (): Promise<never> => { throw Error("Unexpected installation inspection"); }, recipient: async (identity: Identity, command: RecipientCommand): Promise<RecipientView> => {
+  const client = { ...unexpectedProbe, installationInspection: async (): Promise<never> => { throw Error("Unexpected installation inspection"); }, recipient: async (identity: Identity, command: RecipientCommand): Promise<RecipientView> => {
     calls.push(structuredClone(command));
     if (hold) return new Promise(resolve => { release = resolve; });
     if (failure) throw failure;
@@ -120,6 +125,7 @@ export async function runInstallationProbe(): Promise<number> {
       if (heldStatus) return new Promise(resolve => { releaseStatus = resolve; });
       return structuredClone(status);
     },
+    ...unexpectedProbe,
     installationInspection: async (_identity: Identity, generation: string, _signal: AbortSignal, guard: () => void): Promise<InstallationInspectionResult> => {
       inspectionCalls++; check(generation === status.runtimeGeneration, "Inspection uses same-action status generation"); guard();
       if (heldInspection) return new Promise(resolve => { releaseInspection = resolve; });

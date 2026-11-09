@@ -89,6 +89,9 @@ func (r Runner) Run(ctx context.Context, args []string, stdin io.Reader, stdout,
 	} else {
 		out = r.execute(ctx, q, stdin, stderr)
 	}
+	if isIdentityProbe(q.kind) {
+		return writeIdentityProbe(out, q, stdout, stderr)
+	}
 	if NoticeTextIntent(args) {
 		return writeOriginalNotice(out, q, stdout, stderr)
 	}

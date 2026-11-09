@@ -19,6 +19,37 @@ export class ProbeBoundaryError extends Error {
 }
 export type ProbeContext = Readonly<{ identity: Identity; runtimeGeneration: string; configurationGeneration: string }>;
 export type ProbeOperationContext = ProbeContext & Readonly<{ probeGeneration: string }>;
+export type CapturedProbe = Readonly<{ context: ProbeOperationContext; assertConnection(): void }>;
+
+export class ProbeActionFailure extends Error {
+  constructor(readonly code: string, readonly phase: "preflight" | "post" = "preflight") { super("Identity check " + code); }
+}
+
+// Require an exposed fixed-length frame. Browsers can normalize a conflicting
+// Content-Length on chunked replies before handing the body to the caller.
+export function hasProbeResponseFraming(response: Response): boolean {
+  return !response.redirected && response.headers.get("Cache-Control") === "no-store" &&
+    response.headers.has("Content-Length") && !response.headers.has("Transfer-Encoding") &&
+    !response.headers.has("Content-Encoding") &&
+    /^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(response.headers.get("Content-Type") ?? "");
+}
+
+export function probeControlQuery(expected: ProbeContext): string {
+  context(expected, expected);
+  const query = new URLSearchParams({ incarnation: expected.identity.incarnation,
+    expectedRuntimeGeneration: expected.runtimeGeneration, expectedConfigurationGeneration: expected.configurationGeneration }).toString();
+  if (new TextEncoder().encode(query).length > probeControlQueryMaximum) throw new ProbeBoundaryError();
+  return query;
+}
+
+export function probeRequestBody(expected: ProbeOperationContext): string {
+  operation(expected, expected);
+  const body = JSON.stringify({ incarnation: expected.identity.incarnation,
+    expectedRuntimeGeneration: expected.runtimeGeneration, expectedConfigurationGeneration: expected.configurationGeneration,
+    probeGeneration: expected.probeGeneration });
+  parseProbeRequest(body);
+  return body;
+}
 
 function validIdentity(value: Identity): boolean {
   return value !== null && typeof value === "object" && Object.keys(value).sort().join() === "boardId,incarnation" &&

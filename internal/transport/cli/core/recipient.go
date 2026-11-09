@@ -34,6 +34,9 @@ func recipientRequestID() (T.UUIDv4, error) {
 	return T.UUIDv4(fmt.Sprintf("%x-%x-%x-%x-%x", b[:4], b[4:6], b[6:8], b[8:10], b[10:])), nil
 }
 func runRecipient(ctx context.Context, c *Connection, q invocation, input *T.RecipientInput) result {
+	if isIdentityProbe(q.kind) {
+		return runIdentityProbe(ctx, c, q)
+	}
 	if q.kind == installationInspectKind {
 		return runInstallationInspect(ctx, c, q)
 	}

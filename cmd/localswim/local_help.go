@@ -10,6 +10,9 @@ const localDomainCLIHelp = `  localswim --data NEWDIR [--json] board init --work
   localswim --data DIR [--json] activity read [--from UTC --through UTC | --cursor TOKEN]
   localswim --data DIR [--json] recipient status
   localswim --data DIR [--json] recipient tool inspect
+  localswim --data DIR [--json] recipient tool status
+  localswim --data DIR [--json] recipient tool probe-version
+  localswim --data DIR [--json] recipient tool stop --probe-generation UUIDv4
   localswim --data DIR [--json] recipient configure --input PRIVATE.json
   localswim --data DIR [--json] notices configure|start|status|inbox|stop|recover|reload
   localswim --data DIR [--json] notices retarget --target-id UUID

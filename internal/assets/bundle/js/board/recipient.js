@@ -1,3 +1,4 @@
+import { ProbeActionFailure } from "../api/identity-probe.js";
 import { RecipientRefusal, sameRecipientInput } from "../api/recipient.js";
 import { InstallationInspectionRefusal, validateInstallationInspection } from "../api/installation.js";
 import { button, element } from "../recovery-ui/view.js";
@@ -26,6 +27,15 @@ export class BoardRecipient {
     originalResult = element("p");
     input = element("input");
     inspection = element("p");
+    identityCheck = element("p");
+    check = button("Check installed version", () => { void this.runProbe(); });
+    stop = button("Stop check", () => { void this.stopProbe(); });
+    checkRequest;
+    stopRequest;
+    probe;
+    probeObservation;
+    probeIntent = 0;
+    probeUnconfigured = false;
     open = button("Recipient policy", () => {
         if (this.open.disabled || !this.panel.hidden)
             return;
@@ -55,6 +65,9 @@ export class BoardRecipient {
         this.message.setAttribute("role", "status");
         this.inspection.setAttribute("aria-live", "polite");
         this.inspection.setAttribute("aria-label", "Installation inspection");
+        this.identityCheck.setAttribute("aria-live", "polite");
+        this.identityCheck.setAttribute("aria-atomic", "true");
+        this.identityCheck.setAttribute("aria-label", "Installed version check");
         this.input.maxLength = 1024;
         this.input.autocomplete = "off";
         this.input.spellcheck = false;
@@ -79,7 +92,7 @@ export class BoardRecipient {
                 this.close();
             }
         });
-        this.panel.append(element("h2", "Recipient policy"), element("p", "Save one private Codex chat reference with the conservative metadata policy. Saving does not activate delivery. This reference cannot be replaced here."), label, this.read, this.save, this.inspect, this.message, this.originalResult, this.facts, this.inspection, button("Close recipient policy", () => this.close()));
+        this.panel.append(element("h2", "Recipient policy"), element("p", "Save one private Codex chat reference with the conservative metadata policy. Saving does not activate delivery. This reference cannot be replaced here."), label, this.read, this.save, this.inspect, this.message, this.originalResult, this.facts, this.inspection, this.check, this.stop, this.identityCheck, button("Close recipient policy", () => this.close()));
         this.host.append(this.open, this.panel);
         this.update();
     }
@@ -106,6 +119,11 @@ export class BoardRecipient {
         this.facts.replaceChildren();
         this.originalResult.textContent = "";
         this.inspection.textContent = "";
+        this.checkRequest?.abort();
+        this.checkRequest = undefined;
+        this.stopRequest?.abort();
+        this.stopRequest = undefined;
+        this.clearProbe();
         this.open.setAttribute("aria-expanded", "false");
         this.update();
         if (restoreFocus && ownedFocus && !this.open.disabled)
@@ -114,13 +132,149 @@ export class BoardRecipient {
     update() {
         const available = !!this.context && !this.suspended && !this.selecting;
         this.open.disabled = !available;
-        const busy = !!this.request, original = this.draft?.original;
+        const busy = !!(this.request || this.checkRequest || this.stopRequest), original = this.draft?.original;
         const locked = !!original && original.outcome !== "refused";
-        this.input.readOnly = busy || locked;
+        this.input.readOnly = !!this.request || locked;
+        this.check.setAttribute("aria-disabled", String(!available || this.panel.hidden || busy || this.probeUnconfigured));
+        this.stop.setAttribute("aria-disabled", String(!available || this.panel.hidden || !!this.request || !!this.stopRequest || !this.probe));
         this.read.setAttribute("aria-disabled", String(!available || busy || this.panel.hidden));
         this.inspect.setAttribute("aria-disabled", String(!available || busy || this.panel.hidden));
         this.save.setAttribute("aria-disabled", String(!available || busy || this.panel.hidden || !this.draft || locked ||
             this.displayed?.state !== "unconfigured" || !thread.test(this.input.value)));
+    }
+    clearProbe() {
+        this.probe = undefined;
+        this.probeObservation = undefined;
+        this.probeUnconfigured = false;
+        this.identityCheck.textContent = "";
+    }
+    probeGuard(request, epoch) {
+        return this.epoch === epoch && (this.checkRequest === request || this.stopRequest === request) &&
+            !!this.context && !this.suspended && !this.selecting && !this.panel.hidden && !request.signal.aborted;
+    }
+    assertProbeConnection(probe) {
+        try {
+            probe?.assertConnection();
+        }
+        catch {
+            throw new ProbeActionFailure("OUTCOME_UNKNOWN", "post");
+        }
+    }
+    reconcileProbePolicy(view) {
+        const observed = this.probeObservation?.context;
+        if (view.state !== "configured" || observed && (observed.runtimeGeneration !== view.runtimeGeneration ||
+            observed.configurationGeneration !== view.configurationGeneration))
+            this.clearProbe();
+        this.probeUnconfigured = view.state === "unconfigured";
+        if (this.probeUnconfigured)
+            this.identityCheck.textContent = "Save a recipient policy before checking the installed version.";
+    }
+    showProbeFailure(error) {
+        const code = error instanceof ProbeActionFailure ? error.code : "UNAVAILABLE";
+        if (this.probeObservation) {
+            try {
+                this.probeObservation.assertConnection();
+            }
+            catch {
+                this.clearProbe();
+                this.clearRecipientFacts();
+            }
+        }
+        if (["UNAUTHENTICATED", "FORBIDDEN", "IDENTITY_CHANGED", "UNCONFIGURED", "CONTROL_STALE"].includes(code)) {
+            this.clearProbe();
+            this.clearRecipientFacts();
+        }
+        if (code === "UNAVAILABLE" || (error instanceof ProbeActionFailure && error.phase === "post" && code !== "OUTCOME_UNKNOWN"))
+            this.probe = undefined;
+        this.probeUnconfigured = code === "UNCONFIGURED";
+        this.identityCheck.textContent = code === "UNCONFIGURED" ? "Save a recipient policy before checking the installed version." :
+            code === "OUTCOME_UNKNOWN" ? "Identity check outcome unknown." :
+                code === "CONTROL_BUSY" ? "An installation tool operation is still in progress or stopping." :
+                    code === "CONTROL_STALE" ? "Identity check context changed. A new check requires a deliberate action." :
+                        code === "UNAVAILABLE" ? "Identity check unavailable." : "Identity check request refused (" + code + ").";
+    }
+    clearRecipientFacts() {
+        this.displayed = undefined;
+        this.facts.replaceChildren();
+        this.originalResult.textContent = "";
+        this.inspection.textContent = "";
+        this.message.textContent = "Current recipient facts unavailable. Draft and original save details retained.";
+    }
+    async runProbe() {
+        const context = this.context;
+        if (!context || this.check.getAttribute("aria-disabled") === "true")
+            return;
+        const request = new AbortController(), epoch = this.epoch, intent = ++this.probeIntent;
+        this.clearProbe();
+        this.checkRequest = request;
+        this.identityCheck.textContent = "Checking installed version…";
+        this.update();
+        const current = () => this.probeGuard(request, epoch);
+        try {
+            const result = await this.client.checkInstalledVersion({ boardId: context.boardId, incarnation: context.incarnation }, request.signal, () => { if (!current())
+                throw Error("Identity check view changed"); }, probe => {
+                if (current() && intent === this.probeIntent) {
+                    this.probe = probe;
+                    this.probeObservation = probe;
+                    this.update();
+                }
+            });
+            if (!current() || intent !== this.probeIntent)
+                return;
+            this.assertProbeConnection(this.probeObservation);
+            if (result.joined)
+                this.probe = undefined;
+            this.identityCheck.textContent = result.state === "supported" && result.code === "OK" && result.joined
+                ? "Installed version: " + result.toolVersion
+                : result.code === "TOOL_MISSING" ? "No tool in the supported installation location."
+                    : result.state === "unsupported" ? "The installed version check is unsupported."
+                        : result.state === "unavailable" ? "The installed version check is unavailable."
+                            : result.state === "incomplete" ? "The identity check is still stopping."
+                                : "The installed version check could not complete.";
+        }
+        catch (error) {
+            if (current() && intent === this.probeIntent)
+                this.showProbeFailure(error);
+        }
+        finally {
+            if (this.checkRequest === request) {
+                this.checkRequest = undefined;
+                this.update();
+            }
+        }
+    }
+    async stopProbe() {
+        const probe = this.probe;
+        if (!probe || this.stop.getAttribute("aria-disabled") === "true")
+            return;
+        const request = new AbortController(), epoch = this.epoch;
+        // Stop owns the result surface without aborting the running check request.
+        this.probeIntent++;
+        this.stopRequest = request;
+        this.identityCheck.textContent = "Stopping check…";
+        this.update();
+        const current = () => this.probeGuard(request, epoch);
+        try {
+            const response = await this.client.stopInstalledVersion(probe, request.signal, () => { if (!current())
+                throw Error("Identity check view changed"); });
+            if (!current())
+                return;
+            this.assertProbeConnection(probe);
+            if (response.result.joined)
+                this.probe = undefined;
+            this.identityCheck.textContent = response.result.joined ? "Check cleanup finished. No version result from Stop." :
+                "The identity check is still stopping.";
+        }
+        catch (error) {
+            if (current())
+                this.showProbeFailure(error);
+        }
+        finally {
+            if (this.stopRequest === request) {
+                this.stopRequest = undefined;
+                this.update();
+            }
+        }
     }
     configure() {
         if (this.save.getAttribute("aria-disabled") === "true" || !this.draft || !this.displayed)
@@ -149,6 +303,7 @@ export class BoardRecipient {
             const status = await this.client.recipient(identity, { action: "status" }, request.signal);
             if (!current())
                 return;
+            this.reconcileProbePolicy(status);
             const result = await this.client.installationInspection(identity, status.runtimeGeneration, request.signal, () => {
                 if (!current())
                     throw Error("Inspection view changed");
@@ -165,9 +320,8 @@ export class BoardRecipient {
             if (current()) {
                 if ((error instanceof InstallationInspectionRefusal || error instanceof RecipientRefusal) &&
                     ["UNAUTHENTICATED", "FORBIDDEN", "IDENTITY_CHANGED"].includes(error.code)) {
-                    this.displayed = undefined;
-                    this.facts.replaceChildren();
-                    this.originalResult.textContent = "";
+                    this.clearProbe();
+                    this.clearRecipientFacts();
                 }
                 this.inspection.textContent = error instanceof InstallationInspectionRefusal
                     ? "Installation inspection refused (" + error.code + "). Inspect again only as a new deliberate action."
@@ -199,6 +353,7 @@ export class BoardRecipient {
             const view = await this.client.recipient(identity, command, request.signal);
             if (!current())
                 return;
+            this.reconcileProbePolicy(view);
             this.displayed = structuredClone(view);
             const retained = draft?.original;
             if (retained && view.state === "configured" && view.requestId === retained.command.requestId && view.input && sameRecipientInput(view.input, retained.command.input))
@@ -216,6 +371,7 @@ export class BoardRecipient {
                 return;
             this.displayed = undefined;
             this.facts.replaceChildren();
+            this.clearProbe();
             if (error instanceof RecipientRefusal)
                 this.message.textContent = "Recipient request refused (" + error.code + "). Draft retained; read status before another action.";
             else

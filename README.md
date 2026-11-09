@@ -1,9 +1,13 @@
 # localswim
 
-M18 development follows the reviewed [identity/control model](docs/decisions/m18-identity-probe-contract-2026-11-08.txt)
-and [88-case planned acceptance inventory](docs/examples/m18-identity-probe-acceptance.json).
-Whole-source safety review and actual installed qualification gate the later
-client delivery; these model records are separate from runtime evidence.
+M18 adds a deliberate installed-version check and generation-bound Stop through
+both the ordinary browser and actual CLI. Follow the
+[identity and Stop guide](docs/runbooks/m18-identity-checks.txt) for the selected
+board, readable and JSON results, and unknown-outcome recovery. A version is
+reported only after the actual command returns a qualified identity and joins.
+The [reviewed model](docs/decisions/m18-identity-probe-contract-2026-11-08.txt)
+and [acceptance inventory](docs/examples/m18-identity-probe-acceptance.json)
+keep capability, readiness and delivery as separate work.
 
 M17 adds deliberate installation inspection through the
 [ordinary browser](docs/runbooks/m17-installation-browser.txt) and

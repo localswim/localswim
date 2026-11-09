@@ -141,6 +141,10 @@ func (c *Connection) requestJSON(ctx context.Context, method, path string, body 
 }
 
 func (c *Connection) requestRaw(ctx context.Context, method, path string, body io.Reader, contentType, accept string, maxBytes int64) (int, http.Header, []byte, error) {
+	return c.requestRawWithFraming(ctx, method, path, body, contentType, accept, maxBytes, false)
+}
+
+func (c *Connection) requestRawWithFraming(ctx context.Context, method, path string, body io.Reader, contentType, accept string, maxBytes int64, requireFixedLength bool) (int, http.Header, []byte, error) {
 	if c == nil || c.do == nil || ctx == nil || ctx.Err() != nil {
 		return 0, nil, nil, errors.New("connection unavailable")
 	}
@@ -170,11 +174,17 @@ func (c *Connection) requestRaw(ctx context.Context, method, path string, body i
 		return 0, nil, nil, errors.New("response unavailable")
 	}
 	defer resp.Body.Close()
+	// Go normalizes chunked framing and may discard a contradictory wire
+	// Content-Length. Identity routes emit fixed-length JSON, so decline any
+	// transfer coding or unknown length before reading an identity response.
+	if requireFixedLength && (resp.ContentLength < 0 || len(resp.TransferEncoding) != 0) {
+		return 0, nil, nil, errors.New("response unavailable")
+	}
 	if len(resp.Header.Values("Content-Encoding")) != 0 || resp.Uncompressed || resp.ContentLength > maxBytes {
 		return 0, nil, nil, errors.New("response unavailable")
 	}
 	b, e := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
-	if e != nil || int64(len(b)) > maxBytes || ctx.Err() != nil || ((resp.ContentLength > 0 || len(resp.Header.Values("Content-Length")) != 0) && int64(len(b)) != resp.ContentLength) {
+	if e != nil || int64(len(b)) > maxBytes || ctx.Err() != nil || ((requireFixedLength || resp.ContentLength > 0 || len(resp.Header.Values("Content-Length")) != 0) && int64(len(b)) != resp.ContentLength) {
 		return 0, nil, nil, errors.New("response unavailable")
 	}
 	return resp.StatusCode, resp.Header.Clone(), b, nil

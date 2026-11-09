@@ -11,6 +11,7 @@ import { laneRole, sameWorkflow, validateWorkflowPolicies, workflowAtVersion, va
 import { fileReadMaximum, FilesReadRefusal, validateFileRead, validateFilesRead } from "./files.js";
 import { RecipientRefusal, RecipientUnknown, validateRecipient } from "./recipient.js";
 import { inspectInstallation } from "./installation.js";
+import { hasProbeResponseFraming, parseProbeControlResponse, parseProbeRefusal, parseProbeResult, parseProbeStopResponse, ProbeActionFailure, probeControlQuery, probeRequestBody, probeResponseMaximum } from "./identity-probe.js";
 export class WorkflowPreviewRefusal extends Error {
     code;
     constructor(code) {
@@ -330,7 +331,83 @@ export class BoardClient {
         return inspectInstallation({ raw: (path, init) => this.raw(path, init), sameConnection: value => this.sameConnection(value),
             assertCurrent: () => { this.sameConnection(credential); assertCurrent(); } }, identity, expectedRuntimeGeneration, signal);
     }
+    async checkInstalledVersion(identity, signal, assertView, capture) {
+        const { context, current, assertConnection } = await this.probePolicy(identity, signal, assertView);
+        const base = this.path(context.identity.boardId) + "/recipient/tool/";
+        const control = await this.probeExchange(base + "probe-control?" + probeControlQuery(context), signal, current, bytes => parseProbeControlResponse(bytes, context));
+        current();
+        const expected = { ...context, probeGeneration: control.result.probeGeneration };
+        // A current busy read can identify the exact active generation for a
+        // separate deliberate Stop, but must never submit another start.
+        if (control.result.phase !== "ready") {
+            capture({ context: expected, assertConnection });
+            throw new ProbeActionFailure("CONTROL_BUSY");
+        }
+        const body = probeRequestBody(expected);
+        return this.probeExchange(base + "probe-version", signal, current, bytes => parseProbeResult(bytes, expected), { body, dispatched: () => capture({ context: expected, assertConnection }) });
+    }
+    async stopInstalledVersion(probe, signal, assertView) {
+        const expected = structuredClone(probe.context);
+        const { context, current } = await this.probePolicy(expected.identity, signal, () => { assertView(); probe.assertConnection(); });
+        if (context.runtimeGeneration !== expected.runtimeGeneration || context.configurationGeneration !== expected.configurationGeneration)
+            throw new ProbeActionFailure("CONTROL_STALE");
+        return this.probeExchange(this.path(expected.identity.boardId) + "/recipient/tool/stop", signal, current, bytes => parseProbeStopResponse(bytes, expected), { body: probeRequestBody(expected) });
+    }
+    async probePolicy(identity, signal, assertView) {
+        identity = structuredClone(identity);
+        try {
+            const credential = this.connection();
+            const assertConnection = () => this.sameConnection(credential);
+            const current = () => { signal.throwIfAborted(); assertView(); assertConnection(); };
+            current();
+            // This read is intentionally independent of the panel's M16 original.
+            const status = await this.recipientExchange(identity, { action: "status" }, signal, true);
+            current();
+            if (status.state !== "configured" || status.configurationGeneration === null)
+                throw new ProbeActionFailure(status.state === "unconfigured" ? "UNCONFIGURED" : "UNAVAILABLE");
+            return { context: { identity, runtimeGeneration: status.runtimeGeneration,
+                    configurationGeneration: status.configurationGeneration }, current, assertConnection };
+        }
+        catch (error) {
+            if (error instanceof ProbeActionFailure)
+                throw error;
+            throw new ProbeActionFailure(error instanceof RecipientRefusal ? error.code : "UNAVAILABLE");
+        }
+    }
+    async probeExchange(path, signal, current, decode, post) {
+        const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(20_000)]);
+        let dispatched = false;
+        try {
+            current();
+            requestSignal.throwIfAborted();
+            if (post) {
+                post.dispatched?.();
+                dispatched = true;
+            }
+            const { response, credential } = await this.raw(path, { method: post ? "POST" : "GET", body: post?.body, signal: requestSignal });
+            if (!hasProbeResponseFraming(response)) {
+                await response.body?.cancel().catch(() => { });
+                throw Error("Identity response unavailable");
+            }
+            const bytes = await this.boundedBytes(response, credential, probeResponseMaximum);
+            requestSignal.throwIfAborted();
+            current();
+            if (response.status !== 200) {
+                const refusal = parseProbeRefusal(bytes, response.status, post ? "post" : "get");
+                throw new ProbeActionFailure(refusal.error.code, post ? "post" : "preflight");
+            }
+            return decode(bytes);
+        }
+        catch (error) {
+            if (error instanceof ProbeActionFailure)
+                throw error;
+            throw new ProbeActionFailure(dispatched ? "OUTCOME_UNKNOWN" : "UNAVAILABLE", dispatched ? "post" : "preflight");
+        }
+    }
     async recipient(identity, command, signal) {
+        return this.recipientExchange(identity, command, signal);
+    }
+    async recipientExchange(identity, command, signal, identityPreflight = false) {
         identity = structuredClone(identity);
         command = structuredClone(command);
         const post = command.action === "configure";
@@ -350,8 +427,9 @@ export class BoardClient {
         }
         try {
             const { response, credential: presented } = await this.raw(post ? path : path + "?" + new URLSearchParams({ incarnation: identity.incarnation }), { method: post ? "POST" : "GET", body, signal: requestSignal });
-            if (response.headers.get("Cache-Control") !== "no-store" || response.headers.has("Content-Encoding") ||
-                !/^application\/json(?:\s*;|$)/i.test(response.headers.get("Content-Type") ?? "")) {
+            if (identityPreflight ? !hasProbeResponseFraming(response) :
+                response.headers.get("Cache-Control") !== "no-store" || response.headers.has("Content-Encoding") ||
+                    !/^application\/json(?:\s*;|$)/i.test(response.headers.get("Content-Type") ?? "")) {
                 await response.body?.cancel().catch(() => { });
                 throw Error("Recipient response unavailable");
             }
@@ -382,6 +460,10 @@ export class BoardClient {
         }
     }
     async boundedRead(response, credential, maximum) {
+        const bytes = await this.boundedBytes(response, credential, maximum);
+        return parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes));
+    }
+    async boundedBytes(response, credential, maximum) {
         const declared = response.headers.get("Content-Length");
         if (declared !== null && (!/^(0|[1-9][0-9]*)$/.test(declared) || Number(declared) > maximum)) {
             await response.body?.cancel().catch(() => { });
@@ -410,13 +492,16 @@ export class BoardClient {
             await reader.cancel().catch(() => { });
             throw error;
         }
+        finally {
+            reader.releaseLock();
+        }
         const bytes = new Uint8Array(size);
         let offset = 0;
         for (const chunk of chunks) {
             bytes.set(chunk, offset);
             offset += chunk.byteLength;
         }
-        return parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes));
+        return bytes;
     }
     async fileRead(path) {
         const { response, credential } = await this.raw(path, { signal: AbortSignal.timeout(20_000) });

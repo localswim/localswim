@@ -22,6 +22,7 @@ type invocation struct {
 	archive, cursor, query, lane, owner, priority string
 	from, through                                 string
 	noticeTarget, noticeDelivery                  string
+	probeGeneration                               T.UUIDv4
 	command                                       contract.Command
 }
 
@@ -55,15 +56,15 @@ func parse(args []string) (q invocation, code string, exit int) {
 	i += 2
 	q.kind = group + " " + action
 	if q.kind == "recipient tool" {
-		// Trailing malformed words cannot turn this read-only grammar into an
+		// Trailing malformed words cannot turn this grammar into an
 		// original-operation lookup with mutation-uncertainty exit semantics.
 		q.lookup = false
-		if i >= len(args) || args[i] != "inspect" {
+		if i >= len(args) {
 			return q, "INVOCATION_OR_IO", 1
 		}
+		q.kind += " " + args[i]
+		action = "tool/" + args[i]
 		i++
-		q.kind = installationInspectKind
-		action = "tool/inspect"
 	}
 	switch q.kind {
 	case "card list", "card search":
@@ -71,9 +72,9 @@ func parse(args []string) (q invocation, code string, exit int) {
 		q.archive = "active"
 	case "board read", "workflow show", "attention show", "activity read":
 		q.method = "GET"
-	case "recipient status", installationInspectKind, "notices status", "notices inbox", "notices text":
+	case "recipient status", installationInspectKind, probeStatusKind, "notices status", "notices inbox", "notices text":
 		q.method = "GET"
-	case "recipient configure", "notices configure", "notices start", "notices stop", "notices recover", "notices reload", "notices retarget", "notices lookup":
+	case "recipient configure", probeVersionKind, probeStopKind, "notices configure", "notices start", "notices stop", "notices recover", "notices reload", "notices retarget", "notices lookup":
 		q.method = "POST"
 	case "card read", "card history", "card children", "card relationships", "operation read":
 		q.method = "GET"
@@ -132,6 +133,11 @@ func parse(args []string) (q invocation, code string, exit int) {
 				return q, "INVOCATION_OR_IO", 1
 			}
 			q.archive = args[i]
+		} else if q.kind == probeStopKind && k == "--probe-generation" {
+			if !v4(args[i]) {
+				return q, "INVOCATION_OR_IO", 1
+			}
+			q.probeGeneration = T.UUIDv4(args[i])
 		} else if q.kind == "notices text" && k == "--target" {
 			q.noticeTarget = args[i]
 		} else if q.kind == "notices text" && k == "--delivery" {
@@ -203,7 +209,7 @@ func parse(args []string) (q invocation, code string, exit int) {
 	base := "/api/v1/boards/" + q.selected.BoardID
 	q.path = base
 	if group == "recipient" {
-		if q.kind == "recipient configure" && q.input == "-" {
+		if q.kind == "recipient configure" && q.input == "-" || q.kind == probeStopKind && q.probeGeneration == "" {
 			return q, "INVOCATION_OR_IO", 1
 		}
 		q.path = recipientPath(q.selected, action)

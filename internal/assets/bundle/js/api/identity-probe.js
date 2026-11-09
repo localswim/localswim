@@ -13,6 +13,39 @@ const refusalPairs = new Set(["400/INVALID_INPUT", "401/UNAUTHENTICATED", "403/F
 export class ProbeBoundaryError extends Error {
     constructor() { super("Invalid identity check response"); }
 }
+export class ProbeActionFailure extends Error {
+    code;
+    phase;
+    constructor(code, phase = "preflight") {
+        super("Identity check " + code);
+        this.code = code;
+        this.phase = phase;
+    }
+}
+// Require an exposed fixed-length frame. Browsers can normalize a conflicting
+// Content-Length on chunked replies before handing the body to the caller.
+export function hasProbeResponseFraming(response) {
+    return !response.redirected && response.headers.get("Cache-Control") === "no-store" &&
+        response.headers.has("Content-Length") && !response.headers.has("Transfer-Encoding") &&
+        !response.headers.has("Content-Encoding") &&
+        /^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(response.headers.get("Content-Type") ?? "");
+}
+export function probeControlQuery(expected) {
+    context(expected, expected);
+    const query = new URLSearchParams({ incarnation: expected.identity.incarnation,
+        expectedRuntimeGeneration: expected.runtimeGeneration, expectedConfigurationGeneration: expected.configurationGeneration }).toString();
+    if (new TextEncoder().encode(query).length > probeControlQueryMaximum)
+        throw new ProbeBoundaryError();
+    return query;
+}
+export function probeRequestBody(expected) {
+    operation(expected, expected);
+    const body = JSON.stringify({ incarnation: expected.identity.incarnation,
+        expectedRuntimeGeneration: expected.runtimeGeneration, expectedConfigurationGeneration: expected.configurationGeneration,
+        probeGeneration: expected.probeGeneration });
+    parseProbeRequest(body);
+    return body;
+}
 function validIdentity(value) {
     return value !== null && typeof value === "object" && Object.keys(value).sort().join() === "boardId,incarnation" &&
         [value.boardId, value.incarnation].every(id => typeof id === "string" && uuid.test(id) && id !== zero);

@@ -1,0 +1,65 @@
+M18 — Check the installed version and stop an active check
+
+Select a running local board. The board must have its existing fixed recipient
+policy saved and readable before an installed-version check is available. Save
+that policy deliberately through the M16 workflow if it is not configured.
+
+In the browser
+
+- Open Recipient policy. Choose Check installed version when you want a new
+  observation. The button supports keyboard activation.
+- While a check is pending, use Stop check to request cleanup for that check.
+  Closing the panel stops that view from waiting; cleanup can still be active.
+- Opening the panel, switching boards, reloading, or reconnecting does not
+  start a check or send Stop. Your existing draft and original save stay separate.
+- Inspect installation remains the metadata-only action and does not run a
+  command. It remains available without a saved recipient policy.
+
+In the CLI
+
+From the directory containing the executable, select the exact running board:
+
+  .\localswim.exe --data C:\PRIVATE\board recipient tool status
+  .\localswim.exe --data C:\PRIVATE\board recipient tool probe-version
+  .\localswim.exe --data C:\PRIVATE\board --json recipient tool probe-version
+
+For a registered workspace member, use the explicit workspace selection:
+
+  .\localswim.exe --workspace C:\PRIVATE\workspace --project demo --board work recipient tool status
+  .\localswim.exe --workspace C:\PRIVATE\workspace --project demo --board work recipient tool probe-version
+
+To stop an active check, read its exact probe generation from status and supply
+that value. Replace PROBE-UUID with the running or draining check's UUID:
+
+  .\localswim.exe --data C:\PRIVATE\board recipient tool stop --probe-generation PROBE-UUID
+
+Use the same workspace selectors for Stop on a workspace member. Add --json
+before recipient for strict machine-readable status or Stop output. Status returns
+one deliberate control observation without starting or stopping a check. A ready status reports
+the available generation for a future check; it does not confirm an earlier result.
+
+Read the outcome
+
+- A displayed version means the installed tool returned its version and the
+  operation joined. Capabilities, readiness and delivery remain separate.
+- A joined Stop confirms cleanup for that generation. It does not return a
+  version or establish whether the command ran before cancellation.
+- Missing, unsupported, unavailable, unknown and incomplete are distinct.
+  An incomplete result means the service still owns cleanup. An unknown POST
+  outcome does not confirm whether the check ran or joined.
+- On an unknown response, do not repeat the old request. Read current status
+  or make a new deliberate check when the slot is available. A new check uses
+  the server's current available generation; there is no automatic replay.
+
+CLI exit codes
+
+- 0: validated status, a joined Stop, or a supported version result.
+- 1: invalid invocation or local pre-dispatch input/output failure.
+- 2: recognized service refusal. A POST refusal is a control or disclosure
+  refusal; it does not establish non-execution or join.
+- 3: unavailable preflight, or a valid unavailable/unsupported probe result.
+- 4: unknown or incomplete probe/Stop outcome, including any POST 503. A lost
+  or unusable response has no identity, version or join facts in its JSON output.
+
+The version check does not save or replace a recipient, change cards, activate
+delivery, or expose raw tool output, private paths or signer details.

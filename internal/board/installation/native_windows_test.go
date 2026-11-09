@@ -118,3 +118,34 @@ func TestFileClosePoisonDoesNotTouchReusedHandle(t *testing.T) {
 		t.Fatal("reused object was closed")
 	}
 }
+
+func TestNativeOrdinalPathComparisonAndBinding(t *testing.T) {
+	const latin = `C:\Profiles\K\Release\codex.exe`
+	const asciiCase = `c:\profiles\k\release\CODEX.EXE`
+	const kelvin = `C:\Profiles\K\Release\codex.exe`
+	if equal, err := ordinalPathEqual(latin, asciiCase); err != nil || !equal {
+		t.Fatal("Windows ASCII case identity refused", err)
+	}
+	if equal, err := ordinalPathEqual(latin, kelvin); err != nil || equal {
+		t.Fatal("distinct Windows Kelvin path aliased", err)
+	}
+	for _, invalid := range []string{"", "a\x00b", string([]byte{0xff})} {
+		if equal, err := ordinalPathEqual(latin, invalid); err == nil || equal {
+			t.Fatal("invalid comparison accepted")
+		}
+	}
+	if validPathUTF16([]uint16{0xd800, 'x'}) || validPathUTF16([]uint16{0xdc00}) || !validPathUTF16([]uint16{0xd83d, 0xde00}) {
+		t.Fatal("lossy UTF-16 path validation")
+	}
+	var binding candidateBinding
+	if err := binding.chooseNative(latin, "same-file"); err != nil {
+		t.Fatal(err)
+	}
+	if err := binding.chooseNative(asciiCase, "same-file"); err != nil {
+		t.Fatal("case-only path rebound", err)
+	}
+	if err := binding.chooseNative(kelvin, "same-file"); err != ErrIdentityChanged {
+		t.Fatal("ordinal-distinct candidate rebound", err)
+	}
+
+}

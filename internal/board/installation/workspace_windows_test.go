@@ -7,8 +7,10 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"unsafe"
 
 	"github.com/google/uuid"
 	"golang.org/x/sys/windows"
@@ -150,8 +152,8 @@ func TestPrivateCleanupDoesNotTraverseChildReparseCanary(t *testing.T) {
 }
 func TestPrivateWorkspaceRejectsUnsafeExistingBaseWithoutRepair(t *testing.T) {
 	profile, sid := workspaceFixture(t)
-	base := filepath.Join(profile, ".localswim-native-runtime")
-	if err := os.Mkdir(base, 0700); err != nil {
+	base := filepath.Join(profile, ".localswim-native-runtime", "private")
+	if err := os.MkdirAll(filepath.Join(base, "releases"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	marker := filepath.Join(base, "preserve.txt")
@@ -215,7 +217,7 @@ func TestPrivateWorkspacePreservesExistingSharedApplicationDirectory(t *testing.
 			if err != nil {
 				t.Fatal("unselected application ancestry prevented dedicated private work", err)
 			}
-			if filepath.Dir(w.runtime) != filepath.Join(profile, ".localswim-native-runtime") {
+			if filepath.Dir(w.runtime) != filepath.Join(profile, ".localswim-native-runtime", "private") {
 				t.Fatal("native workspace did not use fixed verified-profile child")
 			}
 			if err = cleanup(); err != nil {
@@ -237,5 +239,270 @@ func TestPrivateWorkspacePreservesExistingSharedApplicationDirectory(t *testing.
 				t.Fatal("shared application directory removed", err)
 			}
 		})
+	}
+}
+
+func TestPrivateWorkspacePreservesReadonlyNamespaceACL(t *testing.T) {
+	profile, sid := workspaceFixture(t)
+	namespace := filepath.Join(profile, ".localswim-native-runtime")
+	if err := os.Mkdir(namespace, 0700); err != nil {
+		t.Fatal(err)
+	}
+	sd, err := windows.SecurityDescriptorFromString("O:" + sid.String() + "D:P(A;OICI;FA;;;" + sid.String() + ")(A;OICI;FA;;;SY)(A;OICI;GRGX;;;WD)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acl, _, err := sd.DACL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = windows.SetNamedSecurityInfo(namespace, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, acl, nil); err != nil {
+		t.Fatal(err)
+	}
+	before, err := windows.GetNamedSecurityInfo(namespace, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, cleanup, err := createNativeWorkspace(context.Background(), profile, sid, uuid.NewString(), uuid.NewString())
+	if err != nil {
+		t.Fatal("read-only namespace refused", err)
+	}
+	private := filepath.Join(namespace, "private")
+	ptr, _ := windows.UTF16PtrFromString(private)
+	h, err := windows.CreateFile(ptr, windows.READ_CONTROL|windows.FILE_READ_ATTRIBUTES, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = strictPrivate(h, sid, w.policy.system); err != nil {
+		t.Fatal("inner private ACL broadened", err)
+	}
+	if err = windows.CloseHandle(h); err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Dir(w.runtime) != private {
+		t.Fatal("runtime data placed outside inner private subtree")
+	}
+	if err = cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	after, err := windows.GetNamedSecurityInfo(namespace, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	if err != nil || before.String() != after.String() {
+		t.Fatal("namespace ACL repaired/rewritten", err)
+	}
+	entries, err := os.ReadDir(namespace)
+	if err != nil || len(entries) != 1 || entries[0].Name() != "private" {
+		t.Fatal("data created in nondata namespace", err)
+	}
+}
+func TestPrivateWorkspaceRejectsUnsafeNamespaceWithoutRepair(t *testing.T) {
+	for _, kind := range []string{"mutation", "reparse"} {
+		t.Run(kind, func(t *testing.T) {
+			profile, sid := workspaceFixture(t)
+			namespace := filepath.Join(profile, ".localswim-native-runtime")
+			outside := t.TempDir()
+			marker := filepath.Join(outside, "canary")
+			if err := os.WriteFile(marker, []byte("preserve"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if kind == "reparse" {
+				workspaceJunction(t, namespace, outside)
+			} else {
+				if err := os.Mkdir(namespace, 0700); err != nil {
+					t.Fatal(err)
+				}
+				sd, err := windows.SecurityDescriptorFromString("O:" + sid.String() + "D:P(A;OICI;FA;;;" + sid.String() + ")(A;OICI;FA;;;SY)(A;OICI;GW;;;WD)")
+				if err != nil {
+					t.Fatal(err)
+				}
+				acl, _, err := sd.DACL()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = windows.SetNamedSecurityInfo(namespace, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, acl, nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, cleanup, err := createNativeWorkspace(context.Background(), profile, sid, uuid.NewString(), uuid.NewString())
+			if err == nil {
+				t.Fatal("unsafe namespace adopted")
+			}
+			if err = cleanup(); err != nil {
+				t.Fatal(err)
+			}
+			bytes, err := os.ReadFile(marker)
+			if err != nil || string(bytes) != "preserve" {
+				t.Fatal("external canary changed", err)
+			}
+			if _, err = os.Stat(filepath.Join(outside, "private")); !os.IsNotExist(err) {
+				t.Fatal("unowned reparse target received private state", err)
+			}
+		})
+	}
+}
+func TestNamespaceOwnerPolicyRemainsIndependentOfReadonlyACL(t *testing.T) {
+	_, sid := workspaceFixture(t)
+	system, err := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	admin, err := windows.CreateWellKnownSid(windows.WinBuiltinAdministratorsSid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &pins{user: sid, system: system, admin: admin}
+	sd, err := windows.SecurityDescriptorFromString("O:WDD:P(A;;GRGX;;;WD)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = p.validateSecurity(sd, false); err == nil {
+		t.Fatal("read-only grants legitimized a foreign namespace owner")
+	}
+}
+
+func TestManagedSlotRequiresPhysicalScope(t *testing.T) {
+	root, sid := workspaceFixture(t)
+	for _, kind := range []string{"kelvin-escape", "ascii-case", "case-distinct-sibling"} {
+		t.Run(kind, func(t *testing.T) {
+			testRoot := filepath.Join(root, kind)
+			owned := filepath.Join(testRoot, "K")
+			sibling := filepath.Join(testRoot, "K")
+			if kind == "case-distinct-sibling" {
+				if err := os.Mkdir(testRoot, 0700); err != nil {
+					t.Fatal(err)
+				}
+				enableCaseSensitiveDirectory(t, testRoot)
+				sibling = filepath.Join(testRoot, "k")
+			}
+			base := filepath.Join(owned, ".codex", "packages", "standalone")
+			chosen := owned
+			if kind != "ascii-case" {
+				chosen = sibling
+			}
+			target := filepath.Join(chosen, ".codex", "packages", "standalone", "releases", "1.2.3-x86_64-pc-windows-msvc")
+			if err := os.MkdirAll(filepath.Join(target, "bin"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Join(base, "releases"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if kind == "case-distinct-sibling" {
+				expected := filepath.Join(base, "releases")
+				actual := filepath.Dir(target)
+				left, leftErr := os.Stat(expected)
+				right, rightErr := os.Stat(actual)
+				equal, compareErr := ordinalPathEqual(expected, actual)
+				if leftErr != nil || rightErr != nil || compareErr != nil || !equal || os.SameFile(left, right) {
+					t.Fatal("distinct physical scope control not established", leftErr, rightErr, compareErr)
+				}
+			}
+			manifest := []byte(`{"layoutVersion":1,"version":"1.2.3","target":"x86_64-pc-windows-msvc","variant":"codex","entrypoint":"bin/codex.exe","resourcesDir":"codex-resources","pathDir":"codex-path"}`)
+			if err := os.WriteFile(filepath.Join(target, "codex-package.json"), manifest, 0600); err != nil {
+				t.Fatal(err)
+			}
+			pe := make([]byte, 512)
+			copy(pe, "MZ")
+			binary.LittleEndian.PutUint32(pe[60:], 64)
+			copy(pe[64:], "PE\x00\x00")
+			binary.LittleEndian.PutUint16(pe[68:], 0x8664)
+			binary.LittleEndian.PutUint16(pe[86:], 2)
+			binary.LittleEndian.PutUint16(pe[88:], 0x20b)
+			if err := os.WriteFile(filepath.Join(target, "bin", "codex.exe"), pe, 0600); err != nil {
+				t.Fatal(err)
+			}
+			junctionFixturePath := filepath.Join(base, "current")
+			workspaceJunction(t, junctionFixturePath, target)
+			requested := owned
+			if kind == "ascii-case" {
+				requested = strings.ToUpper(owned)
+			}
+			observation, cleanup := inspectProfile(context.Background(), requested, sid)
+			if cleanup == nil {
+				t.Fatal("missing resolver custody")
+			}
+			if err := cleanup(); err != nil {
+				t.Fatal(err)
+			}
+			want := "SOURCE_UNQUALIFIED"
+			if kind == "ascii-case" {
+				want = "PUBLISHER_UNQUALIFIED"
+			}
+			if observation.Code != want {
+				t.Fatal("incorrect ordinal source decision", observation)
+			}
+			bytes, err := os.ReadFile(filepath.Join(target, "codex-package.json"))
+			if err != nil || string(bytes) != string(manifest) {
+				t.Fatal("owned target canary changed", err)
+			}
+		})
+	}
+}
+
+func enableCaseSensitiveDirectory(t *testing.T, path string) {
+	t.Helper()
+	ptr, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := windows.CreateFile(ptr, windows.FILE_WRITE_ATTRIBUTES, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flag := uint32(1)
+	// FileCaseSensitiveInfo is FILE_INFO_BY_HANDLE_CLASS 23.
+	err = windows.SetFileInformationByHandle(h, 23, (*byte)(unsafe.Pointer(&flag)), 4)
+	closeErr := windows.CloseHandle(h)
+	if err != nil || closeErr != nil {
+		t.Fatal("owned case-sensitive fixture setup failed", err, closeErr)
+	}
+}
+
+func TestPrivateCleanupSeparatesCaseDistinctJunction(t *testing.T) {
+	profile, sid := workspaceFixture(t)
+	private := filepath.Join(profile, ".localswim-native-runtime", "private")
+	if err := os.MkdirAll(private, 0700); err != nil {
+		t.Fatal(err)
+	}
+	sd, err := windows.SecurityDescriptorFromString("O:" + sid.String() + "D:P(A;OICI;FA;;;" + sid.String() + ")(A;OICI;FA;;;SY)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acl, _, err := sd.DACL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = windows.SetNamedSecurityInfo(private, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, acl, nil); err != nil {
+		t.Fatal(err)
+	}
+	enableCaseSensitiveDirectory(t, private)
+	w, cleanup, err := createNativeWorkspace(context.Background(), profile, sid, uuid.NewString(), uuid.NewString())
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	canary := filepath.Join(outside, "canary")
+	if err := os.WriteFile(canary, []byte("preserve"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	ordinary := filepath.Join(w.root, "home")
+	link := filepath.Join(w.root, "HOME")
+	workspaceJunction(t, link, outside)
+	names, err := w.names(w.root)
+	if err != nil || !slices.Contains(names, "home") || !slices.Contains(names, "HOME") {
+		t.Fatal("distinct ordinary and junction entries not established", err)
+	}
+	if err = w.remove(link, 1); err != nil {
+		t.Fatal("exact junction detach failed", err)
+	}
+	if info, err := os.Stat(ordinary); err != nil || !info.IsDir() {
+		t.Fatal("ordinary held directory was removed instead", err)
+	}
+	if _, err := os.Lstat(link); !os.IsNotExist(err) {
+		t.Fatal("junction remained", err)
+	}
+	if err = cleanup(); err != nil {
+		t.Fatal("owned cleanup did not join", err)
+	}
+	if bytes, err := os.ReadFile(canary); err != nil || string(bytes) != "preserve" {
+		t.Fatal("external canary changed", err)
 	}
 }

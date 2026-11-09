@@ -44,9 +44,11 @@ Unavailable, partial or contradictory native evidence is INSPECTION_UNKNOWN.
 
 The work subtree is fixed directly beneath the verified process token's profile
 (PROFILE below comes only from that native token/profile API):
-  PROFILE/.localswim-native-runtime/runtime-UUID/probe-UUID
-The dedicated application base must be an exact protected account/SYSTEM-only
-private directory; an absent base is created with that ACL. Existing unsafe state is
+  PROFILE/.localswim-native-runtime/private/runtime-UUID/probe-UUID
+The outer namespace is pinned nondata ancestry under the ordinary owner/mutation
+policy; read-only actors are allowed there. The fixed inner private directory and
+all runtime/probe/environment leaves require exact protected account/SYSTEM ACLs.
+Absent directories are created privately. Existing unsafe state is
 refused, never repaired. Runtime/probe leaves are exclusively created, with pinned
 non-reparse ancestry and empty private home/appdata/temp/CODEX_HOME children.
 No request or ambient HOME/TEMP value chooses a production path. Cleanup uses

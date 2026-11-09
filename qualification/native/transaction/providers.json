@@ -577,7 +577,7 @@
   },
   {
     "path": "internal/board/installation/README.txt",
-    "sha256": "29f8183b7a55b38906e58aaafd6db4cf675181e9bace7ed162cf825a086c7bef"
+    "sha256": "9595efb6630dcd7c3b8ec18899e757714bdff605745778cbde68e1f6099b18ce"
   },
   {
     "path": "internal/board/installation/actual_metadata_windows_test.go",
@@ -605,15 +605,19 @@
   },
   {
     "path": "internal/board/installation/native_windows.go",
-    "sha256": "b5f8533ae2e7c71dc8ab08ba1d0e14dac074c3e96330a6c8a743afb49b2652aa"
+    "sha256": "2aa2070c32f510216b242b92086fc9374f4464a5d1bd8084e42a536bfe46336a"
   },
   {
     "path": "internal/board/installation/native_windows_test.go",
-    "sha256": "d8b41129b14267dba5a9d77abcd33e085df7aad4bde9d2c5fe7bce0d71507729"
+    "sha256": "d46ed2de1b091baccbe384c672db32c9dfc472ede8f5775b9e07eb0434219af3"
+  },
+  {
+    "path": "internal/board/installation/ordinal_windows.go",
+    "sha256": "919b9db96beacfaeb926c42e761a09408456839abfcffbf0a2c8b4a630678d57"
   },
   {
     "path": "internal/board/installation/probe.go",
-    "sha256": "e2918d4a36a37b508ce949e3bc27e42ef61f2b9e07d3ba24b820a7d6605f3e68"
+    "sha256": "6728189df40ba3d584f1e749389fcd0afbd0a277784201e0e0be0d3b3bd05c03"
   },
   {
     "path": "internal/board/installation/probe_test.go",
@@ -621,7 +625,7 @@
   },
   {
     "path": "internal/board/installation/probe_windows.go",
-    "sha256": "d618d8327418f75f4fa6b2e341b1a7def52259934e7d24350c7b0c102ae3ccb2"
+    "sha256": "5ea0864e7ea50569477fc5e9c55f0e8d1e34dfe7509c86888e560d60b70c78b1"
   },
   {
     "path": "internal/board/installation/resolver_native_windows_test.go",
@@ -641,11 +645,11 @@
   },
   {
     "path": "internal/board/installation/workspace_windows.go",
-    "sha256": "3451997e3501ebadb4382bb82480c643e30f47dfbf9b4130fcee30a79bbf7b8f"
+    "sha256": "8bc119656408182547f7eeed7660726fbf29bdc183972eee1bd141fc275a6da9"
   },
   {
     "path": "internal/board/installation/workspace_windows_test.go",
-    "sha256": "4d53bc7fcbc4f0a7b1f177b59278ac9672e80ce74c6432ff7fe18b0df3af0477"
+    "sha256": "50138427001d68fac64cfb8d13ad09c821d4d26451258a56ccaefa53982a5e8a"
   },
   {
     "path": "internal/board/noticeinterval/cut.go",

@@ -101,7 +101,7 @@ func createNativeWorkspace(ctx context.Context, profile string, user *windows.SI
 		return fail(err)
 	}
 	sa := &windows.SecurityAttributes{Length: uint32(unsafe.Sizeof(windows.SecurityAttributes{})), SecurityDescriptor: sd}
-	for _, name := range []string{".localswim-native-runtime"} {
+	for _, name := range []string{".localswim-native-runtime", "private"} {
 		if err = ctx.Err(); err != nil {
 			return fail(err)
 		}
@@ -119,11 +119,15 @@ func createNativeWorkspace(ctx context.Context, profile string, user *windows.SI
 			}
 			return fail(e)
 		}
-		if _, e = strictPrivate(p.h, user, system); e != nil {
-			if created {
-				w.failed = true
+		// The outer namespace holds no data and uses the ancestry owner/mutation
+		// policy. Every input/runtime byte lives beneath the exact private child.
+		if name == "private" {
+			if _, e = strictPrivate(p.h, user, system); e != nil {
+				if created {
+					w.failed = true
+				}
+				return fail(e)
 			}
-			return fail(e)
 		}
 	}
 	create := func(path string) error {
@@ -183,7 +187,7 @@ func (w *nativeWorkspace) open(path string) (*workspaceEntry, error) {
 		return nil, err
 	}
 	e := &workspaceEntry{h: h, path: path}
-	w.entries[strings.ToLower(path)] = e
+	w.entries[path] = e
 	if windows.GetFileInformationByHandle(h, &e.info) != nil {
 		return nil, ErrUnavailable
 	}
@@ -192,7 +196,11 @@ func (w *nativeWorkspace) open(path string) (*workspaceEntry, error) {
 		return nil, ErrUnavailable
 	}
 	final, err := finalPath(h)
-	if err != nil || !strings.EqualFold(final, path) {
+	if err != nil {
+		return nil, ErrUnavailable
+	}
+	same, err := ordinalPathEqual(final, path)
+	if err != nil || !same || filepath.Base(final) != filepath.Base(path) {
 		return nil, ErrUnavailable
 	}
 	sd, err := windows.GetSecurityInfo(h, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
@@ -233,7 +241,18 @@ func (w *nativeWorkspace) names(path string) ([]string, error) {
 	}
 	var names []string
 	for {
-		name := windows.UTF16ToString(data.FileName[:])
+		units := data.FileName[:]
+		for i, u := range units {
+			if u == 0 {
+				units = units[:i]
+				break
+			}
+		}
+		if !validPathUTF16(units) {
+			err = ErrIncomplete
+			break
+		}
+		name := windows.UTF16ToString(units)
 		if name != "." && name != ".." {
 			if name == "" || strings.ContainsAny(name, `\/:`) || len(names) >= 4096 {
 				err = ErrIncomplete
@@ -259,7 +278,9 @@ func (w *nativeWorkspace) remove(path string, depth int) error {
 	if depth > 32 {
 		return ErrIncomplete
 	}
-	entry := w.entries[strings.ToLower(path)]
+	// Enumeration supplies exact leaf spelling. An ordinal alias can be
+	// another object, including a junction next to an ordinary directory.
+	entry := w.entries[path]
 	if entry == nil {
 		var err error
 		entry, err = w.open(path)
@@ -288,7 +309,7 @@ func (w *nativeWorkspace) remove(path string, depth int) error {
 		w.failed = true
 		return ErrIncomplete
 	}
-	delete(w.entries, strings.ToLower(path))
+	delete(w.entries, entry.path)
 	return nil
 }
 func (w *nativeWorkspace) cleanup() error {

@@ -86,7 +86,7 @@ func cleanLocal(path string) bool {
 func finalPath(h windows.Handle) (string, error) {
 	b := make([]uint16, 4097)
 	n, e := windows.GetFinalPathNameByHandle(h, &b[0], uint32(len(b)), 0)
-	if e != nil || n == 0 || n >= uint32(len(b)) {
+	if e != nil || n == 0 || n >= uint32(len(b)) || !validPathUTF16(b[:n]) {
 		return "", errors.New("path unavailable")
 	}
 	s := strings.TrimPrefix(windows.UTF16ToString(b[:n]), `\\?\`)
@@ -221,6 +221,11 @@ func (p *pins) chain(ctx context.Context, path string) (*pin, error) {
 	}
 	return result, nil
 }
+func sameNativeFileKey(a, b windows.ByHandleFileInformation) bool {
+	return a.VolumeSerialNumber == b.VolumeSerialNumber &&
+		a.FileIndexHigh == b.FileIndexHigh && a.FileIndexLow == b.FileIndexLow
+}
+
 func (p *pins) unchanged() bool {
 	for _, x := range p.items {
 		var now windows.ByHandleFileInformation
@@ -364,17 +369,46 @@ func resolveProfile(ctx context.Context, profile string, user *windows.SID, cand
 	if e != nil {
 		return fail("SOURCE_UNQUALIFIED")
 	}
-	p.items = append(p.items, &pin{h: resolved, path: ""})
+	resolvedPin := &pin{h: resolved}
+	p.items = append(p.items, resolvedPin)
 	target, e := finalPath(resolved)
 	if e != nil {
 		return fail("SOURCE_UNQUALIFIED")
 	}
 	releases := filepath.Join(base, "releases")
-	if !strings.EqualFold(filepath.Dir(target), releases) {
+	sameScope, err := ordinalPathEqual(filepath.Dir(target), releases)
+	if err != nil {
+		return fail("INSPECTION_UNKNOWN")
+	}
+	if !sameScope {
+		return fail("SOURCE_UNQUALIFIED")
+	}
+	expectedParent, e := p.open(releases, true, false)
+	if e != nil {
+		return fail("SOURCE_UNQUALIFIED")
+	}
+	targetParent, e := p.chain(ctx, filepath.Dir(target))
+	if e != nil {
+		return fail("SOURCE_UNQUALIFIED")
+	}
+	// Ordinal-equal names can be distinct directory objects on a
+	// case-sensitive volume. Bind the scope before opening release content.
+	if !sameNativeFileKey(expectedParent.info, targetParent.info) {
 		return fail("SOURCE_UNQUALIFIED")
 	}
 	release := filepath.Base(target)
-	releaseDirectory, e := p.chain(ctx, target)
+	releaseDirectory, e := p.open(target, true, false)
+	if e != nil {
+		return fail("PATH_UNQUALIFIED")
+	}
+	resolvedPin.path = target
+	if windows.GetFileInformationByHandle(resolved, &resolvedPin.info) != nil {
+		return fail("INSPECTION_UNKNOWN")
+	}
+	if !sameNativeFileKey(resolvedPin.info, releaseDirectory.info) {
+		return fail("SOURCE_UNQUALIFIED")
+	}
+	resolvedPin.security, _, e = p.security(resolved, false)
 	if e != nil {
 		return fail("PATH_UNQUALIFIED")
 	}
@@ -412,19 +446,6 @@ func resolveProfile(ctx context.Context, profile string, user *windows.SID, cand
 	if !bytes.Equal(b, afterManifest) || !hashPE(ctx, executable) || firstDigest != executable.digest {
 		return fail("FILE_CHANGED")
 	}
-	// The resolved alias handle pins the target too; give it a complete snapshot for recheck.
-	for _, x := range p.items {
-		if x.path == "" {
-			x.path = target
-			if windows.GetFileInformationByHandle(x.h, &x.info) != nil {
-				return fail("INSPECTION_UNKNOWN")
-			}
-			x.security, _, e = p.security(x.h, false)
-			if e != nil {
-				return fail("PATH_UNQUALIFIED")
-			}
-		}
-	}
 	if !p.unchanged() {
 		return fail("FILE_CHANGED")
 	}
@@ -444,7 +465,7 @@ type nativeCandidate struct {
 }
 
 func (c *nativeCandidate) fingerprint() string {
-	key := strings.ToLower(c.executable.path)
+	key := ""
 	for _, x := range []*pin{c.releaseDirectory, c.manifest, c.executable} {
 		key += fmt.Sprintf("/%08x:%08x%08x:%s", x.info.VolumeSerialNumber, x.info.FileIndexHigh, x.info.FileIndexLow, x.security)
 	}
@@ -481,7 +502,11 @@ func (c *nativeCandidate) recheck(ctx context.Context) error {
 			if err != nil {
 				return errNativeEvidence
 			}
-			if !strings.EqualFold(path, x.path) {
+			same, err := ordinalPathEqual(path, x.path)
+			if err != nil {
+				return errNativeEvidence
+			}
+			if !same {
 				return ErrIdentityChanged
 			}
 		}

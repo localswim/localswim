@@ -31,7 +31,7 @@ func probeNative(ctx context.Context, check Check, binding *candidateBinding) (P
 		out, err := preparationObservation(ctx, observation)
 		return out, cleanup, err
 	}
-	if err := binding.choose(candidate.fingerprint()); err != nil {
+	if err := binding.chooseNative(candidate.executable.path, candidate.fingerprint()); err != nil {
 		return ProbeObservation{}, cleanup, err
 	}
 	workspace, workspaceCleanup, err := createNativeWorkspace(ctx, profile, user.User.Sid, binding.runtime, binding.probe)

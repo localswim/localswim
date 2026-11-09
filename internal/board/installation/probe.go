@@ -30,9 +30,9 @@ type StopObservation struct {
 
 type probeBackend func(context.Context, Check, *candidateBinding) (ProbeObservation, func() error, error)
 type candidateBinding struct {
-	key            string
-	invalid        bool
-	runtime, probe string
+	key, nativePath string
+	invalid         bool
+	runtime, probe  string
 }
 
 // choose is called only by the exclusive actual backend. Inspection never calls

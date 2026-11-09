@@ -456,3 +456,29 @@ general release or physical power-loss certification.
 See [M05 handoff](../qualification/m05/HANDOFF.txt),
 [joined qualification](../qualification/m05/joined-qualification-r1.txt) and
 [current owner guide](runbooks/m05-start-use-recovery.txt).
+
+## M18 exact identity and control checkpoint — 2026-11-08
+
+Source safety, real installed identity and client evidence were separate gates.
+The first real attempts did not establish a version. Preparation diagnostics
+found the runtime directory ACL conflict without executing the tool. The final
+layout keeps private data in a protected inner root and pins its trusted
+ancestors. Review also verified physical directory identity and exact cleanup
+names for case-sensitive siblings. Earlier failed attempts remain evidence.
+
+For the next native qualification, create, check and clean the exact protected
+fixture in one owned invocation. Record the actual executed harness before a
+retry changes it. Derive storage paths from the maintained runtime layout, and
+report a narrow checkpoint when an assertion fails. Keep temporary runners in
+the project's private evidence or task temporary directory.
+
+The final clients required bounded fixed-length replies for the identity
+exchange. The ordinary Go and Chrome checks complemented synthetic framing
+cases: invalid preflight sends no native POST, and an unusable reply after a
+POST does not confirm the outcome. Keep the actual extracted demonstration
+separate from controlled stalls, refusals and diagnostic descendants.
+
+See [current qualification](../qualification/m18/joined-r1.txt),
+[exact kit handoff](../qualification/m18/HANDOFF.txt) and the
+[identity and Stop guide](runbooks/m18-identity-checks.txt). The closing
+checkpoint is provisional until Terry reviews and accepts the milestone.

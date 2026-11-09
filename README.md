@@ -9,6 +9,10 @@ The [reviewed model](docs/decisions/m18-identity-probe-contract-2026-11-08.txt)
 and [acceptance inventory](docs/examples/m18-identity-probe-acceptance.json)
 keep capability, readiness and delivery as separate work.
 
+The [current qualification](qualification/m18/joined-r1.txt) and
+[exact extracted review kit](qualification/m18/HANDOFF.txt) bind the reviewed
+source, reproduced executable and fresh ordinary demonstrations.
+
 M17 adds deliberate installation inspection through the
 [ordinary browser](docs/runbooks/m17-installation-browser.txt) and
 [actual CLI](docs/runbooks/m17-installation-cli.txt). It reports a current

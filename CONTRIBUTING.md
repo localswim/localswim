@@ -19,8 +19,9 @@ seconds. Revisions distinguish edits within the same second. Native snapshots us
 `format_version: 2`.
 
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
-Unicode. IDs are immutable UUIDv4 values and are published in lowercase. Accepted
-UUID input may use either hex case.
+Unicode. Entity and build IDs are immutable UUIDv4 values. The service_instance_id
+uses UUIDv7, with the instance creation time encoded as Unix milliseconds.
+Publish UUIDs in lowercase. Accepted UUID input may use either hex case.
 
 The reboot has only Terry and Bot as users. Keep one current API, CLI, and storage
 contract. Follow the current owner-approved direction and the rules in [AGENTS.md](AGENTS.md).

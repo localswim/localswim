@@ -3,6 +3,7 @@ package v2
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,14 +11,26 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestBuildStatusCandidateLifecycle(t *testing.T) {
 	root := t.TempDir()
+	before := time.Now().UnixMilli()
 	status := newBuildStatus(root)
+	after := time.Now().UnixMilli()
 	running := status.service()
-	if _, ok := normalizeID(running.ServiceInstanceID); !ok {
+	rawID, err := hex.DecodeString(strings.ReplaceAll(running.ServiceInstanceID, "-", ""))
+	if err != nil || len(rawID) != 16 {
 		t.Fatalf("service_instance_id = %q", running.ServiceInstanceID)
+	}
+	canonicalID := fmt.Sprintf("%x-%x-%x-%x-%x", rawID[:4], rawID[4:6], rawID[6:8], rawID[8:10], rawID[10:])
+	if running.ServiceInstanceID != canonicalID || rawID[6]>>4 != 7 || rawID[8]>>6 != 2 {
+		t.Fatalf("service_instance_id is not canonical UUIDv7: %q", running.ServiceInstanceID)
+	}
+	createdAt := int64(binary.BigEndian.Uint64(rawID[:8]) >> 16)
+	if createdAt < before || createdAt > after {
+		t.Fatalf("service instance timestamp = %d, want [%d, %d]", createdAt, before, after)
 	}
 	if _, ok := normalizeID(running.BuildID); !ok {
 		t.Fatalf("build_id = %q", running.BuildID)

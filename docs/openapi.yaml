@@ -12902,6 +12902,11 @@ components:
       type: string
       format: uuid
       pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+    ServiceInstanceId:
+      type: string
+      format: uuid
+      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+      description: RFC 9562 UUIDv7 generated when the service instance is created. Encodes the creation time as Unix milliseconds.
     Timestamp:
       type: string
       pattern: ^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01]) ([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\+00:00$
@@ -14088,7 +14093,7 @@ components:
         etag:
           $ref: '#/components/schemas/EntityTag'
         service_instance_id:
-          $ref: '#/components/schemas/Uuid'
+          $ref: '#/components/schemas/ServiceInstanceId'
         build_id:
           $ref: '#/components/schemas/Uuid'
         state:

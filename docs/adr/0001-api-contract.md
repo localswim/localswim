@@ -9,6 +9,7 @@ Status: Accepted for the owner-approved decisions below. The detailed OpenAPI do
 - Use flat, plural resource addresses. Cards, boards, lanes, comments, attachments, and relationships each have their own canonical address. Use query parameters for collection filters and requested views.
 - Version the API by ISO 8601 calendar date. The first namespace is `/api/2026-11-10`. API contract dates, software builds, and resource revisions are separate values.
 - Use immutable UUIDv4 entity IDs generated with a cryptographically secure random source. Return lowercase, hyphenated UUIDs. Accept mixed-case UUIDv4 input and normalize before lookup, reference checks, and duplicate detection.
+- Use UUIDv7 for service_instance_id so it encodes the service instance creation time.
 - Keep human ticket numbers and board-local lane/priority keys separate from entity IDs. M20 changes a lane key, never its UUID. Preserve the completed-lane role independently of its display label.
 - Use `snake_case` for JSON member names, path parameter identifiers, and query parameter names across the V2 API. Standard HTTP header names keep their defined spelling. Preserve enum values and user text. Source-language identifiers follow Go and JavaScript conventions.
 - Keep timestamps and ordering explicit. Use 16-byte UUID storage where practical.

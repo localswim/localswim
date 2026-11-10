@@ -2,6 +2,7 @@ package v2
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http/httptest"
@@ -61,10 +62,11 @@ func TestM05AttributedCommentAndNewestPages(t *testing.T) {
 	h.call("POST", "/comments", fmt.Sprintf(`{"card_id":%q,"expected_card_etag":%q,"text":"valid","author_id":%q}`, first.ID, first.entityTag(), newID()), "", 400)
 	text := "  First line\r\n👋 e\u0301\n "
 	raw, headers := h.call("POST", "/comments", commentBody(strings.ToUpper(id), first.ID, first.entityTag(), text), "", 201)
+	assertImmutableCommentShape(t, raw)
 	oldest := turnOneDecode[comment](t, raw)
 	if oldest.ID != id || oldest.BoardID != board.ID || oldest.CardID != first.ID || oldest.Text != text ||
 		oldest.AuthorID != board.UserIDs[0] || oldest.CreatedAt.IsZero() || !oldest.UpdatedAt.Equal(oldest.CreatedAt) ||
-		headers.Get("Location") != Prefix+"/comments/"+id || headers.Get("ETag") != oldest.ETag ||
+		headers.Get("Location") != Prefix+"/comments/"+id || headers.Get("ETag") != oldest.entityTag() ||
 		headers.Get("X-Board-ETag") == "" || headers.Get("X-Board-ETag") == boardTag {
 		t.Fatal("comment response lost exact text, attribution, entity metadata, or new board tag")
 	}
@@ -95,6 +97,7 @@ func TestM05AttributedCommentAndNewestPages(t *testing.T) {
 		t.Fatal("card filter did not return its comment")
 	}
 	raw, _ = h.call("GET", "/comments/"+id, "", "", 200)
+	assertImmutableCommentShape(t, raw)
 	if turnOneDecode[comment](t, raw) != oldest {
 		t.Fatal("individual readback differs from the committed comment")
 	}
@@ -109,10 +112,23 @@ func TestM05AttributedCommentAndNewestPages(t *testing.T) {
 		t.Fatal("durable state does not reflect exactly two comment transactions")
 	}
 	for i, value := range []comment{oldest, newest} {
+		data, err := marshalCanonical(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertImmutableCommentShape(t, data)
 		audit := saved.Activity[i+3]
 		if saved.Comments[i] != value || audit.Operation != "comment" || audit.ResourceType != "comment" ||
 			audit.ResourceID != value.ID || audit.ActorID != value.AuthorID || !audit.At.Equal(value.CreatedAt) || audit.Revision != uint64(i+4) {
 			t.Fatal("durable comment and its audit event disagree")
 		}
+	}
+}
+
+func assertImmutableCommentShape(t *testing.T, data []byte) {
+	t.Helper()
+	fields := turnOneDecode[map[string]json.RawMessage](t, data)
+	if len(fields) != 7 || fields["etag"] != nil || fields["revision"] != nil {
+		t.Fatalf("unexpected immutable comment fields: %s", data)
 	}
 }

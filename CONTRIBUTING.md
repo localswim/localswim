@@ -28,6 +28,11 @@ unchanged, and successive card revisions may skip values. The service assigns th
 field; card creation and patch inputs cannot supply it. HTTP `ETag` headers remain
 the conditional-write validators.
 
+Comments are immutable after creation. Their JSON and native snapshot records contain
+identity, parent references, attribution, text, and timestamps. Comment HTTP validators
+are carried in response headers. Posting a comment still requires the parent card
+validator and advances that card's revision.
+
 For card edits, comment posting, and attachment upload, CLI `--revision N` checks
 the addressed card revision before writing with its current HTTP validator. Card
 creation, policy changes, and lane changes check the board revision.

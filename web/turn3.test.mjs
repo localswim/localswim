@@ -8,6 +8,12 @@ const tag = '"card_0123456789abcdef"';
 const capability = "A".repeat(43);
 
 
+const savedComment = {
+  id: resourceId, created_at: "2026-11-10 18:00:00+00:00",
+  updated_at: "2026-11-10 18:00:00+00:00", board_id: resourceId,
+  card_id: cardId, text: "Comment", author_id: resourceId,
+};
+
 const savedCard = {
   id: cardId, revision: 1, created_at: "2026-11-10 18:00:00+00:00",
   updated_at: "2026-11-10 18:00:00+00:00", board_id: resourceId, ticket: 1,
@@ -60,9 +66,11 @@ test("comment and multipart upload carry caller IDs and original card ETags", as
   const requests = [];
   const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (url, options) => {
     requests.push([url, options]);
-    return Response.json({ id: resourceId }, { status: 201, headers: { ETag: tag } });
+    return Response.json(url.endsWith("/comments") ? savedComment : { id: resourceId },
+      { status: 201, headers: { ETag: tag } });
   } });
-  await api.createComment(cardId, tag, "Comment", resourceId);
+  assert.deepEqual(await api.createComment(cardId, tag, "Comment", resourceId),
+    { data: savedComment, etag: tag });
   await api.uploadAttachment(cardId, tag, new File(["hello"], "test.txt"), resourceId);
   const [[commentUrl, comment], [uploadUrl, upload]] = requests;
   assert.equal(commentUrl, "/api/2026-11-10/comments");
@@ -82,9 +90,10 @@ test("card comment reads keep the required board scope", async () => {
   const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (url) => {
     ++calls;
     assert.equal(url, "/api/2026-11-10/comments?board_id=" + resourceId + "&card_id=" + cardId);
-    return Response.json({ comments: [], next_cursor: null });
+    return Response.json({ comments: [savedComment], next_cursor: null });
   } });
-  await api.listComments({ board_id: resourceId, card_id: cardId });
+  assert.deepEqual((await api.listComments({ board_id: resourceId, card_id: cardId })).data,
+    { comments: [savedComment], next_cursor: null });
   assert.equal(calls, 1);
 });
 
@@ -98,6 +107,21 @@ test("a created comment or upload must identify the caller's submission", async 
   await assert.rejects(api.createComment(cardId, tag, "Comment", resourceId), uncertain);
   await assert.rejects(api.uploadAttachment(cardId, tag, new File(["hello"], "test.txt"), resourceId), uncertain);
   assert.equal(calls, 2);
+});
+
+test("comment creation requires a strong HTTP validator without replay", async () => {
+  for (const responseTag of [null, "W/" + tag, "invalid"]) {
+    let calls = 0;
+    const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async () => {
+      ++calls;
+      return Response.json(savedComment, {
+        status: 201, headers: responseTag === null ? {} : { ETag: responseTag },
+      });
+    } });
+    await assert.rejects(api.createComment(cardId, tag, "Comment", resourceId),
+      (error) => error instanceof ApiError && error.status === 201 && error.outcomeUnknown);
+    assert.equal(calls, 1);
+  }
 });
 
 test("attachment readback targets the original submission ID", async () => {

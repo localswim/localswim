@@ -165,12 +165,16 @@ type activity struct {
 	After        *string   `json:"after"`
 }
 type comment struct {
-	entity
-	BoardID  string `json:"board_id"`
-	CardID   string `json:"card_id"`
-	Text     string `json:"text"`
-	AuthorID string `json:"author_id"`
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	BoardID   string    `json:"board_id"`
+	CardID    string    `json:"card_id"`
+	Text      string    `json:"text"`
+	AuthorID  string    `json:"author_id"`
 }
+
+func (c comment) entityTag() string { return etag(c.ID, 1) }
 
 type snapshot struct {
 	Format        string            `json:"format"`

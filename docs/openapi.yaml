@@ -13582,11 +13582,11 @@ components:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
     Comment:
+      description: Immutable comment with server-assigned attribution and timestamps. HTTP validators are carried in response headers.
       type: object
       additionalProperties: false
       required:
       - id
-      - etag
       - created_at
       - updated_at
       - board_id
@@ -13596,8 +13596,6 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -16546,11 +16544,11 @@ components:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
     CommentSnapshotInput:
+      description: Immutable comment with server-assigned attribution and timestamps. HTTP validators are carried in response headers.
       type: object
       additionalProperties: false
       required:
       - id
-      - etag
       - created_at
       - updated_at
       - board_id
@@ -16560,8 +16558,6 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:

@@ -34,7 +34,7 @@ func (x *request) commentResource(id string) {
 					x.fail(errForbidden)
 					return
 				}
-				x.respond(http.StatusOK, value, value.ETag)
+				x.respond(http.StatusOK, value, value.entityTag())
 				return
 			}
 		}
@@ -168,7 +168,7 @@ func (x *request) createComment() {
 	value := next.Comments[len(next.Comments)-1]
 	x.w.Header().Set("Location", Prefix+"/comments/"+value.ID)
 	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
-	x.respond(http.StatusCreated, value, value.ETag)
+	x.respond(http.StatusCreated, value, value.entityTag())
 }
 
 func (in commentCreation) apply(state *snapshot, actor string) error {
@@ -192,7 +192,7 @@ func (in commentCreation) apply(state *snapshot, actor string) error {
 
 	now := maxCardTime(canonicalTime(time.Now()), state.Board.UpdatedAt)
 	revision := state.Board.Revision + 1
-	value := comment{entity: newEntity(in.id, now), BoardID: state.Board.ID,
+	value := comment{ID: in.id, CreatedAt: now, UpdatedAt: now, BoardID: state.Board.ID,
 		CardID: parent.ID, Text: in.text, AuthorID: actor}
 	state.Comments = append(state.Comments, value)
 	parent.CommentCount++

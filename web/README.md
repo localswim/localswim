@@ -14,7 +14,10 @@ the draft. If readback fails, inspect the affected card or board before
 submitting another change there. The page makes one write attempt per submission.
 
 Card details also show attributed comments and attachments. New comments and
-uploads have client-assigned IDs. Comment lists and focused attachment reads
+uploads have client-assigned IDs. Immutable comment JSON contains identity, parent
+references, author, text, and timestamps. The comment validator is returned in the
+HTTP response header. Posting uses the parent card's current validator and advances
+its revision. Comment lists and focused attachment reads
 can identify the exact submission. Files up to 10 MiB can be uploaded. The board offers its newest
 comments and lane insertion and rename controls. Server-side policy determines
 which actions the Human session may perform.

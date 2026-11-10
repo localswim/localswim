@@ -1,22 +1,44 @@
 # localswim
 
-## Release direction
+## V2 release direction
 
-Ship a simple local board for the same two users. V2 is a fresh Go and TypeScript
-implementation with one loopback service, SQLite storage, and shared browser and
-CLI behavior. Approved V1 behavior and UX are the release floor.
+V1 proved the product. V2 is a fresh implementation of the same local app.
+Use V1 as the reference for how it looks, feels, and works. Write V2's code from
+that behavior. Match the board and workspace UI, keyboard controls, drafts,
+search, review, Attention, and the CLI and integrations people rely on. Preserve
+permissions, audit history, and reliable saves and recovery for V2 projects.
 
-The next deliverable is one copied V1 board that opens in the ordinary V2
-workspace, supports everyday browser and CLI edits, and can be backed up and
-restored. V2 already has a local runtime, workspace navigation, card commands,
-search, and native archive and restore. Use those paths to close the gaps that
-prevent daily use.
+### One port and one API
 
-M19's broad baseline campaign was stopped. Existing evidence is retained. The
-release uses focused checks tied to the two users' workflows and concrete risks
-such as lost edits, incorrect approvals, and failed restores. See the
-[shortest path to the V2 release](docs/RELEASE.md) for the build order and backlog
-changes proposed for review.
+V2 runs one loopback HTTP service on one port. That service serves the browser
+UI, the workspace and its board catalog, and every board. Board identity belongs
+in the URL. The service handles each request directly, without per-board
+listeners or a gateway that forwards requests to other local ports.
+
+Use a resource-based REST API for the full V1 feature set. For example,
+`GET /api/boards` lists boards, `POST /api/boards` creates one, and
+`/api/boards/{boardId}/cards/{cardId}` identifies a card. Give comments,
+attachments, and other related objects their own resources. The browser and CLI
+use the same API and apply the same rules for edits, permissions, and revisions.
+
+### Fresh projects, side by side
+
+Run V2 alongside V1 with its own port and data directory. Existing projects
+stay in V1. Start new projects in V2 when it is ready. Import, format conversion,
+and moving live projects between versions are outside the release scope.
+
+### Build and ship quickly
+
+Get a runnable app in hand on day one. Create a new board, open it in the
+familiar workspace, add and move cards, and restart with everything intact.
+Aim for a local deployment candidate on day two. Close parity gaps in the
+running app and compare real browser and CLI workflows with V1 as we go.
+
+Keep the implementation small and keep one authoritative writer for each board.
+Run the normal checks and add focused verification where mistakes can lose
+edits, break approvals, or prevent recovery. Keep M19 and the old milestone
+schedule as historical evidence. This section supersedes the earlier
+[import and cutover proposal](docs/RELEASE.md).
 
 ## Implementation history
 
@@ -95,8 +117,8 @@ order without sharing active-window input or layout. The
 M01 workspace evidence and its exact candidate/source bindings. Follow the
 [startup, use and recovery guide](docs/runbooks/m01-workspace-start-use-recovery.txt)
 and [customer demonstration](docs/runbooks/m01-customer-demo.txt) for the bounded
-M01 handoff. Real-data import/cutover, broader workflow and full parity remain
-later work; no general product release or owner milestone acceptance is claimed.
+M01 handoff. Its evidence covers that workspace slice. Broader workflow and
+full parity were still open at the time.
 
 The Go service, CLI, domain rules and contract generator live in one Go module.
 The [M02.02 details/history reader](docs/decisions/m02-details-history-2026-10-29.txt)

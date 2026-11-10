@@ -123,45 +123,14 @@ func readSnapshot(path, boardID string) (snapshot, error) {
 }
 
 func parseSnapshot(data []byte, boardID string) (snapshot, error) {
-	fields, err := decodeObject(data)
-	if err != nil {
-		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot is not valid UTF-8 JSON.")
-	}
-	_, legacy := fields["formatVersion"]
-	input := data
-	if legacy {
-		input, err = convertSnapshotV1Names(data, false)
-		if err != nil {
-			return snapshot{}, invalidSnapshot("snapshot", "Native snapshot has conflicting member names.")
-		}
-	}
 	var value snapshot
-	if json.Unmarshal(input, &value) != nil {
+	if !utf8.Valid(data) || json.Unmarshal(data, &value) != nil {
 		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot is not valid UTF-8 JSON.")
-	}
-	if legacy {
-		if value.FormatVersion != 1 {
-			return snapshot{}, invalidSnapshot("format", "Unsupported native snapshot format.")
-		}
-		value.FormatVersion = 2
-		for _, event := range value.Activity {
-			if event.Field != nil && (*event.Field == "parent_id" || *event.Field == "notifications.target_thread_id") {
-				return snapshot{}, invalidSnapshot("activity.field", "Version 1 requires its original audit field names.")
-			}
-		}
 	}
 	if err := validateSnapshot(value, boardID); err != nil {
 		return snapshot{}, err
 	}
-
-	canonicalValue := value
-	if legacy {
-		canonicalValue.FormatVersion = 1
-	}
-	canonical, err := marshalCanonical(canonicalValue)
-	if err == nil && legacy {
-		canonical, err = convertSnapshotV1Names(canonical, true)
-	}
+	canonical, err := marshalCanonical(value)
 	if err != nil || !matchesSnapshotJSON(data, canonical) {
 		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot fields do not match the closed format.")
 	}
@@ -574,7 +543,7 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 			continue
 		}
 
-		field := snapshotAuditField{event.ResourceType, event.ResourceID, canonicalAuditFieldName(snapshotString(event.Field))}
+		field := snapshotAuditField{event.ResourceType, event.ResourceID, snapshotString(event.Field)}
 		if event.Operation != "patch" || event.Revision == 1 || changed[field] ||
 			!refs.validAuditField(b.ID, event.ActorID, field, event.Before) ||
 			!refs.validAuditField(b.ID, event.ActorID, field, event.After) ||

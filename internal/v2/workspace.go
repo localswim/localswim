@@ -85,11 +85,7 @@ func (s *workspaceStore) load() (workspacePreferences, error) {
 	if json.Unmarshal(fields["revision"], &revision) != nil || revision == nil || *revision == 0 {
 		return unavailable, errWorkspaceUnavailable
 	}
-	rawIDs := fields["pinned_board_ids"]
-	if rawIDs == nil {
-		rawIDs = fields["pinnedBoardIds"]
-	}
-	ids, err := parseWorkspacePins(rawIDs, nil)
+	ids, err := parseWorkspacePins(fields["pinned_board_ids"], nil)
 	if err != nil {
 		return unavailable, errWorkspaceUnavailable
 	}

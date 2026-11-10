@@ -16,7 +16,6 @@ func TestCLIExportUsesSnapshotEndpoint(t *testing.T) {
 	for _, args := range [][]string{
 		{"board", "export", boardID},
 		{"board", "export", "--type", "json", boardID},
-		{"board", "snapshot", boardID},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			var requests atomic.Int32
@@ -84,5 +83,17 @@ func TestCLIWorkspacePinsUsesOneRevisionBoundMutation(t *testing.T) {
 	exit := runCLIWithInput([]string{"workspace", "pins"}, strings.NewReader(pinBody), &stdout, &stderr, getenv)
 	if exit != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "412") || requests.Load() != 2 {
 		t.Fatalf("wrong stale mutation result: exit %d, requests %d, stderr %q", exit, requests.Load(), &stderr)
+	}
+}
+
+func TestCLIUnknownCommandIsRejected(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	exit := runCLIWithInput(
+		[]string{"board", "unknown", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"},
+		strings.NewReader(""), &stdout, &stderr,
+		func(string) string { t.Fatal("unknown command reached execution"); return "" },
+	)
+	if exit != 2 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "unknown command") {
+		t.Fatalf("unknown command accepted: exit %d, stderr %q", exit, &stderr)
 	}
 }

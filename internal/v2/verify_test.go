@@ -46,6 +46,8 @@ func TestNativeSnapshotClosedShape(t *testing.T) {
 	}
 
 	for _, tc := range []struct{ name, original, replacement string }{
+		{"unsupported version", `"format_version":2`, `"format_version":1`},
+		{"noncanonical member spelling", `"format_version":2`, `"formatVersion":2`},
 		{"duplicate root field", `"format_version":2`, `"format_version":2,"format_version":2`},
 		{"duplicate nested field", `"enabled":false`, `"enabled":false,"enabled":false`},
 		{"unknown nested field", `"target_thread_id":null`, `"target_thread_id":null,"privateField":true`},

@@ -14,46 +14,6 @@ import (
 const workspaceBoardA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 const workspaceBoardB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
-func TestLegacyWorkspacePinsRemainReadable(t *testing.T) {
-	root := t.TempDir()
-	path := filepath.Join(root, workspaceFileName)
-	original := []byte(`{"revision":1,"pinnedBoardIds":["` + workspaceBoardA + `"]}`)
-	if err := os.WriteFile(path, original, 0600); err != nil {
-		t.Fatal(err)
-	}
-	store := newWorkspace(root)
-	initial, err := store.read()
-	if err != nil || !slices.Equal(initial.PinnedBoardIDs, []string{workspaceBoardA}) {
-		t.Fatalf("legacy pins: %+v, %v", initial, err)
-	}
-	visible := func(string) bool { return true }
-	noop, err := store.patch(initial.ETag, workspacePinFields(workspaceBoardA), visible)
-	if err != nil || noop.ETag != initial.ETag {
-		t.Fatalf("legacy pin no-op: %v", err)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil || string(data) != string(original) {
-		t.Fatal("reading or preserving legacy pins rewrote the file")
-	}
-	saved, err := store.patch(initial.ETag, workspacePinFields(workspaceBoardB), visible)
-	if err != nil || saved.ETag == initial.ETag {
-		t.Fatalf("updating legacy pins: %v", err)
-	}
-	data, err = os.ReadFile(path)
-	if err != nil || !strings.Contains(string(data), `"pinned_board_ids"`) || strings.Contains(string(data), `"pinnedBoardIds"`) {
-		t.Fatal("updated preferences did not use snake_case")
-	}
-	if _, err := newWorkspace(root).read(); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(`{"revision":2,"pinnedBoardIds":[],"pinned_board_ids":[]}`), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.read(); !errors.Is(err, errWorkspaceUnavailable) {
-		t.Fatal("accepted ambiguous preference aliases")
-	}
-}
-
 func workspacePinFields(ids ...string) map[string]json.RawMessage {
 	data, _ := json.Marshal(ids)
 	return map[string]json.RawMessage{"pinned_board_ids": data}
@@ -111,6 +71,7 @@ func TestWorkspaceRefusesToReplaceInvalidPreferences(t *testing.T) {
 		"{",
 		`{"revision":1,"revision":2,"pinned_board_ids":[]}`,
 		`{"revision":1,"pinned_board_ids":null}`,
+		`{"revision":1,"pinnedBoardIds":[]}`,
 		`{"revision":true,"pinned_board_ids":[]}`,
 	} {
 		if err := os.WriteFile(path, []byte(invalid), 0600); err != nil {

@@ -92,7 +92,7 @@ func rejectFields(fields map[string]json.RawMessage, allowed []string, closed bo
 			return invalid("body", "Unrecognized member.")
 		}
 		for _, protected := range protectedFields {
-			if strings.EqualFold(strings.ReplaceAll(key, "_", ""), strings.ReplaceAll(protected, "_", "")) {
+			if strings.EqualFold(key, protected) {
 				return invalid(protected, "Protected member.")
 			}
 		}

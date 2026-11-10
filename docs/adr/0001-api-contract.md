@@ -15,6 +15,8 @@ Status: Accepted for the owner-approved decisions below. The detailed OpenAPI do
 - Publish closed response schemas with canonical values. Accept harmless input variation without weakening meaning or authority. Preserve user text exactly.
 - Name each collection response array for its plural resource, such as `boards`, `cards`, or `builds`. Both activity views use `activities`. Workspace board summaries use `boards`. Empty collections return an empty array, and `next_cursor` retains its pagination meaning.
 
+During the reboot, use only the current API, CLI, and storage contracts. Use fresh test data when a contract changes.
+
 ## Contract details
 
 [OpenAPI contract](../openapi.yaml) uses OpenAPI 3.2.1. It describes the planned full API, with each operation mapped to its milestone. Published fields, status codes, media types, response headers, and preconditions are explicit.

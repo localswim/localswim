@@ -17,6 +17,11 @@
   the changes intact. Check parity as we build. Focus testing on failures
   that can lose edits, break approvals, or prevent recovery.
 
+- **Reboot aggressively.** Terry and Bot are the entire user base. Treat breaking
+  changes as having zero external compatibility impact. Replace superseded
+  contracts directly and keep the implementation ruthlessly lean. Owner-directed
+  pivots can replace earlier decisions completely.
+
 This direction supersedes the previous milestone plan, its broad baseline
 campaign, and the import and cutover proposal.
 
@@ -29,11 +34,8 @@ JSON member names, path parameter identifiers, and query parameter names use
 Enum values and user text retain their defined or supplied spelling. Go and
 JavaScript identifiers follow their language conventions.
 
-Native snapshots use `format_version: 2`. The disk loader accepts existing
-Turn 1 `formatVersion: 1` snapshots without rewriting them on read. The next
-successful save writes the current format. This compatibility is limited to
-disk loading. API requests use the current snake_case contract. Existing audit
-field-path strings remain historical values. New events use snake_case paths.
+Keep one current API, CLI, and storage format during the reboot. Native
+snapshots use `format_version: 2`.
 
 ## Run the Turn 1 service
 
@@ -62,8 +64,7 @@ read the same durable format. The workspace pin order has its own revision.
 
 Export a board's native snapshot as JSON with
 `localswim board export [--type json] <board-id>`. JSON is the only supported
-type and the default. Output goes to standard output. `board snapshot` remains
-an alias for compatibility.
+type and the default. Output goes to standard output.
 
 For local build staging, place `candidate.json` and the native
 `candidate.exe` (Windows) or `candidate` (Unix) in the data directory.

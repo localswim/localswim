@@ -111,7 +111,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "board verify":
 		command.method, command.resource, needBoardID = http.MethodGet, "/verifications", true
 		flags.StringVar(&command.dataDir, "data", "", "private data directory")
-	case "board export", "board snapshot":
+	case "board export":
 		command.method, command.resource, needBoardID = http.MethodGet, "/snapshots", true
 		flags.Var(&format, "type", "export type (allowed value: json)")
 	case "service status":

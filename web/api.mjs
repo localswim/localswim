@@ -1,6 +1,8 @@
 const API_PREFIX = "/api/2026-11-10";
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STRONG_ETAG = /^"[A-Za-z0-9_-]{16,128}"$/;
+const CAPABILITY = /^[A-Za-z0-9_-]{43,128}$/;
+const REQUEST_TIMEOUT_MS = 15000;
 
 export class ApiError extends Error {
   /**
@@ -14,6 +16,34 @@ export class ApiError extends Error {
     this.status = status;
     this.outcomeUnknown = outcomeUnknown;
   }
+}
+
+/** @param {typeof fetch} [fetchImpl] */
+export async function openBrowserSession(fetchImpl = globalThis.fetch.bind(globalThis)) {
+  let response;
+  try {
+    response = await fetchImpl(API_PREFIX + "/browser-session", {
+      method: "POST",
+      mode: "same-origin",
+      credentials: "omit",
+      redirect: "error",
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch {
+    throw new ApiError("transport_failed");
+  }
+  if (response.status !== 200) {
+    await discardBody(response);
+    throw new ApiError("http_error", { status: response.status });
+  }
+  const session = /** @type {Record<string, unknown>} */ (await responseObject(response, false));
+  if (session.kind !== "human" || !isId(session.principal_id) || session.api_version !== "2026-11-10"
+      || typeof session.workspace_admin !== "boolean" || session.expires_on_service_replacement !== true
+      || typeof session.access_token !== "string" || !CAPABILITY.test(session.access_token)) {
+    throw new ApiError("invalid_response", { status: response.status });
+  }
+  return session.access_token;
 }
 
 /** @param {unknown} id */
@@ -53,7 +83,7 @@ function isTimestamp(value) {
 }
 
 /** @param {object} data @param {string} etag @param {string} boardId @param {string | undefined} id */
-function validCreatedCard(data, etag, boardId, id) {
+function validCard(data, etag, boardId, id) {
   const card = /** @type {Record<string, unknown>} */ (data);
   return Object.keys(card).length === 21
     && isId(card.id) && (id === undefined || card.id.toLowerCase() === id.toLowerCase())
@@ -184,10 +214,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /**
    * @param {string} path
-   * @param {{ method?: string, data?: unknown, etag?: string, ifNoneMatch?: string, accept?: string, signal?: AbortSignal }} [options]
+   * @param {{ method?: string, data?: unknown, form?: FormData, etag?: string, ifNoneMatch?: string, accept?: string, signal?: AbortSignal }} [options]
    */
-  async function send(path, { method = "GET", data, etag, ifNoneMatch, accept = "application/json", signal } = {}) {
-    const body = data === undefined ? undefined : JSON.stringify(data);
+  async function send(path, { method = "GET", data, form, etag, ifNoneMatch, accept = "application/json", signal } = {}) {
+    const body = data === undefined ? form : JSON.stringify(data);
     let headers;
     try {
       const capability = await getCapability();
@@ -218,7 +248,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     try {
       response = await fetchImpl(API_PREFIX + path, {
         method,
-        signal,
+        signal: signal ?? (accept === "text/event-stream" ? undefined : AbortSignal.timeout(REQUEST_TIMEOUT_MS)),
         headers,
         body,
         mode: "same-origin",
@@ -243,10 +273,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /**
    * @param {string} path
-   * @param {{ method?: string, data?: unknown, etag?: string, successStatus?: number }} [options]
+   * @param {{ method?: string, data?: unknown, form?: FormData, etag?: string, successStatus?: number }} [options]
    */
-  async function request(path, { method = "GET", data, etag, successStatus = 200 } = {}) {
-    const response = await send(path, { method, data, etag });
+  async function request(path, { method = "GET", data, form, etag, successStatus = 200 } = {}) {
+    const response = await send(path, { method, data, form, etag });
     const write = method !== "GET";
     const responseEtag = response.headers.get("ETag");
     if (write && (response.status !== successStatus || !STRONG_ETAG.test(responseEtag ?? ""))) {
@@ -254,6 +284,23 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
     }
     return { data: await responseObject(response, write), etag: responseEtag };
+  }
+
+  /** @param {string} path @param {string} id @param {{data?: unknown, form?: FormData}} content */
+  async function createWithId(path, id, content) {
+    const reply = await request(path, { ...content, method: "POST", successStatus: 201 });
+    const item = /** @type {{id?: unknown}} */ (reply.data);
+    if (item.id !== id.toLowerCase()) {
+      throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
+    }
+    return reply;
+  }
+
+  /** @param {string} path @param {Record<string, string>} filters @param {string} [cursor] */
+  function list(path, filters, cursor) {
+    const query = new URLSearchParams(filters);
+    if (cursor !== undefined) query.set("cursor", cursor);
+    return request(query.size ? path + "?" + query : path);
   }
 
   return Object.freeze({
@@ -296,6 +343,58 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {unknown} cardId */
     getCard: (cardId) => request("/cards/" + resourceId(cardId)),
+    getSession: () => request("/session"),
+    /** @param {{board_id: string, card_id?: string}} filter
+     * @param {number} [limit] @param {string} [cursor] */
+    listComments(filter, limit, cursor) {
+      /** @type {Record<string, string>} */
+      const query = { board_id: resourceId(filter.board_id) };
+      if (filter.card_id !== undefined) query.card_id = resourceId(filter.card_id);
+      if (limit !== undefined) query.limit = String(limit);
+      return list("/comments", query, cursor);
+    },
+    /** @param {unknown} cardId @param {unknown} etag @param {string} text @param {unknown} id */
+    createComment(cardId, etag, text, id) {
+      const expectedId = resourceId(id);
+      return createWithId("/comments", expectedId, {
+        data: { card_id: resourceId(cardId), expected_card_etag: strongTag(etag), text, id: expectedId },
+      });
+    },
+    /** @param {unknown} cardId @param {string} [cursor] */
+    listAttachments: (cardId, cursor) => list("/attachments", { card_id: resourceId(cardId) }, cursor),
+    /** @param {unknown} attachmentId */
+    getAttachment: (attachmentId) => request("/attachments/" + resourceId(attachmentId)),
+    /** @param {unknown} cardId @param {unknown} etag @param {File} file @param {unknown} id */
+    uploadAttachment(cardId, etag, file, id) {
+      const expectedId = resourceId(id);
+      const form = new FormData();
+      form.set("card_id", resourceId(cardId));
+      form.set("expected_card_etag", strongTag(etag));
+      form.set("id", expectedId);
+      form.set("file", file);
+      return createWithId("/attachments", expectedId, { form });
+    },
+    /** @param {unknown} boardId @param {unknown} boardEtag
+     * @param {{label: string, after_id: string, create_for: string[], connect_for: string[]}} lane */
+    createLane: (boardId, boardEtag, lane) => request("/lanes", {
+      method: "POST", successStatus: 201,
+      data: { ...lane, board_id: resourceId(boardId), board_etag: strongTag(boardEtag) },
+    }),
+    /** @param {unknown} laneId @param {unknown} etag @param {unknown} boardEtag @param {string} label */
+    renameLane: (laneId, etag, boardEtag, label) => request("/lanes/" + resourceId(laneId), {
+      method: "PATCH", etag: strongTag(etag), data: { board_etag: strongTag(boardEtag), label },
+    }),
+    /** @param {unknown} cardId @param {unknown} etag @param {unknown} data */
+    async patchCard(cardId, etag, data) {
+      const id = resourceId(cardId);
+      const response = await request("/cards/" + id, { method: "PATCH", etag: strongTag(etag), data });
+      const card = /** @type {{ board_id?: unknown }} */ (response.data);
+      if (response.etag === null || !isId(card.board_id)
+          || !validCard(response.data, response.etag, card.board_id, id)) {
+        throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
+      }
+      return response;
+    },
     /**
      * @param {{ id?: string, board_id: string, expected_board_etag: string, title: string,
      *   description?: string, lane_id: string, priority_id?: string }} card
@@ -314,7 +413,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       const data = await responseObject(response, true);
-      if (!validCreatedCard(data, etag, boardId, id)) {
+      if (!validCard(data, etag, boardId, id)) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       return { data, etag, boardEtag };
@@ -345,7 +444,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       yield* readEvents(response.body);
     },
     getWorkspace: () => request("/workspace"),
-    listBoards: () => request("/boards"),
+    /** @param {string} [cursor] */
+    listBoards: (cursor) => list("/boards", {}, cursor),
     /** @param {unknown} id */
     getBoard: (id) => request(`/boards/${resourceId(id)}`),
     /** @param {unknown} data */
@@ -359,12 +459,12 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       data: { pinned_board_ids: pinnedBoardIds.map(resourceId) },
       etag: strongTag(etag),
     }),
-    /** @param {unknown} boardId */
-    listLanes: (boardId) => request(`/lanes?board_id=${resourceId(boardId)}`),
+    /** @param {unknown} boardId @param {string} [cursor] */
+    listLanes: (boardId, cursor) => list("/lanes", { board_id: resourceId(boardId) }, cursor),
     /** @param {unknown} boardId */
     listPriorities: (boardId) => request(`/priorities?board_id=${resourceId(boardId)}`),
-    /** @param {unknown} boardId */
-    listUsers: (boardId) => request(`/users?board_id=${resourceId(boardId)}`),
+    /** @param {unknown} boardId @param {string} [cursor] */
+    listUsers: (boardId, cursor) => list("/users", { board_id: resourceId(boardId) }, cursor),
     /** @param {unknown} policyId */
     getPolicy: (policyId) => request(`/policies/${resourceId(policyId)}`),
     /** @param {unknown} boardId */

@@ -21,6 +21,7 @@ const maxResponseBytes = 96 << 20
 
 var tokenPattern = regexp.MustCompile(`^[A-Za-z0-9._~+/-]+={0,}$`)
 var entityTagPattern = regexp.MustCompile(`^"[A-Za-z0-9_-]{16,128}"$`)
+var ErrMutationOutcomeUnknown = errors.New("Mutation outcome unknown")
 
 type Client struct {
 	origin string
@@ -62,6 +63,10 @@ func New(origin, token string) (*Client, error) {
 }
 
 func (c *Client) Do(method, resource string, body json.RawMessage, ifMatch string) (Response, error) {
+	return c.DoWithContentType(method, resource, body, ifMatch, "")
+}
+
+func (c *Client) DoWithContentType(method, resource string, body []byte, ifMatch, contentType string) (Response, error) {
 	// Resolve only API-relative resource paths. Never let a caller supply an origin.
 	path, err := url.ParseRequestURI(resource)
 	if err != nil || path.IsAbs() || path.Host != "" || path.Path == "" || path.Path[0] != '/' {
@@ -75,7 +80,10 @@ func (c *Client) Do(method, resource string, body json.RawMessage, ifMatch strin
 	request.Header.Set("Authorization", "Bearer "+c.token)
 	request.Header.Set("Accept", "application/json")
 	if body != nil {
-		request.Header.Set("Content-Type", "application/json")
+		if contentType == "" {
+			contentType = "application/json"
+		}
+		request.Header.Set("Content-Type", contentType)
 	}
 	if ifMatch != "" {
 		request.Header.Set("If-Match", ifMatch)
@@ -114,7 +122,7 @@ func (c *Client) Do(method, resource string, body json.RawMessage, ifMatch strin
 		} else if etag == "" {
 			return Response{}, responseError("service did not return one canonical strong ETag", true)
 		}
-		if method == http.MethodPost && path.Path == "/cards" && !validBoardTag {
+		if requiresBoardTag(method, path.Path) && !validBoardTag {
 			return Response{}, responseError("service did not return one canonical strong X-Board-ETag", true)
 		}
 	}
@@ -123,6 +131,16 @@ func (c *Client) Do(method, resource string, body json.RawMessage, ifMatch strin
 		return Response{}, responseError("service returned an unreadable, oversized, or invalid JSON object", mutation)
 	}
 	return Response{JSON: data, ETag: etag}, nil
+}
+
+func requiresBoardTag(method, path string) bool {
+	if method == http.MethodPost {
+		switch path {
+		case "/cards", "/comments", "/lanes", "/attachments":
+			return true
+		}
+	}
+	return method == http.MethodPatch && (strings.HasPrefix(path, "/cards/") || strings.HasPrefix(path, "/lanes/"))
 }
 
 func IsEntityTag(tag string) bool {
@@ -136,7 +154,7 @@ func IsJSONObject(data []byte) bool {
 
 func responseError(message string, unknown bool) error {
 	if unknown {
-		return fmt.Errorf("%s. Mutation outcome unknown. Inspect the resource before retrying", message)
+		return fmt.Errorf("%s. %w. Inspect the resource before retrying", message, ErrMutationOutcomeUnknown)
 	}
 	return errors.New(message)
 }

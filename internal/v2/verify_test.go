@@ -88,7 +88,7 @@ func TestNativeSnapshotReferencesAndAudit(t *testing.T) {
 			s.Board.ETag = etag(s.Board.ID, s.Board.Revision)
 		}},
 		{"derived attention mismatch", func(s *snapshot) { s.Board.Attention.Blocked++ }},
-		{"unsupported attachment", func(s *snapshot) { s.Attachments = append(s.Attachments, json.RawMessage("{}")) }},
+		{"invalid attachment", func(s *snapshot) { s.Attachments = append(s.Attachments, attachment{}) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			value := nativeVerificationFixture()

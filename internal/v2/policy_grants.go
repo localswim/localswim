@@ -9,6 +9,7 @@ import (
 )
 
 const policyGrantsField = "grants"
+const maxPolicyGrantInputs = 1000
 
 var errPolicyGrantConflict = errors.New("policy replacement must retain current grants and settings")
 
@@ -65,7 +66,7 @@ func (x *request) policyGrants(id string) {
 		if !matchesStrongTag(policyTag, current.Policy.ETag) {
 			return errStale
 		}
-		grants, err := readBoardPolicy(fields, *current)
+		grants, err := readBoardPolicy(fields, *current, maxPolicyGrantInputs)
 		if err != nil {
 			return err
 		}
@@ -79,7 +80,7 @@ func (x *request) policyGrants(id string) {
 	x.respond(http.StatusOK, next.Policy, "")
 }
 
-func readBoardPolicy(fields *workflowFields, current snapshot) (policy, error) {
+func readBoardPolicy(fields *workflowFields, current snapshot, maxGrantItems int) (policy, error) {
 	users := make(map[string]string, len(current.Users))
 	for _, u := range current.Users {
 		users[u.ID] = u.Kind
@@ -92,7 +93,7 @@ func readBoardPolicy(fields *workflowFields, current snapshot) (policy, error) {
 	for _, p := range current.Priorities {
 		priorities[p.ID] = true
 	}
-	return readPolicyFields(fields, users, lanes, priorities, "a board ")
+	return readPolicyFieldsWithLimit(fields, users, lanes, priorities, "a board ", maxGrantItems)
 }
 
 func addPolicyGrants(current *snapshot, next policy, actorID string, now time.Time) error {
@@ -158,24 +159,27 @@ func policyAuditValue(p policy) string {
 	return string(data)
 }
 
-func validPolicyAuditEvent(value snapshot, event activity) bool {
+func checkedPolicyAuditEvent(value snapshot, event activity, newLane string) (policy, bool) {
 	if event.ResourceID != value.Policy.ID || snapshotString(event.Field) != policyGrantsField ||
 		event.Before == nil || event.After == nil {
-		return false
+		return policy{}, false
 	}
-	before, err := readBoardPolicy(readWorkflowFields([]byte(*event.Before), "policy", true, policyGrantKeys...), value)
+	before, err := readBoardPolicy(readWorkflowFields([]byte(*event.Before), "policy", true, policyGrantKeys...), value, maxSnapshotBytes)
 	if err != nil || policyAuditValue(before) != *event.Before {
-		return false
+		return policy{}, false
 	}
-	after, err := readBoardPolicy(readWorkflowFields([]byte(*event.After), "policy", true, policyGrantKeys...), value)
+	after, err := readBoardPolicy(readWorkflowFields([]byte(*event.After), "policy", true, policyGrantKeys...), value, maxSnapshotBytes)
 	if err != nil || policyAuditValue(after) != *event.After || !preservesPolicyGrants(before, after) ||
 		(len(before.CreateGrants) == len(after.CreateGrants) && len(before.MoveGrants) == len(after.MoveGrants)) {
-		return false
+		return policy{}, false
 	}
 	for _, grant := range before.ResourceGrants {
 		if grant.UserID == event.ActorID {
-			return slices.Contains(grant.Capabilities, "manage_permissions")
+			if newLane != "" {
+				return after, slices.Contains(grant.Capabilities, "manage_workflow") && laneGrantAddition(before, after, newLane)
+			}
+			return after, slices.Contains(grant.Capabilities, "manage_permissions")
 		}
 	}
-	return false
+	return policy{}, false
 }

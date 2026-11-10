@@ -35,9 +35,9 @@ func cloneSnapshot(value snapshot) snapshot {
 		card.CoverAttachmentID = cloneSnapshotPointer(card.CoverAttachmentID)
 		card.CompletedAt = cloneSnapshotPointer(card.CompletedAt)
 	}
-	value.Comments = cloneSnapshotMessages(value.Comments)
+	value.Comments = slices.Clone(value.Comments)
 	value.Relationships = cloneSnapshotMessages(value.Relationships)
-	value.Attachments = cloneSnapshotMessages(value.Attachments)
+	value.Attachments = slices.Clone(value.Attachments)
 	value.Activity = slices.Clone(value.Activity)
 	for index := range value.Activity {
 		event := &value.Activity[index]

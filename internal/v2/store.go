@@ -24,12 +24,13 @@ type store struct {
 	root          string
 	boardsDirInfo os.FileInfo
 
-	mu             sync.RWMutex
-	lease          *os.File
-	boards         map[string]snapshot
-	principals     []user
-	writeUncertain bool
-	events         *eventHub
+	mu               sync.RWMutex
+	lease            *os.File
+	boards           map[string]snapshot
+	principals       []user
+	writeUncertain   bool
+	uncertainBoardID string
+	events           *eventHub
 }
 
 func openStore(root string, principals ...user) (*store, error) {
@@ -178,6 +179,33 @@ func (s *store) durable(id string) (snapshot, error) {
 	return readSnapshot(path, id)
 }
 
+func (s *store) fencedBoard() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.uncertainBoardID
+}
+
+// readback uses durable state only after the writer fences an uncertain commit.
+func (s *store) readback(id string) (snapshot, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.lease == nil {
+		return snapshot{}, errStoreClosed
+	}
+	current, exists := s.boards[id]
+	if !exists {
+		return snapshot{}, errBoardNotFound
+	}
+	if !s.writeUncertain || s.uncertainBoardID != id {
+		return cloneSnapshot(current), nil
+	}
+	path := s.snapshotPath(id)
+	if err := s.checkBoardsDirectory(filepath.Dir(path)); err != nil {
+		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot directory is unavailable.")
+	}
+	return readSnapshot(path, id)
+}
+
 func (s *store) create(value snapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -289,6 +317,7 @@ func (s *store) commit(value snapshot, reuseUsers bool) error {
 			// Fence new commits until restart reloads the disk outcome. Durable
 			// inspection remains available for resolving the uncertain mutation.
 			s.writeUncertain = true
+			s.uncertainBoardID = id
 		}
 		return err
 	}
@@ -300,18 +329,19 @@ func (s *store) commit(value snapshot, reuseUsers bool) error {
 }
 
 func (s *store) checkIdentities(value snapshot, reuseUsers bool) error {
-	cardIDs := make(map[string]bool, len(value.Cards))
-	for _, item := range value.Cards {
-		cardIDs[item.ID] = true
-	}
+	cardIDs, laneIDs, commentIDs, attachmentIDs := resourceIDs(value.Cards, func(c card) string { return c.ID }),
+		resourceIDs(value.Lanes, func(l lane) string { return l.ID }),
+		resourceIDs(value.Comments, func(c comment) string { return c.ID }),
+		resourceIDs(value.Attachments, func(a attachment) string { return a.ID })
 	for id, other := range s.boards {
 		if id == value.Board.ID {
 			continue
 		}
-		for _, item := range other.Cards {
-			if cardIDs[item.ID] {
-				return errIdentityConflict
-			}
+		if hasResourceID(other.Cards, cardIDs, func(c card) string { return c.ID }) ||
+			hasResourceID(other.Lanes, laneIDs, func(l lane) string { return l.ID }) ||
+			hasResourceID(other.Comments, commentIDs, func(c comment) string { return c.ID }) ||
+			hasResourceID(other.Attachments, attachmentIDs, func(a attachment) string { return a.ID }) {
+			return errIdentityConflict
 		}
 	}
 	known := make(map[string]user)
@@ -336,4 +366,21 @@ func (s *store) checkIdentities(value snapshot, reuseUsers bool) error {
 		}
 	}
 	return nil
+}
+
+func resourceIDs[T any](items []T, id func(T) string) map[string]bool {
+	ids := make(map[string]bool, len(items))
+	for _, item := range items {
+		ids[id(item)] = true
+	}
+	return ids
+}
+
+func hasResourceID[T any](items []T, ids map[string]bool, id func(T) string) bool {
+	for _, item := range items {
+		if ids[id(item)] {
+			return true
+		}
+	}
+	return false
 }

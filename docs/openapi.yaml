@@ -13297,7 +13297,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
@@ -13311,8 +13311,14 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          readOnly: true
+          description: Board revision of the commit that created or last changed this lane,
+            including its position. Initial workflow lanes use revision 1. Unrelated board
+            edits leave this value unchanged, so successive lane revisions can skip values.
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -16271,7 +16277,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
@@ -16285,8 +16291,13 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          description: Board revision of the commit that created or last changed this lane,
+            including its position. Initial workflow lanes use revision 1. Unrelated board
+            edits leave this value unchanged, so successive lane revisions can skip values.
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:

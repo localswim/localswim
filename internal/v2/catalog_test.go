@@ -14,10 +14,10 @@ func TestDeriveAttentionCountsAndAuditedRecency(t *testing.T) {
 	state := snapshot{
 		Board: board{entity: entity{UpdatedAt: newest.Add(time.Hour)}},
 		Lanes: []lane{
-			{entity: entity{ID: "a"}, Role: "blocked"},
-			{entity: entity{ID: "b"}, Role: "needs_input"},
-			{entity: entity{ID: "c"}, Role: "ready_for_review"},
-			{entity: entity{ID: "d"}, Role: "ordinary"},
+			{ID: "a", Role: "blocked"},
+			{ID: "b", Role: "needs_input"},
+			{ID: "c", Role: "ready_for_review"},
+			{ID: "d", Role: "ordinary"},
 		},
 		Cards: []card{
 			{ID: "archived", LaneID: "a", Archived: true},

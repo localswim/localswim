@@ -36,6 +36,7 @@ func TestT03CLIWriteValidatorsAndUTF8(t *testing.T) {
 		{"description file", "ignored", "description", []string{"card", "description", "--revision", "12", t03Card, descriptionFile}},
 		{"stale", text, "", []string{"card", "description", "--revision", "11", t03Card, "-"}},
 		{"lane rename", "", "label", []string{"lane", "rename", "--revision", "12", t03Lane, text}},
+		{"lane rename stale", "", "", []string{"lane", "rename", "--revision", "11", t03Lane, text}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var mutations atomic.Int32
@@ -47,7 +48,7 @@ func TestT03CLIWriteValidatorsAndUTF8(t *testing.T) {
 					if tc.name != "lane rename" {
 						t.Error("card edit queried the unrelated board revision")
 					}
-					_, _ = io.WriteString(w, `{"revision":12}`)
+					_, _ = io.WriteString(w, `{"revision":99}`)
 				case r.Method == http.MethodGet:
 					_, _ = io.WriteString(w, `{"board_id":"`+t03Board+`","revision":12}`)
 				case r.Method == http.MethodPatch:

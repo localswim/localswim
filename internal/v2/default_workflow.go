@@ -6,6 +6,7 @@ import (
 )
 
 func defaultWorkflow(boardID string, now time.Time, principals []user) workflow {
+	now = canonicalTime(now)
 	lanes := []lane{
 		{Key: "backlog", Label: "Backlog", Role: "ordinary"},
 		{Key: "ready_for_work", Label: "Ready For Work", Role: "ordinary"},
@@ -14,7 +15,9 @@ func defaultWorkflow(boardID string, now time.Time, principals []user) workflow 
 		{Key: "completed", Label: "Completed", Role: "completed"},
 	}
 	for index := range lanes {
-		lanes[index].entity = newEntity(newID(), now)
+		lanes[index].ID = newID()
+		lanes[index].Revision = 1
+		lanes[index].CreatedAt, lanes[index].UpdatedAt = now, now
 		lanes[index].BoardID = boardID
 		lanes[index].Position = index
 	}

@@ -50,7 +50,7 @@ func (x *request) createLane() {
 	}
 	x.w.Header().Set("Location", Prefix+"/lanes/"+item.ID)
 	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
-	x.respond(http.StatusCreated, item, item.ETag)
+	x.respond(http.StatusCreated, item, item.entityTag())
 }
 
 func laneBoardTag(fields *workflowFields) string {
@@ -109,7 +109,7 @@ func (x *request) renameLane(id string) {
 			return errMissing
 		}
 		item = current.Lanes[index]
-		if !matchesStrongTag(laneTag, item.ETag) {
+		if !matchesStrongTag(laneTag, item.entityTag()) {
 			return errStale
 		}
 		if item.Label == label {
@@ -119,7 +119,7 @@ func (x *request) renameLane(id string) {
 		before := item.Label
 		appendLaneAudit(current, x.actor, item.ID, "patch", "label", &before, &label, now)
 		item.Label = label
-		item.UpdatedAt, item.ETag = now, etag(id, current.Board.Revision+1)
+		item.UpdatedAt, item.Revision = now, current.Board.Revision+1
 		current.Lanes[index] = item
 		return nil
 	})
@@ -128,7 +128,7 @@ func (x *request) renameLane(id string) {
 		return
 	}
 	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
-	x.respond(http.StatusOK, item, item.ETag)
+	x.respond(http.StatusOK, item, item.entityTag())
 }
 
 func insertLane(current *snapshot, fields *workflowFields, actor string, at time.Time) (lane, error) {
@@ -187,8 +187,8 @@ func insertLane(current *snapshot, fields *workflowFields, actor string, at time
 		}
 	}
 
-	item := lane{entity: newEntity(id, now), BoardID: current.Board.ID, Key: key, Label: label, Role: role}
-	item.ETag = etag(item.ID, current.Board.Revision+1)
+	item := lane{ID: id, Revision: current.Board.Revision + 1, CreatedAt: now, UpdatedAt: now,
+		BoardID: current.Board.ID, Key: key, Label: label, Role: role}
 	activeCount := 0
 	for _, existing := range current.Lanes {
 		if !existing.Retired {
@@ -317,7 +317,7 @@ func setLanePosition(current *snapshot, index, position int, actor string, now t
 	before, after := strconv.Itoa(item.Position), strconv.Itoa(position)
 	appendLaneAudit(current, actor, item.ID, "patch", "position", &before, &after, now)
 	item.Position = position
-	item.UpdatedAt, item.ETag = now, etag(item.ID, current.Board.Revision+1)
+	item.UpdatedAt, item.Revision = now, current.Board.Revision+1
 }
 
 func laneGrantAddition(old, next policy, laneID string) bool {
@@ -356,7 +356,7 @@ func (x *request) laneResource(id string) {
 		if current.can(x.actor, "read") {
 			if index := laneIndex(current.Lanes, id); index >= 0 {
 				item := current.Lanes[index]
-				x.respond(http.StatusOK, item, item.ETag)
+				x.respond(http.StatusOK, item, item.entityTag())
 				return
 			}
 		}

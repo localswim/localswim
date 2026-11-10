@@ -299,7 +299,9 @@ func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 	positions := make(map[uint64]bool, len(value.Lanes))
 	completed := 0
 	for _, l := range value.Lanes {
-		if !refs.claim(l.entity) || l.BoardID != b.ID || !snapshotText(l.Key, 1, 128) ||
+		if !validSnapshotID(l.ID) || refs.ids[l.ID] || l.Revision == 0 || l.Revision > b.Revision ||
+			!validSnapshotTime(l.CreatedAt) || !validSnapshotTime(l.UpdatedAt) || l.UpdatedAt.Before(l.CreatedAt) ||
+			l.BoardID != b.ID || !snapshotText(l.Key, 1, 128) ||
 			!snapshotText(l.Label, 1, 256) || l.Position < 0 || laneKeys[l.Key] || positions[uint64(l.Position)] {
 			return invalidSnapshot("lanes", "Lane identity or metadata is invalid.")
 		}
@@ -319,6 +321,7 @@ func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 		if l.ApprovalEnabled && l.Role != "ready_for_review" {
 			return invalidSnapshot("lanes", "Approval is limited to Ready for Review lanes.")
 		}
+		refs.ids[l.ID] = true
 		refs.lanes[l.ID] = l
 		laneKeys[l.Key] = true
 		positions[uint64(l.Position)] = true
@@ -548,10 +551,14 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 	if !policyReferencesKnownLanes(initialPolicy, func(id string) bool { return initialLanes[id] }) {
 		return invalidSnapshot("activity", "The original policy references a lane that did not yet exist.")
 	}
+	laneRevisions := make(map[string]uint64, len(value.Lanes))
 	for _, item := range value.Lanes {
 		if initialLanes[item.ID] && !item.CreatedAt.Equal(b.CreatedAt) {
 			return invalidSnapshot("lanes.created_at", "Initial lane creation does not match board creation.")
 		}
+	}
+	for id := range initialLanes {
+		laneRevisions[id] = 1
 	}
 	cardCreations := make(map[string]uint64)
 	resourceCreations := make(map[string]bool)
@@ -612,6 +619,7 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 					return invalidSnapshot("activity", "Lane creation must introduce one new lane in a revision.")
 				}
 				newLane = event.ResourceID
+				laneRevisions[event.ResourceID] = event.Revision
 			}
 			continue
 		}
@@ -643,8 +651,14 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		}
 		changed[field] = true
 		latest[field] = event.After
+		if event.ResourceType == "lane" {
+			laneRevisions[event.ResourceID] = event.Revision
+		}
 	}
 	for _, item := range value.Lanes {
+		if item.Revision != laneRevisions[item.ID] {
+			return invalidSnapshot("lanes.revision", "Lane revision does not match its latest audit.")
+		}
 		if !initialLanes[item.ID] && !resourceCreations[item.ID] {
 			return invalidSnapshot("activity", "Lane creation audit is missing.")
 		}

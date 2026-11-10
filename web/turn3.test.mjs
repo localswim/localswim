@@ -207,3 +207,110 @@ test("card reads and writes require numeric revisions and retain HTTP validators
     }
   }
 });
+
+const savedLane = {
+  id: cardId, revision: 12, created_at: "2026-11-10 18:00:00+00:00",
+  updated_at: "2026-11-10 18:00:00+00:00", board_id: resourceId,
+  key: "ready", label: "Ready", position: 1, role: "ordinary", retired: false,
+  approval_enabled: false, reorder_enabled: false,
+};
+
+test("lane rename checks numeric revision and forwards the fresh HTTP validator and original board tag", async () => {
+  const freshTag = '"opaque_lane_validator_12"';
+  const boardTag = '"opaque_board_validator_99"';
+  const requests = [];
+  const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (url, options) => {
+    requests.push(options.method);
+    assert.equal(url, "/api/2026-11-10/lanes/" + cardId);
+    if (options.method === "GET") {
+      assert.equal(options.headers.has("If-Match"), false);
+      return Response.json(savedLane, { headers: { ETag: freshTag } });
+    }
+    assert.equal(options.method, "PATCH");
+    assert.equal(options.headers.get("If-Match"), freshTag);
+    assert.deepEqual(JSON.parse(options.body), { board_etag: boardTag, label: "  Exact new label  " });
+    return Response.json({ ...savedLane, label: "  Exact new label  ", revision: 100 }, { headers: { ETag: tag } });
+  } });
+  const reply = await api.renameLane(cardId, 12, boardTag, "  Exact new label  ");
+  assert.equal(reply.data.revision, 100);
+  assert.equal(reply.etag, tag);
+  assert.deepEqual(requests, ["GET", "PATCH"]);
+});
+
+test("lane rename refuses unsafe expected revisions before any request", async () => {
+  let calls = 0;
+  const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async () => { calls++; } });
+  for (const revision of [undefined, null, false, 0, -1, 1.5, "12", Number.MAX_SAFE_INTEGER + 1, tag]) {
+    await assert.rejects(api.renameLane(cardId, revision, tag, "Draft"), TypeError);
+  }
+  await assert.rejects(api.renameLane(cardId, 12, "*", "Draft"), TypeError);
+  assert.equal(calls, 0);
+});
+
+test("lane rename refuses stale, invalid, or failed reads before mutation", async () => {
+  const cases = [
+    [() => Response.json({ ...savedLane, revision: 13 }, { headers: { ETag: tag } }), "http_error", 412],
+    ...[undefined, null, false, 0, -1, 1.5, "12", Number.MAX_SAFE_INTEGER + 1].map((revision) =>
+      [() => Response.json({ ...savedLane, revision }, { headers: { ETag: tag } }), "invalid_response", 200]),
+    ...[{ ...savedLane, etag: tag }, { ...savedLane, id: resourceId }, []].map((data) =>
+      [() => Response.json(data, { headers: { ETag: tag } }), "invalid_response", 200]),
+    ...[null, "W/" + tag, "invalid"].map((etag) =>
+      [() => Response.json(savedLane, { headers: etag === null ? {} : { ETag: etag } }), "invalid_response", 200]),
+    [() => new Response("unusable", { headers: { ETag: tag } }), "invalid_response", 200],
+    [() => Response.json(savedLane, { status: 201, headers: { ETag: tag } }), "invalid_response", 201],
+    [() => new Response(null, { status: 404 }), "http_error", 404],
+    [() => { throw new Error("private failure"); }, "transport_failed", null],
+  ];
+  for (const [response, code, status] of cases) {
+    const methods = [];
+    const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (_, options) => {
+      methods.push(options.method);
+      return response();
+    } });
+    await assert.rejects(api.renameLane(cardId, 12, tag, "Draft"), {
+      name: "ApiError", code, status, outcomeUnknown: false,
+    });
+    assert.deepEqual(methods, ["GET"]);
+  }
+});
+
+test("lane rename never replays failed or uncertain writes", async () => {
+  for (const [response, code, status, outcomeUnknown] of [
+    [() => new Response(null, { status: 412 }), "http_error", 412, false],
+    [() => { throw new Error("lost reply"); }, "transport_failed", null, true],
+    [() => Response.json({ ...savedLane, etag: tag }, { headers: { ETag: tag } }), "invalid_response", 200, true],
+    [() => Response.json({ ...savedLane, revision: 0 }, { headers: { ETag: tag } }), "invalid_response", 200, true],
+    [() => Response.json(savedLane), "invalid_response", 200, true],
+  ]) {
+    const methods = [];
+    const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (_, options) => {
+      methods.push(options.method);
+      return options.method === "GET" ? Response.json(savedLane, { headers: { ETag: tag } }) : response();
+    } });
+    await assert.rejects(api.renameLane(cardId, 12, tag, "Draft"), {
+      name: "ApiError", code, status, outcomeUnknown,
+    });
+    assert.deepEqual(methods, ["GET", "PATCH"]);
+  }
+});
+
+test("lane lists and creation require numeric revision and omit JSON validators", async () => {
+  for (const data of [savedLane, { ...savedLane, revision: Number.MAX_SAFE_INTEGER },
+    { ...savedLane, revision: undefined }, { ...savedLane, etag: tag }, { ...savedLane, board_id: cardId }]) {
+    const valid = Number.isSafeInteger(data.revision) && !Object.hasOwn(data, "etag") && data.board_id === resourceId;
+    for (const method of ["GET", "POST"]) {
+      let calls = 0;
+      const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (_, options) => {
+        calls++;
+        assert.equal(options.method, method);
+        return Response.json(method === "GET" ? { lanes: [data], next_cursor: null } : data,
+          { status: method === "GET" ? 200 : 201, headers: { ETag: tag } });
+      } });
+      const result = method === "GET" ? api.listLanes(resourceId) : api.createLane(resourceId, tag,
+        { label: "Ready", after_id: cardId, create_for: [], connect_for: [] });
+      if (valid) assert.deepEqual((await result).data, method === "GET" ? { lanes: [data], next_cursor: null } : data);
+      else await assert.rejects(result, { name: "ApiError", code: "invalid_response", outcomeUnknown: method === "POST" });
+      assert.equal(calls, 1);
+    }
+  }
+});

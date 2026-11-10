@@ -80,16 +80,22 @@ type user struct {
 	Color string `json:"color"`
 }
 type lane struct {
-	entity
-	BoardID         string `json:"board_id"`
-	Key             string `json:"key"`
-	Label           string `json:"label"`
-	Position        int    `json:"position"`
-	Role            string `json:"role"`
-	Retired         bool   `json:"retired"`
-	ApprovalEnabled bool   `json:"approval_enabled"`
-	ReorderEnabled  bool   `json:"reorder_enabled"`
+	ID              string    `json:"id"`
+	Revision        uint64    `json:"revision"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	BoardID         string    `json:"board_id"`
+	Key             string    `json:"key"`
+	Label           string    `json:"label"`
+	Position        int       `json:"position"`
+	Role            string    `json:"role"`
+	Retired         bool      `json:"retired"`
+	ApprovalEnabled bool      `json:"approval_enabled"`
+	ReorderEnabled  bool      `json:"reorder_enabled"`
 }
+
+func (l lane) entityTag() string { return etag(l.ID, l.Revision) }
+
 type priority struct {
 	entity
 	BoardID string `json:"board_id"`

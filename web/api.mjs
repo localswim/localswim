@@ -82,6 +82,20 @@ function isTimestamp(value) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\+00:00$/.test(value);
 }
 
+/** @param {object} data @param {string} [id] @param {string} [boardId] */
+function validLane(data, id, boardId) {
+  const lane = /** @type {Record<string, unknown>} */ (data);
+  return Object.keys(lane).length === 12
+    && isId(lane.id) && (id === undefined || lane.id.toLowerCase() === id.toLowerCase())
+    && isId(lane.board_id) && (boardId === undefined || lane.board_id.toLowerCase() === boardId.toLowerCase())
+    && isInteger(lane.revision) && lane.revision > 0
+    && isTimestamp(lane.created_at) && isTimestamp(lane.updated_at)
+    && typeof lane.key === "string" && typeof lane.label === "string" && lane.label.length > 0
+    && isInteger(lane.position) && lane.position >= 0
+    && typeof lane.role === "string" && typeof lane.retired === "boolean"
+    && typeof lane.approval_enabled === "boolean" && typeof lane.reorder_enabled === "boolean";
+}
+
 /** @param {object} data @param {string} boardId @param {string | undefined} id */
 function validCard(data, boardId, id) {
   const card = /** @type {Record<string, unknown>} */ (data);
@@ -391,14 +405,45 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {unknown} boardId @param {unknown} boardEtag
      * @param {{label: string, after_id: string, create_for: string[], connect_for: string[]}} lane */
-    createLane: (boardId, boardEtag, lane) => request("/lanes", {
-      method: "POST", successStatus: 201,
-      data: { ...lane, board_id: resourceId(boardId), board_etag: strongTag(boardEtag) },
-    }),
-    /** @param {unknown} laneId @param {unknown} etag @param {unknown} boardEtag @param {string} label */
-    renameLane: (laneId, etag, boardEtag, label) => request("/lanes/" + resourceId(laneId), {
-      method: "PATCH", etag: strongTag(etag), data: { board_etag: strongTag(boardEtag), label },
-    }),
+    async createLane(boardId, boardEtag, lane) {
+      const id = resourceId(boardId);
+      const result = await request("/lanes", {
+        method: "POST", successStatus: 201,
+        data: { ...lane, board_id: id, board_etag: strongTag(boardEtag) },
+      });
+      if (!validLane(result.data, undefined, id)) {
+        throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
+      }
+      return result;
+    },
+    /** @param {unknown} laneId @param {unknown} revision @param {unknown} boardEtag @param {string} label */
+    async renameLane(laneId, revision, boardEtag, label) {
+      const id = resourceId(laneId);
+      const boardTag = strongTag(boardEtag);
+      if (!isInteger(revision) || revision < 1) {
+        throw new TypeError("Expected a positive safe integer lane revision.");
+      }
+      const response = await send("/lanes/" + id);
+      const currentTag = response.headers.get("ETag");
+      if (response.status !== 200 || !STRONG_ETAG.test(currentTag ?? "")) {
+        await discardBody(response);
+        throw new ApiError("invalid_response", { status: response.status });
+      }
+      const current = await responseObject(response, false);
+      if (!validLane(current, id)) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      if (/** @type {{revision: number}} */ (current).revision !== revision) {
+        throw new ApiError("http_error", { status: 412 });
+      }
+      const result = await request("/lanes/" + id, {
+        method: "PATCH", etag: strongTag(currentTag), data: { board_etag: boardTag, label },
+      });
+      if (!validLane(result.data, id, /** @type {{board_id: string}} */ (current).board_id)) {
+        throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
+      }
+      return result;
+    },
     /** @param {unknown} cardId @param {unknown} etag @param {unknown} data */
     async patchCard(cardId, etag, data) {
       const id = resourceId(cardId);
@@ -478,7 +523,16 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       etag: strongTag(etag),
     }),
     /** @param {unknown} boardId @param {string} [cursor] */
-    listLanes: (boardId, cursor) => list("/lanes", { board_id: resourceId(boardId) }, cursor),
+    async listLanes(boardId, cursor) {
+      const id = resourceId(boardId);
+      const result = await list("/lanes", { board_id: id }, cursor);
+      const data = /** @type {{lanes?: unknown}} */ (result.data);
+      if (!Array.isArray(data.lanes) || !data.lanes.every((lane) =>
+        lane !== null && typeof lane === "object" && !Array.isArray(lane) && validLane(lane, undefined, id))) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      return result;
+    },
     /** @param {unknown} boardId */
     listPriorities: (boardId) => request(`/priorities?board_id=${resourceId(boardId)}`),
     /** @param {unknown} boardId @param {string} [cursor] */

@@ -219,12 +219,15 @@ func customWorkflow(raw json.RawMessage, boardID string, now time.Time) (workflo
 		}
 		ids[id], lanes[id], laneKeys[key] = true, role, true
 		result.Lanes = append(result.Lanes, lane{
-			entity:   newEntity(id, now),
-			BoardID:  boardID,
-			Key:      key,
-			Label:    label,
-			Role:     role,
-			Position: index,
+			ID:        id,
+			Revision:  1,
+			CreatedAt: canonicalTime(now),
+			UpdatedAt: canonicalTime(now),
+			BoardID:   boardID,
+			Key:       key,
+			Label:     label,
+			Role:      role,
+			Position:  index,
 		})
 	}
 	if completedCount != 1 {

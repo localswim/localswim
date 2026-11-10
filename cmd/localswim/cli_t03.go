@@ -201,12 +201,12 @@ func prepareT03(api *client.Client, cmd cliCommand, stdin io.Reader) (json.RawMe
 	if current.ETag == "" {
 		return nil, "", "", errors.New("service did not return a strong resource ETag")
 	}
+	if err := checkCLIRevision(cmd.revision, current.JSON); err != nil {
+		return nil, "", "", err
+	}
 	if cmd.resource == "/lanes/"+edit.id {
 		board, err := parentBoard(api, current.JSON)
 		if err != nil {
-			return nil, "", "", err
-		}
-		if err := checkCLIRevision(cmd.revision, board.JSON); err != nil {
 			return nil, "", "", err
 		}
 		var label struct {
@@ -217,9 +217,6 @@ func prepareT03(api *client.Client, cmd cliCommand, stdin io.Reader) (json.RawMe
 		}
 		body, err = json.Marshal(map[string]string{"label": label.Label, "board_etag": board.ETag})
 		return body, current.ETag, "", err
-	}
-	if err := checkCLIRevision(cmd.revision, current.JSON); err != nil {
-		return nil, "", "", err
 	}
 	if cmd.method == http.MethodPatch {
 		return body, current.ETag, "", nil

@@ -58,13 +58,13 @@ func TestLaneEditsHTTP(t *testing.T) {
 		t.Fatalf("insert revision = %d", after.Board.Revision)
 	}
 	inserted := after.Lanes[1]
-	if turnOneDecode[lane](t, body) != inserted || headers.Get("ETag") != inserted.ETag ||
+	if turnOneDecode[lane](t, body) != inserted || headers.Get("ETag") != inserted.entityTag() ||
 		headers.Get("X-Board-ETag") != after.Board.ETag || headers.Get("Location") != Prefix+"/lanes/"+id {
 		t.Fatal("insert did not return the committed lane, versions, and location")
 	}
-	if inserted.ID != id || inserted.Key != "check_qa" || inserted.Position != 1 ||
+	if inserted.ID != id || inserted.Key != "check_qa" || inserted.Position != 1 || inserted.Revision != 2 ||
 		after.Board.LaneIDs[1] != inserted.ID || after.Lanes[2].ID != anchor.ID || after.Lanes[2].Position != 2 ||
-		after.Lanes[2].ETag == anchor.ETag || after.Lanes[0] != before.Lanes[0] {
+		after.Lanes[2].Revision != 2 || after.Lanes[0].Revision != 1 || after.Lanes[2].entityTag() == anchor.entityTag() || after.Lanes[0] != before.Lanes[0] {
 		t.Fatal("insert did not preserve the anchored order and stable identities")
 	}
 	if !laneGrantAddition(before.Policy, after.Policy, id) ||
@@ -81,7 +81,7 @@ func TestLaneEditsHTTP(t *testing.T) {
 
 	lanePath := "/lanes/" + inserted.ID
 	body, headers = client.call("GET", lanePath, "", "", 200)
-	if headers.Get("ETag") != inserted.ETag || turnOneDecode[lane](t, body) != inserted {
+	if headers.Get("ETag") != inserted.entityTag() || turnOneDecode[lane](t, body) != inserted {
 		t.Fatal("lane GET did not return the committed lane and ETag")
 	}
 	client.call("POST", "/lanes", asJSON(laneInput), "", 412)
@@ -95,16 +95,16 @@ func TestLaneEditsHTTP(t *testing.T) {
 	client.call("PATCH", lanePath, asJSON(patch), "", 428)
 	client.call("PATCH", lanePath, asJSON(patch), etag(inserted.ID, 99), 412)
 	patch["key"] = "unrelated"
-	client.call("PATCH", lanePath, asJSON(patch), inserted.ETag, 400)
+	client.call("PATCH", lanePath, asJSON(patch), inserted.entityTag(), 400)
 	delete(patch, "key")
 	refusalBytes, err := os.ReadFile(path)
 	if err != nil || !bytes.Equal(committedBytes, refusalBytes) {
 		t.Fatalf("a refusal changed durable state: %v", err)
 	}
 
-	body, headers = client.call("PATCH", lanePath, asJSON(patch), inserted.ETag, 200)
+	body, headers = client.call("PATCH", lanePath, asJSON(patch), inserted.entityTag(), 200)
 	renamed := turnOneDecode[lane](t, body)
-	if renamed.Label != "QA desk" || renamed.ETag == inserted.ETag || headers.Get("ETag") != renamed.ETag ||
+	if renamed.Label != "QA desk" || renamed.entityTag() == inserted.entityTag() || headers.Get("ETag") != renamed.entityTag() ||
 		headers.Get("X-Board-ETag") != etag(created.ID, 3) {
 		t.Fatal("rename did not return the new label and both committed ETags")
 	}
@@ -123,12 +123,12 @@ func TestLaneEditsHTTP(t *testing.T) {
 		t.Fatal("rename changed policy grants")
 	}
 	patch["board_etag"] = actual.Board.ETag
-	client.call("PATCH", lanePath, asJSON(patch), renamed.ETag, 200)
+	client.call("PATCH", lanePath, asJSON(patch), renamed.entityTag(), 200)
 	noOp, _ := app.store.accepted(created.ID)
 	if noOp.Board.ETag != actual.Board.ETag {
 		t.Fatal("same-label rename advanced the board")
 	}
-	renamed.Label, renamed.ETag, renamed.UpdatedAt = inserted.Label, inserted.ETag, inserted.UpdatedAt
+	renamed.Label, renamed.Revision, renamed.UpdatedAt = inserted.Label, inserted.Revision, inserted.UpdatedAt
 	if renamed != inserted {
 		t.Fatal("rename changed lane identity or settings")
 	}

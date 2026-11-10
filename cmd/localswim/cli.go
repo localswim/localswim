@@ -72,7 +72,8 @@ Policy grant reads create_grants and/or move_grants and preserves existing permi
 Comment post reads an object containing text and an optional ID.
 Lane add reads the lane definition. The CLI supplies its board ID and validator.
 Card edits, comment post, and attachment upload check the card revision.
-Lane add and rename check the board revision. The CLI manages HTTP validators.
+Lane add checks the board revision. Lane rename checks the lane revision.
+The CLI manages HTTP validators.
 For FILE|-, pass a file path or use - to read standard input.
 Card description reads UTF-8 text verbatim, including trailing newlines.
 If a mutation outcome is unknown, inspect the resource before retrying.

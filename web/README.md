@@ -20,7 +20,12 @@ HTTP response header. Posting uses the parent card's current validator and advan
 its revision. Comment lists and focused attachment reads
 can identify the exact submission. Files up to 10 MiB can be uploaded. The board offers its newest
 comments and lane insertion and rename controls. Server-side policy determines
-which actions the Human session may perform.
+which actions the Human session may perform. Lane JSON carries a positive safe integer
+`revision`. `renameLane(laneId, revision, boardEtag, label)` reads the lane afresh,
+checks the expected numeric revision, and uses the returned HTTP ETag for its
+conditional PATCH. It retains the caller's board ETag precondition. An invalid,
+stale, or failed read prevents the PATCH. Lane list and write responses validate
+the numeric revision and response shape. HTTP validators stay in response headers.
 
 ## Browser API client
 

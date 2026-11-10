@@ -4,10 +4,10 @@ import "testing"
 
 func workflowPathFixture() ([]lane, policy) {
 	lanes := []lane{
-		{entity: entity{ID: "inbox"}, Label: "Inbox"},
-		{entity: entity{ID: "doing"}, Label: "Doing"},
-		{entity: entity{ID: "review"}, Label: "Review"},
-		{entity: entity{ID: "done"}, Label: "Done", Role: "completed"},
+		{ID: "inbox", Label: "Inbox"},
+		{ID: "doing", Label: "Doing"},
+		{ID: "review", Label: "Review"},
+		{ID: "done", Label: "Done", Role: "completed"},
 	}
 	rules := policy{
 		CreateGrants:   []createGrant{{UserID: "creator", LaneID: "inbox"}},
@@ -36,14 +36,14 @@ func TestWorkflowPaths(t *testing.T) {
 			p.MoveGrants[2].FromLaneID, p.MoveGrants[2].ToLaneID = "done", "review"
 		}, "policy.move_grants"},
 		{"reachable dead end", func(l *[]lane, p *policy) {
-			*l = append(*l, lane{entity: entity{ID: "trap"}, Label: "Trap"})
+			*l = append(*l, lane{ID: "trap", Label: "Trap"})
 			p.MoveGrants = append(p.MoveGrants, moveGrant{UserID: "bot", FromLaneID: "doing", ToLaneID: "trap"})
 		}, "policy.move_grants"},
 		{"isolated active lane", func(l *[]lane, _ *policy) {
-			*l = append(*l, lane{entity: entity{ID: "island"}, Label: "Island"})
+			*l = append(*l, lane{ID: "island", Label: "Island"})
 		}, "policy.move_grants"},
 		{"retired lane", func(l *[]lane, _ *policy) {
-			*l = append(*l, lane{entity: entity{ID: "retired"}, Label: "Retired", Retired: true})
+			*l = append(*l, lane{ID: "retired", Label: "Retired", Retired: true})
 		}, ""},
 		{"route through retired lane", func(l *[]lane, _ *policy) {
 			(*l)[1].Retired = true

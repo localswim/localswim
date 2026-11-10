@@ -98,7 +98,7 @@ test("uses documented paths and board scoping for Turn 1 reads", async () => {
   const paths = [];
   const api = client(async (url) => {
     paths.push(url);
-    return Response.json({});
+    return Response.json(url.includes("/lanes?") ? { lanes: [], next_cursor: null } : {});
   });
 
   await api.getBoard(BOARD);

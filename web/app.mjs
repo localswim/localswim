@@ -3,7 +3,7 @@ import { ApiError, createBrowserApi, openBrowserSession } from "./api.mjs";
 /** @typedef {{id: string, label: string}} Labeled */
 /** @typedef {{id: string, name: string, default_owner_id: string, user_css?: string, notifications?: object}} Board */
 /** @typedef {{id: string, name: string|null}} BoardSummary */
-/** @typedef {Labeled & {etag: string, retired: boolean, position: number}} Lane */
+/** @typedef {Labeled & {revision: number, retired: boolean, position: number}} Lane */
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
 /** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
@@ -825,7 +825,7 @@ function renderLaneEditor(boardId, lanes, users, boardTag, reloadBoard, inspecti
     form("Rename lane", [field("Lane to rename", target), field("New lane label", renameName)], (submit) => {
       const lane = lanes.find(({ id }) => id === target.value);
       if (!lane) return;
-      void writeResource(submit, () => api.renameLane(lane.id, lane.etag, boardTag(), renameName.value),
+      void writeResource(submit, () => api.renameLane(lane.id, lane.revision, boardTag(), renameName.value),
         reloadBoard, "Lane renamed.", inspection);
     }));
   return { editor, showLanes, retainDraft() {

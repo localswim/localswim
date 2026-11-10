@@ -288,6 +288,9 @@ func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 		}
 		refs.users[u.ID] = u
 	}
+	if refs.users[b.DefaultOwnerID].ID == "" {
+		return invalidSnapshot("board.default_owner_id", "Default owner must be a user on this board.")
+	}
 	if !matchSnapshotIDs(b.UserIDs, refs.users) {
 		return invalidSnapshot("board.user_ids", "Board users do not match native users.")
 	}
@@ -394,7 +397,7 @@ func (refs snapshotReferences) validateCards(value snapshot) error {
 		l := refs.lanes[c.LaneID]
 		if !refs.claim(c.entity) || c.BoardID != value.Board.ID || ticket == 0 ||
 			ticket > maxSnapshotInteger || tickets[ticket] || l.ID == "" || (l.Retired && !c.Archived) ||
-			!refs.priorities[c.PriorityID] || (c.OwnerID != nil && refs.users[*c.OwnerID].ID == "") {
+			!refs.priorities[c.PriorityID] || refs.users[c.OwnerID].ID == "" {
 			return invalidSnapshot("cards", "Card identity, ticket, or workflow reference is invalid.")
 		}
 		if !snapshotText(c.Title, 1, 1024) || !snapshotText(c.Description, 0, 4194304) ||
@@ -668,6 +671,8 @@ func (refs snapshotReferences) validAuditField(boardID, actorID string, field sn
 			return false
 		}
 		switch field.name {
+		case "default_owner_id":
+			return capabilities["manage_board"] && value != nil && refs.users[*value].ID != ""
 		case "name":
 			return capabilities["manage_board"] && snapshotText(snapshotString(value), 1, 256)
 		case "notifications.enabled":
@@ -692,6 +697,8 @@ func (refs snapshotReferences) currentAuditField(b board, field snapshotAuditFie
 		return refs.currentLaneAuditValue(field)
 	}
 	switch field.name {
+	case "default_owner_id":
+		return &b.DefaultOwnerID
 	case "name":
 		return &b.Name
 	case "notifications.enabled":

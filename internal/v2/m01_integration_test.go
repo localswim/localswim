@@ -30,7 +30,9 @@ func m01Fixture() (snapshot, []user) {
 		{entity: newEntity(m01BotID, now), Label: "Bot", Kind: "bot", Color: "#885522"},
 	}
 	wf := defaultWorkflow(m01BoardID, now, principals)
-	return freshSnapshot(m01BoardID, m01InitialName, wf, m01HumanID, now), principals
+	value := freshSnapshot(m01BoardID, m01InitialName, wf, m01HumanID, now)
+	value.Board.DefaultOwnerID = m01BotID
+	return value, principals
 }
 
 func m01CreateBoard(t *testing.T, root string) (*store, snapshot) {

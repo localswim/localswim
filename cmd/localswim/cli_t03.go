@@ -131,14 +131,10 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		}
 		cmd.body, _ = json.Marshal(map[string]string{"lane_id": value})
 	case "card assign":
-		switch {
-		case value == "none":
-			cmd.body = json.RawMessage(`{"owner_id":null}`)
-		case boardIDPattern.MatchString(value):
-			cmd.body, _ = json.Marshal(map[string]string{"owner_id": value})
-		default:
-			return cmd, errors.New("expected a UUIDv4 owner ID or none")
+		if !boardIDPattern.MatchString(value) {
+			return cmd, errors.New("expected a UUIDv4 owner ID")
 		}
+		cmd.body, _ = json.Marshal(map[string]string{"owner_id": value})
 	case "card title", "lane rename":
 		if value == "" || !utf8.ValidString(value) {
 			return cmd, errors.New("title or label must be nonempty valid UTF-8")

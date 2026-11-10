@@ -38,6 +38,14 @@ A resolved workflow must permit creation in at least one active lane through a l
 
 OpenAPI describes messages and authentication schemes. Runtime enforcement is still required for origin/authority checks, forbidden headers, duplicate-key detection, authorization, transaction behavior, and uncertain outcomes. Those requirements are recorded in the contract's `x-*` policy fields.
 
+Every card has a non-null `owner_id` referencing a board member. Card creation
+may omit it to use `board.default_owner_id`; assignment patches require a member
+UUID and cannot clear the owner. Published boards and native snapshots require
+`default_owner_id`. Board creation may omit the default when the global runtime
+Bot ID is a member. Custom boards without Bot must supply a member explicitly.
+Changing the default requires `manage_board` and applies to subsequent card
+creation. Owner assignment audit values record the previous and new user UUIDs.
+
 ## Sources
 
 - [OpenAPI 3.2.1](https://spec.openapis.org/oas/v3.2.1.html)

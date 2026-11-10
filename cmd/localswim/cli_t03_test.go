@@ -212,3 +212,25 @@ func t03Env(origin string) func(string) string {
 		}
 	}
 }
+
+func TestCLICardAssignRequiresOwner(t *testing.T) {
+	for _, args := range [][]string{
+		{"card", "assign", t03Card},
+		{"card", "assign", t03Card, "none"},
+		{"card", "assign", t03Card, ""},
+	} {
+		var out, stderr bytes.Buffer
+		code := runCLIWithInput(args, nil, &out, &stderr, func(string) string {
+			t.Fatal("invalid owner reached execution")
+			return ""
+		})
+		if code != 2 || !strings.HasPrefix(stderr.String(), "ERROR ") {
+			t.Fatalf("expected command error for %v: %d %s", args, code, stderr.String())
+		}
+	}
+	command, err := parseCLI([]string{"card", "assign", t03Card, t03Board})
+	var body map[string]string
+	if err != nil || json.Unmarshal(command.body, &body) != nil || body["owner_id"] != t03Board {
+		t.Fatalf("valid owner assignment: %+v, %v", command, err)
+	}
+}

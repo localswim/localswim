@@ -60,6 +60,7 @@ type publishing struct {
 type board struct {
 	entity
 	Name           string        `json:"name"`
+	DefaultOwnerID string        `json:"default_owner_id"`
 	PolicyID       string        `json:"policy_id"`
 	UserIDs        []string      `json:"user_ids"`
 	LaneIDs        []string      `json:"lane_ids"`
@@ -131,7 +132,7 @@ type card struct {
 	Title             string     `json:"title"`
 	Description       string     `json:"description"`
 	LaneID            string     `json:"lane_id"`
-	OwnerID           *string    `json:"owner_id"`
+	OwnerID           string     `json:"owner_id"`
 	PriorityID        string     `json:"priority_id"`
 	ParentID          *string    `json:"parent_id"`
 	ChildIDs          []string   `json:"child_ids"`
@@ -183,7 +184,7 @@ type snapshot struct {
 func freshSnapshot(id, name string, wf workflow, actorID string, now time.Time) snapshot {
 	now = canonicalTime(now)
 	s := snapshot{Format: "localswim-snapshot", FormatVersion: 2,
-		Board: board{entity: newEntity(id, now), Name: name, PolicyID: wf.Policy.ID, Availability: "open", Revision: 1,
+		Board: board{entity: newEntity(id, now), Name: name, DefaultOwnerID: botID, PolicyID: wf.Policy.ID, Availability: "open", Revision: 1,
 			UserIDs: []string{}, LaneIDs: []string{}, PriorityIDs: []string{}},
 		Users: wf.Users, Lanes: wf.Lanes, Priorities: wf.Priorities, Policy: wf.Policy,
 		Cards: []card{}, Comments: []comment{}, Relationships: []json.RawMessage{}, Attachments: []attachment{}, Activity: []activity{}}

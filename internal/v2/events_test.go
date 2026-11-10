@@ -214,7 +214,7 @@ func TestEventsAuthorizationAndRequestValidation(t *testing.T) {
 		`"label":" Owner "`, `"label":"Human"`,
 		`"read","approve","create_card"`, `"approve","create_card"`,
 	).Replace(workflowTestInput)
-	raw, _ = c.call(http.MethodPost, "/boards", `{"name":"Restricted","workflow":`+restrictedWorkflow+`}`, "", 201)
+	raw, _ = c.call(http.MethodPost, "/boards", fmt.Sprintf(`{"name":"Restricted","default_owner_id":%q,"workflow":%s}`, humanID, restrictedWorkflow), "", 201)
 	restricted := turnOneDecode[board](t, raw)
 	bot := base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("b", 32)))
 	for _, tc := range []struct {

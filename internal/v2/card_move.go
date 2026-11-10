@@ -26,19 +26,19 @@ func applyCardLane(s *snapshot, value *card, laneID, actorID string, now time.Ti
 }
 
 // applyCardOwner checks edit permission independently of any lane movement.
-func applyCardOwner(s *snapshot, value *card, ownerID *string, actorID string, now time.Time) (bool, error) {
+func applyCardOwner(s *snapshot, value *card, ownerID string, actorID string, now time.Time) (bool, error) {
 	if !s.can(actorID, "edit_card") {
 		return false, errForbidden
 	}
-	if ownerID != nil && !slices.Contains(s.Board.UserIDs, *ownerID) {
+	if !slices.Contains(s.Board.UserIDs, ownerID) {
 		return false, invalid("owner_id", "Expected a user on this board.")
 	}
-	if equalSnapshotStrings(value.OwnerID, ownerID) {
+	if value.OwnerID == ownerID {
 		return false, nil
 	}
 	old := value.OwnerID
-	value.OwnerID = cloneSnapshotPointer(ownerID)
-	recordCardAssignment(s, value.ID, actorID, "owner_id", old, value.OwnerID, now)
+	value.OwnerID = ownerID
+	recordCardAssignment(s, value.ID, actorID, "owner_id", &old, &ownerID, now)
 	return true, nil
 }
 

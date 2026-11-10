@@ -30,6 +30,14 @@ Publish UUIDs in lowercase. Accepted UUID input may use either hex case.
 The reboot has only Terry and Bot as users. Keep one current API, CLI, and storage
 contract. Follow the current owner-approved direction and the rules in [AGENTS.md](AGENTS.md).
 
+Every card has a non-null `owner_id` referencing a board member. Card creation
+may omit it to use `board.default_owner_id`; assignment patches require a member
+UUID and cannot clear the owner. Published boards and native snapshots require
+`default_owner_id`. Board creation may omit the default when the global runtime
+Bot ID is a member. Custom boards without Bot must supply a member explicitly.
+Changing the default requires `manage_board` and applies to subsequent card
+creation. Owner assignment audit values record the previous and new user UUIDs.
+
 ## Checks
 
 Install the pinned development compiler.

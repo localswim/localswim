@@ -14,7 +14,8 @@ var errCardBoardETagRequired = errors.New("card creation requires expected_board
 
 type cardCreation struct {
 	id, boardID, expected, title, description, laneID, priorityID string
-	ownerID, parentID                                             *string
+	ownerID                                                       string
+	parentID                                                      *string
 }
 
 func (x *request) cardsCollection() {
@@ -154,7 +155,7 @@ func readCardCreation(fields map[string]json.RawMessage) (cardCreation, error) {
 		dest     *string
 		required bool
 	}{{"board_id", &in.boardID, true}, {"lane_id", &in.laneID, true},
-		{"id", &in.id, false}, {"priority_id", &in.priorityID, false}} {
+		{"owner_id", &in.ownerID, false}, {"id", &in.id, false}, {"priority_id", &in.priorityID, false}} {
 		if raw, ok := fields[field.key]; ok || field.required {
 			*field.dest, err = inputID(raw, field.key)
 			if err != nil {
@@ -186,7 +187,7 @@ func readCardCreation(fields map[string]json.RawMessage) (cardCreation, error) {
 	for _, field := range []struct {
 		key  string
 		dest **string
-	}{{"owner_id", &in.ownerID}, {"parent_id", &in.parentID}} {
+	}{{"parent_id", &in.parentID}} {
 		if raw, ok := fields[field.key]; ok && string(raw) != "null" {
 			id, err := inputID(raw, field.key)
 			if err != nil {
@@ -291,7 +292,10 @@ func (in cardCreation) apply(s *snapshot, actor string) error {
 	if !slices.Contains(s.Policy.CreateGrants, createGrant{UserID: actor, LaneID: in.laneID}) {
 		return errForbidden
 	}
-	if in.ownerID != nil && !slices.Contains(s.Board.UserIDs, *in.ownerID) {
+	if in.ownerID == "" {
+		in.ownerID = s.Board.DefaultOwnerID
+	}
+	if !slices.Contains(s.Board.UserIDs, in.ownerID) {
 		return invalid("owner_id", "Expected a user on this board.")
 	}
 	if in.priorityID == "" {

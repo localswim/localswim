@@ -93,7 +93,7 @@ function validCard(data, etag, boardId, id) {
     && typeof card.title === "string" && card.title.length > 0
     && typeof card.description === "string"
     && isId(card.lane_id) && isId(card.priority_id)
-    && (card.owner_id === null || isId(card.owner_id))
+    && isId(card.owner_id)
     && (card.parent_id === null || isId(card.parent_id))
     && Array.isArray(card.child_ids) && card.child_ids.every(isId)
     && typeof card.archived === "boolean"
@@ -392,6 +392,9 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {unknown} cardId @param {unknown} etag @param {unknown} data */
     async patchCard(cardId, etag, data) {
       const id = resourceId(cardId);
+      if (data !== null && typeof data === "object" && "owner_id" in data) {
+        resourceId(data.owner_id);
+      }
       const response = await request("/cards/" + id, { method: "PATCH", etag: strongTag(etag), data });
       const card = /** @type {{ board_id?: unknown }} */ (response.data);
       if (response.etag === null || !isId(card.board_id)

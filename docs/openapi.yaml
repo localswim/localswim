@@ -13160,6 +13160,7 @@ components:
       - name
       - policy_id
       - user_ids
+      - default_owner_id
       - lane_ids
       - priority_ids
       - availability
@@ -13170,6 +13171,9 @@ components:
       - publishing
       - user_css
       properties:
+        default_owner_id:
+          $ref: '#/components/schemas/Uuid'
+          description: Board member used when card creation omits owner_id.
         id:
           $ref: '#/components/schemas/Uuid'
         etag:
@@ -13536,9 +13540,8 @@ components:
         lane_id:
           $ref: '#/components/schemas/Uuid'
         owner_id:
-          anyOf:
-          - $ref: '#/components/schemas/Uuid'
-          - type: 'null'
+          $ref: '#/components/schemas/Uuid'
+          description: Non-null owner UUID referencing a board member.
         priority_id:
           $ref: '#/components/schemas/Uuid'
         parent_id:
@@ -13653,12 +13656,14 @@ components:
             maxLength: 80
           - type: 'null'
         before:
+          description: For owner_id assignment events, the previous owner user UUID is required and non-null.
           anyOf:
           - type: string
             minLength: 0
             maxLength: 4194304
           - type: 'null'
         after:
+          description: For owner_id assignment events, the new owner user UUID is required and non-null.
           anyOf:
           - type: string
             minLength: 0
@@ -15071,6 +15076,9 @@ components:
       type: object
       additionalProperties: true
       properties:
+        default_owner_id:
+          $ref: '#/components/schemas/UuidInput'
+          description: Board member used when card creation omits owner_id. Omission selects the global runtime Bot ID when it is a member; otherwise an explicit member ID is required.
         id:
           $ref: '#/components/schemas/UuidInput'
         name:
@@ -15108,6 +15116,9 @@ components:
       type: object
       additionalProperties: true
       properties:
+        default_owner_id:
+          $ref: '#/components/schemas/UuidInput'
+          description: Board member used when card creation omits owner_id. Requires manage_board. Existing cards retain their owners.
         name:
           type: string
           minLength: 1
@@ -15152,6 +15163,8 @@ components:
             $ref: '#/components/schemas/UuidInput'
           maxItems: 1000
       anyOf:
+      - required:
+        - default_owner_id
       - required:
         - name
       - required:
@@ -15226,9 +15239,8 @@ components:
         lane_id:
           $ref: '#/components/schemas/UuidInput'
         owner_id:
-          anyOf:
-          - $ref: '#/components/schemas/UuidInput'
-          - type: 'null'
+          $ref: '#/components/schemas/UuidInput'
+          description: Non-null board member UUID. Omission uses board.default_owner_id.
         priority_id:
           $ref: '#/components/schemas/UuidInput'
         parent_id:
@@ -15283,9 +15295,8 @@ components:
         lane_id:
           $ref: '#/components/schemas/UuidInput'
         owner_id:
-          anyOf:
-          - $ref: '#/components/schemas/UuidInput'
-          - type: 'null'
+          $ref: '#/components/schemas/UuidInput'
+          description: Non-null owner UUID referencing a board member.
         priority_id:
           $ref: '#/components/schemas/UuidInput'
         parent_id:
@@ -16094,6 +16105,7 @@ components:
       - name
       - policy_id
       - user_ids
+      - default_owner_id
       - lane_ids
       - priority_ids
       - availability
@@ -16104,6 +16116,9 @@ components:
       - publishing
       - user_css
       properties:
+        default_owner_id:
+          $ref: '#/components/schemas/UuidInput'
+          description: Board member used when card creation omits owner_id.
         id:
           $ref: '#/components/schemas/UuidInput'
         etag:
@@ -16480,9 +16495,8 @@ components:
         lane_id:
           $ref: '#/components/schemas/UuidInput'
         owner_id:
-          anyOf:
-          - $ref: '#/components/schemas/UuidInput'
-          - type: 'null'
+          $ref: '#/components/schemas/UuidInput'
+          description: Non-null owner UUID referencing a board member.
         priority_id:
           $ref: '#/components/schemas/UuidInput'
         parent_id:
@@ -16680,12 +16694,14 @@ components:
             maxLength: 80
           - type: 'null'
         before:
+          description: For owner_id assignment events, the previous owner user UUID is required and non-null.
           anyOf:
           - type: string
             minLength: 0
             maxLength: 4194304
           - type: 'null'
         after:
+          description: For owner_id assignment events, the new owner user UUID is required and non-null.
           anyOf:
           - type: string
             minLength: 0
@@ -17863,6 +17879,7 @@ x-security-policy:
       archived: archive_card
       cover_attachment_id: manage_attachments
     BoardPatch:
+      default_owner_id: manage_board
       name: manage_board
       user_css: manage_board
       notifications: manage_notifications
@@ -17941,3 +17958,9 @@ x-publishing-worker:
     already committed history and unrelated staged work.
   shutdown: Flush enabled publishers before successful explicit shutdown. A failed final push leaves the
     service available with failure status.
+
+x-owner-validation:
+  cards: Every card has a non-null owner_id referencing a board member. Explicit null is refused on create and patch.
+  defaults: Published boards and native snapshots require default_owner_id referencing a board member.
+  creation: Omitted card owner_id resolves to the configured board default, independently of the acting user.
+  assignmentAudit: Owner assignment before and after values are user UUIDs, never display labels or null.

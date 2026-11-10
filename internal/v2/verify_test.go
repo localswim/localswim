@@ -16,7 +16,9 @@ func nativeVerificationFixture() snapshot {
 	id := newID()
 	member := user{entity: newEntity(humanID, at), Label: "Owner", Kind: "human"}
 	w := defaultWorkflow(id, at, []user{member})
-	return freshSnapshot(id, "Verification fixture", w, member.ID, at)
+	value := freshSnapshot(id, "Verification fixture", w, member.ID, at)
+	value.Board.DefaultOwnerID = member.ID
+	return value
 }
 
 func TestNativeSnapshotRejectsWorkflowWithoutCreators(t *testing.T) {
@@ -170,7 +172,7 @@ func TestNativeSnapshotParentAuditAndCycle(t *testing.T) {
 		value.Cards = append(value.Cards, card{
 			entity: newEntity(newID(), b.CreatedAt), BoardID: b.ID,
 			Ticket: uint64(i + 1), Title: "Card", LaneID: value.Lanes[0].ID,
-			PriorityID: value.Policy.DefaultPriorityID, ChildIDs: []string{},
+			OwnerID: humanID, PriorityID: value.Policy.DefaultPriorityID, ChildIDs: []string{},
 		})
 	}
 	child, parent := &value.Cards[0], &value.Cards[1]

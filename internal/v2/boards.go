@@ -27,7 +27,7 @@ func (x *request) createBoard() {
 		x.fail(err)
 		return
 	}
-	if err = rejectFields(obj, []string{"id", "name", "workflow"}, false); err != nil {
+	if err = rejectFields(obj, []string{"id", "name", "workflow", "default_owner_id"}, false); err != nil {
 		x.fail(err)
 		return
 	}
@@ -56,6 +56,17 @@ func (x *request) createBoard() {
 		wf = defaultWorkflow(id, now, x.service.principals)
 	}
 	s := freshSnapshot(id, name, wf, x.actor, now)
+	if raw, ok := obj["default_owner_id"]; ok {
+		s.Board.DefaultOwnerID, err = inputID(raw, "default_owner_id")
+		if err != nil {
+			x.fail(err)
+			return
+		}
+	}
+	if !slices.Contains(s.Board.UserIDs, s.Board.DefaultOwnerID) {
+		x.fail(invalid("default_owner_id", "Expected a user on this board."))
+		return
+	}
 	if err = x.service.store.create(s); err != nil {
 		x.fail(err)
 		return
@@ -105,7 +116,7 @@ func (x *request) patchBoard(s snapshot) {
 		x.fail(err)
 		return
 	}
-	if err = rejectFields(obj, []string{"name", "notifications"}, false); err != nil {
+	if err = rejectFields(obj, []string{"name", "notifications", "default_owner_id"}, false); err != nil {
 		x.fail(err)
 		return
 	}
@@ -116,13 +127,14 @@ func (x *request) patchBoard(s snapshot) {
 		}
 	}
 	name, hasName := obj["name"]
+	defaultOwner, hasDefaultOwner := obj["default_owner_id"]
 	raw, hasNotifications := obj["notifications"]
-	if !hasName && !hasNotifications {
+	if !hasName && !hasNotifications && !hasDefaultOwner {
 		x.fail(invalid("body", "A supported change is required."))
 		return
 	}
 	authorized := func(s snapshot) bool {
-		return s.can(x.actor, "read") && (!hasName || s.can(x.actor, "manage_board")) &&
+		return s.can(x.actor, "read") && (!(hasName || hasDefaultOwner) || s.can(x.actor, "manage_board")) &&
 			(!hasNotifications || s.can(x.actor, "manage_notifications"))
 	}
 	if !authorized(s) {
@@ -147,6 +159,20 @@ func (x *request) patchBoard(s snapshot) {
 			if value != before {
 				appendChange("name", &before, &value)
 				s.Board.Name = value
+			}
+		}
+		if hasDefaultOwner {
+			owner, err := inputID(defaultOwner, "default_owner_id")
+			if err != nil {
+				return err
+			}
+			if !slices.Contains(s.Board.UserIDs, owner) {
+				return invalid("default_owner_id", "Expected a user on this board.")
+			}
+			before := s.Board.DefaultOwnerID
+			if before != owner {
+				appendChange("default_owner_id", &before, &owner)
+				s.Board.DefaultOwnerID = owner
 			}
 		}
 		if hasNotifications {

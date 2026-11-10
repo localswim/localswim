@@ -101,3 +101,44 @@ test("attachment readback targets the original submission ID", async () => {
   assert.equal((await api.getAttachment(resourceId)).data.id, resourceId);
   assert.equal(calls, 1);
 });
+
+test("owner edits reject clearing before dispatch", async () => {
+  let calls = 0;
+  const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async () => {
+    ++calls;
+    return Response.json({}, { headers: { ETag: tag } });
+  } });
+  for (const owner_id of [null, "", undefined, "invalid-id"]) {
+    await assert.rejects(api.patchCard(cardId, tag, { owner_id }), TypeError);
+  }
+  assert.equal(calls, 0);
+});
+
+test("owner assignment validates the saved owner without repeating an uncertain write", async () => {
+  const saved = {
+    id: cardId, etag: tag, created_at: "2026-11-10 18:00:00+00:00",
+    updated_at: "2026-11-10 18:00:00+00:00", board_id: resourceId, ticket: 1,
+    title: "Exact title", description: "", lane_id: resourceId, owner_id: resourceId,
+    priority_id: resourceId, parent_id: null, child_ids: [], archived: false,
+    cover_attachment_id: null, comment_count: 0, attachment_count: 0,
+    blocking_depth: 0, blocked_card_count: 0, triage_score: 100, completed_at: null,
+  };
+  for (const owner_id of [resourceId, null]) {
+    let calls = 0;
+    const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (url, options) => {
+      ++calls;
+      assert.equal(options.headers.get("If-Match"), tag);
+      assert.deepEqual(JSON.parse(options.body), { owner_id: resourceId });
+      return Response.json({ ...saved, owner_id }, { headers: { ETag: tag } });
+    } });
+    const assignment = api.patchCard(cardId, tag, { owner_id: resourceId });
+    if (owner_id === null) {
+      await assert.rejects(assignment, {
+        name: "ApiError", code: "invalid_response", status: 200, outcomeUnknown: true,
+      });
+    } else {
+      assert.deepEqual((await assignment).data, saved);
+    }
+    assert.equal(calls, 1);
+  }
+});

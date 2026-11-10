@@ -182,7 +182,7 @@ test("creates and finds cards using the distinct board and card tags", async () 
   const created = {
     id: card, etag: TAG, created_at: "2026-11-10 18:00:00+00:00",
     updated_at: "2026-11-10 18:00:00+00:00", board_id: BOARD, ticket: 1,
-    title: payload.title, description: "", lane_id: BOARD, owner_id: null,
+    title: payload.title, description: "", lane_id: BOARD, owner_id: BOARD,
     priority_id: BOARD, parent_id: null, child_ids: [], archived: false,
     cover_attachment_id: null, comment_count: 0, attachment_count: 0,
     blocking_depth: 0, blocked_card_count: 0, triage_score: 100, completed_at: null,
@@ -205,7 +205,7 @@ test("creates and finds cards using the distinct board and card tags", async () 
   for (const malformed of [
     { ...created, id: BOARD }, { ...created, board_id: card }, { ...created, ticket: 0 },
     { ...created, title: undefined }, { ...created, owner_id: undefined, extra: null },
-    { ...created, etag: boardEtag },
+    { ...created, owner_id: null }, { ...created, owner_id: "" }, { ...created, etag: boardEtag },
   ]) {
     let calls = 0;
     const invalid = client(async () => {

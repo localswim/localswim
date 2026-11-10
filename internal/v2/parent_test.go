@@ -171,10 +171,11 @@ func TestPatchParentCommitsAndClearsWithAudit(t *testing.T) {
 	boardID := newID()
 	wf := defaultWorkflow(boardID, now, []user{actor})
 	initial := freshSnapshot(boardID, "Parent test board", wf, actor.ID, now)
+	initial.Board.DefaultOwnerID = actor.ID
 	for i, id := range []string{parentTestA, parentTestB} {
 		initial.Cards = append(initial.Cards, card{
 			entity: newEntity(id, now), BoardID: boardID, Ticket: uint64(i + 1), Title: id,
-			LaneID: wf.Lanes[0].ID, PriorityID: wf.Policy.DefaultPriorityID, ChildIDs: []string{},
+			OwnerID: actor.ID, LaneID: wf.Lanes[0].ID, PriorityID: wf.Policy.DefaultPriorityID, ChildIDs: []string{},
 		})
 	}
 	if err := st.create(initial); err != nil {

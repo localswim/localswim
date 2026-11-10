@@ -57,7 +57,9 @@ func readCardPatch(fields map[string]json.RawMessage) (cardPatch, error) {
 	}
 	if raw, present := fields["owner_id"]; present {
 		patch.hasOwner = true
-		patch.ownerID, err = nullableCardID(raw, "owner_id")
+		var id string
+		id, err = inputID(raw, "owner_id")
+		patch.ownerID = &id
 		if err != nil {
 			return patch, err
 		}
@@ -137,7 +139,7 @@ func (patch cardPatch) applyToCard(s *snapshot, item *card, tag, actor string, n
 		changed = changed || moved
 	}
 	if patch.hasOwner {
-		assigned, err := applyCardOwner(s, item, patch.ownerID, actor, now)
+		assigned, err := applyCardOwner(s, item, *patch.ownerID, actor, now)
 		if err != nil {
 			return err
 		}

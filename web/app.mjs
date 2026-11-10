@@ -1,13 +1,13 @@
 import { ApiError, createBrowserApi, openBrowserSession } from "./api.mjs";
 
 /** @typedef {{id: string, label: string}} Labeled */
-/** @typedef {{id: string, name: string, user_css?: string, notifications?: object}} Board */
+/** @typedef {{id: string, name: string, default_owner_id: string, user_css?: string, notifications?: object}} Board */
 /** @typedef {{id: string, name: string|null}} BoardSummary */
 /** @typedef {Labeled & {etag: string, retired: boolean, position: number}} Lane */
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
 /** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
- * owner_id: string|null, ticket: number, etag: string, comment_count: number, attachment_count: number}} Card */
+ * owner_id: string, ticket: number, etag: string, comment_count: number, attachment_count: number}} Card */
 /** @typedef {{data: object, etag: string|null}} Reply */
 /** @typedef {() => Promise<void|boolean>} InspectionRead */
 /** @typedef {{scope: string, label: string, require: (read: InspectionRead) => void,
@@ -334,7 +334,8 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
     let titleBaseline = title.value;
     let descriptionBaseline = description.value;
     const lane = select(lanes, card.lane_id);
-    const owner = select([{ id: "", label: "Unassigned" }, ...users], card.owner_id);
+    const owner = select(users, card.owner_id);
+    owner.required = true;
     const current = element("div");
     const commentList = element("div");
     const attachmentList = element("div");
@@ -348,7 +349,7 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
     if (previous?.title !== undefined) title.value = previous.title;
     if (previous?.description !== undefined) description.value = previous.description;
     if (previous?.lane !== undefined && lanes.some(({ id }) => id === previous.lane)) lane.value = previous.lane;
-    if (previous?.owner !== undefined) owner.value = previous.owner;
+    if (previous?.owner !== undefined && users.some(({ id }) => id === previous.owner)) owner.value = previous.owner;
     if (previous?.comment !== undefined) comment.value = previous.comment;
     retainCardDraft = () => {
       /** @type {CardDraft} */
@@ -356,7 +357,7 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
       if (title.value !== titleBaseline) draft.title = title.value;
       if (description.value !== descriptionBaseline) draft.description = description.value;
       if (lane.value !== savedCard.lane_id) draft.lane = lane.value;
-      if (owner.value !== (savedCard.owner_id ?? "")) draft.owner = owner.value;
+      if (owner.value !== savedCard.owner_id) draft.owner = owner.value;
       if (comment.value) draft.comment = comment.value;
       if (Object.keys(draft).length) cardDrafts.set(card.id, draft);
       else cardDrafts.delete(card.id);
@@ -390,7 +391,7 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
       body.className = "body-text";
       current.replaceChildren(element("h3", "Saved card"), element("p", saved.title), body,
         element("p", "Lane: " + (lanes.find(({ id }) => id === saved.lane_id)?.label ?? "Unavailable")),
-        element("p", "Owner: " + (users.find(({ id }) => id === saved.owner_id)?.label ?? "Unassigned")));
+        element("p", "Owner: " + (users.find(({ id }) => id === saved.owner_id)?.label ?? "Unknown user")));
     }
 
     /** @param {Card} saved */
@@ -398,7 +399,7 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
       titleBaseline = adoptText(title, titleBaseline, saved.title);
       descriptionBaseline = adoptText(description, descriptionBaseline, saved.description);
       if (lane.value === savedCard.lane_id) lane.value = saved.lane_id;
-      if (owner.value === (savedCard.owner_id ?? "")) owner.value = saved.owner_id ?? "";
+      if (owner.value === savedCard.owner_id) owner.value = saved.owner_id;
       savedCard = saved;
       showCurrent(saved);
     }
@@ -415,7 +416,7 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
       adoptSaved(saved);
     }
 
-    /** @param {Record<string, string|null>} draft @param {HTMLButtonElement} submit */
+    /** @param {Record<string, string>} draft @param {HTMLButtonElement} submit */
     async function save(draft, submit) {
       if (cardView !== activeCard) return;
       writing = true;
@@ -512,7 +513,7 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
     showCurrent(card);
     view.replaceChildren(close, inspect, heading, current,
       form("Save text", [field("Title", title), field("Description", description)], (submit) => {
-        /** @type {Record<string, string|null>} */
+        /** @type {Record<string, string>} */
         const draft = {};
         if (title.value !== titleBaseline) {
           if (!title.value) {
@@ -526,7 +527,7 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
         if (Object.keys(draft).length) void save(draft, submit);
       }),
       form("Move card", [field("Lane", lane)], (submit) => void save({ lane_id: lane.value }, submit)),
-      form("Assign owner", [field("Owner", owner)], (submit) => void save({ owner_id: owner.value || null }, submit)),
+      form("Assign owner", [field("Owner", owner)], (submit) => void save({ owner_id: owner.value }, submit)),
       element("h3", "Comments"), commentList,
       form("Post comment", [field("Comment", comment)], (submit) => {
         const id = crypto.randomUUID();

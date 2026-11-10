@@ -37,7 +37,7 @@ const cliHelp = `Usage:
   localswim card get BOARD_ID TICKET
   localswim card patch [--revision N] CARD_ID FILE|-
   localswim card move [--revision N] CARD_ID LANE_ID
-  localswim card assign [--revision N] CARD_ID OWNER_ID|none
+  localswim card assign [--revision N] CARD_ID OWNER_ID
   localswim card title [--revision N] CARD_ID TITLE
   localswim card description [--revision N] CARD_ID FILE|-
   localswim comment list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]

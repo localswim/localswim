@@ -59,7 +59,7 @@ func TestCardMoveAndOwnerHTTP(t *testing.T) {
 	raw, header = bot.call("PATCH", path, move, initial.ETag, 200)
 	moved := turnOneDecode[card](t, raw)
 	movedBoardTag := header.Get("X-Board-ETag")
-	if moved.LaneID != to || moved.OwnerID != nil || moved.ETag == initial.ETag ||
+	if moved.LaneID != to || moved.OwnerID != botID || moved.ETag == initial.ETag ||
 		header.Get("ETag") != moved.ETag || movedBoardTag == initialBoardTag {
 		t.Fatal("move did not return the committed lane, owner, and version")
 	}
@@ -70,30 +70,29 @@ func TestCardMoveAndOwnerHTTP(t *testing.T) {
 	if turnOneDecode[card](t, raw).ETag != moved.ETag || turnOneDecode[board](t, boardRaw).ETag != movedBoardTag {
 		t.Fatal("refused same-lane patch changed versions")
 	}
-	assign := fmt.Sprintf(`{"owner_id":%q}`, botID)
+	assign := fmt.Sprintf(`{"owner_id":%q}`, humanID)
 	human.call("PATCH", path, assign, initial.ETag, 412)
 	raw, header = human.call("PATCH", path, assign, moved.ETag, 200)
 	assigned := turnOneDecode[card](t, raw)
-	if assigned.LaneID != to || snapshotString(assigned.OwnerID) != botID || assigned.ETag == moved.ETag {
+	if assigned.LaneID != to || assigned.OwnerID != humanID || assigned.ETag == moved.ETag {
 		t.Fatal("owner edit did not independently persist")
 	}
-	raw, _ = bot.call("PATCH", path, `{"owner_id":null}`, assigned.ETag, 200)
-	cleared := turnOneDecode[card](t, raw)
-	if cleared.LaneID != to || cleared.OwnerID != nil || cleared.ETag == assigned.ETag {
-		t.Fatal("owner clear did not independently persist")
+	bot.call("PATCH", path, `{"owner_id":null}`, assigned.ETag, 400)
+	raw, _ = bot.call("PATCH", path, assign, assigned.ETag, 200)
+	if unchanged := turnOneDecode[card](t, raw); unchanged.ETag != assigned.ETag || unchanged.OwnerID != humanID {
+		t.Fatal("same owner assignment must preserve the version and owner")
 	}
 
 	durable, err := readSnapshot(app.store.snapshotPath(b.ID), b.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(durable.Activity) != 6 || durable.Cards[0].ETag != cleared.ETag {
+	if len(durable.Activity) != 5 || durable.Cards[0].ETag != assigned.ETag {
 		t.Fatal("expected exactly one durable event for each successful change")
 	}
 	for i, want := range []struct{ actor, field, before, after string }{
 		{botID, "lane_id", from, to},
-		{humanID, "owner_id", "", botID},
-		{botID, "owner_id", botID, ""},
+		{humanID, "owner_id", botID, humanID},
 	} {
 		event := durable.Activity[i+3]
 		if event.ActorID != want.actor || event.Operation != "patch" || event.ResourceType != "card" ||

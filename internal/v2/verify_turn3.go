@@ -129,7 +129,7 @@ func (refs snapshotReferences) validCardAuditValue(actor string, field snapshotA
 	case "description":
 		return capabilities["edit_card"] && value != nil && snapshotText(*value, 0, 4194304)
 	case "owner_id":
-		return capabilities["edit_card"] && (value == nil || refs.users[*value].ID != "")
+		return capabilities["edit_card"] && value != nil && refs.users[*value].ID != ""
 	}
 	return false
 }
@@ -158,7 +158,7 @@ func (refs snapshotReferences) currentCardAuditValue(field snapshotAuditField) *
 	case "description":
 		return &item.Description
 	case "owner_id":
-		return item.OwnerID
+		return &item.OwnerID
 	case "lane_id":
 		return &item.LaneID
 	}

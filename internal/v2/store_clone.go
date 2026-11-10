@@ -29,7 +29,6 @@ func cloneSnapshot(value snapshot) snapshot {
 	value.Cards = slices.Clone(value.Cards)
 	for index := range value.Cards {
 		card := &value.Cards[index]
-		card.OwnerID = cloneSnapshotPointer(card.OwnerID)
 		card.ParentID = cloneSnapshotPointer(card.ParentID)
 		card.ChildIDs = slices.Clone(card.ChildIDs)
 		card.CoverAttachmentID = cloneSnapshotPointer(card.CoverAttachmentID)

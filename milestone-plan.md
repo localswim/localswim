@@ -16,16 +16,16 @@ Read down each column. An arrow means do the milestones in sequence. **Parallel*
 
 | Order ↓ | Board and card API<br>12 h | Sessions, review, and workflow<br>16.5 h | Relationships, priority, and search<br>16.5 h | Attachments, integrity, and recovery<br>13.5 h | Workspace, events, and notices<br>10.5 h | Git publishing and lifecycle<br>13.5 h |
 | --- | --- | --- | --- | --- | --- | --- |
-| Start | M01 boards → M02 cards | **Parallel**<br>M04 session and edits<br>M16 custom workflow | **Parallel**<br>M08 parent<br>M09 typed links | **Parallel**<br>M23 upload and list<br>M28 verify and export | **Parallel**<br>M26 attention and recency<br>M27 pins<br>M32 notice settings | **Parallel**<br>M38 build health<br>M34 exact Git publish against fixtures |
-| Next | **Parallel**<br>M03 move and assign<br>M05 comments → M06 archive | **Parallel**<br>M14 card approval → M15 lane approval<br>M17 grants → M18 add and rename lanes | M10 blocking priority floors | M24 download and cover → M25 detach | **Parallel**<br>M31 event stream<br>M33 notice delivery | **Parallel**<br>M35 automatic publishing<br>M36 publish workspace preferences |
-| Then | M07 audited activity | M19 retire lane → M20 change lane ID | **Parallel**<br>M11 batch priority<br>M12 lane order → M13 search and next<br>M21 ticket order preview → M22 apply | M29 capture backup → M30 restore snapshot | — | M37 stop and reopen board |
+| Start | M01 boards → M02 cards | M16 custom workflow | **Parallel**<br>M08 parent<br>M09 typed links | **Parallel**<br>M23 upload and list<br>M28 verify and export | **Parallel**<br>M26 attention and recency<br>M27 pins<br>M32 notice settings | **Parallel**<br>M38 build health<br>M34 exact Git publish against fixtures |
+| Next | **Parallel**<br>M03 move and assign<br>M05 comments → M06 archive | **Parallel**<br>M04 session and edits (after M02)<br>M17 grants → M18 add and rename lanes | M10 blocking priority floors | M24 download and cover → M25 detach | **Parallel**<br>M31 event stream<br>M33 notice delivery | **Parallel**<br>M35 automatic publishing<br>M36 publish workspace preferences |
+| Then | M07 audited activity | **Parallel**<br>M14 card approval → M15 lane approval<br>M19 retire lane → M20 change lane ID | **Parallel**<br>M11 batch priority<br>M12 lane order → M13 search and next<br>M21 ticket order preview → M22 apply | M29 capture backup → M30 restore snapshot | — | M37 stop and reopen board |
 | Finish | — | — | — | — | — | M39 activate build and shut down |
 
 The browser and CLI start beside these streams with the shared API examples. The first browser demo uses the live M01–M04 service.
 
 A few demos need work from another column. Owners can build against fixtures while waiting.
 
-- **Cards and actors:** M04 and M23 need M02 for live demos. M09 needs M05 for the comment reference case. M14 needs M03–M05 for the move, Human session, and comment. M10 and M19 use the archived-card behavior from M06.
+- **Cards and actors:** M04 starts after M02. M23 needs M02 for its live demo. M09 needs M05 for the comment reference case. M14 needs M03–M05 for the move, Human session, and comment. M10 and M19 use the archived-card behavior from M06.
 - **Versions and events:** M22 uses attachment anchors from M23. M31 uses board health from M28. M33 needs a committed Human edit and the settings from M32.
 - **Publishing and shutdown:** The live M34 demo needs the verified backup from M29. M35 and M36 share the repository lock from M34. M36 also needs the preferences from M27. M37 flushes publishing from M35. M39 follows M37 and M38 and drains the streams from M31.
 

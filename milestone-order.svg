@@ -46,8 +46,8 @@
 <path class="link" d="M298.5 738 V756.5 H298.5 V775"/>
 <path class="link" d="M131.5 738 V845.5 H215 V953"/>
 <path class="link" d="M298.5 916 V934.5 H215 V953"/>
-<path class="link" d="M509 382 V400.5 H509 V419"/>
-<path class="link" d="M509 560 V578.5 H509 V597"/>
+<path class="link" d="M509 738 V756.5 H509 V775"/>
+<path class="link" d="M509 916 V934.5 H509 V953"/>
 <path class="link" d="M691 382 V400.5 H691 V419"/>
 <path class="link" d="M691 560 V578.5 H691 V597"/>
 <path class="link" d="M691 738 V756.5 H691 V775"/>
@@ -71,6 +71,7 @@
 <path class="link" d="M2219 560 V578.5 H2310 V597"/>
 <path class="link" d="M2310 738 V756.5 H2310 V775"/>
 <path class="link" d="M2134 316 H2126 V755 H2310 V775"/>
+<path class="link" d="M376 494 H400 V578.5 H509 V597"><title>M04 starts after M02</title></path>
 <g id="M01"><title>M01 · Create boards · 3 development hours</title><rect class="node" x="54" y="250" width="322" height="132" rx="10"/><rect x="54" y="250" width="5" height="132" rx="2.5" fill="#0f766e"/>
 <text x="68" y="282" font-size="22" font-weight="750" fill="#0f766e" text-anchor="start">M01</text>
 <text x="364" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">3 h</text>
@@ -102,13 +103,13 @@
 <text x="364" y="993" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
 <text x="68" y="1024" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Audited activity</text>
 </g>
-<g id="M04"><title>M04 · Session &amp; safe edits · 2.5 development hours; live demo needs M02</title><rect class="node" x="424" y="250" width="170" height="132" rx="10"/><rect x="424" y="250" width="5" height="132" rx="2.5" fill="#2563a6"/>
+<g id="M04" transform="translate(0 356)"><title>M04 · Session &amp; safe edits · 2.5 development hours; starts after M02</title><rect class="node" x="424" y="250" width="170" height="132" rx="10"/><rect x="424" y="250" width="5" height="132" rx="2.5" fill="#2563a6"/>
 <text x="438" y="282" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M04</text>
 <text x="582" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
 <text x="438" y="312" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Session &amp;</text>
 <text x="438" y="333" font-size="17" font-weight="550" fill="#243246" text-anchor="start">safe edits</text>
-<rect x="434" y="353" width="150" height="22" rx="5" fill="#fff2d1"/>
-<text x="509" y="369" font-size="12.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M02</text>
+
+
 </g>
 <g id="M16"><title>M16 · Custom workflow · 2 development hours</title><rect class="node" x="606" y="250" width="170" height="132" rx="10"/><rect x="606" y="250" width="5" height="132" rx="2.5" fill="#2563a6"/>
 <text x="620" y="282" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M16</text>
@@ -116,7 +117,7 @@
 <text x="620" y="312" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Custom</text>
 <text x="620" y="333" font-size="17" font-weight="550" fill="#243246" text-anchor="start">workflow</text>
 </g>
-<g id="M14"><title>M14 · Card approval · 1.5 development hours; live demo needs M03, M05</title><rect class="node" x="424" y="428" width="170" height="132" rx="10"/><rect x="424" y="428" width="5" height="132" rx="2.5" fill="#2563a6"/>
+<g id="M14" transform="translate(0 356)"><title>M14 · Card approval · 1.5 development hours; live demo needs M03, M05</title><rect class="node" x="424" y="428" width="170" height="132" rx="10"/><rect x="424" y="428" width="5" height="132" rx="2.5" fill="#2563a6"/>
 <text x="438" y="460" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M14</text>
 <text x="582" y="459" font-size="13" font-weight="600" fill="#657487" text-anchor="end">1.5 h</text>
 <text x="438" y="490" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Card approval</text>
@@ -129,7 +130,7 @@
 <text x="620" y="490" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Grant policy</text>
 <text x="620" y="511" font-size="17" font-weight="550" fill="#243246" text-anchor="start">permissions</text>
 </g>
-<g id="M15"><title>M15 · Lane approval · 2.5 development hours</title><rect class="node" x="424" y="606" width="170" height="132" rx="10"/><rect x="424" y="606" width="5" height="132" rx="2.5" fill="#2563a6"/>
+<g id="M15" transform="translate(0 356)"><title>M15 · Lane approval · 2.5 development hours</title><rect class="node" x="424" y="606" width="170" height="132" rx="10"/><rect x="424" y="606" width="5" height="132" rx="2.5" fill="#2563a6"/>
 <text x="438" y="638" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M15</text>
 <text x="582" y="637" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
 <text x="438" y="668" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Lane approval</text>

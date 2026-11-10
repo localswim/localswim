@@ -54,10 +54,12 @@ func TestT04CLIRelationshipValidatorsAndUnknownOutcome(t *testing.T) {
 		boardResponseTag                bool
 	}{
 		{"create", http.MethodPost, "12", fmt.Sprintf("{\"source_card_id\":%q,\"target_card_id\":%q,\"kind\":\"references\"}", t03Card, t03Lane), http.StatusCreated, 0, 1, true},
-		{"patch", http.MethodPatch, "12", "{\"kind\":\"referenced_by\"}", http.StatusOK, 0, 1, true},
-		{"remove", http.MethodDelete, "12", "", http.StatusNoContent, 0, 1, true},
-		{"remove", http.MethodDelete, "11", "", http.StatusNoContent, 1, 0, true},
-		{"remove", http.MethodDelete, "12", "", http.StatusNoContent, 1, 1, false},
+		{"patch", http.MethodPatch, "7", "{\"kind\":\"referenced_by\"}", http.StatusOK, 0, 1, true},
+		{"patch", http.MethodPatch, "12", "{\"kind\":\"referenced_by\"}", http.StatusOK, 1, 0, true},
+		{"create", http.MethodPost, "7", fmt.Sprintf("{\"source_card_id\":%q,\"target_card_id\":%q,\"kind\":\"references\"}", t03Card, t03Lane), http.StatusCreated, 1, 0, true},
+		{"remove", http.MethodDelete, "7", "", http.StatusNoContent, 0, 1, true},
+		{"remove", http.MethodDelete, "12", "", http.StatusNoContent, 1, 0, true},
+		{"remove", http.MethodDelete, "7", "", http.StatusNoContent, 1, 1, false},
 	} {
 		t.Run(fmt.Sprintf("%s/%s/%t", tc.action, tc.revision, tc.boardResponseTag), func(t *testing.T) {
 			var mutations atomic.Int32
@@ -68,7 +70,7 @@ func TestT04CLIRelationshipValidatorsAndUnknownOutcome(t *testing.T) {
 					_, _ = io.WriteString(w, "{\"revision\":12}")
 				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/relationships/"+t03Lane:
 					w.Header().Set("ETag", t03ResourceTag)
-					_, _ = fmt.Fprintf(w, "{\"board_id\":%q}", t03Board)
+					_, _ = fmt.Fprintf(w, "{\"board_id\":%q,\"revision\":7}", t03Board)
 				case r.Method == tc.method:
 					mutations.Add(1)
 					if tc.method == http.MethodPost {

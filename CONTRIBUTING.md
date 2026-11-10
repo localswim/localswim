@@ -34,6 +34,13 @@ Initial workflow lanes use revision 1. Unrelated board edits leave the value unc
 and successive lane revisions may skip values. Lane creation and patch inputs reject
 this service-managed field. Lane writes retain their lane and board HTTP validators.
 
+Full relationship JSON and native relationship snapshots carry a positive safe-integer
+`revision` for the board commit that created or last changed that relationship.
+Relationships seeded during card creation use that creation commit. Unrelated board
+edits and no-op patches leave the value unchanged, and successive revisions may skip
+values. Relationship creation, seed, and patch inputs reject this service-managed
+field. HTTP validators remain in response headers.
+
 Comments are immutable after creation. Their JSON and native snapshot records contain
 identity, parent references, attribution, text, and timestamps. Comment HTTP validators
 are carried in response headers. Posting a comment still requires the parent card
@@ -41,8 +48,9 @@ validator and advances that card's revision.
 
 For card edits, comment posting, and attachment upload, CLI `--revision N` checks
 the addressed card revision before writing with its current HTTP validator. Card
-creation, policy changes, and `lane add` check the board revision. `lane rename`
-checks the addressed lane revision.
+creation, relationship creation, policy changes, and `lane add` check the board
+revision. `lane rename` checks the addressed lane revision. Relationship patch
+and remove check the addressed relationship revision.
 
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
 Unicode. Entity and build IDs are immutable UUIDv4 values. The service_instance_id

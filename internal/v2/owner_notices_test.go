@@ -48,7 +48,7 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 	previous := ownerNoticeTestSnapshot("3b21b22e-3538-49ee-af0a-8fae47ca7ff7", notifications{})
 	previous.Activity = []activity{{Revision: 1, ActorID: humanID, ResourceType: "card", ResourceID: "four", At: at}}
 	previous.Relationships = []relationship{{
-		entity: entity{ID: "link"}, relationshipLink: relationshipLink{SourceCardID: "one", TargetCardID: "three"},
+		ID: "link", relationshipLink: relationshipLink{SourceCardID: "one", TargetCardID: "three"},
 	}}
 	next := ownerNoticeTestEdit(previous, humanID, "card", "one", at.Add(time.Second))
 	next.Relationships = nil

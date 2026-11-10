@@ -33,7 +33,11 @@ func parseT04(name string, args []string) (cliCommand, error) {
 	cmd.relationshipWrite = cmd.method != http.MethodGet
 	var revision string
 	if cmd.relationshipWrite {
-		flags.StringVar(&revision, "revision", "", "expected board revision")
+		label := "expected relationship revision"
+		if cmd.method == http.MethodPost {
+			label = "expected board revision"
+		}
+		flags.StringVar(&revision, "revision", "", label)
 	}
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
@@ -94,6 +98,9 @@ func prepareRelationshipWrite(api *client.Client, cmd cliCommand, body json.RawM
 		if current.ETag == "" {
 			return nil, "", "", errors.New("service did not return a strong relationship ETag")
 		}
+		if err := checkCLIRevision(cmd.revision, current.JSON); err != nil {
+			return nil, "", "", err
+		}
 		ifMatch = current.ETag
 		board, err = parentBoard(api, current.JSON)
 	}
@@ -103,8 +110,10 @@ func prepareRelationshipWrite(api *client.Client, cmd cliCommand, body json.RawM
 	if board.ETag == "" {
 		return nil, "", "", errors.New("service did not return a strong board ETag")
 	}
-	if err := checkCLIRevision(cmd.revision, board.JSON); err != nil {
-		return nil, "", "", err
+	if cmd.method == http.MethodPost {
+		if err := checkCLIRevision(cmd.revision, board.JSON); err != nil {
+			return nil, "", "", err
+		}
 	}
 	if cmd.method == http.MethodDelete {
 		return nil, ifMatch, board.ETag, nil

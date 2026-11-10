@@ -2,6 +2,7 @@ package v2
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -77,6 +78,10 @@ func TestM09RelationshipLifecycle(t *testing.T) {
 	}
 	listPath := "/relationships?board_id=" + b.ID + "&card_id="
 	raw, _ = c.call("GET", listPath+first.ID, "", "", 200)
+	page := turnOnePage[json.RawMessage](t, raw, "relationships")
+	for _, value := range page.Values {
+		assertRelationshipRevision(t, value, seeded.Board.Revision, "")
+	}
 	links := turnOnePage[relationship](t, raw, "relationships").Values
 	if len(links) != 2 || links[0].Kind != "references" ||
 		links[0].SourceCardID != first.ID || links[0].TargetCardID != second.ID {
@@ -97,9 +102,9 @@ func TestM09RelationshipLifecycle(t *testing.T) {
 	c.call("POST", "/relationships", createBody(first.ID, first.ID, "references", boardTag), "", 400)
 	c.call("POST", "/relationships", createBody(first.ID, newID(), "references", boardTag), "", 404)
 	raw, headers = c.call("POST", "/relationships", createBody(first.ID, second.ID, "blocks", boardTag), "", 201)
-	block := turnOneDecode[relationship](t, raw)
+	block := assertRelationshipRevision(t, raw, seeded.Board.Revision+1, headers.Get("ETag"))
 	boardTag = headers.Get("X-Board-ETag")
-	if headers.Get("Location") != Prefix+"/relationships/"+block.ID || headers.Get("ETag") != block.ETag ||
+	if headers.Get("Location") != Prefix+"/relationships/"+block.ID || headers.Get("ETag") != block.entityTag() ||
 		block.SourceCardID != first.ID || block.TargetCardID != second.ID || block.Kind != "blocks" {
 		t.Fatalf("unexpected relationship creation response: %+v", block)
 	}
@@ -108,23 +113,24 @@ func TestM09RelationshipLifecycle(t *testing.T) {
 	patchBody := func(tag, kind string) string {
 		return fmt.Sprintf(`{"expected_board_etag":%q,"kind":%q}`, tag, kind)
 	}
-	c.call("PATCH", path, patchBody(`"contains.invalid.punctuation"`, "blocks"), links[0].ETag, 400)
-	c.call("PATCH", path, patchBody(boardTag, "blocks"), links[0].ETag, 409)
-	c.call("PATCH", path, patchBody(boardTag, "DUPLICATED_BY"), block.ETag, 412)
-	c.call("PATCH", path, patchBody(seeded.Board.ETag, "DUPLICATED_BY"), links[0].ETag, 412)
-	raw, headers = botClient.call("PATCH", path, patchBody(boardTag, "DUPLICATED_BY"), links[0].ETag, 200)
-	patched := turnOneDecode[relationship](t, raw)
+	c.call("PATCH", path, patchBody(`"contains.invalid.punctuation"`, "blocks"), links[0].entityTag(), 400)
+	c.call("PATCH", path, patchBody(boardTag, "blocks"), links[0].entityTag(), 409)
+	c.call("PATCH", path, patchBody(boardTag, "DUPLICATED_BY"), block.entityTag(), 412)
+	c.call("PATCH", path, patchBody(seeded.Board.ETag, "DUPLICATED_BY"), links[0].entityTag(), 412)
+	raw, headers = botClient.call("PATCH", path, patchBody(boardTag, "DUPLICATED_BY"), links[0].entityTag(), 200)
+	patched := assertRelationshipRevision(t, raw, seeded.Board.Revision+2, headers.Get("ETag"))
 	boardTag = headers.Get("X-Board-ETag")
-	if patched.ID != links[0].ID || patched.ETag == links[0].ETag || patched.Kind != "duplicates" ||
+	if patched.ID != links[0].ID || patched.entityTag() == links[0].entityTag() || patched.Kind != "duplicates" ||
 		patched.SourceCardID != second.ID || patched.TargetCardID != first.ID {
 		t.Fatalf("unexpected replacement response: %+v", patched)
 	}
-	_, headers = botClient.call("PATCH", path, patchBody(boardTag, "duplicates"), patched.ETag, 200)
-	if headers.Get("X-Board-ETag") != boardTag || headers.Get("ETag") != patched.ETag {
+	raw, headers = botClient.call("PATCH", path, patchBody(boardTag, "duplicates"), patched.entityTag(), 200)
+	assertRelationshipRevision(t, raw, patched.Revision, headers.Get("ETag"))
+	if headers.Get("X-Board-ETag") != boardTag || headers.Get("ETag") != patched.entityTag() {
 		t.Fatal("unchanged relationship replacement advanced a version")
 	}
 	raw, headers = c.call("GET", path, "", "", 200)
-	if headers.Get("ETag") != patched.ETag || turnOneDecode[relationship](t, raw) != patched {
+	if headers.Get("ETag") != patched.entityTag() || turnOneDecode[relationship](t, raw) != patched {
 		t.Fatal("direct readback did not return the replacement")
 	}
 	for _, id := range []string{first.ID, second.ID} {
@@ -135,13 +141,13 @@ func TestM09RelationshipLifecycle(t *testing.T) {
 		}
 	}
 
-	c.call("DELETE", path, "", patched.ETag, 428)
+	c.call("DELETE", path, "", patched.entityTag(), 428)
 	req, err := http.NewRequest(http.MethodDelete, server.URL+Prefix+path, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	req.Header.Set("Authorization", "Bearer "+human)
-	req.Header.Set("If-Match", patched.ETag)
+	req.Header.Set("If-Match", patched.entityTag())
 	req.Header.Set("X-Expected-Board-ETag", boardTag)
 	res, err := server.Client().Do(req)
 	if err != nil {
@@ -184,7 +190,7 @@ func TestM09RelationshipLifecycle(t *testing.T) {
 		},
 		func(value *snapshot) { value.Relationships[0].TargetCardID = newID() },
 		func(value *snapshot) {
-			value.Relationships[0].ETag = etag(value.Relationships[0].ID, saved.Board.Revision)
+			value.Relationships[0].Revision = saved.Board.Revision
 		},
 		func(value *snapshot) { value.Activity[7].Before = value.Activity[6].Before },
 		func(value *snapshot) { value.Activity[2], value.Activity[3] = value.Activity[3], value.Activity[2] },

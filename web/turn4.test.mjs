@@ -13,6 +13,8 @@ const updatedBoardTag = '"board_0000000000000001"';
 const capability = "A".repeat(43);
 const prefix = "/api/2026-11-10";
 const at = "2026-11-10 16:55:00+00:00";
+const relationship = { id, board_id: boardId, revision: 7, created_at: at, updated_at: at,
+  source_card_id: cardId, target_card_id: otherCard, kind: "blocks" };
 const approvalMove = { id, board_id: boardId, revision: 4, at, actor_id: actorId,
   operation: "approve", resource_type: "card", resource_id: cardId, field: "lane_id",
   before: "c5d47d1d-17a5-4b6a-9db6-5878c4013d2d", after: "3c27731a-d7b8-48aa-a57e-1da339b8160e" };
@@ -80,7 +82,7 @@ test("archived-card and typed-link reads keep board and card scoping", async () 
   const calls = [];
   const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (url) => {
     calls.push(url);
-    return Response.json({});
+    return Response.json({ relationships: [relationship] });
   } });
   await api.listCards(boardId, { archived: "only", cursor: "next" });
   await api.listCards(boardId, { archived: "include", ticket: 4, limit: 2 });
@@ -98,22 +100,23 @@ test("typed-link writes send the correct resource and board preconditions", asyn
     calls.push([url, options]);
     if (options.method === "DELETE") return new Response(null, { status: 204,
       headers: { "X-Board-ETag": updatedBoardTag } });
-    return Response.json({ id }, { status: options.method === "POST" ? 201 : 200, headers: { ETag: cardTag } });
+    return Response.json(relationship, { status: options.method === "POST" ? 201 : 200, headers: { ETag: cardTag } });
   } });
   await api.createRelationship(id, boardId, boardTag, cardId, otherCard, "blocked_by");
-  await api.replaceRelationship(id, cardTag, boardTag, "relates_to");
-  await api.removeRelationship(id, cardTag, boardTag);
+  await api.replaceRelationship(id, 7, boardTag, "relates_to");
+  await api.removeRelationship(id, 7, boardTag);
   assert.deepEqual(calls.map(([url, options]) => [url, options.method]), [
-    [prefix + "/relationships", "POST"], [prefix + "/relationships/" + id, "PATCH"],
+    [prefix + "/relationships", "POST"], [prefix + "/relationships/" + id, "GET"],
+    [prefix + "/relationships/" + id, "PATCH"], [prefix + "/relationships/" + id, "GET"],
     [prefix + "/relationships/" + id, "DELETE"],
   ]);
   assert.deepEqual(JSON.parse(calls[0][1].body), { id, board_id: boardId, expected_board_etag: boardTag,
     source_card_id: cardId, target_card_id: otherCard, kind: "blocked_by" });
-  assert.equal(calls[1][1].headers.get("If-Match"), cardTag);
-  assert.deepEqual(JSON.parse(calls[1][1].body), { expected_board_etag: boardTag, kind: "relates_to" });
   assert.equal(calls[2][1].headers.get("If-Match"), cardTag);
-  assert.equal(calls[2][1].headers.get("X-Expected-Board-ETag"), boardTag);
-  assert.equal(calls[2][1].body, undefined);
+  assert.deepEqual(JSON.parse(calls[2][1].body), { expected_board_etag: boardTag, kind: "relates_to" });
+  assert.equal(calls[4][1].headers.get("If-Match"), cardTag);
+  assert.equal(calls[4][1].headers.get("X-Expected-Board-ETag"), boardTag);
+  assert.equal(calls[4][1].body, undefined);
 });
 
 test("authenticated attachment content permits only bounded raster previews and inert download blobs", async () => {
@@ -145,5 +148,78 @@ test("authenticated attachment content permits only bounded raster previews and 
         error instanceof ApiError && error.code === "invalid_response" && !error.outcomeUnknown);
     }
     assert.equal(calls, 1);
+  }
+});
+
+
+test("relationship revision guards refuse stale or malformed reads before dispatch", async () => {
+  for (const action of ["replace", "remove"]) {
+    for (const revision of [0, -1, 1.5, "7", null, Number.MAX_SAFE_INTEGER + 1]) {
+      let calls = 0;
+      const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async () => {
+        ++calls;
+        return Response.json(relationship, { headers: { ETag: cardTag } });
+      } });
+      const write = () => action === "replace"
+        ? api.replaceRelationship(id, revision, boardTag, "references")
+        : api.removeRelationship(id, revision, boardTag);
+      await assert.rejects(write, TypeError);
+      assert.equal(calls, 0);
+    }
+    for (const data of [
+      { ...relationship, revision: 8 }, { ...relationship, revision: 0 },
+      { ...relationship, revision: "7" }, { ...relationship, etag: cardTag },
+      { ...relationship, revision: undefined, etag: cardTag },
+      { ...relationship, id: otherCard }, { ...relationship, board_id: null },
+    ]) {
+      let calls = 0;
+      const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async () => {
+        ++calls;
+        return Response.json(data, { headers: { ETag: cardTag } });
+      } });
+      const write = () => action === "replace"
+        ? api.replaceRelationship(id, 7, boardTag, "references")
+        : api.removeRelationship(id, 7, boardTag);
+      await assert.rejects(write, (error) => error instanceof ApiError && !error.outcomeUnknown);
+      assert.equal(calls, 1);
+    }
+  }
+});
+
+test("relationship mutations retain the read validator and never repeat uncertain writes", async () => {
+  const freshTag = '"relationship_fresh_00000001"';
+  for (const action of ["replace", "remove"]) {
+    for (const failure of ["stale", "lost", "invalid"]) {
+      let calls = 0;
+      const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (_url, options) => {
+        ++calls;
+        if (options.method === "GET") return Response.json(relationship, { headers: { ETag: freshTag } });
+        assert.equal(options.headers.get("If-Match"), freshTag);
+        if (failure === "lost") throw new Error("Lost response");
+        if (failure === "stale") return Response.json({}, { status: 412 });
+        if (action === "remove") return new Response(null, { status: 204 });
+        return Response.json({ ...relationship, etag: freshTag }, { headers: { ETag: freshTag } });
+      } });
+      const write = () => action === "replace"
+        ? api.replaceRelationship(id, 7, boardTag, "references")
+        : api.removeRelationship(id, 7, boardTag);
+      await assert.rejects(write, (error) => error instanceof ApiError
+        && error.outcomeUnknown === (failure !== "stale"));
+      assert.equal(calls, 2);
+    }
+  }
+});
+
+test("relationship list and create responses require numeric revisions without body etags", async () => {
+  for (const malformed of [
+    { ...relationship, revision: 0 }, { ...relationship, revision: "7" },
+    { ...relationship, etag: cardTag }, { ...relationship, revision: undefined, etag: cardTag },
+  ]) {
+    const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (_url, options) =>
+      Response.json(options.method === "POST" ? malformed : { relationships: [malformed] },
+        { status: options.method === "POST" ? 201 : 200, headers: { ETag: cardTag } }) });
+    await assert.rejects(api.listRelationships(boardId, cardId), { code: "invalid_response", outcomeUnknown: false });
+    await assert.rejects(api.createRelationship(id, boardId, boardTag, cardId, otherCard, "blocks"),
+      { code: "invalid_response", outcomeUnknown: true });
   }
 });

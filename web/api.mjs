@@ -100,6 +100,19 @@ function validLane(data, id, boardId) {
     && typeof lane.approval_enabled === "boolean" && typeof lane.reorder_enabled === "boolean";
 }
 
+/** @param {object} data @param {string} [id] @param {string} [boardId] */
+function validRelationship(data, id, boardId) {
+  const link = /** @type {Record<string, unknown>} */ (data);
+  return Object.keys(link).length === 8 && !Object.hasOwn(link, "etag")
+    && isId(link.id) && (id === undefined || link.id.toLowerCase() === id.toLowerCase())
+    && isId(link.board_id) && (boardId === undefined || link.board_id.toLowerCase() === boardId.toLowerCase())
+    && isInteger(link.revision) && link.revision > 0
+    && isTimestamp(link.created_at) && isTimestamp(link.updated_at)
+    && isId(link.source_card_id) && isId(link.target_card_id)
+    && typeof link.kind === "string"
+    && ["blocks", "blocked_by", "duplicates", "duplicated_by", "references", "referenced_by", "relates_to"].includes(link.kind);
+}
+
 /** @param {object} data @param {string} boardId @param {string | undefined} id */
 function validCard(data, boardId, id) {
   const card = /** @type {Record<string, unknown>} */ (data);
@@ -353,6 +366,28 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     return request(query.size ? path + "?" + query : path);
   }
 
+  /** @param {unknown} relationshipId @param {unknown} revision */
+  async function currentRelationship(relationshipId, revision) {
+    const id = resourceId(relationshipId);
+    if (!isInteger(revision) || revision < 1) {
+      throw new TypeError("Expected a positive safe integer relationship revision.");
+    }
+    const response = await send("/relationships/" + id);
+    const tag = response.headers.get("ETag");
+    if (response.status !== 200 || !STRONG_ETAG.test(tag ?? "")) {
+      await discardBody(response);
+      throw new ApiError("invalid_response", { status: response.status });
+    }
+    const data = await responseObject(response, false);
+    if (!validRelationship(data, id)) {
+      throw new ApiError("invalid_response", { status: 200 });
+    }
+    if (/** @type {{revision: number}} */ (data).revision !== revision) {
+      throw new ApiError("http_error", { status: 412 });
+    }
+    return { data, etag: strongTag(tag) };
+  }
+
   return Object.freeze({
 
     /**
@@ -468,32 +503,51 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       return createWithId("/attachments", expectedId, { form });
     },
     /** @param {string} boardId @param {string} cardId @param {string} [cursor] */
-    listRelationships: (boardId, cardId, cursor) => list("/relationships", {
-      board_id: resourceId(boardId), card_id: resourceId(cardId),
-    }, cursor),
+    async listRelationships(boardId, cardId, cursor) {
+      const board = resourceId(boardId);
+      const card = resourceId(cardId);
+      const reply = await list("/relationships", { board_id: board, card_id: card }, cursor);
+      const page = /** @type {{relationships?: unknown}} */ (reply.data);
+      if (!Array.isArray(page.relationships) || !page.relationships.every((link) =>
+        link !== null && typeof link === "object" && !Array.isArray(link)
+        && validRelationship(link, undefined, board)
+        && (link.source_card_id === card || link.target_card_id === card))) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      return reply;
+    },
     /** @param {string} id @param {string} boardId @param {string} boardEtag
      * @param {string} source @param {string} target @param {RelationshipKind} kind */
-    createRelationship(id, boardId, boardEtag, source, target, kind) {
+    async createRelationship(id, boardId, boardEtag, source, target, kind) {
       const expectedId = resourceId(id);
-      return createWithId("/relationships", expectedId, { data: {
-        id: expectedId, board_id: resourceId(boardId), expected_board_etag: strongTag(boardEtag),
+      const board = resourceId(boardId);
+      const reply = await createWithId("/relationships", expectedId, { data: {
+        id: expectedId, board_id: board, expected_board_etag: strongTag(boardEtag),
         source_card_id: resourceId(source), target_card_id: resourceId(target), kind,
       } });
+      if (!validRelationship(reply.data, expectedId, board)) {
+        throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
+      }
+      return reply;
     },
-    /** @param {string} id @param {string} etag @param {string} boardEtag @param {RelationshipKind} kind */
-    async replaceRelationship(id, etag, boardEtag, kind) {
+    /** @param {string} id @param {number} revision @param {string} boardEtag @param {RelationshipKind} kind */
+    async replaceRelationship(id, revision, boardEtag, kind) {
+      const boardTag = strongTag(boardEtag);
+      const current = await currentRelationship(id, revision);
       const reply = await request("/relationships/" + resourceId(id), {
-        method: "PATCH", etag: strongTag(etag), data: { expected_board_etag: strongTag(boardEtag), kind },
+        method: "PATCH", etag: current.etag, data: { expected_board_etag: boardTag, kind },
       });
-      if (/** @type {{id?: unknown}} */ (reply.data).id !== id) {
+      if (!validRelationship(reply.data, id, /** @type {{board_id: string}} */ (current.data).board_id)) {
         throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
       }
       return reply;
     },
-    /** @param {string} id @param {string} etag @param {string} boardEtag */
-    async removeRelationship(id, etag, boardEtag) {
+    /** @param {string} id @param {number} revision @param {string} boardEtag */
+    async removeRelationship(id, revision, boardEtag) {
+      const boardTag = strongTag(boardEtag);
+      const current = await currentRelationship(id, revision);
       const response = await send("/relationships/" + resourceId(id), {
-        method: "DELETE", etag: strongTag(etag), boardEtag: strongTag(boardEtag),
+        method: "DELETE", etag: current.etag, boardEtag: boardTag,
       });
       if (response.status !== 204 || !STRONG_ETAG.test(response.headers.get("X-Board-ETag") ?? "")) {
         await discardBody(response);

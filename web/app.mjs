@@ -3,7 +3,7 @@ import { ApiError, createBrowserApi, openBrowserSession } from "./api.mjs";
 /** @typedef {{id: string, label: string}} Labeled */
 /** @typedef {Labeled & {kind: "human"|"bot"}} User */
 /** @typedef {import("./api.mjs").RelationshipKind} RelationshipKind */
-/** @typedef {{id: string, etag: string, board_id: string, source_card_id: string, target_card_id: string,
+/** @typedef {{id: string, revision: number, board_id: string, source_card_id: string, target_card_id: string,
  * kind: RelationshipKind}} Relationship */
 /** @typedef {{resource_type: string, resource_id: string, operation: string, field: string|null,
  * actor_id: string, at: string, revision: number, before: string|null, after: string|null}} Change */
@@ -762,11 +762,11 @@ async function openCard(boardId, summary, lanes, users, boardTag, reloadBoard, o
           const wanted = /** @type {RelationshipKind} */ (type.value);
           if (wanted === direction) return;
           const canonical = entry.source_card_id === card.id ? wanted : inverseRelationships[wanted] ?? wanted;
-          void writeResource(submit, () => api.replaceRelationship(entry.id, entry.etag, boardTag(), canonical),
+          void writeResource(submit, () => api.replaceRelationship(entry.id, entry.revision, boardTag(), canonical),
             async () => (await readLinks()).some((value) => value.id === entry.id
               && relationshipDirection(value, card.id) === wanted), "Link type changed.", inspection);
         }), form("Remove link", [], (submit) => {
-          void writeResource(submit, () => api.removeRelationship(entry.id, entry.etag, boardTag()),
+          void writeResource(submit, () => api.removeRelationship(entry.id, entry.revision, boardTag()),
             async () => !(await readLinks()).some((value) => value.id === entry.id), "Link removed.", inspection);
         }));
         return row;

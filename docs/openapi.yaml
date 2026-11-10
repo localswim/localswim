@@ -13470,7 +13470,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
@@ -13480,8 +13480,14 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          readOnly: true
+          description: Board revision of the commit that created or last changed this relationship.
+            Relationships seeded during card creation use that creation commit. Unrelated board
+            edits and no-op patches leave this value unchanged, so successive revisions can skip values.
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -16591,7 +16597,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
@@ -16601,8 +16607,13 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          description: Board revision of the commit that created or last changed this relationship.
+            Relationships seeded during card creation use that creation commit. Unrelated board
+            edits and no-op patches leave this value unchanged, so successive revisions can skip values.
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:

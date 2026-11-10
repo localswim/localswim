@@ -17,10 +17,15 @@ type relationshipLink struct {
 }
 
 type relationship struct {
-	entity
-	BoardID string `json:"board_id"`
+	ID        string    `json:"id"`
+	Revision  uint64    `json:"revision"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	BoardID   string    `json:"board_id"`
 	relationshipLink
 }
+
+func (r relationship) entityTag() string { return etag(r.ID, r.Revision) }
 
 type relationshipSeed struct {
 	targetID, kind string
@@ -152,7 +157,8 @@ func applyRelationshipSeeds(state *snapshot, sourceID string, seeds []relationsh
 
 func addRelationship(state *snapshot, cards map[string]*card, id string, link relationshipLink, actor string, now time.Time) {
 	state.Relationships = append(state.Relationships, relationship{
-		entity: newEntity(id, now), BoardID: state.Board.ID, relationshipLink: link,
+		ID: id, Revision: state.Board.Revision + 1, CreatedAt: now, UpdatedAt: now,
+		BoardID: state.Board.ID, relationshipLink: link,
 	})
 	after := relationshipAuditValue(link)
 	recordRelationshipEdit(state, cards, id, "create", nil, &after, link, actor, now)
@@ -300,7 +306,7 @@ func (x *request) readRelationship(boardID, id string) {
 		return
 	}
 	item := state.Relationships[i]
-	x.respond(http.StatusOK, item, item.ETag)
+	x.respond(http.StatusOK, item, item.entityTag())
 }
 
 func relationshipBoardTag(tag, field string) (string, error) {
@@ -414,7 +420,7 @@ func (x *request) createRelationship() {
 	value := next.Relationships[len(next.Relationships)-1]
 	x.w.Header().Set("Location", Prefix+"/relationships/"+value.ID)
 	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
-	x.respond(http.StatusCreated, value, value.ETag)
+	x.respond(http.StatusCreated, value, value.entityTag())
 }
 
 func (in relationshipCreation) apply(state *snapshot, actor string) error {
@@ -482,7 +488,7 @@ func (x *request) changeRelationship(boardID, id string) {
 		return
 	}
 	value := next.Relationships[relationshipIndex(&next, id)]
-	x.respond(http.StatusOK, value, value.ETag)
+	x.respond(http.StatusOK, value, value.entityTag())
 }
 
 // An empty kind is removal. The caller supplies the isolated candidate.
@@ -498,7 +504,7 @@ func editRelationship(state *snapshot, id, expected, kind, actor string) error {
 		return errMissing
 	}
 	item := &state.Relationships[i]
-	if !matchesStrongTag(expected, item.ETag) {
+	if !matchesStrongTag(expected, item.entityTag()) {
 		return errStale
 	}
 	now := maxCardTime(canonicalTime(time.Now()), state.Board.UpdatedAt)
@@ -516,7 +522,7 @@ func editRelationship(state *snapshot, id, expected, kind, actor string) error {
 		return errIdentityConflict
 	}
 	item.relationshipLink = link
-	item.ETag = etag(item.ID, state.Board.Revision+1)
+	item.Revision = state.Board.Revision + 1
 	item.UpdatedAt = now
 	after := relationshipAuditValue(link)
 	recordRelationshipEdit(state, relationshipCards(state), id, "patch", &before, &after, link, actor, now)
@@ -527,10 +533,14 @@ func (refs snapshotReferences) validateRelationships(value snapshot) error {
 	keys := make(map[relationshipLink]bool, len(value.Relationships))
 	for _, item := range value.Relationships {
 		key := item.key()
-		if !refs.claim(item.entity) || item.BoardID != value.Board.ID ||
+		if !validSnapshotID(item.ID) || refs.ids[item.ID] || item.Revision == 0 ||
+			item.Revision > value.Board.Revision || item.Revision > maxSnapshotInteger ||
+			!validSnapshotTime(item.CreatedAt) || !validSnapshotTime(item.UpdatedAt) ||
+			item.UpdatedAt.Before(item.CreatedAt) || item.BoardID != value.Board.ID ||
 			!refs.validRelationshipLink(item.relationshipLink) || keys[key] {
 			return invalidSnapshot("relationships", "Relationship identity, endpoints, or kind are invalid or repeated.")
 		}
+		refs.ids[item.ID] = true
 		keys[key] = true
 	}
 	return nil
@@ -589,14 +599,15 @@ func (refs snapshotReferences) validateRelationshipAudit(value snapshot, cardCre
 				(cardCreations[link.SourceCardID] == event.Revision && cardCreations[link.TargetCardID] == event.Revision) {
 				return invalidSnapshot("activity", "Relationship creation audit is invalid.")
 			}
-			item = relationship{entity: newEntity(id, event.At), BoardID: value.Board.ID, relationshipLink: link}
+			item = relationship{ID: id, Revision: event.Revision, CreatedAt: event.At, UpdatedAt: event.At,
+				BoardID: value.Board.ID, relationshipLink: link}
 		case "patch":
 			if !wasActive || item.key() == link.key() || !sameRelationshipEndpoints(item.relationshipLink, link) {
 				return invalidSnapshot("activity", "Relationship replacement audit is invalid.")
 			}
 			item.relationshipLink = link
 			item.UpdatedAt = event.At
-			item.ETag = etag(id, event.Revision)
+			item.Revision = event.Revision
 		default:
 			return invalidSnapshot("activity", "Relationship audit operation is invalid.")
 		}
@@ -612,7 +623,7 @@ func (refs snapshotReferences) validateRelationshipAudit(value snapshot, cardCre
 	}
 	for id, item := range replay {
 		current := active[id]
-		if current.ID != id || current.ETag != item.ETag || current.relationshipLink != item.relationshipLink ||
+		if current.ID != id || current.Revision != item.Revision || current.relationshipLink != item.relationshipLink ||
 			!current.CreatedAt.Equal(item.CreatedAt) || !current.UpdatedAt.Equal(item.UpdatedAt) {
 			return invalidSnapshot("activity", "Relationship audit does not match the active relationships.")
 		}

@@ -90,7 +90,8 @@ Card list excludes archived cards by default. Focused card get includes them.
 Use card cover CARD_ID none to clear the selected cover.
 Relationship create reads source_card_id, target_card_id, kind, and optional id.
 Relationship patch reads kind. The CLI supplies the required validators.
-For relationship mutations, --revision refers to the board revision.
+For relationship create, --revision refers to the board revision.
+For relationship patch and remove, --revision refers to the relationship revision.
 Relationship remove exits silently on success.
 Attachment download verifies the active file before writing. Use a new file path
 or - for raw bytes on standard output. Inspect the destination after a local write failure.

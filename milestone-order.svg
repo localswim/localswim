@@ -1,0 +1,318 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2540" height="1220" viewBox="0 0 2540 1220" role="img" aria-labelledby="title desc">
+<title id="title">Localswim V2 milestone workstreams</title>
+<desc id="desc">Six workstreams arranged from left to right. Thirty-nine milestones flow downward within each workstream. Parallel branches begin at the same height. Gold labels name cross-workstream prerequisites for the live demo, which do not prevent development against fixtures. Positions show order, not elapsed time.</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L9 5 L1 9 Z" fill="#758294"/></marker></defs>
+<style>text{font-family:'Segoe UI',Arial,sans-serif} .link{fill:none;stroke:#758294;stroke-width:2;stroke-linejoin:round;marker-end:url(#arrow)} .node{fill:white;stroke:#cbd5e1;stroke-width:1.2}</style>
+<rect width="2540" height="1220" fill="#fff"/>
+<text x="40" y="55" font-size="34" font-weight="700" fill="#172536" text-anchor="start">V2 · milestone workstreams</text>
+<text x="40" y="91" font-size="20" font-weight="400" fill="#526174" text-anchor="start">Read downward. Branches at the same height can be built in parallel with separate owners.</text>
+<path class="link" d="M42 127 H83"/>
+<text x="98" y="133" font-size="16" font-weight="400" fill="#526174" text-anchor="start">Development order</text>
+<rect x="310" y="112" rx="6" width="141" height="28" fill="#fff2d1" stroke="#ead49e"/>
+<text x="380" y="132" font-size="13" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs Mxx</text>
+<text x="468" y="133" font-size="16" font-weight="400" fill="#526174" text-anchor="start">Cross-workstream demo gate · work may begin with fixtures</text>
+<rect x="40" y="164" width="350" height="946" rx="14" fill="#eef9f6"/>
+<rect x="40" y="164" width="350" height="4" rx="2" fill="#0f766e"/>
+<text x="58" y="198" font-size="21" font-weight="700" fill="#0f766e" text-anchor="start">Board &amp; cards</text>
+<text x="375" y="198" font-size="14" font-weight="600" fill="#0f766e" text-anchor="end">12 h</text>
+<rect x="410" y="164" width="380" height="946" rx="14" fill="#eff6fd"/>
+<rect x="410" y="164" width="380" height="4" rx="2" fill="#2563a6"/>
+<text x="428" y="198" font-size="21" font-weight="700" fill="#2563a6" text-anchor="start">Sessions, review</text>
+<text x="428" y="222" font-size="21" font-weight="700" fill="#2563a6" text-anchor="start">&amp; workflow</text>
+<text x="775" y="198" font-size="14" font-weight="600" fill="#2563a6" text-anchor="end">16.5 h</text>
+<rect x="810" y="164" width="450" height="946" rx="14" fill="#f5f1fc"/>
+<rect x="810" y="164" width="450" height="4" rx="2" fill="#7353b4"/>
+<text x="828" y="198" font-size="21" font-weight="700" fill="#7353b4" text-anchor="start">Relationships,</text>
+<text x="828" y="222" font-size="21" font-weight="700" fill="#7353b4" text-anchor="start">priority &amp; search</text>
+<text x="1245" y="198" font-size="14" font-weight="600" fill="#7353b4" text-anchor="end">16.5 h</text>
+<rect x="1280" y="164" width="350" height="946" rx="14" fill="#fffaed"/>
+<rect x="1280" y="164" width="350" height="4" rx="2" fill="#a16313"/>
+<text x="1298" y="198" font-size="21" font-weight="700" fill="#a16313" text-anchor="start">Attachments,</text>
+<text x="1298" y="222" font-size="21" font-weight="700" fill="#a16313" text-anchor="start">integrity &amp; recovery</text>
+<text x="1615" y="198" font-size="14" font-weight="600" fill="#a16313" text-anchor="end">13.5 h</text>
+<rect x="1650" y="164" width="450" height="946" rx="14" fill="#f0f8f0"/>
+<rect x="1650" y="164" width="450" height="4" rx="2" fill="#297440"/>
+<text x="1668" y="198" font-size="21" font-weight="700" fill="#297440" text-anchor="start">Workspace, events</text>
+<text x="1668" y="222" font-size="21" font-weight="700" fill="#297440" text-anchor="start">&amp; notices</text>
+<text x="2085" y="198" font-size="14" font-weight="600" fill="#297440" text-anchor="end">10.5 h</text>
+<rect x="2120" y="164" width="380" height="946" rx="14" fill="#fcf1f5"/>
+<rect x="2120" y="164" width="380" height="4" rx="2" fill="#a44361"/>
+<text x="2138" y="198" font-size="21" font-weight="700" fill="#a44361" text-anchor="start">Git publishing</text>
+<text x="2138" y="222" font-size="21" font-weight="700" fill="#a44361" text-anchor="start">&amp; lifecycle</text>
+<text x="2485" y="198" font-size="14" font-weight="600" fill="#a44361" text-anchor="end">13.5 h</text>
+<path class="link" d="M215 382 V400.5 H215 V419"/>
+<path class="link" d="M215 560 V578.5 H131.5 V597"/>
+<path class="link" d="M215 560 V578.5 H298.5 V597"/>
+<path class="link" d="M298.5 738 V756.5 H298.5 V775"/>
+<path class="link" d="M131.5 738 V845.5 H215 V953"/>
+<path class="link" d="M298.5 916 V934.5 H215 V953"/>
+<path class="link" d="M509 382 V400.5 H509 V419"/>
+<path class="link" d="M509 560 V578.5 H509 V597"/>
+<path class="link" d="M691 382 V400.5 H691 V419"/>
+<path class="link" d="M691 560 V578.5 H691 V597"/>
+<path class="link" d="M691 738 V756.5 H691 V775"/>
+<path class="link" d="M691 916 V934.5 H691 V953"/>
+<path class="link" d="M926.5 382 V400.5 H1035 V419"/>
+<path class="link" d="M1143.5 382 V400.5 H1035 V419"/>
+<path class="link" d="M1035 560 V578.5 H890.3333333333334 V597"/>
+<path class="link" d="M1035 560 V578.5 H1035 V597"/>
+<path class="link" d="M1035 560 V578.5 H1179.6666666666665 V597"/>
+<path class="link" d="M1035 738 V756.5 H1035 V775"/>
+<path class="link" d="M1179.6666666666665 738 V756.5 H1179.6666666666665 V775"/>
+<path class="link" d="M1371.5 382 V400.5 H1371.5 V419"/>
+<path class="link" d="M1371.5 560 V578.5 H1371.5 V597"/>
+<path class="link" d="M1371.5 738 V756.5 H1455 V775"/>
+<path class="link" d="M1538.5 382 V751 H1455 V775"/>
+<path class="link" d="M1455 916 V934.5 H1455 V953"/>
+<path class="link" d="M1730.3333333333333 382 V400.5 H1730.3333333333333 V419"/>
+<path class="link" d="M2019.6666666666665 382 V400.5 H2019.6666666666665 V419"/>
+<path class="link" d="M2401 382 V400.5 H2219 V419"/>
+<path class="link" d="M2401 382 V400.5 H2401 V419"/>
+<path class="link" d="M2219 560 V578.5 H2310 V597"/>
+<path class="link" d="M2310 738 V756.5 H2310 V775"/>
+<path class="link" d="M2134 316 H2126 V755 H2310 V775"/>
+<g id="M01"><title>M01 · Create boards · 3 development hours</title><rect class="node" x="54" y="250" width="322" height="132" rx="10"/><rect x="54" y="250" width="5" height="132" rx="2.5" fill="#0f766e"/>
+<text x="68" y="282" font-size="22" font-weight="750" fill="#0f766e" text-anchor="start">M01</text>
+<text x="364" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">3 h</text>
+<text x="68" y="312" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Create boards</text>
+</g>
+<g id="M02"><title>M02 · Create &amp; find cards · 2 development hours</title><rect class="node" x="54" y="428" width="322" height="132" rx="10"/><rect x="54" y="428" width="5" height="132" rx="2.5" fill="#0f766e"/>
+<text x="68" y="460" font-size="22" font-weight="750" fill="#0f766e" text-anchor="start">M02</text>
+<text x="364" y="459" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="68" y="490" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Create &amp; find cards</text>
+</g>
+<g id="M03"><title>M03 · Move &amp; assign · 2 development hours</title><rect class="node" x="54" y="606" width="155" height="132" rx="10"/><rect x="54" y="606" width="5" height="132" rx="2.5" fill="#0f766e"/>
+<text x="68" y="638" font-size="22" font-weight="750" fill="#0f766e" text-anchor="start">M03</text>
+<text x="197" y="637" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="68" y="668" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Move &amp; assign</text>
+</g>
+<g id="M05"><title>M05 · Comments · 1.5 development hours</title><rect class="node" x="221" y="606" width="155" height="132" rx="10"/><rect x="221" y="606" width="5" height="132" rx="2.5" fill="#0f766e"/>
+<text x="235" y="638" font-size="22" font-weight="750" fill="#0f766e" text-anchor="start">M05</text>
+<text x="364" y="637" font-size="13" font-weight="600" fill="#657487" text-anchor="end">1.5 h</text>
+<text x="235" y="668" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Comments</text>
+</g>
+<g id="M06"><title>M06 · Archive &amp; restore cards · 1.5 development hours</title><rect class="node" x="221" y="784" width="155" height="132" rx="10"/><rect x="221" y="784" width="5" height="132" rx="2.5" fill="#0f766e"/>
+<text x="235" y="816" font-size="22" font-weight="750" fill="#0f766e" text-anchor="start">M06</text>
+<text x="364" y="815" font-size="13" font-weight="600" fill="#657487" text-anchor="end">1.5 h</text>
+<text x="235" y="846" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Archive &amp;</text>
+<text x="235" y="867" font-size="17" font-weight="550" fill="#243246" text-anchor="start">restore cards</text>
+</g>
+<g id="M07"><title>M07 · Audited activity · 2 development hours</title><rect class="node" x="54" y="962" width="322" height="132" rx="10"/><rect x="54" y="962" width="5" height="132" rx="2.5" fill="#0f766e"/>
+<text x="68" y="994" font-size="22" font-weight="750" fill="#0f766e" text-anchor="start">M07</text>
+<text x="364" y="993" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="68" y="1024" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Audited activity</text>
+</g>
+<g id="M04"><title>M04 · Session &amp; safe edits · 2.5 development hours; live demo needs M02</title><rect class="node" x="424" y="250" width="170" height="132" rx="10"/><rect x="424" y="250" width="5" height="132" rx="2.5" fill="#2563a6"/>
+<text x="438" y="282" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M04</text>
+<text x="582" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="438" y="312" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Session &amp;</text>
+<text x="438" y="333" font-size="17" font-weight="550" fill="#243246" text-anchor="start">safe edits</text>
+<rect x="434" y="353" width="150" height="22" rx="5" fill="#fff2d1"/>
+<text x="509" y="369" font-size="12.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M02</text>
+</g>
+<g id="M16"><title>M16 · Custom workflow · 2 development hours</title><rect class="node" x="606" y="250" width="170" height="132" rx="10"/><rect x="606" y="250" width="5" height="132" rx="2.5" fill="#2563a6"/>
+<text x="620" y="282" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M16</text>
+<text x="764" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="620" y="312" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Custom</text>
+<text x="620" y="333" font-size="17" font-weight="550" fill="#243246" text-anchor="start">workflow</text>
+</g>
+<g id="M14"><title>M14 · Card approval · 1.5 development hours; live demo needs M03, M05</title><rect class="node" x="424" y="428" width="170" height="132" rx="10"/><rect x="424" y="428" width="5" height="132" rx="2.5" fill="#2563a6"/>
+<text x="438" y="460" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M14</text>
+<text x="582" y="459" font-size="13" font-weight="600" fill="#657487" text-anchor="end">1.5 h</text>
+<text x="438" y="490" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Card approval</text>
+<rect x="434" y="531" width="150" height="22" rx="5" fill="#fff2d1"/>
+<text x="509" y="547" font-size="12.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M03, M05</text>
+</g>
+<g id="M17"><title>M17 · Grant policy permissions · 2 development hours</title><rect class="node" x="606" y="428" width="170" height="132" rx="10"/><rect x="606" y="428" width="5" height="132" rx="2.5" fill="#2563a6"/>
+<text x="620" y="460" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M17</text>
+<text x="764" y="459" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="620" y="490" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Grant policy</text>
+<text x="620" y="511" font-size="17" font-weight="550" fill="#243246" text-anchor="start">permissions</text>
+</g>
+<g id="M15"><title>M15 · Lane approval · 2.5 development hours</title><rect class="node" x="424" y="606" width="170" height="132" rx="10"/><rect x="424" y="606" width="5" height="132" rx="2.5" fill="#2563a6"/>
+<text x="438" y="638" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M15</text>
+<text x="582" y="637" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="438" y="668" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Lane approval</text>
+</g>
+<g id="M18"><title>M18 · Add &amp; rename lanes · 2 development hours</title><rect class="node" x="606" y="606" width="170" height="132" rx="10"/><rect x="606" y="606" width="5" height="132" rx="2.5" fill="#2563a6"/>
+<text x="620" y="638" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M18</text>
+<text x="764" y="637" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="620" y="668" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Add &amp; rename</text>
+<text x="620" y="689" font-size="17" font-weight="550" fill="#243246" text-anchor="start">lanes</text>
+</g>
+<g id="M19"><title>M19 · Retire a lane · 1.5 development hours; live demo needs M06</title><rect class="node" x="606" y="784" width="170" height="132" rx="10"/><rect x="606" y="784" width="5" height="132" rx="2.5" fill="#2563a6"/>
+<text x="620" y="816" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M19</text>
+<text x="764" y="815" font-size="13" font-weight="600" fill="#657487" text-anchor="end">1.5 h</text>
+<text x="620" y="846" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Retire a lane</text>
+<rect x="616" y="887" width="150" height="22" rx="5" fill="#fff2d1"/>
+<text x="691" y="903" font-size="12.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M06</text>
+</g>
+<g id="M20"><title>M20 · Change lane ID · 2.5 development hours</title><rect class="node" x="606" y="962" width="170" height="132" rx="10"/><rect x="606" y="962" width="5" height="132" rx="2.5" fill="#2563a6"/>
+<text x="620" y="994" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M20</text>
+<text x="764" y="993" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="620" y="1024" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Change lane ID</text>
+</g>
+<g id="M08"><title>M08 · Set a parent · 1.5 development hours</title><rect class="node" x="824" y="250" width="205" height="132" rx="10"/><rect x="824" y="250" width="5" height="132" rx="2.5" fill="#7353b4"/>
+<text x="838" y="282" font-size="22" font-weight="750" fill="#7353b4" text-anchor="start">M08</text>
+<text x="1017" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">1.5 h</text>
+<text x="838" y="312" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Set a parent</text>
+</g>
+<g id="M09"><title>M09 · Typed links · 2.5 development hours; live demo needs M05</title><rect class="node" x="1041" y="250" width="205" height="132" rx="10"/><rect x="1041" y="250" width="5" height="132" rx="2.5" fill="#7353b4"/>
+<text x="1055" y="282" font-size="22" font-weight="750" fill="#7353b4" text-anchor="start">M09</text>
+<text x="1234" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="1055" y="312" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Typed links</text>
+<rect x="1051" y="353" width="185" height="22" rx="5" fill="#fff2d1"/>
+<text x="1143.5" y="369" font-size="12.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M05</text>
+</g>
+<g id="M10"><title>M10 · Blocking priority floors · 2.5 development hours; live demo needs M06</title><rect class="node" x="824" y="428" width="422" height="132" rx="10"/><rect x="824" y="428" width="5" height="132" rx="2.5" fill="#7353b4"/>
+<text x="838" y="460" font-size="22" font-weight="750" fill="#7353b4" text-anchor="start">M10</text>
+<text x="1234" y="459" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="838" y="490" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Blocking priority floors</text>
+<rect x="834" y="531" width="402" height="22" rx="5" fill="#fff2d1"/>
+<text x="1035" y="547" font-size="12.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M06</text>
+</g>
+<g id="M11"><title>M11 · Batch priority · 2 development hours</title><rect class="node" x="824" y="606" width="132.66666666666666" height="132" rx="10"/><rect x="824" y="606" width="5" height="132" rx="2.5" fill="#7353b4"/>
+<text x="838" y="638" font-size="22" font-weight="750" fill="#7353b4" text-anchor="start">M11</text>
+<text x="944.6666666666666" y="637" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="838" y="668" font-size="15" font-weight="550" fill="#243246" text-anchor="start">Batch</text>
+<text x="838" y="689" font-size="15" font-weight="550" fill="#243246" text-anchor="start">priority</text>
+</g>
+<g id="M12"><title>M12 · Lane ordering · 2 development hours</title><rect class="node" x="968.6666666666666" y="606" width="132.66666666666666" height="132" rx="10"/><rect x="968.6666666666666" y="606" width="5" height="132" rx="2.5" fill="#7353b4"/>
+<text x="982.6666666666666" y="638" font-size="22" font-weight="750" fill="#7353b4" text-anchor="start">M12</text>
+<text x="1089.3333333333333" y="637" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="982.6666666666666" y="668" font-size="15" font-weight="550" fill="#243246" text-anchor="start">Lane</text>
+<text x="982.6666666666666" y="689" font-size="15" font-weight="550" fill="#243246" text-anchor="start">ordering</text>
+</g>
+<g id="M21"><title>M21 · Preview ticket order · 2 development hours</title><rect class="node" x="1113.3333333333333" y="606" width="132.66666666666666" height="132" rx="10"/><rect x="1113.3333333333333" y="606" width="5" height="132" rx="2.5" fill="#7353b4"/>
+<text x="1127.3333333333333" y="638" font-size="22" font-weight="750" fill="#7353b4" text-anchor="start">M21</text>
+<text x="1234" y="637" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="1127.3333333333333" y="668" font-size="15" font-weight="550" fill="#243246" text-anchor="start">Preview</text>
+<text x="1127.3333333333333" y="689" font-size="15" font-weight="550" fill="#243246" text-anchor="start">ticket order</text>
+</g>
+<g id="M13"><title>M13 · Search &amp; next work · 2 development hours</title><rect class="node" x="968.6666666666666" y="784" width="132.66666666666666" height="132" rx="10"/><rect x="968.6666666666666" y="784" width="5" height="132" rx="2.5" fill="#7353b4"/>
+<text x="982.6666666666666" y="816" font-size="22" font-weight="750" fill="#7353b4" text-anchor="start">M13</text>
+<text x="1089.3333333333333" y="815" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="982.6666666666666" y="846" font-size="15" font-weight="550" fill="#243246" text-anchor="start">Search &amp;</text>
+<text x="982.6666666666666" y="867" font-size="15" font-weight="550" fill="#243246" text-anchor="start">next work</text>
+</g>
+<g id="M22"><title>M22 · Apply ticket order · 2 development hours; live demo needs M23</title><rect class="node" x="1113.3333333333333" y="784" width="132.66666666666666" height="132" rx="10"/><rect x="1113.3333333333333" y="784" width="5" height="132" rx="2.5" fill="#7353b4"/>
+<text x="1127.3333333333333" y="816" font-size="22" font-weight="750" fill="#7353b4" text-anchor="start">M22</text>
+<text x="1234" y="815" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="1127.3333333333333" y="846" font-size="15" font-weight="550" fill="#243246" text-anchor="start">Apply</text>
+<text x="1127.3333333333333" y="867" font-size="15" font-weight="550" fill="#243246" text-anchor="start">ticket order</text>
+<rect x="1123.3333333333333" y="887" width="112.66666666666666" height="22" rx="5" fill="#fff2d1"/>
+<text x="1179.6666666666665" y="903" font-size="11.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M23</text>
+</g>
+<g id="M23"><title>M23 · Upload &amp; list attachments · 2.5 development hours; live demo needs M02</title><rect class="node" x="1294" y="250" width="155" height="132" rx="10"/><rect x="1294" y="250" width="5" height="132" rx="2.5" fill="#a16313"/>
+<text x="1308" y="282" font-size="22" font-weight="750" fill="#a16313" text-anchor="start">M23</text>
+<text x="1437" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="1308" y="312" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Upload &amp; list</text>
+<text x="1308" y="333" font-size="17" font-weight="550" fill="#243246" text-anchor="start">attachments</text>
+<rect x="1304" y="353" width="135" height="22" rx="5" fill="#fff2d1"/>
+<text x="1371.5" y="369" font-size="12.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M02</text>
+</g>
+<g id="M28"><title>M28 · Verify &amp; export state · 2.5 development hours</title><rect class="node" x="1461" y="250" width="155" height="132" rx="10"/><rect x="1461" y="250" width="5" height="132" rx="2.5" fill="#a16313"/>
+<text x="1475" y="282" font-size="22" font-weight="750" fill="#a16313" text-anchor="start">M28</text>
+<text x="1604" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="1475" y="312" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Verify &amp;</text>
+<text x="1475" y="333" font-size="17" font-weight="550" fill="#243246" text-anchor="start">export state</text>
+</g>
+<g id="M24"><title>M24 · Download &amp; cover image · 2 development hours</title><rect class="node" x="1294" y="428" width="155" height="132" rx="10"/><rect x="1294" y="428" width="5" height="132" rx="2.5" fill="#a16313"/>
+<text x="1308" y="460" font-size="22" font-weight="750" fill="#a16313" text-anchor="start">M24</text>
+<text x="1437" y="459" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="1308" y="490" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Download &amp;</text>
+<text x="1308" y="511" font-size="17" font-weight="550" fill="#243246" text-anchor="start">cover image</text>
+</g>
+<g id="M25"><title>M25 · Detach an attachment · 1.5 development hours</title><rect class="node" x="1294" y="606" width="155" height="132" rx="10"/><rect x="1294" y="606" width="5" height="132" rx="2.5" fill="#a16313"/>
+<text x="1308" y="638" font-size="22" font-weight="750" fill="#a16313" text-anchor="start">M25</text>
+<text x="1437" y="637" font-size="13" font-weight="600" fill="#657487" text-anchor="end">1.5 h</text>
+<text x="1308" y="668" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Detach an</text>
+<text x="1308" y="689" font-size="17" font-weight="550" fill="#243246" text-anchor="start">attachment</text>
+</g>
+<g id="M29"><title>M29 · Capture coherent backup · 2.5 development hours</title><rect class="node" x="1294" y="784" width="322" height="132" rx="10"/><rect x="1294" y="784" width="5" height="132" rx="2.5" fill="#a16313"/>
+<text x="1308" y="816" font-size="22" font-weight="750" fill="#a16313" text-anchor="start">M29</text>
+<text x="1604" y="815" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="1308" y="846" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Capture coherent backup</text>
+</g>
+<g id="M30"><title>M30 · Restore native snapshot · 2.5 development hours</title><rect class="node" x="1294" y="962" width="322" height="132" rx="10"/><rect x="1294" y="962" width="5" height="132" rx="2.5" fill="#a16313"/>
+<text x="1308" y="994" font-size="22" font-weight="750" fill="#a16313" text-anchor="start">M30</text>
+<text x="1604" y="993" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="1308" y="1024" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Restore native snapshot</text>
+</g>
+<g id="M26"><title>M26 · Attention &amp; recency · 2 development hours</title><rect class="node" x="1664" y="250" width="132.66666666666666" height="132" rx="10"/><rect x="1664" y="250" width="5" height="132" rx="2.5" fill="#297440"/>
+<text x="1678" y="282" font-size="22" font-weight="750" fill="#297440" text-anchor="start">M26</text>
+<text x="1784.6666666666667" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="1678" y="312" font-size="15" font-weight="550" fill="#243246" text-anchor="start">Attention</text>
+<text x="1678" y="333" font-size="15" font-weight="550" fill="#243246" text-anchor="start">&amp; recency</text>
+</g>
+<g id="M27"><title>M27 · Persist pinned order · 2 development hours</title><rect class="node" x="1808.6666666666667" y="250" width="132.66666666666666" height="132" rx="10"/><rect x="1808.6666666666667" y="250" width="5" height="132" rx="2.5" fill="#297440"/>
+<text x="1822.6666666666667" y="282" font-size="22" font-weight="750" fill="#297440" text-anchor="start">M27</text>
+<text x="1929.3333333333335" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="1822.6666666666667" y="312" font-size="15" font-weight="550" fill="#243246" text-anchor="start">Persist</text>
+<text x="1822.6666666666667" y="333" font-size="15" font-weight="550" fill="#243246" text-anchor="start">pinned order</text>
+</g>
+<g id="M32"><title>M32 · Notice settings · 1.5 development hours</title><rect class="node" x="1953.3333333333333" y="250" width="132.66666666666666" height="132" rx="10"/><rect x="1953.3333333333333" y="250" width="5" height="132" rx="2.5" fill="#297440"/>
+<text x="1967.3333333333333" y="282" font-size="22" font-weight="750" fill="#297440" text-anchor="start">M32</text>
+<text x="2074" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">1.5 h</text>
+<text x="1967.3333333333333" y="312" font-size="15" font-weight="550" fill="#243246" text-anchor="start">Notice</text>
+<text x="1967.3333333333333" y="333" font-size="15" font-weight="550" fill="#243246" text-anchor="start">settings</text>
+</g>
+<g id="M31"><title>M31 · Live event stream · 2.5 development hours; live demo needs M28</title><rect class="node" x="1664" y="428" width="132.66666666666666" height="132" rx="10"/><rect x="1664" y="428" width="5" height="132" rx="2.5" fill="#297440"/>
+<text x="1678" y="460" font-size="22" font-weight="750" fill="#297440" text-anchor="start">M31</text>
+<text x="1784.6666666666667" y="459" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="1678" y="490" font-size="15" font-weight="550" fill="#243246" text-anchor="start">Live event</text>
+<text x="1678" y="511" font-size="15" font-weight="550" fill="#243246" text-anchor="start">stream</text>
+<rect x="1674" y="531" width="112.66666666666666" height="22" rx="5" fill="#fff2d1"/>
+<text x="1730.3333333333333" y="547" font-size="11.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M28</text>
+</g>
+<g id="M33"><title>M33 · Deliver Human notice · 2.5 development hours; live demo needs M05</title><rect class="node" x="1953.3333333333333" y="428" width="132.66666666666666" height="132" rx="10"/><rect x="1953.3333333333333" y="428" width="5" height="132" rx="2.5" fill="#297440"/>
+<text x="1967.3333333333333" y="460" font-size="22" font-weight="750" fill="#297440" text-anchor="start">M33</text>
+<text x="2074" y="459" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="1967.3333333333333" y="490" font-size="15" font-weight="550" fill="#243246" text-anchor="start">Deliver</text>
+<text x="1967.3333333333333" y="511" font-size="15" font-weight="550" fill="#243246" text-anchor="start">Human notice</text>
+<rect x="1963.3333333333333" y="531" width="112.66666666666666" height="22" rx="5" fill="#fff2d1"/>
+<text x="2019.6666666666665" y="547" font-size="11.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M05</text>
+</g>
+<g id="M38"><title>M38 · Build health · 2 development hours</title><rect class="node" x="2134" y="250" width="170" height="132" rx="10"/><rect x="2134" y="250" width="5" height="132" rx="2.5" fill="#a44361"/>
+<text x="2148" y="282" font-size="22" font-weight="750" fill="#a44361" text-anchor="start">M38</text>
+<text x="2292" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="2148" y="312" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Build health</text>
+</g>
+<g id="M34"><title>M34 · Exact Git publication · 2.5 development hours; live demo needs M29</title><rect class="node" x="2316" y="250" width="170" height="132" rx="10"/><rect x="2316" y="250" width="5" height="132" rx="2.5" fill="#a44361"/>
+<text x="2330" y="282" font-size="22" font-weight="750" fill="#a44361" text-anchor="start">M34</text>
+<text x="2474" y="281" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="2330" y="312" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Exact Git</text>
+<text x="2330" y="333" font-size="17" font-weight="550" fill="#243246" text-anchor="start">publication</text>
+<rect x="2326" y="353" width="150" height="22" rx="5" fill="#fff2d1"/>
+<text x="2401" y="369" font-size="12.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M29</text>
+</g>
+<g id="M35"><title>M35 · Automatic publishing · 2.5 development hours</title><rect class="node" x="2134" y="428" width="170" height="132" rx="10"/><rect x="2134" y="428" width="5" height="132" rx="2.5" fill="#a44361"/>
+<text x="2148" y="460" font-size="22" font-weight="750" fill="#a44361" text-anchor="start">M35</text>
+<text x="2292" y="459" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
+<text x="2148" y="490" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Automatic</text>
+<text x="2148" y="511" font-size="17" font-weight="550" fill="#243246" text-anchor="start">publishing</text>
+</g>
+<g id="M36"><title>M36 · Publish preferences · 1.5 development hours; live demo needs M27</title><rect class="node" x="2316" y="428" width="170" height="132" rx="10"/><rect x="2316" y="428" width="5" height="132" rx="2.5" fill="#a44361"/>
+<text x="2330" y="460" font-size="22" font-weight="750" fill="#a44361" text-anchor="start">M36</text>
+<text x="2474" y="459" font-size="13" font-weight="600" fill="#657487" text-anchor="end">1.5 h</text>
+<text x="2330" y="490" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Publish</text>
+<text x="2330" y="511" font-size="17" font-weight="550" fill="#243246" text-anchor="start">preferences</text>
+<rect x="2326" y="531" width="150" height="22" rx="5" fill="#fff2d1"/>
+<text x="2401" y="547" font-size="12.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M27</text>
+</g>
+<g id="M37"><title>M37 · Stop &amp; reopen board · 2 development hours</title><rect class="node" x="2134" y="606" width="352" height="132" rx="10"/><rect x="2134" y="606" width="5" height="132" rx="2.5" fill="#a44361"/>
+<text x="2148" y="638" font-size="22" font-weight="750" fill="#a44361" text-anchor="start">M37</text>
+<text x="2474" y="637" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2 h</text>
+<text x="2148" y="668" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Stop &amp; reopen board</text>
+</g>
+<g id="M39"><title>M39 · Activate build &amp; shut down · 3 development hours; live demo needs M31</title><rect class="node" x="2134" y="784" width="352" height="132" rx="10"/><rect x="2134" y="784" width="5" height="132" rx="2.5" fill="#a44361"/>
+<text x="2148" y="816" font-size="22" font-weight="750" fill="#a44361" text-anchor="start">M39</text>
+<text x="2474" y="815" font-size="13" font-weight="600" fill="#657487" text-anchor="end">3 h</text>
+<text x="2148" y="846" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Activate build &amp; shut down</text>
+<rect x="2144" y="887" width="332" height="22" rx="5" fill="#fff2d1"/>
+<text x="2310" y="903" font-size="12.5" font-weight="600" fill="#7a5415" text-anchor="middle">Demo needs M31</text>
+</g>
+<text x="40" y="1132" font-size="23" font-weight="650" fill="#172536" text-anchor="start">Every 3 hours, demo the milestones that landed on the integrated build.</text>
+<text x="40" y="1166" font-size="17" font-weight="400" fill="#526174" text-anchor="start">Aligned starts show parallel implementation. Arrows show order, not elapsed time. Gold labels preserve the cross-stream demo gates.</text>
+<text x="40" y="1197" font-size="15" font-weight="400" fill="#6a7788" text-anchor="start">39 milestones · 6 workstreams · 82.5 aggregate development hours</text>
+</svg>

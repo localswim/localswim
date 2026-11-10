@@ -12,6 +12,8 @@ The 82.5 hours are aggregate backend development, not a serial schedule. With si
 
 Read down each column. An arrow means do the milestones in sequence. **Parallel** marks branches that can overlap when they have separate owners. The rows show order within each stream. Each column can advance as soon as its own prerequisites are ready.
 
+![Milestone workstream order](milestone-order.svg)
+
 | Order ↓ | Board and card API<br>12 h | Sessions, review, and workflow<br>16.5 h | Relationships, priority, and search<br>16.5 h | Attachments, integrity, and recovery<br>13.5 h | Workspace, events, and notices<br>10.5 h | Git publishing and lifecycle<br>13.5 h |
 | --- | --- | --- | --- | --- | --- | --- |
 | Start | M01 boards → M02 cards | **Parallel**<br>M04 session and edits<br>M16 custom workflow | **Parallel**<br>M08 parent<br>M09 typed links | **Parallel**<br>M23 upload and list<br>M28 verify and export | **Parallel**<br>M26 attention and recency<br>M27 pins<br>M32 notice settings | **Parallel**<br>M38 build health<br>M34 exact Git publish against fixtures |

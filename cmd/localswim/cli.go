@@ -26,23 +26,24 @@ const cliHelp = `Usage:
   localswim workspace pin remove [--revision N] BOARD_ID [BOARD_ID ...]
   localswim board list [--limit N] [--cursor CURSOR]
   localswim board create --name NAME
-  localswim board create --json < definition.json
+  localswim board create --json <JSON_FILE|->
   localswim board get BOARD_ID
   localswim board rename [--revision N] BOARD_ID NEW_NAME
-  localswim board patch [--revision N] BOARD_ID < patch.json
+  localswim board patch [--revision N] BOARD_ID <JSON_FILE|->
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] BOARD_ID
-  localswim card create [--revision N] BOARD_ID < definition.json
+  localswim card create [--revision N] <JSON_FILE|->
   localswim card get CARD_ID
   localswim card get BOARD_ID TICKET
   localswim policy get BOARD_ID
-  localswim policy grant [--revision N] BOARD_ID < grants.json
+  localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
   localswim service status
   localswim service builds [--limit N] [--cursor CURSOR]
 
 Live commands use LOCALSWIM_URL (http://127.0.0.1:<port>) and LOCALSWIM_TOKEN.
 Board creation requires exactly one of --name or --json.
---json reads a new board definition from standard input.
+--json reads a new board definition from JSON_FILE or standard input.
+JSON_FILE is required. Use a file path or - to read standard input.
 Set --data on board verify to read the private board data offline.
 Board export writes JSON to standard output. The default --type is json.
 All pin commands require at least one board ID. Pin set replaces the order.
@@ -52,7 +53,8 @@ Pin set validates the entire list and reports ERROR if any target fails.
 Omit --revision to read the current revision once before updating.
 Supply --revision to require the version you previously inspected.
 For card create and policy grant, --revision refers to the board revision.
-Card create reads the card fields. The CLI supplies the board ID and its validator.
+Card create reads JSON_FILE, or standard input when given as -.
+Its JSON must include board_id. The CLI supplies the board revision validator.
 Include an explicit card ID to allow focused readback after a lost create reply.
 Policy grant reads create_grants and/or move_grants and preserves existing permissions.
 `
@@ -78,6 +80,7 @@ var boardIDPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{
 
 type cliCommand struct {
 	method, resource, boardID, dataDir string
+	inputPath                          string
 	revision                           *uint64
 	body                               json.RawMessage
 	pinAction                          string
@@ -174,7 +177,7 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.method, command.resource, needBoardID = http.MethodGet, "/snapshots", true
 		flags.Var(&format, "type", "export type (allowed value: json)")
 	case "card create":
-		command.method, command.resource, needBoardID = http.MethodPost, "/cards", true
+		command.method, command.resource = http.MethodPost, "/cards"
 		command.boardAction = name
 	case "card get":
 		command.method, command.resource = http.MethodGet, "/cards"
@@ -267,6 +270,16 @@ func parseCLI(args []string) (cliCommand, error) {
 			}
 			command.pinIDs = append(command.pinIDs, id)
 		}
+	} else if creating && hasJSON {
+		if flags.NArg() != 1 || flags.Arg(0) == "" {
+			return command, errors.New("board create --json accepts one JSON file or - for standard input")
+		}
+		command.inputPath = flags.Arg(0)
+	} else if name == "card create" {
+		if flags.NArg() != 1 || flags.Arg(0) == "" {
+			return command, errors.New("card create accepts one JSON file or - for standard input")
+		}
+		command.inputPath = flags.Arg(0)
 	} else if name == "card get" {
 		switch {
 		case flags.NArg() == 1 && boardIDPattern.MatchString(flags.Arg(0)):
@@ -285,6 +298,13 @@ func parseCLI(args []string) (cliCommand, error) {
 		count, expected := 1, "expected one UUIDv4 board ID"
 		if rename {
 			count, expected = 2, "expected a UUIDv4 board ID followed by one new name (quote names containing spaces)"
+		}
+		if name == "board patch" || name == "policy grant" {
+			command.inputPath = flags.Arg(1)
+			if flags.NArg() != 2 || command.inputPath == "" {
+				return command, errors.New("input file path must not be empty")
+			}
+			count = 2
 		}
 		if flags.NArg() != count || !boardIDPattern.MatchString(flags.Arg(0)) {
 			return command, errors.New(expected)
@@ -340,10 +360,18 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		return err
 	}
 	body := command.body
+	if command.inputPath != "" && command.inputPath != "-" {
+		file, err := os.Open(command.inputPath)
+		if err != nil {
+			return fmt.Errorf("could not open JSON file: %w", err)
+		}
+		defer file.Close()
+		stdin = file
+	}
 	if body == nil && command.pinAction == "" && (command.method == http.MethodPost || command.method == http.MethodPatch || command.method == http.MethodPut) {
 		body, err = io.ReadAll(io.LimitReader(stdin, maxCLIInput+1))
 		if err != nil || len(body) > maxCLIInput || !client.IsJSONObject(body) {
-			return errors.New("standard input must contain one valid JSON object within 96 MiB")
+			return errors.New("JSON input must contain one valid object within 96 MiB")
 		}
 	}
 	var ifMatch string
@@ -447,6 +475,15 @@ func prepareBoardAction(api *client.Client, command cliCommand, input json.RawMe
 			return "", nil, "", err
 		}
 	}
+	if command.boardAction == "card create" {
+		if json.Unmarshal(fields["board_id"], &command.boardID) != nil || !boardIDPattern.MatchString(command.boardID) {
+			return "", nil, "", errors.New("card create JSON requires a UUIDv4 board_id")
+		}
+		command.boardID = strings.ToLower(command.boardID)
+		if fields["expected_board_etag"] != nil {
+			return "", nil, "", errors.New("card create supplies expected_board_etag")
+		}
+	}
 	board, err := api.Do(http.MethodGet, "/boards/"+command.boardID, nil, "")
 	if err != nil {
 		return "", nil, "", err
@@ -458,9 +495,6 @@ func prepareBoardAction(api *client.Client, command cliCommand, input json.RawMe
 		return "", nil, "", err
 	}
 	if command.boardAction == "card create" {
-		if fields["board_id"] != nil || fields["expected_board_etag"] != nil {
-			return "", nil, "", errors.New("card create supplies board_id and expected_board_etag")
-		}
 		fields["board_id"], _ = json.Marshal(command.boardID)
 		fields["expected_board_etag"], _ = json.Marshal(board.ETag)
 		body, err := json.Marshal(fields)
@@ -502,7 +536,7 @@ func cliInputFields(input json.RawMessage) (map[string]json.RawMessage, error) {
 		}
 		name, ok := key.(string)
 		if !ok || fields[name] != nil {
-			return nil, errors.New("standard input must not contain repeated fields")
+			return nil, errors.New("JSON input must not contain repeated fields")
 		}
 		var value json.RawMessage
 		if err := decoder.Decode(&value); err != nil {

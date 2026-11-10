@@ -18,6 +18,10 @@ Application timestamps use `YYYY-MM-DD HH:MM:SS+00:00`, normalized to UTC and wh
 seconds. Revisions distinguish edits within the same second. Native snapshots use
 `format_version: 2`.
 
+CLI commands that read JSON require a positional file path or `-` for standard input.
+Omitting the input path is a command error. Card creation takes `board_id`
+in its JSON document. The CLI obtains the board revision validator.
+
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
 Unicode. Entity and build IDs are immutable UUIDv4 values. The service_instance_id
 uses UUIDv7, with the instance creation time encoded as Unix milliseconds.

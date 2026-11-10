@@ -31,7 +31,8 @@ Human or Bot token. `service status` reports the actual listening port.
 .\localswim.exe --help
 ```
 
-Use `board create --json` with a JSON definition on standard input for a custom
-workflow. Export a board with `board export BOARD_ID`. The default format is JSON.
+Use `board create --json definition.json` for a custom workflow. Commands that read
+JSON require a file path or `-` for standard input.
+Export a board with `board export BOARD_ID`. The default format is JSON.
 
 [Development and conventions](CONTRIBUTING.md) · [API](docs/openapi.yaml) · [Milestones](milestone-plan.md)

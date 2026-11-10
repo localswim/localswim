@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -182,7 +184,7 @@ func TestCLICreationModesSendOneCreateRequest(t *testing.T) {
 		args               []string
 	}{
 		{"name", "invalid JSON must not be read", name, []string{"board", "create", "--name", name}},
-		{"json", jsonInput, "JSON board", []string{"board", "create", "--json"}},
+		{"json", jsonInput, "JSON board", []string{"board", "create", "--json", "-"}},
 	} {
 		t.Run(tc.label, func(t *testing.T) {
 			var requests atomic.Int32
@@ -241,7 +243,7 @@ func TestCLICommandHelpDescribesCreationModes(t *testing.T) {
 	exit := runCLIWithInput([]string{"board", "create", "--help"}, strings.NewReader(""), &stdout, &stderr,
 		func(string) string { t.Fatal("help reached execution"); return "" })
 	if exit != 0 || stderr.Len() != 0 || !strings.Contains(stdout.String(), "board create --name NAME") ||
-		!strings.Contains(stdout.String(), "board create --json < definition.json") {
+		!strings.Contains(stdout.String(), "board create --json <JSON_FILE|->") {
 		t.Fatalf("unhelpful command help: exit %d, stdout %q, stderr %q", exit, &stdout, &stderr)
 	}
 }
@@ -254,7 +256,7 @@ func TestCLIExplicitRevisionUsesTheMatchingResourceTag(t *testing.T) {
 		args                    []string
 	}{
 		{"rename", "/boards/" + id, "", `{"name":"New name"}`, []string{"board", "rename", id, "New name"}},
-		{"patch", "/boards/" + id, `{"name":"New name"}`, `{"name":"New name"}`, []string{"board", "patch", id}},
+		{"patch", "/boards/" + id, `{"name":"New name"}`, `{"name":"New name"}`, []string{"board", "patch", id, "-"}},
 		{"pins", "/workspace", "", `{"pinned_board_ids":["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]}`, []string{"workspace", "pin", "set", id}},
 	} {
 		for _, expected := range []string{"1", "3"} {
@@ -433,18 +435,19 @@ func TestCLICardCreateUsesBoardRevisionAndDoesNotReplay(t *testing.T) {
 	const boardTag = `"board-revision-1"`
 	const prefix = "/api/2026-11-10"
 	for _, tc := range []struct {
-		name, revision, stderr string
-		status, requests, exit int
+		name, revision, stderr, source string
+		status, requests, exit         int
 	}{
-		{"created", "1", "", 201, 2, 0},
-		{"stale inspection", "2", "revision mismatch", 0, 1, 1},
-		{"stale mutation", "1", "HTTP 412", 412, 2, 1},
-		{"uncertain result", "1", "Mutation outcome unknown", 500, 2, 1},
-		{"invalid revision", "0", "--revision requires", 0, 0, 2},
-		{"empty explicit revision", "", "--revision requires", 0, 0, 2},
-		{"missing board tag", "1", "Mutation outcome unknown", 201, 2, 1},
-		{"duplicate board tags", "1", "Mutation outcome unknown", 201, 2, 1},
-		{"weak board tag", "1", "Mutation outcome unknown", 201, 2, 1},
+		{"created", "1", "", "-", 201, 2, 0},
+		{"created from file", "1", "", "file", 201, 2, 0},
+		{"stale inspection", "2", "revision mismatch", "-", 0, 1, 1},
+		{"stale mutation", "1", "HTTP 412", "-", 412, 2, 1},
+		{"uncertain result", "1", "Mutation outcome unknown", "-", 500, 2, 1},
+		{"invalid revision", "0", "--revision requires", "-", 0, 0, 2},
+		{"empty explicit revision", "", "--revision requires", "-", 0, 0, 2},
+		{"missing board tag", "1", "Mutation outcome unknown", "-", 201, 2, 1},
+		{"duplicate board tags", "1", "Mutation outcome unknown", "-", 201, 2, 1},
+		{"weak board tag", "1", "Mutation outcome unknown", "-", 201, 2, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var requests atomic.Int32
@@ -484,8 +487,20 @@ func TestCLICardCreateUsesBoardRevisionAndDoesNotReplay(t *testing.T) {
 			defer server.Close()
 			var stdout, stderr bytes.Buffer
 			env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
-			args := []string{"card", "create", "--revision", tc.revision, boardID}
-			body := strings.NewReader(`{"id":"` + cardID + `","title":"Example","lane_id":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}`)
+			args := []string{"card", "create", "--revision", tc.revision}
+			input := `{"board_id":"` + strings.ToUpper(boardID) + `","id":"` + cardID + `","title":"Example","lane_id":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}`
+			body := strings.NewReader(input)
+			source := tc.source
+			if source == "file" {
+				source = filepath.Join(t.TempDir(), "card definition.json")
+				if err := os.WriteFile(source, []byte(input), 0600); err != nil {
+					t.Fatal(err)
+				}
+				body = strings.NewReader("file input must replace stdin")
+			}
+			if source != "" {
+				args = append(args, source)
+			}
 			exit := runCLIWithInput(args, body, &stdout, &stderr, func(key string) string { return env[key] })
 			if exit != tc.exit || int(requests.Load()) != tc.requests || !strings.Contains(stderr.String(), tc.stderr) {
 				t.Fatalf("exit %d, requests %d, stderr %q", exit, requests.Load(), stderr.String())
@@ -494,6 +509,62 @@ func TestCLICardCreateUsesBoardRevisionAndDoesNotReplay(t *testing.T) {
 				t.Fatal("created card missing from stdout")
 			}
 		})
+	}
+}
+
+func TestCLIJSONFileSelection(t *testing.T) {
+	const boardID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	for _, source := range []string{"definition with spaces.json", "-"} {
+		for _, args := range [][]string{
+			{"board", "create", "--json", source},
+			{"board", "patch", boardID, source},
+			{"policy", "grant", boardID, source},
+		} {
+			command, err := parseCLI(args)
+			if err != nil || command.inputPath != source {
+				t.Fatalf("file selection %v: %+v, %v", args, command, err)
+			}
+		}
+	}
+}
+
+func TestCLIJSONCommandsRequireInputSource(t *testing.T) {
+	const boardID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	for _, args := range [][]string{
+		{"card", "create"},
+		{"board", "create", "--json"},
+		{"board", "patch", boardID},
+		{"policy", "grant", boardID},
+	} {
+		var stdout, stderr bytes.Buffer
+		exit := runCLIWithInput(args, nil, &stdout, &stderr, func(string) string {
+			t.Fatal("missing input source reached execution")
+			return ""
+		})
+		if exit != 2 || !strings.HasPrefix(stderr.String(), "ERROR ") {
+			t.Fatalf("missing source %v: exit %d, stderr %s", args, exit, stderr.String())
+		}
+	}
+}
+
+func TestCLICardCreateRejectsInvalidBoardInputBeforeNetwork(t *testing.T) {
+	for _, body := range []string{
+		`{}`,
+		`{"board_id":null}`,
+		`{"board_id":12}`,
+		`{"board_id":"invalid"}`,
+		`{"board_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","expected_board_etag":"untrusted"}`,
+	} {
+		var stdout, stderr bytes.Buffer
+		exit := runCLIWithInput([]string{"card", "create", "-"}, strings.NewReader(body), &stdout, &stderr, func(key string) string {
+			if key == "LOCALSWIM_URL" {
+				return "http://127.0.0.1:1"
+			}
+			return "test-token"
+		})
+		if exit != 1 || !strings.Contains(stderr.String(), "card create") || strings.Contains(stderr.String(), "connect") {
+			t.Fatalf("invalid input %s: exit %d, stderr %s", body, exit, stderr.String())
+		}
 	}
 }
 
@@ -564,7 +635,7 @@ func TestCLIPolicyGrantPreservesOtherGrantsAndUsesBothValidators(t *testing.T) {
 	env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
 	getenv := func(key string) string { return env[key] }
 	var stdout, stderr bytes.Buffer
-	args := []string{"policy", "grant", "--revision", "1", boardID}
+	args := []string{"policy", "grant", "--revision", "1", boardID, "-"}
 	body := strings.NewReader(`{"create_grants":[` + newGrant + `]}`)
 	if exit := runCLIWithInput(args, body, &stdout, &stderr, getenv); exit != 0 || requests.Load() != 3 ||
 		stdout.String() != "{\"updated\":true}\n" || stderr.Len() != 0 {

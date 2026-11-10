@@ -143,7 +143,7 @@ function matchesApproval(data, id, boardId, cardId) {
   const approval = /** @type {Record<string, unknown>} */ (data);
   if (Object.keys(approval).length !== 7 || approval.id !== id || approval.board_id !== boardId
       || !isId(approval.actor_id) || !isTimestamp(approval.at)
-      || typeof approval.board_etag !== "string" || !STRONG_ETAG.test(approval.board_etag)
+      || !isInteger(approval.board_revision) || approval.board_revision < 1
       || !Array.isArray(approval.card_ids) || approval.card_ids.length !== 1 || approval.card_ids[0] !== cardId
       || !Array.isArray(approval.changes) || approval.changes.length !== 2) return false;
   /** @param {unknown} raw @returns {raw is Record<string, unknown>} */
@@ -152,7 +152,8 @@ function matchesApproval(data, id, boardId, cardId) {
     const change = /** @type {Record<string, unknown>} */ (raw);
     return Object.keys(change).length === 11 && isId(change.id) && isId(change.resource_id)
       && change.board_id === boardId && change.actor_id === approval.actor_id && change.at === approval.at
-      && isInteger(change.revision) && change.revision > 1;
+      && isInteger(change.revision) && change.revision > 1
+      && change.revision === approval.board_revision;
   };
   const [move, note] = /** @type {unknown[]} */ (approval.changes);
   return matchesChange(move) && matchesChange(note) && move.id === id && note.id !== id
@@ -570,8 +571,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       const data = await responseObject(response, true);
       const tag = response.headers.get("X-Board-ETag");
-      if (!STRONG_ETAG.test(tag ?? "") || /** @type {{board_etag?: unknown}} */ (data).board_etag !== tag
-          || !matchesApproval(data, expectedId, board, card)) {
+      if (!matchesApproval(data, expectedId, board, card)
+          || tag !== `"${board}-${/** @type {{board_revision: number}} */ (data).board_revision}"`) {
         throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
       }
     },

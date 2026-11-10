@@ -9,7 +9,7 @@ const id = "9908fb8f-f6b9-47ed-aa92-5650cd120602";
 const actorId = "22e1ffb8-7d2a-43ed-a8cf-8871165a98e9";
 const cardTag = '"card_0123456789abcdef"';
 const boardTag = '"board_0123456789abcdef"';
-const updatedBoardTag = '"board_0000000000000001"';
+const updatedBoardTag = `"${boardId}-4"`;
 const capability = "A".repeat(43);
 const prefix = "/api/2026-11-10";
 const at = "2026-11-10 16:55:00+00:00";
@@ -22,7 +22,7 @@ const approvalNote = { id: "988428d1-691b-4404-91e5-ff78694cde65", board_id: boa
   actor_id: actorId, operation: "comment", resource_type: "comment", resource_id: otherCard,
   field: null, before: null, after: null };
 const approval = { id, board_id: boardId, card_ids: [cardId], actor_id: actorId,
-  at, board_etag: updatedBoardTag, changes: [approvalMove, approvalNote] };
+  at, board_revision: 4, changes: [approvalMove, approvalNote] };
 
 test("a focused approval sends the board and card versions and validates its receipt", async () => {
   const calls = [];
@@ -76,6 +76,67 @@ test("incomplete or inconsistent approval audits cannot confirm a write or readb
     await assert.rejects(api.inspectApproval(id, boardId, cardId), (error) =>
       error instanceof ApiError && error.code === "invalid_response" && !error.outcomeUnknown);
   }
+});
+
+test("approval receipts require a positive safe board revision matching every change", async () => {
+  const { board_revision: _revision, ...missingRevision } = approval;
+  const invalid = [missingRevision, { ...missingRevision, board_etag: updatedBoardTag },
+    { ...approval, board_etag: updatedBoardTag },
+    ...[null, true, "4", 0, -1, 4.5, Number.MAX_SAFE_INTEGER + 1, 5].map((board_revision) =>
+      ({ ...approval, board_revision }))];
+  for (const body of invalid) {
+    let writes = 0;
+    const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (_url, options) => {
+      if (options.method === "POST") {
+        writes++;
+        return Response.json(body, { status: 201,
+          headers: { Location: prefix + "/approvals/" + id, "X-Board-ETag": updatedBoardTag } });
+      }
+      return Response.json(body, { headers: { ETag: cardTag } });
+    } });
+    await assert.rejects(api.approveCard(id, boardId, boardTag, cardId, cardTag), (error) =>
+      error instanceof ApiError && error.code === "invalid_response" && error.outcomeUnknown);
+    await assert.rejects(api.inspectApproval(id, boardId, cardId), (error) =>
+      error instanceof ApiError && error.code === "invalid_response" && !error.outcomeUnknown);
+    assert.equal(writes, 1);
+  }
+});
+
+test("approval receipts accept the largest safe board commit revision", async () => {
+  const board_revision = Number.MAX_SAFE_INTEGER;
+  const body = { ...approval, board_revision,
+    changes: approval.changes.map((change) => ({ ...change, revision: board_revision })) };
+  const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (_url, options) =>
+    options.method === "POST"
+      ? Response.json(body, { status: 201, headers: { Location: prefix + "/approvals/" + id,
+        "X-Board-ETag": `"${boardId}-${board_revision}"` } })
+      : Response.json(body, { headers: { ETag: cardTag } }) });
+  await api.approveCard(id, boardId, boardTag, cardId, cardTag);
+  await api.inspectApproval(id, boardId, cardId);
+});
+
+test("approval writes require the board header to match the committed receipt revision", async () => {
+  for (const tag of [null, boardTag, `"${boardId}-5"`, `"${otherCard}-4"`]) {
+    const headers = { Location: prefix + "/approvals/" + id };
+    if (tag !== null) headers["X-Board-ETag"] = tag;
+    const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async () =>
+      Response.json(approval, { status: 201, headers }) });
+    await assert.rejects(api.approveCard(id, boardId, boardTag, cardId, cardTag), (error) =>
+      error instanceof ApiError && error.code === "invalid_response" && error.outcomeUnknown);
+  }
+});
+
+test("a lost approval response is recovered by its immutable receipt without another write", async () => {
+  const methods = [];
+  const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (_url, options) => {
+    methods.push(options.method);
+    if (options.method === "POST") throw new Error("Connection lost.");
+    return Response.json(approval, { headers: { ETag: cardTag } });
+  } });
+  await assert.rejects(api.approveCard(id, boardId, boardTag, cardId, cardTag), (error) =>
+    error instanceof ApiError && error.outcomeUnknown);
+  await api.inspectApproval(id, boardId, cardId);
+  assert.deepEqual(methods, ["POST", "GET"]);
 });
 
 test("archived-card and typed-link reads keep board and card scoping", async () => {

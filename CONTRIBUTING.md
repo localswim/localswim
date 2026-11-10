@@ -46,6 +46,12 @@ identity, parent references, attribution, text, and timestamps. Comment HTTP val
 are carried in response headers. Posting a comment still requires the parent card
 validator and advances that card's revision.
 
+Approval receipts are immutable. Their `board_revision` is the positive safe-integer
+board commit revision shared by every receipt change. Approval requests retain
+`expected_board_etag` and each selected card's `etag`. The response's
+`X-Board-ETag` carries the committed board validator. A lost approval response is
+resolved by reading the original receipt UUID before considering another write.
+
 For card edits, comment posting, and attachment upload, CLI `--revision N` checks
 the addressed card revision before writing with its current HTTP validator. Card
 creation, relationship creation, policy changes, and `lane add` check the board

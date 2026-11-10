@@ -24,13 +24,13 @@ type approvalInput struct {
 }
 
 type approval struct {
-	ID        string     `json:"id"`
-	BoardID   string     `json:"board_id"`
-	CardIDs   []string   `json:"card_ids"`
-	ActorID   string     `json:"actor_id"`
-	At        time.Time  `json:"at"`
-	BoardETag string     `json:"board_etag"`
-	Changes   []activity `json:"changes"`
+	ID            string     `json:"id"`
+	BoardID       string     `json:"board_id"`
+	CardIDs       []string   `json:"card_ids"`
+	ActorID       string     `json:"actor_id"`
+	At            time.Time  `json:"at"`
+	BoardRevision uint64     `json:"board_revision"`
+	Changes       []activity `json:"changes"`
 }
 
 func readApprovalInput(fields map[string]json.RawMessage) (approvalInput, error) {
@@ -114,7 +114,7 @@ func (x *request) createApproval() {
 	}
 	value := approvalReceipt(next.Activity[len(next.Activity)-2:])
 	x.w.Header().Set("Location", Prefix+"/approvals/"+value.ID)
-	x.w.Header().Set("X-Board-ETag", value.BoardETag)
+	x.w.Header().Set("X-Board-ETag", etag(value.BoardID, value.BoardRevision))
 	x.respond(http.StatusCreated, value, "")
 }
 
@@ -184,7 +184,7 @@ func validApprovalPair(approved, added activity, note comment) bool {
 func approvalReceipt(changes []activity) approval {
 	first := changes[0]
 	return approval{ID: first.ID, BoardID: first.BoardID, CardIDs: []string{first.ResourceID},
-		ActorID: first.ActorID, At: first.At, BoardETag: etag(first.BoardID, first.Revision),
+		ActorID: first.ActorID, At: first.At, BoardRevision: first.Revision,
 		Changes: changes}
 }
 

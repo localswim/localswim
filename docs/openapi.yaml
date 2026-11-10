@@ -13846,7 +13846,7 @@ components:
       - card_ids
       - actor_id
       - at
-      - board_etag
+      - board_revision
       - changes
       properties:
         id:
@@ -13861,8 +13861,11 @@ components:
           $ref: '#/components/schemas/Uuid'
         at:
           $ref: '#/components/schemas/Timestamp'
-        board_etag:
-          $ref: '#/components/schemas/EntityTag'
+        board_revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          description: Board commit revision shared by every change in this immutable receipt.
         changes:
           type: array
           items:

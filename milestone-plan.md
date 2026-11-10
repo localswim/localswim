@@ -12,14 +12,22 @@ Build a fresh Go backend. One loopback listener serves every board and the works
 
 The 82.5 hours are aggregate backend development, not a serial schedule. With six backend owners the largest stream is 16.5 hours before cross-stream waits and integration. The browser and CLI have separate owners and start on day one.
 
-| Backend workstream | Milestones | Dev estimate | Start and integration dependencies |
-| --- | --- | ---: | --- |
-| Board and card API | M01–M03, M05–M07 | 12 h | Start here. Own the first durable board, card writes, and audit contract. |
-| Sessions, review, and workflow | M04, M14–M20 | 16.5 h | Build M04 alongside the card API. Review uses the move and comment transaction. Retirement uses archive behavior. |
-| Relationships, priority, and search | M08–M13, M21–M22 | 16.5 h | Start graph rules against small fixtures. Live demos use real cards, comments, and archive state. Renumbering follows the blocking graph. |
-| Attachments, integrity, and recovery | M23–M25, M28–M30 | 13.5 h | Start file and backup handling against synthetic data. Integrate upload after card creation. Backup and restore use the audited attachment inventory. |
-| Workspace, events, and notices | M26–M27, M31–M33 | 10.5 h | Start catalog and pin work when board identity is settled. Streams use health from M28. Notices consume committed Human edits and need M32 settings. |
-| Git publishing and lifecycle | M34–M39 | 13.5 h | Build against disposable repos and staged binaries. Live publishing needs M29, workspace publishing needs M27, and final shutdown needs M31 and M35. |
+Read down each column. An arrow means do the milestones in sequence. **Parallel** marks branches that can overlap when they have separate owners. The rows show order within each stream. Each column can advance as soon as its own prerequisites are ready.
+
+| Order ↓ | Board and card API<br>12 h | Sessions, review, and workflow<br>16.5 h | Relationships, priority, and search<br>16.5 h | Attachments, integrity, and recovery<br>13.5 h | Workspace, events, and notices<br>10.5 h | Git publishing and lifecycle<br>13.5 h |
+| --- | --- | --- | --- | --- | --- | --- |
+| Start | M01 boards → M02 cards | **Parallel**<br>M04 session and edits<br>M16 custom workflow | **Parallel**<br>M08 parent<br>M09 typed links | **Parallel**<br>M23 upload and list<br>M28 verify and export | **Parallel**<br>M26 attention and recency<br>M27 pins<br>M32 notice settings | **Parallel**<br>M38 build health<br>M34 exact Git publish against fixtures |
+| Next | **Parallel**<br>M03 move and assign<br>M05 comments → M06 archive | **Parallel**<br>M14 card approval → M15 lane approval<br>M17 grants → M18 add and rename lanes | M10 blocking priority floors | M24 download and cover → M25 detach | **Parallel**<br>M31 event stream<br>M33 notice delivery | **Parallel**<br>M35 automatic publishing<br>M36 publish workspace preferences |
+| Then | M07 audited activity | M19 retire lane → M20 change lane ID | **Parallel**<br>M11 batch priority<br>M12 lane order → M13 search and next<br>M21 ticket order preview → M22 apply | M29 capture backup → M30 restore snapshot | — | M37 stop and reopen board |
+| Finish | — | — | — | — | — | M39 activate build and shut down |
+
+The browser and CLI start beside these streams with the shared API examples. The first browser demo uses the live M01–M04 service.
+
+A few demos need work from another column. Owners can build against fixtures while waiting.
+
+- **Cards and actors:** M04 and M23 need M02 for live demos. M09 needs M05 for the comment reference case. M14 needs M03–M05 for the move, Human session, and comment. M10 and M19 use the archived-card behavior from M06.
+- **Versions and events:** M22 uses attachment anchors from M23. M31 uses board health from M28. M33 needs a committed Human edit and the settings from M32.
+- **Publishing and shutdown:** The live M34 demo needs the verified backup from M29. M35 and M36 share the repository lock from M34. M36 also needs the preferences from M27. M37 flushes publishing from M35. M39 follows M37 and M38 and drains the streams from M31.
 
 Agree on board and card IDs, actor context, revision checks, and one mutation transaction before work fans out. Give one integration owner the shared schema and routes. Other owners work in separate feature files. Use small fixtures to build before upstream code lands. Each milestone finishes with its own live API demo on the integrated service, once its prerequisites are available.
 

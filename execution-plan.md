@@ -100,13 +100,30 @@ Before actual implementation, check the ticket's lane, scope, and prerequisite a
 
 ## Demo and rolling handoff
 
-Every three hours of build time, stop for the integrated milestones that actually landed. Each milestone keeps its own API feature demo. Bring review findings and unresolved prerequisites forward with the responsible worker. A failed or incomplete demonstration stays visible as carryover.
+**Include in every turn kickoff.** Move a milestone card to Ready for Review as soon as its assigned subagents have finished and implementation, required checks, and independent review are complete. Demos do not gate the lane move. Record any outstanding live walkthrough as Demo pending with its prerequisites, then show it at the first three-hour demo break after it is runnable. Terry controls Completed.
 
-At the end of each execution turn, reconcile actual landings, reviews, Terry's acceptance, and carryover. Refresh the next three remaining-turn assignments with the same explicit author, helper, reviewer, model/effort, scope, and readiness fields. Preserve the original turn IDs as this baseline and retain previous assignment revisions. The initial remaining-turn window is Turns 1, 2, and 3 above.
+Every three hours of build time, demo the milestones that landed and are runnable on the integrated build. Track pending demos separately from unfinished implementation or review. Demo-only carryover does not reserve a developer or reviewer slot, or add a prerequisite to downstream implementation. If a demo exposes a defect, record the actual finding as work carryover.
+
+At the end of each execution turn, reconcile actual landings, reviews, Terry's acceptance, work carryover, and the pending demo list. Refresh the next three remaining-turn assignments with the same explicit author, helper, reviewer, model/effort, scope, and readiness fields. Preserve the original turn IDs as this baseline and retain previous assignment revisions. The initial remaining-turn window is Turns 1, 2, and 3 above.
 
 The three-day goal remains a delivery target. Author estimates alone exclude client work, integration, independent review, and demo time. The first integrated browser demonstration is the checkpoint for updating that forecast.
 
+## Rolling roster revision 4
+
+T01 held M08 (#0391) and M26 (#0409) In Progress while waiting for live demos. Both are now in Ready for Review. Carry their demos separately from implementation and review. M38 (#0421) is also in Ready for Review following Terry’s approval of the two-route demo.
+
+### Demo pending
+
+- **M08 (#0391).** The card PATCH and read demo needs M02 (#0385).
+- **M26 (#0409).** The archive and recency demo needs M02 (#0385) for cards, M06 (#0389) for archiving, and M16 (#0399) for project rename.
+
+### Next three remaining waves
+
+Turns 2–4 retain the author and reviewer assignments recorded in revision 3. Before starting M31, verify acceptance of M26 (#0409) and M28 (#0411). Both are in Ready for Review.
+
 ## Rolling roster revision 3
+
+Historical Turn 1 handoff. Revision 4 supersedes the lane and demo gates below.
 
 2026-11-10. Turn 1 implementation and review evidence are recorded below. The approved milestone and staffing tables above remain the baseline.
 

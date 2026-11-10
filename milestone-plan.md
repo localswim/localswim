@@ -33,9 +33,9 @@ The browser and CLI start beside these streams with the shared API examples. The
 
 The listed milestone prerequisites supply the arrows and turn batches. Turn 1 contains M01, M16, M08, M28, M26, M27, M32, and M38. Later turns follow their dependencies. Agree the shared contracts before Turn 1.
 
-Agree on board and card IDs, actor context, revision checks, and one mutation transaction before work fans out. Give one integration owner the shared schema and routes. Other owners work in separate feature files. Use small fixtures for focused tests once the milestone prerequisites are in place. Each milestone finishes with its own live API demo once its prerequisites are available.
+Agree on board and card IDs, actor context, revision checks, and one mutation transaction before work fans out. Give one integration owner the shared schema and routes. Other owners work in separate feature files. Use small fixtures for focused tests once the milestone prerequisites are in place. Each milestone gets its own live API demo once its prerequisites are available. Move its card to Ready for Review when implementation, required checks, and independent review finish. Track a deferred walkthrough as Demo pending.
 
-Take a demo break every three hours of build time. Work advances as its prerequisites are ready. Each break gets its lineup from all milestones that landed on the integrated build during that block. Show each one using its demo below. Work still in progress goes into the first break after it lands.
+Take a demo break every three hours of build time. Work advances as its prerequisites are ready. Each break gets its lineup from all milestones that landed on the integrated build during that block. Show each one using its demo below. A deferred demo goes into the first break after its prerequisites are ready.
 
 ## API demos
 

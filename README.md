@@ -6,8 +6,8 @@
   Build V2 fresh and match the browser, CLI, and integration behavior people
   rely on, including permissions, audit history, and reliable saves and recovery.
 - **One port.** One loopback service serves the UI, workspace, and every board.
-  The browser and CLI share a resource-based REST API. Identify boards and their
-  objects in the URL, for example `/api/boards/{boardId}/cards/{cardId}`. Each
+  The browser and CLI share a date-versioned REST API with flat resource URLs,
+  for example `/api/2026-11-10/cards/{cardId}`. Each
   board has one authoritative writer. No per-board ports or forwarding gateway.
 - **Fresh starts.** Run V1 and V2 side by side on separate ports with separate
   data directories. Existing projects stay in V1. New projects start in V2 when
@@ -19,3 +19,5 @@
 
 This direction supersedes the old milestone plan, including M19 and the
 import and cutover proposal.
+
+[API contract](docs/openapi.yaml) · [Decision record](docs/adr/0001-api-contract.md)

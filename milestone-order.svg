@@ -159,10 +159,10 @@
 
 
 </g>
-<g id="M20" transform="translate(0 178)"><title>M20 · Change lane ID · 2.5 development hours; starts after M19</title><rect class="node" x="606" y="962" width="170" height="132" rx="10"/><rect data-entry-band="true" x="613" y="968" width="156" height="24" rx="5" fill="#f3f5f8"/><rect x="606" y="962" width="5" height="132" rx="2.5" fill="#2563a6"/>
+<g id="M20" transform="translate(0 178)"><title>M20 · Change lane key · 2.5 development hours; starts after M19</title><rect class="node" x="606" y="962" width="170" height="132" rx="10"/><rect data-entry-band="true" x="613" y="968" width="156" height="24" rx="5" fill="#f3f5f8"/><rect x="606" y="962" width="5" height="132" rx="2.5" fill="#2563a6"/>
 <text x="620" y="1018" font-size="22" font-weight="750" fill="#2563a6" text-anchor="start">M20</text>
 <text x="764" y="1017" font-size="13" font-weight="600" fill="#657487" text-anchor="end">2.5 h</text>
-<text x="620" y="1048" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Change lane ID</text>
+<text x="620" y="1048" font-size="17" font-weight="550" fill="#243246" text-anchor="start">Change lane key</text>
 </g>
 <g id="M08" transform="translate(0 0)"><title>M08 · Set a parent · 1.5 development hours; turn 1</title><rect class="node" x="824" y="250" width="205" height="132" rx="10"/><rect data-entry-band="true" x="831" y="256" width="191" height="24" rx="5" fill="#f3f5f8"/><rect x="824" y="250" width="5" height="132" rx="2.5" fill="#7353b4"/>
 <text x="838" y="306" font-size="22" font-weight="750" fill="#7353b4" text-anchor="start">M08</text>

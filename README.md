@@ -73,9 +73,9 @@ and a member’s `create_card` capability. Every active lane must reach Complete
 through directed move grants, with actor handoffs allowed. Creation and native
 snapshot admission check these rules after shorthand expansion.
 
-Use `workspace pin set ID [ID ...]` to replace the pin order, `workspace pin add ID`
-to append one board, and `workspace pin remove ID [ID ...]` to unpin boards.
-An empty `workspace pin set` clears all pins. Repeated adds leave the order alone.
+Use `workspace pin set ID [ID ...]` to replace the pin order, `workspace pin add ID [ID ...]`
+to append boards in the supplied order, and `workspace pin remove ID [ID ...]` to unpin boards.
+All three commands require at least one ID. Repeated adds leave the order alone.
 Removal skips invalid, repeated, or unpinned IDs with `WARNING` messages on stderr
 and applies valid removals. Warnings retain a successful exit status. Set validates
 the complete ordered list and reports `ERROR` without changing any pins if a target fails.

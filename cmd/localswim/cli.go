@@ -21,8 +21,8 @@ import (
 
 const cliHelp = `Usage:
   localswim workspace info
-  localswim workspace pin set [--revision N] [BOARD_ID ...]
-  localswim workspace pin add [--revision N] BOARD_ID
+  localswim workspace pin set [--revision N] BOARD_ID [BOARD_ID ...]
+  localswim workspace pin add [--revision N] BOARD_ID [BOARD_ID ...]
   localswim workspace pin remove [--revision N] BOARD_ID [BOARD_ID ...]
   localswim board list [--limit N] [--cursor CURSOR]
   localswim board create --name NAME
@@ -40,8 +40,8 @@ Board creation requires exactly one of --name or --json.
 --json reads a new board definition from standard input.
 Set --data on board verify to read the private board data offline.
 Board export writes JSON to standard output. The default --type is json.
-Pin set replaces the order. With no IDs, it clears all pins.
-Pin add appends one board.
+All pin commands require at least one board ID. Pin set replaces the order.
+Pin add appends new boards in the supplied order.
 Pin remove skips failed targets with WARNING messages and preserves the remaining order.
 Pin set validates the entire list and reports ERROR if any target fails.
 Omit --revision to read the current revision once before updating.
@@ -220,8 +220,8 @@ func parseCLI(args []string) (cliCommand, error) {
 		}
 	}
 	if command.pinAction != "" {
-		if (command.pinAction == "add" && flags.NArg() != 1) || (command.pinAction == "remove" && flags.NArg() == 0) {
-			return command, errors.New("pin add requires one board ID and pin remove requires at least one")
+		if flags.NArg() == 0 {
+			return command, errors.New("pin commands require at least one board ID")
 		}
 		if flags.NArg() > 1000 {
 			return command, errors.New("pin commands accept at most 1000 board IDs")
@@ -368,8 +368,10 @@ func pinRequestBody(action string, requested []string, current json.RawMessage) 
 		}
 		pins = workspace.PinnedBoardIDs
 		if action == "add" {
-			if !slices.Contains(pins, requested[0]) {
-				pins = append(pins, requested[0])
+			for _, id := range requested {
+				if !slices.Contains(pins, id) {
+					pins = append(pins, id)
+				}
 			}
 		} else {
 			for _, id := range requested {

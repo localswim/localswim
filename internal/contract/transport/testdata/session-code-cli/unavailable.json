@@ -1,8 +1,0 @@
-{
-  "apiVersion": 1,
-  "command": "issue",
-  "error": {"code": "CONSOLE_UNAVAILABLE", "message": "Private console is unavailable"},
-  "outcome": "unavailable",
-  "result": null,
-  "scope": "session-code"
-}

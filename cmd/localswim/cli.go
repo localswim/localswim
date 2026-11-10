@@ -21,7 +21,8 @@ const cliHelp = `Usage:
   localswim workspace info
   localswim workspace pins [--revision N] < pins.json
   localswim board list [--limit N] [--cursor CURSOR]
-  localswim board create < board.json
+  localswim board create --name NAME
+  localswim board create --json < definition.json
   localswim board get BOARD_ID
   localswim board rename [--revision N] BOARD_ID NEW_NAME
   localswim board patch [--revision N] BOARD_ID < patch.json
@@ -31,6 +32,8 @@ const cliHelp = `Usage:
   localswim service builds [--limit N] [--cursor CURSOR]
 
 Live commands use LOCALSWIM_URL (http://127.0.0.1:<port>) and LOCALSWIM_TOKEN.
+Board creation requires exactly one of --name or --json.
+--json reads a new board definition from standard input.
 Set --data on board verify to read the private board data offline.
 Board export writes JSON to standard output. The default --type is json.
 Workspace pins accepts a JSON object with pinned_board_ids in the desired order.
@@ -78,6 +81,12 @@ func runCLIWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, g
 
 	command, err := parseCLI(args)
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			if _, err := io.WriteString(stdout, cliHelp); err != nil {
+				return 1
+			}
+			return 0
+		}
 		fmt.Fprintln(stderr, err)
 		fmt.Fprint(stderr, cliHelp)
 		return 2
@@ -99,6 +108,9 @@ func parseCLI(args []string) (cliCommand, error) {
 	flags.SetOutput(io.Discard)
 	needBoardID := false
 	rename := false
+	creating := false
+	var createName string
+	var jsonInput bool
 	paginated := false
 	format := exportJSON
 	switch args[0] + " " + args[1] {
@@ -111,6 +123,9 @@ func parseCLI(args []string) (cliCommand, error) {
 		paginated = true
 	case "board create":
 		command.method, command.resource = http.MethodPost, "/boards"
+		creating = true
+		flags.StringVar(&createName, "name", "", "new board name with the default workflow")
+		flags.BoolVar(&jsonInput, "json", false, "read a new board definition from standard input")
 	case "board get":
 		command.method, command.resource, needBoardID = http.MethodGet, "/boards", true
 	case "board rename":
@@ -157,13 +172,28 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.resource += "?" + query.Encode()
 	}
 	var optionErr error
+	var hasName, hasJSON bool
 	flags.Visit(func(f *flag.Flag) {
+		hasName = hasName || f.Name == "name"
+		hasJSON = hasJSON || f.Name == "json"
 		if f.Value.String() == "" {
 			optionErr = errors.New("command options require nonempty values")
 		}
 	})
 	if optionErr != nil {
 		return command, optionErr
+	}
+	if creating {
+		if hasName == hasJSON || (hasJSON && !jsonInput) {
+			return command, errors.New("board create requires exactly one of --name NAME or --json")
+		}
+		if hasName {
+			var err error
+			command.body, err = boardNameBody(createName)
+			if err != nil {
+				return command, err
+			}
+		}
 	}
 	if needBoardID {
 		count, expected := 1, "expected one UUIDv4 board ID"
@@ -176,15 +206,8 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.boardID = flags.Arg(0)
 		command.resource += "/" + command.boardID
 		if rename {
-			name := flags.Arg(1)
-			if name == "" {
-				return command, errors.New("new board name must not be empty")
-			}
-			if !utf8.ValidString(name) {
-				return command, errors.New("new board name must be valid UTF-8")
-			}
 			var err error
-			command.body, err = json.Marshal(map[string]string{"name": name})
+			command.body, err = boardNameBody(flags.Arg(1))
 			if err != nil {
 				return command, err
 			}
@@ -200,6 +223,16 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.revision = &revision
 	}
 	return command, nil
+}
+
+func boardNameBody(name string) (json.RawMessage, error) {
+	if name == "" {
+		return nil, errors.New("board name must not be empty")
+	}
+	if !utf8.ValidString(name) {
+		return nil, errors.New("board name must be valid UTF-8")
+	}
+	return json.Marshal(map[string]string{"name": name})
 }
 
 func executeCLI(command cliCommand, stdin io.Reader, stdout io.Writer, getenv func(string) string) error {

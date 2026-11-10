@@ -173,6 +173,78 @@ func TestCLIUnknownCommandIsRejected(t *testing.T) {
 	}
 }
 
+func TestCLICreationModesSendOneCreateRequest(t *testing.T) {
+	const name = "  Personal \"東京\"  "
+	const jsonInput = `{"name":"JSON board","id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}`
+	for _, tc := range []struct {
+		label, input, name string
+		args               []string
+	}{
+		{"name", "invalid JSON must not be read", name, []string{"board", "create", "--name", name}},
+		{"json", jsonInput, "JSON board", []string{"board", "create", "--json"}},
+	} {
+		t.Run(tc.label, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				raw, err := io.ReadAll(r.Body)
+				var body map[string]any
+				if err != nil || json.Unmarshal(raw, &body) != nil || body["name"] != tc.name ||
+					r.Method != http.MethodPost || r.URL.Path != "/api/2026-11-10/boards" ||
+					r.Header.Get("Content-Type") != "application/json" {
+					t.Error("incorrect creation request")
+				}
+				if tc.label == "json" && string(raw) != jsonInput {
+					t.Error("JSON definition was changed")
+				}
+				if tc.label == "name" && len(body) != 1 {
+					t.Error("name mode sent additional fields")
+				}
+				w.Header().Set("ETag", `"created-board-tag"`)
+				w.WriteHeader(http.StatusCreated)
+				json.NewEncoder(w).Encode(map[string]string{"name": tc.name})
+			}))
+			defer server.Close()
+			env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
+			var stdout, stderr bytes.Buffer
+			exit := runCLIWithInput(tc.args, strings.NewReader(tc.input), &stdout, &stderr, func(key string) string { return env[key] })
+			var result map[string]string
+			if exit != 0 || requests.Load() != 1 || stderr.Len() != 0 || json.Unmarshal(stdout.Bytes(), &result) != nil || result["name"] != tc.name {
+				t.Fatalf("creation failed: exit %d, calls %d, stderr %q", exit, requests.Load(), &stderr)
+			}
+		})
+	}
+}
+
+func TestCLICreationRequiresExactlyOneInputMode(t *testing.T) {
+	for _, args := range [][]string{
+		{"board", "create"},
+		{"board", "create", "--name", "Personal", "--json"},
+		{"board", "create", "--name", "Personal", "--json=false"},
+		{"board", "create", "--json=false"},
+		{"board", "create", "--name", ""},
+		{"board", "create", "--name", string([]byte{0xff})},
+		{"board", "create", "Personal"},
+	} {
+		var stdout, stderr bytes.Buffer
+		exit := runCLIWithInput(args, strings.NewReader(`{"name":"Do not create"}`), &stdout, &stderr,
+			func(string) string { t.Fatal("invalid creation modes reached execution"); return "" })
+		if exit != 2 || stdout.Len() != 0 || stderr.Len() == 0 {
+			t.Fatalf("invalid creation mode accepted: %v", args)
+		}
+	}
+}
+
+func TestCLICommandHelpDescribesCreationModes(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	exit := runCLIWithInput([]string{"board", "create", "--help"}, strings.NewReader(""), &stdout, &stderr,
+		func(string) string { t.Fatal("help reached execution"); return "" })
+	if exit != 0 || stderr.Len() != 0 || !strings.Contains(stdout.String(), "board create --name NAME") ||
+		!strings.Contains(stdout.String(), "board create --json < definition.json") {
+		t.Fatalf("unhelpful command help: exit %d, stdout %q, stderr %q", exit, &stdout, &stderr)
+	}
+}
+
 func TestCLIExplicitRevisionUsesTheMatchingResourceTag(t *testing.T) {
 	const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 	const tag = `"opaque-resource-tag"`

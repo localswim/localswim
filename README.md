@@ -55,10 +55,13 @@ to that origin and `LOCALSWIM_TOKEN` to the chosen capability in the CLI's
 environment. Keep these values out of arguments, Git, and shared logs.
 
 ```powershell
-'{"name":"Local demo"}' | .\localswim.exe board create
+.\localswim.exe board create --name "Local demo"
 .\localswim.exe board list
 .\localswim.exe workspace info
 ```
+
+For a custom workflow, pipe its board definition into `localswim board create --json`.
+Choose exactly one of `--name` or `--json`.
 
 Rename a board with `localswim board rename [--revision N] BOARD_ID "New name"`.
 `board rename`, `board patch`, and `workspace pins` accept optional `--revision N`.

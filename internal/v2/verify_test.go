@@ -19,13 +19,13 @@ func nativeVerificationFixture() snapshot {
 	return freshSnapshot(id, "Verification fixture", w, member.ID, at)
 }
 
-func TestNativeSnapshotAllowsCustomWorkflowWithoutMembers(t *testing.T) {
+func TestNativeSnapshotRejectsWorkflowWithoutCreators(t *testing.T) {
 	at := time.Date(2026, time.November, 10, 16, 0, 0, 123456000, time.UTC)
 	id := newID()
 	w := defaultWorkflow(id, at, []user{})
 	value := freshSnapshot(id, "No implicit membership", w, humanID, at)
-	if _, err := parseSnapshot(marshalVerificationFixture(t, value), id); err != nil {
-		t.Fatalf("empty custom roster refused: %v", err)
+	if _, err := parseSnapshot(marshalVerificationFixture(t, value), id); err == nil {
+		t.Fatal("accepted a workflow without any users able to create cards")
 	}
 }
 
@@ -75,6 +75,8 @@ func TestNativeSnapshotReferencesAndAudit(t *testing.T) {
 	}{
 		{"wrong board etag", func(s *snapshot) { s.Board.ETag = etag(s.Board.ID, 7) }},
 		{"missing lane reference", func(s *snapshot) { s.Board.LaneIDs[0] = newID() }},
+		{"no creation permission", func(s *snapshot) { s.Policy.CreateGrants = []createGrant{} }},
+		{"no completion route", func(s *snapshot) { s.Policy.MoveGrants = []moveGrant{} }},
 		{"foreign grant actor", func(s *snapshot) { s.Policy.CreateGrants[0].UserID = newID() }},
 		{"duplicate capability", func(s *snapshot) {
 			g := &s.Policy.ResourceGrants[0]

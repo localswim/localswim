@@ -268,6 +268,9 @@ func customWorkflow(raw json.RawMessage, boardID string, now time.Time) (workflo
 	}
 	addInitialLaneGrants(&resolvedPolicy, result.Lanes, laneCreate, laneConnect)
 	result.Policy = resolvedPolicy
+	if issue := validateWorkflowPaths(result.Lanes, result.Policy); issue != nil {
+		return workflow{}, invalid("workflow."+issue.Field, issue.Message)
+	}
 	return result, nil
 }
 

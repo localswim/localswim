@@ -24,7 +24,7 @@ const workflowTestInput = `{
     "default_priority_id":"A0000000-0000-4000-8000-000000000005",
     "create_grants":[{"user_id":"a0000000-0000-4000-8000-000000000002","lane_id":"a0000000-0000-4000-8000-000000000003"}],
     "move_grants":[{"user_id":"A0000000-0000-4000-8000-000000000002","from_lane_id":"a0000000-0000-4000-8000-000000000003","to_lane_id":"a0000000-0000-4000-8000-000000000004"}],
-    "resource_grants":[{"user_id":"a0000000-0000-4000-8000-000000000002","capabilities":["read","approve"]}]
+    "resource_grants":[{"user_id":"a0000000-0000-4000-8000-000000000002","capabilities":["read","approve","create_card"]}]
   }
 }`
 
@@ -66,10 +66,10 @@ func TestCustomWorkflowRefusesInvalidDefinitions(t *testing.T) {
 		{"invalid UUID version", `"id":"A0000000-0000-4000-8000-000000000003"`, `"id":"A0000000-0000-5000-8000-000000000003"`},
 		{"missing terminal role", `"role":"CoMpLeTeD"`, `"role":"ordinary"`},
 		{"unknown reference", `"default_priority_id":"A0000000-0000-4000-8000-000000000005"`, `"default_priority_id":"A0000000-0000-4000-8000-000000000004"`},
-		{"wrong capability spelling", `"read","approve"`, `"READ","approve"`},
-		{"duplicate capability", `"read","approve"`, `"read","read"`},
+		{"wrong capability spelling", `"read","approve","create_card"`, `"READ","approve"`},
+		{"duplicate capability", `"read","approve","create_card"`, `"read","read"`},
 		{"bot approval", `"kind":"HuMaN"`, `"kind":"bot"`},
-		{"protected grant member", `"capabilities":["read","approve"]`, `"capabilities":["read"],"actor":"human"`},
+		{"protected grant member", `"capabilities":["read","approve","create_card"]`, `"capabilities":["read"],"actor":"human"`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

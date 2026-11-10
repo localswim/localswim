@@ -930,7 +930,7 @@ paths:
         validated together; UUIDs are normalized before checking references. Creation never imports V1
         data. A custom workflow attaches its explicitly identified users to the new board. An existing
         global UUID must have the same immutable kind and compatible definition; it is never silently
-        redefined.
+        redefined. After shorthand expansion, the resolved workflow must satisfy x-workflow-validation.
       requestBody:
         required: true
         content:
@@ -6391,7 +6391,8 @@ paths:
         capability: manage_permissions
       x-milestones:
       - 17
-      description: Validate all UUID references and historical compatibility before publishing the replacement.
+      description: Validate all UUID references, historical compatibility, and x-workflow-validation
+        before publishing the replacement.
         Additive updates are a read-modify-write of this complete representation. Expected board and policy
         tags are checked together. The normalized PUT response omits ETag; GET the target afterward for
         its new representation validator.
@@ -17862,6 +17863,13 @@ x-security-policy:
     the configured local owner Human and CLI Bot. Fresh default boards contain those users with read/edit/comment/relationship/attachment/priority/workflow/management/backup/restore/publishing
     capabilities, lane grants from the default workflow, and approve only for Human. Custom board creation
     must provide explicit resource_grants and lane grants.
+x-workflow-validation:
+  admission: Validate the resolved workflow after shorthand expansion during board creation and native
+    snapshot admission. Policy replacement must preserve these requirements.
+  creation: At least one active lane must have a create_grants entry for a board member whose resource
+    grants include create_card.
+  completion: Every active lane must have a path through allowed directed move_grants to the lane
+    with the completed role. Transitions along a path may use different actors' grants.
 x-ui-response-headers:
   Content-Security-Policy: 'default-src ''none''; script-src ''self''; style-src ''self''; img-src ''self''
     data: blob:; connect-src ''self''; font-src ''self''; object-src ''none''; base-uri ''none''; frame-ancestors

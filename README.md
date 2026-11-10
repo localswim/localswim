@@ -64,6 +64,11 @@ Rename a board with `localswim board rename [--revision N] BOARD_ID "New name"`.
 Supply a previously read revision to reject changes since that read, or omit it
 to read the latest revision before updating. Put options before positional arguments.
 
+At least one active lane must permit card creation through both a lane grant
+and a member’s `create_card` capability. Every active lane must reach Completed
+through directed move grants, with actor handoffs allowed. Creation and native
+snapshot admission check these rules after shorthand expansion.
+
 A V2 data directory has one writer. Native board snapshots live in `boards/`.
 The verification endpoint and `board verify --data <directory> <board-id>`
 read the same durable format. The workspace pin order has its own revision, starting at 1.

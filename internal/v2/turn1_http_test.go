@@ -289,12 +289,23 @@ func verifyTurnOneCustomWorkflow(t *testing.T, c turnOneClient, bot string) {
  "lanes":[{"id":"%s","label":"Inbox","key":"inbox"},{"id":"%s","label":"Done","key":"completed","role":"COMPLETED"}],
  "priorities":[{"id":"%s","key":"regular","label":"Regular","rank":0}],
  "policy":{"default_priority_id":"%s","create_grants":[{"user_id":"%s","lane_id":"%s"}],"move_grants":[{"user_id":"%s","from_lane_id":"%s","to_lane_id":"%s"}],
- "resource_grants":[{"user_id":"%s","capabilities":["read","manage_board"]},{"user_id":"%s","capabilities":["manage_notifications"]}]}}}`,
+ "resource_grants":[{"user_id":"%s","capabilities":["read","manage_board","create_card"]},{"user_id":"%s","capabilities":["manage_notifications"]}]}}}`,
 		strings.ToUpper(humanID), botID, strings.ToUpper(laneID), completed, priorityID, priorityID, humanID, laneID, humanID, laneID, completed, humanID, botID)
 	bad := strings.Replace(body, `"default_priority_id":"`+priorityID, `"default_priority_id":"`+newID(), 1)
 	c.call("POST", "/boards", bad, "", 400)
 	badIdentity := strings.Replace(body, `"label":"Human"`, `"label":"Unrelated"`, 1)
 	c.call("POST", "/boards", badIdentity, "", 409)
+	for _, grant := range []string{"create_grants", "move_grants"} {
+		input := turnOneDecode[map[string]any](t, []byte(body))
+		workflow := input["workflow"].(map[string]any)
+		policy := workflow["policy"].(map[string]any)
+		policy[grant] = []any{}
+		invalid, err := json.Marshal(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.call("POST", "/boards", string(invalid), "", 400)
+	}
 	raw, _ := c.call("GET", "/boards", "", "", 200)
 	if len(turnOnePage[boardSummary](t, raw, "boards").Values) != 2 {
 		t.Fatal("invalid custom workflow was saved")

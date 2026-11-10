@@ -31,6 +31,8 @@ The proposed security baseline is one loopback origin, exact authority checks, s
 
 Board recovery preserves existing global user configuration. A recovery candidate with an unknown or incompatible user identity refuses before mutation.
 
+A resolved workflow must permit creation in at least one active lane through a lane grant for a board member with the `create_card` capability. Every active lane must have a path through allowed directed transitions to the Completed lane. Transitions along a path may be performed by different actors. Apply the shared validator after shorthand expansion at board creation and native snapshot admission, and retain the invariant when implementing policy replacement.
+
 OpenAPI describes messages and authentication schemes. Runtime enforcement is still required for origin/authority checks, forbidden headers, duplicate-key detection, authorization, transaction behavior, and uncertain outcomes. Those requirements are recorded in the contract's `x-*` policy fields.
 
 ## Sources

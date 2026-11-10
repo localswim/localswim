@@ -332,7 +332,13 @@ func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 	if !matchSnapshotIDs(b.PriorityIDs, refs.priorities) {
 		return invalidSnapshot("board.priority_ids", "Board priorities do not match native priorities.")
 	}
-	return refs.validatePolicy(value.Policy, b)
+	if err := refs.validatePolicy(value.Policy, b); err != nil {
+		return err
+	}
+	if issue := validateWorkflowPaths(value.Lanes, value.Policy); issue != nil {
+		return invalidSnapshot(issue.Field, issue.Message)
+	}
+	return nil
 }
 
 func (refs snapshotReferences) validatePolicy(p policy, b board) error {

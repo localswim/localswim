@@ -1,5 +1,7 @@
 # Localswim V2 milestone plan
 
+[Reviewed staffing and execution roster](execution-plan.md)
+
 Build a fresh Go backend. One loopback listener serves every board and the workspace. The browser and CLI share the REST API. Keep V2 data and its port separate from V1. New projects start in V2. V1 data migration and legacy schema conversion are outside this plan.
 
 ## Three-day delivery target

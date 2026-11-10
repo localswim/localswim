@@ -52,7 +52,7 @@ starting at 1.
 For local build staging, place `candidate.json` and the native `candidate.exe`
 (Windows) or `candidate` (Unix) in the data directory. The manifest contains
 `version` and lowercase SHA-256 `sha256`. The `/service` response identifies the
-running generation, and `/builds` reports staged validation. Activation is a
+running service instance, and `/builds` reports staged validation. Activation is a
 separate milestone.
 
 ## References

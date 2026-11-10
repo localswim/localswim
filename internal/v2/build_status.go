@@ -25,12 +25,12 @@ const (
 )
 
 type serviceStatus struct {
-	ETag             string  `json:"etag"`
-	GenerationID     string  `json:"generation_id"`
-	BuildID          string  `json:"build_id"`
-	State            string  `json:"state"`
-	APIVersion       string  `json:"api_version"`
-	RestartErrorCode *string `json:"restart_error_code"`
+	ETag              string  `json:"etag"`
+	ServiceInstanceID string  `json:"service_instance_id"`
+	BuildID           string  `json:"build_id"`
+	State             string  `json:"state"`
+	APIVersion        string  `json:"api_version"`
+	RestartErrorCode  *string `json:"restart_error_code"`
 }
 
 type build struct {
@@ -53,15 +53,15 @@ type buildStatus struct {
 var runningBuildID = newID()
 
 func newBuildStatus(root string) *buildStatus {
-	generation := newID()
+	instanceID := newID()
 	return &buildStatus{
 		root: root,
 		running: serviceStatus{
-			ETag:         etag(generation, 0),
-			GenerationID: generation,
-			BuildID:      runningBuildID,
-			State:        "running",
-			APIVersion:   Version,
+			ETag:              etag(instanceID, 0),
+			ServiceInstanceID: instanceID,
+			BuildID:           runningBuildID,
+			State:             "running",
+			APIVersion:        Version,
 		},
 	}
 }

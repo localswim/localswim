@@ -11692,7 +11692,7 @@ paths:
         workspace_admin: true
       x-milestones:
       - 39
-      description: If-Match binds this service generation. Drain admitted commands and streams, flush
+      description: If-Match binds this service instance. Drain admitted commands and streams, flush
         enabled publishers, and release writer ownership only after saving work has joined. Failed final
         push leaves the service available for inspection. Lost response requires health inspection; never
         resend automatically.
@@ -12515,7 +12515,7 @@ paths:
         workspace_admin: true
       x-milestones:
       - 39
-      description: expected_service_etag binds the current generation. Preserve port and board URLs, rotate
+      description: expected_service_etag binds the current service instance. Preserve port and board URLs, rotate
         capabilities, and retain previous service availability when validation refuses. Only a previously
         validated build_id is accepted; no arbitrary command or path.
       requestBody:
@@ -14079,7 +14079,7 @@ components:
       additionalProperties: false
       required:
       - etag
-      - generation_id
+      - service_instance_id
       - build_id
       - state
       - api_version
@@ -14087,7 +14087,7 @@ components:
       properties:
         etag:
           $ref: '#/components/schemas/EntityTag'
-        generation_id:
+        service_instance_id:
           $ref: '#/components/schemas/Uuid'
         build_id:
           $ref: '#/components/schemas/Uuid'

@@ -16,8 +16,8 @@ func TestBuildStatusCandidateLifecycle(t *testing.T) {
 	root := t.TempDir()
 	status := newBuildStatus(root)
 	running := status.service()
-	if _, ok := normalizeID(running.GenerationID); !ok {
-		t.Fatalf("generation_id = %q", running.GenerationID)
+	if _, ok := normalizeID(running.ServiceInstanceID); !ok {
+		t.Fatalf("service_instance_id = %q", running.ServiceInstanceID)
 	}
 	if _, ok := normalizeID(running.BuildID); !ok {
 		t.Fatalf("build_id = %q", running.BuildID)
@@ -26,9 +26,9 @@ func TestBuildStatusCandidateLifecycle(t *testing.T) {
 		running.RestartErrorCode != nil || running.ETag == "" {
 		t.Fatalf("running service = %+v", running)
 	}
-	if got := newBuildStatus(root).service(); got.GenerationID == running.GenerationID ||
+	if got := newBuildStatus(root).service(); got.ServiceInstanceID == running.ServiceInstanceID ||
 		got.BuildID != running.BuildID || got.ETag == running.ETag {
-		t.Fatalf("second generation = %+v", got)
+		t.Fatalf("second service instance = %+v", got)
 	}
 	if candidates := status.builds(); candidates == nil || len(candidates) != 0 {
 		t.Fatalf("empty candidate list = %#v", candidates)

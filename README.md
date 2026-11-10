@@ -59,9 +59,10 @@ environment. Keep these values out of arguments, Git, and shared logs.
 .\localswim.exe board list
 ```
 
-Rename a board with `localswim board rename BOARD_ID "New name"`. The CLI
-reads the current revision before updating. Supply `--if-match ETAG` before
-the board ID to use a revision you already hold.
+Rename a board with `localswim board rename [--revision N] BOARD_ID "New name"`.
+`board rename`, `board patch`, and `workspace pins` accept optional `--revision N`.
+Supply a previously read revision to reject changes since that read, or omit it
+to read the latest revision before updating. Put options before positional arguments.
 
 A V2 data directory has one writer. Native board snapshots live in `boards/`.
 The verification endpoint and `board verify --data <directory> <board-id>`

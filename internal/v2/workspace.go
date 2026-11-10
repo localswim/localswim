@@ -20,6 +20,7 @@ const maxWorkspaceFile = 64 << 10
 
 type workspace struct {
 	ETag           string     `json:"etag"`
+	Revision       uint64     `json:"revision"`
 	PinnedBoardIDs []string   `json:"pinned_board_ids"`
 	Publishing     publishing `json:"publishing"`
 }
@@ -42,7 +43,7 @@ func newWorkspace(root string) *workspaceStore {
 }
 
 func (s *workspaceStore) view(p workspacePreferences) workspace {
-	return workspace{ETag: etag(s.identity, p.Revision), PinnedBoardIDs: p.PinnedBoardIDs}
+	return workspace{ETag: etag(s.identity, p.Revision), Revision: p.Revision, PinnedBoardIDs: p.PinnedBoardIDs}
 }
 
 func (s *workspaceStore) read() (workspace, error) {

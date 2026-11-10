@@ -186,6 +186,9 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	}
 	raw, h = c.call("GET", "/workspace", "", "", 200)
 	originalWorkspaceTag := h.Get("ETag")
+	if turnOneDecode[map[string]any](t, raw)["revision"] != float64(0) {
+		t.Fatal("workspace response did not publish its initial revision")
+	}
 	pins := `{"pinned_board_ids":["` + second.ID + `","` + first.ID + `"]}`
 	raw, h = c.call("PATCH", "/workspace", pins, originalWorkspaceTag, 200)
 	pinsTag := h.Get("ETag")
@@ -209,7 +212,7 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	other.token = bot
 	raw, h = other.call("GET", "/workspace", "", "", 200)
 	result := turnOneDecode[workspace](t, raw)
-	if h.Get("ETag") != pinsTag || len(result.PinnedBoardIDs) != 2 || result.PinnedBoardIDs[0] != second.ID {
+	if result.Revision != 1 || h.Get("ETag") != pinsTag || len(result.PinnedBoardIDs) != 2 || result.PinnedBoardIDs[0] != second.ID {
 		t.Fatal("another client did not see persisted pin order")
 	}
 	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"enabled":false}}`, saved.ETag, 200)

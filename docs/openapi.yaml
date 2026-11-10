@@ -13697,9 +13697,12 @@ components:
       additionalProperties: false
       required:
       - etag
+      - revision
       - pinned_board_ids
       - publishing
       properties:
+        revision:
+          $ref: '#/components/schemas/Revision'
         etag:
           $ref: '#/components/schemas/EntityTag'
         pinned_board_ids:

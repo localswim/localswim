@@ -23,7 +23,7 @@ func TestCLIBoardRenameUsesRevisionCheckedPatch(t *testing.T) {
 		wantRequests int32
 	}{
 		{"automatic revision", []string{"board", "rename", id, name}, 200, 0, 2},
-		{"explicit revision", []string{"board", "rename", "--if-match", tag, id, name}, 200, 0, 1},
+		{"explicit revision", []string{"board", "rename", "--revision", "1", id, name}, 200, 0, 2},
 		{"stale revision", []string{"board", "rename", id, name}, 412, 1, 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -35,7 +35,7 @@ func TestCLIBoardRenameUsesRevisionCheckedPatch(t *testing.T) {
 				}
 				w.Header().Set("ETag", tag)
 				if r.Method == http.MethodGet {
-					w.Write([]byte(`{"name":"Before"}`))
+					w.Write([]byte(`{"name":"Before","revision":1}`))
 					return
 				}
 				var body map[string]string
@@ -170,5 +170,87 @@ func TestCLIUnknownCommandIsRejected(t *testing.T) {
 	)
 	if exit != 2 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "unknown command") {
 		t.Fatalf("unknown command accepted: exit %d, stderr %q", exit, &stderr)
+	}
+}
+
+func TestCLIExplicitRevisionUsesTheMatchingResourceTag(t *testing.T) {
+	const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	const tag = `"opaque-resource-tag"`
+	for _, command := range []struct {
+		name, path, input, body string
+		args                    []string
+	}{
+		{"rename", "/boards/" + id, "", `{"name":"New name"}`, []string{"board", "rename", id, "New name"}},
+		{"patch", "/boards/" + id, `{"name":"New name"}`, `{"name":"New name"}`, []string{"board", "patch", id}},
+		{"pins", "/workspace", `{"pinned_board_ids":[]}`, `{"pinned_board_ids":[]}`, []string{"workspace", "pins"}},
+	} {
+		for _, expected := range []string{"0", "3"} {
+			t.Run(command.name+" revision "+expected, func(t *testing.T) {
+				var requests atomic.Int32
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					requests.Add(1)
+					if r.URL.Path != "/api/2026-11-10"+command.path {
+						t.Error("wrong resource")
+					}
+					w.Header().Set("ETag", tag)
+					if r.Method == http.MethodGet {
+						w.Write([]byte(`{"revision":0}`))
+						return
+					}
+					body, _ := io.ReadAll(r.Body)
+					if expected != "0" || r.Method != http.MethodPatch || r.Header.Get("If-Match") != tag || string(body) != command.body {
+						t.Error("mutation did not use the matching revision's actual ETag and body")
+					}
+					w.Write([]byte(`{"revision":1}`))
+				}))
+				defer server.Close()
+				args := append([]string{}, command.args[:2]...)
+				args = append(args, "--revision", expected)
+				args = append(args, command.args[2:]...)
+				env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
+				var stdout, stderr bytes.Buffer
+				exit := runCLIWithInput(args, strings.NewReader(command.input), &stdout, &stderr, func(key string) string { return env[key] })
+				if expected == "0" {
+					if exit != 0 || requests.Load() != 2 || stdout.String() != "{\"revision\":1}\n" || stderr.Len() != 0 {
+						t.Fatalf("matching revision failed: exit %d, calls %d, stderr %q", exit, requests.Load(), &stderr)
+					}
+				} else if exit != 1 || requests.Load() != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "revision mismatch") {
+					t.Fatalf("mismatching revision was not refused before mutation: exit %d, calls %d", exit, requests.Load())
+				}
+			})
+		}
+	}
+}
+
+func TestCLIRevisionRequiresAnExactValidNumber(t *testing.T) {
+	for _, value := range []string{"", "-1", "1.5", "true", "0x10", "9007199254740992", "18446744073709551616"} {
+		var stdout, stderr bytes.Buffer
+		exit := runCLIWithInput([]string{"workspace", "pins", "--revision", value}, strings.NewReader(`{"pinned_board_ids":[]}`),
+			&stdout, &stderr, func(string) string { t.Fatal("invalid revision reached execution"); return "" })
+		if exit != 2 || stdout.Len() != 0 || stderr.Len() == 0 {
+			t.Fatalf("invalid revision %q was accepted", value)
+		}
+	}
+}
+
+func TestCLIExplicitRevisionRefusesInvalidResourceRevision(t *testing.T) {
+	for _, body := range []string{`{}`, `{"revision":null}`, `{"revision":true}`, `{"revision":"1"}`, `{"revision":1.5}`, `{"revision":9007199254740992}`} {
+		var requests atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests.Add(1)
+			if r.Method != http.MethodGet {
+				t.Error("invalid resource revision triggered a mutation")
+			}
+			w.Header().Set("ETag", `"opaque-resource-tag"`)
+			w.Write([]byte(body))
+		}))
+		env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
+		var stdout, stderr bytes.Buffer
+		exit := runCLIWithInput([]string{"workspace", "pins", "--revision", "1"}, strings.NewReader(`{"pinned_board_ids":[]}`),
+			&stdout, &stderr, func(key string) string { return env[key] })
+		server.Close()
+		if exit != 1 || requests.Load() != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "valid resource revision") {
+			t.Fatalf("invalid resource revision was accepted: %s", body)
+		}
 	}
 }

@@ -19,12 +19,12 @@ import (
 
 const cliHelp = `Usage:
   localswim workspace get
-  localswim workspace pins [--if-match ETAG] < pins.json
+  localswim workspace pins [--revision N] < pins.json
   localswim board list [--limit N] [--cursor CURSOR]
   localswim board create < board.json
   localswim board get BOARD_ID
-  localswim board rename [--if-match ETAG] BOARD_ID NEW_NAME
-  localswim board patch [--if-match ETAG] BOARD_ID < patch.json
+  localswim board rename [--revision N] BOARD_ID NEW_NAME
+  localswim board patch [--revision N] BOARD_ID < patch.json
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] BOARD_ID
   localswim service status
@@ -34,7 +34,8 @@ Live commands use LOCALSWIM_URL (http://127.0.0.1:<port>) and LOCALSWIM_TOKEN.
 Set --data on board verify to read the private board data offline.
 Board export writes JSON to standard output. The default --type is json.
 Workspace pins accepts a JSON object with pinned_board_ids in the desired order.
-Omit --if-match to read the current resource ETag once before updating.
+Omit --revision to read the current revision once before updating.
+Supply --revision to require the version you previously inspected.
 `
 
 type exportFormat string
@@ -52,12 +53,14 @@ func (format *exportFormat) Set(value string) error {
 }
 
 const maxCLIInput = 96 << 20
+const maxCLIRevision = 1<<53 - 1
 
 var boardIDPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
 type cliCommand struct {
-	method, resource, boardID, ifMatch, dataDir string
-	body                                        json.RawMessage
+	method, resource, boardID, dataDir string
+	revision                           *uint64
+	body                               json.RawMessage
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -130,8 +133,9 @@ func parseCLI(args []string) (cliCommand, error) {
 		return command, errors.New("unknown command")
 	}
 
+	var revisionValue string
 	if command.method == http.MethodPatch {
-		flags.StringVar(&command.ifMatch, "if-match", "", "strong resource ETag")
+		flags.StringVar(&revisionValue, "revision", "", "expected resource revision")
 	}
 	var limit int
 	var cursor string
@@ -188,8 +192,12 @@ func parseCLI(args []string) (cliCommand, error) {
 	} else if flags.NArg() != 0 {
 		return command, errors.New("unexpected command arguments")
 	}
-	if command.ifMatch != "" && !client.IsEntityTag(command.ifMatch) {
-		return command, errors.New("--if-match requires one quoted strong ETag")
+	if revisionValue != "" {
+		revision, err := strconv.ParseUint(revisionValue, 10, 64)
+		if err != nil || revision > maxCLIRevision {
+			return command, errors.New("--revision requires an integer from 0 to 9007199254740991")
+		}
+		command.revision = &revision
 	}
 	return command, nil
 }
@@ -217,7 +225,8 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout io.Writer, getenv fu
 			return errors.New("standard input must contain one valid JSON object within 96 MiB")
 		}
 	}
-	if command.method == http.MethodPatch && command.ifMatch == "" {
+	var ifMatch string
+	if command.method == http.MethodPatch {
 		current, err := api.Do(http.MethodGet, command.resource, nil, "")
 		if err != nil {
 			return err
@@ -225,9 +234,20 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout io.Writer, getenv fu
 		if current.ETag == "" {
 			return errors.New("service did not return a strong resource ETag")
 		}
-		command.ifMatch = current.ETag
+		if command.revision != nil {
+			var value struct {
+				Revision *uint64 `json:"revision"`
+			}
+			if json.Unmarshal(current.JSON, &value) != nil || value.Revision == nil || *value.Revision > maxCLIRevision {
+				return errors.New("service did not return a valid resource revision")
+			}
+			if *value.Revision != *command.revision {
+				return fmt.Errorf("revision mismatch (expected %d, current %d)", *command.revision, *value.Revision)
+			}
+		}
+		ifMatch = current.ETag
 	}
-	reply, err := api.Do(command.method, command.resource, body, command.ifMatch)
+	reply, err := api.Do(command.method, command.resource, body, ifMatch)
 	if err != nil {
 		return err
 	}

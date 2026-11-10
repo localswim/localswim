@@ -23,6 +23,8 @@ During the reboot, use only the current API, CLI, and storage contracts. Use fre
 
 Ordinary input objects ignore unknown, non-protected fields. Security-sensitive commands are closed. Mixed-case UUIDs and documented enum spellings are accepted. Duplicate JSON keys, conflicting selectors, wrong types, protected attribution/identity writes, and malformed known values are refused. Empty or unknown-only patches refuse. External chat UUIDs have their own schema and can use UUID versions other than v4.
 
+CLI updates accept `--revision N` to require the numeric `revision` from a prior read. The CLI fetches the current representation, compares any supplied revision, and uses the returned ETag for the write. With no explicit revision, only changes after that fetch are guarded.
+
 Item writes use the addressed resource's strong ETag. Operations spanning resources carry explicit board/card preconditions in their bodies. Data, permission checks, derived changes, and audit commit together. A lost or unreadable write response requires inspection before another attempt.
 
 The proposed security baseline is one loopback origin, exact authority checks, separate runtime-issued Human and Bot capabilities, and authenticated API calls. A same-origin browser bootstrap supplies only the Human capability. Foreign/null origins are refused. CORS grants name only the configured origin and enumerated headers/methods. Tokens stay out of URLs, persisted browser storage, logs, and error bodies. Browser streaming and file reads use authenticated fetch.

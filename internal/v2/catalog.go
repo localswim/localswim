@@ -54,7 +54,7 @@ func deriveAttention(state snapshot) (attention, *time.Time) {
 	if latest == nil {
 		return counts, nil
 	}
-	at := latest.UTC()
+	at := canonicalTime(*latest)
 	return counts, &at
 }
 

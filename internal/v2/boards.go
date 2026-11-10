@@ -44,7 +44,7 @@ func (x *request) createBoard() {
 			return
 		}
 	}
-	now := time.Now().UTC().Truncate(time.Microsecond)
+	now := canonicalTime(time.Now())
 	var wf workflow
 	if raw, ok := obj["workflow"]; ok {
 		wf, err = customWorkflow(raw, id, now)
@@ -133,7 +133,7 @@ func (x *request) patchBoard(s snapshot) {
 		if !authorized(*s) {
 			return errForbidden
 		}
-		now := time.Now().UTC().Truncate(time.Microsecond)
+		now := canonicalTime(time.Now())
 		appendChange := func(field string, before, after *string) {
 			s.Activity = append(s.Activity, activity{ID: newID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
 				ActorID: x.actor, Operation: "patch", ResourceType: "board", ResourceID: s.Board.ID, Field: &field, Before: before, After: after})
@@ -222,7 +222,7 @@ func (x *request) recoveryResource(resource, id string) {
 	}
 	durable, err := x.service.store.durable(id)
 	if resource == "verifications" {
-		report := snapshotVerification(id, time.Now().UTC().Truncate(time.Microsecond), durable, err)
+		report := snapshotVerification(id, canonicalTime(time.Now()), durable, err)
 		x.respond(200, report, "")
 		return
 	}

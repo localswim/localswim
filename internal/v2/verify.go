@@ -63,7 +63,7 @@ func verifySnapshot(path, boardID string, at time.Time) verification {
 
 func snapshotVerification(boardID string, at time.Time, value snapshot, err error) verification {
 	result := verification{
-		BoardID: boardID, At: at.UTC().Format("2006-01-02T15:04:05.000000Z"),
+		BoardID: boardID, At: canonicalTime(at).Format(timestampLayout),
 		Valid: err == nil, Issues: []verificationIssue{},
 	}
 	if err == nil {
@@ -124,7 +124,7 @@ func readSnapshot(path, boardID string) (snapshot, error) {
 
 func parseSnapshot(data []byte, boardID string) (snapshot, error) {
 	var value snapshot
-	if !utf8.Valid(data) || json.Unmarshal(data, &value) != nil {
+	if !utf8.Valid(data) || unmarshalCanonical(data, &value) != nil {
 		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot is not valid UTF-8 JSON.")
 	}
 	if err := validateSnapshot(value, boardID); err != nil {
@@ -471,7 +471,7 @@ func validSnapshotEntity(item entity) bool {
 
 func validSnapshotTime(value time.Time) bool {
 	_, offset := value.Zone()
-	return offset == 0 && !value.IsZero() && value.Year() >= 0 && value.Year() <= 9999
+	return offset == 0 && value.Nanosecond() == 0 && !value.IsZero() && value.Year() >= 0 && value.Year() <= 9999
 }
 
 func equalSnapshotTimes(a, b *time.Time) bool {

@@ -30,7 +30,7 @@ func Open(root, humanToken, botToken string) (*Service, error) {
 	if !validToken(humanToken) || !validToken(botToken) || humanToken == botToken {
 		return nil, errors.New("configure distinct Human and Bot runtime capabilities of at least 32 base64url bytes")
 	}
-	now := time.Now().UTC().Truncate(time.Microsecond)
+	now := canonicalTime(time.Now())
 	principals := []user{
 		{entity: newEntity(humanID, now), Label: "Human", Kind: "human", Color: ""},
 		{entity: newEntity(botID, now), Label: "Bot", Kind: "bot", Color: ""},

@@ -15,3 +15,5 @@
   text exactly without silent replacement, trimming, or normalization.
 - Run `.\check.ps1` before handoff. Keep the strict compiler and lint gates enabled,
   fix findings at their source, and justify any narrowly scoped suppression.
+- Use `YYYY-MM-DD HH:MM:SS+00:00` for application timestamps, normalized to UTC
+  and whole seconds. Preserve revision ordering for edits within the same second.

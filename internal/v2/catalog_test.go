@@ -9,8 +9,8 @@ import (
 )
 
 func TestDeriveAttentionCountsAndAuditedRecency(t *testing.T) {
-	newest := time.Date(2026, 11, 10, 18, 30, 0, 123456789, time.FixedZone("offset", 3600))
-	older := newest.Add(-time.Nanosecond)
+	newest := time.Date(2026, 11, 10, 18, 30, 0, 0, time.FixedZone("offset", 3600))
+	older := newest.Add(-time.Second)
 	state := snapshot{
 		Board: board{entity: entity{UpdatedAt: newest.Add(time.Hour)}},
 		Lanes: []lane{
@@ -46,7 +46,7 @@ func TestDeriveAttentionCountsAndAuditedRecency(t *testing.T) {
 func TestDeriveAttentionCountsCardOwnedAudit(t *testing.T) {
 	for _, resourceType := range []string{"comment", "attachment", "relationship"} {
 		t.Run(resourceType, func(t *testing.T) {
-			at := time.Date(2026, 11, 10, 0, 0, 0, 1, time.UTC)
+			at := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)
 			_, latest := deriveAttention(snapshot{
 				Activity: []activity{{ResourceType: resourceType, At: at}},
 			})
@@ -103,14 +103,14 @@ func TestSummarizeDistinguishesZeroAttentionFromUnknown(t *testing.T) {
 	if err := json.Unmarshal(wire, &fields); err != nil {
 		t.Fatal(err)
 	}
-	if got := string(fields["last_card_edit_at"]); got != `"2026-11-10T11:00:00.120000Z"` {
+	if got := string(fields["last_card_edit_at"]); got != `"2026-11-10 11:00:00+00:00"` {
 		t.Errorf("last_card_edit_at = %s", got)
 	}
 }
 
 func TestSortSummariesByExactRecencyAttentionNameAndID(t *testing.T) {
-	first := time.Date(2099, 1, 1, 0, 0, 0, 1, time.UTC)
-	second := first.Add(time.Nanosecond)
+	first := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+	second := first.Add(time.Second)
 	otherZone := first.In(time.FixedZone("offset", 3600))
 	alpha, mixedAlpha, zulu := "alpha", "aLpHa", "Zulu"
 	boards := []boardSummary{

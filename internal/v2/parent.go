@@ -79,6 +79,7 @@ func validateParentChain(cards map[string]*card, cardID string, parentID *string
 // patchParent applies the parent_id field to an isolated candidate after checking
 // the card's original tag and the actor's current relationship permission.
 func patchParent(s *snapshot, cardID, expectedCardETag string, parentID *string, actorID string, now time.Time) (bool, error) {
+	now = canonicalTime(now)
 	if !s.can(actorID, "manage_relationships") {
 		return false, errForbidden
 	}

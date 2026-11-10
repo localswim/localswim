@@ -218,7 +218,7 @@ func TestOfflineVerificationReportsDamageWithoutRewriting(t *testing.T) {
 	if err != nil || !good.Valid || good.Revision == nil || *good.Revision != 1 || len(good.Issues) != 0 {
 		t.Fatalf("valid verification = %+v, %v", good, err)
 	}
-	if _, err := time.Parse("2006-01-02T15:04:05.000000Z", good.At); err != nil {
+	if _, err := time.Parse(timestampLayout, good.At); err != nil {
 		t.Fatalf("noncanonical verification timestamp: %v", err)
 	}
 

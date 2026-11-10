@@ -71,7 +71,7 @@ func checkSnakeCaseResponse(t *testing.T, value any) {
 func turnOneDecode[T any](t *testing.T, data []byte) T {
 	t.Helper()
 	var value T
-	if err := json.Unmarshal(data, &value); err != nil {
+	if err := unmarshalCanonical(data, &value); err != nil {
 		t.Fatal(err)
 	}
 	return value
@@ -167,8 +167,8 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	verifyTurnOneCustomWorkflow(t, c, bot)
 	firstPath := "/boards/" + first.ID
 	raw, h = c.call("GET", firstPath, "", "", 200)
-	if createdAt := turnOneDecode[map[string]any](t, raw)["created_at"]; len(createdAt.(string)) != 27 {
-		t.Fatal("timestamp is not microsecond UTC")
+	if createdAt := turnOneDecode[map[string]any](t, raw)["created_at"]; len(createdAt.(string)) != 25 {
+		t.Fatal("timestamp does not use UTC whole seconds")
 	}
 	c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":"018E7F0A-BCDE-7ABC-8DEF-0123456789AB"}}`, "", 428)
 	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":"018E7F0A-BCDE-7ABC-8DEF-0123456789AB"}}`, h.Get("ETag"), 200)
@@ -233,14 +233,14 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	}
 	verifyPath := "/verifications/" + first.ID
 	raw, _ = c.call("GET", verifyPath, "", "", 200)
-	if !turnOneDecode[struct{ Valid bool }](t, raw).Valid {
+	if !turnOneDecode[verification](t, raw).Valid {
 		t.Fatal("valid durable snapshot failed verification")
 	}
 	if err := os.WriteFile(filepath.Join(root, "boards", first.ID+".json"), []byte("{"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ = c.call("GET", verifyPath, "", "", 200)
-	if turnOneDecode[struct{ Valid bool }](t, raw).Valid {
+	if turnOneDecode[verification](t, raw).Valid {
 		t.Fatal("damaged durable snapshot passed verification")
 	}
 	report, err := VerifyOffline(root, first.ID)

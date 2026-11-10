@@ -233,7 +233,7 @@ func (s *store) update(id, expected string, change func(*snapshot) error) (snaps
 		return snapshot{}, errInvalidSnapshot
 	}
 	next.Board.Revision++
-	next.Board.UpdatedAt = time.Now().UTC().Truncate(time.Microsecond)
+	next.Board.UpdatedAt = canonicalTime(time.Now())
 	if len(next.Activity) > len(current.Activity) {
 		next.Board.UpdatedAt = next.Activity[len(next.Activity)-1].At
 	}

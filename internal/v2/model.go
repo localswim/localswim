@@ -21,7 +21,10 @@ type entity struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func newEntity(id string, now time.Time) entity { return entity{id, etag(id, 1), now, now} }
+func newEntity(id string, now time.Time) entity {
+	now = canonicalTime(now)
+	return entity{id, etag(id, 1), now, now}
+}
 func newID() string {
 	var data [16]byte
 	rand.Read(data[:])
@@ -170,6 +173,7 @@ type snapshot struct {
 }
 
 func freshSnapshot(id, name string, wf workflow, actorID string, now time.Time) snapshot {
+	now = canonicalTime(now)
 	s := snapshot{Format: "localswim-snapshot", FormatVersion: 2,
 		Board: board{entity: newEntity(id, now), Name: name, PolicyID: wf.Policy.ID, Availability: "open", Revision: 1,
 			UserIDs: []string{}, LaneIDs: []string{}, PriorityIDs: []string{}},

@@ -1,4 +1,4 @@
-# Turn 1 browser API client
+# Browser API client
 
 `api.mjs` is a dependency-free ES module for the same-origin V2 API. The embedding
 page supplies a trusted `getCapability` callback for the current browser capability.
@@ -22,4 +22,20 @@ notice settings to change. An explicit `target_thread_id: null` clears the targe
 
 When `outcomeUnknown` is true, inspect authoritative state before another write.
 
-Run the focused checks with `node --test web/api.test.mjs`.
+## Card and live board reads
+
+Create a card with `createCard(card)` using the board's current
+`expected_board_etag` in the request body. On success, `etag` identifies the card
+and `boardEtag` identifies the updated board. Supply your own UUIDv4 `id` when
+you need focused readback after an uncertain response. Use `getCard(id)` for that
+readback or `listCards(boardId, { ticket })` to find an active card by its ticket.
+
+Use `getBoardIfChanged(boardId, etag)` with a board summary ETag. An unchanged
+board returns `{ data: null, etag }` and the caller can retain its existing data.
+
+`streamEvents({ boardId, watch, signal })` is an async iterable for the selected
+board and optional retained boards. Each connection uses the current browser
+capability. Breaking out of iteration releases the stream. An AbortSignal can
+also cancel a pending read. Call again to reconnect and receive current state.
+
+Run the focused checks with `npm --prefix web run check` and `npm --prefix web test`.

@@ -56,6 +56,7 @@ func serve(args []string, stdout, stderr io.Writer) (result error) {
 	defer listener.Close()
 	server := &http.Server{Handler: app.Handler(listener.Addr().(*net.TCPAddr)), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 30 * time.Second}
+	server.RegisterOnShutdown(app.BeginEventShutdown)
 	stop, release := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer release()
 	drained := make(chan error, 1)

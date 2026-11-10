@@ -1664,7 +1664,8 @@ paths:
       - 6
       - 12
       - 13
-      description: Triage score is ((priority rank + 1) * 100) - distinct unfinished downstream card count,
+      description: M02 supports board and ticket lookup with pagination. Later milestones add archive
+        operations, triage ordering, and content search. Triage score is ((priority rank + 1) * 100) - distinct unfinished downstream card count,
         before filtering or limits. Completed ends paths; archived unfinished cards participate. Lane
         ordering uses visible same-rank blockers and ticket-ordered cycles. SearchContent is explicit
         opt-in to search descriptions/comments; response field permissions are still enforced.
@@ -1748,7 +1749,7 @@ paths:
       - 9
       description: Validate references, permissions, expected_board_etag, and graph effects before allocating
         a ticket. Supplied UUID allows focused readback after a lost reply. A duplicate UUID returns 409
-        and never silently repeats creation.
+        and never silently repeats creation. Relationship seeds become available in M09.
       requestBody:
         required: true
         content:
@@ -1994,7 +1995,8 @@ paths:
       - 6
       - 12
       - 13
-      description: Triage score is ((priority rank + 1) * 100) - distinct unfinished downstream card count,
+      description: M02 supports board and ticket lookup with pagination. Later milestones add archive
+        operations, triage ordering, and content search. Triage score is ((priority rank + 1) * 100) - distinct unfinished downstream card count,
         before filtering or limits. Completed ends paths; archived unfinished cards participate. Lane
         ordering uses visible same-rank blockers and ticket-ordered cycles. SearchContent is explicit
         opt-in to search descriptions/comments; response field permissions are still enforced.
@@ -2267,7 +2269,8 @@ paths:
       - 8
       - 10
       - 24
-      description: If-Match checks the original card tag inside the same transaction as policy, parent,
+      description: The first live PATCH supports parent_id for M08. Other edit fields require their
+        listed milestones. If-Match checks the original card tag inside the same transaction as policy, parent,
         graph-floor, data, and audit checks. Unrelated card edits leave this tag valid. Description null
         clears to an empty string. Archived cards retain data and relations. A completed-lane move obeys
         policy and does not substitute for the Human approval action. Existing parent cycles and illegal
@@ -6319,11 +6322,10 @@ paths:
       - 17
     put:
       operationId: replacePolicy
-      summary: Replace resolved policy atomically
+      summary: Add lane grants to the resolved policy atomically
       tags:
       - Workflow
       parameters:
-      - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
       - $ref: '#/components/parameters/IfMatch'
       responses:
@@ -6391,11 +6393,11 @@ paths:
         capability: manage_permissions
       x-milestones:
       - 17
-      description: Validate all UUID references, historical compatibility, and x-workflow-validation
-        before publishing the replacement.
-        Additive updates are a read-modify-write of this complete representation. Expected board and policy
-        tags are checked together. The normalized PUT response omits ETag; GET the target afterward for
-        its new representation validator.
+      description: CLI-only policy maintenance. Read the complete representation, retain its default
+        priority, resource permissions, and existing lane grants, and submit additions to creation or
+        transition grants. Validate all UUID references, historical compatibility, and x-workflow-validation
+        before publishing the replacement. Expected board and policy tags are checked together.
+        The normalized PUT response omits ETag; GET the target afterward for its new representation validator.
       requestBody:
         required: true
         content:
@@ -6510,7 +6512,7 @@ paths:
         required: false
         schema:
           type: string
-          pattern: ^(?:[gG][eE][tT]|[hH][eE][aA][dD]|[pP][uU][tT])$
+          pattern: ^(?:[gG][eE][tT]|[hH][eE][aA][dD])$
           description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
       - name: Access-Control-Request-Headers
         in: header
@@ -6549,7 +6551,7 @@ paths:
             Access-Control-Allow-Methods:
               required: true
               schema:
-                const: GET, HEAD, PUT, OPTIONS
+                const: GET, HEAD, OPTIONS
             Access-Control-Allow-Headers:
               required: true
               schema:
@@ -6561,7 +6563,7 @@ paths:
             Allow:
               required: true
               schema:
-                const: GET, HEAD, PUT, OPTIONS
+                enum: ['GET, HEAD, OPTIONS', 'GET, HEAD, PUT, OPTIONS']
             Date:
               $ref: '#/components/headers/Date'
         '400':
@@ -6576,7 +6578,7 @@ paths:
         list. Unknown actual request headers may be ignored, but preflight never advertises unapproved
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
-        omit both.
+        omit both. Policy PUT is available to the CLI and receives 403 on browser preflight.
   /activities:
     get:
       operationId: listActivity
@@ -11442,8 +11444,9 @@ paths:
       - 31
       description: Use authenticated fetch streaming so Bearer remains a header. Bound per-subscriber
         latest state; reconnect returns current state, with no durable replay cursor. Every watched board
-        must be authorized. Last-Event-ID is ignored. Heartbeats perform no board reread. Disconnect and
-        shutdown release/join work.
+        must be authorized. Send GET without a body. Last-Event-ID is ignored. The board health flag
+        describes accepted in-memory state. Heartbeat comments do not reread it. Disconnect and shutdown
+        release the subscription.
     options:
       operationId: options_events
       summary: Validate same-origin preflight

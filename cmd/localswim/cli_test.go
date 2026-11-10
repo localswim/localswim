@@ -426,3 +426,153 @@ func TestCLIPinArgumentsFailBeforeExecution(t *testing.T) {
 		}
 	}
 }
+
+func TestCLICardCreateUsesBoardRevisionAndDoesNotReplay(t *testing.T) {
+	const boardID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	const cardID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+	const boardTag = `"board-revision-1"`
+	const prefix = "/api/2026-11-10"
+	for _, tc := range []struct {
+		name, revision, stderr string
+		status, requests, exit int
+	}{
+		{"created", "1", "", 201, 2, 0},
+		{"stale inspection", "2", "revision mismatch", 0, 1, 1},
+		{"stale mutation", "1", "HTTP 412", 412, 2, 1},
+		{"uncertain result", "1", "Mutation outcome unknown", 500, 2, 1},
+		{"invalid revision", "0", "--revision requires", 0, 0, 2},
+		{"empty explicit revision", "", "--revision requires", 0, 0, 2},
+		{"missing board tag", "1", "Mutation outcome unknown", 201, 2, 1},
+		{"duplicate board tags", "1", "Mutation outcome unknown", 201, 2, 1},
+		{"weak board tag", "1", "Mutation outcome unknown", 201, 2, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch requests.Add(1) {
+				case 1:
+					if r.Method != http.MethodGet || r.URL.Path != prefix+"/boards/"+boardID {
+						t.Error("expected the board preflight")
+					}
+					w.Header().Set("ETag", boardTag)
+					w.Write([]byte(`{"revision":1}`))
+				case 2:
+					var body map[string]string
+					if r.Method != http.MethodPost || r.URL.Path != prefix+"/cards" ||
+						r.Header.Get("If-Match") != "" || json.NewDecoder(r.Body).Decode(&body) != nil ||
+						body["expected_board_etag"] != boardTag || body["board_id"] != boardID ||
+						body["id"] != cardID || body["title"] != "Example" {
+						t.Error("invalid card creation request")
+					}
+					w.Header().Set("ETag", `"card-revision--1"`)
+					switch tc.name {
+					case "missing board tag":
+					case "duplicate board tags":
+						w.Header().Add("X-Board-ETag", boardTag)
+						w.Header().Add("X-Board-ETag", boardTag)
+					case "weak board tag":
+						w.Header().Set("X-Board-ETag", "W/"+boardTag)
+					default:
+						w.Header().Set("X-Board-ETag", boardTag)
+					}
+					w.WriteHeader(tc.status)
+					w.Write([]byte(`{"id":"` + cardID + `"}`))
+				default:
+					t.Error("CLI replayed the mutation")
+				}
+			}))
+			defer server.Close()
+			var stdout, stderr bytes.Buffer
+			env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
+			args := []string{"card", "create", "--revision", tc.revision, boardID}
+			body := strings.NewReader(`{"id":"` + cardID + `","title":"Example","lane_id":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}`)
+			exit := runCLIWithInput(args, body, &stdout, &stderr, func(key string) string { return env[key] })
+			if exit != tc.exit || int(requests.Load()) != tc.requests || !strings.Contains(stderr.String(), tc.stderr) {
+				t.Fatalf("exit %d, requests %d, stderr %q", exit, requests.Load(), stderr.String())
+			}
+			if tc.exit == 0 && !strings.Contains(stdout.String(), cardID) {
+				t.Fatal("created card missing from stdout")
+			}
+		})
+	}
+}
+
+func TestCLICardGetPaths(t *testing.T) {
+	const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	for _, tc := range []struct {
+		args []string
+		path string
+	}{
+		{[]string{"card", "get", id}, "/cards/" + id},
+		{[]string{"card", "get", id, "19"}, "/cards?archived=include&board_id=" + id + "&ticket=19"},
+	} {
+		command, err := parseCLI(tc.args)
+		if err != nil || command.resource != tc.path || command.method != http.MethodGet {
+			t.Fatalf("card get %v: %+v, %v", tc.args, command, err)
+		}
+	}
+}
+
+func TestCLIPolicyGrantPreservesOtherGrantsAndUsesBothValidators(t *testing.T) {
+	const boardID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	const policyID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+	const priorityID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+	const laneID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+	const userID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+	const secondLaneID = "ffffffff-ffff-4fff-8fff-ffffffffffff"
+	const boardTag = `"board-revision-1"`
+	const policyTag = `"policy-revision-1"`
+	const prefix = "/api/2026-11-10"
+	const oldGrant = `{"user_id":"` + userID + `","lane_id":"` + laneID + `"}`
+	const newGrant = `{"user_id":"` + userID + `","lane_id":"` + secondLaneID + `"}`
+	const resources = `[{"user_id":"` + userID + `","capabilities":["read"]}]`
+	const policy = `{"default_priority_id":"` + priorityID + `","create_grants":[` + oldGrant + `],"move_grants":[],"resource_grants":` + resources + `}`
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch requests.Add(1) {
+		case 1, 4:
+			if r.Method != http.MethodGet || r.URL.Path != prefix+"/boards/"+boardID {
+				t.Error("expected board inspection")
+			}
+			w.Header().Set("ETag", boardTag)
+			w.Write([]byte(`{"revision":1,"policy_id":"` + policyID + `"}`))
+		case 2, 5:
+			if r.Method != http.MethodGet || r.URL.Path != prefix+"/policies/"+policyID {
+				t.Error("expected policy read")
+			}
+			w.Header().Set("ETag", policyTag)
+			w.Write([]byte(policy))
+		case 3:
+			var body map[string]json.RawMessage
+			if r.Method != http.MethodPut || r.URL.Path != prefix+"/policies/"+policyID ||
+				r.Header.Get("If-Match") != policyTag || json.NewDecoder(r.Body).Decode(&body) != nil {
+				t.Error("expected revision-bound policy replacement")
+			}
+			if len(body) != 5 || string(body["board_etag"]) != `"\"board-revision-1\""` ||
+				string(body["default_priority_id"]) != `"`+priorityID+`"` ||
+				string(body["create_grants"]) != "["+oldGrant+","+newGrant+"]" ||
+				string(body["move_grants"]) != "[]" || string(body["resource_grants"]) != resources {
+				t.Error("policy replacement did not preserve the existing permissions")
+			}
+			w.Header().Set("X-Board-ETag", `"board-revision-2"`)
+			w.Write([]byte(`{"updated":true}`))
+		default:
+			t.Error("unexpected request")
+		}
+	}))
+	defer server.Close()
+	env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
+	getenv := func(key string) string { return env[key] }
+	var stdout, stderr bytes.Buffer
+	args := []string{"policy", "grant", "--revision", "1", boardID}
+	body := strings.NewReader(`{"create_grants":[` + newGrant + `]}`)
+	if exit := runCLIWithInput(args, body, &stdout, &stderr, getenv); exit != 0 || requests.Load() != 3 ||
+		stdout.String() != "{\"updated\":true}\n" || stderr.Len() != 0 {
+		t.Fatalf("policy grant exit %d, requests %d, stderr %q", exit, requests.Load(), stderr.String())
+	}
+	stdout.Reset()
+	if exit := runCLIWithInput([]string{"policy", "get", boardID}, strings.NewReader(""), &stdout, &stderr, getenv); exit != 0 ||
+		requests.Load() != 5 || stdout.String() != policy+"\n" || stderr.Len() != 0 {
+		t.Fatalf("policy get exit %d, requests %d, stderr %q", exit, requests.Load(), stderr.String())
+	}
+}

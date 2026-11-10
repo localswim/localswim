@@ -20,6 +20,7 @@ const humanID = "3109cf0e-805f-4af2-b180-6cfed1c50ca1"
 const botID = "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4"
 
 type Service struct {
+	events     *eventHub
 	store      *store
 	workspace  *workspaceStore
 	builds     *buildStatus
@@ -40,7 +41,10 @@ func Open(root, humanToken, botToken string) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{store: boards, workspace: newWorkspace(boards.root), builds: newBuildStatus(boards.root),
+	events := newEventHub()
+	workspace := newWorkspace(boards.root)
+	boards.events, workspace.events = events, events
+	return &Service{events: events, store: boards, workspace: workspace, builds: newBuildStatus(boards.root),
 		principals: principals, human: sha256.Sum256([]byte(humanToken)), bot: sha256.Sum256([]byte(botToken))}, nil
 }
 
@@ -52,7 +56,10 @@ func validToken(token string) bool {
 	return err == nil && len(decoded) >= 32 && base64.RawURLEncoding.EncodeToString(decoded) == token
 }
 
-func (s *Service) Close() error { return s.store.close() }
+func (s *Service) Close() error {
+	s.StopEvents()
+	return s.store.close()
+}
 
 type request struct {
 	w       http.ResponseWriter
@@ -210,6 +217,8 @@ func (x *request) fail(err error) {
 		x.problem(404, "not_found", "Resource unavailable at this address.", "", nil)
 	case errors.Is(err, errBoardExists), errors.Is(err, errIdentityConflict):
 		x.problem(409, "conflict", "The requested identity conflicts with existing state.", "", nil)
+	case errors.Is(err, errPolicyGrantConflict):
+		x.problem(409, "conflict", "The replacement must retain existing grants, resource permissions, and the default priority.", "", nil)
 	case errors.Is(err, errWriteUncertain):
 		x.problem(503, "outcome_unknown", "Inspect the saved state before attempting another write.", "unknown", nil)
 	case errors.Is(err, errWorkspaceUnavailable), errors.Is(err, errInvalidSnapshot):
@@ -237,7 +246,7 @@ type problemBody struct {
 func (x *request) problem(status int, code, detail, outcome string, issues []fieldIssue) {
 	if outcome == "" {
 		outcome = "not_applicable"
-		if x.r.Method == "POST" || x.r.Method == "PATCH" {
+		if x.r.Method == "POST" || x.r.Method == "PATCH" || x.r.Method == "PUT" {
 			outcome = "not_applied"
 		}
 	}

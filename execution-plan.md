@@ -174,3 +174,29 @@ Scope for each row comes from approved #0375 and #0376, the corresponding milest
 The browser and CLI authors remain Sol / Medium under their baseline names. Fresh client reviewers use Sol / High. The browser first-page API adapter and CLI passed Turn 1 review. Live browser bootstrap and CSP evidence await M04.
 
 The primary owns integration, Windows verification, demo coordination, publishing, and acceptance recording. Release finished authors before dispatching fresh reviewers. Keep the existing capacity, authorization, and independent review gates.
+
+## Rolling roster revision 5
+
+The next three planning waves are T03–T05, rebased to 1–3. Scope for every row comes from approved #0375, #0376, and #0377, the ticket’s milestone demo, and the API contract. Each listed prerequisite must be Completed before dispatch. Terry retains control of acceptance. This roster grants no future execution authority.
+
+| Wave | Baseline | Ticket | Planned author | Fresh reviewer | Prerequisites |
+| ---: | --- | --- | --- | --- | --- |
+| 1 | T03 | #0386 M03 | sol_medium_0386_author (gpt-6.1-sol / medium) | sol_high_0386_review (gpt-6.1-sol / high) | #0385 Terry acceptance pending |
+| 1 | T03 | #0388 M05 | sol_medium_0388_author (gpt-6.1-sol / medium) | sol_high_0388_review (gpt-6.1-sol / high) | #0385 Terry acceptance pending |
+| 1 | T03 | #0387 M04 | sol_high_0387_author (gpt-6.1-sol / high) | sol_high_0387_review (gpt-6.1-sol / high) | #0385 Terry acceptance pending |
+| 1 | T03 | #0401 M18 | sol_medium_0401_author (gpt-6.1-sol / medium) | sol_high_0401_review (gpt-6.1-sol / high) | #0400 Terry acceptance pending |
+| 1 | T03 | #0406 M23 | sol_high_0406_author (gpt-6.1-sol / high) | sol_high_0406_review (gpt-6.1-sol / high) | #0385 Terry acceptance pending |
+| 2 | T04 | #0389 M06 | sol_medium_0389_author (gpt-6.1-sol / medium) | sol_high_0389_review (gpt-6.1-sol / high) | #0388 Backlog |
+| 2 | T04 | #0397 M14 | sol_medium_0397_author (gpt-6.1-sol / medium) | sol_high_0397_review (gpt-6.1-sol / high) | #0386 Backlog, #0387 Backlog, #0388 Backlog |
+| 2 | T04 | #0392 M09 | sol_medium_0392_author (gpt-6.1-sol / medium) | sol_high_0392_review (gpt-6.1-sol / high) | #0388 Backlog |
+| 2 | T04 | #0407 M24 | sol_medium_0407_author (gpt-6.1-sol / medium) | sol_high_0407_review (gpt-6.1-sol / high) | #0406 Backlog |
+| 2 | T04 | #0416 M33 | sol_high_0416_author (gpt-6.1-sol / high) | sol_high_0416_review (gpt-6.1-sol / high) | #0388 Backlog, #0415 Completed |
+| 3 | T05 | #0390 M07 | sol_medium_0390_author (gpt-6.1-sol / medium) | sol_medium_0390_review (gpt-6.1-sol / medium) | #0386 Backlog, #0389 Backlog |
+| 3 | T05 | #0398 M15 | sol_high_0398_author (gpt-6.1-sol / high) | sol_high_0398_review (gpt-6.1-sol / high) | #0397 Backlog |
+| 3 | T05 | #0402 M19 | sol_medium_0402_author (gpt-6.1-sol / medium) | sol_high_0402_review (gpt-6.1-sol / high) | #0389 Backlog, #0401 Backlog |
+| 3 | T05 | #0393 M10 | sol_medium_0393_author (gpt-6.1-sol / medium) | sol_high_0393_review (gpt-6.1-sol / high) | #0389 Backlog, #0391 Terry acceptance pending, #0392 Backlog |
+| 3 | T05 | #0408 M25 | sol_medium_0408_author (gpt-6.1-sol / medium) | sol_high_0408_review (gpt-6.1-sol / high) | #0407 Backlog |
+
+The primary owns shared integration, Windows checks, demo coordination, and publication. Each wave plans `sol_medium_browser_author` and `sol_medium_cli_author` (gpt-6.1-sol / medium) for its client changes, followed by fresh `sol_high_browser_review` and `sol_high_cli_review` (gpt-6.1-sol / high). Release finished authors before dispatching reviewers and honor the active capacity authorized for each future wave.
+
+M17’s newly granted move demonstration awaits M03 (#0386). M26’s fuller archive and recency walkthrough awaits M06 (#0389). The browser application walkthrough still needs M04 (#0387).

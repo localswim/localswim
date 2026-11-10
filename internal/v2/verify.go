@@ -525,6 +525,7 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		{"board", b.ID, "notifications.target_thread_id"}: nil,
 	}
 	changed := make(map[snapshotAuditField]bool)
+	cardCreations := make(map[string]bool)
 	var previousRevision uint64
 	var previousActor string
 	for index, event := range value.Activity {
@@ -549,11 +550,29 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 			continue
 		}
 
+		if event.Operation == "create" && event.ResourceType == "card" {
+			item, found := refs.cards[event.ResourceID]
+			parentField := snapshotAuditField{"card", event.ResourceID, "parent_id"}
+			_, priorParentEdit := latest[parentField]
+			if !found || cardCreations[item.ID] || priorParentEdit || event.Revision == 1 ||
+				!refs.capabilities[event.ActorID]["create_card"] || !event.At.Equal(item.CreatedAt) ||
+				event.Field != nil || event.Before != nil || event.After != nil {
+				return invalidSnapshot("activity", "Card creation audit is invalid.")
+			}
+			cardCreations[item.ID] = true
+			latest[parentField] = nil
+			continue
+		}
 		field := snapshotAuditField{event.ResourceType, event.ResourceID, snapshotString(event.Field)}
+		valid := false
+		if event.ResourceType == "policy" {
+			valid = validPolicyAuditEvent(value, event)
+		} else {
+			valid = refs.validAuditField(b.ID, event.ActorID, field, event.Before) &&
+				refs.validAuditField(b.ID, event.ActorID, field, event.After)
+		}
 		if event.Operation != "patch" || event.Revision == 1 || changed[field] ||
-			!refs.validAuditField(b.ID, event.ActorID, field, event.Before) ||
-			!refs.validAuditField(b.ID, event.ActorID, field, event.After) ||
-			equalSnapshotStrings(event.Before, event.After) {
+			!valid || equalSnapshotStrings(event.Before, event.After) {
 			return invalidSnapshot("activity", "Audit patch actor, field, or values are invalid.")
 		}
 		if prior, seen := latest[field]; seen && !equalSnapshotStrings(prior, event.Before) {
@@ -566,7 +585,14 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		return invalidSnapshot("activity.revision", "Audit does not reach the board revision.")
 	}
 	for field, after := range latest {
-		if !equalSnapshotStrings(after, refs.currentAuditField(b, field)) {
+		var current *string
+		if field.resourceType == "policy" {
+			grants := policyAuditValue(value.Policy)
+			current = &grants
+		} else {
+			current = refs.currentAuditField(b, field)
+		}
+		if !equalSnapshotStrings(after, current) {
 			return invalidSnapshot("activity", "Audit patch history does not match current state.")
 		}
 	}

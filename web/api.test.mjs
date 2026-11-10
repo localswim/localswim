@@ -172,3 +172,175 @@ test("requires the documented write status and a canonical response ETag", async
     }
   }
 });
+
+test("creates and finds cards using the distinct board and card tags", async () => {
+  const card = "e30fa21d-76d7-4eba-b1a4-10962bb6a582";
+  const payload = {
+    id: card, board_id: BOARD, lane_id: BOARD, expected_board_etag: TAG, title: "  Exact title  ",
+  };
+  const boardEtag = '"updated_board_tag"';
+  const created = {
+    id: card, etag: TAG, created_at: "2026-11-10 18:00:00+00:00",
+    updated_at: "2026-11-10 18:00:00+00:00", board_id: BOARD, ticket: 1,
+    title: payload.title, description: "", lane_id: BOARD, owner_id: null,
+    priority_id: BOARD, parent_id: null, child_ids: [], archived: false,
+    cover_attachment_id: null, comment_count: 0, attachment_count: 0,
+    blocking_depth: 0, blocked_card_count: 0, triage_score: 100, completed_at: null,
+  };
+  const calls = [];
+  const api = client(async (url, options) => {
+    calls.push(url);
+    if (options.method === "POST") {
+      assert.equal(options.headers.has("If-Match"), false);
+      assert.deepEqual(JSON.parse(options.body), payload);
+      return Response.json(created, {
+        status: 201, headers: { ETag: TAG, "X-Board-ETag": boardEtag },
+      });
+    }
+    return Response.json(url.includes("?") ? { cards: [{ id: card }] } : { id: card });
+  });
+
+  assert.deepEqual(await api.createCard(payload), { data: created, etag: TAG, boardEtag });
+
+  for (const malformed of [
+    { ...created, id: BOARD }, { ...created, board_id: card }, { ...created, ticket: 0 },
+    { ...created, title: undefined }, { ...created, owner_id: undefined, extra: null },
+    { ...created, etag: boardEtag },
+  ]) {
+    let calls = 0;
+    const invalid = client(async () => {
+      calls++;
+      return Response.json(malformed, { status: 201, headers: { ETag: TAG, "X-Board-ETag": boardEtag } });
+    });
+    await assert.rejects(invalid.createCard(payload), {
+      name: "ApiError", code: "invalid_response", status: 201, outcomeUnknown: true,
+    });
+    assert.equal(calls, 1);
+  }
+  assert.equal((await api.getCard(card)).data.id, card);
+  assert.equal((await api.listCards(BOARD, { ticket: 1, cursor: "opaque&cursor" })).data.cards[0].id, card);
+  assert.throws(() => api.listCards(BOARD, { ticket: -1 }), TypeError);
+  assert.deepEqual(calls, [
+    "/cards", "/cards/" + card, "/cards?board_id=" + BOARD + "&ticket=1&cursor=opaque%26cursor",
+  ].map((path) => "/api/2026-11-10" + path));
+});
+
+test("does not repeat a stale card creation or a reply missing the board tag", async () => {
+  for (const [response, code, status, outcomeUnknown] of [
+    [new Response(null, { status: 412 }), "http_error", 412, false],
+    [Response.json({}, { status: 201, headers: { ETag: TAG } }), "invalid_response", 201, true],
+  ]) {
+    let calls = 0;
+    const api = client(async () => { calls++; return response; });
+    await assert.rejects(api.createCard({
+      board_id: BOARD, lane_id: BOARD, expected_board_etag: TAG, title: "Fixture",
+    }), { name: "ApiError", code, status, outcomeUnknown });
+    assert.equal(calls, 1);
+  }
+});
+
+test("handles an unchanged board without parsing a body", async () => {
+  const api = client(async (url, options) => {
+    assert.equal(url, "/api/2026-11-10/boards/" + BOARD);
+    assert.equal(options.headers.get("If-None-Match"), TAG);
+    return new Response(null, { status: 304, headers: { ETag: TAG } });
+  });
+  assert.deepEqual(await api.getBoardIfChanged(BOARD, TAG), { data: null, etag: TAG });
+  await assert.rejects(api.getBoardIfChanged(BOARD, "W/" + TAG), TypeError);
+});
+
+test("reads authenticated event frames and cancels the stream when iteration stops", async () => {
+  const signal = new AbortController().signal;
+  const event = {
+    type: "snapshot", board_id: BOARD, board_etag: TAG,
+    workspace_etag: TAG, catalog_etag: null, healthy: true,
+  };
+  const other = "e30fa21d-76d7-4eba-b1a4-10962bb6a582";
+  let canceled = false;
+  const api = client(async (url, options) => {
+    assert.equal(url, "/api/2026-11-10/events?board_id=" + BOARD + "&watch=" + other + "&watch=" + BOARD);
+    assert.equal(options.headers.get("Accept"), "text/event-stream");
+    assert.equal(options.headers.get("Authorization"), "Bearer fixture-capability");
+    assert.equal(options.signal, signal);
+    assert.equal(options.mode, "same-origin");
+    assert.equal(options.credentials, "omit");
+    assert.equal(options.headers.has("Last-Event-ID"), false);
+    const encoder = new TextEncoder();
+    return new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(": heartbeat\r\n\r\nevent: snapshot\r\nda"));
+        controller.enqueue(encoder.encode("ta: " + JSON.stringify(event) + "\r\n\r\n"));
+      },
+      cancel() { canceled = true; },
+    }), { headers: { "Content-Type": "text/event-stream; charset=utf-8" } });
+  });
+
+  for await (const snapshot of api.streamEvents({ boardId: BOARD, watch: [other, BOARD], signal })) {
+    assert.deepEqual(snapshot, event);
+    break;
+  }
+  assert.equal(canceled, true);
+});
+
+test("fails once on malformed event payloads without exposing their data", async () => {
+  let calls = 0;
+  const api = client(async () => {
+    calls++;
+    return new Response('data: {"private_fixture":"detail"}\n\n', {
+      headers: { "Content-Type": "text/event-stream" },
+    });
+  });
+  await assert.rejects(api.streamEvents().next(), {
+    name: "ApiError", message: "invalid_response", status: 200, outcomeUnknown: false,
+  });
+  assert.equal(calls, 1);
+});
+
+test("cancels unread bodies on refusals or invalid response metadata", async () => {
+  for (const [status, headers, code] of [
+    [412, {}, "http_error"],
+    [201, { ETag: TAG }, "invalid_response"],
+  ]) {
+    let canceled = false;
+    const api = client(() => new Response(new ReadableStream({
+      cancel() { canceled = true; },
+    }), { status, headers }));
+    await assert.rejects(api.createCard({
+      board_id: BOARD, lane_id: BOARD, expected_board_etag: TAG, title: "Fixture",
+    }), { name: "ApiError", code, status });
+    assert.equal(canceled, true);
+  }
+});
+
+test("validates changed and unchanged board tags", async () => {
+  const nextTag = '"updated_board_tag"';
+  const changed = client(() => Response.json({}, { headers: { ETag: nextTag } }));
+  assert.deepEqual(await changed.getBoardIfChanged(BOARD, TAG), { data: {}, etag: nextTag });
+  for (const [status, etag] of [[304, nextTag], [304, null], [200, TAG], [200, "W/" + TAG]]) {
+    const api = client(() => new Response(null, { status, headers: etag === null ? {} : { ETag: etag } }));
+    await assert.rejects(api.getBoardIfChanged(BOARD, TAG), {
+      name: "ApiError", code: "invalid_response", status, outcomeUnknown: false,
+    });
+  }
+});
+
+test("rejects incomplete event frames and handles the exact bound across chunks", async () => {
+  const encoder = new TextEncoder();
+  function stream(chunks) {
+    return client(() => new Response(new ReadableStream({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(typeof chunk === "string" ? encoder.encode(chunk) : chunk);
+        }
+        controller.close();
+      },
+    }), { headers: { "Content-Type": "text/event-stream" } })).streamEvents();
+  }
+  const frame = ":" + "x".repeat(65535);
+  assert.equal((await stream([frame, "\r", "\n\r", "\n"]).next()).done, true);
+  for (const chunks of [[frame + "x", "\n\n"], ["data: {}"], [new Uint8Array([0xc3])]]) {
+    await assert.rejects(stream(chunks).next(), {
+      name: "ApiError", code: "invalid_response", status: 200,
+    });
+  }
+});

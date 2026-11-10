@@ -275,21 +275,28 @@ func customWorkflow(raw json.RawMessage, boardID string, now time.Time) (workflo
 }
 
 func readInitialPolicy(raw json.RawMessage, boardID string, now time.Time, users, lanes map[string]string, priorities map[string]bool) (policy, error) {
-	const path = "workflow.policy"
-	root := readWorkflowFields(raw, path, true, "default_priority_id", "create_grants", "move_grants", "resource_grants")
+	root := readWorkflowFields(raw, "workflow.policy", true, policyGrantKeys...)
+	result, err := readPolicyFields(root, users, lanes, priorities, "an initial ")
+	if err != nil {
+		return policy{}, err
+	}
+	result.entity, result.BoardID = newEntity(newID(), now), boardID
+	return result, nil
+}
+
+func readPolicyFields(root *workflowFields, users, lanes map[string]string, priorities map[string]bool, reference string) (policy, error) {
+	path := root.path
 	defaultPriority := root.id("default_priority_id")
 	createInputs := root.array("create_grants", 1000, true)
 	moveInputs := root.array("move_grants", 1000, true)
 	resourceInputs := root.array("resource_grants", 1000, true)
 	if !priorities[defaultPriority] {
-		root.fail("default_priority_id", "must refer to an initial priority")
+		root.fail("default_priority_id", "must refer to "+reference+"priority")
 	}
 	if root.err != nil {
 		return policy{}, root.err
 	}
 	result := policy{
-		entity:            newEntity(newID(), now),
-		BoardID:           boardID,
 		DefaultPriorityID: defaultPriority,
 		CreateGrants:      make([]createGrant, 0, len(createInputs)),
 		MoveGrants:        make([]moveGrant, 0, len(moveInputs)),
@@ -300,10 +307,10 @@ func readInitialPolicy(raw json.RawMessage, boardID string, now time.Time, users
 		input := readWorkflowFields(raw, workflowItem(path+".create_grants", index), true, "user_id", "lane_id")
 		grant := createGrant{UserID: input.id("user_id"), LaneID: input.id("lane_id")}
 		if users[grant.UserID] == "" {
-			input.fail("user_id", "must refer to an initial user")
+			input.fail("user_id", "must refer to "+reference+"user")
 		}
 		if lanes[grant.LaneID] == "" {
-			input.fail("lane_id", "must refer to an initial lane")
+			input.fail("lane_id", "must refer to "+reference+"lane")
 		}
 		if createSeen[grant] {
 			input.fail("lane_id", "repeats a creation grant")
@@ -319,13 +326,13 @@ func readInitialPolicy(raw json.RawMessage, boardID string, now time.Time, users
 		input := readWorkflowFields(raw, workflowItem(path+".move_grants", index), true, "user_id", "from_lane_id", "to_lane_id")
 		grant := moveGrant{UserID: input.id("user_id"), FromLaneID: input.id("from_lane_id"), ToLaneID: input.id("to_lane_id")}
 		if users[grant.UserID] == "" {
-			input.fail("user_id", "must refer to an initial user")
+			input.fail("user_id", "must refer to "+reference+"user")
 		}
 		if lanes[grant.FromLaneID] == "" {
-			input.fail("from_lane_id", "must refer to an initial lane")
+			input.fail("from_lane_id", "must refer to "+reference+"lane")
 		}
 		if lanes[grant.ToLaneID] == "" {
-			input.fail("to_lane_id", "must refer to an initial lane")
+			input.fail("to_lane_id", "must refer to "+reference+"lane")
 		}
 		if grant.FromLaneID == grant.ToLaneID {
 			input.fail("to_lane_id", "must differ from from_lane_id")
@@ -344,7 +351,7 @@ func readInitialPolicy(raw json.RawMessage, boardID string, now time.Time, users
 		input := readWorkflowFields(raw, workflowItem(path+".resource_grants", index), true, "user_id", "capabilities")
 		id := input.id("user_id")
 		if users[id] == "" {
-			input.fail("user_id", "must refer to an initial user")
+			input.fail("user_id", "must refer to "+reference+"user")
 		}
 		if resourceSeen[id] {
 			input.fail("user_id", "repeats a resource grant")

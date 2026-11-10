@@ -31,6 +31,7 @@ type workspacePreferences struct {
 }
 
 type workspaceStore struct {
+	events   *eventHub
 	mu       sync.Mutex
 	path     string
 	identity string
@@ -157,6 +158,9 @@ func (s *workspaceStore) patch(expected string, fields map[string]json.RawMessag
 			return workspace{}, err
 		}
 		return workspace{}, errWorkspaceUnavailable
+	}
+	if s.events != nil {
+		s.events.changed()
 	}
 	return s.view(p), nil
 }

@@ -32,6 +32,11 @@ const cliHelp = `Usage:
   localswim board patch [--revision N] BOARD_ID < patch.json
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] BOARD_ID
+  localswim card create [--revision N] BOARD_ID < definition.json
+  localswim card get CARD_ID
+  localswim card get BOARD_ID TICKET
+  localswim policy get BOARD_ID
+  localswim policy grant [--revision N] BOARD_ID < grants.json
   localswim service status
   localswim service builds [--limit N] [--cursor CURSOR]
 
@@ -46,6 +51,10 @@ Pin remove skips failed targets with WARNING messages and preserves the remainin
 Pin set validates the entire list and reports ERROR if any target fails.
 Omit --revision to read the current revision once before updating.
 Supply --revision to require the version you previously inspected.
+For card create and policy grant, --revision refers to the board revision.
+Card create reads the card fields. The CLI supplies the board ID and its validator.
+Include an explicit card ID to allow focused readback after a lost create reply.
+Policy grant reads create_grants and/or move_grants and preserves existing permissions.
 `
 
 type exportFormat string
@@ -72,6 +81,7 @@ type cliCommand struct {
 	revision                           *uint64
 	body                               json.RawMessage
 	pinAction                          string
+	boardAction                        string
 	pinIDs                             []string
 	warnings                           []string
 }
@@ -163,6 +173,17 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "board export":
 		command.method, command.resource, needBoardID = http.MethodGet, "/snapshots", true
 		flags.Var(&format, "type", "export type (allowed value: json)")
+	case "card create":
+		command.method, command.resource, needBoardID = http.MethodPost, "/cards", true
+		command.boardAction = name
+	case "card get":
+		command.method, command.resource = http.MethodGet, "/cards"
+	case "policy get", "policy grant":
+		command.method, command.resource, needBoardID = http.MethodGet, "/policies", true
+		command.boardAction = name
+		if name == "policy grant" {
+			command.method = http.MethodPut
+		}
 	case "service status":
 		command.method, command.resource = http.MethodGet, "/service"
 	case "service builds":
@@ -173,7 +194,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	}
 
 	var revisionValue string
-	if command.method == http.MethodPatch {
+	if command.method == http.MethodPatch || command.method == http.MethodPut || name == "card create" {
 		flags.StringVar(&revisionValue, "revision", "", "expected resource revision")
 	}
 	var limit int
@@ -196,11 +217,12 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.resource += "?" + query.Encode()
 	}
 	var optionErr error
-	var hasName, hasJSON bool
+	var hasName, hasJSON, hasRevision bool
 	flags.Visit(func(f *flag.Flag) {
 		hasName = hasName || f.Name == "name"
 		hasJSON = hasJSON || f.Name == "json"
-		if f.Value.String() == "" {
+		hasRevision = hasRevision || f.Name == "revision"
+		if f.Name != "revision" && f.Value.String() == "" {
 			optionErr = errors.New("command options require nonempty values")
 		}
 	})
@@ -245,6 +267,20 @@ func parseCLI(args []string) (cliCommand, error) {
 			}
 			command.pinIDs = append(command.pinIDs, id)
 		}
+	} else if name == "card get" {
+		switch {
+		case flags.NArg() == 1 && boardIDPattern.MatchString(flags.Arg(0)):
+			command.resource += "/" + flags.Arg(0)
+		case flags.NArg() == 2 && boardIDPattern.MatchString(flags.Arg(0)):
+			ticket, err := strconv.ParseUint(flags.Arg(1), 10, 53)
+			if err != nil || ticket == 0 {
+				return command, errors.New("ticket requires an integer from 1 to 9007199254740991")
+			}
+			query := url.Values{"board_id": {flags.Arg(0)}, "ticket": {strconv.FormatUint(ticket, 10)}, "archived": {"include"}}
+			command.resource += "?" + query.Encode()
+		default:
+			return command, errors.New("expected a UUIDv4 card ID or a UUIDv4 board ID followed by a ticket")
+		}
 	} else if needBoardID {
 		count, expected := 1, "expected one UUIDv4 board ID"
 		if rename {
@@ -254,7 +290,9 @@ func parseCLI(args []string) (cliCommand, error) {
 			return command, errors.New(expected)
 		}
 		command.boardID = flags.Arg(0)
-		command.resource += "/" + command.boardID
+		if command.boardAction == "" {
+			command.resource += "/" + command.boardID
+		}
 		if rename {
 			var err error
 			command.body, err = boardNameBody(flags.Arg(1))
@@ -265,7 +303,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	} else if flags.NArg() != 0 {
 		return command, errors.New("unexpected command arguments")
 	}
-	if revisionValue != "" {
+	if hasRevision {
 		revision, err := strconv.ParseUint(revisionValue, 10, 64)
 		if err != nil || revision == 0 || revision > maxCLIRevision {
 			return command, errors.New("--revision requires an integer from 1 to 9007199254740991")
@@ -302,13 +340,19 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		return err
 	}
 	body := command.body
-	if body == nil && command.pinAction == "" && (command.method == http.MethodPost || command.method == http.MethodPatch) {
+	if body == nil && command.pinAction == "" && (command.method == http.MethodPost || command.method == http.MethodPatch || command.method == http.MethodPut) {
 		body, err = io.ReadAll(io.LimitReader(stdin, maxCLIInput+1))
 		if err != nil || len(body) > maxCLIInput || !client.IsJSONObject(body) {
 			return errors.New("standard input must contain one valid JSON object within 96 MiB")
 		}
 	}
 	var ifMatch string
+	if command.boardAction != "" {
+		command.resource, body, ifMatch, err = prepareBoardAction(api, command, body)
+		if err != nil {
+			return err
+		}
+	}
 	if command.method == http.MethodPatch {
 		current, err := api.Do(http.MethodGet, command.resource, nil, "")
 		if err != nil {
@@ -317,16 +361,8 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		if current.ETag == "" {
 			return errors.New("service did not return a strong resource ETag")
 		}
-		if command.revision != nil {
-			var value struct {
-				Revision *uint64 `json:"revision"`
-			}
-			if json.Unmarshal(current.JSON, &value) != nil || value.Revision == nil || *value.Revision == 0 || *value.Revision > maxCLIRevision {
-				return errors.New("service did not return a valid resource revision")
-			}
-			if *value.Revision != *command.revision {
-				return fmt.Errorf("revision mismatch (expected %d, current %d)", *command.revision, *value.Revision)
-			}
+		if err := checkCLIRevision(command.revision, current.JSON); err != nil {
+			return err
 		}
 		if command.pinAction != "" {
 			var warnings []string
@@ -384,4 +420,130 @@ func pinRequestBody(action string, requested []string, current json.RawMessage) 
 	}
 	body, err := json.Marshal(map[string][]string{"pinned_board_ids": pins})
 	return body, warnings, err
+}
+
+func checkCLIRevision(expected *uint64, document json.RawMessage) error {
+	if expected == nil {
+		return nil
+	}
+	var value struct {
+		Revision *uint64 `json:"revision"`
+	}
+	if json.Unmarshal(document, &value) != nil || value.Revision == nil || *value.Revision == 0 || *value.Revision > maxCLIRevision {
+		return errors.New("service did not return a valid resource revision")
+	}
+	if *value.Revision != *expected {
+		return fmt.Errorf("revision mismatch (expected %d, current %d)", *expected, *value.Revision)
+	}
+	return nil
+}
+
+func prepareBoardAction(api *client.Client, command cliCommand, input json.RawMessage) (string, json.RawMessage, string, error) {
+	var fields map[string]json.RawMessage
+	if input != nil {
+		var err error
+		fields, err = cliInputFields(input)
+		if err != nil {
+			return "", nil, "", err
+		}
+	}
+	board, err := api.Do(http.MethodGet, "/boards/"+command.boardID, nil, "")
+	if err != nil {
+		return "", nil, "", err
+	}
+	if command.method != http.MethodGet && board.ETag == "" {
+		return "", nil, "", errors.New("service did not return a strong board ETag")
+	}
+	if err := checkCLIRevision(command.revision, board.JSON); err != nil {
+		return "", nil, "", err
+	}
+	if command.boardAction == "card create" {
+		if fields["board_id"] != nil || fields["expected_board_etag"] != nil {
+			return "", nil, "", errors.New("card create supplies board_id and expected_board_etag")
+		}
+		fields["board_id"], _ = json.Marshal(command.boardID)
+		fields["expected_board_etag"], _ = json.Marshal(board.ETag)
+		body, err := json.Marshal(fields)
+		return command.resource, body, "", err
+	}
+
+	var target struct {
+		PolicyID string `json:"policy_id"`
+	}
+	if json.Unmarshal(board.JSON, &target) != nil || !boardIDPattern.MatchString(target.PolicyID) {
+		return "", nil, "", errors.New("service did not return a valid policy ID")
+	}
+	resource := command.resource + "/" + target.PolicyID
+	if command.method == http.MethodGet {
+		return resource, nil, "", nil
+	}
+	policy, err := api.Do(http.MethodGet, resource, nil, "")
+	if err != nil {
+		return "", nil, "", err
+	}
+	if policy.ETag == "" {
+		return "", nil, "", errors.New("service did not return a strong policy ETag")
+	}
+	body, err := policyGrantBody(fields, policy.JSON, board.ETag)
+	return resource, body, policy.ETag, err
+}
+
+// Retain nested grant objects for the server's strict schema checks.
+func cliInputFields(input json.RawMessage) (map[string]json.RawMessage, error) {
+	decoder := json.NewDecoder(strings.NewReader(string(input)))
+	if _, err := decoder.Token(); err != nil {
+		return nil, errors.New("invalid JSON object")
+	}
+	fields := make(map[string]json.RawMessage)
+	for decoder.More() {
+		key, err := decoder.Token()
+		if err != nil {
+			return nil, errors.New("invalid JSON object")
+		}
+		name, ok := key.(string)
+		if !ok || fields[name] != nil {
+			return nil, errors.New("standard input must not contain repeated fields")
+		}
+		var value json.RawMessage
+		if err := decoder.Decode(&value); err != nil {
+			return nil, errors.New("invalid JSON field")
+		}
+		fields[name] = value
+	}
+	return fields, nil
+}
+
+func policyGrantBody(delta map[string]json.RawMessage, current json.RawMessage, boardTag string) (json.RawMessage, error) {
+	var policy struct {
+		BoardETag       string            `json:"board_etag"`
+		DefaultPriority string            `json:"default_priority_id"`
+		CreateGrants    []json.RawMessage `json:"create_grants"`
+		MoveGrants      []json.RawMessage `json:"move_grants"`
+		ResourceGrants  []json.RawMessage `json:"resource_grants"`
+	}
+	if json.Unmarshal(current, &policy) != nil || !boardIDPattern.MatchString(policy.DefaultPriority) ||
+		policy.CreateGrants == nil || policy.MoveGrants == nil || policy.ResourceGrants == nil {
+		return nil, errors.New("service did not return a complete policy")
+	}
+	policy.BoardETag = boardTag
+	added := 0
+	for name, raw := range delta {
+		var grants []json.RawMessage
+		if json.Unmarshal(raw, &grants) != nil || grants == nil {
+			return nil, errors.New("policy grant requires arrays of creation or movement grants")
+		}
+		switch name {
+		case "create_grants":
+			policy.CreateGrants = append(policy.CreateGrants, grants...)
+		case "move_grants":
+			policy.MoveGrants = append(policy.MoveGrants, grants...)
+		default:
+			return nil, errors.New("policy grant accepts only create_grants and move_grants")
+		}
+		added += len(grants)
+	}
+	if added == 0 {
+		return nil, errors.New("policy grant requires at least one grant")
+	}
+	return json.Marshal(policy)
 }

@@ -29,6 +29,7 @@ type store struct {
 	boards         map[string]snapshot
 	principals     []user
 	writeUncertain bool
+	events         *eventHub
 }
 
 func openStore(root string, principals ...user) (*store, error) {
@@ -199,6 +200,12 @@ func (s *store) create(value snapshot) error {
 }
 
 func (s *store) update(id, expected string, change func(*snapshot) error) (snapshot, error) {
+	return s.updateChecked(id, func(current snapshot) bool {
+		return matchesStrongTag(expected, current.Board.ETag)
+	}, change)
+}
+
+func (s *store) updateChecked(id string, matches func(snapshot) bool, change func(*snapshot) error) (snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.writable(); err != nil {
@@ -208,7 +215,7 @@ func (s *store) update(id, expected string, change func(*snapshot) error) (snaps
 	if !ok {
 		return snapshot{}, errBoardNotFound
 	}
-	if !matchesStrongTag(expected, current.Board.ETag) {
+	if matches != nil && !matches(current) {
 		return snapshot{}, errStale
 	}
 	next := cloneSnapshot(current)
@@ -286,10 +293,27 @@ func (s *store) commit(value snapshot, reuseUsers bool) error {
 		return err
 	}
 	s.boards[id] = value
+	if s.events != nil {
+		s.events.changed()
+	}
 	return nil
 }
 
 func (s *store) checkIdentities(value snapshot, reuseUsers bool) error {
+	cardIDs := make(map[string]bool, len(value.Cards))
+	for _, item := range value.Cards {
+		cardIDs[item.ID] = true
+	}
+	for id, other := range s.boards {
+		if id == value.Board.ID {
+			continue
+		}
+		for _, item := range other.Cards {
+			if cardIDs[item.ID] {
+				return errIdentityConflict
+			}
+		}
+	}
 	known := make(map[string]user)
 	for _, principal := range s.principals {
 		known[principal.ID] = principal

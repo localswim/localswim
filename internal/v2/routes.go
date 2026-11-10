@@ -44,12 +44,30 @@ func (x *request) dispatch() {
 			return
 		}
 		methods = append(methods, "PATCH")
+	case "cards":
+		if hasID {
+			methods = append(methods, "PATCH")
+		} else {
+			methods = append(methods, "POST")
+		}
+	case "events":
+		if hasID {
+			x.fail(errMissing)
+			return
+		}
+		methods = []string{"GET"}
 	case "service", "users", "lanes", "priorities":
 		if hasID {
 			x.fail(errMissing)
 			return
 		}
-	case "verifications", "snapshots", "policies":
+	case "policies":
+		if !hasID {
+			x.fail(errMissing)
+			return
+		}
+		methods = append(methods, "PUT")
+	case "verifications", "snapshots":
 		if !hasID {
 			x.fail(errMissing)
 			return
@@ -61,6 +79,14 @@ func (x *request) dispatch() {
 	}
 	methods = append(methods, "OPTIONS")
 	if x.r.Method == "OPTIONS" {
+		if resource == "policies" && x.r.Header.Get("Access-Control-Request-Method") != "" {
+			if strings.EqualFold(x.r.Header.Get("Access-Control-Request-Method"), "PUT") {
+				x.fail(errForbidden)
+				return
+			}
+			x.options([]string{"GET", "HEAD", "OPTIONS"})
+			return
+		}
 		x.options(methods)
 		return
 	}
@@ -70,6 +96,14 @@ func (x *request) dispatch() {
 	if !slices.Contains(methods, x.r.Method) {
 		x.w.Header().Set("Allow", strings.Join(methods, ", "))
 		x.problem(405, "method_not_allowed", "This method is not available for the resource.", "", nil)
+		return
+	}
+	if resource == "events" {
+		if !acceptsMedia(x.r.Header.Values("Accept"), "text", "event-stream") {
+			x.problem(406, "not_acceptable", "This resource returns an event stream.", "", nil)
+			return
+		}
+		x.eventsResource()
 		return
 	}
 	if !acceptsJSON(x.r.Header.Values("Accept")) {
@@ -90,8 +124,21 @@ func (x *request) dispatch() {
 		x.workspaceResource()
 	case "users", "lanes", "priorities":
 		x.workflowCollection(resource)
+	case "cards":
+		switch {
+		case !hasID:
+			x.cardsCollection()
+		case x.r.Method == "PATCH":
+			x.patchCardParent(id)
+		default:
+			x.cardResource(id)
+		}
 	case "policies":
-		x.policyResource(id)
+		if x.r.Method == "PUT" {
+			x.policyGrants(id)
+		} else {
+			x.policyResource(id)
+		}
 	case "verifications", "snapshots":
 		x.recoveryResource(resource, id)
 	case "service":
@@ -102,6 +149,10 @@ func (x *request) dispatch() {
 }
 
 func acceptsJSON(values []string) bool {
+	return acceptsMedia(values, "application", "json")
+}
+
+func acceptsMedia(values []string, major, subtype string) bool {
 	if len(values) == 0 {
 		return true
 	}
@@ -110,7 +161,7 @@ func acceptsJSON(values []string) bool {
 	for _, line := range values {
 		for token := range strings.SplitSeq(line, ",") {
 			media, params, _ := strings.Cut(token, ";")
-			rank := slices.Index([]string{"*/*", "application/*", "application/json"}, strings.ToLower(strings.TrimSpace(media)))
+			rank := slices.Index([]string{"*/*", major + "/*", major + "/" + subtype}, strings.ToLower(strings.TrimSpace(media)))
 			if rank < 0 || rank < specificity {
 				continue
 			}

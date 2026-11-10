@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 )
@@ -104,8 +105,17 @@ func (c *Client) Do(method, resource string, body json.RawMessage, ifMatch strin
 		if reply.StatusCode != expected {
 			return Response{}, responseError(fmt.Sprintf("service returned unexpected HTTP %d", reply.StatusCode), true)
 		}
-		if etag == "" {
+		boardTags := reply.Header.Values("X-Board-ETag")
+		validBoardTag := len(boardTags) == 1 && IsEntityTag(boardTags[0])
+		if method == http.MethodPut && strings.HasPrefix(path.Path, "/policies/") {
+			if len(tags) != 0 || !validBoardTag {
+				return Response{}, responseError("service did not return the expected policy replacement validators", true)
+			}
+		} else if etag == "" {
 			return Response{}, responseError("service did not return one canonical strong ETag", true)
+		}
+		if method == http.MethodPost && path.Path == "/cards" && !validBoardTag {
+			return Response{}, responseError("service did not return one canonical strong X-Board-ETag", true)
 		}
 	}
 	data, err := io.ReadAll(io.LimitReader(reply.Body, maxResponseBytes+1))

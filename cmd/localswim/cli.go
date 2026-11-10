@@ -18,7 +18,7 @@ import (
 )
 
 const cliHelp = `Usage:
-  localswim workspace get
+  localswim workspace info
   localswim workspace pins [--revision N] < pins.json
   localswim board list [--limit N] [--cursor CURSOR]
   localswim board create < board.json
@@ -102,7 +102,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	paginated := false
 	format := exportJSON
 	switch args[0] + " " + args[1] {
-	case "workspace get":
+	case "workspace info":
 		command.method, command.resource = http.MethodGet, "/workspace"
 	case "workspace pins":
 		command.method, command.resource = http.MethodPatch, "/workspace"

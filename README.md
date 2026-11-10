@@ -57,6 +57,7 @@ environment. Keep these values out of arguments, Git, and shared logs.
 ```powershell
 '{"name":"Local demo"}' | .\localswim.exe board create
 .\localswim.exe board list
+.\localswim.exe workspace info
 ```
 
 Rename a board with `localswim board rename [--revision N] BOARD_ID "New name"`.

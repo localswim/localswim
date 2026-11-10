@@ -202,5 +202,5 @@ func page[T any](x *request, resource string, items []T) {
 		next := base64.RawURLEncoding.EncodeToString([]byte(scope + ":" + strconv.Itoa(end)))
 		nextCursor = &next
 	}
-	x.respond(200, map[string]any{resource: items[start:end], "nextCursor": nextCursor}, "")
+	x.respond(200, map[string]any{resource: items[start:end], "next_cursor": nextCursor}, "")
 }

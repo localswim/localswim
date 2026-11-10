@@ -10,7 +10,9 @@ info:
     case-insensitive enums, and retains user text exactly. Ambiguous JSON, protected attribution, invalid
     types, and unauthorized operations are refused. Collection responses use their plural resource name
     for the array, including activities for either activity view and boards for workspace summaries.
-    Empty collections return an empty array. The nextCursor field retains its pagination meaning.
+    Empty collections return an empty array. The next_cursor field retains its pagination meaning.
+    JSON member names, path parameter identifiers, and query parameter names use snake_case.
+    Standard HTTP header names retain their standard spelling. Values retain their defined spelling.
 servers:
 - url: /api/2026-11-10
   description: Same origin as the local UI. The service binds only to 127.0.0.1 at its configured port.
@@ -558,7 +560,7 @@ paths:
           $ref: '#/components/responses/NotAcceptable'
       x-authorization:
         scope: workspace
-        workspaceAdmin: true
+        workspace_admin: true
       x-milestones:
       - 27
       - 36
@@ -920,7 +922,7 @@ paths:
           $ref: '#/components/responses/NotAcceptable'
       x-authorization:
         scope: workspace
-        workspaceAdmin: true
+        workspace_admin: true
       x-milestones:
       - 1
       - 16
@@ -1125,9 +1127,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /boards/{boardId}:
+  /boards/{board_id}:
     parameters:
-    - name: boardId
+    - name: board_id
       in: path
       required: true
       schema:
@@ -1317,7 +1319,7 @@ paths:
       description: Closing a board drains admitted work and flushes its publisher without closing other
         boards. Failed flush preserves availability for inspection. Notification settings default off;
         target changes preserve enabled state. Settings writes require management authority in addition
-        to ordinary board access. Replacing userIds requires workspaceAdmin and manage_permissions, validates
+        to ordinary board access. Replacing user_ids requires workspace_admin and manage_permissions, validates
         all references, and refuses removing members needed by retained state/history or grants.
       requestBody:
         required: true
@@ -1517,12 +1519,12 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
           $ref: '#/components/schemas/UuidInput'
-      - name: laneId
+      - name: lane_id
         in: query
         required: false
         schema:
@@ -1540,7 +1542,7 @@ paths:
           type: string
           minLength: 1
           maxLength: 1024
-      - name: searchContent
+      - name: search_content
         in: query
         required: false
         schema:
@@ -1744,7 +1746,7 @@ paths:
       x-milestones:
       - 2
       - 9
-      description: Validate references, permissions, expectedBoardEtag, and graph effects before allocating
+      description: Validate references, permissions, expected_board_etag, and graph effects before allocating
         a ticket. Supplied UUID allows focused readback after a lost reply. A duplicate UUID returns 409
         and never silently repeats creation.
       requestBody:
@@ -1758,10 +1760,10 @@ paths:
                 summary: Mixed-case UUID input is normalized
                 value:
                   id: A2870218-658A-48F2-B014-18E3BE5B1890
-                  boardId: 550E8400-E29B-41D4-A716-446655440000
-                  expectedBoardEtag: '"abcdefghijklmnop"'
+                  board_id: 550E8400-E29B-41D4-A716-446655440000
+                  expected_board_etag: '"abcdefghijklmnop"'
                   title: Review the first working board
-                  laneId: 7E714D6E-943B-4B1A-9FF0-046B2A695184
+                  lane_id: 7E714D6E-943B-4B1A-9FF0-046B2A695184
     patch:
       operationId: setCardPriorities
       summary: Apply an atomic priority batch
@@ -1833,7 +1835,7 @@ paths:
         capability: set_priority
       x-milestones:
       - 11
-      description: expectedBoardEtag is a body precondition on the board, not an If-Match tag for this
+      description: expected_board_etag is a body precondition on the board, not an If-Match tag for this
         collection. Normalize UUIDs before duplicate checks. Evaluate all selected overrides together
         and apply unfinished dependency floors. Reject Completed selections. Return all actual changes;
         no-op does not append audit.
@@ -1851,12 +1853,12 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
           $ref: '#/components/schemas/UuidInput'
-      - name: laneId
+      - name: lane_id
         in: query
         required: false
         schema:
@@ -1874,7 +1876,7 @@ paths:
           type: string
           minLength: 1
           maxLength: 1024
-      - name: searchContent
+      - name: search_content
         in: query
         required: false
         schema:
@@ -2082,9 +2084,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /cards/{cardId}:
+  /cards/{card_id}:
     parameters:
-    - name: cardId
+    - name: card_id
       in: path
       required: true
       schema:
@@ -2462,12 +2464,12 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
           $ref: '#/components/schemas/UuidInput'
-      - name: cardId
+      - name: card_id
         in: query
         required: false
         schema:
@@ -2650,7 +2652,7 @@ paths:
       - 5
       - 9
       - 33
-      description: 'expectedCardEtag binds the parent card. Author and timestamp come from the server.
+      description: 'expected_card_etag binds the parent card. Author and timestamp come from the server.
         Valid Human #ticket mentions create reference links in the same transaction; Bot comments do not
         auto-link.'
       requestBody:
@@ -2667,12 +2669,12 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
           $ref: '#/components/schemas/UuidInput'
-      - name: cardId
+      - name: card_id
         in: query
         required: false
         schema:
@@ -2858,9 +2860,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /comments/{commentId}:
+  /comments/{comment_id}:
     parameters:
-    - name: commentId
+    - name: comment_id
       in: path
       required: true
       schema:
@@ -3140,12 +3142,12 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
           $ref: '#/components/schemas/UuidInput'
-      - name: cardId
+      - name: card_id
         in: query
         required: false
         schema:
@@ -3345,12 +3347,12 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
           $ref: '#/components/schemas/UuidInput'
-      - name: cardId
+      - name: card_id
         in: query
         required: false
         schema:
@@ -3537,9 +3539,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /relationships/{relationshipId}:
+  /relationships/{relationship_id}:
     parameters:
-    - name: relationshipId
+    - name: relationship_id
       in: path
       required: true
       schema:
@@ -3989,7 +3991,7 @@ paths:
           minLength: 1
           maxLength: 2048
       - $ref: '#/components/parameters/IfNoneMatch'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
@@ -4078,8 +4080,8 @@ paths:
       x-milestones:
       - 16
       - 18
-      description: List configured members of the authorized boardId. Users have global immutable UUIDs;
-        board membership is explicit in Board.userIds.
+      description: List configured members of the authorized board_id. Users have global immutable UUIDs;
+        board membership is explicit in Board.user_ids.
     post:
       operationId: createUser
       summary: Create a user
@@ -4153,7 +4155,7 @@ paths:
         scope: board
         requiresMembership: true
         capability: manage_permissions
-        workspaceAdmin: true
+        workspace_admin: true
       x-milestones:
       - 16
       - 18
@@ -4164,7 +4166,7 @@ paths:
             schema:
               $ref: '#/components/schemas/UserInput'
       description: Create a globally unique user configuration and add its UUID to the given board in
-        one transaction under expectedBoardEtag. This never mints or changes a runtime capability. Existing
+        one transaction under expected_board_etag. This never mints or changes a runtime capability. Existing
         UUID with differing content refuses.
     head:
       operationId: headListUsers
@@ -4356,9 +4358,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /users/{userId}:
+  /users/{user_id}:
     parameters:
-    - name: userId
+    - name: user_id
       in: path
       required: true
       schema:
@@ -4524,7 +4526,7 @@ paths:
           $ref: '#/components/responses/NotAcceptable'
       x-authorization:
         scope: workspace
-        workspaceAdmin: true
+        workspace_admin: true
       x-milestones:
       - 16
       - 18
@@ -4719,7 +4721,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
@@ -4916,7 +4918,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
@@ -5103,9 +5105,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /priorities/{priorityId}:
+  /priorities/{priority_id}:
     parameters:
-    - name: priorityId
+    - name: priority_id
       in: path
       required: true
       schema:
@@ -5471,7 +5473,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
@@ -5668,7 +5670,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
@@ -5855,9 +5857,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /lanes/{laneId}:
+  /lanes/{lane_id}:
     parameters:
-    - name: laneId
+    - name: lane_id
       in: path
       required: true
       schema:
@@ -6215,9 +6217,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /policies/{policyId}:
+  /policies/{policy_id}:
     parameters:
-    - name: policyId
+    - name: policy_id
       in: path
       required: true
       schema:
@@ -6583,7 +6585,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
@@ -6725,7 +6727,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: true
         schema:
@@ -7047,9 +7049,9 @@ paths:
       x-milestones:
       - 14
       - 15
-      description: Require one card when laneId is omitted. A supplied laneId must be enabled Ready for
+      description: Require one card when lane_id is omitted. A supplied lane_id must be enabled Ready for
         Review, and the request must enumerate its exact active rendered membership and all original card
-        tags. Check those plus expectedBoardEtag atomically. Append exactly 'Reviewed & approved, moving
+        tags. Check those plus expected_board_etag atomically. Append exactly 'Reviewed & approved, moving
         to Completed.' for every changed card. Empty lane is a no-op with 200 and no new approval/audit.
         Repeated/stale requests never duplicate approval.
       requestBody:
@@ -7144,9 +7146,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /approvals/{approvalId}:
+  /approvals/{approval_id}:
     parameters:
-    - name: approvalId
+    - name: approval_id
       in: path
       required: true
       schema:
@@ -7419,9 +7421,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /ticket-orders/{laneId}:
+  /ticket-orders/{lane_id}:
     parameters:
-    - name: laneId
+    - name: lane_id
       in: path
       required: true
       schema:
@@ -7434,7 +7436,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: cardId
+      - name: card_id
         in: query
         required: false
         schema:
@@ -7610,10 +7612,10 @@ paths:
         capability: reorder_tickets
       x-milestones:
       - 22
-      description: cardIds is the desired selected order. expectedBoardEtag is the required atomic board
+      description: card_ids is the desired selected order. expected_board_etag is the required atomic board
         precondition, independent of representation caching. Recheck full graph, same active lane and
         exact selected pool. Keep permanent UUIDs and attachment anchors. Append ticket history only on
-        a real permutation. Recompute the deterministic preview at expectedBoardEtag and require the submitted
+        a real permutation. Recompute the deterministic preview at expected_board_etag and require the submitted
         order to equal it exactly, including the lowest-old-ticket tie break. An arbitrary alternative
         topological order refuses.
       requestBody:
@@ -7630,7 +7632,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: cardId
+      - name: card_id
         in: query
         required: false
         schema:
@@ -7824,7 +7826,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: cardId
+      - name: card_id
         in: query
         required: true
         schema:
@@ -8030,7 +8032,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: cardId
+      - name: card_id
         in: query
         required: true
         schema:
@@ -8223,9 +8225,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /attachments/{attachmentId}:
+  /attachments/{attachment_id}:
     parameters:
-    - name: attachmentId
+    - name: attachment_id
       in: path
       required: true
       schema:
@@ -8569,9 +8571,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /attachments/{attachmentId}/content:
+  /attachments/{attachment_id}/content:
     parameters:
-    - name: attachmentId
+    - name: attachment_id
       in: path
       required: true
       schema:
@@ -8883,9 +8885,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /verifications/{boardId}:
+  /verifications/{board_id}:
     parameters:
-    - name: boardId
+    - name: board_id
       in: path
       required: true
       schema:
@@ -9162,9 +9164,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /snapshots/{boardId}:
+  /snapshots/{board_id}:
     parameters:
-    - name: boardId
+    - name: board_id
       in: path
       required: true
       schema:
@@ -9695,9 +9697,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /backups/{backupId}:
+  /backups/{backup_id}:
     parameters:
-    - name: backupId
+    - name: backup_id
       in: path
       required: true
       schema:
@@ -9968,9 +9970,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /backups/{backupId}/content:
+  /backups/{backup_id}/content:
     parameters:
-    - name: backupId
+    - name: backup_id
       in: path
       required: true
       schema:
@@ -10415,9 +10417,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /restorations/{restorationId}:
+  /restorations/{restoration_id}:
     parameters:
-    - name: restorationId
+    - name: restoration_id
       in: path
       required: true
       schema:
@@ -10695,7 +10697,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: false
         schema:
@@ -10872,7 +10874,7 @@ paths:
         branches:
         - when: workspace is true
           scope: workspace
-          workspaceAdmin: true
+          workspace_admin: true
         - when: workspace omitted or false
           scope: board
           requiresMembership: true
@@ -10897,7 +10899,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: false
         schema:
@@ -11085,9 +11087,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /publications/{publicationId}:
+  /publications/{publication_id}:
     parameters:
-    - name: publicationId
+    - name: publication_id
       in: path
       required: true
       schema:
@@ -11369,7 +11371,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
-      - name: boardId
+      - name: board_id
         in: query
         required: false
         schema:
@@ -11690,7 +11692,7 @@ paths:
           $ref: '#/components/responses/NotAcceptable'
       x-authorization:
         scope: workspace
-        workspaceAdmin: true
+        workspace_admin: true
       x-milestones:
       - 39
       description: If-Match binds this service generation. Drain admitted commands and streams, flush
@@ -11979,7 +11981,7 @@ paths:
           $ref: '#/components/responses/NotAcceptable'
       x-authorization:
         scope: workspace
-        workspaceAdmin: true
+        workspace_admin: true
       x-milestones:
       - 38
       description: Candidates are staged by the trusted local operator in the configured installation
@@ -12083,7 +12085,7 @@ paths:
           $ref: '#/components/responses/NotAcceptableHeaders'
       x-authorization:
         scope: workspace
-        workspaceAdmin: true
+        workspace_admin: true
       x-milestones:
       - 38
       description: Candidates are staged by the trusted local operator in the configured installation
@@ -12174,9 +12176,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /builds/{buildId}:
+  /builds/{build_id}:
     parameters:
-    - name: buildId
+    - name: build_id
       in: path
       required: true
       schema:
@@ -12269,7 +12271,7 @@ paths:
           $ref: '#/components/responses/NotAcceptable'
       x-authorization:
         scope: workspace
-        workspaceAdmin: true
+        workspace_admin: true
       x-milestones: []
     head:
       operationId: headReadBuild
@@ -12355,7 +12357,7 @@ paths:
           $ref: '#/components/responses/NotAcceptableHeaders'
       x-authorization:
         scope: workspace
-        workspaceAdmin: true
+        workspace_admin: true
       x-milestones: []
     options:
       operationId: options_builds__buildId_
@@ -12513,12 +12515,12 @@ paths:
           $ref: '#/components/responses/NotAcceptable'
       x-authorization:
         scope: workspace
-        workspaceAdmin: true
+        workspace_admin: true
       x-milestones:
       - 39
-      description: expectedServiceEtag binds the current generation. Preserve port and board URLs, rotate
+      description: expected_service_etag binds the current generation. Preserve port and board URLs, rotate
         capabilities, and retain previous service availability when validation refuses. Only a previously
-        validated buildId is accepted; no arbitrary command or path.
+        validated build_id is accepted; no arbitrary command or path.
       requestBody:
         required: true
         content:
@@ -12611,9 +12613,9 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
-  /activations/{activationId}:
+  /activations/{activation_id}:
     parameters:
-    - name: activationId
+    - name: activation_id
       in: path
       required: true
       schema:
@@ -12706,7 +12708,7 @@ paths:
           $ref: '#/components/responses/NotAcceptable'
       x-authorization:
         scope: workspace
-        workspaceAdmin: true
+        workspace_admin: true
       x-milestones: []
     head:
       operationId: headReadActivation
@@ -12792,7 +12794,7 @@ paths:
           $ref: '#/components/responses/NotAcceptableHeaders'
       x-authorization:
         scope: workspace
-        workspaceAdmin: true
+        workspace_admin: true
       x-milestones: []
     options:
       operationId: options_activations__activationId_
@@ -12953,7 +12955,7 @@ components:
       - status
       - code
       - detail
-      - requestId
+      - request_id
       - outcome
       - errors
       properties:
@@ -12990,7 +12992,7 @@ components:
           type: string
           minLength: 0
           maxLength: 512
-        requestId:
+        request_id:
           $ref: '#/components/schemas/Uuid'
         outcome:
           enum:
@@ -13006,16 +13008,16 @@ components:
       additionalProperties: false
       required:
       - blocked
-      - needsInput
-      - readyForReview
+      - needs_input
+      - ready_for_review
       properties:
         blocked:
           type: integer
           minimum: 0
-        needsInput:
+        needs_input:
           type: integer
           minimum: 0
-        readyForReview:
+        ready_for_review:
           type: integer
           minimum: 0
     Notifications:
@@ -13023,11 +13025,11 @@ components:
       additionalProperties: false
       required:
       - enabled
-      - targetThreadId
+      - target_thread_id
       properties:
         enabled:
           type: boolean
-        targetThreadId:
+        target_thread_id:
           anyOf:
           - $ref: '#/components/schemas/ThreadId'
           - type: 'null'
@@ -13037,37 +13039,37 @@ components:
       properties:
         enabled:
           type: boolean
-        targetThreadId:
+        target_thread_id:
           anyOf:
           - $ref: '#/components/schemas/ThreadIdInput'
           - type: 'null'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       anyOf:
       - required:
         - enabled
       - required:
-        - targetThreadId
+        - target_thread_id
       description: Unknown members are rejected in this security-sensitive object.
     Publishing:
       type: object
@@ -13075,9 +13077,9 @@ components:
       required:
       - enabled
       - repository
-      - lastSuccessAt
+      - last_success_at
       - pending
-      - errorCode
+      - error_code
       properties:
         enabled:
           type: boolean
@@ -13087,13 +13089,13 @@ components:
             minLength: 0
             maxLength: 2048
           - type: 'null'
-        lastSuccessAt:
+        last_success_at:
           anyOf:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
         pending:
           type: boolean
-        errorCode:
+        error_code:
           anyOf:
           - type: string
             minLength: 0
@@ -13112,27 +13114,27 @@ components:
             maxLength: 2048
           - type: 'null'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       anyOf:
       - required:
         - enabled
@@ -13145,44 +13147,44 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
+      - created_at
+      - updated_at
       - name
-      - policyId
-      - userIds
-      - laneIds
-      - priorityIds
+      - policy_id
+      - user_ids
+      - lane_ids
+      - priority_ids
       - availability
       - revision
       - attention
-      - lastCardEditAt
+      - last_card_edit_at
       - notifications
       - publishing
-      - userCss
+      - user_css
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
         name:
           type: string
           minLength: 1
           maxLength: 256
-        policyId:
+        policy_id:
           $ref: '#/components/schemas/Uuid'
-        userIds:
+        user_ids:
           type: array
           items:
             $ref: '#/components/schemas/Uuid'
-        laneIds:
+        lane_ids:
           type: array
           items:
             $ref: '#/components/schemas/Uuid'
-        priorityIds:
+        priority_ids:
           type: array
           items:
             $ref: '#/components/schemas/Uuid'
@@ -13195,7 +13197,7 @@ components:
           $ref: '#/components/schemas/Revision'
         attention:
           $ref: '#/components/schemas/Attention'
-        lastCardEditAt:
+        last_card_edit_at:
           anyOf:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
@@ -13203,7 +13205,7 @@ components:
           $ref: '#/components/schemas/Notifications'
         publishing:
           $ref: '#/components/schemas/Publishing'
-        userCss:
+        user_css:
           type: string
           minLength: 0
           maxLength: 1048576
@@ -13213,8 +13215,8 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
+      - created_at
+      - updated_at
       - label
       - kind
       - color
@@ -13223,9 +13225,9 @@ components:
           $ref: '#/components/schemas/Uuid'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
         label:
           type: string
@@ -13245,9 +13247,9 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
+      - created_at
+      - updated_at
+      - board_id
       - key
       - label
       - rank
@@ -13257,11 +13259,11 @@ components:
           $ref: '#/components/schemas/Uuid'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
         key:
           type: string
@@ -13284,26 +13286,26 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
+      - created_at
+      - updated_at
+      - board_id
       - key
       - label
       - position
       - role
       - retired
-      - approvalEnabled
-      - reorderEnabled
+      - approval_enabled
+      - reorder_enabled
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
         key:
           type: string
@@ -13325,34 +13327,34 @@ components:
           - ready_for_review
         retired:
           type: boolean
-        approvalEnabled:
+        approval_enabled:
           type: boolean
-        reorderEnabled:
+        reorder_enabled:
           type: boolean
     CreateGrant:
       type: object
       additionalProperties: false
       required:
-      - userId
-      - laneId
+      - user_id
+      - lane_id
       properties:
-        userId:
+        user_id:
           $ref: '#/components/schemas/Uuid'
-        laneId:
+        lane_id:
           $ref: '#/components/schemas/Uuid'
     MoveGrant:
       type: object
       additionalProperties: false
       required:
-      - userId
-      - fromLaneId
-      - toLaneId
+      - user_id
+      - from_lane_id
+      - to_lane_id
       properties:
-        userId:
+        user_id:
           $ref: '#/components/schemas/Uuid'
-        fromLaneId:
+        from_lane_id:
           $ref: '#/components/schemas/Uuid'
-        toLaneId:
+        to_lane_id:
           $ref: '#/components/schemas/Uuid'
     Policy:
       type: object
@@ -13360,35 +13362,35 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
-      - defaultPriorityId
-      - createGrants
-      - moveGrants
-      - resourceGrants
+      - created_at
+      - updated_at
+      - board_id
+      - default_priority_id
+      - create_grants
+      - move_grants
+      - resource_grants
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
-        defaultPriorityId:
+        default_priority_id:
           $ref: '#/components/schemas/Uuid'
-        createGrants:
+        create_grants:
           type: array
           items:
             $ref: '#/components/schemas/CreateGrant'
-        moveGrants:
+        move_grants:
           type: array
           items:
             $ref: '#/components/schemas/MoveGrant'
-        resourceGrants:
+        resource_grants:
           type: array
           items:
             $ref: '#/components/schemas/ResourceGrant'
@@ -13398,31 +13400,31 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
-      - cardId
-      - originalName
+      - created_at
+      - updated_at
+      - board_id
+      - card_id
+      - original_name
       - size
       - sha256
-      - mediaType
+      - media_type
       - previewable
       - active
-      - addedBy
+      - added_by
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
-        cardId:
+        card_id:
           $ref: '#/components/schemas/Uuid'
-        originalName:
+        original_name:
           type: string
           minLength: 1
           maxLength: 1024
@@ -13432,7 +13434,7 @@ components:
           maximum: 10485760
         sha256:
           $ref: '#/components/schemas/Digest'
-        mediaType:
+        media_type:
           type: string
           minLength: 1
           maxLength: 128
@@ -13440,7 +13442,7 @@ components:
           type: boolean
         active:
           type: boolean
-        addedBy:
+        added_by:
           $ref: '#/components/schemas/Uuid'
     Relationship:
       type: object
@@ -13448,26 +13450,26 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
-      - sourceCardId
-      - targetCardId
+      - created_at
+      - updated_at
+      - board_id
+      - source_card_id
+      - target_card_id
       - kind
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
-        sourceCardId:
+        source_card_id:
           $ref: '#/components/schemas/Uuid'
-        targetCardId:
+        target_card_id:
           $ref: '#/components/schemas/Uuid'
         kind:
           enum:
@@ -13481,35 +13483,35 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
+      - created_at
+      - updated_at
+      - board_id
       - ticket
       - title
       - description
-      - laneId
-      - ownerId
-      - priorityId
-      - parentId
-      - childIds
+      - lane_id
+      - owner_id
+      - priority_id
+      - parent_id
+      - child_ids
       - archived
-      - coverAttachmentId
-      - commentCount
-      - attachmentCount
-      - blockingDepth
-      - blockedCardCount
-      - triageScore
-      - completedAt
+      - cover_attachment_id
+      - comment_count
+      - attachment_count
+      - blocking_depth
+      - blocked_card_count
+      - triage_score
+      - completed_at
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
         ticket:
           type: integer
@@ -13523,43 +13525,43 @@ components:
           type: string
           minLength: 0
           maxLength: 4194304
-        laneId:
+        lane_id:
           $ref: '#/components/schemas/Uuid'
-        ownerId:
+        owner_id:
           anyOf:
           - $ref: '#/components/schemas/Uuid'
           - type: 'null'
-        priorityId:
+        priority_id:
           $ref: '#/components/schemas/Uuid'
-        parentId:
+        parent_id:
           anyOf:
           - $ref: '#/components/schemas/Uuid'
           - type: 'null'
-        childIds:
+        child_ids:
           type: array
           items:
             $ref: '#/components/schemas/Uuid'
         archived:
           type: boolean
-        coverAttachmentId:
+        cover_attachment_id:
           anyOf:
           - $ref: '#/components/schemas/Uuid'
           - type: 'null'
-        commentCount:
+        comment_count:
           type: integer
           minimum: 0
-        attachmentCount:
+        attachment_count:
           type: integer
           minimum: 0
-        blockingDepth:
+        blocking_depth:
           type: integer
           minimum: 0
-        blockedCardCount:
+        blocked_card_count:
           type: integer
           minimum: 0
-        triageScore:
+        triage_score:
           type: integer
-        completedAt:
+        completed_at:
           anyOf:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
@@ -13569,62 +13571,62 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
-      - cardId
+      - created_at
+      - updated_at
+      - board_id
+      - card_id
       - text
-      - authorId
+      - author_id
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
-        cardId:
+        card_id:
           $ref: '#/components/schemas/Uuid'
         text:
           type: string
           minLength: 1
           maxLength: 4194304
-        authorId:
+        author_id:
           $ref: '#/components/schemas/Uuid'
     Change:
       type: object
       additionalProperties: false
       required:
       - id
-      - boardId
+      - board_id
       - revision
       - at
-      - actorId
+      - actor_id
       - operation
-      - resourceType
-      - resourceId
+      - resource_type
+      - resource_id
       - field
       - before
       - after
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
         revision:
           $ref: '#/components/schemas/Revision'
         at:
           $ref: '#/components/schemas/Timestamp'
-        actorId:
+        actor_id:
           $ref: '#/components/schemas/Uuid'
         operation:
           type: string
           minLength: 1
           maxLength: 80
-        resourceType:
+        resource_type:
           enum:
           - board
           - card
@@ -13634,7 +13636,7 @@ components:
           - comment
           - attachment
           - relationship
-        resourceId:
+        resource_id:
           $ref: '#/components/schemas/Uuid'
         field:
           anyOf:
@@ -13659,25 +13661,25 @@ components:
       additionalProperties: false
       required:
       - id
-      - boardId
+      - board_id
       - revision
       - at
-      - actorId
-      - actorKind
+      - actor_id
+      - actor_kind
       - operation
       - tickets
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
         revision:
           $ref: '#/components/schemas/Revision'
         at:
           $ref: '#/components/schemas/Timestamp'
-        actorId:
+        actor_id:
           $ref: '#/components/schemas/Uuid'
-        actorKind:
+        actor_kind:
           enum:
           - human
           - bot
@@ -13695,12 +13697,12 @@ components:
       additionalProperties: false
       required:
       - etag
-      - pinnedBoardIds
+      - pinned_board_ids
       - publishing
       properties:
         etag:
           $ref: '#/components/schemas/EntityTag'
-        pinnedBoardIds:
+        pinned_board_ids:
           type: array
           items:
             $ref: '#/components/schemas/Uuid'
@@ -13710,55 +13712,55 @@ components:
       type: object
       additionalProperties: false
       required:
-      - principalId
+      - principal_id
       - kind
-      - apiVersion
-      - workspaceAdmin
+      - api_version
+      - workspace_admin
       properties:
-        principalId:
+        principal_id:
           $ref: '#/components/schemas/Uuid'
         kind:
           enum:
           - human
           - bot
-        apiVersion:
+        api_version:
           const: '2026-11-10'
-        workspaceAdmin:
+        workspace_admin:
           type: boolean
     BrowserSession:
       type: object
       additionalProperties: false
       required:
-      - principalId
+      - principal_id
       - kind
-      - apiVersion
-      - accessToken
-      - expiresOnServiceReplacement
-      - workspaceAdmin
+      - api_version
+      - access_token
+      - expires_on_service_replacement
+      - workspace_admin
       properties:
-        principalId:
+        principal_id:
           $ref: '#/components/schemas/Uuid'
         kind:
           const: human
-        apiVersion:
+        api_version:
           const: '2026-11-10'
-        accessToken:
+        access_token:
           type: string
           minLength: 43
           maxLength: 128
           writeOnly: false
-        expiresOnServiceReplacement:
+        expires_on_service_replacement:
           const: true
-        workspaceAdmin:
+        workspace_admin:
           type: boolean
     CardVersion:
       type: object
       additionalProperties: false
       required:
-      - cardId
+      - card_id
       - etag
       properties:
-        cardId:
+        card_id:
           $ref: '#/components/schemas/Uuid'
         etag:
           $ref: '#/components/schemas/EntityTag'
@@ -13766,33 +13768,33 @@ components:
       type: object
       additionalProperties: false
       properties:
-        cardId:
+        card_id:
           $ref: '#/components/schemas/UuidInput'
         etag:
           $ref: '#/components/schemas/EntityTag'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - cardId
+      - card_id
       - etag
       description: Unknown members are rejected in this security-sensitive object.
     Approval:
@@ -13800,26 +13802,26 @@ components:
       additionalProperties: false
       required:
       - id
-      - boardId
-      - cardIds
-      - actorId
+      - board_id
+      - card_ids
+      - actor_id
       - at
-      - boardEtag
+      - board_etag
       - changes
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
-        cardIds:
+        card_ids:
           type: array
           items:
             $ref: '#/components/schemas/Uuid'
-        actorId:
+        actor_id:
           $ref: '#/components/schemas/Uuid'
         at:
           $ref: '#/components/schemas/Timestamp'
-        boardEtag:
+        board_etag:
           $ref: '#/components/schemas/EntityTag'
         changes:
           type: array
@@ -13829,14 +13831,14 @@ components:
       type: object
       additionalProperties: false
       required:
-      - boardId
-      - boardEtag
+      - board_id
+      - board_etag
       - cards
       - changes
       properties:
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
-        boardEtag:
+        board_etag:
           $ref: '#/components/schemas/EntityTag'
         cards:
           type: array
@@ -13850,10 +13852,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - cardId
+      - card_id
       - ticket
       properties:
-        cardId:
+        card_id:
           $ref: '#/components/schemas/Uuid'
         ticket:
           type: integer
@@ -13862,21 +13864,21 @@ components:
       type: object
       additionalProperties: false
       required:
-      - boardId
-      - laneId
-      - boardEtag
-      - selectedCardIds
+      - board_id
+      - lane_id
+      - board_etag
+      - selected_card_ids
       - current
       - proposed
       - changed
       properties:
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
-        laneId:
+        lane_id:
           $ref: '#/components/schemas/Uuid'
-        boardEtag:
+        board_etag:
           $ref: '#/components/schemas/EntityTag'
-        selectedCardIds:
+        selected_card_ids:
           type: array
           items:
             $ref: '#/components/schemas/Uuid'
@@ -13894,13 +13896,13 @@ components:
       type: object
       additionalProperties: false
       required:
-      - boardId
+      - board_id
       - at
       - valid
       - revision
       - issues
       properties:
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
         at:
           $ref: '#/components/schemas/Timestamp'
@@ -13919,7 +13921,7 @@ components:
       additionalProperties: false
       required:
       - format
-      - formatVersion
+      - format_version
       - board
       - users
       - lanes
@@ -13933,8 +13935,8 @@ components:
       properties:
         format:
           const: localswim-snapshot
-        formatVersion:
-          const: 1
+        format_version:
+          const: 2
         board:
           $ref: '#/components/schemas/Board'
         users:
@@ -13976,27 +13978,27 @@ components:
       additionalProperties: false
       required:
       - id
-      - boardId
-      - boardRevision
-      - createdAt
+      - board_id
+      - board_revision
+      - created_at
       - sha256
       - size
-      - attachmentIds
+      - attachment_ids
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
-        boardRevision:
+        board_revision:
           $ref: '#/components/schemas/Revision'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
         sha256:
           $ref: '#/components/schemas/Digest'
         size:
           type: integer
           minimum: 0
-        attachmentIds:
+        attachment_ids:
           type: array
           items:
             $ref: '#/components/schemas/Uuid'
@@ -14005,17 +14007,17 @@ components:
       additionalProperties: false
       required:
       - id
-      - boardId
+      - board_id
       - workspace
       - state
-      - createdAt
-      - finishedAt
-      - backupId
-      - errorCode
+      - created_at
+      - finished_at
+      - backup_id
+      - error_code
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        boardId:
+        board_id:
           anyOf:
           - $ref: '#/components/schemas/Uuid'
           - type: 'null'
@@ -14027,17 +14029,17 @@ components:
           - running
           - succeeded
           - failed
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        finishedAt:
+        finished_at:
           anyOf:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
-        backupId:
+        backup_id:
           anyOf:
           - $ref: '#/components/schemas/Uuid'
           - type: 'null'
-        errorCode:
+        error_code:
           anyOf:
           - type: string
             minLength: 0
@@ -14050,7 +14052,7 @@ components:
       - id
       - version
       - validation
-      - errorCode
+      - error_code
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
@@ -14063,7 +14065,7 @@ components:
           - pending
           - valid
           - invalid
-        errorCode:
+        error_code:
           anyOf:
           - type: string
             minLength: 0
@@ -14074,25 +14076,25 @@ components:
       additionalProperties: false
       required:
       - etag
-      - generationId
-      - buildId
+      - generation_id
+      - build_id
       - state
-      - apiVersion
-      - restartErrorCode
+      - api_version
+      - restart_error_code
       properties:
         etag:
           $ref: '#/components/schemas/EntityTag'
-        generationId:
+        generation_id:
           $ref: '#/components/schemas/Uuid'
-        buildId:
+        build_id:
           $ref: '#/components/schemas/Uuid'
         state:
           enum:
           - running
           - draining
-        apiVersion:
+        api_version:
           const: '2026-11-10'
-        restartErrorCode:
+        restart_error_code:
           anyOf:
           - type: string
             minLength: 0
@@ -14103,20 +14105,20 @@ components:
       additionalProperties: false
       required:
       - id
-      - buildId
+      - build_id
       - state
-      - errorCode
+      - error_code
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        buildId:
+        build_id:
           $ref: '#/components/schemas/Uuid'
         state:
           enum:
           - accepted
           - activated
           - failed
-        errorCode:
+        error_code:
           anyOf:
           - type: string
             minLength: 0
@@ -14127,21 +14129,21 @@ components:
       additionalProperties: false
       required:
       - id
-      - boardId
-      - backupId
+      - board_id
+      - backup_id
       - at
-      - boardEtag
+      - board_etag
       - revision
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
-        backupId:
+        backup_id:
           $ref: '#/components/schemas/Uuid'
         at:
           $ref: '#/components/schemas/Timestamp'
-        boardEtag:
+        board_etag:
           $ref: '#/components/schemas/EntityTag'
         revision:
           $ref: '#/components/schemas/Revision'
@@ -14150,11 +14152,11 @@ components:
       additionalProperties: false
       required:
       - type
-      - boardId
-      - boardEtag
-      - workspaceEtag
+      - board_id
+      - board_etag
+      - workspace_etag
       - healthy
-      - catalogEtag
+      - catalog_etag
       properties:
         type:
           enum:
@@ -14163,15 +14165,15 @@ components:
           - health
           - heartbeat
           - shutdown
-        boardId:
+        board_id:
           anyOf:
           - $ref: '#/components/schemas/Uuid'
           - type: 'null'
-        boardEtag:
+        board_etag:
           anyOf:
           - $ref: '#/components/schemas/EntityTag'
           - type: 'null'
-        workspaceEtag:
+        workspace_etag:
           anyOf:
           - $ref: '#/components/schemas/EntityTag'
           - type: 'null'
@@ -14179,7 +14181,7 @@ components:
           anyOf:
           - type: boolean
           - type: 'null'
-        catalogEtag:
+        catalog_etag:
           anyOf:
           - $ref: '#/components/schemas/EntityTag'
           - type: 'null'
@@ -14188,14 +14190,14 @@ components:
       additionalProperties: false
       required:
       - boards
-      - nextCursor
+      - next_cursor
       properties:
         boards:
           type: array
           items:
             $ref: '#/components/schemas/Board'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -14206,14 +14208,14 @@ components:
       additionalProperties: false
       required:
       - users
-      - nextCursor
+      - next_cursor
       properties:
         users:
           type: array
           items:
             $ref: '#/components/schemas/User'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -14224,14 +14226,14 @@ components:
       additionalProperties: false
       required:
       - priorities
-      - nextCursor
+      - next_cursor
       properties:
         priorities:
           type: array
           items:
             $ref: '#/components/schemas/Priority'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -14242,14 +14244,14 @@ components:
       additionalProperties: false
       required:
       - lanes
-      - nextCursor
+      - next_cursor
       properties:
         lanes:
           type: array
           items:
             $ref: '#/components/schemas/Lane'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -14260,14 +14262,14 @@ components:
       additionalProperties: false
       required:
       - cards
-      - nextCursor
+      - next_cursor
       properties:
         cards:
           type: array
           items:
             $ref: '#/components/schemas/Card'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -14278,14 +14280,14 @@ components:
       additionalProperties: false
       required:
       - comments
-      - nextCursor
+      - next_cursor
       properties:
         comments:
           type: array
           items:
             $ref: '#/components/schemas/Comment'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -14296,14 +14298,14 @@ components:
       additionalProperties: false
       required:
       - attachments
-      - nextCursor
+      - next_cursor
       properties:
         attachments:
           type: array
           items:
             $ref: '#/components/schemas/Attachment'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -14314,14 +14316,14 @@ components:
       additionalProperties: false
       required:
       - relationships
-      - nextCursor
+      - next_cursor
       properties:
         relationships:
           type: array
           items:
             $ref: '#/components/schemas/Relationship'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -14332,14 +14334,14 @@ components:
       additionalProperties: false
       required:
       - publications
-      - nextCursor
+      - next_cursor
       properties:
         publications:
           type: array
           items:
             $ref: '#/components/schemas/Publication'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -14350,14 +14352,14 @@ components:
       additionalProperties: false
       required:
       - builds
-      - nextCursor
+      - next_cursor
       properties:
         builds:
           type: array
           items:
             $ref: '#/components/schemas/Build'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -14368,14 +14370,14 @@ components:
       additionalProperties: false
       required:
       - activities
-      - nextCursor
+      - next_cursor
       properties:
         activities:
           type: array
           items:
             $ref: '#/components/schemas/Change'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -14386,14 +14388,14 @@ components:
       additionalProperties: false
       required:
       - activities
-      - nextCursor
+      - next_cursor
       properties:
         activities:
           type: array
           items:
             $ref: '#/components/schemas/ActivityMetadata'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -14436,32 +14438,32 @@ components:
           minLength: 0
           maxLength: 64
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedBoardEtag:
+        expected_board_etag:
           $ref: '#/components/schemas/EntityTag'
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId:
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        policyId: false
+        policy_id: false
         role: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
       - label
       - kind
-      - boardId
-      - expectedBoardEtag
+      - board_id
+      - expected_board_etag
       description: Unknown members are rejected in this security-sensitive object.
     UserPatch:
       type: object
@@ -14476,27 +14478,27 @@ components:
           minLength: 0
           maxLength: 64
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       anyOf:
       - required:
         - label
@@ -14509,9 +14511,9 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        boardEtag:
+        board_etag:
           $ref: '#/components/schemas/EntityTag'
         key:
           type: string
@@ -14529,27 +14531,27 @@ components:
           minLength: 0
           maxLength: 64
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        cardEtag: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        card_etag: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - boardId
-      - boardEtag
+      - board_id
+      - board_etag
       - key
       - label
       - rank
@@ -14559,7 +14561,7 @@ components:
       type: object
       additionalProperties: true
       properties:
-        boardEtag:
+        board_etag:
           $ref: '#/components/schemas/EntityTag'
         label:
           type: string
@@ -14573,28 +14575,28 @@ components:
           minLength: 0
           maxLength: 64
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - boardEtag
+      - board_etag
       anyOf:
       - required:
         - label
@@ -14610,9 +14612,9 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        boardEtag:
+        board_etag:
           $ref: '#/components/schemas/EntityTag'
         key:
           type: string
@@ -14626,53 +14628,53 @@ components:
           type: string
           pattern: ^(?:[oO][rR][dD][iI][nN][aA][rR][yY]|[cC][oO][mM][pP][lL][eE][tT][eE][dD]|[bB][lL][oO][cC][kK][eE][dD]|[nN][eE][eE][dD][sS]_[iI][nN][pP][uU][tT]|[rR][eE][aA][dD][yY]_[fF][oO][rR]_[rR][eE][vV][iI][eE][wW])$
           description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
-        beforeId:
+        before_id:
           $ref: '#/components/schemas/UuidInput'
-        afterId:
+        after_id:
           $ref: '#/components/schemas/UuidInput'
-        createFor:
+        create_for:
           type: array
           items:
             $ref: '#/components/schemas/UuidInput'
           maxItems: 1000
-        connectFor:
+        connect_for:
           type: array
           items:
             $ref: '#/components/schemas/UuidInput'
           maxItems: 1000
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        cardEtag: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        card_etag: false
+        policy_id: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - boardId
-      - boardEtag
+      - board_id
+      - board_etag
       - label
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
       not:
         required:
-        - beforeId
-        - afterId
+        - before_id
+        - after_id
     LanePatch:
       type: object
       additionalProperties: true
       properties:
-        boardEtag:
+        board_etag:
           $ref: '#/components/schemas/EntityTag'
         key:
           type: string
@@ -14684,36 +14686,36 @@ components:
           maxLength: 256
         retired:
           type: boolean
-        approvalEnabled:
+        approval_enabled:
           type: boolean
-        reorderEnabled:
+        reorder_enabled:
           type: boolean
         position:
           type: integer
           minimum: 0
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - boardEtag
+      - board_etag
       anyOf:
       - required:
         - key
@@ -14722,9 +14724,9 @@ components:
       - required:
         - retired
       - required:
-        - approvalEnabled
+        - approval_enabled
       - required:
-        - reorderEnabled
+        - reorder_enabled
       - required:
         - position
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
@@ -14733,123 +14735,123 @@ components:
       type: object
       additionalProperties: false
       properties:
-        userId:
+        user_id:
           $ref: '#/components/schemas/UuidInput'
-        laneId:
+        lane_id:
           $ref: '#/components/schemas/UuidInput'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - userId
-      - laneId
+      - user_id
+      - lane_id
       description: Unknown members are rejected in this security-sensitive object.
     MoveGrantInput:
       type: object
       additionalProperties: false
       properties:
-        userId:
+        user_id:
           $ref: '#/components/schemas/UuidInput'
-        fromLaneId:
+        from_lane_id:
           $ref: '#/components/schemas/UuidInput'
-        toLaneId:
+        to_lane_id:
           $ref: '#/components/schemas/UuidInput'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - userId
-      - fromLaneId
-      - toLaneId
+      - user_id
+      - from_lane_id
+      - to_lane_id
       description: Unknown members are rejected in this security-sensitive object.
     PolicyInput:
       type: object
       additionalProperties: false
       properties:
-        boardEtag:
+        board_etag:
           $ref: '#/components/schemas/EntityTag'
-        defaultPriorityId:
+        default_priority_id:
           $ref: '#/components/schemas/UuidInput'
-        createGrants:
+        create_grants:
           type: array
           items:
             $ref: '#/components/schemas/CreateGrantInput'
           maxItems: 1000
-        moveGrants:
+        move_grants:
           type: array
           items:
             $ref: '#/components/schemas/MoveGrantInput'
           maxItems: 1000
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
-        resourceGrants:
+        created_by: false
+        updated_by: false
+        resource_grants:
           type: array
           items:
             $ref: '#/components/schemas/ResourceGrantInput'
           maxItems: 1000
       required:
-      - boardEtag
-      - defaultPriorityId
-      - createGrants
-      - moveGrants
-      - resourceGrants
+      - board_etag
+      - default_priority_id
+      - create_grants
+      - move_grants
+      - resource_grants
       description: Unknown members are rejected in this security-sensitive object.
     WorkflowInput:
       type: object
@@ -14873,27 +14875,27 @@ components:
         policy:
           $ref: '#/components/schemas/InitialPolicy'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
       - users
       - lanes
@@ -14918,34 +14920,34 @@ components:
           type: string
           pattern: ^(?:[oO][rR][dD][iI][nN][aA][rR][yY]|[cC][oO][mM][pP][lL][eE][tT][eE][dD]|[bB][lL][oO][cC][kK][eE][dD]|[nN][eE][eE][dD][sS]_[iI][nN][pP][uU][tT]|[rR][eE][aA][dD][yY]_[fF][oO][rR]_[rR][eE][vV][iI][eE][wW])$
           description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
-        createFor:
+        create_for:
           type: array
           items:
             $ref: '#/components/schemas/UuidInput'
           maxItems: 1000
-        connectFor:
+        connect_for:
           type: array
           items:
             $ref: '#/components/schemas/UuidInput'
           maxItems: 1000
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        cardEtag: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        card_etag: false
+        policy_id: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
       - id
       - label
@@ -14953,8 +14955,8 @@ components:
         version, and identity fields are rejected.
       not:
         required:
-        - beforeId
-        - afterId
+        - before_id
+        - after_id
     InitialPriority:
       type: object
       additionalProperties: true
@@ -14977,24 +14979,24 @@ components:
           minLength: 0
           maxLength: 64
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        cardEtag: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        card_etag: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
       - id
       - key
@@ -15006,49 +15008,49 @@ components:
       type: object
       additionalProperties: false
       properties:
-        defaultPriorityId:
+        default_priority_id:
           $ref: '#/components/schemas/UuidInput'
-        createGrants:
+        create_grants:
           type: array
           items:
             $ref: '#/components/schemas/CreateGrantInput'
           maxItems: 1000
-        moveGrants:
+        move_grants:
           type: array
           items:
             $ref: '#/components/schemas/MoveGrantInput'
           maxItems: 1000
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
-        resourceGrants:
+        created_by: false
+        updated_by: false
+        resource_grants:
           type: array
           items:
             $ref: '#/components/schemas/ResourceGrantInput'
           maxItems: 1000
       required:
-      - defaultPriorityId
-      - createGrants
-      - moveGrants
-      - resourceGrants
+      - default_priority_id
+      - create_grants
+      - move_grants
+      - resource_grants
       description: Unknown members are rejected in this security-sensitive object.
     BoardInput:
       type: object
@@ -15063,26 +15065,26 @@ components:
         workflow:
           $ref: '#/components/schemas/WorkflowInput'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
       - name
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
@@ -15095,7 +15097,7 @@ components:
           type: string
           minLength: 1
           maxLength: 256
-        userCss:
+        user_css:
           type: string
           minLength: 0
           maxLength: 1048576
@@ -15108,28 +15110,28 @@ components:
         publishing:
           $ref: '#/components/schemas/PublishingInput'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
-        userIds:
+        created_by: false
+        updated_by: false
+        user_ids:
           type: array
           items:
             $ref: '#/components/schemas/UuidInput'
@@ -15138,7 +15140,7 @@ components:
       - required:
         - name
       - required:
-        - userCss
+        - user_css
       - required:
         - availability
       - required:
@@ -15146,14 +15148,14 @@ components:
       - required:
         - publishing
       - required:
-        - userIds
+        - user_ids
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
     RelationshipSeed:
       type: object
       additionalProperties: true
       properties:
-        targetCardId:
+        target_card_id:
           $ref: '#/components/schemas/UuidInput'
         kind:
           type: string
@@ -15161,28 +15163,28 @@ components:
           description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
             Inverse spellings swap source/target before canonical storage.
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - targetCardId
+      - target_card_id
       - kind
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
@@ -15192,9 +15194,9 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        expectedBoardEtag:
+        expected_board_etag:
           $ref: '#/components/schemas/EntityTag'
         title:
           type: string
@@ -15206,15 +15208,15 @@ components:
             minLength: 0
             maxLength: 4194304
           - type: 'null'
-        laneId:
+        lane_id:
           $ref: '#/components/schemas/UuidInput'
-        ownerId:
+        owner_id:
           anyOf:
           - $ref: '#/components/schemas/UuidInput'
           - type: 'null'
-        priorityId:
+        priority_id:
           $ref: '#/components/schemas/UuidInput'
-        parentId:
+        parent_id:
           anyOf:
           - $ref: '#/components/schemas/UuidInput'
           - type: 'null'
@@ -15224,29 +15226,29 @@ components:
             $ref: '#/components/schemas/RelationshipSeed'
           maxItems: 1000
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        policyId: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - boardId
-      - expectedBoardEtag
+      - board_id
+      - expected_board_etag
       - title
-      - laneId
+      - lane_id
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
     CardPatch:
@@ -15263,63 +15265,63 @@ components:
             minLength: 0
             maxLength: 4194304
           - type: 'null'
-        laneId:
+        lane_id:
           $ref: '#/components/schemas/UuidInput'
-        ownerId:
+        owner_id:
           anyOf:
           - $ref: '#/components/schemas/UuidInput'
           - type: 'null'
-        priorityId:
+        priority_id:
           $ref: '#/components/schemas/UuidInput'
-        parentId:
+        parent_id:
           anyOf:
           - $ref: '#/components/schemas/UuidInput'
           - type: 'null'
         archived:
           type: boolean
-        coverAttachmentId:
+        cover_attachment_id:
           anyOf:
           - $ref: '#/components/schemas/UuidInput'
           - type: 'null'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       anyOf:
       - required:
         - title
       - required:
         - description
       - required:
-        - laneId
+        - lane_id
       - required:
-        - ownerId
+        - owner_id
       - required:
-        - priorityId
+        - priority_id
       - required:
-        - parentId
+        - parent_id
       - required:
         - archived
       - required:
-        - coverAttachmentId
+        - cover_attachment_id
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
     CommentInput:
@@ -15328,37 +15330,37 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        cardId:
+        card_id:
           $ref: '#/components/schemas/UuidInput'
-        expectedCardEtag:
+        expected_card_etag:
           $ref: '#/components/schemas/EntityTag'
         text:
           type: string
           minLength: 1
           maxLength: 4194304
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedBoardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - cardId
-      - expectedCardEtag
+      - card_id
+      - expected_card_etag
       - text
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
@@ -15368,13 +15370,13 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        expectedBoardEtag:
+        expected_board_etag:
           $ref: '#/components/schemas/EntityTag'
-        sourceCardId:
+        source_card_id:
           $ref: '#/components/schemas/UuidInput'
-        targetCardId:
+        target_card_id:
           $ref: '#/components/schemas/UuidInput'
         kind:
           type: string
@@ -15382,28 +15384,28 @@ components:
           description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
             Inverse spellings swap source/target before canonical storage.
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        policyId: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        policy_id: false
         role: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - boardId
-      - expectedBoardEtag
-      - sourceCardId
-      - targetCardId
+      - board_id
+      - expected_board_etag
+      - source_card_id
+      - target_card_id
       - kind
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
@@ -15411,7 +15413,7 @@ components:
       type: object
       additionalProperties: true
       properties:
-        expectedBoardEtag:
+        expected_board_etag:
           $ref: '#/components/schemas/EntityTag'
         kind:
           type: string
@@ -15419,27 +15421,27 @@ components:
           description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
             Inverse spellings swap source/target before canonical storage.
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - expectedBoardEtag
+      - expected_board_etag
       - kind
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
@@ -15447,43 +15449,43 @@ components:
       type: object
       additionalProperties: true
       properties:
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        expectedBoardEtag:
+        expected_board_etag:
           $ref: '#/components/schemas/EntityTag'
-        cardIds:
+        card_ids:
           type: array
           items:
             $ref: '#/components/schemas/UuidInput'
           maxItems: 1000
           minItems: 1
-        priorityId:
+        priority_id:
           $ref: '#/components/schemas/UuidInput'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        policyId: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - boardId
-      - expectedBoardEtag
-      - cardIds
-      - priorityId
+      - board_id
+      - expected_board_etag
+      - card_ids
+      - priority_id
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
     ApprovalInput:
@@ -15492,11 +15494,11 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        expectedBoardEtag:
+        expected_board_etag:
           $ref: '#/components/schemas/EntityTag'
-        laneId:
+        lane_id:
           $ref: '#/components/schemas/UuidInput'
         cards:
           type: array
@@ -15504,37 +15506,37 @@ components:
             $ref: '#/components/schemas/CardVersionInput'
           maxItems: 1000
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        policyId: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - boardId
-      - expectedBoardEtag
+      - board_id
+      - expected_board_etag
       - cards
-      description: Unknown members are rejected in this security-sensitive object. Omit laneId for one-card
-        approval, which requires exactly one card. With laneId, cards must match every nonarchived rendered
-        member, including an explicit empty list for a no-op. Duplicate cardIds are rejected after UUID
+      description: Unknown members are rejected in this security-sensitive object. Omit lane_id for one-card
+        approval, which requires exactly one card. With lane_id, cards must match every nonarchived rendered
+        member, including an explicit empty list for a no-op. Duplicate card_ids are rejected after UUID
         normalization.
       allOf:
       - if:
           not:
             required:
-            - laneId
+            - lane_id
         then:
           properties:
             cards:
@@ -15544,45 +15546,45 @@ components:
       type: object
       additionalProperties: false
       properties:
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        expectedBoardEtag:
+        expected_board_etag:
           $ref: '#/components/schemas/EntityTag'
-        cardIds:
+        card_ids:
           type: array
           items:
             $ref: '#/components/schemas/UuidInput'
           maxItems: 1000
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        policyId: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - boardId
-      - expectedBoardEtag
-      - cardIds
+      - board_id
+      - expected_board_etag
+      - card_ids
       description: Unknown members are rejected in this security-sensitive object.
     WorkspacePatch:
       type: object
       additionalProperties: true
       properties:
-        pinnedBoardIds:
+        pinned_board_ids:
           type: array
           items:
             $ref: '#/components/schemas/UuidInput'
@@ -15590,30 +15592,30 @@ components:
         publishing:
           $ref: '#/components/schemas/PublishingInput'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       anyOf:
       - required:
-        - pinnedBoardIds
+        - pinned_board_ids
       - required:
         - publishing
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
@@ -15624,32 +15626,32 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        expectedBoardEtag:
+        expected_board_etag:
           $ref: '#/components/schemas/EntityTag'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        policyId: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - boardId
-      - expectedBoardEtag
+      - board_id
+      - expected_board_etag
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
     RestoreInput:
@@ -15658,35 +15660,35 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        backupId:
+        backup_id:
           $ref: '#/components/schemas/UuidInput'
-        expectedBoardEtag:
+        expected_board_etag:
           $ref: '#/components/schemas/EntityTag'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        policyId: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - boardId
-      - backupId
-      - expectedBoardEtag
+      - board_id
+      - backup_id
+      - expected_board_etag
       description: Unknown members are rejected in this security-sensitive object.
     PublicationInput:
       type: object
@@ -15694,37 +15696,37 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        backupId:
+        backup_id:
           $ref: '#/components/schemas/UuidInput'
         workspace:
           type: boolean
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       description: Unknown members are rejected in this security-sensitive object.
       oneOf:
       - required:
-        - boardId
-        - backupId
+        - board_id
+        - backup_id
         properties:
           workspace:
             const: false
@@ -15733,8 +15735,8 @@ components:
         properties:
           workspace:
             const: true
-          boardId: false
-          backupId: false
+          board_id: false
+          backup_id: false
     ServicePatch:
       type: object
       additionalProperties: false
@@ -15742,27 +15744,27 @@ components:
         state:
           const: stopped
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
       - state
       description: Unknown members are rejected in this security-sensitive object.
@@ -15772,34 +15774,34 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        buildId:
+        build_id:
           $ref: '#/components/schemas/UuidInput'
-        expectedServiceEtag:
+        expected_service_etag:
           $ref: '#/components/schemas/EntityTag'
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - buildId
-      - expectedServiceEtag
+      - build_id
+      - expected_service_etag
       description: Unknown members are rejected in this security-sensitive object.
     UploadInput:
       type: object
@@ -15807,9 +15809,9 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        cardId:
+        card_id:
           $ref: '#/components/schemas/UuidInput'
-        expectedCardEtag:
+        expected_card_etag:
           $ref: '#/components/schemas/EntityTag'
         file:
           type: string
@@ -15817,28 +15819,28 @@ components:
           description: One file, at most 10 MiB. Only the original filename is metadata; supplied path
             components are never storage paths.
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedBoardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - cardId
-      - expectedCardEtag
+      - card_id
+      - expected_card_etag
       - file
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
@@ -15861,25 +15863,25 @@ components:
           minLength: 0
           maxLength: 64
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
       - id
       - label
@@ -15889,16 +15891,16 @@ components:
       type: object
       additionalProperties: false
       required:
-      - boardId
-      - boardEtag
-      - cardIds
+      - board_id
+      - board_etag
+      - card_ids
       - changed
       properties:
-        boardId:
+        board_id:
           $ref: '#/components/schemas/Uuid'
-        boardEtag:
+        board_etag:
           $ref: '#/components/schemas/EntityTag'
-        cardIds:
+        card_ids:
           type: array
           maxItems: 0
           items:
@@ -15909,10 +15911,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - userId
+      - user_id
       - capabilities
       properties:
-        userId:
+        user_id:
           $ref: '#/components/schemas/Uuid'
         capabilities:
           type: array
@@ -15942,7 +15944,7 @@ components:
       type: object
       additionalProperties: false
       properties:
-        userId:
+        user_id:
           $ref: '#/components/schemas/UuidInput'
         capabilities:
           type: array
@@ -15969,29 +15971,29 @@ components:
           uniqueItems: true
           maxItems: 18
         actor: false
-        actorId: false
+        actor_id: false
         by: false
-        isAdmin: false
+        is_admin: false
         credentials: false
         token: false
-        createdAt: false
-        updatedAt: false
+        created_at: false
+        updated_at: false
         revision: false
         etag: false
         ticket: false
         id: false
-        expectedBoardEtag: false
-        expectedCardEtag: false
-        boardEtag: false
-        cardEtag: false
-        boardId: false
-        policyId: false
+        expected_board_etag: false
+        expected_card_etag: false
+        board_etag: false
+        card_etag: false
+        board_id: false
+        policy_id: false
         role: false
         kind: false
-        createdBy: false
-        updatedBy: false
+        created_by: false
+        updated_by: false
       required:
-      - userId
+      - user_id
       - capabilities
       description: Unknown members are rejected in this security-sensitive object.
     BoardSummary:
@@ -16003,8 +16005,8 @@ components:
       - etag
       - availability
       - attention
-      - lastCardEditAt
-      - errorCode
+      - last_card_edit_at
+      - error_code
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
@@ -16028,11 +16030,11 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Attention'
           - type: 'null'
-        lastCardEditAt:
+        last_card_edit_at:
           anyOf:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
-        errorCode:
+        error_code:
           anyOf:
           - type: string
             minLength: 0
@@ -16043,14 +16045,14 @@ components:
       additionalProperties: false
       required:
       - boards
-      - nextCursor
+      - next_cursor
       properties:
         boards:
           type: array
           items:
             $ref: '#/components/schemas/BoardSummary'
           maxItems: 200
-        nextCursor:
+        next_cursor:
           anyOf:
           - type: string
             minLength: 1
@@ -16072,44 +16074,44 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
+      - created_at
+      - updated_at
       - name
-      - policyId
-      - userIds
-      - laneIds
-      - priorityIds
+      - policy_id
+      - user_ids
+      - lane_ids
+      - priority_ids
       - availability
       - revision
       - attention
-      - lastCardEditAt
+      - last_card_edit_at
       - notifications
       - publishing
-      - userCss
+      - user_css
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
         name:
           type: string
           minLength: 1
           maxLength: 256
-        policyId:
+        policy_id:
           $ref: '#/components/schemas/UuidInput'
-        userIds:
+        user_ids:
           type: array
           items:
             $ref: '#/components/schemas/UuidInput'
-        laneIds:
+        lane_ids:
           type: array
           items:
             $ref: '#/components/schemas/UuidInput'
-        priorityIds:
+        priority_ids:
           type: array
           items:
             $ref: '#/components/schemas/UuidInput'
@@ -16122,7 +16124,7 @@ components:
           $ref: '#/components/schemas/Revision'
         attention:
           $ref: '#/components/schemas/AttentionSnapshotInput'
-        lastCardEditAt:
+        last_card_edit_at:
           anyOf:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
@@ -16130,7 +16132,7 @@ components:
           $ref: '#/components/schemas/NotificationsSnapshotInput'
         publishing:
           $ref: '#/components/schemas/PublishingSnapshotInput'
-        userCss:
+        user_css:
           type: string
           minLength: 0
           maxLength: 1048576
@@ -16139,16 +16141,16 @@ components:
       additionalProperties: false
       required:
       - blocked
-      - needsInput
-      - readyForReview
+      - needs_input
+      - ready_for_review
       properties:
         blocked:
           type: integer
           minimum: 0
-        needsInput:
+        needs_input:
           type: integer
           minimum: 0
-        readyForReview:
+        ready_for_review:
           type: integer
           minimum: 0
     NotificationsSnapshotInput:
@@ -16156,11 +16158,11 @@ components:
       additionalProperties: false
       required:
       - enabled
-      - targetThreadId
+      - target_thread_id
       properties:
         enabled:
           type: boolean
-        targetThreadId:
+        target_thread_id:
           anyOf:
           - $ref: '#/components/schemas/ThreadIdInput'
           - type: 'null'
@@ -16170,9 +16172,9 @@ components:
       required:
       - enabled
       - repository
-      - lastSuccessAt
+      - last_success_at
       - pending
-      - errorCode
+      - error_code
       properties:
         enabled:
           type: boolean
@@ -16182,13 +16184,13 @@ components:
             minLength: 0
             maxLength: 2048
           - type: 'null'
-        lastSuccessAt:
+        last_success_at:
           anyOf:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
         pending:
           type: boolean
-        errorCode:
+        error_code:
           anyOf:
           - type: string
             minLength: 0
@@ -16200,8 +16202,8 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
+      - created_at
+      - updated_at
       - label
       - kind
       - color
@@ -16210,9 +16212,9 @@ components:
           $ref: '#/components/schemas/UuidInput'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
         label:
           type: string
@@ -16232,26 +16234,26 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
+      - created_at
+      - updated_at
+      - board_id
       - key
       - label
       - position
       - role
       - retired
-      - approvalEnabled
-      - reorderEnabled
+      - approval_enabled
+      - reorder_enabled
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
         key:
           type: string
@@ -16273,9 +16275,9 @@ components:
           - ready_for_review
         retired:
           type: boolean
-        approvalEnabled:
+        approval_enabled:
           type: boolean
-        reorderEnabled:
+        reorder_enabled:
           type: boolean
     PrioritySnapshotInput:
       type: object
@@ -16283,9 +16285,9 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
+      - created_at
+      - updated_at
+      - board_id
       - key
       - label
       - rank
@@ -16295,11 +16297,11 @@ components:
           $ref: '#/components/schemas/UuidInput'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
         key:
           type: string
@@ -16322,35 +16324,35 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
-      - defaultPriorityId
-      - createGrants
-      - moveGrants
-      - resourceGrants
+      - created_at
+      - updated_at
+      - board_id
+      - default_priority_id
+      - create_grants
+      - move_grants
+      - resource_grants
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        defaultPriorityId:
+        default_priority_id:
           $ref: '#/components/schemas/UuidInput'
-        createGrants:
+        create_grants:
           type: array
           items:
             $ref: '#/components/schemas/CreateGrantSnapshotInput'
-        moveGrants:
+        move_grants:
           type: array
           items:
             $ref: '#/components/schemas/MoveGrantSnapshotInput'
-        resourceGrants:
+        resource_grants:
           type: array
           items:
             $ref: '#/components/schemas/ResourceGrantSnapshotInput'
@@ -16358,35 +16360,35 @@ components:
       type: object
       additionalProperties: false
       required:
-      - userId
-      - laneId
+      - user_id
+      - lane_id
       properties:
-        userId:
+        user_id:
           $ref: '#/components/schemas/UuidInput'
-        laneId:
+        lane_id:
           $ref: '#/components/schemas/UuidInput'
     MoveGrantSnapshotInput:
       type: object
       additionalProperties: false
       required:
-      - userId
-      - fromLaneId
-      - toLaneId
+      - user_id
+      - from_lane_id
+      - to_lane_id
       properties:
-        userId:
+        user_id:
           $ref: '#/components/schemas/UuidInput'
-        fromLaneId:
+        from_lane_id:
           $ref: '#/components/schemas/UuidInput'
-        toLaneId:
+        to_lane_id:
           $ref: '#/components/schemas/UuidInput'
     ResourceGrantSnapshotInput:
       type: object
       additionalProperties: false
       required:
-      - userId
+      - user_id
       - capabilities
       properties:
-        userId:
+        user_id:
           $ref: '#/components/schemas/UuidInput'
         capabilities:
           type: array
@@ -16418,35 +16420,35 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
+      - created_at
+      - updated_at
+      - board_id
       - ticket
       - title
       - description
-      - laneId
-      - ownerId
-      - priorityId
-      - parentId
-      - childIds
+      - lane_id
+      - owner_id
+      - priority_id
+      - parent_id
+      - child_ids
       - archived
-      - coverAttachmentId
-      - commentCount
-      - attachmentCount
-      - blockingDepth
-      - blockedCardCount
-      - triageScore
-      - completedAt
+      - cover_attachment_id
+      - comment_count
+      - attachment_count
+      - blocking_depth
+      - blocked_card_count
+      - triage_score
+      - completed_at
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
         ticket:
           type: integer
@@ -16460,43 +16462,43 @@ components:
           type: string
           minLength: 0
           maxLength: 4194304
-        laneId:
+        lane_id:
           $ref: '#/components/schemas/UuidInput'
-        ownerId:
+        owner_id:
           anyOf:
           - $ref: '#/components/schemas/UuidInput'
           - type: 'null'
-        priorityId:
+        priority_id:
           $ref: '#/components/schemas/UuidInput'
-        parentId:
+        parent_id:
           anyOf:
           - $ref: '#/components/schemas/UuidInput'
           - type: 'null'
-        childIds:
+        child_ids:
           type: array
           items:
             $ref: '#/components/schemas/UuidInput'
         archived:
           type: boolean
-        coverAttachmentId:
+        cover_attachment_id:
           anyOf:
           - $ref: '#/components/schemas/UuidInput'
           - type: 'null'
-        commentCount:
+        comment_count:
           type: integer
           minimum: 0
-        attachmentCount:
+        attachment_count:
           type: integer
           minimum: 0
-        blockingDepth:
+        blocking_depth:
           type: integer
           minimum: 0
-        blockedCardCount:
+        blocked_card_count:
           type: integer
           minimum: 0
-        triageScore:
+        triage_score:
           type: integer
-        completedAt:
+        completed_at:
           anyOf:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
@@ -16506,30 +16508,30 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
-      - cardId
+      - created_at
+      - updated_at
+      - board_id
+      - card_id
       - text
-      - authorId
+      - author_id
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        cardId:
+        card_id:
           $ref: '#/components/schemas/UuidInput'
         text:
           type: string
           minLength: 1
           maxLength: 4194304
-        authorId:
+        author_id:
           $ref: '#/components/schemas/UuidInput'
     RelationshipSnapshotInput:
       type: object
@@ -16537,26 +16539,26 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
-      - sourceCardId
-      - targetCardId
+      - created_at
+      - updated_at
+      - board_id
+      - source_card_id
+      - target_card_id
       - kind
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        sourceCardId:
+        source_card_id:
           $ref: '#/components/schemas/UuidInput'
-        targetCardId:
+        target_card_id:
           $ref: '#/components/schemas/UuidInput'
         kind:
           enum:
@@ -16570,31 +16572,31 @@ components:
       required:
       - id
       - etag
-      - createdAt
-      - updatedAt
-      - boardId
-      - cardId
-      - originalName
+      - created_at
+      - updated_at
+      - board_id
+      - card_id
+      - original_name
       - size
       - sha256
-      - mediaType
+      - media_type
       - previewable
       - active
-      - addedBy
+      - added_by
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
         etag:
           $ref: '#/components/schemas/EntityTag'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/Timestamp'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/Timestamp'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
-        cardId:
+        card_id:
           $ref: '#/components/schemas/UuidInput'
-        originalName:
+        original_name:
           type: string
           minLength: 1
           maxLength: 1024
@@ -16604,7 +16606,7 @@ components:
           maximum: 10485760
         sha256:
           $ref: '#/components/schemas/Digest'
-        mediaType:
+        media_type:
           type: string
           minLength: 1
           maxLength: 128
@@ -16612,39 +16614,39 @@ components:
           type: boolean
         active:
           type: boolean
-        addedBy:
+        added_by:
           $ref: '#/components/schemas/UuidInput'
     ChangeSnapshotInput:
       type: object
       additionalProperties: false
       required:
       - id
-      - boardId
+      - board_id
       - revision
       - at
-      - actorId
+      - actor_id
       - operation
-      - resourceType
-      - resourceId
+      - resource_type
+      - resource_id
       - field
       - before
       - after
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        boardId:
+        board_id:
           $ref: '#/components/schemas/UuidInput'
         revision:
           $ref: '#/components/schemas/Revision'
         at:
           $ref: '#/components/schemas/Timestamp'
-        actorId:
+        actor_id:
           $ref: '#/components/schemas/UuidInput'
         operation:
           type: string
           minLength: 1
           maxLength: 80
-        resourceType:
+        resource_type:
           enum:
           - board
           - card
@@ -16654,7 +16656,7 @@ components:
           - comment
           - attachment
           - relationship
-        resourceId:
+        resource_id:
           $ref: '#/components/schemas/UuidInput'
         field:
           anyOf:
@@ -16679,7 +16681,7 @@ components:
       additionalProperties: false
       required:
       - format
-      - formatVersion
+      - format_version
       - board
       - users
       - lanes
@@ -16693,8 +16695,8 @@ components:
       properties:
         format:
           const: localswim-snapshot
-        formatVersion:
-          const: 1
+        format_version:
+          const: 2
         board:
           $ref: '#/components/schemas/BoardSnapshotInput'
         users:
@@ -17822,10 +17824,10 @@ x-security-policy:
     or user-supplied attribution.
   browser: Use authenticated fetch for SSE and attachment bytes, then blob URLs for previews/downloads.
     No credential-bearing EventSource URL.
-  authorization: Capability principalId equals User.id. A board operation requires Board.userIds membership
-    and its current Policy.resourceGrants capability. Creation/movement additionally require their lane
+  authorization: Capability principal_id equals User.id. A board operation requires Board.user_ids membership
+    and its current Policy.resource_grants capability. Creation/movement additionally require their lane
     grants. Collection reads return only authorized resources. Workspace management requires the runtime-issued
-    workspaceAdmin flag; it never bypasses board mutation checks or Human-only approval. HTTP user configuration
+    workspace_admin flag; it never bypasses board mutation checks or Human-only approval. HTTP user configuration
     never issues or elevates capabilities.
   forbiddenResponseHeaders:
   - Access-Control-Allow-Credentials
@@ -17839,23 +17841,23 @@ x-security-policy:
     CardPatch:
       title: edit_card
       description: edit_card
-      ownerId: edit_card
-      parentId: manage_relationships
-      laneId: matching moveGrants edge
-      priorityId: set_priority
+      owner_id: edit_card
+      parent_id: manage_relationships
+      lane_id: matching move_grants edge
+      priority_id: set_priority
       archived: archive_card
-      coverAttachmentId: manage_attachments
+      cover_attachment_id: manage_attachments
     BoardPatch:
       name: manage_board
-      userCss: manage_board
+      user_css: manage_board
       notifications: manage_notifications
       publishing: publish
       availability: close_board
-      userIds: manage_permissions plus workspaceAdmin
-  bootstrapDefaults: The local runtime issues bootstrap identities and workspaceAdmin capabilities to
+      user_ids: manage_permissions plus workspace_admin
+  bootstrapDefaults: The local runtime issues bootstrap identities and workspace_admin capabilities to
     the configured local owner Human and CLI Bot. Fresh default boards contain those users with read/edit/comment/relationship/attachment/priority/workflow/management/backup/restore/publishing
     capabilities, lane grants from the default workflow, and approve only for Human. Custom board creation
-    must provide explicit resourceGrants and lane grants.
+    must provide explicit resource_grants and lane grants.
 x-ui-response-headers:
   Content-Security-Policy: 'default-src ''none''; script-src ''self''; style-src ''self''; img-src ''self''
     data: blob:; connect-src ''self''; font-src ''self''; object-src ''none''; base-uri ''none''; frame-ancestors
@@ -17890,8 +17892,8 @@ x-runtime-requirements:
     96 MiB JSON response bound. Prepare and validate mutation results before commit; a result that cannot
     fit refuses before mutation instead of truncating committed changes.
   catalogEvents: Every committed edit affecting catalog counts, labels, availability, or recency updates
-    catalogEtag and reaches every workspace event stream, even if that board is not selected/watched.
-    workspaceEtag changes only with workspace preferences.
+    catalog_etag and reaches every workspace event stream, even if that board is not selected/watched.
+    workspace_etag changes only with workspace preferences.
   restoreUsers: Board recovery never overwrites an existing global User. Every referenced user UUID must
     already exist and have the same immutable kind; otherwise refuse with 409 before mutation. Current
     global labels/colors remain current, even when an older snapshot contains earlier display metadata.

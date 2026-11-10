@@ -184,7 +184,7 @@ func customWorkflow(raw json.RawMessage, boardID string, now time.Time) (workflo
 	completedCount := 0
 	for index, raw := range laneInputs {
 		path := workflowItem("workflow.lanes", index)
-		input := readWorkflowFields(raw, path, false, "id", "key", "label", "role", "createFor", "connectFor")
+		input := readWorkflowFields(raw, path, false, "id", "key", "label", "role", "create_for", "connect_for")
 		id := input.id("id")
 		label := input.string("label", 1, 256, true)
 		role := input.enum("role", "ordinary", "ordinary", "completed", "blocked", "needs_input", "ready_for_review")
@@ -204,13 +204,13 @@ func customWorkflow(raw json.RawMessage, boardID string, now time.Time) (workflo
 		if (key == "completed") != (role == "completed") {
 			input.fail("key", "the completed key is reserved for the completed lane")
 		}
-		if _, before := input.fields["beforeId"]; before {
-			if _, after := input.fields["afterId"]; after {
-				input.fail("beforeId", "conflicts with afterId")
+		if _, before := input.fields["before_id"]; before {
+			if _, after := input.fields["after_id"]; after {
+				input.fail("before_id", "conflicts with after_id")
 			}
 		}
-		laneCreate[index] = input.referenceList("createFor", users)
-		laneConnect[index] = input.referenceList("connectFor", users)
+		laneCreate[index] = input.referenceList("create_for", users)
+		laneConnect[index] = input.referenceList("connect_for", users)
 		if input.err != nil {
 			return workflow{}, input.err
 		}
@@ -273,13 +273,13 @@ func customWorkflow(raw json.RawMessage, boardID string, now time.Time) (workflo
 
 func readInitialPolicy(raw json.RawMessage, boardID string, now time.Time, users, lanes map[string]string, priorities map[string]bool) (policy, error) {
 	const path = "workflow.policy"
-	root := readWorkflowFields(raw, path, true, "defaultPriorityId", "createGrants", "moveGrants", "resourceGrants")
-	defaultPriority := root.id("defaultPriorityId")
-	createInputs := root.array("createGrants", 1000, true)
-	moveInputs := root.array("moveGrants", 1000, true)
-	resourceInputs := root.array("resourceGrants", 1000, true)
+	root := readWorkflowFields(raw, path, true, "default_priority_id", "create_grants", "move_grants", "resource_grants")
+	defaultPriority := root.id("default_priority_id")
+	createInputs := root.array("create_grants", 1000, true)
+	moveInputs := root.array("move_grants", 1000, true)
+	resourceInputs := root.array("resource_grants", 1000, true)
 	if !priorities[defaultPriority] {
-		root.fail("defaultPriorityId", "must refer to an initial priority")
+		root.fail("default_priority_id", "must refer to an initial priority")
 	}
 	if root.err != nil {
 		return policy{}, root.err
@@ -294,16 +294,16 @@ func readInitialPolicy(raw json.RawMessage, boardID string, now time.Time, users
 	}
 	createSeen := make(map[createGrant]bool, len(createInputs))
 	for index, raw := range createInputs {
-		input := readWorkflowFields(raw, workflowItem(path+".createGrants", index), true, "userId", "laneId")
-		grant := createGrant{UserID: input.id("userId"), LaneID: input.id("laneId")}
+		input := readWorkflowFields(raw, workflowItem(path+".create_grants", index), true, "user_id", "lane_id")
+		grant := createGrant{UserID: input.id("user_id"), LaneID: input.id("lane_id")}
 		if users[grant.UserID] == "" {
-			input.fail("userId", "must refer to an initial user")
+			input.fail("user_id", "must refer to an initial user")
 		}
 		if lanes[grant.LaneID] == "" {
-			input.fail("laneId", "must refer to an initial lane")
+			input.fail("lane_id", "must refer to an initial lane")
 		}
 		if createSeen[grant] {
-			input.fail("laneId", "repeats a creation grant")
+			input.fail("lane_id", "repeats a creation grant")
 		}
 		if input.err != nil {
 			return policy{}, input.err
@@ -313,22 +313,22 @@ func readInitialPolicy(raw json.RawMessage, boardID string, now time.Time, users
 	}
 	moveSeen := make(map[moveGrant]bool, len(moveInputs))
 	for index, raw := range moveInputs {
-		input := readWorkflowFields(raw, workflowItem(path+".moveGrants", index), true, "userId", "fromLaneId", "toLaneId")
-		grant := moveGrant{UserID: input.id("userId"), FromLaneID: input.id("fromLaneId"), ToLaneID: input.id("toLaneId")}
+		input := readWorkflowFields(raw, workflowItem(path+".move_grants", index), true, "user_id", "from_lane_id", "to_lane_id")
+		grant := moveGrant{UserID: input.id("user_id"), FromLaneID: input.id("from_lane_id"), ToLaneID: input.id("to_lane_id")}
 		if users[grant.UserID] == "" {
-			input.fail("userId", "must refer to an initial user")
+			input.fail("user_id", "must refer to an initial user")
 		}
 		if lanes[grant.FromLaneID] == "" {
-			input.fail("fromLaneId", "must refer to an initial lane")
+			input.fail("from_lane_id", "must refer to an initial lane")
 		}
 		if lanes[grant.ToLaneID] == "" {
-			input.fail("toLaneId", "must refer to an initial lane")
+			input.fail("to_lane_id", "must refer to an initial lane")
 		}
 		if grant.FromLaneID == grant.ToLaneID {
-			input.fail("toLaneId", "must differ from fromLaneId")
+			input.fail("to_lane_id", "must differ from from_lane_id")
 		}
 		if moveSeen[grant] {
-			input.fail("toLaneId", "repeats a move grant")
+			input.fail("to_lane_id", "repeats a move grant")
 		}
 		if input.err != nil {
 			return policy{}, input.err
@@ -338,13 +338,13 @@ func readInitialPolicy(raw json.RawMessage, boardID string, now time.Time, users
 	}
 	resourceSeen := make(map[string]bool, len(resourceInputs))
 	for index, raw := range resourceInputs {
-		input := readWorkflowFields(raw, workflowItem(path+".resourceGrants", index), true, "userId", "capabilities")
-		id := input.id("userId")
+		input := readWorkflowFields(raw, workflowItem(path+".resource_grants", index), true, "user_id", "capabilities")
+		id := input.id("user_id")
 		if users[id] == "" {
-			input.fail("userId", "must refer to an initial user")
+			input.fail("user_id", "must refer to an initial user")
 		}
 		if resourceSeen[id] {
-			input.fail("userId", "repeats a resource grant")
+			input.fail("user_id", "repeats a resource grant")
 		}
 		capabilityInputs := input.array("capabilities", 18, true)
 		capabilities := make([]string, 0, len(capabilityInputs))

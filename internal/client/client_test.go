@@ -58,7 +58,7 @@ func TestMutationDoesNotRedirectOrLeakResponse(t *testing.T) {
 			server.Close()
 			t.Fatal(err)
 		}
-		_, err = api.Do(http.MethodPatch, "/workspace", []byte(`{"pinnedBoardIds":[]}`), `"workspace-2"`)
+		_, err = api.Do(http.MethodPatch, "/workspace", []byte(`{"pinned_board_ids":[]}`), `"workspace-2"`)
 		server.Close()
 		if err == nil || strings.Contains(err.Error(), "must stay private") {
 			t.Errorf("unexpected error for HTTP %d: %v", status, err)

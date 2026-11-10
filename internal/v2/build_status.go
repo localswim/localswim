@@ -26,18 +26,18 @@ const (
 
 type serviceStatus struct {
 	ETag             string  `json:"etag"`
-	GenerationID     string  `json:"generationId"`
-	BuildID          string  `json:"buildId"`
+	GenerationID     string  `json:"generation_id"`
+	BuildID          string  `json:"build_id"`
 	State            string  `json:"state"`
-	APIVersion       string  `json:"apiVersion"`
-	RestartErrorCode *string `json:"restartErrorCode"`
+	APIVersion       string  `json:"api_version"`
+	RestartErrorCode *string `json:"restart_error_code"`
 }
 
 type build struct {
 	ID         string  `json:"id"`
 	Version    string  `json:"version"`
 	Validation string  `json:"validation"`
-	ErrorCode  *string `json:"errorCode"`
+	ErrorCode  *string `json:"error_code"`
 }
 
 type buildStatus struct {

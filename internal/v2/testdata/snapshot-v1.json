@@ -1,0 +1,347 @@
+{
+  "format": "localswim-snapshot",
+  "formatVersion": 1,
+  "board": {
+    "id": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+    "etag": "\"c03181b1-7f3b-433a-9b26-53fde69ac68e-2\"",
+    "createdAt": "2026-11-10T13:52:02.113293Z",
+    "updatedAt": "2026-11-10T13:52:02.113293Z",
+    "name": "Legacy fixture",
+    "policyId": "71b28a1a-0721-412a-a6eb-b7ba9dc75537",
+    "userIds": [
+      "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+      "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4"
+    ],
+    "laneIds": [
+      "6bc23edb-0503-4e41-a1a6-72a881973238",
+      "b7675137-217e-4c8e-875e-771a1f8bef48",
+      "7709eea0-1a16-41b5-94a8-4ba1cea01407",
+      "04a0a9e9-bc06-4c82-9356-982fc8516249",
+      "1b89bdb1-bb57-4aaf-95a3-acea2169280b"
+    ],
+    "priorityIds": [
+      "b2c3abcd-a9a8-48f4-9ae3-5545079f1b21",
+      "08a535be-bfad-4a1d-a443-6914322fbff5",
+      "df561a1b-58e3-464a-ae65-98f788530ecf"
+    ],
+    "availability": "open",
+    "revision": 2,
+    "attention": {
+      "blocked": 0,
+      "needsInput": 0,
+      "readyForReview": 0
+    },
+    "lastCardEditAt": null,
+    "notifications": {
+      "enabled": false,
+      "targetThreadId": "018e7f0a-bcde-7abc-8def-0123456789ab"
+    },
+    "publishing": {
+      "enabled": false,
+      "repository": null,
+      "lastSuccessAt": null,
+      "pending": false,
+      "errorCode": null
+    },
+    "userCss": ""
+  },
+  "users": [
+    {
+      "id": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+      "etag": "\"3109cf0e-805f-4af2-b180-6cfed1c50ca1-1\"",
+      "createdAt": "2026-11-10T13:52:01.969032Z",
+      "updatedAt": "2026-11-10T13:52:01.969032Z",
+      "label": "Human",
+      "kind": "human",
+      "color": ""
+    },
+    {
+      "id": "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4",
+      "etag": "\"5bb4d8c2-2702-4c70-93e1-e98b5cd683f4-1\"",
+      "createdAt": "2026-11-10T13:52:01.969032Z",
+      "updatedAt": "2026-11-10T13:52:01.969032Z",
+      "label": "Bot",
+      "kind": "bot",
+      "color": ""
+    }
+  ],
+  "lanes": [
+    {
+      "id": "6bc23edb-0503-4e41-a1a6-72a881973238",
+      "etag": "\"6bc23edb-0503-4e41-a1a6-72a881973238-1\"",
+      "createdAt": "2026-11-10T13:52:02.113293Z",
+      "updatedAt": "2026-11-10T13:52:02.113293Z",
+      "boardId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+      "key": "backlog",
+      "label": "Backlog",
+      "position": 0,
+      "role": "ordinary",
+      "retired": false,
+      "approvalEnabled": false,
+      "reorderEnabled": false
+    },
+    {
+      "id": "b7675137-217e-4c8e-875e-771a1f8bef48",
+      "etag": "\"b7675137-217e-4c8e-875e-771a1f8bef48-1\"",
+      "createdAt": "2026-11-10T13:52:02.113293Z",
+      "updatedAt": "2026-11-10T13:52:02.113293Z",
+      "boardId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+      "key": "ready_for_work",
+      "label": "Ready For Work",
+      "position": 1,
+      "role": "ordinary",
+      "retired": false,
+      "approvalEnabled": false,
+      "reorderEnabled": false
+    },
+    {
+      "id": "7709eea0-1a16-41b5-94a8-4ba1cea01407",
+      "etag": "\"7709eea0-1a16-41b5-94a8-4ba1cea01407-1\"",
+      "createdAt": "2026-11-10T13:52:02.113293Z",
+      "updatedAt": "2026-11-10T13:52:02.113293Z",
+      "boardId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+      "key": "in_progress",
+      "label": "In Progress",
+      "position": 2,
+      "role": "ordinary",
+      "retired": false,
+      "approvalEnabled": false,
+      "reorderEnabled": false
+    },
+    {
+      "id": "04a0a9e9-bc06-4c82-9356-982fc8516249",
+      "etag": "\"04a0a9e9-bc06-4c82-9356-982fc8516249-1\"",
+      "createdAt": "2026-11-10T13:52:02.113293Z",
+      "updatedAt": "2026-11-10T13:52:02.113293Z",
+      "boardId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+      "key": "ready_for_review",
+      "label": "Ready For Review",
+      "position": 3,
+      "role": "ready_for_review",
+      "retired": false,
+      "approvalEnabled": false,
+      "reorderEnabled": false
+    },
+    {
+      "id": "1b89bdb1-bb57-4aaf-95a3-acea2169280b",
+      "etag": "\"1b89bdb1-bb57-4aaf-95a3-acea2169280b-1\"",
+      "createdAt": "2026-11-10T13:52:02.113293Z",
+      "updatedAt": "2026-11-10T13:52:02.113293Z",
+      "boardId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+      "key": "completed",
+      "label": "Completed",
+      "position": 4,
+      "role": "completed",
+      "retired": false,
+      "approvalEnabled": false,
+      "reorderEnabled": false
+    }
+  ],
+  "priorities": [
+    {
+      "id": "b2c3abcd-a9a8-48f4-9ae3-5545079f1b21",
+      "etag": "\"b2c3abcd-a9a8-48f4-9ae3-5545079f1b21-1\"",
+      "createdAt": "2026-11-10T13:52:02.113293Z",
+      "updatedAt": "2026-11-10T13:52:02.113293Z",
+      "boardId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+      "key": "P1",
+      "label": "Urgent",
+      "rank": 0,
+      "color": ""
+    },
+    {
+      "id": "08a535be-bfad-4a1d-a443-6914322fbff5",
+      "etag": "\"08a535be-bfad-4a1d-a443-6914322fbff5-1\"",
+      "createdAt": "2026-11-10T13:52:02.113293Z",
+      "updatedAt": "2026-11-10T13:52:02.113293Z",
+      "boardId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+      "key": "P2",
+      "label": "Normal",
+      "rank": 1,
+      "color": ""
+    },
+    {
+      "id": "df561a1b-58e3-464a-ae65-98f788530ecf",
+      "etag": "\"df561a1b-58e3-464a-ae65-98f788530ecf-1\"",
+      "createdAt": "2026-11-10T13:52:02.113293Z",
+      "updatedAt": "2026-11-10T13:52:02.113293Z",
+      "boardId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+      "key": "P3",
+      "label": "Low",
+      "rank": 2,
+      "color": ""
+    }
+  ],
+  "policy": {
+    "id": "71b28a1a-0721-412a-a6eb-b7ba9dc75537",
+    "etag": "\"71b28a1a-0721-412a-a6eb-b7ba9dc75537-1\"",
+    "createdAt": "2026-11-10T13:52:02.113293Z",
+    "updatedAt": "2026-11-10T13:52:02.113293Z",
+    "boardId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+    "defaultPriorityId": "08a535be-bfad-4a1d-a443-6914322fbff5",
+    "createGrants": [
+      {
+        "userId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+        "laneId": "6bc23edb-0503-4e41-a1a6-72a881973238"
+      },
+      {
+        "userId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+        "laneId": "b7675137-217e-4c8e-875e-771a1f8bef48"
+      },
+      {
+        "userId": "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4",
+        "laneId": "6bc23edb-0503-4e41-a1a6-72a881973238"
+      },
+      {
+        "userId": "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4",
+        "laneId": "b7675137-217e-4c8e-875e-771a1f8bef48"
+      }
+    ],
+    "moveGrants": [
+      {
+        "userId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+        "fromLaneId": "6bc23edb-0503-4e41-a1a6-72a881973238",
+        "toLaneId": "b7675137-217e-4c8e-875e-771a1f8bef48"
+      },
+      {
+        "userId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+        "fromLaneId": "b7675137-217e-4c8e-875e-771a1f8bef48",
+        "toLaneId": "6bc23edb-0503-4e41-a1a6-72a881973238"
+      },
+      {
+        "userId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+        "fromLaneId": "b7675137-217e-4c8e-875e-771a1f8bef48",
+        "toLaneId": "7709eea0-1a16-41b5-94a8-4ba1cea01407"
+      },
+      {
+        "userId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+        "fromLaneId": "7709eea0-1a16-41b5-94a8-4ba1cea01407",
+        "toLaneId": "b7675137-217e-4c8e-875e-771a1f8bef48"
+      },
+      {
+        "userId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+        "fromLaneId": "7709eea0-1a16-41b5-94a8-4ba1cea01407",
+        "toLaneId": "04a0a9e9-bc06-4c82-9356-982fc8516249"
+      },
+      {
+        "userId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+        "fromLaneId": "6bc23edb-0503-4e41-a1a6-72a881973238",
+        "toLaneId": "7709eea0-1a16-41b5-94a8-4ba1cea01407"
+      },
+      {
+        "userId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+        "fromLaneId": "04a0a9e9-bc06-4c82-9356-982fc8516249",
+        "toLaneId": "7709eea0-1a16-41b5-94a8-4ba1cea01407"
+      },
+      {
+        "userId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+        "fromLaneId": "04a0a9e9-bc06-4c82-9356-982fc8516249",
+        "toLaneId": "1b89bdb1-bb57-4aaf-95a3-acea2169280b"
+      },
+      {
+        "userId": "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4",
+        "fromLaneId": "6bc23edb-0503-4e41-a1a6-72a881973238",
+        "toLaneId": "b7675137-217e-4c8e-875e-771a1f8bef48"
+      },
+      {
+        "userId": "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4",
+        "fromLaneId": "b7675137-217e-4c8e-875e-771a1f8bef48",
+        "toLaneId": "6bc23edb-0503-4e41-a1a6-72a881973238"
+      },
+      {
+        "userId": "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4",
+        "fromLaneId": "b7675137-217e-4c8e-875e-771a1f8bef48",
+        "toLaneId": "7709eea0-1a16-41b5-94a8-4ba1cea01407"
+      },
+      {
+        "userId": "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4",
+        "fromLaneId": "7709eea0-1a16-41b5-94a8-4ba1cea01407",
+        "toLaneId": "b7675137-217e-4c8e-875e-771a1f8bef48"
+      },
+      {
+        "userId": "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4",
+        "fromLaneId": "7709eea0-1a16-41b5-94a8-4ba1cea01407",
+        "toLaneId": "04a0a9e9-bc06-4c82-9356-982fc8516249"
+      }
+    ],
+    "resourceGrants": [
+      {
+        "userId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+        "capabilities": [
+          "read",
+          "edit_card",
+          "comment",
+          "archive_card",
+          "manage_relationships",
+          "manage_attachments",
+          "set_priority",
+          "manage_board",
+          "manage_workflow",
+          "manage_permissions",
+          "manage_notifications",
+          "backup",
+          "restore",
+          "publish",
+          "close_board",
+          "create_card",
+          "reorder_tickets",
+          "approve"
+        ]
+      },
+      {
+        "userId": "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4",
+        "capabilities": [
+          "read",
+          "edit_card",
+          "comment",
+          "archive_card",
+          "manage_relationships",
+          "manage_attachments",
+          "set_priority",
+          "manage_board",
+          "manage_workflow",
+          "manage_permissions",
+          "manage_notifications",
+          "backup",
+          "restore",
+          "publish",
+          "close_board",
+          "create_card",
+          "reorder_tickets"
+        ]
+      }
+    ]
+  },
+  "cards": [],
+  "comments": [],
+  "relationships": [],
+  "attachments": [],
+  "activity": [
+    {
+      "id": "0db72736-40aa-463c-8e52-01bff7d0d1a2",
+      "boardId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+      "revision": 1,
+      "at": "2026-11-10T13:52:02.113293Z",
+      "actorId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+      "operation": "create",
+      "resourceType": "board",
+      "resourceId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+      "field": null,
+      "before": null,
+      "after": null
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000009",
+      "boardId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+      "revision": 2,
+      "at": "2026-11-10T13:52:02.113293Z",
+      "actorId": "3109cf0e-805f-4af2-b180-6cfed1c50ca1",
+      "operation": "patch",
+      "resourceType": "board",
+      "resourceId": "c03181b1-7f3b-433a-9b26-53fde69ac68e",
+      "field": "notifications.targetThreadId",
+      "before": null,
+      "after": "018e7f0a-bcde-7abc-8def-0123456789ab"
+    }
+  ]
+}

@@ -21,7 +21,7 @@ test("reads the workspace and catalog as independent same-origin resources", asy
     assert.equal(options.cache, "no-store");
     assert.equal(options.headers.get("Authorization"), "Bearer fixture-capability");
     const workspace = url.endsWith("/workspace");
-    return Response.json(workspace ? { pinnedBoardIds: [] } : { boards: [], nextCursor: null }, {
+    return Response.json(workspace ? { pinned_board_ids: [] } : { boards: [], next_cursor: null }, {
       headers: { ETag: workspace ? TAG : '"board_catalog_04"' },
     });
   }, () => {
@@ -30,8 +30,8 @@ test("reads the workspace and catalog as independent same-origin resources", asy
   });
 
   assert.deepEqual(await readWorkspaceOverview(api), {
-    workspace: { data: { pinnedBoardIds: [] }, etag: TAG },
-    boards: { data: { boards: [], nextCursor: null }, etag: '"board_catalog_04"' },
+    workspace: { data: { pinned_board_ids: [] }, etag: TAG },
+    boards: { data: { boards: [], next_cursor: null }, etag: '"board_catalog_04"' },
   });
   assert.deepEqual(calls, ["/api/2026-11-10/workspace", "/api/2026-11-10/boards"]);
   assert.equal(capabilityRequests, 2);
@@ -45,7 +45,7 @@ test("submits pin order using its original workspace tag and surfaces stale refu
     assert.equal(options.method, "PATCH");
     assert.equal(options.headers.get("Content-Type"), "application/json");
     assert.equal(options.headers.get("If-Match"), TAG);
-    assert.deepEqual(JSON.parse(options.body), { pinnedBoardIds: [BOARD] });
+    assert.deepEqual(JSON.parse(options.body), { pinned_board_ids: [BOARD] });
     return new Response(null, { status: 412 });
   });
 
@@ -113,9 +113,9 @@ test("uses documented paths and board scoping for Turn 1 reads", async () => {
   await api.getBuild(BOARD);
   assert.deepEqual(paths, [
     "/boards/" + BOARD,
-    "/lanes?boardId=" + BOARD,
-    "/priorities?boardId=" + BOARD,
-    "/users?boardId=" + BOARD,
+    "/lanes?board_id=" + BOARD,
+    "/priorities?board_id=" + BOARD,
+    "/users?board_id=" + BOARD,
     "/policies/" + BOARD,
     "/verifications/" + BOARD,
     "/snapshots/" + BOARD,
@@ -132,13 +132,13 @@ test("owner notice configuration sends only explicitly supplied fields", async (
     assert.equal(options.method, "PATCH");
     assert.equal(options.headers.get("If-Match"), boardTag);
     assert.deepEqual(JSON.parse(options.body), {
-      notifications: { targetThreadId: null },
+      notifications: { target_thread_id: null },
     });
-    return Response.json({ notifications: { enabled: true, targetThreadId: null } }, {
+    return Response.json({ notifications: { enabled: true, target_thread_id: null } }, {
       headers: { ETag: '"board_record_007"' },
     });
   });
-  assert.equal((await api.configureOwnerNotices(BOARD, { targetThreadId: null }, boardTag))
+  assert.equal((await api.configureOwnerNotices(BOARD, { target_thread_id: null }, boardTag))
     .data.notifications.enabled, true);
 });
 

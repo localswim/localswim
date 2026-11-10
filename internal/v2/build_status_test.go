@@ -17,10 +17,10 @@ func TestBuildStatusCandidateLifecycle(t *testing.T) {
 	status := newBuildStatus(root)
 	running := status.service()
 	if _, ok := normalizeID(running.GenerationID); !ok {
-		t.Fatalf("generationId = %q", running.GenerationID)
+		t.Fatalf("generation_id = %q", running.GenerationID)
 	}
 	if _, ok := normalizeID(running.BuildID); !ok {
-		t.Fatalf("buildId = %q", running.BuildID)
+		t.Fatalf("build_id = %q", running.BuildID)
 	}
 	if running.State != "running" || running.APIVersion != Version ||
 		running.RestartErrorCode != nil || running.ETag == "" {

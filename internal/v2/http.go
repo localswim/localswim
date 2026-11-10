@@ -226,7 +226,7 @@ type problemBody struct {
 	Status    int          `json:"status"`
 	Code      string       `json:"code"`
 	Detail    string       `json:"detail"`
-	RequestID string       `json:"requestId"`
+	RequestID string       `json:"request_id"`
 	Outcome   string       `json:"outcome"`
 	Errors    []fieldIssue `json:"errors"`
 }

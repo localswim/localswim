@@ -145,7 +145,7 @@ func TestPatchParentChecksTagPermissionAndRecordsAudit(t *testing.T) {
 	event := state.Activity[0]
 	if event.BoardID != boardID || event.ActorID != actorID || event.ResourceID != parentTestB ||
 		event.Operation != "patch" || event.ResourceType != "card" || event.Revision != 5 || !event.At.Equal(now) ||
-		event.Field == nil || *event.Field != "parentId" || event.Before == nil || *event.Before != parentTestA ||
+		event.Field == nil || *event.Field != "parent_id" || event.Before == nil || *event.Before != parentTestA ||
 		event.After == nil || *event.After != parentTestC {
 		t.Fatal("parent patch did not record the expected audit event")
 	}

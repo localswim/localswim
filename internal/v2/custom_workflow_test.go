@@ -21,10 +21,10 @@ const workflowTestInput = `{
     {"id":"a0000000-0000-4000-8000-000000000005","key":"normal","label":"Normal","rank":0}
   ],
   "policy": {
-    "defaultPriorityId":"A0000000-0000-4000-8000-000000000005",
-    "createGrants":[{"userId":"a0000000-0000-4000-8000-000000000002","laneId":"a0000000-0000-4000-8000-000000000003"}],
-    "moveGrants":[{"userId":"A0000000-0000-4000-8000-000000000002","fromLaneId":"a0000000-0000-4000-8000-000000000003","toLaneId":"a0000000-0000-4000-8000-000000000004"}],
-    "resourceGrants":[{"userId":"a0000000-0000-4000-8000-000000000002","capabilities":["read","approve"]}]
+    "default_priority_id":"A0000000-0000-4000-8000-000000000005",
+    "create_grants":[{"user_id":"a0000000-0000-4000-8000-000000000002","lane_id":"a0000000-0000-4000-8000-000000000003"}],
+    "move_grants":[{"user_id":"A0000000-0000-4000-8000-000000000002","from_lane_id":"a0000000-0000-4000-8000-000000000003","to_lane_id":"a0000000-0000-4000-8000-000000000004"}],
+    "resource_grants":[{"user_id":"a0000000-0000-4000-8000-000000000002","capabilities":["read","approve"]}]
   }
 }`
 
@@ -60,12 +60,12 @@ func TestCustomWorkflowRefusesInvalidDefinitions(t *testing.T) {
 		{"unknown closed member", `"kind":"HuMaN"`, `"kind":"HuMaN","future":true`},
 		{"protected open member", `"future":{"flag":true}`, `"token":"unexpected"`},
 		{"wrong known type", `"label":"To Do"`, `"label":null`},
-		{"null definition array", `"createGrants":[{"userId":"a0000000-0000-4000-8000-000000000002","laneId":"a0000000-0000-4000-8000-000000000003"}]`, `"createGrants":null`},
+		{"null definition array", `"create_grants":[{"user_id":"a0000000-0000-4000-8000-000000000002","lane_id":"a0000000-0000-4000-8000-000000000003"}]`, `"create_grants":null`},
 		{"cross-type duplicate ID", `"id":"A0000000-0000-4000-8000-000000000003"`, `"id":"a0000000-0000-4000-8000-000000000002"`},
 		{"duplicate normalized user", `"kind":"HuMaN"}`, `"kind":"HuMaN"},{"id":"a0000000-0000-4000-8000-000000000002","kind":"bot","label":"Second"}`},
 		{"invalid UUID version", `"id":"A0000000-0000-4000-8000-000000000003"`, `"id":"A0000000-0000-5000-8000-000000000003"`},
 		{"missing terminal role", `"role":"CoMpLeTeD"`, `"role":"ordinary"`},
-		{"unknown reference", `"defaultPriorityId":"A0000000-0000-4000-8000-000000000005"`, `"defaultPriorityId":"A0000000-0000-4000-8000-000000000004"`},
+		{"unknown reference", `"default_priority_id":"A0000000-0000-4000-8000-000000000005"`, `"default_priority_id":"A0000000-0000-4000-8000-000000000004"`},
 		{"wrong capability spelling", `"read","approve"`, `"READ","approve"`},
 		{"duplicate capability", `"read","approve"`, `"read","read"`},
 		{"bot approval", `"kind":"HuMaN"`, `"kind":"bot"`},
@@ -89,7 +89,7 @@ func TestCustomWorkflowExpandsLaneGrants(t *testing.T) {
 	const ordinaryID = "a0000000-0000-4000-8000-000000000003"
 	const completedID = "a0000000-0000-4000-8000-000000000004"
 	raw := strings.Replace(workflowTestInput, `"future":{"flag":true}`,
-		`"createFor":["A0000000-0000-4000-8000-000000000002"],"connectFor":["A0000000-0000-4000-8000-000000000002"]`, 1)
+		`"create_for":["A0000000-0000-4000-8000-000000000002"],"connect_for":["A0000000-0000-4000-8000-000000000002"]`, 1)
 	got, err := customWorkflow(json.RawMessage(raw), workflowTestBoardID, time.Now())
 	if err != nil {
 		t.Fatal(err)

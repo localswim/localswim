@@ -78,9 +78,9 @@ func scanJSON(d *json.Decoder, depth int) error {
 }
 
 var protectedFields = []string{
-	"actor", "actorId", "by", "isAdmin", "credentials", "token", "createdAt", "updatedAt",
-	"revision", "etag", "ticket", "id", "expectedBoardEtag", "expectedCardEtag", "boardEtag", "cardEtag",
-	"boardId", "policyId", "role", "kind", "createdBy", "updatedBy",
+	"actor", "actor_id", "by", "is_admin", "credentials", "token", "created_at", "updated_at",
+	"revision", "etag", "ticket", "id", "expected_board_etag", "expected_card_etag", "board_etag", "card_etag",
+	"board_id", "policy_id", "role", "kind", "created_by", "updated_by",
 }
 
 func rejectFields(fields map[string]json.RawMessage, allowed []string, closed bool) error {
@@ -92,7 +92,7 @@ func rejectFields(fields map[string]json.RawMessage, allowed []string, closed bo
 			return invalid("body", "Unrecognized member.")
 		}
 		for _, protected := range protectedFields {
-			if strings.EqualFold(key, protected) {
+			if strings.EqualFold(strings.ReplaceAll(key, "_", ""), strings.ReplaceAll(protected, "_", "")) {
 				return invalid(protected, "Protected member.")
 			}
 		}

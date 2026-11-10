@@ -10,9 +10,10 @@ Status: Accepted for the owner-approved decisions below. The detailed OpenAPI do
 - Version the API by ISO 8601 calendar date. The first namespace is `/api/2026-11-10`. API contract dates, software builds, and resource revisions are separate values.
 - Use immutable UUIDv4 entity IDs generated with a cryptographically secure random source. Return lowercase, hyphenated UUIDs. Accept mixed-case UUIDv4 input and normalize before lookup, reference checks, and duplicate detection.
 - Keep human ticket numbers and board-local lane/priority keys separate from entity IDs. M20 changes a lane key, never its UUID. Preserve the completed-lane role independently of its display label.
+- Use `snake_case` for JSON member names, path parameter identifiers, and query parameter names across the V2 API. Standard HTTP header names keep their defined spelling. Preserve enum values and user text. Source-language identifiers follow Go and JavaScript conventions.
 - Keep timestamps and ordering explicit. Use 16-byte UUID storage where practical.
 - Publish closed response schemas with canonical values. Accept harmless input variation without weakening meaning or authority. Preserve user text exactly.
-- Name each collection response array for its plural resource, such as `boards`, `cards`, or `builds`. Both activity views use `activities`. Workspace board summaries use `boards`. Empty collections return an empty array, and `nextCursor` retains its pagination meaning.
+- Name each collection response array for its plural resource, such as `boards`, `cards`, or `builds`. Both activity views use `activities`. Workspace board summaries use `boards`. Empty collections return an empty array, and `next_cursor` retains its pagination meaning.
 
 ## Contract details
 

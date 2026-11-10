@@ -30,7 +30,7 @@ const cliHelp = `Usage:
 
 Live commands use LOCALSWIM_URL (http://127.0.0.1:<port>) and LOCALSWIM_TOKEN.
 Set --data on board verify to read the private board data offline.
-Workspace pins accepts a JSON object with pinnedBoardIds in the desired order.
+Workspace pins accepts a JSON object with pinned_board_ids in the desired order.
 Omit --if-match to read the current resource ETag once before updating.
 `
 

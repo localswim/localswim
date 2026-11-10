@@ -7,7 +7,7 @@
   rely on, including permissions, audit history, and reliable saves and recovery.
 - **One port.** One loopback service serves the UI, workspace, and every board.
   The browser and CLI share a date-versioned REST API with flat resource URLs,
-  for example `/api/2026-11-10/cards/{cardId}`. Each
+  for example `/api/2026-11-10/cards/{card_id}`. Each
   board has one authoritative writer. No per-board ports or forwarding gateway.
 - **Fresh starts.** Run V1 and V2 side by side on separate ports with separate
   data directories. Existing projects stay in V1. New projects start in V2 when
@@ -21,6 +21,19 @@ This direction supersedes the previous milestone plan, its broad baseline
 campaign, and the import and cutover proposal.
 
 [Execution plan](execution-plan.md) · [API contract](docs/openapi.yaml) · [Decision record](docs/adr/0001-api-contract.md)
+
+## API naming
+
+JSON member names, path parameter identifiers, and query parameter names use
+`snake_case` throughout V2. Standard HTTP headers keep their defined spelling.
+Enum values and user text retain their defined or supplied spelling. Go and
+JavaScript identifiers follow their language conventions.
+
+Native snapshots use `format_version: 2`. The disk loader accepts existing
+Turn 1 `formatVersion: 1` snapshots without rewriting them on read. The next
+successful save writes the current format. This compatibility is limited to
+disk loading. API requests use the current snake_case contract. Existing audit
+field-path strings remain historical values. New events use snake_case paths.
 
 ## Run the Turn 1 service
 

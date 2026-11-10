@@ -20,13 +20,13 @@ const maxWorkspaceFile = 64 << 10
 
 type workspace struct {
 	ETag           string     `json:"etag"`
-	PinnedBoardIDs []string   `json:"pinnedBoardIds"`
+	PinnedBoardIDs []string   `json:"pinned_board_ids"`
 	Publishing     publishing `json:"publishing"`
 }
 
 type workspacePreferences struct {
 	Revision       uint64   `json:"revision"`
-	PinnedBoardIDs []string `json:"pinnedBoardIds"`
+	PinnedBoardIDs []string `json:"pinned_board_ids"`
 }
 
 type workspaceStore struct {
@@ -85,7 +85,11 @@ func (s *workspaceStore) load() (workspacePreferences, error) {
 	if json.Unmarshal(fields["revision"], &revision) != nil || revision == nil || *revision == 0 {
 		return unavailable, errWorkspaceUnavailable
 	}
-	ids, err := parseWorkspacePins(fields["pinnedBoardIds"], nil)
+	rawIDs := fields["pinned_board_ids"]
+	if rawIDs == nil {
+		rawIDs = fields["pinnedBoardIds"]
+	}
+	ids, err := parseWorkspacePins(rawIDs, nil)
 	if err != nil {
 		return unavailable, errWorkspaceUnavailable
 	}
@@ -95,19 +99,19 @@ func (s *workspaceStore) load() (workspacePreferences, error) {
 func parseWorkspacePins(raw json.RawMessage, visible func(string) bool) ([]string, error) {
 	var ids []string
 	if json.Unmarshal(raw, &ids) != nil || ids == nil || len(ids) > 1000 {
-		return nil, invalid("pinnedBoardIds", "expected an array of up to 1000 board UUIDs")
+		return nil, invalid("pinned_board_ids", "expected an array of up to 1000 board UUIDs")
 	}
 	seen := make(map[string]bool, len(ids))
 	for i, id := range ids {
 		canonical, ok := normalizeID(id)
 		if !ok || (visible == nil && canonical != id) {
-			return nil, invalid("pinnedBoardIds", "invalid board UUID")
+			return nil, invalid("pinned_board_ids", "invalid board UUID")
 		}
 		if seen[canonical] {
-			return nil, invalid("pinnedBoardIds", "duplicate board UUID")
+			return nil, invalid("pinned_board_ids", "duplicate board UUID")
 		}
 		if visible != nil && !visible(canonical) {
-			return nil, invalid("pinnedBoardIds", "board is not visible")
+			return nil, invalid("pinned_board_ids", "board is not visible")
 		}
 		seen[canonical] = true
 		ids[i] = canonical
@@ -116,15 +120,15 @@ func parseWorkspacePins(raw json.RawMessage, visible func(string) bool) ([]strin
 }
 
 func (s *workspaceStore) patch(expected string, fields map[string]json.RawMessage, visible func(string) bool) (workspace, error) {
-	if err := rejectFields(fields, []string{"pinnedBoardIds", "publishing"}, false); err != nil {
+	if err := rejectFields(fields, []string{"pinned_board_ids", "publishing"}, false); err != nil {
 		return workspace{}, err
 	}
 	if _, present := fields["publishing"]; present {
 		return workspace{}, invalid("publishing", "workspace publishing is unavailable")
 	}
-	raw, present := fields["pinnedBoardIds"]
+	raw, present := fields["pinned_board_ids"]
 	if !present {
-		return workspace{}, invalid("pinnedBoardIds", "required")
+		return workspace{}, invalid("pinned_board_ids", "required")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

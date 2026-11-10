@@ -87,7 +87,7 @@ func TestSummarizeDistinguishesZeroAttentionFromUnknown(t *testing.T) {
 		t.Fatal(err)
 	}
 	for key, expected := range map[string]string{
-		"attention": "null", "lastCardEditAt": "null", "errorCode": "\"durable_state_unavailable\"",
+		"attention": "null", "last_card_edit_at": "null", "error_code": "\"durable_state_unavailable\"",
 	} {
 		if got := string(fields[key]); got != expected {
 			t.Errorf("%s = %s, want %s", key, got, expected)
@@ -103,8 +103,8 @@ func TestSummarizeDistinguishesZeroAttentionFromUnknown(t *testing.T) {
 	if err := json.Unmarshal(wire, &fields); err != nil {
 		t.Fatal(err)
 	}
-	if got := string(fields["lastCardEditAt"]); got != `"2026-11-10T11:00:00.120000Z"` {
-		t.Errorf("lastCardEditAt = %s", got)
+	if got := string(fields["last_card_edit_at"]); got != `"2026-11-10T11:00:00.120000Z"` {
+		t.Errorf("last_card_edit_at = %s", got)
 	}
 }
 

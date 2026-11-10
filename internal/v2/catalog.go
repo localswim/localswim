@@ -13,8 +13,8 @@ type boardSummary struct {
 	ETag           *string    `json:"etag"`
 	Availability   string     `json:"availability"`
 	Attention      *attention `json:"attention"`
-	LastCardEditAt *time.Time `json:"lastCardEditAt"`
-	ErrorCode      *string    `json:"errorCode"`
+	LastCardEditAt *time.Time `json:"last_card_edit_at"`
+	ErrorCode      *string    `json:"error_code"`
 }
 
 func deriveAttention(state snapshot) (attention, *time.Time) {

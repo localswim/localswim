@@ -11,7 +11,7 @@ import (
 )
 
 func TestCLIWorkspacePinsUsesOneRevisionBoundMutation(t *testing.T) {
-	const pinBody = `{"pinnedBoardIds":[]}`
+	const pinBody = `{"pinned_board_ids":[]}`
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/2026-11-10/workspace" || r.Header.Get("Authorization") != "Bearer test-token" {

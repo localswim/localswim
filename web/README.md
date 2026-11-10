@@ -11,11 +11,14 @@ const api = createBrowserApi({ getCapability: currentBrowserCapability });
 const { workspace, boards } = await readWorkspaceOverview(api);
 ```
 
+JSON payload fields and query names use `snake_case`. The JavaScript adapter
+keeps its existing language-convention method, argument, and error property names.
+
 Each successful result exposes the JSON object as `data` and the server's ETag as
 `etag`. Pass the workspace ETag back to `setPinnedBoards(boardIds, etag)`. A
 `412` calls for a fresh workspace read and a user decision on the original change.
 Use the board ETag for `configureOwnerNotices(boardId, settings, etag)`. Pass only the
-notice settings to change. An explicit `targetThreadId: null` clears the target.
+notice settings to change. An explicit `target_thread_id: null` clears the target.
 
 When `outcomeUnknown` is true, inspect authoritative state before another write.
 

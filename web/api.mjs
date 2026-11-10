@@ -102,20 +102,20 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     createBoard: (data) => request("/boards", { method: "POST", data, successStatus: 201 }),
     setPinnedBoards: (pinnedBoardIds, etag) => request("/workspace", {
       method: "PATCH",
-      data: { pinnedBoardIds: pinnedBoardIds.map(resourceId) },
+      data: { pinned_board_ids: pinnedBoardIds.map(resourceId) },
       etag: strongTag(etag),
     }),
-    listLanes: (boardId) => request(`/lanes?boardId=${resourceId(boardId)}`),
-    listPriorities: (boardId) => request(`/priorities?boardId=${resourceId(boardId)}`),
-    listUsers: (boardId) => request(`/users?boardId=${resourceId(boardId)}`),
+    listLanes: (boardId) => request(`/lanes?board_id=${resourceId(boardId)}`),
+    listPriorities: (boardId) => request(`/priorities?board_id=${resourceId(boardId)}`),
+    listUsers: (boardId) => request(`/users?board_id=${resourceId(boardId)}`),
     getPolicy: (policyId) => request(`/policies/${resourceId(policyId)}`),
     getVerification: (boardId) => request(`/verifications/${resourceId(boardId)}`),
     getSnapshot: (boardId) => request(`/snapshots/${resourceId(boardId)}`),
-    configureOwnerNotices: (boardId, { enabled, targetThreadId }, etag) => request(
+    configureOwnerNotices: (boardId, { enabled, target_thread_id: targetThreadId }, etag) => request(
       `/boards/${resourceId(boardId)}`,
       {
         method: "PATCH",
-        data: { notifications: { enabled, targetThreadId } },
+        data: { notifications: { enabled, target_thread_id: targetThreadId } },
         etag: strongTag(etag),
       },
     ),

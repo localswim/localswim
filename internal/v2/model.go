@@ -17,8 +17,8 @@ const maxJSONBytes = 96 << 20
 type entity struct {
 	ID        string    `json:"id"`
 	ETag      string    `json:"etag"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func newEntity(id string, now time.Time) entity { return entity{id, etag(id, 1), now, now} }
@@ -44,30 +44,30 @@ func etag(id string, revision uint64) string { return fmt.Sprintf("\"%s-%d\"", i
 
 type attention struct {
 	Blocked        int `json:"blocked"`
-	NeedsInput     int `json:"needsInput"`
-	ReadyForReview int `json:"readyForReview"`
+	NeedsInput     int `json:"needs_input"`
+	ReadyForReview int `json:"ready_for_review"`
 }
 type publishing struct {
 	Enabled       bool       `json:"enabled"`
 	Repository    *string    `json:"repository"`
-	LastSuccessAt *time.Time `json:"lastSuccessAt"`
+	LastSuccessAt *time.Time `json:"last_success_at"`
 	Pending       bool       `json:"pending"`
-	ErrorCode     *string    `json:"errorCode"`
+	ErrorCode     *string    `json:"error_code"`
 }
 type board struct {
 	entity
 	Name           string        `json:"name"`
-	PolicyID       string        `json:"policyId"`
-	UserIDs        []string      `json:"userIds"`
-	LaneIDs        []string      `json:"laneIds"`
-	PriorityIDs    []string      `json:"priorityIds"`
+	PolicyID       string        `json:"policy_id"`
+	UserIDs        []string      `json:"user_ids"`
+	LaneIDs        []string      `json:"lane_ids"`
+	PriorityIDs    []string      `json:"priority_ids"`
 	Availability   string        `json:"availability"`
 	Revision       uint64        `json:"revision"`
 	Attention      attention     `json:"attention"`
-	LastCardEditAt *time.Time    `json:"lastCardEditAt"`
+	LastCardEditAt *time.Time    `json:"last_card_edit_at"`
 	Notifications  notifications `json:"notifications"`
 	Publishing     publishing    `json:"publishing"`
-	UserCSS        string        `json:"userCss"`
+	UserCSS        string        `json:"user_css"`
 }
 type user struct {
 	entity
@@ -77,43 +77,43 @@ type user struct {
 }
 type lane struct {
 	entity
-	BoardID         string `json:"boardId"`
+	BoardID         string `json:"board_id"`
 	Key             string `json:"key"`
 	Label           string `json:"label"`
 	Position        int    `json:"position"`
 	Role            string `json:"role"`
 	Retired         bool   `json:"retired"`
-	ApprovalEnabled bool   `json:"approvalEnabled"`
-	ReorderEnabled  bool   `json:"reorderEnabled"`
+	ApprovalEnabled bool   `json:"approval_enabled"`
+	ReorderEnabled  bool   `json:"reorder_enabled"`
 }
 type priority struct {
 	entity
-	BoardID string `json:"boardId"`
+	BoardID string `json:"board_id"`
 	Key     string `json:"key"`
 	Label   string `json:"label"`
 	Rank    int    `json:"rank"`
 	Color   string `json:"color"`
 }
 type createGrant struct {
-	UserID string `json:"userId"`
-	LaneID string `json:"laneId"`
+	UserID string `json:"user_id"`
+	LaneID string `json:"lane_id"`
 }
 type moveGrant struct {
-	UserID     string `json:"userId"`
-	FromLaneID string `json:"fromLaneId"`
-	ToLaneID   string `json:"toLaneId"`
+	UserID     string `json:"user_id"`
+	FromLaneID string `json:"from_lane_id"`
+	ToLaneID   string `json:"to_lane_id"`
 }
 type resourceGrant struct {
-	UserID       string   `json:"userId"`
+	UserID       string   `json:"user_id"`
 	Capabilities []string `json:"capabilities"`
 }
 type policy struct {
 	entity
-	BoardID           string          `json:"boardId"`
-	DefaultPriorityID string          `json:"defaultPriorityId"`
-	CreateGrants      []createGrant   `json:"createGrants"`
-	MoveGrants        []moveGrant     `json:"moveGrants"`
-	ResourceGrants    []resourceGrant `json:"resourceGrants"`
+	BoardID           string          `json:"board_id"`
+	DefaultPriorityID string          `json:"default_priority_id"`
+	CreateGrants      []createGrant   `json:"create_grants"`
+	MoveGrants        []moveGrant     `json:"move_grants"`
+	ResourceGrants    []resourceGrant `json:"resource_grants"`
 }
 type workflow struct {
 	Users      []user
@@ -123,40 +123,40 @@ type workflow struct {
 }
 type card struct {
 	entity
-	BoardID           string     `json:"boardId"`
+	BoardID           string     `json:"board_id"`
 	Ticket            uint64     `json:"ticket"`
 	Title             string     `json:"title"`
 	Description       string     `json:"description"`
-	LaneID            string     `json:"laneId"`
-	OwnerID           *string    `json:"ownerId"`
-	PriorityID        string     `json:"priorityId"`
-	ParentID          *string    `json:"parentId"`
-	ChildIDs          []string   `json:"childIds"`
+	LaneID            string     `json:"lane_id"`
+	OwnerID           *string    `json:"owner_id"`
+	PriorityID        string     `json:"priority_id"`
+	ParentID          *string    `json:"parent_id"`
+	ChildIDs          []string   `json:"child_ids"`
 	Archived          bool       `json:"archived"`
-	CoverAttachmentID *string    `json:"coverAttachmentId"`
-	CommentCount      int        `json:"commentCount"`
-	AttachmentCount   int        `json:"attachmentCount"`
-	BlockingDepth     int        `json:"blockingDepth"`
-	BlockedCardCount  int        `json:"blockedCardCount"`
-	TriageScore       int        `json:"triageScore"`
-	CompletedAt       *time.Time `json:"completedAt"`
+	CoverAttachmentID *string    `json:"cover_attachment_id"`
+	CommentCount      int        `json:"comment_count"`
+	AttachmentCount   int        `json:"attachment_count"`
+	BlockingDepth     int        `json:"blocking_depth"`
+	BlockedCardCount  int        `json:"blocked_card_count"`
+	TriageScore       int        `json:"triage_score"`
+	CompletedAt       *time.Time `json:"completed_at"`
 }
 type activity struct {
 	ID           string    `json:"id"`
-	BoardID      string    `json:"boardId"`
+	BoardID      string    `json:"board_id"`
 	Revision     uint64    `json:"revision"`
 	At           time.Time `json:"at"`
-	ActorID      string    `json:"actorId"`
+	ActorID      string    `json:"actor_id"`
 	Operation    string    `json:"operation"`
-	ResourceType string    `json:"resourceType"`
-	ResourceID   string    `json:"resourceId"`
+	ResourceType string    `json:"resource_type"`
+	ResourceID   string    `json:"resource_id"`
 	Field        *string   `json:"field"`
 	Before       *string   `json:"before"`
 	After        *string   `json:"after"`
 }
 type snapshot struct {
 	Format        string            `json:"format"`
-	FormatVersion int               `json:"formatVersion"`
+	FormatVersion int               `json:"format_version"`
 	Board         board             `json:"board"`
 	Users         []user            `json:"users"`
 	Lanes         []lane            `json:"lanes"`
@@ -170,7 +170,7 @@ type snapshot struct {
 }
 
 func freshSnapshot(id, name string, wf workflow, actorID string, now time.Time) snapshot {
-	s := snapshot{Format: "localswim-snapshot", FormatVersion: 1,
+	s := snapshot{Format: "localswim-snapshot", FormatVersion: 2,
 		Board: board{entity: newEntity(id, now), Name: name, PolicyID: wf.Policy.ID, Availability: "open", Revision: 1,
 			UserIDs: []string{}, LaneIDs: []string{}, PriorityIDs: []string{}},
 		Users: wf.Users, Lanes: wf.Lanes, Priorities: wf.Priorities, Policy: wf.Policy,

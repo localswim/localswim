@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -44,7 +45,27 @@ func (c turnOneClient) call(method, path, body, match string, want int) ([]byte,
 	if response.StatusCode != want {
 		c.t.Fatalf("%s %s status %d, want %d: %s", method, path, response.StatusCode, want, data)
 	}
+	checkSnakeCaseResponse(c.t, turnOneDecode[any](c.t, data))
 	return data, response.Header
+}
+
+var snakeCaseField = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+func checkSnakeCaseResponse(t *testing.T, value any) {
+	t.Helper()
+	switch value := value.(type) {
+	case map[string]any:
+		for key, child := range value {
+			if !snakeCaseField.MatchString(key) {
+				t.Fatalf("API response key %q is not snake_case", key)
+			}
+			checkSnakeCaseResponse(t, child)
+		}
+	case []any:
+		for _, child := range value {
+			checkSnakeCaseResponse(t, child)
+		}
+	}
 }
 
 func turnOneDecode[T any](t *testing.T, data []byte) T {
@@ -65,9 +86,9 @@ func turnOnePage[T any](t *testing.T, data []byte, resource string) collectionPa
 	t.Helper()
 	fields := turnOneDecode[map[string]json.RawMessage](t, data)
 	values, hasValues := fields[resource]
-	cursor, hasCursor := fields["nextCursor"]
+	cursor, hasCursor := fields["next_cursor"]
 	if len(fields) != 2 || !hasValues || !hasCursor || len(values) == 0 || values[0] != '[' {
-		t.Fatalf("expected only %s array and nextCursor: %s", resource, data)
+		t.Fatalf("expected only %s array and next_cursor: %s", resource, data)
 	}
 	return collectionPage[T]{
 		Values:     turnOneDecode[[]T](t, values),
@@ -128,7 +149,7 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	}
 
 	for _, resource := range []string{"users", "lanes", "priorities"} {
-		raw, _ = c.call("GET", "/"+resource+"?boardId="+first.ID, "", "", 200)
+		raw, _ = c.call("GET", "/"+resource+"?board_id="+first.ID, "", "", 200)
 		if page := turnOnePage[json.RawMessage](t, raw, resource); len(page.Values) == 0 || page.NextCursor != nil {
 			t.Fatalf("expected nonempty terminal %s page", resource)
 		}
@@ -146,11 +167,11 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	verifyTurnOneCustomWorkflow(t, c, bot)
 	firstPath := "/boards/" + first.ID
 	raw, h = c.call("GET", firstPath, "", "", 200)
-	if createdAt := turnOneDecode[map[string]any](t, raw)["createdAt"]; len(createdAt.(string)) != 27 {
+	if createdAt := turnOneDecode[map[string]any](t, raw)["created_at"]; len(createdAt.(string)) != 27 {
 		t.Fatal("timestamp is not microsecond UTC")
 	}
-	c.call("PATCH", firstPath, `{"notifications":{"targetThreadId":"018E7F0A-BCDE-7ABC-8DEF-0123456789AB"}}`, "", 428)
-	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"targetThreadId":"018E7F0A-BCDE-7ABC-8DEF-0123456789AB"}}`, h.Get("ETag"), 200)
+	c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":"018E7F0A-BCDE-7ABC-8DEF-0123456789AB"}}`, "", 428)
+	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":"018E7F0A-BCDE-7ABC-8DEF-0123456789AB"}}`, h.Get("ETag"), 200)
 	notice := turnOneDecode[board](t, raw)
 	if notice.Notifications.Enabled || notice.Notifications.TargetThreadID == nil || *notice.Notifications.TargetThreadID != "018e7f0a-bcde-7abc-8def-0123456789ab" {
 		t.Fatal("target-only update did not preserve off and normalize target")
@@ -158,20 +179,20 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	c.call("PATCH", firstPath, `{"name":"Stale"}`, first.ETag, 412)
 	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"enabled":true}}`, notice.ETag, 200)
 	notice = turnOneDecode[board](t, raw)
-	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"targetThreadId":"018e7f0a-bcde-7abc-8def-0123456789ac"}}`, notice.ETag, 200)
+	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":"018e7f0a-bcde-7abc-8def-0123456789ac"}}`, notice.ETag, 200)
 	notice = turnOneDecode[board](t, raw)
 	if !notice.Notifications.Enabled {
 		t.Fatal("retarget disabled notifications")
 	}
 	raw, h = c.call("GET", "/workspace", "", "", 200)
 	originalWorkspaceTag := h.Get("ETag")
-	pins := `{"pinnedBoardIds":["` + second.ID + `","` + first.ID + `"]}`
+	pins := `{"pinned_board_ids":["` + second.ID + `","` + first.ID + `"]}`
 	raw, h = c.call("PATCH", "/workspace", pins, originalWorkspaceTag, 200)
 	pinsTag := h.Get("ETag")
 	if pinsTag == originalWorkspaceTag {
 		t.Fatal("workspace version did not advance")
 	}
-	c.call("PATCH", "/workspace", `{"pinnedBoardIds":[]}`, originalWorkspaceTag, 412)
+	c.call("PATCH", "/workspace", `{"pinned_board_ids":[]}`, originalWorkspaceTag, 412)
 	stop()
 	stop = nil
 	c, stop = start()
@@ -264,10 +285,10 @@ func verifyTurnOneCustomWorkflow(t *testing.T, c turnOneClient, bot string) {
  "users":[{"id":"%s","label":"Human","kind":"HUMAN"},{"id":"%s","label":"Bot","kind":"BOT"}],
  "lanes":[{"id":"%s","label":"Inbox","key":"inbox"},{"id":"%s","label":"Done","key":"completed","role":"COMPLETED"}],
  "priorities":[{"id":"%s","key":"regular","label":"Regular","rank":0}],
- "policy":{"defaultPriorityId":"%s","createGrants":[{"userId":"%s","laneId":"%s"}],"moveGrants":[{"userId":"%s","fromLaneId":"%s","toLaneId":"%s"}],
- "resourceGrants":[{"userId":"%s","capabilities":["read","manage_board"]},{"userId":"%s","capabilities":["manage_notifications"]}]}}}`,
+ "policy":{"default_priority_id":"%s","create_grants":[{"user_id":"%s","lane_id":"%s"}],"move_grants":[{"user_id":"%s","from_lane_id":"%s","to_lane_id":"%s"}],
+ "resource_grants":[{"user_id":"%s","capabilities":["read","manage_board"]},{"user_id":"%s","capabilities":["manage_notifications"]}]}}}`,
 		strings.ToUpper(humanID), botID, strings.ToUpper(laneID), completed, priorityID, priorityID, humanID, laneID, humanID, laneID, completed, humanID, botID)
-	bad := strings.Replace(body, `"defaultPriorityId":"`+priorityID, `"defaultPriorityId":"`+newID(), 1)
+	bad := strings.Replace(body, `"default_priority_id":"`+priorityID, `"default_priority_id":"`+newID(), 1)
 	c.call("POST", "/boards", bad, "", 400)
 	badIdentity := strings.Replace(body, `"label":"Human"`, `"label":"Unrelated"`, 1)
 	c.call("POST", "/boards", badIdentity, "", 409)
@@ -280,7 +301,7 @@ func verifyTurnOneCustomWorkflow(t *testing.T, c turnOneClient, bot string) {
 	if len(created.LaneIDs) != 2 || created.LaneIDs[0] != laneID || len(created.PriorityIDs) != 1 || created.PriorityIDs[0] != priorityID {
 		t.Fatal("custom workflow identities did not resolve")
 	}
-	raw, _ = c.call("GET", "/lanes?boardId="+created.ID, "", "", 200)
+	raw, _ = c.call("GET", "/lanes?board_id="+created.ID, "", "", 200)
 	lanes := turnOnePage[lane](t, raw, "lanes")
 	if len(lanes.Values) != 2 || lanes.Values[0].Label != "Inbox" || lanes.Values[1].Role != "completed" {
 		t.Fatal("saved lanes differ from custom workflow")

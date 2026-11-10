@@ -25,7 +25,7 @@ type verificationIssue struct {
 }
 
 type verification struct {
-	BoardID  string              `json:"boardId"`
+	BoardID  string              `json:"board_id"`
 	At       string              `json:"at"`
 	Valid    bool                `json:"valid"`
 	Revision *uint64             `json:"revision"`
@@ -123,15 +123,45 @@ func readSnapshot(path, boardID string) (snapshot, error) {
 }
 
 func parseSnapshot(data []byte, boardID string) (snapshot, error) {
-	var value snapshot
-	if !utf8.Valid(data) || json.Unmarshal(data, &value) != nil {
+	fields, err := decodeObject(data)
+	if err != nil {
 		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot is not valid UTF-8 JSON.")
+	}
+	_, legacy := fields["formatVersion"]
+	input := data
+	if legacy {
+		input, err = convertSnapshotV1Names(data, false)
+		if err != nil {
+			return snapshot{}, invalidSnapshot("snapshot", "Native snapshot has conflicting member names.")
+		}
+	}
+	var value snapshot
+	if json.Unmarshal(input, &value) != nil {
+		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot is not valid UTF-8 JSON.")
+	}
+	if legacy {
+		if value.FormatVersion != 1 {
+			return snapshot{}, invalidSnapshot("format", "Unsupported native snapshot format.")
+		}
+		value.FormatVersion = 2
+		for _, event := range value.Activity {
+			if event.Field != nil && (*event.Field == "parent_id" || *event.Field == "notifications.target_thread_id") {
+				return snapshot{}, invalidSnapshot("activity.field", "Version 1 requires its original audit field names.")
+			}
+		}
 	}
 	if err := validateSnapshot(value, boardID); err != nil {
 		return snapshot{}, err
 	}
 
-	canonical, err := marshalCanonical(value)
+	canonicalValue := value
+	if legacy {
+		canonicalValue.FormatVersion = 1
+	}
+	canonical, err := marshalCanonical(canonicalValue)
+	if err == nil && legacy {
+		canonical, err = convertSnapshotV1Names(canonical, true)
+	}
 	if err != nil || !matchesSnapshotJSON(data, canonical) {
 		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot fields do not match the closed format.")
 	}
@@ -204,7 +234,7 @@ const maxSnapshotInteger = 9007199254740991
 
 func validateSnapshot(value snapshot, boardID string) error {
 	b := value.Board
-	if value.Format != "localswim-snapshot" || value.FormatVersion != 1 {
+	if value.Format != "localswim-snapshot" || value.FormatVersion != 2 {
 		return invalidSnapshot("format", "Unsupported native snapshot format.")
 	}
 	if b.ID != boardID || !validSnapshotID(b.ID) {
@@ -283,7 +313,7 @@ func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 		refs.users[u.ID] = u
 	}
 	if !matchSnapshotIDs(b.UserIDs, refs.users) {
-		return invalidSnapshot("board.userIds", "Board users do not match native users.")
+		return invalidSnapshot("board.user_ids", "Board users do not match native users.")
 	}
 
 	laneKeys := make(map[string]bool, len(value.Lanes))
@@ -315,7 +345,7 @@ func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 		positions[uint64(l.Position)] = true
 	}
 	if completed != 1 || !matchSnapshotIDs(b.LaneIDs, refs.lanes) {
-		return invalidSnapshot("board.laneIds", "Board lanes do not match native lanes or lack one Completed lane.")
+		return invalidSnapshot("board.lane_ids", "Board lanes do not match native lanes or lack one Completed lane.")
 	}
 
 	priorityKeys := make(map[string]bool, len(value.Priorities))
@@ -331,7 +361,7 @@ func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 		ranks[uint64(p.Rank)] = true
 	}
 	if !matchSnapshotIDs(b.PriorityIDs, refs.priorities) {
-		return invalidSnapshot("board.priorityIds", "Board priorities do not match native priorities.")
+		return invalidSnapshot("board.priority_ids", "Board priorities do not match native priorities.")
 	}
 	return refs.validatePolicy(value.Policy, b)
 }
@@ -346,7 +376,7 @@ func (refs snapshotReferences) validatePolicy(p policy, b board) error {
 	create := make(map[createGrant]bool, len(p.CreateGrants))
 	for _, g := range p.CreateGrants {
 		if refs.users[g.UserID].ID == "" || refs.lanes[g.LaneID].ID == "" || create[g] {
-			return invalidSnapshot("policy.createGrants", "Create grant is duplicated or has an unknown reference.")
+			return invalidSnapshot("policy.create_grants", "Create grant is duplicated or has an unknown reference.")
 		}
 		create[g] = true
 	}
@@ -354,19 +384,19 @@ func (refs snapshotReferences) validatePolicy(p policy, b board) error {
 	for _, g := range p.MoveGrants {
 		if refs.users[g.UserID].ID == "" || refs.lanes[g.FromLaneID].ID == "" || refs.lanes[g.ToLaneID].ID == "" ||
 			g.FromLaneID == g.ToLaneID || move[g] {
-			return invalidSnapshot("policy.moveGrants", "Move grant is duplicated or has an invalid reference.")
+			return invalidSnapshot("policy.move_grants", "Move grant is duplicated or has an invalid reference.")
 		}
 		move[g] = true
 	}
 	for _, g := range p.ResourceGrants {
 		if refs.users[g.UserID].ID == "" || refs.capabilities[g.UserID] != nil || g.Capabilities == nil {
-			return invalidSnapshot("policy.resourceGrants", "Resource grant is duplicated or has an invalid actor or capability list.")
+			return invalidSnapshot("policy.resource_grants", "Resource grant is duplicated or has an invalid actor or capability list.")
 		}
 		seen := make(map[string]bool, len(g.Capabilities))
 		for _, capability := range g.Capabilities {
 			if !isInitialCapability(capability) || seen[capability] ||
 				(capability == "approve" && refs.users[g.UserID].Kind != "human") {
-				return invalidSnapshot("policy.resourceGrants", "Resource capability is duplicated or unknown.")
+				return invalidSnapshot("policy.resource_grants", "Resource capability is duplicated or unknown.")
 			}
 			seen[capability] = true
 		}
@@ -392,7 +422,7 @@ func (refs snapshotReferences) validateCards(value snapshot) error {
 		}
 		if (c.CompletedAt != nil) != (l.Role == "completed") ||
 			(c.CompletedAt != nil && !validSnapshotTime(*c.CompletedAt)) {
-			return invalidSnapshot("cards.completedAt", "Card completion timestamp does not match its lane.")
+			return invalidSnapshot("cards.completed_at", "Card completion timestamp does not match its lane.")
 		}
 		tickets[ticket] = true
 		refs.cards[c.ID] = c
@@ -402,7 +432,7 @@ func (refs snapshotReferences) validateCards(value snapshot) error {
 	for _, c := range value.Cards {
 		if c.ParentID != nil {
 			if refs.cards[*c.ParentID].ID == "" {
-				return invalidSnapshot("cards.parentId", "Card parent does not exist.")
+				return invalidSnapshot("cards.parent_id", "Card parent does not exist.")
 			}
 			children[*c.ParentID] = append(children[*c.ParentID], c.ID)
 		}
@@ -410,11 +440,11 @@ func (refs snapshotReferences) validateCards(value snapshot) error {
 	for _, c := range value.Cards {
 		slices.Sort(children[c.ID])
 		if !slices.Equal(c.ChildIDs, children[c.ID]) {
-			return invalidSnapshot("cards.childIds", "Card child identities do not match parent links.")
+			return invalidSnapshot("cards.child_ids", "Card child identities do not match parent links.")
 		}
 	}
 	if refs.parentCycle() {
-		return invalidSnapshot("cards.parentId", "Card parent links contain a cycle.")
+		return invalidSnapshot("cards.parent_id", "Card parent links contain a cycle.")
 	}
 	return nil
 }
@@ -516,8 +546,8 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 	// must match replay even when no notification patch was recorded.
 	disabled := "false"
 	latest := map[snapshotAuditField]*string{
-		{"board", b.ID, "notifications.enabled"}:        &disabled,
-		{"board", b.ID, "notifications.targetThreadId"}: nil,
+		{"board", b.ID, "notifications.enabled"}:          &disabled,
+		{"board", b.ID, "notifications.target_thread_id"}: nil,
 	}
 	changed := make(map[snapshotAuditField]bool)
 	var previousRevision uint64
@@ -530,7 +560,7 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		refs.ids[event.ID] = true
 		trustedBootstrap := index == 0 && (event.ActorID == humanID || event.ActorID == botID)
 		if refs.users[event.ActorID].ID == "" && !trustedBootstrap {
-			return invalidSnapshot("activity.actorId", "Audit actor is unknown.")
+			return invalidSnapshot("activity.actor_id", "Audit actor is unknown.")
 		}
 		if event.Revision < previousRevision || event.Revision > previousRevision+1 ||
 			event.Revision > b.Revision || (event.Revision == previousRevision && event.ActorID != previousActor) {
@@ -544,7 +574,7 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 			continue
 		}
 
-		field := snapshotAuditField{event.ResourceType, event.ResourceID, snapshotString(event.Field)}
+		field := snapshotAuditField{event.ResourceType, event.ResourceID, canonicalAuditFieldName(snapshotString(event.Field))}
 		if event.Operation != "patch" || event.Revision == 1 || changed[field] ||
 			!refs.validAuditField(b.ID, event.ActorID, field, event.Before) ||
 			!refs.validAuditField(b.ID, event.ActorID, field, event.After) ||
@@ -581,11 +611,11 @@ func (refs snapshotReferences) validAuditField(boardID, actorID string, field sn
 		case "notifications.enabled":
 			return capabilities["manage_notifications"] &&
 				(snapshotString(value) == "true" || snapshotString(value) == "false")
-		case "notifications.targetThreadId":
+		case "notifications.target_thread_id":
 			return capabilities["manage_notifications"] && (value == nil || threadIDPattern.MatchString(*value))
 		}
 	case "card":
-		return capabilities["manage_relationships"] && refs.cards[field.resourceID].ID != "" && field.name == "parentId" &&
+		return capabilities["manage_relationships"] && refs.cards[field.resourceID].ID != "" && field.name == "parent_id" &&
 			(value == nil || *value != field.resourceID && refs.cards[*value].ID != "")
 	}
 	return false

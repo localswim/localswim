@@ -46,11 +46,11 @@ func TestNativeSnapshotClosedShape(t *testing.T) {
 	}
 
 	for _, tc := range []struct{ name, original, replacement string }{
-		{"duplicate root field", `"formatVersion":1`, `"formatVersion":1,"formatVersion":1`},
+		{"duplicate root field", `"format_version":2`, `"format_version":2,"format_version":2`},
 		{"duplicate nested field", `"enabled":false`, `"enabled":false,"enabled":false`},
-		{"unknown nested field", `"targetThreadId":null`, `"targetThreadId":null,"privateField":true`},
-		{"case-variant member", `"targetThreadId":null`, `"TargetThreadId":null`},
-		{"missing required nullable field", `"lastCardEditAt":null,`, ""},
+		{"unknown nested field", `"target_thread_id":null`, `"target_thread_id":null,"privateField":true`},
+		{"case-variant member", `"target_thread_id":null`, `"TargetThreadId":null`},
+		{"missing required nullable field", `"last_card_edit_at":null,`, ""},
 		{"null required array", `"cards":[]`, `"cards":null`},
 		{"null required boolean", `"enabled":false`, `"enabled":null`},
 	} {
@@ -111,7 +111,7 @@ func TestNativeSnapshotNotificationAuditStartsAtCreationDefaults(t *testing.T) {
 
 	b.Revision++
 	b.ETag = etag(b.ID, b.Revision)
-	enabledField, targetField := "notifications.enabled", "notifications.targetThreadId"
+	enabledField, targetField := "notifications.enabled", "notifications.target_thread_id"
 	disabled, enabled := "false", "true"
 	value.Activity = append(value.Activity,
 		activity{ID: newID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
@@ -172,7 +172,7 @@ func TestNativeSnapshotParentAuditAndCycle(t *testing.T) {
 	child, parent := &value.Cards[0], &value.Cards[1]
 	child.ParentID = &parent.ID
 	parent.ChildIDs = []string{child.ID}
-	field := "parentId"
+	field := "parent_id"
 	b.Revision++
 	b.ETag = etag(b.ID, b.Revision)
 	value.Activity = append(value.Activity, activity{

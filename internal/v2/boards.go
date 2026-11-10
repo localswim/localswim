@@ -109,7 +109,7 @@ func (x *request) patchBoard(s snapshot) {
 		x.fail(err)
 		return
 	}
-	for _, name := range []string{"publishing", "availability", "userIds", "userCss"} {
+	for _, name := range []string{"publishing", "availability", "user_ids", "user_css"} {
 		if _, ok := obj[name]; ok {
 			x.fail(invalid(name, "This patch field is not available."))
 			return
@@ -160,7 +160,7 @@ func (x *request) patchBoard(s snapshot) {
 				appendChange("notifications.enabled", &before, &after)
 			}
 			if !sameText(current.TargetThreadID, updated.TargetThreadID) {
-				appendChange("notifications.targetThreadId", current.TargetThreadID, updated.TargetThreadID)
+				appendChange("notifications.target_thread_id", current.TargetThreadID, updated.TargetThreadID)
 			}
 			s.Board.Notifications = updated
 		}
@@ -176,14 +176,14 @@ func (x *request) patchBoard(s snapshot) {
 func sameText(a, b *string) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }
 
 func (x *request) workflowCollection(resource string) {
-	query, err := singleQuery(x.r, "boardId")
+	query, err := singleQuery(x.r, "board_id")
 	if err != nil {
 		x.fail(err)
 		return
 	}
 	id, ok := normalizeID(query)
 	if !ok {
-		x.fail(invalid("boardId", "A board UUID is required."))
+		x.fail(invalid("board_id", "A board UUID is required."))
 		return
 	}
 	s, ok := x.service.store.accepted(id)

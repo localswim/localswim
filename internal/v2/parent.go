@@ -38,7 +38,7 @@ func setParent(state *snapshot, cardID string, parentID *string) (bool, error) {
 	if parentID != nil {
 		id, ok := normalizeID(*parentID)
 		if !ok {
-			return false, invalid("parentId", "must be a UUID")
+			return false, invalid("parent_id", "must be a UUID")
 		}
 		newParent = &id
 		if err := validateParentChain(cards, cardID, newParent); err != nil {
@@ -64,12 +64,12 @@ func validateParentChain(cards map[string]*card, cardID string, parentID *string
 	for parentID != nil {
 		id := *parentID
 		if seen[id] {
-			return invalid("parentId", "parent links would form or retain a cycle")
+			return invalid("parent_id", "parent links would form or retain a cycle")
 		}
 		seen[id] = true
 		parent := cards[id]
 		if parent == nil {
-			return invalid("parentId", "parent card does not exist")
+			return invalid("parent_id", "parent card does not exist")
 		}
 		parentID = parent.ParentID
 	}
@@ -113,7 +113,7 @@ func patchParent(s *snapshot, cardID, expectedCardETag string, parentID *string,
 			}
 		}
 
-		field := "parentId"
+		field := "parent_id"
 		var before, after *string
 		if oldParent != nil {
 			id := *oldParent

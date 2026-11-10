@@ -183,7 +183,7 @@ func (in commentCreation) apply(state *snapshot, actor string) error {
 		return errMissing
 	}
 	parent := &state.Cards[index]
-	if !matchesStrongTag(in.expected, parent.ETag) {
+	if !matchesStrongTag(in.expected, parent.entityTag()) {
 		return errStale
 	}
 	if snapshotIdentityExists(state, in.id) {
@@ -196,7 +196,7 @@ func (in commentCreation) apply(state *snapshot, actor string) error {
 		CardID: parent.ID, Text: in.text, AuthorID: actor}
 	state.Comments = append(state.Comments, value)
 	parent.CommentCount++
-	parent.ETag = etag(parent.ID, revision)
+	parent.Revision = revision
 	parent.UpdatedAt = now
 	state.Activity = append(state.Activity, activity{ID: newID(), BoardID: state.Board.ID,
 		Revision: revision, At: now, ActorID: actor, Operation: "comment", ResourceType: "comment", ResourceID: value.ID})

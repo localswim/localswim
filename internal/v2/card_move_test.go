@@ -42,8 +42,8 @@ func TestCardMoveAndOwnerHTTP(t *testing.T) {
 	initialBoardTag := header.Get("X-Board-ETag")
 	path := "/cards/" + initial.ID
 	move := fmt.Sprintf(`{"lane_id":%q}`, to)
-	bot.call("PATCH", path, move, initial.ETag, 403)
-	human.call("PATCH", path, move, initial.ETag, 403)
+	bot.call("PATCH", path, move, initial.entityTag(), 403)
+	human.call("PATCH", path, move, initial.entityTag(), 403)
 	if got, _ := app.store.accepted(b.ID); got.Board.ETag != initialBoardTag {
 		t.Fatal("denied lane moves changed the board")
 	}
@@ -53,33 +53,33 @@ func TestCardMoveAndOwnerHTTP(t *testing.T) {
 	p := turnOneDecode[policy](t, raw)
 	p.MoveGrants = append(slices.Clone(p.MoveGrants), moveGrant{UserID: botID, FromLaneID: from, ToLaneID: to})
 	bot.call("PUT", policyPath, policyPutBody(t, p, initialBoardTag), p.ETag, 200)
-	human.call("PATCH", path, move, initial.ETag, 403)
+	human.call("PATCH", path, move, initial.entityTag(), 403)
 
 	// Adding a grant changes the board version, but not the original card tag.
-	raw, header = bot.call("PATCH", path, move, initial.ETag, 200)
+	raw, header = bot.call("PATCH", path, move, initial.entityTag(), 200)
 	moved := turnOneDecode[card](t, raw)
 	movedBoardTag := header.Get("X-Board-ETag")
-	if moved.LaneID != to || moved.OwnerID != botID || moved.ETag == initial.ETag ||
-		header.Get("ETag") != moved.ETag || movedBoardTag == initialBoardTag {
+	if moved.LaneID != to || moved.OwnerID != botID || moved.Revision != 4 || moved.entityTag() == initial.entityTag() ||
+		header.Get("ETag") != moved.entityTag() || movedBoardTag == initialBoardTag {
 		t.Fatal("move did not return the committed lane, owner, and version")
 	}
-	bot.call("PATCH", path, fmt.Sprintf(`{"lane_id":%q,"owner_id":%q}`, completed, botID), moved.ETag, 403)
-	bot.call("PATCH", path, move, moved.ETag, 403)
+	bot.call("PATCH", path, fmt.Sprintf(`{"lane_id":%q,"owner_id":%q}`, completed, botID), moved.entityTag(), 403)
+	bot.call("PATCH", path, move, moved.entityTag(), 403)
 	raw, _ = bot.call("GET", path, "", "", 200)
 	boardRaw, _ := bot.call("GET", "/boards/"+b.ID, "", "", 200)
-	if turnOneDecode[card](t, raw).ETag != moved.ETag || turnOneDecode[board](t, boardRaw).ETag != movedBoardTag {
+	if turnOneDecode[card](t, raw).entityTag() != moved.entityTag() || turnOneDecode[board](t, boardRaw).ETag != movedBoardTag {
 		t.Fatal("refused same-lane patch changed versions")
 	}
 	assign := fmt.Sprintf(`{"owner_id":%q}`, humanID)
-	human.call("PATCH", path, assign, initial.ETag, 412)
-	raw, header = human.call("PATCH", path, assign, moved.ETag, 200)
+	human.call("PATCH", path, assign, initial.entityTag(), 412)
+	raw, header = human.call("PATCH", path, assign, moved.entityTag(), 200)
 	assigned := turnOneDecode[card](t, raw)
-	if assigned.LaneID != to || assigned.OwnerID != humanID || assigned.ETag == moved.ETag {
+	if assigned.LaneID != to || assigned.OwnerID != humanID || assigned.Revision != 5 || assigned.entityTag() == moved.entityTag() {
 		t.Fatal("owner edit did not independently persist")
 	}
-	bot.call("PATCH", path, `{"owner_id":null}`, assigned.ETag, 400)
-	raw, _ = bot.call("PATCH", path, assign, assigned.ETag, 200)
-	if unchanged := turnOneDecode[card](t, raw); unchanged.ETag != assigned.ETag || unchanged.OwnerID != humanID {
+	bot.call("PATCH", path, `{"owner_id":null}`, assigned.entityTag(), 400)
+	raw, _ = bot.call("PATCH", path, assign, assigned.entityTag(), 200)
+	if unchanged := turnOneDecode[card](t, raw); unchanged.entityTag() != assigned.entityTag() || unchanged.OwnerID != humanID {
 		t.Fatal("same owner assignment must preserve the version and owner")
 	}
 
@@ -87,7 +87,7 @@ func TestCardMoveAndOwnerHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(durable.Activity) != 5 || durable.Cards[0].ETag != assigned.ETag {
+	if len(durable.Activity) != 5 || durable.Cards[0].entityTag() != assigned.entityTag() {
 		t.Fatal("expected exactly one durable event for each successful change")
 	}
 	for i, want := range []struct{ actor, field, before, after string }{

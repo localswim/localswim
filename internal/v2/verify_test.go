@@ -170,7 +170,7 @@ func TestNativeSnapshotParentAuditAndCycle(t *testing.T) {
 	b := &value.Board
 	for i := range 2 {
 		value.Cards = append(value.Cards, card{
-			entity: newEntity(newID(), b.CreatedAt), BoardID: b.ID,
+			ID: newID(), Revision: 1, CreatedAt: b.CreatedAt, UpdatedAt: b.CreatedAt, BoardID: b.ID,
 			Ticket: uint64(i + 1), Title: "Card", LaneID: value.Lanes[0].ID,
 			OwnerID: humanID, PriorityID: value.Policy.DefaultPriorityID, ChildIDs: []string{},
 		})

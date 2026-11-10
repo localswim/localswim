@@ -201,8 +201,7 @@ func prepareT03(api *client.Client, cmd cliCommand, stdin io.Reader) (json.RawMe
 	if current.ETag == "" {
 		return nil, "", "", errors.New("service did not return a strong resource ETag")
 	}
-	laneRename := cmd.resource == "/lanes/"+edit.id
-	if laneRename || (cmd.revision != nil && edit.idField != "board_id") {
+	if cmd.resource == "/lanes/"+edit.id {
 		board, err := parentBoard(api, current.JSON)
 		if err != nil {
 			return nil, "", "", err
@@ -210,17 +209,16 @@ func prepareT03(api *client.Client, cmd cliCommand, stdin io.Reader) (json.RawMe
 		if err := checkCLIRevision(cmd.revision, board.JSON); err != nil {
 			return nil, "", "", err
 		}
-		if laneRename {
-			var label struct {
-				Label string `json:"label"`
-			}
-			if err := json.Unmarshal(body, &label); err != nil {
-				return nil, "", "", err
-			}
-			body, err = json.Marshal(map[string]string{"label": label.Label, "board_etag": board.ETag})
-			return body, current.ETag, "", err
+		var label struct {
+			Label string `json:"label"`
 		}
-	} else if err := checkCLIRevision(cmd.revision, current.JSON); err != nil {
+		if err := json.Unmarshal(body, &label); err != nil {
+			return nil, "", "", err
+		}
+		body, err = json.Marshal(map[string]string{"label": label.Label, "board_etag": board.ETag})
+		return body, current.ETag, "", err
+	}
+	if err := checkCLIRevision(cmd.revision, current.JSON); err != nil {
 		return nil, "", "", err
 	}
 	if cmd.method == http.MethodPatch {

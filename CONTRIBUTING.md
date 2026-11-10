@@ -22,6 +22,16 @@ CLI commands that read JSON require a positional file path or `-` for standard i
 Omitting the input path is a command error. Card creation takes `board_id`
 in its JSON document. The CLI obtains the board revision validator.
 
+Full card JSON and native card snapshots carry a positive safe-integer `revision`
+for the board commit that last changed that card. Unrelated board edits leave it
+unchanged, and successive card revisions may skip values. The service assigns this
+field; card creation and patch inputs cannot supply it. HTTP `ETag` headers remain
+the conditional-write validators.
+
+For card edits, comment posting, and attachment upload, CLI `--revision N` checks
+the addressed card revision before writing with its current HTTP validator. Card
+creation, policy changes, and lane changes check the board revision.
+
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
 Unicode. Entity and build IDs are immutable UUIDv4 values. The service_instance_id
 uses UUIDv7, with the instance creation time encoded as Unix milliseconds.

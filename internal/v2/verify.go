@@ -395,7 +395,7 @@ func (refs snapshotReferences) validateCards(value snapshot) error {
 	for _, c := range value.Cards {
 		ticket := uint64(c.Ticket)
 		l := refs.lanes[c.LaneID]
-		if !refs.claim(c.entity) || c.BoardID != value.Board.ID || ticket == 0 ||
+		if !validSnapshotCard(c, value.Board.Revision) || refs.ids[c.ID] || c.BoardID != value.Board.ID || ticket == 0 ||
 			ticket > maxSnapshotInteger || tickets[ticket] || l.ID == "" || (l.Retired && !c.Archived) ||
 			!refs.priorities[c.PriorityID] || refs.users[c.OwnerID].ID == "" {
 			return invalidSnapshot("cards", "Card identity, ticket, or workflow reference is invalid.")
@@ -409,6 +409,7 @@ func (refs snapshotReferences) validateCards(value snapshot) error {
 			(c.CompletedAt != nil && !validSnapshotTime(*c.CompletedAt)) {
 			return invalidSnapshot("cards.completed_at", "Card completion timestamp does not match its lane.")
 		}
+		refs.ids[c.ID] = true
 		tickets[ticket] = true
 		refs.cards[c.ID] = c
 	}
@@ -475,6 +476,12 @@ func validSnapshotID(id string) bool {
 
 func validSnapshotEntity(item entity) bool {
 	return validSnapshotID(item.ID) && snapshotETagPattern.MatchString(item.ETag) &&
+		validSnapshotTime(item.CreatedAt) && validSnapshotTime(item.UpdatedAt) &&
+		!item.UpdatedAt.Before(item.CreatedAt)
+}
+
+func validSnapshotCard(item card, boardRevision uint64) bool {
+	return validSnapshotID(item.ID) && item.Revision > 0 && item.Revision <= boardRevision &&
 		validSnapshotTime(item.CreatedAt) && validSnapshotTime(item.UpdatedAt) &&
 		!item.UpdatedAt.Before(item.CreatedAt)
 }

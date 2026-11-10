@@ -324,7 +324,7 @@ func (s *store) attach(boardID, actor string, input attachmentUpload) (attachmen
 		if snapshotIdentityExists(next, input.id) {
 			return errIdentityConflict
 		}
-		if !matchesStrongTag(input.expected, item.ETag) {
+		if !matchesStrongTag(input.expected, item.entityTag()) {
 			return errStale
 		}
 		for _, current := range s.boards {
@@ -342,7 +342,7 @@ func (s *store) attach(boardID, actor string, input attachmentUpload) (attachmen
 		revision := next.Board.Revision + 1
 		item.AttachmentCount++
 		item.UpdatedAt = now
-		item.ETag = etag(item.ID, revision)
+		item.Revision = revision
 		next.Attachments = append(next.Attachments, value)
 		next.Activity = append(next.Activity, activity{ID: newID(), BoardID: boardID, Revision: revision,
 			At: now, ActorID: actor, Operation: "attach", ResourceType: "attachment", ResourceID: value.ID})

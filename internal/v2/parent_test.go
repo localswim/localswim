@@ -20,10 +20,10 @@ func parentTestRef(id string) *string {
 
 func TestSetParentUpdatesDirectChildViews(t *testing.T) {
 	state := &snapshot{Cards: []card{
-		{entity: entity{ID: parentTestA}},
-		{entity: entity{ID: parentTestB}, ParentID: parentTestRef(parentTestA), ChildIDs: []string{parentTestC}},
-		{entity: entity{ID: parentTestC}, ParentID: parentTestRef(parentTestB)},
-		{entity: entity{ID: parentTestD}, ParentID: parentTestRef(parentTestA), Archived: true},
+		{ID: parentTestA},
+		{ID: parentTestB, ParentID: parentTestRef(parentTestA), ChildIDs: []string{parentTestC}},
+		{ID: parentTestC, ParentID: parentTestRef(parentTestB)},
+		{ID: parentTestD, ParentID: parentTestRef(parentTestA), Archived: true},
 	}}
 	state.Cards[0].ChildIDs = childrenOf(state, parentTestA)
 
@@ -71,9 +71,9 @@ func TestSetParentRefusesInvalidLinks(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			state := &snapshot{Cards: []card{
-				{entity: entity{ID: parentTestA}, ChildIDs: []string{parentTestB}},
-				{entity: entity{ID: parentTestB}, ParentID: parentTestRef(parentTestA), ChildIDs: []string{parentTestC}},
-				{entity: entity{ID: parentTestC}, ParentID: parentTestRef(parentTestB)},
+				{ID: parentTestA, ChildIDs: []string{parentTestB}},
+				{ID: parentTestB, ParentID: parentTestRef(parentTestA), ChildIDs: []string{parentTestC}},
+				{ID: parentTestC, ParentID: parentTestRef(parentTestB)},
 			}}
 			changed, err := setParent(state, parentTestA, &test.parentID)
 			if err == nil || changed || state.Cards[0].ParentID != nil ||
@@ -86,9 +86,9 @@ func TestSetParentRefusesInvalidLinks(t *testing.T) {
 
 func TestSetParentRefusesExistingCycle(t *testing.T) {
 	state := &snapshot{Cards: []card{
-		{entity: entity{ID: parentTestA}, ParentID: parentTestRef(parentTestB)},
-		{entity: entity{ID: parentTestB}, ParentID: parentTestRef(parentTestA)},
-		{entity: entity{ID: parentTestC}},
+		{ID: parentTestA, ParentID: parentTestRef(parentTestB)},
+		{ID: parentTestB, ParentID: parentTestRef(parentTestA)},
+		{ID: parentTestC},
 	}}
 	if changed, err := setParent(state, parentTestC, parentTestRef(parentTestB)); err == nil || changed {
 		t.Fatalf("joining an existing cycle returned (%t, %v)", changed, err)
@@ -112,13 +112,13 @@ func TestPatchParentChecksTagPermissionAndRecordsAudit(t *testing.T) {
 			{UserID: viewerID, Capabilities: []string{"read", "edit_card"}},
 		}},
 		Cards: []card{
-			{entity: newEntity(parentTestA, created), ChildIDs: []string{parentTestB}},
-			{entity: newEntity(parentTestB, created), ParentID: parentTestRef(parentTestA)},
-			{entity: newEntity(parentTestC, created), ChildIDs: []string{}},
-			{entity: newEntity(parentTestD, created), ChildIDs: []string{}},
+			{ID: parentTestA, Revision: 1, CreatedAt: created, UpdatedAt: created, ChildIDs: []string{parentTestB}},
+			{ID: parentTestB, Revision: 1, CreatedAt: created, UpdatedAt: created, ParentID: parentTestRef(parentTestA)},
+			{ID: parentTestC, Revision: 1, CreatedAt: created, UpdatedAt: created, ChildIDs: []string{}},
+			{ID: parentTestD, Revision: 1, CreatedAt: created, UpdatedAt: created, ChildIDs: []string{}},
 		},
 	}
-	tag := state.Cards[1].ETag
+	tag := state.Cards[1].entityTag()
 	if changed, err := patchParent(state, parentTestB, tag, parentTestRef(parentTestC), viewerID, now); changed || !errors.Is(err, errForbidden) {
 		t.Fatalf("unauthorized patch returned (%t, %v)", changed, err)
 	}
@@ -132,11 +132,11 @@ func TestPatchParentChecksTagPermissionAndRecordsAudit(t *testing.T) {
 		t.Fatalf("authorized patch returned (%t, %v)", changed, err)
 	}
 	for _, c := range state.Cards[:3] {
-		if c.ETag != etag(c.ID, 5) || !c.UpdatedAt.Equal(now) {
+		if c.Revision != 5 || !c.UpdatedAt.Equal(now) {
 			t.Fatalf("affected card %s has an incorrect tag or timestamp", c.ID)
 		}
 	}
-	if got := state.Cards[3]; got.ETag != etag(got.ID, 1) || !got.UpdatedAt.Equal(created) {
+	if got := state.Cards[3]; got.Revision != 1 || !got.UpdatedAt.Equal(created) {
 		t.Fatal("unrelated card's version changed")
 	}
 	if len(state.Activity) != 1 {
@@ -149,7 +149,7 @@ func TestPatchParentChecksTagPermissionAndRecordsAudit(t *testing.T) {
 		event.After == nil || *event.After != parentTestC {
 		t.Fatal("parent patch did not record the expected audit event")
 	}
-	if changed, err := patchParent(state, parentTestB, state.Cards[1].ETag, parentTestRef(parentTestC), actorID, now); changed || err != nil || len(state.Activity) != 1 {
+	if changed, err := patchParent(state, parentTestB, state.Cards[1].entityTag(), parentTestRef(parentTestC), actorID, now); changed || err != nil || len(state.Activity) != 1 {
 		t.Fatalf("no-op patch returned (%t, %v), activity count %d", changed, err, len(state.Activity))
 	}
 }
@@ -174,7 +174,7 @@ func TestPatchParentCommitsAndClearsWithAudit(t *testing.T) {
 	initial.Board.DefaultOwnerID = actor.ID
 	for i, id := range []string{parentTestA, parentTestB} {
 		initial.Cards = append(initial.Cards, card{
-			entity: newEntity(id, now), BoardID: boardID, Ticket: uint64(i + 1), Title: id,
+			ID: id, Revision: 1, CreatedAt: canonicalTime(now), UpdatedAt: canonicalTime(now), BoardID: boardID, Ticket: uint64(i + 1), Title: id,
 			OwnerID: actor.ID, LaneID: wf.Lanes[0].ID, PriorityID: wf.Policy.DefaultPriorityID, ChildIDs: []string{},
 		})
 	}
@@ -188,17 +188,17 @@ func TestPatchParentCommitsAndClearsWithAudit(t *testing.T) {
 			return err
 		})
 	}
-	updated, err := update(initial.Board.ETag, initial.Cards[1].ETag, parentTestRef(parentTestA))
+	updated, err := update(initial.Board.ETag, initial.Cards[1].entityTag(), parentTestRef(parentTestA))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if updated.Board.Revision != 2 || !slices.Equal(updated.Cards[0].ChildIDs, []string{parentTestB}) {
 		t.Fatal("parent relation and board revision did not commit together")
 	}
-	if _, err := update(updated.Board.ETag, initial.Cards[1].ETag, nil); !errors.Is(err, errStale) {
+	if _, err := update(updated.Board.ETag, initial.Cards[1].entityTag(), nil); !errors.Is(err, errStale) {
 		t.Fatalf("stale clear returned %v", err)
 	}
-	if _, err := update(updated.Board.ETag, updated.Cards[1].ETag, nil); err != nil {
+	if _, err := update(updated.Board.ETag, updated.Cards[1].entityTag(), nil); err != nil {
 		t.Fatal(err)
 	}
 	durable, err := st.durable(boardID)

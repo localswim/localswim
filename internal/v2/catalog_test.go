@@ -20,7 +20,7 @@ func TestDeriveAttentionCountsAndAuditedRecency(t *testing.T) {
 			{entity: entity{ID: "d"}, Role: "ordinary"},
 		},
 		Cards: []card{
-			{entity: entity{ID: "archived"}, LaneID: "a", Archived: true},
+			{ID: "archived", LaneID: "a", Archived: true},
 			{LaneID: "a"},
 			{LaneID: "b"},
 			{LaneID: "b"},

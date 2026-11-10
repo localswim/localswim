@@ -92,7 +92,7 @@ func patchParent(s *snapshot, cardID, expectedCardETag string, parentID *string,
 		if child.ID != cardID {
 			continue
 		}
-		if !matchesStrongTag(expectedCardETag, child.ETag) {
+		if !matchesStrongTag(expectedCardETag, child.entityTag()) {
 			return false, errStale
 		}
 		oldParent := child.ParentID
@@ -107,7 +107,7 @@ func patchParent(s *snapshot, cardID, expectedCardETag string, parentID *string,
 			if affected.ID == cardID ||
 				oldParent != nil && affected.ID == *oldParent ||
 				child.ParentID != nil && affected.ID == *child.ParentID {
-				affected.ETag = etag(affected.ID, revision)
+				affected.Revision = revision
 				if now.After(affected.UpdatedAt) {
 					affected.UpdatedAt = now
 				}

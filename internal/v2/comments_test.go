@@ -57,10 +57,10 @@ func TestM05AttributedCommentAndNewestPages(t *testing.T) {
 		return string(value)
 	}
 	h.call("POST", "/comments", fmt.Sprintf(`{"card_id":%q,"text":"valid"}`, first.ID), "", 428)
-	h.call("POST", "/comments", fmt.Sprintf(`{"card_id":%q,"expected_card_etag":%q,"text":"\ud800"}`, first.ID, first.ETag), "", 400)
-	h.call("POST", "/comments", fmt.Sprintf(`{"card_id":%q,"expected_card_etag":%q,"text":"valid","author_id":%q}`, first.ID, first.ETag, newID()), "", 400)
+	h.call("POST", "/comments", fmt.Sprintf(`{"card_id":%q,"expected_card_etag":%q,"text":"\ud800"}`, first.ID, first.entityTag()), "", 400)
+	h.call("POST", "/comments", fmt.Sprintf(`{"card_id":%q,"expected_card_etag":%q,"text":"valid","author_id":%q}`, first.ID, first.entityTag(), newID()), "", 400)
 	text := "  First line\r\n👋 e\u0301\n "
-	raw, headers := h.call("POST", "/comments", commentBody(strings.ToUpper(id), first.ID, first.ETag, text), "", 201)
+	raw, headers := h.call("POST", "/comments", commentBody(strings.ToUpper(id), first.ID, first.entityTag(), text), "", 201)
 	oldest := turnOneDecode[comment](t, raw)
 	if oldest.ID != id || oldest.BoardID != board.ID || oldest.CardID != first.ID || oldest.Text != text ||
 		oldest.AuthorID != board.UserIDs[0] || oldest.CreatedAt.IsZero() || !oldest.UpdatedAt.Equal(oldest.CreatedAt) ||
@@ -68,14 +68,14 @@ func TestM05AttributedCommentAndNewestPages(t *testing.T) {
 		headers.Get("X-Board-ETag") == "" || headers.Get("X-Board-ETag") == boardTag {
 		t.Fatal("comment response lost exact text, attribution, entity metadata, or new board tag")
 	}
-	h.call("POST", "/comments", commentBody(newID(), first.ID, first.ETag, "stale"), "", 412)
+	h.call("POST", "/comments", commentBody(newID(), first.ID, first.entityTag(), "stale"), "", 412)
 	raw, _ = h.call("GET", "/cards/"+first.ID, "", "", 200)
 	firstNext := turnOneDecode[card](t, raw)
-	if firstNext.CommentCount != 1 || firstNext.ETag == first.ETag {
+	if firstNext.CommentCount != 1 || firstNext.Revision != 4 || firstNext.entityTag() == first.entityTag() {
 		t.Fatal("parent card count and tag were not committed with the comment")
 	}
-	h.call("POST", "/comments", commentBody(id, first.ID, firstNext.ETag, "duplicate"), "", 409)
-	raw, _ = b.call("POST", "/comments", commentBody(newID(), second.ID, second.ETag, "Newest #1"), "", 201)
+	h.call("POST", "/comments", commentBody(id, first.ID, firstNext.entityTag(), "duplicate"), "", 409)
+	raw, _ = b.call("POST", "/comments", commentBody(newID(), second.ID, second.entityTag(), "Newest #1"), "", 201)
 	newest := turnOneDecode[comment](t, raw)
 	if newest.AuthorID != board.UserIDs[1] || newest.CardID != second.ID {
 		t.Fatal("Bot comment attribution did not come from its authenticated identity")

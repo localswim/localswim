@@ -44,9 +44,12 @@ func TestT03CLIWriteValidatorsAndUTF8(t *testing.T) {
 				switch {
 				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/boards/"+t03Board:
 					w.Header().Set("ETag", t03BoardTag)
+					if tc.name != "lane rename" {
+						t.Error("card edit queried the unrelated board revision")
+					}
 					_, _ = io.WriteString(w, `{"revision":12}`)
 				case r.Method == http.MethodGet:
-					_, _ = io.WriteString(w, `{"board_id":"`+t03Board+`"}`)
+					_, _ = io.WriteString(w, `{"board_id":"`+t03Board+`","revision":12}`)
 				case r.Method == http.MethodPatch:
 					mutations.Add(1)
 					var body map[string]string

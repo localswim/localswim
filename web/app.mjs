@@ -7,7 +7,7 @@ import { ApiError, createBrowserApi, openBrowserSession } from "./api.mjs";
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
 /** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
- * owner_id: string, ticket: number, etag: string, comment_count: number, attachment_count: number}} Card */
+ * owner_id: string, ticket: number, revision: number, comment_count: number, attachment_count: number}} Card */
 /** @typedef {{data: object, etag: string|null}} Reply */
 /** @typedef {() => Promise<void|boolean>} InspectionRead */
 /** @typedef {{scope: string, label: string, require: (read: InspectionRead) => void,
@@ -408,7 +408,7 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
       const latest = await api.getCard(card.id);
       const saved = /** @type {Card} */ (latest.data);
       const tag = etag(latest);
-      if (saved.id !== card.id || saved.board_id !== boardId || saved.etag !== tag) {
+      if (saved.id !== card.id || saved.board_id !== boardId) {
         throw new ApiError("invalid_response");
       }
       if (cardView !== activeCard) return;

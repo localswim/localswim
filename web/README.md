@@ -6,7 +6,8 @@ a same-origin Human session and keeps the capability in memory. The HTML and
 local assets are independent of the capability.
 
 Open a card to edit its text, lane, or owner. Each submission uses the last card
-ETag that the drawer read. A stale edit or uncertain response triggers a focused
+ETag read from the HTTP response header. Card JSON exposes its positive integer
+`revision`; the drawer retains the header validator separately. A stale edit or uncertain response triggers a focused
 read so you can compare your draft with the saved card before deciding whether
 to submit again. Inspect or Refresh rereads the active editor and preserves
 the draft. If readback fails, inspect the affected card or board before

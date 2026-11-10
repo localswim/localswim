@@ -94,7 +94,7 @@ func TestM23UploadAndListAttachments(t *testing.T) {
 	b := turnOneDecode[board](t, raw)
 	c := attachmentHTTPCard(t, editor, b)
 	id := newID()
-	fields := []attachmentFormField{{"card_id", strings.ToUpper(c.ID)}, {"expected_card_etag", c.ETag}, {"id", strings.ToUpper(id)}}
+	fields := []attachmentFormField{{"card_id", strings.ToUpper(c.ID)}, {"expected_card_etag", c.entityTag()}, {"id", strings.ToUpper(id)}}
 	name := `../original\case 🧪.png`
 	data := make([]byte, maxAttachmentBytes+1)
 	copy(data, "\x89PNG\r\n\x1a\n")
@@ -104,7 +104,7 @@ func TestM23UploadAndListAttachments(t *testing.T) {
 	attachmentHTTPUpload(t, editor, append(fields, attachmentFormField{"card_id", c.ID}), name, data[:8], 400)
 	stale := []attachmentFormField{{"card_id", c.ID}, {"expected_card_etag", etag(c.ID, 99)}}
 	attachmentHTTPUpload(t, editor, stale, name, data[:8], 412)
-	weak := []attachmentFormField{{"card_id", c.ID}, {"expected_card_etag", "W/" + c.ETag}}
+	weak := []attachmentFormField{{"card_id", c.ID}, {"expected_card_etag", "W/" + c.entityTag()}}
 	attachmentHTTPUpload(t, editor, weak, name, data[:8], 400)
 	editor.call("POST", "/attachments", `{}`, "", 415)
 	query := "/attachments?card_id=" + c.ID
@@ -131,7 +131,7 @@ func TestM23UploadAndListAttachments(t *testing.T) {
 	}
 	raw, _ = editor.call("GET", "/cards/"+c.ID, "", "", 200)
 	updated := turnOneDecode[card](t, raw)
-	if updated.AttachmentCount != 1 || updated.ETag == c.ETag || updated.UpdatedAt != item.CreatedAt {
+	if updated.AttachmentCount != 1 || updated.Revision != 3 || updated.entityTag() == c.entityTag() || updated.UpdatedAt != item.CreatedAt {
 		t.Fatal("attachment transaction did not update the owning card")
 	}
 	saved, err := app.store.durable(b.ID)
@@ -155,7 +155,7 @@ func TestM23UploadAndListAttachments(t *testing.T) {
 		t.Fatal("active item appeared in an inactive-only list")
 	}
 	editor.call("GET", query+"&active=1", "", "", 400)
-	newFields := []attachmentFormField{{"card_id", c.ID}, {"expected_card_etag", updated.ETag}}
+	newFields := []attachmentFormField{{"card_id", c.ID}, {"expected_card_etag", updated.entityTag()}}
 	attachmentHTTPUpload(t, editor, append(newFields, attachmentFormField{"id", id}), "duplicate.bin", nil, 409)
 	attachmentHTTPUpload(t, editor, append(newFields, attachmentFormField{"id", c.ID}), "duplicate.bin", nil, 409)
 	raw, _ = attachmentHTTPUpload(t, editor, newFields, "empty.bin", nil, 201)
@@ -197,7 +197,7 @@ func TestM23AttachmentReadbackAfterUncertainOutcome(t *testing.T) {
 	c := attachmentHTTPCard(t, editor, b)
 	previous, _ := app.store.accepted(b.ID)
 	id := newID()
-	fields := []attachmentFormField{{"card_id", c.ID}, {"expected_card_etag", c.ETag}, {"id", id}}
+	fields := []attachmentFormField{{"card_id", c.ID}, {"expected_card_etag", c.entityTag()}, {"id", id}}
 	attachmentHTTPUpload(t, editor, fields, "recover.bin", []byte("recover"), 201)
 	// Model a lost success response and a commit that reached disk before the
 	// store could acknowledge it. Retain the pre-write accepted state.
@@ -246,7 +246,7 @@ func TestM23AttachmentCommitRefusalAndAuthorization(t *testing.T) {
 	}
 	c := attachmentHTTPCard(t, editor, value.Board)
 	id = newID()
-	fields := []attachmentFormField{{"card_id", c.ID}, {"expected_card_etag", c.ETag}, {"id", id}}
+	fields := []attachmentFormField{{"card_id", c.ID}, {"expected_card_etag", c.entityTag()}, {"id", id}}
 	bot := editor
 	bot.token = base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("b", 32)))
 	attachmentHTTPUpload(t, bot, fields, "test.bin", []byte("content"), 403)

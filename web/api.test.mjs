@@ -180,7 +180,7 @@ test("creates and finds cards using the distinct board and card tags", async () 
   };
   const boardEtag = '"updated_board_tag"';
   const created = {
-    id: card, etag: TAG, created_at: "2026-11-10 18:00:00+00:00",
+    id: card, revision: 1, created_at: "2026-11-10 18:00:00+00:00",
     updated_at: "2026-11-10 18:00:00+00:00", board_id: BOARD, ticket: 1,
     title: payload.title, description: "", lane_id: BOARD, owner_id: BOARD,
     priority_id: BOARD, parent_id: null, child_ids: [], archived: false,
@@ -197,7 +197,7 @@ test("creates and finds cards using the distinct board and card tags", async () 
         status: 201, headers: { ETag: TAG, "X-Board-ETag": boardEtag },
       });
     }
-    return Response.json(url.includes("?") ? { cards: [{ id: card }] } : { id: card });
+    return Response.json(url.includes("?") ? { cards: [created] } : created, { headers: { ETag: TAG } });
   });
 
   assert.deepEqual(await api.createCard(payload), { data: created, etag: TAG, boardEtag });
@@ -205,7 +205,9 @@ test("creates and finds cards using the distinct board and card tags", async () 
   for (const malformed of [
     { ...created, id: BOARD }, { ...created, board_id: card }, { ...created, ticket: 0 },
     { ...created, title: undefined }, { ...created, owner_id: undefined, extra: null },
-    { ...created, owner_id: null }, { ...created, owner_id: "" }, { ...created, etag: boardEtag },
+    { ...created, owner_id: null }, { ...created, owner_id: "" }, { ...created, revision: undefined },
+    ...[null, false, 0, -1, 1.5, "1", Number.MAX_SAFE_INTEGER + 1].map((revision) => ({ ...created, revision })),
+    { ...created, etag: TAG },
   ]) {
     let calls = 0;
     const invalid = client(async () => {

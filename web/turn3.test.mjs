@@ -7,6 +7,16 @@ const resourceId = "466eeb0d-57fc-44ae-8ecc-79a21fe7358e";
 const tag = '"card_0123456789abcdef"';
 const capability = "A".repeat(43);
 
+
+const savedCard = {
+  id: cardId, revision: 1, created_at: "2026-11-10 18:00:00+00:00",
+  updated_at: "2026-11-10 18:00:00+00:00", board_id: resourceId, ticket: 1,
+  title: "Exact title", description: "", lane_id: resourceId, owner_id: resourceId,
+  priority_id: resourceId, parent_id: null, child_ids: [], archived: false,
+  cover_attachment_id: null, comment_count: 0, attachment_count: 0,
+  blocking_depth: 0, blocked_card_count: 0, triage_score: 100, completed_at: null,
+};
+
 test("bootstrap requests only the same-origin Human session", async () => {
   let requests = 0;
   const token = await openBrowserSession(async (url, options) => {
@@ -115,14 +125,7 @@ test("owner edits reject clearing before dispatch", async () => {
 });
 
 test("owner assignment validates the saved owner without repeating an uncertain write", async () => {
-  const saved = {
-    id: cardId, etag: tag, created_at: "2026-11-10 18:00:00+00:00",
-    updated_at: "2026-11-10 18:00:00+00:00", board_id: resourceId, ticket: 1,
-    title: "Exact title", description: "", lane_id: resourceId, owner_id: resourceId,
-    priority_id: resourceId, parent_id: null, child_ids: [], archived: false,
-    cover_attachment_id: null, comment_count: 0, attachment_count: 0,
-    blocking_depth: 0, blocked_card_count: 0, triage_score: 100, completed_at: null,
-  };
+  const saved = savedCard;
   for (const owner_id of [resourceId, null]) {
     let calls = 0;
     const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (url, options) => {
@@ -140,5 +143,43 @@ test("owner assignment validates the saved owner without repeating an uncertain 
       assert.deepEqual((await assignment).data, saved);
     }
     assert.equal(calls, 1);
+  }
+});
+
+
+test("card reads and writes require numeric revisions and retain HTTP validators", async () => {
+  const newerTag = '"unrelated_to_numeric_revision"';
+  const cases = [
+    [savedCard, newerTag, true],
+    [{ ...savedCard, revision: Number.MAX_SAFE_INTEGER }, newerTag, true],
+    ...[undefined, null, false, 0, -1, 1.5, "1", Number.MAX_SAFE_INTEGER + 1]
+      .map((revision) => [{ ...savedCard, revision }, newerTag, false]),
+    [{ ...savedCard, revision: undefined, etag: tag }, newerTag, false],
+    [{ ...savedCard, etag: tag }, newerTag, false],
+    [{ ...savedCard, id: resourceId }, newerTag, false],
+    [savedCard, null, false],
+    [savedCard, "W/" + tag, false],
+  ];
+  for (const method of ["GET", "PATCH"]) {
+    for (const [data, responseTag, valid] of cases) {
+      let calls = 0;
+      const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (url, options) => {
+        ++calls;
+        assert.equal(options.method, method);
+        if (method === "PATCH") assert.equal(options.headers.get("If-Match"), tag);
+        return Response.json(data, { headers: responseTag === null ? {} : { ETag: responseTag } });
+      } });
+      const result = method === "GET" ? api.getCard(cardId) : api.patchCard(cardId, tag, { title: "Exact title" });
+      if (valid) {
+        const reply = await result;
+        assert.deepEqual(reply.data, data);
+        assert.equal(reply.etag, responseTag);
+      } else {
+        await assert.rejects(result, {
+          name: "ApiError", code: "invalid_response", status: 200, outcomeUnknown: method === "PATCH",
+        });
+      }
+      assert.equal(calls, 1);
+    }
   }
 });

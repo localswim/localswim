@@ -82,13 +82,14 @@ function isTimestamp(value) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\+00:00$/.test(value);
 }
 
-/** @param {object} data @param {string} etag @param {string} boardId @param {string | undefined} id */
-function validCard(data, etag, boardId, id) {
+/** @param {object} data @param {string} boardId @param {string | undefined} id */
+function validCard(data, boardId, id) {
   const card = /** @type {Record<string, unknown>} */ (data);
   return Object.keys(card).length === 21
     && isId(card.id) && (id === undefined || card.id.toLowerCase() === id.toLowerCase())
     && isId(card.board_id) && card.board_id.toLowerCase() === boardId.toLowerCase()
-    && card.etag === etag && isInteger(card.ticket) && card.ticket > 0
+    && isInteger(card.revision) && card.revision > 0
+    && isInteger(card.ticket) && card.ticket > 0
     && isTimestamp(card.created_at) && isTimestamp(card.updated_at)
     && typeof card.title === "string" && card.title.length > 0
     && typeof card.description === "string"
@@ -347,7 +348,16 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       return request("/cards?" + query);
     },
     /** @param {unknown} cardId */
-    getCard: (cardId) => request("/cards/" + resourceId(cardId)),
+    async getCard(cardId) {
+      const id = resourceId(cardId);
+      const reply = await request("/cards/" + id);
+      const card = /** @type {{ board_id?: unknown }} */ (reply.data);
+      if (!STRONG_ETAG.test(reply.etag ?? "") || !isId(card.board_id)
+          || !validCard(reply.data, card.board_id, id)) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      return reply;
+    },
     getSession: () => request("/session"),
     /** @param {{board_id: string, card_id?: string}} filter
      * @param {number} [limit] @param {string} [cursor] */
@@ -398,7 +408,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const response = await request("/cards/" + id, { method: "PATCH", etag: strongTag(etag), data });
       const card = /** @type {{ board_id?: unknown }} */ (response.data);
       if (response.etag === null || !isId(card.board_id)
-          || !validCard(response.data, response.etag, card.board_id, id)) {
+          || !validCard(response.data, card.board_id, id)) {
         throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
       }
       return response;
@@ -421,7 +431,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       const data = await responseObject(response, true);
-      if (!validCard(data, etag, boardId, id)) {
+      if (!validCard(data, boardId, id)) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       return { data, etag, boardEtag };

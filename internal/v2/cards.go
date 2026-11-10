@@ -32,7 +32,7 @@ func (x *request) cardResource(id string) {
 		x.fail(errMissing)
 		return
 	}
-	x.respond(http.StatusOK, value, value.ETag)
+	x.respond(http.StatusOK, value, value.entityTag())
 }
 
 func (x *request) findCard(id string) (snapshot, card, bool) {
@@ -278,7 +278,7 @@ func (x *request) createCard() {
 	value := next.Cards[len(next.Cards)-1]
 	x.w.Header().Set("Location", Prefix+"/cards/"+value.ID)
 	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
-	x.respond(http.StatusCreated, value, value.ETag)
+	x.respond(http.StatusCreated, value, value.entityTag())
 }
 
 func (in cardCreation) apply(s *snapshot, actor string) error {
@@ -316,7 +316,8 @@ func (in cardCreation) apply(s *snapshot, actor string) error {
 		return invalid("ticket", "The board's ticket range is exhausted.")
 	}
 	now := maxCardTime(canonicalTime(time.Now()), s.Board.UpdatedAt)
-	value := card{entity: newEntity(in.id, now), BoardID: s.Board.ID, Ticket: lastTicket + 1, Title: in.title,
+	value := card{ID: in.id, Revision: s.Board.Revision + 1, CreatedAt: now, UpdatedAt: now,
+		BoardID: s.Board.ID, Ticket: lastTicket + 1, Title: in.title,
 		Description: in.description, LaneID: in.laneID, OwnerID: in.ownerID, PriorityID: in.priorityID,
 		ChildIDs: []string{}, TriageScore: (s.Priorities[priorityIndex].Rank + 1) * 100}
 	if s.Lanes[laneIndex].Role == "completed" {
@@ -326,7 +327,7 @@ func (in cardCreation) apply(s *snapshot, actor string) error {
 	s.Activity = append(s.Activity, activity{ID: newID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
 		ActorID: actor, Operation: "create", ResourceType: "card", ResourceID: value.ID})
 	if in.parentID != nil {
-		_, err := patchParent(s, value.ID, value.ETag, in.parentID, actor, now)
+		_, err := patchParent(s, value.ID, value.entityTag(), in.parentID, actor, now)
 		return err
 	}
 	return nil

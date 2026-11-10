@@ -71,9 +71,8 @@ Include an explicit card ID to allow focused readback after a lost create reply.
 Policy grant reads create_grants and/or move_grants and preserves existing permissions.
 Comment post reads an object containing text and an optional ID.
 Lane add reads the lane definition. The CLI supplies its board ID and validator.
-Card edits, comment post, lane add/rename, and attachment upload check the
-parent board revision when --revision is supplied. Card writes bind the card
-ETag. Lane rename binds both the lane and board ETags.
+Card edits, comment post, and attachment upload check the card revision.
+Lane add and rename check the board revision. The CLI manages HTTP validators.
 For FILE|-, pass a file path or use - to read standard input.
 Card description reads UTF-8 text verbatim, including trailing newlines.
 If a mutation outcome is unknown, inspect the resource before retrying.

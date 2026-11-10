@@ -102,7 +102,7 @@ func (x *request) patchCard(id string) {
 	for _, item := range updated.Cards {
 		if item.ID == id {
 			x.w.Header().Set("X-Board-ETag", updated.Board.ETag)
-			x.respond(http.StatusOK, item, item.ETag)
+			x.respond(http.StatusOK, item, item.entityTag())
 			return
 		}
 	}
@@ -124,7 +124,7 @@ func (patch cardPatch) apply(s *snapshot, id, tag, actor string, now time.Time) 
 }
 
 func (patch cardPatch) applyToCard(s *snapshot, item *card, tag, actor string, now time.Time) error {
-	if !matchesStrongTag(tag, item.ETag) {
+	if !matchesStrongTag(tag, item.entityTag()) {
 		return errStale
 	}
 	changed, err := patch.text.apply(s, item, actor, now)
@@ -151,7 +151,7 @@ func (patch cardPatch) applyToCard(s *snapshot, item *card, tag, actor string, n
 		}
 	}
 	if changed {
-		item.ETag = etag(item.ID, s.Board.Revision+1)
+		item.Revision = s.Board.Revision + 1
 		item.UpdatedAt = maxCardTime(item.UpdatedAt, now)
 	}
 	return nil

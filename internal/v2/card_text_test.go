@@ -69,31 +69,31 @@ func TestM04CardTextConflictAndLostReply(t *testing.T) {
 	second, _ := makeCard(tag)
 	path := "/cards/" + first.ID
 	reader.call("GET", path, "", "", 200)
-	reader.call("PATCH", path, `{"title":"Denied"}`, first.ETag, 403)
+	reader.call("PATCH", path, `{"title":"Denied"}`, first.entityTag(), 403)
 	editor.call("PATCH", path, `{"title":"Missing precondition"}`, "", 428)
-	editor.call("PATCH", path, `{"title":"Invalid description","description":9}`, first.ETag, 400)
-	editor.call("PATCH", path, `{"title":"\ud800"}`, first.ETag, 400)
-	editor.call("PATCH", "/cards/"+second.ID, `{"title":"Unrelated change"}`, second.ETag, 200)
+	editor.call("PATCH", path, `{"title":"Invalid description","description":9}`, first.entityTag(), 400)
+	editor.call("PATCH", path, `{"title":"\ud800"}`, first.entityTag(), 400)
+	editor.call("PATCH", "/cards/"+second.ID, `{"title":"Unrelated change"}`, second.entityTag(), 200)
 
 	title, description := "  \U0001f41d e\u0301  ", "  exact\r\ntext\n "
 	body, err := marshalCanonical(map[string]string{"title": title, "description": description})
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, headers := editor.call("PATCH", path, string(body), first.ETag, 200)
+	raw, headers := editor.call("PATCH", path, string(body), first.entityTag(), 200)
 	changed := turnOneDecode[card](t, raw)
-	if changed.Title != title || changed.Description != description ||
-		changed.ETag == first.ETag || changed.ETag != headers.Get("ETag") || headers.Get("X-Board-ETag") == "" {
+	if changed.Title != title || changed.Description != description || changed.Revision != 5 ||
+		changed.entityTag() == first.entityTag() || changed.entityTag() != headers.Get("ETag") || headers.Get("X-Board-ETag") == "" {
 		t.Fatal("unrelated edit invalidated the card tag or text was changed in transit")
 	}
-	editor.call("PATCH", path, `{"title":"Stale edit"}`, first.ETag, 412)
+	editor.call("PATCH", path, `{"title":"Stale edit"}`, first.entityTag(), 412)
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPatch, server.URL+Prefix+path, strings.NewReader(`{"description":null}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	req.Header.Set("Authorization", "Bearer "+human)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("If-Match", changed.ETag)
+	req.Header.Set("If-Match", changed.entityTag())
 	req.Header.Set("X-Request-ID", lostID)
 	res, err := editor.client.Do(req)
 	if res != nil {
@@ -104,11 +104,11 @@ func TestM04CardTextConflictAndLostReply(t *testing.T) {
 	}
 	raw, _ = editor.call("GET", path, "", "", 200)
 	readback := turnOneDecode[card](t, raw)
-	if readback.Title != title || readback.Description != "" || readback.ETag == changed.ETag {
+	if readback.Title != title || readback.Description != "" || readback.Revision != 6 || readback.entityTag() == changed.entityTag() {
 		t.Fatal("readback failed to establish the final text and current card tag")
 	}
-	_, headers = editor.call("PATCH", path, `{"description":null}`, readback.ETag, 200)
-	if headers.Get("ETag") != readback.ETag {
+	_, headers = editor.call("PATCH", path, `{"description":null}`, readback.entityTag(), 200)
+	if headers.Get("ETag") != readback.entityTag() {
 		t.Fatal("unchanged text advanced the card tag")
 	}
 	saved, err := app.store.durable(id)

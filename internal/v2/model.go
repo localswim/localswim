@@ -126,7 +126,10 @@ type workflow struct {
 	Policy     policy
 }
 type card struct {
-	entity
+	ID                string     `json:"id"`
+	Revision          uint64     `json:"revision"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 	BoardID           string     `json:"board_id"`
 	Ticket            uint64     `json:"ticket"`
 	Title             string     `json:"title"`
@@ -145,6 +148,9 @@ type card struct {
 	TriageScore       int        `json:"triage_score"`
 	CompletedAt       *time.Time `json:"completed_at"`
 }
+
+func (c card) entityTag() string { return etag(c.ID, c.Revision) }
+
 type activity struct {
 	ID           string    `json:"id"`
 	BoardID      string    `json:"board_id"`

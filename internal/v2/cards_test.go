@@ -49,7 +49,7 @@ func TestM02CardCreationAndReadback(t *testing.T) {
 		data, headers := c.call("POST", "/cards", string(body), "", want)
 		if want == 201 {
 			value := turnOneDecode[card](t, data)
-			if headers.Get("Location") != Prefix+"/cards/"+value.ID || headers.Get("ETag") != value.ETag {
+			if headers.Get("Location") != Prefix+"/cards/"+value.ID || headers.Get("ETag") != value.entityTag() {
 				t.Fatal("create did not expose the new card identity and tag")
 			}
 		}
@@ -60,7 +60,7 @@ func TestM02CardCreationAndReadback(t *testing.T) {
 	request["expected_board_etag"] = b.ETag
 	raw, boardTag := post(201)
 	created := turnOneDecode[card](t, raw)
-	if created.ID != id || created.BoardID != b.ID || created.Ticket != 1 ||
+	if created.ID != id || created.BoardID != b.ID || created.Ticket != 1 || created.Revision != 2 ||
 		created.Title != title || created.Description != description || created.PriorityID != b.PriorityIDs[1] ||
 		created.LaneID != b.LaneIDs[0] || created.ChildIDs == nil || boardTag == "" || boardTag == b.ETag {
 		t.Fatalf("unexpected created card: %+v", created)
@@ -78,12 +78,12 @@ func TestM02CardCreationAndReadback(t *testing.T) {
 	request["parent_id"] = id
 	raw, _ = post(201)
 	child := turnOneDecode[card](t, raw)
-	if child.Ticket != 2 || child.ParentID == nil || *child.ParentID != id {
+	if child.Ticket != 2 || child.Revision != 3 || child.ParentID == nil || *child.ParentID != id {
 		t.Fatalf("unexpected child card: %+v", child)
 	}
 	raw, headers := c.call("GET", "/cards/"+strings.ToUpper(id), "", "", 200)
 	parent := turnOneDecode[card](t, raw)
-	if headers.Get("ETag") == created.ETag || len(parent.ChildIDs) != 1 || parent.ChildIDs[0] != child.ID {
+	if headers.Get("ETag") == created.entityTag() || len(parent.ChildIDs) != 1 || parent.ChildIDs[0] != child.ID {
 		t.Fatal("parent links or tag did not update with child creation")
 	}
 	query := "/cards?board_id=" + b.ID
@@ -139,14 +139,14 @@ func TestM08ParentPatchUsesCardTagAndRelationshipGrant(t *testing.T) {
 	path := "/cards/" + child.ID
 	bot.call("GET", path, "", "", 404)
 	patch := fmt.Sprintf("{\"parent_id\":%q}", parent.ID)
-	raw, _ := bot.call("PATCH", path, patch, child.ETag, 200)
+	raw, _ := bot.call("PATCH", path, patch, child.entityTag(), 200)
 	changed := turnOneDecode[card](t, raw)
 	if changed.ParentID == nil || *changed.ParentID != parent.ID {
 		t.Fatal("relationship grant did not permit parent edit")
 	}
-	bot.call("PATCH", path, "{\"parent_id\":null}", child.ETag, 412)
+	bot.call("PATCH", path, "{\"parent_id\":null}", child.entityTag(), 412)
 	raw, _ = editor.call("GET", path, "", "", 200)
-	if found := turnOneDecode[card](t, raw); found.ETag != changed.ETag || found.ParentID == nil || *found.ParentID != parent.ID {
+	if found := turnOneDecode[card](t, raw); found.entityTag() != changed.entityTag() || found.ParentID == nil || *found.ParentID != parent.ID {
 		t.Fatal("stale parent patch changed the card")
 	}
 }

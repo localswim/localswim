@@ -74,6 +74,7 @@ func TestWorkspaceRefusesToReplaceInvalidPreferences(t *testing.T) {
 		`{"revision":1,"pinned_board_ids":null}`,
 		`{"revision":1,"pinnedBoardIds":[]}`,
 		`{"revision":true,"pinned_board_ids":[]}`,
+		`{"revision":9007199254740992,"pinned_board_ids":[]}`,
 	} {
 		if err := os.WriteFile(path, []byte(invalid), 0600); err != nil {
 			t.Fatal(err)
@@ -88,6 +89,36 @@ func TestWorkspaceRefusesToReplaceInvalidPreferences(t *testing.T) {
 		if err != nil || string(data) != invalid {
 			t.Fatalf("invalid preferences changed: %v", err)
 		}
+	}
+}
+
+func TestWorkspaceRevisionLimit(t *testing.T) {
+	store := newWorkspace(t.TempDir())
+	data, err := json.Marshal(workspacePreferences{Revision: maxSnapshotInteger - 1, PinnedBoardIDs: []string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(store.path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	initial, err := store.read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	visible := func(string) bool { return true }
+	last, err := store.patch(initial.ETag, workspacePinFields(workspaceBoardA), visible)
+	if err != nil || last.Revision != maxSnapshotInteger {
+		t.Fatalf("last revision: %+v, %v", last, err)
+	}
+	if _, err := store.patch(last.ETag, workspacePinFields(workspaceBoardB), visible); !errors.Is(err, errWorkspaceUnavailable) {
+		t.Fatalf("revision overflow accepted: %v", err)
+	}
+	read, err := store.read()
+	if err != nil || read.Revision != last.Revision || !slices.Equal(read.PinnedBoardIDs, last.PinnedBoardIDs) {
+		t.Fatalf("overflow changed workspace: %+v, %v", read, err)
+	}
+	if _, err := store.patch(last.ETag, workspacePinFields(workspaceBoardA), visible); err != nil {
+		t.Fatalf("no-op at maximum revision refused: %v", err)
 	}
 }
 

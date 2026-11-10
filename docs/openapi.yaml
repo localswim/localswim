@@ -14180,6 +14180,7 @@ components:
             $ref: '#/components/schemas/Uuid'
           board_revision:
             $ref: '#/components/schemas/Revision'
+            minimum: 1
       - type: object
         additionalProperties: false
         required: [type, resource, workspace_revision]
@@ -14190,6 +14191,7 @@ components:
             const: workspace
           workspace_revision:
             $ref: '#/components/schemas/Revision'
+            minimum: 1
       - type: object
         additionalProperties: false
         required: [type, resource]

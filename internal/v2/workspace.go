@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -84,7 +83,7 @@ func (s *workspaceStore) load() (workspacePreferences, error) {
 		return unavailable, errWorkspaceUnavailable
 	}
 	var revision *uint64
-	if json.Unmarshal(fields["revision"], &revision) != nil || revision == nil || *revision == 0 {
+	if json.Unmarshal(fields["revision"], &revision) != nil || revision == nil || *revision == 0 || *revision > maxSnapshotInteger {
 		return unavailable, errWorkspaceUnavailable
 	}
 	ids, err := parseWorkspacePins(fields["pinned_board_ids"], nil)
@@ -144,7 +143,7 @@ func (s *workspaceStore) patch(expected string, fields map[string]json.RawMessag
 	if slices.Equal(ids, p.PinnedBoardIDs) {
 		return s.view(p), nil
 	}
-	if p.Revision == math.MaxUint64 {
+	if p.Revision == maxSnapshotInteger {
 		return workspace{}, errWorkspaceUnavailable
 	}
 	p.Revision++

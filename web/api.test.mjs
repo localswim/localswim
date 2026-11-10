@@ -252,8 +252,7 @@ test("handles an unchanged board without parsing a body", async () => {
 test("reads authenticated event frames and cancels the stream when iteration stops", async () => {
   const signal = new AbortController().signal;
   const event = {
-    type: "snapshot", board_id: BOARD, board_etag: TAG,
-    workspace_etag: TAG, catalog_etag: null, healthy: true,
+    type: "snapshot", resource: "board", board_id: BOARD, board_revision: 1,
   };
   const other = "e30fa21d-76d7-4eba-b1a4-10962bb6a582";
   let canceled = false;
@@ -280,6 +279,38 @@ test("reads authenticated event frames and cancels the stream when iteration sto
     break;
   }
   assert.equal(canceled, true);
+});
+
+test("validates resource-specific event payloads", async () => {
+  const board = { type: "change", resource: "board", board_id: BOARD, board_revision: 2 };
+  const workspace = { type: "change", resource: "workspace", workspace_revision: 3 };
+  const catalog = { type: "change", resource: "catalog" };
+  for (const [event, valid] of [
+    [board, true], [workspace, true], [catalog, true],
+    [{ ...board, type: "snapshot" }, true],
+    [{ ...board, board_revision: null }, false],
+    [{ ...board, board_revision: 0 }, false],
+    [{ ...board, board_revision: -1 }, false],
+    [{ ...board, board_revision: 1.5 }, false],
+    [{ ...board, board_revision: "2" }, false],
+    [{ ...board, board_revision: Number.MAX_SAFE_INTEGER + 1 }, false],
+    [{ ...board, board_id: null }, false],
+    [{ ...board, board_etag: TAG }, false],
+    [{ ...workspace, workspace_revision: 0 }, false],
+    [{ ...catalog, board_id: null }, false],
+    [{ type: "change", resource: "unknown" }, false],
+  ]) {
+    const api = client(() => new Response("data: " + JSON.stringify(event) + "\n\n", {
+      headers: { "Content-Type": "text/event-stream" },
+    }));
+    const stream = api.streamEvents();
+    if (valid) {
+      assert.deepEqual((await stream.next()).value, event);
+      await stream.return();
+    } else {
+      await assert.rejects(stream.next(), { name: "ApiError", code: "invalid_response" });
+    }
+  }
 });
 
 test("fails once on malformed event payloads without exposing their data", async () => {

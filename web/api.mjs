@@ -90,12 +90,7 @@ async function responseObject(response, write) {
   throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: write });
 }
 
-/** @param {unknown} value */
-function eventTag(value) {
-  return value === null || (typeof value === "string" && STRONG_ETAG.test(value));
-}
-
-const EVENT_TYPES = new Set(["snapshot", "change", "health", "heartbeat", "shutdown"]);
+const EVENT_TYPES = new Set(["snapshot", "change"]);
 const MAX_EVENT_CHARS = 64 * 1024;
 
 /** @param {string} frame */
@@ -112,12 +107,22 @@ function parseEvent(frame) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error();
   }
-  const { type, board_id, board_etag, workspace_etag, catalog_etag, healthy } =
+  const { type, resource, board_id, board_revision, workspace_revision } =
     /** @type {Record<string, unknown>} */ (value);
-  if (Object.keys(value).length !== 6 || typeof type !== "string" || !EVENT_TYPES.has(type)
-      || (board_id !== null && (typeof board_id !== "string" || !UUID_V4.test(board_id)))
-      || !eventTag(board_etag) || !eventTag(workspace_etag) || !eventTag(catalog_etag)
-      || (healthy !== null && typeof healthy !== "boolean")) {
+  if (typeof type !== "string" || !EVENT_TYPES.has(type)) {
+    throw new Error();
+  }
+  const count = Object.keys(value).length;
+  if (resource === "board") {
+    if (count !== 4 || typeof board_id !== "string" || !UUID_V4.test(board_id)
+        || !Number.isSafeInteger(board_revision) || Number(board_revision) < 1) {
+      throw new Error();
+    }
+  } else if (resource === "workspace") {
+    if (count !== 3 || !Number.isSafeInteger(workspace_revision) || Number(workspace_revision) < 1) {
+      throw new Error();
+    }
+  } else if (resource !== "catalog" || count !== 2) {
     throw new Error();
   }
   return value;

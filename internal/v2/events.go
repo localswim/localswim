@@ -81,18 +81,17 @@ func (s *Service) StopEvents() {
 }
 
 type eventFrame struct {
-	Type          string  `json:"type"`
-	BoardID       *string `json:"board_id"`
-	BoardETag     *string `json:"board_etag"`
-	WorkspaceETag *string `json:"workspace_etag"`
-	Healthy       *bool   `json:"healthy"`
-	CatalogETag   *string `json:"catalog_etag"`
+	Type              string `json:"type"`
+	Resource          string `json:"resource"`
+	BoardID           string `json:"board_id,omitempty"`
+	BoardRevision     uint64 `json:"board_revision,omitempty"`
+	WorkspaceRevision uint64 `json:"workspace_revision,omitempty"`
 }
 
 type eventState struct {
-	workspace string
+	workspace uint64
 	catalog   string
-	boards    []string
+	boards    []uint64
 }
 
 func eventBoardIDs(rawQuery string) ([]string, error) {
@@ -126,7 +125,7 @@ func (s *Service) eventState(actor string, ids []string) (eventState, error) {
 	if err != nil {
 		return eventState{}, err
 	}
-	state := eventState{workspace: workspace.ETag, boards: make([]string, len(ids))}
+	state := eventState{workspace: workspace.Revision, boards: make([]uint64, len(ids))}
 	boards := s.store
 	boards.mu.RLock()
 	for index, id := range ids {
@@ -139,7 +138,7 @@ func (s *Service) eventState(actor string, ids []string) (eventState, error) {
 			boards.mu.RUnlock()
 			return eventState{}, errForbidden
 		}
-		state.boards[index] = value.Board.ETag
+		state.boards[index] = value.Board.Revision
 	}
 
 	rows := make([]boardSummary, 0, len(boards.boards))
@@ -167,20 +166,21 @@ func (s *Service) eventState(actor string, ids []string) (eventState, error) {
 }
 
 func (state eventState) send(write func(*eventFrame) error, kind string, ids []string, previous eventState) error {
-	frame := eventFrame{Type: kind, WorkspaceETag: &state.workspace, CatalogETag: &state.catalog}
-	if kind == "snapshot" || state.workspace != previous.workspace || state.catalog != previous.catalog {
-		if err := write(&frame); err != nil {
+	if kind == "snapshot" || state.workspace != previous.workspace {
+		if err := write(&eventFrame{Type: kind, Resource: "workspace", WorkspaceRevision: state.workspace}); err != nil {
 			return err
 		}
 	}
-	healthy := true
-	frame.Healthy = &healthy
+	if kind == "snapshot" || state.catalog != previous.catalog {
+		if err := write(&eventFrame{Type: kind, Resource: "catalog"}); err != nil {
+			return err
+		}
+	}
 	for i, id := range ids {
 		if kind != "snapshot" && previous.boards[i] == state.boards[i] {
 			continue
 		}
-		frame.BoardID, frame.BoardETag = &id, &state.boards[i]
-		if err := write(&frame); err != nil {
+		if err := write(&eventFrame{Type: kind, Resource: "board", BoardID: id, BoardRevision: state.boards[i]}); err != nil {
 			return err
 		}
 	}

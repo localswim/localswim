@@ -20,6 +20,12 @@ Each successful result exposes the JSON object as `data` and the server's ETag a
 Use the board ETag for `configureOwnerNotices(boardId, settings, etag)`. Pass only the
 notice settings to change. An explicit `target_thread_id: null` clears the target.
 
+Stream messages identify their `resource` as `board`, `workspace`, or `catalog`.
+Board messages contain `board_id` and `board_revision`; workspace messages contain
+`workspace_revision`. Catalog messages request a catalog refresh. Each message
+uses `snapshot` on connection and `change` after a committed update. Conditional
+reads use ETags retained from HTTP response headers.
+
 When `outcomeUnknown` is true, inspect authoritative state before another write.
 
 ## Card and live board reads

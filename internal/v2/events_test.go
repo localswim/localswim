@@ -73,33 +73,43 @@ func readEventFrame(t *testing.T, reader *bufio.Reader) eventFrame {
 	}
 	data := []byte(strings.TrimPrefix(line, "data: "))
 	fields := turnOneDecode[map[string]any](t, data)
-	if len(fields) != 6 {
-		t.Fatalf("unexpected event payload field count: %d", len(fields))
+	frame := turnOneDecode[eventFrame](t, data)
+	required := map[string][]string{
+		"board":     {"type", "resource", "board_id", "board_revision"},
+		"workspace": {"type", "resource", "workspace_revision"},
+		"catalog":   {"type", "resource"},
+	}[frame.Resource]
+	if len(required) == 0 || len(fields) != len(required) {
+		t.Fatalf("unexpected event payload: %s", data)
 	}
-	for _, field := range []string{"type", "board_id", "board_etag", "workspace_etag", "healthy", "catalog_etag"} {
+	for _, field := range required {
 		if _, ok := fields[field]; !ok {
 			t.Fatalf("event payload missing %s", field)
 		}
 	}
-	return turnOneDecode[eventFrame](t, data)
+	return frame
 }
 
 func assertEventBoard(t *testing.T, frame eventFrame, kind string, want board) {
 	t.Helper()
-	if frame.Type != kind || frame.BoardID == nil || *frame.BoardID != want.ID ||
-		frame.BoardETag == nil || *frame.BoardETag != want.ETag ||
-		frame.Healthy == nil || !*frame.Healthy {
-		t.Fatalf("expected %s board %s at %s, got %+v", kind, want.ID, want.ETag, frame)
+	if frame.Type != kind || frame.Resource != "board" || frame.BoardID != want.ID ||
+		frame.BoardRevision != want.Revision {
+		t.Fatalf("expected %s board %s at revision %d, got %+v", kind, want.ID, want.Revision, frame)
 	}
 }
 
-func assertEventWorkspace(t *testing.T, frame eventFrame, kind string) (string, string) {
+func assertEventWorkspace(t *testing.T, frame eventFrame, kind string, revision uint64) {
 	t.Helper()
-	if frame.Type != kind || frame.BoardID != nil || frame.BoardETag != nil || frame.Healthy != nil ||
-		frame.WorkspaceETag == nil || frame.CatalogETag == nil {
-		t.Fatalf("expected a %s workspace event, got %+v", kind, frame)
+	if frame.Type != kind || frame.Resource != "workspace" || frame.WorkspaceRevision != revision {
+		t.Fatalf("expected %s workspace at revision %d, got %+v", kind, revision, frame)
 	}
-	return *frame.WorkspaceETag, *frame.CatalogETag
+}
+
+func assertEventCatalog(t *testing.T, frame eventFrame, kind string) {
+	t.Helper()
+	if frame.Type != kind || frame.Resource != "catalog" {
+		t.Fatalf("expected %s catalog event, got %+v", kind, frame)
+	}
 }
 
 func checkEventConditionalGet(t *testing.T, c turnOneClient, want board, condition string, status int) {
@@ -134,40 +144,35 @@ func checkEventConditionalGet(t *testing.T, c turnOneClient, want board, conditi
 func TestEventsCommittedStateAndReconnect(t *testing.T) {
 	app, c := eventHTTPServer(t)
 	newBoard := func(name string) board {
-		raw, _ := c.call(http.MethodPost, "/boards", fmt.Sprintf("{\"name\":%q}", name), "", 201)
+		raw, _ := c.call(http.MethodPost, "/boards", fmt.Sprintf("{%q:%q}", "name", name), "", 201)
 		return turnOneDecode[board](t, raw)
 	}
 	selected, retained, other := newBoard("Selected"), newBoard("Retained"), newBoard("Other")
+	raw, _ := c.call(http.MethodGet, "/workspace", "", "", 200)
+	initialWorkspace := turnOneDecode[workspace](t, raw)
 	path := "/events?board_id=" + strings.ToUpper(selected.ID) + "&watch=" + selected.ID + "&watch=" + retained.ID
 	reader, disconnect := c.openEvents(path, "")
-	workspaceTag, catalogTag := assertEventWorkspace(t, readEventFrame(t, reader), "snapshot")
+	assertEventWorkspace(t, readEventFrame(t, reader), "snapshot", initialWorkspace.Revision)
+	assertEventCatalog(t, readEventFrame(t, reader), "snapshot")
 	assertEventBoard(t, readEventFrame(t, reader), "snapshot", selected)
 	assertEventBoard(t, readEventFrame(t, reader), "snapshot", retained)
 
 	c.call(http.MethodPatch, "/boards/"+selected.ID, "{\"name\":\"Selected\"}", selected.ETag, 200)
 	c.call(http.MethodPatch, "/boards/"+selected.ID, "{\"name\":\"Rejected\"}", "\"stale\"", 412)
 	c.call(http.MethodPatch, "/boards/"+other.ID, "{\"name\":\"Other renamed\"}", other.ETag, 200)
-	workspaceAfterOther, catalogAfterOther := assertEventWorkspace(t, readEventFrame(t, reader), "change")
-	if workspaceAfterOther != workspaceTag || catalogAfterOther == catalogTag {
-		t.Fatal("unwatched edit should update only the catalog version")
-	}
+	assertEventCatalog(t, readEventFrame(t, reader), "change")
 
 	retainedBefore := retained.ETag
-	raw, _ := c.call(http.MethodPatch, "/boards/"+retained.ID, "{\"name\":\"Retained renamed\"}", retained.ETag, 200)
+	raw, _ = c.call(http.MethodPatch, "/boards/"+retained.ID, "{\"name\":\"Retained renamed\"}", retained.ETag, 200)
 	retained = turnOneDecode[board](t, raw)
-	workspaceAfterRetained, catalogAfterRetained := assertEventWorkspace(t, readEventFrame(t, reader), "change")
-	if workspaceAfterRetained != workspaceTag || catalogAfterRetained == catalogAfterOther {
-		t.Fatal("watched rename did not update the catalog version")
-	}
+	assertEventCatalog(t, readEventFrame(t, reader), "change")
 	assertEventBoard(t, readEventFrame(t, reader), "change", retained)
 	checkEventConditionalGet(t, c, retained, retainedBefore, http.StatusOK)
 	checkEventConditionalGet(t, c, retained, retained.ETag, http.StatusNotModified)
 
-	c.call(http.MethodPatch, "/workspace", fmt.Sprintf("{\"pinned_board_ids\":[%q]}", selected.ID), workspaceTag, 200)
-	workspaceAfterPin, catalogAfterPin := assertEventWorkspace(t, readEventFrame(t, reader), "change")
-	if workspaceAfterPin == workspaceTag || catalogAfterPin != catalogAfterRetained {
-		t.Fatal("pin update should change only the workspace version")
-	}
+	raw, _ = c.call(http.MethodPatch, "/workspace", fmt.Sprintf("{%q:[%q]}", "pinned_board_ids", selected.ID), initialWorkspace.ETag, 200)
+	updatedWorkspace := turnOneDecode[workspace](t, raw)
+	assertEventWorkspace(t, readEventFrame(t, reader), "change", updatedWorkspace.Revision)
 
 	if err := disconnect(); err != nil {
 		t.Fatal(err)
@@ -175,10 +180,8 @@ func TestEventsCommittedStateAndReconnect(t *testing.T) {
 	raw, _ = c.call(http.MethodPatch, "/boards/"+selected.ID, "{\"name\":\"Selected renamed\"}", selected.ETag, 200)
 	selected = turnOneDecode[board](t, raw)
 	reader, _ = c.openEvents(path, "ignored-older-event")
-	gotWorkspace, gotCatalog := assertEventWorkspace(t, readEventFrame(t, reader), "snapshot")
-	if gotWorkspace != workspaceAfterPin || gotCatalog == catalogAfterPin {
-		t.Fatal("reconnect should show the current catalog and workspace versions")
-	}
+	assertEventWorkspace(t, readEventFrame(t, reader), "snapshot", updatedWorkspace.Revision)
+	assertEventCatalog(t, readEventFrame(t, reader), "snapshot")
 	assertEventBoard(t, readEventFrame(t, reader), "snapshot", selected)
 	assertEventBoard(t, readEventFrame(t, reader), "snapshot", retained)
 
@@ -271,7 +274,8 @@ func TestEventsRefusesRequestBody(t *testing.T) {
 func TestEventsHeartbeatAvoidsStateReads(t *testing.T) {
 	app, c := eventHTTPServer(t)
 	reader, _ := c.openEvents("/events", "")
-	assertEventWorkspace(t, readEventFrame(t, reader), "snapshot")
+	assertEventWorkspace(t, readEventFrame(t, reader), "snapshot", 1)
+	assertEventCatalog(t, readEventFrame(t, reader), "snapshot")
 	if err := os.WriteFile(app.workspace.path, []byte("unreadable workspace"), 0o600); err != nil {
 		t.Fatal(err)
 	}

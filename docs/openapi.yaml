@@ -11442,10 +11442,10 @@ paths:
         capability: read
       x-milestones:
       - 31
-      description: Use authenticated fetch streaming so Bearer remains a header. Bound per-subscriber
-        latest state; reconnect returns current state, with no durable replay cursor. Every watched board
-        must be authorized. Send GET without a body. Last-Event-ID is ignored. The board health flag
-        describes accepted in-memory state. Heartbeat comments do not reread it. Disconnect and shutdown
+      description: Use authenticated fetch streaming so Bearer remains a header. Board and workspace
+        messages identify committed revisions. Catalog messages request a catalog refresh. Reconnect
+        returns current snapshots. Every watched board must be authorized. Send GET without a body.
+        Last-Event-ID is ignored. Heartbeat comments do not reread state. Disconnect and shutdown
         release the subscription.
     options:
       operationId: options_events
@@ -14165,43 +14165,38 @@ components:
         revision:
           $ref: '#/components/schemas/Revision'
     Event:
-      type: object
-      additionalProperties: false
-      required:
-      - type
-      - board_id
-      - board_etag
-      - workspace_etag
-      - healthy
-      - catalog_etag
-      properties:
-        type:
-          enum:
-          - snapshot
-          - change
-          - health
-          - heartbeat
-          - shutdown
-        board_id:
-          anyOf:
-          - $ref: '#/components/schemas/Uuid'
-          - type: 'null'
-        board_etag:
-          anyOf:
-          - $ref: '#/components/schemas/EntityTag'
-          - type: 'null'
-        workspace_etag:
-          anyOf:
-          - $ref: '#/components/schemas/EntityTag'
-          - type: 'null'
-        healthy:
-          anyOf:
-          - type: boolean
-          - type: 'null'
-        catalog_etag:
-          anyOf:
-          - $ref: '#/components/schemas/EntityTag'
-          - type: 'null'
+      description: Current resource state on connection and revision notifications after committed changes.
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required: [type, resource, board_id, board_revision]
+        properties:
+          type:
+            enum: [snapshot, change]
+          resource:
+            const: board
+          board_id:
+            $ref: '#/components/schemas/Uuid'
+          board_revision:
+            $ref: '#/components/schemas/Revision'
+      - type: object
+        additionalProperties: false
+        required: [type, resource, workspace_revision]
+        properties:
+          type:
+            enum: [snapshot, change]
+          resource:
+            const: workspace
+          workspace_revision:
+            $ref: '#/components/schemas/Revision'
+      - type: object
+        additionalProperties: false
+        required: [type, resource]
+        properties:
+          type:
+            enum: [snapshot, change]
+          resource:
+            const: catalog
     BoardPage:
       type: object
       additionalProperties: false

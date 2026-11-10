@@ -17,3 +17,7 @@
   fix findings at their source, and justify any narrowly scoped suppression.
 - Use `YYYY-MM-DD HH:MM:SS+00:00` for application timestamps, normalized to UTC
   and whole seconds. Preserve revision ordering for edits within the same second.
+
+- All parent agents, including project managers and turn leads, use GPT-6.1 Sol
+  (`gpt-6.1-sol`) with high reasoning, displayed as Sol / High.
+  Subagents use the model and effort assigned by the approved task roster.

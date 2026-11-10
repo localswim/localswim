@@ -2,7 +2,30 @@
 
 Build a fresh Go backend. One loopback listener serves every board and the workspace. The browser and CLI share the REST API. Keep V2 data and its port separate from V1. New projects start in V2. V1 data migration and legacy schema conversion are outside this plan.
 
-Work in table order. Each milestone ends with the live HTTP demo shown below using disposable V2 data. The routes are proposed contracts. `B` means `/api/boards/{board}` and `C` means `B/cards/{card}`. Estimates include coding and focused tests. Demo time is separate. Aim for 2 hours and cap development at 3 hours per milestone. M01–M03 give the first working board path in an estimated 7 development hours. The full backend plan estimates 82.5 development hours.
+## Three-day delivery target
+
+**Day 1. Put a working board in the browser.** Build M01–M03 as the first runnable path and do M04 alongside it. Start the browser and CLI against shared request and response examples immediately. Wire the browser to the real service that day and demonstrate creating and switching boards, adding, editing, and moving a card, and reopening after restart with the changes intact.
+
+**Day 2. Use it for daily work.** Integrate comments, archive, activity, search, approvals, attention and pins, and attachment basics as those streams land. Run the browser and CLI through the same service.
+
+**Day 3. Integrate the remaining parity work and demo it.** Exercise graph and lane operations, restore, notices, Git publication, and service replacement on the integrated Windows build. Use actual demo results to update the release forecast. Browser and CLI work, integration, review, and demo time are separate from the backend estimates below.
+
+The 82.5 hours are aggregate backend development, not a serial schedule. With six backend owners the largest stream is 16.5 hours before cross-stream waits and integration. The browser and CLI have separate owners and start on day one.
+
+| Backend workstream | Milestones | Dev estimate | Start and integration dependencies |
+| --- | --- | ---: | --- |
+| Board and card API | M01–M03, M05–M07 | 12 h | Start here. Own the first durable board, card writes, and audit contract. |
+| Sessions, review, and workflow | M04, M14–M20 | 16.5 h | Build M04 alongside the card API. Review uses the move and comment transaction. Retirement uses archive behavior. |
+| Relationships, priority, and search | M08–M13, M21–M22 | 16.5 h | Start graph rules against small fixtures. Live demos use real cards, comments, and archive state. Renumbering follows the blocking graph. |
+| Attachments, integrity, and recovery | M23–M25, M28–M30 | 13.5 h | Start file and backup handling against synthetic data. Integrate upload after card creation. Backup and restore use the audited attachment inventory. |
+| Workspace, events, and notices | M26–M27, M31–M33 | 10.5 h | Start catalog and pin work when board identity is settled. Streams use health from M28. Notices consume committed Human edits and need M32 settings. |
+| Git publishing and lifecycle | M34–M39 | 13.5 h | Build against disposable repos and staged binaries. Live publishing needs M29, workspace publishing needs M27, and final shutdown needs M31 and M35. |
+
+Agree on board and card IDs, actor context, revision checks, and one mutation transaction before work fans out. Give one integration owner the shared schema and routes. Other owners work in separate feature files. Use small fixtures to build before upstream code lands. Each milestone finishes with its own live API demo on the integrated service, once its prerequisites are available.
+
+## API demos
+
+The routes are proposed contracts. `B` means `/api/boards/{board}` and `C` means `B/cards/{card}`. Estimates include coding and focused tests. Demo time is separate. Aim for 2 hours and cap development at 3 hours per milestone. M01–M03 take an estimated 7 development hours on the backend path.
 
 | Milestone | Dev estimate | What the API demo shows |
 | --- | ---: | --- |

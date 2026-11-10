@@ -24,15 +24,30 @@ const cliHelp = `Usage:
   localswim board get BOARD_ID
   localswim board patch [--if-match ETAG] BOARD_ID < patch.json
   localswim board verify [--data DIRECTORY] BOARD_ID
-  localswim board snapshot BOARD_ID
+  localswim board export [--type json] BOARD_ID
   localswim service status
   localswim service builds [--limit N] [--cursor CURSOR]
 
 Live commands use LOCALSWIM_URL (http://127.0.0.1:<port>) and LOCALSWIM_TOKEN.
 Set --data on board verify to read the private board data offline.
+Board export writes JSON to standard output. The default --type is json.
 Workspace pins accepts a JSON object with pinned_board_ids in the desired order.
 Omit --if-match to read the current resource ETag once before updating.
 `
+
+type exportFormat string
+
+const exportJSON exportFormat = "json"
+
+func (format *exportFormat) String() string { return string(*format) }
+
+func (format *exportFormat) Set(value string) error {
+	if value != string(exportJSON) {
+		return fmt.Errorf("unsupported export type %q (allowed value is json)", value)
+	}
+	*format = exportJSON
+	return nil
+}
 
 const maxCLIInput = 96 << 20
 
@@ -78,6 +93,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	flags.SetOutput(io.Discard)
 	needBoardID := false
 	paginated := false
+	format := exportJSON
 	switch args[0] + " " + args[1] {
 	case "workspace get":
 		command.method, command.resource = http.MethodGet, "/workspace"
@@ -95,8 +111,9 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "board verify":
 		command.method, command.resource, needBoardID = http.MethodGet, "/verifications", true
 		flags.StringVar(&command.dataDir, "data", "", "private data directory")
-	case "board snapshot":
+	case "board export", "board snapshot":
 		command.method, command.resource, needBoardID = http.MethodGet, "/snapshots", true
+		flags.Var(&format, "type", "export type (allowed value: json)")
 	case "service status":
 		command.method, command.resource = http.MethodGet, "/service"
 	case "service builds":
@@ -116,7 +133,7 @@ func parseCLI(args []string) (cliCommand, error) {
 		flags.StringVar(&cursor, "cursor", "", "cursor from the preceding page")
 	}
 	if err := flags.Parse(args[2:]); err != nil {
-		return command, errors.New("invalid command options")
+		return command, fmt.Errorf("invalid command options (%w)", err)
 	}
 	if paginated {
 		if limit < 1 || limit > 200 || len(cursor) > 2048 {

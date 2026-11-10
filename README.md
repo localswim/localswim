@@ -60,6 +60,11 @@ A V2 data directory has one writer. Native board snapshots live in `boards/`.
 The verification endpoint and `board verify --data <directory> <board-id>`
 read the same durable format. The workspace pin order has its own revision.
 
+Export a board's native snapshot as JSON with
+`localswim board export [--type json] <board-id>`. JSON is the only supported
+type and the default. Output goes to standard output. `board snapshot` remains
+an alias for compatibility.
+
 For local build staging, place `candidate.json` and the native
 `candidate.exe` (Windows) or `candidate` (Unix) in the data directory.
 The manifest contains `version` and lowercase SHA-256 `sha256`. The

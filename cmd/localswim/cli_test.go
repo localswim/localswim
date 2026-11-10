@@ -10,6 +10,47 @@ import (
 	"testing"
 )
 
+func TestCLIExportUsesSnapshotEndpoint(t *testing.T) {
+	const boardID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	const snapshot = `{"format":"localswim-snapshot","format_version":2}`
+	for _, args := range [][]string{
+		{"board", "export", boardID},
+		{"board", "export", "--type", "json", boardID},
+		{"board", "snapshot", boardID},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				if r.Method != http.MethodGet || r.URL.Path != "/api/2026-11-10/snapshots/"+boardID ||
+					r.Header.Get("Authorization") != "Bearer test-token" {
+					t.Error("wrong export route, method or authorization")
+				}
+				w.Write([]byte(snapshot))
+			}))
+			defer server.Close()
+			env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
+			var stdout, stderr bytes.Buffer
+			exit := runCLIWithInput(args, strings.NewReader(""), &stdout, &stderr, func(key string) string { return env[key] })
+			if exit != 0 || stdout.String() != snapshot+"\n" || stderr.Len() != 0 || requests.Load() != 1 {
+				t.Fatalf("export failed: exit %d, requests %d, stderr %q", exit, requests.Load(), &stderr)
+			}
+		})
+	}
+}
+
+func TestCLIExportRejectsUnsupportedTypeBeforeDispatch(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	exit := runCLIWithInput(
+		[]string{"board", "export", "--type", "csv", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"},
+		strings.NewReader(""), &stdout, &stderr,
+		func(string) string { t.Fatal("invalid export type reached execution"); return "" },
+	)
+	if exit != 2 || stdout.Len() != 0 || !strings.Contains(stderr.String(), `unsupported export type "csv"`) {
+		t.Fatalf("wrong type refusal: exit %d, stderr %q", exit, &stderr)
+	}
+}
+
 func TestCLIWorkspacePinsUsesOneRevisionBoundMutation(t *testing.T) {
 	const pinBody = `{"pinned_board_ids":[]}`
 	var requests atomic.Int32

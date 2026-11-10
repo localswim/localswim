@@ -11,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"unicode/utf8"
 
 	"github.com/localswim/localswim/internal/client"
 	"github.com/localswim/localswim/internal/v2"
@@ -22,6 +23,7 @@ const cliHelp = `Usage:
   localswim board list [--limit N] [--cursor CURSOR]
   localswim board create < board.json
   localswim board get BOARD_ID
+  localswim board rename [--if-match ETAG] BOARD_ID NEW_NAME
   localswim board patch [--if-match ETAG] BOARD_ID < patch.json
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] BOARD_ID
@@ -55,6 +57,7 @@ var boardIDPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{
 
 type cliCommand struct {
 	method, resource, boardID, ifMatch, dataDir string
+	body                                        json.RawMessage
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -92,6 +95,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	needBoardID := false
+	rename := false
 	paginated := false
 	format := exportJSON
 	switch args[0] + " " + args[1] {
@@ -106,6 +110,9 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.method, command.resource = http.MethodPost, "/boards"
 	case "board get":
 		command.method, command.resource, needBoardID = http.MethodGet, "/boards", true
+	case "board rename":
+		command.method, command.resource, needBoardID = http.MethodPatch, "/boards", true
+		rename = true
 	case "board patch":
 		command.method, command.resource, needBoardID = http.MethodPatch, "/boards", true
 	case "board verify":
@@ -155,11 +162,29 @@ func parseCLI(args []string) (cliCommand, error) {
 		return command, optionErr
 	}
 	if needBoardID {
-		if flags.NArg() != 1 || !boardIDPattern.MatchString(flags.Arg(0)) {
-			return command, errors.New("expected one UUIDv4 board ID")
+		count, expected := 1, "expected one UUIDv4 board ID"
+		if rename {
+			count, expected = 2, "expected a UUIDv4 board ID followed by one new name (quote names containing spaces)"
+		}
+		if flags.NArg() != count || !boardIDPattern.MatchString(flags.Arg(0)) {
+			return command, errors.New(expected)
 		}
 		command.boardID = flags.Arg(0)
 		command.resource += "/" + command.boardID
+		if rename {
+			name := flags.Arg(1)
+			if name == "" {
+				return command, errors.New("new board name must not be empty")
+			}
+			if !utf8.ValidString(name) {
+				return command, errors.New("new board name must be valid UTF-8")
+			}
+			var err error
+			command.body, err = json.Marshal(map[string]string{"name": name})
+			if err != nil {
+				return command, err
+			}
+		}
 	} else if flags.NArg() != 0 {
 		return command, errors.New("unexpected command arguments")
 	}
@@ -185,8 +210,8 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout io.Writer, getenv fu
 	if err != nil {
 		return err
 	}
-	var body json.RawMessage
-	if command.method == http.MethodPost || command.method == http.MethodPatch {
+	body := command.body
+	if body == nil && (command.method == http.MethodPost || command.method == http.MethodPatch) {
 		body, err = io.ReadAll(io.LimitReader(stdin, maxCLIInput+1))
 		if err != nil || len(body) > maxCLIInput || !client.IsJSONObject(body) {
 			return errors.New("standard input must contain one valid JSON object within 96 MiB")

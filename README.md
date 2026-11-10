@@ -32,7 +32,8 @@ campaign, and the import and cutover proposal.
 JSON member names, path parameter identifiers, and query parameter names use
 `snake_case` throughout V2. Standard HTTP headers keep their defined spelling.
 Enum values and user text retain their defined or supplied spelling. Go and
-JavaScript identifiers follow their language conventions.
+JavaScript identifiers follow their language conventions. String inputs mean UTF-8,
+and user-supplied text is preserved without silent replacement or normalization.
 
 Keep one current API, CLI, and storage format during the reboot. Native
 snapshots use `format_version: 2`.
@@ -57,6 +58,10 @@ environment. Keep these values out of arguments, Git, and shared logs.
 '{"name":"Local demo"}' | .\localswim.exe board create
 .\localswim.exe board list
 ```
+
+Rename a board with `localswim board rename BOARD_ID "New name"`. The CLI
+reads the current revision before updating. Supply `--if-match ETAG` before
+the board ID to use a revision you already hold.
 
 A V2 data directory has one writer. Native board snapshots live in `boards/`.
 The verification endpoint and `board verify --data <directory> <board-id>`

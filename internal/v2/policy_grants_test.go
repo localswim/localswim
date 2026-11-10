@@ -150,7 +150,8 @@ func TestPolicyGrantsHTTP(t *testing.T) {
 		t.Fatalf("the replacement did not persist as one audited commit: %v", err)
 	}
 	event := durable.Activity[1]
-	if event.ActorID != botID || event.ResourceID != old.ID || !validPolicyAuditEvent(durable, event) {
+	_, valid := checkedPolicyAuditEvent(durable, event, "")
+	if event.ActorID != botID || event.ResourceID != old.ID || !valid {
 		t.Fatal("invalid policy grant audit")
 	}
 	durable.Activity[1].Before = durable.Activity[1].After

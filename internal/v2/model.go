@@ -157,6 +157,14 @@ type activity struct {
 	Before       *string   `json:"before"`
 	After        *string   `json:"after"`
 }
+type comment struct {
+	entity
+	BoardID  string `json:"board_id"`
+	CardID   string `json:"card_id"`
+	Text     string `json:"text"`
+	AuthorID string `json:"author_id"`
+}
+
 type snapshot struct {
 	Format        string            `json:"format"`
 	FormatVersion int               `json:"format_version"`
@@ -166,9 +174,9 @@ type snapshot struct {
 	Priorities    []priority        `json:"priorities"`
 	Policy        policy            `json:"policy"`
 	Cards         []card            `json:"cards"`
-	Comments      []json.RawMessage `json:"comments"`
+	Comments      []comment         `json:"comments"`
 	Relationships []json.RawMessage `json:"relationships"`
-	Attachments   []json.RawMessage `json:"attachments"`
+	Attachments   []attachment      `json:"attachments"`
 	Activity      []activity        `json:"activity"`
 }
 
@@ -178,7 +186,7 @@ func freshSnapshot(id, name string, wf workflow, actorID string, now time.Time) 
 		Board: board{entity: newEntity(id, now), Name: name, PolicyID: wf.Policy.ID, Availability: "open", Revision: 1,
 			UserIDs: []string{}, LaneIDs: []string{}, PriorityIDs: []string{}},
 		Users: wf.Users, Lanes: wf.Lanes, Priorities: wf.Priorities, Policy: wf.Policy,
-		Cards: []card{}, Comments: []json.RawMessage{}, Relationships: []json.RawMessage{}, Attachments: []json.RawMessage{}, Activity: []activity{}}
+		Cards: []card{}, Comments: []comment{}, Relationships: []json.RawMessage{}, Attachments: []attachment{}, Activity: []activity{}}
 	for _, u := range wf.Users {
 		s.Board.UserIDs = append(s.Board.UserIDs, u.ID)
 	}

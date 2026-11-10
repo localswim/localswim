@@ -20,12 +20,13 @@ const humanID = "3109cf0e-805f-4af2-b180-6cfed1c50ca1"
 const botID = "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4"
 
 type Service struct {
-	events     *eventHub
-	store      *store
-	workspace  *workspaceStore
-	builds     *buildStatus
-	principals []user
-	human, bot [32]byte
+	events              *eventHub
+	store               *store
+	workspace           *workspaceStore
+	builds              *buildStatus
+	principals          []user
+	human, bot, browser [32]byte
+	browserToken        string
 }
 
 func Open(root, humanToken, botToken string) (*Service, error) {
@@ -41,11 +42,12 @@ func Open(root, humanToken, botToken string) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	browserToken := mintBrowserToken()
 	events := newEventHub()
 	workspace := newWorkspace(boards.root)
 	boards.events, workspace.events = events, events
 	return &Service{events: events, store: boards, workspace: workspace, builds: newBuildStatus(boards.root),
-		principals: principals, human: sha256.Sum256([]byte(humanToken)), bot: sha256.Sum256([]byte(botToken))}, nil
+		principals: principals, browserToken: browserToken, browser: sha256.Sum256([]byte(browserToken)), human: sha256.Sum256([]byte(humanToken)), bot: sha256.Sum256([]byte(botToken))}, nil
 }
 
 func validToken(token string) bool {
@@ -93,7 +95,7 @@ func (s *Service) Handler(address *net.TCPAddr) http.Handler {
 			return
 		}
 		if len(origins) == 1 {
-			if !strings.EqualFold(origins[0], origin) {
+			if origins[0] != origin {
 				x.problem(403, "forbidden", "Request origin is not accepted.", "", nil)
 				return
 			}
@@ -117,7 +119,9 @@ func (s *Service) Handler(address *net.TCPAddr) http.Handler {
 			x.id = id
 			h.Set("X-Request-ID", id)
 		}
-		x.dispatch()
+		if !x.serveBrowser() {
+			x.dispatch()
+		}
 	})
 }
 
@@ -126,7 +130,8 @@ func (x *request) authenticate() bool {
 	token = strings.TrimLeft(token, " ")
 	if ok && strings.EqualFold(scheme, "Bearer") && validToken(token) {
 		hash := sha256.Sum256([]byte(token))
-		if subtle.ConstantTimeCompare(hash[:], x.service.human[:]) == 1 {
+		if (subtle.ConstantTimeCompare(hash[:], x.service.human[:]) |
+			subtle.ConstantTimeCompare(hash[:], x.service.browser[:])) == 1 {
 			x.actor = humanID
 			return true
 		}
@@ -207,6 +212,8 @@ func (x *request) fail(err error) {
 		x.problem(415, "unsupported_media_type", "Use application/json with UTF-8.", "", nil)
 	case errors.Is(err, errTooBig):
 		x.problem(413, "payload_too_large", "The request exceeds the entity limit.", "", nil)
+	case errors.Is(err, errCommentCardETagRequired):
+		x.problem(428, "precondition_required", "expected_card_etag is required.", "", nil)
 	case errors.Is(err, errRequired):
 		x.problem(428, "precondition_required", "If-Match is required.", "", nil)
 	case errors.Is(err, errStale):

@@ -263,7 +263,7 @@ func (x *request) createCard() {
 	}
 	if in.id == "" {
 		in.id = newID()
-	} else if cardIdentityExists(&current, in.id) {
+	} else if snapshotIdentityExists(&current, in.id) {
 		x.fail(errIdentityConflict)
 		return
 	}
@@ -301,7 +301,7 @@ func (in cardCreation) apply(s *snapshot, actor string) error {
 	if priorityIndex < 0 {
 		return invalid("priority_id", "Expected a priority on this board.")
 	}
-	if cardIdentityExists(s, in.id) {
+	if snapshotIdentityExists(s, in.id) {
 		return errIdentityConflict
 	}
 	var lastTicket uint64
@@ -328,11 +328,13 @@ func (in cardCreation) apply(s *snapshot, actor string) error {
 	return nil
 }
 
-func cardIdentityExists(s *snapshot, id string) bool {
+func snapshotIdentityExists(s *snapshot, id string) bool {
 	return id == s.Board.ID || id == s.Policy.ID ||
 		slices.Contains(s.Board.UserIDs, id) || slices.Contains(s.Board.LaneIDs, id) ||
 		slices.Contains(s.Board.PriorityIDs, id) ||
 		slices.ContainsFunc(s.Cards, func(c card) bool { return c.ID == id }) ||
+		slices.ContainsFunc(s.Comments, func(c comment) bool { return c.ID == id }) ||
+		slices.ContainsFunc(s.Attachments, func(a attachment) bool { return a.ID == id }) ||
 		slices.ContainsFunc(s.Activity, func(event activity) bool { return event.ID == id })
 }
 

@@ -1,76 +1,9 @@
 package v2
 
 import (
-	"bytes"
-	"net/http"
-	"slices"
 	"sort"
 	"time"
 )
-
-func (x *request) patchCardParent(id string) {
-	state, _, ok := x.findCard(id)
-	if !ok {
-		x.fail(errMissing)
-		return
-	}
-	if !state.can(x.actor, "manage_relationships") {
-		x.fail(errForbidden)
-		return
-	}
-	tag, err := x.ifMatch()
-	if err != nil {
-		x.fail(err)
-		return
-	}
-	fields, err := x.body()
-	if err == nil {
-		err = rejectFields(fields, []string{"parent_id"}, false)
-	}
-	if err != nil {
-		x.fail(err)
-		return
-	}
-	for _, field := range []string{"title", "description", "lane_id", "owner_id", "priority_id", "archived", "cover_attachment_id"} {
-		if _, exists := fields[field]; exists {
-			x.fail(invalid(field, "This card edit is unavailable."))
-			return
-		}
-	}
-	raw, exists := fields["parent_id"]
-	if !exists {
-		x.fail(invalid("parent_id", "A parent identity or null is required."))
-		return
-	}
-	var parentID *string
-	if !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-		parent, err := inputID(raw, "parent_id")
-		if err != nil {
-			x.fail(err)
-			return
-		}
-		parentID = &parent
-	}
-	updated, err := x.service.store.updateChecked(state.Board.ID, nil, func(candidate *snapshot) error {
-		if !slices.Contains(candidate.Board.UserIDs, x.actor) {
-			return errMissing
-		}
-		_, err := patchParent(candidate, id, tag, parentID, x.actor, time.Now())
-		return err
-	})
-	if err != nil {
-		x.fail(err)
-		return
-	}
-	for _, item := range updated.Cards {
-		if item.ID == id {
-			x.w.Header().Set("X-Board-ETag", updated.Board.ETag)
-			x.respond(http.StatusOK, item, item.ETag)
-			return
-		}
-	}
-	x.fail(errMissing)
-}
 
 // childrenOf derives direct children from their parent links, including archived cards.
 func childrenOf(state *snapshot, cardID string) []string {

@@ -35,6 +35,18 @@ const cliHelp = `Usage:
   localswim card create [--revision N] <JSON_FILE|->
   localswim card get CARD_ID
   localswim card get BOARD_ID TICKET
+  localswim card patch [--revision N] CARD_ID FILE|-
+  localswim card move [--revision N] CARD_ID LANE_ID
+  localswim card assign [--revision N] CARD_ID OWNER_ID|none
+  localswim card title [--revision N] CARD_ID TITLE
+  localswim card description [--revision N] CARD_ID FILE|-
+  localswim comment list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
+  localswim comment post [--revision N] CARD_ID FILE|-
+  localswim lane add [--revision N] BOARD_ID FILE|-
+  localswim lane rename [--revision N] LANE_ID LABEL
+  localswim attachment list [--limit N] [--cursor CURSOR] CARD_ID
+  localswim attachment get ATTACHMENT_ID
+  localswim attachment upload [--revision N] [--id UUID] CARD_ID FILE
   localswim policy get BOARD_ID
   localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
   localswim service status
@@ -50,13 +62,23 @@ All pin commands require at least one board ID. Pin set replaces the order.
 Pin add appends new boards in the supplied order.
 Pin remove skips failed targets with WARNING messages and preserves the remaining order.
 Pin set validates the entire list and reports ERROR if any target fails.
-Omit --revision to read the current revision once before updating.
+Omit --revision to use the current resource validator.
 Supply --revision to require the version you previously inspected.
 For card create and policy grant, --revision refers to the board revision.
 Card create reads JSON_FILE, or standard input when given as -.
 Its JSON must include board_id. The CLI supplies the board revision validator.
 Include an explicit card ID to allow focused readback after a lost create reply.
 Policy grant reads create_grants and/or move_grants and preserves existing permissions.
+Comment post reads an object containing text and an optional ID.
+Lane add reads the lane definition. The CLI supplies its board ID and validator.
+Card edits, comment post, lane add/rename, and attachment upload check the
+parent board revision when --revision is supplied. Card writes bind the card
+ETag. Lane rename binds both the lane and board ETags.
+For FILE|-, pass a file path or use - to read standard input.
+Card description reads UTF-8 text verbatim, including trailing newlines.
+If a mutation outcome is unknown, inspect the resource before retrying.
+Attachment upload generates an ID when --id is omitted and reports the ID
+on an unknown outcome. Use attachment get to inspect that exact ID.
 `
 
 type exportFormat string
@@ -87,6 +109,7 @@ type cliCommand struct {
 	boardAction                        string
 	pinIDs                             []string
 	warnings                           []string
+	edit                               t03Edit
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -193,7 +216,7 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.method, command.resource = http.MethodGet, "/builds"
 		paginated = true
 	default:
-		return command, errors.New("unknown command")
+		return parseT03(name, optionArgs)
 	}
 
 	var revisionValue string
@@ -324,11 +347,11 @@ func parseCLI(args []string) (cliCommand, error) {
 		return command, errors.New("unexpected command arguments")
 	}
 	if hasRevision {
-		revision, err := strconv.ParseUint(revisionValue, 10, 64)
-		if err != nil || revision == 0 || revision > maxCLIRevision {
-			return command, errors.New("--revision requires an integer from 1 to 9007199254740991")
+		var err error
+		command.revision, err = parseCLIRevision(revisionValue)
+		if err != nil {
+			return command, err
 		}
-		command.revision = &revision
 	}
 	return command, nil
 }
@@ -363,25 +386,33 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	if command.inputPath != "" && command.inputPath != "-" {
 		file, err := os.Open(command.inputPath)
 		if err != nil {
-			return fmt.Errorf("could not open JSON file: %w", err)
+			return fmt.Errorf("could not open input file: %w", err)
 		}
 		defer file.Close()
 		stdin = file
 	}
-	if body == nil && command.pinAction == "" && (command.method == http.MethodPost || command.method == http.MethodPatch || command.method == http.MethodPut) {
+	var ifMatch, contentType string
+	if command.edit.validatorPath != "" {
+		if command.edit.file != "" && command.edit.uploadID == "" {
+			command.edit.uploadID = newUploadID()
+		}
+		body, ifMatch, contentType, err = prepareT03(api, command, stdin)
+		if err != nil {
+			return err
+		}
+	} else if body == nil && command.pinAction == "" && (command.method == http.MethodPost || command.method == http.MethodPatch || command.method == http.MethodPut) {
 		body, err = io.ReadAll(io.LimitReader(stdin, maxCLIInput+1))
 		if err != nil || len(body) > maxCLIInput || !client.IsJSONObject(body) {
 			return errors.New("JSON input must contain one valid object within 96 MiB")
 		}
 	}
-	var ifMatch string
 	if command.boardAction != "" {
 		command.resource, body, ifMatch, err = prepareBoardAction(api, command, body)
 		if err != nil {
 			return err
 		}
 	}
-	if command.method == http.MethodPatch {
+	if command.method == http.MethodPatch && command.edit.validatorPath == "" {
 		current, err := api.Do(http.MethodGet, command.resource, nil, "")
 		if err != nil {
 			return err
@@ -402,11 +433,17 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		}
 		ifMatch = current.ETag
 	}
-	reply, err := api.Do(command.method, command.resource, body, ifMatch)
+	reply, err := api.DoWithContentType(command.method, command.resource, body, ifMatch, contentType)
 	if err != nil {
+		if command.edit.uploadID != "" && errors.Is(err, client.ErrMutationOutcomeUnknown) {
+			return fmt.Errorf("%w (attachment ID %s)", err, command.edit.uploadID)
+		}
 		return err
 	}
 	if _, err := fmt.Fprintln(stdout, string(reply.JSON)); err != nil {
+		if command.edit.uploadID != "" {
+			return fmt.Errorf("service accepted attachment %s, but its response could not be written", command.edit.uploadID)
+		}
 		if body != nil {
 			return errors.New("service accepted the mutation, but its response could not be written")
 		}

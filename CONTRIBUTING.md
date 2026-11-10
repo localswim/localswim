@@ -60,6 +60,11 @@ For local build staging, place `candidate.json` and the native `candidate.exe`
 running service instance, and `/builds` reports staged validation. Activation is a
 separate milestone.
 
+Attachment bytes use `attachments/<board UUID>/<card UUID>/<attachment UUID>`
+inside the data directory. The original filename, size, and SHA-256 digest are
+stored in the board snapshot. Focused attachment metadata readback can resolve
+an uncertain upload by its original attachment UUID.
+
 ## References
 
 - [API contract](docs/openapi.yaml)

@@ -2269,8 +2269,9 @@ paths:
       - 8
       - 10
       - 24
-      description: The first live PATCH supports parent_id for M08. Other edit fields require their
-        listed milestones. If-Match checks the original card tag inside the same transaction as policy, parent,
+      description: Turn 3 supports title, description, lane_id, owner_id, and the existing parent_id edit.
+        A lane_id requires the exact directed transition grant. If-Match checks the original card tag
+        inside the same transaction as policy, parent,
         graph-floor, data, and audit checks. Unrelated card edits leave this tag valid. Description null
         clears to an empty string. Archived cards retain data and relations. A completed-lane move obeys
         policy and does not substitute for the Human approval action. Existing parent cycles and illegal
@@ -17829,7 +17830,7 @@ x-security-policy:
   origin: Reject foreign and null Origin before authentication or work. Originless native clients must
     authenticate. Only the exact configured origin is advertised by CORS.
   bootstrap: POST /browser-session alone is same-origin-only and unauthenticated, requires Origin plus
-    Sec-Fetch-Site:same-origin, and returns only the runtime Human capability. No actor selector. Treat
+    Sec-Fetch-Site:same-origin, and returns a separate, process-scoped Human capability. No actor selector. Treat
     same-user local processes as trusted; this is not remote-user authentication.
   credentials: Separate random capabilities for Human and Bot, kept in page memory or private CLI runtime
     state, rotated on service replacement. No token in query, URL, log, Problem body, board snapshot,

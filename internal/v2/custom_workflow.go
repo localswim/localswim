@@ -285,10 +285,14 @@ func readInitialPolicy(raw json.RawMessage, boardID string, now time.Time, users
 }
 
 func readPolicyFields(root *workflowFields, users, lanes map[string]string, priorities map[string]bool, reference string) (policy, error) {
+	return readPolicyFieldsWithLimit(root, users, lanes, priorities, reference, maxPolicyGrantInputs)
+}
+
+func readPolicyFieldsWithLimit(root *workflowFields, users, lanes map[string]string, priorities map[string]bool, reference string, maxGrantItems int) (policy, error) {
 	path := root.path
 	defaultPriority := root.id("default_priority_id")
-	createInputs := root.array("create_grants", 1000, true)
-	moveInputs := root.array("move_grants", 1000, true)
+	createInputs := root.array("create_grants", maxGrantItems, true)
+	moveInputs := root.array("move_grants", maxGrantItems, true)
 	resourceInputs := root.array("resource_grants", 1000, true)
 	if !priorities[defaultPriority] {
 		root.fail("default_priority_id", "must refer to "+reference+"priority")

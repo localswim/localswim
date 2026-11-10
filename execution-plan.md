@@ -200,3 +200,29 @@ The next three planning waves are T03–T05, rebased to 1–3. Scope for every r
 The primary owns shared integration, Windows checks, demo coordination, and publication. Each wave plans `sol_medium_browser_author` and `sol_medium_cli_author` (gpt-6.1-sol / medium) for its client changes, followed by fresh `sol_high_browser_review` and `sol_high_cli_review` (gpt-6.1-sol / high). Release finished authors before dispatching reviewers and honor the active capacity authorized for each future wave.
 
 M17’s newly granted move demonstration awaits M03 (#0386). M26’s fuller archive and recency walkthrough awaits M06 (#0389). The browser application walkthrough still needs M04 (#0387).
+
+## Rolling assignments revision 6
+
+The remaining window is T04–T06, rebased to remaining turns 1–3. Each row takes scope from owner-accepted #0375, #0376, and #0377, the corresponding milestone acceptance, and the published OpenAPI contract. Terry’s T02 prerequisite override applied only to T03. Terry accepted #0385 during T03. #0400 and #0414 remained in Ready for Review at the last verification. No T04 execution is authorized. Before dispatch, check actual acceptance and move each eligible card In Progress.
+
+| Remaining turn | Turn | Ticket | Author | Fresh reviewer | Prerequisite lanes at T03 handoff |
+| ---: | --- | --- | --- | --- | --- |
+| 1 | T04 | #0389 M06 | `sol_medium_0389_author` (gpt-6.1-sol / medium) | `sol_high_0389_review` (gpt-6.1-sol / high) | #0388 Ready for Review |
+| 1 | T04 | #0397 M14 | `sol_medium_0397_author` (gpt-6.1-sol / medium) | `sol_high_0397_review` (gpt-6.1-sol / high) | #0386 Ready for Review, #0387 Ready for Review, #0388 Ready for Review |
+| 1 | T04 | #0392 M09 | `sol_medium_0392_author` (gpt-6.1-sol / medium) | `sol_high_0392_review` (gpt-6.1-sol / high) | #0388 Ready for Review |
+| 1 | T04 | #0407 M24 | `sol_medium_0407_author` (gpt-6.1-sol / medium) | `sol_high_0407_review` (gpt-6.1-sol / high) | #0406 Ready for Review |
+| 1 | T04 | #0416 M33 | `sol_high_0416_author` (gpt-6.1-sol / high) | `sol_high_0416_review` (gpt-6.1-sol / high) | #0388 Ready for Review, #0415 Completed |
+| 2 | T05 | #0390 M07 | `sol_medium_0390_author` (gpt-6.1-sol / medium) | `sol_medium_0390_review` (gpt-6.1-sol / medium) | #0386 Ready for Review, #0389 Backlog |
+| 2 | T05 | #0398 M15 | `sol_high_0398_author` (gpt-6.1-sol / high) | `sol_high_0398_review` (gpt-6.1-sol / high) | #0397 Backlog |
+| 2 | T05 | #0402 M19 | `sol_medium_0402_author` (gpt-6.1-sol / medium) | `sol_high_0402_review` (gpt-6.1-sol / high) | #0389 Backlog, #0401 Ready for Review |
+| 2 | T05 | #0393 M10 | `sol_medium_0393_author` (gpt-6.1-sol / medium) | `sol_high_0393_review` (gpt-6.1-sol / high) | #0389 Backlog, #0391 Ready for Review, #0392 Backlog |
+| 2 | T05 | #0408 M25 | `sol_medium_0408_author` (gpt-6.1-sol / medium) | `sol_high_0408_review` (gpt-6.1-sol / high) | #0407 Backlog |
+| 3 | T06 | #0403 M20 | `sol_medium_0403_author` (gpt-6.1-sol / medium) | `sol_high_0403_review` (gpt-6.1-sol / high) | #0402 Backlog |
+| 3 | T06 | #0394 M11 | `sol_medium_0394_author` (gpt-6.1-sol / medium) | `sol_high_0394_review` (gpt-6.1-sol / high) | #0393 Backlog |
+| 3 | T06 | #0395 M12 | `sol_medium_0395_author` (gpt-6.1-sol / medium) | `sol_medium_0395_review` (gpt-6.1-sol / medium) | #0393 Backlog |
+| 3 | T06 | #0404 M21 | `sol_medium_0404_author` (gpt-6.1-sol / medium) | `sol_medium_0404_review` (gpt-6.1-sol / medium) | #0393 Backlog |
+| 3 | T06 | #0412 M29 | `sol_high_0412_author` (gpt-6.1-sol / high) | `sol_high_0412_review` (gpt-6.1-sol / high) | #0408 Backlog, #0411 Completed |
+
+T04 and T05 plan five backend authors and the two client authors, with a peak of seven. T06 plans five backend authors, the M29 verification helper `sol_high_0412_checks` (gpt-6.1-sol / high), and the two client authors, with a planned peak of eight subject to the active session limit. `sol_medium_browser_author` (gpt-6.1-sol / medium) and `sol_medium_cli_author` (gpt-6.1-sol / medium) own the corresponding client work in each wave. Fresh client reviews use `sol_high_browser_review` (gpt-6.1-sol / high) and `sol_high_cli_review` (gpt-6.1-sol / high). Reviewers replace finished authors as slots open. The primary owns shared integration, final checks, publishing, and demonstration assembly.
+
+T03 delivered #0386 M03, #0387 M04, #0388 M05, #0401 M18, and #0406 M23 to Ready for Review. Terry’s acceptance is the remaining gate for their downstream work. The M17 newly granted move and M04 production browser checks were exercised in T03. The fuller M26 archive and recency demonstration still depends on M06. Its owner acceptance remains recorded on #0409. The completed M08 parent demonstration remains in the T02 record.

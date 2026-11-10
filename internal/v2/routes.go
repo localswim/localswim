@@ -56,7 +56,23 @@ func (x *request) dispatch() {
 			return
 		}
 		methods = []string{"GET"}
-	case "service", "users", "lanes", "priorities":
+	case "lanes":
+		if hasID {
+			methods = append(methods, "PATCH")
+		} else {
+			methods = append(methods, "POST")
+		}
+	case "comments", "attachments":
+		if !hasID {
+			methods = append(methods, "POST")
+		}
+	case "browser-session":
+		if hasID {
+			x.fail(errMissing)
+			return
+		}
+		methods = []string{"POST"}
+	case "service", "users", "priorities", "session":
 		if hasID {
 			x.fail(errMissing)
 			return
@@ -90,7 +106,7 @@ func (x *request) dispatch() {
 		x.options(methods)
 		return
 	}
-	if !x.authenticate() {
+	if (resource != "browser-session" || x.r.Method != "POST") && !x.authenticate() {
 		return
 	}
 	if !slices.Contains(methods, x.r.Method) {
@@ -122,14 +138,41 @@ func (x *request) dispatch() {
 		}
 	case "workspace":
 		x.workspaceResource()
-	case "users", "lanes", "priorities":
+	case "users", "priorities":
 		x.workflowCollection(resource)
+	case "lanes":
+		switch {
+		case x.r.Method == "POST":
+			x.createLane()
+		case x.r.Method == "PATCH":
+			x.renameLane(id)
+		case hasID:
+			x.laneResource(id)
+		default:
+			x.workflowCollection(resource)
+		}
+	case "comments":
+		if hasID {
+			x.commentResource(id)
+		} else {
+			x.commentsCollection()
+		}
+	case "attachments":
+		if hasID {
+			x.attachmentResource(id)
+		} else {
+			x.attachmentsCollection()
+		}
+	case "browser-session":
+		x.bootstrapBrowser()
+	case "session":
+		x.sessionResource()
 	case "cards":
 		switch {
 		case !hasID:
 			x.cardsCollection()
 		case x.r.Method == "PATCH":
-			x.patchCardParent(id)
+			x.patchCard(id)
 		default:
 			x.cardResource(id)
 		}

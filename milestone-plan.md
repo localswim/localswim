@@ -4,11 +4,9 @@ Build a fresh Go backend. One loopback listener serves every board and the works
 
 ## Three-day delivery target
 
-**Day 1. Put a working board in the browser.** Build M01–M03 as the first runnable path and do M04 alongside it. Start the browser and CLI against shared request and response examples immediately. Wire the browser to the real service that day and demonstrate creating and switching boards, adding, editing, and moving a card, and reopening after restart with the changes intact.
+**First-day target.** Open a working board in the browser. Demonstrate creating and switching boards, adding, editing, and moving a card, and reopening after restart with the changes intact. The browser and CLI start with shared API examples and then connect to the real service.
 
-**Day 2. Use it for daily work.** Integrate comments, archive, activity, search, approvals, attention and pins, and attachment basics as those streams land. Run the browser and CLI through the same service.
-
-**Day 3. Integrate the remaining parity work and demo it.** Exercise graph and lane operations, restore, notices, Git publication, and service replacement on the integrated Windows build. Use actual demo results to update the release forecast. Browser and CLI work, integration, review, and demo time are separate from the backend estimates below.
+**Three-day target.** Integrate and demo V1 parity on Windows. Update the release forecast as the demos land. Browser and CLI work, integration, review, and demo time are separate from the backend estimates below.
 
 The 82.5 hours are aggregate backend development, not a serial schedule. With six backend owners the largest stream is 16.5 hours before cross-stream waits and integration. The browser and CLI have separate owners and start on day one.
 
@@ -31,7 +29,7 @@ A few demos need work from another column. Owners can build against fixtures whi
 
 Agree on board and card IDs, actor context, revision checks, and one mutation transaction before work fans out. Give one integration owner the shared schema and routes. Other owners work in separate feature files. Use small fixtures to build before upstream code lands. Each milestone finishes with its own live API demo once its prerequisites are available.
 
-Take a demo break every three hours of build time. On the integrated build, show each milestone that landed during that block using its demo below. Work still in progress goes into the first demo break after it lands.
+Take a demo break every three hours of build time. Work advances as its prerequisites are ready. Each break gets its lineup from all milestones that landed on the integrated build during that block. Show each one using its demo below. Work still in progress goes into the first break after it lands.
 
 ## API demos
 

@@ -341,16 +341,21 @@ func TestCLIPinActionsPreserveOrderAndUseOneGuardedSave(t *testing.T) {
 		args   []string
 		want   []string
 		refuse bool
+		warn   bool
 	}{
-		{"replace order", []string{"set", b, a}, []string{b, a}, false},
-		{"clear", []string{"set"}, []string{}, false},
-		{"append", []string{"add", c}, []string{a, b, c}, false},
-		{"already pinned", []string{"add", strings.ToUpper(b)}, []string{a, b}, false},
-		{"remove", []string{"remove", a}, []string{b}, false},
-		{"remove absent", []string{"remove", c}, []string{a, b}, false},
-		{"remove all", []string{"remove", a, b}, []string{}, false},
-		{"stale unchanged add", []string{"add", b}, []string{a, b}, true},
-		{"stale unchanged remove", []string{"remove", c}, []string{a, b}, true},
+		{"replace order", []string{"set", b, a}, []string{b, a}, false, false},
+		{"clear", []string{"set"}, []string{}, false, false},
+		{"append", []string{"add", c}, []string{a, b, c}, false, false},
+		{"already pinned", []string{"add", strings.ToUpper(b)}, []string{a, b}, false, false},
+		{"remove", []string{"remove", a}, []string{b}, false, false},
+		{"remove absent", []string{"remove", c}, []string{a, b}, false, true},
+		{"remove partial", []string{"remove", a, c}, []string{b}, false, true},
+		{"remove repeated", []string{"remove", a, strings.ToUpper(a)}, []string{b}, false, true},
+		{"remove malformed", []string{"remove", a, "bad"}, []string{b}, false, true},
+		{"remove all malformed", []string{"remove", "bad"}, []string{a, b}, false, true},
+		{"remove all", []string{"remove", a, b}, []string{}, false, false},
+		{"stale unchanged add", []string{"add", b}, []string{a, b}, true, false},
+		{"stale unchanged remove", []string{"remove", c}, []string{a, b}, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var requests atomic.Int32
@@ -389,8 +394,11 @@ func TestCLIPinActionsPreserveOrderAndUseOneGuardedSave(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			exit := runCLIWithInput(args, strings.NewReader("invalid JSON must not be read"), &stdout, &stderr, func(key string) string { return env[key] })
 			if requests.Load() != 2 || (tc.refuse && (exit != 1 || !strings.Contains(stderr.String(), "412"))) ||
-				(!tc.refuse && (exit != 0 || stderr.Len() != 0)) {
+				(!tc.refuse && (exit != 0 || strings.Contains(stderr.String(), "WARNING") != tc.warn)) {
 				t.Fatalf("pin result exit %d, requests %d, stderr %q", exit, requests.Load(), &stderr)
+			}
+			if tc.refuse && !strings.HasPrefix(stderr.String(), "ERROR ") {
+				t.Fatal("refused operation did not report ERROR")
 			}
 		})
 	}
@@ -406,7 +414,6 @@ func TestCLIPinArgumentsFailBeforeExecution(t *testing.T) {
 		{"workspace", "pin", "remove"},
 		{"workspace", "pin", "set", "bad"},
 		{"workspace", "pin", "set", a, strings.ToUpper(a)},
-		{"workspace", "pin", "remove", a, strings.ToUpper(a)},
 	} {
 		var stdout, stderr bytes.Buffer
 		exit := runCLIWithInput(args, strings.NewReader(""), &stdout, &stderr,

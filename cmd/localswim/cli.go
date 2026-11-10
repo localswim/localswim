@@ -42,7 +42,8 @@ Set --data on board verify to read the private board data offline.
 Board export writes JSON to standard output. The default --type is json.
 Pin set replaces the order. With no IDs, it clears all pins.
 Pin add appends one board.
-Pin remove preserves the order of the remaining boards.
+Pin remove skips failed targets with WARNING messages and preserves the remaining order.
+Pin set validates the entire list and reports ERROR if any target fails.
 Omit --revision to read the current revision once before updating.
 Supply --revision to require the version you previously inspected.
 `
@@ -72,6 +73,7 @@ type cliCommand struct {
 	body                               json.RawMessage
 	pinAction                          string
 	pinIDs                             []string
+	warnings                           []string
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -95,12 +97,12 @@ func runCLIWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, g
 			}
 			return 0
 		}
-		fmt.Fprintln(stderr, err)
+		fmt.Fprintln(stderr, "ERROR", err)
 		fmt.Fprint(stderr, cliHelp)
 		return 2
 	}
-	if err := executeCLI(command, stdin, stdout, getenv); err != nil {
-		fmt.Fprintln(stderr, err)
+	if err := executeCLI(command, stdin, stdout, stderr, getenv); err != nil {
+		fmt.Fprintln(stderr, "ERROR", err)
 		return 1
 	}
 	return 0
@@ -225,12 +227,20 @@ func parseCLI(args []string) (cliCommand, error) {
 			return command, errors.New("pin commands accept at most 1000 board IDs")
 		}
 		command.pinIDs = make([]string, 0, flags.NArg())
-		for _, id := range flags.Args() {
+		for index, id := range flags.Args() {
 			if !boardIDPattern.MatchString(id) {
+				if command.pinAction == "remove" {
+					command.warnings = append(command.warnings, fmt.Sprintf("Skipped remove argument %d because it is not a UUIDv4 board ID.", index+1))
+					continue
+				}
 				return command, errors.New("expected UUIDv4 board IDs")
 			}
 			id = strings.ToLower(id)
 			if slices.Contains(command.pinIDs, id) {
+				if command.pinAction == "remove" {
+					command.warnings = append(command.warnings, fmt.Sprintf("Skipped repeated board ID %s.", id))
+					continue
+				}
 				return command, errors.New("duplicate board ID")
 			}
 			command.pinIDs = append(command.pinIDs, id)
@@ -275,7 +285,7 @@ func boardNameBody(name string) (json.RawMessage, error) {
 	return json.Marshal(map[string]string{"name": name})
 }
 
-func executeCLI(command cliCommand, stdin io.Reader, stdout io.Writer, getenv func(string) string) error {
+func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, getenv func(string) string) error {
 	if command.dataDir != "" {
 		report, err := v2.VerifyOffline(command.dataDir, command.boardID)
 		if err != nil {
@@ -319,7 +329,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout io.Writer, getenv fu
 			}
 		}
 		if command.pinAction != "" {
-			body, err = pinRequestBody(command.pinAction, command.pinIDs, current.JSON)
+			var warnings []string
+			body, warnings, err = pinRequestBody(command.pinAction, command.pinIDs, current.JSON)
+			command.warnings = append(command.warnings, warnings...)
 			if err != nil {
 				return err
 			}
@@ -336,17 +348,23 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout io.Writer, getenv fu
 		}
 		return errors.New("could not write the API response")
 	}
+	for _, warning := range command.warnings {
+		if _, err := fmt.Fprintln(stderr, "WARNING", warning); err != nil {
+			return errors.New("service accepted the mutation, but warnings could not be written")
+		}
+	}
 	return nil
 }
 
-func pinRequestBody(action string, requested []string, current json.RawMessage) (json.RawMessage, error) {
+func pinRequestBody(action string, requested []string, current json.RawMessage) (json.RawMessage, []string, error) {
 	pins := requested
+	var warnings []string
 	if action != "set" {
 		var workspace struct {
 			PinnedBoardIDs []string `json:"pinned_board_ids"`
 		}
 		if err := json.Unmarshal(current, &workspace); err != nil || workspace.PinnedBoardIDs == nil || len(workspace.PinnedBoardIDs) > 1000 {
-			return nil, errors.New("service did not return a valid pinned board list")
+			return nil, nil, errors.New("service did not return a valid pinned board list")
 		}
 		pins = workspace.PinnedBoardIDs
 		if action == "add" {
@@ -354,8 +372,14 @@ func pinRequestBody(action string, requested []string, current json.RawMessage) 
 				pins = append(pins, requested[0])
 			}
 		} else {
+			for _, id := range requested {
+				if !slices.Contains(pins, id) {
+					warnings = append(warnings, fmt.Sprintf("Board %s was not pinned.", id))
+				}
+			}
 			pins = slices.DeleteFunc(pins, func(id string) bool { return slices.Contains(requested, id) })
 		}
 	}
-	return json.Marshal(map[string][]string{"pinned_board_ids": pins})
+	body, err := json.Marshal(map[string][]string{"pinned_board_ids": pins})
+	return body, warnings, err
 }

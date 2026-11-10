@@ -75,8 +75,10 @@ snapshot admission check these rules after shorthand expansion.
 
 Use `workspace pin set ID [ID ...]` to replace the pin order, `workspace pin add ID`
 to append one board, and `workspace pin remove ID [ID ...]` to unpin boards.
-An empty `workspace pin set` clears all pins. Repeated adds and removing unpinned
-boards leave the order alone.
+An empty `workspace pin set` clears all pins. Repeated adds leave the order alone.
+Removal skips invalid, repeated, or unpinned IDs with `WARNING` messages on stderr
+and applies valid removals. Warnings retain a successful exit status. Set validates
+the complete ordered list and reports `ERROR` without changing any pins if a target fails.
 
 A V2 data directory has one writer. Native board snapshots live in `boards/`.
 The verification endpoint and `board verify --data <directory> <board-id>`

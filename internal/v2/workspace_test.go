@@ -47,6 +47,7 @@ func TestWorkspacePinsPersistCanonicalOrder(t *testing.T) {
 	for _, fields := range []map[string]json.RawMessage{
 		workspacePinFields(workspaceBoardA, strings.ToUpper(workspaceBoardA)),
 		workspacePinFields("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
+		workspacePinFields(workspaceBoardA, "cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
 		{"pinned_board_ids": json.RawMessage("null")},
 	} {
 		if _, err := reopened.patch(`"unrelated", `+saved.ETag, fields, visible); err == nil {
@@ -54,7 +55,7 @@ func TestWorkspacePinsPersistCanonicalOrder(t *testing.T) {
 		}
 	}
 	read, err = reopened.read()
-	if err != nil || read.ETag != saved.ETag {
+	if err != nil || read.ETag != saved.ETag || !slices.Equal(read.PinnedBoardIDs, saved.PinnedBoardIDs) {
 		t.Fatalf("invalid patch changed workspace: %+v, %v", read, err)
 	}
 }

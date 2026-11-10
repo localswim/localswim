@@ -21,3 +21,7 @@
 - All parent agents, including project managers and turn leads, use GPT-6.1 Sol
   (`gpt-6.1-sol`) with high reasoning, displayed as Sol / High.
   Subagents use the model and effort assigned by the approved task roster.
+
+- Terry preapproves Dev Manager notifications of decisions and changes in this chat
+  to all live localswim V2 Tnn chats. Send these updates without asking again.
+  Completed execution chats receive context-only notices that do not restart work.

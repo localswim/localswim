@@ -29,7 +29,9 @@ A few demos need work from another column. Owners can build against fixtures whi
 - **Versions and events:** M22 uses attachment anchors from M23. M31 uses board health from M28. M33 needs a committed Human edit and the settings from M32.
 - **Publishing and shutdown:** The live M34 demo needs the verified backup from M29. M35 and M36 share the repository lock from M34. M36 also needs the preferences from M27. M37 flushes publishing from M35. M39 follows M37 and M38 and drains the streams from M31.
 
-Agree on board and card IDs, actor context, revision checks, and one mutation transaction before work fans out. Give one integration owner the shared schema and routes. Other owners work in separate feature files. Use small fixtures to build before upstream code lands. Each milestone finishes with its own live API demo on the integrated service, once its prerequisites are available.
+Agree on board and card IDs, actor context, revision checks, and one mutation transaction before work fans out. Give one integration owner the shared schema and routes. Other owners work in separate feature files. Use small fixtures to build before upstream code lands. Each milestone finishes with its own live API demo once its prerequisites are available.
+
+Take a demo break every three hours of build time. On the integrated build, show each milestone that landed during that block using its demo below. Work still in progress goes into the first demo break after it lands.
 
 ## API demos
 

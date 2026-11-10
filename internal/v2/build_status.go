@@ -2,13 +2,11 @@ package v2
 
 import (
 	"bytes"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -16,7 +14,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
-	"time"
+	"uuid"
 )
 
 const (
@@ -56,7 +54,7 @@ type buildStatus struct {
 var runningBuildID = newID()
 
 func newBuildStatus(root string) *buildStatus {
-	instanceID := newServiceInstanceID()
+	instanceID := uuid.NewV7().String()
 	return &buildStatus{
 		root: root,
 		running: serviceStatus{
@@ -67,16 +65,6 @@ func newBuildStatus(root string) *buildStatus {
 			APIVersion:        Version,
 		},
 	}
-}
-
-// newServiceInstanceID encodes the instance creation time using RFC 9562 UUIDv7.
-func newServiceInstanceID() string {
-	var data [16]byte
-	binary.BigEndian.PutUint64(data[:8], uint64(time.Now().UnixMilli())<<16)
-	rand.Read(data[6:])
-	data[6] = data[6]&0x0f | 0x70
-	data[8] = data[8]&0x3f | 0x80
-	return fmt.Sprintf("%x-%x-%x-%x-%x", data[:4], data[4:6], data[6:8], data[8:10], data[10:])
 }
 
 func (s *buildStatus) service() serviceStatus {

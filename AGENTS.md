@@ -13,3 +13,5 @@
   transition code instead of leaving a compatibility trail.
 - “String” means UTF-8 unless explicitly stated otherwise. Preserve user-supplied
   text exactly without silent replacement, trimming, or normalization.
+- Run `.\check.ps1` before handoff. Keep the strict compiler and lint gates enabled,
+  fix findings at their source, and justify any narrowly scoped suppression.

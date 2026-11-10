@@ -87,3 +87,9 @@ later milestone.
 
 The browser adapter is in [web](web/README.md). Live browser capability
 bootstrap and card resources belong to their scheduled milestones.
+
+## Quality checks
+
+Install the pinned development compiler once with `npm --prefix web ci --ignore-scripts`.
+Run `.\check.ps1` before handoff. It requires clean Go formatting, `go vet`, Go tests,
+strict TypeScript checking of the browser source, browser-client tests, and clean Git whitespace.

@@ -1,13 +1,20 @@
 import { ApiError, createBrowserApi, openBrowserSession } from "./api.mjs";
 
 /** @typedef {{id: string, label: string}} Labeled */
+/** @typedef {Labeled & {kind: "human"|"bot"}} User */
+/** @typedef {import("./api.mjs").RelationshipKind} RelationshipKind */
+/** @typedef {{id: string, etag: string, board_id: string, source_card_id: string, target_card_id: string,
+ * kind: RelationshipKind}} Relationship */
+/** @typedef {{resource_type: string, resource_id: string, operation: string, field: string|null,
+ * actor_id: string, at: string, revision: number, before: string|null, after: string|null}} Change */
 /** @typedef {{id: string, name: string, default_owner_id: string, user_css?: string, notifications?: object}} Board */
 /** @typedef {{id: string, name: string|null}} BoardSummary */
-/** @typedef {Labeled & {revision: number, retired: boolean, position: number}} Lane */
+/** @typedef {Labeled & {revision: number, retired: boolean, position: number, role: string}} Lane */
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
-/** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number}} Attachment */
+/** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number, board_id: string, active: boolean, previewable: boolean}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
- * owner_id: string, ticket: number, revision: number, comment_count: number, attachment_count: number}} Card */
+ * owner_id: string, ticket: number, revision: number, comment_count: number, attachment_count: number,
+ * archived: boolean, cover_attachment_id: string|null}} Card */
 /** @typedef {{data: object, etag: string|null}} Reply */
 /** @typedef {() => Promise<void|boolean>} InspectionRead */
 /** @typedef {{scope: string, label: string, require: (read: InspectionRead) => void,
@@ -47,6 +54,10 @@ const boardDrafts = new Map();
 const pendingInspections = new Map();
 /** @type {{id: string, control: HTMLTextAreaElement}|undefined} */
 let activeComment;
+/** @type {(() => void)|undefined} */
+let releaseCardMedia;
+/** @type {(() => void)|undefined} */
+let releaseBoardMedia;
 const boardStyle = new CSSStyleSheet();
 document.adoptedStyleSheets = [...document.adoptedStyleSheets, boardStyle];
 
@@ -248,7 +259,9 @@ async function writeResource(submit, request, update, success, inspection) {
     if (phase === "error" && view === activeView) {
       announce(phase, error instanceof ApiError && error.status === 413
         ? "Attachments are limited to 10 MiB."
-        : "The service refused the change. Your draft is still here.");
+        : error instanceof ApiError && error.code === "invalid_target"
+          ? "Choose a different, existing ticket on this board."
+          : "The service refused the change. Your draft is still here.");
     }
   }
   let inspected = false;
@@ -308,11 +321,75 @@ function followLink(event, href) {
   go(href);
 }
 
-/** @param {string} boardId @param {Card} summary @param {Labeled[]} lanes @param {Labeled[]} users
- * @param {() => Promise<void>} reloadBoard @param {HTMLButtonElement} opener */
-async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
-  if (!details || writing) return;
+/** @param {string} boardId @param {number} ticket */
+function ticketHref(boardId, ticket) {
+  return "/boards/" + boardId + "?ticket=" + ticket;
+}
+
+/** @param {string} boardId @param {number} ticket */
+async function findCardByTicket(boardId, ticket) {
+  const matches = /** @type {Card[]} */ (items(await api.listCards(boardId, { ticket, archived: "include", limit: 2 }), "cards"));
+  return matches.length === 1 && matches[0].board_id === boardId && matches[0].ticket === ticket ? matches[0] : undefined;
+}
+
+/** @param {HTMLElement} body @param {Comment} comment @param {string} boardId @param {User[]} users */
+function renderCommentText(body, comment, boardId, users) {
+  body.className = "body-text";
+  if (!users.some((user) => user.id === comment.author_id && user.kind === "human")) {
+    body.textContent = comment.text;
+    return;
+  }
+  let last = 0;
+  for (const match of comment.text.matchAll(/(?<![\p{L}\p{N}_#])#([0-9]+)(?![\p{L}\p{N}_])/gu)) {
+    const ticket = Number(match[1]);
+    if (!Number.isSafeInteger(ticket) || ticket < 1) continue;
+    body.append(comment.text.slice(last, match.index), link(ticketHref(boardId, ticket), match[0]));
+    last = match.index + match[0].length;
+  }
+  body.append(comment.text.slice(last));
+}
+
+const relationshipLabels = Object.freeze({
+  blocks: "Blocks", blocked_by: "Blocked by", duplicates: "Duplicates", duplicated_by: "Duplicated by",
+  references: "References", referenced_by: "Referenced by", relates_to: "Relates to",
+});
+/** @type {Partial<Record<RelationshipKind, RelationshipKind>>} */
+const inverseRelationships = { blocks: "blocked_by", duplicates: "duplicated_by", references: "referenced_by",
+  blocked_by: "blocks", duplicated_by: "duplicates", referenced_by: "references" };
+const relationshipChoices = Object.entries(relationshipLabels).map(([id, label]) => ({ id, label }));
+
+/** @param {Relationship} entry @param {string} cardId */
+function relationshipDirection(entry, cardId) {
+  return entry.source_card_id === cardId ? entry.kind : inverseRelationships[entry.kind] ?? entry.kind;
+}
+
+function ticketInput() {
+  const control = element("input");
+  control.type = "number";
+  control.min = "1";
+  control.max = String(Number.MAX_SAFE_INTEGER);
+  return control;
+}
+
+/** @param {string} name */
+function downloadName(name) {
+  const safe = name.replace(/[<>:"/\\|?*\p{Cc}\p{Cf}]/gu, "_").replace(/^[ .]+|[ .]+$/g, "");
+  if (!safe) return "attachment";
+  return /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\s*\.|$)/i.test(safe) ? "_" + safe : safe;
+}
+
+/** @param {string} boardId @param {string} cardId @param {Attachment} attachment */
+function activeAttachment(boardId, cardId, attachment) {
+  return attachment.board_id === boardId && attachment.card_id === cardId && attachment.active === true;
+}
+
+/** @param {string} boardId @param {Pick<Card, "id">} summary @param {Lane[]} lanes @param {User[]} users
+ * @param {() => string} boardTag @param {() => Promise<void>} reloadBoard @param {HTMLElement} opener */
+async function openCard(boardId, summary, lanes, users, boardTag, reloadBoard, opener) {
+  if (!details) return;
   retainCardDraft?.();
+  releaseCardMedia?.();
+  releaseCardMedia = undefined;
   retainCardDraft = undefined;
   cardInspection = undefined;
   activeComment = undefined;
@@ -321,7 +398,7 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
   view.hidden = false;
   view.replaceChildren(element("p", "Loading card…"));
   try {
-    const reply = await api.getCard(summary.id);
+    const reply = await readWithSession(() => api.getCard(summary.id));
     if (cardView !== activeCard) return;
     const card = /** @type {Card} */ (reply.data);
     if (card.id !== summary.id || card.board_id !== boardId) throw new ApiError("invalid_response");
@@ -339,6 +416,20 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
     const current = element("div");
     const commentList = element("div");
     const attachmentList = element("div");
+    const historyPanel = element("details");
+    const historyList = element("div");
+    const relationshipList = element("div");
+    const archiveAction = element("div");
+    const approvalAction = element("div");
+    let attachmentGeneration = 0;
+    /** @type {Set<string>} */
+    const previewUrls = new Set();
+    function clearPreviews() {
+      ++attachmentGeneration;
+      for (const url of previewUrls) URL.revokeObjectURL(url);
+      previewUrls.clear();
+    }
+    releaseCardMedia = clearPreviews;
     const comment = element("textarea");
     comment.required = true;
     activeComment = { id: card.id, control: comment };
@@ -364,9 +455,11 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
     };
     /** @param {string} id */
     const userLabel = (id) => users.find((user) => user.id === id)?.label ?? "Unknown user";
-    const close = button("Close card", () => {
-      if (writing) return;
+    function closeDrawer() {
+      if (cardView !== activeCard) return;
       retainCardDraft?.();
+      clearPreviews();
+      releaseCardMedia = undefined;
       retainCardDraft = undefined;
       cardInspection = undefined;
       activeComment = undefined;
@@ -374,23 +467,26 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
       view.hidden = true;
       view.replaceChildren();
       const replacement = main?.querySelector(`button[data-card-id="${card.id}"]`);
-      const target = opener.isConnected ? opener : replacement instanceof HTMLButtonElement ? replacement : refresh;
+      const target = replacement instanceof HTMLButtonElement ? replacement : opener.isConnected ? opener : refresh;
       target?.focus();
-    });
+    }
+    const close = button("Close card", () => { if (!writing) closeDrawer(); });
     const heading = element("h2", `#${card.ticket} ${card.title}`);
     heading.tabIndex = -1;
     const inspection = createInspection(view, () => cardView === activeCard, async () => {
-      await readCurrent();
+      await Promise.all([readCurrent(), refreshRelationships()]);
     }, "card", "card:" + card.id);
     cardInspection = inspection;
 
     /** @param {Card} saved */
     function showCurrent(saved) {
       heading.textContent = `#${saved.ticket} ${saved.title}`;
+      updateActions(saved);
       const body = element("p", saved.description);
       body.className = "body-text";
       current.replaceChildren(element("h3", "Saved card"), element("p", saved.title), body,
         element("p", "Lane: " + (lanes.find(({ id }) => id === saved.lane_id)?.label ?? "Unavailable")),
+        ...(saved.archived ? [element("p", "Archived")] : []),
         element("p", "Owner: " + (users.find(({ id }) => id === saved.owner_id)?.label ?? "Unknown user")));
     }
 
@@ -411,9 +507,11 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
       if (saved.id !== card.id || saved.board_id !== boardId) {
         throw new ApiError("invalid_response");
       }
-      if (cardView !== activeCard) return;
-      cardTag = tag;
-      adoptSaved(saved);
+      if (cardView === activeCard) {
+        cardTag = tag;
+        adoptSaved(saved);
+      }
+      return saved;
     }
 
     /** @param {Record<string, string>} draft @param {HTMLButtonElement} submit */
@@ -436,7 +534,7 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
       } catch (error) {
         const phase = writePhase(error);
         if (cardView !== activeCard) {
-          if (phase !== "error") inspection.require(readSavedCard);
+          if (phase !== "error") inspection.require(async () => { await readSavedCard(); });
           return;
         }
         if (phase === "error") {
@@ -452,7 +550,7 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
           } catch {
             allowSubmit = false;
             announce(phase, "Readback failed. Use Inspect saved card before making another edit.");
-            inspection.require(readSavedCard);
+            inspection.require(async () => { await readSavedCard(); });
             return;
           }
         }
@@ -478,21 +576,24 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
       if (cardView !== activeCard || read !== listRead) return { comments, attachments };
       commentList.replaceChildren(...comments.map((entry) => {
         const item = element("article");
-        const body = element("p", entry.text);
-        body.className = "body-text";
+        const body = element("p");
+        renderCommentText(body, entry, boardId, users);
         item.append(element("small", userLabel(entry.author_id) + " · " + entry.created_at), body);
         return item;
       }));
-      attachmentList.replaceChildren(...attachments.map((entry) =>
-        element("p", `${entry.original_name} · ${entry.size} bytes · ${userLabel(entry.added_by)} · ${entry.created_at}`)));
+      clearPreviews();
+      attachmentList.replaceChildren(...attachments.filter((entry) => activeAttachment(boardId, card.id, entry))
+        .map(renderAttachment));
+      inspection.sync();
       return { comments, attachments };
     }
 
     /** @param {Attachment} [submittedAttachment] */
     async function readCurrent(submittedAttachment) {
-      const [, resources] = await Promise.all([readSavedCard(), refreshLists(submittedAttachment)]);
-      await reloadBoard().catch(() => {});
-      return resources;
+      const saved = await readSavedCard();
+      const [resources] = await Promise.all([refreshLists(submittedAttachment), reloadBoard(),
+        cardView === activeCard && historyPanel.open ? refreshHistory() : undefined]);
+      return { ...resources, saved };
     }
 
     /** @param {string} id */
@@ -509,9 +610,239 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
       return item;
     }
 
+    let historyRead = 0;
+    async function refreshHistory() {
+      const read = ++historyRead;
+      try {
+        const snapshot = await readWithSession(() => api.getSnapshot(boardId));
+        const data = /** @type {{board?: {id: string}}} */ (snapshot.data);
+        if (data.board?.id !== boardId) throw new ApiError("invalid_response");
+        const entries = /** @type {Change[]} */ (items(snapshot, "activity")).filter((entry) =>
+          entry.resource_type === "card" && entry.resource_id === card.id);
+        if (cardView !== activeCard || read !== historyRead || !historyPanel.open) return;
+        historyList.replaceChildren(...entries.reverse().map((entry) => {
+          const row = element("article");
+          row.append(element("small", userLabel(entry.actor_id) + " · " + entry.at + " · Revision " + entry.revision),
+            element("p", entry.field ?? entry.operation));
+          if (entry.field !== null) {
+            for (const [label, value] of [["Previous", entry.before], ["Saved", entry.after]]) {
+              const text = element("p", label + ": " + (value ?? "—"));
+              text.className = "body-text";
+              row.append(text);
+            }
+          }
+          return row;
+        }));
+        if (!entries.length) historyList.textContent = "No card history.";
+      } catch {
+        if (cardView === activeCard && read === historyRead && historyPanel.open) {
+          historyList.textContent = "Card history could not be read. Close and reopen History to retry.";
+        }
+      }
+    }
+    historyPanel.append(element("summary", "History"), historyList);
+    historyPanel.addEventListener("toggle", () => {
+      historyList.replaceChildren();
+      if (historyPanel.open) {
+        historyList.textContent = "Reading card history…";
+        void refreshHistory();
+      }
+    });
+
+    /** @param {Attachment} entry */
+    function renderAttachment(entry) {
+      const row = element("article");
+      row.className = "attachment";
+      const file = element("p", entry.original_name + " · " + entry.size + " bytes · "
+        + userLabel(entry.added_by) + " · " + entry.created_at);
+      file.className = "body-text";
+      row.append(file);
+      const note = element("p");
+      note.setAttribute("role", "status");
+      const generation = attachmentGeneration;
+      const current = () => cardView === activeCard && generation === attachmentGeneration && row.isConnected;
+      /** @param {"attachment"|"inline"} disposition @param {HTMLButtonElement} control */
+      async function readFile(disposition, control) {
+        if (control.disabled || !current()) return undefined;
+        control.disabled = true;
+        note.textContent = "";
+        try {
+          const blob = await readWithSession(() => api.getAttachmentContent(entry.id, disposition, entry.size));
+          return current() ? blob : undefined;
+        } catch {
+          if (current()) note.textContent = "Attachment could not be read.";
+          return undefined;
+        } finally {
+          control.disabled = false;
+        }
+      }
+      const download = button("Download", () => {
+        void readFile("attachment", download).then((blob) => {
+          if (!blob || !current()) return;
+          const url = URL.createObjectURL(blob);
+          const anchor = element("a");
+          anchor.href = url;
+          anchor.download = downloadName(entry.original_name);
+          row.append(anchor);
+          anchor.click();
+          anchor.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        });
+      });
+      download.setAttribute("aria-label", "Download " + entry.original_name);
+      row.append(download);
+      if (entry.previewable) {
+        const image = element("img");
+        image.alt = entry.original_name;
+        image.hidden = true;
+        let url = "";
+        function clearPreview() {
+          image.hidden = true;
+          image.removeAttribute("src");
+          preview.textContent = "Preview";
+          if (url) {
+            URL.revokeObjectURL(url);
+            previewUrls.delete(url);
+            url = "";
+          }
+        }
+        const preview = button("Preview", () => {
+          if (url) { clearPreview(); return; }
+          void readFile("inline", preview).then((blob) => {
+            if (!blob || !current()) return;
+            url = URL.createObjectURL(blob);
+            previewUrls.add(url);
+            image.src = url;
+            image.hidden = false;
+            preview.textContent = "Hide preview";
+          });
+        });
+        image.addEventListener("error", () => {
+          if (!current()) return;
+          clearPreview();
+          note.textContent = "The raster preview could not be displayed.";
+        });
+        row.append(preview, image);
+        const selected = savedCard.cover_attachment_id === entry.id;
+        row.append(form(selected ? "Clear cover" : "Set cover", [], (submit) => {
+          if (!current()) return;
+          const cover = selected ? null : entry.id;
+          void writeResource(submit, () => api.patchCard(card.id, cardTag, { cover_attachment_id: cover }),
+            async () => (await readCurrent()).saved.cover_attachment_id === cover,
+            selected ? "Cover cleared." : "Cover set.", inspection);
+        }));
+      }
+      row.append(note);
+      return row;
+    }
+
+    let relationshipRead = 0;
+    async function refreshRelationships() {
+      const read = ++relationshipRead;
+      const links = /** @type {Relationship[]} */ (await collect((cursor) =>
+        api.listRelationships(boardId, card.id, cursor), "relationships"));
+      const activeLinks = links.filter((entry) => entry.board_id === boardId
+        && (entry.source_card_id === card.id || entry.target_card_id === card.id));
+      const targets = new Map(await Promise.all([...new Set(activeLinks.map((entry) =>
+        entry.source_card_id === card.id ? entry.target_card_id : entry.source_card_id))].map(async (id) => {
+        const other = /** @type {Card} */ ((await api.getCard(id)).data);
+        if (other.board_id !== boardId || other.id !== id) throw new ApiError("invalid_response");
+        return /** @type {const} */ ([id, other]);
+      })));
+      if (cardView !== activeCard || read !== relationshipRead) return activeLinks;
+      relationshipList.replaceChildren(...activeLinks.map((entry) => {
+        const other = targets.get(entry.source_card_id === card.id ? entry.target_card_id : entry.source_card_id);
+        const direction = relationshipDirection(entry, card.id);
+        const row = element("article");
+        const title = element("p", relationshipLabels[direction] + " ");
+        if (other) title.append(link(ticketHref(boardId, other.ticket), "#" + other.ticket + " " + other.title));
+        row.append(title);
+        const type = select(relationshipChoices, direction);
+        row.append(form("Change link type", [field("Link type", type)], (submit) => {
+          const wanted = /** @type {RelationshipKind} */ (type.value);
+          if (wanted === direction) return;
+          const canonical = entry.source_card_id === card.id ? wanted : inverseRelationships[wanted] ?? wanted;
+          void writeResource(submit, () => api.replaceRelationship(entry.id, entry.etag, boardTag(), canonical),
+            async () => (await readLinks()).some((value) => value.id === entry.id
+              && relationshipDirection(value, card.id) === wanted), "Link type changed.", inspection);
+        }), form("Remove link", [], (submit) => {
+          void writeResource(submit, () => api.removeRelationship(entry.id, entry.etag, boardTag()),
+            async () => !(await readLinks()).some((value) => value.id === entry.id), "Link removed.", inspection);
+        }));
+        return row;
+      }));
+      if (!activeLinks.length) relationshipList.textContent = "No links.";
+      inspection.sync();
+      return activeLinks;
+    }
+
+    async function readLinks() {
+      const [links] = await Promise.all([refreshRelationships(), readSavedCard(), reloadBoard()]);
+      return links;
+    }
+    const linkTicket = ticketInput();
+    linkTicket.required = true;
+    const linkType = select(relationshipChoices, "relates_to");
+    const addLink = form("Add link", [field("Target ticket", linkTicket), field("Link type", linkType)], (submit) => {
+      const id = crypto.randomUUID();
+      const targetTicket = linkTicket.valueAsNumber;
+      const kind = /** @type {RelationshipKind} */ (linkType.value);
+      const expected = boardTag();
+      void writeResource(submit, async () => {
+        const target = await readWithSession(() => findCardByTicket(boardId, targetTicket));
+        if (!target || target.id === card.id || cardView !== activeCard) throw new ApiError("invalid_target");
+        await api.createRelationship(id, boardId, expected, card.id, target.id, kind);
+      }, async () => {
+        const confirmed = (await readLinks()).some((entry) => entry.id === id);
+        if (confirmed && linkTicket.valueAsNumber === targetTicket) linkTicket.value = "";
+        return confirmed;
+      }, "Link added.", inspection);
+    });
+
+    const archiveForm = form("Archive card", [], (submit) => {
+      const archived = !savedCard.archived;
+      void writeResource(submit, () => api.patchCard(card.id, cardTag, { archived }),
+        async () => (await readCurrent()).saved.archived === archived,
+        archived ? "Card archived." : "Card restored.", inspection);
+    });
+    archiveAction.append(archiveForm);
+    const approveForm = form("Reviewed & approved", [], (submit) => {
+      const id = crypto.randomUUID();
+      let approved = false;
+      void writeResource(submit, async () => {
+        await api.approveCard(id, boardId, boardTag(), card.id, cardTag);
+        approved = true;
+      }, async () => {
+        if (!approved) {
+          try {
+            await api.inspectApproval(id, boardId, card.id);
+            approved = true;
+          } catch (error) {
+            if (!(error instanceof ApiError) || error.status !== 404) throw error;
+          }
+        }
+        if (approved) {
+          await reloadBoard().catch(() => {});
+          closeDrawer();
+        } else {
+          await readCurrent();
+        }
+        return approved;
+      }, "Reviewed and moved to Completed.", inspection);
+    });
+    approvalAction.append(approveForm);
+
+    /** @param {Card} saved */
+    function updateActions(saved) {
+      const control = archiveForm.querySelector("button");
+      if (control) control.textContent = saved.archived ? "Restore card" : "Archive card";
+      approvalAction.hidden = saved.archived || !lanes.some(({ id, role }) =>
+        id === saved.lane_id && role === "ready_for_review");
+    }
+
     const inspect = button(inspection.label, inspection.inspect);
     showCurrent(card);
-    view.replaceChildren(close, inspect, heading, current,
+    view.replaceChildren(close, inspect, heading, current, archiveAction, approvalAction, historyPanel,
       form("Save text", [field("Title", title), field("Description", description)], (submit) => {
         /** @type {Record<string, string>} */
         const draft = {};
@@ -528,6 +859,7 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
       }),
       form("Move card", [field("Lane", lane)], (submit) => void save({ lane_id: lane.value }, submit)),
       form("Assign owner", [field("Owner", owner)], (submit) => void save({ owner_id: owner.value }, submit)),
+      element("h3", "Relationships"), relationshipList, addLink,
       element("h3", "Comments"), commentList,
       form("Post comment", [field("Comment", comment)], (submit) => {
         const id = crypto.randomUUID();
@@ -560,8 +892,11 @@ async function openCard(boardId, summary, lanes, users, reloadBoard, opener) {
       }));
     inspection.sync();
     heading.focus();
-    void refreshLists().catch(() => {
-      if (cardView !== activeCard || listRead !== 1) return;
+    void readWithSession(refreshRelationships).catch(() => {
+      if (cardView === activeCard && !relationshipList.hasChildNodes()) relationshipList.textContent = "Links could not be read.";
+    });
+    void readWithSession(() => refreshLists()).catch(() => {
+      if (cardView !== activeCard || commentList.hasChildNodes() || attachmentList.hasChildNodes()) return;
       commentList.textContent = "Comments could not be read.";
       attachmentList.textContent = "Attachments could not be read.";
     });
@@ -585,6 +920,10 @@ async function load() {
   if (!identity || !navigation || !main || !details) return;
   retainCardDraft?.();
   retainBoardDraft?.();
+  releaseCardMedia?.();
+  releaseBoardMedia?.();
+  releaseCardMedia = undefined;
+  releaseBoardMedia = undefined;
   retainCardDraft = undefined;
   retainBoardDraft = undefined;
   cardInspection = undefined;
@@ -657,7 +996,7 @@ async function load() {
     if (!boardId) throw new ApiError("http_error", { status: 404 });
     const [{ board: boardReply, lanes }, users] = await Promise.all([
       readBoardLanes(boardId),
-      /** @type {Promise<Labeled[]>} */ (collect((cursor) => api.listUsers(boardId, cursor), "users")),
+      /** @type {Promise<User[]>} */ (collect((cursor) => api.listUsers(boardId, cursor), "users")),
     ]);
     if (view !== activeView) return;
     const board = /** @type {Board} */ (boardReply.data);
@@ -665,24 +1004,108 @@ async function load() {
     const columns = element("div");
     columns.className = "lanes";
 
+    const archived = element("details");
+    const archivedHeading = element("summary", "Archived cards");
+    const archivedList = element("div");
+    archived.append(archivedHeading, archivedList);
+    let archivedRead = 0;
+    let coverRead = 0;
+    /** @type {Set<string>} */
+    const covers = new Set();
+    function clearCovers() {
+      ++coverRead;
+      for (const url of covers) URL.revokeObjectURL(url);
+      covers.clear();
+    }
+    releaseBoardMedia = clearCovers;
+
+    /** @param {Card} card @param {HTMLElement} opener @param {number} read */
+    async function showCover(card, opener, read) {
+      const id = card.cover_attachment_id;
+      if (!id) return;
+      const current = () => view === activeView && read === coverRead && opener.isConnected;
+      try {
+        const blob = await readWithSession(async () => {
+          const meta = /** @type {Attachment} */ ((await api.getAttachment(id)).data);
+          if (!current() || meta.id !== id || !activeAttachment(board.id, card.id, meta) || !meta.previewable) return;
+          return api.getAttachmentContent(id, "inline", meta.size);
+        });
+        if (!current() || !blob) return;
+        const url = URL.createObjectURL(blob);
+        covers.add(url);
+        const image = element("img");
+        image.className = "card-cover";
+        image.alt = "";
+        image.addEventListener("error", () => {
+          image.remove();
+          covers.delete(url);
+          URL.revokeObjectURL(url);
+        });
+        image.src = url;
+        opener.prepend(image);
+      } catch {
+        // The card remains usable when the cover cannot be read.
+      }
+    }
+
+    /** @param {Card} card */
+    function cardOpener(card) {
+      const opener = button("#" + card.ticket + " " + card.title, () => {
+        void openCard(board.id, card, lanes, users, () => boardTag, reloadBoard, opener);
+      });
+      opener.className = "card";
+      opener.dataset.cardId = card.id;
+      return opener;
+    }
+
     async function reloadCards() {
       const cards = /** @type {Card[]} */ (await collect((cursor) => api.listCards(boardId, { cursor }), "cards"));
       if (view !== activeView) return;
+      const focused = document.activeElement;
+      const focusedId = focused instanceof HTMLButtonElement && columns.contains(focused) ? focused.dataset.cardId : undefined;
+      clearCovers();
+      const render = coverRead;
       columns.replaceChildren(...lanes.map((lane) => {
         const column = element("section");
         column.className = "lane";
         column.append(element("h2", lane.label));
         for (const card of cards.filter(({ lane_id }) => lane_id === lane.id)) {
-          const opener = button(`#${card.ticket} ${card.title}`, () => {
-            void openCard(board.id, card, lanes, users, reloadBoard, opener);
-          });
-          opener.className = "card";
-          opener.dataset.cardId = card.id;
+          const opener = cardOpener(card);
           column.append(opener);
+          if (card.cover_attachment_id) void showCover(card, opener, render);
         }
         return column;
       }));
+      if (focusedId) [...columns.querySelectorAll("button")].find((control) =>
+        control.dataset.cardId === focusedId)?.focus();
     }
+
+    async function reloadArchived() {
+      if (!archived.open || view !== activeView) return;
+      const read = ++archivedRead;
+      try {
+        const cards = /** @type {Card[]} */ (await readWithSession(() => collect((cursor) =>
+          api.listCards(boardId, { cursor, archived: "only" }), "cards")));
+        if (view !== activeView || read !== archivedRead || !archived.open) return;
+        const focused = document.activeElement;
+        const focusedId = focused instanceof HTMLButtonElement && archivedList.contains(focused) ? focused.dataset.cardId : undefined;
+        archivedList.replaceChildren(...cards.map(cardOpener));
+        if (!cards.length) archivedList.textContent = "No archived cards.";
+        if (focusedId) ([...archivedList.querySelectorAll("button")].find((control) =>
+          control.dataset.cardId === focusedId) ?? archivedHeading).focus();
+      } catch {
+        if (view === activeView && read === archivedRead && archived.open) {
+          archivedList.textContent = "Archived cards could not be read. Close and reopen to retry.";
+        }
+      }
+    }
+    archived.addEventListener("toggle", () => {
+      archivedList.replaceChildren();
+      if (archived.open) {
+        archivedList.textContent = "Reading archived cards…";
+        void reloadArchived();
+      }
+    });
 
     await reloadCards();
     if (view !== activeView) return;
@@ -691,22 +1114,39 @@ async function load() {
     addTitle.required = true;
     const addDescription = element("textarea");
     const addLane = select(lanes, lanes[0]?.id ?? null);
+    const seedTicket = ticketInput();
+    const seedType = select(relationshipChoices, "relates_to");
     const previous = boardDrafts.get(board.id);
     addTitle.value = previous?.[0] ?? "";
     addDescription.value = previous?.[1] ?? "";
     if (lanes.some(({ id }) => id === previous?.[2])) addLane.value = previous?.[2] ?? "";
+    seedTicket.value = previous?.[3] ?? "";
+    if (previous?.[4] && Object.hasOwn(relationshipLabels, previous[4])) seedType.value = previous[4];
     const editor = element("section");
     editor.className = "editor";
     const inspection = createInspection(main, () => view === activeView, reloadBoard, "board", "board:" + board.id);
     boardInspection = inspection;
     editor.append(button(inspection.label, inspection.inspect));
+    const seedControls = element("details");
+    seedControls.append(element("summary", "Link the new card"),
+      field("Target ticket", seedTicket), field("Link type", seedType));
+    seedControls.open = Boolean(seedTicket.value);
     editor.append(form("Add card", [field("New title", addTitle), field("New description", addDescription),
-      field("New card lane", addLane)], (submit) => {
+      field("New card lane", addLane), seedControls], (submit) => {
       const id = crypto.randomUUID();
       let created = false;
       const draft = { title: addTitle.value, description: addDescription.value, lane_id: addLane.value };
+      const targetTicket = seedTicket.valueAsNumber;
+      const linkKind = /** @type {RelationshipKind} */ (seedType.value);
+      const expected = boardTag;
       void writeResource(submit, async () => {
-        await api.createCard({ ...draft, id, board_id: board.id, expected_board_etag: boardTag });
+        let relationships;
+        if (seedTicket.value !== "") {
+          const target = await readWithSession(() => findCardByTicket(board.id, targetTicket));
+          if (!target || view !== activeView) throw new ApiError("invalid_target");
+          relationships = [{ target_card_id: target.id, kind: linkKind }];
+        }
+        await api.createCard({ ...draft, id, board_id: board.id, expected_board_etag: expected, relationships });
         created = true;
       }, async () => {
         if (!created) {
@@ -720,6 +1160,7 @@ async function load() {
         if (created) {
           if (addTitle.value === draft.title) addTitle.value = "";
           if (addDescription.value === draft.description) addDescription.value = "";
+          if (seedTicket.valueAsNumber === targetTicket) seedTicket.value = "";
         }
         await reloadBoard();
         return created;
@@ -734,8 +1175,10 @@ async function load() {
         const comments = /** @type {Comment[]} */ (items(reply, "comments"));
         recentList.replaceChildren(...comments.map((entry) => {
           const user = users.find(({ id }) => id === entry.author_id)?.label ?? "Unknown user";
-          const item = element("p", `${user} · ${entry.created_at}\n${entry.text}`);
-          item.className = "body-text";
+          const item = element("article");
+          const body = element("p");
+          renderCommentText(body, entry, board.id, users);
+          item.append(element("small", user + " · " + entry.created_at), body);
           return item;
         }));
       }).catch(() => { recentList.textContent = "Comments could not be read."; });
@@ -749,16 +1192,32 @@ async function load() {
       boardStyle.replaceSync(/** @type {Board} */ (latest.board.data).user_css ?? "");
       setOptions(addLane, lanes, addLane.value);
       laneEditor.showLanes();
-      await reloadCards();
+      await Promise.all([reloadCards(), reloadArchived()]);
     }
     const laneEditor = renderLaneEditor(board.id, lanes, users, () => boardTag, reloadBoard, inspection);
     retainBoardDraft = () => {
-      boardDrafts.set(board.id, [addTitle.value, addDescription.value, addLane.value]);
+      boardDrafts.set(board.id, [addTitle.value, addDescription.value, addLane.value, seedTicket.value, seedType.value]);
       laneEditor.retainDraft();
     };
-    main.replaceChildren(element("h1", board.name), editor, recent, laneEditor.editor, columns);
+    main.replaceChildren(element("h1", board.name), editor, recent, laneEditor.editor, columns, archived);
     inspection.sync();
     announce("ready", "Board loaded.");
+    const ticketValue = new URLSearchParams(location.search).get("ticket");
+    if (ticketValue !== null) {
+      const ticket = Number(ticketValue);
+      let selected;
+      try {
+        if (/^[1-9][0-9]*$/.test(ticketValue) && Number.isSafeInteger(ticket)) {
+          selected = await readWithSession(() => findCardByTicket(board.id, ticket));
+        }
+      } catch (error) {
+        if (view === activeView) announce("error", readError(error));
+        return;
+      }
+      if (view !== activeView || !refresh) return;
+      if (selected) void openCard(board.id, selected, lanes, users, () => boardTag, reloadBoard, refresh);
+      else announce("error", "This ticket is unavailable.");
+    }
   } catch (error) {
     if (view !== activeView) return;
     if (error instanceof ApiError && error.status === 401) capability = "";

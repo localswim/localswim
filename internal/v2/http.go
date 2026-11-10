@@ -46,6 +46,7 @@ func Open(root, humanToken, botToken string) (*Service, error) {
 	events := newEventHub()
 	workspace := newWorkspace(boards.root)
 	boards.events, workspace.events = events, events
+	boards.ownerNotices = newOwnerNoticeWorker(ownerNoticeQuietPeriod, boards.ownerNoticeSettings, deliverOwnerNotice)
 	return &Service{events: events, store: boards, workspace: workspace, builds: newBuildStatus(boards.root),
 		principals: principals, browserToken: browserToken, browser: sha256.Sum256([]byte(browserToken)), human: sha256.Sum256([]byte(humanToken)), bot: sha256.Sum256([]byte(botToken))}, nil
 }
@@ -60,6 +61,9 @@ func validToken(token string) bool {
 
 func (s *Service) Close() error {
 	s.StopEvents()
+	if s.store.ownerNotices != nil {
+		s.store.ownerNotices.close()
+	}
 	return s.store.close()
 }
 

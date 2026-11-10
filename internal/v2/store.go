@@ -31,6 +31,7 @@ type store struct {
 	writeUncertain   bool
 	uncertainBoardID string
 	events           *eventHub
+	ownerNotices     *ownerNoticeWorker
 }
 
 func openStore(root string, principals ...user) (*store, error) {
@@ -141,6 +142,16 @@ func (s *store) accepted(id string) (snapshot, bool) {
 	value, ok := s.boards[id]
 	s.mu.RUnlock()
 	return cloneSnapshot(value), ok
+}
+
+func (s *store) ownerNoticeSettings(id string) (notifications, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.writeUncertain && s.uncertainBoardID == id {
+		return notifications{}, false
+	}
+	value, ok := s.boards[id]
+	return value.Board.Notifications, ok
 }
 
 func (s *store) list() []snapshot {
@@ -318,10 +329,17 @@ func (s *store) commit(value snapshot, reuseUsers bool) error {
 			// inspection remains available for resolving the uncertain mutation.
 			s.writeUncertain = true
 			s.uncertainBoardID = id
+			if s.ownerNotices != nil {
+				s.ownerNotices.settingsChanged(id, false)
+			}
 		}
 		return err
 	}
+	previous := s.boards[id]
 	s.boards[id] = value
+	if s.ownerNotices != nil {
+		s.ownerNotices.submitCommitted(previous, value)
+	}
 	if s.events != nil {
 		s.events.changed()
 	}
@@ -333,6 +351,7 @@ func (s *store) checkIdentities(value snapshot, reuseUsers bool) error {
 		resourceIDs(value.Lanes, func(l lane) string { return l.ID }),
 		resourceIDs(value.Comments, func(c comment) string { return c.ID }),
 		resourceIDs(value.Attachments, func(a attachment) string { return a.ID })
+	additionalIDs := relationshipAndApprovalIDs(value.Activity)
 	for id, other := range s.boards {
 		if id == value.Board.ID {
 			continue
@@ -340,7 +359,9 @@ func (s *store) checkIdentities(value snapshot, reuseUsers bool) error {
 		if hasResourceID(other.Cards, cardIDs, func(c card) string { return c.ID }) ||
 			hasResourceID(other.Lanes, laneIDs, func(l lane) string { return l.ID }) ||
 			hasResourceID(other.Comments, commentIDs, func(c comment) string { return c.ID }) ||
-			hasResourceID(other.Attachments, attachmentIDs, func(a attachment) string { return a.ID }) {
+			hasResourceID(other.Attachments, attachmentIDs, func(a attachment) string { return a.ID }) ||
+			snapshotContainsIdentity(other, additionalIDs) ||
+			snapshotContainsIdentity(value, relationshipAndApprovalIDs(other.Activity)) {
 			return errIdentityConflict
 		}
 	}
@@ -366,6 +387,43 @@ func (s *store) checkIdentities(value snapshot, reuseUsers bool) error {
 		}
 	}
 	return nil
+}
+
+func relationshipAndApprovalIDs(events []activity) map[string]bool {
+	var ids map[string]bool
+	for _, event := range events {
+		var id string
+		switch {
+		case event.ResourceType == "relationship":
+			id = event.ResourceID
+		case event.Operation == approvalOperation:
+			id = event.ID
+		default:
+			continue
+		}
+		if ids == nil {
+			ids = make(map[string]bool)
+		}
+		ids[id] = true
+	}
+	return ids
+}
+
+func snapshotContainsIdentity(value snapshot, ids map[string]bool) bool {
+	if len(ids) == 0 {
+		return false
+	}
+	matches := func(id string) bool { return ids[id] }
+	return ids[value.Board.ID] || ids[value.Policy.ID] ||
+		slices.ContainsFunc(value.Board.UserIDs, matches) ||
+		slices.ContainsFunc(value.Board.LaneIDs, matches) ||
+		slices.ContainsFunc(value.Board.PriorityIDs, matches) ||
+		hasResourceID(value.Cards, ids, func(item card) string { return item.ID }) ||
+		hasResourceID(value.Comments, ids, func(item comment) string { return item.ID }) ||
+		hasResourceID(value.Attachments, ids, func(item attachment) string { return item.ID }) ||
+		slices.ContainsFunc(value.Activity, func(event activity) bool {
+			return ids[event.ID] || (event.ResourceType == "relationship" && ids[event.ResourceID])
+		})
 }
 
 func resourceIDs[T any](items []T, id func(T) string) map[string]bool {

@@ -31,6 +31,9 @@ func (refs snapshotReferences) validateCardChildren(value snapshot) error {
 		attachments[item.CardID]++
 	}
 	for _, item := range value.Cards {
+		if item.CoverAttachmentID != nil && !refs.validAttachmentCover(item.ID, *item.CoverAttachmentID) {
+			return invalidSnapshot("cards.cover_attachment_id", "The cover must be an active raster attachment on this card.")
+		}
 		if item.CommentCount != comments[item.ID] || item.AttachmentCount != attachments[item.ID] {
 			return invalidSnapshot("cards", "Card child counts do not match the native resources.")
 		}
@@ -38,7 +41,7 @@ func (refs snapshotReferences) validateCardChildren(value snapshot) error {
 	return nil
 }
 
-func (refs snapshotReferences) validResourceCreation(event activity, cardCreations map[string]uint64) bool {
+func (refs snapshotReferences) validResourceCreation(event activity, cardCreations map[string]uint64, approvalComment bool) bool {
 	if event.Revision < 2 || event.Field != nil || event.Before != nil || event.After != nil {
 		return false
 	}
@@ -46,7 +49,7 @@ func (refs snapshotReferences) validResourceCreation(event activity, cardCreatio
 	switch event.ResourceType {
 	case "comment":
 		item := refs.comments[event.ResourceID]
-		return item.ID != "" && event.Operation == "comment" && capabilities["comment"] &&
+		return item.ID != "" && event.Operation == "comment" && (capabilities["comment"] || approvalComment) &&
 			item.AuthorID == event.ActorID && item.CreatedAt.Equal(event.At) &&
 			cardCreations[item.CardID] > 0 && cardCreations[item.CardID] < event.Revision
 	case "attachment":
@@ -115,6 +118,27 @@ func validCardLaneAudit(grants []moveGrant, event activity) bool {
 	})
 }
 
+func (refs snapshotReferences) approvalAuditComment(value snapshot, index int, latest map[snapshotAuditField]*string) (string, bool) {
+	event := value.Activity[index]
+	if index+1 >= len(value.Activity) || value.Activity[index-1].Revision == event.Revision ||
+		(index+2 < len(value.Activity) && value.Activity[index+2].Revision == event.Revision) {
+		return "", false
+	}
+	if refs.users[event.ActorID].Kind != "human" || !refs.capabilities[event.ActorID]["approve"] ||
+		refs.lanes[snapshotString(event.Before)].Role != "ready_for_review" ||
+		refs.lanes[snapshotString(event.After)].Role != "completed" ||
+		snapshotString(latest[snapshotAuditField{"card", event.ResourceID, "archived"}]) != "false" {
+		return "", false
+	}
+	noteEvent := value.Activity[index+1]
+	return noteEvent.ResourceID, validApprovalPair(event, noteEvent, refs.comments[noteEvent.ResourceID])
+}
+
+func (refs snapshotReferences) validAttachmentCover(cardID, attachmentID string) bool {
+	item := refs.attachments[attachmentID]
+	return item.CardID == cardID && item.Active && item.Previewable
+}
+
 func (refs snapshotReferences) validCardAuditValue(actor string, field snapshotAuditField, value *string) bool {
 	if refs.cards[field.resourceID].ID == "" {
 		return false
@@ -128,6 +152,10 @@ func (refs snapshotReferences) validCardAuditValue(actor string, field snapshotA
 		return capabilities["edit_card"] && value != nil && snapshotText(*value, 1, 1024)
 	case "description":
 		return capabilities["edit_card"] && value != nil && snapshotText(*value, 0, 4194304)
+	case "cover_attachment_id":
+		return capabilities["manage_attachments"] && (value == nil || refs.validAttachmentCover(field.resourceID, *value))
+	case "archived":
+		return capabilities["archive_card"] && (snapshotString(value) == "true" || snapshotString(value) == "false")
 	case "owner_id":
 		return capabilities["edit_card"] && value != nil && refs.users[*value].ID != ""
 	}
@@ -161,6 +189,10 @@ func (refs snapshotReferences) currentCardAuditValue(field snapshotAuditField) *
 		return &item.OwnerID
 	case "lane_id":
 		return &item.LaneID
+	case "archived":
+		return archiveAuditValue(item.Archived)
+	case "cover_attachment_id":
+		return item.CoverAttachmentID
 	}
 	return nil
 }

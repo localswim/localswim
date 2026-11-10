@@ -1749,7 +1749,8 @@ paths:
       - 9
       description: Validate references, permissions, expected_board_etag, and graph effects before allocating
         a ticket. Supplied UUID allows focused readback after a lost reply. A duplicate UUID returns 409
-        and never silently repeats creation. Relationship seeds become available in M09.
+        and never silently repeats creation. Relationship seeds require manage_relationships and valid
+        same-board targets. A rejected seed leaves the card, ticket allocation, and revision unchanged.
       requestBody:
         required: true
         content:
@@ -2269,13 +2270,13 @@ paths:
       - 8
       - 10
       - 24
-      description: Turn 3 supports title, description, lane_id, owner_id, and the existing parent_id edit.
-        A lane_id requires the exact directed transition grant. If-Match checks the original card tag
-        inside the same transaction as policy, parent,
-        graph-floor, data, and audit checks. Unrelated card edits leave this tag valid. Description null
-        clears to an empty string. Archived cards retain data and relations. A completed-lane move obeys
-        policy and does not substitute for the Human approval action. Existing parent cycles and illegal
-        cover references refuse.
+      description: If-Match checks the addressed card inside the same transaction as policy, references,
+        data, and audit. Unrelated card edits leave the tag valid. A lane_id requires a directed move grant.
+        A null description clears it. Archiving requires archive_card and retains the card's UUID, ticket,
+        lane, owner, relationships, and audit. Restore requires an active lane. Ordinary lists exclude
+        archived cards and focused reads retain them. A cover change requires manage_attachments and an
+        active raster attachment on this card. A null cover clears it. Repeating the current archive or
+        cover value is a no-op. A completed-lane move alone does not create a Human approval receipt.
       requestBody:
         required: true
         content:
@@ -7051,9 +7052,11 @@ paths:
       - 15
       description: Require one card when lane_id is omitted. A supplied lane_id must be enabled Ready for
         Review, and the request must enumerate its exact active rendered membership and all original card
-        tags. Check those plus expected_board_etag atomically. Append exactly 'Reviewed & approved, moving
-        to Completed.' for every changed card. Empty lane is a no-op with 200 and no new approval/audit.
-        Repeated/stale requests never duplicate approval.
+        tags. Check those plus expected_board_etag atomically. Single-card approval requires an active Ready
+        for Review card, the Human approve capability, and the directed move grant to Completed. The
+        move and exact 'Reviewed & approved, moving to Completed.' comment share one revision. Ownership
+        is preserved. A supplied approval UUID allows focused readback after a lost response. Empty lane
+        is a no-op with 200 and no new approval/audit. Repeated or stale requests never duplicate approval.
       requestBody:
         required: true
         content:

@@ -43,8 +43,10 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	var validator, field string
 	count := 1
 	switch name {
-	case "card patch", "card description", "card move", "card assign", "card title":
+	case "card patch", "card description", "card move", "card assign", "card title", "card cover":
 		cmd.method, validator, count = http.MethodPatch, "/cards/", 2
+	case "card archive", "card unarchive":
+		cmd.method, validator = http.MethodPatch, "/cards/"
 	case "lane rename":
 		cmd.method, validator, count = http.MethodPatch, "/lanes/", 2
 	case "lane add":
@@ -59,7 +61,7 @@ func parseT03(name string, args []string) (cliCommand, error) {
 			cmd.resource = "/attachments"
 		}
 	case "comment list", "attachment list":
-		return parseT03List(name, args)
+		return parseCLIList(name, args)
 	case "attachment get":
 		cmd.method, cmd.resource = http.MethodGet, "/attachments/"
 	default:
@@ -113,6 +115,17 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	}
 	value := flags.Arg(1)
 	switch name {
+	case "card archive", "card unarchive":
+		cmd.body, _ = json.Marshal(map[string]bool{"archived": name == "card archive"})
+	case "card cover":
+		switch {
+		case value == "none":
+			cmd.body = json.RawMessage("{\"cover_attachment_id\":null}")
+		case boardIDPattern.MatchString(value):
+			cmd.body, _ = json.Marshal(map[string]string{"cover_attachment_id": value})
+		default:
+			return cmd, errors.New("expected a UUIDv4 attachment ID or none")
+		}
 	case "attachment upload":
 		cmd.edit.file = value
 		cmd.edit.uploadID = strings.ToLower(uploadID)
@@ -148,12 +161,20 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	return cmd, nil
 }
 
-func parseT03List(name string, args []string) (cliCommand, error) {
-	cmd := cliCommand{method: http.MethodGet, resource: "/attachments"}
+func parseCLIList(name string, args []string) (cliCommand, error) {
+	resources := map[string]string{
+		"card list": "/cards", "relationship list": "/relationships",
+		"comment list": "/comments", "attachment list": "/attachments",
+	}
+	cmd := cliCommand{method: http.MethodGet, resource: resources[name]}
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	limit := flags.Int("limit", 50, "page size")
 	cursor := flags.String("cursor", "", "cursor from the preceding page")
+	var archived string
+	if name == "card list" {
+		flags.StringVar(&archived, "archived", "exclude", "exclude, include, or only archived cards")
+	}
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
 	}
@@ -164,21 +185,36 @@ func parseT03List(name string, args []string) (cliCommand, error) {
 	if *cursor != "" {
 		query.Set("cursor", *cursor)
 	}
-	if name == "comment list" {
-		cmd.resource = "/comments"
-		if flags.NArg() < 1 || flags.NArg() > 2 || !boardIDPattern.MatchString(flags.Arg(0)) {
+	if name == "card list" {
+		archived = strings.ToLower(archived)
+		switch archived {
+		case "exclude", "include", "only":
+			query.Set("archived", archived)
+		default:
+			return cmd, errors.New("--archived requires exclude, include, or only")
+		}
+	}
+	optionalCard := name == "comment list" || name == "relationship list"
+	switch {
+	case name == "attachment list":
+		if flags.NArg() != 1 || !boardIDPattern.MatchString(flags.Arg(0)) {
+			return cmd, errors.New("expected one UUIDv4 card ID")
+		}
+		query.Set("card_id", flags.Arg(0))
+	case flags.NArg() < 1 || flags.NArg() > 2 || (flags.NArg() == 2 && !optionalCard) ||
+		!boardIDPattern.MatchString(flags.Arg(0)):
+		if optionalCard {
 			return cmd, errors.New("expected a UUIDv4 board ID and optional UUIDv4 card ID")
 		}
+		return cmd, errors.New("expected one UUIDv4 board ID")
+	default:
 		query.Set("board_id", flags.Arg(0))
-	} else if flags.NArg() != 1 {
-		return cmd, errors.New("expected one UUIDv4 card ID")
-	}
-	if name == "attachment list" || flags.NArg() == 2 {
-		id := flags.Arg(flags.NArg() - 1)
-		if !boardIDPattern.MatchString(id) {
-			return cmd, errors.New("expected a UUIDv4 card ID")
+		if flags.NArg() == 2 {
+			if !boardIDPattern.MatchString(flags.Arg(1)) {
+				return cmd, errors.New("expected a UUIDv4 card ID")
+			}
+			query.Set("card_id", flags.Arg(1))
 		}
-		query.Set("card_id", id)
 	}
 	cmd.resource += "?" + query.Encode()
 	return cmd, nil

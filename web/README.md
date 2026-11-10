@@ -27,6 +27,20 @@ conditional PATCH. It retains the caller's board ETag precondition. An invalid,
 stale, or failed read prevents the PATCH. Lane list and write responses validate
 the numeric revision and response shape. HTTP validators stay in response headers.
 
+Archive a card from its drawer. Expand Archived cards to reopen it and restore
+it to the same lane. Expand History in the drawer to inspect that card's audited
+changes. On a Ready for Review card, Reviewed & approved posts the approval
+comment and moves the card to Completed in one action. The drawer closes on a
+confirmed approval and retains any comment draft. A stale or uncertain response
+keeps the draft available for inspection.
+
+Add a typed link from the drawer or seed a link while creating a card. The same
+relationship is visible from both cards. Human comments link ticket references to
+focused board reads, including archived tickets. Bot comments render as text.
+
+Attachments offer authenticated downloads. Raster attachments also offer a preview
+and cover selection. The selected cover appears on the card in its lane.
+
 ## Browser API client
 
 `api.mjs` is a dependency-free ES module for the same-origin V2 API. It calls

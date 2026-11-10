@@ -228,9 +228,6 @@ func validateSnapshot(value snapshot, boardID string) error {
 		value.Comments == nil || value.Relationships == nil || value.Attachments == nil || value.Activity == nil {
 		return invalidSnapshot("snapshot", "Native collections must be arrays.")
 	}
-	if len(value.Relationships) != 0 {
-		return invalidSnapshot("snapshot", "Native snapshot contains unsupported resources.")
-	}
 
 	refs := snapshotReferences{
 		ids:          map[string]bool{b.ID: true},
@@ -246,6 +243,9 @@ func validateSnapshot(value snapshot, boardID string) error {
 		return err
 	}
 	if err := refs.validateCards(value); err != nil {
+		return err
+	}
+	if err := refs.validateRelationships(value); err != nil {
 		return err
 	}
 	if err := refs.validateCardChildren(value); err != nil {
@@ -404,7 +404,7 @@ func (refs snapshotReferences) validateCards(value snapshot) error {
 			return invalidSnapshot("cards", "Card identity, ticket, or workflow reference is invalid.")
 		}
 		if !snapshotText(c.Title, 1, 1024) || !snapshotText(c.Description, 0, 4194304) ||
-			c.ChildIDs == nil || c.CoverAttachmentID != nil ||
+			c.ChildIDs == nil ||
 			c.BlockingDepth != 0 || c.BlockedCardCount != 0 {
 			return invalidSnapshot("cards", "Card metadata is invalid or refers to unsupported resources.")
 		}
@@ -561,10 +561,12 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		laneRevisions[id] = 1
 	}
 	cardCreations := make(map[string]uint64)
-	resourceCreations := make(map[string]bool)
-	laneExists := func(id string) bool { return initialLanes[id] || resourceCreations[id] }
+	approvalCompletions := make(map[string]time.Time)
+	resourceCreations := make(map[string]uint64)
+	laneExists := func(id string) bool { return initialLanes[id] || resourceCreations[id] != 0 }
 	commentCreations, attachmentCreations := 0, 0
 	var newLane string
+	var approvalComment string
 	var previousRevision uint64
 	var previousActor string
 	for index, event := range value.Activity {
@@ -584,6 +586,7 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		if event.Revision != previousRevision {
 			clear(changed)
 			newLane = ""
+			approvalComment = ""
 		}
 		previousRevision, previousActor = event.Revision, event.ActorID
 		if index == 0 {
@@ -601,14 +604,24 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 			}
 			cardCreations[item.ID] = event.Revision
 			latest[parentField] = nil
+			latest[snapshotAuditField{"card", item.ID, "archived"}] = archiveAuditValue(false)
+			latest[snapshotAuditField{"card", item.ID, "cover_attachment_id"}] = nil
 			continue
+		}
+		if event.ResourceType == "relationship" {
+			continue
+		}
+		if event.ResourceType == "comment" && event.ResourceID != approvalComment &&
+			(value.Activity[index-1].Revision == event.Revision ||
+				(index+1 < len(value.Activity) && value.Activity[index+1].Revision == event.Revision)) {
+			return invalidSnapshot("activity", "Only an approval may commit a comment with another edit.")
 		}
 		if event.ResourceType == "comment" || event.ResourceType == "attachment" ||
 			(event.ResourceType == "lane" && event.Operation == "create") {
-			if resourceCreations[event.ResourceID] || !refs.validResourceCreation(event, cardCreations) {
+			if resourceCreations[event.ResourceID] != 0 || !refs.validResourceCreation(event, cardCreations, event.ResourceID == approvalComment) {
 				return invalidSnapshot("activity", "Resource creation audit is invalid.")
 			}
-			resourceCreations[event.ResourceID] = true
+			resourceCreations[event.ResourceID] = event.Revision
 			switch event.ResourceType {
 			case "comment":
 				commentCreations++
@@ -637,17 +650,46 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		case event.ResourceType == "card" && field.name == "lane_id":
 			createdAt := cardCreations[field.resourceID]
 			valid = createdAt > 0 && createdAt < event.Revision && validCardLaneAudit(moveGrants, event)
+			if valid && event.Operation == approvalOperation {
+				approvalComment, valid = refs.approvalAuditComment(value, index, latest)
+			}
+		case event.ResourceType == "card" && field.name == "cover_attachment_id":
+			createdAt := cardCreations[field.resourceID]
+			attachedAt := resourceCreations[snapshotString(event.After)]
+			valid = createdAt > 0 && createdAt < event.Revision &&
+				(event.After == nil || (attachedAt > 0 && attachedAt < event.Revision)) &&
+				refs.validCardAuditValue(event.ActorID, field, event.Before) &&
+				refs.validCardAuditValue(event.ActorID, field, event.After)
+		case event.ResourceType == "card" && field.name == "archived":
+			createdAt := cardCreations[field.resourceID]
+			valid = createdAt > 0 && createdAt < event.Revision &&
+				refs.validCardAuditValue(event.ActorID, field, event.Before) &&
+				refs.validCardAuditValue(event.ActorID, field, event.After)
 		default:
 			valid = (event.ResourceType != "lane" || laneExists(event.ResourceID)) &&
 				refs.validAuditField(b.ID, event.ActorID, field, event.Before) &&
 				refs.validAuditField(b.ID, event.ActorID, field, event.After)
 		}
-		if event.Operation != "patch" || event.Revision == 1 || changed[field] ||
+		isApproval := event.Operation == approvalOperation && approvalComment != ""
+		if (event.Operation != "patch" && !isApproval) || event.Revision == 1 || changed[field] ||
 			!valid || equalSnapshotStrings(event.Before, event.After) {
 			return invalidSnapshot("activity", "Audit patch actor, field, or values are invalid.")
 		}
 		if prior, seen := latest[field]; seen && !equalSnapshotStrings(prior, event.Before) {
 			return invalidSnapshot("activity", "Audit patch values do not form a continuous history.")
+		}
+		if event.ResourceType == "card" && (isApproval || field.name == "archived" || field.name == "cover_attachment_id") {
+			item := refs.cards[event.ResourceID]
+			if item.Revision < event.Revision || item.UpdatedAt.Before(event.At) {
+				return invalidSnapshot("cards.revision", "Card version does not cover its latest edits.")
+			}
+		}
+		if event.ResourceType == "card" && field.name == "lane_id" {
+			if isApproval {
+				approvalCompletions[event.ResourceID] = event.At
+			} else {
+				delete(approvalCompletions, event.ResourceID)
+			}
 		}
 		changed[field] = true
 		latest[field] = event.After
@@ -659,8 +701,19 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		if item.Revision != laneRevisions[item.ID] {
 			return invalidSnapshot("lanes.revision", "Lane revision does not match its latest audit.")
 		}
-		if !initialLanes[item.ID] && !resourceCreations[item.ID] {
+		if !initialLanes[item.ID] && resourceCreations[item.ID] == 0 {
 			return invalidSnapshot("activity", "Lane creation audit is missing.")
+		}
+	}
+	for id, item := range refs.cards {
+		if cardCreations[id] == 0 && (item.Archived || item.CoverAttachmentID != nil) {
+			return invalidSnapshot("activity", "Archive and cover state require a card creation audit.")
+		}
+	}
+	for id, at := range approvalCompletions {
+		completed := refs.cards[id].CompletedAt
+		if completed == nil || !completed.Equal(at) {
+			return invalidSnapshot("cards.completed_at", "Card completion does not match its approval audit.")
 		}
 	}
 	if commentCreations != len(refs.comments) || attachmentCreations != len(refs.attachments) {
@@ -681,7 +734,7 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 			return invalidSnapshot("activity", "Audit patch history does not match current state.")
 		}
 	}
-	return nil
+	return refs.validateRelationshipAudit(value, cardCreations)
 }
 
 func (refs snapshotReferences) validAuditField(boardID, actorID string, field snapshotAuditField, value *string) bool {

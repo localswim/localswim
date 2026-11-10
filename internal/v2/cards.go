@@ -16,6 +16,7 @@ type cardCreation struct {
 	id, boardID, expected, title, description, laneID, priorityID string
 	ownerID                                                       string
 	parentID                                                      *string
+	relationships                                                 []relationshipSeed
 }
 
 func (x *request) cardsCollection() {
@@ -196,8 +197,11 @@ func readCardCreation(fields map[string]json.RawMessage) (cardCreation, error) {
 			*field.dest = &id
 		}
 	}
-	if _, ok := fields["relationships"]; ok {
-		return in, invalid("relationships", "Relationship creation is unavailable.")
+	if raw, ok := fields["relationships"]; ok {
+		in.relationships, err = readRelationshipSeeds(raw)
+		if err != nil {
+			return in, err
+		}
 	}
 	return in, nil
 }
@@ -327,10 +331,11 @@ func (in cardCreation) apply(s *snapshot, actor string) error {
 	s.Activity = append(s.Activity, activity{ID: newID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
 		ActorID: actor, Operation: "create", ResourceType: "card", ResourceID: value.ID})
 	if in.parentID != nil {
-		_, err := patchParent(s, value.ID, value.entityTag(), in.parentID, actor, now)
-		return err
+		if _, err := patchParent(s, value.ID, value.entityTag(), in.parentID, actor, now); err != nil {
+			return err
+		}
 	}
-	return nil
+	return applyRelationshipSeeds(s, value.ID, in.relationships, actor, now)
 }
 
 func snapshotIdentityExists(s *snapshot, id string) bool {
@@ -340,7 +345,10 @@ func snapshotIdentityExists(s *snapshot, id string) bool {
 		slices.ContainsFunc(s.Cards, func(c card) bool { return c.ID == id }) ||
 		slices.ContainsFunc(s.Comments, func(c comment) bool { return c.ID == id }) ||
 		slices.ContainsFunc(s.Attachments, func(a attachment) bool { return a.ID == id }) ||
-		slices.ContainsFunc(s.Activity, func(event activity) bool { return event.ID == id })
+		slices.ContainsFunc(s.Relationships, func(link relationship) bool { return link.ID == id }) ||
+		slices.ContainsFunc(s.Activity, func(event activity) bool {
+			return event.ID == id || (event.ResourceType == "relationship" && event.ResourceID == id)
+		})
 }
 
 func maxCardTime(a, b time.Time) time.Time {

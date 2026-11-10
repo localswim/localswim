@@ -67,28 +67,10 @@ func (c *Client) Do(method, resource string, body json.RawMessage, ifMatch strin
 }
 
 func (c *Client) DoWithContentType(method, resource string, body []byte, ifMatch, contentType string) (Response, error) {
-	// Resolve only API-relative resource paths. Never let a caller supply an origin.
-	path, err := url.ParseRequestURI(resource)
-	if err != nil || path.IsAbs() || path.Host != "" || path.Path == "" || path.Path[0] != '/' {
-		return Response{}, errors.New("invalid API resource path")
-	}
-	request, err := http.NewRequest(method, c.origin+apiPath+resource, bytes.NewReader(body))
+	request, err := c.newRequest(method, resource, body, ifMatch, contentType, "application/json")
 	if err != nil {
-		return Response{}, errors.New("could not construct the API request")
+		return Response{}, err
 	}
-	request.GetBody = nil
-	request.Header.Set("Authorization", "Bearer "+c.token)
-	request.Header.Set("Accept", "application/json")
-	if body != nil {
-		if contentType == "" {
-			contentType = "application/json"
-		}
-		request.Header.Set("Content-Type", contentType)
-	}
-	if ifMatch != "" {
-		request.Header.Set("If-Match", ifMatch)
-	}
-
 	mutation := method != http.MethodGet && method != http.MethodHead
 	reply, err := c.http.Do(request)
 	if err != nil {
@@ -115,14 +97,14 @@ func (c *Client) DoWithContentType(method, resource string, body []byte, ifMatch
 		}
 		boardTags := reply.Header.Values("X-Board-ETag")
 		validBoardTag := len(boardTags) == 1 && IsEntityTag(boardTags[0])
-		if method == http.MethodPut && strings.HasPrefix(path.Path, "/policies/") {
+		if method == http.MethodPut && strings.HasPrefix(request.URL.Path, apiPath+"/policies/") {
 			if len(tags) != 0 || !validBoardTag {
 				return Response{}, responseError("service did not return the expected policy replacement validators", true)
 			}
 		} else if etag == "" {
 			return Response{}, responseError("service did not return one canonical strong ETag", true)
 		}
-		if requiresBoardTag(method, path.Path) && !validBoardTag {
+		if requiresBoardTag(method, request.URL.Path[len(apiPath):]) && !validBoardTag {
 			return Response{}, responseError("service did not return one canonical strong X-Board-ETag", true)
 		}
 	}
@@ -133,14 +115,40 @@ func (c *Client) DoWithContentType(method, resource string, body []byte, ifMatch
 	return Response{JSON: data, ETag: etag}, nil
 }
 
+func (c *Client) newRequest(method, resource string, body []byte, ifMatch, contentType, accept string) (*http.Request, error) {
+	// Resolve only API-relative resource paths. Never let a caller supply an origin.
+	path, err := url.ParseRequestURI(resource)
+	if err != nil || path.IsAbs() || path.Host != "" || path.Path == "" || path.Path[0] != '/' {
+		return nil, errors.New("invalid API resource path")
+	}
+	request, err := http.NewRequest(method, c.origin+apiPath+resource, bytes.NewReader(body))
+	if err != nil {
+		return nil, errors.New("could not construct the API request")
+	}
+	request.GetBody = nil
+	request.Header.Set("Authorization", "Bearer "+c.token)
+	request.Header.Set("Accept", accept)
+	if body != nil {
+		if contentType == "" {
+			contentType = "application/json"
+		}
+		request.Header.Set("Content-Type", contentType)
+	}
+	if ifMatch != "" {
+		request.Header.Set("If-Match", ifMatch)
+	}
+	return request, nil
+}
+
 func requiresBoardTag(method, path string) bool {
 	if method == http.MethodPost {
 		switch path {
-		case "/cards", "/comments", "/lanes", "/attachments":
+		case "/cards", "/comments", "/lanes", "/attachments", "/relationships":
 			return true
 		}
 	}
-	return method == http.MethodPatch && (strings.HasPrefix(path, "/cards/") || strings.HasPrefix(path, "/lanes/"))
+	return method == http.MethodPatch && (strings.HasPrefix(path, "/cards/") || strings.HasPrefix(path, "/lanes/") ||
+		strings.HasPrefix(path, "/relationships/"))
 }
 
 func IsEntityTag(tag string) bool {

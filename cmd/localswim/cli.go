@@ -33,6 +33,7 @@ const cliHelp = `Usage:
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] BOARD_ID
   localswim card create [--revision N] <JSON_FILE|->
+  localswim card list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card get CARD_ID
   localswim card get BOARD_ID TICKET
   localswim card patch [--revision N] CARD_ID FILE|-
@@ -40,12 +41,21 @@ const cliHelp = `Usage:
   localswim card assign [--revision N] CARD_ID OWNER_ID
   localswim card title [--revision N] CARD_ID TITLE
   localswim card description [--revision N] CARD_ID FILE|-
+  localswim card archive [--revision N] CARD_ID
+  localswim card unarchive [--revision N] CARD_ID
+  localswim card cover [--revision N] CARD_ID ATTACHMENT_ID|none
+  localswim relationship list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
+  localswim relationship get RELATIONSHIP_ID
+  localswim relationship create [--revision N] BOARD_ID FILE|-
+  localswim relationship patch [--revision N] RELATIONSHIP_ID FILE|-
+  localswim relationship remove [--revision N] RELATIONSHIP_ID
   localswim comment list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim comment post [--revision N] CARD_ID FILE|-
   localswim lane add [--revision N] BOARD_ID FILE|-
   localswim lane rename [--revision N] LANE_ID LABEL
   localswim attachment list [--limit N] [--cursor CURSOR] CARD_ID
   localswim attachment get ATTACHMENT_ID
+  localswim attachment download ATTACHMENT_ID FILE|-
   localswim attachment upload [--revision N] [--id UUID] CARD_ID FILE
   localswim policy get BOARD_ID
   localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
@@ -76,6 +86,14 @@ Lane add checks the board revision. Lane rename checks the lane revision.
 The CLI manages HTTP validators.
 For FILE|-, pass a file path or use - to read standard input.
 Card description reads UTF-8 text verbatim, including trailing newlines.
+Card list excludes archived cards by default. Focused card get includes them.
+Use card cover CARD_ID none to clear the selected cover.
+Relationship create reads source_card_id, target_card_id, kind, and optional id.
+Relationship patch reads kind. The CLI supplies the required validators.
+For relationship mutations, --revision refers to the board revision.
+Relationship remove exits silently on success.
+Attachment download verifies the active file before writing. Use a new file path
+or - for raw bytes on standard output. Inspect the destination after a local write failure.
 If a mutation outcome is unknown, inspect the resource before retrying.
 Attachment upload generates an ID when --id is omitted and reports the ID
 on an unknown outcome. Use attachment get to inspect that exact ID.
@@ -110,6 +128,8 @@ type cliCommand struct {
 	pinIDs                             []string
 	warnings                           []string
 	edit                               t03Edit
+	relationshipWrite                  bool
+	downloadPath                       string
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -215,6 +235,10 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "service builds":
 		command.method, command.resource = http.MethodGet, "/builds"
 		paginated = true
+	case "card list", "relationship list":
+		return parseCLIList(name, optionArgs)
+	case "relationship get", "relationship create", "relationship patch", "relationship remove", "attachment download":
+		return parseT04(name, optionArgs)
 	default:
 		return parseT03(name, optionArgs)
 	}
@@ -382,6 +406,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	if err != nil {
 		return err
 	}
+	if command.downloadPath != "" {
+		return downloadAttachment(api, command.resource, command.downloadPath, stdout)
+	}
 	body := command.body
 	if command.inputPath != "" && command.inputPath != "-" {
 		file, err := os.Open(command.inputPath)
@@ -391,7 +418,7 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		defer file.Close()
 		stdin = file
 	}
-	var ifMatch, contentType string
+	var ifMatch, contentType, boardTag string
 	if command.edit.validatorPath != "" {
 		if command.edit.file != "" && command.edit.uploadID == "" {
 			command.edit.uploadID = newUploadID()
@@ -406,13 +433,19 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 			return errors.New("JSON input must contain one valid object within 96 MiB")
 		}
 	}
+	if command.relationshipWrite {
+		body, ifMatch, boardTag, err = prepareRelationshipWrite(api, command, body)
+		if err != nil {
+			return err
+		}
+	}
 	if command.boardAction != "" {
 		command.resource, body, ifMatch, err = prepareBoardAction(api, command, body)
 		if err != nil {
 			return err
 		}
 	}
-	if command.method == http.MethodPatch && command.edit.validatorPath == "" {
+	if command.method == http.MethodPatch && command.edit.validatorPath == "" && !command.relationshipWrite {
 		current, err := api.Do(http.MethodGet, command.resource, nil, "")
 		if err != nil {
 			return err
@@ -432,6 +465,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 			}
 		}
 		ifMatch = current.ETag
+	}
+	if command.method == http.MethodDelete {
+		return api.RemoveRelationship(command.resource, ifMatch, boardTag)
 	}
 	reply, err := api.DoWithContentType(command.method, command.resource, body, ifMatch, contentType)
 	if err != nil {

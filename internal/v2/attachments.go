@@ -126,40 +126,46 @@ func (x *request) attachmentsCollection() {
 }
 
 func (x *request) attachmentResource(id string) {
+	item, err := x.findAttachment(id)
+	if err != nil {
+		x.fail(err)
+		return
+	}
+	x.respond(http.StatusOK, item, item.ETag)
+}
+
+func (x *request) findAttachment(id string) (attachment, error) {
 	for _, known := range x.service.store.list() {
 		if known.can(x.actor, "read") && slices.ContainsFunc(known.Attachments, func(item attachment) bool {
 			return item.ID == id
 		}) {
-			x.attachmentReadback(known.Board.ID, id)
-			return
+			return x.attachmentReadback(known.Board.ID, id)
 		}
 	}
 	// A just-committed ID may exist only in the fenced board's durable snapshot.
 	if boardID := x.service.store.fencedBoard(); boardID != "" {
 		if known, ok := x.service.store.accepted(boardID); ok && known.can(x.actor, "read") {
-			x.attachmentReadback(boardID, id)
-			return
+			return x.attachmentReadback(boardID, id)
 		}
 	}
-	x.fail(errMissing)
+	return attachment{}, errMissing
 }
 
-func (x *request) attachmentReadback(boardID, id string) {
+func (x *request) attachmentReadback(boardID, id string) (attachment, error) {
 	state, err := x.service.store.readback(boardID)
 	if err != nil {
-		x.fail(err)
-		return
+		return attachment{}, err
 	}
 	if state.can(x.actor, "read") {
 		for _, item := range state.Attachments {
 			if item.ID == id {
-				x.respond(http.StatusOK, item, item.ETag)
-				return
+				return item, nil
 			}
 		}
 	}
-	x.fail(errMissing)
+	return attachment{}, errMissing
 }
+
 func (x *request) readAttachmentUpload() (attachmentUpload, error) {
 	var input attachmentUpload
 	mediaType, params, err := mime.ParseMediaType(x.r.Header.Get("Content-Type"))
@@ -428,6 +434,10 @@ func openAttachmentDirectory(parent *os.Root, name string) (*os.Root, error) {
 	if err := parent.Mkdir(name, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 		return nil, err
 	}
+	return inspectAttachmentDirectory(parent, name)
+}
+
+func inspectAttachmentDirectory(parent *os.Root, name string) (*os.Root, error) {
 	named, err := parent.Lstat(name)
 	if err != nil || !named.IsDir() {
 		return nil, errors.New("attachment storage requires a directory")
@@ -438,11 +448,11 @@ func openAttachmentDirectory(parent *os.Root, name string) (*os.Root, error) {
 	}
 	opened, err := child.Stat(".")
 	if err != nil || !os.SameFile(named, opened) {
-		return nil, errors.Join(errors.New("attachment directory changed during publication"), child.Close())
+		return nil, errors.Join(errors.New("attachment directory changed during open"), child.Close())
 	}
 	named, err = parent.Lstat(name)
 	if err != nil || !named.IsDir() || !os.SameFile(named, opened) {
-		return nil, errors.Join(errors.New("attachment directory changed during publication"), child.Close())
+		return nil, errors.Join(errors.New("attachment directory changed during open"), child.Close())
 	}
 	return child, nil
 }

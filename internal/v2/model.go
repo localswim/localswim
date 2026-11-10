@@ -3,7 +3,6 @@ package v2
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -183,18 +182,18 @@ type comment struct {
 func (c comment) entityTag() string { return etag(c.ID, 1) }
 
 type snapshot struct {
-	Format        string            `json:"format"`
-	FormatVersion int               `json:"format_version"`
-	Board         board             `json:"board"`
-	Users         []user            `json:"users"`
-	Lanes         []lane            `json:"lanes"`
-	Priorities    []priority        `json:"priorities"`
-	Policy        policy            `json:"policy"`
-	Cards         []card            `json:"cards"`
-	Comments      []comment         `json:"comments"`
-	Relationships []json.RawMessage `json:"relationships"`
-	Attachments   []attachment      `json:"attachments"`
-	Activity      []activity        `json:"activity"`
+	Format        string         `json:"format"`
+	FormatVersion int            `json:"format_version"`
+	Board         board          `json:"board"`
+	Users         []user         `json:"users"`
+	Lanes         []lane         `json:"lanes"`
+	Priorities    []priority     `json:"priorities"`
+	Policy        policy         `json:"policy"`
+	Cards         []card         `json:"cards"`
+	Comments      []comment      `json:"comments"`
+	Relationships []relationship `json:"relationships"`
+	Attachments   []attachment   `json:"attachments"`
+	Activity      []activity     `json:"activity"`
 }
 
 func freshSnapshot(id, name string, wf workflow, actorID string, now time.Time) snapshot {
@@ -203,7 +202,7 @@ func freshSnapshot(id, name string, wf workflow, actorID string, now time.Time) 
 		Board: board{entity: newEntity(id, now), Name: name, DefaultOwnerID: botID, PolicyID: wf.Policy.ID, Availability: "open", Revision: 1,
 			UserIDs: []string{}, LaneIDs: []string{}, PriorityIDs: []string{}},
 		Users: wf.Users, Lanes: wf.Lanes, Priorities: wf.Priorities, Policy: wf.Policy,
-		Cards: []card{}, Comments: []comment{}, Relationships: []json.RawMessage{}, Attachments: []attachment{}, Activity: []activity{}}
+		Cards: []card{}, Comments: []comment{}, Relationships: []relationship{}, Attachments: []attachment{}, Activity: []activity{}}
 	for _, u := range wf.Users {
 		s.Board.UserIDs = append(s.Board.UserIDs, u.ID)
 	}

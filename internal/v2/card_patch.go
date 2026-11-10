@@ -13,6 +13,9 @@ type cardPatch struct {
 	laneID              *string
 	ownerID, parentID   *string
 	hasOwner, hasParent bool
+	archived            *bool
+	coverID             *string
+	hasCover            bool
 }
 
 func nullableCardID(raw json.RawMessage, field string) (*string, error) {
@@ -25,14 +28,12 @@ func nullableCardID(raw json.RawMessage, field string) (*string, error) {
 
 func readCardPatch(fields map[string]json.RawMessage) (cardPatch, error) {
 	var patch cardPatch
-	allowed := []string{"title", "description", "lane_id", "owner_id", "parent_id"}
+	allowed := []string{"title", "description", "lane_id", "owner_id", "parent_id", "archived", "cover_attachment_id"}
 	if err := rejectFields(fields, allowed, false); err != nil {
 		return patch, err
 	}
-	for _, field := range []string{"priority_id", "archived", "cover_attachment_id"} {
-		if _, exists := fields[field]; exists {
-			return patch, invalid(field, "This card edit is unavailable.")
-		}
+	if _, exists := fields["priority_id"]; exists {
+		return patch, invalid("priority_id", "This card edit is unavailable.")
 	}
 	recognized := false
 	for _, field := range allowed {
@@ -60,6 +61,19 @@ func readCardPatch(fields map[string]json.RawMessage) (cardPatch, error) {
 		var id string
 		id, err = inputID(raw, "owner_id")
 		patch.ownerID = &id
+		if err != nil {
+			return patch, err
+		}
+	}
+	if raw, present := fields["archived"]; present {
+		patch.archived, err = readArchived(raw)
+		if err != nil {
+			return patch, err
+		}
+	}
+	if raw, present := fields["cover_attachment_id"]; present {
+		patch.hasCover = true
+		patch.coverID, err = nullableCardID(raw, "cover_attachment_id")
 		if err != nil {
 			return patch, err
 		}
@@ -144,6 +158,26 @@ func (patch cardPatch) applyToCard(s *snapshot, item *card, tag, actor string, n
 			return err
 		}
 		changed = changed || assigned
+	}
+	if patch.archived != nil {
+		archived, err := applyCardArchive(s, item, *patch.archived, actor, now)
+		if err != nil {
+			return err
+		}
+		changed = changed || archived
+	}
+	if patch.hasCover {
+		if !s.can(actor, "manage_attachments") {
+			return errForbidden
+		}
+		if err := validateAttachmentCover(s, item.ID, patch.coverID); err != nil {
+			return err
+		}
+		if !equalSnapshotStrings(item.CoverAttachmentID, patch.coverID) {
+			recordCardAssignment(s, item.ID, actor, "cover_attachment_id", item.CoverAttachmentID, patch.coverID, now)
+			item.CoverAttachmentID = cloneSnapshotPointer(patch.coverID)
+			changed = true
+		}
 	}
 	if patch.hasParent {
 		if _, err := patchParent(s, item.ID, tag, patch.parentID, actor, now); err != nil {

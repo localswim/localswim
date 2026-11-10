@@ -226,3 +226,33 @@ The remaining window is T04–T06, rebased to remaining turns 1–3. Each row ta
 T04 and T05 plan five backend authors and the two client authors, with a peak of seven. T06 plans five backend authors, the M29 verification helper `sol_high_0412_checks` (gpt-6.1-sol / high), and the two client authors, with a planned peak of eight subject to the active session limit. `sol_medium_browser_author` (gpt-6.1-sol / medium) and `sol_medium_cli_author` (gpt-6.1-sol / medium) own the corresponding client work in each wave. Fresh client reviews use `sol_high_browser_review` (gpt-6.1-sol / high) and `sol_high_cli_review` (gpt-6.1-sol / high). Reviewers replace finished authors as slots open. The primary owns shared integration, final checks, publishing, and demonstration assembly.
 
 T03 delivered #0386 M03, #0387 M04, #0388 M05, #0401 M18, and #0406 M23 to Ready for Review. Terry’s acceptance is the remaining gate for their downstream work. The M17 newly granted move and M04 production browser checks were exercised in T03. The fuller M26 archive and recency demonstration still depends on M06. Its owner acceptance remains recorded on #0409. The completed M08 parent demonstration remains in the T02 record.
+
+## Rolling assignments revision 7
+
+T04 delivered #0389 M06, #0397 M14, #0392 M09, #0407 M24, and #0416 M33 to Ready for Review. The integrated source includes Terry’s required owner, numeric card and lane revisions, and immutable comment response decisions. The Windows gate, fresh backend and client reviews, disposable API and CLI walkthroughs, and production Chrome verification passed. The native notice was accepted and received in Dev Manager. The fuller M26 archive and recency evidence is captured under the existing Completed card #0409.
+
+T05 through T07 are the new remaining turns 1–3. Scope is recorded in owner-accepted #0375, #0376, and #0377 and their published acceptance contracts. The T04 prerequisite override applied to T04 only. A new turn requires Terry’s authorization and current prerequisite acceptance. Move an eligible card to In Progress before its work starts. [Milestone acceptance](milestone-plan.md) · [API contract](docs/openapi.yaml)
+
+| Remaining turn | Turn | Ticket | Scope | Author | Helper | Fresh reviewer | Prerequisite lanes at T04 handoff |
+| ---: | --- | --- | --- | --- | --- | --- | --- |
+| 1 | T05 | #0390 M07 | Expose attributed audit history and sanitized, bounded monitor intervals. | `sol_medium_0390_author` (gpt-6.1-sol / medium) | — | `sol_medium_0390_review` (gpt-6.1-sol / medium) | #0386 Completed, #0389 Ready for Review |
+| 1 | T05 | #0398 M15 | Approve exact rendered Ready for Review membership atomically. | `sol_high_0398_author` (gpt-6.1-sol / high) | — | `sol_high_0398_review` (gpt-6.1-sol / high) | #0397 Ready for Review |
+| 1 | T05 | #0402 M19 | Retire an empty active lane while preserving archived cards and history. | `sol_medium_0402_author` (gpt-6.1-sol / medium) | — | `sol_high_0402_review` (gpt-6.1-sol / high) | #0389 Ready for Review, #0401 Ready for Review |
+| 1 | T05 | #0393 M10 | Apply audited blocking priority floors across unfinished paths. | `sol_medium_0393_author` (gpt-6.1-sol / medium) | — | `sol_high_0393_review` (gpt-6.1-sol / high) | #0389 Ready for Review, #0391 Completed, #0392 Ready for Review |
+| 1 | T05 | #0408 M25 | Detach an active attachment, revoke content access and clear its cover. | `sol_medium_0408_author` (gpt-6.1-sol / medium) | — | `sol_high_0408_review` (gpt-6.1-sol / high) | #0407 Ready for Review |
+| 2 | T06 | #0403 M20 | Change a lane key while retaining its UUID and validating constraints. | `sol_medium_0403_author` (gpt-6.1-sol / medium) | — | `sol_high_0403_review` (gpt-6.1-sol / high) | #0402 Backlog |
+| 2 | T06 | #0394 M11 | Apply revision-checked priority batches and report effective changes. | `sol_medium_0394_author` (gpt-6.1-sol / medium) | — | `sol_high_0394_review` (gpt-6.1-sol / high) | #0393 Backlog |
+| 2 | T06 | #0395 M12 | Order visible swimlanes by priority and same-lane blockers. | `sol_medium_0395_author` (gpt-6.1-sol / medium) | — | `sol_medium_0395_review` (gpt-6.1-sol / medium) | #0393 Backlog |
+| 2 | T06 | #0404 M21 | Preview dependency-first ticket order for a selected lane. | `sol_medium_0404_author` (gpt-6.1-sol / medium) | — | `sol_medium_0404_review` (gpt-6.1-sol / medium) | #0393 Backlog |
+| 2 | T06 | #0412 M29 | Capture a coherent backup and independently verify concurrent edits and immutable attachment inventory. | `sol_high_0412_author` (gpt-6.1-sol / high) | `sol_high_0412_checks` (gpt-6.1-sol / high) | `sol_high_0412_review` (gpt-6.1-sol / high) | #0408 Backlog, #0411 Completed |
+| 3 | T07 | #0396 M13 | Search cards and compute whole-board triage before filters and limits. | `sol_medium_0396_author` (gpt-6.1-sol / medium) | — | `sol_medium_0396_review` (gpt-6.1-sol / medium) | #0395 Backlog |
+| 3 | T07 | #0405 M22 | Apply a current ticket-order preview, preserving card UUIDs and attachment anchors. | `sol_medium_0405_author` (gpt-6.1-sol / medium) | — | `sol_high_0405_review` (gpt-6.1-sol / high) | #0404 Backlog, #0406 Ready for Review |
+| 3 | T07 | #0413 M30 | Refuse damaged native backups and verify recovery at the existing board identity. | `sol_high_0413_author` (gpt-6.1-sol / high) | — | `sol_high_0413_review` (gpt-6.1-sol / high) | #0412 Backlog |
+| 3 | T07 | #0417 M34 | Publish exactly the verified backup paths and independently check staged-file preservation and lock behavior. | `sol_high_0417_author` (gpt-6.1-sol / high) | `sol_high_0417_checks` (gpt-6.1-sol / high) | `sol_high_0417_review` (gpt-6.1-sol / high) | #0412 Backlog |
+
+`sol_medium_browser_author` (gpt-6.1-sol / medium) owns browser changes for the milestones in the authorized turn. `sol_high_browser_review` (gpt-6.1-sol / high) provides the independent review.
+`sol_medium_cli_author` (gpt-6.1-sol / medium) owns cli changes for the milestones in the authorized turn. `sol_high_cli_review` (gpt-6.1-sol / high) provides the independent review.
+
+Fresh reviewers replace finished authors. The M29 and M34 verification helpers start after their separate test boundaries are available and an active slot is free. T05 and T07 can dispatch up to seven authors, helpers and clients. T06 has eight total assignments and can stagger the M29 helper if the turn is authorized with a smaller active limit. The primary owns integration, final checks, publishing, and demo assembly.
+
+Terry’s walkthroughs for the five T04 stories and the fuller M26 demonstration remain on the Dev Manager demo list. Terry controls completion and formal acceptance.

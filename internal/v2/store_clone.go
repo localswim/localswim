@@ -1,9 +1,6 @@
 package v2
 
-import (
-	"encoding/json"
-	"slices"
-)
+import "slices"
 
 // cloneSnapshot detaches every mutable field so a failed mutation or a
 // caller-held read result cannot change the accepted snapshot.
@@ -35,7 +32,7 @@ func cloneSnapshot(value snapshot) snapshot {
 		card.CompletedAt = cloneSnapshotPointer(card.CompletedAt)
 	}
 	value.Comments = slices.Clone(value.Comments)
-	value.Relationships = cloneSnapshotMessages(value.Relationships)
+	value.Relationships = slices.Clone(value.Relationships)
 	value.Attachments = slices.Clone(value.Attachments)
 	value.Activity = slices.Clone(value.Activity)
 	for index := range value.Activity {
@@ -53,12 +50,4 @@ func cloneSnapshotPointer[T any](value *T) *T {
 	}
 	detached := *value
 	return &detached
-}
-
-func cloneSnapshotMessages(values []json.RawMessage) []json.RawMessage {
-	values = slices.Clone(values)
-	for index := range values {
-		values[index] = slices.Clone(values[index])
-	}
-	return values
 }

@@ -17,6 +17,10 @@ func (x *request) dispatch() {
 		return
 	}
 	resource, rawID, hasID := strings.Cut(strings.TrimPrefix(x.r.URL.Path, Prefix+"/"), "/")
+	contentRoute := hasID && resource == "attachments" && strings.HasSuffix(rawID, "/content")
+	if contentRoute {
+		rawID = strings.TrimSuffix(rawID, "/content")
+	}
 	if hasID && (rawID == "" || strings.Contains(rawID, "/")) {
 		x.fail(errMissing)
 		return
@@ -65,6 +69,16 @@ func (x *request) dispatch() {
 	case "comments", "attachments":
 		if !hasID {
 			methods = append(methods, "POST")
+		}
+	case "relationships":
+		if hasID {
+			methods = append(methods, "PATCH", "DELETE")
+		} else {
+			methods = append(methods, "POST")
+		}
+	case "approvals":
+		if !hasID {
+			methods = []string{"POST"}
 		}
 	case "browser-session":
 		if hasID {
@@ -122,6 +136,10 @@ func (x *request) dispatch() {
 		x.eventsResource()
 		return
 	}
+	if contentRoute {
+		x.attachmentContent(id)
+		return
+	}
 	if !acceptsJSON(x.r.Header.Values("Accept")) {
 		x.problem(406, "not_acceptable", "This resource returns JSON.", "", nil)
 		return
@@ -162,6 +180,18 @@ func (x *request) dispatch() {
 			x.attachmentResource(id)
 		} else {
 			x.attachmentsCollection()
+		}
+	case "relationships":
+		if hasID {
+			x.relationshipResource(id)
+		} else {
+			x.relationshipsCollection()
+		}
+	case "approvals":
+		if hasID {
+			x.approvalResource(id)
+		} else {
+			x.createApproval()
 		}
 	case "browser-session":
 		x.bootstrapBrowser()

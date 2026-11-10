@@ -10,7 +10,9 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/localswim/localswim/internal/client"
@@ -19,7 +21,9 @@ import (
 
 const cliHelp = `Usage:
   localswim workspace info
-  localswim workspace pins [--revision N] < pins.json
+  localswim workspace pin set [--revision N] [BOARD_ID ...]
+  localswim workspace pin add [--revision N] BOARD_ID
+  localswim workspace pin remove [--revision N] BOARD_ID [BOARD_ID ...]
   localswim board list [--limit N] [--cursor CURSOR]
   localswim board create --name NAME
   localswim board create --json < definition.json
@@ -36,7 +40,9 @@ Board creation requires exactly one of --name or --json.
 --json reads a new board definition from standard input.
 Set --data on board verify to read the private board data offline.
 Board export writes JSON to standard output. The default --type is json.
-Workspace pins accepts a JSON object with pinned_board_ids in the desired order.
+Pin set replaces the order. With no IDs, it clears all pins.
+Pin add appends one board.
+Pin remove preserves the order of the remaining boards.
 Omit --revision to read the current revision once before updating.
 Supply --revision to require the version you previously inspected.
 `
@@ -64,6 +70,8 @@ type cliCommand struct {
 	method, resource, boardID, dataDir string
 	revision                           *uint64
 	body                               json.RawMessage
+	pinAction                          string
+	pinIDs                             []string
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -104,6 +112,19 @@ func parseCLI(args []string) (cliCommand, error) {
 		return command, errors.New("a command group and action are required")
 	}
 
+	name := args[0] + " " + args[1]
+	optionArgs := args[2:]
+	if name == "workspace pin" {
+		if len(optionArgs) == 0 {
+			return command, errors.New("workspace pin requires set, add, or remove")
+		}
+		if optionArgs[0] == "--help" || optionArgs[0] == "-h" {
+			return command, flag.ErrHelp
+		}
+		name += " " + optionArgs[0]
+		optionArgs = optionArgs[1:]
+	}
+
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	needBoardID := false
@@ -113,11 +134,12 @@ func parseCLI(args []string) (cliCommand, error) {
 	var jsonInput bool
 	paginated := false
 	format := exportJSON
-	switch args[0] + " " + args[1] {
+	switch name {
 	case "workspace info":
 		command.method, command.resource = http.MethodGet, "/workspace"
-	case "workspace pins":
+	case "workspace pin set", "workspace pin add", "workspace pin remove":
 		command.method, command.resource = http.MethodPatch, "/workspace"
+		command.pinAction = args[2]
 	case "board list":
 		command.method, command.resource = http.MethodGet, "/boards"
 		paginated = true
@@ -158,7 +180,7 @@ func parseCLI(args []string) (cliCommand, error) {
 		flags.IntVar(&limit, "limit", 50, "page size")
 		flags.StringVar(&cursor, "cursor", "", "cursor from the preceding page")
 	}
-	if err := flags.Parse(args[2:]); err != nil {
+	if err := flags.Parse(optionArgs); err != nil {
 		return command, fmt.Errorf("invalid command options (%w)", err)
 	}
 	if paginated {
@@ -195,7 +217,25 @@ func parseCLI(args []string) (cliCommand, error) {
 			}
 		}
 	}
-	if needBoardID {
+	if command.pinAction != "" {
+		if (command.pinAction == "add" && flags.NArg() != 1) || (command.pinAction == "remove" && flags.NArg() == 0) {
+			return command, errors.New("pin add requires one board ID and pin remove requires at least one")
+		}
+		if flags.NArg() > 1000 {
+			return command, errors.New("pin commands accept at most 1000 board IDs")
+		}
+		command.pinIDs = make([]string, 0, flags.NArg())
+		for _, id := range flags.Args() {
+			if !boardIDPattern.MatchString(id) {
+				return command, errors.New("expected UUIDv4 board IDs")
+			}
+			id = strings.ToLower(id)
+			if slices.Contains(command.pinIDs, id) {
+				return command, errors.New("duplicate board ID")
+			}
+			command.pinIDs = append(command.pinIDs, id)
+		}
+	} else if needBoardID {
 		count, expected := 1, "expected one UUIDv4 board ID"
 		if rename {
 			count, expected = 2, "expected a UUIDv4 board ID followed by one new name (quote names containing spaces)"
@@ -252,7 +292,7 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout io.Writer, getenv fu
 		return err
 	}
 	body := command.body
-	if body == nil && (command.method == http.MethodPost || command.method == http.MethodPatch) {
+	if body == nil && command.pinAction == "" && (command.method == http.MethodPost || command.method == http.MethodPatch) {
 		body, err = io.ReadAll(io.LimitReader(stdin, maxCLIInput+1))
 		if err != nil || len(body) > maxCLIInput || !client.IsJSONObject(body) {
 			return errors.New("standard input must contain one valid JSON object within 96 MiB")
@@ -278,6 +318,12 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout io.Writer, getenv fu
 				return fmt.Errorf("revision mismatch (expected %d, current %d)", *command.revision, *value.Revision)
 			}
 		}
+		if command.pinAction != "" {
+			body, err = pinRequestBody(command.pinAction, command.pinIDs, current.JSON)
+			if err != nil {
+				return err
+			}
+		}
 		ifMatch = current.ETag
 	}
 	reply, err := api.Do(command.method, command.resource, body, ifMatch)
@@ -291,4 +337,25 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout io.Writer, getenv fu
 		return errors.New("could not write the API response")
 	}
 	return nil
+}
+
+func pinRequestBody(action string, requested []string, current json.RawMessage) (json.RawMessage, error) {
+	pins := requested
+	if action != "set" {
+		var workspace struct {
+			PinnedBoardIDs []string `json:"pinned_board_ids"`
+		}
+		if err := json.Unmarshal(current, &workspace); err != nil || workspace.PinnedBoardIDs == nil || len(workspace.PinnedBoardIDs) > 1000 {
+			return nil, errors.New("service did not return a valid pinned board list")
+		}
+		pins = workspace.PinnedBoardIDs
+		if action == "add" {
+			if !slices.Contains(pins, requested[0]) {
+				pins = append(pins, requested[0])
+			}
+		} else {
+			pins = slices.DeleteFunc(pins, func(id string) bool { return slices.Contains(requested, id) })
+		}
+	}
+	return json.Marshal(map[string][]string{"pinned_board_ids": pins})
 }

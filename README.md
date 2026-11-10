@@ -64,7 +64,7 @@ For a custom workflow, pipe its board definition into `localswim board create --
 Choose exactly one of `--name` or `--json`.
 
 Rename a board with `localswim board rename [--revision N] BOARD_ID "New name"`.
-`board rename`, `board patch`, and `workspace pins` accept optional `--revision N`.
+`board rename`, `board patch`, and `workspace pin` commands accept optional `--revision N`.
 Supply a previously read revision to reject changes since that read, or omit it
 to read the latest revision before updating. Put options before positional arguments.
 
@@ -72,6 +72,11 @@ At least one active lane must permit card creation through both a lane grant
 and a member’s `create_card` capability. Every active lane must reach Completed
 through directed move grants, with actor handoffs allowed. Creation and native
 snapshot admission check these rules after shorthand expansion.
+
+Use `workspace pin set ID [ID ...]` to replace the pin order, `workspace pin add ID`
+to append one board, and `workspace pin remove ID [ID ...]` to unpin boards.
+An empty `workspace pin set` clears all pins. Repeated adds and removing unpinned
+boards leave the order alone.
 
 A V2 data directory has one writer. Native board snapshots live in `boards/`.
 The verification endpoint and `board verify --data <directory> <board-id>`

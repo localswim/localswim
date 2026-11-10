@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -155,7 +156,7 @@ func TestCLIWorkspacePinsUsesOneRevisionBoundMutation(t *testing.T) {
 	env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
 	getenv := func(key string) string { return env[key] }
 	var stdout, stderr bytes.Buffer
-	exit := runCLIWithInput([]string{"workspace", "pins"}, strings.NewReader(pinBody), &stdout, &stderr, getenv)
+	exit := runCLIWithInput([]string{"workspace", "pin", "set"}, strings.NewReader(pinBody), &stdout, &stderr, getenv)
 	if exit != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "412") || requests.Load() != 2 {
 		t.Fatalf("wrong stale mutation result: exit %d, requests %d, stderr %q", exit, requests.Load(), &stderr)
 	}
@@ -254,7 +255,7 @@ func TestCLIExplicitRevisionUsesTheMatchingResourceTag(t *testing.T) {
 	}{
 		{"rename", "/boards/" + id, "", `{"name":"New name"}`, []string{"board", "rename", id, "New name"}},
 		{"patch", "/boards/" + id, `{"name":"New name"}`, `{"name":"New name"}`, []string{"board", "patch", id}},
-		{"pins", "/workspace", `{"pinned_board_ids":[]}`, `{"pinned_board_ids":[]}`, []string{"workspace", "pins"}},
+		{"pins", "/workspace", `{"pinned_board_ids":[]}`, `{"pinned_board_ids":[]}`, []string{"workspace", "pin", "set"}},
 	} {
 		for _, expected := range []string{"1", "3"} {
 			t.Run(command.name+" revision "+expected, func(t *testing.T) {
@@ -276,9 +277,13 @@ func TestCLIExplicitRevisionUsesTheMatchingResourceTag(t *testing.T) {
 					w.Write([]byte(`{"revision":2}`))
 				}))
 				defer server.Close()
-				args := append([]string{}, command.args[:2]...)
+				offset := 2
+				if command.args[1] == "pin" {
+					offset = 3
+				}
+				args := append([]string{}, command.args[:offset]...)
 				args = append(args, "--revision", expected)
-				args = append(args, command.args[2:]...)
+				args = append(args, command.args[offset:]...)
 				env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
 				var stdout, stderr bytes.Buffer
 				exit := runCLIWithInput(args, strings.NewReader(command.input), &stdout, &stderr, func(key string) string { return env[key] })
@@ -297,7 +302,7 @@ func TestCLIExplicitRevisionUsesTheMatchingResourceTag(t *testing.T) {
 func TestCLIRevisionRequiresAnExactValidNumber(t *testing.T) {
 	for _, value := range []string{"", "0", "-1", "1.5", "true", "0x10", "9007199254740992", "18446744073709551616"} {
 		var stdout, stderr bytes.Buffer
-		exit := runCLIWithInput([]string{"workspace", "pins", "--revision", value}, strings.NewReader(`{"pinned_board_ids":[]}`),
+		exit := runCLIWithInput([]string{"workspace", "pin", "set", "--revision", value}, strings.NewReader(`{"pinned_board_ids":[]}`),
 			&stdout, &stderr, func(string) string { t.Fatal("invalid revision reached execution"); return "" })
 		if exit != 2 || stdout.Len() != 0 || stderr.Len() == 0 {
 			t.Fatalf("invalid revision %q was accepted", value)
@@ -318,11 +323,96 @@ func TestCLIExplicitRevisionRefusesInvalidResourceRevision(t *testing.T) {
 		}))
 		env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
 		var stdout, stderr bytes.Buffer
-		exit := runCLIWithInput([]string{"workspace", "pins", "--revision", "1"}, strings.NewReader(`{"pinned_board_ids":[]}`),
+		exit := runCLIWithInput([]string{"workspace", "pin", "set", "--revision", "1"}, strings.NewReader(`{"pinned_board_ids":[]}`),
 			&stdout, &stderr, func(key string) string { return env[key] })
 		server.Close()
 		if exit != 1 || requests.Load() != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "valid resource revision") {
 			t.Fatalf("invalid resource revision was accepted: %s", body)
+		}
+	}
+}
+
+func TestCLIPinActionsPreserveOrderAndUseOneGuardedSave(t *testing.T) {
+	const a = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	const b = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+	const c = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+	for _, tc := range []struct {
+		name   string
+		args   []string
+		want   []string
+		refuse bool
+	}{
+		{"replace order", []string{"set", b, a}, []string{b, a}, false},
+		{"clear", []string{"set"}, []string{}, false},
+		{"append", []string{"add", c}, []string{a, b, c}, false},
+		{"already pinned", []string{"add", strings.ToUpper(b)}, []string{a, b}, false},
+		{"remove", []string{"remove", a}, []string{b}, false},
+		{"remove absent", []string{"remove", c}, []string{a, b}, false},
+		{"remove all", []string{"remove", a, b}, []string{}, false},
+		{"stale unchanged add", []string{"add", b}, []string{a, b}, true},
+		{"stale unchanged remove", []string{"remove", c}, []string{a, b}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/2026-11-10/workspace" || r.Header.Get("Authorization") != "Bearer test-token" {
+					t.Error("wrong pin resource or authorization")
+				}
+				switch requests.Add(1) {
+				case 1:
+					if r.Method != http.MethodGet {
+						t.Error("expected one initial read")
+					}
+					w.Header().Set("ETag", `"workspace-current-tag"`)
+					json.NewEncoder(w).Encode(map[string]any{"revision": 1, "pinned_board_ids": []string{a, b}})
+				case 2:
+					var body struct {
+						Pins []string `json:"pinned_board_ids"`
+					}
+					if json.NewDecoder(r.Body).Decode(&body) != nil || !slices.Equal(body.Pins, tc.want) || body.Pins == nil ||
+						r.Method != http.MethodPatch || r.Header.Get("If-Match") != `"workspace-current-tag"` {
+						t.Error("wrong ordered list or revision guard")
+					}
+					if tc.refuse {
+						w.WriteHeader(http.StatusPreconditionFailed)
+						return
+					}
+					w.Header().Set("ETag", `"workspace-result-tag"`)
+					json.NewEncoder(w).Encode(map[string]any{"revision": 2, "pinned_board_ids": body.Pins})
+				default:
+					t.Error("pin operation performed extra requests")
+				}
+			}))
+			defer server.Close()
+			args := append([]string{"workspace", "pin"}, tc.args...)
+			env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
+			var stdout, stderr bytes.Buffer
+			exit := runCLIWithInput(args, strings.NewReader("invalid JSON must not be read"), &stdout, &stderr, func(key string) string { return env[key] })
+			if requests.Load() != 2 || (tc.refuse && (exit != 1 || !strings.Contains(stderr.String(), "412"))) ||
+				(!tc.refuse && (exit != 0 || stderr.Len() != 0)) {
+				t.Fatalf("pin result exit %d, requests %d, stderr %q", exit, requests.Load(), &stderr)
+			}
+		})
+	}
+}
+
+func TestCLIPinArgumentsFailBeforeExecution(t *testing.T) {
+	const a = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	for _, args := range [][]string{
+		{"workspace", "pin"},
+		{"workspace", "pin", "invalid"},
+		{"workspace", "pin", "add"},
+		{"workspace", "pin", "add", a, a},
+		{"workspace", "pin", "remove"},
+		{"workspace", "pin", "set", "bad"},
+		{"workspace", "pin", "set", a, strings.ToUpper(a)},
+		{"workspace", "pin", "remove", a, strings.ToUpper(a)},
+	} {
+		var stdout, stderr bytes.Buffer
+		exit := runCLIWithInput(args, strings.NewReader(""), &stdout, &stderr,
+			func(string) string { t.Fatal("invalid pin arguments reached execution"); return "" })
+		if exit != 2 || stdout.Len() != 0 || stderr.Len() == 0 {
+			t.Fatalf("invalid arguments accepted: %v", args)
 		}
 	}
 }

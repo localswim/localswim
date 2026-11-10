@@ -150,12 +150,7 @@ func singleQuery(r *http.Request, field string) (string, error) {
 	return "", nil
 }
 
-type resultPage[T any] struct {
-	Items      []T     `json:"items"`
-	NextCursor *string `json:"nextCursor"`
-}
-
-func page[T any](x *request, items []T) {
+func page[T any](x *request, resource string, items []T) {
 	limitValue, err := singleQuery(x.r, "limit")
 	if err != nil {
 		x.fail(err)
@@ -202,10 +197,10 @@ func page[T any](x *request, items []T) {
 		}
 	}
 	end := min(start+limit, len(items))
-	result := resultPage[T]{Items: items[start:end]}
+	var nextCursor *string
 	if end < len(items) {
 		next := base64.RawURLEncoding.EncodeToString([]byte(scope + ":" + strconv.Itoa(end)))
-		result.NextCursor = &next
+		nextCursor = &next
 	}
-	x.respond(200, result, "")
+	x.respond(200, map[string]any{resource: items[start:end], "nextCursor": nextCursor}, "")
 }

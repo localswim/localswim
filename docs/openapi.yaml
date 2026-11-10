@@ -8,7 +8,9 @@ info:
     planned surface; they do not claim that endpoints are already implemented. Outputs are closed and
     canonical. Ordinary input ignores unknown harmless members, accepts mixed-case UUIDv4 and documented
     case-insensitive enums, and retains user text exactly. Ambiguous JSON, protected attribution, invalid
-    types, and unauthorized operations are refused.
+    types, and unauthorized operations are refused. Collection responses use their plural resource name
+    for the array, including activities for either activity view and boards for workspace summaries.
+    Empty collections return an empty array. The nextCursor field retains its pagination meaning.
 servers:
 - url: /api/2026-11-10
   description: Same origin as the local UI. The service binds only to 127.0.0.1 at its configured port.
@@ -14185,10 +14187,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - boards
       - nextCursor
       properties:
-        items:
+        boards:
           type: array
           items:
             $ref: '#/components/schemas/Board'
@@ -14203,10 +14205,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - users
       - nextCursor
       properties:
-        items:
+        users:
           type: array
           items:
             $ref: '#/components/schemas/User'
@@ -14221,10 +14223,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - priorities
       - nextCursor
       properties:
-        items:
+        priorities:
           type: array
           items:
             $ref: '#/components/schemas/Priority'
@@ -14239,10 +14241,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - lanes
       - nextCursor
       properties:
-        items:
+        lanes:
           type: array
           items:
             $ref: '#/components/schemas/Lane'
@@ -14257,10 +14259,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - cards
       - nextCursor
       properties:
-        items:
+        cards:
           type: array
           items:
             $ref: '#/components/schemas/Card'
@@ -14275,10 +14277,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - comments
       - nextCursor
       properties:
-        items:
+        comments:
           type: array
           items:
             $ref: '#/components/schemas/Comment'
@@ -14293,10 +14295,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - attachments
       - nextCursor
       properties:
-        items:
+        attachments:
           type: array
           items:
             $ref: '#/components/schemas/Attachment'
@@ -14311,10 +14313,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - relationships
       - nextCursor
       properties:
-        items:
+        relationships:
           type: array
           items:
             $ref: '#/components/schemas/Relationship'
@@ -14329,10 +14331,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - publications
       - nextCursor
       properties:
-        items:
+        publications:
           type: array
           items:
             $ref: '#/components/schemas/Publication'
@@ -14347,10 +14349,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - builds
       - nextCursor
       properties:
-        items:
+        builds:
           type: array
           items:
             $ref: '#/components/schemas/Build'
@@ -14365,10 +14367,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - activities
       - nextCursor
       properties:
-        items:
+        activities:
           type: array
           items:
             $ref: '#/components/schemas/Change'
@@ -14383,10 +14385,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - activities
       - nextCursor
       properties:
-        items:
+        activities:
           type: array
           items:
             $ref: '#/components/schemas/ActivityMetadata'
@@ -16040,10 +16042,10 @@ components:
       type: object
       additionalProperties: false
       required:
-      - items
+      - boards
       - nextCursor
       properties:
-        items:
+        boards:
           type: array
           items:
             $ref: '#/components/schemas/BoardSummary'

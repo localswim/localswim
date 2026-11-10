@@ -35,7 +35,7 @@ The listed milestone prerequisites supply the arrows and turn batches. Turn 1 co
 
 Agree on board and card IDs, actor context, revision checks, and one mutation transaction before work fans out. Give one integration owner the shared schema and routes. Other owners work in separate feature files. Use small fixtures for focused tests once the milestone prerequisites are in place. Each milestone gets its own live API demo once its prerequisites are available. Move its card to Ready for Review when implementation, required checks, and independent review finish. Track a deferred walkthrough as Demo pending.
 
-Take a demo break every three hours of build time. Work advances as its prerequisites are ready. Each break gets its lineup from all milestones that landed on the integrated build during that block. Show each one using its demo below. A deferred demo goes into the first break after its prerequisites are ready.
+Demo at least once every three hours of build time. At the end of a turn, demo any milestones in Ready for Review that can demo, even if less than three hours have elapsed. Work advances as its prerequisites are ready. Each break gets its lineup from all milestones that landed on the integrated build during that block. Show each one using its demo below. A deferred demo goes into the first break after its prerequisites are ready.
 
 ## API demos
 

@@ -21,7 +21,7 @@ test("reads the workspace and catalog as independent same-origin resources", asy
     assert.equal(options.cache, "no-store");
     assert.equal(options.headers.get("Authorization"), "Bearer fixture-capability");
     const workspace = url.endsWith("/workspace");
-    return Response.json(workspace ? { pinnedBoardIds: [] } : { items: [] }, {
+    return Response.json(workspace ? { pinnedBoardIds: [] } : { boards: [], nextCursor: null }, {
       headers: { ETag: workspace ? TAG : '"board_catalog_04"' },
     });
   }, () => {
@@ -31,7 +31,7 @@ test("reads the workspace and catalog as independent same-origin resources", asy
 
   assert.deepEqual(await readWorkspaceOverview(api), {
     workspace: { data: { pinnedBoardIds: [] }, etag: TAG },
-    boards: { data: { items: [] }, etag: '"board_catalog_04"' },
+    boards: { data: { boards: [], nextCursor: null }, etag: '"board_catalog_04"' },
   });
   assert.deepEqual(calls, ["/api/2026-11-10/workspace", "/api/2026-11-10/boards"]);
   assert.equal(capabilityRequests, 2);

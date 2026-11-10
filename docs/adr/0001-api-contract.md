@@ -12,6 +12,7 @@ Status: Accepted for the owner-approved decisions below. The detailed OpenAPI do
 - Keep human ticket numbers and board-local lane/priority keys separate from entity IDs. M20 changes a lane key, never its UUID. Preserve the completed-lane role independently of its display label.
 - Keep timestamps and ordering explicit. Use 16-byte UUID storage where practical.
 - Publish closed response schemas with canonical values. Accept harmless input variation without weakening meaning or authority. Preserve user text exactly.
+- Name each collection response array for its plural resource, such as `boards`, `cards`, or `builds`. Both activity views use `activities`. Workspace board summaries use `boards`. Empty collections return an empty array, and `nextCursor` retains its pagination meaning.
 
 ## Contract details
 

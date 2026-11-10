@@ -56,6 +56,25 @@ func turnOneDecode[T any](t *testing.T, data []byte) T {
 	return value
 }
 
+type collectionPage[T any] struct {
+	Values     []T
+	NextCursor *string
+}
+
+func turnOnePage[T any](t *testing.T, data []byte, resource string) collectionPage[T] {
+	t.Helper()
+	fields := turnOneDecode[map[string]json.RawMessage](t, data)
+	values, hasValues := fields[resource]
+	cursor, hasCursor := fields["nextCursor"]
+	if len(fields) != 2 || !hasValues || !hasCursor || len(values) == 0 || values[0] != '[' {
+		t.Fatalf("expected only %s array and nextCursor: %s", resource, data)
+	}
+	return collectionPage[T]{
+		Values:     turnOneDecode[[]T](t, values),
+		NextCursor: turnOneDecode[*string](t, cursor),
+	}
+}
+
 func TestTurnOneLiveHTTP(t *testing.T) {
 	root := t.TempDir()
 	human := base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("h", 32)))
@@ -87,6 +106,15 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 		_ = competing.Close()
 		t.Fatal("a second writer opened the same data directory")
 	}
+
+	raw, _ := c.call("GET", "/boards", "", "", 200)
+	if page := turnOnePage[boardSummary](t, raw, "boards"); len(page.Values) != 0 || page.NextCursor != nil {
+		t.Fatal("expected an empty terminal board page")
+	}
+	raw, _ = c.call("GET", "/builds", "", "", 200)
+	if page := turnOnePage[build](t, raw, "builds"); len(page.Values) != 0 || page.NextCursor != nil {
+		t.Fatal("expected an empty terminal build page")
+	}
 	raw, h := c.call("POST", "/boards", `{"name":"First"}`, "", 201)
 	first := turnOneDecode[board](t, raw)
 	if h.Get("Location") != Prefix+"/boards/"+first.ID || h.Get("ETag") != first.ETag {
@@ -95,8 +123,25 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	raw, _ = c.call("POST", "/boards", `{"name":"Second"}`, "", 201)
 	second := turnOneDecode[board](t, raw)
 	raw, _ = c.call("GET", "/boards", "", "", 200)
-	if got := turnOneDecode[resultPage[boardSummary]](t, raw); len(got.Items) != 2 || first.ID == second.ID {
+	if got := turnOnePage[boardSummary](t, raw, "boards"); len(got.Values) != 2 || first.ID == second.ID {
 		t.Fatal("expected two isolated boards")
+	}
+
+	for _, resource := range []string{"users", "lanes", "priorities"} {
+		raw, _ = c.call("GET", "/"+resource+"?boardId="+first.ID, "", "", 200)
+		if page := turnOnePage[json.RawMessage](t, raw, resource); len(page.Values) == 0 || page.NextCursor != nil {
+			t.Fatalf("expected nonempty terminal %s page", resource)
+		}
+	}
+	raw, _ = c.call("GET", "/boards?limit=1", "", "", 200)
+	firstPage := turnOnePage[boardSummary](t, raw, "boards")
+	if len(firstPage.Values) != 1 || firstPage.NextCursor == nil {
+		t.Fatal("expected one board and a continuation cursor")
+	}
+	raw, _ = c.call("GET", "/boards?limit=1&cursor="+*firstPage.NextCursor, "", "", 200)
+	lastPage := turnOnePage[boardSummary](t, raw, "boards")
+	if len(lastPage.Values) != 1 || lastPage.NextCursor != nil || firstPage.Values[0].ID == lastPage.Values[0].ID {
+		t.Fatal("expected the remaining distinct board and a terminal cursor")
 	}
 	verifyTurnOneCustomWorkflow(t, c, bot)
 	firstPath := "/boards/" + first.ID
@@ -181,7 +226,7 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	c.call("GET", firstPath, "", "", 200)
 	c.call("GET", "/snapshots/"+first.ID, "", "", 503)
 	raw, _ = c.call("GET", "/boards", "", "", 200)
-	for _, item := range turnOneDecode[resultPage[boardSummary]](t, raw).Items {
+	for _, item := range turnOnePage[boardSummary](t, raw, "boards").Values {
 		if item.ID == first.ID && item.Attention != nil {
 			t.Fatal("damaged board showed known counts")
 		}
@@ -199,11 +244,11 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw, _ = c.call("GET", "/builds", "", "", 200)
-	candidates := turnOneDecode[resultPage[build]](t, raw)
-	if len(candidates.Items) != 1 || candidates.Items[0].Validation != "invalid" {
+	candidates := turnOnePage[build](t, raw, "builds")
+	if len(candidates.Values) != 1 || candidates.Values[0].Validation != "invalid" {
 		t.Fatal("damaged staged manifest was not reported")
 	}
-	c.call("GET", "/builds/"+candidates.Items[0].ID, "", "", 200)
+	c.call("GET", "/builds/"+candidates.Values[0].ID, "", "", 200)
 	runningAfter, _ := c.call("GET", "/service", "", "", 200)
 	if string(runningBefore) != string(runningAfter) {
 		t.Fatal("invalid staging changed running service status")
@@ -227,7 +272,7 @@ func verifyTurnOneCustomWorkflow(t *testing.T, c turnOneClient, bot string) {
 	badIdentity := strings.Replace(body, `"label":"Human"`, `"label":"Unrelated"`, 1)
 	c.call("POST", "/boards", badIdentity, "", 409)
 	raw, _ := c.call("GET", "/boards", "", "", 200)
-	if len(turnOneDecode[resultPage[boardSummary]](t, raw).Items) != 2 {
+	if len(turnOnePage[boardSummary](t, raw, "boards").Values) != 2 {
 		t.Fatal("invalid custom workflow was saved")
 	}
 	raw, _ = c.call("POST", "/boards", body, "", 201)
@@ -236,8 +281,8 @@ func verifyTurnOneCustomWorkflow(t *testing.T, c turnOneClient, bot string) {
 		t.Fatal("custom workflow identities did not resolve")
 	}
 	raw, _ = c.call("GET", "/lanes?boardId="+created.ID, "", "", 200)
-	lanes := turnOneDecode[resultPage[lane]](t, raw)
-	if len(lanes.Items) != 2 || lanes.Items[0].Label != "Inbox" || lanes.Items[1].Role != "completed" {
+	lanes := turnOnePage[lane](t, raw, "lanes")
+	if len(lanes.Values) != 2 || lanes.Values[0].Label != "Inbox" || lanes.Values[1].Role != "completed" {
 		t.Fatal("saved lanes differ from custom workflow")
 	}
 	raw, _ = c.call("GET", "/policies/"+created.PolicyID, "", "", 200)

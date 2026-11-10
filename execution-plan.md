@@ -100,9 +100,13 @@ Before actual implementation, check the ticket's lane, scope, and prerequisite a
 
 ## Demo and rolling handoff
 
-**Include in every turn kickoff.** Move a milestone card to Ready for Review as soon as its assigned subagents have finished and implementation, required checks, and independent review are complete. Demos do not gate the lane move. Record any outstanding live walkthrough as Demo pending with its prerequisites, then show it at the first three-hour demo break after it is runnable. Terry controls Completed.
+**Include in every turn kickoff.** Move a milestone card to Ready for Review as soon as its assigned subagents have finished and implementation, required checks, and independent review are complete. Demos do not gate the lane move. Record any outstanding live walkthrough as Demo pending with its prerequisites, then show it at the next eligible demo break. Terry controls Completed.
 
-Every three hours of build time, demo the milestones that landed and are runnable on the integrated build. Track pending demos separately from unfinished implementation or review. Demo-only carryover does not reserve a developer or reviewer slot, or add a prerequisite to downstream implementation. If a demo exposes a defect, record the actual finding as work carryover.
+Demo at least once every three hours of build time. At the end of a turn, demo any milestones in Ready for Review that can demo, even if less than three hours have elapsed.
+
+Finish the T01 walkthroughs before starting T02. T02 starts with its demo clock at zero. T01 build time does not carry into that clock. Prefer actual CLI or web UI demonstrations where implemented, showing the available command help and real output. Present one milestone per chat turn at Terry’s pace.
+
+Track pending demos separately from unfinished implementation or review. Demo-only carryover does not reserve a developer or reviewer slot, or add a prerequisite to downstream implementation. If a demo exposes a defect, record the actual finding as work carryover.
 
 At the end of each execution turn, reconcile actual landings, reviews, Terry's acceptance, work carryover, and the pending demo list. Refresh the next three remaining-turn assignments with the same explicit author, helper, reviewer, model/effort, scope, and readiness fields. Preserve the original turn IDs as this baseline and retain previous assignment revisions. The initial remaining-turn window is Turns 1, 2, and 3 above.
 

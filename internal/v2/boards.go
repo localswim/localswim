@@ -18,7 +18,7 @@ func (x *request) listBoards() {
 		rows = append(rows, summarize(s, err))
 	}
 	sortSummaries(rows)
-	page(x, rows)
+	page(x, "boards", rows)
 }
 
 func (x *request) createBoard() {
@@ -193,11 +193,11 @@ func (x *request) workflowCollection(resource string) {
 	}
 	switch resource {
 	case "users":
-		page(x, s.Users)
+		page(x, "users", s.Users)
 	case "lanes":
-		page(x, s.Lanes)
+		page(x, "lanes", s.Lanes)
 	case "priorities":
-		page(x, s.Priorities)
+		page(x, "priorities", s.Priorities)
 	}
 }
 func (x *request) policyResource(id string) {
@@ -274,7 +274,7 @@ func (x *request) buildsResource(id string) {
 		if items == nil {
 			items = []build{}
 		}
-		page(x, items)
+		page(x, "builds", items)
 		return
 	}
 	for _, item := range items {

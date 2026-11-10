@@ -194,8 +194,8 @@ func parseCLI(args []string) (cliCommand, error) {
 	}
 	if revisionValue != "" {
 		revision, err := strconv.ParseUint(revisionValue, 10, 64)
-		if err != nil || revision > maxCLIRevision {
-			return command, errors.New("--revision requires an integer from 0 to 9007199254740991")
+		if err != nil || revision == 0 || revision > maxCLIRevision {
+			return command, errors.New("--revision requires an integer from 1 to 9007199254740991")
 		}
 		command.revision = &revision
 	}
@@ -238,7 +238,7 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout io.Writer, getenv fu
 			var value struct {
 				Revision *uint64 `json:"revision"`
 			}
-			if json.Unmarshal(current.JSON, &value) != nil || value.Revision == nil || *value.Revision > maxCLIRevision {
+			if json.Unmarshal(current.JSON, &value) != nil || value.Revision == nil || *value.Revision == 0 || *value.Revision > maxCLIRevision {
 				return errors.New("service did not return a valid resource revision")
 			}
 			if *value.Revision != *command.revision {

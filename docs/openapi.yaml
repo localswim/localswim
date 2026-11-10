@@ -13703,6 +13703,7 @@ components:
       properties:
         revision:
           $ref: '#/components/schemas/Revision'
+          minimum: 1
         etag:
           $ref: '#/components/schemas/EntityTag'
         pinned_board_ids:

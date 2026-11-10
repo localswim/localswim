@@ -60,7 +60,7 @@ func (s *workspaceStore) load() (workspacePreferences, error) {
 	unavailable := workspacePreferences{}
 	info, err := os.Lstat(s.path)
 	if errors.Is(err, os.ErrNotExist) {
-		return workspacePreferences{PinnedBoardIDs: []string{}}, nil
+		return workspacePreferences{Revision: 1, PinnedBoardIDs: []string{}}, nil
 	}
 	if err != nil || !info.Mode().IsRegular() || info.Size() > maxWorkspaceFile {
 		return unavailable, errWorkspaceUnavailable

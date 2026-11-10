@@ -23,7 +23,7 @@ During the reboot, use only the current API, CLI, and storage contracts. Use fre
 
 Ordinary input objects ignore unknown, non-protected fields. Security-sensitive commands are closed. Mixed-case UUIDs and documented enum spellings are accepted. Duplicate JSON keys, conflicting selectors, wrong types, protected attribution/identity writes, and malformed known values are refused. Empty or unknown-only patches refuse. External chat UUIDs have their own schema and can use UUID versions other than v4.
 
-CLI updates accept `--revision N` to require the numeric `revision` from a prior read. The CLI fetches the current representation, compares any supplied revision, and uses the returned ETag for the write. With no explicit revision, only changes after that fetch are guarded.
+CLI updates accept `--revision N` to require the positive numeric `revision` from a prior read. The CLI fetches the current representation, compares any supplied revision, and uses the returned ETag for the write. With no explicit revision, only changes after that fetch are guarded.
 
 Item writes use the addressed resource's strong ETag. Operations spanning resources carry explicit board/card preconditions in their bodies. Data, permission checks, derived changes, and audit commit together. A lost or unreadable write response requires inspection before another attempt.
 

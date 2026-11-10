@@ -23,13 +23,13 @@ func TestWorkspacePinsPersistCanonicalOrder(t *testing.T) {
 	root := t.TempDir()
 	store := newWorkspace(root)
 	initial, err := store.read()
-	if err != nil || initial.PinnedBoardIDs == nil || len(initial.PinnedBoardIDs) != 0 {
+	if err != nil || initial.Revision != 1 || initial.PinnedBoardIDs == nil || len(initial.PinnedBoardIDs) != 0 {
 		t.Fatalf("initial workspace: %+v, %v", initial, err)
 	}
 	visible := func(id string) bool { return id == workspaceBoardA || id == workspaceBoardB }
 	fields := workspacePinFields(strings.ToUpper(workspaceBoardB), workspaceBoardA)
 	saved, err := store.patch(initial.ETag, fields, visible)
-	if err != nil || saved.ETag == initial.ETag || !slices.Equal(saved.PinnedBoardIDs, []string{workspaceBoardB, workspaceBoardA}) {
+	if err != nil || saved.Revision != 2 || saved.ETag == initial.ETag || !slices.Equal(saved.PinnedBoardIDs, []string{workspaceBoardB, workspaceBoardA}) {
 		t.Fatalf("saved workspace: %+v, %v", saved, err)
 	}
 	reopened := newWorkspace(root)

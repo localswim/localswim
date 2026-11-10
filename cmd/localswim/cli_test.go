@@ -184,7 +184,7 @@ func TestCLIExplicitRevisionUsesTheMatchingResourceTag(t *testing.T) {
 		{"patch", "/boards/" + id, `{"name":"New name"}`, `{"name":"New name"}`, []string{"board", "patch", id}},
 		{"pins", "/workspace", `{"pinned_board_ids":[]}`, `{"pinned_board_ids":[]}`, []string{"workspace", "pins"}},
 	} {
-		for _, expected := range []string{"0", "3"} {
+		for _, expected := range []string{"1", "3"} {
 			t.Run(command.name+" revision "+expected, func(t *testing.T) {
 				var requests atomic.Int32
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -194,14 +194,14 @@ func TestCLIExplicitRevisionUsesTheMatchingResourceTag(t *testing.T) {
 					}
 					w.Header().Set("ETag", tag)
 					if r.Method == http.MethodGet {
-						w.Write([]byte(`{"revision":0}`))
+						w.Write([]byte(`{"revision":1}`))
 						return
 					}
 					body, _ := io.ReadAll(r.Body)
-					if expected != "0" || r.Method != http.MethodPatch || r.Header.Get("If-Match") != tag || string(body) != command.body {
+					if expected != "1" || r.Method != http.MethodPatch || r.Header.Get("If-Match") != tag || string(body) != command.body {
 						t.Error("mutation did not use the matching revision's actual ETag and body")
 					}
-					w.Write([]byte(`{"revision":1}`))
+					w.Write([]byte(`{"revision":2}`))
 				}))
 				defer server.Close()
 				args := append([]string{}, command.args[:2]...)
@@ -210,8 +210,8 @@ func TestCLIExplicitRevisionUsesTheMatchingResourceTag(t *testing.T) {
 				env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
 				var stdout, stderr bytes.Buffer
 				exit := runCLIWithInput(args, strings.NewReader(command.input), &stdout, &stderr, func(key string) string { return env[key] })
-				if expected == "0" {
-					if exit != 0 || requests.Load() != 2 || stdout.String() != "{\"revision\":1}\n" || stderr.Len() != 0 {
+				if expected == "1" {
+					if exit != 0 || requests.Load() != 2 || stdout.String() != "{\"revision\":2}\n" || stderr.Len() != 0 {
 						t.Fatalf("matching revision failed: exit %d, calls %d, stderr %q", exit, requests.Load(), &stderr)
 					}
 				} else if exit != 1 || requests.Load() != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "revision mismatch") {
@@ -223,7 +223,7 @@ func TestCLIExplicitRevisionUsesTheMatchingResourceTag(t *testing.T) {
 }
 
 func TestCLIRevisionRequiresAnExactValidNumber(t *testing.T) {
-	for _, value := range []string{"", "-1", "1.5", "true", "0x10", "9007199254740992", "18446744073709551616"} {
+	for _, value := range []string{"", "0", "-1", "1.5", "true", "0x10", "9007199254740992", "18446744073709551616"} {
 		var stdout, stderr bytes.Buffer
 		exit := runCLIWithInput([]string{"workspace", "pins", "--revision", value}, strings.NewReader(`{"pinned_board_ids":[]}`),
 			&stdout, &stderr, func(string) string { t.Fatal("invalid revision reached execution"); return "" })
@@ -234,7 +234,7 @@ func TestCLIRevisionRequiresAnExactValidNumber(t *testing.T) {
 }
 
 func TestCLIExplicitRevisionRefusesInvalidResourceRevision(t *testing.T) {
-	for _, body := range []string{`{}`, `{"revision":null}`, `{"revision":true}`, `{"revision":"1"}`, `{"revision":1.5}`, `{"revision":9007199254740992}`} {
+	for _, body := range []string{`{}`, `{"revision":0}`, `{"revision":null}`, `{"revision":true}`, `{"revision":"1"}`, `{"revision":1.5}`, `{"revision":9007199254740992}`} {
 		var requests atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requests.Add(1)

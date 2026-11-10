@@ -66,7 +66,7 @@ to read the latest revision before updating. Put options before positional argum
 
 A V2 data directory has one writer. Native board snapshots live in `boards/`.
 The verification endpoint and `board verify --data <directory> <board-id>`
-read the same durable format. The workspace pin order has its own revision.
+read the same durable format. The workspace pin order has its own revision, starting at 1.
 
 Export a board's native snapshot as JSON with
 `localswim board export [--type json] <board-id>`. JSON is the only supported

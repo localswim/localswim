@@ -21,3 +21,39 @@ This direction supersedes the previous milestone plan, its broad baseline
 campaign, and the import and cutover proposal.
 
 [Execution plan](execution-plan.md) · [API contract](docs/openapi.yaml) · [Decision record](docs/adr/0001-api-contract.md)
+
+## Run the Turn 1 service
+
+Build the Windows service and CLI with Go 1.27.
+
+```powershell
+go build -o localswim.exe ./cmd/localswim
+.\localswim.exe serve --data C:\absolute\path\to\fresh-v2-data --port 0
+```
+
+Before starting the service, set `LOCALSWIM_HUMAN_TOKEN` and
+`LOCALSWIM_BOT_TOKEN` in its private launch environment. Supply a fresh,
+independent random base64url value of at least 32 bytes for each process start.
+The service prints its bound loopback origin on startup. Set `LOCALSWIM_URL`
+to that origin and `LOCALSWIM_TOKEN` to the chosen capability in the CLI's
+environment. Keep these values out of arguments, Git, and shared logs.
+
+```powershell
+'{"name":"Local demo"}' | .\localswim.exe board create
+.\localswim.exe board list
+```
+
+A V2 data directory has one writer. Native board snapshots live in `boards/`.
+The verification endpoint and `board verify --data <directory> <board-id>`
+read the same durable format. The workspace pin order has its own revision.
+
+For local build staging, place `candidate.json` and the native
+`candidate.exe` (Windows) or `candidate` (Unix) in the data directory.
+The manifest contains `version` and lowercase SHA-256 `sha256`. The
+`/service` response identifies the running generation. The `/builds`
+responses report staged validation using the published build schema.
+Validation inspects bounded bytes and native Go identity. Activation is a
+later milestone.
+
+The browser adapter is in [web](web/README.md). Live browser capability
+bootstrap and card resources belong to their scheduled milestones.

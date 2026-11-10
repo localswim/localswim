@@ -1,5 +1,27 @@
 # localswim
 
+## Release direction
+
+Ship a simple local board for the same two users. V2 is a fresh Go and TypeScript
+implementation with one loopback service, SQLite storage, and shared browser and
+CLI behavior. Approved V1 behavior and UX are the release floor.
+
+The next deliverable is one copied V1 board that opens in the ordinary V2
+workspace, supports everyday browser and CLI edits, and can be backed up and
+restored. V2 already has a local runtime, workspace navigation, card commands,
+search, and native archive and restore. Use those paths to close the gaps that
+prevent daily use.
+
+M19's broad baseline campaign was stopped. Existing evidence is retained. The
+release uses focused checks tied to the two users' workflows and concrete risks
+such as lost edits, incorrect approvals, and failed restores. See the
+[shortest path to the V2 release](docs/RELEASE.md) for the build order and backlog
+changes proposed for review.
+
+## Implementation history
+
+The sections below record earlier slices and their original evidence boundaries.
+
 M18 adds a deliberate installed-version check and generation-bound Stop through
 both the ordinary browser and actual CLI. Follow the
 [identity and Stop guide](docs/runbooks/m18-identity-checks.txt) for the selected

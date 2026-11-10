@@ -105,3 +105,51 @@ Every three hours of build time, stop for the integrated milestones that actuall
 At the end of each execution turn, reconcile actual landings, reviews, Terry's acceptance, and carryover. Refresh the next three remaining-turn assignments with the same explicit author, helper, reviewer, model/effort, scope, and readiness fields. Preserve the original turn IDs as this baseline and retain previous assignment revisions. The initial remaining-turn window is Turns 1, 2, and 3 above.
 
 The three-day goal remains a delivery target. Author estimates alone exclude client work, integration, independent review, and demo time. The first integrated browser demonstration is the checkpoint for updating that forecast.
+
+## Rolling roster revision 3
+
+2026-11-10. Turn 1 implementation and review evidence are recorded below. The approved milestone and staffing tables above remain the baseline.
+
+Plan cards #0375, #0376, and #0377 were observed in Completed. [Implementation commit bc8ee24](https://github.com/localswim/localswim/commit/bc8ee24d7b603bad3cb39fcaf9033867b08f068d)
+
+- #384 M01, Ready for Review. Native two-board restart, writer exclusion, and failed replacement passed.
+- #399 M16, Ready for Review. Custom workflow, atomic rejection, and stable board rename passed.
+- #391 M08, In Progress. Reviewed durable parent and audit fixture passed. Public card PATCH/read demo awaits M02.
+- #411 M28, Ready for Review. Native verification/export and offline validation passed for valid and damaged data.
+- #409 M26, In Progress. Reviewed catalog fixtures and live zero-versus-unknown check passed. Full archive/recency demo awaits M02 and M06 plus M16 acceptance.
+- #410 M27, Ready for Review. Workspace pin order, stale refusal, restart, and damaged settings passed.
+- #415 M32, Ready for Review. Notice target and toggles persisted, and unauthorized management was refused.
+- #421 M38, Needs Terry. Reviewed combined service/build demo passed. Terry must reconcile the milestone wording with the closed Service schema.
+
+### Turn 1 carryover
+
+- #391 M08. Live demo held until M02 #0385 provides accepted public card resources and card-scoped admission.
+  Planned author sol_medium_0391_demo (gpt-6.1-sol / medium). Fresh reviewer sol_high_0391_demo_review (gpt-6.1-sol / high).
+- #409 M26. Full live demo held until accepted M02 #0385 and M06 #0389 card/archive operations and M16 #0399 project rename. M31 remains held by this gate.
+  Planned author sol_medium_0409_demo (gpt-6.1-sol / medium). Fresh reviewer sol_medium_0409_demo_review (gpt-6.1-sol / medium).
+- #421 M38. Terry decides whether to accept the two-route demonstration. Primary records acceptance. Rework is contingent on explicit contract-change authority.
+  Planned author sol_high_0421_contract (gpt-6.1-sol / high). Fresh reviewer sol_high_0421_contract_review (gpt-6.1-sol / high).
+
+### Next three remaining waves
+
+Scope for each row comes from approved #0375 and #0376, the corresponding milestone demo, and the OpenAPI contract. Original turn numbers are preserved. A listed assignment does not grant execution authority. Verify Terry acceptance and move the story In Progress before work.
+
+| Remaining wave | Baseline turn | Ticket | Planned author | Fresh reviewer | Prerequisite status |
+| ---: | ---: | --- | --- | --- | --- |
+| 1 | 2 | #0385 M02 | sol_medium_0385_author (gpt-6.1-sol / medium) | sol_high_0385_review (gpt-6.1-sol / high) | M01 #384 Ready for Review |
+| 1 | 2 | #0400 M17 | sol_high_0400_author (gpt-6.1-sol / high) | sol_high_0400_review (gpt-6.1-sol / high) | M16 #399 Ready for Review |
+| 1 | 2 | #0414 M31 | sol_high_0414_author (gpt-6.1-sol / high) | sol_high_0414_review (gpt-6.1-sol / high) | M26 #409 In Progress, M28 #411 Ready for Review and M26 full demo awaits M06 |
+| 2 | 3 | #0386 M03 | sol_medium_0386_author (gpt-6.1-sol / medium) | sol_high_0386_review (gpt-6.1-sol / high) | M02 #385 Backlog |
+| 2 | 3 | #0388 M05 | sol_medium_0388_author (gpt-6.1-sol / medium) | sol_high_0388_review (gpt-6.1-sol / high) | M02 #385 Backlog |
+| 2 | 3 | #0387 M04 | sol_high_0387_author (gpt-6.1-sol / high) | sol_high_0387_review (gpt-6.1-sol / high) | M02 #385 Backlog |
+| 2 | 3 | #0401 M18 | sol_medium_0401_author (gpt-6.1-sol / medium) | sol_high_0401_review (gpt-6.1-sol / high) | M17 #400 Backlog |
+| 2 | 3 | #0406 M23 | sol_high_0406_author (gpt-6.1-sol / high) | sol_high_0406_review (gpt-6.1-sol / high) | M02 #385 Backlog |
+| 3 | 4 | #0389 M06 | sol_medium_0389_author (gpt-6.1-sol / medium) | sol_high_0389_review (gpt-6.1-sol / high) | M05 #388 Backlog |
+| 3 | 4 | #0397 M14 | sol_medium_0397_author (gpt-6.1-sol / medium) | sol_high_0397_review (gpt-6.1-sol / high) | M03 #386 Backlog, M04 #387 Backlog, M05 #388 Backlog |
+| 3 | 4 | #0392 M09 | sol_medium_0392_author (gpt-6.1-sol / medium) | sol_high_0392_review (gpt-6.1-sol / high) | M05 #388 Backlog |
+| 3 | 4 | #0407 M24 | sol_medium_0407_author (gpt-6.1-sol / medium) | sol_high_0407_review (gpt-6.1-sol / high) | M23 #406 Backlog |
+| 3 | 4 | #0416 M33 | sol_high_0416_author (gpt-6.1-sol / high) | sol_high_0416_review (gpt-6.1-sol / high) | M05 #388 Backlog, M32 #415 Ready for Review |
+
+The browser and CLI authors remain Sol / Medium under their baseline names. Fresh client reviewers use Sol / High. The browser first-page API adapter and CLI passed Turn 1 review. Live browser bootstrap and CSP evidence await M04.
+
+The primary owns integration, Windows verification, demo coordination, publishing, and acceptance recording. Release finished authors before dispatching fresh reviewers. Keep the existing capacity, authorization, and independent review gates.

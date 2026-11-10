@@ -10,7 +10,7 @@ Build a fresh Go backend. One loopback listener serves every board and the works
 
 The 82.5 hours are aggregate backend development, not a serial schedule. With six backend owners the largest stream is 16.5 hours before cross-stream waits and integration. The browser and CLI have separate owners and start on day one.
 
-Each milestone appears on the first turn after all its prerequisites. Solid arrows show order within a workstream. Dashed arrows show dependencies across workstreams. **Parallel** marks milestones on the same turn that can use separate owners. Each row is a turn batch whose milestones can run in parallel.
+Each milestone appears on the first turn after all its prerequisites. Solid arrows show order within a workstream. A label in the reserved space at the top of each card lists its entry requirements from other workstreams. **Parallel** marks milestones on the same turn that can use separate owners. Each row is a turn batch whose milestones can run in parallel.
 
 ![Milestone workstream order](milestone-order.svg)
 

@@ -14083,6 +14083,7 @@ components:
       type: object
       additionalProperties: false
       required:
+      - port
       - etag
       - service_instance_id
       - build_id
@@ -14092,6 +14093,11 @@ components:
       properties:
         etag:
           $ref: '#/components/schemas/EntityTag'
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+          description: Actual bound TCP listening port, including the OS-assigned port when started with --port 0.
         service_instance_id:
           $ref: '#/components/schemas/ServiceInstanceId'
         build_id:

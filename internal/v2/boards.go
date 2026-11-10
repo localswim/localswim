@@ -288,5 +288,6 @@ func (x *request) buildsResource(id string) {
 
 func (x *request) serviceStatus() {
 	state := x.service.builds.service()
+	state.Port = x.port
 	x.respond(200, state, state.ETag)
 }

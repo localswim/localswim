@@ -54,7 +54,7 @@ func serve(args []string, stdout, stderr io.Writer) (result error) {
 		return errors.New("cannot bind the requested loopback listener")
 	}
 	defer listener.Close()
-	server := &http.Server{Handler: app.Handler(listener.Addr().String()), ReadHeaderTimeout: 5 * time.Second,
+	server := &http.Server{Handler: app.Handler(listener.Addr().(*net.TCPAddr)), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 30 * time.Second}
 	stop, release := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer release()

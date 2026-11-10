@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -107,9 +108,14 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 			t.Fatal(err)
 		}
 		server := httptest.NewUnstartedServer(nil)
-		server.Config.Handler = app.Handler(server.Listener.Addr().String())
+		server.Config.Handler = app.Handler(server.Listener.Addr().(*net.TCPAddr))
 		server.Start()
-		return turnOneClient{t, server.URL, human, server.Client()}, func() {
+		client := turnOneClient{t, server.URL, human, server.Client()}
+		raw, _ := client.call("GET", "/service", "", "", 200)
+		if got := turnOneDecode[serviceStatus](t, raw).Port; got != server.Listener.Addr().(*net.TCPAddr).Port {
+			t.Fatalf("service port = %d, want bound listener port", got)
+		}
+		return client, func() {
 			server.Close()
 			if err := app.Close(); err != nil {
 				t.Fatal(err)

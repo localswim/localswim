@@ -26,6 +26,7 @@ const (
 )
 
 type serviceStatus struct {
+	Port              int     `json:"port"`
 	ETag              string  `json:"etag"`
 	ServiceInstanceID string  `json:"service_instance_id"`
 	BuildID           string  `json:"build_id"`

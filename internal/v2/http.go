@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 	"slices"
 	"strings"
@@ -59,12 +60,14 @@ type request struct {
 	service *Service
 	id      string
 	actor   string
+	port    int
 }
 
-func (s *Service) Handler(authority string) http.Handler {
+func (s *Service) Handler(address *net.TCPAddr) http.Handler {
+	authority, port := address.String(), address.Port
 	origin := "http://" + authority
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		x := &request{w: w, r: r, service: s, id: newID()}
+		x := &request{w: w, r: r, service: s, id: newID(), port: port}
 		h := w.Header()
 		h.Set("Cache-Control", "no-store")
 		h.Set("X-Content-Type-Options", "nosniff")

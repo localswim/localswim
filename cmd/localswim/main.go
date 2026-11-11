@@ -40,6 +40,7 @@ func serve(args []string, stdout, stderr io.Writer) (result error) {
 	fs.SetOutput(stderr)
 	root := fs.String("data", "", "V2 data directory")
 	port := fs.Int("port", 0, "IPv4 loopback port (0 selects an available port)")
+	background := fs.Bool("background", false, "start independently without a console (Windows, requires --port)")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -48,6 +49,9 @@ func serve(args []string, stdout, stderr io.Writer) (result error) {
 	}
 	if *root == "" || !filepath.IsAbs(*root) || *port < 0 || *port > 65535 || fs.NArg() != 0 {
 		return errors.New("serve requires --data with an absolute directory and accepts --port from 0 to 65535")
+	}
+	if *background {
+		return launchBackground(*root, *port, stdout)
 	}
 	unlock, err := v2.LockServiceStartup(*root)
 	if err != nil {

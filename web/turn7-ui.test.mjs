@@ -4672,6 +4672,40 @@ test("M63 lane dependency reorder hides disabled lanes and requires two active c
   assert.deepEqual(applies, [[board, lane, tag(board, 1), proposed]]);
 });
 
+test("late ticket-order Apply respects a restored unresolved board submission", async () => {
+  const storage = tabStorage();
+  storage.setItem(recoveredSubmissions, JSON.stringify([["board:" + board,
+    {kind: "create-card", id: priority, submittedAt: Date.now(), fingerprint: "a".repeat(64)}]]));
+  const {api, ui} = await attachmentUploadFixture(board, {storage});
+  const [source] = (await api.listLanes()).data.lanes;
+  api.listLanes = async () => page("lanes", [{...source, reorder_enabled: true}]);
+  const pendingPreview = Promise.withResolvers();
+  api.previewTicketOrder = () => pendingPreview.promise;
+  const applies = [];
+  api.applyTicketOrder = async (...args) => {
+    applies.push(args);
+    throw new ApiError("http_error", {status: 412});
+  };
+  await ui.load();
+  const {main} = ui.nodes;
+  await until(() => ui.find(main, "button", "Preview ticket order"));
+  ui.find(main, "button", "Preview ticket order").click();
+  const current = [{card_id: card, ticket: 1}, {card_id: backup, ticket: 2}];
+  const proposed = [{card_id: backup, ticket: 1}, {card_id: card, ticket: 2}];
+  pendingPreview.resolve({data: {board_revision: 1, current, proposed, changed: true}, etag: tag(board, 1)});
+  await until(() => ui.find(main, "button", "Apply ticket order"));
+  const apply = ui.find(main, "button", "Apply ticket order");
+  assert.equal(apply.disabled, true);
+  apply.disabled = false;
+  ui.submit(main, "Apply ticket order");
+  await ui.settled();
+  assert.deepEqual(applies, []);
+  ui.find(main, "button", "Dismiss unresolved action").click();
+  ui.submit(main, "Apply ticket order");
+  await ui.settled();
+  assert.deepEqual(applies, [[board, lane, tag(board, 1), proposed]]);
+});
+
 const uploadBoard = "b4979c23-4be2-4553-bbeb-66a47b7c021c";
 
 async function attachmentUploadFixture(secondBoard = board, options) {
@@ -4741,6 +4775,78 @@ async function attachmentUploadFixture(secondBoard = board, options) {
     ui.nodes.details.dispatch("paste", {target, clipboardData: {files, types}});
   return {ui, api, cards, calls, readbacks, saved, behavior, commit, choose, paste, getCapability};
 }
+
+test("restored unresolved comment blocks only its own card from dropping", async () => {
+  const storage = tabStorage();
+  storage.setItem(recoveredSubmissions, JSON.stringify([["card:" + board + ":" + card,
+    {kind: "comment", id: priority, submittedAt: Date.now()}]]));
+  const {api, ui, cards} = await attachmentUploadFixture(board, {storage});
+  const [source] = (await api.listLanes()).data.lanes;
+  const target = {...source, id: uploadBoard, key: "next", label: "Next lane", position: 1};
+  api.listLanes = async () => page("lanes", [source, target]);
+  grantMove(api, target.id);
+  const moves = [];
+  api.patchCard = async (id, validator, patch) => {
+    moves.push([id, validator, patch.lane_id]);
+    cards.set(id, {...cards.get(id), ...patch});
+    return api.getCard(id);
+  };
+  await ui.load();
+  const {main, details, status} = ui.nodes;
+  await until(() => ui.find(details, "button", "Close card"));
+  ui.find(details, "button", "Close card").click();
+  const drop = (title) => {
+    const dataTransfer = dragTransfer();
+    const opener = ui.find(main, "button", title);
+    const destination = ui.find(main, "h2", target.label).parent;
+    opener.dispatch("dragstart", {dataTransfer});
+    destination.dispatch("dragover", {dataTransfer});
+    destination.dispatch("drop", {dataTransfer});
+    assert.equal(destination.dataset.dropTarget, undefined);
+    assert.equal(opener.dataset.dragging, undefined);
+  };
+
+  drop("#1 Original");
+  await ui.settled();
+  assert.match(status.textContent, /Inspect saved card before moving it/);
+  assert.deepEqual(moves, []);
+  drop("#2 Other card");
+  await ui.settled();
+  assert.deepEqual(moves, [[backup, tag(backup, 1), target.id]]);
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.find(details, "button", "Dismiss unresolved action"));
+  ui.find(details, "button", "Dismiss unresolved action").click();
+  drop("#1 Original");
+  await ui.settled();
+  assert.deepEqual(moves, [[backup, tag(backup, 1), target.id], [card, tag(card, 1), target.id]]);
+});
+
+test("reloaded upload inspection requires the original attachment to be active", async () => {
+  const storage = tabStorage();
+  const unresolved = [["card:" + board + ":" + card,
+    {kind: "upload", id: priority, submittedAt: Date.now(), size: 1}]];
+  storage.setItem(recoveredSubmissions, JSON.stringify(unresolved));
+  const {ui, calls, readbacks, saved, commit} = await attachmentUploadFixture(board, {storage});
+  const {data: uploaded} = commit(card, {name: "original.txt", size: 1}, priority);
+  saved.set(priority, {...uploaded, active: false});
+  const {details, status} = ui.nodes;
+  const inspect = ui.find(details, "button", "Inspect saved card");
+  assert.equal(ui.find(details, "button", "Upload attachments").disabled, true);
+  inspect.click();
+  await ui.settled();
+  assert.match(status.textContent, /Saved state could not be read/);
+  assert.deepEqual(JSON.parse(storage.getItem(recoveredSubmissions)), unresolved);
+  assert.equal(ui.find(details, "button", "Upload attachments").disabled, true);
+
+  saved.set(priority, uploaded);
+  inspect.click();
+  await ui.settled();
+  assert.match(status.textContent, /Original submission confirmed/);
+  assert.deepEqual(JSON.parse(storage.getItem(recoveredSubmissions)), []);
+  assert.equal(ui.find(details, "button", "Upload attachments").disabled, false);
+  assert.deepEqual(readbacks, [priority, priority]);
+  assert.deepEqual(calls, []);
+});
 
 test("M48 drag waits for the source card's upload and permits an unrelated card move", async () => {
   const {ui, api, cards, behavior, commit, choose} = await attachmentUploadFixture();

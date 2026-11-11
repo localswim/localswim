@@ -33,6 +33,11 @@ import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
 /** @typedef {{name: string, outcome: string}} UploadResult */
 /** @typedef {{boardId: string, running: boolean, needsInspection: boolean, processed: number,
  * results: UploadResult[], message: string}} UploadBatch */
+/** @typedef {{id: string, board_revision: number, size: number, sha2_256: string, attachment_ids: string[]}} CapturedBackup */
+/** @typedef {{id: string, busy: boolean}} BackupOperation */
+/** @typedef {{backup?: CapturedBackup, capture?: BackupOperation,
+ * publication?: BackupOperation & {backupId: string}, downloading?: boolean,
+ * captureMessage?: string, publicationMessage?: string, downloadMessage?: string}} BackupState */
 /** @typedef {{query: string, content: boolean, order: "triage"|"ticket", lane: string, limit: string}} SearchFields */
 /** @typedef {{open: boolean, fields: SearchFields, submitted?: SearchFields}} BoardSearch */
 /** @typedef {{card?: {id: string, ticket: string|null}, search?: BoardSearch, scroll?: {left: number, lanes: Record<string, number>}}} BoardView */
@@ -96,8 +101,10 @@ const publishingDrafts = new Map();
 const preferenceWrites = new Map();
 /** @type {string[]|undefined} */
 let pinDraft;
-/** @type {Map<string, {id: string, backupId: string}>} */
-const pendingPublications = new Map();
+/** @type {Map<string, BackupState>} */
+const boardBackups = new Map();
+/** @type {{boardId: string, panel: HTMLElement, paint: () => void}|undefined} */
+let activeBackupControls;
 /** @type {Map<string, {read: InspectionRead, isCurrent: () => boolean}>} */
 const pendingInspections = new Map();
 /** @type {{id: string, control: HTMLTextAreaElement}|undefined} */
@@ -422,10 +429,10 @@ function adoptText(control, previous, saved) {
   return probe.value;
 }
 
-/** @param {unknown} error */
-function writePhase(error) {
+/** @param {unknown} error @param {string} [submittingCapability] */
+function writePhase(error, submittingCapability = capability) {
   if (!(error instanceof ApiError)) return "error";
-  if (error.status === 401) capability = "";
+  if (error.status === 401 && capability === submittingCapability) capability = "";
   if (error.status === 412) return "conflict";
   if (error.outcomeUnknown) return "unknown";
   return "error";
@@ -456,7 +463,7 @@ function createInspection(region, isCurrent, read, resource, scope, busy = () =>
   function setSubmissionsDisabled(disabled) {
     for (const control of region.querySelectorAll("form button[type=submit]")) {
       if (control instanceof HTMLButtonElement) control.disabled = disabled || busy(control)
-        || control.closest('[data-unavailable="true"]') !== null || control.dataset.publicationPending === "true";
+        || control.closest('[data-unavailable="true"]') !== null;
     }
   }
 
@@ -546,7 +553,7 @@ async function writeResource(submit, request, update, success, inspection) {
     }
   } finally {
     finishWriting();
-    submit.disabled = (phase !== "error" && !inspected) || submit.dataset.publicationPending === "true"
+    submit.disabled = (phase !== "error" && !inspected)
       || submit.closest('[data-unavailable="true"]') !== null;
   }
 }
@@ -2349,6 +2356,7 @@ async function load(savedAvailability) {
   retainCardDraft = undefined;
   retainBoardDraft = undefined;
   activeNewCardText = undefined;
+  activeBackupControls = undefined;
   cardInspection = undefined;
   boardInspection = undefined;
   retrySelectedCard = undefined;
@@ -3287,57 +3295,177 @@ function ticketSelection(value, cards) {
   return /** @type {Card[]} */ (selected);
 }
 
-/** @param {string} boardId @param {string} backupId @param {Inspection} inspection */
-function renderPublicationControls(boardId, backupId, inspection) {
+/** @param {string} boardId @param {() => string} boardTag */
+function renderBackupControls(boardId, boardTag) {
+  const state = boardBackups.get(boardId) ?? {};
+  boardBackups.set(boardId, state);
   const panel = element("div");
-  const publicationResult = element("p");
-  const publish = form("Publish backup", [], (submit) => {
-    if (pendingPublications.has(boardId)) return;
-    const publicationId = newOperationId();
-    pendingPublications.set(boardId, { id: publicationId, backupId: backupId });
-    submit.dataset.publicationPending = "true";
-    refreshPublication.hidden = false;
-    void writeResource(submit, async () => {
-      try { await api.publishBackup(publicationId, boardId, backupId); }
-      catch (error) {
-        if (error instanceof ApiError && !error.outcomeUnknown) {
-          pendingPublications.delete(boardId);
-          delete submit.dataset.publicationPending;
-          refreshPublication.hidden = true;
-        }
-        throw error;
-      }
-    }, readPublication, "Publication recorded.", inspection);
-  });
-  const publishButton = /** @type {HTMLButtonElement} */ (publish.querySelector("button"));
-  async function readPublication() {
-    const pending = pendingPublications.get(boardId);
-    if (!pending) return true;
-    const publication = await api.getPublication(pending.id, boardId, pending.backupId);
-    if (!panel.isConnected || pendingPublications.get(boardId) !== pending) return true;
-    const item = /** @type {{state: string, error_code: string|null}} */ (publication.data);
-    publicationResult.textContent = "Publication " + item.state + (item.error_code ? " (" + item.error_code + ")" : "") + ".";
-    if (item.state === "succeeded" || item.state === "failed") {
-      pendingPublications.delete(boardId);
-      delete publishButton.dataset.publicationPending;
-      publishButton.disabled = false;
-      refreshPublication.hidden = true;
-    }
-    return true;
+  const current = () => activeBackupControls?.panel === panel && panel.isConnected;
+  const captureStatus = element("p");
+  const backupSummary = element("p");
+  const downloadStatus = element("p");
+  const publicationStatus = element("p");
+  for (const status of [captureStatus, backupSummary, downloadStatus, publicationStatus]) {
+    status.setAttribute("aria-live", "polite");
   }
-  const refreshPublication = button("Refresh publication status", () => {
-    if (writing) return;
-    refreshPublication.disabled = true;
-    void readWithSession(readPublication).catch(() => {
-      if (panel.isConnected) publicationResult.textContent = "Publication status could not be read. Refresh status before publishing again.";
-    }).finally(() => { refreshPublication.disabled = false; });
+
+  function paintCurrent() {
+    const controls = activeBackupControls;
+    if (controls?.boardId === boardId && controls.panel.isConnected) controls.paint();
+  }
+
+  /** @param {() => Promise<unknown>} request */
+  async function submitOnce(request) {
+    let submittingCapability = capability;
+    try {
+      if (!capability) await ensureCapability();
+      submittingCapability = capability;
+      await request();
+      return "ready";
+    } catch (error) {
+      return writePhase(error, submittingCapability);
+    }
+  }
+
+  /** @param {BackupOperation} operation @param {boolean} explicit */
+  async function readCapture(operation, explicit) {
+    try {
+      const reply = await readWithSession(() => api.getBackup(operation.id, boardId));
+      state.backup = /** @type {CapturedBackup} */ (reply.data);
+      state.capture = undefined;
+      state.captureMessage = "";
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404 && explicit) {
+        state.capture = undefined;
+        state.captureMessage = "The original capture could not be confirmed. You can request a new backup.";
+      } else {
+        state.captureMessage = "Backup capture could not be confirmed. Check its status before creating another.";
+      }
+    } finally {
+      operation.busy = false;
+      paintCurrent();
+    }
+  }
+
+  async function createCapture() {
+    const expected = boardTag();
+    const operation = { id: newOperationId(), busy: true };
+    state.capture = operation;
+    state.captureMessage = "Capturing backup…";
+    paintCurrent();
+    const phase = await submitOnce(() => api.createBackup(operation.id, boardId, expected));
+    if (phase === "ready" || phase === "unknown") {
+      await readCapture(operation, false);
+      return;
+    }
+    state.capture = undefined;
+    state.captureMessage = phase === "conflict"
+      ? "The board changed before capture. Refresh the board before creating another backup."
+      : "The service refused to create the backup.";
+    paintCurrent();
+  }
+
+  const capture = button("Create backup", () => {
+    if (current() && !state.capture) void createCapture();
   });
-  const pending = pendingPublications.has(boardId);
-  if (pending) publishButton.dataset.publicationPending = "true";
-  publishButton.disabled = pending;
-  refreshPublication.hidden = !pending;
-  if (pending) publicationResult.textContent = "A publication is pending. Refresh its status before publishing again.";
-  panel.append(publish, refreshPublication, publicationResult);
+  const refreshCapture = button("Refresh backup status", () => {
+    const operation = state.capture;
+    if (!current() || !operation || operation.busy) return;
+    operation.busy = true;
+    state.captureMessage = "Checking backup status…";
+    paintCurrent();
+    void readCapture(operation, true);
+  });
+
+  const download = button("Download backup", () => {
+    const backup = state.backup;
+    if (!current() || !backup || state.downloading) return;
+    state.downloading = true;
+    state.downloadMessage = "";
+    paintCurrent();
+    void readWithSession(() => api.getBackupContent(backup.id, backup.size, backup.sha2_256)).then((blob) => {
+      const url = URL.createObjectURL(blob);
+      const anchor = element("a");
+      anchor.href = url;
+      anchor.download = "localswim-" + boardId + "-r" + backup.board_revision + ".zip";
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }).catch(() => {
+      state.downloadMessage = "Backup download could not be verified. Try downloading again.";
+    }).finally(() => {
+      state.downloading = false;
+      paintCurrent();
+    });
+  });
+  download.id = "download-backup";
+
+  /** @param {BackupOperation & {backupId: string}} operation */
+  async function readPublication(operation) {
+    try {
+      const reply = await readWithSession(() => api.getPublication(operation.id, boardId, operation.backupId));
+      const item = /** @type {{state: string, error_code: string|null}} */ (reply.data);
+      state.publicationMessage = "Publication " + item.state + (item.error_code ? " (" + item.error_code + ")" : "") + ".";
+      if (item.state === "succeeded" || item.state === "failed") state.publication = undefined;
+    } catch {
+      state.publicationMessage = "Publication status could not be read. Refresh status before publishing again.";
+    } finally {
+      operation.busy = false;
+      paintCurrent();
+    }
+  }
+
+  /** @param {string} backupId */
+  async function startPublication(backupId) {
+    const operation = { id: newOperationId(), backupId, busy: true };
+    state.publication = operation;
+    state.publicationMessage = "Submitting publication…";
+    paintCurrent();
+    const phase = await submitOnce(() => api.publishBackup(operation.id, boardId, backupId));
+    if (phase === "ready" || phase === "unknown") {
+      await readPublication(operation);
+      return;
+    }
+    state.publication = undefined;
+    state.publicationMessage = "The service refused to publish the backup.";
+    paintCurrent();
+  }
+
+  const publish = button("Publish backup", () => {
+    if (current() && state.backup && !state.publication) void startPublication(state.backup.id);
+  });
+  const refreshPublication = button("Refresh publication status", () => {
+    const operation = state.publication;
+    if (!current() || !operation || operation.busy) return;
+    operation.busy = true;
+    state.publicationMessage = "Checking publication status…";
+    paintCurrent();
+    void readPublication(operation);
+  });
+
+  function paint() {
+    const backup = state.backup;
+    capture.disabled = Boolean(state.capture);
+    refreshCapture.hidden = !state.capture;
+    refreshCapture.disabled = state.capture?.busy === true;
+    captureStatus.textContent = state.captureMessage ?? "";
+    backupSummary.textContent = backup
+      ? "Captured revision " + backup.board_revision + " with " + backup.attachment_ids.length
+        + (backup.attachment_ids.length === 1 ? " attachment file." : " attachment files.")
+      : "";
+    download.hidden = !backup;
+    download.disabled = state.downloading === true;
+    downloadStatus.textContent = state.downloadMessage ?? "";
+    publish.hidden = !backup;
+    publish.disabled = Boolean(state.publication);
+    refreshPublication.hidden = !state.publication;
+    refreshPublication.disabled = state.publication?.busy === true;
+    publicationStatus.textContent = state.publicationMessage ?? "";
+  }
+
+  panel.append(capture, refreshCapture, captureStatus, backupSummary, download, downloadStatus,
+    publish, refreshPublication, publicationStatus);
+  activeBackupControls = { boardId, panel, paint };
+  paint();
   return panel;
 }
 
@@ -3347,10 +3475,6 @@ function renderBoardActions(boardId, priorities, cards, boardTag, reloadBoard, i
   const panel = element("details");
   panel.className = "editor";
   panel.append(element("summary", "Board actions"));
-  const publicationPanel = element("div");
-  const pendingPublication = pendingPublications.get(boardId);
-  if (pendingPublication) publicationPanel.append(renderPublicationControls(boardId, pendingPublication.backupId, inspection));
-  panel.append(publicationPanel);
   const tickets = element("input");
   tickets.id = "batch-priority-tickets";
   tickets.required = true;
@@ -3390,37 +3514,7 @@ function renderBoardActions(boardId, priorities, cards, boardTag, reloadBoard, i
       return true;
     }, "Batch priorities saved.", inspection);
   }), result);
-  const backupResult = element("div");
-  backupResult.setAttribute("aria-live", "polite");
-  panel.append(form("Create backup", [], (submit) => {
-    const id = newOperationId();
-    void writeResource(submit, () => api.createBackup(id, boardId, boardTag()), async () => {
-      let reply;
-      try { reply = await api.getBackup(id, boardId); }
-      catch (error) {
-        if (error instanceof ApiError && error.status === 404) return false;
-        throw error;
-      }
-      const backup = /** @type {{id: string, board_revision: number, size: number, sha2_256: string, attachment_ids: string[]}} */ (reply.data);
-      const download = button("Download backup", () => {
-        download.disabled = true;
-        void readWithSession(() => api.getBackupContent(backup.id, backup.size, backup.sha2_256)).then((blob) => {
-          const url = URL.createObjectURL(blob);
-          const anchor = element("a");
-          anchor.href = url;
-          anchor.download = "localswim-" + boardId + "-r" + backup.board_revision + ".zip";
-          anchor.click();
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-        }).catch(() => { announce("error", "Backup download could not be verified. Try downloading again."); })
-          .finally(() => { download.disabled = false; });
-      });
-      download.id = "download-backup";
-      backupResult.replaceChildren(element("p", "Captured revision " + backup.board_revision + " with "
-        + backup.attachment_ids.length + (backup.attachment_ids.length === 1 ? " attachment file." : " attachment files.")), download);
-      publicationPanel.replaceChildren(renderPublicationControls(boardId, backup.id, inspection));
-      return true;
-    }, "Backup captured.", inspection);
-  }), backupResult);
+  panel.append(renderBackupControls(boardId, boardTag));
   const restore = element("input");
   restore.type = "file";
   restore.accept = ".zip,application/zip";

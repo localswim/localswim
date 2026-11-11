@@ -131,7 +131,10 @@ it. The order is saved in shared workspace preferences, so another client sees
 it when it opens or refreshes the workspace. If the order changes during a
 save, the browser reads the latest order and applies the same edit to it once.
 If the change remains pending, review the saved order before choosing **Retry
-pin change** or **Cancel pending pin change**.
+pin change** or **Cancel pending pin change**. If saved pins are missing from
+the board list, choose **Remove unavailable pins** to clear them together.
+The browser checks the complete board list and the current workspace revision
+before saving.
 
 Expand **Board actions** to turn automatic publishing on or off for that board.
 Administrators can also save workspace publishing on the **Workspace** page.

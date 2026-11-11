@@ -2092,6 +2092,82 @@ test("sidebar pins rebase keyboard and pointer moves while preserving the select
   assert.deepEqual(pinnedBoards(second), [board, backup]);
 });
 
+test("unavailable saved pins are removed together using complete catalog and workspace readback", async () => {
+  const {api} = boardApi();
+  const first = {id: board, name: "Selected"};
+  const other = {id: backup, name: "Other"};
+  const visiblePin = {id: user, name: "New pin"};
+  const returned = {id: lane, name: "Visible again"};
+  let workspace = {revision: 1, pinned_board_ids: [priority, lane, board, card], publishing: publishingOff};
+  const workspaceTag = () => tag("workspace-test-id", workspace.revision);
+  const writes = [];
+  const pageStarted = Promise.withResolvers();
+  const finishPage = Promise.withResolvers();
+  let holdPage = false;
+  let restored = false;
+  api.getSession = async () => ({data: {kind: "human", principal_id: user, workspace_admin: true}});
+  api.listBoards = async (cursor) => {
+    if (!cursor) return {data: {boards: [first, other], next_cursor: "more"}, etag: null};
+    assert.equal(cursor, "more");
+    if (holdPage) {
+      holdPage = false;
+      pageStarted.resolve();
+      await finishPage.promise;
+    }
+    return page("boards", restored ? [visiblePin, returned] : [visiblePin]);
+  };
+  api.getWorkspace = async () => ({data: workspace, etag: workspaceTag()});
+  api.setPinnedBoards = async (pins, etag) => {
+    writes.push({pins: Array.from(pins), etag});
+    assert.equal(etag, workspaceTag());
+    assert.equal(pins.some((id) => id === priority || id === card), false);
+    if (writes.length === 1) {
+      workspace = {...workspace, revision: 3, pinned_board_ids: [priority, user, lane, board, card, backup]};
+      restored = true;
+      throw new ApiError("stale_revision", {status: 412});
+    }
+    workspace = {...workspace, revision: workspace.revision + 1, pinned_board_ids: pins};
+    if (writes.length === 2) throw new ApiError("transport_failed", {outcomeUnknown: true});
+    return api.getWorkspace();
+  };
+  const ui = await harness(api);
+  await ui.load();
+  await ui.settled();
+  ui.find(ui.nodes.main, "button", "#1 Original").click();
+  await ui.settled();
+  const draft = ui.field(ui.nodes.details, "Comment");
+  draft.value = "Pending comment";
+
+  assert.ok(ui.find(ui.nodes.boards, "p", "3 saved pins are unavailable."));
+  assert.equal(sidebarControl(ui, "Pin Other").attributes["aria-disabled"], "true");
+  assert.deepEqual(writes, []);
+  workspace = {...workspace, revision: 2, pinned_board_ids: [priority, lane, board, card, backup]};
+  holdPage = true;
+  const remove = ui.find(ui.nodes.boards, "button", "Remove unavailable pins");
+  remove.focus();
+  remove.click();
+  await pageStarted.promise;
+  assert.deepEqual(writes, []);
+  assert.equal(ui.focused(), remove);
+  finishPage.resolve();
+  await ui.settled();
+
+  assert.deepEqual(writes, [
+    {pins: [board, backup], etag: tag("workspace-test-id", 2)},
+    {pins: [user, lane, board, backup], etag: tag("workspace-test-id", 3)},
+  ]);
+  assert.deepEqual(pinnedBoards(ui), [user, lane, board, backup]);
+  const selected = ui.nodes.boards.querySelectorAll("a").find(({dataset}) => dataset.boardId === board);
+  assert.equal(selected.attributes["aria-current"], "page");
+  assert.equal(ui.focused(), selected);
+  assert.equal(ui.field(ui.nodes.details, "Comment"), draft);
+  assert.equal(draft.value, "Pending comment");
+  assert.equal(ui.find(ui.nodes.boards, "button", "Remove unavailable pins").hidden, true);
+  sidebarControl(ui, "Unpin Other").click();
+  await ui.settled();
+  assert.deepEqual(pinnedBoards(ui), [user, lane, board]);
+});
+
 test("board publishing keeps an explicit off draft across an unavailable read and navigation", async () => {
   const {api} = boardApi();
   const readLanes = api.getBoardLanes;
@@ -3552,6 +3628,72 @@ test("catalog hints refresh background Attention and the tab count without repai
   assert.equal(closed.children[3].textContent, "—");
   assert.equal(closed.title, "Board closed. Card edit history unavailable");
   assert.equal(ui.focused(), draft);
+});
+
+test("live catalog repaints keep pointer capture until a pinned drag ends", async (t) => {
+  const {api} = boardApi();
+  const streams = boardStreams(api);
+  const selected = {id: board, name: "Selected"};
+  const other = {id: backup, name: "Other"};
+  let catalog = [selected, other];
+  let catalogReads = 0;
+  let workspace = {revision: 1, pinned_board_ids: [board, backup], publishing: publishingOff};
+  const writes = [];
+  api.getSession = async () => ({data: {kind: "human", principal_id: user, workspace_admin: true}});
+  api.getWorkspace = async () => ({data: workspace, etag: tag("workspace-test-id", workspace.revision)});
+  api.listBoards = async () => { catalogReads++; return page("boards", catalog); };
+  api.setPinnedBoards = async (pins) => {
+    writes.push(Array.from(pins));
+    workspace = {...workspace, revision: workspace.revision + 1, pinned_board_ids: pins};
+    return api.getWorkspace();
+  };
+  const ui = await harness(api, "/boards/" + board);
+  t.after(ui.abortView);
+  await ui.load();
+  await until(() => streams.length === 1);
+  const stream = streams[0];
+  stream.sendCatalog("snapshot");
+  stream.send("snapshot", 1);
+  await until(() => catalogReads === 2);
+  const currentLink = () => ui.nodes.boards.querySelectorAll("a").find(({dataset}) => dataset.boardId === board);
+  const pointer = {isPrimary: true, button: 0, pointerId: 7};
+  const grip = sidebarControl(ui, "Reorder Other");
+  const target = currentLink();
+  grip.dispatch("pointerdown", pointer);
+  ui.pointerHit(target);
+  grip.dispatch("pointermove", pointer);
+  assert.equal(target.parent.attributes["data-pin-drop"], "true");
+
+  catalog = [{...selected, attention: {blocked: 2, needs_input: 0, ready_for_review: 0}}, other];
+  stream.sendCatalog("change");
+  await until(() => ui.title() === "(2) localswim");
+  assert.equal(grip.capturedPointer, 7);
+  assert.equal(sidebarControl(ui, "Reorder Other"), grip);
+  assert.equal(currentLink(), target);
+  grip.dispatch("pointerup", pointer);
+  await ui.settled();
+  assert.deepEqual(writes, [[backup, board]]);
+  assert.equal(currentLink().children[1].textContent, "2");
+  assert.equal(ui.focused(), sidebarControl(ui, "Reorder Other"));
+
+  const secondGrip = sidebarControl(ui, "Reorder Other");
+  secondGrip.dispatch("pointerdown", pointer);
+  catalog = [{...selected, attention: {blocked: 4, needs_input: 0, ready_for_review: 0}}, other];
+  stream.sendCatalog("change");
+  await until(() => ui.title() === "(4) localswim");
+  assert.equal(sidebarControl(ui, "Reorder Other"), secondGrip);
+  secondGrip.dispatch("lostpointercapture", pointer);
+  assert.equal(currentLink().children[1].textContent, "4");
+  assert.deepEqual(writes, [[backup, board]]);
+
+  const oldGrip = sidebarControl(ui, "Reorder Other");
+  oldGrip.dispatch("pointerdown", pointer);
+  ui.pointerHit(currentLink());
+  await ui.navigate("/");
+  const newGrip = sidebarControl(ui, "Reorder Other");
+  oldGrip.dispatch("pointerup", pointer);
+  assert.equal(sidebarControl(ui, "Reorder Other"), newGrip);
+  assert.deepEqual(writes, [[backup, board]]);
 });
 
 test("Workspace coalesces catalog hints and catches up from a reconnect snapshot", async (t) => {

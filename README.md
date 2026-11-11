@@ -52,8 +52,9 @@ from Ready For Review to Completed.
 Use `board create --json definition.json` with a `workflow` object to define
 custom lanes, priorities, and grants. Lane ordering and triage use each
 priority's numeric `rank`. For the Terry preset the rank equals the P-number.
-Commands that read JSON accept a file path or `-` for standard input.
-Export a board with `board export BOARD_ID`. The default format is JSON.
+Commands that read JSON require a file path or `-` for standard input.
+Export a board with `board export BOARD_ID FILE|-`. Use a new file path, or `-`
+for standard output. The default format is JSON.
 
 Use `board verify BOARD_ID` to verify the durable board through the service or
 `board verify --data DIRECTORY BOARD_ID` to read the local snapshot offline.

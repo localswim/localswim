@@ -80,9 +80,9 @@ func TestOperationRoutesAndInputsRejectWrongVersion(t *testing.T) {
 		client.call("GET", "/"+route+"/"+operation, "", "", 400)
 	}
 	requests := map[string]string{
-		"backups":      fmt.Sprintf(`{"id":%q,"board_id":%q,"expected_board_etag":%q}`, ordinary, state.Board.ID, state.Board.ETag),
+		"backups":      fmt.Sprintf(`{"id":%q,"board_id":%q,"expected_board_etag":%q}`, ordinary, state.Board.ID, state.Board.entityTag()),
 		"publications": fmt.Sprintf(`{"id":%q,"board_id":%q,"backup_id":%q}`, ordinary, state.Board.ID, operation),
-		"restorations": fmt.Sprintf(`{"id":%q,"board_id":%q,"backup_id":%q,"expected_board_etag":%q}`, ordinary, state.Board.ID, operation, state.Board.ETag),
+		"restorations": fmt.Sprintf(`{"id":%q,"board_id":%q,"backup_id":%q,"expected_board_etag":%q}`, ordinary, state.Board.ID, operation, state.Board.entityTag()),
 		"approvals":    fmt.Sprintf(`{"id":%q}`, ordinary),
 		"activations":  fmt.Sprintf(`{"id":%q}`, ordinary),
 	}
@@ -120,7 +120,7 @@ func TestNativeSnapshotOperationIDValidationAndNormalization(t *testing.T) {
 
 func TestBackupAndPublicationCreationTimeUsesOnlyID(t *testing.T) {
 	app, client, state, _ := backupCaptureFixture(t)
-	raw, _ := client.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, state.Board.ID, state.Board.ETag), "", 201)
+	raw, _ := client.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, state.Board.ID, state.Board.entityTag()), "", 201)
 	capture := turnOneDecode[backup](t, raw)
 	if !validSnapshotOperationID(capture.ID) || bytes.Contains(raw, []byte(`"created_at"`)) {
 		t.Fatal("backup creation time contract is incorrect")

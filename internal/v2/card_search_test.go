@@ -200,13 +200,13 @@ func TestCardSearchHTTPPaginationAndDurability(t *testing.T) {
 	b := turnOneDecode[board](t, raw)
 	create := func(title, description string) card {
 		t.Helper()
-		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":%q,"description":%q}`, b.ID, b.ETag, b.LaneIDs[0], title, description)
-		raw, headers := client.call("POST", "/cards", body, "", 201)
-		b.ETag = headers.Get("X-Board-ETag")
+		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":%q,"description":%q}`, b.ID, b.entityTag(), b.LaneIDs[0], title, description)
+		raw, _ := client.call("POST", "/cards", body, "", 201)
+		b.Revision++
 		return turnOneDecode[card](t, raw)
 	}
 	a, z := create("Alpha", "secret concept"), create("Zulu", "secret concept")
-	body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"source_card_id":%q,"target_card_id":%q,"kind":"blocks"}`, b.ID, b.ETag, z.ID, a.ID)
+	body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"source_card_id":%q,"target_card_id":%q,"kind":"blocks"}`, b.ID, b.entityTag(), z.ID, a.ID)
 	client.call("POST", "/relationships", body, "", 201)
 	before, err := app.store.durable(b.ID)
 	if err != nil {
@@ -257,23 +257,23 @@ func TestM067CardTriageAcrossLanes(t *testing.T) {
 	create := func(title, laneID, priorityID string) card {
 		t.Helper()
 		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":%q,"priority_id":%q}`,
-			b.ID, b.ETag, laneID, title, priorityID)
-		raw, headers := client.call("POST", "/cards", body, "", 201)
-		b.ETag = headers.Get("X-Board-ETag")
+			b.ID, b.entityTag(), laneID, title, priorityID)
+		raw, _ := client.call("POST", "/cards", body, "", 201)
+		b.Revision++
 		return turnOneDecode[card](t, raw)
 	}
 	patch := func(item card, body string) card {
 		t.Helper()
-		raw, headers := client.call("PATCH", "/cards/"+item.ID, body, item.entityTag(), 200)
-		b.ETag = headers.Get("X-Board-ETag")
+		raw, _ := client.call("PATCH", "/cards/"+item.ID, body, item.entityTag(), 200)
+		b.Revision++
 		return turnOneDecode[card](t, raw)
 	}
 	blocks := func(source, target card) {
 		t.Helper()
 		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"source_card_id":%q,"target_card_id":%q,"kind":"blocks"}`,
-			b.ID, b.ETag, source.ID, target.ID)
-		_, headers := client.call("POST", "/relationships", body, "", 201)
-		b.ETag = headers.Get("X-Board-ETag")
+			b.ID, b.entityTag(), source.ID, target.ID)
+		_, _ = client.call("POST", "/relationships", body, "", 201)
+		b.Revision++
 	}
 	normal := b.PriorityIDs[1]
 	first := create("Backlog", backlog, normal)

@@ -13399,7 +13399,6 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
       - created_at
       - updated_at
       - name
@@ -13423,8 +13422,6 @@ components:
           description: Board member used when card creation omits owner_id.
         id:
           $ref: '#/components/schemas/Uuid'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -13473,7 +13470,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - label
@@ -13482,8 +13479,8 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -13505,7 +13502,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
@@ -13516,8 +13513,8 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -13636,7 +13633,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
@@ -13647,8 +13644,8 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -14422,15 +14419,12 @@ components:
       additionalProperties: false
       required:
       - port
-      - etag
       - service_instance_id
       - build_id
       - state
       - api_version
       - restart_error_code
       properties:
-        etag:
-          $ref: '#/components/schemas/EntityTag'
         port:
           type: integer
           minimum: 1
@@ -14485,7 +14479,6 @@ components:
       - board_id
       - backup_id
       - at
-      - board_etag
       - revision
       properties:
         id:
@@ -14497,8 +14490,6 @@ components:
         at:
           $ref: '#/components/schemas/Timestamp'
           description: Actual execution time, independent of when the UUIDv7 id was generated.
-        board_etag:
-          $ref: '#/components/schemas/EntityTag'
         revision:
           $ref: '#/components/schemas/Revision'
     Event:
@@ -14783,9 +14774,7 @@ components:
           - $ref: '#/components/schemas/Revision'
           - minimum: 1
         card:
-          allOf:
-          - $ref: '#/components/schemas/TicketCardContext'
-          - required: [etag]
+          $ref: '#/components/schemas/TicketCardContext'
         relationships:
           type: array
           description: Direct links ordered by the other card's ticket, then kind and direction.
@@ -14838,9 +14827,6 @@ components:
           $ref: '#/components/schemas/Card/properties/ticket'
         revision:
           $ref: '#/components/schemas/Card/properties/revision'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
-          description: Current card validator. Present on the selected card.
         title:
           $ref: '#/components/schemas/Card/properties/title'
         archived:
@@ -15661,9 +15647,9 @@ components:
           $ref: '#/components/schemas/UuidInput'
         kind:
           type: string
-          pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[bB][lL][oO][cC][kK][eE][dD]_[bB][yY]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][dD]_[bB][yY]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][dD]_[bB][yY]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
-          description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
-            Inverse spellings swap source/target before canonical storage.
+          pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
+          description: ASCII case-insensitive input. Directional kinds run from the source card
+            to the target card. relates_to is symmetric. Responses use canonical lowercase kinds.
         actor: false
         actor_id: false
         by: false
@@ -15880,9 +15866,9 @@ components:
           $ref: '#/components/schemas/UuidInput'
         kind:
           type: string
-          pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[bB][lL][oO][cC][kK][eE][dD]_[bB][yY]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][dD]_[bB][yY]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][dD]_[bB][yY]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
-          description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
-            Inverse spellings swap source/target before canonical storage.
+          pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
+          description: ASCII case-insensitive input. Directional kinds run from the source card
+            to the target card. relates_to is symmetric. Responses use canonical lowercase kinds.
         actor: false
         actor_id: false
         by: false
@@ -15917,9 +15903,9 @@ components:
           $ref: '#/components/schemas/EntityTag'
         kind:
           type: string
-          pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[bB][lL][oO][cC][kK][eE][dD]_[bB][yY]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][dD]_[bB][yY]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][dD]_[bB][yY]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
-          description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
-            Inverse spellings swap source/target before canonical storage.
+          pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
+          description: ASCII case-insensitive input. Directional kinds run from the source card
+            to the target card. relates_to is symmetric. Responses use canonical lowercase kinds.
         actor: false
         actor_id: false
         by: false
@@ -16503,7 +16489,7 @@ components:
       required:
       - id
       - name
-      - etag
+      - revision
       - availability
       - attention
       - last_card_edit_at
@@ -16517,9 +16503,9 @@ components:
             minLength: 1
             maxLength: 256
           - type: 'null'
-        etag:
+        revision:
           anyOf:
-          - $ref: '#/components/schemas/EntityTag'
+          - $ref: '#/components/schemas/Revision'
           - type: 'null'
         availability:
           enum:
@@ -16578,7 +16564,6 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
       - created_at
       - updated_at
       - name
@@ -16602,8 +16587,6 @@ components:
           description: Board member used when card creation omits owner_id.
         id:
           $ref: '#/components/schemas/UuidInput'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -16712,7 +16695,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - label
@@ -16721,8 +16704,8 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -16809,7 +16792,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
@@ -16820,8 +16803,8 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -16848,7 +16831,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
@@ -16859,8 +16842,8 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:

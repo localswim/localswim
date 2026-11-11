@@ -63,7 +63,7 @@ func TestOperationIDVersionsAndCanonicalInputs(t *testing.T) {
 
 func TestTicketOrderPreviewRetainsUUIDv4CardIDs(t *testing.T) {
 	for _, cardID := range []string{t03Card, strings.ToUpper(t03Card), t06Operation} {
-		preview := []byte(fmt.Sprintf(`{"board_id":%q,"lane_id":%q,"expected_board_etag":%q,"proposed":[{"card_id":%q,"ticket":1}]}`, t03Board, t03Lane, t03BoardTag, cardID))
+		preview := []byte(fmt.Sprintf(`{"board_id":%q,"lane_id":%q,"board_revision":12,"proposed":[{"card_id":%q,"ticket":1}]}`, t03Board, t03Lane, cardID))
 		body, err := ticketOrderApplyBody(preview, t03Lane)
 		if cardID == t06Operation {
 			if err == nil {

@@ -62,6 +62,9 @@ Use the drawer's parent and child links to open those cards, including archived
 cards. Add a typed link from the drawer. If you can manage relationships, expand
 **Link the new card** in the new card form to add several links. The service saves
 the card and all its links together. Each relationship is visible from both cards.
+Link types are Blocks, Duplicates, References, and Relates to. Incoming links
+identify the other card as the source. Changing a link type preserves its source
+and target.
 Human comments link ticket references to focused board reads, including archived
 tickets. Bot comments render as text. Card priorities are shown on the board and
 in the drawer and refresh after link edits.
@@ -110,6 +113,11 @@ uncertain response. If readback fails, use **Inspect saved board** or **Refresh*
 before submitting another change. The browser never replays the PATCH.
 
 ## Service lifecycle
+
+Service JSON contains runtime state without an ETag field. `getService()` retains
+the HTTP validator separately as `reply.etag`. Lifecycle controls capture that
+validator alongside the service data and pass it to `stopService(service, etag)`
+or `activateBuild(id, buildId, etag)` for conditional requests.
 
 Workspace administrators can use **Activate staged build** when the Service
 panel reports a valid candidate. The browser reconnects on the original port,
@@ -161,10 +169,10 @@ and `boardEtag` identifies the updated board. Supply your own UUIDv7 `id` when
 you need focused readback after an uncertain response. Use `getCard(id)` for that
 readback or `listCards(boardId, { ticket })` to find an active card by its ticket.
 
-Use `getBoardIfChanged(boardId, etag)` with a board summary ETag. An unchanged
+Use `getBoardIfChanged(boardId, etag)` with the HTTP ETag returned by `getBoard`. An unchanged
 board normally returns `{ data: null, etag }`. When live publishing status is
 available, the response can include current board data with the same ETag.
-Use the ETag to compare board revisions and the returned publishing status
+Compare the JSON `revision` for board versions and use the returned publishing status
 to refresh its display.
 
 `streamEvents({ boardId, watch, signal })` is an async iterable for the selected

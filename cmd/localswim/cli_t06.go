@@ -169,12 +169,15 @@ func executeT06(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 		}
 	}
 	if cmd.t06Action == "ticket-order preview" {
-		fields, parseErr := cliInputFields(reply.JSON)
-		if parseErr != nil || reply.BoardETag == "" {
-			return errors.New("service did not return a valid preview board validator")
+		var preview struct {
+			BoardID       string `json:"board_id"`
+			BoardRevision uint64 `json:"board_revision"`
 		}
-		fields["expected_board_etag"], _ = json.Marshal(reply.BoardETag)
-		reply.JSON, _ = json.Marshal(fields)
+		if json.Unmarshal(reply.JSON, &preview) != nil || !boardIDPattern.MatchString(preview.BoardID) ||
+			preview.BoardRevision == 0 || preview.BoardRevision > maxCLIRevision ||
+			reply.BoardETag != fmt.Sprintf("\"%s-%d\"", preview.BoardID, preview.BoardRevision) {
+			return errors.New("service did not return a valid preview board revision")
+		}
 	}
 	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
 		if cmd.t06Action == "backup create" {

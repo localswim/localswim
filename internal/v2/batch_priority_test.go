@@ -33,7 +33,7 @@ func TestPriorityBatchAtomicFloorsAndNoop(t *testing.T) {
 	raw, _ := client.call("POST", "/boards", `{"name":"Batch priorities"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
 	high, low := b.PriorityIDs[0], b.PriorityIDs[2]
-	boardTag := b.ETag
+	boardTag := b.entityTag()
 	create := func(title string, target *card) card {
 		t.Helper()
 		extra := ""
@@ -81,14 +81,14 @@ func TestPriorityBatchAtomicFloorsAndNoop(t *testing.T) {
 		}
 	}
 	boardTag = tag
-	batch([]string{middle.ID}, high, before.Board.ETag, 412)
+	batch([]string{middle.ID}, high, before.Board.entityTag(), 412)
 	batch([]string{middle.ID, strings.ToUpper(middle.ID)}, high, boardTag, 400)
 	batch([]string{middle.ID, newID()}, high, boardTag, 404)
 	unchanged, err := app.store.durable(b.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if unchanged.Board.ETag != boardTag || len(unchanged.Activity) != len(before.Activity)+2 {
+	if unchanged.Board.entityTag() != boardTag || len(unchanged.Activity) != len(before.Activity)+2 {
 		t.Fatal("refused batch changed durable state")
 	}
 	result, tag = batch([]string{middle.ID, downstream.ID}, low, boardTag, 200)

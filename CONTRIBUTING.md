@@ -168,6 +168,10 @@ paths, including detached files. Backup metadata uses `sha2_256` for the archive
 digest and `board_revision` for the captured commit. Later edits remain available
 to subsequent captures. Use `backup info BACKUP_ID` to read metadata for the
 original backup after an uncertain POST before attempting another capture.
+Use `board export [--type json] [--data DIRECTORY] BOARD_ID FILE|-` to save the
+complete native JSON snapshot. Supply a new file path or `-` for stdout. Omitting
+the destination is an error. The same destination rule applies online and offline.
+
 Use `backup download BACKUP_ID FILE|-` to verify and save the ZIP.
 
 Run `localswim backup verify FILE` to check a downloaded Localswim ZIP offline.

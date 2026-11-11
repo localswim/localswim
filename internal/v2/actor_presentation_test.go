@@ -16,22 +16,22 @@ func TestBoardActorPresentationAndLaneNotes(t *testing.T) {
 		t.Fatal("board creation changed the supplied label")
 	}
 	boardPath := "/boards/" + created.ID
-	client.call("PATCH", boardPath, `{"actor_presentation":{"human":{"accent":"red; background: url(a)"}}}`, created.ETag, 400)
-	client.call("PATCH", boardPath, `{"actor_presentation":{"bot":{"kind":"human"}}}`, created.ETag, 400)
-	client.call("PATCH", boardPath, `{"actor_presentation":{"human":{"label":"\uD800"}}}`, created.ETag, 400)
-	client.call("PATCH", boardPath, `{"user_ids":[]}`, created.ETag, 400)
-	body, _ = client.call("PATCH", boardPath, `{"actor_presentation":{"bot":{"label":" Automation ","accent":"#123aBC"}}}`, created.ETag, 200)
+	client.call("PATCH", boardPath, `{"actor_presentation":{"human":{"accent":"red; background: url(a)"}}}`, created.entityTag(), 400)
+	client.call("PATCH", boardPath, `{"actor_presentation":{"bot":{"kind":"human"}}}`, created.entityTag(), 400)
+	client.call("PATCH", boardPath, `{"actor_presentation":{"human":{"label":"\uD800"}}}`, created.entityTag(), 400)
+	client.call("PATCH", boardPath, `{"user_ids":[]}`, created.entityTag(), 400)
+	body, _ = client.call("PATCH", boardPath, `{"actor_presentation":{"bot":{"label":" Automation ","accent":"#123aBC"}}}`, created.entityTag(), 200)
 	updated := turnOneDecode[board](t, body)
 	if updated.ActorPresentation.Human != (actorDecoration{}) ||
 		updated.ActorPresentation.Bot != (actorDecoration{" Automation ", "#123aBC"}) {
 		t.Fatal("board patch did not replace presentation while preserving exact text")
 	}
-	client.call("PATCH", boardPath, `{"actor_presentation":{}}`, created.ETag, 412)
+	client.call("PATCH", boardPath, `{"actor_presentation":{}}`, created.entityTag(), 412)
 
 	item := before.Lanes[0]
 	lanePath := "/lanes/" + item.ID
 	note := "  Étape <initiale>\nNext line. "
-	payload, err := json.Marshal(map[string]string{"board_etag": updated.ETag, "notes": note})
+	payload, err := json.Marshal(map[string]string{"board_etag": updated.entityTag(), "notes": note})
 	if err != nil {
 		t.Fatal(err)
 	}

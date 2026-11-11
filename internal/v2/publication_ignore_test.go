@@ -51,12 +51,12 @@ func TestM88ManualAndAutomaticPublicationRefuseIgnoredBoard(t *testing.T) {
 	assertUnpublished()
 
 	address := "/boards/" + fixture.state.Board.ID
-	raw, _ = fixture.editor.call("PATCH", address, `{"publishing":{"enabled":true}}`, fixture.state.Board.ETag, 200)
+	raw, _ = fixture.editor.call("PATCH", address, `{"publishing":{"enabled":true}}`, fixture.state.Board.entityTag(), 200)
 	enabled := turnOneDecode[board](t, raw)
 	failed := waitBoardPublishing(t, fixture.editor, address, func(info publishing) bool {
 		return info.Pending && snapshotString(info.ErrorCode) == "publication_path_ignored"
 	})
-	if failed.ETag != enabled.ETag || failed.Publishing.LastSuccessAt != nil {
+	if failed.entityTag() != enabled.entityTag() || failed.Publishing.LastSuccessAt != nil {
 		t.Fatal("ignore refusal changed the revision or claimed a successful push")
 	}
 	assertUnpublished()
@@ -66,7 +66,7 @@ func TestM88ManualAndAutomaticPublicationRefuseIgnoredBoard(t *testing.T) {
 	allowed := waitBoardPublishing(t, fixture.editor, address, func(info publishing) bool {
 		return !info.Pending && info.ErrorCode == nil && info.LastSuccessAt != nil
 	})
-	if allowed.ETag != enabled.ETag {
+	if allowed.entityTag() != enabled.entityTag() {
 		t.Fatal("automatic retry changed the board revision")
 	}
 	fixture.contents["boards/"+allowed.ID+".json"], err = os.ReadFile(fixture.app.store.snapshotPath(allowed.ID))
@@ -96,7 +96,7 @@ func TestM88ManualAndAutomaticPublicationRefuseIgnoredBoard(t *testing.T) {
 	if err != nil || !bytes.Equal(indexBefore, indexAfter) {
 		t.Fatal("publication changed the caller's index", err)
 	}
-	fixture.editor.call("PATCH", address, `{"publishing":{"enabled":false}}`, allowed.ETag, 200)
+	fixture.editor.call("PATCH", address, `{"publishing":{"enabled":false}}`, allowed.entityTag(), 200)
 }
 
 func TestM88PublicationRefusesIgnoredStagedDetachedAttachment(t *testing.T) {

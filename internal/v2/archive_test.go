@@ -36,7 +36,7 @@ func TestM06ArchiveAndRestoreHTTP(t *testing.T) {
 		data, headers := human.call("POST", "/cards", body, "", 201)
 		return turnOneDecode[card](t, data), headers.Get("X-Board-ETag")
 	}
-	parent, tag := makeCard(initial.Board.ETag, "")
+	parent, tag := makeCard(initial.Board.entityTag(), "")
 	child, boardTag := makeCard(tag, fmt.Sprintf(`,"parent_id":%q`, parent.ID))
 	path := "/cards/" + child.ID
 	for _, input := range []string{`null`, `"true"`, `0`, `{}`, `[]`} {

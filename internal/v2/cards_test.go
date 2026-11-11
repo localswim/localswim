@@ -38,7 +38,7 @@ func TestM02CardCreationAndReadback(t *testing.T) {
 	description := " first\r\nsecond\n "
 	request := map[string]string{
 		"id": strings.ToUpper(id), "board_id": strings.ToUpper(b.ID), "lane_id": strings.ToUpper(b.LaneIDs[0]),
-		"expected_board_etag": b.ETag, "title": title, "description": description,
+		"expected_board_etag": b.entityTag(), "title": title, "description": description,
 	}
 	post := func(want int) ([]byte, string) {
 		t.Helper()
@@ -57,12 +57,12 @@ func TestM02CardCreationAndReadback(t *testing.T) {
 	}
 	delete(request, "expected_board_etag")
 	post(428)
-	request["expected_board_etag"] = b.ETag
+	request["expected_board_etag"] = b.entityTag()
 	raw, boardTag := post(201)
 	created := turnOneDecode[card](t, raw)
 	if created.ID != id || created.BoardID != b.ID || created.Ticket != 1 || created.Revision != 2 ||
 		created.Title != title || created.Description != description || created.PriorityID != b.PriorityIDs[1] ||
-		created.LaneID != b.LaneIDs[0] || created.ChildIDs == nil || boardTag == "" || boardTag == b.ETag {
+		created.LaneID != b.LaneIDs[0] || created.ChildIDs == nil || boardTag == "" || boardTag == b.entityTag() {
 		t.Fatalf("unexpected created card: %+v", created)
 	}
 	post(409)
@@ -132,7 +132,7 @@ func TestM08ParentPatchUsesCardTagAndRelationshipGrant(t *testing.T) {
 		raw, headers := editor.call("POST", "/cards", body, "", 201)
 		return turnOneDecode[card](t, raw), headers.Get("X-Board-ETag")
 	}
-	parent, tag := makeCard(value.Board.ETag)
+	parent, tag := makeCard(value.Board.entityTag())
 	child, _ := makeCard(tag)
 	bot := editor
 	bot.token = base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("b", 32)))

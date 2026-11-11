@@ -52,7 +52,7 @@ func TestM29CapturedSnapshotKeepsRevisionWhileMutationCommits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	captured, err := app.store.captureBackupSnapshot(before.Board.ID, humanID, before.Board.ETag)
+	captured, err := app.store.captureBackupSnapshot(before.Board.ID, humanID, before.Board.Revision)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestM29CapturedSnapshotKeepsRevisionWhileMutationCommits(t *testing.T) {
 	if live.Board.Revision <= before.Board.Revision || live.Cards[0].Title != updated.Title || len(live.Attachments) != 3 {
 		t.Fatal("backup work replaced or lost the later live revision")
 	}
-	next, err := app.store.captureBackupSnapshot(live.Board.ID, humanID, live.Board.ETag)
+	next, err := app.store.captureBackupSnapshot(live.Board.ID, humanID, live.Board.Revision)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestM29CaptureRefusesDamagedDurableSnapshot(t *testing.T) {
 	if err := os.WriteFile(app.store.snapshotPath(before.Board.ID), []byte("damaged snapshot"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	captured, err := app.store.captureBackupSnapshot(before.Board.ID, humanID, before.Board.ETag)
+	captured, err := app.store.captureBackupSnapshot(before.Board.ID, humanID, before.Board.Revision)
 	if err == nil {
 		_, _, err = captured.verify()
 	}
@@ -172,7 +172,7 @@ func TestM29CaptureRefusesMissingOrTamperedAttachments(t *testing.T) {
 		for _, damage := range []string{"missing", "tampered"} {
 			t.Run(fmt.Sprintf("active=%t/%s", active, damage), func(t *testing.T) {
 				app, _, before, _ := backupCaptureFixture(t)
-				captured, err := app.store.captureBackupSnapshot(before.Board.ID, humanID, before.Board.ETag)
+				captured, err := app.store.captureBackupSnapshot(before.Board.ID, humanID, before.Board.Revision)
 				if err != nil {
 					t.Fatal(err)
 				}

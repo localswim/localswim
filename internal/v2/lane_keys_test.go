@@ -20,7 +20,7 @@ func TestLaneKeyPatchHTTP(t *testing.T) {
 	lanePath := "/lanes/" + target.ID
 	body, _ = client.call("POST", "/cards", fmt.Sprintf(
 		`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"Keeps its lane"}`,
-		created.ID, created.ETag, target.ID), "", 201)
+		created.ID, created.entityTag(), target.ID), "", 201)
 	cardBefore := turnOneDecode[card](t, body)
 	before, _ := app.store.accepted(created.ID)
 	path := app.store.snapshotPath(created.ID)
@@ -37,21 +37,21 @@ func TestLaneKeyPatchHTTP(t *testing.T) {
 		body, headers := client.call("PATCH", lanePath, string(input), laneTag, want)
 		return body, headers.Get("X-Board-ETag")
 	}
-	patch("changed", before.Board.ETag, "", 428)
-	patch("changed", initial.Board.ETag, target.entityTag(), 412)
-	patch("changed", before.Board.ETag, etag(target.ID, 99), 412)
+	patch("changed", before.Board.entityTag(), "", 428)
+	patch("changed", initial.Board.entityTag(), target.entityTag(), 412)
+	patch("changed", before.Board.entityTag(), etag(target.ID, 99), 412)
 	for _, key := range []any{nil, "", 5, true, strings.Repeat("界", 129)} {
-		patch(key, before.Board.ETag, target.entityTag(), 400)
+		patch(key, before.Board.entityTag(), target.entityTag(), 400)
 	}
-	patch(initial.Lanes[1].Key, before.Board.ETag, target.entityTag(), 409)
-	patch("completed", before.Board.ETag, target.entityTag(), 400)
+	patch(initial.Lanes[1].Key, before.Board.entityTag(), target.entityTag(), 409)
+	patch("completed", before.Board.entityTag(), target.entityTag(), 400)
 	unchanged, err := os.ReadFile(path)
 	if err != nil || !bytes.Equal(committed, unchanged) {
 		t.Fatalf("refused key patch changed durable state: %v", err)
 	}
 
 	key := "  Révision 界  "
-	body, boardTag := patch(key, before.Board.ETag, target.entityTag(), 200)
+	body, boardTag := patch(key, before.Board.entityTag(), target.entityTag(), 200)
 	renamed := turnOneDecode[lane](t, body)
 	expected := target
 	expected.Key, expected.Revision, expected.UpdatedAt = key, before.Board.Revision+1, renamed.UpdatedAt
@@ -96,7 +96,7 @@ func TestLaneKeyPatchHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	patch(key, actual.Board.ETag, renamed.entityTag(), 200)
+	patch(key, actual.Board.entityTag(), renamed.entityTag(), 200)
 	unchanged, err = os.ReadFile(path)
 	if err != nil || !bytes.Equal(committed, unchanged) {
 		t.Fatalf("same-key patch changed durable state: %v", err)
@@ -128,12 +128,12 @@ func TestLaneKeyProtectedAndRetiredHTTP(t *testing.T) {
 	initial, _ := app.store.accepted(created.ID)
 	completed := initial.Lanes[slices.IndexFunc(initial.Lanes, func(item lane) bool { return item.Role == "completed" })]
 	client.call("PATCH", "/lanes/"+completed.ID, fmt.Sprintf(
-		`{"board_etag":%q,"key":"renamed_completed","label":"Done"}`, created.ETag), completed.entityTag(), 400)
+		`{"board_etag":%q,"key":"renamed_completed","label":"Done"}`, created.entityTag()), completed.entityTag(), 400)
 	client.call("PATCH", "/lanes/"+completed.ID, fmt.Sprintf(
-		`{"board_etag":%q,"key":"completed"}`, created.ETag), completed.entityTag(), 200)
+		`{"board_etag":%q,"key":"completed"}`, created.entityTag()), completed.entityTag(), 200)
 	body, headers := client.call("POST", "/lanes", fmt.Sprintf(
 		`{"board_id":%q,"board_etag":%q,"label":"Temporary","create_for":[%q],"connect_for":[%q]}`,
-		created.ID, created.ETag, humanID, humanID), "", 201)
+		created.ID, created.entityTag(), humanID, humanID), "", 201)
 	temporary := turnOneDecode[lane](t, body)
 	body, headers = client.call("PATCH", "/lanes/"+temporary.ID, fmt.Sprintf(
 		`{"board_etag":%q,"key":"retired key","label":"Former temporary","retired":true}`,
@@ -145,7 +145,7 @@ func TestLaneKeyProtectedAndRetiredHTTP(t *testing.T) {
 	current, _ := app.store.accepted(created.ID)
 	ordinary := current.Lanes[0]
 	client.call("PATCH", "/lanes/"+ordinary.ID, fmt.Sprintf(
-		`{"board_etag":%q,"key":"retired key"}`, current.Board.ETag), ordinary.entityTag(), 409)
+		`{"board_etag":%q,"key":"retired key"}`, current.Board.entityTag()), ordinary.entityTag(), 409)
 	// Retired lanes retain their board-local key and can still be identified by a new key.
 	body, _ = client.call("PATCH", "/lanes/"+retired.ID, fmt.Sprintf(
 		`{"board_etag":%q,"key":"historical key"}`, headers.Get("X-Board-ETag")), retired.entityTag(), 200)

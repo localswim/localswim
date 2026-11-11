@@ -71,7 +71,7 @@ func TestSameSecondMutationsAdvanceRevisions(t *testing.T) {
 	at := canonicalTime(time.Now())
 	current := initial
 	for i := range 3 {
-		next, err := s.update(m01BoardID, current.Board.ETag, func(value *snapshot) error {
+		next, err := s.update(m01BoardID, current.Board.Revision, func(value *snapshot) error {
 			field, before, after := "name", value.Board.Name, fmt.Sprintf("Rename %d", i)
 			value.Board.Name = after
 			value.Activity = append(value.Activity, activity{
@@ -84,7 +84,7 @@ func TestSameSecondMutationsAdvanceRevisions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if next.Board.Revision != current.Board.Revision+1 || next.Board.ETag == current.Board.ETag {
+		if next.Board.Revision != current.Board.Revision+1 || next.Board.entityTag() == current.Board.entityTag() {
 			t.Fatal("same-second mutation did not advance revision and ETag")
 		}
 		if next.Board.UpdatedAt != at {

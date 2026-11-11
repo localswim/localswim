@@ -11,10 +11,10 @@ const MAX_LANE_NOTES_LENGTH = 4096;
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const RASTER_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
-/** @typedef {"blocks"|"blocked_by"|"duplicates"|"duplicated_by"|"references"|"referenced_by"|"relates_to"} RelationshipKind */
+/** @typedef {"blocks"|"duplicates"|"references"|"relates_to"} RelationshipKind */
 /** @typedef {{enabled: boolean, repository: string|null, last_success_at: string|null, pending: boolean, error_code: string|null}} Publishing */
 /** @typedef {{revision: number, pinned_board_ids: string[], publishing: Publishing}} Workspace */
-/** @typedef {{etag: string, port: number, service_instance_id: string, build_id: string,
+/** @typedef {{port: number, service_instance_id: string, build_id: string,
  * state: "running"|"draining", api_version: "2026-11-10", restart_error_code: string|null}} Service */
 /** @typedef {{id: string, version: string, validation: "pending"|"valid"|"invalid", error_code: string|null}} Build */
 /** @typedef {{id: string, build_id: string, state: "accepted"|"activated"|"failed", error_code: string|null}} Activation */
@@ -125,7 +125,7 @@ function validErrorCode(value) {
 /** @param {unknown} value @returns {value is Service} */
 function validService(value) {
   if (!isObject(value)) return false;
-  return Object.keys(value).length === 7 && typeof value.etag === "string" && STRONG_ETAG.test(value.etag)
+  return Object.keys(value).length === 6
     && isInteger(value.port) && value.port >= 1 && value.port <= 65535
     && typeof value.service_instance_id === "string" && UUID_V7.test(value.service_instance_id)
     && canonicalId(value.build_id) && (value.state === "running" || value.state === "draining")
@@ -232,6 +232,15 @@ function validLane(data, id, boardId) {
     && typeof lane.approval_enabled === "boolean" && typeof lane.reorder_enabled === "boolean";
 }
 
+/** @param {string} kind @returns {RelationshipKind} */
+function relationshipKind(kind) {
+  const normalized = typeof kind === "string" ? kind.toLowerCase() : "";
+  if (normalized !== "blocks" && normalized !== "duplicates" && normalized !== "references" && normalized !== "relates_to") {
+    throw new TypeError("Invalid relationship kind.");
+  }
+  return normalized;
+}
+
 /** @param {object} data @param {string} [id] @param {string} [boardId] */
 function validRelationship(data, id, boardId) {
   const link = /** @type {Record<string, unknown>} */ (data);
@@ -242,7 +251,7 @@ function validRelationship(data, id, boardId) {
     && isTimestamp(link.created_at) && isTimestamp(link.updated_at)
     && isId(link.source_card_id) && isId(link.target_card_id)
     && typeof link.kind === "string"
-    && ["blocks", "blocked_by", "duplicates", "duplicated_by", "references", "referenced_by", "relates_to"].includes(link.kind);
+    && ["blocks", "duplicates", "references", "relates_to"].includes(link.kind);
 }
 
 /** @param {object} data @param {string} [id] @param {string} [cardId] */
@@ -1100,6 +1109,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {string} id @param {string} boardId @param {string} boardEtag
      * @param {string} source @param {string} target @param {RelationshipKind} kind */
     async createRelationship(id, boardId, boardEtag, source, target, kind) {
+      kind = relationshipKind(kind);
       const expectedId = resourceId(id);
       const board = resourceId(boardId);
       const reply = await createWithId("/relationships", expectedId, { data: {
@@ -1113,6 +1123,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {string} id @param {number} revision @param {string} boardEtag @param {RelationshipKind} kind */
     async replaceRelationship(id, revision, boardEtag, kind) {
+      kind = relationshipKind(kind);
       const boardTag = strongTag(boardEtag);
       const current = await currentRelationship(id, revision);
       const reply = await request("/relationships/" + resourceId(id), {
@@ -1441,10 +1452,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {AbortSignal} [signal] */
     async getService(signal) {
       const reply = await readLifecycle("/service", signal);
-      if (!validService(reply.data) || reply.etag !== reply.data.etag) {
+      if (!validService(reply.data)) {
         throw new ApiError("invalid_response", { status: 200 });
       }
-      return { data: reply.data, etag: reply.data.etag };
+      return { data: reply.data, etag: strongTag(reply.etag) };
     },
     async listBuilds() {
       const reply = await readLifecycle("/builds");
@@ -1482,13 +1493,14 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       return reply.data;
     },
-    /** @param {Service} service */
-    async stopService(service) {
-      const response = await send("/service", { method: "PATCH", etag: strongTag(service.etag),
+    /** @param {Service} service @param {string} serviceEtag */
+    async stopService(service, serviceEtag) {
+      const response = await send("/service", { method: "PATCH", etag: strongTag(serviceEtag),
         data: { state: "stopped" }, knownUnavailable: true });
       await requireLifecycleResponse(response, 202, true);
       const data = await responseObject(response, true);
-      if (!validService(data) || data.state !== "draining"
+      if (!STRONG_ETAG.test(response.headers.get("ETag") ?? "")
+          || !validService(data) || data.state !== "draining"
           || data.service_instance_id !== service.service_instance_id || data.port !== service.port
           || data.build_id !== service.build_id) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });

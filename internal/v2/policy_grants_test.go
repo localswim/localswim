@@ -38,7 +38,7 @@ func TestPolicyGrantsHTTP(t *testing.T) {
 	path := "/policies/" + created.PolicyID
 	raw, header := c.call("GET", path, "", "", 200)
 	old := turnOneDecode[policy](t, raw)
-	if header.Get("ETag") != old.ETag {
+	if header.Get("ETag") != old.entityTag() {
 		t.Fatal("initial policy tag is missing")
 	}
 	state, ok := app.store.accepted(created.ID)
@@ -53,7 +53,7 @@ func TestPolicyGrantsHTTP(t *testing.T) {
 	expanded := old
 	expanded.CreateGrants = append(slices.Clone(old.CreateGrants), create)
 	expanded.MoveGrants = append(slices.Clone(old.MoveGrants), move)
-	good := policyPutBody(t, expanded, created.ETag)
+	good := policyPutBody(t, expanded, created.entityTag())
 	durablePath := app.store.snapshotPath(created.ID)
 	before, err := os.ReadFile(durablePath)
 	if err != nil {
@@ -81,17 +81,17 @@ func TestPolicyGrantsHTTP(t *testing.T) {
 		status                int
 	}{
 		{"missing policy tag", good, "", 428},
-		{"missing board tag", policyAuditValue(expanded), old.ETag, 400},
-		{"malformed board tag", policyPutBody(t, expanded, "W/"+created.ETag), old.ETag, 400},
-		{"stale board tag", policyPutBody(t, expanded, stale), old.ETag, 412},
+		{"missing board tag", policyAuditValue(expanded), old.entityTag(), 400},
+		{"malformed board tag", policyPutBody(t, expanded, "W/"+created.entityTag()), old.entityTag(), 400},
+		{"stale board tag", policyPutBody(t, expanded, stale), old.entityTag(), 412},
 		{"stale policy tag", good, etag(old.ID, created.Revision+1), 412},
-		{"weak policy tag", good, "W/" + old.ETag, 412},
+		{"weak policy tag", good, "W/" + old.entityTag(), 412},
 		{"wildcard policy tag", good, "*", 412},
-		{"unknown lane with valid grants", policyPutBody(t, unknown, created.ETag), old.ETag, 400},
-		{"duplicate normalized grants", policyPutBody(t, duplicate, created.ETag), old.ETag, 400},
-		{"grant removal", policyPutBody(t, removed, created.ETag), old.ETag, 409},
-		{"default priority change", policyPutBody(t, defaultChanged, created.ETag), old.ETag, 409},
-		{"resource permission change", policyPutBody(t, resourceChanged, created.ETag), old.ETag, 409},
+		{"unknown lane with valid grants", policyPutBody(t, unknown, created.entityTag()), old.entityTag(), 400},
+		{"duplicate normalized grants", policyPutBody(t, duplicate, created.entityTag()), old.entityTag(), 400},
+		{"grant removal", policyPutBody(t, removed, created.entityTag()), old.entityTag(), 409},
+		{"default priority change", policyPutBody(t, defaultChanged, created.entityTag()), old.entityTag(), 409},
+		{"resource permission change", policyPutBody(t, resourceChanged, created.entityTag()), old.entityTag(), 409},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestPolicyGrantsHTTP(t *testing.T) {
 		req.URL.Scheme, req.URL.Host = "", ""
 		req.Header.Set("Authorization", "Bearer "+human)
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("If-Match", old.ETag)
+		req.Header.Set("If-Match", old.entityTag())
 		req.Header.Set(header, value)
 		recorder := httptest.NewRecorder()
 		app.Handler(address).ServeHTTP(recorder, req)
@@ -132,21 +132,21 @@ func TestPolicyGrantsHTTP(t *testing.T) {
 		t.Fatalf("a refused update changed the durable snapshot (read error: %v)", err)
 	}
 
-	raw, header = c.call("PUT", path, good, old.ETag, 200)
+	raw, header = c.call("PUT", path, good, old.entityTag(), 200)
 	replaced := turnOneDecode[policy](t, raw)
 	boardTag := header.Get("X-Board-ETag")
-	if header.Get("ETag") != "" || boardTag != stale || replaced.ETag == old.ETag ||
+	if header.Get("ETag") != "" || boardTag != stale || replaced.entityTag() == old.entityTag() ||
 		replaced.ID != old.ID || replaced.BoardID != old.BoardID || replaced.CreatedAt != old.CreatedAt ||
 		!slices.Equal(replaced.CreateGrants, expanded.CreateGrants) || !slices.Equal(replaced.MoveGrants, expanded.MoveGrants) {
 		t.Fatal("the successful replacement did not return the committed policy and board version")
 	}
 
 	got, header := c.call("GET", path, "", "", 200)
-	if !bytes.Equal(got, raw) || header.Get("ETag") != replaced.ETag {
+	if !bytes.Equal(got, raw) || header.Get("ETag") != replaced.entityTag() {
 		t.Fatal("policy GET did not read back the replacement and its tag")
 	}
 	durable, err := readSnapshot(durablePath, created.ID)
-	if err != nil || durable.Board.ETag != boardTag || len(durable.Activity) != 2 {
+	if err != nil || durable.Board.entityTag() != boardTag || len(durable.Activity) != 2 {
 		t.Fatalf("the replacement did not persist as one audited commit: %v", err)
 	}
 	event := durable.Activity[1]
@@ -159,11 +159,11 @@ func TestPolicyGrantsHTTP(t *testing.T) {
 		t.Fatal("invalid policy audit admitted")
 	}
 
-	raw, header = c.call("PUT", path, policyPutBody(t, replaced, boardTag), replaced.ETag, 200)
-	if header.Get("X-Board-ETag") != boardTag || turnOneDecode[policy](t, raw).ETag != replaced.ETag {
+	raw, header = c.call("PUT", path, policyPutBody(t, replaced, boardTag), replaced.entityTag(), 200)
+	if header.Get("X-Board-ETag") != boardTag || turnOneDecode[policy](t, raw).entityTag() != replaced.entityTag() {
 		t.Fatal("reapplying the current policy advanced a revision")
 	}
-	c.call("PUT", path, good, old.ETag, 412)
+	c.call("PUT", path, good, old.entityTag(), 412)
 }
 
 func policyPutBody(t *testing.T, p policy, boardTag string) string {

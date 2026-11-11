@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -192,4 +194,32 @@ func matchesStrongTag(condition, current string) bool {
 		}
 	}
 	return false
+}
+
+// expectedBoardRevision decodes an already validated single board precondition.
+// Zero cannot match a persisted board revision.
+func expectedBoardRevision(tag, id string) uint64 {
+	prefix := "\"" + id + "-"
+	if !strings.HasPrefix(tag, prefix) || !strings.HasSuffix(tag, "\"") {
+		return 0
+	}
+	value, err := strconv.ParseUint(strings.TrimSuffix(strings.TrimPrefix(tag, prefix), "\""), 10, 64)
+	if err != nil || etag(id, value) != tag {
+		return 0
+	}
+	return value
+}
+
+var snapshotETagPattern = regexp.MustCompile(`^"[A-Za-z0-9_-]{16,128}"$`)
+
+func matchingBoardTag(expected string) func(snapshot) bool {
+	return func(current snapshot) bool { return matchesStrongTag(expected, current.Board.entityTag()) }
+}
+
+func matchingSnapshotTag(expected string) func(snapshot) bool {
+	return func(current snapshot) bool { return matchesStrongTag(expected, snapshotRepresentationTag(current)) }
+}
+
+func matchingServiceTag(expected string) func(serviceStatus) bool {
+	return func(current serviceStatus) bool { return matchesStrongTag(expected, current.entityTag()) }
 }

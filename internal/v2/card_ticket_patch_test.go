@@ -13,7 +13,7 @@ func TestM070CardPatchBoardGuard(t *testing.T) {
 	b := turnOneDecode[board](t, raw)
 	lane := b.LaneIDs[0]
 	raw, headers := client.call("POST", "/cards", fmt.Sprintf(
-		`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"First"}`, b.ID, b.ETag, lane), "", 201)
+		`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"First"}`, b.ID, b.entityTag(), lane), "", 201)
 	first := turnOneDecode[card](t, raw)
 	raw, headers = client.call("POST", "/cards", fmt.Sprintf(
 		`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"Second","relationships":[{"target_card_id":%q,"kind":"blocks"}]}`,
@@ -36,10 +36,10 @@ func TestM070CardPatchBoardGuard(t *testing.T) {
 		return result
 	}
 	check(first.entityTag(), viewTag, http.StatusPreconditionFailed)
-	check(viewTag, currentBoard.ETag, http.StatusPreconditionFailed)
-	check(first.entityTag(), "W/"+currentBoard.ETag, http.StatusBadRequest)
-	check(first.entityTag(), currentBoard.ETag+","+viewTag, http.StatusBadRequest)
-	check("", currentBoard.ETag, http.StatusPreconditionRequired)
+	check(viewTag, currentBoard.entityTag(), http.StatusPreconditionFailed)
+	check(first.entityTag(), "W/"+currentBoard.entityTag(), http.StatusBadRequest)
+	check(first.entityTag(), currentBoard.entityTag()+","+viewTag, http.StatusBadRequest)
+	check("", currentBoard.entityTag(), http.StatusPreconditionRequired)
 	raw, _ = client.call("GET", path, "", "", 200)
 	if got := turnOneDecode[card](t, raw); got.Archived || got.Revision != first.Revision {
 		t.Fatal("refused patch changed the card")
@@ -47,7 +47,7 @@ func TestM070CardPatchBoardGuard(t *testing.T) {
 
 	// The order commits after the original ticket and validators were read.
 	raw, headers = client.call("PUT", "/ticket-orders/"+lane,
-		ticketOrderBody(t, b.ID, currentBoard.ETag, []string{second.ID, first.ID}), "", 200)
+		ticketOrderBody(t, b.ID, currentBoard.entityTag(), []string{second.ID, first.ID}), "", 200)
 	order := turnOneDecode[ticketOrder](t, raw)
 	if !order.Changed || order.Proposed[0].CardID != second.ID || order.Proposed[0].Ticket != first.Ticket {
 		t.Fatal("test fixture did not move the other card into the original ticket")
@@ -56,7 +56,7 @@ func TestM070CardPatchBoardGuard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	check(first.entityTag(), currentBoard.ETag, http.StatusPreconditionFailed)
+	check(first.entityTag(), currentBoard.entityTag(), http.StatusPreconditionFailed)
 	after, err := app.store.durable(b.ID)
 	if err != nil || !reflect.DeepEqual(before, after) || after.Cards[0].Archived || after.Cards[1].Archived {
 		t.Fatal("stale patch changed a card or audit after renumbering")

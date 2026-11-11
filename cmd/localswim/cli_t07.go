@@ -266,15 +266,15 @@ func ticketOrderApplyBody(input []byte, laneID string) ([]byte, error) {
 		return nil, err
 	}
 	var preview struct {
-		BoardID           string `json:"board_id"`
-		LaneID            string `json:"lane_id"`
-		ExpectedBoardETag string `json:"expected_board_etag"`
-		Proposed          []struct {
+		BoardID       string `json:"board_id"`
+		LaneID        string `json:"lane_id"`
+		BoardRevision uint64 `json:"board_revision"`
+		Proposed      []struct {
 			CardID string `json:"card_id"`
 		} `json:"proposed"`
 	}
-	if json.Unmarshal(input, &preview) != nil || preview.LaneID != laneID || !boardIDPattern.MatchString(preview.BoardID) || !client.IsEntityTag(preview.ExpectedBoardETag) || preview.Proposed == nil || len(preview.Proposed) > 1000 {
-		return nil, errors.New("preview must contain its matching lane, board, proposed order, and original expected_board_etag")
+	if json.Unmarshal(input, &preview) != nil || preview.LaneID != laneID || !boardIDPattern.MatchString(preview.BoardID) || (preview.BoardRevision == 0 || preview.BoardRevision > maxCLIRevision) || preview.Proposed == nil || len(preview.Proposed) > 1000 {
+		return nil, errors.New("preview must contain its matching lane, board, proposed order, and original board_revision")
 	}
 	ids := make([]string, 0, len(preview.Proposed))
 	seen := map[string]bool{}
@@ -286,7 +286,7 @@ func ticketOrderApplyBody(input []byte, laneID string) ([]byte, error) {
 		seen[id] = true
 		ids = append(ids, id)
 	}
-	return json.Marshal(map[string]any{"board_id": preview.BoardID, "expected_board_etag": preview.ExpectedBoardETag, "card_ids": ids})
+	return json.Marshal(map[string]any{"board_id": preview.BoardID, "expected_board_etag": fmt.Sprintf("\"%s-%d\"", strings.ToLower(preview.BoardID), preview.BoardRevision), "card_ids": ids})
 }
 
 func writeCLIJSON(output io.Writer, document json.RawMessage) error {

@@ -9,7 +9,7 @@ import (
 )
 
 func TestM21PreviewFullPathsAndSelectedPool(t *testing.T) {
-	state := snapshot{Board: board{entity: entity{ID: newID()}, Revision: 17}}
+	state := snapshot{Board: board{entity: entity{ID: newID(), Revision: 17}}}
 	laneID := newID()
 	first := card{ID: newID(), LaneID: laneID, Ticket: 2}
 	middle := card{ID: newID(), LaneID: newID(), Ticket: 3, Archived: true}

@@ -25,8 +25,6 @@ type relationship struct {
 	relationshipLink
 }
 
-func (r relationship) entityTag() string { return etag(r.ID, r.Revision) }
-
 type relationshipSeed struct {
 	targetID, kind string
 }
@@ -50,10 +48,6 @@ func readRelationshipKind(raw json.RawMessage) (string, error) {
 		}
 	}
 	kind = strings.ToLower(kind)
-	switch kind {
-	case "blocked_by", "duplicated_by", "referenced_by":
-		return kind, nil
-	}
 	if !validRelationshipKind(kind) {
 		return "", invalid("kind", "Unknown relationship kind.")
 	}
@@ -61,16 +55,7 @@ func readRelationshipKind(raw json.RawMessage) (string, error) {
 }
 
 func relationshipFromInput(source, target, kind string) relationshipLink {
-	switch kind {
-	case "blocked_by":
-		return relationshipLink{target, source, "blocks"}
-	case "duplicated_by":
-		return relationshipLink{target, source, "duplicates"}
-	case "referenced_by":
-		return relationshipLink{target, source, "references"}
-	default:
-		return relationshipLink{source, target, kind}
-	}
+	return relationshipLink{source, target, kind}
 }
 
 func (link relationshipLink) key() relationshipLink {
@@ -433,7 +418,7 @@ func (x *request) createRelationship() {
 	}
 	value := next.Relationships[len(next.Relationships)-1]
 	x.w.Header().Set("Location", Prefix+"/relationships/"+value.ID)
-	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", next.Board.entityTag())
 	x.respond(http.StatusCreated, value, value.entityTag())
 }
 
@@ -499,7 +484,7 @@ func (x *request) changeRelationship(boardID, id string) {
 		x.fail(err)
 		return
 	}
-	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", next.Board.entityTag())
 	if x.r.Method == http.MethodDelete {
 		x.w.WriteHeader(http.StatusNoContent)
 		return

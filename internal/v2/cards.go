@@ -220,7 +220,7 @@ func (x *request) createCard() {
 	}
 	value := next.Cards[len(next.Cards)-1]
 	x.w.Header().Set("Location", Prefix+"/cards/"+value.ID)
-	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", next.Board.entityTag())
 	x.respond(http.StatusCreated, value, value.entityTag())
 }
 
@@ -270,7 +270,7 @@ func (in cardCreation) apply(s *snapshot, actor string) error {
 	s.Activity = append(s.Activity, activity{ID: newOperationID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
 		ActorID: actor, Operation: "create", ResourceType: "card", ResourceID: value.ID})
 	if in.parentID != nil {
-		if _, err := patchParent(s, value.ID, value.entityTag(), in.parentID, actor, now); err != nil {
+		if _, err := patchParent(s, value.ID, value.Revision, in.parentID, actor, now); err != nil {
 			return err
 		}
 	}

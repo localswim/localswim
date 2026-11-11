@@ -33,9 +33,9 @@ func TestLaneRevisionRepresentationAndRestart(t *testing.T) {
 	b := turnOneDecode[board](t, raw)
 	raw, headers := client.call("GET", "/lanes/"+b.LaneIDs[0], "", "", 200)
 	original := assertLaneRevision(t, raw, 1, headers.Get("ETag"))
-	raw, _ = client.call("PATCH", "/boards/"+b.ID, `{"name":"Before lane creation"}`, b.ETag, 200)
+	raw, _ = client.call("PATCH", "/boards/"+b.ID, `{"name":"Before lane creation"}`, b.entityTag(), 200)
 	b = turnOneDecode[board](t, raw)
-	body := fmt.Sprintf(`{"board_id":%q,"board_etag":%q,"label":"Extra","connect_for":[%q]}`, b.ID, b.ETag, humanID)
+	body := fmt.Sprintf(`{"board_id":%q,"board_etag":%q,"label":"Extra","connect_for":[%q]}`, b.ID, b.entityTag(), humanID)
 	raw, headers = client.call("POST", "/lanes", body, "", 201)
 	added := assertLaneRevision(t, raw, 3, headers.Get("ETag"))
 	currentBoardTag := headers.Get("X-Board-ETag")
@@ -44,7 +44,7 @@ func TestLaneRevisionRepresentationAndRestart(t *testing.T) {
 
 	patch := fmt.Sprintf(`{"board_etag":%q,"label":"Renamed"}`, currentBoardTag)
 	client.call("PATCH", "/lanes/"+original.ID, patch, "W/"+original.entityTag(), 412)
-	staleBoardPatch := fmt.Sprintf(`{"board_etag":%q,"label":"Renamed"}`, b.ETag)
+	staleBoardPatch := fmt.Sprintf(`{"board_etag":%q,"label":"Renamed"}`, b.entityTag())
 	client.call("PATCH", "/lanes/"+original.ID, staleBoardPatch, original.entityTag(), 412)
 	raw, headers = client.call("PATCH", "/lanes/"+original.ID, patch, original.entityTag(), 200)
 	renamed := assertLaneRevision(t, raw, 4, headers.Get("ETag"))
@@ -132,9 +132,9 @@ func TestLaneRevisionIsServiceManaged(t *testing.T) {
 	for _, field := range []string{"revision", "etag"} {
 		t.Run(field, func(t *testing.T) {
 			extra := fmt.Sprintf(`,%q:9`, field)
-			create := fmt.Sprintf(`{"board_id":%q,"board_etag":%q,"label":"Extra","connect_for":[%q]%s}`, b.ID, b.ETag, humanID, extra)
+			create := fmt.Sprintf(`{"board_id":%q,"board_etag":%q,"label":"Extra","connect_for":[%q]%s}`, b.ID, b.entityTag(), humanID, extra)
 			client.call("POST", "/lanes", create, "", 400)
-			patch := fmt.Sprintf(`{"board_etag":%q,"label":"Renamed"%s}`, b.ETag, extra)
+			patch := fmt.Sprintf(`{"board_etag":%q,"label":"Renamed"%s}`, b.entityTag(), extra)
 			client.call("PATCH", "/lanes/"+b.LaneIDs[0], patch, etag(b.LaneIDs[0], 1), 400)
 			custom := strings.Replace(workflowTestInput, `"future":{"flag":true}`, fmt.Sprintf(`%q:9`, field), 1)
 			if _, err := customWorkflow(json.RawMessage(custom), workflowTestBoardID, time.Now()); err == nil {

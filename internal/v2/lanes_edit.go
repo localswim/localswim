@@ -55,7 +55,7 @@ func (x *request) createLane() {
 		return
 	}
 	x.w.Header().Set("Location", Prefix+"/lanes/"+item.ID)
-	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", next.Board.entityTag())
 	x.respond(http.StatusCreated, item, item.entityTag())
 }
 
@@ -148,7 +148,7 @@ func (x *request) renameLane(id string) {
 		x.fail(err)
 		return
 	}
-	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", next.Board.entityTag())
 	x.respond(http.StatusOK, item, item.entityTag())
 }
 
@@ -353,7 +353,7 @@ func insertLane(current *snapshot, fields *workflowFields, actor string, at time
 	appendLaneAudit(current, actor, item.ID, "create", "", nil, nil, now)
 	before, afterPolicy := policyAuditValue(oldPolicy), policyAuditValue(current.Policy)
 	if before != afterPolicy {
-		current.Policy.ETag, current.Policy.UpdatedAt = etag(current.Policy.ID, current.Board.Revision+1), now
+		current.Policy.Revision, current.Policy.UpdatedAt = current.Board.Revision+1, now
 		field := policyGrantsField
 		current.Activity = append(current.Activity, activity{
 			ID: newOperationID(), BoardID: current.Board.ID, Revision: current.Board.Revision + 1, At: now,

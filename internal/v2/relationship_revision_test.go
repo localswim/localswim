@@ -30,7 +30,7 @@ func TestRelationshipRevisionRepresentationAndRestart(t *testing.T) {
 	app, client := eventHTTPServer(t)
 	raw, _ := client.call("POST", "/boards", `{"name":"Relationship revisions"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
-	body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"First"}`, b.ID, b.ETag, b.LaneIDs[0])
+	body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"First"}`, b.ID, b.entityTag(), b.LaneIDs[0])
 	raw, headers := client.call("POST", "/cards", body, "", 201)
 	first := turnOneDecode[card](t, raw)
 	body = fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"Second"}`, b.ID, headers.Get("X-Board-ETag"), b.LaneIDs[0])
@@ -44,7 +44,7 @@ func TestRelationshipRevisionRepresentationAndRestart(t *testing.T) {
 	path := "/relationships/" + item.ID
 	raw, headers = client.call("GET", path, "", "", 200)
 	assertRelationshipRevision(t, raw, 4, headers.Get("ETag"))
-	patch := fmt.Sprintf(`{"expected_board_etag":%q,"kind":"references"}`, b.ETag)
+	patch := fmt.Sprintf(`{"expected_board_etag":%q,"kind":"references"}`, b.entityTag())
 	client.call("PATCH", path, patch, "W/"+item.entityTag(), 412)
 	raw, headers = client.call("PATCH", path, patch, item.entityTag(), 200)
 	item = assertRelationshipRevision(t, raw, 6, headers.Get("ETag"))
@@ -117,7 +117,7 @@ func TestRelationshipRevisionIsServiceManaged(t *testing.T) {
 	raw, _ := client.call("POST", "/boards", `{"name":"Protected relationship revision"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
 	var cards []card
-	boardTag := b.ETag
+	boardTag := b.entityTag()
 	for _, title := range []string{"First", "Second"} {
 		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":%q}`, b.ID, boardTag, b.LaneIDs[0], title)
 		raw, headers := client.call("POST", "/cards", body, "", 201)

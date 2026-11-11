@@ -90,7 +90,7 @@ func (x *request) ticketOrderResource(id string) {
 			x.fail(err)
 			return
 		}
-		x.w.Header().Set("X-Board-ETag", state.Board.ETag)
+		x.w.Header().Set("X-Board-ETag", state.Board.entityTag())
 		x.respond(http.StatusOK, value, "")
 		return
 	}

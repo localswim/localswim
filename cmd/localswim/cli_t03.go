@@ -92,7 +92,8 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	if requiresInput && flags.NArg() < count {
 		return cmd, errors.New("expected a UUIDv4 resource ID followed by FILE or -")
 	}
-	if flags.NArg() != count || !boardIDPattern.MatchString(flags.Arg(0)) {
+	ticketPatch := isTicketCardPatch(name) && flags.NArg() == count+1
+	if (!ticketPatch && flags.NArg() != count) || !boardIDPattern.MatchString(flags.Arg(0)) {
 		return cmd, errors.New("expected a UUIDv4 resource ID and the documented arguments")
 	}
 	var optionErr error
@@ -119,12 +120,21 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		cmd.resource += strings.ToLower(flags.Arg(0))
 		return cmd, nil
 	}
-	cmd.edit.idField, cmd.edit.id = field, flags.Arg(0)
-	cmd.edit.validatorPath = validator + cmd.edit.id
-	if cmd.method == http.MethodPatch {
-		cmd.resource = cmd.edit.validatorPath
-	}
 	value := flags.Arg(1)
+	if ticketPatch {
+		ticket, err := strconv.ParseUint(flags.Arg(1), 10, 53)
+		if err != nil || ticket == 0 {
+			return cmd, errors.New("ticket requires an integer from 1 to 9007199254740991")
+		}
+		cmd.ticketPatch = &ticketCardPatchTarget{boardID: strings.ToLower(flags.Arg(0)), ticket: ticket}
+		value = flags.Arg(2)
+	} else {
+		cmd.edit.idField, cmd.edit.id = field, flags.Arg(0)
+		cmd.edit.validatorPath = validator + cmd.edit.id
+		if cmd.method == http.MethodPatch {
+			cmd.resource = cmd.edit.validatorPath
+		}
+	}
 	switch name {
 	case "card archive", "card unarchive":
 		cmd.body, _ = json.Marshal(map[string]bool{"archived": name == "card archive"})

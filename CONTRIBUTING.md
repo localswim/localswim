@@ -70,6 +70,14 @@ addressed lane revision. Relationship patch and remove check the addressed
 relationship revision. `attachment detach` checks the attachment revision and
 sends the parent board validator with the attachment's HTTP validator.
 
+Use a card UUID or a board UUID followed by the ticket with `card move`,
+`card assign`, `card archive`, and `card unarchive`. A ticket edit reads one
+focused view and submits its card and board validators together. A stale view
+refuses the edit even when the card itself has not changed. The optional
+`--revision N` checks the resolved card revision. After a stale response,
+inspect the current ticket mapping before issuing another command. After an
+uncertain response, inspect the original card by UUID.
+
 Use `activity list` with inclusive canonical UTC `--from` and `--to`. By default,
 it returns event metadata and ticket numbers without card prose. Select
 `--view full` to read attributed audit values. Both views support `--actor-id`,

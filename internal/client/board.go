@@ -14,7 +14,7 @@ import (
 )
 
 func (c *Client) PatchBoardAvailability(resource string, body json.RawMessage, ifMatch string) (Response, error) {
-	return c.doWithContentType(http.MethodPatch, resource, body, ifMatch, "", true)
+	return c.doWithContentType(http.MethodPatch, resource, body, ifMatch, "", "", true)
 }
 
 var canonicalUUID4 = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)

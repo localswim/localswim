@@ -70,13 +70,16 @@ func (c *Client) Do(method, resource string, body json.RawMessage, ifMatch strin
 }
 
 func (c *Client) DoWithContentType(method, resource string, body []byte, ifMatch, contentType string) (Response, error) {
-	return c.doWithContentType(method, resource, body, ifMatch, contentType, false)
+	return c.doWithContentType(method, resource, body, ifMatch, contentType, "", false)
 }
 
-func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch, contentType string, boardAvailability bool) (Response, error) {
+func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch, contentType, expectedBoardTag string, boardAvailability bool) (Response, error) {
 	request, err := c.newRequest(method, resource, body, ifMatch, contentType, "application/json")
 	if err != nil {
 		return Response{}, err
+	}
+	if expectedBoardTag != "" {
+		request.Header.Set("X-Expected-Board-ETag", expectedBoardTag)
 	}
 	mutation := method != http.MethodGet && method != http.MethodHead
 	path := request.URL.Path[len(apiPath):]

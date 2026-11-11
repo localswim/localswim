@@ -360,3 +360,25 @@ Sol / High turn leads own entry checks, lane updates, shared integration, verifi
 - T10 readiness. Waiting for T09 independent review and Ready for Review handoff. Dev Manager owns launch.
 
 Recheck lanes and prerequisites at dispatch. Move each eligible card to In Progress before work. Terry retains control of Completed.
+
+## Current assignment revision 12
+
+Reconciled 2026-11-10 after T09. T10 is the sole remaining turn. Earlier rosters remain in this plan.
+
+T09 M37 #0420 passed independent backend, browser and CLI review, and is Ready for Review.
+The published implementation is `bc3ad35055d2912546341f7741d83b7ed9bf2abe`. The T09 entry gate is satisfied. Dev Manager owns T10 launch.
+
+The authorized scope is #0375, #0376, #0377, milestone-plan.md and docs/openapi.yaml. Planning remains on #0426.
+
+| Remaining | Turn | Card | Current lane | Scope | Author | Helper | Fresh reviewer | Actual prerequisites |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | T10 | #0422 M39 | Backlog | Activate a validated staged build on the same port, rotate credentials, and drain admitted work, streams and enabled publishers. A failed final push refuses shutdown. | `sol_high_0422_author` (gpt-6.1-sol / high) | `sol_high_0422_checks` (gpt-6.1-sol / high) | `sol_high_0422_review` (gpt-6.1-sol / high) | #0414 Completed, #0420 Ready for Review, #0421 Completed |
+
+- Browser author `sol_medium_t10_browser_author` (gpt-6.1-sol / medium), fresh reviewer `sol_high_t10_browser_review` (gpt-6.1-sol / high).
+- CLI author `sol_medium_t10_cli_author` (gpt-6.1-sol / medium), fresh reviewer `sol_high_t10_cli_review` (gpt-6.1-sol / high).
+
+The Sol / High primary owns entry, integration, the full Windows gate, publication and live evidence.
+Start the verification helper when its independent test boundary exists. Use up to four planned
+active direct workers within the actual T10 cap and depth one. Replace finished authors with
+fresh reviewers as slots open. Move #0422 to In Progress before dispatch if it has yet to start.
+Terry retains Completed and formal review of each milestone.

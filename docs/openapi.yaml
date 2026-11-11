@@ -1234,6 +1234,10 @@ paths:
               $ref: '#/components/headers/CorsExpose'
             ETag:
               $ref: '#/components/headers/EntityTag'
+            X-Board-ETag:
+              description: Current board validator from the same accepted snapshot. Present for the ticket view.
+              schema:
+                $ref: '#/components/schemas/EntityTag'
             Date:
               $ref: '#/components/headers/Date'
         '400':
@@ -1447,6 +1451,10 @@ paths:
               $ref: '#/components/headers/CorsExpose'
             ETag:
               $ref: '#/components/headers/EntityTag'
+            X-Board-ETag:
+              description: Current board validator from the same accepted snapshot. Present for the ticket view.
+              schema:
+                $ref: '#/components/schemas/EntityTag'
             Date:
               $ref: '#/components/headers/Date'
         '400':

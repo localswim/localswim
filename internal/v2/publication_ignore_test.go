@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -156,6 +157,34 @@ func TestM88PublicationRejectsAmbiguousInventoryBeforeReading(t *testing.T) {
 				t.Fatalf("invalid inventory produced %v", err)
 			}
 		})
+	}
+}
+
+func TestM88PublicationRefusesSkippedIgnoreRules(t *testing.T) {
+	fixture := m34PublicationFixture(t)
+	repo := fixture.repository
+	ignore := filepath.Join(repo, ".gitignore")
+	// Git on Windows cannot open a directory as an ignore file. On Unix,
+	// Git refuses to follow an ignore symlink. Both can warn and return 1.
+	var err error
+	if runtime.GOOS == "windows" {
+		err = os.Mkdir(ignore, 0o700)
+	} else {
+		m34Write(t, filepath.Join(repo, "ignore-rules"), []byte("/"+fixture.prefix+"/boards/\n"))
+		err = os.Symlink("ignore-rules", ignore)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	head := m34Git(t, repo, "rev-parse", "HEAD")
+	objects := m34Git(t, repo, "count-objects", "-v")
+	if err := publishVerifiedBackup(fixture.app.store.root, fixture.item); err != publicationGitError("git_ignore_unavailable") {
+		t.Fatalf("skipped ignore rules produced %v", err)
+	}
+	if !bytes.Equal(objects, m34Git(t, repo, "count-objects", "-v")) ||
+		!bytes.Equal(head, m34Git(t, repo, "rev-parse", "HEAD")) ||
+		!bytes.Equal(head, m34Git(t, fixture.remote, "rev-parse", "refs/heads/main")) {
+		t.Fatal("skipped ignore rules allowed publication")
 	}
 }
 

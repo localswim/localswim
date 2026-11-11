@@ -167,8 +167,8 @@ normal Git ancestry. Publication uses a private index under the persistent
 Git common-directory localswim-autopush.lock. The caller's index and unrelated staged work remain
 intact. Before writing Git objects, publication checks every captured path against Git's ignore
 rules, including paths already tracked or staged. Any ignored path refuses the entire capture with
-`publication_path_ignored`. A failed ignore check reports `git_ignore_unavailable`. Unsupported
-hooks, external content filters and filesystem monitors also refuse before object publication.
+`publication_path_ignored`. An ignore check that fails or warns reports `git_ignore_unavailable`.
+Unsupported hooks, external content filters and filesystem monitors also refuse before object publication.
 Inspect the original publication UUID after an uncertain result.
 
 Enable automatic publication independently with

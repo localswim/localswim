@@ -41,6 +41,10 @@ func publicationGit(cwd, index string, input []byte, args ...string) ([]byte, er
 }
 
 func publicationGitConfigured(cwd, index string, input []byte, configuration []string, args ...string) ([]byte, error) {
+	return runPublicationGit(cwd, index, input, configuration, io.Discard, args...)
+}
+
+func runPublicationGit(cwd, index string, input []byte, configuration []string, stderr io.Writer, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), publicationGitTimeout)
 	defer cancel()
 	command := exec.CommandContext(ctx, "git", args...)
@@ -59,7 +63,7 @@ func publicationGitConfigured(cwd, index string, input []byte, configuration []s
 	command.Stdin = bytes.NewReader(input)
 	var output boundedGitOutput
 	command.Stdout = &output
-	command.Stderr = io.Discard
+	command.Stderr = stderr
 	err := command.Run()
 	return output.data.Bytes(), err
 }
@@ -164,13 +168,28 @@ func publicationGitSafety(cwd string, paths []string) error {
 	return nil
 }
 
+// Git can warn that it skipped an ignore source and still return no matches.
+// Keep only stderr presence so warnings cannot expose paths or other details.
+type gitStderrPresence struct {
+	seen bool
+}
+
+func (stderr *gitStderrPresence) Write(data []byte) (int, error) {
+	stderr.seen = stderr.seen || len(data) > 0
+	return len(data), nil
+}
+
 func publicationGitIgnore(cwd string, paths []string) error {
 	// Apply the worktree's ignore rules even to tracked or staged paths.
 	// Staging uses a private index, so the caller's index cannot grant admission.
 	// A leading ./ makes each path literal to check-ignore, which rejects the
 	// global --literal-pathspecs option.
 	input := []byte("./" + strings.Join(paths, "\x00./") + "\x00")
-	data, err := publicationGit(cwd, "", input, "check-ignore", "--no-index", "-z", "--stdin")
+	var stderr gitStderrPresence
+	data, err := runPublicationGit(cwd, "", input, nil, &stderr, "check-ignore", "--no-index", "-z", "--stdin")
+	if stderr.seen {
+		return gitPublicationError("git_ignore_unavailable")
+	}
 	if err == nil && len(data) != 0 {
 		return gitPublicationError("publication_path_ignored")
 	}

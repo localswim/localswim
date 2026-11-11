@@ -1577,8 +1577,14 @@ paths:
       - name: lane_id
         in: query
         required: false
+        style: form
+        explode: true
+        description: Repeat to select the union of lanes. Order and duplicate UUIDs do not change the selection.
         schema:
-          $ref: '#/components/schemas/UuidInput'
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/UuidInput'
       - name: ticket
         in: query
         required: false
@@ -1598,11 +1604,19 @@ paths:
         schema:
           type: boolean
           default: false
+      - name: unfinished_only
+        in: query
+        required: false
+        description: When true, exclude Completed cards, including when a lane filter is supplied.
+        schema:
+          type: boolean
+          default: false
       - name: archived
         in: query
         required: false
         schema:
           type: string
+          default: exclude
           pattern: ^(?:[eE][xX][cC][lL][uU][dD][eE]|[iI][nN][cC][lL][uU][dD][eE]|[oO][nN][lL][yY])$
           description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
       - name: sort
@@ -1714,11 +1728,13 @@ paths:
       - 6
       - 12
       - 13
-      description: M02 supports board and ticket lookup with pagination. Later milestones add archive
-        operations, triage ordering, and content search. Triage score is ((priority rank + 1) * 100) - distinct unfinished downstream card count,
-        before filtering or limits. Completed ends paths; archived unfinished cards participate. Lane
-        ordering uses visible same-rank blockers and ticket-ordered cycles. SearchContent is explicit
-        opt-in to search descriptions/comments; response field permissions are still enforced.
+      - 67
+      description: List cards with optional lane, archive, completion, ticket, and text filters.
+        Triage score is ((priority rank + 1) * 100) - distinct unfinished downstream card count.
+        Calculate it across the board before filtering and pagination. Completed cards end paths.
+        Archived unfinished cards participate. Lane ordering uses visible same-rank blockers and
+        ticket-ordered cycles. Set search_content to search descriptions and comments. Response field
+        permissions still apply. Cursors are tied to the query's effective selection.
     post:
       operationId: createCard
       summary: Create one card and optional relationships atomically
@@ -1915,8 +1931,14 @@ paths:
       - name: lane_id
         in: query
         required: false
+        style: form
+        explode: true
+        description: Repeat to select the union of lanes. Order and duplicate UUIDs do not change the selection.
         schema:
-          $ref: '#/components/schemas/UuidInput'
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/UuidInput'
       - name: ticket
         in: query
         required: false
@@ -1936,11 +1958,19 @@ paths:
         schema:
           type: boolean
           default: false
+      - name: unfinished_only
+        in: query
+        required: false
+        description: When true, exclude Completed cards, including when a lane filter is supplied.
+        schema:
+          type: boolean
+          default: false
       - name: archived
         in: query
         required: false
         schema:
           type: string
+          default: exclude
           pattern: ^(?:[eE][xX][cC][lL][uU][dD][eE]|[iI][nN][cC][lL][uU][dD][eE]|[oO][nN][lL][yY])$
           description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
       - name: sort
@@ -2048,11 +2078,13 @@ paths:
       - 6
       - 12
       - 13
-      description: M02 supports board and ticket lookup with pagination. Later milestones add archive
-        operations, triage ordering, and content search. Triage score is ((priority rank + 1) * 100) - distinct unfinished downstream card count,
-        before filtering or limits. Completed ends paths; archived unfinished cards participate. Lane
-        ordering uses visible same-rank blockers and ticket-ordered cycles. SearchContent is explicit
-        opt-in to search descriptions/comments; response field permissions are still enforced.
+      - 67
+      description: List cards with optional lane, archive, completion, ticket, and text filters.
+        Triage score is ((priority rank + 1) * 100) - distinct unfinished downstream card count.
+        Calculate it across the board before filtering and pagination. Completed cards end paths.
+        Archived unfinished cards participate. Lane ordering uses visible same-rank blockers and
+        ticket-ordered cycles. Set search_content to search descriptions and comments. Response field
+        permissions still apply. Cursors are tied to the query's effective selection.
     options:
       operationId: options_cards
       summary: Validate same-origin preflight

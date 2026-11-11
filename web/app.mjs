@@ -1744,6 +1744,11 @@ async function load(savedAvailability) {
       }
     }
 
+    /** @param {number} count @param {string} noun */
+    function countLabel(count, noun) {
+      return count + " " + noun + (count === 1 ? "" : "s");
+    }
+
     /** @param {Card} card */
     function cardOpener(card) {
       const opener = button("#" + card.ticket + " " + card.title, () => {
@@ -1751,14 +1756,34 @@ async function load(savedAvailability) {
       });
       opener.className = "card";
       opener.dataset.cardId = card.id;
+      const description = [];
       const priority = priorities.find(({ id }) => id === card.priority_id);
       if (priority) {
         const label = element("small", priority.label);
         label.className = "card-priority";
         label.setAttribute("aria-hidden", "true");
-        opener.setAttribute("aria-description", "Priority: " + priority.label);
+        description.push("Priority: " + priority.label);
         opener.append(label);
       }
+      if (card.comment_count > 0 || card.attachment_count > 0) {
+        const counts = element("span");
+        counts.className = "card-counts";
+        counts.setAttribute("aria-hidden", "true");
+        if (card.comment_count > 0) {
+          const comments = element("span", "\u{1f4ac} " + card.comment_count);
+          comments.className = "card-comment-count";
+          counts.append(comments);
+          description.push(countLabel(card.comment_count, "comment"));
+        }
+        if (card.attachment_count > 0) {
+          const attachments = element("span", "\u{1f4ce} " + card.attachment_count);
+          attachments.className = "card-attachment-count";
+          counts.append(attachments);
+          description.push(countLabel(card.attachment_count, "attachment"));
+        }
+        opener.append(counts);
+      }
+      if (description.length) opener.setAttribute("aria-description", description.join(", "));
       return opener;
     }
 
@@ -1773,8 +1798,13 @@ async function load(savedAvailability) {
       columns.replaceChildren(...active.map((lane) => {
         const column = element("section");
         column.className = "lane";
-        column.append(element("h2", lane.label));
         const members = visibleCards.filter(({ lane_id }) => lane_id === lane.id);
+        const heading = element("h2", lane.label);
+        heading.className = "lane-heading";
+        const total = element("small", countLabel(members.length, "card"));
+        total.className = "lane-total";
+        heading.append(total);
+        column.append(heading);
         const preview = element("div");
         const selectedTickets = element("input");
         selectedTickets.placeholder = "All active cards";

@@ -105,6 +105,74 @@ function boardApi() {
   return {api, restore, patched: () => patched};
 }
 
+test("lane totals and card counts render authoritative comment and detach readbacks", async () => {
+  const {api} = boardApi();
+  const original = (await api.getCard(card)).data;
+  const ready = (await api.listLanes()).data.lanes[0];
+  const comments = (await api.listComments()).data.comments;
+  let attachment = {...(await api.listAttachments()).data.attachments[0], revision: 1};
+  let revision = 1;
+  const writes = [];
+  const current = () => ({...original, revision, comment_count: comments.length,
+    attachment_count: attachment.active ? 1 : 0});
+  api.getBoardLanes = async () => ({
+    data: {board: {id: board, name: "Board"}, cards: [
+      current(),
+      {...original, id: backup, ticket: 2, title: "No activity", comment_count: 0, attachment_count: 0},
+      {...original, id: priority, ticket: 3, title: "Files only", comment_count: 0, attachment_count: 123},
+    ]}, etag: tag(board, revision),
+  });
+  api.getCard = async () => ({data: current(), etag: tag(card, revision)});
+  api.listLanes = async () => page("lanes", [ready, {...ready, id: backup, key: "empty", label: "Empty", position: 1}]);
+  api.listAttachments = async () => page("attachments", attachment.active ? [attachment] : []);
+  api.getAttachment = async () => ({data: attachment, etag: tag(attachment.id, attachment.revision)});
+  api.createComment = async (id, etag, text, commentId) => {
+    writes.push(["comment", id, etag, text]);
+    comments.push({...comments[0], id: commentId, text});
+    revision++;
+  };
+  api.detachAttachment = async (id, expected, etag) => {
+    writes.push(["detach", id, expected, etag]);
+    attachment = {...attachment, active: false, revision: ++revision};
+  };
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details} = ui.nodes;
+  const face = (text = "#1 Original") => ui.find(main, "button", text);
+  const counts = (node) => node.children.find(({className}) => className === "card-counts");
+  const badges = (node) => counts(node)?.children.map(({className}) => className) ?? [];
+  const total = (lane) => ui.find(main, "h2", lane).children.find(({className}) => className === "lane-total").textContent;
+
+  assert.equal(total("Ready"), "3 cards");
+  assert.equal(total("Empty"), "0 cards");
+  assert.equal(face().attributes["aria-description"], "Priority: Normal, 1 comment, 1 attachment");
+  assert.equal(counts(face()).attributes["aria-hidden"], "true");
+  assert.deepEqual(badges(face()), ["card-comment-count", "card-attachment-count"]);
+  assert.deepEqual(badges(face("#2 No activity")), []);
+  const files = face("#3 Files only");
+  assert.equal(files.attributes["aria-description"], "Priority: Normal, 123 attachments");
+  assert.match(counts(files).textContent, /123$/);
+  assert.deepEqual(badges(files), ["card-attachment-count"]);
+
+  face().click();
+  await ui.settled();
+  ui.field(details, "Comment").value = "Added comment";
+  ui.submit(details, "Post comment");
+  await ui.settled();
+  assert.equal(face().attributes["aria-description"], "Priority: Normal, 2 comments, 1 attachment");
+
+  ui.submit(details, "Detach");
+  await ui.settled();
+  assert.equal(face().attributes["aria-description"], "Priority: Normal, 2 comments");
+  assert.deepEqual(badges(face()), ["card-comment-count"]);
+  assert.equal(total("Ready"), "3 cards");
+  assert.deepEqual(writes, [
+    ["comment", card, tag(card, 1), "Added comment"],
+    ["detach", priority, 1, tag(board, 2)],
+  ]);
+});
+
 const publishingOff = {enabled: false, repository: null, last_success_at: null, pending: false, error_code: null};
 
 test("board loading retries a changed revision and adopts current publishing status at a matching revision", async () => {

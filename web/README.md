@@ -13,6 +13,11 @@ to submit again. Inspect or Refresh rereads the active editor and preserves
 the draft. If readback fails, inspect the affected card or board before
 submitting another change there. The page makes one write attempt per submission.
 
+Lane headings show the number of active cards, including zero in empty lanes.
+Card faces show nonzero comment and active attachment counts. The card opener's
+accessible description names the exact counts. The board refreshes them from
+saved state after edits.
+
 Card details also show attributed comments and attachments. New comments and
 uploads have client-assigned IDs. Immutable comment JSON contains identity, parent
 references, author, text, and timestamps. The comment validator is returned in the

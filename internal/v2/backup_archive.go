@@ -2,17 +2,15 @@ package v2
 
 import (
 	"archive/zip"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
-// verifiedBackupArchive owns a private copy. No path in the ZIP is extracted or
+// An archive opened from stored backup metadata owns a private copy. No ZIP path is extracted or
 // used as filesystem authority. Callers can use only the checked exact inventory.
 type verifiedBackupArchive struct {
 	file         *os.File
@@ -59,12 +57,27 @@ func inspectBackupArchive(file *os.File, boardID string) (*verifiedBackupArchive
 	if err != nil {
 		return nil, errBackupIntegrity
 	}
-	archive := &verifiedBackupArchive{file: file, entries: make(map[string]*zip.File)}
-	for _, entry := range reader.File {
+	return inspectBackupEntries(file, reader.File, boardID)
+}
+
+func inspectBackupEntries(file *os.File, entries []*zip.File, boardID string) (*verifiedBackupArchive, error) {
+	archive := &verifiedBackupArchive{file: file, entries: make(map[string]*zip.File, len(entries))}
+	for _, entry := range entries {
 		if !entry.Mode().IsRegular() || archive.entries[entry.Name] != nil || entry.Flags&1 != 0 {
 			return nil, errBackupIntegrity
 		}
 		archive.entries[entry.Name] = entry
+	}
+	if boardID == "" {
+		for name := range archive.entries {
+			if suffix, ok := strings.CutPrefix(name, "boards/"); ok {
+				id, ok := strings.CutSuffix(suffix, ".json")
+				if !ok || !validSnapshotID(id) || boardID != "" {
+					return nil, errBackupIntegrity
+				}
+				boardID = id
+			}
+		}
 	}
 	name := "boards/" + boardID + ".json"
 	data, err := readBackupEntry(archive.entries[name], maxSnapshotBytes)
@@ -85,7 +98,10 @@ func inspectBackupArchive(file *os.File, boardID string) (*verifiedBackupArchive
 }
 
 func readBackupEntry(entry *zip.File, limit int64) ([]byte, error) {
-	if entry == nil || entry.UncompressedSize64 > uint64(limit) {
+	// Deflate can grow incompressible input slightly. Bound compressed reads
+	// as well so malformed members cannot consume arbitrary input bytes.
+	if entry == nil || entry.UncompressedSize64 > uint64(limit) ||
+		entry.CompressedSize64 > uint64(limit)+uint64(limit)/8+(64<<10) {
 		return nil, errBackupIntegrity
 	}
 	reader, err := entry.Open()
@@ -105,13 +121,6 @@ func (archive *verifiedBackupArchive) attachmentData(item attachment) ([]byte, e
 		return nil, errBackupIntegrity
 	}
 	return data, nil
-}
-
-func attachmentBytesMatch(item attachment, data []byte) bool {
-	digest := sha256.Sum256(data)
-	mediaType := http.DetectContentType(data)
-	return int64(len(data)) == item.Size && hex.EncodeToString(digest[:]) == item.SHA256 &&
-		mediaType == item.MediaType && previewableAttachment(mediaType) == item.Previewable
 }
 
 func (archive *verifiedBackupArchive) close() {

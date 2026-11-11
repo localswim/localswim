@@ -116,6 +116,12 @@ digest and `board_revision` for the captured commit. Later edits remain availabl
 to subsequent captures. Inspect the original backup ID after an uncertain POST
 before attempting another capture.
 
+Run `localswim backup verify FILE` to check a downloaded Localswim ZIP offline.
+The command returns the board UUID, captured revision, and attachment count
+after checking the native snapshot, complete audit, exact archive inventory, and
+each active and detached attachment. It reads the ZIP in place, supports archives
+over 96 MiB, and leaves both the archive and service data untouched.
+
 `attachment detach` removes active content access and clears a matching cover in
 one transaction. Inspect the inactive record with `attachment get`. The original
 metadata and immutable bytes remain available for backup.

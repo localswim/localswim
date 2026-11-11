@@ -133,13 +133,17 @@ func readVerifiedAttachment(root string, item attachment) ([]byte, error) {
 	if err != nil || !current.Mode().IsRegular() || !os.SameFile(opened, current) {
 		return nil, errAttachmentIntegrity
 	}
-	digest := sha256.Sum256(data)
-	mediaType := http.DetectContentType(data)
-	if hex.EncodeToString(digest[:]) != item.SHA256 || mediaType != item.MediaType ||
-		previewableAttachment(mediaType) != item.Previewable {
+	if !attachmentBytesMatch(item, data) {
 		return nil, errAttachmentIntegrity
 	}
 	return data, nil
+}
+
+func attachmentBytesMatch(item attachment, data []byte) bool {
+	digest := sha256.Sum256(data)
+	mediaType := http.DetectContentType(data)
+	return int64(len(data)) == item.Size && hex.EncodeToString(digest[:]) == item.SHA256 &&
+		mediaType == item.MediaType && previewableAttachment(mediaType) == item.Previewable
 }
 
 // Keep storage metadata exact. The suggested download name excludes path

@@ -275,6 +275,9 @@ func TestM30ArchiveReaderRejectsUnlistedDuplicateMissingAndCorruptEntries(t *tes
 			if _, err := inspectBackupArchive(file, source.Board.ID); !errors.Is(err, errBackupIntegrity) {
 				t.Fatalf("damaged archive result %v", err)
 			}
+			if _, err := VerifyBackupFile(file.Name()); !errors.Is(err, errBackupIntegrity) {
+				t.Fatalf("offline damaged archive result %v", err)
+			}
 		})
 	}
 }

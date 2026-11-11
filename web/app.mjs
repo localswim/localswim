@@ -11,7 +11,7 @@ import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
 /** @typedef {import("./api.mjs").RelationshipKind} RelationshipKind */
 /** @typedef {{id: string, revision: number, board_id: string, source_card_id: string, target_card_id: string,
  * kind: RelationshipKind}} Relationship */
-/** @typedef {{type: HTMLSelectElement, direction: RelationshipKind, expectedRevision: number}} RelationshipEditor */
+/** @typedef {{type: HTMLSelectElement, savedKind: RelationshipKind, expectedRevision: number}} RelationshipEditor */
 /** @typedef {{resource_type: string, resource_id: string, operation: string, field: string|null,
  * actor_id: string, board_id: string, at: string, revision: number, before: string|null, after: string|null}} Change */
 /** @typedef {import("./api.mjs").Publishing} Publishing */
@@ -623,17 +623,14 @@ function renderCommentText(body, comment, boardId, users) {
 }
 
 const relationshipLabels = Object.freeze({
-  blocks: "Blocks", blocked_by: "Blocked by", duplicates: "Duplicates", duplicated_by: "Duplicated by",
-  references: "References", referenced_by: "Referenced by", relates_to: "Relates to",
+  blocks: "Blocks", duplicates: "Duplicates", references: "References", relates_to: "Relates to",
 });
-/** @type {Partial<Record<RelationshipKind, RelationshipKind>>} */
-const inverseRelationships = { blocks: "blocked_by", duplicates: "duplicated_by", references: "referenced_by",
-  blocked_by: "blocks", duplicated_by: "duplicates", referenced_by: "references" };
 const relationshipChoices = Object.entries(relationshipLabels).map(([id, label]) => ({ id, label }));
 
 /** @param {Relationship} entry @param {string} cardId */
 function relationshipDirection(entry, cardId) {
-  return entry.source_card_id === cardId ? entry.kind : inverseRelationships[entry.kind] ?? entry.kind;
+  if (entry.source_card_id === cardId || entry.kind === "relates_to") return relationshipLabels[entry.kind];
+  return { blocks: "Other blocks this card", duplicates: "Other duplicates this card", references: "Other references this card" }[entry.kind];
 }
 
 function ticketInput() {
@@ -1561,13 +1558,13 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         const other = targets.get(entry.source_card_id === card.id ? entry.target_card_id : entry.source_card_id);
         const direction = relationshipDirection(entry, card.id);
         const row = element("article");
-        const title = element("p", relationshipLabels[direction] + " ");
+        const title = element("p", direction + " ");
         if (other) title.append(link(ticketHref(boardId, other.ticket), "#" + other.ticket + " " + other.title));
         row.append(title);
         const previous = relationshipEditors.get(entry.id);
-        const selected = previous && previous.type.value !== previous.direction ? previous.type.value : direction;
+        const selected = previous && previous.type.value !== previous.savedKind ? previous.type.value : entry.kind;
         const type = select(relationshipChoices, selected);
-        const editor = { type, direction, expectedRevision: selected === direction ? entry.revision
+        const editor = { type, savedKind: entry.kind, expectedRevision: selected === entry.kind ? entry.revision
           : previous?.expectedRevision ?? entry.revision };
         nextEditors.set(entry.id, editor);
         const stale = element("p", "Saved link changed. Review the saved type and change the selection before saving.");
@@ -1577,15 +1574,14 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
           stale.hidden = true;
         });
         const endpoints = [entry.source_card_id, entry.target_card_id];
-        row.append(form("Change link type", [field("Link type", type), stale], (submit) => {
+        row.append(form("Change link type", [field("Link type (source to target)", type), stale], (submit) => {
           const wanted = /** @type {RelationshipKind} */ (type.value);
-          if (wanted === direction) return;
-          const canonical = entry.source_card_id === card.id ? wanted : inverseRelationships[wanted] ?? wanted;
+          if (wanted === entry.kind) return;
           void writeResource(submit, async () => {
             requireAttachmentUploadsSettled(boardId, endpoints);
-            await api.replaceRelationship(entry.id, editor.expectedRevision, boardTag(), canonical);
+            await api.replaceRelationship(entry.id, editor.expectedRevision, boardTag(), wanted);
           }, async () => (await readLinks()).some((value) => value.id === entry.id
-            && relationshipDirection(value, card.id) === wanted), "Link type changed.", inspection);
+            && value.kind === wanted), "Link type changed.", inspection);
         }), form("Remove link", [], (submit) => {
           void writeResource(submit, async () => {
             requireAttachmentUploadsSettled(boardId, endpoints);

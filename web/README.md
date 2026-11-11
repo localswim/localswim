@@ -62,6 +62,9 @@ Use the drawer's parent and child links to open those cards, including archived
 cards. Add a typed link from the drawer. If you can manage relationships, expand
 **Link the new card** in the new card form to add several links. The service saves
 the card and all its links together. Each relationship is visible from both cards.
+Link types are Blocks, Duplicates, References, and Relates to. Incoming links
+identify the other card as the source. Changing a link type preserves its source
+and target.
 Human comments link ticket references to focused board reads, including archived
 tickets. Bot comments render as text. Card priorities are shown on the board and
 in the drawer and refresh after link edits.

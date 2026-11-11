@@ -50,10 +50,6 @@ func readRelationshipKind(raw json.RawMessage) (string, error) {
 		}
 	}
 	kind = strings.ToLower(kind)
-	switch kind {
-	case "blocked_by", "duplicated_by", "referenced_by":
-		return kind, nil
-	}
 	if !validRelationshipKind(kind) {
 		return "", invalid("kind", "Unknown relationship kind.")
 	}
@@ -61,16 +57,7 @@ func readRelationshipKind(raw json.RawMessage) (string, error) {
 }
 
 func relationshipFromInput(source, target, kind string) relationshipLink {
-	switch kind {
-	case "blocked_by":
-		return relationshipLink{target, source, "blocks"}
-	case "duplicated_by":
-		return relationshipLink{target, source, "duplicates"}
-	case "referenced_by":
-		return relationshipLink{target, source, "references"}
-	default:
-		return relationshipLink{source, target, kind}
-	}
+	return relationshipLink{source, target, kind}
 }
 
 func (link relationshipLink) key() relationshipLink {

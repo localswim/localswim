@@ -2446,7 +2446,7 @@ test("new card resolves typed seed rows and submits one atomic create with the c
   ui.field(rows()[0], "Target ticket").value = "8";
   ui.field(rows()[0], "Link type").value = "blocks";
   ui.field(rows()[1], "Target ticket").value = "8";
-  ui.field(rows()[1], "Link type").value = "referenced_by";
+  ui.field(rows()[1], "Link type").value = "references";
   ui.submit(main, "Create card");
   await until(() => reads.length === 1);
   ui.field(rows()[1], "Link type").value = "duplicates";
@@ -2461,7 +2461,7 @@ test("new card resolves typed seed rows and submits one atomic create with the c
   assert.equal(request.lane_id, lane);
   assert.equal(request.title, "Seeded card");
   assert.deepEqual(Array.from(request.relationships, ({target_card_id, kind}) => [target_card_id, kind]).flat(),
-    [target.id, "blocks", target.id, "referenced_by"]);
+    [target.id, "blocks", target.id, "references"]);
   assert.match(ui.nodes.status.textContent, /Card created/);
   assert.equal(rows().length, 1);
   assert.equal(ui.field(rows()[0], "Target ticket").value, "8");
@@ -2654,9 +2654,9 @@ test("acknowledged seeded create reconciles the originating draft while another 
   assert.equal(readbacks, 0);
 });
 
-test("live link repaint keeps the dirty selector, focus, and its relationship revision", async (t) => {
+test("live inbound link repaint preserves direction, dirty selection, focus and revision", async (t) => {
   const {api, streams, commit} = changingBoard();
-  const edited = {id: backup, board_id: board, source_card_id: card, target_card_id: user,
+  const edited = {id: backup, board_id: board, source_card_id: user, target_card_id: card,
     kind: "relates_to", revision: 1};
   const unchanged = {id: priority, board_id: board, source_card_id: card, target_card_id: priority,
     kind: "duplicates", revision: 1};
@@ -2686,11 +2686,12 @@ test("live link repaint keeps the dirty selector, focus, and its relationship re
   const {main, details, status} = ui.nodes;
   const readiness = main.querySelector("#board-live-readiness");
   const row = () => ui.find(details, "a", "#2 " + linkedTitle)?.parent.parent;
-  const selector = () => row() && ui.field(row(), "Link type");
+  const selector = () => row() && ui.field(row(), "Link type (source to target)");
   const savedType = () => row()?.querySelector("p").ownText;
   const staleNotice = () => ui.find(row(), "p", "Saved link changed. Review the saved type and change the selection before saving.");
   ui.find(main, "button", "#1 Original").click();
   await until(selector);
+  assert.deepEqual(Array.from(selector().options, (option) => option.value), ["blocks", "duplicates", "references", "relates_to"]);
   selector().value = "blocks";
   selector().dispatch("change");
   selector().focus();
@@ -2706,7 +2707,7 @@ test("live link repaint keeps the dirty selector, focus, and its relationship re
 
   links = [unchanged, {...edited, kind: "references", revision: 3}];
   streams[0].send("change", commit("Original", lane));
-  await until(() => savedType() === "References " && readiness.textContent === "");
+  await until(() => savedType() === "Other references this card " && readiness.textContent === "");
   assert.equal(selector().value, "blocks");
   assert.equal(ui.focused(), selector());
   assert.equal(staleNotice().hidden, false);
@@ -2715,15 +2716,16 @@ test("live link repaint keeps the dirty selector, focus, and its relationship re
   assert.deepEqual(changes, [[edited.id, 1, tag(board, 3), "blocks"]]);
   assert.match(status.textContent, /State changed/);
   assert.equal(selector().value, "blocks");
-  assert.equal(savedType(), "References ");
+  assert.equal(savedType(), "Other references this card ");
 
-  selector().value = "duplicated_by";
+  selector().value = "duplicates";
   selector().dispatch("change");
   assert.equal(staleNotice().hidden, true);
   ui.submit(row(), "Change link type");
   await ui.settled();
-  assert.deepEqual(changes[1], [edited.id, 3, tag(board, 3), "duplicated_by"]);
-  assert.equal(savedType(), "Duplicated by ");
+  assert.deepEqual(changes[1], [edited.id, 3, tag(board, 3), "duplicates"]);
+  assert.equal(savedType(), "Other duplicates this card ");
+  assert.equal(links.find((entry) => entry.id === edited.id).source_card_id, user);
   assert.match(status.textContent, /Link type changed/);
 });
 
@@ -3306,7 +3308,7 @@ test("relationship writes wait for uploads on either endpoint and allow unrelate
     await ui.settled();
     assert.match(status.textContent, /Wait for attachments/);
     const edit = ui.find(details, "button", "Change link type");
-    ui.field(edit.parent, "Link type").value = "duplicates";
+    ui.field(edit.parent, "Link type (source to target)").value = "duplicates";
     ui.submit(details, "Change link type");
     await ui.settled();
     assert.match(status.textContent, /Wait for attachments/);

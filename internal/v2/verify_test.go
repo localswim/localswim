@@ -120,9 +120,9 @@ func TestNativeSnapshotNotificationAuditStartsAtCreationDefaults(t *testing.T) {
 	enabledField, targetField := "notifications.enabled", "notifications.target_thread_id"
 	disabled, enabled := "false", "true"
 	value.Activity = append(value.Activity,
-		activity{ID: newID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
+		activity{ID: newOperationID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
 			Operation: "patch", ResourceType: "board", ResourceID: b.ID, Field: &enabledField, Before: &disabled, After: &enabled},
-		activity{ID: newID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
+		activity{ID: newOperationID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
 			Operation: "patch", ResourceType: "board", ResourceID: b.ID, Field: &targetField, After: &target},
 	)
 	if err := validateSnapshot(value, b.ID); err != nil {
@@ -145,7 +145,7 @@ func TestNativeSnapshotRenameAuditRequiresManageBoard(t *testing.T) {
 	b.Revision++
 	b.ETag = etag(b.ID, b.Revision)
 	value.Activity = append(value.Activity, activity{
-		ID: newID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
+		ID: newOperationID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
 		Operation: "patch", ResourceType: "board", ResourceID: b.ID, Field: &field, Before: &previous, After: &b.Name,
 	})
 	if err := validateSnapshot(value, b.ID); err != nil {
@@ -182,7 +182,7 @@ func TestNativeSnapshotParentAuditAndCycle(t *testing.T) {
 	b.Revision++
 	b.ETag = etag(b.ID, b.Revision)
 	value.Activity = append(value.Activity, activity{
-		ID: newID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
+		ID: newOperationID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
 		Operation: "patch", ResourceType: "card", ResourceID: child.ID, Field: &field, After: &parent.ID,
 	})
 	b.Attention, b.LastCardEditAt = deriveAttention(value)

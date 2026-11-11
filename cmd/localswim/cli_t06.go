@@ -24,12 +24,12 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	switch name {
 	case "card set-priorities", "backup create":
 		flags.StringVar(&revision, "revision", "", "expected board revision")
-	case "ticket-order preview", "backup get", "backup download":
+	case "ticket-order preview", "backup info", "backup download":
 	default:
 		return cmd, errors.New("unknown command")
 	}
 	if name == "backup create" {
-		flags.StringVar(&backupID, "id", "", "known backup UUIDv4")
+		flags.StringVar(&backupID, "id", "", "known backup UUIDv7")
 	}
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
@@ -38,9 +38,13 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	if name == "card set-priorities" || name == "backup download" {
 		count = 2
 	}
+	resourcePattern := boardIDPattern
+	if name == "backup info" || name == "backup download" {
+		resourcePattern = operationIDPattern
+	}
 	if flags.NArg() < count || (name != "ticket-order preview" && flags.NArg() != count) ||
-		!boardIDPattern.MatchString(flags.Arg(0)) || (count == 2 && flags.Arg(1) == "") {
-		return cmd, errors.New("expected a UUIDv4 resource ID and the documented arguments")
+		!resourcePattern.MatchString(flags.Arg(0)) || (count == 2 && flags.Arg(1) == "") {
+		return cmd, errors.New("expected a valid resource ID and the documented arguments")
 	}
 	var optionErr error
 	flags.Visit(func(f *flag.Flag) {
@@ -52,8 +56,8 @@ func parseT06(name string, args []string) (cliCommand, error) {
 				optionErr = err
 			}
 		case "id":
-			if !boardIDPattern.MatchString(backupID) {
-				optionErr = errors.New("--id requires a UUIDv4 backup ID")
+			if !operationIDPattern.MatchString(backupID) {
+				optionErr = errors.New("--id requires a UUIDv7 backup ID")
 			}
 		}
 	})
@@ -67,10 +71,10 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	case "backup create":
 		cmd.method, cmd.resource, cmd.boardID = http.MethodPost, "/backups", id
 		if backupID == "" {
-			backupID = newUploadID()
+			backupID = newOperationID()
 		}
 		cmd.body, _ = json.Marshal(map[string]string{"id": strings.ToLower(backupID)})
-	case "backup get", "backup download":
+	case "backup info", "backup download":
 		cmd.resource = "/backups/" + id
 		if name == "backup download" {
 			cmd.downloadPath = flags.Arg(1)
@@ -150,7 +154,7 @@ func executeT06(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 				ID string `json:"id"`
 			}
 			_ = json.Unmarshal(body, &identity)
-			return fmt.Errorf("%w (backup ID %s)", err, identity.ID)
+			return fmt.Errorf("%w. Run backup info %s before retrying", err, identity.ID)
 		}
 		return err
 	}
@@ -161,7 +165,7 @@ func executeT06(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 		_ = json.Unmarshal(body, &requested)
 		_ = json.Unmarshal(reply.JSON, &returned)
 		if requested.ID != returned.ID {
-			return fmt.Errorf("%w. Service returned a different backup ID. Inspect backup %s before retrying", client.ErrMutationOutcomeUnknown, requested.ID)
+			return fmt.Errorf("%w. Service returned a different backup ID. Run backup info %s before retrying", client.ErrMutationOutcomeUnknown, requested.ID)
 		}
 	}
 	if cmd.t06Action == "ticket-order preview" {

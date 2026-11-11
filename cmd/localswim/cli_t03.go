@@ -343,6 +343,10 @@ func readT03Input(input io.Reader, textInput bool) (json.RawMessage, error) {
 	return data, nil
 }
 
+func newOperationID() string {
+	return uuid.NewV7().String()
+}
+
 func newUploadID() string {
 	return uuid.NewV4().String()
 }

@@ -104,7 +104,7 @@ func (floor priorityFloor) apply(s *snapshot, actor string, now time.Time) {
 func recordCardPriority(s *snapshot, item *card, id string, rank int, actor, operation string, now time.Time) {
 	field, before := "priority_id", item.PriorityID
 	s.Activity = append(s.Activity, activity{
-		ID: newID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
+		ID: newOperationID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
 		ActorID: actor, Operation: operation, ResourceType: "card", ResourceID: item.ID,
 		Field: &field, Before: &before, After: &id,
 	})

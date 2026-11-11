@@ -1,3 +1,4 @@
+import { newOperationId } from "./operation-id.mjs";
 import { ApiError, createBrowserApi, openBrowserSession, validPublishing } from "./api.mjs";
 import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
 
@@ -1054,7 +1055,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     });
     archiveAction.append(archiveForm);
     const approveForm = form("Reviewed & approved", [], (submit) => {
-      const id = crypto.randomUUID();
+      const id = newOperationId();
       let approved = false;
       void writeResource(submit, async () => {
         await api.approveCard(id, boardId, boardTag(), card.id, cardTag);
@@ -1377,7 +1378,7 @@ function renderServiceControls(canManage, isCurrent) {
   /** @type {Build|undefined} */
   let candidate;
   const activate = button("Activate staged build", () => {
-    if (service && candidate) void submit(service, { id: crypto.randomUUID(), buildId: candidate.id });
+    if (service && candidate) void submit(service, { id: newOperationId(), buildId: candidate.id });
   });
   const stop = button("Shut down service", () => {
     if (service) void submit(service);
@@ -2123,7 +2124,7 @@ async function load(savedAvailability) {
           const cardIds = versions.map(({ id }) => id);
           column.append(form("Approve all in lane", [], (submit) => {
             if (view !== activeView || !column.isConnected) return;
-            const id = crypto.randomUUID();
+            const id = newOperationId();
             const drawer = activeDrawer;
             let approved = false;
             void writeResource(submit, async () => {
@@ -2567,7 +2568,7 @@ function renderPublicationControls(boardId, backupId, inspection) {
   const publicationResult = element("p");
   const publish = form("Publish backup", [], (submit) => {
     if (pendingPublications.has(boardId)) return;
-    const publicationId = crypto.randomUUID();
+    const publicationId = newOperationId();
     pendingPublications.set(boardId, { id: publicationId, backupId: backupId });
     submit.dataset.publicationPending = "true";
     refreshPublication.hidden = false;
@@ -2665,7 +2666,7 @@ function renderBoardActions(boardId, priorities, cards, boardTag, reloadBoard, i
   const backupResult = element("div");
   backupResult.setAttribute("aria-live", "polite");
   panel.append(form("Create backup", [], (submit) => {
-    const id = crypto.randomUUID();
+    const id = newOperationId();
     void writeResource(submit, () => api.createBackup(id, boardId, boardTag()), async () => {
       let reply;
       try { reply = await api.getBackup(id, boardId); }

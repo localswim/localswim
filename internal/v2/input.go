@@ -124,6 +124,18 @@ func inputID(raw json.RawMessage, field string) (string, error) {
 	return id, nil
 }
 
+func inputOperationID(raw json.RawMessage, field string) (string, error) {
+	text, err := textField(raw, field, 36, 36)
+	if err != nil {
+		return "", err
+	}
+	id, ok := normalizeOperationID(text)
+	if !ok {
+		return "", invalid(field, "Expected a UUIDv7.")
+	}
+	return id, nil
+}
+
 type conditionTag struct {
 	opaque string
 	weak   bool

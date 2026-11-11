@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	testActivationID  = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	testActivationID  = "aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa"
 	testBuildID       = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 	testInstanceID    = "cccccccc-cccc-7ccc-8ccc-cccccccccccc"
 	testServiceTag    = `"service-instance-001"`
@@ -108,7 +108,7 @@ func TestCLIServiceLifecycle(t *testing.T) {
 						acceptedID.Store(id)
 						if r.Method != http.MethodPost || r.URL.Path != testLifecyclePath+"/activations" ||
 							r.Header.Get("If-Match") != "" || len(body) != 3 || body["build_id"] != testBuildID ||
-							body["expected_service_etag"] != testServiceTag || !boardIDPattern.MatchString(id) ||
+							body["expected_service_etag"] != testServiceTag || !operationIDPattern.MatchString(id) ||
 							(!tc.generateID && id != testActivationID) {
 							t.Error("expected an activation POST with the requested build, operation ID, and original service ETag")
 						}

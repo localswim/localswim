@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import vm from "node:vm";
 import test from "node:test";
+import { newOperationId } from "./operation-id.mjs";
 import {ApiError, createBrowserApi, validPublishing} from "./api.mjs";
 import {createBoardRefresh, watchBoard} from "./board-updates.mjs";
 const board = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
@@ -71,7 +72,7 @@ async function harness(api, pathname = "/boards/" + board, {
   const context = vm.createContext({document, window: {addEventListener() {}}, CSSStyleSheet: class {replaceSync() {}},
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
-    Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing,
+    Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, newOperationId,
     createBoardRefresh, watchBoard: typeof api.streamEvents === "function" ? watchBoard : async () => {},
     createBrowserApi: ({getCapability}) => typeof api === "function" ? api(getCapability) : api,
     openBrowserSession: openSession});

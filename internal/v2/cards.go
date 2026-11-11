@@ -266,7 +266,7 @@ func (in cardCreation) apply(s *snapshot, actor string) error {
 		value.CompletedAt = &now
 	}
 	s.Cards = append(s.Cards, value)
-	s.Activity = append(s.Activity, activity{ID: newID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
+	s.Activity = append(s.Activity, activity{ID: newOperationID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
 		ActorID: actor, Operation: "create", ResourceType: "card", ResourceID: value.ID})
 	if in.parentID != nil {
 		if _, err := patchParent(s, value.ID, value.entityTag(), in.parentID, actor, now); err != nil {

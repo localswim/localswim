@@ -14,7 +14,6 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
-	"uuid"
 )
 
 const (
@@ -58,7 +57,7 @@ type buildStatus struct {
 var runningBuildID = newID()
 
 func newBuildStatus(root string) *buildStatus {
-	instanceID := uuid.NewV7().String()
+	instanceID := newOperationID()
 	return &buildStatus{
 		root: root,
 		running: serviceStatus{

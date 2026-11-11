@@ -144,7 +144,7 @@ test("focused history sends a full-activity ticket read with both UTC bounds", a
     assert.equal(request.method, "GET");
     assert.equal(url.pathname, prefix + "/activities");
     assert.deepEqual(Object.fromEntries(url.searchParams), {
-      board_id: boardId, from: before, to: after, ticket: "42", cursor: "next",
+      board_id: boardId, from: before, to: after, view: "full", ticket: "42", cursor: "next",
     });
     return Response.json({ activities: [], next_cursor: null });
   });

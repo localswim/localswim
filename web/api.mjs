@@ -1351,7 +1351,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       if (!isTimestamp(from) || !isTimestamp(to) || from > to || !Number.isSafeInteger(ticket) || ticket < 1) {
         throw new TypeError("Expected an ordered UTC interval and a positive safe integer ticket.");
       }
-      return list("/activities", { board_id: resourceId(boardId), from, to, ticket: String(ticket) }, cursor);
+      return list("/activities", { board_id: resourceId(boardId), from, to, view: "full", ticket: String(ticket) }, cursor);
     },
     /** @param {unknown} boardId @param {string} [cursor] */
     listUsers: (boardId, cursor) => list("/users", { board_id: resourceId(boardId) }, cursor),

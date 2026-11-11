@@ -4,6 +4,9 @@ const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 const STRONG_ETAG = /^"[A-Za-z0-9_-]{16,128}"$/;
 const CAPABILITY = /^[A-Za-z0-9_-]{43,128}$/;
 const REQUEST_TIMEOUT_MS = 15000;
+export const MAX_LANE_APPROVAL_CARDS = 5000;
+export const MAX_BULK_APPROVAL_COMMENT_LENGTH = 1024;
+export const DEFAULT_APPROVAL_COMMENT = "Reviewed & approved, moving to Completed.";
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const RASTER_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
@@ -195,7 +198,11 @@ function validPublication(value, id, boardId, backupId) {
 /** @param {object} data @param {string} [id] @param {string} [boardId] */
 function validLane(data, id, boardId) {
   const lane = /** @type {Record<string, unknown>} */ (data);
-  return Object.keys(lane).length === 12
+  const hasBulkComment = Object.hasOwn(lane, "bulk_approval_comment");
+  return Object.keys(lane).length === (hasBulkComment ? 13 : 12)
+    && (!hasBulkComment || (lane.role === "ready_for_review" && typeof lane.bulk_approval_comment === "string"
+      && [...lane.bulk_approval_comment].length > 0
+      && [...lane.bulk_approval_comment].length <= MAX_BULK_APPROVAL_COMMENT_LENGTH))
     && isId(lane.id) && (id === undefined || lane.id.toLowerCase() === id.toLowerCase())
     && isId(lane.board_id) && (boardId === undefined || lane.board_id.toLowerCase() === boardId.toLowerCase())
     && isInteger(lane.revision) && lane.revision > 0
@@ -298,8 +305,8 @@ function versionTag(id, revision) {
 }
 
 /** @param {object} data @param {string} id @param {string} boardId @param {string} boardTag
- * @param {string} laneId @param {string} completedLaneId @param {string[]} cardIds */
-function matchesLaneApproval(data, id, boardId, boardTag, laneId, completedLaneId, cardIds) {
+ * @param {string} laneId @param {string} completedLaneId @param {string[]} cardIds @param {string} expectedComment */
+function matchesLaneApproval(data, id, boardId, boardTag, laneId, completedLaneId, cardIds, expectedComment) {
   const receipt = /** @type {Record<string, unknown>} */ (data);
   const { board_revision: revision, changes } = receipt;
   const ids = receipt.card_ids;
@@ -309,9 +316,15 @@ function matchesLaneApproval(data, id, boardId, boardTag, laneId, completedLaneI
       || !Array.isArray(ids) || ids.length !== cardIds.length || !cardIds.every((cardId, index) => ids[index] === cardId)
       || !Array.isArray(changes) || changes.length !== cardIds.length * 2) return false;
   const auditIds = new Set();
-  /** @param {unknown} value @returns {value is Record<string, unknown>} */
-  function matchesChange(value) {
-    if (!isObject(value) || Object.keys(value).length !== 11 || !isOperationId(value.id) || auditIds.has(value.id)
+  /** @param {unknown} value @param {boolean} firstMove @returns {value is Record<string, unknown>} */
+  function matchesChange(value, firstMove) {
+    if (!isObject(value)) return false;
+    const hasBulkComment = Object.hasOwn(value, "bulk_approval_comment");
+    if (hasBulkComment && !firstMove) return false;
+    if (firstMove && (hasBulkComment ? value.bulk_approval_comment : DEFAULT_APPROVAL_COMMENT) !== expectedComment) {
+      return false;
+    }
+    if (Object.keys(value).length !== (hasBulkComment ? 12 : 11) || !isOperationId(value.id) || auditIds.has(value.id)
         || value.board_id !== boardId || value.actor_id !== receipt.actor_id
         || value.at !== receipt.at || value.revision !== revision) return false;
     auditIds.add(value.id);
@@ -320,7 +333,7 @@ function matchesLaneApproval(data, id, boardId, boardTag, laneId, completedLaneI
   return cardIds.every((cardId, index) => {
     const move = /** @type {unknown} */ (changes[index * 2]);
     const note = /** @type {unknown} */ (changes[index * 2 + 1]);
-    if (!matchesChange(move) || !matchesChange(note) || (index === 0 && move.id !== id)
+    if (!matchesChange(move, index === 0) || !matchesChange(note, false) || (index === 0 && move.id !== id)
         || move.operation !== "approve" || move.resource_type !== "card" || move.resource_id !== cardId
         || move.field !== "lane_id" || move.before !== laneId || move.after !== completedLaneId
         || note.operation !== "comment" || note.resource_type !== "comment" || !isId(note.resource_id)
@@ -1116,8 +1129,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
     },
     /** @param {string} id @param {string} boardId @param {string} boardEtag @param {string} laneId
-     * @param {string} completedLaneId @param {{id: string, revision: number}[]} cards */
-    async approveLane(id, boardId, boardEtag, laneId, completedLaneId, cards) {
+     * @param {string} completedLaneId @param {{id: string, revision: number}[]} cards @param {string} [bulkComment] */
+    async approveLane(id, boardId, boardEtag, laneId, completedLaneId, cards, bulkComment = "") {
       const expectedId = operationId(id).toLowerCase();
       const board = resourceId(boardId).toLowerCase();
       const lane = resourceId(laneId).toLowerCase();
@@ -1127,8 +1140,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         card_id: resourceId(card.id).toLowerCase(), etag: versionTag(card.id, card.revision),
       }));
       const cardIds = versions.map(({ card_id }) => card_id);
-      if (versions.length > 1000 || new Set(cardIds).size !== cardIds.length) {
-        throw new TypeError("Expected up to 1000 distinct cards.");
+      if (versions.length > MAX_LANE_APPROVAL_CARDS || new Set(cardIds).size !== cardIds.length) {
+        throw new TypeError(`Expected up to ${MAX_LANE_APPROVAL_CARDS} distinct cards.`);
       }
       const response = await send("/approvals", { method: "POST", data: {
         id: expectedId, board_id: board, lane_id: lane, expected_board_etag: expected, cards: versions,
@@ -1147,13 +1160,14 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       if (!isInteger(revision) || revision < 1 || tag !== versionTag(board, revision)
           || (empty ? Object.keys(data).length !== 4 || data.board_id !== board || data.changed !== false
             || !Array.isArray(data.card_ids) || data.card_ids.length !== 0
-            : !matchesLaneApproval(data, expectedId, board, expected, lane, completed, cardIds))) {
+            : !matchesLaneApproval(data, expectedId, board, expected, lane, completed, cardIds,
+              bulkComment || DEFAULT_APPROVAL_COMMENT))) {
         throw new ApiError("invalid_response", { status, outcomeUnknown: true });
       }
     },
     /** @param {string} id @param {string} boardId @param {string} boardEtag @param {string} laneId
-     * @param {string} completedLaneId @param {string[]} cardIds */
-    async inspectLaneApproval(id, boardId, boardEtag, laneId, completedLaneId, cardIds) {
+     * @param {string} completedLaneId @param {string[]} cardIds @param {string} [bulkComment] */
+    async inspectLaneApproval(id, boardId, boardEtag, laneId, completedLaneId, cardIds, bulkComment = "") {
       const expectedId = operationId(id).toLowerCase();
       const board = resourceId(boardId).toLowerCase();
       const expected = strongTag(boardEtag);
@@ -1166,12 +1180,12 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         throw new ApiError("invalid_response", { status: response.status });
       }
       const data = await responseObject(response, false);
-      if (!matchesLaneApproval(data, expectedId, board, expected, lane, completed, cards)) {
+      if (!matchesLaneApproval(data, expectedId, board, expected, lane, completed, cards, bulkComment || DEFAULT_APPROVAL_COMMENT)) {
         throw new ApiError("invalid_response", { status: response.status });
       }
     },
     /** @param {string} boardId @param {string} laneId @param {number} revision @param {string} boardEtag
-     * @param {{retired: true}|{approval_enabled: boolean}|{key: string}} change */
+     * @param {{retired: true}|{approval_enabled?: boolean, bulk_approval_comment?: string}|{key: string}} change */
     async updateLaneSettings(boardId, laneId, revision, boardEtag, change) {
       const id = resourceId(laneId);
       const board = resourceId(boardId);
@@ -1179,7 +1193,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         method: "PATCH", etag: versionTag(id, revision), data: { board_etag: strongTag(boardEtag), ...change },
       });
       const saved = /** @type {Record<string, unknown>} */ (result.data);
-      if (!validLane(saved, id, board) || !Object.entries(change).every(([key, value]) => saved[key] === value)) {
+      if (!validLane(saved, id, board) || !Object.entries(change).every(([key, value]) =>
+        (key === "bulk_approval_comment" ? saved[key] ?? "" : saved[key]) === value)) {
         throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
       }
       return result;

@@ -141,7 +141,7 @@ func TestSingleReviewApproval(t *testing.T) {
 	}
 	note := committed.Comments[len(committed.Comments)-1]
 	if note.Text != "Reviewed & approved, moving to Completed." ||
-		!validApprovalPair(result.Changes[0], result.Changes[1], note) {
+		!validApprovalPair(result.Changes[0], result.Changes[1], note, reviewApprovalText) {
 		t.Fatal("durable approval comment text or attribution changed")
 	}
 	for _, changedText := range []string{"Reviewed and approved, moving to Completed.", note.Text + " "} {

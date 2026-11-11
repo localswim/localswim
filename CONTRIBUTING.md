@@ -75,10 +75,17 @@ view returns attributed changes. Use `--view monitor` for event metadata and
 ticket numbers without card prose. Both views support a ticket filter, page
 limit, and cursor tied to the original query.
 
-`lane set-approval-button` configures the optional Human lane action. The browser
+`lane set-approval-button` controls whether the optional Human lane action is enabled.
+Manage lanes in the browser or PATCH the active Ready for Review lane to set
+`bulk_approval_comment`. The setting accepts up to 1,024 characters, and an empty
+string restores the default. It can be saved while lane approval is disabled.
+
+The approval request accepts up to 5,000 cards and 2 MiB of JSON. The browser
 submits every rendered active member with its original card version and the
 original board version. The service commits all moves and comments together or
-refuses the whole request. Empty approval requests leave the revision unchanged.
+refuses the whole request. Empty lane requests leave the revision unchanged.
+The first bulk move records the applied comment in the receipt and audit.
+Individual approvals always use `Reviewed & approved, moving to Completed.`.
 
 `lane retire` preserves archived cards and historical lane identity. It refuses
 active occupancy, the Completed role, and any retirement that would break a

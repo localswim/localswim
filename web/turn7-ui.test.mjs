@@ -3,7 +3,10 @@ import fs from "node:fs/promises";
 import vm from "node:vm";
 import test from "node:test";
 import { newOperationId } from "./operation-id.mjs";
-import {ApiError, createBrowserApi, validPublishing} from "./api.mjs";
+import {
+  ApiError, createBrowserApi, DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH,
+  MAX_LANE_APPROVAL_CARDS, validPublishing,
+} from "./api.mjs";
 const board = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
 const lane = "ceab10a8-1492-4c90-aa07-13b83138919a";
 const card = "d2ef6295-ace1-4e6e-bbf7-b1c1823f56fc";
@@ -49,7 +52,10 @@ async function harness(api, pathname = "/boards/" + board, {
     querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; }
   }
   class Input extends Element { get valueAsNumber() { return Number(this.value); } }
-  class Textarea extends Element {}
+  class Textarea extends Element {
+    setCustomValidity(message) { this.validationMessage = message; }
+    reportValidity() { return !this.validationMessage; }
+  }
   class Button extends Element {}
   class Select extends Element {
     get options() { return this.children; }
@@ -64,10 +70,11 @@ async function harness(api, pathname = "/boards/" + board, {
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
     Blob, setTimeout: pollTimer, AbortSignal, crypto: globalThis.crypto, ApiError, validPublishing, newOperationId,
+    DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH, MAX_LANE_APPROVAL_CARDS,
     createBrowserApi: ({getCapability}) => typeof api === "function" ? api(getCapability) : api,
     openBrowserSession: openSession});
   let source = await fs.readFile(new URL("./app.mjs", import.meta.url), "utf8");
-  source = source.replace(/^import .*?;\r?\n/gm, "").replace(/void load\(\);\s*$/, "");
+  source = source.replace(/^import \{[^}]+\} from "[^"]+";\r?\n/gm, "").replace(/void load\(\);\s*$/, "");
   vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing, inspect:()=>cardInspection.inspect()};", context);
   async function settled() { for (let count = 0; count < 40; count++) { await new Promise((resolve) => setTimeout(resolve, 0)); if (!context.hooks.busy()) return; } throw Error("UI did not settle"); }
   const find = (root, tagName, text) => root.querySelectorAll(tagName).find((node) => node.ownText === text);

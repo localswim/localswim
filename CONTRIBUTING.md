@@ -103,6 +103,20 @@ refuses the edit even when the card itself has not changed. The optional
 inspect the current ticket mapping before issuing another command. After an
 uncertain response, inspect the original card by UUID.
 
+Use `card set-parent BOARD_ID TICKET PARENT_TICKET` or
+`card clear-parent BOARD_ID TICKET` to change a child's parent. The optional
+`--revision N` checks the child card revision. Both writes guard the child and
+board versions from one focused view.
+
+Use `relationship create BOARD_ID SOURCE_TICKET KIND TARGET_TICKET` or
+`relationship remove BOARD_ID SOURCE_TICKET KIND TARGET_TICKET` for ticket-based
+links. The kinds are `blocks`, `duplicates`, `references`, and `relates_to`.
+Create checks the board revision. Remove resolves the exact typed edge from the
+same view and checks its relationship revision. Card UUID creation and relationship
+UUID removal remain available. After a stale response, inspect the current
+ticket mapping before trying again. After an uncertain response, inspect the
+original card or relationship UUID.
+
 Use `activity list` with inclusive canonical UTC `--from` and `--to`. The
 default view returns sanitized metadata in audit revision order. Select
 `--view full` to read attributed audit values. Both views support `--actor-id`,

@@ -1171,6 +1171,14 @@ paths:
         schema:
           type: boolean
           default: false
+      - name: related_ticket
+        in: query
+        required: false
+        description: For the ticket view, include a different ticket on this board from the same accepted snapshot.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
       - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
@@ -1395,6 +1403,14 @@ paths:
         schema:
           type: boolean
           default: false
+      - name: related_ticket
+        in: query
+        required: false
+        description: For the ticket view, include a different ticket on this board from the same accepted snapshot.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
       - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
@@ -14899,16 +14915,23 @@ components:
           - minimum: 1
         card:
           $ref: '#/components/schemas/TicketCardContext'
+        related_card:
+          description: Present only for a requested related_ticket, which must exist on the same board.
+          $ref: '#/components/schemas/TicketCardContext'
         relationships:
           type: array
           description: Direct links ordered by the other card's ticket, then kind and direction.
           items:
             type: object
             additionalProperties: false
-            required: [id, kind, direction, card]
+            required: [id, revision, kind, direction, card]
             properties:
               id:
                 $ref: '#/components/schemas/Uuid'
+              revision:
+                allOf:
+                - $ref: '#/components/schemas/Revision'
+                - minimum: 1
               kind:
                 type: string
                 enum: [blocks, duplicates, references, relates_to]

@@ -47,12 +47,25 @@ func parseT04(name string, args []string) (cliCommand, error) {
 	}
 	var hasID bool
 	flags.Visit(func(f *flag.Flag) { hasID = hasID || f.Name == "id" })
+	if hasID && !boardIDPattern.MatchString(relationshipID) {
+		return cmd, errors.New("--id requires a UUIDv4")
+	}
+	var optionErr error
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "revision" {
+			cmd.revision, optionErr = parseCLIRevision(revision)
+		}
+	})
+	if optionErr != nil {
+		return cmd, optionErr
+	}
+	if (name == "relationship create" || name == "relationship remove") && flags.NArg() == 4 {
+		cmd.ticketRelationship, optionErr = parseTicketLinkCommand(name, flags.Args(), relationshipID)
+		return cmd, optionErr
+	}
 	if name == "relationship create" {
 		if flags.NArg() != 3 || !boardIDPattern.MatchString(flags.Arg(0)) || !boardIDPattern.MatchString(flags.Arg(2)) {
 			return cmd, errors.New("relationship create requires SOURCE_CARD_ID KIND TARGET_CARD_ID")
-		}
-		if hasID && !boardIDPattern.MatchString(relationshipID) {
-			return cmd, errors.New("--id requires a UUIDv4")
 		}
 		kind := strings.ToLower(flags.Arg(1))
 		if !cliRelationshipKind(kind) {
@@ -73,15 +86,6 @@ func parseT04(name string, args []string) (cliCommand, error) {
 	if name != "relationship create" && (flags.NArg() != count || !boardIDPattern.MatchString(flags.Arg(0)) ||
 		(count == 2 && flags.Arg(1) == "")) {
 		return cmd, errors.New("expected a UUIDv4 resource ID and the documented arguments")
-	}
-	var optionErr error
-	flags.Visit(func(f *flag.Flag) {
-		if f.Name == "revision" {
-			cmd.revision, optionErr = parseCLIRevision(revision)
-		}
-	})
-	if optionErr != nil {
-		return cmd, optionErr
 	}
 	id := strings.ToLower(flags.Arg(0))
 	if name == "relationship create" {

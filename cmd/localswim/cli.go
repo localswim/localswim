@@ -65,11 +65,15 @@ const cliHelp = `Usage:
   localswim card unarchive [--revision N] CARD_ID
   localswim card unarchive [--revision N] BOARD_ID TICKET
   localswim card cover [--revision N] CARD_ID ATTACHMENT_ID|none
+  localswim card set-parent [--revision N] BOARD_ID TICKET PARENT_TICKET
+  localswim card clear-parent [--revision N] BOARD_ID TICKET
   localswim relationship list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim relationship get RELATIONSHIP_ID
   localswim relationship create [--revision N] [--id UUID] SOURCE_CARD_ID KIND TARGET_CARD_ID
+  localswim relationship create [--revision N] [--id UUID] BOARD_ID SOURCE_TICKET KIND TARGET_TICKET
   localswim relationship patch [--revision N] RELATIONSHIP_ID FILE|-
   localswim relationship remove [--revision N] RELATIONSHIP_ID
+  localswim relationship remove [--revision N] BOARD_ID SOURCE_TICKET KIND TARGET_TICKET
   localswim comment list [--data DIRECTORY] [--archived exclude|include|only]
                          [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim comment post [--revision N] CARD_ID FILE|-
@@ -183,7 +187,9 @@ Card description reads UTF-8 text verbatim, including trailing newlines.
 Card list excludes archived cards by default. Focused card get includes them.
 Card inspect returns ticket, lane, owner, priority, and relationship metadata. Use --prose for its description and comments.
 Use card cover CARD_ID none to clear the selected cover.
-Relationship create reads source_card_id, target_card_id, kind, and optional id.
+Use card set-parent or clear-parent with the board and child ticket. --revision checks the child card.
+Relationship create accepts source and target card UUIDs or tickets scoped to one board.
+Relationship kinds are blocks, duplicates, references, and relates_to.
 Relationship patch reads kind. The CLI supplies the required validators.
 For relationship create, --revision refers to the board revision.
 For relationship patch and remove, --revision refers to the relationship revision.
@@ -241,6 +247,7 @@ type cliCommand struct {
 	nativeRead                         string
 	ticketInspection                   *cliTicketInspection
 	ticketPatch                        *cliTicketTarget
+	ticketRelationship                 *cliTicketRelationship
 	ticketAttachment                   *cliTicketTarget
 	batchTickets                       []uint64
 	t07Action                          string
@@ -416,6 +423,8 @@ func parseCLI(args []string) (cliCommand, error) {
 		flags.StringVar(&cardDescription, "description", "", "description of the new card")
 	case "card get":
 		command.method, command.resource = http.MethodGet, "/cards"
+	case "card set-parent", "card clear-parent":
+		return parseTicketParentCommand(name, optionArgs)
 	case "card inspect":
 		var err error
 		command.ticketInspection, err = parseTicketInspection(optionArgs)
@@ -629,6 +638,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	api, err := client.New(getenv("LOCALSWIM_URL"), getenv("LOCALSWIM_TOKEN"))
 	if err != nil {
 		return err
+	}
+	if command.ticketRelationship != nil {
+		return executeTicketRelationshipCommand(api, command, stdout)
 	}
 	if command.ticketPatch != nil {
 		return executeTicketCardPatch(api, command, stdout)

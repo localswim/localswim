@@ -11,6 +11,8 @@ const (
 	zipDirectoryEndSize    = 22
 	zip64DirectoryEndSize  = 56
 	zip64LocatorSize       = 20
+	zipLocalHeaderSize     = 30
+	maxBackupEntryNameSize = len("attachments/") + 3*36 + 2
 
 	// A canonical attachment record occupies more than 256 bytes, including
 	// its four UUIDs, SHA-2-256 digest, timestamps, and field names. There
@@ -21,9 +23,10 @@ const (
 // backupZIPDirectory keeps the verified ZIP index stable while archive/zip reads
 // it. The file payload is still read by offset from the original handle.
 type backupZIPDirectory struct {
-	file   io.ReaderAt
-	offset int64
-	data   *bytes.Reader
+	file         io.ReaderAt
+	offset       int64
+	data         *bytes.Reader
+	localOffsets []int64
 }
 
 func (d backupZIPDirectory) ReadAt(p []byte, offset int64) (int, error) {
@@ -88,21 +91,31 @@ func readBackupZIPDirectory(file io.ReaderAt, size int64) (backupZIPDirectory, e
 	}
 	copy(data[length:], trailer)
 	directory := data[:length]
+	localOffsets := make([]int64, 0, entries)
 	for range entries {
 		if len(directory) < zipDirectoryHeaderSize || le.Uint32(directory) != 0x02014b50 {
 			return backupZIPDirectory{}, errBackupIntegrity
 		}
-		recordLength := zipDirectoryHeaderSize + int(le.Uint16(directory[28:])) +
-			int(le.Uint16(directory[30:])) + int(le.Uint16(directory[32:]))
-		if recordLength > len(directory) {
+		nameSize := int(le.Uint16(directory[28:]))
+		extraStart := zipDirectoryHeaderSize + nameSize
+		extraEnd := extraStart + int(le.Uint16(directory[30:]))
+		recordLength := extraEnd + int(le.Uint16(directory[32:]))
+		if nameSize == 0 || nameSize > maxBackupEntryNameSize || recordLength > len(directory) {
 			return backupZIPDirectory{}, errBackupIntegrity
 		}
+		local, ok := backupLocalHeaderOffset(directory[:zipDirectoryHeaderSize], directory[extraStart:extraEnd])
+		if !ok || local >= offset {
+			return backupZIPDirectory{}, errBackupIntegrity
+		}
+		localOffsets = append(localOffsets, int64(local))
 		directory = directory[recordLength:]
 	}
 	if len(directory) != 0 {
 		return backupZIPDirectory{}, errBackupIntegrity
 	}
-	return backupZIPDirectory{file: file, offset: int64(offset), data: bytes.NewReader(data)}, nil
+	return backupZIPDirectory{
+		file: file, offset: int64(offset), data: bytes.NewReader(data), localOffsets: localOffsets,
+	}, nil
 }
 
 func backupZIPEndIndex(tail []byte) int {
@@ -116,4 +129,37 @@ func backupZIPEndIndex(tail []byte) int {
 		}
 	}
 	return -1
+}
+
+func backupLocalHeaderOffset(header, extra []byte) (uint64, bool) {
+	le := binary.LittleEndian
+	offset := le.Uint32(header[42:])
+	if offset != 0xffffffff {
+		return uint64(offset), true
+	}
+	// ZIP64 values appear only for saturated fields, with the original
+	// sizes (when present) preceding the local header offset.
+	skip := 0
+	if le.Uint32(header[24:]) == 0xffffffff {
+		skip += 8
+	}
+	if le.Uint32(header[20:]) == 0xffffffff {
+		skip += 8
+	}
+	var local uint64
+	found := false
+	for len(extra) >= 4 {
+		tag, size := le.Uint16(extra), int(le.Uint16(extra[2:]))
+		if size > len(extra)-4 {
+			break
+		}
+		if tag == 1 {
+			if found || size < skip+8 {
+				return 0, false
+			}
+			local, found = le.Uint64(extra[4+skip:]), true
+		}
+		extra = extra[4+size:]
+	}
+	return local, found
 }

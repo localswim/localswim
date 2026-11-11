@@ -164,6 +164,49 @@ func TestM96VerifyRejectsInterruptedAndNonregularInputs(t *testing.T) {
 	}
 }
 
+func TestM96RejectsLocalHeaderMismatch(t *testing.T) {
+	app, _, source, _ := backupCaptureFixture(t)
+	_, original := captureRecoveryBackup(t, app, source)
+	for _, test := range []struct {
+		field  string
+		offset int
+		mask   byte
+	}{
+		{"name", zipLocalHeaderSize, 1},
+		{"flags", 7, 8},
+		{"method", 8, byte(zip.Deflate)},
+	} {
+		t.Run(test.field, func(t *testing.T) {
+			// Capture puts the board snapshot first. Alter only one byte
+			// of its local header, leaving the directory and payload intact.
+			modified := bytes.Clone(original)
+			modified[test.offset] ^= test.mask
+			reader, err := zip.NewReader(bytes.NewReader(modified), int64(len(modified)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := readBackupEntry(reader.File[0], maxSnapshotBytes); err != nil {
+				t.Fatalf("fixture unexpectedly broke the ZIP member payload: %v", err)
+			}
+			path := filepath.Join(t.TempDir(), "mismatched.zip")
+			if err := os.WriteFile(path, modified, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := VerifyBackupFile(path); !errors.Is(err, errBackupIntegrity) {
+				t.Fatalf("offline verifier accepted local %s mismatch: %v", test.field, err)
+			}
+			file, err := os.Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer file.Close()
+			if _, err := inspectBackupArchive(file, source.Board.ID); !errors.Is(err, errBackupIntegrity) {
+				t.Fatalf("restore inspector accepted local %s mismatch: %v", test.field, err)
+			}
+		})
+	}
+}
+
 func TestM96BoundedZIP64Directory(t *testing.T) {
 	var zipped bytes.Buffer
 	writer := zip.NewWriter(&zipped)
@@ -179,12 +222,20 @@ func TestM96BoundedZIP64Directory(t *testing.T) {
 	endOffset := zipped.Len() - zipDirectoryEndSize
 	end := zipped.Bytes()[endOffset:]
 	le := binary.LittleEndian
+	directoryOffset := le.Uint32(end[16:])
+	record := zipped.Bytes()[directoryOffset:endOffset]
+	var offsetField [12]byte
+	le.PutUint16(offsetField[:], 1)  // ZIP64 extra field tag
+	le.PutUint16(offsetField[2:], 8) // one 64-bit header offset, zero
+	le.PutUint16(record[30:], uint16(len(offsetField)))
+	le.PutUint32(record[42:], 0xffffffff)
+	endOffset += len(offsetField)
 	var trailer [zip64DirectoryEndSize + zip64LocatorSize]byte
 	le.PutUint32(trailer[:], 0x06064b50)
 	le.PutUint64(trailer[4:], zip64DirectoryEndSize-12)
 	le.PutUint64(trailer[24:], 1)
 	le.PutUint64(trailer[32:], 1)
-	le.PutUint64(trailer[40:], uint64(le.Uint32(end[12:])))
+	le.PutUint64(trailer[40:], uint64(len(record)+len(offsetField)))
 	le.PutUint64(trailer[48:], uint64(le.Uint32(end[16:])))
 	locator := trailer[zip64DirectoryEndSize:]
 	le.PutUint32(locator, 0x07064b50)
@@ -194,14 +245,14 @@ func TestM96BoundedZIP64Directory(t *testing.T) {
 	le.PutUint64(end[12:], 0xffffffffffffffff)
 	comment := bytes.Repeat([]byte{'c'}, 0xffff)
 	le.PutUint16(end[20:], uint16(len(comment)))
-	data := bytes.Join([][]byte{zipped.Bytes()[:endOffset], trailer[:], end, comment}, nil)
+	data := bytes.Join([][]byte{zipped.Bytes()[:directoryOffset], record, offsetField[:], trailer[:], end, comment}, nil)
 
 	read := func() (backupZIPDirectory, error) {
 		return readBackupZIPDirectory(bytes.NewReader(data), int64(len(data)))
 	}
 	directory, err := read()
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || len(directory.localOffsets) != 1 || directory.localOffsets[0] != 0 {
+		t.Fatalf("ZIP64 local offset rejected: %v", err)
 	}
 	if archive, err := zip.NewReader(directory, int64(len(data))); err != nil || len(archive.File) != 1 {
 		t.Fatalf("ZIP64 directory rejected: %v", err)

@@ -1,7 +1,6 @@
 package v2
 
 import (
-	"archive/zip"
 	"errors"
 	"os"
 	"path/filepath"
@@ -35,15 +34,7 @@ func VerifyBackupFile(path string) (backupVerification, error) {
 	if err != nil || before.Size() > maxSnapshotInteger {
 		return backupVerification{}, errBackupIntegrity
 	}
-	directory, err := readBackupZIPDirectory(file, before.Size())
-	if err != nil {
-		return backupVerification{}, err
-	}
-	reader, err := zip.NewReader(directory, before.Size())
-	if err != nil {
-		return backupVerification{}, errBackupIntegrity
-	}
-	archive, err := inspectBackupEntries(file, reader.File, "")
+	archive, err := inspectBackupArchiveSize(file, before.Size(), "")
 	if err != nil {
 		return backupVerification{}, err
 	}

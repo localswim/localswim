@@ -2,6 +2,7 @@ package v2
 
 import (
 	"archive/zip"
+	"encoding/binary"
 	"errors"
 	"io"
 	"os"
@@ -53,17 +54,22 @@ func inspectBackupArchive(file *os.File, boardID string) (*verifiedBackupArchive
 	if err != nil || !info.Mode().IsRegular() {
 		return nil, errBackupIntegrity
 	}
-	reader, err := zip.NewReader(file, info.Size())
-	if err != nil {
-		return nil, errBackupIntegrity
-	}
-	return inspectBackupEntries(file, reader.File, boardID)
+	return inspectBackupArchiveSize(file, info.Size(), boardID)
 }
 
-func inspectBackupEntries(file *os.File, entries []*zip.File, boardID string) (*verifiedBackupArchive, error) {
-	archive := &verifiedBackupArchive{file: file, entries: make(map[string]*zip.File, len(entries))}
-	for _, entry := range entries {
-		if !entry.Mode().IsRegular() || archive.entries[entry.Name] != nil || entry.Flags&1 != 0 {
+func inspectBackupArchiveSize(file *os.File, size int64, boardID string) (*verifiedBackupArchive, error) {
+	directory, err := readBackupZIPDirectory(file, size)
+	if err != nil {
+		return nil, err
+	}
+	reader, err := zip.NewReader(directory, size)
+	if err != nil || len(reader.File) != len(directory.localOffsets) {
+		return nil, errBackupIntegrity
+	}
+	archive := &verifiedBackupArchive{file: file, entries: make(map[string]*zip.File, len(reader.File))}
+	for i, entry := range reader.File {
+		if !entry.Mode().IsRegular() || archive.entries[entry.Name] != nil || entry.Flags&1 != 0 ||
+			!directory.matchesLocalHeader(directory.localOffsets[i], entry) {
 			return nil, errBackupIntegrity
 		}
 		archive.entries[entry.Name] = entry
@@ -95,6 +101,30 @@ func inspectBackupEntries(file *os.File, entries []*zip.File, boardID string) (*
 		}
 	}
 	return archive, nil
+}
+
+// archive/zip opens each member using its central metadata. Check the local
+// fields too so readers using either header see the same member.
+func (d backupZIPDirectory) matchesLocalHeader(offset int64, entry *zip.File) bool {
+	var header [zipLocalHeaderSize]byte
+	if offset > d.offset-zipLocalHeaderSize {
+		return false
+	}
+	if _, err := d.file.ReadAt(header[:], offset); err != nil {
+		return false
+	}
+	le := binary.LittleEndian
+	nameSize, extraSize := int(le.Uint16(header[26:])), int(le.Uint16(header[28:]))
+	payload := offset + int64(zipLocalHeaderSize+nameSize+extraSize)
+	if le.Uint32(header[:]) != 0x04034b50 || le.Uint16(header[6:]) != entry.Flags ||
+		le.Uint16(header[8:]) != entry.Method || nameSize != len(entry.Name) ||
+		nameSize > maxBackupEntryNameSize || payload > d.offset ||
+		entry.CompressedSize64 > uint64(d.offset-payload) {
+		return false
+	}
+	var name [maxBackupEntryNameSize]byte
+	_, err := d.file.ReadAt(name[:nameSize], offset+zipLocalHeaderSize)
+	return err == nil && string(name[:nameSize]) == entry.Name
 }
 
 func readBackupEntry(entry *zip.File, limit int64) ([]byte, error) {

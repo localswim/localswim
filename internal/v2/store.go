@@ -206,22 +206,49 @@ func (s *store) durable(id string) (snapshot, error) {
 }
 
 func (s *store) readDurableLocked(id string) (snapshot, error) {
+	saved, err := s.readDurableFileLocked(s.snapshotPath(id))
+	if err != nil {
+		return snapshot{}, err
+	}
+	return parseSnapshot(saved.data, id)
+}
+
+func (s *store) readDurableFileLocked(path string) (snapshotFile, error) {
 	if s.lease == nil {
-		return snapshot{}, errStoreClosed
+		return snapshotFile{}, errStoreClosed
 	}
-	path := s.snapshotPath(id)
 	if err := s.checkBoardsDirectory(filepath.Dir(path)); err != nil {
-		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot directory is unavailable.")
+		return snapshotFile{}, invalidSnapshot("snapshot", "Native snapshot directory is unavailable.")
 	}
-	return readSnapshot(path, id)
+	return readSnapshotFile(path)
 }
 
 func (s *store) checkAcceptedDurableLocked(current snapshot) error {
-	saved, err := s.readDurableLocked(current.Board.ID)
+	path := s.snapshotPath(current.Board.ID)
+	file, err := s.readDurableFileLocked(path)
+	if err != nil {
+		return errInvalidSnapshot
+	}
+	return checkAcceptedSnapshotFile(path, current, file)
+}
+
+func checkAcceptedSnapshotFile(path string, current snapshot, file snapshotFile) error {
+	saved, err := parseSnapshot(file.data, current.Board.ID)
 	if err != nil {
 		return errInvalidSnapshot
 	}
 	if !reflect.DeepEqual(current, saved) {
+		return errDurableStateChanged
+	}
+
+	// Validation takes time. Check that the name still points at the opened file
+	// and that its observable size and modification time have stayed stable.
+	named, err := os.Lstat(path)
+	if err != nil || !named.Mode().IsRegular() {
+		return errInvalidSnapshot
+	}
+	if named.Size() != int64(len(file.data)) || named.Size() != file.info.Size() ||
+		!named.ModTime().Equal(file.info.ModTime()) || !os.SameFile(named, file.info) {
 		return errDurableStateChanged
 	}
 	return nil

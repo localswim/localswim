@@ -8,7 +8,75 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 )
+
+func TestM82FinalCheckRefusesSnapshotChangedAfterRead(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		sameFile bool
+	}{
+		{"replacement", false},
+		{"in-place edit", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, initial := m01CreateBoard(t, t.TempDir())
+			path := s.snapshotPath(initial.Board.ID)
+			external := cloneSnapshot(initial)
+			external.Board.Name = "Modified board" // Same length as the accepted name.
+			replacement := marshalVerificationFixture(t, external)
+			candidate := marshalVerificationFixture(t, initial)
+
+			err := writeAtomicChecked(path, candidate, func() error {
+				observed, err := readSnapshotFile(path)
+				if err != nil {
+					return err
+				}
+				// Change the name or contents after the final check captures the
+				// original file, but before it validates those captured bytes.
+				target, modifiedAt := path+".replacement", observed.info.ModTime()
+				if tc.sameFile {
+					target, modifiedAt = path, modifiedAt.Add(2*time.Second)
+				}
+				if err := os.WriteFile(target, replacement, 0o600); err != nil {
+					return err
+				}
+				if err := os.Chtimes(target, modifiedAt, modifiedAt); err != nil {
+					return err
+				}
+				if !tc.sameFile {
+					if err := replaceAtomic(target, path); err != nil {
+						return err
+					}
+				}
+				named, err := os.Lstat(path)
+				if err != nil {
+					return err
+				}
+				if named.Size() != observed.info.Size() || os.SameFile(observed.info, named) != tc.sameFile ||
+					!named.ModTime().Equal(modifiedAt) {
+					t.Fatal("fixture must change only the tested file identity or modification time")
+				}
+				return checkAcceptedSnapshotFile(path, initial, observed)
+			})
+			if !errors.Is(err, errDurableStateChanged) || errors.Is(err, errWriteUncertain) {
+				t.Fatalf("expected a known refusal for a change during final validation, got %v", err)
+			}
+			saved, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(saved, replacement) {
+				t.Fatalf("refused write changed the replacement bytes: %v", err)
+			}
+			current, exists := s.accepted(initial.Board.ID)
+			if !exists || !reflect.DeepEqual(current, initial) || s.fencedBoard() != "" {
+				t.Fatal("refused write changed or fenced the accepted snapshot")
+			}
+			pending, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".pending-*.tmp"))
+			if err != nil || len(pending) != 0 {
+				t.Fatalf("refused write left a staged snapshot: count %d, error %v", len(pending), err)
+			}
+		})
+	}
+}
 
 func TestM82RefusesSnapshotChangedDuringWritePreparation(t *testing.T) {
 	s, initial := m01CreateBoard(t, t.TempDir())

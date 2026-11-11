@@ -140,7 +140,8 @@ UUID attachment paths and existing history remain intact. An unchanged order pre
 
 Ordinary writes to existing boards compare the saved snapshot with the service's
 accepted snapshot before preparing a change and again immediately before replacing
-the file. A damaged or missing snapshot returns
+the file. After validating the saved contents, the service rechecks the named
+file's identity, size, and modification time. A damaged or missing snapshot returns
 `503 unavailable` and appears as `durable_state_unavailable` in the board catalog.
 A valid replacement that differs from the accepted state returns `503 unavailable`
 and appears as `durable_state_changed`, even when the two revisions match.

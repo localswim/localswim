@@ -275,7 +275,8 @@ func seedReviewLane(t *testing.T, app *Service, boardID string, count int) snaps
 	t.Helper()
 	app.store.mu.Lock()
 	defer app.store.mu.Unlock()
-	state := cloneSnapshot(app.store.boards[boardID])
+	accepted := app.store.boards[boardID]
+	state := cloneSnapshot(accepted)
 	advance := func() {
 		event := state.Activity[len(state.Activity)-1]
 		state.Board.Revision, state.Board.UpdatedAt = event.Revision, event.At
@@ -297,7 +298,7 @@ func seedReviewLane(t *testing.T, app *Service, boardID string, count int) snaps
 		}
 	}
 	state.Board.Attention, state.Board.LastCardEditAt = deriveAttention(state)
-	if err := app.store.commit(state, false); err != nil {
+	if err := app.store.commit(state, false, &accepted); err != nil {
 		t.Fatal(err)
 	}
 	return state

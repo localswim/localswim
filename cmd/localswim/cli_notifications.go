@@ -72,6 +72,12 @@ type cliNotificationStatus struct {
 	TargetThreadID *string `json:"target_thread_id"`
 }
 
+func (status cliNotificationStatus) sameSettings(other cliNotificationStatus) bool {
+	return status.Enabled == other.Enabled &&
+		(status.TargetThreadID == nil && other.TargetThreadID == nil ||
+			status.TargetThreadID != nil && other.TargetThreadID != nil && *status.TargetThreadID == *other.TargetThreadID)
+}
+
 func readNotificationStatus(reply client.Response, boardID string) (cliNotificationStatus, error) {
 	var board struct {
 		ID            string          `json:"id"`
@@ -79,9 +85,11 @@ func readNotificationStatus(reply client.Response, boardID string) (cliNotificat
 		Notifications json.RawMessage `json:"notifications"`
 	}
 	if jsonv2.Unmarshal(reply.JSON, &board) != nil || board.ID != boardID ||
-		board.Revision == 0 || board.Revision > maxCLIRevision ||
-		reply.ETag == "" {
-		return cliNotificationStatus{}, errors.New("service did not return the addressed board with its revision and HTTP ETag")
+		board.Revision == 0 || board.Revision > maxCLIRevision {
+		return cliNotificationStatus{}, errors.New("service did not return the addressed board and its revision")
+	}
+	if !reply.MatchesBoardRevision(board.ID, board.Revision) {
+		return cliNotificationStatus{}, errors.New("service board revision did not match its HTTP validator")
 	}
 	var settings struct {
 		Enabled        *bool           `json:"enabled"`
@@ -111,29 +119,33 @@ func executeNotificationAction(api *client.Client, command cliCommand, stdout io
 	if command.notificationAction == "status" {
 		return json.NewEncoder(stdout).Encode(current)
 	}
-	if err := checkCLIRevision(command.revision, reply.JSON); err != nil {
-		return err
+	if command.revision != nil && *command.revision != current.Revision {
+		return fmt.Errorf("revision mismatch (expected %d, current %d)", *command.revision, current.Revision)
 	}
 
 	var patch map[string]any
-	expectedEnabled, expectedTarget := current.Enabled, current.TargetThreadID
+	expected := current
 	switch command.notificationAction {
 	case "target":
-		expectedTarget = &command.notificationTarget
+		expected.TargetThreadID = &command.notificationTarget
 		patch = map[string]any{"target_thread_id": command.notificationTarget}
 	case "enable", "disable":
-		expectedEnabled = command.notificationAction == "enable"
-		if expectedEnabled && expectedTarget == nil {
+		expected.Enabled = command.notificationAction == "enable"
+		if expected.Enabled && expected.TargetThreadID == nil {
 			return errors.New("set a notification target before enabling")
 		}
-		patch = map[string]any{"enabled": expectedEnabled}
+		patch = map[string]any{"enabled": expected.Enabled}
+	}
+	if !current.sameSettings(expected) {
+		expected.Revision++
 	}
 	body, err := json.Marshal(map[string]any{"notifications": patch})
 	if err != nil {
 		return err
 	}
-	inspect := "Read back with localswim board notifications status " + command.boardID + " before retrying"
-	reply, err = api.Do(http.MethodPatch, resource, body, reply.ETag)
+	inspect := "Inspect accepted settings with localswim board notifications status " + command.boardID +
+		". Inspect the saved board with localswim board get --data DIRECTORY " + command.boardID + " before retrying"
+	reply, err = api.PatchBoardSettings(resource, body, reply.ETag)
 	if err != nil {
 		if errors.Is(err, client.ErrMutationOutcomeUnknown) {
 			return fmt.Errorf("%w. %s", err, inspect)
@@ -141,9 +153,7 @@ func executeNotificationAction(api *client.Client, command cliCommand, stdout io
 		return err
 	}
 	result, err := readNotificationStatus(reply, command.boardID)
-	if err != nil || reply.BoardETag != reply.ETag || result.Enabled != expectedEnabled ||
-		(result.TargetThreadID == nil) != (expectedTarget == nil) ||
-		expectedTarget != nil && *result.TargetThreadID != *expectedTarget {
+	if err != nil || result.Revision != expected.Revision || !result.sameSettings(expected) {
 		return fmt.Errorf("service did not confirm the requested notification settings. %w. %s",
 			client.ErrMutationOutcomeUnknown, inspect)
 	}

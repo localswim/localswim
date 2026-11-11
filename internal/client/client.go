@@ -73,7 +73,7 @@ func (c *Client) DoWithContentType(method, resource string, body []byte, ifMatch
 	return c.doWithContentType(method, resource, body, ifMatch, contentType, "", false)
 }
 
-func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch, contentType, expectedBoardTag string, boardAvailability bool) (Response, error) {
+func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch, contentType, expectedBoardTag string, boardSettingsWrite bool) (Response, error) {
 	request, err := c.newRequest(method, resource, body, ifMatch, contentType, "application/json")
 	if err != nil {
 		return Response{}, err
@@ -94,7 +94,7 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 	defer reply.Body.Close()
 	if reply.StatusCode < 200 || reply.StatusCode >= 300 {
 		uncertainStatus := reply.StatusCode < 400 || reply.StatusCode >= 500
-		if (boardAvailability || lifecycleWrite) && isUnavailableRefusal(reply) {
+		if (boardSettingsWrite || lifecycleWrite) && isUnavailableRefusal(reply) {
 			return Response{}, errors.New("service returned HTTP 503 (unavailable, not applied)")
 		}
 		return Response{}, responseError(fmt.Sprintf("service returned HTTP %d", reply.StatusCode),
@@ -144,7 +144,7 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 		if requiresBoardTag(method, request.URL.Path[len(apiPath):]) && !validBoardTag {
 			return Response{}, responseError("service did not return one canonical strong X-Board-ETag", true)
 		}
-		if boardAvailability && (!validBoardTag || boardTags[0] != etag) {
+		if boardSettingsWrite && (!validBoardTag || boardTags[0] != etag) {
 			return Response{}, responseError("service did not return matching ETag and X-Board-ETag validators", true)
 		}
 	}

@@ -108,14 +108,38 @@ async function harness(api, pathname = "/boards/" + board, {
   const nodes = Object.fromEntries(["status", "identity", "boards", "main", "details", "refresh"].map((id) => {
     const node = new Element(id === "main" ? "main" : "div"); node.root = true; return [id, node];
   }));
+  const layout = new Element("div");
+  layout.root = true;
+  const sidebar = nodes["board-sidebar"] = new Element("div");
+  const toggle = nodes["toggle-board-sidebar"] = new Button("button");
+  const separator = nodes["resize-board-sidebar"] = new Element("div");
+  layout.append(sidebar, nodes.main, nodes.details);
+  sidebar.parentElement = layout;
+  sidebar.append(toggle, separator, nodes.boards);
+  sidebar.style.setProperty = (key, value) => { sidebar.style[key] = value; };
+  let capturedPointer;
+  separator.setPointerCapture = (id) => { capturedPointer = id; };
+  separator.hasPointerCapture = (id) => capturedPointer === id;
+  separator.releasePointerCapture = () => { capturedPointer = undefined; };
+  layout.clientWidth = 1400;
+  let drawerWidth = 416;
+  nodes.details.hidden = true;
+  nodes.details.getBoundingClientRect = () => ({width: drawerWidth});
+  const layoutStyle = {paddingLeft: "16px", paddingRight: "16px", columnGap: "16px", flexDirection: "row"};
+  let sidebarObserver;
+  class ResizeObserver {
+    constructor(notify) { sidebarObserver = notify; }
+    observe() {}
+  }
   document = {getElementById: (id) => nodes[id], querySelector: (selector) => nodes[selector] ?? null,
     title: "localswim", adoptedStyleSheets: [],
     elementFromPoint: () => pointerHit ?? null,
     createElement: (tag) => new ({input: Input, textarea: Textarea, button: Button, select: Select}[tag] ?? Element)(tag)};
   const windowEvents = {};
-  const window = {sessionStorage: storage, addEventListener: (name, handler) => { windowEvents[name] = handler; }};
+  const window = {sessionStorage: storage, getComputedStyle: () => layoutStyle,
+    addEventListener: (name, handler) => { windowEvents[name] = handler; }};
   class StyleSheet { replaceSync(text) { this.text = text; } }
-  const context = vm.createContext({document, window, CSSStyleSheet: StyleSheet,
+  const context = vm.createContext({document, window, CSSStyleSheet: StyleSheet, ResizeObserver,
     Node: Element, HTMLElement: Element,
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
@@ -158,6 +182,12 @@ async function harness(api, pathname = "/boards/" + board, {
   return {nodes, downloads, ...context.hooks, settled, find, field, submit, submitValidated, navigate, popstate,
     keydown, pointerHit: (node) => { pointerHit = node; },
     pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement,
+    resizeLayout(width, direction = "row", detailsWidth = 416) {
+      layout.clientWidth = width;
+      layoutStyle.flexDirection = direction;
+      drawerWidth = detailsWidth;
+      sidebarObserver();
+    },
     stylesheet: () => document.adoptedStyleSheets[0].text, title: () => document.title};
 }
 
@@ -193,6 +223,79 @@ function boardApi() {
   api.restoreSnapshot = async () => { restore(); };
   return {api, restore, patched: () => patched};
 }
+
+test("Attention sidebar resize and collapse persist independently per tab", async () => {
+  const {api} = boardApi();
+  const storage = tabStorage();
+  const pathname = "/boards/" + board;
+  const ui = await harness(api, pathname, {storage});
+  const {main, details, boards} = ui.nodes;
+  const separator = ui.nodes["resize-board-sidebar"];
+  const toggle = ui.nodes["toggle-board-sidebar"];
+  const width = () => separator.attributes["aria-valuenow"];
+  const pointer = (clientX) => ({clientX, pointerId: 1, isPrimary: true, button: 0});
+  await ui.load();
+  assert.equal(width(), "336");
+  separator.dispatch("keydown", {key: "Home"});
+  assert.equal(width(), "312");
+  separator.dispatch("keydown", {key: "End"});
+  assert.equal(width(), "1096");
+  separator.dispatch("keydown", {key: "Home"});
+  separator.dispatch("keydown", {key: "ArrowRight"});
+  separator.dispatch("keydown", {key: "ArrowRight"});
+  assert.equal(width(), "344");
+  const row = boards.querySelector("a");
+  const opener = ui.find(main, "button", "#1 Original");
+  opener.click();
+  await ui.settled();
+  const title = ui.field(details, "Title");
+  title.value = "Unsaved card title";
+
+  assert.equal(separator.dispatch("pointerdown", pointer(400)), true);
+  assert.equal(separator.hasPointerCapture(1), true);
+  separator.dispatch("pointermove", pointer(480));
+  assert.equal(width(), "424");
+  separator.dispatch("pointercancel", pointer(480));
+  assert.equal(width(), "344");
+  separator.dispatch("pointerdown", pointer(400));
+  separator.dispatch("pointermove", pointer(510));
+  separator.dispatch("pointerup", pointer(520));
+  assert.equal(width(), "464");
+  assert.equal(separator.dispatch("keydown", {key: "ArrowRight"}), true);
+  assert.equal(width(), "480");
+  ui.resizeLayout(1000);
+  assert.equal(width(), "312");
+  separator.dispatch("keydown", {key: "ArrowRight"});
+  ui.resizeLayout(1400);
+  assert.equal(width(), "480");
+  ui.resizeLayout(320, "column");
+  assert.equal(width(), "288");
+  ui.resizeLayout(1400);
+  assert.equal(width(), "480");
+
+  assert.equal(separator.dispatch("keydown", {key: "Enter"}), true);
+  assert.equal(toggle.attributes["aria-expanded"], "false");
+  assert.equal(boards.hidden, true);
+  assert.equal(separator.hidden, true);
+  assert.equal(ui.focused(), toggle);
+  toggle.click();
+  assert.equal(boards.hidden, false);
+  assert.equal(separator.hidden, false);
+  assert.equal(boards.querySelector("a"), row);
+  assert.equal(ui.find(main, "button", "#1 Original"), opener);
+  assert.equal(ui.field(details, "Title"), title);
+  assert.equal(title.value, "Unsaved card title");
+  toggle.click();
+
+  const anotherTab = await harness(api, pathname);
+  assert.equal(anotherTab.nodes["resize-board-sidebar"].attributes["aria-valuenow"], "336");
+  assert.equal(anotherTab.nodes.boards.hidden, false);
+  const reloaded = await harness(api, pathname, {storage});
+  assert.equal(reloaded.nodes.boards.hidden, true);
+  reloaded.nodes["toggle-board-sidebar"].click();
+  assert.equal(reloaded.nodes.boards.hidden, false);
+  assert.equal(reloaded.nodes["resize-board-sidebar"].attributes["aria-valuenow"], "480");
+});
 
 test("creation and keyboard moves use the current actor's directed workflow and original validators", async () => {
   const {api} = boardApi();
@@ -1495,6 +1598,10 @@ test("sidebar pins rebase keyboard and pointer moves while preserving the select
   const ui = await harness(api);
   await ui.load();
   await ui.settled();
+  const separator = ui.nodes["resize-board-sidebar"];
+  separator.dispatch("keydown", {key: "ArrowRight"});
+  const savedWidth = separator.attributes["aria-valuenow"];
+  assert.equal(savedWidth, "352");
   ui.find(ui.nodes.main, "button", "#1 Original").click();
   await ui.settled();
   const comment = ui.field(ui.nodes.details, "Comment");
@@ -1534,6 +1641,8 @@ test("sidebar pins rebase keyboard and pointer moves while preserving the select
   assert.equal(ui.nodes.boards.querySelectorAll("a").find(({dataset}) => dataset.boardId === board).attributes["aria-current"], "page");
   assert.equal(ui.field(ui.nodes.details, "Comment"), comment);
   assert.equal(comment.value, "Unsubmitted draft");
+  assert.equal(separator.isConnected, true);
+  assert.equal(separator.attributes["aria-valuenow"], savedWidth);
   const second = await harness(api, "/");
   await second.load();
   assert.deepEqual(pinnedBoards(second), [board, backup]);

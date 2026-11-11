@@ -4036,6 +4036,157 @@ function renderBoardActions(boardId, priorities, cards, boardTag, reloadBoard, i
   }));
   return panel;
 }
+/** @param {HTMLElement} sidebar @param {HTMLElement} boards @param {HTMLElement} drawer
+ * @param {HTMLElement} toggle @param {HTMLElement} separator @param {HTMLElement} layout */
+function setupSidebar(sidebar, boards, drawer, toggle, separator, layout) {
+  const storageKey = "localswim:attention-sidebar";
+  const minimumWidth = 312;
+  const boardReserve = 256;
+  let preferredWidth = 336;
+  let collapsed = false;
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem(storageKey) ?? "null");
+    if (Number.isSafeInteger(saved?.width) && saved.width > 0) preferredWidth = saved.width;
+    collapsed = saved?.collapsed === true;
+  } catch {
+    // Sidebar controls remain available if tab storage is inaccessible.
+  }
+  let minimum = minimumWidth;
+  let maximum = preferredWidth;
+  /** @type {{pointer: number, startX: number, startWidth: number, width: number}|undefined} */
+  let drag;
+
+  function save() {
+    try {
+      window.sessionStorage.setItem(storageKey, JSON.stringify({ width: preferredWidth, collapsed }));
+    } catch {
+      // Keep the new setting in memory for this page.
+    }
+  }
+
+  /** @param {number} width */
+  function clamp(width) {
+    return Math.max(minimum, Math.min(maximum, Math.round(width)));
+  }
+
+  function paintWidth() {
+    const width = clamp(drag?.width ?? preferredWidth);
+    sidebar.style.setProperty("--sidebar-width", width + "px");
+    separator.setAttribute("aria-valuemin", String(minimum));
+    separator.setAttribute("aria-valuemax", String(maximum));
+    separator.setAttribute("aria-valuenow", String(width));
+    separator.setAttribute("aria-valuetext", width + " pixels");
+  }
+
+  function measure() {
+    const style = window.getComputedStyle(layout);
+    const available = Math.floor(layout.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight));
+    minimum = Math.max(0, Math.min(minimumWidth, available));
+    if (style.flexDirection === "column") {
+      maximum = Math.max(minimum, available);
+    } else {
+      const gap = parseFloat(style.columnGap);
+      const drawerWidth = drawer.hidden ? 0 : drawer.getBoundingClientRect().width + gap;
+      maximum = Math.max(minimum, Math.floor(available - drawerWidth - gap - boardReserve));
+    }
+    paintWidth();
+  }
+
+  function paintVisibility() {
+    sidebar.dataset.collapsed = String(collapsed);
+    boards.hidden = collapsed;
+    separator.hidden = collapsed;
+    toggle.textContent = collapsed ? "Show Attention" : "Hide Attention";
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+  }
+
+  function toggleVisibility() {
+    if (drag) {
+      const { pointer } = drag;
+      drag = undefined;
+      if (separator.hasPointerCapture(pointer)) separator.releasePointerCapture(pointer);
+      paintWidth();
+    }
+    collapsed = !collapsed;
+    if (collapsed && (boards.contains(document.activeElement) || document.activeElement === separator)) {
+      toggle.focus({ preventScroll: true });
+    }
+    paintVisibility();
+    save();
+  }
+
+  toggle.addEventListener("click", toggleVisibility);
+  separator.addEventListener("keydown", (event) => {
+    if (drag || event.isComposing) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      toggleVisibility();
+      return;
+    }
+    const width = clamp(preferredWidth);
+    let next;
+    switch (event.key) {
+      case "ArrowLeft": next = width - 16; break;
+      case "ArrowRight": next = width + 16; break;
+      case "Home": next = minimum; break;
+      case "End": next = maximum; break;
+      default: return;
+    }
+    event.preventDefault();
+    const resized = clamp(next);
+    if (resized === width) return;
+    preferredWidth = resized;
+    paintWidth();
+    save();
+  });
+
+  separator.addEventListener("pointerdown", (event) => {
+    if (drag || !event.isPrimary || event.button !== 0) return;
+    const width = clamp(preferredWidth);
+    separator.setPointerCapture(event.pointerId);
+    drag = { pointer: event.pointerId, startX: event.clientX, startWidth: width, width };
+    separator.focus({ preventScroll: true });
+    event.preventDefault();
+  });
+  separator.addEventListener("pointermove", (event) => {
+    if (drag?.pointer !== event.pointerId) return;
+    drag.width = clamp(drag.startWidth + event.clientX - drag.startX);
+    paintWidth();
+  });
+  separator.addEventListener("pointerup", (event) => {
+    if (drag?.pointer !== event.pointerId) return;
+    const width = clamp(drag.startWidth + event.clientX - drag.startX);
+    if (width !== clamp(drag.startWidth)) {
+      preferredWidth = width;
+      save();
+    }
+    drag = undefined;
+    paintWidth();
+  });
+  /** @param {PointerEvent} event */
+  function cancelResize(event) {
+    if (drag?.pointer !== event.pointerId) return;
+    drag = undefined;
+    paintWidth();
+  }
+  separator.addEventListener("pointercancel", cancelResize);
+  separator.addEventListener("lostpointercapture", cancelResize);
+
+  toggle.hidden = false;
+  paintVisibility();
+  measure();
+  const bounds = new ResizeObserver(measure);
+  bounds.observe(layout);
+  bounds.observe(drawer);
+}
+
+const sidebar = document.getElementById("board-sidebar");
+const toggleSidebar = document.getElementById("toggle-board-sidebar");
+const resizeSidebar = document.getElementById("resize-board-sidebar");
+if (sidebar?.parentElement && toggleSidebar && resizeSidebar) {
+  setupSidebar(sidebar, navigation, details, toggleSidebar, resizeSidebar, sidebar.parentElement);
+}
+
 document.querySelector("header a")?.addEventListener("click", (event) => {
   if (event instanceof MouseEvent) followLink(event, "/");
 });

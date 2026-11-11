@@ -124,6 +124,15 @@ A failed push can recover automatically without another edit. If a settings
 save has an uncertain outcome, the browser reads the saved setting before
 another submission and keeps the draft available for comparison.
 
+## Attention sidebar
+
+Drag the separator beside **Attention** to resize the sidebar. With the
+separator focused, use Left and Right Arrow or Home and End to resize it.
+Use **Hide Attention** or Enter on the separator to collapse the sidebar, and
+**Show Attention** to reopen it. The tab remembers the expanded width and
+visibility across reloads. On a smaller viewport the width adjusts to fit
+and returns to the saved width when space is available.
+
 ## Board availability
 
 Members with the board's `close_board` grant can select **Close board** under

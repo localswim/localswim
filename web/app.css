@@ -6,7 +6,27 @@ header a { color: inherit; font-size: 1.3rem; font-weight: 700; }
 #status { display: inline-block; margin: 0.8rem 1rem; }
 #status[data-phase=conflict], #status[data-phase=unknown], #status[data-phase=error] { color: #8e2415; font-weight: 650; }
 .layout { display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; }
-#boards { display: grid; flex: 0 0 21rem; gap: 0.5rem; }
+#board-sidebar { position: relative; flex: none; width: var(--sidebar-width, 336px); max-width: 100%; }
+#board-sidebar[data-collapsed=true] { width: max-content; }
+#toggle-board-sidebar { margin-block-end: 0.5rem; }
+#resize-board-sidebar {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 100%;
+  display: grid;
+  place-items: center;
+  width: 0.75rem;
+  cursor: col-resize;
+  touch-action: none;
+}
+#resize-board-sidebar::before {
+  content: "";
+  width: 3px;
+  height: 2rem;
+  border-radius: 3px;
+  background: #647a95;
+}
+#boards { display: grid; gap: 0.5rem; }
 #boards a, .lane, #details, .editor { border: 1px solid #ccd6e3; border-radius: 0.45rem; background: white; padding: 0.7rem; }
 #boards a[aria-current=page] { background: #dae7fd; font-weight: 650; }
 .attention-grid {
@@ -94,5 +114,5 @@ textarea { min-height: 5rem; resize: vertical; }
 [hidden] { display: none !important; }
 @media (max-width: 52rem) {
   .layout { flex-direction: column; }
-  .layout > * { flex-basis: auto !important; width: 100%; }
+  .layout > main, .layout > #details { flex-basis: auto; width: 100%; }
 }

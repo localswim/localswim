@@ -384,6 +384,12 @@ function savedSubmission(scope) {
   return undefined;
 }
 
+/** @param {string} scope */
+function hasUnresolvedInspection(scope) {
+  return pendingInspections.has(scope)
+    || (!attachmentUploads.get(scope)?.running && savedSubmission(scope) !== undefined);
+}
+
 /** @param {string} scope @param {SubmissionIdentity} identity @param {InspectionRead} [read] */
 function recordSubmission(scope, identity, read) {
   const submission = { ...identity, submittedAt: Date.now() };
@@ -1297,6 +1303,18 @@ async function readSubmittedAttachment(boardId, cardId, id) {
   return item;
 }
 
+/** @param {string} boardId @param {string} cardId @param {string} id @param {number} size @param {Attachment} item */
+function matchesSubmittedUpload(boardId, cardId, id, size, item) {
+  return item.id === id && activeAttachment(boardId, cardId, item) && item.size === size;
+}
+
+/** @param {string} boardId @param {string} cardId @param {string} id @param {number} size */
+async function readSubmittedUpload(boardId, cardId, id, size) {
+  const item = await readSubmittedAttachment(boardId, cardId, id);
+  if (item && !matchesSubmittedUpload(boardId, cardId, id, size, item)) throw new ApiError("invalid_response");
+  return item;
+}
+
 /** @param {string} boardId @param {string} cardId @param {number} [changed] */
 function reportAttachmentUploads(boardId, cardId, changed) {
   if (activeDrawer?.boardId === boardId && activeDrawer.id === cardId) {
@@ -1313,9 +1331,6 @@ async function refreshUploadBoard(boardId) {
 async function uploadFiles(boardId, cardId, initialTag, files) {
   const scope = cardScope(boardId, cardId);
   const isCurrent = () => activeDrawer?.boardId === boardId && activeDrawer.id === cardId;
-  /** @param {Attachment} item @param {string} id @param {number} size */
-  const matchesUpload = (item, id, size) =>
-    item.id === id && activeAttachment(boardId, cardId, item) && item.size === size;
   const pending = files.flatMap((file, index) => file.size <= MAX_ATTACHMENT_BYTES ? [{ file, index }] : []);
   const batch = {
     boardId,
@@ -1355,7 +1370,7 @@ async function uploadFiles(boardId, cardId, initialTag, files) {
       try {
         const reply = await api.uploadAttachment(cardId, expected, file, id);
         const item = /** @type {Attachment} */ (reply.data);
-        if (!matchesUpload(item, id, size)) {
+        if (!matchesSubmittedUpload(boardId, cardId, id, size, item)) {
           throw new ApiError("invalid_response", { outcomeUnknown: true });
         }
         committedRevision = item.revision;
@@ -1367,11 +1382,7 @@ async function uploadFiles(boardId, cardId, initialTag, files) {
         if (phase !== "unknown") clearSavedSubmission(scope, submission);
         if (phase === "unknown") {
           refreshNeeded = true;
-          const readUpload = async () => {
-            const item = await readSubmittedAttachment(boardId, cardId, id);
-            if (item && !matchesUpload(item, id, size)) throw new ApiError("invalid_response");
-            return item;
-          };
+          const readUpload = () => readSubmittedUpload(boardId, cardId, id, size);
           const item = await readWithSession(readUpload).catch(() => undefined);
           if (item) {
             clearSavedSubmission(scope, submission);
@@ -1872,8 +1883,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
           return approved;
         }
         case "upload": {
-          const item = await readSubmittedAttachment(boardId, card.id, submission.id);
-          if (item && item.size !== submission.size) throw new ApiError("invalid_response");
+          const item = await readSubmittedUpload(boardId, card.id, submission.id, submission.size);
           await readCurrent();
           return item !== undefined;
         }
@@ -3419,7 +3429,7 @@ async function load(savedAvailability) {
       if (view !== activeView || !filter.isConnected) return;
       state.filter = filter.value;
       renderCards(currentCards, boardTag);
-      if (!retained && (pendingInspections.has(inspection.scope) || savedSubmission(inspection.scope))) inspection.sync();
+      if (!retained && hasUnresolvedInspection(inspection.scope)) inspection.sync();
       persistBoardView(board.id);
     }
     filter.addEventListener("input", applyFilter);
@@ -3495,7 +3505,7 @@ async function load(savedAvailability) {
         if (!currentCards.some((entry) => entry.id === card.id && entry.board_id === board.id
             && entry.lane_id === card.lane_id && entry.revision === card.revision && !entry.archived)) return;
         const scope = cardScope(board.id, card.id);
-        if (pendingInspections.has(scope)) {
+        if (hasUnresolvedInspection(scope)) {
           announce("error", "Open the affected card and use Inspect saved card before moving it.");
           return;
         }
@@ -3806,7 +3816,7 @@ async function load(savedAvailability) {
                 const renumbered = result.proposed.filter(({ card_id, ticket }) => currentTickets.get(card_id) !== ticket)
                   .map(({ card_id }) => card_id);
                 preview.append(form("Apply ticket order", [], (submit) => {
-                  if (!preview.isConnected || view !== activeView) return;
+                  if (!preview.isConnected || view !== activeView || hasUnresolvedInspection(inspection.scope)) return;
                   void writeResource(submit, async () => {
                     requireAttachmentUploadsSettled(board.id, renumbered);
                     await api.applyTicketOrder(board.id, lane.id, originalTag, result.proposed);
@@ -3815,7 +3825,7 @@ async function load(savedAvailability) {
                     return result.proposed.every((entry) => currentCards.some((card) => card.id === entry.card_id && card.ticket === entry.ticket));
                   }, "Ticket order applied.", inspection);
                 }));
-                if (pendingInspections.has(inspection.scope)) inspection.sync();
+                if (hasUnresolvedInspection(inspection.scope)) inspection.sync();
               }
             }).catch(() => {
               if (preview.isConnected) preview.textContent = "Preview refused or unavailable. A selected dependency cycle cannot be reordered.";

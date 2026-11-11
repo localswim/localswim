@@ -84,8 +84,10 @@ const cliHelp = `Usage:
   localswim backup create [--revision N] [--id UUID] BOARD_ID
   localswim backup info BACKUP_ID
   localswim backup download BACKUP_ID FILE|-
-  localswim card search [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
-  localswim card next [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
+  localswim card search [--search TEXT] [--search-content] [--lane ID]...
+                       [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
+  localswim card next [--search TEXT] [--search-content] [--lane ID]...
+                     [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card lookup [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim ticket-order apply LANE_ID FILE|-
   localswim board restore [--revision N] BOARD_ID FILE|-
@@ -135,6 +137,7 @@ Ticket-order preview defaults to all active lane cards. Optional card IDs select
 Preview is read-only and returns the board revision, expected_board_etag, and proposed ticket numbers.
 Ticket-order apply reads that saved preview and uses its original validator. Stale previews refuse.
 Card search and next use whole-board triage ordering. Lookup uses numeric ticket order.
+Card next defaults to unfinished lanes. Repeat --lane to select multiple lanes, including Completed.
 --search matches literal titles and ticket numbers. --search-content includes readable descriptions and comments.
 Board restore requires a native JSON snapshot or ZIP backup file, or - for raw stdin.
 Direct restore reads the current durable snapshot validator before writing.

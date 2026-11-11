@@ -306,7 +306,7 @@ func TestActivityCoverageHTTP(t *testing.T) {
 		}
 		return value
 	}
-	committed := editName(state.Board.ETag, botID, "Synthetic changed board", at)
+	committed := editName(state.Board.entityTag(), botID, "Synthetic changed board", at)
 
 	addr := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 8810}
 	handler := app.Handler(addr)
@@ -348,8 +348,8 @@ func TestActivityCoverageHTTP(t *testing.T) {
 		t.Fatal("filtered evidence incorrectly classified the whole interval")
 	}
 	mixedAt := at.Add(time.Second)
-	humanEdit := editName(committed.Board.ETag, humanID, "Synthetic Human edit", mixedAt)
-	editName(humanEdit.Board.ETag, botID, "Synthetic Bot edit", mixedAt)
+	humanEdit := editName(committed.Board.entityTag(), humanID, "Synthetic Human edit", mixedAt)
+	editName(humanEdit.Board.entityTag(), botID, "Synthetic Bot edit", mixedAt)
 	mixedFirst := report(mixedAt, options)
 	if mixedFirst.NextCursor == nil || len(mixedFirst.Values) != 1 || mixedFirst.Values[0].ActorID != humanID {
 		t.Fatal("mixed interval did not page the Human event first")

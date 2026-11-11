@@ -178,7 +178,7 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	}
 	c.call("PATCH", firstPath, `{"name":"Discarded","notifications":{"enabled":true}}`, h.Get("ETag"), 400)
 	raw, h = c.call("GET", firstPath, "", "", 200)
-	if got := turnOneDecode[board](t, raw); got.Name != first.Name || got.ETag != first.ETag ||
+	if got := turnOneDecode[board](t, raw); got.Name != first.Name || got.Revision != first.Revision || h.Get("ETag") != first.entityTag() ||
 		got.Notifications.Enabled || got.Notifications.TargetThreadID != nil {
 		t.Fatal("targetless enable changed the board")
 	}

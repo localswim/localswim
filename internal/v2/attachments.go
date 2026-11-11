@@ -423,7 +423,7 @@ func (s *store) attach(boardID, actor string, input attachmentUpload) (attachmen
 		if !next.can(actor, "manage_attachments") {
 			return errForbidden
 		}
-		if input.boardTag != "" && !matchesStrongTag(input.boardTag, next.Board.ETag) {
+		if input.boardTag != "" && !matchesStrongTag(input.boardTag, next.Board.entityTag()) {
 			return errStale
 		}
 		index := slices.IndexFunc(next.Cards, func(item card) bool { return item.ID == input.cardID })

@@ -203,6 +203,17 @@ loads the durable publication checkpoint. After an uncertain write, inspect
 `board get BOARD_ID` before
 choosing whether to try again.
 
+Use an explicit `--data DIR` to read a saved board through the local filesystem.
+
+- `board get --data DIR BOARD_ID` returns saved board metadata.
+- `board export --data DIR BOARD_ID` emits the validated native snapshot.
+- `card inspect --data DIR [--prose] BOARD_ID TICKET` inspects a focused ticket.
+
+Each invocation validates one committed snapshot. The directory must be directly
+readable. These commands work with the writer stopped and with open or closed
+boards. The same inspections without `--data` use the authenticated live API.
+Closed boards still refuse card writes.
+
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
 Unicode. Entity and build IDs are immutable UUIDv4 values. The service_instance_id
 uses UUIDv7, with the instance creation time encoded as Unix milliseconds.

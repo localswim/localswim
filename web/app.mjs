@@ -619,11 +619,9 @@ function items(reply, collection) {
   return value;
 }
 
-/** @template T @param {(cursor?: string) => Promise<Reply>} request
- * @param {string} collection @param {AbortSignal} [signal] @returns {Promise<T[]>} */
-async function collect(request, collection, signal) {
-  /** @type {T[]} */
-  const result = [];
+/** @param {(cursor?: string) => Promise<Reply>} request @param {string} collection
+ * @param {AbortSignal} [signal] */
+async function* collectionPages(request, collection, signal) {
   /** @type {string|undefined} */
   let cursor;
   const seen = new Set();
@@ -631,13 +629,27 @@ async function collect(request, collection, signal) {
     signal?.throwIfAborted();
     const reply = await request(cursor);
     signal?.throwIfAborted();
-    result.push(.../** @type {T[]} */ (items(reply, collection)));
+    const page = items(reply, collection);
     const next = /** @type {{next_cursor?: unknown}} */ (reply.data).next_cursor;
-    if (next === null) return result;
-    if (typeof next !== "string" || !next || seen.has(next)) throw new ApiError("invalid_response");
+    if (next !== null && (typeof next !== "string" || !next || seen.has(next))) {
+      throw new ApiError("invalid_response");
+    }
+    yield page;
+    if (next === null) return;
     seen.add(next);
     cursor = next;
   }
+}
+
+/** @template T @param {(cursor?: string) => Promise<Reply>} request
+ * @param {string} collection @param {AbortSignal} [signal] @returns {Promise<T[]>} */
+async function collect(request, collection, signal) {
+  /** @type {T[]} */
+  const result = [];
+  for await (const page of collectionPages(request, collection, signal)) {
+    result.push(.../** @type {T[]} */ (page));
+  }
+  return result;
 }
 
 /** @param {Reply} reply */
@@ -3348,6 +3360,8 @@ async function load(savedAvailability) {
     let dragged;
     /** @type {HTMLElement|undefined} */
     let dropTarget;
+    /** @type {Set<() => void>} */
+    const deferredCovers = new Set();
 
     /** @param {HTMLElement} [target] */
     function markDropTarget(target) {
@@ -3361,6 +3375,12 @@ async function load(savedAvailability) {
       if (dragged) delete dragged.opener.dataset.dragging;
       dragged = undefined;
       markDropTarget();
+    }
+
+    function finishDrag() {
+      clearDrag();
+      for (const reveal of deferredCovers) reveal();
+      deferredCovers.clear();
     }
 
     /** @param {CardDrag} drag @param {Lane} lane @param {HTMLElement} column */
@@ -3390,7 +3410,7 @@ async function load(savedAvailability) {
       });
       column.addEventListener("drop", (event) => {
         const drag = dragged;
-        clearDrag();
+        finishDrag();
         const transfer = event.dataTransfer;
         if (!drag || !transfer?.types.includes(CARD_DRAG_TYPE)) return;
         event.preventDefault();
@@ -3433,8 +3453,19 @@ async function load(savedAvailability) {
         opener.dataset.dragging = "true";
       });
       opener.addEventListener("dragend", () => {
-        if (dragged?.opener === opener) clearDrag();
+        if (dragged?.opener === opener) finishDrag();
       });
+    }
+
+    /** @type {WeakMap<HTMLElement, {requested: number, actual: number}>} */
+    const clampedLaneScroll = new WeakMap();
+
+    /** @param {HTMLElement} column @param {number} top */
+    function restoreLaneTop(column, top) {
+      column.scrollTop = top;
+      const actual = column.scrollTop;
+      if (actual < top) clampedLaneScroll.set(column, { requested: top, actual });
+      else clampedLaneScroll.delete(column);
     }
 
     function retainScroll() {
@@ -3449,7 +3480,7 @@ async function load(savedAvailability) {
       if (typeof saved?.left === "number" && Number.isFinite(saved.left)) columns.scrollLeft = saved.left;
       for (const [id, column] of laneColumns) {
         const top = saved?.lanes?.[id];
-        if (typeof top === "number" && Number.isFinite(top)) column.scrollTop = top;
+        if (typeof top === "number" && Number.isFinite(top)) restoreLaneTop(column, top);
       }
     }
 
@@ -3463,13 +3494,14 @@ async function load(savedAvailability) {
     const covers = new Set();
     function clearCovers() {
       coverReads.abort();
+      deferredCovers.clear();
       for (const url of covers) URL.revokeObjectURL(url);
       covers.clear();
     }
     releaseBoardMedia = clearCovers;
 
-    /** @param {Card} card @param {HTMLElement} slot @param {AbortSignal} readSignal */
-    async function showCover(card, slot, readSignal) {
+    /** @param {Card} card @param {HTMLElement} column @param {HTMLElement} slot @param {AbortSignal} readSignal */
+    async function showCover(card, column, slot, readSignal) {
       const explicitId = card.cover_attachment_id;
       const current = () => view === activeView && !readSignal.aborted && slot.isConnected;
       /** @param {Attachment} entry */
@@ -3483,33 +3515,43 @@ async function load(savedAvailability) {
             const entry = /** @type {Attachment} */ ((await api.getAttachment(explicitId, readSignal)).data);
             if (entry.id === explicitId && eligible(entry)) selected = entry;
           } else {
-            const entries = /** @type {Attachment[]} */ (await collect((cursor) =>
-              api.listAttachments(card.id, cursor, readSignal), "attachments", readSignal));
-            selected = entries.find(eligible);
+            for await (const page of collectionPages((cursor) =>
+              api.listAttachments(card.id, cursor, readSignal), "attachments", readSignal)) {
+              selected = /** @type {Attachment[]} */ (page).find(eligible);
+              if (selected) break;
+            }
           }
           if (!current() || !selected) return;
           return api.getAttachmentContent(selected.id, "inline", selected.size, selected.sha2_256, readSignal);
         }, readSignal);
-        if (!current()) return;
-        if (!blob) {
-          if (!explicitId) slot.hidden = true;
-          return;
-        }
+        if (!current() || !blob) return;
         const url = URL.createObjectURL(blob);
         covers.add(url);
         const image = element("img");
         image.draggable = false;
         image.className = "card-cover";
         image.alt = "";
+        function reveal() {
+          if (!current() || !covers.has(url)) return;
+          const top = column.scrollTop;
+          const clamped = clampedLaneScroll.get(column);
+          slot.hidden = false;
+          restoreLaneTop(column, clamped?.actual === top ? clamped.requested : top);
+        }
+        if (!explicitId) image.addEventListener("load", () => {
+          if (!current()) return;
+          if (dragged) deferredCovers.add(reveal);
+          else reveal();
+        }, { once: true });
         image.addEventListener("error", () => {
+          deferredCovers.delete(reveal);
           image.remove();
           if (covers.delete(url)) URL.revokeObjectURL(url);
-          if (!explicitId) slot.hidden = true;
-        });
+        }, { once: true });
         image.src = url;
         slot.replaceChildren(image);
       } catch {
-        if (!explicitId && current()) slot.hidden = true;
+        // The card remains usable when an attachment cannot be read.
       }
     }
 
@@ -3745,9 +3787,10 @@ async function load(savedAvailability) {
           if (!retained && (card.cover_attachment_id || card.attachment_count > 0)) {
             const slot = element("span");
             slot.className = "card-cover-space";
+            slot.hidden = !card.cover_attachment_id;
             slot.setAttribute("aria-hidden", "true");
             opener.prepend(slot);
-            void showCover(card, slot, coverSignal);
+            void showCover(card, column, slot, coverSignal);
           }
           return opener;
         }

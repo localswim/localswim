@@ -26,12 +26,18 @@ async function harness(api, pathname = "/boards/" + board, {
   clock = Date,
   storage = tabStorage(),
   workspaceEvents = false,
+  scrollLimit = () => Infinity,
 } = {}) {
   let document;
   let pointerHit;
   const downloads = [];
   class Element {
-    scrollTop = 0;
+    _scrollTop = 0;
+    get scrollTop() {
+      this._scrollTop = Math.min(this._scrollTop, scrollLimit(this));
+      return this._scrollTop;
+    }
+    set scrollTop(top) { this._scrollTop = Math.min(top, scrollLimit(this)); }
     scrollLeft = 0;
     constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; this.style = {}; }
     set textContent(value) { this.ownText = value; this.children = []; }
@@ -1441,6 +1447,8 @@ test("card previews use the first eligible attachment and return to it after det
   const image = () => face().querySelector("img");
   const readImage = async (id) => {
     await until(image);
+    image().dispatch("load");
+    assert.equal(image().parent.hidden, false);
     assert.equal(await (await fetch(image().src)).text(), id);
   };
   await readImage(first.id);
@@ -1476,24 +1484,31 @@ test("fallback cover reads cannot paint after a repaint or navigation", async ()
     return {...reply, data: {...reply.data, cards: [{...original, attachment_count: 1}, other]}};
   };
   const content = Promise.withResolvers();
-  const contentStarted = Promise.withResolvers();
+  let contentSignal;
   const lateList = Promise.withResolvers();
   const listStarted = Promise.withResolvers();
   let reads = 0;
+  let initialSignal;
   let contentReads = 0;
   api.listAttachments = async (id, cursor, signal) => {
     assert.equal(id, card);
+    if (cursor === "irrelevant") throw new ApiError("http_error", {status: 503});
     assert.equal(cursor, undefined);
     assert.ok(signal);
     if (++reads === 3) {
       listStarted.resolve(signal);
       return lateList.promise;
     }
-    return page("attachments", [{...entry, previewable: reads === 1}]);
+    if (reads === 1) {
+      initialSignal = signal;
+      return {data: {attachments: [entry], next_cursor: "irrelevant"}, etag: null};
+    }
+    return page("attachments", [{...entry, previewable: false}]);
   };
-  api.getAttachmentContent = (_id, _disposition, _size, _digest, signal) => {
+  api.getAttachmentContent = (id, disposition, _size, _digest, signal) => {
     contentReads++;
-    contentStarted.resolve(signal);
+    assert.deepEqual([id, disposition, signal], [entry.id, "inline", initialSignal]);
+    contentSignal = signal;
     return content.promise;
   };
 
@@ -1503,11 +1518,12 @@ test("fallback cover reads cannot paint after a repaint or navigation", async ()
     .find(({className}) => className === "card-cover-space");
   assert.ok(slot());
   const oldSlot = slot();
-  const oldSignal = await contentStarted.promise;
+  await until(() => contentSignal);
+  assert.equal(oldSlot.hidden, true);
   ui.nodes.refresh.click();
   await ui.settled();
-  await until(() => slot().hidden);
-  assert.equal(oldSignal.aborted, true);
+  await until(() => reads === 2 && slot().hidden);
+  assert.equal(contentSignal.aborted, true);
   content.resolve(new Blob(["stale"]));
   await ui.settled();
   assert.equal(oldSlot.children.length, 0);
@@ -1525,6 +1541,87 @@ test("fallback cover reads cannot paint after a repaint or navigation", async ()
   assert.equal(navigationSlot.children.length, 0);
   assert.equal(reads, 3);
   assert.equal(contentReads, 1);
+});
+
+test("fallback previews grow a lane only after decode and after an active drag ends", async () => {
+  const {api} = boardApi();
+  const original = (await api.getCard(card)).data;
+  const target = {...(await api.listLanes()).data.lanes[0], id: backup, label: "Next", key: "next", position: 1};
+  const getPolicy = api.getPolicy;
+  api.getPolicy = async () => ({data: {...(await getPolicy()).data,
+    move_grants: [{user_id: user, from_lane_id: lane, to_lane_id: target.id}]}});
+  const listLanes = api.listLanes;
+  api.listLanes = async () => page("lanes", [...(await listLanes()).data.lanes, target]);
+  const generic = (await api.listAttachments()).data.attachments[0];
+  let addImages = false;
+  const rows = Array.from({length: 8}, (_, index) => ({...original, id: index ? "file-" + index : card,
+    ticket: index + 1, title: "Files " + (index + 1), attachment_count: 1}));
+  const getBoardLanes = api.getBoardLanes;
+  api.getBoardLanes = async () => {
+    const reply = await getBoardLanes();
+    return {...reply, data: {...reply.data, cards: rows}};
+  };
+  const firstLists = Promise.withResolvers();
+  const listReads = [];
+  api.listAttachments = async (id) => {
+    listReads.push(id);
+    if (!addImages) await firstLists.promise;
+    return page("attachments", [{...generic, id: "attachment-" + id, card_id: id,
+      previewable: addImages && (id === card || id === rows[1].id || id === rows[2].id)}]);
+  };
+  const contentReads = [];
+  api.getAttachmentContent = async (id) => {
+    contentReads.push(id);
+    if (id === "attachment-" + rows[1].id) throw new ApiError("invalid_response");
+    return new Blob([id]);
+  };
+  const visibleCovers = (column) => column.querySelectorAll("span")
+    .filter((slot) => slot.className === "card-cover-space" && !slot.hidden);
+  const storage = tabStorage();
+  storage.setItem("localswim:board-view:" + board, JSON.stringify({scroll: {left: 0, lanes: {[lane]: 240}}}));
+  // The generic cards overflow by 120px. Each visible cover adds another 128px.
+  const scrollLimit = (node) => node.className === "lane" ? 120 + 128 * visibleCovers(node).length : Infinity;
+  const ui = await harness(api, "/boards/" + board, {storage, scrollLimit});
+  const columns = () => ui.nodes.main.querySelectorAll("section").filter((node) => node.className === "lane");
+  await ui.load();
+  await until(() => listReads.length === rows.length);
+  assert.equal(visibleCovers(columns()[0]).length, 0);
+  assert.equal(columns()[0].scrollTop, 120);
+  columns()[0].scrollTop = 95;
+  firstLists.resolve();
+  await ui.settled();
+  assert.equal(visibleCovers(columns()[0]).length, 0);
+  assert.equal(columns()[0].scrollTop, 95);
+  assert.deepEqual(contentReads, []);
+
+  addImages = true;
+  await ui.navigate("/"); // The next load starts with a saved offset above the bare lane's limit.
+  storage.setItem("localswim:board-view:" + board, JSON.stringify({scroll: {left: 0, lanes: {[lane]: 240}}}));
+  const reopened = await harness(api, "/boards/" + board, {storage, scrollLimit});
+  await reopened.load();
+  const laneColumns = reopened.nodes.main.querySelectorAll("section").filter((node) => node.className === "lane");
+  const face = reopened.find(reopened.nodes.main, "button", "#1 Files 1");
+  const unreadable = reopened.find(reopened.nodes.main, "button", "#2 Files 2");
+  const undecodable = reopened.find(reopened.nodes.main, "button", "#3 Files 3");
+  await until(() => face.querySelector("img") && undecodable.querySelector("img"));
+  assert.equal(visibleCovers(laneColumns[0]).length, 0);
+  assert.equal(laneColumns[0].scrollTop, 120);
+  assert.equal(unreadable.querySelector("img"), null);
+  undecodable.querySelector("img").dispatch("error");
+  assert.equal(visibleCovers(laneColumns[0]).length, 0);
+
+  const dataTransfer = dragTransfer();
+  face.dispatch("dragstart", {dataTransfer});
+  assert.equal(laneColumns[1].dispatch("dragover", {dataTransfer}), true);
+  face.querySelector("img").dispatch("load");
+  assert.equal(visibleCovers(laneColumns[0]).length, 0);
+  assert.equal(laneColumns[0].scrollTop, 120);
+  assert.equal(face.dataset.dragging, "true");
+  face.dispatch("dragend");
+  assert.equal(visibleCovers(laneColumns[0]).length, 1);
+  assert.equal(laneColumns[0].scrollTop, 240);
+  assert.equal(face.dataset.dragging, undefined);
+  assert.equal(laneColumns[1].dataset.dropTarget, undefined);
 });
 
 const publishingOff = {enabled: false, repository: null, last_success_at: null, pending: false, error_code: null};

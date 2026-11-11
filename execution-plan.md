@@ -382,3 +382,20 @@ Start the verification helper when its independent test boundary exists. Use up 
 active direct workers within the actual T10 cap and depth one. Replace finished authors with
 fresh reviewers as slots open. Move #0422 to In Progress before dispatch if it has yet to start.
 Terry retains Completed and formal review of each milestone.
+
+## Current assignment revision 13
+
+Reconciled 2026-11-10 after T10, the final implementation turn in Terry's
+authorized T07–T10 sequence. Earlier assignment revisions remain above.
+
+M39 #0422 is Ready for Review after independent backend, browser, and CLI
+review. Its published implementation is
+`edb888a19d7e3d936b1bf54d0a9ad01505fc9f2d`. The Windows quality gate, native
+handoff and recovery checks, and API, CLI, and Chrome walkthroughs passed.
+The T10 entry prerequisites were #0414 and #0421 Completed and independently
+reviewed #0420 Ready for Review under Terry's sequence authorization.
+
+No implementation turns remain. Planning is recorded on #0426. Dev Manager
+presents the remaining demos. Terry controls formal Completed approvals. At this handoff the
+remaining milestone reviews are #0394, #0395, #0396, #0403, #0404, #0405,
+#0412, #0413, #0417, #0418, #0419, #0420, and #0422.

@@ -94,7 +94,7 @@ const cliHelp = `Usage:
   localswim board restore [--revision N] BOARD_ID FILE|-
   localswim restoration create [--revision N] [--id UUID] BOARD_ID BACKUP_ID
   localswim restoration get RESTORATION_ID
-  localswim publication create [--id UUID] BOARD_ID BACKUP_ID
+  localswim publication create [--id UUID] [--remote NAME] [--branch BRANCH] BOARD_ID BACKUP_ID
   localswim publication get PUBLICATION_ID
   localswim service status
   localswim service builds [--limit N] [--cursor CURSOR]

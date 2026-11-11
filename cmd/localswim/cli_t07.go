@@ -20,7 +20,7 @@ func parseT07(name string, args []string) (cliCommand, error) {
 	cmd := cliCommand{method: http.MethodGet, t07Action: name}
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	var revision, id, search, lane, cursor, archived string
+	var revision, id, search, lane, cursor, archived, remote, branch string
 	var lanes []string
 	var content bool
 	limit := 50
@@ -54,6 +54,8 @@ func parseT07(name string, args []string) (cliCommand, error) {
 		}
 	case "publication create":
 		flags.StringVar(&id, "id", "", "publication UUIDv7")
+		flags.StringVar(&remote, "remote", "", "configured Git remote name")
+		flags.StringVar(&branch, "branch", "", "destination Git branch")
 		count = 2
 	case "ticket-order apply":
 		count = 2
@@ -93,7 +95,7 @@ func parseT07(name string, args []string) (cliCommand, error) {
 			if archived != "exclude" && archived != "include" && archived != "only" {
 				optionErr = errors.New("--archived requires exclude, include, or only")
 			}
-		case "search", "cursor":
+		case "search", "cursor", "remote", "branch":
 			if f.Value.String() == "" {
 				optionErr = errors.New("options require nonempty values")
 			}
@@ -145,11 +147,18 @@ func parseT07(name string, args []string) (cliCommand, error) {
 			id = newOperationID()
 		}
 		cmd.method, cmd.boardID = http.MethodPost, resourceID
+		fields := map[string]string{"id": strings.ToLower(id), "board_id": resourceID, "backup_id": strings.ToLower(flags.Arg(1))}
 		cmd.resource = "/restorations"
 		if name == "publication create" {
 			cmd.resource = "/publications"
+			if remote != "" {
+				fields["remote"] = remote
+			}
+			if branch != "" {
+				fields["branch"] = branch
+			}
 		}
-		cmd.body, _ = json.Marshal(map[string]string{"id": strings.ToLower(id), "board_id": resourceID, "backup_id": strings.ToLower(flags.Arg(1))})
+		cmd.body, _ = json.Marshal(fields)
 	case "restoration get":
 		cmd.resource = "/restorations/" + resourceID
 	case "publication get":

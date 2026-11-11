@@ -44,6 +44,23 @@ func TestT07ParseRequiredInputs(t *testing.T) {
 	}
 }
 
+func TestM89PublicationDestinationOptions(t *testing.T) {
+	cmd, err := parseCLI([]string{"publication", "create", "--remote", "Delivery", "--branch", "refs/heads/Different", t03Board, t06Operation})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]string
+	if err := json.Unmarshal(cmd.body, &fields); err != nil || cmd.resource != "/publications" ||
+		fields["remote"] != "Delivery" || fields["branch"] != "refs/heads/Different" {
+		t.Fatal("publication CLI did not forward exact destination selectors")
+	}
+	for _, option := range []string{"--remote", "--branch"} {
+		if _, err := parseCLI([]string{"publication", "create", option, "", t03Board, t06Operation}); err == nil {
+			t.Fatalf("accepted empty %s", option)
+		}
+	}
+}
+
 func TestT07SearchOrderAndPrettyJSON(t *testing.T) {
 	for _, action := range []string{"search", "next", "lookup"} {
 		t.Run(action, func(t *testing.T) {

@@ -21,6 +21,9 @@ func TestM34PublicationClosedInputAndDurableFailure(t *testing.T) {
 		strings.TrimSuffix(body, "}") + `,"workspace":true}`,
 		strings.TrimSuffix(body, "}") + `,"workspace":null}`,
 		strings.TrimSuffix(body, "}") + `,"workspace":"false"}`,
+		strings.TrimSuffix(body, "}") + `,"remote":""}`,
+		strings.TrimSuffix(body, "}") + `,"remote":"a\nb"}`,
+		strings.TrimSuffix(body, "}") + `,"branch":null}`,
 		fmt.Sprintf(`{"board_id":%q}`, state.Board.ID),
 	} {
 		editor.call("POST", "/publications", bad, "", 400)

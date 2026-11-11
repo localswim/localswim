@@ -287,8 +287,9 @@ approval receipt, and service instance IDs use UUIDv7, which encodes ID generati
 time as Unix milliseconds. IDs are immutable. Publish UUIDs in lowercase and
 accept either hex case for the declared version.
 
-Derive backup and publication creation time from the ID and display it as
-`YYYY-MM-DD HH:MM:SS+00:00`. Their stored and API records omit `created_at`.
+When displaying backup or publication creation time, derive it from the ID and
+format it as `YYYY-MM-DD HH:MM:SS+00:00`. Their stored and API records omit
+`created_at`.
 Publication `finished_at` and audit, approval, and restoration `at` retain actual
 execution times. A caller-supplied operation ID can precede execution.
 

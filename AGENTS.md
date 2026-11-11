@@ -21,9 +21,10 @@
   approval receipt, and service instance IDs. Keep ordinary entities, comments,
   attachments, builds, and request correlation UUIDv4. Accept mixed-case input of
   the declared version and emit lowercase UUIDs.
-- Decode backup and publication creation time from the ID for UTC whole-second
-  display. Preserve publication `finished_at` and audit, approval, and restoration
-  `at` as actual execution times, independent of ID generation.
+- When displaying backup or publication creation time, decode it from the ID
+  and format it in UTC whole seconds. Preserve publication `finished_at` and
+  audit, approval, and restoration `at` as actual execution times, independent
+  of ID generation.
 
 - All parent agents, including project managers and turn leads, use GPT-6.1 Sol
   (`gpt-6.1-sol`) with high reasoning, displayed as Sol / High.

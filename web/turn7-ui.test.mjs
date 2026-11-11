@@ -61,7 +61,20 @@ async function harness(api, pathname = "/boards/" + board, {
     }
     querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; }
   }
-  class Input extends Element { get valueAsNumber() { return Number(this.value); } }
+  class Input extends Element {
+    get valueAsNumber() { return Number(this.value); }
+    get willValidate() {
+      for (let ancestor = this.parent; ancestor; ancestor = ancestor.parent) {
+        if (ancestor.tagName === "fieldset" && ancestor.disabled) return false;
+      }
+      return !this.disabled;
+    }
+    checkValidity() {
+      if (!this.willValidate) return true;
+      if (!this.value) return !this.required;
+      return this.type !== "number" || (this.valueAsNumber >= Number(this.min) && this.valueAsNumber <= Number(this.max));
+    }
+  }
   class Textarea extends Element {}
   class Button extends Element {}
   class Select extends Element {
@@ -89,6 +102,11 @@ async function harness(api, pathname = "/boards/" + board, {
   const find = (root, tagName, text) => root.querySelectorAll(tagName).find((node) => node.ownText === text);
   const field = (root, label) => find(root, "label", label)?.children[0];
   const submit = (root, label) => { const control = find(root, "button", label); assert.ok(control, label); if (!control.disabled) control.parent.dispatch("submit"); return control; };
+  function submitValidated(root, label) {
+    const control = find(root, "button", label);
+    assert.ok(control, label);
+    if (control.parent.querySelectorAll("input").every((input) => input.checkValidity())) submit(root, label);
+  }
   async function navigate(path) {
     context.location.pathname = path;
     await context.hooks.load();
@@ -100,7 +118,7 @@ async function harness(api, pathname = "/boards/" + board, {
     windowEvents.popstate();
     await settled();
   }
-  return {nodes, ...context.hooks, settled, find, field, submit, navigate, popstate,
+  return {nodes, ...context.hooks, settled, find, field, submit, submitValidated, navigate, popstate,
     pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement};
 }
 
@@ -2187,14 +2205,18 @@ test("withdrawing relationship permission preserves seed drafts and still permit
   ui.find(main, "button", "Add card").click();
   const panel = ui.find(main, "button", "Add relationship").parent;
   const target = ui.field(panel, "Target ticket");
-  target.value = "7";
+  panel.open = true;
+  target.value = "0";
+  assert.equal(target.checkValidity(), false);
   canLink = false;
   refresh.click();
   await until(() => panel.hidden);
-  assert.equal(target.value, "7");
+  assert.equal(target.value, "0");
+  assert.equal(target.willValidate, false);
+  assert.equal(target.checkValidity(), true);
 
   ui.field(main, "New title").value = "Plain card";
-  ui.submit(main, "Create card");
+  ui.submitValidated(main, "Create card");
   await ui.settled();
   assert.equal(writes.length, 1);
   assert.equal(writes[0].relationships, undefined);
@@ -2204,7 +2226,12 @@ test("withdrawing relationship permission preserves seed drafts and still permit
   canLink = true;
   refresh.click();
   await until(() => !panel.hidden);
-  assert.equal(target.value, "7");
+  assert.equal(target.value, "0");
+  assert.equal(target.willValidate, true);
+  assert.equal(target.checkValidity(), false);
+  ui.field(main, "New title").value = "Still blocked";
+  ui.submitValidated(main, "Create card");
+  assert.equal(writes.length, 1);
 });
 
 test("invalid seed target preserves all drafts and sends no create", async () => {
@@ -2237,7 +2264,7 @@ test("invalid seed target preserves all drafts and sends no create", async () =>
   assert.equal(ui.field(rows()[1], "Link type").value, "duplicates");
 });
 
-test("uncertain seeded create reads the original ID without replay and clears only confirmed rows", async () => {
+test("uncertain seeded create reads the original ID and reconciles the reopened form without replay", async () => {
   const {api} = boardApi();
   const getCard = api.getCard;
   const original = (await getCard(card)).data;
@@ -2263,6 +2290,7 @@ test("uncertain seeded create reads the original ID without replay and clears on
   ui.find(main, "button", "Add card").click();
   const rows = () => ui.find(main, "button", "Add relationship").parent.querySelectorAll("fieldset");
   ui.field(main, "New title").value = "Create with readback";
+  ui.field(main, "New description").value = "Submitted description";
   ui.field(rows()[0], "Target ticket").value = "1";
   ui.submit(main, "Create card");
   await dispatched.promise;
@@ -2270,13 +2298,75 @@ test("uncertain seeded create reads the original ID without replay and clears on
   await ui.navigate("/boards/" + board);
   ui.find(main, "button", "Add relationship").click();
   ui.field(rows()[1], "Target ticket").value = "5";
+  ui.field(main, "New description").value = "Edited after returning";
   finishWrite.resolve();
   await ui.settled();
 
   assert.equal(writes.length, 1);
   assert.deepEqual(readbacks, [writes[0].id]);
+  assert.equal(ui.field(main, "New title").value, "");
+  assert.equal(ui.field(main, "New description").value, "Edited after returning");
   assert.equal(rows().length, 1);
   assert.equal(ui.field(rows()[0], "Target ticket").value, "5");
+  ui.submitValidated(main, "Create card");
+  assert.equal(writes.length, 1);
+});
+
+
+test("acknowledged seeded create reconciles the originating draft while another board is open", async () => {
+  const {api} = boardApi();
+  const other = "4cbd90c1-e555-4431-8be2-cf9a96a6bc09";
+  const availability = await api.getBoardAvailability();
+  const lanes = await api.getBoardLanes();
+  const policy = await api.getPolicy();
+  const original = (await api.getCard(card)).data;
+  api.listBoards = async () => page("boards", [{id: board, name: "Board"}, {id: other, name: "Other board"}]);
+  api.getBoardAvailability = async (id) => id === board ? availability
+    : {data: {...availability.data, id: other, policy_id: other, name: "Other board"}, etag: tag(other, 1)};
+  api.getBoardLanes = async (id) => id === board ? lanes
+    : {data: {board: {...lanes.data.board, id: other, policy_id: other, name: "Other board"}, cards: []},
+      etag: tag(other, 1)};
+  api.getPolicy = async (id) => id === backup ? policy : {data: {...policy.data, id: other, board_id: other}};
+  api.listCards = async () => page("cards", [original]);
+  const dispatched = Promise.withResolvers();
+  const finishWrite = Promise.withResolvers();
+  const writes = [];
+  api.createCard = async (draft) => {
+    writes.push(draft);
+    dispatched.resolve();
+    await finishWrite.promise;
+  };
+  let readbacks = 0;
+  api.getCard = async () => { readbacks++; };
+
+  const ui = await harness(api, "/boards/" + other);
+  await ui.load();
+  const {main} = ui.nodes;
+  function fillDraft() {
+    ui.find(main, "button", "Add card").click();
+    ui.field(main, "New title").value = "Same title on both boards";
+    ui.field(main, "New description").value = "Same description on both boards";
+    ui.field(main, "Target ticket").value = "1";
+  }
+  fillDraft();
+  await ui.navigate("/boards/" + board);
+  fillDraft();
+  ui.submitValidated(main, "Create card");
+  await dispatched.promise;
+  ui.field(main, "New title").value = "Edited origin title";
+  await ui.navigate("/boards/" + other);
+  finishWrite.resolve();
+  await ui.settled();
+
+  assert.equal(ui.field(main, "New title").value, "Same title on both boards");
+  assert.equal(ui.field(main, "New description").value, "Same description on both boards");
+  assert.equal(ui.field(main, "Target ticket").value, "1");
+  await ui.navigate("/boards/" + board);
+  assert.equal(ui.field(main, "New title").value, "Edited origin title");
+  assert.equal(ui.field(main, "New description").value, "");
+  assert.equal(ui.field(main, "Target ticket").value, "");
+  assert.equal(writes.length, 1);
+  assert.equal(readbacks, 0);
 });
 
 test("live link repaint keeps the dirty selector, focus, and its relationship revision", async (t) => {

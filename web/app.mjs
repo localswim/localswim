@@ -79,6 +79,8 @@ let retainBoardView;
 const cardDrafts = new Map();
 /** @type {Map<string, string[]>} */
 const boardDrafts = new Map();
+/** @type {{boardId: string, title: HTMLInputElement, description: HTMLTextAreaElement}|undefined} */
+let activeNewCardText;
 /** @type {Map<string, RelationshipSeedState>} */
 const relationshipSeedDrafts = new Map();
 /** @type {Map<string, BoardView>} */
@@ -613,18 +615,23 @@ function renderRelationshipSeeds(boardId) {
   const list = element("div");
   const state = relationshipSeedDrafts.get(boardId) ?? { rows: [] };
   relationshipSeedDrafts.set(boardId, state);
-  /** @type {Map<RelationshipSeedDraft, {node: HTMLElement, ticket: HTMLInputElement, kind: HTMLSelectElement}>} */
+  /** @type {Map<RelationshipSeedDraft, {node: HTMLFieldSetElement, ticket: HTMLInputElement, kind: HTMLSelectElement}>} */
   const controls = new Map();
   const add = button("Add relationship", () => {
-    if (state.rows.length >= 1000) return;
+    if (add.disabled) return;
     append({ ticket: "", kind: "relates_to" }).focus();
-    add.disabled = state.rows.length >= 1000;
+    updateAddButton();
   });
   panel.append(element("summary", "Link the new card"), list, add);
+
+  function updateAddButton() {
+    add.disabled = Boolean(panel.hidden) || state.rows.length >= 1000;
+  }
 
   /** @param {RelationshipSeedDraft} row */
   function mount(row) {
     const node = element("fieldset");
+    node.disabled = Boolean(panel.hidden);
     const ticket = ticketInput();
     ticket.value = row.ticket;
     const kind = select(relationshipChoices, row.kind);
@@ -649,7 +656,7 @@ function renderRelationshipSeeds(boardId) {
     controls.get(row)?.node.remove();
     controls.delete(row);
     state.rows = state.rows.filter((candidate) => candidate !== row);
-    add.disabled = false;
+    updateAddButton();
   }
 
   function syncValues() {
@@ -662,7 +669,7 @@ function renderRelationshipSeeds(boardId) {
   for (const row of state.rows) mount(row);
   if (!state.rows.length) append({ ticket: "", kind: "relates_to" });
   panel.open = state.rows.some((row) => row.ticket !== "");
-  add.disabled = state.rows.length >= 1000;
+  updateAddButton();
   state.discard = (submitted) => {
     syncValues();
     for (const row of state.rows) {
@@ -672,6 +679,12 @@ function renderRelationshipSeeds(boardId) {
   };
   return {
     panel,
+    /** @param {boolean} allowed */
+    setAllowed(allowed) {
+      panel.hidden = !allowed;
+      for (const { node } of controls.values()) node.disabled = !allowed;
+      updateAddButton();
+    },
     capture() {
       syncValues();
       return state.rows.filter((row) => row.ticket !== "").map((row) => ({ ...row, row }));
@@ -687,6 +700,17 @@ function renderRelationshipSeeds(boardId) {
       delete state.discard;
     },
   };
+}
+
+/** @param {string} boardId @param {{title: string, description: string}} submitted */
+function clearCreatedCardText(boardId, submitted) {
+  const saved = boardDrafts.get(boardId);
+  if (saved?.[0] === submitted.title) saved[0] = "";
+  if (saved?.[1] === submitted.description) saved[1] = "";
+  if (activeNewCardText?.boardId !== boardId) return;
+  const { title, description } = activeNewCardText;
+  if (title.value === submitted.title) title.value = "";
+  if (description.value === submitted.description) description.value = "";
 }
 
 /** @param {string} boardId @param {SubmittedRelationshipSeed[]} submitted @param {() => boolean} isCurrent */
@@ -2086,6 +2110,7 @@ async function load(savedAvailability) {
   releaseBoardMedia = undefined;
   retainCardDraft = undefined;
   retainBoardDraft = undefined;
+  activeNewCardText = undefined;
   cardInspection = undefined;
   boardInspection = undefined;
   retrySelectedCard = undefined;
@@ -2587,7 +2612,7 @@ async function load(savedAvailability) {
     function updateNewCardForm() {
       const destination = canCreateIn(addLane) ? lanes.find(({ id }) => id === addLane) : undefined;
       newCard.hidden = !destination;
-      seeds.panel.hidden = workflow?.canManageRelationships !== true;
+      seeds.setAllowed(workflow?.canManageRelationships === true);
       if (destination) newCardHeading.textContent = "New card in " + destination.label;
     }
 
@@ -2596,6 +2621,7 @@ async function load(savedAvailability) {
       if (view !== activeView || newCard.hidden || !canCreateIn(addLane)) return;
       const id = crypto.randomUUID();
       let created = false;
+      let reconciled = false;
       const draft = { title: addTitle.value, description: addDescription.value, lane_id: addLane };
       const submitted = workflow?.canManageRelationships === true ? seeds.capture() : [];
       const expected = boardTag;
@@ -2616,10 +2642,10 @@ async function load(savedAvailability) {
             if (!(error instanceof ApiError) || error.status !== 404) throw error;
           }
         }
-        if (created) {
-          if (addTitle.value === draft.title) addTitle.value = "";
-          if (addDescription.value === draft.description) addDescription.value = "";
+        if (created && !reconciled) {
+          clearCreatedCardText(board.id, draft);
           seeds.clearSubmitted(submitted);
+          reconciled = true;
         }
         await reloadBoard();
         return created;
@@ -2715,6 +2741,7 @@ async function load(savedAvailability) {
     const search = renderCardSearch(board.id, lanes, (card, opener) => {
       if (!writing) void openCard(board.id, card, lanes, users, priorities, () => boardTag, reloadBoard, currentWorkflow, opener);
     });
+    activeNewCardText = { boardId: board.id, title: addTitle, description: addDescription };
     retainBoardDraft = () => {
       boardDrafts.set(board.id, [addTitle.value, addDescription.value, addLane]);
       seeds.retain();

@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -140,6 +142,9 @@ func publicationGitSafety(cwd string, paths []string) error {
 		}
 		batch := paths[start:end]
 		input := []byte(strings.Join(batch, "\x00") + "\x00")
+		if err := publicationGitIgnore(cwd, batch); err != nil {
+			return err
+		}
 		data, err := publicationGit(cwd, "", input, "check-attr", "-z", "--stdin", "filter")
 		fields := strings.Split(string(data), "\x00")
 		if err != nil || len(fields) != len(batch)*3+1 || fields[len(fields)-1] != "" {
@@ -157,6 +162,23 @@ func publicationGitSafety(cwd string, paths []string) error {
 		start = end
 	}
 	return nil
+}
+
+func publicationGitIgnore(cwd string, paths []string) error {
+	// Apply the worktree's ignore rules even to tracked or staged paths.
+	// Staging uses a private index, so the caller's index cannot grant admission.
+	// A leading ./ makes each path literal to check-ignore, which rejects the
+	// global --literal-pathspecs option.
+	input := []byte("./" + strings.Join(paths, "\x00./") + "\x00")
+	data, err := publicationGit(cwd, "", input, "check-ignore", "--no-index", "-z", "--stdin")
+	if err == nil && len(data) != 0 {
+		return gitPublicationError("publication_path_ignored")
+	}
+	var status *exec.ExitError
+	if errors.As(err, &status) && status.ExitCode() == 1 && len(data) == 0 {
+		return nil
+	}
+	return gitPublicationError("git_ignore_unavailable")
 }
 
 func gitConfigAbsent(err error) bool {
@@ -240,16 +262,39 @@ func (repo publicationRepository) push(remote publicationRemote, commit, ref str
 	return nil
 }
 
+func publicationInventory(prefix string, files []publicationFile) ([]string, error) {
+	if len(files) == 0 {
+		return nil, gitPublicationError("capture_unavailable")
+	}
+	names := make([]string, len(files))
+	seen := make(map[string]bool, len(files))
+	for index, file := range files {
+		relative := filepath.ToSlash(file.path)
+		name := filepath.ToSlash(filepath.Join(prefix, file.path))
+		if file.read == nil || !filepath.IsLocal(file.path) || !fs.ValidPath(relative) || relative == "." ||
+			!fs.ValidPath(name) || strings.ContainsRune(name, 0) || seen[name] {
+			return nil, gitPublicationError("capture_unavailable")
+		}
+		names[index] = name
+		seen[name] = true
+	}
+	for _, name := range names {
+		for parent := path.Dir(name); parent != "."; parent = path.Dir(parent) {
+			if seen[parent] {
+				return nil, gitPublicationError("capture_unavailable")
+			}
+		}
+	}
+	return names, nil
+}
+
 // A private index overlays only the exact capture inventory onto the accepted
 // parent. Hashing stdin without --path stores captured bytes verbatim. Neither
 // the caller's index nor the live files are opened for staging or rewritten.
 func (repo publicationRepository) prepareCommit(previous string, capture publicationCapture) (string, error) {
-	names := make([]string, len(capture.files))
-	for index, file := range capture.files {
-		if !filepath.IsLocal(file.path) {
-			return "", gitPublicationError("capture_unavailable")
-		}
-		names[index] = filepath.ToSlash(filepath.Join(repo.prefix, file.path))
+	names, err := publicationInventory(repo.prefix, capture.files)
+	if err != nil {
+		return "", err
 	}
 	if err := publicationGitSafety(repo.root, names); err != nil {
 		return "", err

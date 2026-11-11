@@ -164,8 +164,11 @@ an initial commit, local branch, configured identity and an origin remote. The p
 changes consist of the captured native snapshot and exact audited attachment paths. The push follows
 normal Git ancestry. Publication uses a private index under the persistent
 Git common-directory localswim-autopush.lock. The caller's index and unrelated staged work remain
-intact. Unsupported hooks, external content filters and filesystem monitors refuse before object
-publication. Inspect the original publication UUID after an uncertain result.
+intact. Before writing Git objects, publication checks every captured path against Git's ignore
+rules, including paths already tracked or staged. Any ignored path refuses the entire capture with
+`publication_path_ignored`. A failed ignore check reports `git_ignore_unavailable`. Unsupported
+hooks, external content filters and filesystem monitors also refuse before object publication.
+Inspect the original publication UUID after an uncertain result.
 
 Enable automatic publication independently with
 `board publishing enable [--revision N] BOARD_ID` or
@@ -179,7 +182,7 @@ Automatic attempts use the resolved origin push destination. Explicit origin
 transport overrides leave the attempt pending with `unsupported_remote_transport`.
 
 Use the matching `status` command to inspect pending work, the last successful
-push time, and a fixed failure code. Failed automatic pushes remain pending and
+push time, and a fixed failure code. Failed automatic attempts remain pending and
 retry with bounded backoff without another edit. Status changes leave board,
 card, and workspace revisions intact. Use `disable` with the same revision
 options to stop new attempts. A disabled publisher keeps durable pending intent.

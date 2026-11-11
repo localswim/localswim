@@ -276,6 +276,8 @@ func (x *request) fail(err error) {
 		x.problem(503, "unavailable", "This board is closed or draining.", "", nil)
 	case errors.Is(err, errBoardFlush):
 		x.problem(503, "unavailable", "Board publication could not be flushed. The board is still open.", "", nil)
+	case errors.Is(err, errDurableStateChanged):
+		x.problem(503, "unavailable", "Saved board state differs from the accepted snapshot.", "", nil)
 	case errors.Is(err, errWorkspaceUnavailable), errors.Is(err, errInvalidSnapshot):
 		x.problem(503, "unavailable", "Durable state is unavailable.", "", nil)
 	default:

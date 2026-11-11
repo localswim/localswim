@@ -254,10 +254,10 @@ func TestM23AttachmentCommitRefusalAndAuthorization(t *testing.T) {
 	if err := os.Rename(path, path+".saved"); err != nil {
 		t.Fatal(err)
 	}
-	attachmentHTTPUpload(t, editor, fields, "test.bin", []byte("content"), 500)
+	attachmentHTTPUpload(t, editor, fields, "test.bin", []byte("content"), 503)
 	file := filepath.Join(app.store.root, attachmentPath(attachment{ID: id, BoardID: c.BoardID, CardID: c.ID}))
-	if _, err := os.Stat(file); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal("failed metadata transaction left its uncommitted file", err)
+	if _, err := os.Stat(filepath.Dir(file)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("refused snapshot admission staged attachment data", err)
 	}
 	if err := os.Rename(path+".saved", path); err != nil {
 		t.Fatal(err)

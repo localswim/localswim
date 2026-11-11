@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	errBoardExists      = errors.New("board already exists")
-	errBoardNotFound    = errors.New("board not found")
-	errIdentityConflict = errors.New("user identity conflicts with an existing workspace user")
-	errStoreClosed      = errors.New("workspace store is closed")
+	errBoardExists         = errors.New("board already exists")
+	errBoardNotFound       = errors.New("board not found")
+	errIdentityConflict    = errors.New("user identity conflicts with an existing workspace user")
+	errStoreClosed         = errors.New("workspace store is closed")
+	errDurableStateChanged = errors.New("durable board snapshot differs from accepted state")
 )
 
 type store struct {
@@ -201,6 +202,10 @@ func (s *store) durable(id string) (snapshot, error) {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.readDurableLocked(id)
+}
+
+func (s *store) readDurableLocked(id string) (snapshot, error) {
 	if s.lease == nil {
 		return snapshot{}, errStoreClosed
 	}
@@ -209,6 +214,17 @@ func (s *store) durable(id string) (snapshot, error) {
 		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot directory is unavailable.")
 	}
 	return readSnapshot(path, id)
+}
+
+func (s *store) checkAcceptedDurableLocked(current snapshot) error {
+	saved, err := s.readDurableLocked(current.Board.ID)
+	if err != nil {
+		return errInvalidSnapshot
+	}
+	if !reflect.DeepEqual(current, saved) {
+		return errDurableStateChanged
+	}
+	return nil
 }
 
 func (s *store) fencedBoard() string {
@@ -231,11 +247,7 @@ func (s *store) readback(id string) (snapshot, error) {
 	if !s.writeUncertain || s.uncertainBoardID != id {
 		return cloneSnapshot(current), nil
 	}
-	path := s.snapshotPath(id)
-	if err := s.checkBoardsDirectory(filepath.Dir(path)); err != nil {
-		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot directory is unavailable.")
-	}
-	return readSnapshot(path, id)
+	return s.readDurableLocked(id)
 }
 
 func (s *store) create(value snapshot) error {
@@ -297,6 +309,9 @@ func (s *store) updateLocked(current snapshot, change func(*snapshot) error) (sn
 }
 
 func (s *store) prepareUpdateLocked(current snapshot, change func(*snapshot) error) (snapshot, bool, error) {
+	if err := s.checkAcceptedDurableLocked(current); err != nil {
+		return snapshot{}, false, err
+	}
 	next := cloneSnapshot(current)
 	if err := change(&next); err != nil {
 		return snapshot{}, false, err
@@ -310,13 +325,6 @@ func (s *store) prepareUpdateLocked(current snapshot, change func(*snapshot) err
 	}
 	if current.Board.Revision == math.MaxUint64 {
 		return snapshot{}, false, errors.New("board revision exhausted")
-	}
-	info, err := os.Lstat(s.snapshotPath(current.Board.ID))
-	if err != nil {
-		return snapshot{}, false, err
-	}
-	if !info.Mode().IsRegular() {
-		return snapshot{}, false, errInvalidSnapshot
 	}
 	next.Board.Revision++
 	next.Board.UpdatedAt = canonicalTime(time.Now())

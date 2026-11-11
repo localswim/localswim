@@ -11,11 +11,9 @@ import (
 func (x *request) listBoards() {
 	rows := make([]boardSummary, 0)
 	for _, s := range x.service.store.list() {
-		if !s.can(x.actor, "read") {
-			continue
+		if row, visible := x.service.store.boardSummary(s.Board.ID, x.actor); visible {
+			rows = append(rows, row)
 		}
-		_, err := x.service.store.durable(s.Board.ID)
-		rows = append(rows, summarize(s, err))
 	}
 	sortSummaries(rows)
 	page(x, "boards", rows)

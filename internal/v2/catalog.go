@@ -2,6 +2,7 @@ package v2
 
 import (
 	"cmp"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -58,6 +59,16 @@ func deriveAttention(state snapshot) (attention, *time.Time) {
 	return counts, &at
 }
 
+func (s *store) boardSummary(id, actor string) (boardSummary, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	current, ok := s.boards[id]
+	if !ok || !current.can(actor, "read") {
+		return boardSummary{}, false
+	}
+	return summarize(current, s.checkAcceptedDurableLocked(current)), true
+}
+
 func summarize(state snapshot, durableErr error) boardSummary {
 	board := state.Board
 	result := boardSummary{ID: board.ID, Availability: board.Availability}
@@ -70,6 +81,9 @@ func summarize(state snapshot, durableErr error) boardSummary {
 
 	if durableErr != nil {
 		code := "durable_state_unavailable"
+		if errors.Is(durableErr, errDurableStateChanged) {
+			code = "durable_state_changed"
+		}
 		result.Availability = "unhealthy"
 		result.ErrorCode = &code
 	} else if board.Availability == "open" {

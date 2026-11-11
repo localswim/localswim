@@ -138,6 +138,16 @@ order. It recomputes the selected pool and full dependency paths in one transact
 refuses. A real permutation changes only selected ticket numbers, card revisions and renumber audit.
 UUID attachment paths and existing history remain intact. An unchanged order preserves the revision.
 
+Ordinary writes to existing boards compare the saved snapshot with the service's accepted
+snapshot before applying any change. A damaged or missing snapshot returns
+`503 unavailable` and appears as `durable_state_unavailable` in the board catalog.
+A valid replacement that differs from the accepted state returns `503 unavailable`
+and appears as `durable_state_changed`, even when the two revisions match.
+Both refusals leave the saved and accepted state intact. Other boards remain
+writable. Native snapshot verification reports the file's validity, while the
+catalog reports whether the file agrees with the running service. Use explicit
+snapshot admission or backup restoration to recover the affected board.
+
 Native recovery accepts JSON snapshots or application/zip backups at the existing board address.
 Both request entities have an inclusive 96 MiB limit. PUT uses the current durable snapshot
 representation validator when the snapshot is readable. When durable state is unavailable, a previously

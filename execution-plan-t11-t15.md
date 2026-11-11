@@ -15,6 +15,8 @@ The graph takes **five turns**. The two longest upstream branches are `M077 → 
 
 Demo ready milestones at the end of each turn and at each three-hour build break. Move checked and independently reviewed work to Ready for Review when it finishes. Run the [side-by-side parity walkthrough](docs/v1-parity-milestones/qualification.md) after the milestone checks pass.
 
+[Detailed agent assignments and timing](agent-assignment-plan-t11-t15.md)
+
 ## T11
 
 | Milestone | Outcome | Workstream | Estimate | Upstream |

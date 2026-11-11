@@ -1,0 +1,2124 @@
+{
+  "revision": 1,
+  "status": "proposed_execution_roster",
+  "scope": "All 62 post-T10 parity milestones; staffing and sequencing only",
+  "source_baseline": "060c99376443c446ed47fcf45df66bafac017415",
+  "current_rolling_window": [
+    11,
+    12,
+    13
+  ],
+  "future_planned_turns": [
+    14,
+    15
+  ],
+  "capacity": {
+    "primary": 1,
+    "direct_subagents": 16,
+    "max_depth": 1
+  },
+  "assumptions": {
+    "author_minutes": "Existing single-lead implementation and focused-verification estimate",
+    "review_minutes": {
+      "medium": 25,
+      "high": 40
+    },
+    "serial_primary_integration_minutes": 10,
+    "final_turn_gate_minutes": 20,
+    "individual_demos": "Outside timed implementation model; show due work during three-hour breaks and at turn end",
+    "corrections": "Re-estimate after findings; zero in deterministic baseline",
+    "human_wait": "Excluded and never treated as acceptance",
+    "worktree_isolation": "Independent feature changes with primary-controlled shared-file integration",
+    "parallel_speedup": "None assumed inside one milestone"
+  },
+  "estimated_total_minutes": 1380,
+  "qualification_minutes": 120,
+  "turn_offsets_are_minutes": true,
+  "work_areas": {
+    "Workspace": {
+      "scope": "Workspace browser",
+      "files": [
+        "web/app.mjs",
+        "web/app.css",
+        "web/api.mjs",
+        "internal/v2/catalog.go",
+        "internal/v2/events.go"
+      ],
+      "coord": "Navigation, subscriptions, sidebar and saved view state."
+    },
+    "Card UI": {
+      "scope": "Card browser",
+      "files": [
+        "web/app.mjs",
+        "web/app.css",
+        "web/api.mjs"
+      ],
+      "coord": "Card face, drawer, filtering, formatting and guarded pending edits."
+    },
+    "Files": {
+      "scope": "Browser files and background jobs",
+      "files": [
+        "web/app.mjs",
+        "web/api.mjs",
+        "internal/v2/attachments.go",
+        "internal/v2/backups.go"
+      ],
+      "coord": "Upload selection, operation identity, replay checks and job-scoped state."
+    },
+    "Workflow": {
+      "scope": "Workflow and presentation",
+      "files": [
+        "internal/v2/lanes_edit.go",
+        "internal/v2/default_workflow.go",
+        "internal/v2/custom_workflow.go",
+        "internal/v2/approvals.go",
+        "internal/v2/boards.go"
+      ],
+      "coord": "Lane configuration, grants, approval audit and presentation."
+    },
+    "Bot CLI": {
+      "scope": "CLI commands and projections",
+      "files": [
+        "cmd/localswim/cli.go",
+        "internal/client/client.go",
+        "internal/v2/card_search.go",
+        "internal/v2/comments.go"
+      ],
+      "coord": "Dispatch, ticket resolution, offline reads and shared report projection."
+    },
+    "Activity": {
+      "scope": "Activity and notices",
+      "files": [
+        "internal/v2/activity.go",
+        "internal/v2/owner_notices.go",
+        "internal/v2/notification_settings.go"
+      ],
+      "coord": "Historical identity, coverage, routing and committed operation metadata."
+    },
+    "Recovery": {
+      "scope": "Durability and native recovery",
+      "files": [
+        "internal/v2/store.go",
+        "internal/v2/store_files.go",
+        "internal/v2/snapshots.go",
+        "internal/v2/backup_archive.go"
+      ],
+      "coord": "Durable admission, retained recovery authority and restore."
+    },
+    "Publication": {
+      "scope": "Git publication",
+      "files": [
+        "internal/v2/publication_git.go",
+        "internal/v2/publication_checkpoint.go",
+        "internal/v2/automatic_publication.go"
+      ],
+      "coord": "Capture inventory, remote/ref selection, index and process cleanup."
+    },
+    "Operations": {
+      "scope": "Windows operation and performance",
+      "files": [
+        "cmd/localswim/main.go",
+        "cmd/localswim/service_replacement.go",
+        "cmd/localswim/service_replacement_windows.go",
+        "internal/v2/service_lifecycle.go"
+      ],
+      "coord": "Detached launch, replacement and workload measurement."
+    }
+  },
+  "turns": [
+    {
+      "turn": 11,
+      "start": 0,
+      "end": 350,
+      "minutes": 350,
+      "gate": {
+        "start": 330,
+        "end": 350
+      },
+      "lower_bound": {
+        "idealMergeFinish": 330,
+        "optimalUnderModel": 350,
+        "scheduled": 350,
+        "match": true
+      },
+      "jobs": [
+        {
+          "milestone": "M040",
+          "title": "See Attention across projects",
+          "scope_reference": "docs/v1-parity-milestones/m40.md",
+          "work_area": "Workspace",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m040_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 105,
+            "slot": 1
+          },
+          "reviewer": {
+            "name": "sol_medium_m040_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 105,
+            "end": 130,
+            "slot": 6
+          },
+          "integration": {
+            "start": 130,
+            "end": 140
+          }
+        },
+        {
+          "milestone": "M041",
+          "title": "Watch the open board update",
+          "scope_reference": "docs/v1-parity-milestones/m41.md",
+          "work_area": "Workspace",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_high_m041_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 135,
+            "slot": 13
+          },
+          "reviewer": {
+            "name": "sol_high_m041_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 135,
+            "end": 175,
+            "slot": 8
+          },
+          "integration": {
+            "start": 200,
+            "end": 210
+          }
+        },
+        {
+          "milestone": "M045",
+          "title": "Resume a board view",
+          "scope_reference": "docs/v1-parity-milestones/m45.md",
+          "work_area": "Workspace",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_high_m045_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 105,
+            "slot": 11
+          },
+          "reviewer": {
+            "name": "sol_high_m045_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 105,
+            "end": 145,
+            "slot": 11
+          },
+          "integration": {
+            "start": 150,
+            "end": 160
+          }
+        },
+        {
+          "milestone": "M047",
+          "title": "Start and move work where permitted",
+          "scope_reference": "docs/v1-parity-milestones/m47.md",
+          "work_area": "Card UI",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m047_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 120,
+            "slot": 15
+          },
+          "reviewer": {
+            "name": "sol_high_m047_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 120,
+            "end": 160,
+            "slot": 3
+          },
+          "integration": {
+            "start": 170,
+            "end": 180
+          }
+        },
+        {
+          "milestone": "M049",
+          "title": "Scan cards and lane totals",
+          "scope_reference": "docs/v1-parity-milestones/m49.md",
+          "work_area": "Card UI",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m049_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 75,
+            "slot": 4
+          },
+          "reviewer": {
+            "name": "sol_medium_m049_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 75,
+            "end": 100,
+            "slot": 7
+          },
+          "integration": {
+            "start": 100,
+            "end": 110
+          }
+        },
+        {
+          "milestone": "M050",
+          "title": "Set one card's priority directly",
+          "scope_reference": "docs/v1-parity-milestones/m50.md",
+          "work_area": "Card UI",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m050_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 60,
+            "slot": 14
+          },
+          "reviewer": {
+            "name": "sol_medium_m050_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 60,
+            "end": 85,
+            "slot": 14
+          },
+          "integration": {
+            "start": 85,
+            "end": 95
+          }
+        },
+        {
+          "milestone": "M051",
+          "title": "Navigate and seed related work",
+          "scope_reference": "docs/v1-parity-milestones/m51.md",
+          "work_area": "Card UI",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m051_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 100,
+            "end": 245,
+            "slot": 4
+          },
+          "reviewer": {
+            "name": "sol_medium_m051_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 245,
+            "end": 270,
+            "slot": 4
+          },
+          "integration": {
+            "start": 310,
+            "end": 320
+          }
+        },
+        {
+          "milestone": "M058",
+          "title": "Paste and upload several files to a card",
+          "scope_reference": "docs/v1-parity-milestones/m58.md",
+          "work_area": "Files",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_high_m058_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 135,
+            "slot": 9
+          },
+          "reviewer": {
+            "name": "sol_high_m058_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 135,
+            "end": 175,
+            "slot": 13
+          },
+          "integration": {
+            "start": 210,
+            "end": 220
+          }
+        },
+        {
+          "milestone": "M062",
+          "title": "Keep working while a backup runs",
+          "scope_reference": "docs/v1-parity-milestones/m62.md",
+          "work_area": "Files",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_high_m062_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 130,
+            "end": 220,
+            "slot": 6
+          },
+          "reviewer": {
+            "name": "sol_high_m062_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 220,
+            "end": 260,
+            "slot": 3
+          },
+          "integration": {
+            "start": 270,
+            "end": 280
+          }
+        },
+        {
+          "milestone": "M063",
+          "title": "Opt a lane into dependency reorder",
+          "scope_reference": "docs/v1-parity-milestones/m63.md",
+          "work_area": "Workflow",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_high_m063_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 105,
+            "slot": 6
+          },
+          "reviewer": {
+            "name": "sol_high_m063_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 105,
+            "end": 145,
+            "slot": 1
+          },
+          "integration": {
+            "start": 160,
+            "end": 170
+          }
+        },
+        {
+          "milestone": "M064",
+          "title": "See lane notes and board actor context",
+          "scope_reference": "docs/v1-parity-milestones/m64.md",
+          "work_area": "Workflow",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m064_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 100,
+            "end": 225,
+            "slot": 7
+          },
+          "reviewer": {
+            "name": "sol_high_m064_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 225,
+            "end": 265,
+            "slot": 6
+          },
+          "integration": {
+            "start": 280,
+            "end": 290
+          }
+        },
+        {
+          "milestone": "M065",
+          "title": "Approve a configured lane as Terry",
+          "scope_reference": "docs/v1-parity-milestones/m65.md",
+          "work_area": "Workflow",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_high_m065_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 155,
+            "slot": 10
+          },
+          "reviewer": {
+            "name": "sol_high_m065_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 155,
+            "end": 195,
+            "slot": 10
+          },
+          "integration": {
+            "start": 240,
+            "end": 250
+          }
+        },
+        {
+          "milestone": "M067",
+          "title": "Pick next work across lanes",
+          "scope_reference": "docs/v1-parity-milestones/m67.md",
+          "work_area": "Bot CLI",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m067_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 120,
+            "slot": 5
+          },
+          "reviewer": {
+            "name": "sol_medium_m067_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 145,
+            "end": 170,
+            "slot": 1
+          },
+          "integration": {
+            "start": 180,
+            "end": 190
+          }
+        },
+        {
+          "milestone": "M068",
+          "title": "Inspect a ticket and its context safely",
+          "scope_reference": "docs/v1-parity-milestones/m68.md",
+          "work_area": "Bot CLI",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m068_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 120,
+            "end": 240,
+            "slot": 15
+          },
+          "reviewer": {
+            "name": "sol_medium_m068_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 240,
+            "end": 265,
+            "slot": 7
+          },
+          "integration": {
+            "start": 290,
+            "end": 300
+          }
+        },
+        {
+          "milestone": "M069",
+          "title": "Catch up on recent comments by ticket",
+          "scope_reference": "docs/v1-parity-milestones/m69.md",
+          "work_area": "Bot CLI",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m069_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 75,
+            "slot": 7
+          },
+          "reviewer": {
+            "name": "sol_medium_m069_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 75,
+            "end": 100,
+            "slot": 4
+          },
+          "integration": {
+            "start": 110,
+            "end": 120
+          }
+        },
+        {
+          "milestone": "M070",
+          "title": "Act on a card by ticket",
+          "scope_reference": "docs/v1-parity-milestones/m70.md",
+          "work_area": "Bot CLI",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m070_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 120,
+            "slot": 3
+          },
+          "reviewer": {
+            "name": "sol_high_m070_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 130,
+            "end": 170,
+            "slot": 2
+          },
+          "integration": {
+            "start": 190,
+            "end": 200
+          }
+        },
+        {
+          "milestone": "M074",
+          "title": "Inspect and export saved work with the writer down",
+          "scope_reference": "docs/v1-parity-milestones/m74.md",
+          "work_area": "Bot CLI",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_high_m074_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 120,
+            "slot": 12
+          },
+          "reviewer": {
+            "name": "sol_high_m074_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 145,
+            "end": 185,
+            "slot": 11
+          },
+          "integration": {
+            "start": 230,
+            "end": 240
+          }
+        },
+        {
+          "milestone": "M076",
+          "title": "Fail automation on failed board verification",
+          "scope_reference": "docs/v1-parity-milestones/m76.md",
+          "work_area": "Bot CLI",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m076_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 45,
+            "slot": 16
+          },
+          "reviewer": {
+            "name": "sol_medium_m076_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 45,
+            "end": 70,
+            "slot": 16
+          },
+          "integration": {
+            "start": 70,
+            "end": 80
+          }
+        },
+        {
+          "milestone": "M077",
+          "title": "Inspect activity without leaking card prose",
+          "scope_reference": "docs/v1-parity-milestones/m77.md",
+          "work_area": "Activity",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m077_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 120,
+            "end": 210,
+            "slot": 12
+          },
+          "reviewer": {
+            "name": "sol_high_m077_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 210,
+            "end": 250,
+            "slot": 2
+          },
+          "integration": {
+            "start": 260,
+            "end": 270
+          }
+        },
+        {
+          "milestone": "M082",
+          "title": "Protect a board whose saved data changed",
+          "scope_reference": "docs/v1-parity-milestones/m82.md",
+          "work_area": "Recovery",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_high_m082_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 85,
+            "end": 230,
+            "slot": 14
+          },
+          "reviewer": {
+            "name": "sol_high_m082_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 230,
+            "end": 270,
+            "slot": 1
+          },
+          "integration": {
+            "start": 320,
+            "end": 330
+          }
+        },
+        {
+          "milestone": "M088",
+          "title": "Keep ignored boards out of Git",
+          "scope_reference": "docs/v1-parity-milestones/m88.md",
+          "work_area": "Publication",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_high_m088_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 120,
+            "end": 225,
+            "slot": 5
+          },
+          "reviewer": {
+            "name": "sol_high_m088_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 225,
+            "end": 265,
+            "slot": 5
+          },
+          "integration": {
+            "start": 300,
+            "end": 310
+          }
+        },
+        {
+          "milestone": "M092",
+          "title": "Start V2 independently on Windows",
+          "scope_reference": "docs/v1-parity-milestones/m92.md",
+          "work_area": "Operations",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_high_m092_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 70,
+            "end": 190,
+            "slot": 16
+          },
+          "reviewer": {
+            "name": "sol_high_m092_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 190,
+            "end": 230,
+            "slot": 1
+          },
+          "integration": {
+            "start": 250,
+            "end": 260
+          }
+        },
+        {
+          "milestone": "M096",
+          "title": "Validate a large portable backup locally",
+          "scope_reference": "docs/v1-parity-milestones/m96.md",
+          "work_area": "Recovery",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_high_m096_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 135,
+            "slot": 8
+          },
+          "reviewer": {
+            "name": "sol_high_m096_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 135,
+            "end": 175,
+            "slot": 9
+          },
+          "integration": {
+            "start": 220,
+            "end": 230
+          }
+        },
+        {
+          "milestone": "M100",
+          "title": "Apply board-specific browser styling",
+          "scope_reference": "docs/v1-parity-milestones/m100.md",
+          "work_area": "Workflow",
+          "prerequisites": [],
+          "author": {
+            "name": "sol_medium_m100_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 90,
+            "slot": 2
+          },
+          "reviewer": {
+            "name": "sol_high_m100_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 90,
+            "end": 130,
+            "slot": 2
+          },
+          "integration": {
+            "start": 140,
+            "end": 150
+          }
+        }
+      ]
+    },
+    {
+      "turn": 12,
+      "start": 350,
+      "end": 670,
+      "minutes": 320,
+      "gate": {
+        "start": 300,
+        "end": 320
+      },
+      "lower_bound": {
+        "idealMergeFinish": 300,
+        "optimalUnderModel": 320,
+        "scheduled": 320,
+        "match": true
+      },
+      "jobs": [
+        {
+          "milestone": "M042",
+          "title": "Watch workspace Attention update",
+          "scope_reference": "docs/v1-parity-milestones/m42.md",
+          "work_area": "Workspace",
+          "prerequisites": [
+            "M040",
+            "M041"
+          ],
+          "author": {
+            "name": "sol_high_m042_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 120,
+            "slot": 6
+          },
+          "reviewer": {
+            "name": "sol_high_m042_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 120,
+            "end": 160,
+            "slot": 10
+          },
+          "integration": {
+            "start": 170,
+            "end": 180
+          }
+        },
+        {
+          "milestone": "M043",
+          "title": "Organize pins from the sidebar",
+          "scope_reference": "docs/v1-parity-milestones/m43.md",
+          "work_area": "Workspace",
+          "prerequisites": [
+            "M040"
+          ],
+          "author": {
+            "name": "sol_medium_m043_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 105,
+            "slot": 7
+          },
+          "reviewer": {
+            "name": "sol_medium_m043_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 105,
+            "end": 130,
+            "slot": 4
+          },
+          "integration": {
+            "start": 130,
+            "end": 140
+          }
+        },
+        {
+          "milestone": "M044",
+          "title": "Resize and collapse the sidebar",
+          "scope_reference": "docs/v1-parity-milestones/m44.md",
+          "work_area": "Workspace",
+          "prerequisites": [
+            "M040"
+          ],
+          "author": {
+            "name": "sol_medium_m044_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 75,
+            "slot": 2
+          },
+          "reviewer": {
+            "name": "sol_medium_m044_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 75,
+            "end": 100,
+            "slot": 2
+          },
+          "integration": {
+            "start": 100,
+            "end": 110
+          }
+        },
+        {
+          "milestone": "M046",
+          "title": "Reopen a recent board immediately",
+          "scope_reference": "docs/v1-parity-milestones/m46.md",
+          "work_area": "Workspace",
+          "prerequisites": [
+            "M041",
+            "M045"
+          ],
+          "author": {
+            "name": "sol_high_m046_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 135,
+            "slot": 14
+          },
+          "reviewer": {
+            "name": "sol_high_m046_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 135,
+            "end": 175,
+            "slot": 3
+          },
+          "integration": {
+            "start": 200,
+            "end": 210
+          }
+        },
+        {
+          "milestone": "M048",
+          "title": "Drag a card to an allowed lane",
+          "scope_reference": "docs/v1-parity-milestones/m48.md",
+          "work_area": "Card UI",
+          "prerequisites": [
+            "M047"
+          ],
+          "author": {
+            "name": "sol_medium_m048_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 105,
+            "slot": 5
+          },
+          "reviewer": {
+            "name": "sol_high_m048_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 105,
+            "end": 145,
+            "slot": 7
+          },
+          "integration": {
+            "start": 150,
+            "end": 160
+          }
+        },
+        {
+          "milestone": "M052",
+          "title": "Filter work without leaving the board",
+          "scope_reference": "docs/v1-parity-milestones/m52.md",
+          "work_area": "Card UI",
+          "prerequisites": [
+            "M045",
+            "M049"
+          ],
+          "author": {
+            "name": "sol_medium_m052_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 105,
+            "slot": 11
+          },
+          "reviewer": {
+            "name": "sol_medium_m052_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 105,
+            "end": 130,
+            "slot": 11
+          },
+          "integration": {
+            "start": 140,
+            "end": 150
+          }
+        },
+        {
+          "milestone": "M053",
+          "title": "Review recent or older Completed work",
+          "scope_reference": "docs/v1-parity-milestones/m53.md",
+          "work_area": "Card UI",
+          "prerequisites": [
+            "M049"
+          ],
+          "author": {
+            "name": "sol_medium_m053_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 75,
+            "slot": 16
+          },
+          "reviewer": {
+            "name": "sol_medium_m053_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 75,
+            "end": 100,
+            "slot": 16
+          },
+          "integration": {
+            "start": 110,
+            "end": 120
+          }
+        },
+        {
+          "milestone": "M056",
+          "title": "Recover drafts and submitted actions",
+          "scope_reference": "docs/v1-parity-milestones/m56.md",
+          "work_area": "Card UI",
+          "prerequisites": [
+            "M045"
+          ],
+          "author": {
+            "name": "sol_high_m056_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 135,
+            "slot": 12
+          },
+          "reviewer": {
+            "name": "sol_high_m056_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 135,
+            "end": 175,
+            "slot": 8
+          },
+          "integration": {
+            "start": 210,
+            "end": 220
+          }
+        },
+        {
+          "milestone": "M059",
+          "title": "Create a card with files",
+          "scope_reference": "docs/v1-parity-milestones/m59.md",
+          "work_area": "Files",
+          "prerequisites": [
+            "M058"
+          ],
+          "author": {
+            "name": "sol_medium_m059_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 105,
+            "slot": 15
+          },
+          "reviewer": {
+            "name": "sol_high_m059_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 130,
+            "end": 170,
+            "slot": 4
+          },
+          "integration": {
+            "start": 190,
+            "end": 200
+          }
+        },
+        {
+          "milestone": "M061",
+          "title": "See an image preview on the card",
+          "scope_reference": "docs/v1-parity-milestones/m61.md",
+          "work_area": "Files",
+          "prerequisites": [
+            "M049"
+          ],
+          "author": {
+            "name": "sol_medium_m061_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 60,
+            "slot": 13
+          },
+          "reviewer": {
+            "name": "sol_medium_m061_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 60,
+            "end": 85,
+            "slot": 13
+          },
+          "integration": {
+            "start": 85,
+            "end": 95
+          }
+        },
+        {
+          "milestone": "M066",
+          "title": "Start a board with Terry's workflow",
+          "scope_reference": "docs/v1-parity-milestones/m66.md",
+          "work_area": "Workflow",
+          "prerequisites": [
+            "M063",
+            "M065"
+          ],
+          "author": {
+            "name": "sol_high_m066_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 105,
+            "end": 210,
+            "slot": 15
+          },
+          "reviewer": {
+            "name": "sol_high_m066_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 210,
+            "end": 250,
+            "slot": 4
+          },
+          "integration": {
+            "start": 290,
+            "end": 300
+          }
+        },
+        {
+          "milestone": "M071",
+          "title": "Manage hierarchy and links by ticket",
+          "scope_reference": "docs/v1-parity-milestones/m71.md",
+          "work_area": "Bot CLI",
+          "prerequisites": [
+            "M070"
+          ],
+          "author": {
+            "name": "sol_medium_m071_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 85,
+            "end": 205,
+            "slot": 13
+          },
+          "reviewer": {
+            "name": "sol_high_m071_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 205,
+            "end": 245,
+            "slot": 2
+          },
+          "integration": {
+            "start": 260,
+            "end": 270
+          }
+        },
+        {
+          "milestone": "M072",
+          "title": "Run routine writes without composing JSON",
+          "scope_reference": "docs/v1-parity-milestones/m72.md",
+          "work_area": "Bot CLI",
+          "prerequisites": [
+            "M070"
+          ],
+          "author": {
+            "name": "sol_medium_m072_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 135,
+            "slot": 8
+          },
+          "reviewer": {
+            "name": "sol_high_m072_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 135,
+            "end": 175,
+            "slot": 11
+          },
+          "integration": {
+            "start": 220,
+            "end": 230
+          }
+        },
+        {
+          "milestone": "M075",
+          "title": "Triage and catch up offline",
+          "scope_reference": "docs/v1-parity-milestones/m75.md",
+          "work_area": "Bot CLI",
+          "prerequisites": [
+            "M067",
+            "M068",
+            "M069",
+            "M074"
+          ],
+          "author": {
+            "name": "sol_medium_m075_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 100,
+            "end": 205,
+            "slot": 16
+          },
+          "reviewer": {
+            "name": "sol_high_m075_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 205,
+            "end": 245,
+            "slot": 3
+          },
+          "integration": {
+            "start": 270,
+            "end": 280
+          }
+        },
+        {
+          "milestone": "M078",
+          "title": "Verify what an owner notice covers",
+          "scope_reference": "docs/v1-parity-milestones/m78.md",
+          "work_area": "Activity",
+          "prerequisites": [
+            "M077"
+          ],
+          "author": {
+            "name": "sol_high_m078_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 155,
+            "slot": 1
+          },
+          "reviewer": {
+            "name": "sol_high_m078_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 155,
+            "end": 195,
+            "slot": 1
+          },
+          "integration": {
+            "start": 250,
+            "end": 260
+          }
+        },
+        {
+          "milestone": "M079",
+          "title": "Explicitly route notices to the owning chat",
+          "scope_reference": "docs/v1-parity-milestones/m79.md",
+          "work_area": "Activity",
+          "prerequisites": [
+            "M077"
+          ],
+          "author": {
+            "name": "sol_high_m079_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 100,
+            "end": 205,
+            "slot": 2
+          },
+          "reviewer": {
+            "name": "sol_high_m079_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 205,
+            "end": 245,
+            "slot": 1
+          },
+          "integration": {
+            "start": 280,
+            "end": 290
+          }
+        },
+        {
+          "milestone": "M083",
+          "title": "Start with one damaged board and keep working",
+          "scope_reference": "docs/v1-parity-milestones/m83.md",
+          "work_area": "Recovery",
+          "prerequisites": [
+            "M082"
+          ],
+          "author": {
+            "name": "sol_high_m083_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 135,
+            "slot": 3
+          },
+          "reviewer": {
+            "name": "sol_high_m083_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 135,
+            "end": 175,
+            "slot": 12
+          },
+          "integration": {
+            "start": 230,
+            "end": 240
+          }
+        },
+        {
+          "milestone": "M089",
+          "title": "Publish to the intended Git destination",
+          "scope_reference": "docs/v1-parity-milestones/m89.md",
+          "work_area": "Publication",
+          "prerequisites": [
+            "M088"
+          ],
+          "author": {
+            "name": "sol_high_m089_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 145,
+            "slot": 9
+          },
+          "reviewer": {
+            "name": "sol_high_m089_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 145,
+            "end": 185,
+            "slot": 5
+          },
+          "integration": {
+            "start": 240,
+            "end": 250
+          }
+        },
+        {
+          "milestone": "M091",
+          "title": "Publish without disturbing staged work",
+          "scope_reference": "docs/v1-parity-milestones/m91.md",
+          "work_area": "Publication",
+          "prerequisites": [
+            "M088"
+          ],
+          "author": {
+            "name": "sol_high_m091_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 120,
+            "slot": 10
+          },
+          "reviewer": {
+            "name": "sol_high_m091_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 120,
+            "end": 160,
+            "slot": 6
+          },
+          "integration": {
+            "start": 180,
+            "end": 190
+          }
+        },
+        {
+          "milestone": "M098",
+          "title": "Work with files and batches using ticket references",
+          "scope_reference": "docs/v1-parity-milestones/m98.md",
+          "work_area": "Bot CLI",
+          "prerequisites": [
+            "M070"
+          ],
+          "author": {
+            "name": "sol_medium_m098_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 105,
+            "slot": 4
+          },
+          "reviewer": {
+            "name": "sol_high_m098_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 105,
+            "end": 145,
+            "slot": 5
+          },
+          "integration": {
+            "start": 160,
+            "end": 170
+          }
+        }
+      ]
+    },
+    {
+      "turn": 13,
+      "start": 670,
+      "end": 925,
+      "minutes": 255,
+      "gate": {
+        "start": 235,
+        "end": 255
+      },
+      "lower_bound": {
+        "idealMergeFinish": 235,
+        "optimalUnderModel": 255,
+        "scheduled": 255,
+        "match": true
+      },
+      "jobs": [
+        {
+          "milestone": "M054",
+          "title": "Read and find formatted card prose",
+          "scope_reference": "docs/v1-parity-milestones/m54.md",
+          "work_area": "Card UI",
+          "prerequisites": [
+            "M052"
+          ],
+          "author": {
+            "name": "sol_medium_m054_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 135,
+            "slot": 4
+          },
+          "reviewer": {
+            "name": "sol_high_m054_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 135,
+            "end": 175,
+            "slot": 4
+          },
+          "integration": {
+            "start": 175,
+            "end": 185
+          }
+        },
+        {
+          "milestone": "M055",
+          "title": "Edit and review by keyboard",
+          "scope_reference": "docs/v1-parity-milestones/m55.md",
+          "work_area": "Card UI",
+          "prerequisites": [
+            "M052",
+            "M063",
+            "M064",
+            "M065"
+          ],
+          "author": {
+            "name": "sol_medium_m055_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 90,
+            "slot": 11
+          },
+          "reviewer": {
+            "name": "sol_medium_m055_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 90,
+            "end": 115,
+            "slot": 11
+          },
+          "integration": {
+            "start": 115,
+            "end": 125
+          }
+        },
+        {
+          "milestone": "M057",
+          "title": "See slow edits while they settle",
+          "scope_reference": "docs/v1-parity-milestones/m57.md",
+          "work_area": "Card UI",
+          "prerequisites": [
+            "M041",
+            "M048",
+            "M056",
+            "M059"
+          ],
+          "author": {
+            "name": "sol_high_m057_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 150,
+            "slot": 1
+          },
+          "reviewer": {
+            "name": "sol_high_m057_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 150,
+            "end": 190,
+            "slot": 1
+          },
+          "integration": {
+            "start": 225,
+            "end": 235
+          }
+        },
+        {
+          "milestone": "M060",
+          "title": "Resume a partial upload safely",
+          "scope_reference": "docs/v1-parity-milestones/m60.md",
+          "work_area": "Files",
+          "prerequisites": [
+            "M056",
+            "M059"
+          ],
+          "author": {
+            "name": "sol_high_m060_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 135,
+            "slot": 5
+          },
+          "reviewer": {
+            "name": "sol_high_m060_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 135,
+            "end": 175,
+            "slot": 5
+          },
+          "integration": {
+            "start": 185,
+            "end": 195
+          }
+        },
+        {
+          "milestone": "M073",
+          "title": "Provision and adjust workflows from the CLI",
+          "scope_reference": "docs/v1-parity-milestones/m73.md",
+          "work_area": "Bot CLI",
+          "prerequisites": [
+            "M066",
+            "M072"
+          ],
+          "author": {
+            "name": "sol_high_m073_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 105,
+            "slot": 7
+          },
+          "reviewer": {
+            "name": "sol_high_m073_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 105,
+            "end": 145,
+            "slot": 7
+          },
+          "integration": {
+            "start": 145,
+            "end": 155
+          }
+        },
+        {
+          "milestone": "M080",
+          "title": "Restore without rolling back notice authorization",
+          "scope_reference": "docs/v1-parity-milestones/m80.md",
+          "work_area": "Activity",
+          "prerequisites": [
+            "M079"
+          ],
+          "author": {
+            "name": "sol_high_m080_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 135,
+            "slot": 6
+          },
+          "reviewer": {
+            "name": "sol_high_m080_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 135,
+            "end": 175,
+            "slot": 6
+          },
+          "integration": {
+            "start": 195,
+            "end": 205
+          }
+        },
+        {
+          "milestone": "M081",
+          "title": "Recognize approval and lane changes in notices",
+          "scope_reference": "docs/v1-parity-milestones/m81.md",
+          "work_area": "Activity",
+          "prerequisites": [
+            "M078",
+            "M079"
+          ],
+          "author": {
+            "name": "sol_high_m081_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 105,
+            "slot": 8
+          },
+          "reviewer": {
+            "name": "sol_high_m081_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 105,
+            "end": 145,
+            "slot": 8
+          },
+          "integration": {
+            "start": 155,
+            "end": 165
+          }
+        },
+        {
+          "milestone": "M087",
+          "title": "See durable health changes from the open workspace",
+          "scope_reference": "docs/v1-parity-milestones/m87.md",
+          "work_area": "Workspace",
+          "prerequisites": [
+            "M042",
+            "M082",
+            "M083"
+          ],
+          "author": {
+            "name": "sol_high_m087_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 105,
+            "slot": 9
+          },
+          "reviewer": {
+            "name": "sol_high_m087_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 105,
+            "end": 145,
+            "slot": 9
+          },
+          "integration": {
+            "start": 165,
+            "end": 175
+          }
+        },
+        {
+          "milestone": "M095",
+          "title": "Identify a damaged board and its recovery point",
+          "scope_reference": "docs/v1-parity-milestones/m95.md",
+          "work_area": "Recovery",
+          "prerequisites": [
+            "M083"
+          ],
+          "author": {
+            "name": "sol_high_m095_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 145,
+            "slot": 2
+          },
+          "reviewer": {
+            "name": "sol_high_m095_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 145,
+            "end": 185,
+            "slot": 2
+          },
+          "integration": {
+            "start": 205,
+            "end": 215
+          }
+        },
+        {
+          "milestone": "M097",
+          "title": "Retry a pending push to its original destination",
+          "scope_reference": "docs/v1-parity-milestones/m97.md",
+          "work_area": "Publication",
+          "prerequisites": [
+            "M089"
+          ],
+          "author": {
+            "name": "sol_high_m097_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 145,
+            "slot": 3
+          },
+          "reviewer": {
+            "name": "sol_high_m097_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 145,
+            "end": 185,
+            "slot": 3
+          },
+          "integration": {
+            "start": 215,
+            "end": 225
+          }
+        },
+        {
+          "milestone": "M101",
+          "title": "Inspect saved activity with the writer down",
+          "scope_reference": "docs/v1-parity-milestones/m101.md",
+          "work_area": "Activity",
+          "prerequisites": [
+            "M074",
+            "M078"
+          ],
+          "author": {
+            "name": "sol_high_m101_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 95,
+            "slot": 10
+          },
+          "reviewer": {
+            "name": "sol_high_m101_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 95,
+            "end": 135,
+            "slot": 10
+          },
+          "integration": {
+            "start": 135,
+            "end": 145
+          }
+        }
+      ]
+    },
+    {
+      "turn": 14,
+      "start": 925,
+      "end": 1160,
+      "minutes": 235,
+      "gate": {
+        "start": 215,
+        "end": 235
+      },
+      "lower_bound": {
+        "idealMergeFinish": 215,
+        "optimalUnderModel": 235,
+        "scheduled": 235,
+        "match": true
+      },
+      "jobs": [
+        {
+          "milestone": "M084",
+          "title": "Recover a board that cannot load",
+          "scope_reference": "docs/v1-parity-milestones/m84.md",
+          "work_area": "Recovery",
+          "prerequisites": [
+            "M080",
+            "M083",
+            "M095"
+          ],
+          "author": {
+            "name": "sol_high_m084_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 155,
+            "slot": 1
+          },
+          "reviewer": {
+            "name": "sol_high_m084_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 155,
+            "end": 195,
+            "slot": 1
+          },
+          "integration": {
+            "start": 195,
+            "end": 205
+          }
+        },
+        {
+          "milestone": "M086",
+          "title": "Restore a downloaded attachment-heavy backup",
+          "scope_reference": "docs/v1-parity-milestones/m86.md",
+          "work_area": "Recovery",
+          "prerequisites": [
+            "M080",
+            "M096"
+          ],
+          "author": {
+            "name": "sol_high_m086_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 125,
+            "slot": 4
+          },
+          "reviewer": {
+            "name": "sol_high_m086_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 125,
+            "end": 165,
+            "slot": 4
+          },
+          "integration": {
+            "start": 165,
+            "end": 175
+          }
+        },
+        {
+          "milestone": "M090",
+          "title": "Recover cleanly from a stalled publication",
+          "scope_reference": "docs/v1-parity-milestones/m90.md",
+          "work_area": "Publication",
+          "prerequisites": [
+            "M097"
+          ],
+          "author": {
+            "name": "sol_high_m090_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 135,
+            "slot": 3
+          },
+          "reviewer": {
+            "name": "sol_high_m090_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 135,
+            "end": 175,
+            "slot": 3
+          },
+          "integration": {
+            "start": 175,
+            "end": 185
+          }
+        },
+        {
+          "milestone": "M094",
+          "title": "Keep busy workspaces responsive",
+          "scope_reference": "docs/v1-parity-milestones/m94.md",
+          "work_area": "Operations",
+          "prerequisites": [
+            "M046",
+            "M057",
+            "M060",
+            "M062",
+            "M087"
+          ],
+          "author": {
+            "name": "sol_high_m094_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 155,
+            "slot": 2
+          },
+          "reviewer": {
+            "name": "sol_high_m094_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 155,
+            "end": 195,
+            "slot": 2
+          },
+          "integration": {
+            "start": 205,
+            "end": 215
+          }
+        },
+        {
+          "milestone": "M099",
+          "title": "Discover commands from their own help",
+          "scope_reference": "docs/v1-parity-milestones/m99.md",
+          "work_area": "Bot CLI",
+          "prerequisites": [
+            "M072",
+            "M073",
+            "M098"
+          ],
+          "author": {
+            "name": "sol_medium_m099_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 0,
+            "end": 90,
+            "slot": 5
+          },
+          "reviewer": {
+            "name": "sol_medium_m099_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium",
+            "service_tier": "default",
+            "start": 90,
+            "end": 115,
+            "slot": 5
+          },
+          "integration": {
+            "start": 115,
+            "end": 125
+          }
+        }
+      ]
+    },
+    {
+      "turn": 15,
+      "start": 1160,
+      "end": 1380,
+      "minutes": 220,
+      "gate": {
+        "start": 200,
+        "end": 220
+      },
+      "lower_bound": {
+        "idealMergeFinish": 200,
+        "optimalUnderModel": 220,
+        "scheduled": 220,
+        "match": true
+      },
+      "jobs": [
+        {
+          "milestone": "M085",
+          "title": "Contain an uncertain commit to its actual scope",
+          "scope_reference": "docs/v1-parity-milestones/m85.md",
+          "work_area": "Recovery",
+          "prerequisites": [
+            "M082",
+            "M084"
+          ],
+          "author": {
+            "name": "sol_high_m085_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 150,
+            "slot": 1
+          },
+          "reviewer": {
+            "name": "sol_high_m085_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 150,
+            "end": 190,
+            "slot": 1
+          },
+          "integration": {
+            "start": 190,
+            "end": 200
+          }
+        },
+        {
+          "milestone": "M093",
+          "title": "Reconnect after a Windows crash or upgrade",
+          "scope_reference": "docs/v1-parity-milestones/m93.md",
+          "work_area": "Operations",
+          "prerequisites": [
+            "M084",
+            "M092"
+          ],
+          "author": {
+            "name": "sol_high_m093_author",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 0,
+            "end": 105,
+            "slot": 2
+          },
+          "reviewer": {
+            "name": "sol_high_m093_review",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
+            "service_tier": "default",
+            "start": 105,
+            "end": 145,
+            "slot": 2
+          },
+          "integration": {
+            "start": 145,
+            "end": 155
+          }
+        }
+      ]
+    }
+  ]
+}

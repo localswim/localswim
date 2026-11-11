@@ -136,6 +136,7 @@ func (refs snapshotReferences) approvalAuditEnd(value snapshot, start int, lates
 		snapshotString(latest[snapshotAuditField{"lane", source, "retired"}]) != "false" {
 		return 0
 	}
+	text := approvalCommentText(first.BulkApprovalComment)
 	end := start
 	members := make(map[string]bool)
 	for end < len(value.Activity) && value.Activity[end].Revision == first.Revision {
@@ -144,17 +145,20 @@ func (refs snapshotReferences) approvalAuditEnd(value snapshot, start int, lates
 			snapshotString(move.Before) != source || snapshotString(move.After) != target ||
 			snapshotString(latest[snapshotAuditField{"card", move.ResourceID, "lane_id"}]) != source ||
 			snapshotString(latest[snapshotAuditField{"card", move.ResourceID, "archived"}]) != "false" ||
-			members[move.ResourceID] {
+			members[move.ResourceID] || (end != start && move.BulkApprovalComment != "") {
 			return 0
 		}
 		note := value.Activity[end+1]
-		if !validApprovalPair(move, note, refs.comments[note.ResourceID]) {
+		if !validApprovalPair(move, note, refs.comments[note.ResourceID], text) {
 			return 0
 		}
 		members[move.ResourceID] = true
 		end += 2
 	}
-	if len(members) > maxApprovalCards || len(members) > 1 && (len(members) != occupancy[source] ||
+	bulk := first.BulkApprovalComment != "" || len(members) > 1
+	configured := snapshotString(latest[snapshotAuditField{"lane", source, "bulk_approval_comment"}])
+	if len(members) > maxApprovalCards || bulk && (len(members) != occupancy[source] ||
+		text != approvalCommentText(configured) ||
 		snapshotString(latest[snapshotAuditField{"lane", source, "approval_enabled"}]) != "true") {
 		return 0
 	}
@@ -200,6 +204,8 @@ func (refs snapshotReferences) validLaneAuditValue(actor string, field snapshotA
 	switch field.name {
 	case "label":
 		return snapshotText(*value, 1, 256)
+	case "notes":
+		return snapshotText(*value, 0, maxLaneNotes)
 	case "key":
 		return refs.lanes[field.resourceID].Role != "completed" && *value != "completed" && snapshotText(*value, 1, 128)
 	case "position":
@@ -207,8 +213,12 @@ func (refs snapshotReferences) validLaneAuditValue(actor string, field snapshotA
 		return err == nil && position >= 0 && strconv.Itoa(position) == *value
 	case "retired":
 		return refs.lanes[field.resourceID].Role != "completed" && (*value == "false" || *value == "true")
+	case "reorder_enabled":
+		return *value == "false" || *value == "true"
 	case "approval_enabled":
 		return refs.lanes[field.resourceID].Role == "ready_for_review" && (*value == "false" || *value == "true")
+	case "bulk_approval_comment":
+		return refs.lanes[field.resourceID].Role == "ready_for_review" && snapshotText(*value, 0, maxBulkApprovalComment)
 	}
 	return false
 }
@@ -244,12 +254,18 @@ func (refs snapshotReferences) currentLaneAuditValue(field snapshotAuditField) *
 	switch field.name {
 	case "label":
 		return &item.Label
+	case "notes":
+		return &item.Notes
 	case "key":
 		return &item.Key
 	case "retired":
 		return archiveAuditValue(item.Retired)
+	case "reorder_enabled":
+		return archiveAuditValue(item.ReorderEnabled)
 	case "approval_enabled":
 		return archiveAuditValue(item.ApprovalEnabled)
+	case "bulk_approval_comment":
+		return &item.BulkApprovalComment
 	case "position":
 		position := strconv.Itoa(item.Position)
 		return &position
@@ -308,7 +324,8 @@ func validRetirementAuditShape(events []activity, index int) bool {
 		edit := events[i]
 		field := snapshotString(edit.Field)
 		if !edit.At.Equal(retired.At) || edit.ResourceType != "lane" || edit.ResourceID != retired.ResourceID ||
-			edit.Operation != "patch" || (field != "label" && field != "key" && field != "approval_enabled") {
+			edit.Operation != "patch" || (field != "label" && field != "key" && field != "notes" &&
+			field != "approval_enabled" && field != "reorder_enabled") {
 			return false
 		}
 	}

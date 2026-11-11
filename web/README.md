@@ -160,7 +160,8 @@ Run the focused checks with `npm --prefix web run check` and `npm --prefix web t
 
 The board uses `GET /boards/{board_id}?view=lanes` for the server's visible
 priority and dependency order. Archived cards remain in the separate archived
-section. Per-lane **Preview ticket order** accepts comma- or space-separated
+section. In lanes with dependency reorder enabled and at least two active cards,
+**Preview ticket order** accepts comma- or space-separated
 tickets, or an empty selection for all active cards. It displays the current
 and proposed assignments at the captured revision. Preview is read-only.
 

@@ -41,7 +41,7 @@ func TestLaneEditsHTTP(t *testing.T) {
 	anchor := before.Lanes[1]
 	id := newID()
 	laneInput := map[string]any{
-		"id": strings.ToUpper(id), "board_id": created.ID, "board_etag": created.ETag, "label": "Check QA",
+		"id": strings.ToUpper(id), "board_id": created.ID, "board_etag": created.ETag, "label": "Check QA", "notes": " QA\nworkflow ",
 		"before_id": anchor.ID, "create_for": []string{botID}, "connect_for": []string{humanID},
 	}
 	asJSON := func(value map[string]any) string {
@@ -62,7 +62,7 @@ func TestLaneEditsHTTP(t *testing.T) {
 		headers.Get("X-Board-ETag") != after.Board.ETag || headers.Get("Location") != Prefix+"/lanes/"+id {
 		t.Fatal("insert did not return the committed lane, versions, and location")
 	}
-	if inserted.ID != id || inserted.Key != "check_qa" || inserted.Position != 1 || inserted.Revision != 2 ||
+	if inserted.ID != id || inserted.Key != "check_qa" || inserted.Position != 1 || inserted.Revision != 2 || inserted.Notes != " QA\nworkflow " ||
 		after.Board.LaneIDs[1] != inserted.ID || after.Lanes[2].ID != anchor.ID || after.Lanes[2].Position != 2 ||
 		after.Lanes[2].Revision != 2 || after.Lanes[0].Revision != 1 || after.Lanes[2].entityTag() == anchor.entityTag() || after.Lanes[0] != before.Lanes[0] {
 		t.Fatal("insert did not preserve the anchored order and stable identities")

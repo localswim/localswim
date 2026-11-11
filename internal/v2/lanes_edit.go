@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const maxLaneNotes = 4096
+
 var errLaneOccupied = errors.New("a lane with active cards cannot be retired")
 
 func (x *request) createLane() {
@@ -33,7 +35,7 @@ func (x *request) createLane() {
 		return
 	}
 	fields := &workflowFields{path: "lane", fields: obj, err: rejectFields(obj,
-		[]string{"id", "board_id", "board_etag", "label", "key", "role", "before_id", "after_id", "create_for", "connect_for"}, false)}
+		[]string{"id", "board_id", "board_etag", "label", "key", "role", "before_id", "after_id", "create_for", "connect_for", "notes"}, false)}
 	boardTag := laneBoardTag(fields)
 	if fields.err != nil {
 		x.fail(fields.err)
@@ -92,18 +94,27 @@ func (x *request) renameLane(id string) {
 		return
 	}
 	fields := &workflowFields{path: "lane", fields: obj, err: rejectFields(obj,
-		[]string{"board_etag", "label", "key", "retired", "approval_enabled"}, false)}
+		[]string{"board_etag", "label", "key", "retired", "approval_enabled", "reorder_enabled", "bulk_approval_comment", "notes"}, false)}
 	boardTag := laneBoardTag(fields)
-	for _, name := range []string{"reorder_enabled", "position"} {
-		if _, found := obj[name]; found {
-			fields.fail(name, "This patch field is unavailable.")
-		}
+	if _, found := obj["position"]; found {
+		fields.fail("position", "This patch field is unavailable.")
 	}
 	label := fields.string("label", 1, 256, false)
 	key := fields.string("key", 1, 128, false)
 	retired := lanePatchBool(fields, "retired")
 	approval := lanePatchBool(fields, "approval_enabled")
-	if label == "" && key == "" && retired == nil && approval == nil {
+	reorder := lanePatchBool(fields, "reorder_enabled")
+	var bulkComment *string
+	if _, present := fields.fields["bulk_approval_comment"]; present {
+		value := fields.string("bulk_approval_comment", 0, maxBulkApprovalComment, false)
+		bulkComment = &value
+	}
+	var notes *string
+	if _, present := fields.fields["notes"]; present {
+		value := fields.displayText("notes", 0, maxLaneNotes)
+		notes = &value
+	}
+	if label == "" && key == "" && retired == nil && approval == nil && reorder == nil && bulkComment == nil && notes == nil {
 		fields.fail("label", "Supply at least one editable lane field.")
 	}
 	if fields.err != nil {
@@ -123,7 +134,7 @@ func (x *request) renameLane(id string) {
 		if !matchesStrongTag(laneTag, item.entityTag()) {
 			return errStale
 		}
-		if err := applyLanePatch(current, index, x.actor, label, key, retired, approval); err != nil {
+		if err := applyLanePatch(current, index, x.actor, label, key, retired, approval, reorder, bulkComment, notes); err != nil {
 			return err
 		}
 		item = current.Lanes[index]
@@ -153,7 +164,7 @@ func lanePatchBool(fields *workflowFields, name string) *bool {
 	return value
 }
 
-func applyLanePatch(current *snapshot, index int, actor, label, key string, retired, approval *bool) error {
+func applyLanePatch(current *snapshot, index int, actor, label, key string, retired, approval, reorder *bool, bulkComment, notes *string) error {
 	item := current.Lanes[index]
 	if key != "" && key != item.Key {
 		if item.Role == "completed" || key == "completed" {
@@ -179,10 +190,17 @@ func applyLanePatch(current *snapshot, index int, actor, label, key string, reti
 		return invalid("approval_enabled", "Lane approval requires an active Ready for Review lane.")
 	}
 
+	if bulkComment != nil && (item.Role != "ready_for_review" || item.Retired || willRetire) {
+		return invalid("bulk_approval_comment", "A bulk approval comment requires an active Ready for Review lane.")
+	}
+
 	changedLabel := label != "" && item.Label != label
 	changedKey := key != "" && item.Key != key
 	changedApproval := approval != nil && item.ApprovalEnabled != *approval
-	if !changedLabel && !changedKey && !changedApproval && !willRetire {
+	changedReorder := reorder != nil && item.ReorderEnabled != *reorder
+	changedBulkComment := bulkComment != nil && item.BulkApprovalComment != *bulkComment
+	changedNotes := notes != nil && item.Notes != *notes
+	if !changedLabel && !changedKey && !changedApproval && !changedReorder && !changedBulkComment && !changedNotes && !willRetire {
 		return nil
 	}
 	now := laneEditTime(*current, time.Now())
@@ -190,6 +208,11 @@ func applyLanePatch(current *snapshot, index int, actor, label, key string, reti
 		before := item.Label
 		appendLaneAudit(current, actor, item.ID, "patch", "label", &before, &label, now)
 		item.Label = label
+	}
+	if changedNotes {
+		before := item.Notes
+		appendLaneAudit(current, actor, item.ID, "patch", "notes", &before, notes, now)
+		item.Notes = *notes
 	}
 	if changedKey {
 		before := item.Key
@@ -200,6 +223,16 @@ func applyLanePatch(current *snapshot, index int, actor, label, key string, reti
 		before, after := strconv.FormatBool(item.ApprovalEnabled), strconv.FormatBool(*approval)
 		appendLaneAudit(current, actor, item.ID, "patch", "approval_enabled", &before, &after, now)
 		item.ApprovalEnabled = *approval
+	}
+	if changedReorder {
+		before, after := strconv.FormatBool(item.ReorderEnabled), strconv.FormatBool(*reorder)
+		appendLaneAudit(current, actor, item.ID, "patch", "reorder_enabled", &before, &after, now)
+		item.ReorderEnabled = *reorder
+	}
+	if changedBulkComment {
+		before := item.BulkApprovalComment
+		appendLaneAudit(current, actor, item.ID, "patch", "bulk_approval_comment", &before, bulkComment, now)
+		item.BulkApprovalComment = *bulkComment
 	}
 	if willRetire {
 		before, after := "false", "true"
@@ -223,6 +256,7 @@ func insertLane(current *snapshot, fields *workflowFields, actor string, at time
 		id = fields.id("id")
 	}
 	label := fields.string("label", 1, 256, true)
+	notes := fields.displayText("notes", 0, maxLaneNotes)
 	role := fields.enum("role", "ordinary", "ordinary", "completed", "blocked", "needs_input", "ready_for_review")
 	key := fields.string("key", 1, 128, false)
 	if _, present := fields.fields["key"]; !present {
@@ -273,7 +307,7 @@ func insertLane(current *snapshot, fields *workflowFields, actor string, at time
 	}
 
 	item := lane{ID: id, Revision: current.Board.Revision + 1, CreatedAt: now, UpdatedAt: now,
-		BoardID: current.Board.ID, Key: key, Label: label, Role: role}
+		BoardID: current.Board.ID, Key: key, Label: label, Role: role, Notes: notes}
 	activeCount := 0
 	for _, existing := range current.Lanes {
 		if !existing.Retired {

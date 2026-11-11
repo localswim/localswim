@@ -51,6 +51,22 @@ func (input *workflowFields) string(key string, minLength, maxLength int, requir
 	return value
 }
 
+func (input *workflowFields) displayText(key string, minLength, maxLength int) string {
+	raw, present := input.fields[key]
+	if !present {
+		return ""
+	}
+	var value string
+	if len(raw) == 0 || raw[0] != '"' || unmarshalCanonical(raw, &value) != nil {
+		input.fail(key, "must be a Unicode string")
+		return ""
+	}
+	if !snapshotText(value, minLength, maxLength) {
+		input.fail(key, "has an invalid length")
+	}
+	return value
+}
+
 func (input *workflowFields) enum(key string, fallback string, allowed ...string) string {
 	if _, present := input.fields[key]; !present && fallback != "" {
 		return fallback
@@ -184,9 +200,10 @@ func customWorkflow(raw json.RawMessage, boardID string, now time.Time) (workflo
 	completedCount := 0
 	for index, raw := range laneInputs {
 		path := workflowItem("workflow.lanes", index)
-		input := readWorkflowFields(raw, path, false, "id", "key", "label", "role", "create_for", "connect_for")
+		input := readWorkflowFields(raw, path, false, "id", "key", "label", "role", "create_for", "connect_for", "notes")
 		id := input.id("id")
 		label := input.string("label", 1, 256, true)
+		notes := input.displayText("notes", 0, maxLaneNotes)
 		role := input.enum("role", "ordinary", "ordinary", "completed", "blocked", "needs_input", "ready_for_review")
 		key := input.string("key", 1, 128, false)
 		if _, present := input.fields["key"]; !present {
@@ -226,6 +243,7 @@ func customWorkflow(raw json.RawMessage, boardID string, now time.Time) (workflo
 			BoardID:   boardID,
 			Key:       key,
 			Label:     label,
+			Notes:     notes,
 			Role:      role,
 			Position:  index,
 		})

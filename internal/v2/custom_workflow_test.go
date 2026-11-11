@@ -14,7 +14,7 @@ const workflowTestInput = `{
     {"id":"A0000000-0000-4000-8000-000000000002","label":" Owner ","kind":"HuMaN"}
   ],
   "lanes": [
-    {"id":"A0000000-0000-4000-8000-000000000003","label":"To Do","future":{"flag":true}},
+    {"id":"A0000000-0000-4000-8000-000000000003","label":"To Do","notes":" Initial\ntext ","future":{"flag":true}},
     {"id":"a0000000-0000-4000-8000-000000000004","label":"Done","role":"CoMpLeTeD"}
   ],
   "priorities": [
@@ -38,7 +38,7 @@ func TestCustomWorkflowResolvesDefinitions(t *testing.T) {
 		got.Users[0].CreatedAt != now || got.Users[0].ID != "a0000000-0000-4000-8000-000000000002" {
 		t.Fatalf("incorrect initial user: %+v", got.Users)
 	}
-	if len(got.Lanes) != 2 || got.Lanes[0].Role != "ordinary" || got.Lanes[0].Key != "to_do" ||
+	if len(got.Lanes) != 2 || got.Lanes[0].Role != "ordinary" || got.Lanes[0].Key != "to_do" || got.Lanes[0].Notes != " Initial\ntext " ||
 		got.Lanes[1].Role != "completed" || got.Lanes[1].Key != "completed" ||
 		got.Lanes[0].Position >= got.Lanes[1].Position {
 		t.Fatalf("incorrect initial lane definitions: %+v", got.Lanes)
@@ -60,6 +60,8 @@ func TestCustomWorkflowRefusesInvalidDefinitions(t *testing.T) {
 		{"unknown closed member", `"kind":"HuMaN"`, `"kind":"HuMaN","future":true`},
 		{"protected open member", `"future":{"flag":true}`, `"token":"unexpected"`},
 		{"wrong known type", `"label":"To Do"`, `"label":null`},
+		{"invalid note", `"notes":" Initial\ntext "`, `"notes":null`},
+		{"invalid note Unicode", `"notes":" Initial\ntext "`, `"notes":"\uD800"`},
 		{"null definition array", `"create_grants":[{"user_id":"a0000000-0000-4000-8000-000000000002","lane_id":"a0000000-0000-4000-8000-000000000003"}]`, `"create_grants":null`},
 		{"cross-type duplicate ID", `"id":"A0000000-0000-4000-8000-000000000003"`, `"id":"a0000000-0000-4000-8000-000000000002"`},
 		{"duplicate normalized user", `"kind":"HuMaN"}`, `"kind":"HuMaN"},{"id":"a0000000-0000-4000-8000-000000000002","kind":"bot","label":"Second"}`},

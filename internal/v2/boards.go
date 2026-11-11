@@ -25,7 +25,7 @@ func (x *request) createBoard() {
 		x.fail(err)
 		return
 	}
-	if err = rejectFields(obj, []string{"id", "name", "workflow", "default_owner_id"}, false); err != nil {
+	if err = rejectFields(obj, []string{"id", "name", "workflow", "default_owner_id", "actor_presentation"}, false); err != nil {
 		x.fail(err)
 		return
 	}
@@ -54,6 +54,13 @@ func (x *request) createBoard() {
 		wf = defaultWorkflow(id, now, x.service.principals)
 	}
 	s := freshSnapshot(id, name, wf, x.actor, now)
+	if raw, ok := obj["actor_presentation"]; ok {
+		s.Board.ActorPresentation, err = readActorPresentation(raw)
+		if err != nil {
+			x.fail(err)
+			return
+		}
+	}
 	if raw, ok := obj["default_owner_id"]; ok {
 		s.Board.DefaultOwnerID, err = inputID(raw, "default_owner_id")
 		if err != nil {
@@ -126,7 +133,7 @@ func (x *request) patchBoard(s snapshot) {
 		x.fail(err)
 		return
 	}
-	if err = rejectFields(obj, []string{"name", "notifications", "default_owner_id", "publishing", "availability"}, false); err != nil {
+	if err = rejectFields(obj, []string{"name", "notifications", "default_owner_id", "publishing", "availability", "actor_presentation"}, false); err != nil {
 		x.fail(err)
 		return
 	}
@@ -141,13 +148,14 @@ func (x *request) patchBoard(s snapshot) {
 	raw, hasNotifications := obj["notifications"]
 	publishingInput, hasPublishing := obj["publishing"]
 	availabilityInput, hasAvailability := obj["availability"]
-	hasSettings := hasName || hasNotifications || hasDefaultOwner || hasPublishing
+	presentationInput, hasPresentation := obj["actor_presentation"]
+	hasSettings := hasName || hasNotifications || hasDefaultOwner || hasPublishing || hasPresentation
 	if !hasSettings && !hasAvailability {
 		x.fail(invalid("body", "A supported change is required."))
 		return
 	}
 	authorized := func(s snapshot) bool {
-		return s.can(x.actor, "read") && (!(hasName || hasDefaultOwner) || s.can(x.actor, "manage_board")) &&
+		return s.can(x.actor, "read") && (!(hasName || hasDefaultOwner || hasPresentation) || s.can(x.actor, "manage_board")) &&
 			(!hasNotifications || s.can(x.actor, "manage_notifications")) && (!hasPublishing || s.can(x.actor, "publish")) &&
 			(!hasAvailability || s.can(x.actor, "close_board"))
 	}
@@ -202,6 +210,17 @@ func (x *request) patchBoard(s snapshot) {
 			if before != owner {
 				appendChange("default_owner_id", &before, &owner)
 				s.Board.DefaultOwnerID = owner
+			}
+		}
+		if hasPresentation {
+			value, err := readActorPresentation(presentationInput)
+			if err != nil {
+				return err
+			}
+			before := s.Board.ActorPresentation
+			if value != before {
+				appendChange("actor_presentation", before.auditValue(), value.auditValue())
+				s.Board.ActorPresentation = value
 			}
 		}
 		if hasNotifications {

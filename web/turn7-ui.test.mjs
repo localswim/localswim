@@ -3,7 +3,10 @@ import fs from "node:fs/promises";
 import vm from "node:vm";
 import test from "node:test";
 import { newOperationId } from "./operation-id.mjs";
-import {ApiError, createBrowserApi, validPublishing} from "./api.mjs";
+import {
+  ApiError, createBrowserApi, DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH,
+  MAX_LANE_APPROVAL_CARDS, validPublishing,
+} from "./api.mjs";
 import {createBoardRefresh, watchBoard} from "./board-updates.mjs";
 const board = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
 const lane = "ceab10a8-1492-4c90-aa07-13b83138919a";
@@ -26,7 +29,7 @@ async function harness(api, pathname = "/boards/" + board, {
   class Element {
     scrollTop = 0;
     scrollLeft = 0;
-    constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; }
+    constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; this.style = {}; }
     set textContent(value) { this.ownText = value; this.children = []; }
     get textContent() { return this.ownText + this.children.map((node) => node.textContent).join(""); }
     get isConnected() { return this.root === true || Boolean(this.parent?.isConnected); }
@@ -62,7 +65,10 @@ async function harness(api, pathname = "/boards/" + board, {
     querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; }
   }
   class Input extends Element { get valueAsNumber() { return Number(this.value); } }
-  class Textarea extends Element {}
+  class Textarea extends Element {
+    setCustomValidity(message) { this.validationMessage = message; }
+    reportValidity() { return !this.validationMessage; }
+  }
   class Button extends Element {}
   class Select extends Element {
     get options() { return this.children; }
@@ -80,10 +86,11 @@ async function harness(api, pathname = "/boards/" + board, {
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
     Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, newOperationId,
     createBoardRefresh, watchBoard: typeof api.streamEvents === "function" ? watchBoard : async () => {},
+    DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH, MAX_LANE_APPROVAL_CARDS,
     createBrowserApi: ({getCapability}) => typeof api === "function" ? api(getCapability) : api,
     openBrowserSession: openSession});
   let source = await fs.readFile(new URL("./app.mjs", import.meta.url), "utf8");
-  source = source.replace(/^import .*?;\r?\n/gm, "").replace(/void load\(\);\s*$/, "");
+  source = source.replace(/^import \{[^}]+\} from "[^"]+";\r?\n/gm, "").replace(/void load\(\);\s*$/, "");
   vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing, inspect:()=>cardInspection.inspect()};", context);
   async function settled() { for (let count = 0; count < 40; count++) { await new Promise((resolve) => setTimeout(resolve, 0)); if (!context.hooks.busy()) return; } throw Error("UI did not settle"); }
   const find = (root, tagName, text) => root.querySelectorAll(tagName).find((node) => node.ownText === text);
@@ -438,10 +445,16 @@ test("repeated live paints bound automatic drawer reads and leave the exact sele
 
 test("cover space exists before bytes arrive and repaint restores scroll without scrolling focused controls", async () => {
   const {api} = boardApi();
+  const listLanes = api.listLanes;
+  api.listLanes = async () => page("lanes", (await listLanes()).data.lanes.map((entry) => ({...entry, reorder_enabled: true})));
   const getBoardLanes = api.getBoardLanes;
   api.getBoardLanes = async (...args) => {
     const result = await getBoardLanes(...args);
-    return {...result, data: {...result.data, cards: result.data.cards.map((item) => ({...item, cover_attachment_id: backup}))}};
+    const original = result.data.cards[0];
+    return {...result, data: {...result.data, cards: [
+      {...original, cover_attachment_id: backup},
+      {...original, id: user, ticket: 2, title: "Other card"},
+    ]}};
   };
   const pending = Promise.withResolvers();
   api.getAttachment = async () => ({data: {id: backup, board_id: board, card_id: card, active: true, previewable: true}});
@@ -484,6 +497,38 @@ test("cover space exists before bytes arrive and repaint restores scroll without
 });
 
 const publishingOff = {enabled: false, repository: null, last_success_at: null, pending: false, error_code: null};
+
+test("board lane notes and Human and Bot attribution preserve literal text", async () => {
+  const {api} = boardApi();
+  const bot = "90b26733-26a1-41ae-b850-251c72978af1";
+  const notes = " Review first.\n<example> ";
+  const humanLabel = " Reviewer <Human> ";
+  const readLanes = api.getBoardLanes;
+  const listLanes = api.listLanes;
+  const listUsers = api.listUsers;
+  const listComments = api.listComments;
+  api.getBoardLanes = async () => {
+    const reply = await readLanes();
+    reply.data.board.actor_presentation = {human: {label: humanLabel, accent: "#123ABC"}, bot: {accent: "#456def"}};
+    return reply;
+  };
+  api.listLanes = async () => {
+    const reply = await listLanes();
+    return page("lanes", reply.data.lanes.map((item) => ({...item, notes})));
+  };
+  api.listUsers = async () => page("users", [...(await listUsers()).data.users, {id: bot, label: "Automation", kind: "bot"}]);
+  api.listComments = async () => page("comments", [...(await listComments()).data.comments,
+    {id: "bot-comment", card_id: card, author_id: bot, text: "Bot comment", created_at: "2026-11-10 00:00:01+00:00"}]);
+  const ui = await harness(api);
+  await ui.load();
+  assert.equal(ui.find(ui.nodes.main, "p", notes).className, "lane-note body-text");
+  const recent = ui.find(ui.nodes.main, "summary", "Newest comments").parent;
+  recent.open = true;
+  recent.dispatch("toggle");
+  await ui.settled();
+  assert.equal(ui.find(recent, "span", humanLabel).style.borderInlineStartColor, "#123ABC");
+  assert.equal(ui.find(recent, "span", "Automation").style.borderInlineStartColor, "#456def");
+});
 
 test("board loading retries a changed revision and adopts current publishing status at a matching revision", async () => {
   const {api} = boardApi();
@@ -1863,6 +1908,9 @@ function changingBoard() {
 
 test("live changes coalesce behind one selected-board read and preserve open drafts", async (t) => {
   const {api, streams, target, commit} = changingBoard();
+  const listLanes = api.listLanes;
+  api.listLanes = async () => page("lanes", (await listLanes()).data.lanes.map((entry) =>
+    entry.id === lane ? {...entry, reorder_enabled: true} : entry));
   const read = api.getBoardLanes;
   const firstRefresh = Promise.withResolvers();
   const release = Promise.withResolvers();
@@ -1873,7 +1921,12 @@ test("live changes coalesce behind one selected-board read and preserve open dra
       firstRefresh.resolve();
       await release.promise;
     }
-    return reply;
+    const original = reply.data.cards[0];
+    return {...reply, data: {...reply.data, cards: [
+      original,
+      {...original, id: user, ticket: 2, title: "First remaining card", lane_id: lane},
+      {...original, id: priority, ticket: 3, title: "Second remaining card", lane_id: lane},
+    ]}};
   };
   const ui = await harness(api);
   t.after(() => ui.navigate("/"));
@@ -2265,4 +2318,70 @@ test("live invalidation deferred by a write survives until the write ends", asyn
   await until(() => revision === 3);
   assert.equal(reads, 1);
   controller.abort();
+});
+
+test("M63 lane dependency reorder hides disabled lanes and requires two active cards", async () => {
+  const {api} = boardApi();
+  const original = (await api.getCard()).data;
+  const readLanes = api.getBoardLanes;
+  let cardCount = 1;
+  const second = {...original, id: backup, ticket: 2, title: "Blocker"};
+  api.getBoardLanes = async () => {
+    const reply = await readLanes();
+    const cards = cardCount === 1 ? [original] : [original, second];
+    return {...reply, data: {...reply.data, cards}};
+  };
+  const readLaneList = api.listLanes;
+  api.listLanes = async () => {
+    const first = (await readLaneList()).data.lanes[0];
+    return page("lanes", [
+      {...first, label: "Backlog", reorder_enabled: true},
+      {...first, id: user, label: "Second lane", position: 1, reorder_enabled: false},
+    ]);
+  };
+  const current = [{card_id: card, ticket: 1}, {card_id: backup, ticket: 2}];
+  const proposed = [{card_id: backup, ticket: 1}, {card_id: card, ticket: 2}];
+  const previews = [];
+  const applies = [];
+  let previewRevision = 2;
+  api.previewTicketOrder = async (...args) => {
+    previews.push(args);
+    return {data: {board_revision: previewRevision, current, proposed, changed: true}, etag: tag(board, previewRevision)};
+  };
+  api.applyTicketOrder = async (...args) => {
+    applies.push(args);
+    throw new ApiError("http_error", {status: 412});
+  };
+  const ui = await harness(api);
+  const {main} = ui.nodes;
+  const previewButton = () => ui.find(main, "button", "Preview ticket order");
+  await ui.load();
+  assert.equal(main.querySelectorAll("button").filter((control) => control.dataset.action === "preview-ticket-order").length, 1);
+  assert.equal(previewButton().disabled, true);
+  previewButton().click();
+  assert.equal(previews.length, 0);
+  assert.equal(ui.find(main, "button", "Apply ticket order"), undefined);
+
+  cardCount = 2;
+  await ui.load();
+  assert.equal(previewButton().disabled, false);
+  const input = main.querySelectorAll("input").find((control) => control.attributes["aria-label"] === "Tickets to preview in Backlog");
+  input.value = "1";
+  previewButton().click();
+  assert.equal(previews.length, 0);
+  assert.match(main.textContent, /Choose at least two active tickets/);
+  input.value = "";
+  previewButton().click();
+  await ui.settled();
+  assert.deepEqual(previews, [[board, lane, undefined]]);
+  assert.match(main.textContent, /The board changed/);
+  assert.equal(ui.find(main, "button", "Apply ticket order"), undefined);
+
+  previewRevision = 1;
+  previewButton().click();
+  await ui.settled();
+  assert.match(main.textContent, /Preview at board revision 1/);
+  ui.submit(main, "Apply ticket order");
+  await ui.settled();
+  assert.deepEqual(applies, [[board, lane, tag(board, 1), proposed]]);
 });

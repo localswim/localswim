@@ -47,13 +47,17 @@ const cliHelp = `Usage:
   localswim card inspect [--prose] [--data DIRECTORY] BOARD_ID TICKET
   localswim card patch [--revision N] CARD_ID FILE|-
   localswim card move [--revision N] CARD_ID LANE_ID
+  localswim card move [--revision N] BOARD_ID TICKET LANE_ID
   localswim card assign [--revision N] CARD_ID OWNER_ID
+  localswim card assign [--revision N] BOARD_ID TICKET OWNER_ID
   localswim card title [--revision N] CARD_ID TITLE
   localswim card set-priority [--revision N] CARD_ID PRIORITY_ID
   localswim card set-priorities [--revision N] BOARD_ID FILE|-
   localswim card description [--revision N] CARD_ID FILE|-
   localswim card archive [--revision N] CARD_ID
+  localswim card archive [--revision N] BOARD_ID TICKET
   localswim card unarchive [--revision N] CARD_ID
+  localswim card unarchive [--revision N] BOARD_ID TICKET
   localswim card cover [--revision N] CARD_ID ATTACHMENT_ID|none
   localswim relationship list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim relationship get RELATIONSHIP_ID
@@ -121,6 +125,7 @@ Policy grant reads create_grants and/or move_grants and preserves existing permi
 Comment post reads an object containing text and an optional ID.
 Lane add reads the lane definition. The CLI supplies its board ID and validator.
 Card edits, comment post, and attachment upload check the card revision.
+Ticket-based move, assign, archive, and unarchive also check the board version from the focused read.
 Lane add checks the board revision. Attachment detach checks the attachment revision.
 Lane rename, set-key, retire, and set-approval-button check the lane revision.
 Card set-priorities reads card_ids and priority_id and checks the board revision.
@@ -206,6 +211,7 @@ type cliCommand struct {
 	t06Action                          string
 	nativeRead                         string
 	ticketInspection                   *cliTicketInspection
+	ticketPatch                        *ticketCardPatchTarget
 	t07Action                          string
 	publishingAction                   string
 	boardAvailability                  string
@@ -555,6 +561,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	api, err := client.New(getenv("LOCALSWIM_URL"), getenv("LOCALSWIM_TOKEN"))
 	if err != nil {
 		return err
+	}
+	if command.ticketPatch != nil {
+		return executeTicketCardPatch(api, command, stdout)
 	}
 	if command.ticketInspection != nil {
 		return executeTicketInspection(api, command.ticketInspection, stdout)

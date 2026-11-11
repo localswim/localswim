@@ -15286,9 +15286,9 @@ components:
           $ref: '#/components/schemas/UuidInput'
         kind:
           type: string
-          pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[bB][lL][oO][cC][kK][eE][dD]_[bB][yY]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][dD]_[bB][yY]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][dD]_[bB][yY]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
-          description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
-            Inverse spellings swap source/target before canonical storage.
+          pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
+          description: ASCII case-insensitive input. Directional kinds run from the source card
+            to the target card. relates_to is symmetric. Responses use canonical lowercase kinds.
         actor: false
         actor_id: false
         by: false
@@ -15505,9 +15505,9 @@ components:
           $ref: '#/components/schemas/UuidInput'
         kind:
           type: string
-          pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[bB][lL][oO][cC][kK][eE][dD]_[bB][yY]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][dD]_[bB][yY]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][dD]_[bB][yY]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
-          description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
-            Inverse spellings swap source/target before canonical storage.
+          pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
+          description: ASCII case-insensitive input. Directional kinds run from the source card
+            to the target card. relates_to is symmetric. Responses use canonical lowercase kinds.
         actor: false
         actor_id: false
         by: false
@@ -15542,9 +15542,9 @@ components:
           $ref: '#/components/schemas/EntityTag'
         kind:
           type: string
-          pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[bB][lL][oO][cC][kK][eE][dD]_[bB][yY]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][dD]_[bB][yY]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][dD]_[bB][yY]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
-          description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
-            Inverse spellings swap source/target before canonical storage.
+          pattern: ^(?:[bB][lL][oO][cC][kK][sS]|[dD][uU][pP][lL][iI][cC][aA][tT][eE][sS]|[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]|[rR][eE][lL][aA][tT][eE][sS]_[tT][oO])$
+          description: ASCII case-insensitive input. Directional kinds run from the source card
+            to the target card. relates_to is symmetric. Responses use canonical lowercase kinds.
         actor: false
         actor_id: false
         by: false

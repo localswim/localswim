@@ -56,7 +56,7 @@ const cliHelp = `Usage:
   localswim card cover [--revision N] CARD_ID ATTACHMENT_ID|none
   localswim relationship list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim relationship get RELATIONSHIP_ID
-  localswim relationship create [--revision N] BOARD_ID FILE|-
+  localswim relationship create [--revision N] [--id UUID] SOURCE_CARD_ID KIND TARGET_CARD_ID
   localswim relationship patch [--revision N] RELATIONSHIP_ID FILE|-
   localswim relationship remove [--revision N] RELATIONSHIP_ID
   localswim comment list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
@@ -198,6 +198,7 @@ type cliCommand struct {
 	warnings                           []string
 	edit                               t03Edit
 	relationshipWrite                  bool
+	relationshipID                     string
 	downloadPath                       string
 	detachAttachment                   bool
 	t06Action                          string
@@ -626,6 +627,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		reply, err = api.DoWithContentType(command.method, command.resource, body, ifMatch, contentType)
 	}
 	if err != nil {
+		if command.relationshipID != "" && errors.Is(err, client.ErrMutationOutcomeUnknown) {
+			return fmt.Errorf("%w. Read back with localswim relationship get %s before retrying", err, command.relationshipID)
+		}
 		if command.edit.uploadID != "" && errors.Is(err, client.ErrMutationOutcomeUnknown) {
 			return fmt.Errorf("%w (attachment ID %s)", err, command.edit.uploadID)
 		}
@@ -633,6 +637,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 			return fmt.Errorf("%w. Read back with localswim board get %s", err, command.boardID)
 		}
 		return err
+	}
+	if command.relationshipID != "" && !confirmedRelationshipCreation(body, reply.JSON) {
+		return fmt.Errorf("service did not confirm the requested relationship. %w. Read back with localswim relationship get %s before retrying", client.ErrMutationOutcomeUnknown, command.relationshipID)
 	}
 	if command.boardAvailability != "" {
 		availability, err := reply.BoardAvailability(command.boardID)
@@ -651,6 +658,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		}
 	}
 	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
+		if command.relationshipID != "" {
+			return fmt.Errorf("service accepted relationship %s, but its response could not be written. Read back with localswim relationship get %s", command.relationshipID, command.relationshipID)
+		}
 		if command.edit.uploadID != "" {
 			return fmt.Errorf("service accepted attachment %s, but its response could not be written", command.edit.uploadID)
 		}

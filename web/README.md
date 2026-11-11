@@ -41,7 +41,9 @@ active membership and its original versions, including the rendered board versio
 A stale set requires inspection before another submission.
 
 Add a typed link from the drawer or seed a link while creating a card. The same
-relationship is visible from both cards. Human comments link ticket references to
+relationship is visible from both cards. Link types are Blocks, Duplicates, References,
+and Relates to. Incoming links identify the other card as the source. Changing a
+link type preserves its source and target. Human comments link ticket references to
 focused board reads, including archived tickets. Bot comments render as text. Card
 priorities are shown on the board and in the drawer and refresh after link edits.
 

@@ -41,13 +41,18 @@ func TestPriorityFloorBlockingRelationshipTransaction(t *testing.T) {
 		return turnOneDecode[card](t, raw)
 	}
 	a := createCard("Upstream", low, "")
-	middle := createCard("Archived", low, fmt.Sprintf(`,"relationships":[{"target_card_id":%q,"kind":"blocked_by"}]`, a.ID))
+	middle := createCard("Archived", low, "")
+	upstreamBody := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"source_card_id":%q,"target_card_id":%q,"kind":"blocks"}`, b.ID, boardTag, a.ID, middle.ID)
+	_, upstreamHeaders := client.call("POST", "/relationships", upstreamBody, "", 201)
+	boardTag = upstreamHeaders.Get("X-Board-ETag")
+	raw, _ = client.call("GET", "/cards/"+middle.ID, "", "", 200)
+	middle = turnOneDecode[card](t, raw)
 	target := createCard("Target", normal, "")
 	_, headers := client.call("PATCH", "/cards/"+middle.ID, `{"archived":true}`, middle.entityTag(), 200)
 	boardTag = headers.Get("X-Board-ETag")
 
 	body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"source_card_id":%q,"target_card_id":%q,"kind":"references"}`,
-		b.ID, boardTag, target.ID, middle.ID)
+		b.ID, boardTag, middle.ID, target.ID)
 	raw, headers = client.call("POST", "/relationships", body, "", 201)
 	link := turnOneDecode[relationship](t, raw)
 	linkTag := headers.Get("ETag")
@@ -56,7 +61,7 @@ func TestPriorityFloorBlockingRelationshipTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := "/relationships/" + link.ID
-	body = fmt.Sprintf(`{"expected_board_etag":%q,"kind":"blocked_by"}`, before.Board.ETag)
+	body = fmt.Sprintf(`{"expected_board_etag":%q,"kind":"blocks"}`, before.Board.ETag)
 	client.call("PATCH", path, body, linkTag, 200)
 	saved, err := app.store.durable(b.ID)
 	if err != nil {
@@ -67,7 +72,7 @@ func TestPriorityFloorBlockingRelationshipTransaction(t *testing.T) {
 	if saved.Board.Revision != before.Board.Revision+1 || len(promotions) != 2 ||
 		cards[a.ID].PriorityID != normal || cards[middle.ID].PriorityID != normal || !cards[middle.ID].Archived ||
 		cards[a.ID].Revision != saved.Board.Revision || cards[middle.ID].Revision != saved.Board.Revision {
-		t.Fatal("inverse blocking link did not atomically promote both upstream cards")
+		t.Fatal("blocking link did not atomically promote both upstream cards")
 	}
 	for _, event := range promotions {
 		if event.Operation != "promote" || event.Revision != saved.Board.Revision || event.ActorID != humanID ||

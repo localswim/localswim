@@ -500,17 +500,14 @@ function renderCommentText(body, comment, boardId, users) {
 }
 
 const relationshipLabels = Object.freeze({
-  blocks: "Blocks", blocked_by: "Blocked by", duplicates: "Duplicates", duplicated_by: "Duplicated by",
-  references: "References", referenced_by: "Referenced by", relates_to: "Relates to",
+  blocks: "Blocks", duplicates: "Duplicates", references: "References", relates_to: "Relates to",
 });
-/** @type {Partial<Record<RelationshipKind, RelationshipKind>>} */
-const inverseRelationships = { blocks: "blocked_by", duplicates: "duplicated_by", references: "referenced_by",
-  blocked_by: "blocks", duplicated_by: "duplicates", referenced_by: "references" };
 const relationshipChoices = Object.entries(relationshipLabels).map(([id, label]) => ({ id, label }));
 
 /** @param {Relationship} entry @param {string} cardId */
 function relationshipDirection(entry, cardId) {
-  return entry.source_card_id === cardId ? entry.kind : inverseRelationships[entry.kind] ?? entry.kind;
+  if (entry.source_card_id === cardId || entry.kind === "relates_to") return relationshipLabels[entry.kind];
+  return { blocks: "Other blocks this card", duplicates: "Other duplicates this card", references: "Other references this card" }[entry.kind];
 }
 
 function ticketInput() {
@@ -972,17 +969,17 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         const other = targets.get(entry.source_card_id === card.id ? entry.target_card_id : entry.source_card_id);
         const direction = relationshipDirection(entry, card.id);
         const row = element("article");
-        const title = element("p", relationshipLabels[direction] + " ");
+        const title = element("p", direction + " ");
         if (other) title.append(link(ticketHref(boardId, other.ticket), "#" + other.ticket + " " + other.title));
         row.append(title);
-        const type = select(relationshipChoices, direction);
-        row.append(form("Change link type", [field("Link type", type)], (submit) => {
+        const type = select(relationshipChoices, entry.kind);
+        row.append(form("Change link type", [field("Link type (source to target)", type)], (submit) => {
           const wanted = /** @type {RelationshipKind} */ (type.value);
-          if (wanted === direction) return;
-          const canonical = entry.source_card_id === card.id ? wanted : inverseRelationships[wanted] ?? wanted;
+          if (wanted === entry.kind) return;
+          const canonical = wanted;
           void writeResource(submit, () => api.replaceRelationship(entry.id, entry.revision, boardTag(), canonical),
             async () => (await readLinks()).some((value) => value.id === entry.id
-              && relationshipDirection(value, card.id) === wanted), "Link type changed.", inspection);
+              && value.kind === wanted), "Link type changed.", inspection);
         }), form("Remove link", [], (submit) => {
           void writeResource(submit, () => api.removeRelationship(entry.id, entry.revision, boardTag()),
             async () => !(await readLinks()).some((value) => value.id === entry.id), "Link removed.", inspection);

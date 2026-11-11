@@ -7,7 +7,7 @@ const REQUEST_TIMEOUT_MS = 15000;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const RASTER_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
-/** @typedef {"blocks"|"blocked_by"|"duplicates"|"duplicated_by"|"references"|"referenced_by"|"relates_to"} RelationshipKind */
+/** @typedef {"blocks"|"duplicates"|"references"|"relates_to"} RelationshipKind */
 /** @typedef {{enabled: boolean, repository: string|null, last_success_at: string|null, pending: boolean, error_code: string|null}} Publishing */
 /** @typedef {{revision: number, pinned_board_ids: string[], publishing: Publishing}} Workspace */
 /** @typedef {{etag: string, port: number, service_instance_id: string, build_id: string,
@@ -206,6 +206,15 @@ function validLane(data, id, boardId) {
     && typeof lane.approval_enabled === "boolean" && typeof lane.reorder_enabled === "boolean";
 }
 
+/** @param {string} kind @returns {RelationshipKind} */
+function relationshipKind(kind) {
+  const normalized = typeof kind === "string" ? kind.toLowerCase() : "";
+  if (normalized !== "blocks" && normalized !== "duplicates" && normalized !== "references" && normalized !== "relates_to") {
+    throw new TypeError("Invalid relationship kind.");
+  }
+  return normalized;
+}
+
 /** @param {object} data @param {string} [id] @param {string} [boardId] */
 function validRelationship(data, id, boardId) {
   const link = /** @type {Record<string, unknown>} */ (data);
@@ -216,7 +225,7 @@ function validRelationship(data, id, boardId) {
     && isTimestamp(link.created_at) && isTimestamp(link.updated_at)
     && isId(link.source_card_id) && isId(link.target_card_id)
     && typeof link.kind === "string"
-    && ["blocks", "blocked_by", "duplicates", "duplicated_by", "references", "referenced_by", "relates_to"].includes(link.kind);
+    && ["blocks", "duplicates", "references", "relates_to"].includes(link.kind);
 }
 
 /** @param {object} data @param {string} [id] @param {string} [cardId] */
@@ -1052,6 +1061,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {string} id @param {string} boardId @param {string} boardEtag
      * @param {string} source @param {string} target @param {RelationshipKind} kind */
     async createRelationship(id, boardId, boardEtag, source, target, kind) {
+      kind = relationshipKind(kind);
       const expectedId = resourceId(id);
       const board = resourceId(boardId);
       const reply = await createWithId("/relationships", expectedId, { data: {
@@ -1065,6 +1075,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {string} id @param {number} revision @param {string} boardEtag @param {RelationshipKind} kind */
     async replaceRelationship(id, revision, boardEtag, kind) {
+      kind = relationshipKind(kind);
       const boardTag = strongTag(boardEtag);
       const current = await currentRelationship(id, revision);
       const reply = await request("/relationships/" + resourceId(id), {

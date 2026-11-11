@@ -1016,7 +1016,8 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       const replacement = main?.querySelector(`button[data-card-id="${card.id}"]`);
       const filter = main?.querySelector("#board-filter");
       const fallback = filter instanceof HTMLInputElement ? filter : refresh;
-      const target = replacement instanceof HTMLButtonElement ? replacement : opener.isConnected ? opener : fallback;
+      const visibleOpener = opener.isConnected && !opener.closest("details[data-card-search]:not([open])");
+      const target = replacement instanceof HTMLButtonElement ? replacement : visibleOpener ? opener : fallback;
       target?.focus();
     }
     let workflowRead = 0;
@@ -2712,6 +2713,7 @@ async function load(savedAvailability) {
       if (view !== activeView || !filter.isConnected) return;
       state.filter = filter.value;
       renderCards(currentCards, boardTag);
+      if (pendingInspections.has(inspection.scope)) inspection.sync();
       persistBoardView(board.id);
     }
     filter.addEventListener("input", applyFilter);
@@ -3018,6 +3020,7 @@ async function load(savedAvailability) {
                     return result.proposed.every((entry) => currentCards.some((card) => card.id === entry.card_id && card.ticket === entry.ticket));
                   }, "Ticket order applied.", inspection);
                 }));
+                if (pendingInspections.has(inspection.scope)) inspection.sync();
               }
             }).catch(() => {
               if (preview.isConnected) preview.textContent = "Preview refused or unavailable. A selected dependency cycle cannot be reordered.";
@@ -3529,6 +3532,7 @@ function renderCardSearch(boardId, lanes, open) {
   const choices = laneChoices();
   const panel = element("details");
   panel.className = "editor";
+  panel.dataset.cardSearch = "true";
   panel.open = saved?.open === true;
   panel.append(element("summary", "Find cards"));
   const query = element("input");

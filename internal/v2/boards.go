@@ -27,7 +27,7 @@ func (x *request) createBoard() {
 		x.fail(err)
 		return
 	}
-	if err = rejectFields(obj, []string{"id", "name", "workflow", "default_owner_id", "actor_presentation", "user_css"}, false); err != nil {
+	if err = rejectFields(obj, []string{"id", "name", "preset", "workflow", "default_owner_id", "actor_presentation", "user_css"}, false); err != nil {
 		x.fail(err)
 		return
 	}
@@ -45,17 +45,38 @@ func (x *request) createBoard() {
 		}
 	}
 	now := canonicalTime(time.Now())
+	rawPreset, hasPreset := obj["preset"]
+	rawWorkflow, hasWorkflow := obj["workflow"]
+	if hasPreset && hasWorkflow {
+		x.fail(invalid("preset", "Choose either a preset or a custom workflow."))
+		return
+	}
 	var wf workflow
-	if raw, ok := obj["workflow"]; ok {
-		wf, err = customWorkflow(raw, id, now)
+	switch {
+	case hasPreset:
+		preset, err := textField(rawPreset, "preset", 1, 32)
 		if err != nil {
 			x.fail(err)
 			return
 		}
-	} else {
+		if preset != "terry" {
+			x.fail(invalid("preset", "Expected the supported preset terry."))
+			return
+		}
+		wf = terryWorkflow(id, now, x.service.principals)
+	case hasWorkflow:
+		wf, err = customWorkflow(rawWorkflow, id, now)
+		if err != nil {
+			x.fail(err)
+			return
+		}
+	default:
 		wf = defaultWorkflow(id, now, x.service.principals)
 	}
 	s := freshSnapshot(id, name, wf, x.actor, now)
+	if hasPreset {
+		s.Board.ActorPresentation.Human.Label = "Terry"
+	}
 	if raw, ok := obj["user_css"]; ok {
 		s.Board.UserCSS, err = exactCardText(raw, "user_css", 0, maxBoardCSSLength)
 		if err != nil {

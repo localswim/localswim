@@ -156,8 +156,10 @@ the authenticated principal.
 
 Use `PATCH /lanes/{lane_id}` with Boolean `reorder_enabled` and the current
 `board_etag`. Send the current lane validator in `If-Match`. The caller needs
-`manage_workflow`. The setting defaults to false. An enabled lane offers the
-browser preview and Apply workflow once it has at least two active cards.
+`manage_workflow`. Terry's preset starts with reorder enabled in Backlog and
+bulk approval enabled in Ready For Review. Newly created lanes otherwise start
+with both actions disabled. An enabled reorder lane offers the browser preview
+and Apply workflow once it has at least two active cards.
 
 Backup capture holds the board read lock while capturing one committed snapshot.
 Attachment verification and archive construction run after releasing that lock.

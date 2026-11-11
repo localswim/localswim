@@ -101,6 +101,18 @@ func (x *request) patchCard(id string) {
 		x.fail(err)
 		return
 	}
+	const boardHeader = "X-Expected-Board-ETag"
+	boardTags := x.r.Header.Values(boardHeader)
+	var boardMatches func(snapshot) bool
+	if len(boardTags) != 0 {
+		if len(boardTags) != 1 || !snapshotETagPattern.MatchString(boardTags[0]) {
+			x.fail(invalid(boardHeader, "Expected one canonical entity tag."))
+			return
+		}
+		boardMatches = func(current snapshot) bool {
+			return matchesStrongTag(boardTags[0], current.Board.ETag)
+		}
+	}
 	fields, err := x.body()
 	if err != nil {
 		x.fail(err)
@@ -111,7 +123,7 @@ func (x *request) patchCard(id string) {
 		x.fail(err)
 		return
 	}
-	updated, err := x.updateBoardChecked(state.Board.ID, nil, func(candidate *snapshot) error {
+	updated, err := x.updateBoardChecked(state.Board.ID, boardMatches, func(candidate *snapshot) error {
 		now := maxCardTime(canonicalTime(time.Now()), candidate.Board.UpdatedAt)
 		return patch.apply(candidate, id, tag, x.actor, now)
 	})

@@ -2250,6 +2250,14 @@ paths:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
       - $ref: '#/components/parameters/IfMatch'
+      - name: X-Expected-Board-ETag
+        in: header
+        required: false
+        schema:
+          $ref: '#/components/schemas/EntityTag'
+        description: One strong board validator from the original lookup when the caller resolved
+          the card by ticket. Malformed or repeated values return 400. A stale board or card
+          validator returns 412 without applying the edit.
       responses:
         '200':
           description: Success.
@@ -2323,7 +2331,9 @@ paths:
       - 10
       - 24
       description: If-Match checks the addressed card inside the same transaction as policy, references,
-        data, and audit. Unrelated card edits leave the tag valid. A lane_id requires a directed move grant.
+        data, and audit. When supplied, X-Expected-Board-ETag checks the parent board in that transaction
+        as well. Ticket-based callers send both validators to guard the original ticket mapping.
+        Unrelated card edits leave the card tag valid. A lane_id requires a directed move grant.
         A null description clears it. Archiving requires archive_card and retains the card's UUID, ticket,
         lane, owner, relationships, and audit. Restore requires an active lane. Ordinary lists exclude
         archived cards and focused reads retain them. A cover change requires manage_attachments and an

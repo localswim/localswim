@@ -93,6 +93,22 @@ it returns event metadata and ticket numbers without card prose. Select
 Pages default to 50 records and allow up to 200. A cursor stays tied to the
 original interval, filters, and view.
 
+Use `board notifications status BOARD_ID` to inspect the owning-chat route. The
+result contains `board_id`, `revision`, `enabled`, and `target_thread_id`. Routes
+start disabled. Set the verified owning chat with
+`board notifications target [--revision N] BOARD_ID THREAD_UUID`. Retargeting
+preserves the current enabled state.
+
+Use `board notifications enable [--revision N] BOARD_ID` after setting a target.
+Use `board notifications disable [--revision N] BOARD_ID` to discard a pending
+burst and retain the target. Settings writes require `manage_notifications` and
+the current board validator. Inspect status after an uncertain write before
+deciding whether to submit again.
+
+The service coalesces committed Human edits after 15 seconds of quiet. It uses
+the current target and sends board and ticket metadata in one best-effort
+attempt. Bot edits produce no notice.
+
 `lane set-approval-button` controls whether the optional Human lane action is enabled.
 Manage lanes in the browser or PATCH the active Ready for Review lane to set
 `bulk_approval_comment`. The setting accepts up to 1,024 characters, and an empty

@@ -37,6 +37,10 @@ const cliHelp = `Usage:
   localswim board publishing enable [--revision N] BOARD_ID
   localswim board publishing disable [--revision N] BOARD_ID
   localswim board publishing status BOARD_ID
+  localswim board notifications target [--revision N] BOARD_ID THREAD_UUID
+  localswim board notifications enable [--revision N] BOARD_ID
+  localswim board notifications disable [--revision N] BOARD_ID
+  localswim board notifications status BOARD_ID
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] [--data DIRECTORY] BOARD_ID
   localswim card create [--revision N] <JSON_FILE|->
@@ -116,6 +120,9 @@ Pin remove skips failed targets with WARNING messages and preserves the remainin
 Pin set validates the entire list and reports ERROR if any target fails.
 Publishing commands return the full board or workspace JSON, including publishing status.
 Board publishing uses the board revision. Workspace publishing uses the workspace revision.
+Board notifications commands return the board ID, revision, enabled state, and target chat UUID.
+Target changes preserve the enabled state. Set a target before enabling. Disable retains the target.
+After an uncertain notification setting change, inspect board notifications status before retrying.
 Board close and reopen use the board revision and return the full board JSON.
 Use board get BOARD_ID to inspect availability after an unknown close or reopen outcome.
 Omit --revision to use the current resource validator.
@@ -221,6 +228,8 @@ type cliCommand struct {
 	ticketPatch                        *ticketCardPatchTarget
 	t07Action                          string
 	publishingAction                   string
+	notificationAction                 string
+	notificationTarget                 string
 	boardAvailability                  string
 	serviceAction                      string
 	serviceResourceID                  string
@@ -282,6 +291,9 @@ func parseCLI(args []string) (cliCommand, error) {
 	}
 	if name == "service activate" || name == "service activation" || name == "service stop" {
 		return parseServiceAction(name, optionArgs)
+	}
+	if name == "board notifications" {
+		return parseNotificationAction(optionArgs)
 	}
 	if name == "board publishing" || name == "workspace publishing" {
 		if len(optionArgs) == 0 {
@@ -587,6 +599,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	}
 	if command.serviceAction != "" {
 		return executeServiceAction(api, command, stdout)
+	}
+	if command.notificationAction != "" {
+		return executeNotificationAction(api, command, stdout)
 	}
 	if command.t07Action != "" {
 		return executeT07(api, command, stdin, stdout)

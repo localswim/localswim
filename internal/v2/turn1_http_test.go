@@ -176,6 +176,12 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	if createdAt := turnOneDecode[map[string]any](t, raw)["created_at"]; len(createdAt.(string)) != 25 {
 		t.Fatal("timestamp does not use UTC whole seconds")
 	}
+	c.call("PATCH", firstPath, `{"name":"Discarded","notifications":{"enabled":true}}`, h.Get("ETag"), 400)
+	raw, h = c.call("GET", firstPath, "", "", 200)
+	if got := turnOneDecode[board](t, raw); got.Name != first.Name || got.ETag != first.ETag ||
+		got.Notifications.Enabled || got.Notifications.TargetThreadID != nil {
+		t.Fatal("targetless enable changed the board")
+	}
 	c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":"018E7F0A-BCDE-7ABC-8DEF-0123456789AB"}}`, "", 428)
 	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":"018E7F0A-BCDE-7ABC-8DEF-0123456789AB"}}`, h.Get("ETag"), 200)
 	notice := turnOneDecode[board](t, raw)
@@ -185,6 +191,7 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	c.call("PATCH", firstPath, `{"name":"Stale"}`, first.ETag, 412)
 	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"enabled":true}}`, notice.ETag, 200)
 	notice = turnOneDecode[board](t, raw)
+	c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":null}}`, notice.ETag, 400)
 	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":"018e7f0a-bcde-7abc-8def-0123456789ac"}}`, notice.ETag, 200)
 	notice = turnOneDecode[board](t, raw)
 	if !notice.Notifications.Enabled {

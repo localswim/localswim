@@ -1355,8 +1355,9 @@ paths:
         the catalog, shared events, and authorized activity, publication, verification and snapshot
         inspection remain available. Operational requests on a closed or draining board return 503.
         Reopening validates the saved snapshot at the same board address and uses the current validator.
-        Notification settings default off. Target changes preserve enabled state. Updating automatic
-        publishing requires the board publish capability. Actor presentation requires manage_board.
+        Notification settings default off. Changing them requires manage_notifications. Target changes
+        preserve enabled state. The resulting settings must have a target when enabled. Updating
+        automatic publishing requires the board publish capability. Actor presentation requires manage_board.
         Membership is established by the board workflow.
       requestBody:
         required: true
@@ -13262,6 +13263,14 @@ components:
           anyOf:
           - $ref: '#/components/schemas/ThreadId'
           - type: 'null'
+      if:
+        properties:
+          enabled:
+            const: true
+      then:
+        properties:
+          target_thread_id:
+            $ref: '#/components/schemas/ThreadId'
     NotificationsInput:
       type: object
       additionalProperties: false
@@ -13299,7 +13308,19 @@ components:
         - enabled
       - required:
         - target_thread_id
-      description: Unknown members are rejected in this security-sensitive object.
+      if:
+        required:
+        - enabled
+        properties:
+          enabled:
+            const: true
+      then:
+        properties:
+          target_thread_id:
+            $ref: '#/components/schemas/ThreadIdInput'
+      description: Omitted fields retain their current values. The service checks the complete
+        resulting settings in the board transaction. Enabling requires a target, and clearing a target
+        requires the resulting state to be disabled. Both fields may be changed atomically.
     Publishing:
       type: object
       additionalProperties: false
@@ -16667,6 +16688,14 @@ components:
           anyOf:
           - $ref: '#/components/schemas/ThreadIdInput'
           - type: 'null'
+      if:
+        properties:
+          enabled:
+            const: true
+      then:
+        properties:
+          target_thread_id:
+            $ref: '#/components/schemas/ThreadIdInput'
     PublishingSnapshotInput:
       type: object
       additionalProperties: false

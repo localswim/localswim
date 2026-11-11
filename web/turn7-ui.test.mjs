@@ -1149,3 +1149,87 @@ test("aborting a lifecycle read does not cancel a shared session bootstrap", asy
   assert.equal(await navigation, "navigation");
   assert.equal(sessions, 1);
 });
+
+test("drawer priority uses the card validator and shows the effective dependency floor", async () => {
+  const {api} = boardApi();
+  api.listComments = async () => page("comments", []);
+  api.listAttachments = async () => page("attachments", []);
+  const urgent = "1de08e49-ed9f-4822-b6b8-4981c57b133d";
+  const low = "af036e96-7b57-49c9-b8ad-b17d574c1a62";
+  const listPriorities = api.listPriorities;
+  api.listPriorities = async () => page("priorities", [
+    {id: urgent, label: "Urgent"}, ...(await listPriorities()).data.priorities, {id: low, label: "Low"},
+  ]);
+  const patchCard = api.patchCard;
+  const getCard = api.getCard;
+  let revision = 1;
+  const writes = [];
+  api.getCard = async () => ({...await getCard(), etag: tag(card, revision)});
+  api.patchCard = async (id, etag, change) => {
+    writes.push([id, etag, change.priority_id]);
+    assert.equal(etag, tag(card, revision));
+    const result = await patchCard(id, etag, {priority_id: change.priority_id === low ? priority : change.priority_id});
+    return {...result, etag: tag(card, ++revision)};
+  };
+  const ui = await harness(api);
+  await ui.load();
+  ui.find(ui.nodes.main, "button", "#1 Original").click();
+  await ui.settled();
+  const drawer = ui.nodes.details;
+  const choice = ui.field(drawer, "Priority");
+  const title = ui.field(drawer, "Title");
+  assert.equal(choice.value, priority);
+  title.value = "Keep my title draft";
+
+  choice.value = urgent;
+  ui.submit(drawer, "Set priority");
+  await ui.settled();
+  assert.match(drawer.textContent, /Effective priority: Urgent/);
+  assert.equal(choice.value, urgent);
+
+  choice.value = low;
+  ui.submit(drawer, "Set priority");
+  await ui.settled();
+  assert.match(drawer.textContent, /Dependency floor kept the effective priority at Normal/);
+  assert.equal(choice.value, priority);
+  assert.equal(title.value, "Keep my title draft");
+  assert.deepEqual(writes, [[card, tag(card, 1), urgent], [card, tag(card, 2), low]]);
+});
+
+test("drawer priority refreshes stale and uncertain results without replaying or claiming a floor", async () => {
+  const {api} = boardApi();
+  api.listComments = async () => page("comments", []);
+  api.listAttachments = async () => page("attachments", []);
+  const urgent = "1de08e49-ed9f-4822-b6b8-4981c57b133d";
+  const listPriorities = api.listPriorities;
+  api.listPriorities = async () => page("priorities", [
+    {id: urgent, label: "Urgent"}, ...(await listPriorities()).data.priorities,
+  ]);
+  const writes = [];
+  api.patchCard = async (id, etag, change) => {
+    writes.push([id, etag, change.priority_id]);
+    if (writes.length === 1) throw new ApiError("http_error", {status: 412});
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  const ui = await harness(api);
+  await ui.load();
+  ui.find(ui.nodes.main, "button", "#1 Original").click();
+  await ui.settled();
+  const drawer = ui.nodes.details;
+  const choice = ui.field(drawer, "Priority");
+  choice.value = urgent;
+
+  ui.submit(drawer, "Set priority");
+  await ui.settled();
+  assert.match(ui.nodes.status.textContent, /State changed/);
+  assert.equal(choice.value, urgent);
+  assert.equal(writes.length, 1);
+
+  ui.submit(drawer, "Set priority");
+  await ui.settled();
+  assert.match(ui.nodes.status.textContent, /outcome was uncertain/);
+  assert.match(drawer.textContent, /Priority: Normal/);
+  assert.doesNotMatch(drawer.textContent, /Dependency floor/);
+  assert.equal(choice.value, urgent);
+  assert.deepEqual(writes, [[card, tag(card, 1), urgent], [card, tag(card, 1), urgent]]);
+});

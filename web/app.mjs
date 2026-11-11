@@ -567,6 +567,8 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     lane.required = true;
     const owner = select(users, card.owner_id);
     owner.required = true;
+    const priority = select(priorities, card.priority_id);
+    priority.required = true;
     const current = element("div");
     const commentList = element("div");
     const attachmentList = element("div");
@@ -688,6 +690,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       descriptionBaseline = adoptText(description, descriptionBaseline, saved.description);
       if (!lane.value || lane.value === savedCard.lane_id) lane.value = saved.lane_id;
       if (owner.value === savedCard.owner_id) owner.value = saved.owner_id;
+      if (priority.value === savedCard.priority_id) priority.value = saved.priority_id;
       savedCard = saved;
       showCurrent(saved);
     }
@@ -1055,6 +1058,39 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     });
     approvalAction.append(approveForm);
 
+    const priorityAction = element("div");
+    const priorityResult = element("p");
+    priorityResult.setAttribute("aria-live", "polite");
+    priority.addEventListener("change", () => { priorityResult.textContent = ""; });
+    const setPriority = form("Set priority", [field("Priority", priority)], (submit) => {
+      if (cardView !== activeCard) return;
+      const requested = priority.value;
+      if (requested === savedCard.priority_id || !priorities.some(({ id }) => id === requested)) return;
+      const expected = cardTag;
+      priorityResult.textContent = "";
+      /** @type {Labeled | undefined} */
+      let effective;
+      void writeResource(submit, async () => {
+        const reply = await api.patchCard(card.id, expected, { priority_id: requested });
+        const saved = /** @type {Card} */ (reply.data);
+        effective = priorities.find(({ id }) => id === saved?.priority_id);
+        if (saved?.id !== card.id || saved.board_id !== boardId || !effective) {
+          effective = undefined;
+          throw new ApiError("invalid_response", { outcomeUnknown: true });
+        }
+      }, async () => {
+        await reloadBoard();
+        if (cardView === activeCard && effective) {
+          if (priority.value === requested) priority.value = savedCard.priority_id;
+          priorityResult.textContent = effective.id === requested
+            ? "Effective priority: " + effective.label + "."
+            : "Dependency floor kept the effective priority at " + effective.label + ".";
+        }
+        return effective !== undefined;
+      }, "Priority saved.", inspection);
+    });
+    priorityAction.append(setPriority, priorityResult);
+
     /** @param {Card} saved */
     function updateActions(saved) {
       archiveAction.hidden = !canChangeArchive(saved);
@@ -1085,6 +1121,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         if (activeLanes(lanes).some(({ id }) => id === lane.value)) void save({ lane_id: lane.value }, submit);
       }),
       form("Assign owner", [field("Owner", owner)], (submit) => void save({ owner_id: owner.value }, submit)),
+      priorityAction,
       element("h3", "Relationships"), relationshipList, addLink,
       element("h3", "Comments"), commentList,
       form("Post comment", [field("Comment", comment)], (submit) => {

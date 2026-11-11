@@ -353,6 +353,52 @@ test("refreshing an open board repaints Attention in catalog order and retains s
   assert.equal(links()[2].attributes["aria-current"], "page");
 });
 
+test("a pending Attention read leaves confirmed card saves and the refreshed drawer usable", async () => {
+  const {api} = boardApi();
+  const patchCard = api.patchCard;
+  const getCard = api.getCard;
+  api.patchCard = async (...args) => { await patchCard(...args); return getCard(card); };
+  let drawerReads = 0;
+  api.getCard = async (...args) => { drawerReads++; return getCard(...args); };
+  api.listComments = async () => page("comments", []);
+  const catalog = (ready_for_review) => page("boards", [{
+    id: board, name: "Board", attention: {blocked: 0, needs_input: 0, ready_for_review}, last_card_edit_at: null,
+  }]);
+  const started = Promise.withResolvers();
+  const pending = Promise.withResolvers();
+  let catalogReads = 0;
+  api.listBoards = async () => {
+    if (++catalogReads === 1) return catalog(1);
+    started.resolve();
+    return pending.promise;
+  };
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details, boards, status} = ui.nodes;
+  ui.find(main, "button", "#1 Original").click();
+  await ui.settled();
+  const priorDrawerReads = drawerReads;
+  ui.field(details, "Title").value = "Saved with Attention pending";
+  const save = ui.submit(details, "Save text");
+  await started.promise;
+  await ui.settled();
+  assert.equal(status.textContent, "Card saved.");
+  assert.ok(ui.find(main, "button", "#1 Saved with Attention pending"));
+  assert.equal(details.querySelector("h2").textContent, "#1 Saved with Attention pending");
+  assert.equal(drawerReads, priorDrawerReads + 1);
+  assert.equal(save.disabled, false);
+  const link = boards.querySelector("a");
+  assert.equal(link.children[3].textContent, "1");
+  link.focus();
+
+  pending.resolve(catalog(2));
+  await ui.settled();
+  assert.equal(boards.querySelector("a").children[3].textContent, "2");
+  assert.equal(ui.focused(), boards.querySelector("a"));
+  assert.equal(status.textContent, "Card saved.");
+});
+
 test("an Attention read failure keeps confirmed card saves and the last catalog visible", async () => {
   const {api} = boardApi();
   const patchCard = api.patchCard;

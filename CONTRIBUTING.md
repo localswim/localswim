@@ -242,7 +242,9 @@ Without an explicit destination branch, the publisher accepts a single unforced 
 from `HEAD` or the current full branch ref to a full branch ref. Otherwise it follows
 the supported Git push mode of `current`, `simple`, or `upstream` (`tracking`).
 With neither a configured push mode nor a tracking branch, publication uses the local branch name.
-Use `upstream` or an explicit destination when the upstream branch has a different name.
+When Git's `push.autoSetupRemote` would select the local branch name, publication uses that name
+and leaves the tracking configuration alone. Use `upstream` or an explicit destination when the
+upstream branch has a different name.
 
 Multiple or unresolved destinations are refused before Git objects or refs are written.
 The selected remote must have one effective push URL. Git's URL-scoped transport and

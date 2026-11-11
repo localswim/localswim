@@ -15,44 +15,50 @@ type publicationDestination struct {
 	ref    string
 }
 
-func publicationConfigValues(cwd, key string, options ...string) ([]string, error) {
+func publicationConfigValue(cwd, query, key string, options ...string) (string, error) {
 	args := append([]string{"config", "--includes", "--null"}, options...)
-	data, err := publicationGit(cwd, "", nil, append(args, "--get-all", key)...)
+	data, err := publicationGit(cwd, "", nil, append(args, query, key)...)
 	if gitConfigAbsent(err) && len(data) == 0 {
-		return nil, nil
+		return "", nil
 	}
 	text, ok := strings.CutSuffix(string(data), "\x00")
 	if err != nil || !ok {
-		return nil, gitPublicationError("git_configuration_unavailable")
+		return "", gitPublicationError("git_configuration_unavailable")
 	}
-	return strings.Split(text, "\x00"), nil
+	if strings.ContainsRune(text, 0) {
+		return "", gitPublicationError("publication_target_ambiguous")
+	}
+	if text == "" {
+		return "", gitPublicationError("publication_destination_unavailable")
+	}
+	return text, nil
 }
 
 func publicationConfigScalar(cwd, key string, options ...string) (string, error) {
-	values, err := publicationConfigValues(cwd, key, options...)
-	if err != nil {
-		return "", err
-	}
-	switch len(values) {
-	case 0:
-		return "", nil
-	case 1:
-		if values[0] != "" {
-			return values[0], nil
-		}
-		return "", gitPublicationError("publication_destination_unavailable")
-	default:
-		return "", gitPublicationError("publication_target_ambiguous")
-	}
+	// Git's scalar lookup applies config precedence, including includes
+	// and worktree overrides.
+	return publicationConfigValue(cwd, "--get", key, options...)
 }
 
 func (repo publicationRepository) manualDestination(source string, selection publicationSelection) (publicationDestination, error) {
+	list, err := publicationGitText(repo.root, "remote")
+	if err != nil {
+		return publicationDestination{}, gitPublicationError("git_configuration_unavailable")
+	}
+	if list == "" {
+		return publicationDestination{}, gitPublicationError("remote_unavailable")
+	}
+	remotes := strings.Split(list, "\n")
 	branchKey := "branch." + strings.TrimPrefix(source, "refs/heads/") + "."
-	remote, err := repo.manualRemote(branchKey, selection.remote)
+	remote, err := repo.manualRemote(branchKey, selection.remote, remotes)
 	if err != nil {
 		return publicationDestination{}, err
 	}
-	ref, err := repo.manualDestinationRef(source, branchKey, remote, selection.branch)
+	defaultFetch := "origin"
+	if len(remotes) == 1 {
+		defaultFetch = remotes[0]
+	}
+	ref, err := repo.manualDestinationRef(source, branchKey, remote, defaultFetch, selection.branch)
 	if err != nil {
 		return publicationDestination{}, err
 	}
@@ -63,7 +69,7 @@ func (repo publicationRepository) manualDestination(source string, selection pub
 	return publicationDestination{remote: pinnedPublicationRemote(target), ref: ref}, nil
 }
 
-func (repo publicationRepository) manualRemote(branchKey, explicit string) (string, error) {
+func (repo publicationRepository) manualRemote(branchKey, explicit string, remotes []string) (string, error) {
 	name := explicit
 	if name == "" {
 		for _, key := range []string{branchKey + "pushRemote", "remote.pushDefault", branchKey + "remote"} {
@@ -77,14 +83,6 @@ func (repo publicationRepository) manualRemote(branchKey, explicit string) (stri
 			}
 		}
 	}
-	list, err := publicationGitText(repo.root, "remote")
-	if err != nil {
-		return "", gitPublicationError("git_configuration_unavailable")
-	}
-	if list == "" {
-		return "", gitPublicationError("remote_unavailable")
-	}
-	remotes := strings.Split(list, "\n")
 	if name == "" {
 		if len(remotes) != 1 {
 			return "", gitPublicationError("publication_target_ambiguous")
@@ -109,7 +107,7 @@ func (repo publicationRepository) validGitRef(ref string) bool {
 	return err == nil
 }
 
-func (repo publicationRepository) manualDestinationRef(source, branchKey, remote, explicit string) (string, error) {
+func (repo publicationRepository) manualDestinationRef(source, branchKey, remote, defaultFetch, explicit string) (string, error) {
 	const heads = "refs/heads/"
 	if explicit != "" {
 		if !strings.HasPrefix(explicit, "refs/") {
@@ -125,7 +123,7 @@ func (repo publicationRepository) manualDestinationRef(source, branchKey, remote
 	if mirror == "true" {
 		return "", gitPublicationError("publication_target_ambiguous")
 	}
-	refspec, err := publicationConfigScalar(repo.root, key+"push")
+	refspec, err := publicationConfigValue(repo.root, "--get-all", key+"push")
 	if err != nil {
 		return "", err
 	}
@@ -148,7 +146,7 @@ func (repo publicationRepository) manualDestinationRef(source, branchKey, remote
 	case "matching":
 		return "", gitPublicationError("publication_target_ambiguous")
 	case "", "simple", "upstream", "tracking":
-		return repo.manualUpstreamRef(source, branchKey, remote, mode)
+		return repo.manualUpstreamRef(source, branchKey, remote, defaultFetch, mode)
 	default:
 		return "", gitPublicationError("publication_destination_unavailable")
 	}
@@ -161,26 +159,33 @@ func (repo publicationRepository) publicationBranchRef(ref string) (string, erro
 	return ref, nil
 }
 
-func (repo publicationRepository) manualUpstreamRef(source, branchKey, remote, mode string) (string, error) {
+func (repo publicationRepository) manualUpstreamRef(source, branchKey, remote, defaultFetch, mode string) (string, error) {
 	upstream := mode == "upstream" || mode == "tracking"
 	fetchRemote, err := publicationConfigScalar(repo.root, branchKey+"remote")
 	if err != nil {
 		return "", err
 	}
-	if fetchRemote != "" && fetchRemote != remote && !upstream {
-		// Git simple behaves like current when pushing to a remote other
-		// than the branch's usual fetch remote.
+	effectiveFetch := fetchRemote
+	if effectiveFetch == "" {
+		effectiveFetch = defaultFetch
+	}
+	if effectiveFetch != remote {
+		if upstream {
+			return "", gitPublicationError("publication_destination_unavailable")
+		}
+		// Git simple uses the local branch name when the push and fetch
+		// remotes differ.
 		return source, nil
 	}
-	merge, err := publicationConfigScalar(repo.root, branchKey+"merge")
+	merge, err := publicationConfigValue(repo.root, "--get-all", branchKey+"merge")
 	if err != nil {
 		return "", err
 	}
-	if fetchRemote == remote && merge != "" && (upstream || merge == source) {
+	if merge != "" {
+		if fetchRemote == "" || (!upstream && merge != source) {
+			return "", gitPublicationError("publication_destination_unavailable")
+		}
 		return repo.publicationBranchRef(merge)
-	}
-	if upstream || merge != "" {
-		return "", gitPublicationError("publication_destination_unavailable")
 	}
 	if mode == "" {
 		// Retain publication's same-name default for a repository with no

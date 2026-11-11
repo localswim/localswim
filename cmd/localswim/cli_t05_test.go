@@ -14,6 +14,7 @@ import (
 
 const t05From = "2026-11-10 18:00:00+00:00"
 const t05To = "2026-11-10 18:00:02+00:00"
+const t05Writer = "f02f1e36-c5de-7e85-9e95-9159e83ae10a"
 
 func TestT05CLIActivityBoundsAndViews(t *testing.T) {
 	for _, tc := range []struct{ name, option, view string }{
@@ -28,7 +29,7 @@ func TestT05CLIActivityBoundsAndViews(t *testing.T) {
 				query := r.URL.Query()
 				if r.Method != http.MethodGet || r.URL.Path != t03Root+"/activities" ||
 					query.Get("board_id") != t03Board || query.Get("view") != tc.view || query.Get("actor_id") != t03Card ||
-					query.Get("operation") != "patch" ||
+					query.Get("operation") != "patch" || query.Get("card_id") != t03Card || query.Get("writer_id") != t05Writer ||
 					query.Get("from") != t05From || query.Get("to") != t05To ||
 					query.Get("ticket") != "7" || query.Get("limit") != "12" || query.Get("cursor") != "a+b=" {
 					t.Errorf("unexpected activity request %s %s", r.Method, r.URL)
@@ -38,7 +39,8 @@ func TestT05CLIActivityBoundsAndViews(t *testing.T) {
 			defer server.Close()
 			args := []string{"activity", "list", "--from", t05From, "--to", t05To,
 				"--ticket", "0007", "--limit", "12", "--cursor", "a+b=",
-				"--actor-id", strings.ToUpper(t03Card), "--operation", "patch"}
+				"--actor-id", strings.ToUpper(t03Card), "--operation", "patch",
+				"--card-id", strings.ToUpper(t03Card), "--writer-id", strings.ToUpper(t05Writer)}
 			if tc.option != "" {
 				args = append(args, "--view", tc.option)
 			}
@@ -60,6 +62,8 @@ func TestT05CLIActivityBoundsAndViews(t *testing.T) {
 		{"--from", t05From, "--to", t05To, "--view", "other"},
 		{"--from", t05From, "--to", t05To, "--actor-id", ""},
 		{"--from", t05From, "--to", t05To, "--actor-id", "invalid"},
+		{"--from", t05From, "--to", t05To, "--card-id", t05Writer},
+		{"--from", t05From, "--to", t05To, "--writer-id", t03Card},
 		{"--from", t05From, "--to", t05To, "--operation", ""},
 		{"--from", t05From, "--to", t05To, "--operation", strings.Repeat("a", 81)},
 	} {

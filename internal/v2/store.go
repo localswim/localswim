@@ -25,6 +25,9 @@ type store struct {
 	root          string
 	boardsDirInfo os.FileInfo
 
+	activityWriterID string
+	activitySince    time.Time
+
 	mu               sync.RWMutex
 	lease            *os.File
 	boards           map[string]snapshot

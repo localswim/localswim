@@ -47,11 +47,7 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 	at := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
 	previous := ownerNoticeTestSnapshot("3b21b22e-3538-49ee-af0a-8fae47ca7ff7", notifications{})
 	previous.Activity = []activity{{Revision: 1, ActorID: humanID, ResourceType: "card", ResourceID: "four", At: at}}
-	previous.Relationships = []relationship{{
-		ID: "link", relationshipLink: relationshipLink{SourceCardID: "one", TargetCardID: "three"},
-	}}
 	next := ownerNoticeTestEdit(previous, humanID, "card", "one", at.Add(time.Second))
-	next.Relationships = nil
 	next.Comments = []comment{{ID: "comment", CardID: "two", Text: "private comment text"}}
 	next.Attachments = []attachment{{ID: "attachment", CardID: "five", OriginalName: "private filename"}}
 	for _, changed := range []struct {
@@ -68,12 +64,13 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 			Revision: next.Board.Revision, At: at.Add(changed.offset),
 		})
 	}
+	next.Activity[3].Before = new(relationshipAuditValue(relationshipLink{SourceCardID: "one", TargetCardID: "three"}))
 	private := "private audit value"
 	next.Activity[1].After = &private
 
 	event := committedOwnerNotice(previous, next)
-	if !slices.Equal(event.tickets, []uint64{1, 2, 3, 5}) {
-		t.Fatalf("attributed tickets = %v", event.tickets)
+	if !slices.Equal(event.cards, []activityCard{{"one", 1}, {"two", 2}, {"three", 3}, {"five", 5}}) {
+		t.Fatalf("attributed cards = %v", event.cards)
 	}
 	message := event.message()
 	for _, want := range []string{previous.Board.ID, "Synthetic\\nboard", "12:00:01+00:00", "12:00:04+00:00", "0001, 0002, 0003, 0005"} {
@@ -81,27 +78,27 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 			t.Errorf("notice omitted %q", want)
 		}
 	}
-	if strings.Count(message, "\n") != 5 || strings.Contains(message, "private") {
+	if strings.Count(message, "\n") != 7 || strings.Contains(message, "private") {
 		t.Error("notice contains content outside the bounded metadata lines")
 	}
-	if bot := ownerNoticeTestEdit(next, botID, "card", "four", at.Add(time.Minute)); len(committedOwnerNotice(next, bot).tickets) != 0 {
+	if bot := ownerNoticeTestEdit(next, botID, "card", "four", at.Add(time.Minute)); len(committedOwnerNotice(next, bot).cards) != 0 {
 		t.Error("Bot edit produced notice metadata")
 	}
 }
 
-func TestOwnerNoticeTicketBound(t *testing.T) {
+func TestOwnerNoticeCardBound(t *testing.T) {
 	event := ownerNoticeEvent{}
-	for ticket := uint64(maxOwnerNoticeTickets + 20); ticket > 0; ticket-- {
-		event.addTicket(ticket)
-		event.addTicket(ticket)
+	for ticket := uint64(maxOwnerNoticeCards + 20); ticket > 0; ticket-- {
+		card := activityCard{CardID: fmt.Sprint(ticket), Ticket: ticket}
+		event.addCard(card)
+		event.addCard(card)
 	}
-	event.addTicket(maxOwnerNoticeTickets + 1)
-	if len(event.tickets) != maxOwnerNoticeTickets || !event.truncated {
-		t.Fatalf("notice retained %d tickets, truncated = %t", len(event.tickets), event.truncated)
+	if len(event.cards) != maxOwnerNoticeCards || !event.truncated {
+		t.Fatalf("notice retained %d card and ticket pairs, truncated = %t", len(event.cards), event.truncated)
 	}
-	for index, ticket := range event.tickets {
-		if ticket != uint64(index+1) {
-			t.Fatalf("ticket %d = %d", index, ticket)
+	for index, card := range event.cards {
+		if card.Ticket != uint64(index+1) {
+			t.Fatalf("ticket %d = %d", index, card.Ticket)
 		}
 	}
 }
@@ -288,6 +285,7 @@ func TestOwnerNoticeFailurePreservesDurableEdit(t *testing.T) {
 			attempts <- message
 			return false
 		})
+	app.store.ownerNotices.writerID = app.store.activityWriterID
 
 	server := httptest.NewUnstartedServer(nil)
 	server.Config.Handler = app.Handler(server.Listener.Addr().(*net.TCPAddr))
@@ -305,7 +303,9 @@ func TestOwnerNoticeFailurePreservesDurableEdit(t *testing.T) {
 	created := turnOneDecode[card](t, raw)
 	select {
 	case message := <-attempts:
-		if !strings.HasSuffix(message, "- Tickets: 0001") || strings.Contains(message, created.Title) {
+		if !strings.HasSuffix(message, "- Tickets: 0001") || strings.Contains(message, created.Title) ||
+			!strings.Contains(message, "- Writer: `"+app.store.activityWriterID+"`") ||
+			!strings.Contains(message, "- Cards: 0001 (`"+created.ID+"`)") {
 			t.Fatal("delivery did not contain only committed card metadata")
 		}
 	case <-time.After(5 * time.Second):
@@ -426,12 +426,16 @@ func TestOwnerNoticeProjectTimestampFormat(t *testing.T) {
 		duration time.Duration
 		want     string
 	}{
-		{"single time", 100 * time.Millisecond, "- Time: 2026-11-10 20:33:04+00:00\n"},
-		{"interval", 2200 * time.Millisecond, "- Start: 2026-11-10 20:33:04+00:00\n- End: 2026-11-10 20:33:07+00:00\n"},
+		{"single second", 100 * time.Millisecond, "- Start: 2026-11-10 20:33:04+00:00\n- End: 2026-11-10 20:33:04+00:00\n"},
+		{"interval", 2200 * time.Millisecond, "- Start: 2026-11-10 20:33:04+00:00\n- End: 2026-11-10 20:33:06+00:00\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			event := ownerNoticeEvent{boardID: "board", label: "Test", since: start, until: start.Add(tc.duration), tickets: []uint64{1}}
-			want := "localswim board-change notice\n\n- Board: \"Test\" (`board`)\n" + tc.want + "- Tickets: 0001"
+			event := ownerNoticeEvent{
+				boardID: "board", label: "Test", writerID: "writer", since: start, until: start.Add(tc.duration),
+				cards: []activityCard{{CardID: "card", Ticket: 1}},
+			}
+			want := "localswim board-change notice\n\n- Board: \"Test\" (`board`)\n- Writer: `writer`\n" +
+				tc.want + "- Cards: 0001 (`card`)\n- Tickets: 0001"
 			if got := event.message(); got != want {
 				t.Fatalf("notice timestamp format mismatch\ngot: %s\nwant: %s", got, want)
 			}

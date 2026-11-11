@@ -107,7 +107,7 @@ async function harness(api, pathname = "/boards/" + board, {
   const context = vm.createContext({document, window, CSSStyleSheet: StyleSheet,
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
-    Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, MAX_ATTACHMENT_BYTES, newOperationId,
+    Blob, TextEncoder, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, MAX_ATTACHMENT_BYTES, newOperationId,
     createBoardRefresh, watchBoard: typeof api.streamEvents === "function" ? watchBoard : async () => {},
     DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH, MAX_LANE_APPROVAL_CARDS,
     createBrowserApi: ({getCapability}) => typeof api === "function" ? api(getCapability) : api,
@@ -144,6 +144,151 @@ function tabStorage() {
   const entries = new Map();
   return {getItem: (key) => entries.get(key) ?? null, setItem: (key, value) => entries.set(key, value)};
 }
+
+const recoveredDrafts = "localswim:tab-drafts";
+const recoveredSubmissions = "localswim:tab-submissions";
+
+test("lost comment response survives navigation and reload and inspects only the original submission", async () => {
+  const {api} = boardApi();
+  const storage = tabStorage();
+  const sent = Promise.withResolvers();
+  const response = Promise.withResolvers();
+  let comments = [];
+  let failRead = false;
+  const writes = [];
+  api.createComment = async (id, _etag, text, commentId) => {
+    writes.push({id: commentId, card_id: id, author_id: user, text, created_at: "2026-11-10 00:00:00+00:00"});
+    sent.resolve();
+    await response.promise;
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  api.listComments = async (scope) => {
+    assert.deepEqual({...scope}, {board_id: board, card_id: card});
+    if (failRead) throw new ApiError("transport_failed");
+    return page("comments", comments);
+  };
+
+  const original = await harness(api, undefined, {storage});
+  await original.load();
+  original.find(original.nodes.main, "button", "#1 Original").click();
+  await until(() => original.field(original.nodes.details, "Comment"));
+  const comment = original.field(original.nodes.details, "Comment");
+  comment.value = "  Exact comment\nΩ  ";
+  comment.dispatch("input");
+  original.submit(original.nodes.details, "Post comment");
+  await sent.promise;
+  failRead = true;
+  await original.navigate("/");
+  response.resolve();
+  await original.settled();
+  const scope = "card:" + board + ":" + card;
+  const [[savedScope, operation]] = JSON.parse(storage.getItem(recoveredSubmissions));
+  assert.equal(savedScope, scope);
+  assert.deepEqual({...operation, submittedAt: 0}, {id: writes[0].id, kind: "comment", submittedAt: 0});
+  assert.deepEqual(JSON.parse(storage.getItem(recoveredDrafts)), [[scope, {comment: comment.value}]]);
+
+  const reloaded = await harness(api, undefined, {storage});
+  await reloaded.load();
+  const {details} = reloaded.nodes;
+  await until(() => reloaded.field(details, "Comment"));
+  const restored = reloaded.field(details, "Comment");
+  assert.equal(restored.value, writes[0].text);
+  const inspect = reloaded.find(details, "button", "Inspect saved card");
+  assert.equal(reloaded.submit(details, "Post comment").disabled, true);
+  inspect.click();
+  await reloaded.settled();
+  assert.match(reloaded.nodes.status.textContent, /could not be read/);
+  assert.equal(reloaded.submit(details, "Post comment").disabled, true);
+
+  failRead = false;
+  comments = [{...writes[0], id: backup}];
+  inspect.click();
+  await reloaded.settled();
+  assert.match(reloaded.nodes.status.textContent, /could not be confirmed/);
+  assert.equal(reloaded.submit(details, "Post comment").disabled, true);
+  assert.equal(restored.value, writes[0].text);
+
+  restored.value = "A different draft written after reload.";
+  restored.dispatch("input");
+  comments = writes;
+  inspect.click();
+  await reloaded.settled();
+  assert.match(reloaded.nodes.status.textContent, /Original submission confirmed/);
+  assert.equal(restored.value, "A different draft written after reload.");
+  assert.equal(reloaded.find(details, "button", "Post comment").disabled, false);
+  assert.deepEqual(JSON.parse(storage.getItem(recoveredSubmissions)), []);
+  assert.equal(writes.length, 1);
+});
+
+test("dismissing or expiring a missing submission releases its scope and retains the draft", async () => {
+  const {api} = boardApi();
+  const scope = "card:" + board + ":" + card;
+  const storage = tabStorage();
+  const now = Date.now();
+  storage.setItem(recoveredDrafts, JSON.stringify([[scope, {title: "Title draft", description: "", comment: "Draft"}]]));
+  storage.setItem(recoveredSubmissions, JSON.stringify([[scope, {kind: "comment", id: priority, submittedAt: now}]]));
+  const ui = await harness(api, undefined, {storage});
+  await ui.load();
+  ui.find(ui.nodes.main, "button", "#1 Original").click();
+  await until(() => ui.field(ui.nodes.details, "Comment"));
+  assert.equal(ui.field(ui.nodes.details, "Title").value, "Title draft");
+  assert.equal(ui.field(ui.nodes.details, "Description").value, "");
+  assert.equal(ui.field(ui.nodes.details, "Comment").value, "Draft");
+  assert.equal(ui.submit(ui.nodes.details, "Post comment").disabled, true);
+  ui.find(ui.nodes.details, "button", "Dismiss unresolved action").click();
+  assert.equal(ui.find(ui.nodes.details, "button", "Post comment").disabled, false);
+  assert.equal(ui.field(ui.nodes.details, "Comment").value, "Draft");
+
+  storage.setItem(recoveredSubmissions, JSON.stringify([[scope, {kind: "comment", id: priority, submittedAt: now}]]));
+  class NextDay extends Date { static now() { return now + 24 * 60 * 60 * 1000; } }
+  const expired = await harness(api, undefined, {storage, clock: NextDay});
+  await expired.load();
+  await until(() => expired.field(expired.nodes.details, "Comment"));
+  assert.equal(expired.find(expired.nodes.details, "button", "Post comment").disabled, false);
+  assert.equal(expired.field(expired.nodes.details, "Comment").value, "Draft");
+});
+
+test("reloaded create inspection uses the original card ID and clears only the submitted text", async () => {
+  const {api} = boardApi();
+  const storage = tabStorage();
+  const getCard = api.getCard;
+  const reads = [];
+  const writes = [];
+  let failRead = true;
+  api.createCard = async (input) => {
+    writes.push(input);
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  api.getCard = async (id) => {
+    if (id === card) return getCard(id);
+    reads.push(id);
+    if (failRead) throw new ApiError("transport_failed");
+    const {data} = await getCard(card);
+    return {data: {...data, id, title: "Edited by another client"}, etag: tag(id, 2)};
+  };
+  const original = await harness(api, undefined, {storage});
+  await original.load();
+  original.find(original.nodes.main, "button", "Add card").click();
+  original.field(original.nodes.main, "New title").value = "Submitted card";
+  original.field(original.nodes.main, "New description").value = "Submitted description";
+  original.submit(original.nodes.main, "Create card");
+  await original.settled();
+
+  const reloaded = await harness(api, undefined, {storage});
+  await reloaded.load();
+  const {main} = reloaded.nodes;
+  assert.equal(reloaded.field(main, "New title").value, "Submitted card");
+  assert.equal(reloaded.field(main, "New description").value, "Submitted description");
+  assert.equal(reloaded.find(main, "h2", "New card in Ready").hidden, false);
+  assert.equal(reloaded.submit(main, "Create card").disabled, true);
+  failRead = false;
+  reloaded.find(main, "button", "Inspect saved board").click();
+  await reloaded.settled();
+  assert.deepEqual(reads, [writes[0].id, writes[0].id]);
+  assert.equal(reloaded.field(main, "New title").value, "");
+  assert.equal(reloaded.field(main, "New description").value, "");
+  assert.equal(writes.length, 1);
+});
 
 function boardApi() {
   let revision = 1;

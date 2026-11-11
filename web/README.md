@@ -19,6 +19,20 @@ to submit again. Inspect or Refresh rereads the active editor and preserves
 the draft. If readback fails, inspect the affected card or board before
 submitting another change there. The page makes one write attempt per submission.
 
+Each tab keeps title, description, and comment drafts with their board and card
+IDs. The new-card draft also remembers its destination. Reload restores text
+exactly within the tab's storage budget. The newest drafts take precedence when
+the budget fills. Larger drafts remain available while the page stays open.
+
+An unresolved comment, new card, single-card approval, new link, or attachment
+upload can be inspected after reload. Open the originating board or card and
+choose **Inspect saved board** or **Inspect saved card**. The page reads the
+original submission using the current session. If it still cannot confirm the
+outcome, inspect again or choose **Dismiss unresolved action** to release the
+editor and keep the draft. Recovery records expire after 24 hours. They contain
+only scoped identifiers and matching metadata. Session capabilities and file
+contents stay in memory.
+
 **Add card** appears in each active lane where the current actor can start a
 card. It opens the shared new-card form with that destination selected. In a
 card drawer, **Move card** offers the active destinations granted to the current
@@ -157,7 +171,7 @@ When `outcomeUnknown` is true, inspect authoritative state before another write.
 
 Create a card with `createCard(card)` using the board's current
 `expected_board_etag` in the request body. On success, `etag` identifies the card
-and `boardEtag` identifies the updated board. Supply your own UUIDv7 `id` when
+and `boardEtag` identifies the updated board. Supply your own UUIDv4 `id` when
 you need focused readback after an uncertain response. Use `getCard(id)` for that
 readback or `listCards(boardId, { ticket })` to find an active card by its ticket.
 

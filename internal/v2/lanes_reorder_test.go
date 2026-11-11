@@ -66,7 +66,8 @@ func TestM63LaneDependencyReorder(t *testing.T) {
 	if !preview.Changed || len(preview.Proposed) != 2 || preview.Proposed[0] != (ticketOrderEntry{blocker.ID, first.Ticket}) {
 		t.Fatal("enabled Backlog did not preview the dependency permutation")
 	}
-	apply := ticketOrderBody(t, b.ID, header.Get("X-Board-ETag"), preview.SelectedCardIDs)
+	ids := []string{preview.Proposed[0].CardID, preview.Proposed[1].CardID}
+	apply := ticketOrderBody(t, b.ID, header.Get("X-Board-ETag"), ids)
 	raw, header = client.call("PUT", orderPath, apply, "", 200)
 	applied := turnOneDecode[ticketOrder](t, raw)
 	if !applied.Changed || applied.BoardRevision != preview.BoardRevision+1 {

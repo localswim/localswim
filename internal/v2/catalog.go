@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const durableStateUnavailable = "durable_state_unavailable"
+
 type boardSummary struct {
 	ID             string     `json:"id"`
 	Name           *string    `json:"name"`
@@ -16,6 +18,23 @@ type boardSummary struct {
 	Attention      *attention `json:"attention"`
 	LastCardEditAt *time.Time `json:"last_card_edit_at"`
 	ErrorCode      *string    `json:"error_code"`
+}
+
+func (s *store) canSeeFailedBoard(id, actor string) bool {
+	_, failed := s.failedBoards[id]
+	return actor == humanID && failed
+}
+
+func (s *store) appendFailedBoardSummaries(rows []boardSummary, actor string) []boardSummary {
+	// A failed snapshot cannot establish board membership. The diagnostic is
+	// visible to the Human workspace administrator.
+	if actor == humanID {
+		for id := range s.failedBoards {
+			code := durableStateUnavailable
+			rows = append(rows, boardSummary{ID: id, Availability: "unhealthy", ErrorCode: &code})
+		}
+	}
+	return rows
 }
 
 func deriveAttention(state snapshot) (attention, *time.Time) {
@@ -80,7 +99,7 @@ func summarize(state snapshot, durableErr error) boardSummary {
 	}
 
 	if durableErr != nil {
-		code := "durable_state_unavailable"
+		code := durableStateUnavailable
 		if errors.Is(durableErr, errDurableStateChanged) {
 			code = "durable_state_changed"
 		}

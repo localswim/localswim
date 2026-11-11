@@ -28,6 +28,7 @@ type store struct {
 	mu               sync.RWMutex
 	lease            *os.File
 	boards           map[string]snapshot
+	failedBoards     map[string]struct{} // filename identities only, fixed for the lifetime of the store
 	principals       []user
 	writeUncertain   bool
 	uncertainBoardID string
@@ -62,11 +63,12 @@ func openStore(root string, principals ...user) (*store, error) {
 		return nil, fmt.Errorf("acquire workspace writer lease: %w", err)
 	}
 	s := &store{
-		root:       absolute,
-		lease:      lease,
-		boards:     make(map[string]snapshot),
-		admissions: make(map[string]*boardAdmission),
-		principals: slices.Clone(principals),
+		root:         absolute,
+		lease:        lease,
+		boards:       make(map[string]snapshot),
+		failedBoards: make(map[string]struct{}),
+		admissions:   make(map[string]*boardAdmission),
+		principals:   slices.Clone(principals),
 	}
 	if err := s.load(); err != nil {
 		return nil, errors.Join(err, s.close())
@@ -116,21 +118,40 @@ func (s *store) load() error {
 		if canonical, ok := normalizeID(id); !ok || canonical != id {
 			return fmt.Errorf("invalid board snapshot filename: %w", errInvalidSnapshot)
 		}
-		value, err := s.durable(id)
+		if err := s.checkBoardsDirectory(dir); err != nil {
+			return err
+		}
+		value, err := loadBoardSnapshot(s.snapshotPath(id), id)
 		if err != nil {
-			return fmt.Errorf("load board %s: %w", id, err)
+			s.failedBoards[id] = struct{}{}
+			continue
 		}
 		s.boards[id] = value
 		loadedIDs = append(loadedIDs, id)
 	}
-	// No boards are served until every snapshot passes cross-board checks.
+	// Conflicting identities among admitted snapshots are workspace-wide failures.
 	// Recovery actors can be backed by any board, independent of load order.
 	for _, id := range loadedIDs {
 		if err := s.checkIdentities(s.boards[id], false); err != nil {
 			return fmt.Errorf("load board %s: %w", id, err)
 		}
 	}
-	return nil
+	return s.checkBoardsDirectory(dir)
+}
+
+func loadBoardSnapshot(path, id string) (snapshot, error) {
+	file, err := readSnapshotFile(path)
+	if err != nil {
+		return snapshot{}, err
+	}
+	value, err := parseSnapshot(file.data, id)
+	if err != nil {
+		return snapshot{}, err
+	}
+	if err := checkNamedSnapshot(path, file); err != nil {
+		return snapshot{}, err
+	}
+	return value, nil
 }
 
 func (s *store) checkBoardsDirectory(dir string) error {
@@ -240,7 +261,10 @@ func checkAcceptedSnapshotFile(path string, current snapshot, file snapshotFile)
 	if !reflect.DeepEqual(current, saved) {
 		return errDurableStateChanged
 	}
+	return checkNamedSnapshot(path, file)
+}
 
+func checkNamedSnapshot(path string, file snapshotFile) error {
 	// Validation takes time. Check that the name still points at the opened file
 	// and that its observable size and modification time have stayed stable.
 	named, err := os.Lstat(path)
@@ -288,6 +312,9 @@ func (s *store) create(value snapshot) error {
 		return errInvalidSnapshot
 	}
 	if _, exists := s.boards[id]; exists {
+		return errBoardExists
+	}
+	if _, failed := s.failedBoards[id]; failed {
 		return errBoardExists
 	}
 	if _, err := os.Lstat(s.snapshotPath(id)); err == nil {

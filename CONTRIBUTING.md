@@ -207,6 +207,14 @@ writable. Native snapshot verification reports the file's validity, while the
 catalog reports whether the file agrees with the running service. Use explicit
 snapshot admission or backup restoration to recover the affected board.
 
+At startup, a board with a canonical UUID filename whose saved snapshot fails
+validation appears to the Human workspace administrator as an unavailable board.
+The catalog identifies it by the filename UUID and `durable_state_unavailable`.
+The service reserves that UUID and serves other boards normally. An unavailable
+board has no accepted policy or revision. The service checks its snapshot again
+at the next startup. Workspace directory or filename namespace damage and
+cross-board identity conflicts still prevent startup.
+
 Native recovery accepts JSON snapshots or application/zip backups at the existing board address.
 Both request entities have an inclusive 96 MiB limit. PUT uses the current durable snapshot
 representation validator when the snapshot is readable. When durable state is unavailable, a previously

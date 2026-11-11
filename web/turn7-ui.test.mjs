@@ -384,6 +384,58 @@ test("a pending open rereads the selected card after a newer board paint without
   assert.equal(state.patched(), tag(card, 7));
 });
 
+test("repeated live paints bound automatic drawer reads and leave the exact selection retryable", async (t) => {
+  const {api, streams, commit} = changingBoard();
+  const getCard = api.getCard;
+  const reads = [];
+  const started = [Promise.withResolvers(), Promise.withResolvers()];
+  const release = [Promise.withResolvers(), Promise.withResolvers()];
+  api.getCard = async (id) => {
+    const attempt = reads.length;
+    reads.push(id);
+    const reply = await getCard(id);
+    if (attempt < release.length) {
+      started[attempt].resolve();
+      await release[attempt].promise;
+    }
+    return reply;
+  };
+  const url = "/boards/" + board;
+  const storage = tabStorage();
+  const ui = await harness(api, url, {storage});
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  await until(() => streams.length === 1);
+  const {main, details, refresh} = ui.nodes;
+  streams[0].send("snapshot", 1);
+  await until(() => main.querySelector("#board-live-connection").textContent === "Live updates connected.");
+  const opener = (title) => ui.find(main, "button", "#1 " + title);
+  opener("Original").focus();
+  opener("Original").click();
+  for (const [attempt, title] of ["First update", "Second update"].entries()) {
+    await started[attempt].promise;
+    streams[0].send("change", commit(title));
+    await until(() => opener(title));
+    assert.equal(details.querySelector("h2"), null);
+    release[attempt].resolve();
+  }
+  await ui.settled();
+  assert.deepEqual(reads, [card, card]);
+  assert.match(details.textContent, /Use Refresh/);
+  assert.doesNotMatch(details.textContent, /Loading card/);
+  assert.equal(details.querySelector("h2"), null);
+  assert.equal(JSON.parse(storage.getItem("localswim:board-view:" + board)).card.id, card);
+  streams[0].send("change", commit("Third update"));
+  await until(() => opener("Third update"));
+  assert.deepEqual(reads, [card, card]);
+  assert.equal(ui.focused(), opener("Third update"));
+
+  refresh.click();
+  await until(() => details.querySelector("h2")?.textContent === "#1 Third update");
+  assert.deepEqual(reads, [card, card, card]);
+  assert.equal(ui.focused(), opener("Third update"));
+});
+
 test("cover space exists before bytes arrive and repaint restores scroll without scrolling focused controls", async () => {
   const {api} = boardApi();
   const getBoardLanes = api.getBoardLanes;

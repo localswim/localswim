@@ -632,7 +632,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
   let invalidSelection = false;
   try {
     let reply;
-    for (;;) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       // The board tag changes with its in-place paint, before auxiliary reads finish.
       const requestedTag = boardTag();
       try {
@@ -648,6 +648,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       }
       focusHeading = false;
     }
+    if (!reply) throw new Error("The board changed during both card reads.");
     const card = /** @type {Card} */ (reply.data);
     if (card.id !== summary.id || card.board_id !== boardId) {
       invalidSelection = true;

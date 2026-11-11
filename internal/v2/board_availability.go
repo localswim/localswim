@@ -160,11 +160,8 @@ func (s *store) finishBoardCloseLocked(current, next snapshot, data []byte) erro
 	if s.boards[next.Board.ID].Board.ETag != current.Board.ETag {
 		return errStale
 	}
-	if err := s.checkAcceptedDurableLocked(current); err != nil {
-		return err
-	}
 	if err := s.checkIdentities(next, false); err != nil {
 		return err
 	}
-	return s.writeCommit(cloneSnapshot(next), data)
+	return s.writeCommit(cloneSnapshot(next), data, &current)
 }

@@ -2,11 +2,46 @@ package v2
 
 import (
 	"bytes"
+	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"testing"
 )
+
+func TestM82RefusesSnapshotChangedDuringWritePreparation(t *testing.T) {
+	s, initial := m01CreateBoard(t, t.TempDir())
+	path := s.snapshotPath(initial.Board.ID)
+	external := cloneSnapshot(initial)
+	external.Board.Name = "Changed after admission"
+	replacement := marshalVerificationFixture(t, external)
+	if _, err := parseSnapshot(replacement, initial.Board.ID); err != nil {
+		t.Fatalf("expected a valid same-revision replacement: %v", err)
+	}
+
+	_, err := s.update(initial.Board.ID, initial.Board.ETag, func(next *snapshot) error {
+		if err := writeAtomic(path, replacement); err != nil {
+			return err
+		}
+		return m01Rename(next)
+	})
+	if !errors.Is(err, errDurableStateChanged) {
+		t.Fatalf("expected a known refusal for a change during preparation, got %v", err)
+	}
+	saved, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(saved, replacement) {
+		t.Fatalf("refused write changed the replacement bytes: %v", err)
+	}
+	current, exists := s.accepted(initial.Board.ID)
+	if !exists || !reflect.DeepEqual(current, initial) || s.fencedBoard() != "" {
+		t.Fatal("refused write changed or fenced the accepted snapshot")
+	}
+	pending, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".pending-*.tmp"))
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("refused write left a staged snapshot: count %d, error %v", len(pending), err)
+	}
+}
 
 func TestM82OrdinaryWritesRefuseChangedDurableSnapshot(t *testing.T) {
 	for _, tc := range []struct {

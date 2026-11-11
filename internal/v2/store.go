@@ -268,7 +268,7 @@ func (s *store) create(value snapshot) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	return s.commit(cloneSnapshot(value), true)
+	return s.commit(cloneSnapshot(value), true, nil)
 }
 
 func (s *store) update(id, expected string, change func(*snapshot) error) (snapshot, error) {
@@ -302,7 +302,7 @@ func (s *store) updateLocked(current snapshot, change func(*snapshot) error) (sn
 		return next, err
 	}
 	// Detach from data that the callback supplied or retained.
-	if err := s.commit(cloneSnapshot(next), false); err != nil {
+	if err := s.commit(cloneSnapshot(next), false, &current); err != nil {
 		return snapshot{}, err
 	}
 	return next, nil
@@ -348,12 +348,12 @@ func (s *store) writable() error {
 	return nil
 }
 
-func (s *store) commit(value snapshot, reuseUsers bool) error {
+func (s *store) commit(value snapshot, reuseUsers bool, accepted *snapshot) error {
 	data, err := s.prepareCommit(value, reuseUsers)
 	if err != nil {
 		return err
 	}
-	return s.writeCommit(value, data)
+	return s.writeCommit(value, data, accepted)
 }
 
 func (s *store) prepareCommit(value snapshot, reuseUsers bool) ([]byte, error) {
@@ -374,13 +374,19 @@ func (s *store) prepareCommit(value snapshot, reuseUsers bool) ([]byte, error) {
 	return data, nil
 }
 
-func (s *store) writeCommit(value snapshot, data []byte) error {
+func (s *store) writeCommit(value snapshot, data []byte, accepted *snapshot) error {
 	id := value.Board.ID
 	path := s.snapshotPath(id)
 	if err := s.checkBoardsDirectory(filepath.Dir(path)); err != nil {
 		return err
 	}
-	if err := writeAtomic(path, data); err != nil {
+	var beforeReplace func() error
+	if accepted != nil {
+		beforeReplace = func() error {
+			return s.checkAcceptedDurableLocked(*accepted)
+		}
+	}
+	if err := writeAtomicChecked(path, data, beforeReplace); err != nil {
 		if errors.Is(err, errWriteUncertain) {
 			// Fence new commits until restart reloads the disk outcome. Durable
 			// inspection remains available for resolving the uncertain mutation.

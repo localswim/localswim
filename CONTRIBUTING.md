@@ -138,8 +138,9 @@ order. It recomputes the selected pool and full dependency paths in one transact
 refuses. A real permutation changes only selected ticket numbers, card revisions and renumber audit.
 UUID attachment paths and existing history remain intact. An unchanged order preserves the revision.
 
-Ordinary writes to existing boards compare the saved snapshot with the service's accepted
-snapshot before applying any change. A damaged or missing snapshot returns
+Ordinary writes to existing boards compare the saved snapshot with the service's
+accepted snapshot before preparing a change and again immediately before replacing
+the file. A damaged or missing snapshot returns
 `503 unavailable` and appears as `durable_state_unavailable` in the board catalog.
 A valid replacement that differs from the accepted state returns `503 unavailable`
 and appears as `durable_state_changed`, even when the two revisions match.

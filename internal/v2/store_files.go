@@ -40,6 +40,10 @@ func acquireWorkspaceLock(path string) (*os.File, error) {
 }
 
 func writeAtomic(path string, data []byte) error {
+	return writeAtomicChecked(path, data, nil)
+}
+
+func writeAtomicChecked(path string, data []byte, beforeReplace func() error) error {
 	file, err := os.CreateTemp(filepath.Dir(path), ".pending-*.tmp")
 	if err != nil {
 		return fmt.Errorf("create pending snapshot: %w", err)
@@ -51,6 +55,11 @@ func writeAtomic(path string, data []byte) error {
 	}
 	if err = errors.Join(err, file.Close()); err != nil {
 		return fmt.Errorf("flush pending snapshot: %w", err)
+	}
+	if beforeReplace != nil {
+		if err := beforeReplace(); err != nil {
+			return err
+		}
 	}
 	if err := replaceAtomic(temp, path); err != nil {
 		return fmt.Errorf("replace snapshot: %w", err)

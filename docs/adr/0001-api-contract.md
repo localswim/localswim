@@ -41,7 +41,11 @@ their hash family and digest size.
 
 CLI updates accept `--revision N` to require the positive numeric `revision` from a prior read. The CLI fetches the current representation, compares any supplied revision, and uses the returned ETag for the write. With no explicit revision, only changes after that fetch are guarded. For a card write, comment creation, or attachment upload, the optional numeric revision checks the addressed card during preflight. Lane rename, retirement, and approval-button configuration check the addressed lane revision. Attachment detach checks the addressed attachment revision and supplies both resource and board validators. Card creation, policy changes, and `lane add` check the board revision. The server guards the addressed resource version at commit.
 
-`card patch`, `card description`, `comment post`, and `lane add` require a positional input source. Pass a file path or `-` for standard input. Card descriptions take UTF-8 text and preserve whitespace and line endings. The other three commands take a JSON object.
+`card patch`, `card description`, and `lane add` require a positional input source.
+Pass a file path or `-` for standard input. Card descriptions take UTF-8 text and
+preserve whitespace and line endings. The other two commands take a JSON object.
+`card create`, `comment post`, and `card set-priorities` accept concise inputs or
+JSON documents. The document forms require the same file-or-minus positional.
 
 Item writes use the addressed resource's strong ETag. Operations spanning resources carry explicit board/card preconditions in request bodies or in the documented HTTP headers. Data, permission checks, derived changes, and audit commit together. A lost or unreadable write response requires inspection before another attempt.
 

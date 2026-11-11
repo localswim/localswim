@@ -40,6 +40,7 @@ const cliHelp = `Usage:
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] [--data DIRECTORY] BOARD_ID
   localswim card create [--revision N] <JSON_FILE|->
+  localswim card create [--revision N] --title TITLE [--description TEXT] BOARD_ID LANE_ID
   localswim card list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card get CARD_ID
   localswim card get BOARD_ID TICKET
@@ -52,6 +53,7 @@ const cliHelp = `Usage:
   localswim card title [--revision N] CARD_ID TITLE
   localswim card set-priority [--revision N] CARD_ID PRIORITY_ID
   localswim card set-priorities [--revision N] BOARD_ID FILE|-
+  localswim card set-priorities [--revision N] --priority PRIORITY_ID BOARD_ID CARD_ID [CARD_ID ...]
   localswim card description [--revision N] CARD_ID FILE|-
   localswim card archive [--revision N] CARD_ID
   localswim card archive [--revision N] BOARD_ID TICKET
@@ -65,6 +67,7 @@ const cliHelp = `Usage:
   localswim relationship remove [--revision N] RELATIONSHIP_ID
   localswim comment list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim comment post [--revision N] CARD_ID FILE|-
+  localswim comment post [--revision N] --text TEXT CARD_ID
   localswim activity list --from UTC --to UTC [--view full|monitor] [--ticket N]
                         [--actor-id UUID] [--operation OP] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim lane add [--revision N] BOARD_ID FILE|-
@@ -121,18 +124,18 @@ Use board get BOARD_ID to inspect availability after an unknown close or reopen 
 Omit --revision to use the current resource validator.
 Supply --revision to require the version you previously inspected.
 For card create and policy grant, --revision refers to the board revision.
-Card create reads JSON_FILE, or standard input when given as -.
-Its JSON must include board_id. The CLI supplies the board revision validator.
-Include an explicit card ID to allow focused readback after a lost create reply.
+Card create takes a title and optional description with a board and lane, or reads JSON.
+Its JSON must include board_id and can include an explicit ID for focused readback after a lost reply.
 Policy grant reads create_grants and/or move_grants and preserves existing permissions.
 Comment list excludes archived cards for a board and includes them when scoped to one card by default.
-Comment post reads an object containing text and an optional ID.
+Comment post takes --text or reads an object containing text and an optional ID.
 Lane add reads the lane definition. The CLI supplies its board ID and validator.
 Card edits, comment post, and attachment upload check the card revision.
 Ticket-based move, assign, archive, and unarchive also check the board version from the focused read.
 Lane add checks the board revision. Attachment detach checks the attachment revision.
 Lane rename, set-key, retire, and set-approval-button check the lane revision.
-Card set-priorities reads card_ids and priority_id and checks the board revision.
+Card set-priorities takes --priority and card IDs or reads card_ids and priority_id from JSON.
+It checks the board revision.
 The batch evaluates all selected cards together and returns effective priorities and changes.
 Board get --view lanes returns visible cards in their swimlane order.
 Ticket-order preview defaults to all active lane cards. Optional card IDs select the ticket pool.
@@ -244,7 +247,11 @@ func runCLIWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, g
 	command, err := parseCLI(args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			if _, err := io.WriteString(stdout, cliHelp); err != nil {
+			help := cliHelp
+			if contextual := routineWriteHelp(args[0] + " " + args[1]); contextual != "" {
+				help = contextual
+			}
+			if _, err := io.WriteString(stdout, help); err != nil {
 				return 1
 			}
 			return 0
@@ -321,6 +328,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	creating := false
 	var createName string
 	var jsonInput bool
+	var cardTitle, cardDescription string
 	var boardView string
 	paginated := false
 	format := exportJSON
@@ -378,6 +386,8 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "card create":
 		command.method, command.resource = http.MethodPost, "/cards"
 		command.boardAction = name
+		flags.StringVar(&cardTitle, "title", "", "title of the new card")
+		flags.StringVar(&cardDescription, "description", "", "description of the new card")
 	case "card get":
 		command.method, command.resource = http.MethodGet, "/cards"
 	case "card inspect":
@@ -429,12 +439,14 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.resource += "?" + query.Encode()
 	}
 	var optionErr error
-	var hasName, hasJSON, hasRevision bool
+	var hasName, hasJSON, hasRevision, hasTitle, hasDescription bool
 	flags.Visit(func(f *flag.Flag) {
 		hasName = hasName || f.Name == "name"
 		hasJSON = hasJSON || f.Name == "json"
 		hasRevision = hasRevision || f.Name == "revision"
-		if f.Name != "revision" && f.Value.String() == "" {
+		hasTitle = hasTitle || f.Name == "title"
+		hasDescription = hasDescription || f.Name == "description"
+		if f.Name != "revision" && f.Name != "description" && f.Value.String() == "" {
 			optionErr = errors.New("command options require nonempty values")
 		}
 	})
@@ -485,10 +497,11 @@ func parseCLI(args []string) (cliCommand, error) {
 		}
 		command.inputPath = flags.Arg(0)
 	} else if name == "card create" {
-		if flags.NArg() != 1 || flags.Arg(0) == "" {
-			return command, errors.New("card create accepts one JSON file or - for standard input")
+		var err error
+		command.inputPath, command.body, err = cardCreateInput(flags.Args(), hasTitle, hasDescription, cardTitle, cardDescription)
+		if err != nil {
+			return command, err
 		}
-		command.inputPath = flags.Arg(0)
 	} else if name == "card get" {
 		switch {
 		case flags.NArg() == 1 && boardIDPattern.MatchString(flags.Arg(0)):

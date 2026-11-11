@@ -21,6 +21,7 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var revision, backupID string
+	var priority *string
 	switch name {
 	case "card set-priorities", "backup create":
 		flags.StringVar(&revision, "revision", "", "expected board revision")
@@ -30,6 +31,12 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	}
 	if name == "backup create" {
 		flags.StringVar(&backupID, "id", "", "known backup UUIDv7")
+	}
+	if name == "card set-priorities" {
+		flags.Func("priority", "priority UUIDv4 for all selected cards", func(value string) error {
+			priority = &value
+			return nil
+		})
 	}
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
@@ -42,7 +49,8 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	if name == "backup info" || name == "backup download" {
 		resourcePattern = operationIDPattern
 	}
-	if flags.NArg() < count || (name != "ticket-order preview" && flags.NArg() != count) ||
+	variadic := name == "ticket-order preview" || priority != nil
+	if flags.NArg() < count || (!variadic && flags.NArg() != count) ||
 		!resourcePattern.MatchString(flags.Arg(0)) || (count == 2 && flags.Arg(1) == "") {
 		return cmd, errors.New("expected a valid resource ID and the documented arguments")
 	}
@@ -67,7 +75,16 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	id := strings.ToLower(flags.Arg(0))
 	switch name {
 	case "card set-priorities":
-		cmd.method, cmd.resource, cmd.boardID, cmd.inputPath = http.MethodPatch, "/cards", id, flags.Arg(1)
+		cmd.method, cmd.resource, cmd.boardID = http.MethodPatch, "/cards", id
+		if priority == nil {
+			cmd.inputPath = flags.Arg(1)
+		} else {
+			var err error
+			cmd.body, err = priorityBatchBody(*priority, flags.Args()[1:])
+			if err != nil {
+				return cmd, err
+			}
+		}
 	case "backup create":
 		cmd.method, cmd.resource, cmd.boardID = http.MethodPost, "/backups", id
 		if backupID == "" {

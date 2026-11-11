@@ -51,10 +51,13 @@ Approve all in lane for Ready for Review. The action submits the complete render
 active membership and its original versions, including the rendered board version.
 A stale set requires inspection before another submission.
 
-Add a typed link from the drawer or seed a link while creating a card. The same
-relationship is visible from both cards. Human comments link ticket references to
-focused board reads, including archived tickets. Bot comments render as text. Card
-priorities are shown on the board and in the drawer and refresh after link edits.
+Use the drawer's parent and child links to open those cards, including archived
+cards. Add a typed link from the drawer or use Link the new card to add multiple
+relationships to a new card. The service saves the new card and all its links
+together. Each relationship is visible from both cards. Human comments link ticket
+references to focused board reads, including archived tickets. Bot comments render
+as text. Card priorities are shown on the board and in the drawer and refresh after
+link edits.
 
 Use **Set priority** in the card drawer to change that card's priority against
 its displayed revision. The drawer shows the effective saved priority and

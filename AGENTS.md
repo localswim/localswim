@@ -11,6 +11,9 @@
   together. Use fresh disposable test and demo data when a format changes.
 - Document current behavior directly. Remove obsolete interface notes and dead
   transition code instead of leaving a compatibility trail.
+- CLI commands that read or write payload files require an explicit file path
+  or `-` for stdin/stdout.
+  Output files must be new paths, matching attachment and backup downloads.
 - “String” means UTF-8 unless explicitly stated otherwise. Preserve user-supplied
   text exactly without silent replacement, trimming, or normalization.
 - Run `.\check.ps1` before handoff. Keep the strict compiler and lint gates enabled,

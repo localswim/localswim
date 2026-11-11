@@ -38,7 +38,7 @@ const cliHelp = `Usage:
   localswim board publishing disable [--revision N] BOARD_ID
   localswim board publishing status BOARD_ID
   localswim board verify [--data DIRECTORY] BOARD_ID
-  localswim board export [--type json] [--data DIRECTORY] BOARD_ID
+  localswim board export [--type json] [--data DIRECTORY] BOARD_ID <FILE|->
   localswim card create [--revision N] <JSON_FILE|->
   localswim card list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card get CARD_ID
@@ -109,7 +109,7 @@ JSON_FILE is required. Use a file path or - to read standard input.
 Set --data on board get, board export, card inspect, or board verify to read saved board data offline.
 Offline board get returns board metadata. The lanes view requires a live service.
 Verification prints the full JSON report and exits 1 if the board is invalid.
-Board export writes JSON to standard output. The default --type is json.
+Board export writes JSON to a new FILE, or standard output when given -. The default --type is json.
 All pin commands require at least one board ID. Pin set replaces the order.
 Pin add appends new boards in the supplied order.
 Pin remove skips failed targets with WARNING messages and preserves the remaining order.
@@ -160,7 +160,8 @@ Backup verify checks a local ZIP and writes its verification report without cont
 Activity intervals are inclusive. Quote both UTC bounds in YYYY-MM-DD HH:MM:SS+00:00.
 Activity lists sanitized edit metadata by default. Use --view full for the attributed audit.
 The CLI manages HTTP validators.
-For FILE|-, pass a file path or use - to read standard input.
+For input FILE|-, pass a file path or use - to read standard input.
+For output FILE|-, pass a new file path or use - to write standard output.
 Card description reads UTF-8 text verbatim, including trailing newlines.
 Card list excludes archived cards by default. Focused card get includes them.
 Card inspect returns ticket, lane, owner, priority, and relationship metadata. Use --prose for its description and comments.
@@ -213,6 +214,7 @@ type cliCommand struct {
 	edit                               t03Edit
 	relationshipWrite                  bool
 	relationshipID                     string
+	exportPath                         string
 	downloadPath                       string
 	verifyBoard                        bool
 	detachAttachment                   bool
@@ -506,6 +508,13 @@ func parseCLI(args []string) (cliCommand, error) {
 		}
 	} else if needBoardID {
 		count, expected := 1, "expected one UUIDv4 board ID"
+		if name == "board export" {
+			count, expected = 2, "board export requires a UUIDv4 board ID followed by FILE or - for standard output"
+			command.exportPath = flags.Arg(1)
+			if command.exportPath == "" {
+				return command, errors.New(expected)
+			}
+		}
 		if rename {
 			count, expected = 2, "expected a UUIDv4 board ID followed by one new name (quote names containing spaces)"
 		}
@@ -565,6 +574,9 @@ func boardNameBody(name string) (json.RawMessage, error) {
 func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, getenv func(string) string) error {
 	if command.backupVerifyPath != "" {
 		return verifyBackupFile(command.backupVerifyPath, stdout)
+	}
+	if command.exportPath != "" {
+		return executeBoardExport(command, stdout, getenv)
 	}
 	if inspect := command.ticketInspection; inspect != nil && inspect.dataDir != "" {
 		return executeNativeRead(inspect.dataDir, inspect.boardID, "ticket", inspect.ticket, inspect.prose, stdout)

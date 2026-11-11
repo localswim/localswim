@@ -29,6 +29,90 @@ test("ordered board view preserves server card order and validates membership", 
     { headers: { ETag: tag(board, 3) } }));
   await assert.rejects(invalid.getBoardLanes(board), ApiError);
 });
+test("board and lane reads validate notes independently of bulk approval comments", async () => {
+  const notes = " Review 🧭\n<example> ";
+  const reviewed = { ...laneData, role: "ready_for_review", bulk_approval_comment: " Approved " };
+  const presentation = { human: { label: " Reviewer ", accent: "#123AbC" }, bot: { accent: "#456def" } };
+  const prefix = "/api/2026-11-10";
+  function apiFor(saved, actors = presentation) {
+    return client(async (path) => {
+      if (path === `${prefix}/boards/${board}?view=lanes`) {
+        return Response.json({ board: { id: board, revision: 3, actor_presentation: actors }, lanes: [saved], cards: [] },
+          { headers: { ETag: tag(board, 3) } });
+      }
+      assert.equal(path, `${prefix}/lanes?board_id=${board}`);
+      return Response.json({ lanes: [saved], next_cursor: null });
+    });
+  }
+  for (const saved of [{ ...laneData, notes }, reviewed, { ...reviewed, notes }, { ...laneData, notes: "🧭".repeat(4096) }]) {
+    const api = apiFor(saved);
+    const ordered = await api.getBoardLanes(board);
+    assert.deepEqual(ordered.data.board.actor_presentation, presentation);
+    assert.deepEqual(ordered.data.lanes, [saved]);
+    assert.deepEqual((await api.listLanes(board)).data.lanes, [saved]);
+  }
+  const invalidResponse = (error) => error instanceof ApiError && error.code === "invalid_response" && !error.outcomeUnknown;
+  for (const saved of [
+    ...["", "🧭".repeat(4097), 5, null, "\uD800"].map((value) => ({ ...reviewed, notes: value })),
+    { ...reviewed, notes, unexpected: true },
+    { ...reviewed, notes, board_id: owner },
+  ]) {
+    const api = apiFor(saved);
+    await assert.rejects(api.getBoardLanes(board), invalidResponse);
+    await assert.rejects(api.listLanes(board), invalidResponse);
+  }
+  for (const actors of [null, [], { human: null }, { bot: { kind: "human" } },
+    { human: { accent: "#123abc\n" } }, { bot: { label: "" } }, { human: { label: "x".repeat(257) } }]) {
+    await assert.rejects(apiFor(laneData, actors).getBoardLanes(board), invalidResponse);
+  }
+});
+
+test("lane writes preserve exact notes and accept the canonical omitted note after clearing", async () => {
+  const prefix = "/api/2026-11-10";
+  const notes = " Review first.\nReady 🧭 ";
+  const bulk = " Approved ";
+  const reviewed = { ...laneData, role: "ready_for_review", bulk_approval_comment: bulk };
+  const create = { label: "Ready", after_id: priority, create_for: [], connect_for: [], notes };
+  const createApi = client(async (path, request) => {
+    assert.equal(path, prefix + "/lanes");
+    assert.equal(request.method, "POST");
+    assert.deepEqual(JSON.parse(request.body), { ...create, board_id: board, board_etag: tag(board, 3) });
+    return Response.json({ ...laneData, notes }, { status: 201, headers: { ETag: tag(lane, 2) } });
+  });
+  assert.equal((await createApi.createLane(board, tag(board, 3), create)).data.notes, notes);
+
+  for (const text of [notes, ""]) {
+    const change = { notes: text, bulk_approval_comment: bulk };
+    const saved = text ? { ...reviewed, notes: text } : reviewed;
+    const api = client(async (path, request) => {
+      assert.equal(path, prefix + "/lanes/" + lane);
+      assert.equal(request.method, "PATCH");
+      assert.equal(request.headers.get("If-Match"), tag(lane, 2));
+      assert.deepEqual(JSON.parse(request.body), { board_etag: tag(board, 3), ...change });
+      return Response.json(saved, { headers: { ETag: tag(lane, 4) } });
+    });
+    assert.deepEqual((await api.updateLaneSettings(board, lane, 2, tag(board, 3), change)).data, saved);
+  }
+  const renameApi = client(async (path, request) => {
+    assert.equal(path, prefix + "/lanes/" + lane);
+    if (request.method === "GET") {
+      return Response.json({ ...reviewed, notes }, { headers: { ETag: tag(lane, 2) } });
+    }
+    assert.equal(request.method, "PATCH");
+    assert.equal(request.headers.get("If-Match"), tag(lane, 2));
+    assert.deepEqual(JSON.parse(request.body), { board_etag: tag(board, 3), label: "Review" });
+    return Response.json({ ...reviewed, label: "Review", notes, revision: 4 }, { headers: { ETag: tag(lane, 4) } });
+  });
+  assert.equal((await renameApi.renameLane(lane, 2, tag(board, 3), "Review")).data.notes, notes);
+
+  for (const saved of [{ ...reviewed, notes: "" }, { ...reviewed, notes: false },
+    { ...reviewed, notes: "Other note" }, { ...reviewed, notes, unexpected: true }]) {
+    const api = client(async () => Response.json(saved, { headers: { ETag: tag(lane, 4) } }));
+    await assert.rejects(api.updateLaneSettings(board, lane, 2, tag(board, 3), { notes }),
+      (error) => error instanceof ApiError && error.code === "invalid_response" && error.outcomeUnknown);
+  }
+});
+
 test("lane key uses lane and board validators and checks exact saved key", async () => {
   const api = client(async (path, request) => {
     assert.equal(path, `/api/2026-11-10/lanes/${lane}`);

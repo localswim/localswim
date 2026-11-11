@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"time"
@@ -222,7 +221,7 @@ func validateSnapshot(value snapshot, boardID string) error {
 	if b.ID != boardID || !validSnapshotID(b.ID) {
 		return invalidSnapshot("board.id", "Board identity does not match the snapshot filename.")
 	}
-	if !validSnapshotEntity(b.entity) || b.Revision > maxSnapshotInteger || b.ETag != etag(b.ID, b.Revision) {
+	if !validSnapshotEntity(b.entity) || b.Revision > maxSnapshotInteger {
 		return invalidSnapshot("board", "Board version or entity metadata is invalid.")
 	}
 	if !snapshotText(b.Name, 1, 256) || !snapshotText(b.UserCSS, 0, maxBoardCSSLength) ||
@@ -294,7 +293,7 @@ func (refs snapshotReferences) claim(item entity) bool {
 func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 	b := value.Board
 	for _, u := range value.Users {
-		if !refs.claim(u.entity) || (u.Kind != "human" && u.Kind != "bot") ||
+		if !refs.claim(u.entity) || u.Revision != 1 || (u.Kind != "human" && u.Kind != "bot") ||
 			!snapshotText(u.Label, 1, 256) || !snapshotText(u.Color, 0, 64) {
 			return invalidSnapshot("users", "User identity or metadata is invalid.")
 		}
@@ -354,7 +353,7 @@ func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 	priorityKeys := make(map[string]bool, len(value.Priorities))
 	ranks := make(map[uint64]bool, len(value.Priorities))
 	for _, p := range value.Priorities {
-		if !refs.claim(p.entity) || p.BoardID != b.ID || !snapshotText(p.Key, 1, 128) ||
+		if !refs.claim(p.entity) || p.Revision != 1 || p.BoardID != b.ID || !snapshotText(p.Key, 1, 128) ||
 			!snapshotText(p.Label, 1, 256) || !snapshotText(p.Color, 0, 64) ||
 			p.Rank < 0 || priorityKeys[p.Key] || ranks[uint64(p.Rank)] {
 			return invalidSnapshot("priorities", "Priority identity or metadata is invalid.")
@@ -376,7 +375,7 @@ func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 }
 
 func (refs snapshotReferences) validatePolicy(p policy, b board) error {
-	if !refs.claim(p.entity) || p.ID != b.PolicyID || p.BoardID != b.ID || !refs.priorities[p.DefaultPriorityID] {
+	if !refs.claim(p.entity) || p.Revision > b.Revision || p.ID != b.PolicyID || p.BoardID != b.ID || !refs.priorities[p.DefaultPriorityID] {
 		return invalidSnapshot("policy", "Policy identity or default priority is invalid.")
 	}
 	if p.CreateGrants == nil || p.MoveGrants == nil || p.ResourceGrants == nil {
@@ -504,7 +503,7 @@ func validSnapshotOperationID(id string) bool {
 }
 
 func validSnapshotEntity(item entity) bool {
-	return validSnapshotID(item.ID) && snapshotETagPattern.MatchString(item.ETag) &&
+	return validSnapshotID(item.ID) && item.Revision > 0 && item.Revision <= maxSnapshotInteger &&
 		validSnapshotTime(item.CreatedAt) && validSnapshotTime(item.UpdatedAt) &&
 		!item.UpdatedAt.Before(item.CreatedAt)
 }
@@ -543,8 +542,6 @@ func snapshotString(value *string) string {
 func equalSnapshotStrings(a, b *string) bool {
 	return a == nil && b == nil || a != nil && b != nil && *a == *b
 }
-
-var snapshotETagPattern = regexp.MustCompile(`^"[A-Za-z0-9_-]{16,128}"$`)
 
 type snapshotAuditField struct {
 	resourceType, resourceID, name string
@@ -895,8 +892,8 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 			return invalidSnapshot("attachments.revision", "Attachment revision does not match its latest audit.")
 		}
 	}
-	if recoveryRevision != 0 && value.Policy.ETag != etag(value.Policy.ID, max(policyRevision, recoveryRevision)) {
-		return invalidSnapshot("policy.etag", "Policy version does not match its latest audit.")
+	if value.Policy.Revision != max(policyRevision, recoveryRevision) {
+		return invalidSnapshot("policy.revision", "Policy version does not match its latest audit.")
 	}
 	if previousRevision != b.Revision {
 		return invalidSnapshot("activity.revision", "Audit does not reach the board revision.")

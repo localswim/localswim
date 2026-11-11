@@ -164,7 +164,7 @@ test("typed-link writes send the correct resource and board preconditions", asyn
       headers: { "X-Board-ETag": updatedBoardTag } });
     return Response.json(relationship, { status: options.method === "POST" ? 201 : 200, headers: { ETag: cardTag } });
   } });
-  await api.createRelationship(id, boardId, boardTag, cardId, otherCard, "blocked_by");
+  await api.createRelationship(id, boardId, boardTag, cardId, otherCard, "blocks");
   await api.replaceRelationship(id, 7, boardTag, "relates_to");
   await api.removeRelationship(id, 7, boardTag);
   assert.deepEqual(calls.map(([url, options]) => [url, options.method]), [
@@ -173,7 +173,7 @@ test("typed-link writes send the correct resource and board preconditions", asyn
     [prefix + "/relationships/" + id, "DELETE"],
   ]);
   assert.deepEqual(JSON.parse(calls[0][1].body), { id, board_id: boardId, expected_board_etag: boardTag,
-    source_card_id: cardId, target_card_id: otherCard, kind: "blocked_by" });
+    source_card_id: cardId, target_card_id: otherCard, kind: "blocks" });
   assert.equal(calls[2][1].headers.get("If-Match"), cardTag);
   assert.deepEqual(JSON.parse(calls[2][1].body), { expected_board_etag: boardTag, kind: "relates_to" });
   assert.equal(calls[4][1].headers.get("If-Match"), cardTag);
@@ -301,4 +301,14 @@ test("attachment integrity failures never publish download or preview blobs", as
       (error) => error instanceof ApiError && error.code === "invalid_response" && !error.outcomeUnknown);
     assert.equal(calls, 1);
   }
+});
+
+test("relationship writes reject inverse kinds before any request", async () => {
+  let calls = 0;
+  const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async () => { ++calls; throw new Error("unexpected request"); } });
+  for (const kind of ["blocked_by", "duplicated_by", "referenced_by"]) {
+    await assert.rejects(api.createRelationship(id, boardId, boardTag, cardId, otherCard, kind), TypeError);
+    await assert.rejects(api.replaceRelationship(id, 7, boardTag, kind), TypeError);
+  }
+  assert.equal(calls, 0);
 });

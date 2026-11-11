@@ -18,7 +18,7 @@ func TestBoardCSSConfiguration(t *testing.T) {
 	}
 	path := "/boards/" + created.ID
 	for _, input := range []string{`null`, `{}`, `"\uD800"`, `"` + strings.Repeat("é", maxBoardCSSLength+1) + `"`} {
-		client.call("PATCH", path, `{"name":"Must remain Styled","user_css":`+input+`}`, created.ETag, 400)
+		client.call("PATCH", path, `{"name":"Must remain Styled","user_css":`+input+`}`, created.entityTag(), 400)
 	}
 	client.call("POST", "/boards", `{"name":"Invalid","user_css":null}`, "", 400)
 	body, _ = client.call("POST", "/boards", `{"name":"Unstyled"}`, "", 201)
@@ -27,14 +27,14 @@ func TestBoardCSSConfiguration(t *testing.T) {
 		t.Fatal("a separate board inherited the stylesheet")
 	}
 	const patch = `{"user_css":"  .lanes { color: #468; }\n "}`
-	body, _ = client.call("PATCH", path, patch, created.ETag, 200)
+	body, _ = client.call("PATCH", path, patch, created.entityTag(), 200)
 	updated := turnOneDecode[board](t, body)
 	if updated.UserCSS != changed || updated.Revision != created.Revision+1 || updated.Name != created.Name {
 		t.Fatal("board stylesheet did not commit at the next revision")
 	}
-	client.call("PATCH", path, `{"user_css":""}`, created.ETag, 412)
-	body, _ = client.call("PATCH", path, patch, updated.ETag, 200)
-	if same := turnOneDecode[board](t, body); same.ETag != updated.ETag {
+	client.call("PATCH", path, `{"user_css":""}`, created.entityTag(), 412)
+	body, _ = client.call("PATCH", path, patch, updated.entityTag(), 200)
+	if same := turnOneDecode[board](t, body); same.entityTag() != updated.entityTag() {
 		t.Fatal("identical stylesheet advanced the board revision")
 	}
 	durable, err := app.store.durable(created.ID)
@@ -55,7 +55,7 @@ func TestBoardCSSConfiguration(t *testing.T) {
 	if current := turnOneDecode[boardLanesView](t, body); current.Board.UserCSS != changed {
 		t.Fatal("browser lane view lost the stylesheet")
 	}
-	body, _ = client.call("PATCH", path, `{"user_css":""}`, updated.ETag, 200)
+	body, _ = client.call("PATCH", path, `{"user_css":""}`, updated.entityTag(), 200)
 	if cleared := turnOneDecode[board](t, body); cleared.UserCSS != "" || cleared.Revision != updated.Revision+1 {
 		t.Fatal("empty text did not clear the stylesheet")
 	}
@@ -73,9 +73,9 @@ func TestBoardCSSPatchRequiresManageBoard(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := "/boards/" + id
-	client.call("PATCH", path, `{"user_css":"h1 { color: red; }"}`, value.Board.ETag, 403)
+	client.call("PATCH", path, `{"user_css":"h1 { color: red; }"}`, value.Board.entityTag(), 403)
 	body, _ := client.call("GET", path, "", "", 200)
-	if current := turnOneDecode[board](t, body); current.UserCSS != "" || current.ETag != value.Board.ETag {
+	if current := turnOneDecode[board](t, body); current.UserCSS != "" || current.entityTag() != value.Board.entityTag() {
 		t.Fatal("refused patch modified the board")
 	}
 }

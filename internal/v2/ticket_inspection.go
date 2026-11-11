@@ -38,11 +38,6 @@ type ticketCard struct {
 	Priority ticketPriority `json:"priority"`
 }
 
-type ticketFocus struct {
-	ticketCard
-	ETag string `json:"etag"`
-}
-
 type ticketRelationship struct {
 	ID        string     `json:"id"`
 	Kind      string     `json:"kind"`
@@ -60,7 +55,7 @@ type ticketProse struct {
 type TicketInspection struct {
 	BoardID       string               `json:"board_id"`
 	BoardRevision uint64               `json:"board_revision"`
-	Card          ticketFocus          `json:"card"`
+	Card          ticketCard           `json:"card"`
 	Relationships []ticketRelationship `json:"relationships"`
 	Parent        *ticketCard          `json:"parent"`
 	Children      []ticketCard         `json:"children"`
@@ -99,7 +94,7 @@ func InspectTicket(state snapshot, ticket uint64, includeProse bool) (TicketInsp
 	}
 	result := TicketInspection{
 		BoardID: state.Board.ID, BoardRevision: state.Board.Revision,
-		Card:          ticketFocus{ticketCard: context(&focus), ETag: focus.entityTag()},
+		Card:          context(&focus),
 		Relationships: []ticketRelationship{}, Children: []ticketCard{},
 	}
 	if focus.ParentID != nil {
@@ -168,6 +163,6 @@ func (x *request) boardTicket(state snapshot) {
 		x.fail(err)
 		return
 	}
-	x.w.Header().Set("X-Board-ETag", state.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", state.Board.entityTag())
 	x.respond(http.StatusOK, result, "")
 }

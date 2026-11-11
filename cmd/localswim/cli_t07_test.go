@@ -81,12 +81,12 @@ func TestT07ApplyUsesSavedValidatorAndNeverRetries(t *testing.T) {
 				IDs      []string `json:"card_ids"`
 			}
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			if r.Method != http.MethodPut || body.Expected != t03BoardTag || body.BoardID != t03Board || len(body.IDs) != 1 || body.IDs[0] != t03Card {
+			if r.Method != http.MethodPut || body.Expected != fmt.Sprintf("\"%s-12\"", t03Board) || body.BoardID != t03Board || len(body.IDs) != 1 || body.IDs[0] != t03Card {
 				t.Error("incorrect saved preview request")
 			}
 			w.WriteHeader(status)
 		}))
-		input := fmt.Sprintf(`{"board_id":%q,"lane_id":%q,"expected_board_etag":%q,"proposed":[{"card_id":%q,"ticket":1}]}`, t03Board, t03Lane, t03BoardTag, t03Card)
+		input := fmt.Sprintf(`{"board_id":%q,"lane_id":%q,"board_revision":12,"proposed":[{"card_id":%q,"ticket":1}]}`, t03Board, t03Lane, t03Card)
 		var out, errout bytes.Buffer
 		code := runCLIWithInput([]string{"ticket-order", "apply", t03Lane, "-"}, strings.NewReader(input), &out, &errout, t03Env(server.URL))
 		server.Close()

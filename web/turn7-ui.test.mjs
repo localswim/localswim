@@ -3367,9 +3367,10 @@ function workspaceServiceApi(overrides) {
   };
 }
 
+const serviceTag = '"019aa833-764f-746b-a3f0-e2f7af0b9e3f-0"';
 const runningService = {
   service_instance_id: "019aa833-764f-746b-a3f0-e2f7af0b9e3f", build_id: board, port: 53146,
-  state: "running", etag: '"019aa833-764f-746b-a3f0-e2f7af0b9e3f-0"',
+  state: "running",
   api_version: "2026-11-10", restart_error_code: null,
 };
 
@@ -3383,7 +3384,7 @@ test("workspace activation inspects the rotated service using a fresh session wi
       if (activated && getCapability() === "session-1") throw new ApiError("http_error", {status: 401});
       return {data: activated
         ? {...runningService, build_id: backup, service_instance_id: "019aa833-7650-746b-a3f0-e2f7af0b9e3f"}
-        : runningService};
+        : runningService, etag: serviceTag};
     },
     listBuilds: async () => page("builds", [staged]),
     activateBuild: async (...args) => {
@@ -3410,7 +3411,7 @@ test("workspace activation inspects the rotated service using a fresh session wi
   await ui.settled();
   assert.equal(sessions, 2);
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0].slice(1), [backup, runningService.etag]);
+  assert.deepEqual(calls[0].slice(1), [backup, serviceTag]);
   assert.match(main.querySelector("#service-operation-status").textContent, /Build activated. Reconnected on the same port/);
   assert.equal(control.disabled, true);
   assert.equal(name.value, "Draft stays open");
@@ -3420,10 +3421,11 @@ test("workspace shutdown reports final publication refusal and leaves a healthy 
   const staged = {id: backup, version: "broken", validation: "invalid", error_code: "candidate_binary_incompatible"};
   let writes = 0;
   const ui = await harness(workspaceServiceApi({
-    getService: async () => ({data: writes ? {...runningService, restart_error_code: "git_push_failed"} : runningService}),
+    getService: async () => ({data: writes ? {...runningService, restart_error_code: "git_push_failed"} : runningService, etag: serviceTag}),
     listBuilds: async () => page("builds", [staged]),
-    stopService: async (prior) => {
-      assert.equal(prior.etag, runningService.etag);
+    stopService: async (prior, etag) => {
+      assert.equal(Object.hasOwn(prior, "etag"), false);
+      assert.equal(etag, serviceTag);
       writes++;
       throw new ApiError("final_publication_failed", {status: 503});
     },
@@ -3449,7 +3451,7 @@ test("a lost shutdown response disables repeat commands until the running servic
   const ui = await harness(workspaceServiceApi({
     getService: async () => {
       if (!reachable) throw new ApiError("transport_failed");
-      return {data: runningService};
+      return {data: runningService, etag: serviceTag};
     },
     listBuilds: async () => page("builds", []),
     stopService: async () => {
@@ -3483,7 +3485,7 @@ test("an accepted shutdown leaves lifecycle controls disabled and reports later 
     getService: async () => {
       reads++;
       if (writes) throw new ApiError("transport_failed");
-      return {data: runningService};
+      return {data: runningService, etag: serviceTag};
     },
     listBuilds: async () => page("builds", []),
     stopService: async () => {
@@ -3512,7 +3514,7 @@ test("workspace members can read service health without lifecycle controls", asy
   let buildReads = 0;
   const ui = await harness(workspaceServiceApi({
     getSession: async () => ({data: {kind: "human", workspace_admin: false}}),
-    getService: async () => ({data: runningService}),
+    getService: async () => ({data: runningService, etag: serviceTag}),
     listBuilds: async () => {
       buildReads++;
       throw new ApiError("http_error", {status: 403});
@@ -3539,7 +3541,7 @@ test("workspace navigation reconnects after another tab replaces the service", a
       if (replaced && getCapability() === "session-1") throw new ApiError("http_error", {status: 401});
       return original.getSession();
     },
-    getService: async () => ({data: runningService}),
+    getService: async () => ({data: runningService, etag: serviceTag}),
     listBuilds: async () => page("builds", []),
   }), "/", {openSession: async () => "session-" + ++sessions});
   await ui.load();
@@ -3566,7 +3568,7 @@ test("a detached activation read cannot clear a newer lifecycle operation", asyn
   const ui = await harness(workspaceServiceApi({
     getService: async () => {
       if (shutdown) throw new ApiError("transport_failed");
-      return {data: runningService};
+      return {data: runningService, etag: serviceTag};
     },
     listBuilds: async () => page("builds", [staged]),
     activateBuild: async () => {},
@@ -3612,7 +3614,7 @@ test("a detached activation read cannot clear a newer lifecycle operation", asyn
 test("a lifecycle refusal arriving after navigation updates the active service panel", async () => {
   let refuse;
   const ui = await harness(workspaceServiceApi({
-    getService: async () => ({data: runningService}),
+    getService: async () => ({data: runningService, etag: serviceTag}),
     listBuilds: async () => page("builds", []),
     stopService: async () => new Promise((_, reject) => {
       refuse = () => reject(new ApiError("final_publication_failed", {status: 503}));
@@ -3636,9 +3638,10 @@ test("returning to a board during shutdown unlocks its staged files when the ref
   const ui = await harness(workspaceServiceApi({
     ...api,
     getSession: async () => ({data: {kind: "human", principal_id: user, workspace_admin: true}}),
-    getService: async () => ({data: runningService}),
+    getService: async () => ({data: runningService, etag: serviceTag}),
     listBuilds: async () => page("builds", []),
-    stopService: async () => {
+    stopService: async (_service, etag) => {
+      assert.equal(etag, serviceTag);
       requests++;
       await response.promise;
       throw new ApiError("final_publication_failed", {status: 503});
@@ -4418,7 +4421,7 @@ test("new card resolves typed seed rows and submits one atomic create with the c
   ui.field(rows()[0], "Target ticket").value = "8";
   ui.field(rows()[0], "Link type").value = "blocks";
   ui.field(rows()[1], "Target ticket").value = "8";
-  ui.field(rows()[1], "Link type").value = "referenced_by";
+  ui.field(rows()[1], "Link type").value = "references";
   ui.submit(main, "Create card");
   await until(() => reads.length === 1);
   ui.field(rows()[1], "Link type").value = "duplicates";
@@ -4433,7 +4436,7 @@ test("new card resolves typed seed rows and submits one atomic create with the c
   assert.equal(request.lane_id, lane);
   assert.equal(request.title, "Seeded card");
   assert.deepEqual(Array.from(request.relationships, ({target_card_id, kind}) => [target_card_id, kind]).flat(),
-    [target.id, "blocks", target.id, "referenced_by"]);
+    [target.id, "blocks", target.id, "references"]);
   assert.match(ui.nodes.status.textContent, /Card created/);
   assert.equal(rows().length, 1);
   assert.equal(ui.field(rows()[0], "Target ticket").value, "8");
@@ -4627,9 +4630,9 @@ test("acknowledged seeded create reconciles the originating draft while another 
   assert.equal(readbacks, 0);
 });
 
-test("live link repaint keeps the dirty selector, focus, and its relationship revision", async (t) => {
+test("live inbound link repaint preserves direction, dirty selection, focus and revision", async (t) => {
   const {api, streams, commit} = changingBoard();
-  const edited = {id: backup, board_id: board, source_card_id: card, target_card_id: user,
+  const edited = {id: backup, board_id: board, source_card_id: user, target_card_id: card,
     kind: "relates_to", revision: 1};
   const unchanged = {id: priority, board_id: board, source_card_id: card, target_card_id: priority,
     kind: "duplicates", revision: 1};
@@ -4659,11 +4662,12 @@ test("live link repaint keeps the dirty selector, focus, and its relationship re
   const {main, details, status} = ui.nodes;
   const readiness = main.querySelector("#board-live-readiness");
   const row = () => ui.find(details, "a", "#2 " + linkedTitle)?.parent.parent;
-  const selector = () => row() && ui.field(row(), "Link type");
+  const selector = () => row() && ui.field(row(), "Link type (source to target)");
   const savedType = () => row()?.querySelector("p").ownText;
   const staleNotice = () => ui.find(row(), "p", "Saved link changed. Review the saved type and change the selection before saving.");
   ui.find(main, "button", "#1 Original").click();
   await until(selector);
+  assert.deepEqual(Array.from(selector().options, (option) => option.value), ["blocks", "duplicates", "references", "relates_to"]);
   selector().value = "blocks";
   selector().dispatch("change");
   selector().focus();
@@ -4679,7 +4683,7 @@ test("live link repaint keeps the dirty selector, focus, and its relationship re
 
   links = [unchanged, {...edited, kind: "references", revision: 3}];
   streams[0].send("change", commit("Original", lane));
-  await until(() => savedType() === "References " && readiness.textContent === "");
+  await until(() => savedType() === "Other references this card " && readiness.textContent === "");
   assert.equal(selector().value, "blocks");
   assert.equal(ui.focused(), selector());
   assert.equal(staleNotice().hidden, false);
@@ -4688,15 +4692,16 @@ test("live link repaint keeps the dirty selector, focus, and its relationship re
   assert.deepEqual(changes, [[edited.id, 1, tag(board, 3), "blocks"]]);
   assert.match(status.textContent, /State changed/);
   assert.equal(selector().value, "blocks");
-  assert.equal(savedType(), "References ");
+  assert.equal(savedType(), "Other references this card ");
 
-  selector().value = "duplicated_by";
+  selector().value = "duplicates";
   selector().dispatch("change");
   assert.equal(staleNotice().hidden, true);
   ui.submit(row(), "Change link type");
   await ui.settled();
-  assert.deepEqual(changes[1], [edited.id, 3, tag(board, 3), "duplicated_by"]);
-  assert.equal(savedType(), "Duplicated by ");
+  assert.deepEqual(changes[1], [edited.id, 3, tag(board, 3), "duplicates"]);
+  assert.equal(savedType(), "Other duplicates this card ");
+  assert.equal(links.find((entry) => entry.id === edited.id).source_card_id, user);
   assert.match(status.textContent, /Link type changed/);
 });
 
@@ -5621,7 +5626,7 @@ test("relationship writes wait for uploads on either endpoint and allow unrelate
     await ui.settled();
     assert.match(status.textContent, /Wait for attachments/);
     const edit = ui.find(details, "button", "Change link type");
-    ui.field(edit.parent, "Link type").value = "duplicates";
+    ui.field(edit.parent, "Link type (source to target)").value = "duplicates";
     ui.submit(details, "Change link type");
     await ui.settled();
     assert.match(status.textContent, /Wait for attachments/);
@@ -5815,3 +5820,28 @@ for (const lost of [true, false]) {
     assert.deepEqual(approvals, [[card, backup]]);
   });
 }
+test("shutdown inspection compares the separate HTTP validator after a lost response", async () => {
+  let writes = 0;
+  const ui = await harness(workspaceServiceApi({
+    getService: async () => ({
+      data: writes ? {...runningService, restart_error_code: "git_push_failed"} : runningService,
+      etag: writes ? serviceTag.replace('-0"', '-1"') : serviceTag,
+    }),
+    listBuilds: async () => page("builds", []),
+    stopService: async (prior, etag) => {
+      assert.equal(Object.hasOwn(prior, "etag"), false);
+      assert.equal(etag, serviceTag);
+      writes++;
+      throw new ApiError("transport_failed", {outcomeUnknown: true});
+    },
+  }), "/");
+  await ui.load();
+  await ui.settled();
+  const control = ui.find(ui.nodes.main, "button", "Shut down service");
+  control.click();
+  await ui.settled();
+  assert.equal(writes, 1);
+  assert.equal(control.disabled, false);
+  assert.match(ui.nodes.main.querySelector("#service-operation-status").textContent,
+    /Shutdown did not complete. The service is still running/);
+});

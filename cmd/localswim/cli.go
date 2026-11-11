@@ -38,7 +38,7 @@ const cliHelp = `Usage:
   localswim board publishing disable [--revision N] BOARD_ID
   localswim board publishing status BOARD_ID
   localswim board verify [--data DIRECTORY] BOARD_ID
-  localswim board export [--type json] [--data DIRECTORY] BOARD_ID
+  localswim board export [--type json] [--data DIRECTORY] BOARD_ID <FILE|->
   localswim card create [--revision N] <JSON_FILE|->
   localswim card list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card get CARD_ID
@@ -60,7 +60,7 @@ const cliHelp = `Usage:
   localswim card cover [--revision N] CARD_ID ATTACHMENT_ID|none
   localswim relationship list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim relationship get RELATIONSHIP_ID
-  localswim relationship create [--revision N] BOARD_ID FILE|-
+  localswim relationship create [--revision N] [--id UUID] SOURCE_CARD_ID KIND TARGET_CARD_ID
   localswim relationship patch [--revision N] RELATIONSHIP_ID FILE|-
   localswim relationship remove [--revision N] RELATIONSHIP_ID
   localswim comment list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
@@ -109,7 +109,7 @@ JSON_FILE is required. Use a file path or - to read standard input.
 Set --data on board get, board export, card inspect, or board verify to read saved board data offline.
 Offline board get returns board metadata. The lanes view requires a live service.
 Verification prints the full JSON report and exits 1 if the board is invalid.
-Board export writes JSON to standard output. The default --type is json.
+Board export writes JSON to a new FILE, or standard output when given -. The default --type is json.
 All pin commands require at least one board ID. Pin set replaces the order.
 Pin add appends new boards in the supplied order.
 Pin remove skips failed targets with WARNING messages and preserves the remaining order.
@@ -136,7 +136,7 @@ Card set-priorities reads card_ids and priority_id and checks the board revision
 The batch evaluates all selected cards together and returns effective priorities and changes.
 Board get --view lanes returns visible cards in their swimlane order.
 Ticket-order preview defaults to all active lane cards. Optional card IDs select the ticket pool.
-Preview is read-only and returns the board revision, expected_board_etag, and proposed ticket numbers.
+Preview is read-only and returns the board revision and proposed ticket numbers.
 Ticket-order apply reads that saved preview and uses its original validator. Stale previews refuse.
 Card search and next use whole-board triage ordering. Lookup uses numeric ticket order.
 Card next defaults to unfinished lanes. Repeat --lane to select multiple lanes, including Completed.
@@ -160,7 +160,8 @@ Backup verify checks a local ZIP and writes its verification report without cont
 Activity intervals are inclusive. Quote both UTC bounds in YYYY-MM-DD HH:MM:SS+00:00.
 Activity lists sanitized edit metadata by default. Use --view full for the attributed audit.
 The CLI manages HTTP validators.
-For FILE|-, pass a file path or use - to read standard input.
+For input FILE|-, pass a file path or use - to read standard input.
+For output FILE|-, pass a new file path or use - to write standard output.
 Card description reads UTF-8 text verbatim, including trailing newlines.
 Card list excludes archived cards by default. Focused card get includes them.
 Card inspect returns ticket, lane, owner, priority, and relationship metadata. Use --prose for its description and comments.
@@ -212,6 +213,8 @@ type cliCommand struct {
 	warnings                           []string
 	edit                               t03Edit
 	relationshipWrite                  bool
+	relationshipID                     string
+	exportPath                         string
 	downloadPath                       string
 	verifyBoard                        bool
 	detachAttachment                   bool
@@ -505,6 +508,13 @@ func parseCLI(args []string) (cliCommand, error) {
 		}
 	} else if needBoardID {
 		count, expected := 1, "expected one UUIDv4 board ID"
+		if name == "board export" {
+			count, expected = 2, "board export requires a UUIDv4 board ID followed by FILE or - for standard output"
+			command.exportPath = flags.Arg(1)
+			if command.exportPath == "" {
+				return command, errors.New(expected)
+			}
+		}
 		if rename {
 			count, expected = 2, "expected a UUIDv4 board ID followed by one new name (quote names containing spaces)"
 		}
@@ -564,6 +574,9 @@ func boardNameBody(name string) (json.RawMessage, error) {
 func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, getenv func(string) string) error {
 	if command.backupVerifyPath != "" {
 		return verifyBackupFile(command.backupVerifyPath, stdout)
+	}
+	if command.exportPath != "" {
+		return executeBoardExport(command, stdout, getenv)
 	}
 	if inspect := command.ticketInspection; inspect != nil && inspect.dataDir != "" {
 		return executeNativeRead(inspect.dataDir, inspect.boardID, "ticket", inspect.ticket, inspect.prose, stdout)
@@ -677,6 +690,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		reply, err = api.DoWithContentType(command.method, command.resource, body, ifMatch, contentType)
 	}
 	if err != nil {
+		if command.relationshipID != "" && errors.Is(err, client.ErrMutationOutcomeUnknown) {
+			return fmt.Errorf("%w. Read back with localswim relationship get %s before retrying", err, command.relationshipID)
+		}
 		if command.edit.uploadID != "" && errors.Is(err, client.ErrMutationOutcomeUnknown) {
 			return fmt.Errorf("%w (attachment ID %s)", err, command.edit.uploadID)
 		}
@@ -684,6 +700,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 			return fmt.Errorf("%w. Read back with localswim board get %s", err, command.boardID)
 		}
 		return err
+	}
+	if command.relationshipID != "" && !confirmedRelationshipCreation(body, reply.JSON) {
+		return fmt.Errorf("service did not confirm the requested relationship. %w. Read back with localswim relationship get %s before retrying", client.ErrMutationOutcomeUnknown, command.relationshipID)
 	}
 	if command.boardAvailability != "" {
 		availability, err := reply.BoardAvailability(command.boardID)
@@ -705,6 +724,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		return writeLiveVerificationReport(stdout, reply, command.boardID)
 	}
 	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
+		if command.relationshipID != "" {
+			return fmt.Errorf("service accepted relationship %s, but its response could not be written. Read back with localswim relationship get %s", command.relationshipID, command.relationshipID)
+		}
 		if command.edit.uploadID != "" {
 			return fmt.Errorf("service accepted attachment %s, but its response could not be written", command.edit.uploadID)
 		}

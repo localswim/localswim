@@ -44,7 +44,7 @@ func TestM29BackupHTTPAndIntegrity(t *testing.T) {
 	raw, _ := editor.call("POST", "/boards", `{"name":"Backup source"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
 	id := newOperationID()
-	body := fmt.Sprintf(`{"id":%q,"board_id":%q,"expected_board_etag":%q,"ignored":true}`, strings.ToUpper(id), strings.ToUpper(b.ID), b.ETag)
+	body := fmt.Sprintf(`{"id":%q,"board_id":%q,"expected_board_etag":%q,"ignored":true}`, strings.ToUpper(id), strings.ToUpper(b.ID), b.entityTag())
 	raw, headers := editor.call("POST", "/backups", body, "", 201)
 	item := turnOneDecode[backup](t, raw)
 	if item.ID != id || item.BoardID != b.ID || item.BoardRevision != b.Revision || item.AttachmentIDs == nil || len(item.AttachmentIDs) != 0 {
@@ -111,17 +111,17 @@ func TestM29BackupRequestValidation(t *testing.T) {
 	b := turnOneDecode[board](t, raw)
 	editor.call("POST", "/backups", `{}`, "", 400)
 	editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q}`, b.ID), "", 428)
-	for _, tag := range []string{"invalid", "W/" + b.ETag} {
+	for _, tag := range []string{"invalid", "W/" + b.entityTag()} {
 		editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, b.ID, tag), "", 400)
 	}
 	editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, b.ID, etag(b.ID, 99)), "", 412)
-	editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"actor_id":%q}`, b.ID, b.ETag, botID), "", 400)
-	editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, newID(), b.ETag), "", 404)
+	editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"actor_id":%q}`, b.ID, b.entityTag(), botID), "", 400)
+	editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, newID(), b.entityTag()), "", 404)
 	editor.call("GET", "/backups/"+newOperationID(), "", "", 404)
 	if err := os.WriteFile(app.store.snapshotPath(b.ID), []byte("damaged snapshot"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, b.ID, b.ETag), "", 503)
+	editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, b.ID, b.entityTag()), "", 503)
 	accepted, _ := app.store.accepted(b.ID)
 	if accepted.Board.Revision != b.Revision {
 		t.Fatal("failed backup changed accepted state")
@@ -152,7 +152,7 @@ func TestM29BackupRefusesDamagedBytes(t *testing.T) {
 			}
 			state, _ := app.store.accepted(b.ID)
 			id := newOperationID()
-			editor.call("POST", "/backups", fmt.Sprintf(`{"id":%q,"board_id":%q,"expected_board_etag":%q}`, id, b.ID, state.Board.ETag), "", 503)
+			editor.call("POST", "/backups", fmt.Sprintf(`{"id":%q,"board_id":%q,"expected_board_etag":%q}`, id, b.ID, state.Board.entityTag()), "", 503)
 			editor.call("GET", "/backups/"+id, "", "", 404)
 			if _, err := os.Stat(filepath.Join(app.store.root, "backups", id)); !os.IsNotExist(err) {
 				t.Fatal("failed capture retained a partial backup directory")
@@ -171,7 +171,7 @@ func TestM29PublicationFailureRetainsOnlyUncertainCaptures(t *testing.T) {
 			app, editor := attachmentHTTPServer(t)
 			raw, _ := editor.call("POST", "/boards", `{"name":"Publication failure"}`, "", 201)
 			b := turnOneDecode[board](t, raw)
-			captured, err := app.store.captureBackupSnapshot(b.ID, humanID, b.ETag)
+			captured, err := app.store.captureBackupSnapshot(b.ID, humanID, b.Revision)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -240,7 +240,7 @@ func TestM29ConcurrentIdentityAndRestartPersistence(t *testing.T) {
 	app, editor := attachmentHTTPServer(t)
 	raw, _ := editor.call("POST", "/boards", `{"name":"Persistent backup"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
-	captured, err := app.store.captureBackupSnapshot(b.ID, humanID, b.ETag)
+	captured, err := app.store.captureBackupSnapshot(b.ID, humanID, b.Revision)
 	if err != nil {
 		t.Fatal(err)
 	}

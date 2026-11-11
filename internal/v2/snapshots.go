@@ -2,10 +2,8 @@ package v2
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -13,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,12 +29,11 @@ type recoveryEvidence struct {
 }
 
 type restoration struct {
-	ID        string    `json:"id"`
-	BoardID   string    `json:"board_id"`
-	BackupID  string    `json:"backup_id"`
-	At        time.Time `json:"at"`
-	BoardETag string    `json:"board_etag"`
-	Revision  uint64    `json:"revision"`
+	ID       string    `json:"id"`
+	BoardID  string    `json:"board_id"`
+	BackupID string    `json:"backup_id"`
+	At       time.Time `json:"at"`
+	Revision uint64    `json:"revision"`
 }
 
 func validRecoveryAudit(event activity, boardID string, sourceRevision uint64, member user) bool {
@@ -55,7 +53,7 @@ func validRecoveryAudit(event activity, boardID string, sourceRevision uint64, m
 		(evidence.ActorKind == "human" || evidence.ActorKind == "bot") &&
 		(member.ID == "" || member.Kind == evidence.ActorKind) &&
 		event.Revision == max(evidence.SourceRevision, evidence.PreviousRevision)+1 &&
-		*event.Before == etag(boardID, evidence.PreviousRevision) &&
+		*event.Before == strconv.FormatUint(evidence.PreviousRevision, 10) &&
 		(evidence.BackupID == nil || validSnapshotOperationID(*evidence.BackupID))
 }
 
@@ -73,7 +71,7 @@ func (s *store) recoveryUsers(value *snapshot) error {
 	return nil
 }
 
-func (s *store) recoverSnapshot(boardID, actor, expected, eventID string, candidate snapshot,
+func (s *store) recoverSnapshot(boardID, actor, eventID string, matches func(snapshot) bool, candidate snapshot,
 	backupID *string, attachmentData func(attachment) ([]byte, error)) (snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -97,15 +95,13 @@ func (s *store) recoverSnapshot(boardID, actor, expected, eventID string, candid
 		return snapshot{}, err
 	}
 	durable, durableErr := readSnapshot(path, boardID)
-	currentTag := current.Board.ETag
+	representation := current
 	if backupID == nil {
-		representation := current
 		if durableErr == nil {
 			representation = durable
 		}
-		currentTag = snapshotRepresentationTag(representation)
 	}
-	if !matchesStrongTag(expected, currentTag) {
+	if !matches(representation) {
 		return snapshot{}, errStale
 	}
 	if err := validateSnapshot(candidate, boardID); err != nil {
@@ -161,7 +157,6 @@ func (s *store) recoverSnapshot(boardID, actor, expected, eventID string, candid
 	now := maxCardTime(canonicalTime(time.Now()), current.Board.UpdatedAt)
 	now = maxCardTime(now, candidate.Board.UpdatedAt)
 	next.Board.Revision = max(previousRevision, candidate.Board.Revision) + 1
-	next.Board.ETag = etag(boardID, next.Board.Revision)
 	next.Board.UpdatedAt = now
 	restampRecoveryVersions(&next)
 	actorIndex := slices.IndexFunc(current.Users, func(member user) bool { return member.ID == actor })
@@ -169,7 +164,7 @@ func (s *store) recoverSnapshot(boardID, actor, expected, eventID string, candid
 	if err != nil {
 		return snapshot{}, err
 	}
-	before, after := etag(boardID, previousRevision), string(evidence)
+	before, after := strconv.FormatUint(previousRevision, 10), string(evidence)
 	field := recoveryField
 	next.Activity = append(next.Activity, activity{ID: eventID, BoardID: boardID,
 		Revision: next.Board.Revision, At: now, ActorID: actor, Operation: recoveryOperation,
@@ -364,12 +359,12 @@ func (x *request) admitSnapshot(id string) {
 			return
 		}
 	}
-	updated, err := x.service.store.recoverSnapshot(id, x.actor, expected, newOperationID(), candidate, nil, attachmentData)
+	updated, err := x.service.store.recoverSnapshot(id, x.actor, newOperationID(), matchingSnapshotTag(expected), candidate, nil, attachmentData)
 	if err != nil {
 		x.recoveryFailure(err)
 		return
 	}
-	x.w.Header().Set("X-Board-ETag", updated.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", updated.Board.entityTag())
 	x.respond(http.StatusOK, updated.Board, "")
 }
 
@@ -437,16 +432,16 @@ func (x *request) restoreBackup() {
 		return
 	}
 	defer archive.close()
-	updated, err := x.service.store.recoverSnapshot(boardID, x.actor, expected, id,
+	updated, err := x.service.store.recoverSnapshot(boardID, x.actor, id, matchingBoardTag(expected),
 		archive.state, &backupID, archive.attachmentData)
 	if err != nil {
 		x.recoveryFailure(err)
 		return
 	}
-	x.w.Header().Set("X-Board-ETag", updated.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", updated.Board.entityTag())
 	x.w.Header().Set("Location", Prefix+"/restorations/"+id)
 	x.respond(http.StatusCreated, restoration{id, boardID, backupID, updated.Board.UpdatedAt,
-		updated.Board.ETag, updated.Board.Revision}, "")
+		updated.Board.Revision}, "")
 }
 
 func (x *request) recoveryFailure(err error) {
@@ -458,7 +453,7 @@ func (x *request) recoveryFailure(err error) {
 	}
 }
 
-// Normalize only identity-bearing native fields. User text, entity tags, and
+// Normalize only identity-bearing native fields. User text and
 // opaque strings remain byte-for-byte user content.
 func normalizeSnapshotInput(data []byte) ([]byte, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -628,16 +623,11 @@ func (x *request) restorationResource(id string) {
 				continue
 			}
 			x.respond(http.StatusOK, restoration{id, state.Board.ID, *evidence.BackupID,
-				event.At, etag(state.Board.ID, event.Revision), event.Revision}, "")
+				event.At, event.Revision}, "")
 			return
 		}
 	}
 	x.fail(errMissing)
-}
-
-func snapshotRepresentationTag(state snapshot) string {
-	data, _ := marshalCanonical(state)
-	return fmt.Sprintf("\"%x\"", sha256.Sum256(data))
 }
 
 // Refresh mutation validators while retaining the source content timestamps.
@@ -655,7 +645,7 @@ func restampRecoveryVersions(next *snapshot) {
 	for i := range next.Attachments {
 		next.Attachments[i].Revision = revision
 	}
-	next.Policy.ETag = etag(next.Policy.ID, revision)
+	next.Policy.Revision = revision
 }
 
 // Comments use a fixed revision for their immutable representation.

@@ -21,7 +21,7 @@ const ownerNoticeNextTarget = "f02f1e36-c5de-7e85-9e95-9159e83ae10b"
 
 func ownerNoticeTestSnapshot(id string, settings notifications) snapshot {
 	return snapshot{
-		Board: board{entity: entity{ID: id}, Name: "Synthetic\nboard", Revision: 1, Notifications: settings},
+		Board: board{entity: entity{ID: id, Revision: 1}, Name: "Synthetic\nboard", Notifications: settings},
 		Users: []user{{entity: entity{ID: humanID}, Kind: "human"}, {entity: entity{ID: botID}, Kind: "bot"}},
 		Cards: []card{
 			{ID: "one", Ticket: 1, Title: "private card title"},
@@ -297,11 +297,11 @@ func TestOwnerNoticeFailurePreservesDurableEdit(t *testing.T) {
 	raw, _ := client.call("POST", "/boards", `{"name":"Synthetic notice"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
 	raw, _ = client.call("PATCH", "/boards/"+b.ID,
-		fmt.Sprintf(`{"notifications":{"enabled":true,"target_thread_id":%q}}`, ownerNoticeTestTarget), b.ETag, 200)
+		fmt.Sprintf(`{"notifications":{"enabled":true,"target_thread_id":%q}}`, ownerNoticeTestTarget), b.entityTag(), 200)
 	b = turnOneDecode[board](t, raw)
 	raw, header := client.call("POST", "/cards", fmt.Sprintf(
 		`{"board_id":%q,"expected_board_etag":%q,"title":"Private synthetic title","lane_id":%q}`,
-		b.ID, b.ETag, b.LaneIDs[0]), "", 201)
+		b.ID, b.entityTag(), b.LaneIDs[0]), "", 201)
 	created := turnOneDecode[card](t, raw)
 	select {
 	case message := <-attempts:
@@ -316,7 +316,7 @@ func TestOwnerNoticeFailurePreservesDurableEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if durable.Board.ETag != header.Get("X-Board-ETag") || len(durable.Cards) != 1 ||
+	if durable.Board.entityTag() != header.Get("X-Board-ETag") || len(durable.Cards) != 1 ||
 		durable.Cards[0].ID != created.ID || durable.Cards[0].Title != created.Title {
 		t.Fatal("failed owner notice changed the durable card commit")
 	}

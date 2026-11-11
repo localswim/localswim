@@ -13,7 +13,7 @@ type boardLanesView struct {
 }
 
 func (x *request) boardLanes(s snapshot) {
-	x.respond(200, visibleBoardLanes(s), s.Board.ETag)
+	x.respond(200, visibleBoardLanes(s), s.Board.entityTag())
 }
 
 func visibleBoardLanes(s snapshot) boardLanesView {

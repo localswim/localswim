@@ -22,7 +22,7 @@ func parseT04(name string, args []string) (cliCommand, error) {
 	count := 1
 	switch name {
 	case "relationship create":
-		cmd.method, count = http.MethodPost, 2
+		cmd.method, count = http.MethodPost, 3
 	case "relationship patch":
 		cmd.method, count = http.MethodPatch, 2
 	case "relationship remove":
@@ -31,7 +31,10 @@ func parseT04(name string, args []string) (cliCommand, error) {
 		cmd.resource, count = "/attachments", 2
 	}
 	cmd.relationshipWrite = cmd.method != http.MethodGet
-	var revision string
+	var revision, relationshipID string
+	if name == "relationship create" {
+		flags.StringVar(&relationshipID, "id", "", "relationship UUIDv4")
+	}
 	if cmd.relationshipWrite {
 		label := "expected relationship revision"
 		if cmd.method == http.MethodPost {
@@ -42,11 +45,33 @@ func parseT04(name string, args []string) (cliCommand, error) {
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
 	}
-	if count == 2 && flags.NArg() < count {
+	var hasID bool
+	flags.Visit(func(f *flag.Flag) { hasID = hasID || f.Name == "id" })
+	if name == "relationship create" {
+		if flags.NArg() != 3 || !boardIDPattern.MatchString(flags.Arg(0)) || !boardIDPattern.MatchString(flags.Arg(2)) {
+			return cmd, errors.New("relationship create requires SOURCE_CARD_ID KIND TARGET_CARD_ID")
+		}
+		if hasID && !boardIDPattern.MatchString(relationshipID) {
+			return cmd, errors.New("--id requires a UUIDv4")
+		}
+		kind := strings.ToLower(flags.Arg(1))
+		if !cliRelationshipKind(kind) {
+			return cmd, errors.New("kind must be blocks, duplicates, references, or relates_to")
+		}
+		source, target := strings.ToLower(flags.Arg(0)), strings.ToLower(flags.Arg(2))
+		if source == target {
+			return cmd, errors.New("relationship endpoints must be different cards")
+		}
+		if relationshipID == "" {
+			relationshipID = newUploadID()
+		}
+		cmd.relationshipID = strings.ToLower(relationshipID)
+		cmd.body, _ = json.Marshal(map[string]string{"id": cmd.relationshipID, "source_card_id": source, "target_card_id": target, "kind": kind})
+	} else if count == 2 && flags.NArg() < count {
 		return cmd, errors.New("expected a UUIDv4 resource ID followed by FILE or -")
 	}
-	if flags.NArg() != count || !boardIDPattern.MatchString(flags.Arg(0)) ||
-		(count == 2 && flags.Arg(1) == "") {
+	if name != "relationship create" && (flags.NArg() != count || !boardIDPattern.MatchString(flags.Arg(0)) ||
+		(count == 2 && flags.Arg(1) == "")) {
 		return cmd, errors.New("expected a UUIDv4 resource ID and the documented arguments")
 	}
 	var optionErr error
@@ -60,12 +85,12 @@ func parseT04(name string, args []string) (cliCommand, error) {
 	}
 	id := strings.ToLower(flags.Arg(0))
 	if name == "relationship create" {
-		cmd.boardID = id
+		cmd.resource = "/relationships"
 	} else {
 		cmd.resource += "/" + id
 	}
 	switch name {
-	case "relationship create", "relationship patch":
+	case "relationship patch":
 		cmd.inputPath = flags.Arg(1)
 	case "attachment download":
 		cmd.downloadPath = flags.Arg(1)
@@ -81,6 +106,13 @@ func prepareRelationshipWrite(api *client.Client, cmd cliCommand, body json.RawM
 		if err != nil {
 			return nil, "", "", err
 		}
+		if cmd.method == http.MethodPatch {
+			var kind string
+			if json.Unmarshal(fields["kind"], &kind) != nil || !cliRelationshipKind(strings.ToLower(kind)) {
+				return nil, "", "", errors.New("kind must be blocks, duplicates, references, or relates_to")
+			}
+			fields["kind"], _ = json.Marshal(strings.ToLower(kind))
+		}
 		if fields["board_id"] != nil || fields["expected_board_etag"] != nil {
 			return nil, "", "", errors.New("CLI supplies the board ID and validator as required")
 		}
@@ -89,7 +121,22 @@ func prepareRelationshipWrite(api *client.Client, cmd cliCommand, body json.RawM
 	var ifMatch string
 	var err error
 	if cmd.method == http.MethodPost {
-		board, err = api.Do(http.MethodGet, "/boards/"+cmd.boardID, nil, "")
+		var sourceID, targetID string
+		_ = json.Unmarshal(fields["source_card_id"], &sourceID)
+		_ = json.Unmarshal(fields["target_card_id"], &targetID)
+		sourceCard, source, readErr := relationshipEndpoint(api, sourceID)
+		if readErr != nil {
+			return nil, "", "", readErr
+		}
+		_, target, readErr := relationshipEndpoint(api, targetID)
+		if readErr != nil {
+			return nil, "", "", readErr
+		}
+		if source != target {
+			return nil, "", "", errors.New("relationship endpoints must belong to the same board")
+		}
+		cmd.boardID = source
+		board, err = parentBoard(api, sourceCard.JSON)
 	} else {
 		current, readErr := api.Do(http.MethodGet, cmd.resource, nil, "")
 		if readErr != nil {
@@ -172,4 +219,40 @@ func downloadAttachment(api *client.Client, resource, output string, stdout io.W
 		return errors.New("could not finish writing the attachment output file. Inspect the destination before trying again")
 	}
 	return nil
+}
+
+func cliRelationshipKind(kind string) bool {
+	return kind == "blocks" || kind == "duplicates" || kind == "references" || kind == "relates_to"
+}
+
+func relationshipEndpoint(api *client.Client, id string) (client.Response, string, error) {
+	reply, err := api.Do(http.MethodGet, "/cards/"+id, nil, "")
+	if err != nil {
+		return client.Response{}, "", err
+	}
+	var card struct {
+		ID      string `json:"id"`
+		BoardID string `json:"board_id"`
+	}
+	if json.Unmarshal(reply.JSON, &card) != nil || !boardIDPattern.MatchString(card.ID) || strings.ToLower(card.ID) != id || !boardIDPattern.MatchString(card.BoardID) {
+		return client.Response{}, "", errors.New("service did not return the requested card and a valid parent board ID")
+	}
+	return reply, strings.ToLower(card.BoardID), nil
+}
+
+func confirmedRelationshipCreation(body, response json.RawMessage) bool {
+	type link struct {
+		ID           string `json:"id"`
+		BoardID      string `json:"board_id"`
+		SourceCardID string `json:"source_card_id"`
+		TargetCardID string `json:"target_card_id"`
+		Kind         string `json:"kind"`
+	}
+	var requested link
+	var saved struct {
+		link
+		Revision *uint64 `json:"revision"`
+	}
+	return json.Unmarshal(body, &requested) == nil && json.Unmarshal(response, &saved) == nil &&
+		saved.link == requested && saved.Revision != nil && *saved.Revision > 0 && *saved.Revision <= maxCLIRevision
 }

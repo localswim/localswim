@@ -86,7 +86,7 @@ func (x *request) createBoard() {
 		return
 	}
 	x.w.Header().Set("Location", Prefix+"/boards/"+id)
-	x.respond(http.StatusCreated, s.Board, s.Board.ETag)
+	x.respond(http.StatusCreated, s.Board, s.Board.entityTag())
 }
 
 func (x *request) boardResource(id string) {
@@ -128,7 +128,7 @@ func (x *request) boardResource(id string) {
 		return
 	}
 	value := x.service.store.boardPublishingStatus(s.Board)
-	x.respondPublishing(200, value, value.ETag, value.Publishing)
+	x.respondPublishing(200, value, value.entityTag(), value.Publishing)
 }
 
 func (x *request) patchBoard(s snapshot) {
@@ -185,7 +185,7 @@ func (x *request) patchBoard(s snapshot) {
 			return
 		}
 	}
-	next, err := x.service.store.patchBoard(s.Board.ID, expected, availability, hasSettings, authorized, func(s *snapshot) error {
+	next, err := x.service.store.patchBoard(s.Board.ID, availability, matchingBoardTag(expected), hasSettings, authorized, func(s *snapshot) error {
 		now := canonicalTime(time.Now())
 		appendChange := func(field string, before, after *string) {
 			s.Activity = append(s.Activity, activity{ID: newOperationID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
@@ -280,8 +280,8 @@ func (x *request) patchBoard(s snapshot) {
 		return
 	}
 	value := x.service.store.boardPublishingStatus(next.Board)
-	x.w.Header().Set("X-Board-ETag", value.ETag)
-	x.respond(200, value, value.ETag)
+	x.w.Header().Set("X-Board-ETag", value.entityTag())
+	x.respond(200, value, value.entityTag())
 }
 
 func sameText(a, b *string) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }
@@ -317,7 +317,7 @@ func (x *request) workflowCollection(resource string) {
 func (x *request) policyResource(id string) {
 	for _, s := range x.service.store.list() {
 		if s.Policy.ID == id && s.can(x.actor, "read") {
-			x.respond(200, s.Policy, s.Policy.ETag)
+			x.respond(200, s.Policy, s.Policy.entityTag())
 			return
 		}
 	}
@@ -358,7 +358,7 @@ func (x *request) workspaceResource() {
 			x.fail(err)
 			return
 		}
-		x.respondPublishing(200, result, result.ETag, result.Publishing)
+		x.respondPublishing(200, result, result.entityTag(), result.Publishing)
 		return
 	}
 	expected, err := x.ifMatch()
@@ -375,7 +375,9 @@ func (x *request) workspaceResource() {
 		x.fail(errForbidden)
 		return
 	}
-	result, err := x.service.workspace.patch(expected, fields, func(id string) bool {
+	result, err := x.service.workspace.patch(func(revision uint64) bool {
+		return matchesStrongTag(expected, etag(x.service.workspace.identity, revision))
+	}, fields, func(id string) bool {
 		s, ok := x.service.store.accepted(id)
 		return ok && s.can(x.actor, "read")
 	})
@@ -383,7 +385,7 @@ func (x *request) workspaceResource() {
 		x.fail(err)
 		return
 	}
-	x.respond(200, result, result.ETag)
+	x.respond(200, result, result.entityTag())
 }
 
 func (x *request) buildsResource(id string) {
@@ -407,5 +409,5 @@ func (x *request) buildsResource(id string) {
 func (x *request) serviceStatus() {
 	state := x.service.lifecycle.snapshot(x.service.builds.service())
 	state.Port = x.port
-	x.respond(200, state, state.ETag)
+	x.respond(200, state, state.entityTag())
 }

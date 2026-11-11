@@ -28,20 +28,20 @@ func TestWorkspacePinsPersistCanonicalOrder(t *testing.T) {
 	}
 	visible := func(id string) bool { return id == workspaceBoardA || id == workspaceBoardB }
 	fields := workspacePinFields(strings.ToUpper(workspaceBoardB), workspaceBoardA)
-	saved, err := store.patch(initial.ETag, fields, visible)
-	if err != nil || saved.Revision != 2 || saved.ETag == initial.ETag || !slices.Equal(saved.PinnedBoardIDs, []string{workspaceBoardB, workspaceBoardA}) {
+	saved, err := store.patch(func(revision uint64) bool { return revision == initial.Revision }, fields, visible)
+	if err != nil || saved.Revision != 2 || saved.entityTag() == initial.entityTag() || !slices.Equal(saved.PinnedBoardIDs, []string{workspaceBoardB, workspaceBoardA}) {
 		t.Fatalf("saved workspace: %+v, %v", saved, err)
 	}
 	reopened := newWorkspace(root)
 	read, err := reopened.read()
-	if err != nil || read.ETag != saved.ETag || !slices.Equal(read.PinnedBoardIDs, saved.PinnedBoardIDs) {
+	if err != nil || read.entityTag() != saved.entityTag() || !slices.Equal(read.PinnedBoardIDs, saved.PinnedBoardIDs) {
 		t.Fatalf("reopened workspace: %+v, %v", read, err)
 	}
-	noop, err := reopened.patch(`"unrelated", `+saved.ETag, fields, visible)
-	if err != nil || noop.ETag != saved.ETag {
+	noop, err := reopened.patch(func(revision uint64) bool { return revision == saved.Revision }, fields, visible)
+	if err != nil || noop.entityTag() != saved.entityTag() {
 		t.Fatalf("no-op workspace: %+v, %v", noop, err)
 	}
-	if _, err := reopened.patch(initial.ETag, fields, visible); !errors.Is(err, errStale) {
+	if _, err := reopened.patch(func(revision uint64) bool { return revision == initial.Revision }, fields, visible); !errors.Is(err, errStale) {
 		t.Fatalf("stale patch: %v", err)
 	}
 	for _, fields := range []map[string]json.RawMessage{
@@ -50,12 +50,12 @@ func TestWorkspacePinsPersistCanonicalOrder(t *testing.T) {
 		workspacePinFields(workspaceBoardA, "cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
 		{"pinned_board_ids": json.RawMessage("null")},
 	} {
-		if _, err := reopened.patch(`"unrelated", `+saved.ETag, fields, visible); err == nil {
+		if _, err := reopened.patch(func(revision uint64) bool { return revision == saved.Revision }, fields, visible); err == nil {
 			t.Fatal("accepted invalid pin list")
 		}
 	}
 	read, err = reopened.read()
-	if err != nil || read.ETag != saved.ETag || !slices.Equal(read.PinnedBoardIDs, saved.PinnedBoardIDs) {
+	if err != nil || read.entityTag() != saved.entityTag() || !slices.Equal(read.PinnedBoardIDs, saved.PinnedBoardIDs) {
 		t.Fatalf("invalid patch changed workspace: %+v, %v", read, err)
 	}
 }
@@ -85,7 +85,7 @@ func TestWorkspaceRefusesToReplaceInvalidPreferences(t *testing.T) {
 		if _, err := store.read(); !errors.Is(err, errWorkspaceUnavailable) {
 			t.Fatalf("invalid read: %v", err)
 		}
-		if _, err := store.patch(initial.ETag, workspacePinFields(workspaceBoardA), func(string) bool { return true }); !errors.Is(err, errWorkspaceUnavailable) {
+		if _, err := store.patch(func(revision uint64) bool { return revision == initial.Revision }, workspacePinFields(workspaceBoardA), func(string) bool { return true }); !errors.Is(err, errWorkspaceUnavailable) {
 			t.Fatalf("patch over invalid preferences: %v", err)
 		}
 		data, err := os.ReadFile(path)
@@ -109,18 +109,18 @@ func TestWorkspaceRevisionLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	visible := func(string) bool { return true }
-	last, err := store.patch(initial.ETag, workspacePinFields(workspaceBoardA), visible)
+	last, err := store.patch(func(revision uint64) bool { return revision == initial.Revision }, workspacePinFields(workspaceBoardA), visible)
 	if err != nil || last.Revision != maxSnapshotInteger {
 		t.Fatalf("last revision: %+v, %v", last, err)
 	}
-	if _, err := store.patch(last.ETag, workspacePinFields(workspaceBoardB), visible); !errors.Is(err, errWorkspaceUnavailable) {
+	if _, err := store.patch(func(revision uint64) bool { return revision == last.Revision }, workspacePinFields(workspaceBoardB), visible); !errors.Is(err, errWorkspaceUnavailable) {
 		t.Fatalf("revision overflow accepted: %v", err)
 	}
 	read, err := store.read()
 	if err != nil || read.Revision != last.Revision || !slices.Equal(read.PinnedBoardIDs, last.PinnedBoardIDs) {
 		t.Fatalf("overflow changed workspace: %+v, %v", read, err)
 	}
-	if _, err := store.patch(last.ETag, workspacePinFields(workspaceBoardA), visible); err != nil {
+	if _, err := store.patch(func(revision uint64) bool { return revision == last.Revision }, workspacePinFields(workspaceBoardA), visible); err != nil {
 		t.Fatalf("no-op at maximum revision refused: %v", err)
 	}
 }
@@ -137,7 +137,7 @@ func TestWorkspaceConcurrentPatchesUseOneRevision(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := store.patch(initial.ETag, workspacePinFields(id), func(string) bool { return true })
+			_, err := store.patch(func(revision uint64) bool { return revision == initial.Revision }, workspacePinFields(id), func(string) bool { return true })
 			results <- err
 		}()
 	}

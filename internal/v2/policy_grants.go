@@ -63,7 +63,7 @@ func (x *request) policyGrants(id string) {
 		if !current.can(x.actor, "manage_permissions") {
 			return errForbidden
 		}
-		if !matchesStrongTag(policyTag, current.Policy.ETag) {
+		if !matchesStrongTag(policyTag, current.Policy.entityTag()) {
 			return errStale
 		}
 		grants, err := readBoardPolicy(fields, *current, maxPolicyGrantInputs)
@@ -76,7 +76,7 @@ func (x *request) policyGrants(id string) {
 		x.fail(err)
 		return
 	}
-	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", next.Board.entityTag())
 	x.respond(http.StatusOK, next.Policy, "")
 }
 
@@ -109,7 +109,7 @@ func addPolicyGrants(current *snapshot, next policy, actorID string, now time.Ti
 	}
 
 	next.entity, next.BoardID = old.entity, old.BoardID
-	next.ETag = etag(old.ID, current.Board.Revision+1)
+	next.Revision = current.Board.Revision + 1
 	now = canonicalTime(now)
 	if now.Before(current.Board.UpdatedAt) {
 		now = current.Board.UpdatedAt

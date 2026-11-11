@@ -29,7 +29,7 @@ func TestCLIServiceLifecycle(t *testing.T) {
 		{name: "stop accepted", action: "stop", status: http.StatusAccepted},
 		{name: "activate accepted", action: "activate", status: http.StatusAccepted},
 		{name: "generated activation", action: "activate", status: http.StatusAccepted, generateID: true},
-		{name: "preflight mismatch", action: "stop", replyMode: "mismatch"},
+		{name: "preflight missing validator", action: "stop", replyMode: "missing-validator"},
 		{name: "preflight incomplete", action: "activate", replyMode: "incomplete-preflight"},
 		{name: "preflight wrong status", action: "activate", replyMode: "preflight-status"},
 		{name: "preflight wrong media type", action: "stop", replyMode: "preflight-type"},
@@ -64,12 +64,12 @@ func TestCLIServiceLifecycle(t *testing.T) {
 						t.Error("expected unconditioned service read")
 					}
 					tag := testServiceTag
-					if tc.replyMode == "mismatch" {
-						tag = testDrainingTag
+					if tc.replyMode == "missing-validator" {
+						tag = ""
 					}
 					w.Header().Set("ETag", tag)
 					w.Header().Set("Content-Type", "application/json; charset=utf-8")
-					document := testLifecycleStatus(testServiceTag, "running")
+					document := testLifecycleStatus("running")
 					switch tc.replyMode {
 					case "preflight-status":
 						w.WriteHeader(http.StatusCreated)
@@ -94,12 +94,13 @@ func TestCLIServiceLifecycle(t *testing.T) {
 						if tc.replyMode == "running" {
 							state = "running"
 						}
-						document = testLifecycleStatus(testDrainingTag, state)
+						document = testLifecycleStatus(state)
+						w.Header().Set("ETag", testDrainingTag)
 						switch tc.replyMode {
 						case "incomplete-receipt":
 							document = strings.Replace(document, `"port":31819,`, "", 1)
 						case "stale-receipt":
-							document = testLifecycleStatus(testServiceTag, state)
+							w.Header().Set("ETag", testServiceTag)
 						case "foreign-receipt":
 							document = strings.Replace(document, testInstanceID, "dddddddd-dddd-7ddd-8ddd-dddddddddddd", 1)
 						}
@@ -254,7 +255,7 @@ func TestCLIServiceActivationInspectionRefusesInvalidEnvelope(t *testing.T) {
 }
 
 func TestCLIServiceStatusSchema(t *testing.T) {
-	document := testLifecycleStatus(testServiceTag, "running")
+	document := testLifecycleStatus("running")
 	for _, tc := range []struct{ name, original, replacement string }{
 		{"port out of range", `"port":31819`, `"port":65536`},
 		{"port invalid type", `"port":31819`, `"port":true`},
@@ -263,7 +264,7 @@ func TestCLIServiceStatusSchema(t *testing.T) {
 		{"invalid build ID", testBuildID, testInstanceID},
 		{"noncanonical build ID", testBuildID, strings.ToUpper(testBuildID)},
 		{"wrong API version", `"api_version":"2026-11-10"`, `"api_version":"2026-11-09"`},
-		{"invalid ETag", "service-instance-001", "short"},
+		{"obsolete JSON ETag", `"port":31819`, `"port":31819,"etag":"obsolete"`},
 		{"invalid state", `"running"`, `"stopped"`},
 		{"missing restart error", `,"restart_error_code":null`, ""},
 		{"invalid restart error type", `"restart_error_code":null`, `"restart_error_code":[]`},
@@ -341,9 +342,9 @@ func TestCLIServiceLifecycleArguments(t *testing.T) {
 	}
 }
 
-func testLifecycleStatus(tag, state string) string {
-	return fmt.Sprintf(`{"port":31819,"etag":%q,"service_instance_id":%q,"build_id":%q,"state":%q,"api_version":"2026-11-10","restart_error_code":null}`,
-		tag, testInstanceID, testBuildID, state)
+func testLifecycleStatus(state string) string {
+	return fmt.Sprintf(`{"port":31819,"service_instance_id":%q,"build_id":%q,"state":%q,"api_version":"2026-11-10","restart_error_code":null}`,
+		testInstanceID, testBuildID, state)
 }
 
 func testActivationDocument(id, state, errorCode string) string {

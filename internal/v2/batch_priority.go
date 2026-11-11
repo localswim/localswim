@@ -108,7 +108,7 @@ func (x *request) batchPriorities() {
 	for _, id := range in.cardIDs {
 		result.Cards = append(result.Cards, *byID[id])
 	}
-	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", next.Board.entityTag())
 	x.respond(http.StatusOK, result, "")
 }
 

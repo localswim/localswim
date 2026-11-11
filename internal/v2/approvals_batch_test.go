@@ -46,13 +46,13 @@ func TestLaneReviewApproval(t *testing.T) {
 		return fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"cards":%s}`,
 			b.ID, boardTag, laneID, cardVersions)
 	}
-	human.call("POST", "/approvals", body(b.ETag, reviewID, "[]"), "", 409)
+	human.call("POST", "/approvals", body(b.entityTag(), reviewID, "[]"), "", 409)
 	_, header := human.call("PATCH", "/lanes/"+reviewID, fmt.Sprintf(
-		`{"board_etag":%q,"approval_enabled":true}`, b.ETag), etag(reviewID, 1), 200)
+		`{"board_etag":%q,"approval_enabled":true}`, b.entityTag()), etag(reviewID, 1), 200)
 	boardTag := header.Get("X-Board-ETag")
 	human.call("POST", "/approvals", body(boardTag, b.LaneIDs[0], "[]"), "", 409)
 	bot.call("POST", "/approvals", body(boardTag, reviewID, "[]"), "", 403)
-	human.call("POST", "/approvals", body(b.ETag, reviewID, "[]"), "", 412)
+	human.call("POST", "/approvals", body(b.entityTag(), reviewID, "[]"), "", 412)
 	human.call("POST", "/approvals", body(boardTag, reviewID, "null"), "", 400)
 	emptyBefore, _ := app.store.accepted(b.ID)
 	raw, header = human.call("POST", "/approvals", body(boardTag, reviewID, "[]"), "", 200)
@@ -174,8 +174,8 @@ func TestLaneReviewApprovalLargeCustom(t *testing.T) {
 	}
 	human.call("PATCH", "/lanes/"+b.LaneIDs[0], fmt.Sprintf(
 		`{"board_etag":%q,"bulk_approval_comment":"Only review lanes can use this setting."}`,
-		b.ETag), etag(b.LaneIDs[0], 1), 400)
-	raw, _ = setComment(b.ETag, etag(reviewID, 1), custom)
+		b.entityTag()), etag(b.LaneIDs[0], 1), 400)
+	raw, _ = setComment(b.entityTag(), etag(reviewID, 1), custom)
 	review := turnOneDecode[lane](t, raw)
 	if review.ApprovalEnabled || review.BulkApprovalComment != custom {
 		t.Fatal("custom text did not preserve its exact content while approval was disabled")
@@ -200,9 +200,9 @@ func TestLaneReviewApprovalLargeCustom(t *testing.T) {
 		return string(payload)
 	}
 	bulkID := newOperationID()
-	human.call("POST", "/approvals", body(seed.Board.ETag, reviewID, bulkID, seed.Cards), "", 409)
+	human.call("POST", "/approvals", body(seed.Board.entityTag(), reviewID, bulkID, seed.Cards), "", 409)
 	raw, header := human.call("PATCH", lanePath, fmt.Sprintf(
-		`{"board_etag":%q,"approval_enabled":true}`, seed.Board.ETag), review.entityTag(), 200)
+		`{"board_etag":%q,"approval_enabled":true}`, seed.Board.entityTag()), review.entityTag(), 200)
 	review = turnOneDecode[lane](t, raw)
 	renderedTag := header.Get("X-Board-ETag")
 	staleRequest := body(renderedTag, reviewID, bulkID, seed.Cards)
@@ -280,7 +280,6 @@ func seedReviewLane(t *testing.T, app *Service, boardID string, count int) snaps
 	advance := func() {
 		event := state.Activity[len(state.Activity)-1]
 		state.Board.Revision, state.Board.UpdatedAt = event.Revision, event.At
-		state.Board.ETag = etag(boardID, event.Revision)
 	}
 	for i := range count {
 		in := cardCreation{id: newID(), title: fmt.Sprint("Fixture ", i), laneID: state.Board.LaneIDs[1]}

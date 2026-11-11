@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	jsonv2 "encoding/json/v2"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -53,7 +54,6 @@ func (c *Client) inspectTicket(boardID string, ticket uint64, includeProse bool)
 			ID       string `json:"id"`
 			Ticket   uint64 `json:"ticket"`
 			Revision uint64 `json:"revision"`
-			ETag     string `json:"etag"`
 		} `json:"card"`
 		Prose json.RawMessage `json:"prose"`
 	}
@@ -61,13 +61,14 @@ func (c *Client) inspectTicket(boardID string, ticket uint64, includeProse bool)
 		document.BoardID != boardID || document.BoardRevision == 0 || document.BoardRevision > maxTicketInteger ||
 		!canonicalUUID4.MatchString(document.Card.ID) || document.Card.Ticket != ticket ||
 		document.Card.Revision == 0 || document.Card.Revision > document.BoardRevision ||
-		reply.BoardETag == "" || !IsEntityTag(document.Card.ETag) ||
+		reply.BoardETag == "" ||
 		(!includeProse && len(document.Prose) != 0) || (includeProse && !IsJSONObject(document.Prose)) {
 		return Response{}, TicketTarget{}, errors.New("service did not return the requested ticket with valid board and card validators")
 	}
 	target := TicketTarget{
 		BoardID: boardID, BoardRevision: document.BoardRevision, BoardETag: reply.BoardETag,
-		CardID: document.Card.ID, CardRevision: document.Card.Revision, CardETag: document.Card.ETag,
+		CardID: document.Card.ID, CardRevision: document.Card.Revision,
+		CardETag: fmt.Sprintf("\"%s-%d\"", document.Card.ID, document.Card.Revision),
 	}
 	return reply, target, nil
 }

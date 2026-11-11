@@ -13,13 +13,13 @@ import (
 
 func TestCLIBoardAvailability(t *testing.T) {
 	const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-	const oldTag = `"board-revision-7"`
-	const newTag = `"board-revision-8"`
+	const oldTag = `"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-7"`
+	const newTag = `"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-8"`
 	const problemType = "application/problem+json"
 	const unavailable = `{"type":"about:blank","title":"Service Unavailable","status":503,"code":"unavailable","detail":"Unable to flush the board.","request_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","outcome":"not_applied","errors":[]}`
-	board := func(revision int, tag, availability string) string {
-		return fmt.Sprintf(`{"id":%q,"revision":%d,"etag":%q,"availability":%q,"name":"  東京  "}`,
-			id, revision, tag, availability)
+	board := func(revision int, availability string) string {
+		return fmt.Sprintf(`{"id":%q,"revision":%d,"availability":%q,"name":"  東京  "}`,
+			id, revision, availability)
 	}
 	for _, tc := range []struct {
 		name, action, revision, previous, readTag, reply, errorText string
@@ -27,16 +27,16 @@ func TestCLIBoardAvailability(t *testing.T) {
 		status                                                      int
 		unknown                                                     bool
 	}{
-		{name: "close", action: "close", revision: "7", previous: "open", readTag: oldTag, status: 200, reply: board(8, newTag, "closed")},
-		{name: "reopen", action: "reopen", previous: "closed", readTag: oldTag, status: 200, reply: board(8, newTag, "open")},
+		{name: "close", action: "close", revision: "7", previous: "open", readTag: oldTag, status: 200, reply: board(8, "closed")},
+		{name: "reopen", action: "reopen", previous: "closed", readTag: oldTag, status: 200, reply: board(8, "open")},
 		{name: "mismatched revision", action: "close", revision: "6", previous: "open", readTag: oldTag, errorText: "revision mismatch"},
-		{name: "mismatched validator", action: "close", previous: "open", readTag: newTag, errorText: "JSON ETag did not match"},
+		{name: "mismatched validator", action: "close", previous: "open", readTag: newTag, errorText: "revision did not match"},
 		{name: "invalid availability", action: "close", previous: "unknown", readTag: oldTag, errorText: "did not return valid board availability"},
 		{name: "stale validator", action: "close", previous: "open", readTag: oldTag, status: 412, errorText: "HTTP 412"},
 		{name: "unusable reply", action: "close", previous: "open", readTag: oldTag, status: 200, reply: "[]", errorText: "invalid JSON object", unknown: true},
-		{name: "unconfirmed close", action: "close", previous: "open", readTag: oldTag, status: 200, reply: board(8, newTag, "open"), errorText: "did not confirm", unknown: true},
-		{name: "missing board validator", action: "close", previous: "open", readTag: oldTag, status: 200, reply: board(8, newTag, "closed"), responseBoardTag: "missing", errorText: "matching ETag and X-Board-ETag", unknown: true},
-		{name: "mismatched board validator", action: "close", previous: "open", readTag: oldTag, status: 200, reply: board(8, newTag, "closed"), responseBoardTag: oldTag, errorText: "matching ETag and X-Board-ETag", unknown: true},
+		{name: "unconfirmed close", action: "close", previous: "open", readTag: oldTag, status: 200, reply: board(8, "open"), errorText: "did not confirm", unknown: true},
+		{name: "missing board validator", action: "close", previous: "open", readTag: oldTag, status: 200, reply: board(8, "closed"), responseBoardTag: "missing", errorText: "matching ETag and X-Board-ETag", unknown: true},
+		{name: "mismatched board validator", action: "close", previous: "open", readTag: oldTag, status: 200, reply: board(8, "closed"), responseBoardTag: oldTag, errorText: "matching ETag and X-Board-ETag", unknown: true},
 		{name: "known 503 refusal", action: "close", previous: "open", readTag: oldTag, status: 503, reply: unavailable, contentType: problemType, errorText: "unavailable, not applied"},
 		{name: "503 without Problem media type", action: "close", previous: "open", readTag: oldTag, status: 503, reply: unavailable, errorText: "HTTP 503", unknown: true},
 		{name: "malformed 503 Problem", action: "close", previous: "open", readTag: oldTag, status: 503, reply: unavailable[:len(unavailable)-1], contentType: problemType, errorText: "HTTP 503", unknown: true},
@@ -61,7 +61,7 @@ func TestCLIBoardAvailability(t *testing.T) {
 						t.Error("expected unconditioned board read")
 					}
 					w.Header().Set("ETag", tc.readTag)
-					fmt.Fprint(w, board(7, oldTag, tc.previous))
+					fmt.Fprint(w, board(7, tc.previous))
 				case 2:
 					if tc.status == 0 {
 						t.Error("write reached after refused preflight")

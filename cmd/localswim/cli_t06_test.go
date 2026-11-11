@@ -117,7 +117,7 @@ func TestT06ReadViews(t *testing.T) {
 			}
 			io.WriteString(w, `{"board":{},"lanes":[],"cards":[]}`)
 		case t03Root + "/ticket-orders/" + t03Lane:
-			w.Header().Set("X-Board-ETag", t03BoardTag)
+			w.Header().Set("X-Board-ETag", fmt.Sprintf("\"%s-12\"", t03Board))
 			if r.URL.Query().Get("preview") != "true" || r.URL.Query().Get("card_id") != t03Card {
 				t.Error("missing selection")
 			}

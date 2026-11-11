@@ -58,7 +58,7 @@ func (x *request) useBoard(id string) bool {
 
 func (x *request) updateBoard(id, expected string, change func(*snapshot) error) (snapshot, error) {
 	return x.updateBoardChecked(id, func(current snapshot) bool {
-		return matchesStrongTag(expected, current.Board.ETag)
+		return matchesStrongTag(expected, current.Board.entityTag())
 	}, change)
 }
 
@@ -69,9 +69,9 @@ func (x *request) updateBoardChecked(id string, matches func(snapshot) bool, cha
 	return x.service.store.updateChecked(id, matches, change)
 }
 
-func (s *store) patchBoard(id, expected, availability string, hasSettings bool, allowed func(snapshot) bool, change func(*snapshot) error) (snapshot, error) {
+func (s *store) patchBoard(id, availability string, matches func(snapshot) bool, hasSettings bool, allowed func(snapshot) bool, change func(*snapshot) error) (snapshot, error) {
 	s.mu.Lock()
-	current, err := s.boardForPatchLocked(id, expected, allowed)
+	current, err := s.boardForPatchLocked(id, matches, allowed)
 	if err != nil {
 		s.mu.Unlock()
 		return snapshot{}, err
@@ -94,10 +94,10 @@ func (s *store) patchBoard(id, expected, availability string, hasSettings bool, 
 	}()
 
 	gate.active.Wait()
-	return s.closeBoard(id, expected, allowed, change)
+	return s.closeBoard(id, matches, allowed, change)
 }
 
-func (s *store) boardForPatchLocked(id, expected string, allowed func(snapshot) bool) (snapshot, error) {
+func (s *store) boardForPatchLocked(id string, matches func(snapshot) bool, allowed func(snapshot) bool) (snapshot, error) {
 	if err := s.writable(); err != nil {
 		return snapshot{}, err
 	}
@@ -108,15 +108,15 @@ func (s *store) boardForPatchLocked(id, expected string, allowed func(snapshot) 
 	if !allowed(current) {
 		return snapshot{}, errForbidden
 	}
-	if !matchesStrongTag(expected, current.Board.ETag) {
+	if !matches(current) {
 		return snapshot{}, errStale
 	}
 	return current, nil
 }
 
-func (s *store) closeBoard(id, expected string, allowed func(snapshot) bool, change func(*snapshot) error) (snapshot, error) {
+func (s *store) closeBoard(id string, matches func(snapshot) bool, allowed func(snapshot) bool, change func(*snapshot) error) (snapshot, error) {
 	s.mu.Lock()
-	current, err := s.boardForPatchLocked(id, expected, allowed)
+	current, err := s.boardForPatchLocked(id, matches, allowed)
 	if err != nil {
 		s.mu.Unlock()
 		return snapshot{}, err
@@ -157,7 +157,7 @@ func (s *store) finishBoardCloseLocked(current, next snapshot, data []byte) erro
 	if err := s.writable(); err != nil {
 		return err
 	}
-	if s.boards[next.Board.ID].Board.ETag != current.Board.ETag {
+	if s.boards[next.Board.ID].Board.Revision != current.Board.Revision {
 		return errStale
 	}
 	if err := s.checkIdentities(next, false); err != nil {

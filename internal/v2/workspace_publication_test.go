@@ -96,7 +96,7 @@ func TestM36WorkspacePublishingPatchIsAtomicAndHumanOnly(t *testing.T) {
 	reopened := newWorkspace(app.store.root)
 	defer reopened.closePublisher()
 	persisted, err := reopened.read()
-	if err != nil || persisted.Publishing.Enabled || persisted.ETag != headers.Get("ETag") {
+	if err != nil || persisted.Publishing.Enabled || persisted.entityTag() != headers.Get("ETag") {
 		t.Fatal("disabled preference and revision did not persist", err)
 	}
 }

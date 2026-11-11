@@ -18,7 +18,7 @@ const workspaceFileName = "localswim-workspace.json"
 const maxWorkspaceFile = 64 << 10
 
 type workspace struct {
-	ETag           string     `json:"-"`
+	identity       string
 	Revision       uint64     `json:"revision"`
 	PinnedBoardIDs []string   `json:"pinned_board_ids"`
 	Publishing     publishing `json:"publishing"`
@@ -76,7 +76,7 @@ func newWorkspace(root string) *workspaceStore {
 
 func (s *workspaceStore) view(p workspacePreferences) workspace {
 	return workspace{
-		ETag: etag(s.identity, p.Revision), Revision: p.Revision,
+		identity: s.identity, Revision: p.Revision,
 		PinnedBoardIDs: p.PinnedBoardIDs, Publishing: s.publisher.status(p.Publishing.config()),
 	}
 }
@@ -160,7 +160,7 @@ func parseWorkspacePins(raw json.RawMessage, visible func(string) bool) ([]strin
 	return ids, nil
 }
 
-func (s *workspaceStore) patch(expected string, fields map[string]json.RawMessage, visible func(string) bool) (workspace, error) {
+func (s *workspaceStore) patch(matches func(uint64) bool, fields map[string]json.RawMessage, visible func(string) bool) (workspace, error) {
 	if err := rejectFields(fields, []string{"pinned_board_ids", "publishing"}, false); err != nil {
 		return workspace{}, err
 	}
@@ -175,7 +175,7 @@ func (s *workspaceStore) patch(expected string, fields map[string]json.RawMessag
 	if err != nil {
 		return workspace{}, err
 	}
-	if !matchesStrongTag(expected, etag(s.identity, p.Revision)) {
+	if !matches(p.Revision) {
 		return workspace{}, errStale
 	}
 	ids := p.PinnedBoardIDs

@@ -75,7 +75,7 @@ func TestNativeSnapshotReferencesAndAudit(t *testing.T) {
 		name string
 		edit func(*snapshot)
 	}{
-		{"wrong board etag", func(s *snapshot) { s.Board.ETag = etag(s.Board.ID, 7) }},
+		{"zero board revision", func(s *snapshot) { s.Board.Revision = 0 }},
 		{"missing lane reference", func(s *snapshot) { s.Board.LaneIDs[0] = newID() }},
 		{"no creation permission", func(s *snapshot) { s.Policy.CreateGrants = []createGrant{} }},
 		{"no completion route", func(s *snapshot) { s.Policy.MoveGrants = []moveGrant{} }},
@@ -87,7 +87,6 @@ func TestNativeSnapshotReferencesAndAudit(t *testing.T) {
 		{"foreign audit actor", func(s *snapshot) { s.Activity[0].ActorID = newID() }},
 		{"audit revision gap", func(s *snapshot) {
 			s.Board.Revision++
-			s.Board.ETag = etag(s.Board.ID, s.Board.Revision)
 		}},
 		{"derived attention mismatch", func(s *snapshot) { s.Board.Attention.Blocked++ }},
 		{"invalid attachment", func(s *snapshot) { s.Attachments = append(s.Attachments, attachment{}) }},
@@ -116,7 +115,7 @@ func TestNativeSnapshotNotificationAuditStartsAtCreationDefaults(t *testing.T) {
 	}
 
 	b.Revision++
-	b.ETag = etag(b.ID, b.Revision)
+
 	enabledField, targetField := "notifications.enabled", "notifications.target_thread_id"
 	disabled, enabled := "false", "true"
 	value.Activity = append(value.Activity,
@@ -143,7 +142,7 @@ func TestNativeSnapshotRenameAuditRequiresManageBoard(t *testing.T) {
 	field, previous := "name", b.Name
 	b.Name = "Renamed"
 	b.Revision++
-	b.ETag = etag(b.ID, b.Revision)
+
 	value.Activity = append(value.Activity, activity{
 		ID: newOperationID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
 		Operation: "patch", ResourceType: "board", ResourceID: b.ID, Field: &field, Before: &previous, After: &b.Name,
@@ -180,7 +179,7 @@ func TestNativeSnapshotParentAuditAndCycle(t *testing.T) {
 	parent.ChildIDs = []string{child.ID}
 	field := "parent_id"
 	b.Revision++
-	b.ETag = etag(b.ID, b.Revision)
+
 	value.Activity = append(value.Activity, activity{
 		ID: newOperationID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
 		Operation: "patch", ResourceType: "card", ResourceID: child.ID, Field: &field, After: &parent.ID,

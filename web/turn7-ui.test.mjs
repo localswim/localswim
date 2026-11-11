@@ -795,9 +795,10 @@ function workspaceServiceApi(overrides) {
   };
 }
 
+const serviceTag = '"019aa833-764f-746b-a3f0-e2f7af0b9e3f-0"';
 const runningService = {
   service_instance_id: "019aa833-764f-746b-a3f0-e2f7af0b9e3f", build_id: board, port: 53146,
-  state: "running", etag: '"019aa833-764f-746b-a3f0-e2f7af0b9e3f-0"',
+  state: "running",
   api_version: "2026-11-10", restart_error_code: null,
 };
 
@@ -811,7 +812,7 @@ test("workspace activation inspects the rotated service using a fresh session wi
       if (activated && getCapability() === "session-1") throw new ApiError("http_error", {status: 401});
       return {data: activated
         ? {...runningService, build_id: backup, service_instance_id: "019aa833-7650-746b-a3f0-e2f7af0b9e3f"}
-        : runningService};
+        : runningService, etag: serviceTag};
     },
     listBuilds: async () => page("builds", [staged]),
     activateBuild: async (...args) => {
@@ -838,7 +839,7 @@ test("workspace activation inspects the rotated service using a fresh session wi
   await ui.settled();
   assert.equal(sessions, 2);
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0].slice(1), [backup, runningService.etag]);
+  assert.deepEqual(calls[0].slice(1), [backup, serviceTag]);
   assert.match(main.querySelector("#service-operation-status").textContent, /Build activated. Reconnected on the same port/);
   assert.equal(control.disabled, true);
   assert.equal(name.value, "Draft stays open");
@@ -848,10 +849,11 @@ test("workspace shutdown reports final publication refusal and leaves a healthy 
   const staged = {id: backup, version: "broken", validation: "invalid", error_code: "candidate_binary_incompatible"};
   let writes = 0;
   const ui = await harness(workspaceServiceApi({
-    getService: async () => ({data: writes ? {...runningService, restart_error_code: "git_push_failed"} : runningService}),
+    getService: async () => ({data: writes ? {...runningService, restart_error_code: "git_push_failed"} : runningService, etag: serviceTag}),
     listBuilds: async () => page("builds", [staged]),
-    stopService: async (prior) => {
-      assert.equal(prior.etag, runningService.etag);
+    stopService: async (prior, etag) => {
+      assert.equal(Object.hasOwn(prior, "etag"), false);
+      assert.equal(etag, serviceTag);
       writes++;
       throw new ApiError("final_publication_failed", {status: 503});
     },
@@ -877,7 +879,7 @@ test("a lost shutdown response disables repeat commands until the running servic
   const ui = await harness(workspaceServiceApi({
     getService: async () => {
       if (!reachable) throw new ApiError("transport_failed");
-      return {data: runningService};
+      return {data: runningService, etag: serviceTag};
     },
     listBuilds: async () => page("builds", []),
     stopService: async () => {
@@ -911,7 +913,7 @@ test("an accepted shutdown leaves lifecycle controls disabled and reports later 
     getService: async () => {
       reads++;
       if (writes) throw new ApiError("transport_failed");
-      return {data: runningService};
+      return {data: runningService, etag: serviceTag};
     },
     listBuilds: async () => page("builds", []),
     stopService: async () => {
@@ -940,7 +942,7 @@ test("workspace members can read service health without lifecycle controls", asy
   let buildReads = 0;
   const ui = await harness(workspaceServiceApi({
     getSession: async () => ({data: {kind: "human", workspace_admin: false}}),
-    getService: async () => ({data: runningService}),
+    getService: async () => ({data: runningService, etag: serviceTag}),
     listBuilds: async () => {
       buildReads++;
       throw new ApiError("http_error", {status: 403});
@@ -967,7 +969,7 @@ test("workspace navigation reconnects after another tab replaces the service", a
       if (replaced && getCapability() === "session-1") throw new ApiError("http_error", {status: 401});
       return original.getSession();
     },
-    getService: async () => ({data: runningService}),
+    getService: async () => ({data: runningService, etag: serviceTag}),
     listBuilds: async () => page("builds", []),
   }), "/", {openSession: async () => "session-" + ++sessions});
   await ui.load();
@@ -994,7 +996,7 @@ test("a detached activation read cannot clear a newer lifecycle operation", asyn
   const ui = await harness(workspaceServiceApi({
     getService: async () => {
       if (shutdown) throw new ApiError("transport_failed");
-      return {data: runningService};
+      return {data: runningService, etag: serviceTag};
     },
     listBuilds: async () => page("builds", [staged]),
     activateBuild: async () => {},
@@ -1040,7 +1042,7 @@ test("a detached activation read cannot clear a newer lifecycle operation", asyn
 test("a lifecycle refusal arriving after navigation updates the active service panel", async () => {
   let refuse;
   const ui = await harness(workspaceServiceApi({
-    getService: async () => ({data: runningService}),
+    getService: async () => ({data: runningService, etag: serviceTag}),
     listBuilds: async () => page("builds", []),
     stopService: async () => new Promise((_, reject) => {
       refuse = () => reject(new ApiError("final_publication_failed", {status: 503}));
@@ -1074,4 +1076,31 @@ test("aborting a lifecycle read does not cancel a shared session bootstrap", asy
   finish();
   assert.equal(await navigation, "navigation");
   assert.equal(sessions, 1);
+});
+
+
+test("shutdown inspection compares the separate HTTP validator after a lost response", async () => {
+  let writes = 0;
+  const ui = await harness(workspaceServiceApi({
+    getService: async () => ({
+      data: writes ? {...runningService, restart_error_code: "git_push_failed"} : runningService,
+      etag: writes ? serviceTag.replace('-0"', '-1"') : serviceTag,
+    }),
+    listBuilds: async () => page("builds", []),
+    stopService: async (prior, etag) => {
+      assert.equal(Object.hasOwn(prior, "etag"), false);
+      assert.equal(etag, serviceTag);
+      writes++;
+      throw new ApiError("transport_failed", {outcomeUnknown: true});
+    },
+  }), "/");
+  await ui.load();
+  await ui.settled();
+  const control = ui.find(ui.nodes.main, "button", "Shut down service");
+  control.click();
+  await ui.settled();
+  assert.equal(writes, 1);
+  assert.equal(control.disabled, false);
+  assert.match(ui.nodes.main.querySelector("#service-operation-status").textContent,
+    /Shutdown did not complete. The service is still running/);
 });

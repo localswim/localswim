@@ -43,7 +43,7 @@ func TestM074InspectAndExportAfterWriterStops(t *testing.T) {
 			if availability == "closed" {
 				raw, _ = editor.call("GET", boardRoute, "", "", 200)
 				current := turnOneDecode[board](t, raw)
-				editor.call("PATCH", boardRoute, `{"availability":"closed"}`, current.ETag, 200)
+				editor.call("PATCH", boardRoute, `{"availability":"closed"}`, current.entityTag(), 200)
 				editor.call("PATCH", "/cards/"+item.ID, `{"title":"Refused"}`, item.entityTag(), 503)
 			}
 

@@ -25,8 +25,8 @@ const (
 )
 
 type serviceStatus struct {
-	Port              int     `json:"port"`
-	ETag              string  `json:"etag"`
+	Port              int `json:"port"`
+	revision          uint64
 	ServiceInstanceID string  `json:"service_instance_id"`
 	BuildID           string  `json:"build_id"`
 	State             string  `json:"state"`
@@ -61,7 +61,6 @@ func newBuildStatus(root string) *buildStatus {
 	return &buildStatus{
 		root: root,
 		running: serviceStatus{
-			ETag:              etag(instanceID, 0),
 			ServiceInstanceID: instanceID,
 			BuildID:           runningBuildID,
 			State:             "running",

@@ -140,7 +140,7 @@ func (x *request) activateBuild() {
 	}
 	s := x.service
 	running := s.builds.service()
-	if _, err = s.lifecycle.begin(running, expected, id); err != nil {
+	if _, err = s.lifecycle.begin(running, matchingServiceTag(expected), id); err != nil {
 		x.fail(err)
 		return
 	}

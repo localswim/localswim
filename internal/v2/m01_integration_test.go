@@ -68,18 +68,18 @@ func m01Rename(value *snapshot) error {
 func TestM01ExclusiveWriterAndRestart(t *testing.T) {
 	root := t.TempDir()
 	s, initial := m01CreateBoard(t, root)
-	next, err := s.update(m01BoardID, initial.Board.ETag, m01Rename)
+	next, err := s.update(m01BoardID, initial.Board.Revision, m01Rename)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.Board.ETag == "" || next.Board.ETag == initial.Board.ETag {
+	if next.Board.entityTag() == "" || next.Board.entityTag() == initial.Board.entityTag() {
 		t.Fatal("committed update did not advance the board version")
 	}
 	m01ProbeWriter(t, root, "")
 	if err := s.close(); err != nil {
 		t.Fatal(err)
 	}
-	m01ProbeWriter(t, root, next.Board.ETag)
+	m01ProbeWriter(t, root, next.Board.entityTag())
 }
 
 func m01ProbeWriter(t *testing.T, root, wantETag string) {
@@ -123,7 +123,7 @@ func TestM01WriterProbeProcess(t *testing.T) {
 		t.Fatalf("reopen after writer release: %v", err)
 	}
 	got, ok := s.accepted(m01BoardID)
-	if !ok || got.Board.Name != m01UpdatedName || got.Board.ETag != wantETag {
+	if !ok || got.Board.Name != m01UpdatedName || got.Board.entityTag() != wantETag {
 		t.Fatal("restarted writer did not recover the committed board and version")
 	}
 	if len(got.Activity) != 2 || got.Activity[1].Operation != "patch" {
@@ -149,12 +149,12 @@ func TestM01FailedReplacementPreservesSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer held.Close()
-	if _, err := s.update(m01BoardID, initial.Board.ETag, m01Rename); err == nil ||
+	if _, err := s.update(m01BoardID, initial.Board.Revision, m01Rename); err == nil ||
 		errors.Is(err, errWriteUncertain) {
 		t.Fatalf("expected a known replacement refusal, got %v", err)
 	}
 	got, ok := s.accepted(m01BoardID)
-	if !ok || got.Board.Name != initial.Board.Name || got.Board.ETag != initial.Board.ETag ||
+	if !ok || got.Board.Name != initial.Board.Name || got.Board.entityTag() != initial.Board.entityTag() ||
 		len(got.Activity) != len(initial.Activity) {
 		t.Fatal("failed replacement changed the accepted board or version")
 	}
@@ -172,8 +172,8 @@ func TestM01FailedReplacementPreservesSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Once the known refusal is verified, the same precondition must still work.
-	next, err := s.update(m01BoardID, initial.Board.ETag, m01Rename)
-	if err != nil || next.Board.Name != m01UpdatedName || next.Board.ETag == initial.Board.ETag {
+	next, err := s.update(m01BoardID, initial.Board.Revision, m01Rename)
+	if err != nil || next.Board.Name != m01UpdatedName || next.Board.entityTag() == initial.Board.entityTag() {
 		t.Fatalf("update after releasing the handle did not commit: %v", err)
 	}
 }

@@ -175,7 +175,7 @@ func (x *request) createApproval() {
 		x.fail(err)
 		return
 	}
-	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", next.Board.entityTag())
 	if len(in.cards) == 0 {
 		x.respond(http.StatusOK, approvalNoop{
 			BoardID: next.Board.ID, BoardRevision: next.Board.Revision, CardIDs: []string{},
@@ -238,7 +238,7 @@ func (in approvalInput) selectCards(state *snapshot) ([]int, error) {
 			return nil, errMissing
 		}
 		item := state.Cards[index]
-		if !matchesStrongTag(in.boardTag, state.Board.ETag) || !matchesStrongTag(version.tag, item.entityTag()) {
+		if !matchesStrongTag(in.boardTag, state.Board.entityTag()) || !matchesStrongTag(version.tag, item.entityTag()) {
 			return nil, errStale
 		}
 		if state.Board.Availability != "open" || item.Archived || !slices.ContainsFunc(state.Lanes, func(l lane) bool {
@@ -248,7 +248,7 @@ func (in approvalInput) selectCards(state *snapshot) ([]int, error) {
 		}
 		return []int{index}, nil
 	}
-	if !matchesStrongTag(in.boardTag, state.Board.ETag) {
+	if !matchesStrongTag(in.boardTag, state.Board.entityTag()) {
 		return nil, errStale
 	}
 	laneIndex := slices.IndexFunc(state.Lanes, func(l lane) bool { return l.ID == in.laneID })

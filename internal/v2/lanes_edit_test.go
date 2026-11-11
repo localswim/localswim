@@ -41,7 +41,7 @@ func TestLaneEditsHTTP(t *testing.T) {
 	anchor := before.Lanes[1]
 	id := newID()
 	laneInput := map[string]any{
-		"id": strings.ToUpper(id), "board_id": created.ID, "board_etag": created.ETag, "label": "Check QA",
+		"id": strings.ToUpper(id), "board_id": created.ID, "board_etag": created.entityTag(), "label": "Check QA",
 		"before_id": anchor.ID, "create_for": []string{botID}, "connect_for": []string{humanID},
 	}
 	asJSON := func(value map[string]any) string {
@@ -59,7 +59,7 @@ func TestLaneEditsHTTP(t *testing.T) {
 	}
 	inserted := after.Lanes[1]
 	if turnOneDecode[lane](t, body) != inserted || headers.Get("ETag") != inserted.entityTag() ||
-		headers.Get("X-Board-ETag") != after.Board.ETag || headers.Get("Location") != Prefix+"/lanes/"+id {
+		headers.Get("X-Board-ETag") != after.Board.entityTag() || headers.Get("Location") != Prefix+"/lanes/"+id {
 		t.Fatal("insert did not return the committed lane, versions, and location")
 	}
 	if inserted.ID != id || inserted.Key != "check_qa" || inserted.Position != 1 || inserted.Revision != 2 ||
@@ -71,7 +71,7 @@ func TestLaneEditsHTTP(t *testing.T) {
 		len(after.Policy.CreateGrants) != len(before.Policy.CreateGrants)+1 ||
 		!slices.Contains(after.Policy.CreateGrants, createGrant{UserID: botID, LaneID: id}) ||
 		len(after.Policy.MoveGrants) != len(before.Policy.MoveGrants)+2*len(before.Lanes) ||
-		after.Policy.ETag == before.Policy.ETag {
+		after.Policy.entityTag() == before.Policy.entityTag() {
 		t.Fatal("insert did not apply the requested grants")
 	}
 	committedBytes, err := os.ReadFile(path)
@@ -85,13 +85,13 @@ func TestLaneEditsHTTP(t *testing.T) {
 		t.Fatal("lane GET did not return the committed lane and ETag")
 	}
 	client.call("POST", "/lanes", asJSON(laneInput), "", 412)
-	laneInput["board_etag"] = after.Board.ETag
+	laneInput["board_etag"] = after.Board.entityTag()
 	client.call("POST", "/lanes", asJSON(laneInput), "", 409)
 	laneInput["id"], laneInput["label"], laneInput["connect_for"] = newID(), "Unconnected", []string{}
 	client.call("POST", "/lanes", asJSON(laneInput), "", 400)
 	laneInput["connect_for"], laneInput["after_id"] = []string{humanID}, anchor.ID
 	client.call("POST", "/lanes", asJSON(laneInput), "", 400)
-	patch := map[string]any{"board_etag": after.Board.ETag, "label": "QA desk"}
+	patch := map[string]any{"board_etag": after.Board.entityTag(), "label": "QA desk"}
 	client.call("PATCH", lanePath, asJSON(patch), "", 428)
 	client.call("PATCH", lanePath, asJSON(patch), etag(inserted.ID, 99), 412)
 	patch["position"] = 12
@@ -119,13 +119,13 @@ func TestLaneEditsHTTP(t *testing.T) {
 	if err := validateSnapshot(missingCreation, created.ID); err == nil {
 		t.Fatal("accepted a lane insertion without its creation audit")
 	}
-	if actual.Policy.ETag != after.Policy.ETag || policyAuditValue(actual.Policy) != policyAuditValue(after.Policy) {
+	if actual.Policy.entityTag() != after.Policy.entityTag() || policyAuditValue(actual.Policy) != policyAuditValue(after.Policy) {
 		t.Fatal("rename changed policy grants")
 	}
-	patch["board_etag"] = actual.Board.ETag
+	patch["board_etag"] = actual.Board.entityTag()
 	client.call("PATCH", lanePath, asJSON(patch), renamed.entityTag(), 200)
 	noOp, _ := app.store.accepted(created.ID)
-	if noOp.Board.ETag != actual.Board.ETag {
+	if noOp.Board.entityTag() != actual.Board.entityTag() {
 		t.Fatal("same-label rename advanced the board")
 	}
 	renamed.Label, renamed.Revision, renamed.UpdatedAt = inserted.Label, inserted.Revision, inserted.UpdatedAt

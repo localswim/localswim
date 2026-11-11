@@ -43,7 +43,7 @@ func TestActivityHTTP(t *testing.T) {
 		raw, headers := c.call("POST", "/cards", body, "", 201)
 		return turnOneDecode[card](t, raw), headers
 	}
-	first, _ := createCard(board.ETag, "Private original title")
+	first, _ := createCard(board.entityTag(), "Private original title")
 	_, headers := c.call("PATCH", "/cards/"+first.ID, `{"title":"Private revised title","description":"Private revised description"}`, first.entityTag(), 200)
 	_, headers = botClient.call("POST", "/comments",
 		fmt.Sprintf(`{"card_id":%q,"expected_card_etag":%q,"text":"Private comment"}`, first.ID, headers.Get("ETag")), "", 201)

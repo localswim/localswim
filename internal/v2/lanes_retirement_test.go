@@ -17,7 +17,7 @@ func TestLaneRetirementHTTP(t *testing.T) {
 	completed := initial.Lanes[slices.IndexFunc(initial.Lanes, func(l lane) bool { return l.Role == "completed" })]
 	body, headers := human.call("POST", "/lanes", fmt.Sprintf(
 		`{"board_id":%q,"board_etag":%q,"label":"Temporary review","role":"ready_for_review","create_for":[%q],"connect_for":[%q]}`,
-		created.ID, created.ETag, humanID, humanID), "", 201)
+		created.ID, created.entityTag(), humanID, humanID), "", 201)
 	item := turnOneDecode[lane](t, body)
 	lanePath := "/lanes/" + item.ID
 	body, headers = human.call("PATCH", lanePath, fmt.Sprintf(
@@ -43,14 +43,14 @@ func TestLaneRetirementHTTP(t *testing.T) {
 	}
 	retire(lanePath, tag, item.entityTag(), true, 409)
 	retire("/lanes/"+completed.ID, tag, completed.entityTag(), true, 400)
-	retire(lanePath, created.ETag, item.entityTag(), true, 412)
+	retire(lanePath, created.entityTag(), item.entityTag(), true, 412)
 	retire(lanePath, tag, etag(item.ID, 99), true, 412)
 
 	body, headers = human.call("PATCH", cardPath, `{"archived":true}`, cardInLane.entityTag(), 200)
 	archived := turnOneDecode[card](t, body)
 	before, _ := app.store.accepted(created.ID)
 	human.call("PATCH", lanePath, fmt.Sprintf(`{"board_etag":%q,"retired":true,"approval_enabled":true}`,
-		before.Board.ETag), item.entityTag(), 400)
+		before.Board.entityTag()), item.entityTag(), 400)
 	body, headers = human.call("PATCH", lanePath, fmt.Sprintf(
 		`{"board_etag":%q,"retired":true}`, headers.Get("X-Board-ETag")), item.entityTag(), 200)
 	retired := turnOneDecode[lane](t, body)
@@ -74,7 +74,7 @@ func TestLaneRetirementHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(actual.Board.LaneIDs, before.Board.LaneIDs) || actual.Policy.ETag != before.Policy.ETag ||
+	if !slices.Equal(actual.Board.LaneIDs, before.Board.LaneIDs) || actual.Policy.entityTag() != before.Policy.entityTag() ||
 		policyAuditValue(actual.Policy) != policyAuditValue(before.Policy) {
 		t.Fatal("retirement changed lane references or historical grants")
 	}

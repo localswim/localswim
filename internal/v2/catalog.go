@@ -10,7 +10,7 @@ import (
 type boardSummary struct {
 	ID             string     `json:"id"`
 	Name           *string    `json:"name"`
-	ETag           *string    `json:"etag"`
+	Revision       *uint64    `json:"revision"`
 	Availability   string     `json:"availability"`
 	Attention      *attention `json:"attention"`
 	LastCardEditAt *time.Time `json:"last_card_edit_at"`
@@ -64,8 +64,8 @@ func summarize(state snapshot, durableErr error) boardSummary {
 	if board.Name != "" {
 		result.Name = &board.Name
 	}
-	if board.ETag != "" {
-		result.ETag = &board.ETag
+	if board.Revision != 0 {
+		result.Revision = &board.Revision
 	}
 
 	if durableErr != nil {

@@ -38,13 +38,13 @@ func TestLaneReviewApproval(t *testing.T) {
 		return fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"cards":%s}`,
 			b.ID, boardTag, laneID, cardVersions)
 	}
-	human.call("POST", "/approvals", body(b.ETag, reviewID, "[]"), "", 409)
+	human.call("POST", "/approvals", body(b.entityTag(), reviewID, "[]"), "", 409)
 	_, header := human.call("PATCH", "/lanes/"+reviewID, fmt.Sprintf(
-		`{"board_etag":%q,"approval_enabled":true}`, b.ETag), etag(reviewID, 1), 200)
+		`{"board_etag":%q,"approval_enabled":true}`, b.entityTag()), etag(reviewID, 1), 200)
 	boardTag := header.Get("X-Board-ETag")
 	human.call("POST", "/approvals", body(boardTag, b.LaneIDs[0], "[]"), "", 409)
 	bot.call("POST", "/approvals", body(boardTag, reviewID, "[]"), "", 403)
-	human.call("POST", "/approvals", body(b.ETag, reviewID, "[]"), "", 412)
+	human.call("POST", "/approvals", body(b.entityTag(), reviewID, "[]"), "", 412)
 	human.call("POST", "/approvals", body(boardTag, reviewID, "null"), "", 400)
 	emptyBefore, _ := app.store.accepted(b.ID)
 	raw, header = human.call("POST", "/approvals", body(boardTag, reviewID, "[]"), "", 200)

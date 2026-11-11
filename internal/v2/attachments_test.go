@@ -43,7 +43,7 @@ func attachmentHTTPServer(t *testing.T) (*Service, turnOneClient) {
 
 func attachmentHTTPCard(t *testing.T, editor turnOneClient, b board) card {
 	t.Helper()
-	create := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"Synthetic"}`, b.ID, b.ETag, b.LaneIDs[0])
+	create := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"Synthetic"}`, b.ID, b.entityTag(), b.LaneIDs[0])
 	raw, _ := editor.call("POST", "/cards", create, "", 201)
 	return turnOneDecode[card](t, raw)
 }

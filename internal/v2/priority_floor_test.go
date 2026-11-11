@@ -31,7 +31,7 @@ func TestPriorityFloorBlockingRelationshipTransaction(t *testing.T) {
 	raw, _ := client.call("POST", "/boards", `{"name":"Priority floors"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
 	urgent, normal, low := b.PriorityIDs[0], b.PriorityIDs[1], b.PriorityIDs[2]
-	boardTag := b.ETag
+	boardTag := b.entityTag()
 	createCard := func(title, priorityID, extra string) card {
 		t.Helper()
 		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":%q,"priority_id":%q%s}`,
@@ -56,7 +56,7 @@ func TestPriorityFloorBlockingRelationshipTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := "/relationships/" + link.ID
-	body = fmt.Sprintf(`{"expected_board_etag":%q,"kind":"blocked_by"}`, before.Board.ETag)
+	body = fmt.Sprintf(`{"expected_board_etag":%q,"kind":"blocked_by"}`, before.Board.entityTag())
 	client.call("PATCH", path, body, linkTag, 200)
 	saved, err := app.store.durable(b.ID)
 	if err != nil {
@@ -78,7 +78,7 @@ func TestPriorityFloorBlockingRelationshipTransaction(t *testing.T) {
 
 	body = fmt.Sprintf(`{"priority_id":%q}`, low)
 	raw, headers = client.call("PATCH", "/cards/"+a.ID, body, cards[a.ID].entityTag(), 200)
-	if turnOneDecode[card](t, raw).PriorityID != normal || headers.Get("X-Board-ETag") != saved.Board.ETag {
+	if turnOneDecode[card](t, raw).PriorityID != normal || headers.Get("X-Board-ETag") != saved.Board.entityTag() {
 		t.Fatal("requested demotion below the floor should return the effective priority without a write")
 	}
 
@@ -94,7 +94,7 @@ func TestPriorityFloorBlockingRelationshipTransaction(t *testing.T) {
 		}
 	}
 	_, headers = client.call("GET", path, "", "", 200)
-	body = fmt.Sprintf(`{"expected_board_etag":%q,"kind":"references"}`, raised.Board.ETag)
+	body = fmt.Sprintf(`{"expected_board_etag":%q,"kind":"references"}`, raised.Board.entityTag())
 	client.call("PATCH", path, body, headers.Get("ETag"), 200)
 	after, err := app.store.durable(b.ID)
 	if err != nil {

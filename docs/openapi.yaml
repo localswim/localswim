@@ -13359,7 +13359,6 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
       - created_at
       - updated_at
       - name
@@ -13381,8 +13380,6 @@ components:
           description: Board member used when card creation omits owner_id.
         id:
           $ref: '#/components/schemas/Uuid'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -13431,7 +13428,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - label
@@ -13440,8 +13437,8 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -13463,7 +13460,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
@@ -13474,8 +13471,8 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -13584,7 +13581,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
@@ -13595,8 +13592,8 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -14363,15 +14360,12 @@ components:
       additionalProperties: false
       required:
       - port
-      - etag
       - service_instance_id
       - build_id
       - state
       - api_version
       - restart_error_code
       properties:
-        etag:
-          $ref: '#/components/schemas/EntityTag'
         port:
           type: integer
           minimum: 1
@@ -14426,7 +14420,6 @@ components:
       - board_id
       - backup_id
       - at
-      - board_etag
       - revision
       properties:
         id:
@@ -14438,8 +14431,6 @@ components:
         at:
           $ref: '#/components/schemas/Timestamp'
           description: Actual execution time, independent of when the UUIDv7 id was generated.
-        board_etag:
-          $ref: '#/components/schemas/EntityTag'
         revision:
           $ref: '#/components/schemas/Revision'
     Event:
@@ -14724,9 +14715,7 @@ components:
           - $ref: '#/components/schemas/Revision'
           - minimum: 1
         card:
-          allOf:
-          - $ref: '#/components/schemas/TicketCardContext'
-          - required: [etag]
+          $ref: '#/components/schemas/TicketCardContext'
         relationships:
           type: array
           description: Direct links ordered by the other card's ticket, then kind and direction.
@@ -14779,9 +14768,6 @@ components:
           $ref: '#/components/schemas/Card/properties/ticket'
         revision:
           $ref: '#/components/schemas/Card/properties/revision'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
-          description: Current card validator. Present on the selected card.
         title:
           $ref: '#/components/schemas/Card/properties/title'
         archived:
@@ -16414,7 +16400,7 @@ components:
       required:
       - id
       - name
-      - etag
+      - revision
       - availability
       - attention
       - last_card_edit_at
@@ -16428,9 +16414,9 @@ components:
             minLength: 1
             maxLength: 256
           - type: 'null'
-        etag:
+        revision:
           anyOf:
-          - $ref: '#/components/schemas/EntityTag'
+          - $ref: '#/components/schemas/Revision'
           - type: 'null'
         availability:
           enum:
@@ -16485,7 +16471,6 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
       - created_at
       - updated_at
       - name
@@ -16507,8 +16492,6 @@ components:
           description: Board member used when card creation omits owner_id.
         id:
           $ref: '#/components/schemas/UuidInput'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -16617,7 +16600,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - label
@@ -16626,8 +16609,8 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -16705,7 +16688,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
@@ -16716,8 +16699,8 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -16744,7 +16727,7 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
@@ -16755,8 +16738,8 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:

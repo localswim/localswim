@@ -52,12 +52,12 @@ func TestM39ShutdownJoinsAdmittedMutationAndDrainsEvents(t *testing.T) {
 	editor := turnOneClient{t, server.URL, human, &http.Client{Timeout: 15 * time.Second}}
 	serviceBody, headers := editor.call("GET", "/service", "", "", 200)
 	original := turnOneDecode[serviceStatus](t, serviceBody)
-	if original.State != "running" || headers.Get("ETag") != original.ETag {
+	if original.State != "running" || headers.Get("ETag") != original.entityTag() {
 		t.Fatal("unexpected initial service representation")
 	}
 	editor.call("PATCH", "/service", stopServiceBody, "", 428)
 	editor.call("PATCH", "/service", stopServiceBody, etag(newID(), 1), 412)
-	editor.call("PATCH", "/service", `{"state":"stopped","actor":"human"}`, original.ETag, 400)
+	editor.call("PATCH", "/service", `{"state":"stopped","actor":"human"}`, original.entityTag(), 400)
 
 	reader, cancelEvents := editor.openEvents("/events", "")
 	defer cancelEvents()
@@ -77,7 +77,7 @@ func TestM39ShutdownJoinsAdmittedMutationAndDrainsEvents(t *testing.T) {
 	}
 
 	shutdown := make(chan boardHTTPResult, 1)
-	go func() { shutdown <- boardRequest(editor, "PATCH", "/service", stopServiceBody, original.ETag) }()
+	go func() { shutdown <- boardRequest(editor, "PATCH", "/service", stopServiceBody, original.entityTag()) }()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		raw, _ := editor.call("GET", "/service", "", "", 200)
@@ -106,9 +106,10 @@ func TestM39ShutdownJoinsAdmittedMutationAndDrainsEvents(t *testing.T) {
 		t.Fatalf("admitted mutation did not commit: %+v", committed)
 	}
 	receipt := <-shutdown
-	if receipt.err != nil || receipt.status != 202 || receipt.header.Get("ETag") != "" {
+	if receipt.err != nil || receipt.status != 202 || receipt.header.Get("ETag") != etag(original.ServiceInstanceID, 1) {
 		t.Fatalf("unexpected shutdown receipt: %+v", receipt)
 	}
+	assertNoResponseValidators(t, receipt.data)
 	if status := turnOneDecode[serviceStatus](t, receipt.data); status.State != "draining" ||
 		status.Port != original.Port || status.ServiceInstanceID != original.ServiceInstanceID {
 		t.Fatalf("shutdown receipt identity changed: %+v", status)
@@ -135,11 +136,11 @@ func TestM39ShutdownRefusesFailedPushAndFlushesLatestEnabledArtifacts(t *testing
 	fixture := m34PublicationFixture(t)
 	editor := fixture.editor
 	path := "/boards/" + fixture.state.Board.ID
-	raw, _ := editor.call("GET", "/service", "", "", 200)
+	raw, originalHeaders := editor.call("GET", "/service", "", "", 200)
 	original := turnOneDecode[serviceStatus](t, raw)
 	raw, _ = editor.call("GET", path, "", "", 200)
 	b := turnOneDecode[board](t, raw)
-	raw, _ = editor.call("PATCH", path, `{"publishing":{"enabled":true}}`, b.ETag, 200)
+	raw, _ = editor.call("PATCH", path, `{"publishing":{"enabled":true}}`, b.entityTag(), 200)
 	b = turnOneDecode[board](t, raw)
 	_, workspaceHeaders := editor.call("GET", "/workspace", "", "", 200)
 	editor.call("PATCH", "/workspace", `{"publishing":{"enabled":true}}`, workspaceHeaders.Get("ETag"), 200)
@@ -148,13 +149,13 @@ func TestM39ShutdownRefusesFailedPushAndFlushesLatestEnabledArtifacts(t *testing
 	if err := os.Rename(fixture.remote, offline); err != nil {
 		t.Fatal(err)
 	}
-	raw, _ = editor.call("PATCH", "/service", stopServiceBody, original.ETag, 503)
+	raw, _ = editor.call("PATCH", "/service", stopServiceBody, original.entityTag(), 503)
 	if problem := turnOneDecode[problemBody](t, raw); problem.Code != "unavailable" || problem.Outcome != "not_applied" {
 		t.Fatalf("unexpected publication refusal: %+v", problem)
 	}
-	raw, _ = editor.call("GET", "/service", "", "", 200)
+	raw, refusedHeaders := editor.call("GET", "/service", "", "", 200)
 	refused := turnOneDecode[serviceStatus](t, raw)
-	if refused.State != "running" || refused.ETag == original.ETag ||
+	if refused.State != "running" || refusedHeaders.Get("ETag") == originalHeaders.Get("ETag") ||
 		refused.ServiceInstanceID != original.ServiceInstanceID || snapshotString(refused.RestartErrorCode) != "git_push_failed" {
 		t.Fatalf("refused shutdown did not retain running service and failure status: %+v", refused)
 	}
@@ -163,7 +164,7 @@ func TestM39ShutdownRefusesFailedPushAndFlushesLatestEnabledArtifacts(t *testing
 		t.Fatal("refused shutdown scheduled exit")
 	default:
 	}
-	editor.call("PATCH", path, `{"name":"Final admitted revision"}`, b.ETag, 200)
+	editor.call("PATCH", path, `{"name":"Final admitted revision"}`, b.entityTag(), 200)
 	wantBoard, err := os.ReadFile(fixture.app.store.snapshotPath(b.ID))
 	if err != nil {
 		t.Fatal(err)
@@ -175,7 +176,7 @@ func TestM39ShutdownRefusesFailedPushAndFlushesLatestEnabledArtifacts(t *testing
 	if err := os.Rename(offline, fixture.remote); err != nil {
 		t.Fatal(err)
 	}
-	editor.call("PATCH", "/service", stopServiceBody, refused.ETag, 202)
+	editor.call("PATCH", "/service", stopServiceBody, refusedHeaders.Get("ETag"), 202)
 	gitRoot := "refs/heads/main:" + fixture.prefix + "/"
 	gotBoard := m34Git(t, fixture.remote, "show", gitRoot+"boards/"+b.ID+".json")
 	gotWorkspace := m34Git(t, fixture.remote, "show", gitRoot+workspaceFileName)
@@ -200,7 +201,7 @@ func TestM39ActivationReceiptValidatorsAndDurableClosure(t *testing.T) {
 		Version:    "v2-test",
 		Digest:     strings.Repeat("a", 64),
 	}
-	if _, err := original.lifecycle.begin(service, service.ETag, id); err != nil {
+	if _, err := original.lifecycle.begin(service, matchingServiceTag(service.entityTag()), id); err != nil {
 		t.Fatal(err)
 	}
 	if err := original.saveActivation(record); err != nil {

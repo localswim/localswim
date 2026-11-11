@@ -110,7 +110,7 @@ func (x *request) patchCard(id string) {
 			return
 		}
 		boardMatches = func(current snapshot) bool {
-			return matchesStrongTag(boardTags[0], current.Board.ETag)
+			return matchesStrongTag(boardTags[0], current.Board.entityTag())
 		}
 	}
 	fields, err := x.body()
@@ -133,7 +133,7 @@ func (x *request) patchCard(id string) {
 	}
 	for _, item := range updated.Cards {
 		if item.ID == id {
-			x.w.Header().Set("X-Board-ETag", updated.Board.ETag)
+			x.w.Header().Set("X-Board-ETag", updated.Board.entityTag())
 			x.respond(http.StatusOK, item, item.entityTag())
 			return
 		}
@@ -199,7 +199,7 @@ func (patch cardPatch) applyToCard(s *snapshot, item *card, tag, actor string, n
 		}
 	}
 	if patch.hasParent {
-		if _, err := patchParent(s, item.ID, tag, patch.parentID, actor, now); err != nil {
+		if _, err := patchParent(s, item.ID, item.Revision, patch.parentID, actor, now); err != nil {
 			return err
 		}
 	}

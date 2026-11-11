@@ -16,15 +16,16 @@ const maxJSONBytes = 96 << 20
 
 type entity struct {
 	ID        string    `json:"id"`
-	ETag      string    `json:"etag"`
+	Revision  uint64    `json:"revision"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func newEntity(id string, now time.Time) entity {
 	now = canonicalTime(now)
-	return entity{id, etag(id, 1), now, now}
+	return entity{id, 1, now, now}
 }
+
 func newID() string {
 	var data [16]byte
 	rand.Read(data[:])
@@ -53,7 +54,6 @@ func normalizeIDVersion(input string, version byte) (string, bool) {
 	}
 	return id, true
 }
-func etag(id string, revision uint64) string { return fmt.Sprintf("\"%s-%d\"", id, revision) }
 
 type attention struct {
 	Blocked        int `json:"blocked"`
@@ -76,7 +76,6 @@ type board struct {
 	LaneIDs        []string      `json:"lane_ids"`
 	PriorityIDs    []string      `json:"priority_ids"`
 	Availability   string        `json:"availability"`
-	Revision       uint64        `json:"revision"`
 	Attention      attention     `json:"attention"`
 	LastCardEditAt *time.Time    `json:"last_card_edit_at"`
 	Notifications  notifications `json:"notifications"`
@@ -103,8 +102,6 @@ type lane struct {
 	ApprovalEnabled bool      `json:"approval_enabled"`
 	ReorderEnabled  bool      `json:"reorder_enabled"`
 }
-
-func (l lane) entityTag() string { return etag(l.ID, l.Revision) }
 
 type priority struct {
 	entity
@@ -165,8 +162,6 @@ type card struct {
 	CompletedAt       *time.Time `json:"completed_at"`
 }
 
-func (c card) entityTag() string { return etag(c.ID, c.Revision) }
-
 type activity struct {
 	ID           string    `json:"id"`
 	BoardID      string    `json:"board_id"`
@@ -190,8 +185,6 @@ type comment struct {
 	AuthorID  string    `json:"author_id"`
 }
 
-func (c comment) entityTag() string { return etag(c.ID, 1) }
-
 type snapshot struct {
 	Format        string         `json:"format"`
 	FormatVersion int            `json:"format_version"`
@@ -210,7 +203,7 @@ type snapshot struct {
 func freshSnapshot(id, name string, wf workflow, actorID string, now time.Time) snapshot {
 	now = canonicalTime(now)
 	s := snapshot{Format: "localswim-snapshot", FormatVersion: 2,
-		Board: board{entity: newEntity(id, now), Name: name, DefaultOwnerID: botID, PolicyID: wf.Policy.ID, Availability: "open", Revision: 1,
+		Board: board{entity: newEntity(id, now), Name: name, DefaultOwnerID: botID, PolicyID: wf.Policy.ID, Availability: "open",
 			UserIDs: []string{}, LaneIDs: []string{}, PriorityIDs: []string{}},
 		Users: wf.Users, Lanes: wf.Lanes, Priorities: wf.Priorities, Policy: wf.Policy,
 		Cards: []card{}, Comments: []comment{}, Relationships: []relationship{}, Attachments: []attachment{}, Activity: []activity{}}

@@ -37,14 +37,14 @@ func TestCardMoveAndOwnerHTTP(t *testing.T) {
 	}
 	from, to, completed := state.Lanes[0].ID, state.Lanes[3].ID, state.Lanes[4].ID
 	raw, header := bot.call("POST", "/cards", fmt.Sprintf(
-		`{"board_id":%q,"expected_board_etag":%q,"title":"Test card","lane_id":%q}`, b.ID, b.ETag, from), "", 201)
+		`{"board_id":%q,"expected_board_etag":%q,"title":"Test card","lane_id":%q}`, b.ID, b.entityTag(), from), "", 201)
 	initial := turnOneDecode[card](t, raw)
 	initialBoardTag := header.Get("X-Board-ETag")
 	path := "/cards/" + initial.ID
 	move := fmt.Sprintf(`{"lane_id":%q}`, to)
 	bot.call("PATCH", path, move, initial.entityTag(), 403)
 	human.call("PATCH", path, move, initial.entityTag(), 403)
-	if got, _ := app.store.accepted(b.ID); got.Board.ETag != initialBoardTag {
+	if got, _ := app.store.accepted(b.ID); got.Board.entityTag() != initialBoardTag {
 		t.Fatal("denied lane moves changed the board")
 	}
 
@@ -52,7 +52,7 @@ func TestCardMoveAndOwnerHTTP(t *testing.T) {
 	raw, _ = bot.call("GET", policyPath, "", "", 200)
 	p := turnOneDecode[policy](t, raw)
 	p.MoveGrants = append(slices.Clone(p.MoveGrants), moveGrant{UserID: botID, FromLaneID: from, ToLaneID: to})
-	bot.call("PUT", policyPath, policyPutBody(t, p, initialBoardTag), p.ETag, 200)
+	bot.call("PUT", policyPath, policyPutBody(t, p, initialBoardTag), p.entityTag(), 200)
 	human.call("PATCH", path, move, initial.entityTag(), 403)
 
 	// Adding a grant changes the board version, but not the original card tag.
@@ -67,7 +67,7 @@ func TestCardMoveAndOwnerHTTP(t *testing.T) {
 	bot.call("PATCH", path, move, moved.entityTag(), 403)
 	raw, _ = bot.call("GET", path, "", "", 200)
 	boardRaw, _ := bot.call("GET", "/boards/"+b.ID, "", "", 200)
-	if turnOneDecode[card](t, raw).entityTag() != moved.entityTag() || turnOneDecode[board](t, boardRaw).ETag != movedBoardTag {
+	if turnOneDecode[card](t, raw).entityTag() != moved.entityTag() || turnOneDecode[board](t, boardRaw).entityTag() != movedBoardTag {
 		t.Fatal("refused same-lane patch changed versions")
 	}
 	assign := fmt.Sprintf(`{"owner_id":%q}`, humanID)

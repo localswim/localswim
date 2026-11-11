@@ -129,14 +129,14 @@ func checkEventConditionalGet(t *testing.T, c turnOneClient, want board, conditi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != status || response.Header.Get("ETag") != want.ETag {
+	if response.StatusCode != status || response.Header.Get("ETag") != want.entityTag() {
 		t.Fatalf("conditional board GET returned status %d and ETag %q", response.StatusCode, response.Header.Get("ETag"))
 	}
 	if status == http.StatusNotModified {
 		if len(body) != 0 {
 			t.Fatal("304 carried a body")
 		}
-	} else if got := turnOneDecode[board](t, body); got.ID != want.ID || got.ETag != want.ETag {
+	} else if got := turnOneDecode[board](t, body); got.ID != want.ID || got.entityTag() != want.entityTag() {
 		t.Fatal("conditional board GET did not match the streamed revision")
 	}
 }
@@ -157,18 +157,18 @@ func TestEventsCommittedStateAndReconnect(t *testing.T) {
 	assertEventBoard(t, readEventFrame(t, reader), "snapshot", selected)
 	assertEventBoard(t, readEventFrame(t, reader), "snapshot", retained)
 
-	c.call(http.MethodPatch, "/boards/"+selected.ID, "{\"name\":\"Selected\"}", selected.ETag, 200)
+	c.call(http.MethodPatch, "/boards/"+selected.ID, "{\"name\":\"Selected\"}", selected.entityTag(), 200)
 	c.call(http.MethodPatch, "/boards/"+selected.ID, "{\"name\":\"Rejected\"}", "\"stale\"", 412)
-	c.call(http.MethodPatch, "/boards/"+other.ID, "{\"name\":\"Other renamed\"}", other.ETag, 200)
+	c.call(http.MethodPatch, "/boards/"+other.ID, "{\"name\":\"Other renamed\"}", other.entityTag(), 200)
 	assertEventCatalog(t, readEventFrame(t, reader), "change")
 
-	retainedBefore := retained.ETag
-	raw, _ = c.call(http.MethodPatch, "/boards/"+retained.ID, "{\"name\":\"Retained renamed\"}", retained.ETag, 200)
+	retainedBefore := retained.entityTag()
+	raw, _ = c.call(http.MethodPatch, "/boards/"+retained.ID, "{\"name\":\"Retained renamed\"}", retained.entityTag(), 200)
 	retained = turnOneDecode[board](t, raw)
 	assertEventCatalog(t, readEventFrame(t, reader), "change")
 	assertEventBoard(t, readEventFrame(t, reader), "change", retained)
 	checkEventConditionalGet(t, c, retained, retainedBefore, http.StatusOK)
-	checkEventConditionalGet(t, c, retained, retained.ETag, http.StatusNotModified)
+	checkEventConditionalGet(t, c, retained, retained.entityTag(), http.StatusNotModified)
 
 	raw, _ = c.call(http.MethodPatch, "/workspace", fmt.Sprintf("{%q:[%q]}", "pinned_board_ids", selected.ID), workspaceHeaders.Get("ETag"), 200)
 	updatedWorkspace := turnOneDecode[workspace](t, raw)
@@ -177,7 +177,7 @@ func TestEventsCommittedStateAndReconnect(t *testing.T) {
 	if err := disconnect(); err != nil {
 		t.Fatal(err)
 	}
-	raw, _ = c.call(http.MethodPatch, "/boards/"+selected.ID, "{\"name\":\"Selected renamed\"}", selected.ETag, 200)
+	raw, _ = c.call(http.MethodPatch, "/boards/"+selected.ID, "{\"name\":\"Selected renamed\"}", selected.entityTag(), 200)
 	selected = turnOneDecode[board](t, raw)
 	reader, _ = c.openEvents(path, "ignored-older-event")
 	assertEventWorkspace(t, readEventFrame(t, reader), "snapshot", updatedWorkspace.Revision)

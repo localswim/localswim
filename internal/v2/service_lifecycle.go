@@ -59,7 +59,7 @@ func (l *serviceLifecycle) snapshot(running serviceStatus) serviceStatus {
 }
 
 func (l *serviceLifecycle) statusLocked(running serviceStatus) serviceStatus {
-	running.ETag = etag(running.ServiceInstanceID, l.revision)
+	running.revision = l.revision
 	running.RestartErrorCode = l.failure
 	if l.draining {
 		running.State = "draining"
@@ -68,13 +68,13 @@ func (l *serviceLifecycle) statusLocked(running serviceStatus) serviceStatus {
 	return running
 }
 
-func (l *serviceLifecycle) begin(running serviceStatus, expected, activationID string) (serviceStatus, error) {
+func (l *serviceLifecycle) begin(running serviceStatus, matches func(serviceStatus) bool, activationID string) (serviceStatus, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.draining {
 		return serviceStatus{}, errServiceDraining
 	}
-	if !matchesStrongTag(expected, l.statusLocked(running).ETag) {
+	if !matches(l.statusLocked(running)) {
 		return serviceStatus{}, errStale
 	}
 	l.revision++
@@ -158,7 +158,7 @@ func (x *request) stopService() {
 		x.fail(invalid("state", "Expected stopped."))
 		return
 	}
-	status, err := x.service.lifecycle.begin(x.service.builds.service(), expected, "")
+	status, err := x.service.lifecycle.begin(x.service.builds.service(), matchingServiceTag(expected), "")
 	if err != nil {
 		x.fail(err)
 		return
@@ -169,6 +169,6 @@ func (x *request) stopService() {
 		return
 	}
 	status.Port = x.port
-	x.respond(http.StatusAccepted, status, "")
+	x.respond(http.StatusAccepted, status, status.entityTag())
 	x.service.lifecycle.exit <- ServiceExit{}
 }

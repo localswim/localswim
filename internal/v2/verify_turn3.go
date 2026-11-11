@@ -10,7 +10,7 @@ func (refs snapshotReferences) validateCardChildren(value snapshot) error {
 	comments := make(map[string]int)
 	attachments := make(map[string]int)
 	for _, item := range value.Comments {
-		if !refs.claim(entity{ID: item.ID, ETag: item.entityTag(), CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}) || item.BoardID != value.Board.ID ||
+		if !refs.claim(entity{ID: item.ID, Revision: 1, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}) || item.BoardID != value.Board.ID ||
 			refs.cards[item.CardID].ID == "" || refs.users[item.AuthorID].ID == "" ||
 			!item.CreatedAt.Equal(item.UpdatedAt) || !snapshotText(item.Text, 1, 4194304) {
 			return invalidSnapshot("comments", "Comment identity, references, or content are invalid.")
@@ -19,7 +19,7 @@ func (refs snapshotReferences) validateCardChildren(value snapshot) error {
 		comments[item.CardID]++
 	}
 	for index, item := range value.Attachments {
-		if !refs.claim(entity{ID: item.ID, ETag: item.entityTag(), CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}) ||
+		if !refs.claim(entity{ID: item.ID, Revision: item.Revision, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}) ||
 			item.Revision == 0 || item.Revision > value.Board.Revision || item.Revision > maxSnapshotInteger || item.BoardID != value.Board.ID ||
 			refs.cards[item.CardID].ID == "" || refs.users[item.AddedBy].ID == "" ||
 			item.Active && !item.CreatedAt.Equal(item.UpdatedAt) {

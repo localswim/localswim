@@ -19,7 +19,7 @@ import (
 
 func captureRecoveryBackup(t *testing.T, app *Service, state snapshot) (backup, []byte) {
 	t.Helper()
-	captured, err := app.store.captureBackupSnapshot(state.Board.ID, humanID, state.Board.ETag)
+	captured, err := app.store.captureBackupSnapshot(state.Board.ID, humanID, state.Board.Revision)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestM30ZIPRecoveryRefusesDamageThenRecoversSameBoard(t *testing.T) {
 	}
 	raw, headers := recoveryPut(t, editor, source.Board.ID, snapshotRepresentationTag(current), "application/zip", zipData, 200)
 	recovered := turnOneDecode[board](t, raw)
-	if recovered.ID != source.Board.ID || recovered.Revision <= current.Board.Revision || headers.Get("ETag") != "" || headers.Get("X-Board-ETag") != recovered.ETag {
+	if recovered.ID != source.Board.ID || recovered.Revision <= current.Board.Revision || headers.Get("ETag") != "" || headers.Get("X-Board-ETag") != recovered.entityTag() {
 		t.Fatal("recovery identity/version headers are incorrect")
 	}
 	raw, _ = editor.call("GET", "/cards/"+originalCard.ID, "", "", 200)
@@ -125,8 +125,9 @@ func TestM30StoredRestorationReceiptAndDuplicate(t *testing.T) {
 	app, editor, source, _ := backupCaptureFixture(t)
 	item, _ := captureRecoveryBackup(t, app, source)
 	id := "00000000-0000-7000-8000-000000000002"
-	body := fmt.Sprintf(`{"id":%q,"board_id":%q,"backup_id":%q,"expected_board_etag":%q}`, id, source.Board.ID, item.ID, source.Board.ETag)
+	body := fmt.Sprintf(`{"id":%q,"board_id":%q,"backup_id":%q,"expected_board_etag":%q}`, id, source.Board.ID, item.ID, source.Board.entityTag())
 	raw, headers := editor.call("POST", "/restorations", body, "", 201)
+	assertNoResponseValidators(t, raw)
 	result := turnOneDecode[restoration](t, raw)
 	if result.At.Before(source.Board.UpdatedAt) || result.At.Year() < 2026 {
 		t.Fatal("restoration execution time was derived from its preallocated ID")
@@ -136,10 +137,21 @@ func TestM30StoredRestorationReceiptAndDuplicate(t *testing.T) {
 		t.Fatal("restoration response invalid")
 	}
 	raw, _ = editor.call("GET", "/restorations/"+strings.ToUpper(id), "", "", 200)
+	assertNoResponseValidators(t, raw)
 	if read := turnOneDecode[restoration](t, raw); !reflect.DeepEqual(read, result) {
 		t.Fatal("restoration readback differs")
 	}
-	body = fmt.Sprintf(`{"id":%q,"board_id":%q,"backup_id":%q,"expected_board_etag":%q}`, id, source.Board.ID, item.ID, result.BoardETag)
+
+	committed, ok := app.store.accepted(source.Board.ID)
+	if !ok {
+		t.Fatal("restoration not committed")
+	}
+	assertNoResponseValidators(t, marshalVerificationFixture(t, committed))
+	event := committed.Activity[len(committed.Activity)-1]
+	if snapshotString(event.Before) != fmt.Sprint(source.Board.Revision) || committed.Policy.Revision != result.Revision {
+		t.Fatal("recovery did not preserve numeric revision evidence")
+	}
+	body = fmt.Sprintf(`{"id":%q,"board_id":%q,"backup_id":%q,"expected_board_etag":%q}`, id, source.Board.ID, item.ID, etag(result.BoardID, result.Revision))
 	editor.call("POST", "/restorations", body, "", 409)
 	raw, headers = editor.call("GET", "/snapshots/"+source.Board.ID, "", "", 200)
 	raw = bytes.ReplaceAll(raw, []byte(item.ID), []byte(strings.ToUpper(item.ID)))
@@ -206,7 +218,7 @@ func TestM30RecoveryIdentityAndAttachmentValidationBeforeMutation(t *testing.T) 
 	if unmarshalCanonical(data, &unknown) != nil {
 		t.Fatal("decode unknown fixture")
 	}
-	_, err := app.store.recoverSnapshot(source.Board.ID, humanID, snapshotRepresentationTag(source), newOperationID(), unknown, nil, nil)
+	_, err := app.store.recoverSnapshot(source.Board.ID, humanID, newOperationID(), matchingSnapshotTag(snapshotRepresentationTag(source)), unknown, nil, nil)
 	if !errors.Is(err, errIdentityConflict) {
 		t.Fatalf("unknown user result %v", err)
 	}
@@ -214,7 +226,7 @@ func TestM30RecoveryIdentityAndAttachmentValidationBeforeMutation(t *testing.T) 
 	if err := os.Remove(filepath.Join(app.store.root, attachmentPath(missing))); err != nil {
 		t.Fatal(err)
 	}
-	_, err = app.store.recoverSnapshot(source.Board.ID, humanID, snapshotRepresentationTag(source), newOperationID(), source, nil, nil)
+	_, err = app.store.recoverSnapshot(source.Board.ID, humanID, newOperationID(), matchingSnapshotTag(snapshotRepresentationTag(source)), source, nil, nil)
 	if !errors.Is(err, errAttachmentIntegrity) {
 		t.Fatalf("missing file result %v", err)
 	}
@@ -303,7 +315,7 @@ func TestM30RecoveryActorCanBeAbsentFromSourceBoard(t *testing.T) {
 	if err := validateSnapshot(source, source.Board.ID); err != nil {
 		t.Fatal(err)
 	}
-	recovered, err := store.recoverSnapshot(current.Board.ID, m01HumanID, snapshotRepresentationTag(current), newOperationID(), source, nil, nil)
+	recovered, err := store.recoverSnapshot(current.Board.ID, m01HumanID, newOperationID(), matchingSnapshotTag(snapshotRepresentationTag(current)), source, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,7 +344,7 @@ func TestM30SnapshotValidatorRejectsConcurrentCardAndPolicyChanges(t *testing.T)
 	current, _ := app.store.accepted(source.Board.ID)
 	raw, headers = editor.call("GET", "/snapshots/"+source.Board.ID, "", "", 200)
 	stale = headers.Get("ETag")
-	_, err := app.store.update(current.Board.ID, current.Board.ETag, func(next *snapshot) error {
+	_, err := app.store.update(current.Board.ID, current.Board.Revision, func(next *snapshot) error {
 		policy := next.Policy
 		policy.CreateGrants = slices.Clone(policy.CreateGrants)
 		for _, lane := range next.Lanes {
@@ -361,7 +373,7 @@ func TestM30DurableSnapshotPreconditionAndDamagedFallback(t *testing.T) {
 		field, before := "name", external.Board.Name
 		external.Board.Name = name
 		external.Board.Revision++
-		external.Board.ETag = etag(external.Board.ID, external.Board.Revision)
+
 		external.Activity = append(external.Activity, activity{ID: newOperationID(), BoardID: external.Board.ID,
 			Revision: external.Board.Revision, At: external.Board.UpdatedAt, ActorID: humanID, Operation: "patch",
 			ResourceType: "board", ResourceID: external.Board.ID, Field: &field, Before: &before, After: &name})
@@ -397,7 +409,7 @@ func TestM30DurableSnapshotPreconditionAndDamagedFallback(t *testing.T) {
 		t.Fatal("damaged snapshot reported healthy")
 	}
 	recoveryPut(t, client, original.Board.ID, secondTag, "application/json", payload, 412)
-	recoveryPut(t, client, original.Board.ID, result.ETag, "application/json", payload, 412)
+	recoveryPut(t, client, original.Board.ID, result.entityTag(), "application/json", payload, 412)
 	recoveryPut(t, client, original.Board.ID, lastAcceptedTag, "application/json", payload, 200)
 	client.call("GET", address, "", "", 200)
 }
@@ -406,7 +418,7 @@ func TestM30RecoveryInvalidatesAllMutableResourceValidators(t *testing.T) {
 	app, client, original, _ := backupCaptureFixture(t)
 	c, l, a := original.Cards[0], original.Lanes[0], original.Attachments[1]
 	cardBody := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"Second"}`,
-		original.Board.ID, original.Board.ETag, c.LaneID)
+		original.Board.ID, original.Board.entityTag(), c.LaneID)
 	raw, headers := client.call("POST", "/cards", cardBody, "", 201)
 	other := turnOneDecode[card](t, raw)
 	linkBody := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"source_card_id":%q,"target_card_id":%q,"kind":"references"}`,
@@ -428,21 +440,21 @@ func TestM30RecoveryInvalidatesAllMutableResourceValidators(t *testing.T) {
 	client.call("PATCH", "/cards/"+c.ID, `{"title":"stale write"}`, c.entityTag(), 412)
 	raw, headers = client.call("GET", "/lanes/"+l.ID, "", "", 200)
 	restoredLane := assertLaneRevision(t, raw, result.Revision, headers.Get("ETag"))
-	lanePatch := fmt.Sprintf(`{"board_etag":%q,"label":"stale write"}`, result.ETag)
+	lanePatch := fmt.Sprintf(`{"board_etag":%q,"label":"stale write"}`, result.entityTag())
 	client.call("PATCH", "/lanes/"+l.ID, lanePatch, l.entityTag(), 412)
 	raw, headers = client.call("GET", "/attachments/"+a.ID, "", "", 200)
 	restoredAttachment := assertAttachmentRevision(t, raw, result.Revision, headers.Get("ETag"))
-	attachmentHTTPDetach(t, client, "/attachments/"+a.ID, a.entityTag(), result.ETag, 412)
+	attachmentHTTPDetach(t, client, "/attachments/"+a.ID, a.entityTag(), result.entityTag(), 412)
 	raw, headers = client.call("GET", "/relationships/"+link.ID, "", "", 200)
 	restoredLink := assertRelationshipRevision(t, raw, result.Revision, headers.Get("ETag"))
-	linkPatch := fmt.Sprintf(`{"expected_board_etag":%q,"kind":"blocks"}`, result.ETag)
+	linkPatch := fmt.Sprintf(`{"expected_board_etag":%q,"kind":"blocks"}`, result.entityTag())
 	client.call("PATCH", "/relationships/"+link.ID, linkPatch, link.entityTag(), 412)
 	raw, _ = client.call("GET", "/policies/"+source.Policy.ID, "", "", 200)
 	restoredPolicy := turnOneDecode[policy](t, raw)
-	if restoredPolicy.ETag != etag(source.Policy.ID, result.Revision) {
+	if restoredPolicy.entityTag() != etag(source.Policy.ID, result.Revision) {
 		t.Fatal("policy validator was not refreshed")
 	}
-	client.call("PUT", "/policies/"+source.Policy.ID, policyPutBody(t, restoredPolicy, result.ETag), source.Policy.ETag, 412)
+	client.call("PUT", "/policies/"+source.Policy.ID, policyPutBody(t, restoredPolicy, result.entityTag()), source.Policy.entityTag(), 412)
 
 	// Ordinary edits after recovery must still advance exact historical versions.
 	_, headers = client.call("PATCH", "/lanes/"+l.ID, lanePatch, restoredLane.entityTag(), 200)
@@ -459,13 +471,13 @@ func TestM30DuplicateStoredRestorationIDAcrossBoards(t *testing.T) {
 	app, client, first, _ := backupCaptureFixture(t)
 	backupID := newOperationID()
 	id := newOperationID()
-	if _, err := app.store.recoverSnapshot(first.Board.ID, humanID, first.Board.ETag, id, first, &backupID, nil); err != nil {
+	if _, err := app.store.recoverSnapshot(first.Board.ID, humanID, id, matchingBoardTag(first.Board.entityTag()), first, &backupID, nil); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := client.call("POST", "/boards", `{"name":"Second restore board"}`, "", 201)
 	secondBoard := turnOneDecode[board](t, raw)
 	second, _ := app.store.accepted(secondBoard.ID)
-	restored, err := app.store.recoverSnapshot(second.Board.ID, humanID, second.Board.ETag, newOperationID(), second, &backupID, nil)
+	restored, err := app.store.recoverSnapshot(second.Board.ID, humanID, newOperationID(), matchingBoardTag(second.Board.entityTag()), second, &backupID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -523,7 +535,7 @@ func TestM30GlobalRecoveryUsersAreCanonicalAndIndependentOfLoadOrder(t *testing.
 		t.Fatal(err)
 	}
 	source := withoutCustom(first)
-	_, err = s.recoverSnapshot(first.Board.ID, custom.ID, snapshotRepresentationTag(first), newOperationID(), source, nil, nil)
+	_, err = s.recoverSnapshot(first.Board.ID, custom.ID, newOperationID(), matchingSnapshotTag(snapshotRepresentationTag(first)), source, nil, nil)
 	if !errors.Is(err, errIdentityConflict) {
 		t.Fatalf("orphaned custom user result %v", err)
 	}
@@ -531,7 +543,7 @@ func TestM30GlobalRecoveryUsersAreCanonicalAndIndependentOfLoadOrder(t *testing.
 	if err := s.create(second); err != nil {
 		t.Fatal(err)
 	}
-	firstResult, err := s.recoverSnapshot(first.Board.ID, custom.ID, snapshotRepresentationTag(first), newOperationID(), source, nil, nil)
+	firstResult, err := s.recoverSnapshot(first.Board.ID, custom.ID, newOperationID(), matchingSnapshotTag(snapshotRepresentationTag(first)), source, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -553,12 +565,12 @@ func TestM30GlobalRecoveryUsersAreCanonicalAndIndependentOfLoadOrder(t *testing.
 	current, _ := reopened.accepted(first.Board.ID)
 	legacy := cloneSnapshot(source)
 	legacy.Users[0].Label = "historical user label"
-	recovered, err := reopened.recoverSnapshot(first.Board.ID, m01HumanID, snapshotRepresentationTag(current), newOperationID(), legacy, nil, nil)
+	recovered, err := reopened.recoverSnapshot(first.Board.ID, m01HumanID, newOperationID(), matchingSnapshotTag(snapshotRepresentationTag(current)), legacy, nil, nil)
 	if err != nil || !reflect.DeepEqual(recovered.Users, source.Users) {
 		t.Fatalf("global metadata changed after restart: %v", err)
 	}
 	second, _ = reopened.accepted(second.Board.ID)
-	_, err = reopened.recoverSnapshot(second.Board.ID, m01HumanID, snapshotRepresentationTag(second), newOperationID(), withoutCustom(second), nil, nil)
+	_, err = reopened.recoverSnapshot(second.Board.ID, m01HumanID, newOperationID(), matchingSnapshotTag(snapshotRepresentationTag(second)), withoutCustom(second), nil, nil)
 	if !errors.Is(err, errIdentityConflict) {
 		t.Fatalf("lost later-board actor definition: %v", err)
 	}

@@ -27,7 +27,7 @@ func TestM22ApplyTicketOrderHTTP(t *testing.T) {
 	app, client := attachmentHTTPServer(t)
 	raw, _ := client.call("POST", "/boards", `{"name":"Ticket application"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
-	tag := b.ETag
+	tag := b.entityTag()
 	cards := make([]card, 0, 4)
 	for index := range 4 {
 		extra := ""
@@ -100,23 +100,23 @@ func TestM22ApplyTicketOrderHTTP(t *testing.T) {
 		t.Fatal("focused card read did not retain identity and cover with its new ticket")
 	}
 	client.call("PUT", path, body, "", 412)
-	body = ticketOrderBody(t, b.ID, after.Board.ETag, []string{cards[2].ID, cards[0].ID})
+	body = ticketOrderBody(t, b.ID, after.Board.entityTag(), []string{cards[2].ID, cards[0].ID})
 	raw, headers = client.call("PUT", path, body, "", 200)
 	noop := turnOneDecode[ticketOrder](t, raw)
-	if noop.Changed || noop.BoardRevision != after.Board.Revision || headers.Get("X-Board-ETag") != after.Board.ETag {
+	if noop.Changed || noop.BoardRevision != after.Board.Revision || headers.Get("X-Board-ETag") != after.Board.entityTag() {
 		t.Fatal("no-op changed board revision or claimed a permutation")
 	}
-	client.call("PUT", path, ticketOrderBody(t, b.ID, after.Board.ETag, []string{}), "", 200)
+	client.call("PUT", path, ticketOrderBody(t, b.ID, after.Board.entityTag(), []string{}), "", 200)
 	stable, err := app.store.durable(b.ID)
 	if err != nil || !reflect.DeepEqual(after, stable) {
 		t.Fatal("stale refusal or no-op changed durable state")
 	}
 	for _, ids := range [][]string{{cards[0].ID, cards[2].ID}, {cards[3].ID}, {newID()}, {cards[0].ID, strings.ToUpper(cards[0].ID)}} {
-		client.call("PUT", path, ticketOrderBody(t, b.ID, after.Board.ETag, ids), "", 400)
+		client.call("PUT", path, ticketOrderBody(t, b.ID, after.Board.entityTag(), ids), "", 400)
 	}
-	client.call("PUT", "/ticket-orders/"+newID(), ticketOrderBody(t, b.ID, after.Board.ETag, []string{}), "", 404)
+	client.call("PUT", "/ticket-orders/"+newID(), ticketOrderBody(t, b.ID, after.Board.entityTag(), []string{}), "", 404)
 	client.call("PUT", path, fmt.Sprintf(`{"board_id":%q,"card_ids":[]}`, b.ID), "", 428)
-	client.call("PUT", path, ticketOrderBody(t, newID(), after.Board.ETag, []string{}), "", 404)
+	client.call("PUT", path, ticketOrderBody(t, newID(), after.Board.entityTag(), []string{}), "", 404)
 	for name, damage := range map[string]func(*snapshot){
 		"ticket continuity": func(s *snapshot) { s.Activity[len(before.Activity)].Before = new("2") },
 		"ticket pool":       func(s *snapshot) { s.Activity[len(before.Activity)].After = new("99") },
@@ -196,10 +196,10 @@ func TestM22TicketOrderAuthorizationAndConcurrentStale(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client.call("PUT", path, ticketOrderBody(t, value.Board.ID, value.Board.ETag, []string{}), "", 403)
+	client.call("PUT", path, ticketOrderBody(t, value.Board.ID, value.Board.entityTag(), []string{}), "", 403)
 	bot := client
 	bot.token = base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("b", 32)))
-	bot.call("PUT", path, ticketOrderBody(t, value.Board.ID, value.Board.ETag, []string{}), "", 404)
+	bot.call("PUT", path, ticketOrderBody(t, value.Board.ID, value.Board.entityTag(), []string{}), "", 404)
 	after, err := os.ReadFile(app.store.snapshotPath(value.Board.ID))
 	if err != nil || !bytes.Equal(before, after) {
 		t.Fatal("authorization refusal wrote the board")
@@ -210,13 +210,13 @@ func TestM22TicketOrderAuthorizationAndConcurrentStale(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := cardCreation{id: newID(), laneID: value.Lanes[0].ID, title: "First"}
-	next, err := app.store.update(value.Board.ID, value.Board.ETag, func(s *snapshot) error { return in.apply(s, humanID) })
+	next, err := app.store.update(value.Board.ID, value.Board.Revision, func(s *snapshot) error { return in.apply(s, humanID) })
 	if err != nil {
 		t.Fatal(err)
 	}
 	in.id, in.title = newID(), "Second"
 	in.relationships = []relationshipSeed{{targetID: next.Cards[0].ID, kind: "blocks"}}
-	next, err = app.store.update(value.Board.ID, next.Board.ETag, func(s *snapshot) error { return in.apply(s, humanID) })
+	next, err = app.store.update(value.Board.ID, next.Board.Revision, func(s *snapshot) error { return in.apply(s, humanID) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +224,7 @@ func TestM22TicketOrderAuthorizationAndConcurrentStale(t *testing.T) {
 	errors := make(chan error, 2)
 	for range 2 {
 		wg.Go(func() {
-			_, err := app.store.update(next.Board.ID, next.Board.ETag, func(s *snapshot) error {
+			_, err := app.store.update(next.Board.ID, next.Board.Revision, func(s *snapshot) error {
 				_, err := (ticketOrderInput{cardIDs: []string{next.Cards[1].ID, next.Cards[0].ID}}).apply(s, value.Lanes[0].ID, humanID)
 				return err
 			})

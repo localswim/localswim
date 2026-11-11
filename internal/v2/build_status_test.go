@@ -38,11 +38,11 @@ func TestBuildStatusCandidateLifecycle(t *testing.T) {
 		t.Fatalf("build_id = %q", running.BuildID)
 	}
 	if running.State != "running" || running.APIVersion != Version ||
-		running.RestartErrorCode != nil || running.ETag == "" {
+		running.RestartErrorCode != nil || running.entityTag() == "" {
 		t.Fatalf("running service = %+v", running)
 	}
 	if got := newBuildStatus(root).service(); got.ServiceInstanceID == running.ServiceInstanceID ||
-		got.BuildID != running.BuildID || got.ETag == running.ETag {
+		got.BuildID != running.BuildID || got.entityTag() == running.entityTag() {
 		t.Fatalf("second service instance = %+v", got)
 	}
 	if candidates := status.builds(); candidates == nil || len(candidates) != 0 {

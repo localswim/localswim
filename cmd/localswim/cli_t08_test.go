@@ -13,7 +13,6 @@ import (
 
 func TestCLIPublishingUsesAddressedResource(t *testing.T) {
 	const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-	const updatedTag = `"published-revision-8"`
 	for _, scope := range []string{"board", "workspace"} {
 		for _, action := range []string{"enable", "disable", "status"} {
 			t.Run(scope+"/"+action, func(t *testing.T) {
@@ -21,16 +20,15 @@ func TestCLIPublishingUsesAddressedResource(t *testing.T) {
 				if action == "disable" {
 					args = append(args, "--revision", "7")
 				}
+				updatedTag := `"published-revision-8"`
 				path, fields, tag := "/workspace", `"pinned_board_ids":["`+id+`"]`, `"workspace-revision-7"`
 				if scope == "board" {
 					args = append(args, strings.ToUpper(id))
-					path, fields, tag = "/boards/"+strings.ToUpper(id), `"id":"`+id+`","name":"  東京 <A>  "`, `"board-revision-7"`
+					path, fields, tag = "/boards/"+strings.ToUpper(id), `"id":"`+id+`","name":"  東京 <A>  "`, fmt.Sprintf("\"%s-7\"", id)
+					updatedTag = fmt.Sprintf("\"%s-8\"", id)
 				}
-				status := func(revision int, enabled bool, responseTag string) string {
+				status := func(revision int, enabled bool) string {
 					documentFields := fields
-					if scope == "board" {
-						documentFields += fmt.Sprintf(`,"etag":%q`, responseTag)
-					}
 					return fmt.Sprintf(`{%s,"revision":%d,"publishing":{"enabled":%t,"repository":"  dépôt  ","last_success_at":"2026-11-10 12:34:56+00:00","pending":true,"error_code":"push_failed"}}`, documentFields, revision, enabled)
 				}
 				var requests atomic.Int32
@@ -44,7 +42,7 @@ func TestCLIPublishingUsesAddressedResource(t *testing.T) {
 							t.Error("expected one unconditioned read")
 						}
 						w.Header().Set("ETag", tag)
-						fmt.Fprint(w, status(7, action != "enable", tag))
+						fmt.Fprint(w, status(7, action != "enable"))
 					case 2:
 						expected := fmt.Sprintf(`{"publishing":{"enabled":%t}}`, action == "enable")
 						body, err := io.ReadAll(r.Body)
@@ -53,7 +51,7 @@ func TestCLIPublishingUsesAddressedResource(t *testing.T) {
 							t.Error("expected one PATCH changing only enabled with the original resource validator")
 						}
 						w.Header().Set("ETag", updatedTag)
-						fmt.Fprint(w, status(8, action == "enable", updatedTag))
+						fmt.Fprint(w, status(8, action == "enable"))
 					default:
 						t.Error("unexpected additional request")
 					}
@@ -62,9 +60,9 @@ func TestCLIPublishingUsesAddressedResource(t *testing.T) {
 				env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
 				var stdout, stderr bytes.Buffer
 				exit := runCLIWithInput(args, strings.NewReader("unused"), &stdout, &stderr, func(key string) string { return env[key] })
-				wantRequests, wantResponse := int32(2), status(8, action == "enable", updatedTag)
+				wantRequests, wantResponse := int32(2), status(8, action == "enable")
 				if action == "status" {
-					wantRequests, wantResponse = 1, status(7, true, tag)
+					wantRequests, wantResponse = 1, status(7, true)
 				}
 				if exit != 0 || requests.Load() != wantRequests || stderr.Len() != 0 {
 					t.Fatalf("exit %d, requests %d, stderr %q", exit, requests.Load(), &stderr)
@@ -78,17 +76,13 @@ func TestCLIPublishingUsesAddressedResource(t *testing.T) {
 	}
 }
 
-func TestCLIBoardPublishingRequiresMatchingBodyETag(t *testing.T) {
+func TestCLIBoardPublishingRequiresMatchingRevision(t *testing.T) {
 	const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-	const readTag = `"board-revision-4"`
-	const updatedTag = `"board-revision-5"`
-	const wrongTag = `"board-revision-1"`
-	status := func(revision int, enabled bool, tag string) string {
-		tagField := ""
-		if tag != "" {
-			tagField = fmt.Sprintf(`,"etag":%q`, tag)
-		}
-		return fmt.Sprintf(`{"id":%q,"revision":%d%s,"publishing":{"enabled":%t,"repository":null,"last_success_at":null,"pending":false,"error_code":null}}`, id, revision, tagField, enabled)
+	const readTag = `"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-4"`
+	const updatedTag = `"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-5"`
+	const wrongTag = `"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-1"`
+	status := func(revision int, enabled bool) string {
+		return fmt.Sprintf(`{"id":%q,"revision":%d,"publishing":{"enabled":%t,"repository":null,"last_success_at":null,"pending":false,"error_code":null}}`, id, revision, enabled)
 	}
 	for _, tc := range []struct {
 		name, readBodyTag, updatedBodyTag string
@@ -105,12 +99,12 @@ func TestCLIBoardPublishingRequiresMatchingBodyETag(t *testing.T) {
 				switch r.Method {
 				case http.MethodGet:
 					reads.Add(1)
-					w.Header().Set("ETag", readTag)
-					fmt.Fprint(w, status(4, false, tc.readBodyTag))
+					w.Header().Set("ETag", tc.readBodyTag)
+					fmt.Fprint(w, status(4, false))
 				case http.MethodPatch:
 					writes.Add(1)
-					w.Header().Set("ETag", updatedTag)
-					fmt.Fprint(w, status(5, true, tc.updatedBodyTag))
+					w.Header().Set("ETag", tc.updatedBodyTag)
+					fmt.Fprint(w, status(5, true))
 				default:
 					t.Error("unexpected publishing request")
 				}
@@ -120,9 +114,15 @@ func TestCLIBoardPublishingRequiresMatchingBodyETag(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			args := []string{"board", "publishing", "enable", "--revision", "4", id}
 			exit := runCLIWithInput(args, strings.NewReader(""), &stdout, &stderr, func(key string) string { return env[key] })
-			wantError := "board JSON ETag did not match"
+			wantError := "validator"
+			if tc.readBodyTag == "" {
+				wantError = "strong resource ETag"
+			}
 			if tc.wantWrites == 1 {
 				wantError = "Inspect publishing status before retrying"
+				if tc.updatedBodyTag == "" {
+					wantError = "canonical strong ETag"
+				}
 			}
 			if exit != 1 || stdout.Len() != 0 || reads.Load() != 1 || writes.Load() != tc.wantWrites ||
 				!strings.Contains(stderr.String(), wantError) ||

@@ -13,8 +13,8 @@ func TestResolveTicketReadsOnceAndChecksValidators(t *testing.T) {
 	const boardID = "00000000-0000-4000-8000-000000000001"
 	const cardID = "00000000-0000-4000-8000-000000000002"
 	const boardTag = `"valid-board-etag"`
-	const cardTag = `"valid-card-etag-4"`
-	valid := fmt.Sprintf(`{"board_id":%q,"board_revision":8,"card":{"id":%q,"revision":4,"ticket":2,"etag":%q}}`, boardID, cardID, cardTag)
+	const cardTag = `"00000000-0000-4000-8000-000000000002-4"`
+	valid := fmt.Sprintf(`{"board_id":%q,"board_revision":8,"card":{"id":%q,"revision":4,"ticket":2}}`, boardID, cardID)
 	for _, test := range []struct {
 		name string
 		tag  string
@@ -27,7 +27,8 @@ func TestResolveTicketReadsOnceAndChecksValidators(t *testing.T) {
 		{"missing card revision", boardTag, strings.Replace(valid, `"revision":4,`, "", 1), false},
 		{"duplicate card revision", boardTag, strings.Replace(valid, `"revision":4`, `"revision":7,"revision":4`, 1), false},
 		{"missing board validator", "", valid, false},
-		{"weak card validator", boardTag, strings.Replace(valid, "valid-card-etag-4", "short", 1), false},
+		{"zero card revision", boardTag, strings.Replace(valid, `"revision":4`, `"revision":0`, 1), false},
+		{"card revision beyond board", boardTag, strings.Replace(valid, `"revision":4`, `"revision":9`, 1), false},
 		{"unexpected prose", boardTag, strings.TrimSuffix(valid, "}") + `,"prose":null}`, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {

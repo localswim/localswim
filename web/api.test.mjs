@@ -8,9 +8,10 @@ const BOARD = "9d86fce9-1991-428b-a784-d41588192126";
 const TAG = '"workspace_tag_07"';
 const PUBLISHING_OFF = { enabled: false, repository: null, last_success_at: null, pending: false, error_code: null };
 
+const SERVICE_TAG = '"019aa833-764f-746b-a3f0-e2f7af0b9e3f-0"';
 const SERVICE = {
   service_instance_id: "019aa833-764f-746b-a3f0-e2f7af0b9e3f", build_id: BOARD, port: 53146,
-  state: "running", etag: '"019aa833-764f-746b-a3f0-e2f7af0b9e3f-0"',
+  state: "running",
   api_version: "2026-11-10", restart_error_code: null,
 };
 
@@ -188,7 +189,7 @@ test("uses documented paths and board scoping for Turn 1 reads", async () => {
   const paths = [];
   const api = client(async (url) => {
     paths.push(url);
-    if (url.endsWith("/service")) return Response.json(SERVICE, { headers: { ETag: SERVICE.etag } });
+    if (url.endsWith("/service")) return Response.json(SERVICE, { headers: { ETag: SERVICE_TAG } });
     if (url.endsWith("/builds")) return Response.json({ builds: [], next_cursor: null }, { headers: { ETag: TAG } });
     return Response.json(url.includes("/lanes?") ? { lanes: [], next_cursor: null } : {});
   });
@@ -483,15 +484,17 @@ test("lifecycle writes use the service validator and confirm the addressed recei
     if (options.method === "GET") return Response.json({ ...activation, state: "activated" }, {
       headers: { ETag: '"' + id + '-1"' },
     });
-    return Response.json({ ...SERVICE, state: "draining", etag: SERVICE.etag.replace('-0"', '-1"') }, { status: 202 });
+    return Response.json({ ...SERVICE, state: "draining" }, {
+      status: 202, headers: { ETag: SERVICE_TAG.replace('-0"', '-1"') },
+    });
   });
-  assert.equal((await api.activateBuild(id.toUpperCase(), BOARD, SERVICE.etag)).state, "accepted");
+  assert.equal((await api.activateBuild(id.toUpperCase(), BOARD, SERVICE_TAG)).state, "accepted");
   assert.equal((await api.getActivation(id, BOARD)).state, "activated");
-  assert.equal((await api.stopService(SERVICE)).state, "draining");
+  assert.equal((await api.stopService(SERVICE, SERVICE_TAG)).state, "draining");
   assert.deepEqual(calls, [
-    ["/api/2026-11-10/activations", "POST", null, { id, build_id: BOARD, expected_service_etag: SERVICE.etag }],
+    ["/api/2026-11-10/activations", "POST", null, { id, build_id: BOARD, expected_service_etag: SERVICE_TAG }],
     ["/api/2026-11-10/activations/" + id, "GET", null, undefined],
-    ["/api/2026-11-10/service", "PATCH", SERVICE.etag, { state: "stopped" }],
+    ["/api/2026-11-10/service", "PATCH", SERVICE_TAG, { state: "stopped" }],
   ]);
 });
 
@@ -500,10 +503,10 @@ test("lifecycle transport loss and malformed 202 receipts remain uncertain witho
   const api = client(async () => {
     attempts++;
     if (attempts === 1) throw new TypeError("Disconnected");
-    return Response.json({ ...SERVICE, state: "draining", port: 1 }, { status: 202 });
+    return Response.json({ ...SERVICE, state: "draining", port: 1 }, { status: 202, headers: { ETag: SERVICE_TAG } });
   });
-  await assert.rejects(api.activateBuild(OPERATION, BOARD, SERVICE.etag), { code: "transport_failed", outcomeUnknown: true });
-  await assert.rejects(api.stopService(SERVICE), { code: "invalid_response", outcomeUnknown: true });
+  await assert.rejects(api.activateBuild(OPERATION, BOARD, SERVICE_TAG), { code: "transport_failed", outcomeUnknown: true });
+  await assert.rejects(api.stopService(SERVICE, SERVICE_TAG), { code: "invalid_response", outcomeUnknown: true });
   assert.equal(attempts, 2);
 });
 
@@ -517,16 +520,16 @@ test("shutdown distinguishes a validated final publication refusal from a generi
   const api = client(async () => new Response(JSON.stringify(response), {
     status: 503, headers: { "Content-Type": "application/problem+json" },
   }));
-  await assert.rejects(api.stopService(SERVICE), { code: "final_publication_failed", status: 503, outcomeUnknown: false });
+  await assert.rejects(api.stopService(SERVICE, SERVICE_TAG), { code: "final_publication_failed", status: 503, outcomeUnknown: false });
   response = { ...problem, outcome: "unknown" };
-  await assert.rejects(api.stopService(SERVICE), { code: "http_error", status: 503, outcomeUnknown: true });
+  await assert.rejects(api.stopService(SERVICE, SERVICE_TAG), { code: "http_error", status: 503, outcomeUnknown: true });
 });
 
 test("lifecycle reads require exact HTTP success, JSON media and strong response tags", async () => {
   const activation = { id: OPERATION, build_id: BOARD, state: "activated", error_code: null };
   const page = { builds: [], next_cursor: null };
   const reads = [
-    ["/service", SERVICE, SERVICE.etag, (api) => api.getService()],
+    ["/service", SERVICE, SERVICE_TAG, (api) => api.getService()],
     ["/builds", page, TAG, (api) => api.listBuilds()],
     ["/activations/" + OPERATION, activation, TAG, (api) => api.getActivation(OPERATION, BOARD)],
   ];
@@ -547,8 +550,10 @@ test("lifecycle reads require exact HTTP success, JSON media and strong response
       await assert.rejects(read(api), { code: "invalid_response", status, outcomeUnknown: false });
     }
   }
-  const mismatched = client(async () => Response.json(SERVICE, { headers: { ETag: TAG } }));
-  await assert.rejects(mismatched.getService(), { code: "invalid_response" });
+  const separateTag = client(async () => Response.json(SERVICE, { headers: { ETag: TAG } }));
+  assert.deepEqual(await separateTag.getService(), { data: SERVICE, etag: TAG });
+  const bodyTag = client(async () => Response.json({ ...SERVICE, etag: TAG }, { headers: { ETag: TAG } }));
+  await assert.rejects(bodyTag.getService(), { code: "invalid_response" });
 });
 
 test("staged build pages validate their closed shape and OpenAPI array and cursor bounds", async () => {
@@ -571,10 +576,10 @@ test("staged build pages validate their closed shape and OpenAPI array and curso
 
 test("lifecycle mutations with non-JSON or missing receipt media stay uncertain after one write", async () => {
   const activation = { id: OPERATION, build_id: BOARD, state: "accepted", error_code: null };
-  const draining = { ...SERVICE, state: "draining", etag: SERVICE.etag.replace('-0"', '-1"') };
+  const draining = { ...SERVICE, state: "draining" };
   const writes = [
-    [activation, { Location: "/api/2026-11-10/activations/" + BOARD }, (api) => api.activateBuild(OPERATION, BOARD, SERVICE.etag)],
-    [draining, {}, (api) => api.stopService(SERVICE)],
+    [activation, { Location: "/api/2026-11-10/activations/" + BOARD }, (api) => api.activateBuild(OPERATION, BOARD, SERVICE_TAG)],
+    [draining, { ETag: SERVICE_TAG }, (api) => api.stopService(SERVICE, SERVICE_TAG)],
   ];
   for (const [body, headers, write] of writes) {
     for (const media of ["text/plain", undefined]) {
@@ -614,13 +619,66 @@ test("operation inputs accept mixed case and reject swapped resource versions be
       status: 202, headers: { Location: "/api/2026-11-10/activations/" + OPERATION },
     });
   });
-  await api.activateBuild(OPERATION.toUpperCase(), BOARD, SERVICE.etag);
+  await api.activateBuild(OPERATION.toUpperCase(), BOARD, SERVICE_TAG);
   for (const action of [
-    () => api.activateBuild(BOARD, BOARD, SERVICE.etag),
-    () => api.activateBuild(OPERATION, OPERATION, SERVICE.etag),
+    () => api.activateBuild(BOARD, BOARD, SERVICE_TAG),
+    () => api.activateBuild(OPERATION, OPERATION, SERVICE_TAG),
     () => api.createBackup(BOARD, BOARD, TAG),
     () => api.publishBackup(OPERATION, BOARD, BOARD),
     () => api.approveCard(BOARD, BOARD, TAG, BOARD, TAG),
   ]) await assert.rejects(action, TypeError);
   assert.equal(calls, 1);
+});
+
+
+test("service JSON stays separate from conditional lifecycle headers", async () => {
+  const calls = [];
+  const api = client(async (_url, options) => {
+    calls.push(options.method);
+    if (options.method === "GET") return Response.json(SERVICE, { headers: { ETag: SERVICE_TAG } });
+    assert.equal(options.headers.get("If-Match"), SERVICE_TAG);
+    assert.deepEqual(JSON.parse(options.body), { state: "stopped" });
+    return Response.json({ ...SERVICE, state: "draining" }, {
+      status: 202, headers: { ETag: SERVICE_TAG.replace('-0"', '-1"') },
+    });
+  });
+  const reply = await api.getService();
+  assert.equal(Object.keys(reply.data).length, 6);
+  assert.equal(Object.hasOwn(reply.data, "etag"), false);
+  assert.equal(reply.etag, SERVICE_TAG);
+  assert.equal(Object.hasOwn(await api.stopService(reply.data, reply.etag), "etag"), false);
+  await assert.rejects(api.stopService(reply.data, undefined), TypeError);
+  assert.deepEqual(calls, ["GET", "PATCH"]);
+
+  const obsolete = client(async () => Response.json({ ...SERVICE, state: "draining", etag: SERVICE_TAG }, {
+    status: 202, headers: { ETag: SERVICE_TAG },
+  }));
+  await assert.rejects(obsolete.stopService(SERVICE, SERVICE_TAG), { code: "invalid_response", outcomeUnknown: true });
+});
+
+test("catalog numeric revisions remain distinct from the HTTP collection validator", async () => {
+  const boards = [{ id: BOARD, name: "Board", revision: 7 },
+    { id: "a833f302-b6d0-476a-a39d-f70d49610251", name: null, revision: null }];
+  const api = client(async () => Response.json({ boards, next_cursor: null }, { headers: { ETag: TAG } }));
+  const reply = await api.listBoards();
+  assert.deepEqual(reply.data.boards, boards);
+  assert.equal(reply.etag, TAG);
+  assert.equal(Object.hasOwn(reply.data.boards[0], "etag"), false);
+});
+
+
+test("shutdown requires a strong response HTTP validator without replay", async () => {
+  for (const etag of [undefined, "W/" + SERVICE_TAG, "invalid"]) {
+    let attempts = 0;
+    const api = client(async () => {
+      attempts++;
+      return Response.json({ ...SERVICE, state: "draining" }, {
+        status: 202, headers: etag === undefined ? {} : { ETag: etag },
+      });
+    });
+    await assert.rejects(api.stopService(SERVICE, SERVICE_TAG), {
+      code: "invalid_response", status: 202, outcomeUnknown: true,
+    });
+    assert.equal(attempts, 1);
+  }
 });

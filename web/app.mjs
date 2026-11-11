@@ -52,6 +52,10 @@ import { createBoardRefresh, waitForRetry, watchUpdates } from "./board-updates.
 /** @typedef {{open: boolean, fields: SearchFields, submitted?: SearchFields}} BoardSearch */
 /** @typedef {{card?: {id: string, ticket: string|null}, filter?: string, search?: BoardSearch,
  * scroll?: {left: number, lanes: Record<string, number>}}} BoardView */
+/** @typedef {Awaited<ReturnType<typeof readBoardContents>>} BoardContents */
+/** @typedef {{board: Pick<Board, "id"|"name"|"revision"|"user_css"|"actor_presentation">,
+ * lanes: Lane[], cards: Card[], priorities: Labeled[]}} BoardDisplay */
+/** @typedef {Awaited<ReturnType<typeof api.getBoardAvailability>>} BoardAvailability */
 /** @typedef {import("./api.mjs").Service} Service */
 /** @typedef {import("./api.mjs").Build} Build */
 /** @typedef {{prior: Service, activation?: {id: string, buildId: string}, acknowledged: boolean, refusal?: string}} LifecycleOperation */
@@ -109,6 +113,19 @@ let activeNewCardText;
 const relationshipSeedDrafts = new Map();
 /** @type {Map<string, BoardView>} */
 const boardViews = new Map();
+const CACHE_BUDGET_KEY = "localswim:recent-board-budget";
+const DEFAULT_CACHE_BUDGET = 4 * 1024 * 1024;
+const MAX_CACHE_BUDGET = 32 * 1024 * 1024;
+let recentBoardBudget = DEFAULT_CACHE_BUDGET;
+let recentBoardBytes = 0;
+/** @type {Map<string, Uint8Array>} */
+const recentBoards = new Map();
+try {
+  const stored = window.sessionStorage.getItem(CACHE_BUDGET_KEY);
+  if (stored !== null && validCacheBudget(stored)) recentBoardBudget = Number(stored);
+} catch {
+  // The in-memory budget remains usable when storage is unavailable.
+}
 /** @type {Map<string, boolean>} */
 const publishingDrafts = new Map();
 /** @type {Map<string, Promise<void>>} */
@@ -139,6 +156,82 @@ let releaseCardMedia;
 let releaseBoardMedia;
 const boardStyle = new CSSStyleSheet();
 document.adoptedStyleSheets = [...document.adoptedStyleSheets, boardStyle];
+
+/** @param {string} value */
+function validCacheBudget(value) {
+  return /^(0|[1-9][0-9]*)$/.test(value) && Number(value) <= MAX_CACHE_BUDGET;
+}
+
+/** @param {string} boardId */
+function forgetRecentBoard(boardId) {
+  const bytes = recentBoards.get(boardId);
+  if (!bytes) return;
+  recentBoards.delete(boardId);
+  recentBoardBytes -= bytes.byteLength;
+}
+
+function trimRecentBoards() {
+  for (const id of recentBoards.keys()) {
+    if (recentBoardBytes <= recentBoardBudget) break;
+    forgetRecentBoard(id);
+  }
+}
+
+/** @param {BoardDisplay} display */
+function retainRecentBoard(display) {
+  const { id } = display.board;
+  forgetRecentBoard(id);
+  if (!recentBoardBudget) return;
+  const serialized = JSON.stringify(display);
+  if (serialized.length > recentBoardBudget) return;
+  const bytes = new TextEncoder().encode(serialized);
+  if (bytes.byteLength > recentBoardBudget) return;
+  recentBoards.set(id, bytes);
+  recentBoardBytes += bytes.byteLength;
+  trimRecentBoards();
+}
+
+/** @param {string} boardId @returns {BoardDisplay|undefined} */
+function readRecentBoard(boardId) {
+  const bytes = recentBoards.get(boardId);
+  if (!bytes) return undefined;
+  recentBoards.delete(boardId);
+  recentBoards.set(boardId, bytes);
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function renderRecentBoardSettings() {
+  const panel = element("details");
+  panel.append(element("summary", "Recent board cache"));
+  const bytes = element("input");
+  bytes.type = "number";
+  bytes.min = "0";
+  bytes.max = String(MAX_CACHE_BUDGET);
+  bytes.step = "1";
+  bytes.required = true;
+  bytes.value = String(recentBoardBudget);
+  const note = element("p", "Set the budget to 0 to turn off the cache in this tab.");
+  const result = element("p");
+  result.setAttribute("role", "status");
+  panel.append(form("Save cache budget", [field("Cache budget in bytes", bytes), note], () => {
+    if (!validCacheBudget(bytes.value)) return;
+    recentBoardBudget = Number(bytes.value);
+    trimRecentBoards();
+    try {
+      window.sessionStorage.setItem(CACHE_BUDGET_KEY, bytes.value);
+      result.textContent = "Cache budget saved.";
+    } catch {
+      result.textContent = "Cache budget applied until this page reloads.";
+    }
+  }), result);
+  return panel;
+}
+
+/** @param {BoardContents} contents @returns {BoardDisplay} */
+function boardDisplay({ board, lanes, cards, priorities }) {
+  const { id, name, revision, user_css, actor_presentation } = board.data;
+  return { board: { id, name, revision, user_css, actor_presentation }, lanes, cards, priorities };
+}
 
 /** @param {string} boardId */
 function viewStorageKey(boardId) {
@@ -2433,18 +2526,21 @@ function boardUpdates(boardId, signal, revision, read) {
   });
   return {
     panel, request: updates.request,
-    /** @param {(board: BoardWatch) => void} subscribe */
-    start(subscribe) {
+    /** @param {(board: BoardWatch) => void} subscribe @param {boolean} [revalidate] */
+    start(subscribe, revalidate = false) {
       activeBoardRefresh = updates;
+      const firstRefresh = revalidate ? updates.request().catch(() => {}) : undefined;
+      show();
       subscribe({
         id: boardId, invalidate: updates.invalidate,
         report: (state) => { connectionState = state; show(); },
       });
+      return firstRefresh;
     },
   };
 }
 
-/** @param {Awaited<ReturnType<typeof api.getBoardAvailability>>} [savedAvailability] */
+/** @param {BoardAvailability} [savedAvailability] */
 async function load(savedAvailability) {
   if (!identity || !navigation || !main || !details) return;
   retainBoardView?.();
@@ -2469,15 +2565,42 @@ async function load(savedAvailability) {
   activeBoardRefresh = undefined;
   activeBoardLoad = new AbortController();
   const signal = activeBoardLoad.signal;
+  const selectedLoad = new AbortController();
+  const boardSignal = AbortSignal.any([signal, selectedLoad.signal]);
   refreshActiveService = undefined;
   ++activeCard;
   details.hidden = true;
   details.replaceChildren();
   main.replaceChildren();
   boardStyle.replaceSync("");
+  const boardId = boardAtLocation();
+  let catalogHint = false;
+  let navigationReady = false;
+  let refreshAttention = () => {
+    catalogHint = true;
+    return Promise.resolve();
+  };
   announce("loading", "Loading…");
-  /** @type {((board?: BoardWatch) => void)|undefined} */
-  let subscribe;
+  /** @type {{board?: BoardWatch, controller: AbortController}|undefined} */
+  let watch;
+
+  function invalidateCatalog() {
+    void refreshAttention().catch(() => {});
+  }
+
+  /** @param {BoardWatch} [board] */
+  function subscribe(board) {
+    if (signal.aborted || (watch && watch.board === board)) return;
+    watch?.controller.abort();
+    const controller = new AbortController();
+    watch = { board, controller };
+    void watchUpdates({
+      board, signal: AbortSignal.any([signal, controller.signal]), invalidateCatalog,
+      connect: (watchedBoardId, streamSignal, receive) => readWithSession(async () => {
+        for await (const event of api.streamEvents({ boardId: watchedBoardId, signal: streamSignal })) receive(event);
+      }, streamSignal),
+    });
+  }
   /** @param {boolean} [refreshing] */
   async function readCatalog(refreshing = false) {
     let continuation = false;
@@ -2500,6 +2623,50 @@ async function load(savedAvailability) {
     }
   }
   try {
+    const retained = boardId && !savedAvailability && !writing ? readRecentBoard(boardId) : undefined;
+    if (boardId && retained) {
+      void loadNavigation().catch(() => {});
+      await paintOpenBoard(boardId, retained);
+      return;
+    }
+    const context = await loadNavigation();
+    if (!context || view !== activeView) return;
+    if (!boardId) {
+      if (location.pathname !== "/") throw new ApiError("http_error", { status: 404 });
+      return;
+    }
+    const result = await readBoard(boardId, true, savedAvailability);
+    if (view !== activeView) return;
+    if (result.contents) {
+      await paintOpenBoard(boardId, boardDisplay(result.contents[0]), result.contents);
+    } else {
+      await paintUnavailableBoard(boardId, result.availability, context.principal_id);
+    }
+  } catch (error) {
+    failBoard(error);
+  }
+
+  /** @param {unknown} error */
+  function failBoard(error) {
+    if (view !== activeView) return;
+    if (error instanceof ApiError && error.status === 401) capability = "";
+    if (boardId && definitivelyUnavailable(error)) forgetRecentBoard(boardId);
+    selectedLoad.abort();
+    if (watch || navigationReady) subscribe();
+    activeBoardRefresh = undefined;
+    boardInspection = undefined;
+    retainBoardView = undefined;
+    ++activeCard;
+    details?.replaceChildren();
+    if (details) details.hidden = true;
+    main?.replaceChildren();
+    boardStyle.replaceSync("");
+    if (boardId) main?.append(button("Retry board update", () => void load()));
+    announce("error", readError(error));
+  }
+
+  async function loadNavigation() {
+    if (!identity || !navigation || !main) return;
     const [session, boards] = await readWithSession(() => Promise.all([
       api.getSession(signal), readCatalog(),
     ]), signal);
@@ -2507,7 +2674,6 @@ async function load(savedAvailability) {
     const context = /** @type {{kind?: unknown, principal_id?: unknown, workspace_admin?: unknown}} */ (session.data);
     if (context.kind !== "human") throw new ApiError("invalid_response");
     identity.textContent = "Human";
-    const boardId = boardAtLocation();
     /** @type {string[]} */
     let visiblePins = [];
     let latestBoards = boards;
@@ -2598,7 +2764,7 @@ async function load(savedAvailability) {
       showBoards(latestBoards);
     }
 
-    function refreshAttention() {
+    refreshAttention = () => {
       if (signal.aborted) return Promise.resolve();
       if (queuedCatalog) return queuedCatalog;
       queuedCatalog = catalogTail.then(async () => {
@@ -2618,22 +2784,10 @@ async function load(savedAvailability) {
       });
       catalogTail = queuedCatalog.catch(() => {});
       return queuedCatalog;
-    }
-    function invalidateCatalog() {
-      void refreshAttention().catch(() => {});
-    }
-    let subscribed = false;
-    subscribe = (board) => {
-      if (subscribed) return;
-      subscribed = true;
-      void watchUpdates({
-        board, signal, invalidateCatalog,
-        connect: (watchedBoardId, streamSignal, receive) => readWithSession(async () => {
-          for await (const event of api.streamEvents({ boardId: watchedBoardId, signal: streamSignal })) receive(event);
-        }, streamSignal),
-      });
     };
     showBoards(latestBoards);
+    navigationReady = true;
+    if (catalogHint) invalidateCatalog();
     const readPreferences = canEditPins
       ? Promise.resolve(pinWrite).then(() => view === activeView ? readWorkspace() : undefined).catch(() => {
         if (view === activeView) {
@@ -2693,103 +2847,123 @@ async function load(savedAvailability) {
         inspection.sync();
       }
       const controls = renderServiceControls(context.workspace_admin === true, () => view === activeView);
-      main.append(controls.panel);
+      main.append(renderRecentBoardSettings(), controls.panel);
       refreshActiveService = controls.inspect;
       void refreshActiveService();
       announce("ready", "Workspace loaded.");
-      return;
+      return context;
     }
-    if (!boardId) throw new ApiError("http_error", { status: 404 });
-    /** @param {AbortSignal} [readSignal] */
-    const readAvailability = (readSignal) => api.getBoardAvailability(boardId, readSignal);
-    let metadata = savedAvailability?.data.id === boardId ? savedAvailability
-      : await readWithSession(() => readAvailability(signal), signal);
-    const readContents = () => readWithSession(async () => {
+    return context;
+  }
+
+  /** @param {string} boardId */
+  function readContents(boardId) {
+    return readWithSession(async () => {
       const group = new AbortController();
-      const readSignal = AbortSignal.any([signal, group.signal]);
+      const readSignal = AbortSignal.any([boardSignal, group.signal]);
       try {
         const session = await api.getSession(readSignal);
         const principal = /** @type {{kind?: unknown, principal_id?: unknown}} */ (session.data);
-        return await Promise.all([readBoardContents(boardId,
-          principal.kind === "human" ? principal.principal_id : undefined, readSignal),
+        if (principal.kind !== "human") throw new ApiError("invalid_response");
+        return await Promise.all([readBoardContents(boardId, principal.principal_id, readSignal),
           /** @type {Promise<User[]>} */ (collect((cursor) => api.listUsers(boardId, cursor, readSignal), "users", readSignal)),
         ]);
       } finally {
         group.abort();
       }
-    }, signal);
-    /** @type {Awaited<ReturnType<typeof readContents>>|undefined} */
-    let contents;
-    if (metadata.data.availability === "open") {
-      try {
-        contents = await readContents();
-      } catch (error) {
-        if (!(error instanceof ApiError) || error.status !== 503) throw error;
-        metadata = await readWithSession(() => readAvailability(signal), signal);
-        if (metadata.data.availability === "open") throw error;
-      }
+    }, boardSignal);
+  }
+
+  /** @param {string} boardId @param {boolean} checkAvailability @param {BoardAvailability} [saved] */
+  async function readBoard(boardId, checkAvailability, saved) {
+    const readAvailability = () => readWithSession(() => api.getBoardAvailability(boardId, boardSignal), boardSignal);
+    if (checkAvailability) {
+      const availability = saved?.data.id === boardId ? saved : await readAvailability();
+      if (availability.data.availability !== "open") return { availability };
     }
-    const closedWorkflow = !contents && metadata.data.availability === "closed"
-      ? await readWithSession(() => readWorkflow(metadata.data, context.principal_id, signal), signal) : null;
+    try {
+      return { contents: await readContents(boardId) };
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 503) throw error;
+      const availability = await readAvailability();
+      if (availability.data.availability === "open") throw error;
+      return { availability };
+    }
+  }
+
+  /** @param {unknown} error */
+  function definitivelyUnavailable(error) {
+    return error instanceof ApiError && (error.status === 401 || error.status === 403 || error.status === 404);
+  }
+
+  /** @param {BoardAvailability} latest */
+  async function showAvailability(latest) {
     if (view !== activeView) return;
+    forgetRecentBoard(latest.data.id);
+    await load(latest);
+  }
 
-    /** @param {Awaited<ReturnType<typeof readAvailability>>} latest */
-    async function showAvailability(latest) {
-      if (view !== activeView) return;
-      await load(latest);
-    }
+  /** @param {string} id @param {import("./api.mjs").AvailabilityChange} requested @param {() => string} currentTag
+   * @param {(latest: BoardAvailability) => Promise<void>} refreshCurrent @param {Inspection} inspection */
+  function availabilityForm(id, requested, currentTag, refreshCurrent, inspection) {
+    const action = form(requested === "open" ? "Reopen board" : "Close board", [], (submit) => {
+      if (!action.isConnected || view !== activeView) return;
+      const expected = currentTag();
+      const prior = requested === "open" ? "closed" : "open";
+      void writeResource(submit, () => api.setBoardAvailability(id, requested, expected), async () => {
+        const latest = await api.getBoardAvailability(id);
+        if (latest.data.availability !== prior) {
+          if (view === activeView) await showAvailability(latest);
+          else if (boardAtLocation() === id) await load();
+        } else if (view === activeView) await refreshCurrent(latest);
+        return latest.data.availability === requested && latest.etag !== expected;
+      }, requested === "open" ? "Board reopened." : "Board closed.", inspection);
+    });
+    return action;
+  }
 
-    /** @param {import("./api.mjs").AvailabilityChange} requested @param {() => string} currentTag
-     * @param {(latest: Awaited<ReturnType<typeof readAvailability>>) => Promise<void>} refreshCurrent @param {Inspection} inspection */
-    function availabilityForm(requested, currentTag, refreshCurrent, inspection) {
-      const action = form(requested === "open" ? "Reopen board" : "Close board", [], (submit) => {
-        if (!action.isConnected || view !== activeView) return;
-        const expected = currentTag();
-        const { id, availability: prior } = metadata.data;
-        void writeResource(submit, () => api.setBoardAvailability(id, requested, expected), async () => {
-          const latest = await readAvailability();
-          if (latest.data.availability !== prior) {
-            if (view === activeView) await showAvailability(latest);
-            else if (boardAtLocation() === id) await load();
-          } else if (view === activeView) await refreshCurrent(latest);
-          return latest.data.availability === requested && latest.etag !== expected;
-        }, requested === "open" ? "Board reopened." : "Board closed.", inspection);
-      });
-      return action;
-    }
-
-    if (!contents) {
-      const message = metadata.data.availability === "closed" ? "This board is closed." : "This board is unhealthy.";
-      const updates = boardUpdates(boardId, signal, () => metadata.data.revision, async (automatic) => {
-        const latest = await readWithSession(() => readAvailability(signal), signal);
-        if (signal.aborted || (automatic && writing)) return false;
-        if (latest.etag !== metadata.etag || latest.data.availability !== metadata.data.availability) {
-          await showAvailability(latest);
-        }
-        return true;
-      });
-      const inspection = createInspection(main, () => view === activeView,
-        updates.request, "board", "board:" + boardId);
-      boardInspection = inspection;
-      main.replaceChildren(element("h1", metadata.data.name), element("p", message),
-        updates.panel, button(inspection.label, inspection.inspect));
-      if (closedWorkflow?.canClose) {
-        main.append(availabilityForm("open", () => metadata.etag, async (latest) => {
-          metadata = latest;
-        }, inspection));
+  /** @param {string} boardId @param {BoardAvailability} metadata @param {unknown} principal */
+  async function paintUnavailableBoard(boardId, metadata, principal) {
+    forgetRecentBoard(boardId);
+    const closedWorkflow = metadata.data.availability === "closed"
+      ? await readWithSession(() => readWorkflow(metadata.data, principal, signal), signal) : null;
+    if (view !== activeView || !main) return;
+    const message = metadata.data.availability === "closed" ? "This board is closed." : "This board is unhealthy.";
+    const updates = boardUpdates(boardId, boardSignal, () => metadata.data.revision, async (automatic) => {
+      const latest = await readWithSession(() => api.getBoardAvailability(boardId, boardSignal), boardSignal);
+      if (boardSignal.aborted || (automatic && writing)) return false;
+      if (latest.etag !== metadata.etag || latest.data.availability !== metadata.data.availability) {
+        await showAvailability(latest);
       }
-      inspection.sync();
-      announce(metadata.data.availability === "closed" ? "ready" : "error", message);
-      updates.start(subscribe);
-      return;
+      return true;
+    });
+    const inspection = createInspection(main, () => view === activeView,
+      updates.request, "board", "board:" + boardId);
+    boardInspection = inspection;
+    main.replaceChildren(element("h1", metadata.data.name), element("p", message),
+      updates.panel, button(inspection.label, inspection.inspect));
+    if (closedWorkflow?.canClose) {
+      main.append(availabilityForm(boardId, "open", () => metadata.etag, async (latest) => {
+        metadata = latest;
+      }, inspection));
     }
-    const [{ board: boardReply, lanes, cards, priorities, workflow: initialWorkflow }, users] = contents;
-    const board = /** @type {Board} */ (boardReply.data);
-    let workflow = initialWorkflow;
+    inspection.sync();
+    announce(metadata.data.availability === "closed" ? "ready" : "error", message);
+    updates.start(subscribe);
+  }
+
+  /** @param {string} boardId @param {BoardDisplay} display
+   * @param {Awaited<ReturnType<typeof readContents>>} [confirmed] */
+  async function paintOpenBoard(boardId, { board, lanes, cards, priorities }, confirmed) {
+    if (!main || !details) return;
+    const drawer = details;
+    const users = confirmed?.[1] ?? [];
+    let workflow = confirmed?.[0].workflow ?? null;
     const currentWorkflow = () => workflow;
-    let boardTag = etag(boardReply);
+    let boardTag = confirmed ? etag(confirmed[0].board) : "";
     let paintedRevision = board.revision;
-    const updates = boardUpdates(boardId, signal, () => paintedRevision, applyBoardRefresh);
+    let retained = !confirmed;
+    const updates = boardUpdates(boardId, boardSignal, () => paintedRevision, applyBoardRefresh);
     const reloadBoard = updates.request;
     let currentCards = cards;
     let showOlderCompleted = false;
@@ -2998,12 +3172,40 @@ async function load(savedAvailability) {
       return count + " " + noun + (count === 1 ? "" : "s");
     }
 
+    let dismissedRetainedCard = false;
+    /** @param {Pick<Card, "id"> & Partial<Card>} card @param {HTMLElement} opener @param {boolean} [restoring] */
+    function selectCard(card, opener, restoring = false) {
+      if (view !== activeView || writing && !restoring) return;
+      if (!retained) {
+        void openCard(board.id, card, lanes, users, priorities, () => boardTag, reloadBoard,
+          currentWorkflow, opener, () => board.actor_presentation, restoring);
+        return;
+      }
+      const selection = ++activeCard;
+      rememberCard(boardId, card.id);
+      const heading = element("h2", card.title === undefined ? "Checking saved card…" : "#" + card.ticket + " " + card.title);
+      heading.tabIndex = -1;
+      const close = button("Close card", () => {
+        if (view !== activeView || selection !== activeCard) return;
+        dismissedRetainedCard = true;
+        rememberCard(boardId);
+        ++activeCard;
+        drawer.hidden = true;
+        drawer.replaceChildren();
+        const replacement = columns.querySelector(`button[data-card-id="${card.id}"]`);
+        (replacement instanceof HTMLButtonElement ? replacement : opener.isConnected ? opener : refresh)?.focus();
+      });
+      const body = element("p", card.description);
+      body.className = "body-text";
+      drawer.hidden = false;
+      delete drawer.dataset.unavailable;
+      drawer.replaceChildren(close, heading, body);
+      if (!restoring) heading.focus();
+    }
+
     /** @param {Card} card */
     function cardOpener(card) {
-      const opener = button("#" + card.ticket + " " + card.title, () => {
-        if (!writing) void openCard(board.id, card, lanes, users, priorities, () => boardTag, reloadBoard,
-          currentWorkflow, opener, () => board.actor_presentation);
-      });
+      const opener = button("#" + card.ticket + " " + card.title, () => selectCard(card, opener));
       opener.className = "card";
       opener.dataset.cardId = card.id;
       const description = [];
@@ -3089,7 +3291,7 @@ async function load(savedAvailability) {
         }
         /** @type {(() => void)|undefined} */
         let updatePreview;
-        if (lane.reorder_enabled) {
+        if (!retained && lane.reorder_enabled) {
           const canPreview = () => wholeLaneVisible() && members.length >= 2;
           const preview = element("div");
           const selectedTickets = element("input");
@@ -3155,7 +3357,7 @@ async function load(savedAvailability) {
           updatePreview();
           column.append(selectedTickets, previewButton, preview);
         }
-        const canApprove = completed && lane.role === "ready_for_review" && lane.approval_enabled
+        const canApprove = !retained && completed && lane.role === "ready_for_review" && lane.approval_enabled
           && members.length > 0 && members.length <= MAX_LANE_APPROVAL_CARDS;
         if (canApprove && wholeLaneVisible()) {
           const versions = members.map(({ id, revision }) => ({ id, revision }));
@@ -3185,7 +3387,7 @@ async function load(savedAvailability) {
             }, "Lane approved and moved to Completed.", inspection);
           }));
         }
-        if (matches.length < members.length && (canApprove || (lane.reorder_enabled && members.length >= 2))) {
+        if (!retained && matches.length < members.length && (canApprove || (lane.reorder_enabled && members.length >= 2))) {
           column.append(element("p", "Clear the filter to use lane-wide actions."));
         }
         const mayDrag = moveDestinations(lanes, workflow, lane.id).length > 0;
@@ -3193,7 +3395,7 @@ async function load(savedAvailability) {
         function cardFace(card) {
           const opener = cardOpener(card);
           if (mayDrag) bindDrag(opener, card, renderedTag);
-          if (card.cover_attachment_id || card.attachment_count > 0) {
+          if (!retained && (card.cover_attachment_id || card.attachment_count > 0)) {
             const slot = element("span");
             slot.className = "card-cover-space";
             slot.setAttribute("aria-hidden", "true");
@@ -3281,7 +3483,6 @@ async function load(savedAvailability) {
     const editor = element("section");
     editor.className = "editor";
     const inspection = createInspection(main, () => view === activeView, reloadBoard, "board", "board:" + board.id);
-    boardInspection = inspection;
     editor.append(button(inspection.label, inspection.inspect));
     const newCard = element("section");
     const newCardHeading = element("h2");
@@ -3377,24 +3578,30 @@ async function load(savedAvailability) {
 
     /** @param {boolean} automatic */
     async function applyBoardRefresh(automatic) {
-      const canApply = () => !signal.aborted && (!automatic || !writing);
-      let next;
+      const canApply = () => !boardSignal.aborted && (!automatic || !writing);
+      let result;
       try {
-        next = await readContents();
+        result = await readBoard(boardId, retained);
       } catch (error) {
-        if (!(error instanceof ApiError) || error.status !== 503) throw error;
-        const latest = await readWithSession(() => readAvailability(signal), signal);
-        if (!canApply()) return false;
-        if (latest.data.availability === "open") throw error;
-        await showAvailability(latest);
+        if (canApply() && definitivelyUnavailable(error)) {
+          forgetRecentBoard(boardId);
+          if (retained) {
+            failBoard(error);
+            return true;
+          }
+        }
+        throw error;
+      }
+      if (!canApply()) return false;
+      if (!result.contents) {
+        await showAvailability(result.availability);
         return true;
       }
-      const [latest, latestUsers] = next;
-      if (!canApply()) return false;
+      const [latest, latestUsers] = result.contents;
       const updatedBoard = /** @type {Board} */ (latest.board.data);
       const latestTag = etag(latest.board);
       if (validPublishing(updatedBoard.publishing)) boardPublishing.show({ data: updatedBoard.publishing, etag: latestTag });
-      if (automatic && latestTag === boardTag && paintedRevision === updatedBoard.revision
+      if (!retained && automatic && latestTag === boardTag && paintedRevision === updatedBoard.revision
           && workflow?.actor === latest.workflow?.actor) return true;
       workflow = latest.workflow;
       updateCloseBoard();
@@ -3407,8 +3614,10 @@ async function load(savedAvailability) {
       lanes.splice(0, lanes.length, ...latest.lanes);
       currentCards = latest.cards;
       priorities.splice(0, priorities.length, ...latest.priorities);
-      const boardChanged = latestTag !== boardTag;
+      const firstConfirmation = retained;
+      const boardChanged = retained ? paintedRevision !== updatedBoard.revision : latestTag !== boardTag;
       boardTag = latestTag;
+      retained = false;
       boardStyle.replaceSync(updatedBoard.user_css ?? "");
       updateNewCardForm();
       laneEditor.showLanes();
@@ -3416,42 +3625,50 @@ async function load(savedAvailability) {
       const batchPriority = boardActions.querySelector("#batch-priority-value");
       if (batchPriority instanceof HTMLSelectElement) setOptions(batchPriority, priorities, batchPriority.value);
       renderCards(latest.cards, boardTag);
+      if (firstConfirmation) {
+        enableConfirmedControls();
+        announce("ready", "Board loaded.");
+        void restoreCardSelection();
+      }
       inspection.sync();
       if (!automatic) invalidateCatalog();
-      if (activeDrawer?.boardId === board.id) await activeDrawer.refreshWorkflow(canApply, automatic);
+      if (!firstConfirmation && activeDrawer?.boardId === board.id) await activeDrawer.refreshWorkflow(canApply, automatic);
       if (!canApply()) return false;
       await reloadArchived();
       if (!canApply()) return false;
       paintedRevision = updatedBoard.revision;
+      retainRecentBoard(boardDisplay(latest));
       return true;
     }
     const laneEditor = renderLaneEditor(board.id, lanes, users, () => boardTag, reloadBoard, inspection);
     const boardActions = renderBoardActions(board.id, priorities, () => currentCards, () => boardTag, reloadBoard, inspection);
     const boardPublishing = renderPublishing("board", board.id,
-      validPublishing(board.publishing) ? { data: board.publishing, etag: boardTag } : undefined,
+      validPublishing(confirmed?.[0].board.data.publishing) ? { data: confirmed[0].board.data.publishing, etag: boardTag } : undefined,
       () => api.getBoardPublishing(board.id),
       (enabled, tag) => api.configureBoardPublishing(board.id, enabled, tag), reloadBoard, inspection);
     boardActions.append(boardPublishing.panel);
-    const closeBoard = availabilityForm("closed", () => boardTag, reloadBoard, inspection);
+    const closeBoard = availabilityForm(boardId, "closed", () => boardTag, reloadBoard, inspection);
     function updateCloseBoard() {
       if (!workflow?.canClose) closeBoard.remove();
       else if (!boardActions.contains(closeBoard)) boardActions.append(closeBoard);
     }
     updateCloseBoard();
-    const search = renderCardSearch(board.id, lanes, (card, opener) => {
-      if (!writing) void openCard(board.id, card, lanes, users, priorities, () => boardTag, reloadBoard,
-        currentWorkflow, opener, () => board.actor_presentation);
-    });
-    activeNewCardText = { boardId: board.id, title: addTitle, description: addDescription };
-    retainBoardDraft = () => {
-      boardDrafts.set(board.id, [addTitle.value, addDescription.value, addLane]);
-      seeds.retain();
-      laneEditor.retainDraft();
-      boardPublishing.retain();
-    };
+    const search = renderCardSearch(board.id, lanes, selectCard);
+    function enableConfirmedControls() {
+      main?.insertBefore(editor, search.panel);
+      for (const panel of [recent, laneEditor.editor, boardActions]) main?.insertBefore(panel, filterBar);
+      main?.append(archived);
+      boardInspection = inspection;
+      activeNewCardText = { boardId: board.id, title: addTitle, description: addDescription };
+      retainBoardDraft = () => {
+        boardDrafts.set(board.id, [addTitle.value, addDescription.value, addLane]);
+        seeds.retain();
+        laneEditor.retainDraft();
+        boardPublishing.retain();
+      };
+    }
     renderCards(cards, boardTag);
-    main.replaceChildren(element("h1", board.name), updates.panel, editor, search.panel, recent,
-      laneEditor.editor, boardActions, filterBar, columns, archived);
+    main.replaceChildren(element("h1", board.name), updates.panel, search.panel, filterBar, columns);
     retainBoardView = () => {
       clearDrag();
       retainScroll();
@@ -3459,22 +3676,36 @@ async function load(savedAvailability) {
     };
     restoreScroll();
     search.restore();
-    inspection.sync();
     boardStyle.replaceSync(board.user_css ?? "");
-    announce("ready", "Board loaded.");
-    updates.start(subscribe);
-    const ticketValue = new URLSearchParams(location.search).get("ticket");
-    const selectedCard = rememberedCard(boardId, ticketValue);
-    if (selectedCard) {
-      const opener = [...columns.querySelectorAll("button")].find((control) => control.dataset.cardId === selectedCard);
-      void openCard(board.id, { id: selectedCard }, lanes, users, priorities, () => boardTag, reloadBoard,
-        currentWorkflow, opener ?? filter, () => board.actor_presentation, true);
-      restoreScroll();
-      return;
+    if (!retained) {
+      enableConfirmedControls();
+      inspection.sync();
+      retainRecentBoard({ board, lanes, cards, priorities });
+      announce("ready", "Board loaded.");
+    } else {
+      announce("ready", "Showing the last confirmed board.");
     }
-    if (ticketValue !== null) {
-      const cardView = activeCard;
+    const firstRefresh = updates.start(subscribe, retained);
+    await restoreCardSelection();
+    await firstRefresh;
+
+    async function restoreCardSelection() {
+      const ticketValue = new URLSearchParams(location.search).get("ticket");
+      const selectedCard = rememberedCard(boardId, ticketValue);
+      if (selectedCard) {
+        const opener = [...columns.querySelectorAll("button")].find((control) => control.dataset.cardId === selectedCard);
+        const card = currentCards.find(({ id }) => id === selectedCard) ?? { id: selectedCard };
+        const target = opener ?? filter;
+        if (!retained && document.activeElement && drawer.contains(document.activeElement)) {
+          target.focus({ preventScroll: true });
+        }
+        selectCard(card, target, true);
+        restoreScroll();
+        return;
+      }
+      if (retained || ticketValue === null || dismissedRetainedCard) return;
       const ticket = Number(ticketValue);
+      const cardView = activeCard;
       let selected;
       try {
         if (/^[1-9][0-9]*$/.test(ticketValue) && Number.isSafeInteger(ticket)) {
@@ -3485,18 +3716,9 @@ async function load(savedAvailability) {
         return;
       }
       if (view !== activeView || cardView !== activeCard) return;
-      if (selected) void openCard(board.id, selected, lanes, users, priorities, () => boardTag, reloadBoard,
-        currentWorkflow, filter, () => board.actor_presentation);
+      if (selected) selectCard(selected, filter);
       else announce("error", "This ticket is unavailable.");
     }
-  } catch (error) {
-    if (view !== activeView) return;
-    if (error instanceof ApiError && error.status === 401) capability = "";
-    subscribe?.();
-    main.replaceChildren();
-    boardStyle.replaceSync("");
-    if (boardAtLocation()) main.append(button("Retry board update", () => void load()));
-    announce("error", readError(error));
   }
 }
 
@@ -4198,6 +4420,7 @@ refresh.addEventListener("click", () => {
   }
   const inspection = cardInspection ?? boardInspection;
   if (inspection) inspection.inspect();
+  else if (activeBoardRefresh) void activeBoardRefresh.request().catch(() => {});
   else void load();
 });
 details.addEventListener("paste", (event) => activeDrawer?.pasteAttachments(event));

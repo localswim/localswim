@@ -293,3 +293,20 @@ requires a terminal status.
 Publication does not require a board ETag because its selected backup is immutable.
 
 Backup, publication, restoration, build activation, audit event, and approval receipt IDs use UUIDv7. Client-supplied operation IDs accept mixed case and are serialized in lowercase. Backup and publication creation time is encoded in the ID. Completion time remains in `finished_at`, and audit, approval, and restoration `at` records execution time. Other resource IDs remain UUIDv4.
+
+## Recent boards
+
+Returning to a recent board in the same tab shows the last confirmed lanes
+and cards immediately. You can open a retained card to read its title and
+description while the board refreshes. Editing and attachment previews resume
+after the service confirms the board. If the refresh fails, **Retry board update**
+checks the service again while keeping the retained view visible. If the service
+reports that the board is closed, unhealthy, or unavailable, the view updates
+to show that state.
+
+Open **Recent board cache** on the workspace page to set the budget for this tab.
+The default is 4 MiB and the maximum is 32 MiB. Set it to 0 to turn the cache off.
+The budget counts UTF-8 bytes of serialized board display data. The oldest
+accessed entries are removed first when the budget is exceeded or reduced.
+An entry larger than the budget is skipped. Reloading the page clears the
+retained board data and keeps the tab's budget preference.

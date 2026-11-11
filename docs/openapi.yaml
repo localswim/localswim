@@ -11741,10 +11741,11 @@ paths:
         workspace_admin: true
       x-milestones:
       - 39
-      description: If-Match binds this service instance. Drain admitted commands and streams, flush
-        enabled publishers, and release writer ownership only after saving work has joined. Failed final
-        push leaves the service available for inspection. Lost response requires health inspection; never
-        resend automatically.
+      description: If-Match binds the current service instance. Success returns its draining Service
+        representation. Drain admitted commands and streams and flush enabled board and workspace publishers
+        before releasing writer ownership. A failed final publication refuses shutdown with HTTP 503 and
+        leaves the service running. Inspect the service and publisher statuses after refusal. After a lost
+        response, inspect health before deciding whether to submit again.
       requestBody:
         required: true
         content:
@@ -12564,9 +12565,12 @@ paths:
         workspace_admin: true
       x-milestones:
       - 39
-      description: expected_service_etag binds the current service instance. Preserve port and board URLs, rotate
-        capabilities, and retain previous service availability when validation refuses. Only a previously
-        validated build_id is accepted; no arbitrary command or path.
+      description: expected_service_etag binds the current service instance. Accept only a previously validated
+        build_id and revalidate the staged bytes before handoff. Drain admitted commands and streams and flush enabled
+        board and workspace publishers. Failed validation or final publication leaves the service available. An accepted
+        receipt identifies the operation before handoff. Reconnect to the same bound port and board URLs with a new
+        service instance and browser capability. Configured runtime credentials remain valid. If the response is lost,
+        inspect the original activation ID and service health before deciding whether to submit again.
       requestBody:
         required: true
         content:
@@ -12755,7 +12759,8 @@ paths:
       x-authorization:
         scope: workspace
         workspace_admin: true
-      x-milestones: []
+      x-milestones:
+      - 39
     head:
       operationId: headReadActivation
       summary: Read headers without content
@@ -12841,7 +12846,8 @@ paths:
       x-authorization:
         scope: workspace
         workspace_admin: true
-      x-milestones: []
+      x-milestones:
+      - 39
     options:
       operationId: options_activations__activationId_
       summary: Validate same-origin preflight
@@ -14201,6 +14207,7 @@ components:
     Activation:
       type: object
       additionalProperties: false
+      description: The error_code is null in accepted and activated receipts. A failed receipt carries a fixed error code.
       required:
       - id
       - build_id
@@ -17944,9 +17951,9 @@ x-security-policy:
   bootstrap: POST /browser-session alone is same-origin-only and unauthenticated, requires Origin plus
     Sec-Fetch-Site:same-origin, and returns a separate, process-scoped Human capability. No actor selector. Treat
     same-user local processes as trusted; this is not remote-user authentication.
-  credentials: Separate random capabilities for Human and Bot, kept in page memory or private CLI runtime
-    state, rotated on service replacement. No token in query, URL, log, Problem body, board snapshot,
-    or user-supplied attribution.
+  credentials: Configured random Human and Bot runtime capabilities remain valid across staged activation.
+    The replacement rotates the separate browser capability held in page memory. Keep tokens out of
+    queries, URLs, logs, Problem bodies, board snapshots, and user-supplied attribution.
   browser: Use authenticated fetch for SSE and attachment bytes, then blob URLs for previews/downloads.
     No credential-bearing EventSource URL.
   authorization: Capability principal_id equals User.id. A board operation requires Board.user_ids membership
@@ -18060,8 +18067,8 @@ x-publishing-worker:
   boardClose: Stop new work on the selected board and drain its admitted operations. With publishing
     enabled, flush the final accepted open revision before committing closed availability. Refuse close
     when the flush fails. Resume enabled publishing when the board reopens.
-  shutdown: The explicit shutdown and activation operations in milestone 39 flush enabled publishers before
-    success. A failed final push leaves the service available with failure status.
+  shutdown: Shutdown and activation drain admitted writes and flush enabled board and workspace publishers before
+    success. A failed final publication leaves the service running with failure status.
 
 x-owner-validation:
   cards: Every card has a non-null owner_id referencing a board member. Explicit null is refused on create and patch.

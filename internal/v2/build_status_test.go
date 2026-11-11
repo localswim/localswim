@@ -1,9 +1,11 @@
 package v2
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -147,6 +149,21 @@ func TestBuildStatusValidatesNativeGoBuildWithoutExecuting(t *testing.T) {
 	second := status.builds()
 	if len(second) != 1 || second[0] != first[0] {
 		t.Fatalf("candidate changed without a staging change: %+v -> %+v", first, second)
+	}
+
+	image, err := status.activationImage(first[0].ID)
+	if err != nil || !bytes.Equal(image.bytes, data) || image.digest != fmt.Sprintf("%x", digest) {
+		t.Fatal("activation did not retain the exact validated image")
+	}
+	replacement := newBuildStatus(root)
+	replacement.running.BuildID = first[0].ID
+	replacement.activeVersion, replacement.activeDigest = image.version, image.digest
+	sameStage := replacement.builds()
+	if len(sameStage) != 1 || sameStage[0] != first[0] {
+		t.Fatal("replacement changed the ID of the matching staged build")
+	}
+	if _, err := replacement.activationImage(first[0].ID); !errors.Is(err, errActivationBuild) {
+		t.Fatal("replacement accepted reactivating its running staged image")
 	}
 
 	// Preserve the executable's Go metadata and update the manifest to match

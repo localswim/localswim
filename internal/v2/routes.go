@@ -106,7 +106,17 @@ func (x *request) dispatch() {
 			return
 		}
 		methods = []string{"POST"}
-	case "service", "users", "priorities", "session", "activities":
+	case "service":
+		if hasID {
+			x.fail(errMissing)
+			return
+		}
+		methods = append(methods, "PATCH")
+	case "activations":
+		if !hasID {
+			methods = []string{"POST"}
+		}
+	case "users", "priorities", "session", "activities":
 		if hasID {
 			x.fail(errMissing)
 			return
@@ -170,6 +180,16 @@ func (x *request) dispatch() {
 	if !acceptsJSON(x.r.Header.Values("Accept")) {
 		x.problem(406, "not_acceptable", "This resource returns JSON.", "", nil)
 		return
+	}
+	switch x.r.Method {
+	case http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodDelete:
+		if resource != "service" && resource != "activations" && resource != "browser-session" {
+			if !x.service.lifecycle.join() {
+				x.fail(errServiceDraining)
+				return
+			}
+			x.serviceDone = x.service.lifecycle.commands.Done
+		}
 	}
 	switch resource {
 	case "boards":
@@ -274,7 +294,17 @@ func (x *request) dispatch() {
 			x.ticketOrderResource(id)
 		}
 	case "service":
-		x.serviceStatus()
+		if x.r.Method == http.MethodPatch {
+			x.stopService()
+		} else {
+			x.serviceStatus()
+		}
+	case "activations":
+		if hasID {
+			x.readActivation(id)
+		} else {
+			x.activateBuild()
+		}
 	case "builds":
 		x.buildsResource(id)
 	}

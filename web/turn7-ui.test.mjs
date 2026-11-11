@@ -14,7 +14,10 @@ const page = (key, rows) => ({data: {[key]: rows, next_cursor: null}, etag: null
 
 // A small DOM surface executes app.mjs event handlers and asynchronous reads.
 // Browser rendering and platform behavior remain covered by the real-browser gate.
-async function harness(api, pathname = "/boards/" + board) {
+async function harness(api, pathname = "/boards/" + board, {
+  openSession = async () => "capability",
+  pollTimer = setTimeout,
+} = {}) {
   let document;
   class Element {
     constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; }
@@ -59,11 +62,12 @@ async function harness(api, pathname = "/boards/" + board) {
   const context = vm.createContext({document, window: {addEventListener() {}}, CSSStyleSheet: class {replaceSync() {}},
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
-    Blob, setTimeout, crypto: globalThis.crypto, ApiError, validPublishing,
-    createBrowserApi: () => api, openBrowserSession: async () => "capability"});
+    Blob, setTimeout: pollTimer, AbortSignal, crypto: globalThis.crypto, ApiError, validPublishing,
+    createBrowserApi: ({getCapability}) => typeof api === "function" ? api(getCapability) : api,
+    openBrowserSession: openSession});
   let source = await fs.readFile(new URL("./app.mjs", import.meta.url), "utf8");
   source = source.replace(/^import .*?;\r?\n/, "").replace(/void load\(\);\s*$/, "");
-  vm.runInContext(source + "\nglobalThis.hooks = {load, renderCardSearch, renderBoardActions, busy:()=>writing, inspect:()=>cardInspection.inspect()};", context);
+  vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing, inspect:()=>cardInspection.inspect()};", context);
   async function settled() { for (let count = 0; count < 40; count++) { await new Promise((resolve) => setTimeout(resolve, 0)); if (!context.hooks.busy()) return; } throw Error("UI did not settle"); }
   const find = (root, tagName, text) => root.querySelectorAll(tagName).find((node) => node.ownText === text);
   const field = (root, label) => find(root, "label", label)?.children[0];
@@ -779,4 +783,294 @@ test("returning to the same board during close reconciles the new view from save
   ui.submit(main, "Reopen board");
   await ui.settled();
   assert.equal(ui.field(details, "Comment").value, "Draft from the original view");
+});
+
+function workspaceServiceApi(overrides) {
+  return {
+    getSession: async () => ({data: {kind: "human", workspace_admin: true}}),
+    listBoards: async () => page("boards", [{id: board, name: "Board"}]),
+    getWorkspace: async () => ({data: {revision: 1, pinned_board_ids: [], publishing: publishingOff}, etag: tag(board, 1)}),
+    ...overrides,
+  };
+}
+
+const runningService = {
+  service_instance_id: "019aa833-764f-746b-a3f0-e2f7af0b9e3f", build_id: board, port: 53146,
+  state: "running", etag: '"019aa833-764f-746b-a3f0-e2f7af0b9e3f-0"',
+  api_version: "2026-11-10", restart_error_code: null,
+};
+
+test("workspace activation inspects the rotated service using a fresh session without replay or lost draft", async () => {
+  const staged = {id: backup, version: "next", validation: "valid", error_code: null};
+  const calls = [];
+  let sessions = 0;
+  let activated = false;
+  const ui = await harness((getCapability) => workspaceServiceApi({
+    getService: async () => {
+      if (activated && getCapability() === "session-1") throw new ApiError("http_error", {status: 401});
+      return {data: activated
+        ? {...runningService, build_id: backup, service_instance_id: "019aa833-7650-746b-a3f0-e2f7af0b9e3f"}
+        : runningService};
+    },
+    listBuilds: async () => page("builds", [staged]),
+    activateBuild: async (...args) => {
+      calls.push(args);
+      activated = true;
+      throw new ApiError("transport_failed", {outcomeUnknown: true});
+    },
+    getActivation: async (id, buildId) => {
+      assert.equal(id, calls[0][0]);
+      assert.equal(buildId, backup);
+      assert.equal(getCapability(), "session-2");
+      return {id, build_id: buildId, state: "activated", error_code: null};
+    },
+  }), "/", {openSession: async () => "session-" + ++sessions});
+  await ui.load();
+  await ui.settled();
+  const {main} = ui.nodes;
+  const name = ui.field(main, "Board name");
+  name.value = "Draft stays open";
+  const control = ui.find(main, "button", "Activate staged build");
+  assert.equal(control.disabled, false);
+  control.click();
+  control.click();
+  await ui.settled();
+  assert.equal(sessions, 2);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].slice(1), [backup, runningService.etag]);
+  assert.match(main.querySelector("#service-operation-status").textContent, /Build activated. Reconnected on the same port/);
+  assert.equal(control.disabled, true);
+  assert.equal(name.value, "Draft stays open");
+});
+
+test("workspace shutdown reports final publication refusal and leaves a healthy service actionable", async () => {
+  const staged = {id: backup, version: "broken", validation: "invalid", error_code: "candidate_binary_incompatible"};
+  let writes = 0;
+  const ui = await harness(workspaceServiceApi({
+    getService: async () => ({data: writes ? {...runningService, restart_error_code: "git_push_failed"} : runningService}),
+    listBuilds: async () => page("builds", [staged]),
+    stopService: async (prior) => {
+      assert.equal(prior.etag, runningService.etag);
+      writes++;
+      throw new ApiError("final_publication_failed", {status: 503});
+    },
+  }), "/");
+  await ui.load();
+  await ui.settled();
+  const {main} = ui.nodes;
+  assert.match(main.querySelector("#service-controls").textContent, /Staged build broken is invalid/);
+  assert.equal(ui.find(main, "button", "Activate staged build").disabled, true);
+  const control = ui.find(main, "button", "Shut down service");
+  control.click();
+  control.click();
+  await ui.settled();
+  assert.equal(writes, 1);
+  assert.match(main.querySelector("#service-operation-status").textContent, /Final publication failed. The service remains running/);
+  assert.match(main.querySelector("#service-controls").textContent, /git_push_failed/);
+  assert.equal(control.disabled, false);
+});
+
+test("a lost shutdown response disables repeat commands until the running service is explicitly inspected", async () => {
+  let writes = 0;
+  let reachable = true;
+  const ui = await harness(workspaceServiceApi({
+    getService: async () => {
+      if (!reachable) throw new ApiError("transport_failed");
+      return {data: runningService};
+    },
+    listBuilds: async () => page("builds", []),
+    stopService: async () => {
+      writes++;
+      reachable = false;
+      throw new ApiError("transport_failed", {outcomeUnknown: true});
+    },
+  }), "/");
+  await ui.load();
+  await ui.settled();
+  const {main} = ui.nodes;
+  const control = ui.find(main, "button", "Shut down service");
+  control.click();
+  await ui.settled();
+  const outcome = main.querySelector("#service-operation-status");
+  assert.match(outcome.textContent, /Shutdown outcome is uncertain/);
+  assert.equal(control.disabled, true);
+  control.click();
+  reachable = true;
+  ui.find(main, "button", "Refresh service status").click();
+  await ui.settled();
+  assert.match(outcome.textContent, /Shutdown could not be confirmed. The service is running/);
+  assert.equal(control.disabled, false);
+  assert.equal(writes, 1);
+});
+
+test("an accepted shutdown leaves lifecycle controls disabled and reports later unreachability only after inspection", async () => {
+  let reads = 0;
+  let writes = 0;
+  const ui = await harness(workspaceServiceApi({
+    getService: async () => {
+      reads++;
+      if (writes) throw new ApiError("transport_failed");
+      return {data: runningService};
+    },
+    listBuilds: async () => page("builds", []),
+    stopService: async () => {
+      writes++;
+      return {...runningService, state: "draining"};
+    },
+  }), "/");
+  await ui.load();
+  await ui.settled();
+  const {main} = ui.nodes;
+  const control = ui.find(main, "button", "Shut down service");
+  const outcome = main.querySelector("#service-operation-status");
+  control.click();
+  await ui.settled();
+  assert.equal(control.disabled, true);
+  assert.equal(reads, 1);
+  assert.match(outcome.textContent, /Shutdown accepted. The service is draining/);
+  ui.find(main, "button", "Refresh service status").click();
+  await ui.settled();
+  assert.equal(reads, 2);
+  assert.equal(writes, 1);
+  assert.match(outcome.textContent, /Shutdown accepted. The service is unreachable/);
+});
+
+test("workspace members can read service health without lifecycle controls", async () => {
+  let buildReads = 0;
+  const ui = await harness(workspaceServiceApi({
+    getSession: async () => ({data: {kind: "human", workspace_admin: false}}),
+    getService: async () => ({data: runningService}),
+    listBuilds: async () => {
+      buildReads++;
+      throw new ApiError("http_error", {status: 403});
+    },
+  }), "/");
+  await ui.load();
+  await ui.settled();
+  const {main} = ui.nodes;
+  const content = main.querySelector("#service-controls").textContent;
+  assert.match(content, /Service is running/);
+  assert.doesNotMatch(content, /Staged build status is unavailable/);
+  assert.equal(buildReads, 0);
+  assert.equal(ui.find(main, "button", "Shut down service"), undefined);
+  assert.equal(ui.find(main, "button", "Activate staged build"), undefined);
+});
+
+test("workspace navigation reconnects after another tab replaces the service", async () => {
+  const original = boardApi().api;
+  let replaced = false;
+  let sessions = 0;
+  const ui = await harness((getCapability) => ({
+    ...original,
+    getSession: async () => {
+      if (replaced && getCapability() === "session-1") throw new ApiError("http_error", {status: 401});
+      return original.getSession();
+    },
+    getService: async () => ({data: runningService}),
+    listBuilds: async () => page("builds", []),
+  }), "/", {openSession: async () => "session-" + ++sessions});
+  await ui.load();
+  await ui.settled();
+  replaced = true;
+  await ui.navigate("/boards/" + board);
+  assert.equal(sessions, 2);
+  assert.ok(ui.find(ui.nodes.main, "button", "#1 Original"));
+});
+
+async function until(check) {
+  for (let attempt = 0; attempt < 80; attempt++) {
+    if (check()) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  assert.fail("Workspace service state did not settle.");
+}
+
+test("a detached activation read cannot clear a newer lifecycle operation", async () => {
+  const staged = {id: backup, version: "next", validation: "valid", error_code: null};
+  let disposition = "accepted";
+  let settleDetached;
+  let shutdown = false;
+  const ui = await harness(workspaceServiceApi({
+    getService: async () => {
+      if (shutdown) throw new ApiError("transport_failed");
+      return {data: runningService};
+    },
+    listBuilds: async () => page("builds", [staged]),
+    activateBuild: async () => {},
+    getActivation: async (id, build_id) => {
+      if (disposition === "hold") return new Promise((resolve) => {
+        settleDetached = () => resolve({id, build_id, state: "failed", error_code: "late_failure"});
+      });
+      return {id, build_id, state: disposition, error_code: null};
+    },
+    stopService: async () => {
+      shutdown = true;
+      throw new ApiError("transport_failed", {outcomeUnknown: true});
+    },
+  }), "/", {pollTimer: (callback) => setTimeout(callback, 0)});
+  await ui.load();
+  const {main} = ui.nodes;
+  const activate = () => ui.find(main, "button", "Activate staged build");
+  const stop = () => ui.find(main, "button", "Shut down service");
+  const outcome = () => main.querySelector("#service-operation-status").textContent;
+  await until(() => !activate().disabled);
+  activate().click();
+  await ui.settled();
+
+  disposition = "hold";
+  await ui.navigate("/");
+  await until(() => settleDetached !== undefined);
+
+  disposition = "failed";
+  await ui.navigate("/");
+  await until(() => !stop().disabled && /Build activation failed/.test(outcome()));
+  stop().click();
+  await ui.settled();
+  assert.match(outcome(), /Shutdown outcome is uncertain/);
+
+  settleDetached();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  shutdown = false;
+  ui.find(main, "button", "Refresh service status").click();
+  await until(() => !stop().disabled);
+  assert.match(outcome(), /Shutdown could not be confirmed/);
+});
+
+test("a lifecycle refusal arriving after navigation updates the active service panel", async () => {
+  let refuse;
+  const ui = await harness(workspaceServiceApi({
+    getService: async () => ({data: runningService}),
+    listBuilds: async () => page("builds", []),
+    stopService: async () => new Promise((_, reject) => {
+      refuse = () => reject(new ApiError("final_publication_failed", {status: 503}));
+    }),
+  }), "/");
+  await ui.load();
+  const {main} = ui.nodes;
+  const stop = () => ui.find(main, "button", "Shut down service");
+  await until(() => !stop().disabled);
+  stop().click();
+  await ui.navigate("/");
+  refuse();
+  await until(() => !stop().disabled);
+  assert.match(main.querySelector("#service-operation-status").textContent, /Final publication failed/);
+});
+
+test("aborting a lifecycle read does not cancel a shared session bootstrap", async () => {
+  let finish;
+  let sessions = 0;
+  const ui = await harness({}, "/", {openSession: (...args) => {
+    sessions++;
+    assert.deepEqual(args, []);
+    return new Promise((resolve) => { finish = () => resolve("replacement-capability"); });
+  }});
+  const timeout = new AbortController();
+  const poll = ui.readWithSession(async () => "poll", timeout.signal);
+  const navigation = ui.readWithSession(async () => "navigation");
+  const interrupted = assert.rejects(poll, {name: "AbortError"});
+  timeout.abort();
+  await interrupted;
+  finish();
+  assert.equal(await navigation, "navigation");
+  assert.equal(sessions, 1);
 });

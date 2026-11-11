@@ -13,7 +13,10 @@ var (
 )
 
 func acquireWriter(root string) (*os.File, error) {
-	path := filepath.Join(root, ".writer.lock")
+	return acquireWorkspaceLock(filepath.Join(root, ".writer.lock"))
+}
+
+func acquireWorkspaceLock(path string) (*os.File, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
@@ -23,7 +26,7 @@ func acquireWriter(root string) (*os.File, error) {
 		var named os.FileInfo
 		named, err = os.Lstat(path)
 		if err == nil && (!named.Mode().IsRegular() || !os.SameFile(info, named)) {
-			err = errors.New("workspace writer lock must be a regular file")
+			err = errors.New("workspace lock must be a regular file")
 		}
 	}
 	if err == nil {

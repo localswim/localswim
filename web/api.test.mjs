@@ -6,6 +6,12 @@ const BOARD = "9d86fce9-1991-428b-a784-d41588192126";
 const TAG = '"workspace_tag_07"';
 const PUBLISHING_OFF = { enabled: false, repository: null, last_success_at: null, pending: false, error_code: null };
 
+const SERVICE = {
+  service_instance_id: "019aa833-764f-746b-a3f0-e2f7af0b9e3f", build_id: BOARD, port: 53146,
+  state: "running", etag: '"019aa833-764f-746b-a3f0-e2f7af0b9e3f-0"',
+  api_version: "2026-11-10", restart_error_code: null,
+};
+
 function client(fetchImpl, getCapability = () => "fixture-capability") {
   return createBrowserApi({ fetchImpl, getCapability });
 }
@@ -180,6 +186,8 @@ test("uses documented paths and board scoping for Turn 1 reads", async () => {
   const paths = [];
   const api = client(async (url) => {
     paths.push(url);
+    if (url.endsWith("/service")) return Response.json(SERVICE, { headers: { ETag: SERVICE.etag } });
+    if (url.endsWith("/builds")) return Response.json({ builds: [], next_cursor: null }, { headers: { ETag: TAG } });
     return Response.json(url.includes("/lanes?") ? { lanes: [], next_cursor: null } : {});
   });
 
@@ -458,5 +466,125 @@ test("rejects incomplete event frames and handles the exact bound across chunks"
     await assert.rejects(stream(chunks).next(), {
       name: "ApiError", code: "invalid_response", status: 200,
     });
+  }
+});
+
+test("lifecycle writes use the service validator and confirm the addressed receipt", async () => {
+  const id = "2dd42d30-8545-4e43-bd65-e5430893d196";
+  const activation = { id, build_id: BOARD, state: "accepted", error_code: null };
+  const calls = [];
+  const api = client(async (url, options) => {
+    calls.push([url, options.method, options.headers.get("If-Match"), options.body && JSON.parse(options.body)]);
+    if (options.method === "POST") return Response.json(activation, {
+      status: 202, headers: { Location: "/api/2026-11-10/activations/" + id },
+    });
+    if (options.method === "GET") return Response.json({ ...activation, state: "activated" }, {
+      headers: { ETag: '"' + id + '-1"' },
+    });
+    return Response.json({ ...SERVICE, state: "draining", etag: SERVICE.etag.replace('-0"', '-1"') }, { status: 202 });
+  });
+  assert.equal((await api.activateBuild(id.toUpperCase(), BOARD, SERVICE.etag)).state, "accepted");
+  assert.equal((await api.getActivation(id, BOARD)).state, "activated");
+  assert.equal((await api.stopService(SERVICE)).state, "draining");
+  assert.deepEqual(calls, [
+    ["/api/2026-11-10/activations", "POST", null, { id, build_id: BOARD, expected_service_etag: SERVICE.etag }],
+    ["/api/2026-11-10/activations/" + id, "GET", null, undefined],
+    ["/api/2026-11-10/service", "PATCH", SERVICE.etag, { state: "stopped" }],
+  ]);
+});
+
+test("lifecycle transport loss and malformed 202 receipts remain uncertain without replay", async () => {
+  let attempts = 0;
+  const api = client(async () => {
+    attempts++;
+    if (attempts === 1) throw new TypeError("Disconnected");
+    return Response.json({ ...SERVICE, state: "draining", port: 1 }, { status: 202 });
+  });
+  await assert.rejects(api.activateBuild(BOARD, BOARD, SERVICE.etag), { code: "transport_failed", outcomeUnknown: true });
+  await assert.rejects(api.stopService(SERVICE), { code: "invalid_response", outcomeUnknown: true });
+  assert.equal(attempts, 2);
+});
+
+test("shutdown distinguishes a validated final publication refusal from a generic unavailable response", async () => {
+  const problem = {
+    type: "about:blank", status: 503, code: "unavailable", outcome: "not_applied",
+    title: "Service unavailable", detail: "Final publication failed. The service remains running.",
+    request_id: BOARD, errors: [],
+  };
+  let response = problem;
+  const api = client(async () => new Response(JSON.stringify(response), {
+    status: 503, headers: { "Content-Type": "application/problem+json" },
+  }));
+  await assert.rejects(api.stopService(SERVICE), { code: "final_publication_failed", status: 503, outcomeUnknown: false });
+  response = { ...problem, outcome: "unknown" };
+  await assert.rejects(api.stopService(SERVICE), { code: "http_error", status: 503, outcomeUnknown: true });
+});
+
+test("lifecycle reads require exact HTTP success, JSON media and strong response tags", async () => {
+  const activation = { id: BOARD, build_id: BOARD, state: "activated", error_code: null };
+  const page = { builds: [], next_cursor: null };
+  const reads = [
+    ["/service", SERVICE, SERVICE.etag, (api) => api.getService()],
+    ["/builds", page, TAG, (api) => api.listBuilds()],
+    ["/activations/" + BOARD, activation, TAG, (api) => api.getActivation(BOARD, BOARD)],
+  ];
+  for (const [path, data, tag, read] of reads) {
+    const headers = { "Content-Type": "application/json; charset=utf-8", ETag: tag };
+    const valid = client(async (url) => {
+      assert.equal(url, "/api/2026-11-10" + path);
+      return new Response(JSON.stringify(data), { status: 200, headers });
+    });
+    await read(valid);
+    for (const [status, altered] of [
+      [201, headers],
+      [200, { ...headers, "Content-Type": "text/plain" }],
+      [200, { ...headers, ETag: "W/" + tag }],
+      [200, { "Content-Type": headers["Content-Type"] }],
+    ]) {
+      const api = client(async () => new Response(JSON.stringify(data), { status, headers: altered }));
+      await assert.rejects(read(api), { code: "invalid_response", status, outcomeUnknown: false });
+    }
+  }
+  const mismatched = client(async () => Response.json(SERVICE, { headers: { ETag: TAG } }));
+  await assert.rejects(mismatched.getService(), { code: "invalid_response" });
+});
+
+test("staged build pages validate their closed shape and OpenAPI array and cursor bounds", async () => {
+  const build = { id: BOARD, version: "stage", validation: "valid", error_code: null };
+  const cursor = "x".repeat(2048);
+  let page = { builds: Array(200).fill(build), next_cursor: cursor };
+  const api = client(async () => Response.json(page, { headers: { ETag: TAG } }));
+  assert.equal((await api.listBuilds()).data.next_cursor, cursor);
+  for (page of [
+    { builds: [build], next_cursor: null, extra: true },
+    { builds: Array(201).fill(build), next_cursor: null },
+    { builds: [{...build, extra: true}], next_cursor: null },
+    { builds: [], next_cursor: cursor + "x" },
+    { builds: [], next_cursor: "" },
+    { builds: [] },
+  ]) {
+    await assert.rejects(api.listBuilds(), { code: "invalid_response" });
+  }
+});
+
+test("lifecycle mutations with non-JSON or missing receipt media stay uncertain after one write", async () => {
+  const activation = { id: BOARD, build_id: BOARD, state: "accepted", error_code: null };
+  const draining = { ...SERVICE, state: "draining", etag: SERVICE.etag.replace('-0"', '-1"') };
+  const writes = [
+    [activation, { Location: "/api/2026-11-10/activations/" + BOARD }, (api) => api.activateBuild(BOARD, BOARD, SERVICE.etag)],
+    [draining, {}, (api) => api.stopService(SERVICE)],
+  ];
+  for (const [body, headers, write] of writes) {
+    for (const media of ["text/plain", undefined]) {
+      let requests = 0;
+      const api = client(async () => {
+        requests++;
+        return new Response(new TextEncoder().encode(JSON.stringify(body)), {
+          status: 202, headers: media ? { ...headers, "Content-Type": media } : headers,
+        });
+      });
+      await assert.rejects(write(api), { code: "invalid_response", status: 202, outcomeUnknown: true });
+      assert.equal(requests, 1);
+    }
   }
 });

@@ -21,6 +21,10 @@ import { ApiError, createBrowserApi, openBrowserSession, validPublishing } from 
 /** @typedef {{scope: string, label: string, require: (read: InspectionRead) => void,
  * inspect: () => void, sync: () => void}} Inspection */
 /** @typedef {{title?: string, description?: string, lane?: string, owner?: string, comment?: string}} CardDraft */
+/** @typedef {import("./api.mjs").Service} Service */
+/** @typedef {import("./api.mjs").Build} Build */
+/** @typedef {{prior: Service, activation?: {id: string, buildId: string}, acknowledged: boolean, refusal?: string}} LifecycleOperation */
+
 
 const status = /** @type {HTMLParagraphElement|null} */ (document.getElementById("status"));
 const identity = document.getElementById("identity");
@@ -39,6 +43,10 @@ const api = createBrowserApi({ getCapability: () => capability });
 let activeView = 0;
 let activeCard = 0;
 let writing = false;
+/** @type {LifecycleOperation|undefined} */
+let pendingLifecycle;
+/** @type {(() => Promise<void>)|undefined} */
+let refreshActiveService;
 /** @type {Inspection|undefined} */
 let boardInspection;
 /** @type {Inspection|undefined} */
@@ -275,23 +283,39 @@ function etag(reply) {
   return reply.etag;
 }
 
-async function ensureCapability() {
+/** @param {AbortSignal} [signal] */
+async function ensureCapability(signal) {
+  signal?.throwIfAborted();
   if (capability) return;
-  connecting ??= openBrowserSession().then((token) => { capability = token; return token; })
+  const session = connecting ??= openBrowserSession().then((token) => { capability = token; return token; })
     .finally(() => { connecting = undefined; });
-  await connecting;
+  if (!signal) {
+    await session;
+    return;
+  }
+  /** @type {() => void} */
+  let aborted = () => {};
+  try {
+    await new Promise((resolve, reject) => {
+      aborted = () => reject(signal.reason);
+      signal.addEventListener("abort", aborted, { once: true });
+      session.then(resolve, reject);
+    });
+  } finally {
+    signal.removeEventListener("abort", aborted);
+  }
 }
 
-/** @template T @param {() => Promise<T>} read */
-async function readWithSession(read) {
-  await ensureCapability();
+/** @template T @param {() => Promise<T>} read @param {AbortSignal} [signal] */
+async function readWithSession(read, signal) {
+  await ensureCapability(signal);
   const original = capability;
   try {
     return await read();
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 401) throw error;
     if (capability === original) capability = "";
-    await ensureCapability();
+    await ensureCapability(signal);
     return read();
   }
 }
@@ -1256,6 +1280,219 @@ function renderWorkspacePreferences(boards, showSavedOrder, initial, inspection)
   return { panel, showBoards, inspect, retain };
 }
 
+/** @param {boolean} canManage @param {() => boolean} isCurrent */
+function renderServiceControls(canManage, isCurrent) {
+  const panel = element("section");
+  panel.id = "service-controls";
+  const health = element("p", "Reading service status…");
+  const stage = element("p");
+  const outcome = element("p");
+  outcome.id = "service-operation-status";
+  outcome.setAttribute("role", "status");
+  let busy = false;
+  let inspectAgain = false;
+  /** @type {Service|undefined} */
+  let service;
+  /** @type {Build|undefined} */
+  let candidate;
+  const activate = button("Activate staged build", () => {
+    if (service && candidate) void submit(service, { id: crypto.randomUUID(), buildId: candidate.id });
+  });
+  const stop = button("Shut down service", () => {
+    if (service) void submit(service);
+  });
+  const refreshStatus = button("Refresh service status", () => {
+    if (!writing && !busy) void inspect(true);
+  });
+
+  function sync() {
+    const disabled = busy || pendingLifecycle !== undefined || service?.state !== "running";
+    activate.disabled = disabled || candidate === undefined;
+    stop.disabled = disabled;
+    refreshStatus.disabled = busy;
+  }
+
+  /** @param {AbortSignal} [signal] */
+  async function readService(signal) {
+    try {
+      const { data } = await readWithSession(() => api.getService(signal), signal);
+      if (!isCurrent()) return;
+      service = data;
+      health.textContent = "Service is " + service.state + " on port " + service.port
+        + ". Running build " + service.build_id + "."
+        + (service.restart_error_code ? " Last lifecycle error: " + service.restart_error_code + "." : "");
+    } catch {
+      if (!isCurrent()) return;
+      service = undefined;
+      health.textContent = "Service status is unavailable.";
+    }
+    return service;
+  }
+
+  async function readStage() {
+    if (!canManage || !isCurrent()) return;
+    candidate = undefined;
+    if (service?.state !== "running") {
+      stage.textContent = "";
+      return;
+    }
+    try {
+      const { data } = await readWithSession(api.listBuilds);
+      if (!isCurrent()) return;
+      stage.textContent = data.builds.length ? data.builds.map((build) => "Staged build " + build.version
+        + " is " + build.validation + (build.error_code ? " (" + build.error_code + ")." : ".")).join(" ")
+        : "No staged build is available.";
+      const candidates = data.builds.filter((build) => build.validation === "valid" && build.id !== service?.build_id);
+      if (candidates.length === 1) candidate = candidates[0];
+    } catch {
+      if (isCurrent()) stage.textContent = "Staged build status is unavailable.";
+    }
+  }
+
+  /** @param {boolean} explicit @param {AbortSignal} [signal] */
+  async function readOutcome(explicit, signal) {
+    const operation = canManage ? pendingLifecycle : undefined;
+    const latest = await readService(signal);
+    if (!operation || !isCurrent() || pendingLifecycle !== operation) return;
+    let message = operation.refusal;
+    if (!message && latest) {
+      const prior = operation.prior;
+      const changed = latest.service_instance_id !== prior.service_instance_id;
+      if (operation.activation) {
+        const { id, buildId } = operation.activation;
+        try {
+          const result = await readWithSession(() => api.getActivation(id, buildId, signal), signal);
+          if (result.state === "activated" && changed && latest.build_id === buildId
+              && latest.port === prior.port && latest.state === "running") {
+            message = "Build activated. Reconnected on the same port.";
+          } else if (result.state === "failed") {
+            message = "Build activation failed" + (result.error_code ? " (" + result.error_code + ")." : ".");
+          }
+        } catch (error) {
+          if (explicit && !operation.acknowledged && latest.state === "running"
+              && error instanceof ApiError && error.status === 404) {
+            message = "Activation could not be confirmed. Review the current service status.";
+          }
+        }
+      } else if (changed && latest.state === "running") {
+        message = "The service is running on a new instance.";
+      } else if (latest.state === "running" && latest.restart_error_code && latest.etag !== prior.etag) {
+        message = "Shutdown did not complete. The service is still running.";
+      } else if (explicit && latest.state === "running" && !operation.acknowledged) {
+        message = "Shutdown could not be confirmed. The service is running.";
+      }
+    }
+    if (!message || !isCurrent() || pendingLifecycle !== operation) return;
+    pendingLifecycle = undefined;
+    outcome.textContent = message;
+  }
+
+  /** @param {boolean} explicit */
+  async function inspect(explicit) {
+    if (!isCurrent()) return;
+    if (busy) {
+      inspectAgain = true;
+      return;
+    }
+    busy = true;
+    sync();
+    try {
+      await readOutcome(explicit);
+      await readStage();
+      if (!isCurrent() || !canManage || !pendingLifecycle) return;
+      if (pendingLifecycle.acknowledged && !pendingLifecycle.activation) {
+        outcome.textContent = !service ? "Shutdown accepted. The service is unreachable."
+          : service.state === "draining" ? "Shutdown accepted. The service is draining."
+            : "Shutdown accepted. Refresh service status to check progress.";
+      } else {
+        outcome.textContent = "The outcome is unconfirmed. Refresh service status to inspect it.";
+      }
+    } finally {
+      busy = false;
+      sync();
+      if (inspectAgain && isCurrent()) {
+        inspectAgain = false;
+        void inspect(false);
+      }
+    }
+  }
+
+  /** @param {Service} prior @param {{id: string, buildId: string}} [activation] */
+  async function submit(prior, activation) {
+    if (writing || busy || pendingLifecycle || !isCurrent()) return;
+    /** @type {LifecycleOperation} */
+    const operation = { prior, activation, acknowledged: false };
+    const submittingCapability = capability;
+    writing = busy = true;
+    pendingLifecycle = operation;
+    sync();
+    outcome.textContent = activation ? "Requesting build activation…" : "Requesting shutdown…";
+    try {
+      try {
+        if (activation) {
+          await api.activateBuild(activation.id, activation.buildId, prior.etag);
+        } else {
+          const draining = await api.stopService(prior);
+          if (isCurrent() && pendingLifecycle === operation) service = draining;
+        }
+        if (pendingLifecycle !== operation) return;
+        operation.acknowledged = true;
+      } catch (error) {
+        if (pendingLifecycle !== operation) return;
+        const phase = error instanceof ApiError && error.status === 401 && capability !== submittingCapability
+          ? "error" : writePhase(error);
+        if (phase !== "unknown") {
+          operation.refusal = phase === "conflict" ? "Service changed. Review the current status."
+            : activation ? "The service refused build activation."
+              : error instanceof ApiError && error.code === "final_publication_failed"
+                ? "Final publication failed. The service remains running."
+                : "The service refused shutdown.";
+          if (isCurrent()) {
+            await readOutcome(false);
+            await readStage();
+          }
+          return;
+        }
+      }
+      if (!isCurrent()) return;
+      if (activation) {
+        outcome.textContent = operation.acknowledged ? "Activation accepted. Reconnecting…"
+          : "Activation outcome is uncertain. Inspecting service status…";
+        const signal = AbortSignal.timeout(8000);
+        for (let attempt = 0; attempt < 8 && pendingLifecycle === operation; attempt++) {
+          if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 750));
+          if (signal.aborted || !isCurrent()) break;
+          await readOutcome(false, signal);
+        }
+        if (isCurrent() && pendingLifecycle === operation) {
+          outcome.textContent = "Activation outcome is unconfirmed. Refresh service status to inspect it.";
+        }
+        await readStage();
+      } else if (operation.acknowledged) {
+        health.textContent = "Service is draining on port " + prior.port + ".";
+        stage.textContent = "";
+        outcome.textContent = "Shutdown accepted. The service is draining.";
+      } else {
+        await readOutcome(false);
+        if (isCurrent() && pendingLifecycle === operation) {
+          outcome.textContent = "Shutdown outcome is uncertain. Refresh service status to inspect it.";
+        }
+      }
+    } finally {
+      writing = busy = false;
+      sync();
+      if (!isCurrent()) void refreshActiveService?.();
+    }
+  }
+
+  panel.append(element("h2", "Service"), health);
+  if (canManage) panel.append(stage, outcome);
+  panel.append(refreshStatus);
+  if (canManage) panel.append(activate, stop);
+  sync();
+  return { panel, inspect: () => inspect(false) };
+}
+
 function boardAtLocation() {
   return location.pathname.match(/^\/boards\/([0-9a-f-]{36})\/?$/i)?.[1]?.toLowerCase();
 }
@@ -1296,6 +1533,7 @@ async function load(savedAvailability) {
   activeComment = undefined;
   activeDrawer = undefined;
   const view = ++activeView;
+  refreshActiveService = undefined;
   ++activeCard;
   details.hidden = true;
   details.replaceChildren();
@@ -1303,11 +1541,9 @@ async function load(savedAvailability) {
   boardStyle.replaceSync("");
   announce("loading", "Loading…");
   try {
-    await ensureCapability();
-    if (view !== activeView) return;
-    const [session, boards] = await Promise.all([
+    const [session, boards] = await readWithSession(() => Promise.all([
       api.getSession(), /** @type {Promise<BoardSummary[]>} */ (collect(api.listBoards, "boards")),
-    ]);
+    ]));
     if (view !== activeView) return;
     const context = /** @type {{kind?: unknown, principal_id?: unknown, workspace_admin?: unknown}} */ (session.data);
     if (context.kind !== "human") throw new ApiError("invalid_response");
@@ -1378,6 +1614,10 @@ async function load(savedAvailability) {
         }), workspaceControls.panel);
         inspection.sync();
       }
+      const controls = renderServiceControls(context.workspace_admin === true, () => view === activeView);
+      main.append(controls.panel);
+      refreshActiveService = controls.inspect;
+      void refreshActiveService();
       announce("ready", "Workspace loaded.");
       return;
     }

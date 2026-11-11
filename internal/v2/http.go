@@ -25,6 +25,7 @@ type Service struct {
 	store               *store
 	workspace           *workspaceStore
 	builds              *buildStatus
+	lifecycle           serviceLifecycle
 	principals          []user
 	human, bot, browser [32]byte
 	browserToken        string
@@ -52,6 +53,7 @@ func Open(root, humanToken, botToken string) (*Service, error) {
 	boards.startBoardPublishers()
 	boards.ownerNotices = newOwnerNoticeWorker(ownerNoticeQuietPeriod, boards.ownerNoticeSettings, deliverOwnerNotice)
 	return &Service{events: events, store: boards, workspace: workspace, builds: newBuildStatus(boards.root),
+		lifecycle:  serviceLifecycle{exit: make(chan ServiceExit, 1)},
 		principals: principals, browserToken: browserToken, browser: sha256.Sum256([]byte(browserToken)), human: sha256.Sum256([]byte(humanToken)), bot: sha256.Sum256([]byte(botToken))}, nil
 }
 
@@ -66,27 +68,32 @@ func validToken(token string) bool {
 func (s *Service) Close() error {
 	s.closeOnce.Do(func() {
 		s.StopEvents()
-		workspaceDone := s.workspace.publisher.stop()
-		s.store.closeBoardPublishers()
-		if workspaceDone != nil {
-			<-workspaceDone
-		}
-		if s.store.ownerNotices != nil {
-			s.store.ownerNotices.close()
-		}
+		s.stopBackground()
 		s.closeErr = s.store.close()
 	})
 	return s.closeErr
 }
 
+func (s *Service) stopBackground() {
+	workspaceDone := s.workspace.publisher.stop()
+	s.store.closeBoardPublishers()
+	if workspaceDone != nil {
+		<-workspaceDone
+	}
+	if s.store.ownerNotices != nil {
+		s.store.ownerNotices.close()
+	}
+}
+
 type request struct {
-	w         http.ResponseWriter
-	r         *http.Request
-	service   *Service
-	id        string
-	actor     string
-	port      int
-	boardDone func()
+	w           http.ResponseWriter
+	r           *http.Request
+	service     *Service
+	id          string
+	actor       string
+	port        int
+	boardDone   func()
+	serviceDone func()
 }
 
 func (s *Service) Handler(address *net.TCPAddr) http.Handler {
@@ -139,6 +146,9 @@ func (s *Service) Handler(address *net.TCPAddr) http.Handler {
 		defer func() {
 			if x.boardDone != nil {
 				x.boardDone()
+			}
+			if x.serviceDone != nil {
+				x.serviceDone()
 			}
 		}()
 		if !x.serveBrowser() {
@@ -250,6 +260,18 @@ func (x *request) fail(err error) {
 		x.problem(409, "conflict", "The replacement must retain existing grants, resource permissions, and the default priority.", "", nil)
 	case errors.Is(err, errWriteUncertain):
 		x.problem(503, "outcome_unknown", "Inspect the saved state before attempting another write.", "unknown", nil)
+	case errors.Is(err, errServiceDraining):
+		x.problem(503, "unavailable", "The service is draining.", "", nil)
+	case errors.Is(err, errFinalPublish):
+		x.problem(503, "unavailable", "Final publication failed. The service remains running.", "", nil)
+	case errors.Is(err, errActivationBuild):
+		x.problem(409, "conflict", "The staged build has not been validated for activation.", "", nil)
+	case errors.Is(err, errActivationID):
+		x.problem(409, "conflict", "The activation identifier already exists.", "", nil)
+	case errors.Is(err, errActivationStore):
+		x.problem(503, "unavailable", "The activation outcome is unavailable.", "", nil)
+	case errors.Is(err, errActivationStart):
+		x.problem(503, "unavailable", "The staged build could not prepare for activation. The service remains running.", "", nil)
 	case errors.Is(err, errBoardUnavailable):
 		x.problem(503, "unavailable", "This board is closed or draining.", "", nil)
 	case errors.Is(err, errBoardFlush):

@@ -26,6 +26,7 @@ type eventHub struct {
 	mu         sync.Mutex
 	generation chan struct{}
 	stopped    chan struct{}
+	drainUntil time.Time // published once, before stopped closes
 	active     sync.WaitGroup
 }
 
@@ -62,13 +63,24 @@ func (h *eventHub) observe() <-chan struct{} {
 	return h.generation
 }
 
-// BeginEventShutdown signals event handlers once HTTP admission has closed.
+// BeginEventShutdown stops event delivery when the native service is interrupted.
 func (s *Service) BeginEventShutdown() {
+	s.beginEventShutdown(time.Time{})
+}
+
+// BeginEventDrain lets existing streams deliver the final committed changes.
+// The final write budget is shared across frames, including the closing chunk.
+func (s *Service) BeginEventDrain() {
+	s.beginEventShutdown(time.Now().Add(eventWriteTimeout))
+}
+
+func (s *Service) beginEventShutdown(deadline time.Time) {
 	h := s.events
 	h.mu.Lock()
 	select {
 	case <-h.stopped:
 	default:
+		h.drainUntil = deadline
 		close(h.stopped)
 	}
 	h.mu.Unlock()
@@ -187,7 +199,7 @@ func (state eventState) send(write func(*eventFrame) error, kind string, ids []s
 	return nil
 }
 
-func writeEvent(w http.ResponseWriter, controller *http.ResponseController, frame *eventFrame) error {
+func writeEvent(w http.ResponseWriter, controller *http.ResponseController, frame *eventFrame, deadline time.Time) error {
 	payload := ": heartbeat\n\n"
 	if frame != nil {
 		data, err := json.Marshal(frame)
@@ -196,7 +208,7 @@ func writeEvent(w http.ResponseWriter, controller *http.ResponseController, fram
 		}
 		payload = "data: " + string(data) + "\n\n"
 	}
-	if err := controller.SetWriteDeadline(time.Now().Add(eventWriteTimeout)); err != nil {
+	if err := controller.SetWriteDeadline(deadline); err != nil {
 		return err
 	}
 	if _, err := io.WriteString(w, payload); err != nil {
@@ -222,8 +234,12 @@ func (x *request) eventsResource() {
 		return
 	}
 	h := x.service.events
-	if !h.join() {
-		x.problem(http.StatusServiceUnavailable, "unavailable", "Event streaming is stopping.", "", nil)
+	lifecycle := &x.service.lifecycle
+	lifecycle.mu.Lock()
+	joined := !lifecycle.draining && h.join()
+	lifecycle.mu.Unlock()
+	if !joined {
+		x.fail(errServiceDraining)
 		return
 	}
 	defer h.active.Done()
@@ -235,19 +251,32 @@ func (x *request) eventsResource() {
 		return
 	}
 	controller := http.NewResponseController(x.w)
+	deadline := func() time.Time {
+		select {
+		case <-h.stopped:
+			if !h.drainUntil.IsZero() {
+				return h.drainUntil
+			}
+		default:
+		}
+		return time.Now().Add(eventWriteTimeout)
+	}
 	defer func() {
 		// Bound net/http's final chunk flush after the handler returns.
-		_ = controller.SetWriteDeadline(time.Now().Add(eventWriteTimeout))
+		_ = controller.SetWriteDeadline(deadline())
 	}()
 	write := func(frame *eventFrame) error {
-		select {
-		case <-x.r.Context().Done():
-			return x.r.Context().Err()
-		case <-h.stopped:
-			return context.Canceled
-		default:
-			return writeEvent(x.w, controller, frame)
+		if err := x.r.Context().Err(); err != nil {
+			return err
 		}
+		select {
+		case <-h.stopped:
+			if h.drainUntil.IsZero() {
+				return context.Canceled
+			}
+		default:
+		}
+		return writeEvent(x.w, controller, frame, deadline())
 	}
 	x.w.Header().Set("Content-Type", "text/event-stream")
 	if err := state.send(write, "snapshot", ids, eventState{}); err != nil {
@@ -260,6 +289,15 @@ func (x *request) eventsResource() {
 		case <-x.r.Context().Done():
 			return
 		case <-h.stopped:
+			if !h.drainUntil.IsZero() {
+				select {
+				case <-changed:
+					if next, err := x.service.eventState(x.actor, ids); err == nil {
+						_ = next.send(write, "change", ids, state)
+					}
+				default:
+				}
+			}
 			return
 		case <-changed:
 			changed = h.observe()

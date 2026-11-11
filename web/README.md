@@ -74,6 +74,19 @@ The browser reads the saved board after success, a stale validator, or an
 uncertain response. If readback fails, use **Inspect saved board** or **Refresh**
 before submitting another change. The browser never replays the PATCH.
 
+## Service lifecycle
+
+Workspace administrators can use **Activate staged build** when the Service
+panel reports a valid candidate. The browser reconnects on the original port,
+obtains a fresh session capability, and reads the activation receipt. Board
+links stay the same. **Shut down service** requests a graceful stop and reports
+when the service accepts the drain. A final publication failure leaves the
+service running and available for status inspection.
+
+Each action makes one write attempt. After an uncertain response, use
+**Refresh service status** to check the service and the original activation
+receipt before submitting another action.
+
 ## Browser API client
 
 `api.mjs` is a dependency-free ES module for the same-origin V2 API. It calls

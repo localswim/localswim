@@ -50,6 +50,9 @@ type buildStatus struct {
 	stagedID       string
 	stagedVersion  string
 	stagedIdentity string
+	validatedID    string
+	activeVersion  string
+	activeDigest   string
 }
 
 var runningBuildID = newID()
@@ -80,12 +83,40 @@ func (s *buildStatus) builds() []build {
 	// Keep the cost of reading and inspecting a local candidate to one at a time.
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	items, _ := s.inspectCandidate()
+	s.validatedID = ""
+	if len(items) == 1 && items[0].Validation == "valid" {
+		s.validatedID = items[0].ID
+	}
+	return items
+}
+
+type activationImage struct {
+	bytes   []byte
+	version string
+	digest  string
+}
+
+func (s *buildStatus) activationImage(id string) (activationImage, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if id != s.validatedID || id == s.running.BuildID {
+		return activationImage{}, errActivationBuild
+	}
+	items, image := s.inspectCandidate()
+	if len(items) != 1 || items[0].ID != id || items[0].Validation != "valid" {
+		return activationImage{}, errActivationBuild
+	}
+	return activationImage{bytes: image, version: s.stagedVersion, digest: s.stagedIdentity}, nil
+}
+
+func (s *buildStatus) inspectCandidate() ([]build, []byte) {
 	root, err := os.OpenRoot(s.root)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
-			return s.candidate("unknown", "", "candidate_area_unavailable")
+			return s.candidate("unknown", "", "candidate_area_unavailable"), nil
 		}
-		return s.emptyStage()
+		return s.emptyStage(), nil
 	}
 	defer root.Close()
 
@@ -93,33 +124,33 @@ func (s *buildStatus) builds() []build {
 	if errors.Is(err, fs.ErrNotExist) {
 		_, artifactErr := root.Lstat(buildArtifactName())
 		if !errors.Is(artifactErr, fs.ErrNotExist) {
-			return s.candidate("unknown", "", "candidate_manifest_missing")
+			return s.candidate("unknown", "", "candidate_manifest_missing"), nil
 		}
-		return s.emptyStage()
+		return s.emptyStage(), nil
 	}
 	if err != nil {
-		return s.candidate("unknown", "", "candidate_manifest_unreadable")
+		return s.candidate("unknown", "", "candidate_manifest_unreadable"), nil
 	}
 
 	version, digest, ok := parseBuildManifest(raw)
 	if !ok {
-		return s.candidate("unknown", string(raw), "candidate_manifest_invalid")
+		return s.candidate("unknown", string(raw), "candidate_manifest_invalid"), nil
 	}
 	artifact, err := readBuildFile(root, buildArtifactName(), buildArtifactLimit)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return s.candidate(version, digest, "candidate_binary_missing")
+		return s.candidate(version, digest, "candidate_binary_missing"), nil
 	case err != nil:
-		return s.candidate(version, digest, "candidate_binary_unreadable")
+		return s.candidate(version, digest, "candidate_binary_unreadable"), nil
 	}
 	sum := sha256.Sum256(artifact)
 	if hex.EncodeToString(sum[:]) != digest {
-		return s.candidate(version, digest, "candidate_binary_digest_mismatch")
+		return s.candidate(version, digest, "candidate_binary_digest_mismatch"), nil
 	}
 	if !compatibleBuild(artifact) {
-		return s.candidate(version, digest, "candidate_binary_incompatible")
+		return s.candidate(version, digest, "candidate_binary_incompatible"), nil
 	}
-	return s.candidate(version, digest, "")
+	return s.candidate(version, digest, ""), artifact
 }
 
 func buildArtifactName() string {
@@ -137,6 +168,9 @@ func (s *buildStatus) emptyStage() []build {
 func (s *buildStatus) candidate(version, identity, code string) []build {
 	if s.stagedID == "" || s.stagedVersion != version || s.stagedIdentity != identity {
 		s.stagedID = newID()
+		if s.activeVersion == version && s.activeDigest == identity {
+			s.stagedID = s.running.BuildID
+		}
 		s.stagedVersion, s.stagedIdentity = version, identity
 	}
 	item := build{ID: s.stagedID, Version: version, Validation: "valid"}
@@ -154,19 +188,24 @@ func parseBuildManifest(data []byte) (version, digest string, valid bool) {
 		json.Unmarshal(fields["sha256"], &digest) != nil {
 		return "", "", false
 	}
-	if len(version) == 0 || len(version) > 128 || len(digest) != 64 {
+	if !validBuildManifestFields(version, digest) {
 		return "", "", false
+	}
+	return version, digest, true
+}
+
+func validBuildManifestFields(version, digest string) bool {
+	if len(version) == 0 || len(version) > 128 || len(digest) != 64 {
+		return false
 	}
 	for _, ch := range version {
 		if !(ch >= '0' && ch <= '9' || ch >= 'a' && ch <= 'z' ||
 			ch >= 'A' && ch <= 'Z' || strings.ContainsRune(".+_-", ch)) {
-			return "", "", false
+			return false
 		}
 	}
-	if _, err := hex.DecodeString(digest); err != nil || strings.ToLower(digest) != digest {
-		return "", "", false
-	}
-	return version, digest, true
+	_, err := hex.DecodeString(digest)
+	return err == nil && strings.ToLower(digest) == digest
 }
 
 func readBuildFile(root *os.Root, name string, limit int64) ([]byte, error) {

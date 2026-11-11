@@ -36,17 +36,25 @@ type store struct {
 	admissions       map[string]*boardAdmission
 }
 
-func openStore(root string, principals ...user) (*store, error) {
+func resolveStoreRoot(root string) (string, error) {
 	absolute, err := filepath.Abs(root)
 	if err != nil {
-		return nil, fmt.Errorf("resolve workspace data root: %w", err)
+		return "", fmt.Errorf("resolve workspace data root: %w", err)
 	}
 	if err := os.MkdirAll(absolute, 0o700); err != nil {
-		return nil, fmt.Errorf("create workspace data root: %w", err)
+		return "", fmt.Errorf("create workspace data root: %w", err)
 	}
 	absolute, err = filepath.EvalSymlinks(absolute)
 	if err != nil {
-		return nil, fmt.Errorf("canonicalize workspace data root: %w", err)
+		return "", fmt.Errorf("canonicalize workspace data root: %w", err)
+	}
+	return absolute, nil
+}
+
+func openStore(root string, principals ...user) (*store, error) {
+	absolute, err := resolveStoreRoot(root)
+	if err != nil {
+		return nil, err
 	}
 	lease, err := acquireWriter(absolute)
 	if err != nil {

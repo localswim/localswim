@@ -91,6 +91,9 @@ const cliHelp = `Usage:
   localswim publication get PUBLICATION_ID
   localswim service status
   localswim service builds [--limit N] [--cursor CURSOR]
+  localswim service activate [--id UUID] BUILD_ID
+  localswim service activation ACTIVATION_ID
+  localswim service stop
 
 Live commands use LOCALSWIM_URL (http://127.0.0.1:<port>) and LOCALSWIM_TOKEN.
 Board creation requires exactly one of --name or --json.
@@ -132,6 +135,10 @@ Use restoration create with a stored backup if the durable snapshot cannot be re
 Publication create publishes a stored backup.
 Operation creates generate an ID when --id is omitted. Inspect the original operation ID after an unknown outcome.
 Restoration get and publication get inspect that original operation without replaying it.
+Service activate and stop use the current service validator.
+Service activate generates an ID when --id is omitted.
+After an unknown activation outcome, refresh LOCALSWIM_TOKEN as needed and use service activation with that ID.
+After an unknown stop outcome, use service status to inspect availability.
 Backup create captures the current board and audited attachment bytes and checks the board revision.
 Backup create generates an ID when --id is omitted and reports it on an unknown outcome.
 Use backup get with that ID before considering another capture.
@@ -196,6 +203,9 @@ type cliCommand struct {
 	t07Action                          string
 	publishingAction                   string
 	boardAvailability                  string
+	serviceAction                      string
+	serviceResourceID                  string
+	serviceActivationID                string
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -238,6 +248,9 @@ func parseCLI(args []string) (cliCommand, error) {
 
 	name := args[0] + " " + args[1]
 	optionArgs := args[2:]
+	if name == "service activate" || name == "service activation" || name == "service stop" {
+		return parseServiceAction(name, optionArgs)
+	}
 	if name == "board publishing" || name == "workspace publishing" {
 		if len(optionArgs) == 0 {
 			return command, errors.New("publishing requires enable, disable, or status")
@@ -519,6 +532,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	api, err := client.New(getenv("LOCALSWIM_URL"), getenv("LOCALSWIM_TOKEN"))
 	if err != nil {
 		return err
+	}
+	if command.serviceAction != "" {
+		return executeServiceAction(api, command, stdout)
 	}
 	if command.t07Action != "" {
 		return executeT07(api, command, stdin, stdout)

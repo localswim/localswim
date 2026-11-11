@@ -1,5 +1,6 @@
 const API_PREFIX = "/api/2026-11-10";
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const STRONG_ETAG = /^"[A-Za-z0-9_-]{16,128}"$/;
 const CAPABILITY = /^[A-Za-z0-9_-]{43,128}$/;
 const REQUEST_TIMEOUT_MS = 15000;
@@ -9,6 +10,10 @@ const RASTER_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "ima
 /** @typedef {"blocks"|"blocked_by"|"duplicates"|"duplicated_by"|"references"|"referenced_by"|"relates_to"} RelationshipKind */
 /** @typedef {{enabled: boolean, repository: string|null, last_success_at: string|null, pending: boolean, error_code: string|null}} Publishing */
 /** @typedef {{revision: number, pinned_board_ids: string[], publishing: Publishing}} Workspace */
+/** @typedef {{etag: string, port: number, service_instance_id: string, build_id: string,
+ * state: "running"|"draining", api_version: "2026-11-10", restart_error_code: string|null}} Service */
+/** @typedef {{id: string, version: string, validation: "pending"|"valid"|"invalid", error_code: string|null}} Build */
+/** @typedef {{id: string, build_id: string, state: "accepted"|"activated"|"failed", error_code: string|null}} Activation */
 /** @typedef {"open"|"closed"} AvailabilityChange */
 /** @typedef {{id: string, name: string, policy_id: string, revision: number, availability: AvailabilityChange|"unhealthy"}} BoardAvailability */
 
@@ -88,6 +93,41 @@ function isInteger(value) {
 /** @param {unknown} value */
 function isTimestamp(value) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\+00:00$/.test(value);
+}
+
+/** @param {unknown} value @returns {boolean} */
+function canonicalId(value) {
+  return isId(value) && value === value.toLowerCase();
+}
+
+/** @param {unknown} value */
+function validErrorCode(value) {
+  return value === null || (typeof value === "string" && value.length <= 80);
+}
+
+/** @param {unknown} value @returns {value is Service} */
+function validService(value) {
+  if (!isObject(value)) return false;
+  return Object.keys(value).length === 7 && typeof value.etag === "string" && STRONG_ETAG.test(value.etag)
+    && isInteger(value.port) && value.port >= 1 && value.port <= 65535
+    && typeof value.service_instance_id === "string" && UUID_V7.test(value.service_instance_id)
+    && canonicalId(value.build_id) && (value.state === "running" || value.state === "draining")
+    && value.api_version === "2026-11-10" && validErrorCode(value.restart_error_code);
+}
+
+/** @param {unknown} value @returns {value is Build} */
+function validBuild(value) {
+  if (!isObject(value)) return false;
+  return Object.keys(value).length === 4 && canonicalId(value.id) && typeof value.version === "string" && value.version.length > 0
+    && value.version.length <= 128 && ["pending", "valid", "invalid"].some((state) => state === value.validation)
+    && validErrorCode(value.error_code);
+}
+
+/** @param {unknown} value @param {string} id @param {string} buildId @returns {value is Activation} */
+function validActivation(value, id, buildId) {
+  return isObject(value) && Object.keys(value).length === 4 && value.id === id && value.build_id === buildId
+    && ["accepted", "activated", "failed"].some((state) => state === value.state)
+    && validErrorCode(value.error_code);
 }
 
 /** @param {unknown} value @returns {value is Publishing} */
@@ -291,10 +331,10 @@ async function responseObject(response, write) {
 }
 
 /** @param {Response} response */
-async function availabilityRefused(response) {
+async function unavailableRefusalCode(response) {
   if (response.status !== 503 || response.body === null || response.body.locked
       || response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase() !== "application/problem+json") {
-    return false;
+    return null;
   }
   const reader = response.body.getReader();
   const bytes = new Uint8Array(4096);
@@ -303,19 +343,21 @@ async function availabilityRefused(response) {
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
-      if (value.length > bytes.length - length) return false;
+      if (value.length > bytes.length - length) return null;
       bytes.set(value, length);
       length += value.length;
     }
     const problem = /** @type {unknown} */ (JSON.parse(new TextDecoder("utf-8", { fatal: true })
       .decode(bytes.subarray(0, length))));
-    return isObject(problem) && Object.keys(problem).length === 8 && problem.type === "about:blank" && problem.status === 503
+    if (!(isObject(problem) && Object.keys(problem).length === 8 && problem.type === "about:blank" && problem.status === 503
       && problem.code === "unavailable" && problem.outcome === "not_applied"
       && typeof problem.title === "string" && problem.title.length > 0 && problem.title.length <= 120
       && typeof problem.detail === "string" && problem.detail.length <= 512
-      && isId(problem.request_id) && Array.isArray(problem.errors) && problem.errors.length === 0;
+      && isId(problem.request_id) && Array.isArray(problem.errors) && problem.errors.length === 0)) return null;
+    return problem.detail === "Final publication failed. The service remains running."
+      ? "final_publication_failed" : "unavailable";
   } catch {
-    return false;
+    return null;
   } finally {
     await reader.cancel().catch(() => {});
     reader.releaseLock();
@@ -421,9 +463,9 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /**
    * @param {string} path
-   * @param {{ method?: string, data?: unknown, form?: FormData, raw?: Blob, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal, availabilityWrite?: boolean }} [options]
+   * @param {{ method?: string, data?: unknown, form?: FormData, raw?: Blob, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal, knownUnavailable?: boolean }} [options]
    */
-  async function send(path, { method = "GET", data, form, raw, etag, ifNoneMatch, boardEtag, accept = "application/json", signal, availabilityWrite = false } = {}) {
+  async function send(path, { method = "GET", data, form, raw, etag, ifNoneMatch, boardEtag, accept = "application/json", signal, knownUnavailable = false } = {}) {
     const body = raw ?? (data === undefined ? form : JSON.stringify(data));
     let headers;
     try {
@@ -471,9 +513,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     }
 
     if (!response.ok && !(response.status === 304 && ifNoneMatch !== undefined)) {
-      if (availabilityWrite && await availabilityRefused(response)) {
-        throw new ApiError("unavailable", { status: 503 });
-      }
+      const refusalCode = knownUnavailable ? await unavailableRefusalCode(response) : null;
+      if (refusalCode) throw new ApiError(refusalCode, { status: 503 });
       await discardBody(response);
       throw new ApiError("http_error", {
         status: response.status,
@@ -486,10 +527,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /**
    * @param {string} path
-   * @param {{ method?: string, data?: unknown, form?: FormData, etag?: string, successStatus?: number }} [options]
+   * @param {{ method?: string, data?: unknown, form?: FormData, etag?: string, successStatus?: number, signal?: AbortSignal }} [options]
    */
-  async function request(path, { method = "GET", data, form, etag, successStatus = 200 } = {}) {
-    const response = await send(path, { method, data, form, etag });
+  async function request(path, { method = "GET", data, form, etag, successStatus = 200, signal } = {}) {
+    const response = await send(path, { method, data, form, etag, signal });
     const write = method !== "GET";
     const responseEtag = response.headers.get("ETag");
     if (write && (response.status !== successStatus || !STRONG_ETAG.test(responseEtag ?? ""))) {
@@ -497,6 +538,27 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
     }
     return { data: await responseObject(response, write), etag: responseEtag };
+  }
+
+  /** @param {Response} response @param {number} status @param {boolean} write */
+  async function requireLifecycleResponse(response, status, write) {
+    const media = response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
+    if (response.status !== status || media !== "application/json") {
+      await discardBody(response);
+      throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: write });
+    }
+  }
+
+  /** @param {string} path @param {AbortSignal} [signal] */
+  async function readLifecycle(path, signal) {
+    const response = await send(path, { signal });
+    await requireLifecycleResponse(response, 200, false);
+    const tag = response.headers.get("ETag");
+    if (tag === null || !STRONG_ETAG.test(tag)) {
+      await discardBody(response);
+      throw new ApiError("invalid_response", { status: response.status });
+    }
+    return { data: await responseObject(response, false), etag: tag };
   }
 
   /** @param {{data: object, etag: string|null}} reply @param {boolean} write */
@@ -1230,7 +1292,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const id = resourceId(boardId).toLowerCase();
       if (availability !== "open" && availability !== "closed") throw new TypeError("Expected open or closed.");
       const response = await send("/boards/" + id, {
-        method: "PATCH", data: { availability }, etag: strongTag(etag), availabilityWrite: true,
+        method: "PATCH", data: { availability }, etag: strongTag(etag), knownUnavailable: true,
       });
       const responseTag = response.headers.get("ETag");
       if (response.status !== 200 || !STRONG_ETAG.test(responseTag ?? "")
@@ -1312,8 +1374,63 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         etag: strongTag(etag),
       },
     ),
-    getService: () => request("/service"),
-    listBuilds: () => request("/builds"),
+    /** @param {AbortSignal} [signal] */
+    async getService(signal) {
+      const reply = await readLifecycle("/service", signal);
+      if (!validService(reply.data) || reply.etag !== reply.data.etag) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      return { data: reply.data, etag: reply.data.etag };
+    },
+    async listBuilds() {
+      const reply = await readLifecycle("/builds");
+      const page = /** @type {{builds?: unknown, next_cursor?: unknown}} */ (reply.data);
+      const { builds, next_cursor: cursor } = page;
+      if (Object.keys(page).length !== 2 || !Array.isArray(builds) || builds.length > 200
+          || !builds.every(validBuild)
+          || (cursor !== null && (typeof cursor !== "string" || cursor.length === 0 || cursor.length > 2048))) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      return { data: { builds: /** @type {Build[]} */ (builds), next_cursor: cursor }, etag: reply.etag };
+    },
+    /** @param {string} id @param {string} buildId @param {string} serviceEtag */
+    async activateBuild(id, buildId, serviceEtag) {
+      const activation = resourceId(id).toLowerCase();
+      const build = resourceId(buildId).toLowerCase();
+      const response = await send("/activations", { method: "POST", knownUnavailable: true, data: {
+        id: activation, build_id: build, expected_service_etag: strongTag(serviceEtag),
+      } });
+      await requireLifecycleResponse(response, 202, true);
+      const data = await responseObject(response, true);
+      if (response.headers.get("Location") !== API_PREFIX + "/activations/" + activation
+          || !validActivation(data, activation, build) || data.state !== "accepted") {
+        throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
+      }
+      return data;
+    },
+    /** @param {string} id @param {string} buildId @param {AbortSignal} [signal] */
+    async getActivation(id, buildId, signal) {
+      const activation = resourceId(id).toLowerCase();
+      const build = resourceId(buildId).toLowerCase();
+      const reply = await readLifecycle("/activations/" + activation, signal);
+      if (!validActivation(reply.data, activation, build)) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      return reply.data;
+    },
+    /** @param {Service} service */
+    async stopService(service) {
+      const response = await send("/service", { method: "PATCH", etag: strongTag(service.etag),
+        data: { state: "stopped" }, knownUnavailable: true });
+      await requireLifecycleResponse(response, 202, true);
+      const data = await responseObject(response, true);
+      if (!validService(data) || data.state !== "draining"
+          || data.service_instance_id !== service.service_instance_id || data.port !== service.port
+          || data.build_id !== service.build_id) {
+        throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
+      }
+      return data;
+    },
     /** @param {unknown} id */
     getBuild: (id) => request(`/builds/${resourceId(id)}`),
   });

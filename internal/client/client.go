@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -33,6 +34,7 @@ type Response struct {
 	JSON      json.RawMessage
 	ETag      string
 	BoardETag string
+	Location  string
 }
 
 func New(origin, token string) (*Client, error) {
@@ -77,6 +79,10 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 		return Response{}, err
 	}
 	mutation := method != http.MethodGet && method != http.MethodHead
+	path := request.URL.Path[len(apiPath):]
+	lifecycleWrite := method == http.MethodPatch && path == "/service" || method == http.MethodPost && path == "/activations"
+	activationRead := method == http.MethodGet && strings.HasPrefix(path, "/activations/")
+	lifecycleRead := method == http.MethodGet && path == "/service" || activationRead
 	reply, err := c.http.Do(request)
 	if err != nil {
 		return Response{}, responseError("could not reach the local service or read its response", mutation)
@@ -84,20 +90,28 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 	defer reply.Body.Close()
 	if reply.StatusCode < 200 || reply.StatusCode >= 300 {
 		uncertainStatus := reply.StatusCode < 400 || reply.StatusCode >= 500
-		if boardAvailability && isBoardUnavailableRefusal(reply) {
+		if (boardAvailability || lifecycleWrite) && isUnavailableRefusal(reply) {
 			return Response{}, errors.New("service returned HTTP 503 (unavailable, not applied)")
 		}
 		return Response{}, responseError(fmt.Sprintf("service returned HTTP %d", reply.StatusCode),
 			mutation && uncertainStatus)
+	}
+	if lifecycleRead && reply.StatusCode != http.StatusOK {
+		return Response{}, fmt.Errorf("service returned unexpected HTTP %d", reply.StatusCode)
 	}
 	var etag string
 	tags := reply.Header.Values("ETag")
 	if len(tags) == 1 && IsEntityTag(tags[0]) {
 		etag = tags[0]
 	}
+	if activationRead && etag == "" {
+		return Response{}, errors.New("service did not return one canonical strong activation ETag")
+	}
 	if mutation {
 		expected := http.StatusOK
-		if method == http.MethodPost {
+		if lifecycleWrite {
+			expected = http.StatusAccepted
+		} else if method == http.MethodPost {
 			expected = http.StatusCreated
 			if pathWithoutQuery(resource) == "/publications" {
 				expected = http.StatusAccepted
@@ -120,7 +134,7 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 			if !validBoardTag {
 				return Response{}, responseError("service did not return a strong board validator", true)
 			}
-		} else if etag == "" && !(method == http.MethodPost && (request.URL.Path == apiPath+"/backups" || request.URL.Path == apiPath+"/publications" || request.URL.Path == apiPath+"/restorations")) {
+		} else if etag == "" && !lifecycleWrite && !(method == http.MethodPost && (path == "/backups" || path == "/publications" || path == "/restorations")) {
 			return Response{}, responseError("service did not return one canonical strong ETag", true)
 		}
 		if requiresBoardTag(method, request.URL.Path[len(apiPath):]) && !validBoardTag {
@@ -128,6 +142,13 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 		}
 		if boardAvailability && (!validBoardTag || boardTags[0] != etag) {
 			return Response{}, responseError("service did not return matching ETag and X-Board-ETag validators", true)
+		}
+	}
+	if lifecycleRead || lifecycleWrite {
+		types := reply.Header.Values("Content-Type")
+		mediaType, _, err := mime.ParseMediaType(reply.Header.Get("Content-Type"))
+		if len(types) != 1 || err != nil || mediaType != "application/json" {
+			return Response{}, responseError("service did not return an application/json response", mutation)
 		}
 	}
 	data, err := io.ReadAll(io.LimitReader(reply.Body, maxResponseBytes+1))
@@ -146,7 +167,13 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 	if tags := reply.Header.Values("X-Board-ETag"); len(tags) == 1 && IsEntityTag(tags[0]) {
 		boardETag = tags[0]
 	}
-	return Response{JSON: data, ETag: etag, BoardETag: boardETag}, nil
+	var location string
+	if lifecycleWrite && method == http.MethodPost {
+		if locations := reply.Header.Values("Location"); len(locations) == 1 {
+			location = locations[0]
+		}
+	}
+	return Response{JSON: data, ETag: etag, BoardETag: boardETag, Location: location}, nil
 }
 
 func (c *Client) newRequest(method, resource string, body []byte, ifMatch, contentType, accept string) (*http.Request, error) {

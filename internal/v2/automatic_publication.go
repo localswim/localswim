@@ -157,6 +157,16 @@ func (p *automaticPublisher) current(generation uint64) bool {
 	return p.enabled && !p.closed && generation == p.generation
 }
 
+func (p *automaticPublisher) flushEnabled() error {
+	p.mu.Lock()
+	enabled := p.enabled && !p.closed
+	p.mu.Unlock()
+	if enabled {
+		return p.flush()
+	}
+	return nil
+}
+
 // Flush runs on the publisher's worker, after any in-flight attempt. Its
 // caller must hold the corresponding command admission closed.
 func (p *automaticPublisher) flush() error {

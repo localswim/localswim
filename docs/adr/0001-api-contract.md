@@ -54,6 +54,17 @@ the board remains open. Board metadata, catalog entries and shared event
 streams remain readable across close and reopen. The same board ID, URL and
 stored cards survive the transition.
 
+Process lifecycle operations require workspace administration. Shutdown uses
+`PATCH /service` with the current service validator. Activation uses
+`POST /activations` with a validated build UUID and the current service
+validator. The receipt can be inspected by its UUID after reconnecting. Both
+operations drain admitted work and streams and flush enabled board and workspace
+publishers. A failed flush leaves the service running. Successful activation
+retains the bound port and board URLs, creates a new service instance, and
+rotates the browser capability. Configured Human and Bot runtime credentials
+remain valid for the local CLI. Read back the original request or service health
+after an uncertain response before deciding whether to submit again.
+
 Board recovery preserves existing global user configuration. A recovery candidate with an unknown or incompatible user identity refuses before mutation.
 
 A resolved workflow must permit creation in at least one active lane through a lane grant for a board member with the `create_card` capability. Every active lane reachable from a creation lane must have a path through allowed directed transitions to the Completed lane. Transitions along a path may be performed by different actors. Apply the shared validator after shorthand expansion at board creation, on lane retirement, on policy updates, and during native snapshot admission.

@@ -236,8 +236,19 @@ response header in its result's `etag` property separately from the JSON `data`.
 For local build staging, place `candidate.json` and the native `candidate.exe`
 (Windows) or `candidate` (Unix) in the data directory. The manifest contains
 `version` and lowercase SHA-2-256 `sha256`. The `/service` response identifies the
-running service instance, and `/builds` reports staged validation. Activation is a
-separate milestone.
+running service instance, including the bound port. Use `service builds` to
+inspect the staged build. A workspace administrator can activate a validated
+build with `service activate BUILD_ID` and inspect the receipt with
+`service activation ACTIVATION_ID`. Activation returns an accepted receipt
+before the replacement takes over. The replacement uses the same data directory,
+actual port, and board URLs. The browser obtains a new session capability.
+
+Use `service stop` for an authorized graceful shutdown. Activation and shutdown
+drain admitted writes and event streams and flush enabled board and workspace
+publishing. A failed final publication refuses the transition. The service
+stays available, with a fixed failure code in `service status` and details in
+the affected publisher status. After an uncertain response, inspect service
+health and the original activation ID before deciding whether to submit again.
 
 Attachment bytes use `attachments/<board UUID>/<card UUID>/<attachment UUID>`
 inside the data directory. The original filename, size, and SHA-2-256 digest are

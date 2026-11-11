@@ -2575,7 +2575,8 @@ function renderServiceControls(canManage, isCurrent) {
     /** @type {LifecycleOperation} */
     const operation = { prior, activation, acknowledged: false };
     const submittingCapability = capability;
-    writing = busy = true;
+    startWriting();
+    busy = true;
     pendingLifecycle = operation;
     sync();
     outcome.textContent = activation ? "Requesting build activation…" : "Requesting shutdown…";
@@ -2631,7 +2632,8 @@ function renderServiceControls(canManage, isCurrent) {
         }
       }
     } finally {
-      writing = busy = false;
+      busy = false;
+      finishWriting();
       sync();
       if (!isCurrent()) void refreshActiveService?.();
     }

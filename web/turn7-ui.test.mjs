@@ -3629,6 +3629,50 @@ test("a lifecycle refusal arriving after navigation updates the active service p
   assert.match(main.querySelector("#service-operation-status").textContent, /Final publication failed/);
 });
 
+test("returning to a board during shutdown unlocks its staged files when the refusal arrives", async () => {
+  const response = Promise.withResolvers();
+  const {api} = boardApi();
+  let requests = 0;
+  const ui = await harness(workspaceServiceApi({
+    ...api,
+    getSession: async () => ({data: {kind: "human", principal_id: user, workspace_admin: true}}),
+    getService: async () => ({data: runningService}),
+    listBuilds: async () => page("builds", []),
+    stopService: async () => {
+      requests++;
+      await response.promise;
+      throw new ApiError("final_publication_failed", {status: 503});
+    },
+  }));
+  await ui.load();
+  const {main} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
+  const originalPicker = ui.field(main, "Files to attach");
+  originalPicker.files = [{name: "staged.txt", size: 1}];
+  originalPicker.dispatch("change");
+
+  await ui.navigate("/");
+  const stop = ui.find(main, "button", "Shut down service");
+  await until(() => !stop.disabled);
+  stop.click();
+  const back = ui.popstate("/boards/" + board);
+  let picker;
+  let remove;
+  try {
+    await until(() => ui.field(main, "Files to attach"));
+    picker = ui.field(main, "Files to attach");
+    remove = ui.find(main, "button", "Remove staged.txt");
+    assert.equal(picker.disabled, true);
+    assert.equal(remove.disabled, true);
+  } finally {
+    response.resolve();
+    await back;
+  }
+  assert.equal(requests, 1);
+  assert.equal(picker.disabled, false);
+  assert.equal(remove.disabled, false);
+});
+
 test("aborting a lifecycle read does not cancel a shared session bootstrap", async () => {
   let finish;
   let sessions = 0;

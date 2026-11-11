@@ -215,7 +215,7 @@ func testAttachmentReadback(t *testing.T, requestedID, source string) {
 	out.Reset()
 	stderr.Reset()
 	code = runCLIWithInput([]string{"attachment", "get", id}, strings.NewReader(""), &out, &stderr, t03Env(server.URL))
-	if code != 0 || out.String() != string(attachmentFixture(id, want))+"\n" {
+	if code != 0 || !equalCLIJSON(t, out.Bytes(), attachmentFixture(id, want)) {
 		t.Fatalf("focused attachment readback failed: %d %s", code, &stderr)
 	}
 }
@@ -299,7 +299,7 @@ func TestAttachmentUploadRevisionChecksParentCard(t *testing.T) {
 				if code != 1 || posts != 0 || !strings.Contains(stderr.String(), "revision mismatch") {
 					t.Fatal("stale parent card was accepted")
 				}
-			} else if code != 0 || posts != 1 || !strings.Contains(stdout.String(), `"revision":23`) {
+			} else if code != 0 || posts != 1 || !strings.Contains(stdout.String(), `"revision": 23`) {
 				t.Fatalf("matching parent revision rejected: %s", &stderr)
 			}
 		})

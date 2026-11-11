@@ -164,7 +164,15 @@ func executeT06(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 			return fmt.Errorf("%w. Service returned a different backup ID. Inspect backup %s before retrying", client.ErrMutationOutcomeUnknown, requested.ID)
 		}
 	}
-	if _, err := fmt.Fprintln(stdout, string(reply.JSON)); err != nil {
+	if cmd.t06Action == "ticket-order preview" {
+		fields, parseErr := cliInputFields(reply.JSON)
+		if parseErr != nil || reply.BoardETag == "" {
+			return errors.New("service did not return a valid preview board validator")
+		}
+		fields["expected_board_etag"], _ = json.Marshal(reply.BoardETag)
+		reply.JSON, _ = json.Marshal(fields)
+	}
+	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
 		if cmd.t06Action == "backup create" {
 			var identity struct {
 				ID string `json:"id"`

@@ -98,6 +98,16 @@ function validBackup(value, boardId, id) {
     && new Set(backup.attachment_ids).size === backup.attachment_ids.length;
 }
 
+/** @param {object} value @param {string} id @param {string} boardId @param {string} backupId */
+function validPublication(value, id, boardId, backupId) {
+  const item = /** @type {Record<string, unknown>} */ (value);
+  return Object.keys(item).length === 8 && item.id === id && item.board_id === boardId
+    && item.backup_id === backupId && item.workspace === false && isTimestamp(item.created_at)
+    && ["queued", "running", "succeeded", "failed"].includes(String(item.state))
+    && (item.finished_at === null || isTimestamp(item.finished_at))
+    && (item.error_code === null || (typeof item.error_code === "string" && /^[a-z0-9_]{1,80}$/.test(item.error_code)));
+}
+
 /** @param {object} data @param {string} [id] @param {string} [boardId] */
 function validLane(data, id, boardId) {
   const lane = /** @type {Record<string, unknown>} */ (data);
@@ -348,10 +358,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /**
    * @param {string} path
-   * @param {{ method?: string, data?: unknown, form?: FormData, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal }} [options]
+   * @param {{ method?: string, data?: unknown, form?: FormData, raw?: Blob, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal }} [options]
    */
-  async function send(path, { method = "GET", data, form, etag, ifNoneMatch, boardEtag, accept = "application/json", signal } = {}) {
-    const body = data === undefined ? form : JSON.stringify(data);
+  async function send(path, { method = "GET", data, form, raw, etag, ifNoneMatch, boardEtag, accept = "application/json", signal } = {}) {
+    const body = raw ?? (data === undefined ? form : JSON.stringify(data));
     let headers;
     try {
       const capability = await getCapability();
@@ -369,6 +379,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     if (data !== undefined) {
       headers.set("Content-Type", "application/json");
     }
+    if (raw !== undefined) headers.set("Content-Type", raw.type || "application/zip");
     if (etag !== undefined) {
       headers.set("If-Match", etag);
     }
@@ -553,6 +564,73 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       return { data, etag: tag };
     },
+    /** @param {string} boardId @param {string} laneId @param {string} boardEtag
+     * @param {{card_id: string, ticket: number}[]} proposed */
+    async applyTicketOrder(boardId, laneId, boardEtag, proposed) {
+      const board = resourceId(boardId).toLowerCase();
+      const lane = resourceId(laneId).toLowerCase();
+      const ids = proposed.map(({ card_id }) => resourceId(card_id).toLowerCase());
+      if (ids.length > 1000 || new Set(ids).size !== ids.length
+          || proposed.some(({ ticket }) => !isInteger(ticket) || ticket < 1)
+          || new Set(proposed.map(({ ticket }) => ticket)).size !== ids.length) throw new TypeError("Invalid ticket preview.");
+      const response = await send("/ticket-orders/" + lane, { method: "PUT", data: {
+        board_id: board, expected_board_etag: strongTag(boardEtag), card_ids: ids,
+      } });
+      const data = /** @type {Record<string, unknown>} */ (await responseObject(response, true));
+      if (response.status !== 200 || data.board_id !== board || data.lane_id !== lane
+          || !isInteger(data.board_revision) || data.board_revision < 1
+          || response.headers.get("X-Board-ETag") !== versionTag(board, data.board_revision)
+          || typeof data.changed !== "boolean" || !Array.isArray(data.selected_card_ids)
+          || data.selected_card_ids.length !== ids.length || new Set(data.selected_card_ids).size !== ids.length
+          || !data.selected_card_ids.every((id) => ids.includes(id))
+          || !Array.isArray(data.current) || data.current.length !== ids.length
+          || new Set(data.current.map((entry) => entry?.card_id)).size !== ids.length
+          || new Set(data.current.map((entry) => entry?.ticket)).size !== ids.length
+          || !data.current.every((entry) => entry && ids.includes(entry.card_id) && proposed.some((item) => item.ticket === entry.ticket))
+          || !Array.isArray(data.proposed)
+          || data.proposed.length !== ids.length || new Set(data.proposed.map((entry) => entry?.card_id)).size !== ids.length
+          || !data.proposed.every((entry) => entry && proposed.some((item) => item.card_id.toLowerCase() === entry.card_id && item.ticket === entry.ticket))) {
+        throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
+      }
+      if (data.changed !== data.current.some((entry) => proposed.find((item) => item.card_id.toLowerCase() === entry.card_id)?.ticket !== entry.ticket)) {
+        throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
+      }
+      return { data, etag: response.headers.get("X-Board-ETag") };
+    },
+    /** @param {string} boardId @param {string} snapshotEtag @param {Blob} file */
+    async restoreSnapshot(boardId, snapshotEtag, file) {
+      const board = resourceId(boardId).toLowerCase();
+      const response = await send("/snapshots/" + board, { method: "PUT", etag: strongTag(snapshotEtag), raw: file });
+      const data = /** @type {Record<string, unknown>} */ (await responseObject(response, true));
+      if (response.status !== 200 || data.id !== board || !isInteger(data.revision) || data.revision < 1
+          || response.headers.get("X-Board-ETag") !== versionTag(board, data.revision)) {
+        throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
+      }
+      return { data, etag: null };
+    },
+    /** @param {string} id @param {string} boardId @param {string} backupId */
+    async publishBackup(id, boardId, backupId) {
+      const publication = resourceId(id).toLowerCase();
+      const board = resourceId(boardId).toLowerCase();
+      const backup = resourceId(backupId).toLowerCase();
+      const response = await send("/publications", { method: "POST", data: {
+        id: publication, board_id: board, backup_id: backup,
+      } });
+      const data = await responseObject(response, true);
+      if (response.status !== 202 || response.headers.get("Location") !== API_PREFIX + "/publications/" + publication
+          || !validPublication(data, publication, board, backup)) {
+        throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
+      }
+      return { data, etag: response.headers.get("ETag") };
+    },
+    /** @param {string} id @param {string} boardId @param {string} backupId */
+    async getPublication(id, boardId, backupId) {
+      const reply = await request("/publications/" + resourceId(id));
+      if (!STRONG_ETAG.test(reply.etag ?? "") || !validPublication(reply.data, id, boardId, backupId)) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      return reply;
+    },
     /** @param {string} id @param {string} boardId @param {string} boardEtag */
     async createBackup(id, boardId, boardEtag) {
       const backup = resourceId(id).toLowerCase();
@@ -634,9 +712,9 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /**
      * @param {unknown} boardId
-     * @param {{ ticket?: number, limit?: number, cursor?: string, archived?: "include"|"only" }} [filters]
+     * @param {{ ticket?: number, limit?: number, cursor?: string, archived?: "include"|"only", q?: string, searchContent?: boolean, sort?: "ticket"|"triage", laneId?: string }} [filters]
      */
-    listCards(boardId, { ticket, limit, cursor, archived } = {}) {
+    listCards(boardId, { ticket, limit, cursor, archived, q, searchContent, sort, laneId } = {}) {
       const query = new URLSearchParams({ board_id: resourceId(boardId) });
       if (ticket !== undefined) {
         if (!Number.isSafeInteger(ticket) || ticket < 1) {
@@ -644,7 +722,17 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         }
         query.set("ticket", String(ticket));
       }
-      if (limit !== undefined) query.set("limit", String(limit));
+      if (limit !== undefined) {
+        if (!isInteger(limit) || limit < 1 || limit > 200) throw new TypeError("Expected a limit from 1 to 200.");
+        query.set("limit", String(limit));
+      }
+      if (q !== undefined) query.set("q", q);
+      if (searchContent !== undefined) query.set("search_content", String(searchContent));
+      if (sort !== undefined) {
+        if (!["ticket", "triage"].includes(sort)) throw new TypeError("Expected a supported card order.");
+        query.set("sort", sort);
+      }
+      if (laneId !== undefined) query.set("lane_id", resourceId(laneId));
       if (archived !== undefined) query.set("archived", archived);
       if (cursor !== undefined) {
         query.set("cursor", cursor);

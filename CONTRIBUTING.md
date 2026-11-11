@@ -120,6 +120,38 @@ before attempting another capture.
 one transaction. Inspect the inactive record with `attachment get`. The original
 metadata and immutable bytes remain available for backup.
 
+Search and next-work queries compute distinct unfinished downstream counts over the whole board
+before lane, archive, search, cursor and limit filters. Completed cards stop paths. Archived unfinished
+cards participate. The triage score is (priority rank + 1) * 100 - downstream count, followed by
+priority rank and ticket. Numeric relationship lookup retains ticket order. Search uses full Unicode
+case folding without normalization. Checked-in exceptions reproduce Python 3.15.2 casefold
+against Go 1.27 Unicode lowercase mappings.
+
+Ticket-order apply consumes the original preview validator and its exact deterministic proposed
+order. It recomputes the selected pool and full dependency paths in one transaction. A stale preview
+refuses. A real permutation changes only selected ticket numbers, card revisions and renumber audit.
+UUID attachment paths and existing history remain intact. An unchanged order preserves the revision.
+
+Native recovery accepts JSON snapshots or application/zip backups at the existing board address.
+Both request entities have an inclusive 96 MiB limit. PUT uses the current durable snapshot
+representation validator when the snapshot is readable. When durable state is unavailable, a previously
+obtained tag for the last accepted snapshot can authorize admission. Stored backup restoration uses the
+live board validator and returns an inspectable receipt.
+Validate policy, complete audit and every active or detached attachment before publishing. Recovery
+preserves the board UUID and shared global user configuration and allocates a revision above the live,
+readable durable and source revisions. Recovered mutable resources use the recovery commit version.
+Inspect accepted state after an uncertain result. A later restore can supersede a prior receipt by
+admitting an earlier audit history.
+
+Manual publication discovers the Git worktree enclosing the service data directory. It requires
+an initial commit, local branch, configured identity and an origin remote. The publication commit's
+changes consist of the captured native snapshot and exact audited attachment paths. The push follows
+normal Git ancestry. Publication uses a private index under the persistent
+Git common-directory localswim-autopush.lock. The caller's index and unrelated staged work remain
+intact. Unsupported hooks, external content filters and filesystem monitors refuse before object
+publication. Inspect the original publication UUID after an uncertain result. Automatic board
+publishing and workspace preferences publishing are later milestones.
+
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
 Unicode. Entity and build IDs are immutable UUIDv4 values. The service_instance_id
 uses UUIDv7, with the instance creation time encoded as Unix milliseconds.

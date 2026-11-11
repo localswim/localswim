@@ -104,7 +104,7 @@ func TestM21TicketOrderHTTP(t *testing.T) {
 		client.call("GET", path+query, "", "", 400)
 	}
 	client.call("GET", "/ticket-orders/"+newID(), "", "", 404)
-	client.call("PUT", path, `{}`, "", 405)
+	client.call("PUT", path, `{}`, "", 400)
 	anonymous := turnOneClient{t, server.URL, "", server.Client()}
 	anonymous.call("GET", path, "", "", 401)
 	after, err := app.store.durable(board.ID)

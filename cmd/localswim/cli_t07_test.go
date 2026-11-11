@@ -1,0 +1,154 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+func TestT07ParseRequiredInputs(t *testing.T) {
+	for _, args := range [][]string{
+		{"card", "search", "--search", "text", "--search-content", t03Board},
+		{"card", "next", "--lane", t03Lane, t03Board},
+		{"card", "lookup", t03Board},
+		{"ticket-order", "apply", t03Lane, "-"},
+		{"board", "restore", "--revision", "12", t03Board, "-"},
+		{"restoration", "create", "--id", t03Card, t03Board, t03Lane},
+		{"publication", "create", "--id", t03Card, t03Board, t03Lane},
+		{"restoration", "get", t03Card},
+		{"publication", "get", t03Card},
+	} {
+		if _, err := parseCLI(args); err != nil {
+			t.Errorf("%v: %v", args, err)
+		}
+	}
+	for _, args := range [][]string{
+		{"board", "restore", t03Board},
+		{"ticket-order", "apply", t03Lane},
+		{"publication", "create", t03Board},
+		{"restoration", "create", "--id", "bad", t03Board, t03Lane},
+		{"restoration", "create", "--id", "bad", "--revision", "12", t03Board, t03Lane},
+		{"card", "search", "--lane", "bad", t03Board},
+		{"card", "next", "--limit", "0", t03Board},
+	} {
+		if _, err := parseCLI(args); err == nil {
+			t.Errorf("accepted %v", args)
+		}
+	}
+}
+
+func TestT07SearchOrderAndPrettyJSON(t *testing.T) {
+	for _, action := range []string{"search", "next", "lookup"} {
+		t.Run(action, func(t *testing.T) {
+			requests := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				q := r.URL.Query()
+				sort := "triage"
+				if action == "lookup" {
+					sort = "ticket"
+				}
+				if r.Method != http.MethodGet || r.URL.Path != t03Root+"/cards" || q.Get("sort") != sort || q.Get("q") != "literal [text]" || q.Get("search_content") != "true" {
+					t.Error("incorrect search request")
+				}
+				io.WriteString(w, `{"cards":[],"next_cursor":null}`)
+			}))
+			defer server.Close()
+			var out, errout bytes.Buffer
+			code := runCLIWithInput([]string{"card", action, "--search", "literal [text]", "--search-content", t03Board}, strings.NewReader(""), &out, &errout, t03Env(server.URL))
+			if code != 0 || requests != 1 || !strings.Contains(out.String(), "\n  \"cards\"") {
+				t.Fatalf("code=%d requests=%d error=%s", code, requests, &errout)
+			}
+		})
+	}
+}
+
+func TestT07ApplyUsesSavedValidatorAndNeverRetries(t *testing.T) {
+	for _, status := range []int{http.StatusPreconditionFailed, http.StatusInternalServerError} {
+		requests := 0
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests++
+			var body struct {
+				BoardID  string   `json:"board_id"`
+				Expected string   `json:"expected_board_etag"`
+				IDs      []string `json:"card_ids"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if r.Method != http.MethodPut || body.Expected != t03BoardTag || body.BoardID != t03Board || len(body.IDs) != 1 || body.IDs[0] != t03Card {
+				t.Error("incorrect saved preview request")
+			}
+			w.WriteHeader(status)
+		}))
+		input := fmt.Sprintf(`{"board_id":%q,"lane_id":%q,"expected_board_etag":%q,"proposed":[{"card_id":%q,"ticket":1}]}`, t03Board, t03Lane, t03BoardTag, t03Card)
+		var out, errout bytes.Buffer
+		code := runCLIWithInput([]string{"ticket-order", "apply", t03Lane, "-"}, strings.NewReader(input), &out, &errout, t03Env(server.URL))
+		server.Close()
+		if code == 0 || requests != 1 {
+			t.Fatalf("code=%d requests=%d", code, requests)
+		}
+	}
+}
+
+func TestT07RestoreNativeBytesAndStaleRefusal(t *testing.T) {
+	for _, input := range []string{`{"format_version":2}`, "PK\x03\x04native-zip"} {
+		for _, revision := range []string{"12", "11"} {
+			writes := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet {
+					w.Header().Set("ETag", t03BoardTag)
+					if r.URL.Path != t03Root+"/snapshots/"+t03Board {
+						t.Error("restore preflight must read snapshot validator")
+					}
+					io.WriteString(w, `{"board":{"revision":12}}`)
+					return
+				}
+				writes++
+				received, _ := io.ReadAll(r.Body)
+				contentType := "application/json"
+				if strings.HasPrefix(input, "PK") {
+					contentType = "application/zip"
+				}
+				if string(received) != input || r.Header.Get("Content-Type") != contentType || r.Header.Get("If-Match") != t03BoardTag {
+					t.Error("restore bytes or validator changed")
+				}
+				w.Header().Set("X-Board-ETag", t03ResourceTag)
+				io.WriteString(w, `{"revision":13}`)
+			}))
+			var out, errout bytes.Buffer
+			code := runCLIWithInput([]string{"board", "restore", "--revision", revision, t03Board, "-"}, strings.NewReader(input), &out, &errout, t03Env(server.URL))
+			server.Close()
+			if revision == "12" && (code != 0 || writes != 1) {
+				t.Fatalf("restore failed %s", &errout)
+			}
+			if revision == "11" && (code == 0 || writes != 0) {
+				t.Fatal("stale restore wrote")
+			}
+		}
+	}
+}
+
+func TestT07OperationUnknownKeepsOriginalID(t *testing.T) {
+	for _, group := range []string{"publication", "restoration"} {
+		writes := 0
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet {
+				w.Header().Set("ETag", t03BoardTag)
+				io.WriteString(w, `{"revision":12}`)
+				return
+			}
+			writes++
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		var out, errout bytes.Buffer
+		code := runCLIWithInput([]string{group, "create", "--id", t03Card, t03Board, t03Lane}, strings.NewReader(""), &out, &errout, t03Env(server.URL))
+		server.Close()
+		if code == 0 || writes != 1 || !strings.Contains(errout.String(), t03Card) || !strings.Contains(errout.String(), "Mutation outcome unknown") {
+			t.Fatalf("lost operation identity %s", &errout)
+		}
+	}
+}

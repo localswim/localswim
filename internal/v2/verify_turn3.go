@@ -63,7 +63,6 @@ func (refs snapshotReferences) validResourceCreation(event activity, cardCreatio
 		original.UpdatedAt = original.CreatedAt
 		return item.ID != "" && event.Operation == "attach" && capabilities["manage_attachments"] &&
 			item.AddedBy == event.ActorID && item.CreatedAt.Equal(event.At) &&
-			(!item.Active || item.Revision == event.Revision) &&
 			event.After != nil && *event.After == attachmentAuditValue(original) &&
 			cardCreations[item.CardID] > 0 && cardCreations[item.CardID] < event.Revision
 	case "lane":
@@ -225,6 +224,9 @@ func (refs snapshotReferences) currentCardAuditValue(field snapshotAuditField) *
 		return &item.Description
 	case "owner_id":
 		return &item.OwnerID
+	case "ticket":
+		ticket := strconv.FormatUint(item.Ticket, 10)
+		return &ticket
 	case "priority_id":
 		return &item.PriorityID
 	case "lane_id":

@@ -38,7 +38,7 @@ func TestT05CLIActivityBoundsAndViews(t *testing.T) {
 			}
 			var stdout, stderr bytes.Buffer
 			code := runCLIWithInput(append(args, t03Board), strings.NewReader(""), &stdout, &stderr, t03Env(server.URL))
-			if code != 0 || reads.Load() != 1 || stdout.String() != "{\"activities\":[],\"next_cursor\":null}\n" {
+			if code != 0 || reads.Load() != 1 || !equalCLIJSON(t, stdout.Bytes(), []byte(`{"activities":[],"next_cursor":null}`)) {
 				t.Fatalf("activity result %d, reads %d, stdout %q, stderr %q", code, reads.Load(), &stdout, &stderr)
 			}
 		})

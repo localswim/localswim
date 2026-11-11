@@ -565,7 +565,7 @@ func (refs snapshotReferences) validRelationshipLink(link relationshipLink) bool
 		refs.cards[link.TargetCardID].ID != "" && validRelationshipKind(link.Kind)
 }
 
-func (refs snapshotReferences) validateRelationshipAudit(value snapshot, cardCreations map[string]uint64) error {
+func (refs snapshotReferences) validateRelationshipAudit(value snapshot, cardCreations map[string]uint64, recoveryRevision uint64) error {
 	active := make(map[string]relationship, len(value.Relationships))
 	for _, item := range value.Relationships {
 		active[item.ID] = item
@@ -640,7 +640,7 @@ func (refs snapshotReferences) validateRelationshipAudit(value snapshot, cardCre
 	}
 	for id, item := range replay {
 		current := active[id]
-		if current.ID != id || current.Revision != item.Revision || current.relationshipLink != item.relationshipLink ||
+		if current.ID != id || current.Revision != max(item.Revision, recoveryRevision) || current.relationshipLink != item.relationshipLink ||
 			!current.CreatedAt.Equal(item.CreatedAt) || !current.UpdatedAt.Equal(item.UpdatedAt) {
 			return invalidSnapshot("activity", "Relationship audit does not match the active relationships.")
 		}

@@ -123,3 +123,36 @@ inventory. **Download backup** retrieves the ZIP through authenticated fetch,
 checks its exact size and SHA-2-256 digest, and then offers the download. A lost
 capture response is inspected using the original generated backup UUID. Capture
 is never replayed automatically. A later explicit capture uses a fresh UUID.
+
+## Turn 7 find, renumber, restore, and publish
+
+Expand **Find cards** to search a literal title or ticket. **Search descriptions
+and comments** opts into content matching. **Next work** uses the service's
+whole-board triage score before lane filtering and the result limit (1–200). **Ticket
+number** keeps numeric order for lookup. Search results open the usual card
+drawer. When a board change makes the displayed results stale, the search keeps
+your filters and prompts you to run it again. Relationship ticket lookup keeps
+its default numeric order.
+
+A changed **Preview ticket order** offers **Apply ticket order**. Apply submits
+the captured board validator and proposed ordered card UUIDs exactly once.
+Readback checks the new assignments. A stale preview refuses and requires a fresh
+preview. The service preserves card UUIDs and attachment anchors.
+
+In **Board actions**, choose a **Native backup ZIP** and submit **Restore native
+backup**. The page reads the snapshot validator, checks that its board revision
+matches the rendered board, and sends one conditional ZIP PUT. Damaged backups
+are refused. A successful restore refreshes the board at the same address. Card
+and board text drafts remain available. An open drawer refreshes saved card fields,
+comments, and attachment rows. When a restored board omits the open card, the
+drawer retains its drafts and disables its write controls. An uncertain response
+requires saved-state inspection before another explicit submission.
+
+After **Create backup**, **Publish backup** publishes that exact captured backup.
+The service data root must already be inside a Git worktree with an initial
+commit, local branch, configured identity, and origin remote. The page displays
+the publication outcome and fixed error code. It retains the generated publication
+UUID for focused readback after an uncertain response. **Refresh publication
+status** stays available while the publication is queued or running, including
+after navigating away and returning. A new submission requires a terminal status.
+Publication does not require a board ETag because its selected backup is immutable.

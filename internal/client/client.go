@@ -30,8 +30,9 @@ type Client struct {
 }
 
 type Response struct {
-	JSON json.RawMessage
-	ETag string
+	JSON      json.RawMessage
+	ETag      string
+	BoardETag string
 }
 
 func New(origin, token string) (*Client, error) {
@@ -91,6 +92,9 @@ func (c *Client) DoWithContentType(method, resource string, body []byte, ifMatch
 		expected := http.StatusOK
 		if method == http.MethodPost {
 			expected = http.StatusCreated
+			if pathWithoutQuery(resource) == "/publications" {
+				expected = http.StatusAccepted
+			}
 		}
 		if reply.StatusCode != expected {
 			return Response{}, responseError(fmt.Sprintf("service returned unexpected HTTP %d", reply.StatusCode), true)
@@ -105,7 +109,11 @@ func (c *Client) DoWithContentType(method, resource string, body []byte, ifMatch
 			if !validBoardTag {
 				return Response{}, responseError("service did not return one canonical strong X-Board-ETag", true)
 			}
-		} else if etag == "" && !(method == http.MethodPost && request.URL.Path == apiPath+"/backups") {
+		} else if method == http.MethodPut && (strings.HasPrefix(pathWithoutQuery(resource), "/ticket-orders/") || strings.HasPrefix(pathWithoutQuery(resource), "/snapshots/")) {
+			if !validBoardTag {
+				return Response{}, responseError("service did not return a strong board validator", true)
+			}
+		} else if etag == "" && !(method == http.MethodPost && (request.URL.Path == apiPath+"/backups" || request.URL.Path == apiPath+"/publications" || request.URL.Path == apiPath+"/restorations")) {
 			return Response{}, responseError("service did not return one canonical strong ETag", true)
 		}
 		if requiresBoardTag(method, request.URL.Path[len(apiPath):]) && !validBoardTag {
@@ -124,7 +132,11 @@ func (c *Client) DoWithContentType(method, resource string, body []byte, ifMatch
 		strings.HasPrefix(pathWithoutQuery(resource), "/backups")) && !validT06Response(resource, data) {
 		return Response{}, responseError("service returned invalid batch, ticket-order, or backup metadata", mutation)
 	}
-	return Response{JSON: data, ETag: etag}, nil
+	var boardETag string
+	if tags := reply.Header.Values("X-Board-ETag"); len(tags) == 1 && IsEntityTag(tags[0]) {
+		boardETag = tags[0]
+	}
+	return Response{JSON: data, ETag: etag, BoardETag: boardETag}, nil
 }
 
 func (c *Client) newRequest(method, resource string, body []byte, ifMatch, contentType, accept string) (*http.Request, error) {
@@ -155,7 +167,7 @@ func (c *Client) newRequest(method, resource string, body []byte, ifMatch, conte
 func requiresBoardTag(method, path string) bool {
 	if method == http.MethodPost {
 		switch path {
-		case "/cards", "/comments", "/lanes", "/attachments", "/relationships":
+		case "/cards", "/comments", "/lanes", "/attachments", "/relationships", "/restorations":
 			return true
 		}
 	}

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "check": "node node_modules/typescript/lib/tsc.js --project tsconfig.json --noEmit",
-    "test": "node --test api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn6.test.mjs"
+    "test": "node --test api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn6.test.mjs turn7.test.mjs turn7-ui.test.mjs"
   },
   "devDependencies": {
     "typescript": "7.0.2"

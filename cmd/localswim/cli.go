@@ -72,6 +72,15 @@ const cliHelp = `Usage:
   localswim backup create [--revision N] [--id UUID] BOARD_ID
   localswim backup get BACKUP_ID
   localswim backup download BACKUP_ID FILE|-
+  localswim card search [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
+  localswim card next [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
+  localswim card lookup [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
+  localswim ticket-order apply LANE_ID FILE|-
+  localswim board restore [--revision N] BOARD_ID FILE|-
+  localswim restoration create [--revision N] [--id UUID] BOARD_ID BACKUP_ID
+  localswim restoration get RESTORATION_ID
+  localswim publication create [--id UUID] BOARD_ID BACKUP_ID
+  localswim publication get PUBLICATION_ID
   localswim service status
   localswim service builds [--limit N] [--cursor CURSOR]
 
@@ -101,7 +110,16 @@ Card set-priorities reads card_ids and priority_id and checks the board revision
 The batch evaluates all selected cards together and returns effective priorities and changes.
 Board get --view lanes returns visible cards in their swimlane order.
 Ticket-order preview defaults to all active lane cards. Optional card IDs select the ticket pool.
-Preview is read-only and returns the board revision and proposed ticket numbers.
+Preview is read-only and returns the board revision, expected_board_etag, and proposed ticket numbers.
+Ticket-order apply reads that saved preview and uses its original validator. Stale previews refuse.
+Card search and next use whole-board triage ordering. Lookup uses numeric ticket order.
+--search matches literal titles and ticket numbers. --search-content includes readable descriptions and comments.
+Board restore requires a native JSON snapshot or ZIP backup file, or - for raw stdin.
+Direct restore reads the current durable snapshot validator before writing.
+Use restoration create with a stored backup if the durable snapshot cannot be read.
+Publication create publishes a stored backup.
+Operation creates generate an ID when --id is omitted. Inspect the original operation ID after an unknown outcome.
+Restoration get and publication get inspect that original operation without replaying it.
 Backup create captures the current board and audited attachment bytes and checks the board revision.
 Backup create generates an ID when --id is omitted and reports it on an unknown outcome.
 Use backup get with that ID before considering another capture.
@@ -163,6 +181,7 @@ type cliCommand struct {
 	downloadPath                       string
 	detachAttachment                   bool
 	t06Action                          string
+	t07Action                          string
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -205,6 +224,9 @@ func parseCLI(args []string) (cliCommand, error) {
 
 	name := args[0] + " " + args[1]
 	optionArgs := args[2:]
+	if name == "card search" || name == "card next" || name == "card lookup" || name == "ticket-order apply" || name == "board restore" || strings.HasPrefix(name, "restoration ") || strings.HasPrefix(name, "publication ") {
+		return parseT07(name, optionArgs)
+	}
 	if name == "card set-priorities" || name == "ticket-order preview" || strings.HasPrefix(name, "backup ") {
 		return parseT06(name, optionArgs)
 	}
@@ -452,6 +474,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	if err != nil {
 		return err
 	}
+	if command.t07Action != "" {
+		return executeT07(api, command, stdin, stdout)
+	}
 	if command.t06Action != "" {
 		return executeT06(api, command, stdin, stdout)
 	}
@@ -528,7 +553,7 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		}
 		return err
 	}
-	if _, err := fmt.Fprintln(stdout, string(reply.JSON)); err != nil {
+	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
 		if command.edit.uploadID != "" {
 			return fmt.Errorf("service accepted attachment %s, but its response could not be written", command.edit.uploadID)
 		}

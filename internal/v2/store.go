@@ -95,6 +95,7 @@ func (s *store) load() error {
 	slices.SortFunc(entries, func(a, b os.DirEntry) int {
 		return strings.Compare(a.Name(), b.Name())
 	})
+	loadedIDs := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		id, isSnapshot := strings.CutSuffix(entry.Name(), ".json")
 		if !isSnapshot {
@@ -107,10 +108,15 @@ func (s *store) load() error {
 		if err != nil {
 			return fmt.Errorf("load board %s: %w", id, err)
 		}
-		if err := s.checkIdentities(value, false); err != nil {
+		s.boards[id] = value
+		loadedIDs = append(loadedIDs, id)
+	}
+	// No boards are served until every snapshot passes cross-board checks.
+	// Recovery actors can be backed by any board, independent of load order.
+	for _, id := range loadedIDs {
+		if err := s.checkIdentities(s.boards[id], false); err != nil {
 			return fmt.Errorf("load board %s: %w", id, err)
 		}
-		s.boards[id] = value
 	}
 	return nil
 }
@@ -351,7 +357,7 @@ func (s *store) checkIdentities(value snapshot, reuseUsers bool) error {
 		resourceIDs(value.Lanes, func(l lane) string { return l.ID }),
 		resourceIDs(value.Comments, func(c comment) string { return c.ID }),
 		resourceIDs(value.Attachments, func(a attachment) string { return a.ID })
-	additionalIDs := relationshipAndApprovalIDs(value.Activity)
+	additionalIDs := auditedResourceIDs(value.Activity)
 	for id, other := range s.boards {
 		if id == value.Board.ID {
 			continue
@@ -361,22 +367,12 @@ func (s *store) checkIdentities(value snapshot, reuseUsers bool) error {
 			hasResourceID(other.Comments, commentIDs, func(c comment) string { return c.ID }) ||
 			hasResourceID(other.Attachments, attachmentIDs, func(a attachment) string { return a.ID }) ||
 			snapshotContainsIdentity(other, additionalIDs) ||
-			snapshotContainsIdentity(value, relationshipAndApprovalIDs(other.Activity)) {
+			snapshotContainsIdentity(value, auditedResourceIDs(other.Activity)) {
 			return errIdentityConflict
 		}
 	}
-	known := make(map[string]user)
-	for _, principal := range s.principals {
-		known[principal.ID] = principal
-	}
-	for _, other := range s.boards {
-		for _, member := range other.Users {
-			previous, exists := known[member.ID]
-			if !exists || member.CreatedAt.Before(previous.CreatedAt) {
-				known[member.ID] = member
-			}
-		}
-	}
+	known := s.globalUsers(nil)
+
 	for index, member := range value.Users {
 		previous, exists := known[member.ID]
 		if exists && (member.Kind != previous.Kind || member.Label != previous.Label || member.Color != previous.Color) {
@@ -386,10 +382,23 @@ func (s *store) checkIdentities(value snapshot, reuseUsers bool) error {
 			value.Users[index] = previous
 		}
 	}
+	var after map[string]user
+	for _, event := range value.Activity {
+		if event.Operation != recoveryOperation {
+			continue
+		}
+		if after == nil {
+			after = s.globalUsers(&value)
+		}
+		evidence, ok := recoveryEventEvidence(event)
+		if !ok || after[event.ActorID].ID == "" || after[event.ActorID].Kind != evidence.ActorKind {
+			return errIdentityConflict
+		}
+	}
 	return nil
 }
 
-func relationshipAndApprovalIDs(events []activity) map[string]bool {
+func auditedResourceIDs(events []activity) map[string]bool {
 	var ids map[string]bool
 	for _, event := range events {
 		var id string
@@ -397,6 +406,12 @@ func relationshipAndApprovalIDs(events []activity) map[string]bool {
 		case event.ResourceType == "relationship":
 			id = event.ResourceID
 		case event.Operation == approvalOperation:
+			id = event.ID
+		case event.Operation == recoveryOperation:
+			evidence, ok := recoveryEventEvidence(event)
+			if !ok || evidence.BackupID == nil {
+				continue
+			}
 			id = event.ID
 		default:
 			continue
@@ -441,4 +456,36 @@ func hasResourceID[T any](items []T, ids map[string]bool, id func(T) string) boo
 		}
 	}
 	return false
+}
+
+// Choose the earliest durable user entity as in board creation. A stable board
+// order resolves equal creation timestamps consistently before and after restart.
+func (s *store) globalUsers(replacement *snapshot) map[string]user {
+	known := make(map[string]user)
+	for _, principal := range s.principals {
+		known[principal.ID] = principal
+	}
+	ids := make([]string, 0, len(s.boards)+1)
+	for id := range s.boards {
+		ids = append(ids, id)
+	}
+	if replacement != nil {
+		if _, exists := s.boards[replacement.Board.ID]; !exists {
+			ids = append(ids, replacement.Board.ID)
+		}
+	}
+	slices.Sort(ids)
+	for _, id := range ids {
+		members := s.boards[id].Users
+		if replacement != nil && replacement.Board.ID == id {
+			members = replacement.Users
+		}
+		for _, member := range members {
+			previous, exists := known[member.ID]
+			if !exists || member.CreatedAt.Before(previous.CreatedAt) {
+				known[member.ID] = member
+			}
+		}
+	}
+	return known
 }

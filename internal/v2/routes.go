@@ -63,6 +63,15 @@ func (x *request) dispatch() {
 			x.fail(errMissing)
 			return
 		}
+		methods = append(methods, "PUT")
+	case "publications":
+		if !hasID {
+			methods = append(methods, "POST")
+		}
+	case "restorations":
+		if !hasID {
+			methods = []string{"POST"}
+		}
 	case "events":
 		if hasID {
 			x.fail(errMissing)
@@ -112,6 +121,9 @@ func (x *request) dispatch() {
 		if !hasID {
 			x.fail(errMissing)
 			return
+		}
+		if resource == "snapshots" {
+			methods = append(methods, "PUT")
 		}
 	case "builds":
 	default:
@@ -232,7 +244,23 @@ func (x *request) dispatch() {
 			x.policyResource(id)
 		}
 	case "verifications", "snapshots":
-		x.recoveryResource(resource, id)
+		if x.r.Method == "PUT" {
+			x.admitSnapshot(id)
+		} else {
+			x.recoveryResource(resource, id)
+		}
+	case "restorations":
+		if hasID {
+			x.restorationResource(id)
+		} else {
+			x.restoreBackup()
+		}
+	case "publications":
+		if hasID {
+			x.publicationResource(id)
+		} else {
+			x.publicationsCollection()
+		}
 	case "backups":
 		if hasID {
 			x.backupResource(id)
@@ -240,7 +268,11 @@ func (x *request) dispatch() {
 			x.createBackup()
 		}
 	case "ticket-orders":
-		x.ticketOrderResource(id)
+		if x.r.Method == "PUT" {
+			x.applyTicketOrder(id)
+		} else {
+			x.ticketOrderResource(id)
+		}
 	case "service":
 		x.serviceStatus()
 	case "builds":

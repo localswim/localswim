@@ -9362,11 +9362,18 @@ paths:
         capability: restore
       x-milestones:
       - 30
-      description: If-Match refers to the current snapshot representation. Normalize input UUID spelling
-        before closed native schema validation, then validate full policy/audit and every referenced file.
-        Preserve target board UUID and allocate a revision above the current live revision. Failed admission
-        retains accepted state and reports durable health honestly. Inspect after an uncertain result.
+      description: If-Match refers to the current durable snapshot representation when readable. When durable
+        state is unavailable, a previously obtained tag matching the last accepted snapshot may authorize
+        admission. Snapshot export still reports failed durable health. Stored-backup restoration can use
+        the live board validator when the snapshot tag is unavailable. Normalize input UUID spelling before
+        closed native schema validation, then validate full policy/audit and every referenced file.
+        Preserve the target board UUID and allocate a revision above the live, readable durable and source
+        revisions. Recovered mutable resources receive the recovery commit version. Inspect accepted state
+        after an uncertain result.
         The normalized PUT response omits ETag; GET the target afterward for its new representation validator.
+        Direct application/zip admission validates the exact captured native snapshot and audited attachment
+        inventory before publication. JSON and ZIP request entities have an inclusive 96 MiB ceiling.
+        Malformed or damaged candidates refuse without changing the accepted board.
         Global User configurations are preserved. Unknown or kind-conflicting user UUIDs refuse with 409
         before publication; snapshot display metadata never rolls back another board's shared user.
       requestBody:
@@ -9375,6 +9382,11 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SnapshotInput'
+          application/zip:
+            schema:
+              type: string
+              format: binary
+            description: Native backup archive with its exact audited immutable attachment inventory.
     head:
       operationId: headExportSnapshot
       summary: Read headers without content
@@ -10538,6 +10550,8 @@ paths:
         requiresMembership: true
         capability: read
       x-milestones: []
+      description: Receipts come from the current admitted audit. A later restore can supersede earlier
+        recovery evidence. A missing receipt after a later recovery leaves the earlier outcome uncertain.
     head:
       operationId: headReadRestoration
       summary: Read headers without content

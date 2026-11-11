@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -71,76 +70,9 @@ func (x *request) listCards() {
 		x.fail(err)
 		return
 	}
-	rows := []card{}
-	for _, value := range state.Cards {
-		if filters.ticket != 0 && value.Ticket != filters.ticket ||
-			filters.laneID != "" && value.LaneID != filters.laneID ||
-			filters.archived != "include" && value.Archived != (filters.archived == "only") {
-			continue
-		}
-		rows = append(rows, value)
-	}
-	slices.SortFunc(rows, func(a, b card) int {
-		switch {
-		case a.Ticket < b.Ticket:
-			return -1
-		case a.Ticket > b.Ticket:
-			return 1
-		default:
-			return 0
-		}
-	})
-	page(x, "cards", rows)
-}
-
-type cardFilters struct {
-	ticket   uint64
-	laneID   string
-	archived string
-}
-
-func readCardFilters(r *http.Request) (cardFilters, error) {
-	result := cardFilters{}
-	fields := []string{"ticket", "lane_id", "archived", "sort", "q", "search_content"}
-	for _, field := range fields {
-		raw, err := singleQuery(r, field)
-		if err != nil {
-			return cardFilters{}, err
-		}
-		if raw == "" {
-			if r.URL.Query().Has(field) {
-				return cardFilters{}, invalid(field, "Expected a nonempty value.")
-			}
-			continue
-		}
-		switch field {
-		case "ticket":
-			value, err := strconv.ParseUint(raw, 10, 64)
-			if err != nil || value == 0 {
-				return cardFilters{}, invalid(field, "Expected a positive integer.")
-			}
-			result.ticket = value
-		case "lane_id":
-			value, valid := normalizeID(raw)
-			if !valid {
-				return cardFilters{}, invalid(field, "Expected a UUIDv4.")
-			}
-			result.laneID = value
-		case "archived":
-			value := strings.ToLower(raw)
-			if !slices.Contains([]string{"exclude", "include", "only"}, value) {
-				return cardFilters{}, invalid(field, "Expected exclude, include, or only.")
-			}
-			result.archived = value
-		case "sort":
-			if strings.ToLower(raw) != "ticket" {
-				return cardFilters{}, invalid(field, "This card order is unavailable.")
-			}
-		default:
-			return cardFilters{}, invalid(field, "Card search is unavailable.")
-		}
-	}
-	return result, nil
+	rows := selectCards(state, filters)
+	page(x, "cards", rows, id, filters.laneID, strconv.FormatUint(filters.ticket, 10),
+		filters.archived, filters.sort, filters.query, strconv.FormatBool(filters.searchContent))
 }
 
 func readCardCreation(fields map[string]json.RawMessage) (cardCreation, error) {

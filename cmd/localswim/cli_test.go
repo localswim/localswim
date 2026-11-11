@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -109,7 +110,7 @@ func TestCLIExportUsesSnapshotEndpoint(t *testing.T) {
 			env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
 			var stdout, stderr bytes.Buffer
 			exit := runCLIWithInput(args, strings.NewReader(""), &stdout, &stderr, func(key string) string { return env[key] })
-			if exit != 0 || stdout.String() != snapshot+"\n" || stderr.Len() != 0 || requests.Load() != 1 {
+			if exit != 0 || !equalCLIJSON(t, stdout.Bytes(), []byte(snapshot)) || stderr.Len() != 0 || requests.Load() != 1 {
 				t.Fatalf("export failed: exit %d, requests %d, stderr %q", exit, requests.Load(), &stderr)
 			}
 		})
@@ -290,7 +291,7 @@ func TestCLIExplicitRevisionUsesTheMatchingResourceTag(t *testing.T) {
 				var stdout, stderr bytes.Buffer
 				exit := runCLIWithInput(args, strings.NewReader(command.input), &stdout, &stderr, func(key string) string { return env[key] })
 				if expected == "1" {
-					if exit != 0 || requests.Load() != 2 || stdout.String() != "{\"revision\":2}\n" || stderr.Len() != 0 {
+					if exit != 0 || requests.Load() != 2 || !equalCLIJSON(t, stdout.Bytes(), []byte(`{"revision":2}`)) || stderr.Len() != 0 {
 						t.Fatalf("matching revision failed: exit %d, calls %d, stderr %q", exit, requests.Load(), &stderr)
 					}
 				} else if exit != 1 || requests.Load() != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "revision mismatch") {
@@ -638,12 +639,24 @@ func TestCLIPolicyGrantPreservesOtherGrantsAndUsesBothValidators(t *testing.T) {
 	args := []string{"policy", "grant", "--revision", "1", boardID, "-"}
 	body := strings.NewReader(`{"create_grants":[` + newGrant + `]}`)
 	if exit := runCLIWithInput(args, body, &stdout, &stderr, getenv); exit != 0 || requests.Load() != 3 ||
-		stdout.String() != "{\"updated\":true}\n" || stderr.Len() != 0 {
+		!equalCLIJSON(t, stdout.Bytes(), []byte(`{"updated":true}`)) || stderr.Len() != 0 {
 		t.Fatalf("policy grant exit %d, requests %d, stderr %q", exit, requests.Load(), stderr.String())
 	}
 	stdout.Reset()
 	if exit := runCLIWithInput([]string{"policy", "get", boardID}, strings.NewReader(""), &stdout, &stderr, getenv); exit != 0 ||
-		requests.Load() != 5 || stdout.String() != policy+"\n" || stderr.Len() != 0 {
+		requests.Load() != 5 || !equalCLIJSON(t, stdout.Bytes(), []byte(policy)) || stderr.Len() != 0 {
 		t.Fatalf("policy get exit %d, requests %d, stderr %q", exit, requests.Load(), stderr.String())
 	}
+}
+
+func equalCLIJSON(t *testing.T, actual, expected []byte) bool {
+	t.Helper()
+	var actualValue, expectedValue any
+	if err := json.Unmarshal(actual, &actualValue); err != nil {
+		t.Fatalf("invalid output JSON: %v", err)
+	}
+	if err := json.Unmarshal(expected, &expectedValue); err != nil {
+		t.Fatalf("invalid expected JSON: %v", err)
+	}
+	return reflect.DeepEqual(actualValue, expectedValue)
 }

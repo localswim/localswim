@@ -227,12 +227,12 @@ test("owner notice configuration sends only explicitly supplied fields", async (
     assert.deepEqual(JSON.parse(options.body), {
       notifications: { target_thread_id: null },
     });
-    return Response.json({ notifications: { enabled: true, target_thread_id: null } }, {
+    return Response.json({ notifications: { enabled: false, target_thread_id: null } }, {
       headers: { ETag: '"board_record_007"' },
     });
   });
   assert.equal((await api.configureOwnerNotices(BOARD, { target_thread_id: null }, boardTag))
-    .data.notifications.enabled, true);
+    .data.notifications.enabled, false);
 });
 
 test("requires the documented write status and a canonical response ETag", async () => {

@@ -147,7 +147,10 @@ preserves the current enabled state.
 Use `board notifications enable [--revision N] BOARD_ID` after setting a target.
 Use `board notifications disable [--revision N] BOARD_ID` to discard a pending
 burst and retain the target. Settings writes require `manage_notifications` and
-the current board validator. Inspect status after an uncertain write before
+the current board validator. Status reads the running service's accepted
+settings. After a durable write becomes uncertain, status can still show the
+prior revision even when the saved snapshot changed. Use
+`board get --data DIRECTORY BOARD_ID` to inspect the saved settings before
 deciding whether to submit again.
 
 The service coalesces committed Human edits after 15 seconds of quiet. It uses

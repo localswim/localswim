@@ -1114,8 +1114,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         card_id: resourceId(card.id).toLowerCase(), etag: versionTag(card.id, card.revision),
       }));
       const cardIds = versions.map(({ card_id }) => card_id);
-      if (versions.length > 1000 || new Set(cardIds).size !== cardIds.length) {
-        throw new TypeError("Expected up to 1000 distinct cards.");
+      if (versions.length > 5000 || new Set(cardIds).size !== cardIds.length) {
+        throw new TypeError("Expected up to 5000 distinct cards.");
       }
       const response = await send("/approvals", { method: "POST", data: {
         id: expectedId, board_id: board, lane_id: lane, expected_board_etag: expected, cards: versions,

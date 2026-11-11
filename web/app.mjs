@@ -1816,7 +1816,7 @@ async function load(savedAvailability) {
         previewButton.dataset.action = "preview-ticket-order";
         column.append(selectedTickets, previewButton, preview);
         if (completed && lane.role === "ready_for_review" && lane.approval_enabled
-            && members.length > 0 && members.length <= 1000) {
+            && members.length > 0 && members.length <= 5000) {
           const versions = members.map(({ id, revision }) => ({ id, revision }));
           const cardIds = versions.map(({ id }) => id);
           column.append(form("Approve all in lane", [], (submit) => {

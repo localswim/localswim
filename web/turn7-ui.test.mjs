@@ -623,6 +623,142 @@ test("cover space exists before bytes arrive and repaint restores scroll without
   assert.equal(preview().focusOptions?.preventScroll, true);
 });
 
+test("card previews use the first eligible attachment and return to it after detaching an explicit cover", async () => {
+  const {api} = boardApi();
+  const original = (await api.getCard(card)).data;
+  const generic = {...(await api.listAttachments()).data.attachments[0], revision: 1};
+  const first = {...generic, id: backup, original_name: "First image", previewable: true, sha2_256: "a".repeat(64)};
+  const second = {...first, id: lane, original_name: "Second image", size: 5, sha2_256: "b".repeat(64)};
+  const skipped = [{...first, id: user, active: false}, {...first, id: card, board_id: user},
+    {...first, id: board, card_id: user}];
+  let revision = 1;
+  let attachments = [generic, first, second];
+  let cover = null;
+  let unreadableCover = false;
+  const reads = [];
+  const current = () => ({...original, revision, cover_attachment_id: cover, attachment_count: attachments.length});
+  api.getBoardLanes = async () => ({data: {board: {id: board, name: "Board", revision}, cards: [current()]},
+    etag: tag(board, revision)});
+  api.getCard = async () => ({data: current(), etag: tag(card, revision)});
+  api.listAttachments = async (id, cursor) => {
+    assert.equal(id, card);
+    return cursor === "images" ? page("attachments", attachments.slice(1)) :
+      {data: {attachments: [generic, ...skipped], next_cursor: "images"}, etag: null};
+  };
+  api.getAttachment = async (id) => {
+    assert.equal(id, second.id);
+    return {data: {...second, active: attachments.includes(second)}, etag: tag(id, revision)};
+  };
+  api.getAttachmentContent = async (id, disposition, size, digest) => {
+    reads.push([id, disposition, size, digest]);
+    if (unreadableCover && id === second.id) throw new ApiError("invalid_response");
+    return new Blob([id]);
+  };
+  api.patchCard = async (id, etag, fields) => {
+    assert.deepEqual([id, etag, fields.cover_attachment_id], [card, tag(card, 1), second.id]);
+    cover = second.id;
+    revision++;
+  };
+  api.detachAttachment = async (id, expected, etag) => {
+    assert.deepEqual([id, expected, etag], [second.id, second.revision, tag(board, 2)]);
+    attachments = [generic, first];
+    cover = null;
+    revision++;
+  };
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details} = ui.nodes;
+  const face = () => ui.find(main, "button", "#1 Original");
+  const image = () => face().querySelector("img");
+  const readImage = async (id) => {
+    await until(image);
+    assert.equal(await (await fetch(image().src)).text(), id);
+  };
+  await readImage(first.id);
+  const fallbackUrl = image().src;
+  face().click();
+  await ui.settled();
+  const secondRow = () => details.querySelectorAll("article").find((row) => row.textContent.includes(second.original_name));
+  ui.submit(secondRow(), "Set cover");
+  await ui.settled();
+  await readImage(second.id);
+  await assert.rejects(fetch(fallbackUrl));
+
+  unreadableCover = true;
+  ui.nodes.refresh.click();
+  await ui.settled();
+  await until(() => reads.length === 3);
+  assert.equal(image(), null);
+  assert.equal(reads.at(-1)[0], second.id);
+  ui.submit(secondRow(), "Detach");
+  await ui.settled();
+  await readImage(first.id);
+  assert.deepEqual(reads, [first, second, second, first].map(({id, size, sha2_256}) => [id, "inline", size, sha2_256]));
+});
+
+test("fallback cover reads cannot paint after a repaint or navigation", async () => {
+  const {api} = boardApi();
+  const original = (await api.getCard(card)).data;
+  const other = {...original, id: user, ticket: 2, title: "No attachments", attachment_count: 0};
+  const entry = {...(await api.listAttachments()).data.attachments[0], previewable: true};
+  const originalLanes = api.getBoardLanes;
+  api.getBoardLanes = async () => {
+    const reply = await originalLanes();
+    return {...reply, data: {...reply.data, cards: [{...original, attachment_count: 1}, other]}};
+  };
+  const content = Promise.withResolvers();
+  const contentStarted = Promise.withResolvers();
+  const lateList = Promise.withResolvers();
+  const listStarted = Promise.withResolvers();
+  let reads = 0;
+  let contentReads = 0;
+  api.listAttachments = async (id, cursor, signal) => {
+    assert.equal(id, card);
+    assert.equal(cursor, undefined);
+    assert.ok(signal);
+    if (++reads === 3) {
+      listStarted.resolve(signal);
+      return lateList.promise;
+    }
+    return page("attachments", [{...entry, previewable: reads === 1}]);
+  };
+  api.getAttachmentContent = (_id, _disposition, _size, _digest, signal) => {
+    contentReads++;
+    contentStarted.resolve(signal);
+    return content.promise;
+  };
+
+  const ui = await harness(api);
+  await ui.load();
+  const slot = () => ui.find(ui.nodes.main, "button", "#1 Original").children
+    .find(({className}) => className === "card-cover-space");
+  assert.ok(slot());
+  const oldSlot = slot();
+  const oldSignal = await contentStarted.promise;
+  ui.nodes.refresh.click();
+  await ui.settled();
+  await until(() => slot().hidden);
+  assert.equal(oldSignal.aborted, true);
+  content.resolve(new Blob(["stale"]));
+  await ui.settled();
+  assert.equal(oldSlot.children.length, 0);
+  assert.equal(slot().children.length, 0);
+  assert.equal(ui.find(ui.nodes.main, "button", "#2 No attachments").querySelector("span"), null);
+
+  ui.nodes.refresh.click();
+  await ui.settled();
+  const listSignal = await listStarted.promise;
+  const navigationSlot = slot();
+  await ui.navigate("/");
+  assert.equal(listSignal.aborted, true);
+  lateList.resolve(page("attachments", [entry]));
+  await ui.settled();
+  assert.equal(navigationSlot.children.length, 0);
+  assert.equal(reads, 3);
+  assert.equal(contentReads, 1);
+});
+
 const publishingOff = {enabled: false, repository: null, last_success_at: null, pending: false, error_code: null};
 
 test("board CSS follows the active board and is read again after reload", async () => {

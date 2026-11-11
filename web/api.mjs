@@ -993,10 +993,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         data: { card_id: resourceId(cardId), expected_card_etag: strongTag(etag), text, id: expectedId },
       });
     },
-    /** @param {unknown} cardId @param {string} [cursor] */
-    async listAttachments(cardId, cursor) {
+    /** @param {unknown} cardId @param {string} [cursor] @param {AbortSignal} [signal] */
+    async listAttachments(cardId, cursor, signal) {
       const card = resourceId(cardId);
-      const reply = await list("/attachments", { card_id: card }, cursor);
+      const reply = await list("/attachments", { card_id: card }, cursor, signal);
       const page = /** @type {{attachments?: unknown}} */ (reply.data);
       if (!Array.isArray(page.attachments) || !page.attachments.every((item) =>
         item !== null && typeof item === "object" && !Array.isArray(item)
@@ -1005,10 +1005,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       return reply;
     },
-    /** @param {unknown} attachmentId */
-    async getAttachment(attachmentId) {
+    /** @param {unknown} attachmentId @param {AbortSignal} [signal] */
+    async getAttachment(attachmentId, signal) {
       const id = resourceId(attachmentId);
-      const reply = await request("/attachments/" + id);
+      const reply = await request("/attachments/" + id, { signal });
       if (!STRONG_ETAG.test(reply.etag ?? "") || !validAttachment(reply.data, id)) {
         throw new ApiError("invalid_response", { status: 200 });
       }
@@ -1024,14 +1024,15 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
     },
-    /** @param {unknown} attachmentId @param {"attachment"|"inline"} disposition @param {number} size @param {string} digest */
-    async getAttachmentContent(attachmentId, disposition, size, digest) {
+    /** @param {unknown} attachmentId @param {"attachment"|"inline"} disposition @param {number} size
+     * @param {string} digest @param {AbortSignal} [signal] */
+    async getAttachmentContent(attachmentId, disposition, size, digest, signal) {
       if (!Number.isSafeInteger(size) || size < 0 || size > MAX_ATTACHMENT_BYTES
           || typeof digest !== "string" || !/^[0-9a-f]{64}$/.test(digest)) {
         throw new ApiError("invalid_response");
       }
       const response = await send("/attachments/" + resourceId(attachmentId) + "/content?"
-        + new URLSearchParams({ disposition }), { accept: "*/*" });
+        + new URLSearchParams({ disposition }), { accept: "*/*", signal });
       const media = response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase() ?? "";
       const servedDisposition = response.headers.get("Content-Disposition")?.split(";", 1)[0].trim().toLowerCase();
       if (response.status !== 200 || servedDisposition !== disposition

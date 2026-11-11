@@ -81,9 +81,10 @@ outcome is uncertain, the drawer checks its original ID. If it cannot confirm th
 upload, it stops the batch and offers **Inspect saved card** before another write.
 
 Attachments offer authenticated downloads. Raster attachments also offer a preview
-and cover selection. The selected cover appears on the card in its lane. Detach
-revokes active file access and clears the selected cover when it refers to the file.
-History retains the attachment ID and attribution.
+and cover selection. A card in its lane shows the selected cover or, when no cover
+is selected, the first active raster attachment. Detaching the selected cover clears
+that selection and shows the first remaining raster attachment when available.
+Detach revokes active file access. History retains the attachment ID and attribution.
 
 Expand **Board actions** to turn automatic publishing on or off for that board.
 On the **Workspace** page, administrators can save workspace publishing and

@@ -106,8 +106,13 @@ const boardViews = new Map();
 const publishingDrafts = new Map();
 /** @type {Map<string, Promise<void>>} */
 const preferenceWrites = new Map();
-/** @type {string[]|undefined} */
-let pinDraft;
+/** @typedef {Awaited<ReturnType<typeof api.getWorkspace>>} WorkspaceReply */
+/** @typedef {{id: string, action: "pin"|"unpin"} | {id: string, action: "before"|"after", anchor: string}} PinEdit */
+/** @type {PinEdit|undefined} */
+let pendingPinEdit;
+/** @type {Promise<void>|undefined} */
+let pinWrite;
+let pinMessage = "";
 /** @type {Map<string, BackupState>} */
 const boardBackups = new Map();
 /** @type {{boardId: string, panel: HTMLElement, paint: () => void}|undefined} */
@@ -1857,122 +1862,50 @@ function sameOrder(left, right) {
   return left.length === right.length && left.every((id, index) => id === right[index]);
 }
 
-/** @param {BoardSummary[]} boards @param {(pins: string[]) => void} showSavedOrder
- * @param {Awaited<ReturnType<typeof api.getWorkspace>>|undefined} initial @param {Inspection} inspection */
-function renderWorkspacePreferences(boards, showSavedOrder, initial, inspection) {
-  const panel = element("section");
-  panel.className = "editor";
-  let saved = initial;
-  let draft = [...(pinDraft ?? saved?.data.pinned_board_ids ?? [])];
-  const pins = element("div");
-  const pinStatus = element("p");
-  pinStatus.setAttribute("aria-live", "polite");
-  const pinSection = element("section");
-  let pinSaving = false;
-  /** @param {boolean} saving */
-  function disablePinsWhileSaving(saving) {
-    pinSaving = saving;
-    if (panel.isConnected) paintPins();
-  }
-  watchPreferenceWrite("workspace-pins", disablePinsWhileSaving);
-  const pinForm = form("Save pin order", [pins], (submit) => {
-    if (!saved) return;
-    const expected = saved.etag;
-    const requested = [...draft];
-    trackPreferenceWrite("workspace-pins", writeResource(submit, () => api.setPinnedBoards(requested, expected), async () => {
-      const reply = await read();
-      return sameOrder(reply.data.pinned_board_ids, requested);
-    }, "Pin order saved.", inspection));
-    watchPreferenceWrite("workspace-pins", disablePinsWhileSaving);
-  });
-  if (!saved) pinForm.dataset.unavailable = "true";
-  pinSection.append(element("h3", "Pin order"), pinStatus, pinForm);
+/** @param {string[]} pins @param {PinEdit} edit */
+function editPinOrder(pins, edit) {
+  const rest = pins.filter((id) => id !== edit.id);
+  if (edit.action === "unpin") return rest;
+  if (edit.action === "pin") return pins.includes(edit.id) ? pins : [...pins, edit.id];
+  if (!("anchor" in edit) || !pins.includes(edit.id)) return undefined;
+  const index = rest.indexOf(edit.anchor);
+  if (index < 0) return undefined;
+  rest.splice(index + (edit.action === "after" ? 1 : 0), 0, edit.id);
+  return rest;
+}
 
-  function retain() {
-    if (saved) pinDraft = sameOrder(draft, saved.data.pinned_board_ids) ? undefined : [...draft];
-    publishing.retain();
-  }
-
-  /** @param {BoardSummary[]} rows */
-  function showBoards(rows) {
-    boards = rows;
-    paintPins();
-    showSavedOrder(saved?.data.pinned_board_ids ?? []);
-  }
-
-  /** @param {string} [focusId] @param {"up"|"down"|"pin"} [focusKind] */
-  function paintPins(focusId, focusKind) {
-    const names = new Map(boards.map(({ id, name }) => [id, name]));
-    /** @type {HTMLElement|undefined} */
-    let nextFocus;
-    const rows = [...draft, ...boards.map(({ id }) => id).filter((id) => !draft.includes(id))].map((id) => {
-      const name = names.get(id) ?? "Unavailable board";
-      const row = element("div");
-      row.className = "pin-row";
-      const pin = element("input");
-      pin.type = "checkbox";
-      const index = draft.indexOf(id);
-      pin.checked = index >= 0;
-      pin.disabled = !saved || pinSaving;
-      pin.addEventListener("change", () => {
-        if (pin.checked && index < 0) draft.push(id);
-        if (!pin.checked && index >= 0) draft.splice(index, 1);
-        retain();
-        paintPins(id, "pin");
-      });
-      const option = field("Pin " + name, pin);
-      option.className = "check-option";
-      row.append(option);
-      if (focusId === id && focusKind === "pin") nextFocus = pin;
-      if (index >= 0) {
-        /** @param {"up"|"down"} direction @param {number} offset */
-        function move(direction, offset) {
-          const to = index + offset;
-          const control = button("Move " + name + " " + direction, () => {
-            [draft[index], draft[to]] = [draft[to], draft[index]];
-            retain();
-            paintPins(id, direction);
-          });
-          control.disabled = !saved || pinSaving || to < 0 || to >= draft.length;
-          if (focusId === id && focusKind === direction) nextFocus = control.disabled ? pin : control;
-          return control;
+/** @param {PinEdit} edit @param {WorkspaceReply|undefined} saved
+ * @param {() => Promise<WorkspaceReply>} read @param {(reply: WorkspaceReply) => void} show */
+async function savePinEdit(edit, saved, read, show) {
+  try {
+    let latest = saved ?? await read();
+    for (let attempt = 0; attempt < 2; ++attempt) {
+      const pins = latest.data.pinned_board_ids;
+      const requested = editPinOrder(pins, edit);
+      if (!requested) return "The move is pending. The board or its destination is no longer pinned.";
+      if (sameOrder(pins, requested)) return "";
+      const submittingCapability = capability;
+      try {
+        const reply = await api.setPinnedBoards(requested, latest.etag);
+        if (!sameOrder(reply.data.pinned_board_ids, requested)) {
+          throw new ApiError("invalid_response", { outcomeUnknown: true });
         }
-        row.append(move("up", -1), move("down", 1));
+        show(reply);
+        return "";
+      } catch (error) {
+        const phase = writePhase(error, submittingCapability);
+        if (phase === "error") return "The pin change is pending. The service refused the save.";
+        latest = await read();
+        const current = latest.data.pinned_board_ids;
+        const intended = editPinOrder(current, edit);
+        if (intended && sameOrder(current, intended)) return "";
+        if (phase === "unknown") return "The saved order could not confirm the pin change. Review it before retrying.";
       }
-      return row;
-    });
-    pins.replaceChildren(...rows);
-    nextFocus?.focus();
-    pinStatus.textContent = saved ? "" : "Saved pin order is unavailable. Inspect saved workspace before saving.";
-  }
-
-  async function read() {
-    const reply = await api.getWorkspace();
-    if (panel.isConnected) {
-      if (pinDraft === undefined && (!saved || sameOrder(draft, saved.data.pinned_board_ids))) {
-        draft = [...reply.data.pinned_board_ids];
-      }
-      saved = reply;
-      retain();
-      delete pinForm.dataset.unavailable;
-      paintPins();
-      showSavedOrder(reply.data.pinned_board_ids);
-      publishing.show({ data: reply.data.publishing, etag: reply.etag });
     }
-    return reply;
+    return "The shared pin order changed again. Review it before retrying the pin change.";
+  } catch {
+    return "The saved pin order could not be read. The pin change is pending.";
   }
-
-  const publishing = renderPublishing("workspace", "workspace", saved && { data: saved.data.publishing, etag: saved.etag },
-    async () => {
-      const reply = await read();
-      return { data: reply.data.publishing, etag: reply.etag };
-    }, api.configureWorkspacePublishing, async () => {}, inspection);
-  async function inspect() {
-    await read();
-  }
-  paintPins();
-  panel.append(pinSection, publishing.panel);
-  return { panel, showBoards, inspect, retain };
 }
 
 /** @param {boolean} canManage @param {() => boolean} isCurrent */
@@ -2249,8 +2182,9 @@ function attentionRecency(board, now) {
 }
 
 /** @param {HTMLElement} sidebar @param {BoardSummary[]} rows @param {string[]} pins
- * @param {string|undefined|null} selected */
-function renderAttention(sidebar, rows, pins, selected) {
+ * @param {string|undefined|null} selected
+ * @param {{disabled: boolean, change: (edit: PinEdit) => void}} [pinControls] */
+function renderAttention(sidebar, rows, pins, selected, pinControls) {
   const byId = new Map(rows.map((board) => [board.id, board]));
   const pinIds = new Set(pins);
   const header = element("div");
@@ -2264,13 +2198,17 @@ function renderAttention(sidebar, rows, pins, selected) {
     header.append(heading);
   }
 
-  const focusedId = [...sidebar.querySelectorAll("a")]
-    .find((item) => item === document.activeElement)?.dataset.boardId;
+  const focused = [...sidebar.querySelectorAll("a"), ...sidebar.querySelectorAll("button")]
+    .find((item) => item === document.activeElement && item.dataset.boardId);
+  const pinned = pins.flatMap((id) => byId.get(id) ?? []);
   const groups = [
-    { label: "Pinned boards", boards: pins.flatMap((id) => byId.get(id) ?? []) },
-    { label: "Other boards", boards: rows.filter(({ id }) => !pinIds.has(id)) },
+    { label: "Pinned boards", boards: pinned, pinned: true },
+    { label: "Other boards", boards: rows.filter(({ id }) => !pinIds.has(id)), pinned: false },
   ];
-  const sections = groups.map(({ label, boards }) => {
+  const sections = groups.map(({ label, boards, pinned: isPinned }) => {
+    /** @type {Map<HTMLElement, string>} */
+    const entries = new Map();
+    const order = boards.map(({ id }) => id);
     const section = element("section");
     section.className = "attention-group";
     section.append(element("h3", label));
@@ -2313,14 +2251,102 @@ function renderAttention(sidebar, rows, pins, selected) {
       updateRecency();
       item.addEventListener("pointerenter", updateRecency);
       item.addEventListener("focus", updateRecency);
-      section.append(item);
+      const entry = element("div");
+      entry.className = "attention-entry";
+      entry.append(item);
+      entries.set(entry, board.id);
+      if (pinControls) {
+        const actions = element("div");
+        actions.className = "attention-pin-actions";
+        const action = isPinned ? "unpin" : "pin";
+        const label = isPinned ? "Unpin" : "Pin";
+        const toggle = button(label, () => {
+          if (!pinControls.disabled) pinControls.change({ id: board.id, action });
+        });
+        toggle.setAttribute("aria-label", label + " " + name);
+        toggle.dataset.boardId = board.id;
+        toggle.dataset.pinControl = "toggle";
+        actions.append(toggle);
+        if (isPinned && order.length > 1) {
+          actions.append(attentionReorder(board.id, name, order, entries, pinControls));
+        }
+        if (pinControls.disabled) {
+          for (const control of actions.querySelectorAll("button")) control.setAttribute("aria-disabled", "true");
+        }
+        entry.append(actions);
+      }
+      section.append(entry);
     }
     return section;
   });
   sidebar.replaceChildren(header, ...sections);
-  if (focusedId) {
-    [...sidebar.querySelectorAll("a")].find((item) => item.dataset.boardId === focusedId)?.focus();
+  if (focused) {
+    const focusId = focused.dataset.boardId;
+    const action = [...sidebar.querySelectorAll("button")].find((control) =>
+      control.dataset.boardId === focusId && control.dataset.pinControl === focused.dataset.pinControl);
+    const destination = action ?? [...sidebar.querySelectorAll("a")].find((item) => item.dataset.boardId === focusId);
+    destination?.focus({ preventScroll: true });
   }
+}
+
+/** @param {string} id @param {string} name @param {string[]} order @param {Map<HTMLElement, string>} entries
+ * @param {{disabled: boolean, change: (edit: PinEdit) => void}} controls */
+function attentionReorder(id, name, order, entries, controls) {
+  const grip = element("button", "⋮⋮");
+  grip.type = "button";
+  grip.className = "attention-pin-grip";
+  grip.dataset.boardId = id;
+  grip.dataset.pinControl = "reorder";
+  grip.title = "Drag or use the Up and Down arrows to reorder " + name;
+  grip.setAttribute("aria-label", "Reorder " + name);
+  grip.setAttribute("aria-keyshortcuts", "ArrowUp ArrowDown");
+  const index = order.indexOf(id);
+  /** @param {string} anchor */
+  function move(anchor) {
+    if (controls.disabled || anchor === id) return;
+    controls.change({ id, action: order.indexOf(anchor) < index ? "before" : "after", anchor });
+  }
+  grip.addEventListener("keydown", (event) => {
+    if (controls.disabled || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
+    event.preventDefault();
+    const anchor = order[index + (event.key === "ArrowUp" ? -1 : 1)];
+    if (anchor) move(anchor);
+  });
+
+  /** @type {number|undefined} */
+  let pointer;
+  /** @type {HTMLElement|undefined} */
+  let target;
+  grip.addEventListener("pointerdown", (event) => {
+    if (controls.disabled || pointer !== undefined || !event.isPrimary || event.button !== 0) return;
+    event.preventDefault();
+    grip.focus({ preventScroll: true });
+    grip.setPointerCapture(event.pointerId);
+    pointer = event.pointerId;
+  });
+  /** @param {PointerEvent} event */
+  function updateTarget(event) {
+    if (event.pointerId !== pointer) return;
+    target?.removeAttribute("data-pin-drop");
+    const hit = document.elementFromPoint(event.clientX, event.clientY);
+    target = [...entries].find(([entry, boardId]) => boardId !== id && entry.contains(hit))?.[0];
+    target?.setAttribute("data-pin-drop", "true");
+  }
+  function clearPointer() {
+    pointer = undefined;
+    target?.removeAttribute("data-pin-drop");
+    target = undefined;
+  }
+  grip.addEventListener("pointermove", updateTarget);
+  grip.addEventListener("pointerup", (event) => {
+    if (event.pointerId !== pointer) return;
+    updateTarget(event);
+    const anchor = target && entries.get(target);
+    clearPointer();
+    if (anchor) move(anchor);
+  });
+  grip.addEventListener("lostpointercapture", clearPointer);
+  return grip;
 }
 
 /** @param {string} boardId @param {AbortSignal} signal @param {() => number} revision
@@ -2423,15 +2449,84 @@ async function load(savedAvailability) {
     let visiblePins = [];
     let latestBoards = boards;
     let catalogRead = 0;
+    const canEditPins = context.workspace_admin === true;
+    /** @type {WorkspaceReply|undefined} */
+    let savedWorkspace;
+    /** @type {((reply: WorkspaceReply) => void)|undefined} */
+    let showPublishing;
+    let workspaceUnavailable = false;
+    const pinFeedback = element("div");
+    const pinStatus = element("p");
+    pinStatus.setAttribute("role", "status");
+    const retryPins = button("Retry pin change", () => runPinAction(pendingPinEdit));
+    const cancelPins = button("Cancel pending pin change", () => {
+      pendingPinEdit = undefined;
+      pinMessage = "";
+      showBoards(latestBoards);
+    });
+    pinFeedback.append(pinStatus, retryPins, cancelPins);
     const attentionStatus = element("p", "Attention could not be refreshed. Showing the last saved counts.");
     attentionStatus.setAttribute("role", "status");
     attentionStatus.hidden = true;
     /** @param {BoardSummary[]} rows */
     function showBoards(rows) {
       if (!navigation) return;
-      renderAttention(navigation, rows, visiblePins, boardId);
+      const feedbackFocused = pinFeedback.contains(document.activeElement);
+      renderAttention(navigation, rows, visiblePins, boardId, canEditPins ? {
+        disabled: !savedWorkspace || Boolean(pinWrite || pendingPinEdit),
+        change: (edit) => runPinAction(edit, savedWorkspace),
+      } : undefined);
       navigation.append(attentionStatus);
+      if (canEditPins) {
+        pinStatus.textContent = pinMessage || (workspaceUnavailable ? "Saved pin order could not be read." : "");
+        retryPins.textContent = pendingPinEdit ? "Retry pin change" : "Read pin order";
+        retryPins.hidden = Boolean(pinWrite) || (!pendingPinEdit && !workspaceUnavailable);
+        cancelPins.hidden = Boolean(pinWrite) || !pendingPinEdit;
+        pinFeedback.hidden = !pinStatus.textContent;
+        navigation.append(pinFeedback);
+        if (feedbackFocused) {
+          const destination = retryPins.hidden ? navigation.querySelector("a") : retryPins;
+          destination?.focus({ preventScroll: true });
+        }
+      }
     }
+
+    /** @param {WorkspaceReply} reply */
+    function showWorkspace(reply) {
+      if (view !== activeView) return;
+      // A delayed read from this service must not replace a newer accepted write.
+      const service = reply.etag.replace(/-\d+"$/, '"');
+      if (savedWorkspace?.etag.replace(/-\d+"$/, '"') === service
+          && savedWorkspace.data.revision > reply.data.revision) return;
+      savedWorkspace = reply;
+      workspaceUnavailable = false;
+      visiblePins = reply.data.pinned_board_ids;
+      showBoards(latestBoards);
+      showPublishing?.(reply);
+    }
+    async function readWorkspace() {
+      const reply = await readWithSession(api.getWorkspace);
+      showWorkspace(reply);
+      return savedWorkspace ?? reply;
+    }
+
+    /** @param {PinEdit} [edit] @param {WorkspaceReply} [saved] */
+    function runPinAction(edit, saved) {
+      if (view !== activeView || !canEditPins || pinWrite) return;
+      if (edit) pendingPinEdit = edit;
+      pinMessage = edit ? "Saving pin order…" : "Reading pin order…";
+      const operation = edit ? savePinEdit(edit, saved, readWorkspace, showWorkspace)
+        : readWorkspace().then(() => "", () => "Saved pin order could not be read.");
+      pinWrite = operation.then((message) => {
+        pinMessage = message;
+        if (!message) pendingPinEdit = undefined;
+      }).finally(() => {
+        pinWrite = undefined;
+        if (view === activeView) showBoards(latestBoards);
+      });
+      showBoards(latestBoards);
+    }
+
     async function refreshAttention() {
       if (view !== activeView) return;
       const read = ++catalogRead;
@@ -2446,16 +2541,20 @@ async function load(savedAvailability) {
       }
     }
     showBoards(latestBoards);
-    const readPreferences = context.workspace_admin === true
-      ? readWithSession(api.getWorkspace).catch(() => undefined) : undefined;
+    const readPreferences = canEditPins
+      ? Promise.resolve(pinWrite).then(() => view === activeView ? readWorkspace() : undefined).catch(() => {
+        if (view === activeView) {
+          workspaceUnavailable = true;
+          showBoards(latestBoards);
+        }
+        return undefined;
+      }) : undefined;
     if (!boardId && location.pathname === "/") {
       main.replaceChildren(element("h1", "Workspace"),
         element("p", boards.length ? "Select a board." : "No boards are available."));
       if (context.workspace_admin === true) {
         const preferences = await readPreferences;
         if (view !== activeView) return;
-        visiblePins = preferences?.data.pinned_board_ids ?? [];
-        showBoards(latestBoards);
         const boardName = element("input");
         boardName.required = true;
         boardName.maxLength = 256;
@@ -2464,16 +2563,21 @@ async function load(savedAvailability) {
           const latest = /** @type {BoardSummary[]} */ (await collect(api.listBoards, "boards"));
           if (view !== activeView) return;
           latestBoards = latest;
-          workspaceControls.showBoards(latestBoards);
-          await workspaceControls.inspect();
-        }, "workspace", "workspace");
-        const workspaceControls = renderWorkspacePreferences(latestBoards, (pins) => {
-          visiblePins = pins;
           showBoards(latestBoards);
-        }, preferences, inspection);
+          await readWorkspace();
+        }, "workspace", "workspace");
+        const publishing = renderPublishing("workspace", "workspace",
+          preferences && { data: preferences.data.publishing, etag: preferences.etag }, async () => {
+            const reply = await readWorkspace();
+            return { data: reply.data.publishing, etag: reply.etag };
+          }, api.configureWorkspacePublishing, async () => {}, inspection);
+        showPublishing = (reply) => publishing.show({ data: reply.data.publishing, etag: reply.etag });
+        const workspaceSettings = element("section");
+        workspaceSettings.className = "editor";
+        workspaceSettings.append(publishing.panel);
         retainBoardDraft = () => {
           boardDrafts.set("workspace", [boardName.value]);
-          workspaceControls.retain();
+          publishing.retain();
         };
         boardInspection = inspection;
         main.append(button(inspection.label, inspection.inspect),
@@ -2493,7 +2597,7 @@ async function load(savedAvailability) {
             await load();
             return true;
           }, "Board created.", inspection);
-        }), workspaceControls.panel);
+        }), workspaceSettings);
         inspection.sync();
       }
       const controls = renderServiceControls(context.workspace_admin === true, () => view === activeView);
@@ -2504,12 +2608,6 @@ async function load(savedAvailability) {
       return;
     }
     if (!boardId) throw new ApiError("http_error", { status: 404 });
-    void readPreferences?.then((preferences) => {
-      if (view === activeView && preferences) {
-        visiblePins = preferences.data.pinned_board_ids;
-        showBoards(latestBoards);
-      }
-    });
     /** @param {AbortSignal} [readSignal] */
     const readAvailability = (readSignal) => api.getBoardAvailability(boardId, readSignal);
     let metadata = savedAvailability?.data.id === boardId ? savedAvailability

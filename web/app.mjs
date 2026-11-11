@@ -29,7 +29,7 @@ import { createBoardRefresh, waitForRetry, watchUpdates } from "./board-updates.
 /** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number, board_id: string, active: boolean, previewable: boolean, revision: number, sha2_256: string}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
  * owner_id: string, priority_id: string, ticket: number, revision: number, comment_count: number, attachment_count: number,
- * archived: boolean, cover_attachment_id: string|null, parent_id: string|null, child_ids: string[]}} Card */
+ * archived: boolean, completed_at: string|null, cover_attachment_id: string|null, parent_id: string|null, child_ids: string[]}} Card */
 /** @typedef {{card: Card, opener: HTMLButtonElement, payload: string, boardTag: string}} CardDrag */
 /** @typedef {{ticket: string, kind: RelationshipKind}} RelationshipSeedDraft */
 /** @typedef {RelationshipSeedDraft & {row: RelationshipSeedDraft}} SubmittedRelationshipSeed */
@@ -2695,6 +2695,7 @@ async function load(savedAvailability) {
     const updates = boardUpdates(boardId, signal, () => paintedRevision, applyBoardRefresh);
     const reloadBoard = updates.request;
     let currentCards = cards;
+    let showOlderCompleted = false;
     const columns = element("div");
     columns.className = "lanes";
     const state = boardViewState(boardId);
@@ -2940,6 +2941,7 @@ async function load(savedAvailability) {
       const completed = active.find(({ role }) => role === "completed");
       const query = filter.value.trim().toLowerCase();
       let matchingCount = 0;
+      const completionCutoff = Date.now() - 24 * 60 * 60 * 1000;
       columns.replaceChildren(...active.map((lane) => {
         const column = element("section");
         column.className = "lane";
@@ -2948,7 +2950,10 @@ async function load(savedAvailability) {
         const members = visibleCards.filter(({ lane_id }) => lane_id === lane.id);
         const matches = query ? members.filter(({ title, ticket }) =>
           title.toLowerCase().includes(query) || ("#" + ticket).includes(query)) : members;
-        const wholeLaneVisible = matches.length === members.length;
+        const older = lane.role === "completed" && !showOlderCompleted
+          ? new Set(matches.filter(({ completed_at }) => completedBefore(completed_at, completionCutoff)))
+          : new Set();
+        const wholeLaneVisible = () => matches.length === members.length && (older.size === 0 || showOlderCompleted);
         matchingCount += matches.length;
         const heading = element("h2", lane.label);
         heading.className = "lane-heading";
@@ -2969,8 +2974,10 @@ async function load(savedAvailability) {
           add.setAttribute("aria-label", "Add card in " + lane.label);
           column.append(add);
         }
+        /** @type {(() => void)|undefined} */
+        let updatePreview;
         if (lane.reorder_enabled) {
-          const canPreview = wholeLaneVisible && members.length >= 2;
+          const canPreview = () => wholeLaneVisible() && members.length >= 2;
           const preview = element("div");
           const selectedTickets = element("input");
           selectedTickets.dataset.previewLane = lane.id;
@@ -2978,7 +2985,7 @@ async function load(savedAvailability) {
           selectedTickets.placeholder = "All active cards";
           selectedTickets.setAttribute("aria-label", "Tickets to preview in " + lane.label);
           const previewButton = button("Preview ticket order", () => {
-            if (!canPreview || !preview.isConnected || view !== activeView) return;
+            if (!canPreview() || !preview.isConnected || view !== activeView) return;
             preview.replaceChildren();
             let ids;
             try {
@@ -3024,17 +3031,21 @@ async function load(savedAvailability) {
               }
             }).catch(() => {
               if (preview.isConnected) preview.textContent = "Preview refused or unavailable. A selected dependency cycle cannot be reordered.";
-            }).finally(() => { previewButton.disabled = false; });
+            }).finally(() => { previewButton.disabled = !canPreview(); });
           });
           previewButton.dataset.action = "preview-ticket-order";
-          previewButton.disabled = !canPreview;
-          selectedTickets.disabled = !canPreview;
+          updatePreview = () => {
+            const disabled = !canPreview();
+            previewButton.disabled = disabled;
+            selectedTickets.disabled = disabled;
+          };
+          updatePreview();
           column.append(selectedTickets, previewButton, preview);
         }
         const canApprove = completed && lane.role === "ready_for_review" && lane.approval_enabled
           && members.length > 0 && members.length <= MAX_LANE_APPROVAL_CARDS;
-        if (canApprove && wholeLaneVisible) {
-          const versions = matches.map(({ id, revision }) => ({ id, revision }));
+        if (canApprove && wholeLaneVisible()) {
+          const versions = members.map(({ id, revision }) => ({ id, revision }));
           const cardIds = versions.map(({ id }) => id);
           column.append(form("Approve all in lane", [], (submit) => {
             if (view !== activeView || !column.isConnected) return;
@@ -3061,14 +3072,14 @@ async function load(savedAvailability) {
             }, "Lane approved and moved to Completed.", inspection);
           }));
         }
-        if (!wholeLaneVisible && (canApprove || (lane.reorder_enabled && members.length >= 2))) {
+        if (matches.length < members.length && (canApprove || (lane.reorder_enabled && members.length >= 2))) {
           column.append(element("p", "Clear the filter to use lane-wide actions."));
         }
         const mayDrag = moveDestinations(lanes, workflow, lane.id).length > 0;
-        for (const card of matches) {
+        /** @param {Card} card */
+        function cardFace(card) {
           const opener = cardOpener(card);
           if (mayDrag) bindDrag(opener, card, renderedTag);
-          column.append(opener);
           if (card.cover_attachment_id) {
             const slot = element("span");
             slot.className = "card-cover-space";
@@ -3076,7 +3087,34 @@ async function load(savedAvailability) {
             opener.prepend(slot);
             void showCover(card, slot, render);
           }
+          return opener;
         }
+        if (older.size === 0) {
+          for (const card of matches) column.append(cardFace(card));
+          return column;
+        }
+        const faces = element("div");
+        const reveal = button("Show " + countLabel(older.size, "older card"), () => {
+          if (view !== activeView || !column.isConnected || !reveal.isConnected) return;
+          showOlderCompleted = true;
+          updatePreview?.();
+          const openers = new Map([...faces.querySelectorAll("button")].map((face) => [face.dataset.cardId, face]));
+          faces.replaceChildren();
+          /** @type {HTMLButtonElement|undefined} */
+          let firstOlder;
+          for (const card of matches) {
+            const opener = openers.get(card.id) ?? cardFace(card);
+            if (older.has(card)) firstOlder ??= opener;
+            faces.append(opener);
+          }
+          reveal.remove();
+          firstOlder?.focus();
+        });
+        reveal.className = "show-older-completed";
+        for (const card of matches) {
+          if (!older.has(card)) faces.append(cardFace(card));
+        }
+        column.append(reveal, faces);
         return column;
       }));
       const count = query ? matchingCount + " of " + visibleCards.length + " cards match"
@@ -3353,6 +3391,14 @@ async function load(savedAvailability) {
 function activeLanes(lanes) {
   return lanes.filter(({ retired }) => !retired)
     .sort((a, b) => a.position - b.position);
+}
+
+/** @param {string|null} completedAt @param {number} cutoff */
+function completedBefore(completedAt, cutoff) {
+  if (typeof completedAt !== "string") return false;
+  const completion = new Date(completedAt.replace(" ", "T"));
+  return completion.getTime() < cutoff
+    && completion.toISOString().replace("T", " ").replace(".000Z", "+00:00") === completedAt;
 }
 
 /** @param {string} boardId @param {Lane[]} lanes @param {Labeled[]} users

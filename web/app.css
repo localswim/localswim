@@ -52,6 +52,7 @@ main { flex: 1; min-width: 0; }
 .lane-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 0.25rem 0.5rem; }
 .lane-total { font-size: 0.8rem; font-weight: normal; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .lane-note { margin: 0 0 0.5rem; }
+.show-older-completed { margin-block-end: 0.4rem; }
 .actor-label { white-space: pre-wrap; overflow-wrap: anywhere; }
 .actor-accent { border-inline-start: 0.2em solid; padding-inline-start: 0.35em; }
 .card-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; margin-block-start: 0.3rem; font-size: 0.8rem; font-variant-numeric: tabular-nums; }

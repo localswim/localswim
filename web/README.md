@@ -41,6 +41,10 @@ and total counts while the filter is active. Clear the filter to preview ticket
 order or approve all cards in a lane where the filter hides cards.
 
 Lane headings show the number of active cards, including zero in empty lanes.
+The Completed lane initially shows cards completed in the last 24 hours and
+cards whose completion time is unknown. The reveal button shows the hidden
+count and reveals those cards for the current board visit. Older cards also
+remain accessible through card search and ticket links.
 Card faces show nonzero comment and active attachment counts. The card opener's
 accessible description names the exact counts. The board refreshes them from
 saved state after edits.

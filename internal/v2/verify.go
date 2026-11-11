@@ -571,6 +571,7 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		laneRevisions[id] = revision
 		latest[snapshotAuditField{"lane", id, "retired"}] = &disabled
 		latest[snapshotAuditField{"lane", id, "approval_enabled"}] = &disabled
+		latest[snapshotAuditField{"lane", id, "reorder_enabled"}] = &disabled
 	}
 	for id := range initialLanes {
 		initializeLane(id, 1)

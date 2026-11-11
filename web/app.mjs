@@ -10,7 +10,7 @@ import { ApiError, createBrowserApi, openBrowserSession, validPublishing } from 
 /** @typedef {import("./api.mjs").Publishing} Publishing */
 /** @typedef {{id: string, name: string, default_owner_id: string, user_css?: string, notifications?: object, publishing?: unknown}} Board */
 /** @typedef {{id: string, name: string|null}} BoardSummary */
-/** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string, approval_enabled: boolean}} Lane */
+/** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string, approval_enabled: boolean, reorder_enabled: boolean}} Lane */
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
 /** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number, board_id: string, active: boolean, previewable: boolean, revision: number, sha2_256: string}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
@@ -1775,46 +1775,61 @@ async function load(savedAvailability) {
         column.className = "lane";
         column.append(element("h2", lane.label));
         const members = visibleCards.filter(({ lane_id }) => lane_id === lane.id);
-        const preview = element("div");
-        const selectedTickets = element("input");
-        selectedTickets.placeholder = "All active cards";
-        selectedTickets.setAttribute("aria-label", "Tickets to preview in " + lane.label);
-        const previewButton = button("Preview ticket order", () => {
-          let ids;
-          try {
-            ids = selectedTickets.value === "" ? undefined : ticketSelection(selectedTickets.value, members).map(({ id }) => id);
-          } catch {
-            preview.textContent = "Enter distinct active ticket numbers from this lane.";
-            return;
-          }
-          previewButton.disabled = true;
-          void readWithSession(() => api.previewTicketOrder(board.id, lane.id, ids)).then((reply) => {
-            if (!preview.isConnected || view !== activeView) return;
-            const result = /** @type {{board_revision: number, current: {card_id: string, ticket: number}[], proposed: {card_id: string, ticket: number}[], changed: boolean}} */ (reply.data);
-            preview.replaceChildren(element("p", "Preview at board revision " + result.board_revision));
-            for (const entry of result.proposed) {
-              const before = result.current.find(({ card_id }) => card_id === entry.card_id);
-              preview.append(element("p", "#" + before?.ticket + " → #" + entry.ticket + " "
-                + (members.find(({ id }) => id === entry.card_id)?.title ?? entry.card_id)));
+        if (lane.reorder_enabled) {
+          const canPreview = members.length >= 2;
+          const preview = element("div");
+          const selectedTickets = element("input");
+          selectedTickets.placeholder = "All active cards";
+          selectedTickets.setAttribute("aria-label", "Tickets to preview in " + lane.label);
+          const previewButton = button("Preview ticket order", () => {
+            if (!canPreview || !preview.isConnected || view !== activeView) return;
+            preview.replaceChildren();
+            let ids;
+            try {
+              ids = selectedTickets.value === "" ? undefined : ticketSelection(selectedTickets.value, members).map(({ id }) => id);
+              if (ids && ids.length < 2) {
+                preview.textContent = "Choose at least two active tickets from this lane.";
+                return;
+              }
+            } catch {
+              preview.textContent = "Enter distinct active ticket numbers from this lane.";
+              return;
             }
-            if (!result.proposed.length) preview.append(element("p", "No active cards in this lane."));
-            if (result.changed) {
+            previewButton.disabled = true;
+            void readWithSession(() => api.previewTicketOrder(board.id, lane.id, ids)).then((reply) => {
+              if (!preview.isConnected || view !== activeView) return;
               const originalTag = etag(reply);
-              preview.append(form("Apply ticket order", [], (submit) => {
-                if (!preview.isConnected || view !== activeView) return;
-                void writeResource(submit, () => api.applyTicketOrder(board.id, lane.id, originalTag, result.proposed),
-                  async () => {
-                    await reloadBoard();
-                    return result.proposed.every((entry) => currentCards.some((card) => card.id === entry.card_id && card.ticket === entry.ticket));
-                  }, "Ticket order applied.", inspection);
-              }));
-            }
-          }).catch(() => {
-            if (preview.isConnected) preview.textContent = "Preview refused or unavailable. A selected dependency cycle cannot be reordered.";
-          }).finally(() => { previewButton.disabled = false; });
-        });
-        previewButton.dataset.action = "preview-ticket-order";
-        column.append(selectedTickets, previewButton, preview);
+              if (originalTag !== renderedTag) {
+                preview.textContent = "The board changed. Refresh the board and preview again.";
+                return;
+              }
+              const result = /** @type {{board_revision: number, current: {card_id: string, ticket: number}[], proposed: {card_id: string, ticket: number}[], changed: boolean}} */ (reply.data);
+              preview.replaceChildren(element("p", "Preview at board revision " + result.board_revision));
+              for (const entry of result.proposed) {
+                const before = result.current.find(({ card_id }) => card_id === entry.card_id);
+                preview.append(element("p", "#" + before?.ticket + " → #" + entry.ticket + " "
+                  + (members.find(({ id }) => id === entry.card_id)?.title ?? entry.card_id)));
+              }
+              if (!result.proposed.length) preview.append(element("p", "No active cards in this lane."));
+              if (result.changed) {
+                preview.append(form("Apply ticket order", [], (submit) => {
+                  if (!preview.isConnected || view !== activeView) return;
+                  void writeResource(submit, () => api.applyTicketOrder(board.id, lane.id, originalTag, result.proposed),
+                    async () => {
+                      await reloadBoard();
+                      return result.proposed.every((entry) => currentCards.some((card) => card.id === entry.card_id && card.ticket === entry.ticket));
+                    }, "Ticket order applied.", inspection);
+                }));
+              }
+            }).catch(() => {
+              if (preview.isConnected) preview.textContent = "Preview refused or unavailable. A selected dependency cycle cannot be reordered.";
+            }).finally(() => { previewButton.disabled = false; });
+          });
+          previewButton.dataset.action = "preview-ticket-order";
+          previewButton.disabled = !canPreview;
+          selectedTickets.disabled = !canPreview;
+          column.append(selectedTickets, previewButton, preview);
+        }
         if (completed && lane.role === "ready_for_review" && lane.approval_enabled
             && members.length > 0 && members.length <= 1000) {
           const versions = members.map(({ id, revision }) => ({ id, revision }));

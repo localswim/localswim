@@ -13398,6 +13398,7 @@ components:
           type: boolean
         reorder_enabled:
           type: boolean
+          description: Whether the active lane offers dependency ticket reorder in the browser.
     CreateGrant:
       type: object
       additionalProperties: false
@@ -14792,6 +14793,7 @@ components:
           type: boolean
         reorder_enabled:
           type: boolean
+          description: Enable or disable the browser ticket-order preview and Apply action for this lane.
         position:
           type: integer
           minimum: 0

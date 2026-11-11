@@ -108,6 +108,11 @@ ticket-order previews follow full blocking paths through intermediate cards,
 reject selected cycles, and permute only the selected ticket pool. They preserve
 the board revision and return it as `board_revision`.
 
+Use `PATCH /lanes/{lane_id}` with Boolean `reorder_enabled` and the current
+`board_etag`. Send the current lane validator in `If-Match`. The caller needs
+`manage_workflow`. The setting defaults to false. An enabled lane offers the
+browser preview and Apply workflow once it has at least two active cards.
+
 Backup capture holds the board read lock while capturing one committed snapshot.
 Attachment verification and archive construction run after releasing that lock.
 The ZIP includes the native snapshot and exact audited immutable attachment

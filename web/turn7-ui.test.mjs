@@ -2813,7 +2813,7 @@ test("live invalidation deferred by a write survives until the write ends", asyn
 
 const uploadBoard = "b4979c23-4be2-4553-bbeb-66a47b7c021c";
 
-async function attachmentUploadFixture(secondBoard = board) {
+async function attachmentUploadFixture(secondBoard = board, options) {
   const {api} = boardApi();
   const initial = (await api.getCard(card)).data;
   const cards = new Map([
@@ -2860,7 +2860,11 @@ async function attachmentUploadFixture(secondBoard = board) {
     assert.match(attachmentId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     return behavior.write(id, file, attachmentId);
   };
-  const ui = await harness(api);
+  let getCapability;
+  const ui = await harness((readCapability) => {
+    getCapability = readCapability;
+    return api;
+  }, "/boards/" + board, options);
   await ui.load();
   ui.find(ui.nodes.main, "button", "#1 Original").click();
   await until(() => ui.find(ui.nodes.details, "button", "Upload attachments"));
@@ -2870,7 +2874,7 @@ async function attachmentUploadFixture(secondBoard = board) {
   };
   const paste = (files, types = ["Files"], target = ui.nodes.details) =>
     ui.nodes.details.dispatch("paste", {target, clipboardData: {files, types}});
-  return {ui, api, cards, calls, readbacks, saved, behavior, commit, choose, paste};
+  return {ui, api, cards, calls, readbacks, saved, behavior, commit, choose, paste, getCapability};
 }
 
 test("attachment picker preflights every file, permits exactly 10 MiB and serializes by card ETag", async () => {
@@ -2937,6 +2941,54 @@ test("attachment paste preserves ordinary text paste and independent card upload
   await ui.navigate("/boards/" + board);
   await until(() => /origin-second\.png — Uploaded/.test(ui.nodes.details.textContent));
   assert.doesNotMatch(ui.nodes.details.textContent, /other\.png/);
+});
+
+test("a late upload refusal keeps the renewed capability for a write on another card", async () => {
+  let sessions = 0;
+  const {ui, api, cards, behavior, commit, choose, calls, readbacks, getCapability} =
+    await attachmentUploadFixture(board, {openSession: async () => "session-" + ++sessions});
+  const first = Promise.withResolvers();
+  const refused = Promise.withResolvers();
+  const uploadCapabilities = [];
+  behavior.write = async (...args) => {
+    uploadCapabilities.push(getCapability());
+    if (args[1].name === "first.txt") {
+      await first.promise;
+      return commit(...args);
+    }
+    await refused.promise;
+  };
+  const otherWrites = [];
+  api.patchCard = async (id, expected, draft) => {
+    otherWrites.push([id, expected, getCapability()]);
+    const saved = {...cards.get(id), ...draft};
+    cards.set(id, saved);
+    return {data: saved, etag: tag(id, saved.revision)};
+  };
+  async function renewCapability(prior) {
+    await ui.readWithSession(async () => {
+      if (getCapability() === prior) throw new ApiError("http_error", {status: 401});
+    });
+  }
+  choose({name: "first.txt", size: 1}, {name: "late.txt", size: 1}, {name: "waiting.txt", size: 1});
+  assert.deepEqual(uploadCapabilities, ["session-1"]);
+  await renewCapability("session-1");
+  first.resolve();
+  await until(() => uploadCapabilities.length === 2);
+  assert.deepEqual(uploadCapabilities, ["session-1", "session-2"]);
+  await renewCapability("session-2");
+  ui.find(ui.nodes.main, "button", "#2 Other card").click();
+  await until(() => /#2 Other card/.test(ui.nodes.details.textContent));
+  refused.reject(new ApiError("http_error", {status: 401}));
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.equal(getCapability(), "session-3");
+  ui.field(ui.nodes.details, "Title").value = "Updated other card";
+  ui.submit(ui.nodes.details, "Save text");
+  await ui.settled();
+  assert.deepEqual(otherWrites, [[backup, tag(backup, 1), "session-3"]]);
+  assert.equal(sessions, 3);
+  assert.deepEqual(calls.map(({name}) => name), ["first.txt", "late.txt"]);
+  assert.deepEqual(readbacks, []);
 });
 
 test("attachment upload confirms a lost response by original UUID before advancing", async () => {

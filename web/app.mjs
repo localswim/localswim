@@ -1282,6 +1282,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
           const id = crypto.randomUUID();
           result.outcome = "Uploading…";
           reportAttachmentUploads(index);
+          const submittedCapability = capability;
           try {
             const reply = await api.uploadAttachment(card.id, expected, file, id);
             const item = /** @type {Attachment} */ (reply.data);
@@ -1292,7 +1293,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
             refreshNeeded = true;
             result.outcome = "Uploaded.";
           } catch (error) {
-            const phase = writePhase(error);
+            const phase = writePhase(error, submittedCapability);
             if (phase === "unknown") {
               refreshNeeded = true;
               const readUpload = async () => {

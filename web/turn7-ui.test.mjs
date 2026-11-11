@@ -40,12 +40,13 @@ async function harness(api, pathname = "/boards/" + board, {
     }
     replaceChildren(...nodes) { for (const node of this.children) node.parent = undefined; this.children = []; this.ownText = ""; this.append(...nodes); }
     prepend(node) { node.parent = this; this.children.unshift(node); }
+    remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = undefined; }
     setAttribute(key, value) { this.attributes[key] = value; }
     removeAttribute(key) { delete this.attributes[key]; }
     addEventListener(key, handler) { (this.events[key] ??= []).push(handler); }
     dispatch(key) { for (const handler of this.events[key] ?? []) handler({preventDefault() {}}); }
     click() { if (!this.disabled) this.dispatch("click"); }
-    focus() { document.activeElement = this; }
+    focus(options) { document.activeElement = this; this.focusOptions = options; }
     closest(selector) { if (selector === '[data-unavailable="true"]' && this.dataset.unavailable === "true") return this; return this.parent?.closest(selector) ?? null; }
     contains(node) { return node === this || this.children.some((child) => child.contains(node)); }
     hasChildNodes() { return this.children.length > 0; }
@@ -316,7 +317,19 @@ test("missing or foreign saved cards clear selection, and a late refusal leaves 
   api.getCard = async () => { throw new ApiError("transport_failed"); };
   await ui.load();
   await ui.settled();
+  assert.match(ui.nodes.details.textContent, /Use Refresh/);
   assert.equal(JSON.parse(storage.getItem(key)).card.id, card);
+  const retried = [];
+  const readBoard = api.getBoardLanes;
+  let boardReads = 0;
+  api.getBoardLanes = (...args) => { boardReads++; return readBoard(...args); };
+  api.getCard = async (id) => { retried.push(id); return readCard(id); };
+  ui.nodes.refresh.click();
+  await ui.settled();
+  assert.deepEqual(retried, [card]);
+  assert.equal(boardReads, 0);
+  assert.equal(ui.nodes.details.querySelector("h2").textContent, "#1 Original");
+
   api.getCard = async () => { throw new ApiError("http_error", {status: 404}); };
   await ui.load();
   await ui.settled();
@@ -330,6 +343,92 @@ test("missing or foreign saved cards clear selection, and a late refusal leaves 
   await foreign.settled();
   assert.equal(foreign.nodes.details.hidden, true);
   assert.equal(JSON.parse(storage.getItem(key)).card, undefined);
+});
+
+test("a pending open rereads the selected card after a newer board paint without taking focus", async () => {
+  const state = boardApi();
+  const readCard = state.api.getCard;
+  const old = await readCard(card);
+  const started = Promise.withResolvers();
+  const pending = Promise.withResolvers();
+  const reads = [];
+  state.api.getCard = async (id) => {
+    reads.push(id);
+    if (reads.length === 1) {
+      started.resolve();
+      return pending.promise;
+    }
+    return readCard(id);
+  };
+  const ui = await harness(state.api);
+  await ui.load();
+  const source = ui.find(ui.nodes.main, "button", "#1 Original");
+  source.focus();
+  source.click();
+  await started.promise;
+  state.restore();
+  ui.nodes.refresh.click();
+  await ui.settled();
+  const replacement = ui.find(ui.nodes.main, "button", "#9 Recovered");
+  assert.ok(replacement);
+  assert.equal(ui.focused(), replacement);
+  assert.match(ui.nodes.details.textContent, /Loading card/);
+  pending.resolve(old);
+  await ui.settled();
+  assert.deepEqual(reads, [card, card]);
+  assert.equal(ui.nodes.details.querySelector("h2").textContent, "#9 Recovered");
+  assert.equal(ui.focused(), replacement);
+  ui.field(ui.nodes.details, "Title").value = "Edited after newer paint";
+  ui.submit(ui.nodes.details, "Save text");
+  await ui.settled();
+  assert.equal(state.patched(), tag(card, 7));
+});
+
+test("cover space exists before bytes arrive and repaint restores scroll without scrolling focused controls", async () => {
+  const {api} = boardApi();
+  const getBoardLanes = api.getBoardLanes;
+  api.getBoardLanes = async (...args) => {
+    const result = await getBoardLanes(...args);
+    return {...result, data: {...result.data, cards: result.data.cards.map((item) => ({...item, cover_attachment_id: backup}))}};
+  };
+  const pending = Promise.withResolvers();
+  api.getAttachment = async () => ({data: {id: backup, board_id: board, card_id: card, active: true, previewable: true}});
+  api.getAttachmentContent = () => pending.promise;
+  const url = "/boards/" + board;
+  const storage = tabStorage();
+  storage.setItem("localswim:board-view:" + board, JSON.stringify({scroll: {left: 80, lanes: {[lane]: 240}}}));
+  const ui = await harness(api, url, {storage});
+  await ui.load();
+  const columns = ui.nodes.main.querySelectorAll("div").find((node) => node.className === "lanes");
+  const opener = () => ui.find(ui.nodes.main, "button", "#1 Original");
+  const slot = () => opener().children.find((node) => node.className === "card-cover-space");
+  assert.ok(slot());
+  assert.equal(slot().children.length, 0);
+  assert.equal(columns.scrollLeft, 80);
+  assert.equal(columns.children[0].scrollTop, 240);
+  columns.scrollLeft = 110;
+  columns.children[0].scrollTop = 310;
+  pending.resolve(new Blob(["cover"]));
+  await ui.settled();
+  assert.equal(slot().children[0].className, "card-cover");
+  slot().children[0].dispatch("error");
+  assert.equal(slot().children.length, 0);
+  assert.equal(columns.scrollLeft, 110);
+  assert.equal(columns.children[0].scrollTop, 310);
+
+  opener().focus();
+  ui.nodes.refresh.click();
+  await ui.settled();
+  assert.equal(columns.scrollLeft, 110);
+  assert.equal(columns.children[0].scrollTop, 310);
+  assert.equal(ui.focused(), opener());
+  assert.equal(opener().focusOptions?.preventScroll, true);
+  const preview = () => columns.querySelector("input");
+  preview().focus();
+  ui.nodes.refresh.click();
+  await ui.settled();
+  assert.equal(ui.focused(), preview());
+  assert.equal(preview().focusOptions?.preventScroll, true);
 });
 
 const publishingOff = {enabled: false, repository: null, last_success_at: null, pending: false, error_code: null};

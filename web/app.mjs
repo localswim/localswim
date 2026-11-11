@@ -62,6 +62,8 @@ let boardInspection;
 /** @type {Inspection|undefined} */
 let cardInspection;
 /** @type {(() => void)|undefined} */
+let retrySelectedCard;
+/** @type {(() => void)|undefined} */
 let retainCardDraft;
 /** @type {(() => void)|undefined} */
 let retainBoardDraft;
@@ -613,18 +615,37 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
   releaseCardMedia = undefined;
   retainCardDraft = undefined;
   cardInspection = undefined;
+  retrySelectedCard = undefined;
   activeComment = undefined;
   activeDrawer = undefined;
   const view = details;
   const cardView = ++activeCard;
   rememberCard(boardId, summary.id);
+  const isSelected = () => cardView === activeCard && boardViewState(boardId).card?.id === summary.id;
+  const initialFocus = document.activeElement;
+  let focusHeading = !restoring;
   view.hidden = false;
   delete view.dataset.unavailable;
   view.replaceChildren(element("p", "Loading card…"));
   let invalidSelection = false;
   try {
-    const reply = await readWithSession(() => api.getCard(summary.id));
-    if (cardView !== activeCard) return;
+    let reply;
+    for (;;) {
+      // The board tag changes with its in-place paint, before auxiliary reads finish.
+      const requestedTag = boardTag();
+      try {
+        const result = await readWithSession(() => api.getCard(summary.id));
+        if (!isSelected()) return;
+        if (requestedTag === boardTag()) {
+          reply = result;
+          break;
+        }
+      } catch (error) {
+        if (!isSelected()) return;
+        if (requestedTag === boardTag()) throw error;
+      }
+      focusHeading = false;
+    }
     const card = /** @type {Card} */ (reply.data);
     if (card.id !== summary.id || card.board_id !== boardId) {
       invalidSelection = true;
@@ -1256,7 +1277,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         }, "Attachment saved.", inspection);
       }));
     inspection.sync();
-    if (!restoring) heading.focus();
+    if (focusHeading && document.activeElement === initialFocus) heading.focus();
     void readWithSession(refreshRelationships).catch(() => {
       if (cardView === activeCard && !relationshipList.hasChildNodes()) relationshipList.textContent = "Links could not be read.";
     });
@@ -1266,7 +1287,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       attachmentList.textContent = "Attachments could not be read.";
     });
   } catch (error) {
-    if (cardView !== activeCard) return;
+    if (!isSelected()) return;
     if (invalidSelection || (error instanceof ApiError && error.status === 404)) {
       rememberCard(boardId);
       if (restoring) {
@@ -1274,6 +1295,10 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         view.replaceChildren();
         return;
       }
+    } else {
+      retrySelectedCard = () => {
+        if (isSelected()) void openCard(boardId, summary, lanes, users, priorities, boardTag, reloadBoard, opener, true);
+      };
     }
     view.replaceChildren(element("p", readError(error)));
   }
@@ -1826,6 +1851,7 @@ async function load(savedAvailability) {
   retainBoardDraft = undefined;
   cardInspection = undefined;
   boardInspection = undefined;
+  retrySelectedCard = undefined;
   activeComment = undefined;
   activeDrawer = undefined;
   const view = ++activeView;
@@ -2061,11 +2087,11 @@ async function load(savedAvailability) {
     }
     releaseBoardMedia = clearCovers;
 
-    /** @param {Card} card @param {HTMLElement} opener @param {number} read */
-    async function showCover(card, opener, read) {
+    /** @param {Card} card @param {HTMLElement} slot @param {number} read */
+    async function showCover(card, slot, read) {
       const id = card.cover_attachment_id;
       if (!id) return;
-      const current = () => view === activeView && read === coverRead && opener.isConnected;
+      const current = () => view === activeView && read === coverRead && slot.isConnected;
       try {
         const blob = await readWithSession(async () => {
           const meta = /** @type {Attachment} */ ((await api.getAttachment(id)).data);
@@ -2084,7 +2110,7 @@ async function load(savedAvailability) {
           URL.revokeObjectURL(url);
         });
         image.src = url;
-        opener.prepend(image);
+        slot.replaceChildren(image);
       } catch {
         // The card remains usable when the cover cannot be read.
       }
@@ -2229,15 +2255,21 @@ async function load(savedAvailability) {
         for (const card of members) {
           const opener = cardOpener(card);
           column.append(opener);
-          if (card.cover_attachment_id) void showCover(card, opener, render);
+          if (card.cover_attachment_id) {
+            const slot = element("span");
+            slot.className = "card-cover-space";
+            slot.setAttribute("aria-hidden", "true");
+            opener.prepend(slot);
+            void showCover(card, slot, render);
+          }
         }
         return column;
       }));
       restoreScroll();
       if (focusedId) [...columns.querySelectorAll("button")].find((control) =>
-        control.dataset.cardId === focusedId)?.focus();
+        control.dataset.cardId === focusedId)?.focus({ preventScroll: true });
       if (focusedPreview) [...columns.querySelectorAll("input")].find((control) =>
-        control.dataset.previewLane === focusedPreview)?.focus();
+        control.dataset.previewLane === focusedPreview)?.focus({ preventScroll: true });
     }
 
     async function reloadArchived() {
@@ -2861,6 +2893,10 @@ document.querySelector("header a")?.addEventListener("click", (event) => {
 });
 refresh.addEventListener("click", () => {
   if (writing) return;
+  if (retrySelectedCard) {
+    retrySelectedCard();
+    return;
+  }
   const inspection = cardInspection ?? boardInspection;
   if (inspection) inspection.inspect();
   else void load();

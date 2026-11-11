@@ -63,7 +63,7 @@ const cliHelp = `Usage:
   localswim relationship create [--revision N] BOARD_ID FILE|-
   localswim relationship patch [--revision N] RELATIONSHIP_ID FILE|-
   localswim relationship remove [--revision N] RELATIONSHIP_ID
-  localswim comment list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
+  localswim comment list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim comment post [--revision N] CARD_ID FILE|-
   localswim activity list --from UTC --to UTC [--view full|monitor] [--ticket N]
                         [--actor-id UUID] [--operation OP] [--limit N] [--cursor CURSOR] BOARD_ID
@@ -124,6 +124,7 @@ Card create reads JSON_FILE, or standard input when given as -.
 Its JSON must include board_id. The CLI supplies the board revision validator.
 Include an explicit card ID to allow focused readback after a lost create reply.
 Policy grant reads create_grants and/or move_grants and preserves existing permissions.
+Comment list excludes archived cards for a board and includes them when scoped to one card by default.
 Comment post reads an object containing text and an optional ID.
 Lane add reads the lane definition. The CLI supplies its board ID and validator.
 Card edits, comment post, and attachment upload check the card revision.

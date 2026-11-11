@@ -40,6 +40,7 @@ type ticketCard struct {
 
 type ticketRelationship struct {
 	ID        string     `json:"id"`
+	Revision  uint64     `json:"revision"`
 	Kind      string     `json:"kind"`
 	Direction string     `json:"direction"`
 	Card      ticketCard `json:"card"`
@@ -56,6 +57,7 @@ type TicketInspection struct {
 	BoardID       string               `json:"board_id"`
 	BoardRevision uint64               `json:"board_revision"`
 	Card          ticketCard           `json:"card"`
+	RelatedCard   *ticketCard          `json:"related_card,omitempty"`
 	Relationships []ticketRelationship `json:"relationships"`
 	Parent        *ticketCard          `json:"parent"`
 	Children      []ticketCard         `json:"children"`
@@ -65,6 +67,10 @@ type TicketInspection struct {
 // InspectTicket builds the same projection for the live and offline read paths.
 // Its input is an already accepted or validated board snapshot.
 func InspectTicket(state snapshot, ticket uint64, includeProse bool) (TicketInspection, error) {
+	return inspectTicket(state, ticket, 0, includeProse)
+}
+
+func inspectTicket(state snapshot, ticket, relatedTicket uint64, includeProse bool) (TicketInspection, error) {
 	if ticket == 0 || ticket > maxSnapshotInteger {
 		return TicketInspection{}, invalid("ticket", "Expected a positive safe integer.")
 	}
@@ -97,6 +103,14 @@ func InspectTicket(state snapshot, ticket uint64, includeProse bool) (TicketInsp
 		Card:          context(&focus),
 		Relationships: []ticketRelationship{}, Children: []ticketCard{},
 	}
+	if relatedTicket != 0 {
+		index := slices.IndexFunc(state.Cards, func(item card) bool { return item.Ticket == relatedTicket })
+		if index < 0 {
+			return TicketInspection{}, errMissing
+		}
+		related := context(&state.Cards[index])
+		result.RelatedCard = &related
+	}
 	if focus.ParentID != nil {
 		parent := context(cards[*focus.ParentID])
 		result.Parent = &parent
@@ -118,7 +132,7 @@ func InspectTicket(state snapshot, ticket uint64, includeProse bool) (TicketInsp
 		if link.Kind == "relates_to" {
 			direction = "symmetric"
 		}
-		result.Relationships = append(result.Relationships, ticketRelationship{link.ID, link.Kind, direction, context(cards[other])})
+		result.Relationships = append(result.Relationships, ticketRelationship{link.ID, link.Revision, link.Kind, direction, context(cards[other])})
 	}
 	slices.SortFunc(result.Relationships, func(a, b ticketRelationship) int {
 		return cmp.Or(cmp.Compare(a.Card.Ticket, b.Card.Ticket), cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Direction, b.Direction))
@@ -149,6 +163,19 @@ func (x *request) boardTicket(state snapshot) {
 		x.fail(invalid("ticket", "Expected a positive safe integer."))
 		return
 	}
+	rawRelated, err := singleQuery(x.r, "related_ticket")
+	if err != nil {
+		x.fail(err)
+		return
+	}
+	var related uint64
+	if x.r.URL.Query().Has("related_ticket") {
+		related, err = strconv.ParseUint(rawRelated, 10, 64)
+		if err != nil || related == 0 || related > maxSnapshotInteger || related == ticket {
+			x.fail(invalid("related_ticket", "Expected a different positive safe ticket integer."))
+			return
+		}
+	}
 	prose, err := singleQuery(x.r, "include_prose")
 	if err != nil {
 		x.fail(err)
@@ -158,7 +185,7 @@ func (x *request) boardTicket(state snapshot) {
 		x.fail(invalid("include_prose", "Expected true or false."))
 		return
 	}
-	result, err := InspectTicket(state, ticket, prose == "true")
+	result, err := inspectTicket(state, ticket, related, prose == "true")
 	if err != nil {
 		x.fail(err)
 		return

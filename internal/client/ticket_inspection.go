@@ -24,22 +24,25 @@ type TicketTarget struct {
 
 // InspectTicket reads one board's focused ticket view with the selected prose mode.
 func (c *Client) InspectTicket(boardID string, ticket uint64, includeProse bool) (Response, error) {
-	reply, _, err := c.inspectTicket(boardID, ticket, includeProse)
+	reply, _, err := c.inspectTicket(boardID, ticket, 0, includeProse)
 	return reply, err
 }
 
 // ResolveTicket reads one focused view and validates both resource validators.
 func (c *Client) ResolveTicket(boardID string, ticket uint64) (TicketTarget, error) {
-	_, target, err := c.inspectTicket(boardID, ticket, false)
+	_, target, err := c.inspectTicket(boardID, ticket, 0, false)
 	return target, err
 }
 
-func (c *Client) inspectTicket(boardID string, ticket uint64, includeProse bool) (Response, TicketTarget, error) {
+func (c *Client) inspectTicket(boardID string, ticket, relatedTicket uint64, includeProse bool) (Response, TicketTarget, error) {
 	boardID = strings.ToLower(boardID)
 	if !canonicalUUID4.MatchString(boardID) || ticket == 0 || ticket > maxTicketInteger {
 		return Response{}, TicketTarget{}, errors.New("expected a board UUIDv4 and a positive safe ticket integer")
 	}
 	resource := "/boards/" + boardID + "?view=ticket&ticket=" + strconv.FormatUint(ticket, 10)
+	if relatedTicket != 0 {
+		resource += "&related_ticket=" + strconv.FormatUint(relatedTicket, 10)
+	}
 	if includeProse {
 		resource += "&include_prose=true"
 	}
@@ -68,7 +71,11 @@ func (c *Client) inspectTicket(boardID string, ticket uint64, includeProse bool)
 	target := TicketTarget{
 		BoardID: boardID, BoardRevision: document.BoardRevision, BoardETag: reply.BoardETag,
 		CardID: document.Card.ID, CardRevision: document.Card.Revision,
-		CardETag: fmt.Sprintf("\"%s-%d\"", document.Card.ID, document.Card.Revision),
+		CardETag: ticketEntityTag(document.Card.ID, document.Card.Revision),
 	}
 	return reply, target, nil
+}
+
+func ticketEntityTag(id string, revision uint64) string {
+	return fmt.Sprintf("\"%s-%d\"", id, revision)
 }

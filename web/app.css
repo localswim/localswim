@@ -49,7 +49,8 @@ main { flex: 1; min-width: 0; }
 .card-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; margin-block-start: 0.3rem; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 .card-comment-count { grid-column: 1; justify-self: start; }
 .card-attachment-count { grid-column: 2; justify-self: end; }
-.card-cover { display: block; width: 100%; max-height: 8rem; object-fit: cover; margin-bottom: 0.35rem; }
+.card-cover-space { display: block; block-size: 8rem; margin-bottom: 0.35rem; overflow: hidden; }
+.card-cover { display: block; width: 100%; max-height: 8rem; object-fit: cover; }
 .attachment img { display: block; max-width: 100%; max-height: 22rem; margin: 0.5rem 0; }
 .attachment button + button { margin-inline-start: 0.4rem; }
 #details article { border-top: 1px solid #ccd6e3; padding-block: 0.45rem; }

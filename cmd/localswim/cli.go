@@ -30,7 +30,7 @@ const cliHelp = `Usage:
   localswim board list [--limit N] [--cursor CURSOR]
   localswim board create --name NAME
   localswim board create --json <JSON_FILE|->
-  localswim board get [--view lanes] BOARD_ID
+  localswim board get [--view lanes] [--data DIRECTORY] BOARD_ID
   localswim board rename [--revision N] BOARD_ID NEW_NAME
   localswim board close [--revision N] BOARD_ID
   localswim board reopen [--revision N] BOARD_ID
@@ -39,11 +39,12 @@ const cliHelp = `Usage:
   localswim board publishing disable [--revision N] BOARD_ID
   localswim board publishing status BOARD_ID
   localswim board verify [--data DIRECTORY] BOARD_ID
-  localswim board export [--type json] BOARD_ID
+  localswim board export [--type json] [--data DIRECTORY] BOARD_ID
   localswim card create [--revision N] <JSON_FILE|->
   localswim card list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card get CARD_ID
   localswim card get BOARD_ID TICKET
+  localswim card inspect [--prose] [--data DIRECTORY] BOARD_ID TICKET
   localswim card patch [--revision N] CARD_ID FILE|-
   localswim card move [--revision N] CARD_ID LANE_ID
   localswim card assign [--revision N] CARD_ID OWNER_ID
@@ -99,7 +100,8 @@ Live commands use LOCALSWIM_URL (http://127.0.0.1:<port>) and LOCALSWIM_TOKEN.
 Board creation requires exactly one of --name or --json.
 --json reads a new board definition from JSON_FILE or standard input.
 JSON_FILE is required. Use a file path or - to read standard input.
-Set --data on board verify to read the private board data offline.
+Set --data on board get, board export, card inspect, or board verify to read saved board data offline.
+Offline board get returns board metadata. The lanes view requires a live service.
 Board export writes JSON to standard output. The default --type is json.
 All pin commands require at least one board ID. Pin set replaces the order.
 Pin add appends new boards in the supplied order.
@@ -150,6 +152,7 @@ The CLI manages HTTP validators.
 For FILE|-, pass a file path or use - to read standard input.
 Card description reads UTF-8 text verbatim, including trailing newlines.
 Card list excludes archived cards by default. Focused card get includes them.
+Card inspect returns ticket, lane, owner, priority, and relationship metadata. Use --prose for its description and comments.
 Use card cover CARD_ID none to clear the selected cover.
 Relationship create reads source_card_id, target_card_id, kind, and optional id.
 Relationship patch reads kind. The CLI supplies the required validators.
@@ -201,6 +204,8 @@ type cliCommand struct {
 	downloadPath                       string
 	detachAttachment                   bool
 	t06Action                          string
+	nativeRead                         string
+	ticketInspection                   *cliTicketInspection
 	t07Action                          string
 	publishingAction                   string
 	boardAvailability                  string
@@ -320,7 +325,9 @@ func parseCLI(args []string) (cliCommand, error) {
 		flags.BoolVar(&jsonInput, "json", false, "read a new board definition from standard input")
 	case "board get":
 		command.method, command.resource, needBoardID = http.MethodGet, "/boards", true
+		command.nativeRead = "metadata"
 		flags.StringVar(&boardView, "view", "", "board view (lanes)")
+		flags.StringVar(&command.dataDir, "data", "", "private data directory")
 	case "board rename":
 		command.method, command.resource, needBoardID = http.MethodPatch, "/boards", true
 		rename = true
@@ -338,12 +345,18 @@ func parseCLI(args []string) (cliCommand, error) {
 		flags.StringVar(&command.dataDir, "data", "", "private data directory")
 	case "board export":
 		command.method, command.resource, needBoardID = http.MethodGet, "/snapshots", true
+		command.nativeRead = "export"
 		flags.Var(&format, "type", "export type (allowed value: json)")
+		flags.StringVar(&command.dataDir, "data", "", "private data directory")
 	case "card create":
 		command.method, command.resource = http.MethodPost, "/cards"
 		command.boardAction = name
 	case "card get":
 		command.method, command.resource = http.MethodGet, "/cards"
+	case "card inspect":
+		var err error
+		command.ticketInspection, err = parseTicketInspection(optionArgs)
+		return command, err
 	case "policy get", "policy grant":
 		command.method, command.resource, needBoardID = http.MethodGet, "/policies", true
 		command.boardAction = name
@@ -503,6 +516,9 @@ func parseCLI(args []string) (cliCommand, error) {
 		if boardView != "lanes" {
 			return command, errors.New("--view requires lanes")
 		}
+		if command.dataDir != "" {
+			return command, errors.New("--view lanes requires a live board")
+		}
 		command.resource += "?view=lanes"
 	}
 	return command, nil
@@ -519,6 +535,12 @@ func boardNameBody(name string) (json.RawMessage, error) {
 }
 
 func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, getenv func(string) string) error {
+	if inspect := command.ticketInspection; inspect != nil && inspect.dataDir != "" {
+		return executeNativeRead(inspect.dataDir, inspect.boardID, "ticket", inspect.ticket, inspect.prose, stdout)
+	}
+	if command.dataDir != "" && command.nativeRead != "" {
+		return executeNativeRead(command.dataDir, command.boardID, command.nativeRead, 0, false, stdout)
+	}
 	if command.dataDir != "" {
 		report, err := v2.VerifyOffline(command.dataDir, command.boardID)
 		if err != nil {
@@ -533,6 +555,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	api, err := client.New(getenv("LOCALSWIM_URL"), getenv("LOCALSWIM_TOKEN"))
 	if err != nil {
 		return err
+	}
+	if command.ticketInspection != nil {
+		return executeTicketInspection(api, command.ticketInspection, stdout)
 	}
 	if command.serviceAction != "" {
 		return executeServiceAction(api, command, stdout)

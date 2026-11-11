@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/localswim/localswim/internal/v2"
 )
@@ -23,4 +24,15 @@ func readNativeBoard(dataDir, boardID, view string, ticket uint64, includeProse 
 	default:
 		return nil, errors.New("this view is unavailable for native board reads")
 	}
+}
+
+func executeNativeRead(dataDir, boardID, view string, ticket uint64, includeProse bool, stdout io.Writer) error {
+	data, err := readNativeBoard(dataDir, boardID, view, ticket, includeProse)
+	if err != nil {
+		return err
+	}
+	if err := writeCLIJSON(stdout, data); err != nil {
+		return errors.New("could not write the saved board response")
+	}
+	return nil
 }

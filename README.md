@@ -3,6 +3,8 @@
 A local swimlane board for organizing work. V2 serves the workspace and its boards
 through one loopback service and port.
 
+**[Roadmap and scope](ROADMAP.md)**
+
 ## Getting started
 
 Use Go 1.27 to build the service and CLI.

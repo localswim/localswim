@@ -1,4 +1,7 @@
-import { ApiError, createBrowserApi, openBrowserSession, validPublishing } from "./api.mjs";
+import {
+  ApiError, createBrowserApi, DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH,
+  MAX_LANE_APPROVAL_CARDS, openBrowserSession, validPublishing,
+} from "./api.mjs";
 
 /** @typedef {{id: string, label: string}} Labeled */
 /** @typedef {Labeled & {kind: "human"|"bot"}} User */
@@ -10,7 +13,7 @@ import { ApiError, createBrowserApi, openBrowserSession, validPublishing } from 
 /** @typedef {import("./api.mjs").Publishing} Publishing */
 /** @typedef {{id: string, name: string, default_owner_id: string, user_css?: string, notifications?: object, publishing?: unknown}} Board */
 /** @typedef {{id: string, name: string|null}} BoardSummary */
-/** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string, approval_enabled: boolean}} Lane */
+/** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string, approval_enabled: boolean, bulk_approval_comment?: string}} Lane */
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
 /** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number, board_id: string, active: boolean, previewable: boolean, revision: number, sha2_256: string}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
@@ -1816,7 +1819,7 @@ async function load(savedAvailability) {
         previewButton.dataset.action = "preview-ticket-order";
         column.append(selectedTickets, previewButton, preview);
         if (completed && lane.role === "ready_for_review" && lane.approval_enabled
-            && members.length > 0 && members.length <= 5000) {
+            && members.length > 0 && members.length <= MAX_LANE_APPROVAL_CARDS) {
           const versions = members.map(({ id, revision }) => ({ id, revision }));
           const cardIds = versions.map(({ id }) => id);
           column.append(form("Approve all in lane", [], (submit) => {
@@ -1825,12 +1828,12 @@ async function load(savedAvailability) {
             const drawer = activeDrawer;
             let approved = false;
             void writeResource(submit, async () => {
-              await api.approveLane(id, board.id, renderedTag, lane.id, completed.id, versions);
+              await api.approveLane(id, board.id, renderedTag, lane.id, completed.id, versions, lane.bulk_approval_comment);
               approved = true;
             }, async () => {
               if (!approved) {
                 try {
-                  await api.inspectLaneApproval(id, board.id, renderedTag, lane.id, completed.id, cardIds);
+                  await api.inspectLaneApproval(id, board.id, renderedTag, lane.id, completed.id, cardIds, lane.bulk_approval_comment);
                   approved = true;
                 } catch (error) {
                   if (!(error instanceof ApiError) || error.status !== 404) throw error;
@@ -2113,22 +2116,56 @@ function renderLaneEditor(boardId, lanes, users, boardTag, reloadBoard, inspecti
     names.textContent = "Saved lanes: " + lanes.map(({ label, key, retired }) => label + " [" + key + "]" + (retired ? " (retired)" : "")).join(", ");
   }
 
+  const approvalEnabled = element("input");
+  approvalEnabled.type = "checkbox";
+  const bulkApprovalComment = element("textarea");
+  bulkApprovalComment.placeholder = DEFAULT_APPROVAL_COMMENT;
+  let savedLane = "";
+  let savedEnabled = false;
+  let savedComment = "";
+  let displayedComment = "";
+
   function updateApprovalAction() {
     const lane = activeLanes(lanes).find(({ id }) => id === reviewLane.value);
     approvalForm.hidden = !reviewLane.options.length;
-    const control = approvalForm.querySelector("button");
-    if (control) control.textContent = lane?.approval_enabled ? "Disable lane approval" : "Enable lane approval";
+    if (lane?.id === savedLane && (approvalEnabled.checked !== savedEnabled || bulkApprovalComment.value !== displayedComment)) return;
+    savedLane = lane?.id ?? "";
+    savedEnabled = lane?.approval_enabled ?? false;
+    approvalEnabled.checked = savedEnabled;
+    savedComment = lane?.bulk_approval_comment ?? "";
+    bulkApprovalComment.value = savedComment;
+    displayedComment = bulkApprovalComment.value;
+    bulkApprovalComment.setCustomValidity("");
   }
-  const approvalForm = form("Enable lane approval", [field("Review lane", reviewLane)], (submit) => {
-    const lane = activeLanes(lanes).find(({ id, role }) => id === reviewLane.value && role === "ready_for_review");
-    if (!lane) return;
-    const enabled = !lane.approval_enabled;
-    void writeResource(submit, () => api.updateLaneSettings(boardId, lane.id, lane.revision, boardTag(), { approval_enabled: enabled }),
-      async () => {
+  bulkApprovalComment.addEventListener("input", () => bulkApprovalComment.setCustomValidity(""));
+  const approvalForm = form("Save lane approval settings",
+    [field("Review lane", reviewLane), field("Enable lane approval", approvalEnabled),
+      field("Bulk approval comment", bulkApprovalComment)], (submit) => {
+      const lane = activeLanes(lanes).find(({ id, role }) => id === reviewLane.value && role === "ready_for_review");
+      if (!lane) return;
+      const enabled = approvalEnabled.checked;
+      const display = bulkApprovalComment.value;
+      const text = display === displayedComment ? savedComment : display;
+      if ([...text].length > MAX_BULK_APPROVAL_COMMENT_LENGTH) {
+        bulkApprovalComment.setCustomValidity("Use up to " + MAX_BULK_APPROVAL_COMMENT_LENGTH + " characters.");
+        bulkApprovalComment.reportValidity();
+        return;
+      }
+      void writeResource(submit, () => api.updateLaneSettings(boardId, lane.id, lane.revision, boardTag(),
+        { approval_enabled: enabled, bulk_approval_comment: text }), async () => {
         await reloadBoard();
-        return lanes.find(({ id }) => id === lane.id)?.approval_enabled === enabled;
-      }, enabled ? "Lane approval enabled." : "Lane approval disabled.", inspection);
-  });
+        const saved = lanes.find(({ id }) => id === lane.id);
+        const committed = saved?.approval_enabled === enabled && (saved.bulk_approval_comment ?? "") === text;
+        if (committed && savedLane === lane.id && approvalEnabled.checked === enabled) {
+          savedEnabled = enabled;
+          if (bulkApprovalComment.value === display) {
+            savedComment = text;
+            displayedComment = bulkApprovalComment.value;
+          }
+        }
+        return committed;
+      }, "Lane approval settings saved.", inspection);
+    });
   reviewLane.addEventListener("change", updateApprovalAction);
   const retireForm = form("Retire lane", [field("Lane to retire", retireLane)], (submit) => {
     const lane = activeLanes(lanes).find(({ id, role }) => id === retireLane.value && role !== "completed");

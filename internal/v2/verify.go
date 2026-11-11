@@ -317,8 +317,11 @@ func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 		default:
 			return invalidSnapshot("lanes", "Lane role is invalid.")
 		}
-		if l.ApprovalEnabled && l.Role != "ready_for_review" {
+		if (l.ApprovalEnabled || l.BulkApprovalComment != "") && l.Role != "ready_for_review" {
 			return invalidSnapshot("lanes", "Approval is limited to Ready for Review lanes.")
+		}
+		if !snapshotText(l.BulkApprovalComment, 0, maxBulkApprovalComment) {
+			return invalidSnapshot("lanes.bulk_approval_comment", "Bulk approval comment is invalid.")
 		}
 		refs.ids[l.ID] = true
 		refs.lanes[l.ID] = l
@@ -571,6 +574,8 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		laneRevisions[id] = revision
 		latest[snapshotAuditField{"lane", id, "retired"}] = &disabled
 		latest[snapshotAuditField{"lane", id, "approval_enabled"}] = &disabled
+		empty := ""
+		latest[snapshotAuditField{"lane", id, "bulk_approval_comment"}] = &empty
 	}
 	for id := range initialLanes {
 		initializeLane(id, 1)
@@ -592,6 +597,10 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		if !validSnapshotID(event.ID) || refs.ids[event.ID] ||
 			event.BoardID != b.ID || !validSnapshotTime(event.At) {
 			return invalidSnapshot("activity", "Audit identity or metadata is invalid.")
+		}
+		if event.BulkApprovalComment != "" && (event.Operation != approvalOperation || event.ResourceType != "card" ||
+			snapshotString(event.Field) != "lane_id") {
+			return invalidSnapshot("activity.bulk_approval_comment", "Bulk approval comment requires an approval move.")
 		}
 		refs.ids[event.ID] = true
 		trustedBootstrap := event.Revision == 1 && (event.ActorID == humanID || event.ActorID == botID)
@@ -768,7 +777,7 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 				validRetirementAuditShape(value.Activity, index) &&
 				refs.validLaneAuditValue(event.ActorID, field, event.After) &&
 				validHistoricalRetirement(value.Lanes, replayPolicy, event.ResourceID, laneExists, latest)
-		case event.ResourceType == "lane" && field.name == "approval_enabled":
+		case event.ResourceType == "lane" && (field.name == "approval_enabled" || field.name == "bulk_approval_comment"):
 			valid = laneExists(event.ResourceID) &&
 				snapshotString(latest[snapshotAuditField{"lane", event.ResourceID, "retired"}]) == "false" &&
 				refs.validLaneAuditValue(event.ActorID, field, event.Before) &&

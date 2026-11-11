@@ -133,7 +133,7 @@ func approvalTag(raw json.RawMessage, field string) (string, error) {
 }
 
 func (x *request) createApproval() {
-	fields, err := x.body()
+	fields, err := x.boundedBody(maxApprovalBody)
 	if err != nil {
 		x.fail(err)
 		return
@@ -223,10 +223,7 @@ func (in approvalInput) apply(state *snapshot, actor string) error {
 
 	now := maxCardTime(canonicalTime(time.Now()), state.Board.UpdatedAt)
 	start := len(state.Activity)
-	text := reviewApprovalText
-	if bulkComment != "" {
-		text = bulkComment
-	}
+	text := approvalCommentText(bulkComment)
 	for _, index := range indices {
 		if err := approveCard(state, &state.Cards[index], state.Lanes[target].ID, actor, text, now); err != nil {
 			return err
@@ -289,11 +286,14 @@ func (in approvalInput) selectCards(state *snapshot) ([]int, string, error) {
 			return nil, "", errStale
 		}
 	}
-	text := source.BulkApprovalComment
-	if text == "" {
-		text = reviewApprovalText
+	return indices, approvalCommentText(source.BulkApprovalComment), nil
+}
+
+func approvalCommentText(configured string) string {
+	if configured == "" {
+		return reviewApprovalText
 	}
-	return indices, text, nil
+	return configured
 }
 
 func approveCard(state *snapshot, item *card, targetID, actor, text string, now time.Time) error {

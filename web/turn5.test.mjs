@@ -111,6 +111,51 @@ test("empty approval accepts the unchanged no-op response", async () => {
   await api.approveLane(approvalId, boardId, boardTag, reviewLane, completedLane, []);
 });
 
+test("lane approval preserves custom text and sends every original version above 1000 cards", async () => {
+  const uuid = (group, number) => "00000000-0000-4000-" + group + "-" + number.toString(16).padStart(12, "0");
+  const largeCards = Array.from({ length: 1001 }, (_, index) => ({ id: uuid("8000", index), revision: 8 }));
+  const ids = largeCards.map(({ id }) => id);
+  const custom = "  Approved ✅\r\nReady to ship.  ";
+  const audit = ids.flatMap((id, index) => [
+    { ...changes[0], id: index === 0 ? approvalId : uuid("8100", index), resource_id: id,
+      ...(index === 0 ? { bulk_approval_comment: custom } : {}) },
+    { ...changes[1], id: uuid("8200", index), resource_id: uuid("8300", index) },
+  ]);
+  const largeReceipt = { ...receipt, card_ids: ids, changes: audit };
+  const api = client(async (path, request) => {
+    if (request.method === "GET") {
+      assert.equal(path, approvalPath + "/" + approvalId);
+      return Response.json(largeReceipt, { headers: { ETag: tag(approvalId, 1) } });
+    }
+    assert.equal(path, approvalPath);
+    assert.equal(request.method, "POST");
+    assert.deepEqual(JSON.parse(request.body), { id: approvalId, board_id: boardId, lane_id: reviewLane,
+      expected_board_etag: boardTag, cards: largeCards.map(({ id, revision }) => ({ card_id: id, etag: tag(id, revision) })) });
+    return Response.json(largeReceipt, { status: 201,
+      headers: { Location: approvalPath + "/" + approvalId, "X-Board-ETag": committedTag } });
+  });
+  await api.approveLane(approvalId, boardId, boardTag, reviewLane, completedLane, largeCards, custom);
+  await api.inspectLaneApproval(approvalId, boardId, boardTag, reviewLane, completedLane, ids, custom);
+  await assert.rejects(api.inspectLaneApproval(approvalId, boardId, boardTag, reviewLane, completedLane, ids, "Different"),
+    (error) => error instanceof ApiError && error.code === "invalid_response");
+});
+
+test("lane settings persist and reset an exact bulk approval comment", async () => {
+  const lane = { id: reviewLane, board_id: boardId, revision: 9, created_at: at, updated_at: at,
+    key: "ready_for_review", label: "Ready for Review", position: 3, role: "ready_for_review",
+    retired: false, approval_enabled: false, reorder_enabled: false };
+  for (const text of ["  Custom ✅\r\nApproval.  ", ""]) {
+    const api = client(async (path, request) => {
+      assert.equal(path, prefix + "/lanes/" + reviewLane);
+      assert.equal(request.headers.get("If-Match"), tag(reviewLane, 3));
+      assert.deepEqual(JSON.parse(request.body), { board_etag: boardTag, bulk_approval_comment: text });
+      return Response.json(text ? { ...lane, bulk_approval_comment: text } : lane,
+        { headers: { ETag: tag(reviewLane, 9), "X-Board-ETag": committedTag } });
+    });
+    await api.updateLaneSettings(boardId, reviewLane, 3, boardTag, { bulk_approval_comment: text });
+  }
+});
+
 test("lane settings and detach preserve original board and resource validators", async () => {
   const lane = { id: reviewLane, board_id: boardId, revision: 9, created_at: at, updated_at: at,
     key: "ready_for_review", label: "Ready for Review", position: 3, role: "ready_for_review",

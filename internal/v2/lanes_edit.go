@@ -92,7 +92,7 @@ func (x *request) renameLane(id string) {
 		return
 	}
 	fields := &workflowFields{path: "lane", fields: obj, err: rejectFields(obj,
-		[]string{"board_etag", "label", "key", "retired", "approval_enabled"}, false)}
+		[]string{"board_etag", "label", "key", "retired", "approval_enabled", "bulk_approval_comment"}, false)}
 	boardTag := laneBoardTag(fields)
 	for _, name := range []string{"reorder_enabled", "position"} {
 		if _, found := obj[name]; found {
@@ -103,7 +103,12 @@ func (x *request) renameLane(id string) {
 	key := fields.string("key", 1, 128, false)
 	retired := lanePatchBool(fields, "retired")
 	approval := lanePatchBool(fields, "approval_enabled")
-	if label == "" && key == "" && retired == nil && approval == nil {
+	var bulkComment *string
+	if _, present := fields.fields["bulk_approval_comment"]; present {
+		value := fields.string("bulk_approval_comment", 0, maxBulkApprovalComment, false)
+		bulkComment = &value
+	}
+	if label == "" && key == "" && retired == nil && approval == nil && bulkComment == nil {
 		fields.fail("label", "Supply at least one editable lane field.")
 	}
 	if fields.err != nil {
@@ -123,7 +128,7 @@ func (x *request) renameLane(id string) {
 		if !matchesStrongTag(laneTag, item.entityTag()) {
 			return errStale
 		}
-		if err := applyLanePatch(current, index, x.actor, label, key, retired, approval); err != nil {
+		if err := applyLanePatch(current, index, x.actor, label, key, retired, approval, bulkComment); err != nil {
 			return err
 		}
 		item = current.Lanes[index]
@@ -153,7 +158,7 @@ func lanePatchBool(fields *workflowFields, name string) *bool {
 	return value
 }
 
-func applyLanePatch(current *snapshot, index int, actor, label, key string, retired, approval *bool) error {
+func applyLanePatch(current *snapshot, index int, actor, label, key string, retired, approval *bool, bulkComment *string) error {
 	item := current.Lanes[index]
 	if key != "" && key != item.Key {
 		if item.Role == "completed" || key == "completed" {
@@ -179,10 +184,15 @@ func applyLanePatch(current *snapshot, index int, actor, label, key string, reti
 		return invalid("approval_enabled", "Lane approval requires an active Ready for Review lane.")
 	}
 
+	if bulkComment != nil && (item.Role != "ready_for_review" || item.Retired || willRetire) {
+		return invalid("bulk_approval_comment", "A bulk approval comment requires an active Ready for Review lane.")
+	}
+
 	changedLabel := label != "" && item.Label != label
 	changedKey := key != "" && item.Key != key
 	changedApproval := approval != nil && item.ApprovalEnabled != *approval
-	if !changedLabel && !changedKey && !changedApproval && !willRetire {
+	changedBulkComment := bulkComment != nil && item.BulkApprovalComment != *bulkComment
+	if !changedLabel && !changedKey && !changedApproval && !changedBulkComment && !willRetire {
 		return nil
 	}
 	now := laneEditTime(*current, time.Now())
@@ -200,6 +210,11 @@ func applyLanePatch(current *snapshot, index int, actor, label, key string, reti
 		before, after := strconv.FormatBool(item.ApprovalEnabled), strconv.FormatBool(*approval)
 		appendLaneAudit(current, actor, item.ID, "patch", "approval_enabled", &before, &after, now)
 		item.ApprovalEnabled = *approval
+	}
+	if changedBulkComment {
+		before := item.BulkApprovalComment
+		appendLaneAudit(current, actor, item.ID, "patch", "bulk_approval_comment", &before, bulkComment, now)
+		item.BulkApprovalComment = *bulkComment
 	}
 	if willRetire {
 		before, after := "false", "true"

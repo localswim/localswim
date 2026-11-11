@@ -79,18 +79,19 @@ type user struct {
 	Color string `json:"color"`
 }
 type lane struct {
-	ID              string    `json:"id"`
-	Revision        uint64    `json:"revision"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-	BoardID         string    `json:"board_id"`
-	Key             string    `json:"key"`
-	Label           string    `json:"label"`
-	Position        int       `json:"position"`
-	Role            string    `json:"role"`
-	Retired         bool      `json:"retired"`
-	ApprovalEnabled bool      `json:"approval_enabled"`
-	ReorderEnabled  bool      `json:"reorder_enabled"`
+	ID                  string    `json:"id"`
+	Revision            uint64    `json:"revision"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+	BoardID             string    `json:"board_id"`
+	Key                 string    `json:"key"`
+	Label               string    `json:"label"`
+	Position            int       `json:"position"`
+	Role                string    `json:"role"`
+	Retired             bool      `json:"retired"`
+	ApprovalEnabled     bool      `json:"approval_enabled"`
+	BulkApprovalComment string    `json:"bulk_approval_comment,omitempty"`
+	ReorderEnabled      bool      `json:"reorder_enabled"`
 }
 
 func (l lane) entityTag() string { return etag(l.ID, l.Revision) }
@@ -157,17 +158,18 @@ type card struct {
 func (c card) entityTag() string { return etag(c.ID, c.Revision) }
 
 type activity struct {
-	ID           string    `json:"id"`
-	BoardID      string    `json:"board_id"`
-	Revision     uint64    `json:"revision"`
-	At           time.Time `json:"at"`
-	ActorID      string    `json:"actor_id"`
-	Operation    string    `json:"operation"`
-	ResourceType string    `json:"resource_type"`
-	ResourceID   string    `json:"resource_id"`
-	Field        *string   `json:"field"`
-	Before       *string   `json:"before"`
-	After        *string   `json:"after"`
+	ID                  string    `json:"id"`
+	BoardID             string    `json:"board_id"`
+	Revision            uint64    `json:"revision"`
+	At                  time.Time `json:"at"`
+	ActorID             string    `json:"actor_id"`
+	Operation           string    `json:"operation"`
+	ResourceType        string    `json:"resource_type"`
+	ResourceID          string    `json:"resource_id"`
+	Field               *string   `json:"field"`
+	Before              *string   `json:"before"`
+	After               *string   `json:"after"`
+	BulkApprovalComment string    `json:"bulk_approval_comment,omitempty"`
 }
 type comment struct {
 	ID        string    `json:"id"`

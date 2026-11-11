@@ -7072,13 +7072,16 @@ paths:
       x-milestones:
       - 14
       - 15
-      description: Require one card when lane_id is omitted. A supplied lane_id must be enabled Ready for
-        Review, and the request must enumerate its exact active rendered membership and all original card
-        tags. Check those plus expected_board_etag atomically. Single-card approval requires an active Ready
-        for Review card, the Human approve capability, and the directed move grant to Completed. The
-        move and exact 'Reviewed & approved, moving to Completed.' comment share one revision. Ownership
-        is preserved. A supplied approval UUID allows focused readback after a lost response. Empty lane
-        is a no-op with 200 and no new approval/audit. Repeated or stale requests never duplicate approval.
+      description: Accepts at most 2 MiB (2,097,152 bytes) of JSON. Require one card when lane_id is omitted.
+        A supplied lane_id must be enabled Ready for Review, and the request must enumerate its exact active
+        rendered membership of up to 5,000 cards with all original card tags. Check those plus
+        expected_board_etag atomically. Both modes require a Human with the approve capability and the
+        directed move grant to Completed. Single-card approval always uses the exact
+        'Reviewed & approved, moving to Completed.' comment. Lane approval uses the configured bulk comment,
+        or the same default when absent. Each move and comment share one board revision. The first lane
+        approval move records the effective text. Ownership is preserved. A supplied approval UUID allows
+        focused readback after a lost response. An empty lane is a no-op with 200 and no new approval or audit.
+        Repeated or stale requests never duplicate approval.
       requestBody:
         required: true
         content:
@@ -13396,6 +13399,11 @@ components:
           type: boolean
         approval_enabled:
           type: boolean
+        bulk_approval_comment:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          description: Custom comment for lane approval. Omission uses the default approval text.
         reorder_enabled:
           type: boolean
     CreateGrant:
@@ -13740,6 +13748,11 @@ components:
             minLength: 0
             maxLength: 4194304
           - type: 'null'
+        bulk_approval_comment:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          description: Effective comment captured by the first movement event in a lane approval.
     ActivityMetadata:
       type: object
       additionalProperties: false
@@ -13907,7 +13920,7 @@ components:
         card_ids:
           type: array
           minItems: 1
-          maxItems: 1000
+          maxItems: 5000
           items:
             $ref: '#/components/schemas/Uuid'
         actor_id:
@@ -13922,7 +13935,7 @@ components:
         changes:
           type: array
           minItems: 2
-          maxItems: 2000
+          maxItems: 10000
           items:
             $ref: '#/components/schemas/Change'
     BatchResult:
@@ -14790,6 +14803,10 @@ components:
           type: boolean
         approval_enabled:
           type: boolean
+        bulk_approval_comment:
+          type: string
+          maxLength: 1024
+          description: Editable only on an active Ready for Review lane. An empty string resets the default.
         reorder_enabled:
           type: boolean
         position:
@@ -14827,6 +14844,8 @@ components:
         - retired
       - required:
         - approval_enabled
+      - required:
+        - bulk_approval_comment
       - required:
         - reorder_enabled
       - required:
@@ -15612,7 +15631,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CardVersionInput'
-          maxItems: 1000
+          maxItems: 5000
         actor: false
         actor_id: false
         by: false
@@ -16395,6 +16414,11 @@ components:
           type: boolean
         approval_enabled:
           type: boolean
+        bulk_approval_comment:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          description: Custom comment for lane approval. Omission uses the default approval text.
         reorder_enabled:
           type: boolean
     PrioritySnapshotInput:

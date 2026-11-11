@@ -205,11 +205,15 @@ func (x *request) options(methods []string) {
 }
 
 func (x *request) body() (map[string]json.RawMessage, error) {
+	return x.boundedBody(maxJSONBytes)
+}
+
+func (x *request) boundedBody(limit int64) (map[string]json.RawMessage, error) {
 	mt, params, err := mime.ParseMediaType(x.r.Header.Get("Content-Type"))
 	if err != nil || mt != "application/json" || (params["charset"] != "" && !strings.EqualFold(params["charset"], "utf-8")) {
 		return nil, errMediaType
 	}
-	raw, err := io.ReadAll(http.MaxBytesReader(x.w, x.r.Body, maxJSONBytes))
+	raw, err := io.ReadAll(http.MaxBytesReader(x.w, x.r.Body, limit))
 	if err != nil {
 		var tooBig *http.MaxBytesError
 		if errors.As(err, &tooBig) {

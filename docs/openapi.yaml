@@ -6719,6 +6719,11 @@ paths:
     get:
       operationId: listActivity
       summary: Read bounded activity metadata or explicit full audit values
+      description: >
+        Read committed activity in inclusive UTC seconds and audit revision order. Each page describes
+        writer coverage independently of the presence of matching activity. Continue with the same
+        filters and writer until pagination is complete. A changed board revision or writer invalidates
+        a continuation cursor.
       tags:
       - Activity
       parameters:
@@ -6765,10 +6770,23 @@ paths:
       - name: ticket
         in: query
         required: false
+        description: Match a ticket as assigned at the event revision.
         schema:
           type: integer
           minimum: 1
           maximum: 9007199254740991
+      - name: card_id
+        in: query
+        required: false
+        description: Match a stable card UUID. If ticket is also supplied, both must match the same card.
+        schema:
+          $ref: '#/components/schemas/UuidInput'
+      - name: writer_id
+        in: query
+        required: false
+        description: Expected writer from the owner notice. A different running writer reports incomplete coverage.
+        schema:
+          $ref: '#/components/schemas/UuidV7Input'
       - name: limit
         in: query
         required: false
@@ -13993,6 +14011,7 @@ components:
       - actor_id
       - actor_kind
       - operation
+      - cards
       - tickets
       properties:
         id:
@@ -14014,11 +14033,30 @@ components:
           type: string
           minLength: 1
           maxLength: 80
+        cards:
+          type: array
+          description: Card UUIDs and their ticket assignments as of this commit, ordered by ticket.
+          items:
+            $ref: '#/components/schemas/ActivityCard'
         tickets:
           type: array
+          description: Distinct ticket assignments from cards, in numeric order.
           items:
             type: integer
             minimum: 1
+    ActivityCard:
+      type: object
+      additionalProperties: false
+      required:
+      - card_id
+      - ticket
+      properties:
+        card_id:
+          $ref: '#/components/schemas/Uuid'
+        ticket:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
     Workspace:
       type: object
       additionalProperties: false
@@ -14704,12 +14742,44 @@ components:
             minLength: 1
             maxLength: 2048
           - type: 'null'
+    ActivityCoverage:
+      type: object
+      additionalProperties: false
+      required:
+      - from
+      - to
+      - complete
+      - code
+      properties:
+        from:
+          $ref: '#/components/schemas/Timestamp'
+        to:
+          $ref: '#/components/schemas/Timestamp'
+        complete:
+          type: boolean
+          description: >
+            The requested inclusive interval consists of elapsed whole seconds covered by the
+            expected writer and current durable board history. This is independent of filtering
+            and pagination. A complete interval can have no matching events.
+        code:
+          enum:
+          - complete
+          - writer_mismatch
+          - durable_state_unavailable
+          - startup_gap
+          - interval_open
+          - recovery_gap
     ChangePage:
       type: object
       additionalProperties: false
       required:
       - activities
       - next_cursor
+      - writer_id
+      - board_revision
+      - coverage
+      - pagination_complete
+      - bot_only
       properties:
         activities:
           type: array
@@ -14722,12 +14792,29 @@ components:
             minLength: 1
             maxLength: 2048
           - type: 'null'
+        writer_id:
+          $ref: '#/components/schemas/UuidV7'
+        board_revision:
+          $ref: '#/components/schemas/Revision'
+        coverage:
+          $ref: '#/components/schemas/ActivityCoverage'
+        pagination_complete:
+          type: boolean
+          description: True on the final page, including a valid empty result.
+        bot_only:
+          type: boolean
+          description: True only on the final page of complete, nonempty, unfiltered Bot-only activity.
     ActivityMetadataPage:
       type: object
       additionalProperties: false
       required:
       - activities
       - next_cursor
+      - writer_id
+      - board_revision
+      - coverage
+      - pagination_complete
+      - bot_only
       properties:
         activities:
           type: array
@@ -14740,6 +14827,18 @@ components:
             minLength: 1
             maxLength: 2048
           - type: 'null'
+        writer_id:
+          $ref: '#/components/schemas/UuidV7'
+        board_revision:
+          $ref: '#/components/schemas/Revision'
+        coverage:
+          $ref: '#/components/schemas/ActivityCoverage'
+        pagination_complete:
+          type: boolean
+          description: True on the final page, including a valid empty result.
+        bot_only:
+          type: boolean
+          description: True only on the final page of complete, nonempty, unfiltered Bot-only activity.
     BoardView:
       type: object
       additionalProperties: false
@@ -18428,7 +18527,9 @@ x-runtime-requirements:
 x-notification-worker:
   trigger: Only committed, actual Human card edits while the board setting is enabled.
   quietSeconds: 15
-  payload: Board identity/label, edit interval, and bounded ticket numbers only. No card prose or credentials.
+  payload: >
+    Board identity and label, writer UUID, inclusive UTC interval, and at most 128 card UUID and
+    event-time ticket pairs with a truncation marker. Excludes card prose and credentials.
   destination: Read the current target at delivery. Target-only updates preserve enablement.
   delivery: One native codex queue attempt per quiet burst. No durable cursor, catch-up, or retries. A
     pending burst can be lost at shutdown.

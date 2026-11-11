@@ -20,7 +20,9 @@ func parseActivityList(args []string) (cliCommand, error) {
 	from := flags.String("from", "", "inclusive UTC start")
 	to := flags.String("to", "", "inclusive UTC end")
 	view := flags.String("view", "monitor", "full or monitor activity view")
-	ticket := flags.String("ticket", "", "filter by card ticket")
+	ticket := flags.String("ticket", "", "filter by ticket at the event revision")
+	cardID := flags.String("card-id", "", "filter by stable card UUIDv4")
+	writerID := flags.String("writer-id", "", "require this writer UUIDv7 for complete coverage")
 	actorID := flags.String("actor-id", "", "filter by actor UUIDv4")
 	operation := flags.String("operation", "", "filter by operation identifier")
 	limit := flags.Int("limit", 50, "page size")
@@ -74,6 +76,18 @@ func parseActivityList(args []string) (cliCommand, error) {
 				optionErr = errors.New("--actor-id requires a UUIDv4")
 			} else {
 				query.Set("actor_id", strings.ToLower(*actorID))
+			}
+		case "card-id":
+			if !boardIDPattern.MatchString(*cardID) {
+				optionErr = errors.New("--card-id requires a UUIDv4")
+			} else {
+				query.Set("card_id", strings.ToLower(*cardID))
+			}
+		case "writer-id":
+			if !operationIDPattern.MatchString(*writerID) {
+				optionErr = errors.New("--writer-id requires a UUIDv7")
+			} else {
+				query.Set("writer_id", strings.ToLower(*writerID))
 			}
 		case "operation":
 			if len(*operation) == 0 || len(*operation) > 80 {

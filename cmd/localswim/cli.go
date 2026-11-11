@@ -65,8 +65,9 @@ const cliHelp = `Usage:
   localswim relationship remove [--revision N] RELATIONSHIP_ID
   localswim comment list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim comment post [--revision N] CARD_ID FILE|-
-  localswim activity list --from UTC --to UTC [--view full|monitor] [--ticket N]
-                        [--actor-id UUID] [--operation OP] [--limit N] [--cursor CURSOR] BOARD_ID
+  localswim activity list --from UTC --to UTC [--view full|monitor] [--ticket N] [--card-id CARD_ID]
+                        [--writer-id WRITER_ID] [--actor-id UUID] [--operation OP] [--limit N]
+                        [--cursor CURSOR] BOARD_ID
   localswim lane add [--revision N] BOARD_ID FILE|-
   localswim lane get LANE_ID
   localswim lane rename [--revision N] LANE_ID LABEL

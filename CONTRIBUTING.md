@@ -86,12 +86,26 @@ refuses the edit even when the card itself has not changed. The optional
 inspect the current ticket mapping before issuing another command. After an
 uncertain response, inspect the original card by UUID.
 
-Use `activity list` with inclusive canonical UTC `--from` and `--to`. By default,
-it returns event metadata and ticket numbers without card prose. Select
+Use `activity list` with inclusive canonical UTC `--from` and `--to`. The
+default view returns sanitized metadata in audit revision order. Select
 `--view full` to read attributed audit values. Both views support `--actor-id`,
-`--operation`, and `--ticket` filters. Operation identifiers are matched exactly.
-Pages default to 50 records and allow up to 200. A cursor stays tied to the
-original interval, filters, and view.
+`--operation`, `--card-id`, and `--ticket`. Operation identifiers match exactly.
+Tickets use the assignments at the event revision. If both card and ticket are
+given, they must match the same affected card. Renumber events report the new
+assignment from their commit.
+
+For an owner notice, start with its board UUID, `--writer-id`, and inclusive
+interval before applying card or ticket filters. The result identifies the live
+writer and board revision. `coverage.complete` describes elapsed UTC seconds
+covered by that writer and its current durable history. Startup, recovery,
+writer mismatch, a still-open interval, or unverifiable durable state can leave
+coverage incomplete even when matching events are available.
+
+Pages default to 50 records and allow up to 200. Continue with the same interval,
+filters, view, writer and board revision until `pagination_complete` is true.
+An empty page with complete coverage is a valid result. `bot_only` is true only
+on the last page of a complete, nonempty, unfiltered interval whose every event
+belongs to the configured Bot.
 
 `lane set-approval-button` controls whether the optional Human lane action is enabled.
 Manage lanes in the browser or PATCH the active Ready for Review lane to set

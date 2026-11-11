@@ -912,6 +912,38 @@ test("Attention keeps pin and catalog order, fixed count slots, accessible zeroe
   assert.deepEqual(other.querySelectorAll("a").map((node) => node.dataset.boardId), [board, backup]);
 });
 
+test("an unadmitted board shows a filename identity and leaves a healthy board selectable", async () => {
+  const {api} = boardApi();
+  const damaged = "eb83343c-b9eb-4ae7-8dd9-63988a53dc2f";
+  const getAvailability = api.getBoardAvailability;
+  api.getBoardAvailability = async (id) => {
+    assert.equal(id, board);
+    return getAvailability();
+  };
+  api.listBoards = async () => page("boards", [
+    {id: board, name: "Board", revision: 1, availability: "open",
+      attention: {blocked: 0, needs_input: 0, ready_for_review: 0}, last_card_edit_at: null, error_code: null},
+    {id: damaged, name: null, revision: null, availability: "unhealthy",
+      attention: null, last_card_edit_at: null, error_code: "durable_state_unavailable"},
+  ]);
+  const ui = await harness(api, "/boards/" + damaged);
+  await ui.load();
+  const {main, boards} = ui.nodes;
+  const label = "Unavailable board (eb83343c)";
+  const row = boards.querySelectorAll("a").find((item) => item.dataset.boardId === damaged);
+  assert.equal(row.children[0].textContent, label);
+  assert.equal(row.attributes["aria-current"], "page");
+  assert.match(row.title, /could not load .* saved snapshot at startup/);
+  assert.equal(main.querySelector("h1").textContent, label);
+  assert.match(main.textContent, new RegExp(damaged));
+  assert.match(main.textContent, /could not load .* saved snapshot at startup/);
+  assert.equal(main.querySelector("form"), null);
+
+  await ui.navigate("/boards/" + board);
+  assert.equal(main.querySelector("h1").textContent, "Board");
+  assert.ok(ui.find(boards, "span", label));
+});
+
 test("refreshing an open board repaints Attention in catalog order and retains sidebar focus", async () => {
   const state = boardApi();
   const pinned = {id: user, name: "Pinned", attention: null, last_card_edit_at: null};

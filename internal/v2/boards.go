@@ -11,12 +11,14 @@ import (
 const maxBoardCSSLength = 1048576
 
 func (x *request) listBoards() {
+	store := x.service.store
 	rows := make([]boardSummary, 0)
-	for _, s := range x.service.store.list() {
-		if row, visible := x.service.store.boardSummary(s.Board.ID, x.actor); visible {
+	for _, s := range store.list() {
+		if row, visible := store.boardSummary(s.Board.ID, x.actor); visible {
 			rows = append(rows, row)
 		}
 	}
+	rows = store.appendFailedBoardSummaries(rows, x.actor)
 	sortSummaries(rows)
 	page(x, "boards", rows)
 }
@@ -90,6 +92,10 @@ func (x *request) createBoard() {
 }
 
 func (x *request) boardResource(id string) {
+	if x.service.store.canSeeFailedBoard(id, x.actor) {
+		x.fail(errInvalidSnapshot)
+		return
+	}
 	s, ok := x.service.store.accepted(id)
 	if !ok || !slices.Contains(s.Board.UserIDs, x.actor) {
 		x.fail(errMissing)
@@ -378,6 +384,9 @@ func (x *request) workspaceResource() {
 	result, err := x.service.workspace.patch(func(revision uint64) bool {
 		return matchesStrongTag(expected, etag(x.service.workspace.identity, revision))
 	}, fields, func(id string) bool {
+		if x.service.store.canSeeFailedBoard(id, x.actor) {
+			return true
+		}
 		s, ok := x.service.store.accepted(id)
 		return ok && s.can(x.actor, "read")
 	})

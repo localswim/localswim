@@ -497,7 +497,8 @@ paths:
     patch:
       operationId: updateWorkspace
       summary: Update pins or workspace publishing
-      description: A publishing change requires the Human workspace administrator. Pin-only updates retain their existing authorization.
+      description: A publishing change requires the Human workspace administrator.
+        The Human can keep or change pins for boards with startup diagnostics.
       tags:
       - Workspace
       parameters:
@@ -752,6 +753,8 @@ paths:
     get:
       operationId: listBoards
       summary: List board attention and audited recency
+      description: The Human workspace administrator also receives a diagnostic row for each
+        canonically named snapshot that failed startup admission.
       tags:
       - Boards
       parameters:
@@ -1143,6 +1146,8 @@ paths:
     get:
       operationId: readBoard
       description: The focused ticket view remains available for closed boards under ordinary board read permission.
+        For a board that failed startup admission, the Human workspace administrator receives 503 unavailable
+        and other callers receive 404.
       summary: Read one board, its lane view, or a focused ticket
       tags:
       - Boards
@@ -16476,6 +16481,8 @@ components:
     BoardSummary:
       type: object
       additionalProperties: false
+      description: A startup diagnostic contains the canonical board UUID from the snapshot filename,
+        unhealthy availability, and durable_state_unavailable. Name, revision, attention, and last card edit are null.
       required:
       - id
       - name

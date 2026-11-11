@@ -20,7 +20,8 @@ import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
 /** @typedef {{actor: string, create: Set<string>, move: Map<string, Set<string>>,
  * canClose: boolean, canManageRelationships: boolean}} Workflow */
 /** @typedef {{blocked: number, needs_input: number, ready_for_review: number}} Attention */
-/** @typedef {{id: string, name: string|null, attention: Attention|null, last_card_edit_at: string|null}} BoardSummary */
+/** @typedef {{id: string, name: string|null, revision: number|null, attention: Attention|null,
+ * last_card_edit_at: string|null, error_code: string|null}} BoardSummary */
 /** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string,
  * approval_enabled: boolean, reorder_enabled: boolean, bulk_approval_comment?: string, notes?: string}} Lane */
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
@@ -1898,7 +1899,7 @@ function renderWorkspacePreferences(boards, showSavedOrder, initial, inspection)
 
   /** @param {string} [focusId] @param {"up"|"down"|"pin"} [focusKind] */
   function paintPins(focusId, focusKind) {
-    const names = new Map(boards.map(({ id, name }) => [id, name]));
+    const names = new Map(boards.map((board) => [board.id, boardSummaryName(board)]));
     /** @type {HTMLElement|undefined} */
     let nextFocus;
     const rows = [...draft, ...boards.map(({ id }) => id).filter((id) => !draft.includes(id))].map((id) => {
@@ -2237,8 +2238,22 @@ const attentionColumns = [
   { key: "ready_for_review", label: "Ready for Review" },
 ];
 
+const startupBoardError = "The service could not load this board’s saved snapshot at startup.";
+
+/** @param {BoardSummary} board */
+function failedAtStartup(board) {
+  return board.revision === null && board.error_code === "durable_state_unavailable";
+}
+
+/** @param {BoardSummary} board */
+function boardSummaryName(board) {
+  if (failedAtStartup(board)) return "Unavailable board (" + board.id.slice(0, 8) + ")";
+  return board.name ?? "Unavailable board";
+}
+
 /** @param {BoardSummary} board @param {number} now */
 function attentionRecency(board, now) {
+  if (failedAtStartup(board)) return startupBoardError;
   if (board.last_card_edit_at) {
     const editedAt = Date.parse(board.last_card_edit_at.replace(" ", "T"));
     if (Number.isFinite(editedAt)) {
@@ -2276,7 +2291,7 @@ function renderAttention(sidebar, rows, pins, selected) {
     section.className = "attention-group";
     section.append(element("h3", label));
     for (const board of boards) {
-      const name = board.name ?? "Unavailable board";
+      const name = boardSummaryName(board);
       const item = link("/boards/" + board.id, "");
       item.className = "attention-grid attention-row";
       item.dataset.boardId = board.id;
@@ -2511,6 +2526,13 @@ async function load(savedAvailability) {
         showBoards(latestBoards);
       }
     });
+    const unavailable = boards.find((board) => board.id === boardId && failedAtStartup(board));
+    if (unavailable) {
+      main.replaceChildren(element("h1", boardSummaryName(unavailable)), element("p", startupBoardError),
+        element("p", "Board ID " + unavailable.id));
+      announce("error", startupBoardError);
+      return;
+    }
     /** @param {AbortSignal} [readSignal] */
     const readAvailability = (readSignal) => api.getBoardAvailability(boardId, readSignal);
     let metadata = savedAvailability?.data.id === boardId ? savedAvailability

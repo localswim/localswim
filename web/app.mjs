@@ -35,8 +35,9 @@ import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
  * results: UploadResult[], message: string}} UploadBatch */
 /** @typedef {{id: string, board_revision: number, size: number, sha2_256: string, attachment_ids: string[]}} CapturedBackup */
 /** @typedef {{id: string, busy: boolean}} BackupOperation */
+/** @typedef {BackupOperation & {backupId: string, boardRevision: number}} BackupPublication */
 /** @typedef {{backup?: CapturedBackup, capture?: BackupOperation,
- * publication?: BackupOperation & {backupId: string}, downloading?: boolean,
+ * publication?: BackupPublication, downloading?: boolean,
  * captureMessage?: string, publicationMessage?: string, downloadMessage?: string}} BackupState */
 /** @typedef {{query: string, content: boolean, order: "triage"|"ticket", lane: string, limit: string}} SearchFields */
 /** @typedef {{open: boolean, fields: SearchFields, submitted?: SearchFields}} BoardSearch */
@@ -3328,20 +3329,16 @@ function renderBackupControls(boardId, boardTag) {
     }
   }
 
-  /** @param {BackupOperation} operation @param {boolean} explicit */
-  async function readCapture(operation, explicit) {
+  /** @param {BackupOperation} operation */
+  async function readCapture(operation) {
     try {
       const reply = await readWithSession(() => api.getBackup(operation.id, boardId));
       state.backup = /** @type {CapturedBackup} */ (reply.data);
       state.capture = undefined;
       state.captureMessage = "";
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 404 && explicit) {
-        state.capture = undefined;
-        state.captureMessage = "The original capture could not be confirmed. You can request a new backup.";
-      } else {
-        state.captureMessage = "Backup capture could not be confirmed. Check its status before creating another.";
-      }
+    } catch {
+      // A 404 can precede the reservation or publication of this capture.
+      state.captureMessage = "Backup capture could not be confirmed. Refresh status to check the original capture.";
     } finally {
       operation.busy = false;
       paintCurrent();
@@ -3356,7 +3353,7 @@ function renderBackupControls(boardId, boardTag) {
     paintCurrent();
     const phase = await submitOnce(() => api.createBackup(operation.id, boardId, expected));
     if (phase === "ready" || phase === "unknown") {
-      await readCapture(operation, false);
+      await readCapture(operation);
       return;
     }
     state.capture = undefined;
@@ -3375,7 +3372,7 @@ function renderBackupControls(boardId, boardTag) {
     operation.busy = true;
     state.captureMessage = "Checking backup status…";
     paintCurrent();
-    void readCapture(operation, true);
+    void readCapture(operation);
   });
 
   const download = button("Download backup", () => {
@@ -3400,45 +3397,47 @@ function renderBackupControls(boardId, boardTag) {
   });
   download.id = "download-backup";
 
-  /** @param {BackupOperation & {backupId: string}} operation */
+  /** @param {BackupPublication} operation */
   async function readPublication(operation) {
     try {
       const reply = await readWithSession(() => api.getPublication(operation.id, boardId, operation.backupId));
       const item = /** @type {{state: string, error_code: string|null}} */ (reply.data);
-      state.publicationMessage = "Publication " + item.state + (item.error_code ? " (" + item.error_code + ")" : "") + ".";
+      state.publicationMessage = "Publication " + item.state + " for revision " + operation.boardRevision
+        + (item.error_code ? " (" + item.error_code + ")" : "") + ".";
       if (item.state === "succeeded" || item.state === "failed") state.publication = undefined;
     } catch {
-      state.publicationMessage = "Publication status could not be read. Refresh status before publishing again.";
+      state.publicationMessage = "Publication status for revision " + operation.boardRevision
+        + " could not be read. Refresh status before publishing again.";
     } finally {
       operation.busy = false;
       paintCurrent();
     }
   }
 
-  /** @param {string} backupId */
-  async function startPublication(backupId) {
-    const operation = { id: newOperationId(), backupId, busy: true };
+  /** @param {CapturedBackup} backup */
+  async function startPublication(backup) {
+    const operation = { id: newOperationId(), backupId: backup.id, boardRevision: backup.board_revision, busy: true };
     state.publication = operation;
-    state.publicationMessage = "Submitting publication…";
+    state.publicationMessage = "Submitting publication for revision " + operation.boardRevision + "…";
     paintCurrent();
-    const phase = await submitOnce(() => api.publishBackup(operation.id, boardId, backupId));
+    const phase = await submitOnce(() => api.publishBackup(operation.id, boardId, operation.backupId));
     if (phase === "ready" || phase === "unknown") {
       await readPublication(operation);
       return;
     }
     state.publication = undefined;
-    state.publicationMessage = "The service refused to publish the backup.";
+    state.publicationMessage = "The service refused to publish revision " + operation.boardRevision + ".";
     paintCurrent();
   }
 
   const publish = button("Publish backup", () => {
-    if (current() && state.backup && !state.publication) void startPublication(state.backup.id);
+    if (current() && state.backup && !state.publication) void startPublication(state.backup);
   });
   const refreshPublication = button("Refresh publication status", () => {
     const operation = state.publication;
     if (!current() || !operation || operation.busy) return;
     operation.busy = true;
-    state.publicationMessage = "Checking publication status…";
+    state.publicationMessage = "Checking publication status for revision " + operation.boardRevision + "…";
     paintCurrent();
     void readPublication(operation);
   });

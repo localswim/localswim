@@ -1138,7 +1138,8 @@ paths:
         $ref: '#/components/schemas/UuidInput'
     get:
       operationId: readBoard
-      summary: Read one board or its lane view
+      description: The focused ticket view remains available for closed boards under ordinary board read permission.
+      summary: Read one board, its lane view, or a focused ticket
       tags:
       - Boards
       parameters:
@@ -1149,8 +1150,23 @@ paths:
         required: false
         schema:
           type: string
-          pattern: ^(?:[sS][uU][mM][mM][aA][rR][yY]|[lL][aA][nN][eE][sS])$
+          pattern: ^(?:[sS][uU][mM][mM][aA][rR][yY]|[lL][aA][nN][eE][sS]|[tT][iI][cC][kK][eE][tT])$
           description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
+      - name: ticket
+        in: query
+        required: false
+        description: Required for the ticket view. Leading zeroes are accepted.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+      - name: include_prose
+        in: query
+        required: false
+        description: For the ticket view, include the selected card's description and attributed comments.
+        schema:
+          type: boolean
+          default: false
       - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
@@ -1179,6 +1195,10 @@ paths:
               $ref: '#/components/headers/CorsExpose'
             ETag:
               $ref: '#/components/headers/EntityTag'
+            X-Board-ETag:
+              description: Current board validator from the same accepted snapshot. Present for the ticket view.
+              schema:
+                $ref: '#/components/schemas/EntityTag'
             Date:
               $ref: '#/components/headers/Date'
           content:
@@ -1187,6 +1207,7 @@ paths:
                 oneOf:
                 - $ref: '#/components/schemas/Board'
                 - $ref: '#/components/schemas/BoardView'
+                - $ref: '#/components/schemas/TicketInspection'
         '304':
           description: The selected representation is unchanged. No response content.
           headers:
@@ -1239,6 +1260,7 @@ paths:
       - 1
       - 12
       - 26
+      - 68
     patch:
       operationId: updateBoard
       summary: Edit name, availability, or board settings
@@ -1348,8 +1370,23 @@ paths:
         required: false
         schema:
           type: string
-          pattern: ^(?:[sS][uU][mM][mM][aA][rR][yY]|[lL][aA][nN][eE][sS])$
+          pattern: ^(?:[sS][uU][mM][mM][aA][rR][yY]|[lL][aA][nN][eE][sS]|[tT][iI][cC][kK][eE][tT])$
           description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
+      - name: ticket
+        in: query
+        required: false
+        description: Required for the ticket view. Leading zeroes are accepted.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+      - name: include_prose
+        in: query
+        required: false
+        description: For the ticket view, include the selected card's description and attributed comments.
+        schema:
+          type: boolean
+          default: false
       - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
@@ -1378,6 +1415,10 @@ paths:
               $ref: '#/components/headers/CorsExpose'
             ETag:
               $ref: '#/components/headers/EntityTag'
+            X-Board-ETag:
+              description: Current board validator from the same accepted snapshot. Present for the ticket view.
+              schema:
+                $ref: '#/components/schemas/EntityTag'
             Date:
               $ref: '#/components/headers/Date'
         '304':
@@ -1432,6 +1473,7 @@ paths:
       - 1
       - 12
       - 26
+      - 68
     options:
       operationId: options_boards__boardId_
       summary: Validate same-origin preflight
@@ -14555,6 +14597,119 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Card'
+    TicketInspection:
+      description: One ticket and its direct relationship and hierarchy context from the same accepted board revision.
+      type: object
+      additionalProperties: false
+      required: [board_id, board_revision, card, relationships, parent, children]
+      properties:
+        board_id:
+          $ref: '#/components/schemas/Uuid'
+        board_revision:
+          allOf:
+          - $ref: '#/components/schemas/Revision'
+          - minimum: 1
+        card:
+          allOf:
+          - $ref: '#/components/schemas/TicketCardContext'
+          - required: [etag]
+        relationships:
+          type: array
+          description: Direct links ordered by the other card's ticket, then kind and direction.
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, kind, direction, card]
+            properties:
+              id:
+                $ref: '#/components/schemas/Uuid'
+              kind:
+                type: string
+                enum: [blocks, duplicates, references, relates_to]
+              direction:
+                type: string
+                enum: [incoming, outgoing, symmetric]
+                description: Direction relative to the selected card. Relates-to links are symmetric.
+              card:
+                $ref: '#/components/schemas/TicketCardContext'
+        parent:
+          anyOf:
+          - $ref: '#/components/schemas/TicketCardContext'
+          - type: 'null'
+        children:
+          type: array
+          description: Direct children in ticket order.
+          items:
+            $ref: '#/components/schemas/TicketCardContext'
+        prose:
+          type: object
+          description: Present only when include_prose is true. Contains only selected-card prose.
+          additionalProperties: false
+          required: [description, comments]
+          properties:
+            description:
+              $ref: '#/components/schemas/Card/properties/description'
+            comments:
+              type: array
+              description: Newest comments first, with newest commits breaking timestamp ties.
+              items:
+                $ref: '#/components/schemas/Comment'
+    TicketCardContext:
+      type: object
+      additionalProperties: false
+      required: [id, ticket, revision, title, archived, lane, owner, priority]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        ticket:
+          $ref: '#/components/schemas/Card/properties/ticket'
+        revision:
+          $ref: '#/components/schemas/Card/properties/revision'
+        etag:
+          $ref: '#/components/schemas/EntityTag'
+          description: Current card validator. Present on the selected card.
+        title:
+          $ref: '#/components/schemas/Card/properties/title'
+        archived:
+          type: boolean
+        lane:
+          type: object
+          additionalProperties: false
+          required: [id, key, label, role, retired]
+          properties:
+            id:
+              $ref: '#/components/schemas/Uuid'
+            key:
+              type: string
+            label:
+              type: string
+            role:
+              type: string
+              enum: [ordinary, blocked, needs_input, ready_for_review, completed]
+            retired:
+              type: boolean
+        owner:
+          type: object
+          additionalProperties: false
+          required: [id, label]
+          properties:
+            id:
+              $ref: '#/components/schemas/Uuid'
+            label:
+              type: string
+        priority:
+          type: object
+          additionalProperties: false
+          required: [id, key, label, rank]
+          properties:
+            id:
+              $ref: '#/components/schemas/Uuid'
+            key:
+              type: string
+            label:
+              type: string
+            rank:
+              type: integer
     UserInput:
       type: object
       additionalProperties: false

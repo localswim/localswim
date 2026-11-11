@@ -98,6 +98,10 @@ func (x *request) boardResource(id string) {
 		x.fail(err)
 		return
 	}
+	if strings.EqualFold(view, "ticket") {
+		x.boardTicket(s)
+		return
+	}
 	if strings.EqualFold(view, "lanes") {
 		if !x.useBoard(id) {
 			return

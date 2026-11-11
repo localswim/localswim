@@ -17,7 +17,7 @@ func (c *Client) PatchBoardAvailability(resource string, body json.RawMessage, i
 	return c.doWithContentType(http.MethodPatch, resource, body, ifMatch, "", true)
 }
 
-var problemRequestID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+var canonicalUUID4 = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
 func isUnavailableRefusal(reply *http.Response) bool {
 	if reply.StatusCode != http.StatusServiceUnavailable {
@@ -48,7 +48,7 @@ func isUnavailableRefusal(reply *http.Response) bool {
 	if jsonv2.Unmarshal(data, &problem, jsonv2.RejectUnknownMembers(true)) != nil ||
 		problem.Type != "about:blank" || problem.Title == "" || utf8.RuneCountInString(problem.Title) > 120 ||
 		problem.Status != http.StatusServiceUnavailable || problem.Code != "unavailable" ||
-		problem.Detail == nil || utf8.RuneCountInString(*problem.Detail) > 512 || !problemRequestID.MatchString(problem.RequestID) ||
+		problem.Detail == nil || utf8.RuneCountInString(*problem.Detail) > 512 || !canonicalUUID4.MatchString(problem.RequestID) ||
 		problem.Outcome != "not_applied" || problem.Errors == nil {
 		return false
 	}

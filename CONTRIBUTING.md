@@ -104,6 +104,15 @@ An unchanged effective result preserves the revision and audit.
 relationships. Cycles stay together in ticket order. Archived cards do not
 participate in this visible graph.
 
+Use `card inspect [--prose] BOARD_ID TICKET` to read one ticket, including
+archived tickets, and see its current lane, owner, priority, direct relationships,
+parent, and children. The JSON includes the selected card and board revisions.
+Relationships identify whether the selected card is the source, target, or a
+peer in a symmetric relation. Use `--prose` to include only the selected card's
+description and attributed comments. The default contains titles and workflow
+metadata. An authenticated board member with read permission can inspect a
+ticket while the board is closed.
+
 Lane key patches preserve the lane UUID and its card, grant, and historical
 references. The Completed role and `completed` key are protected. Read-only
 ticket-order previews follow full blocking paths through intermediate cards,

@@ -78,6 +78,7 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var revision, uploadID, filename string
+	var commentText *string
 	if cmd.method != http.MethodGet {
 		flags.StringVar(&revision, "revision", "", "expected resource revision")
 	}
@@ -85,8 +86,17 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		flags.StringVar(&uploadID, "id", "", "known attachment UUIDv4")
 		flags.StringVar(&filename, "filename", "", "display filename")
 	}
+	if name == "comment post" {
+		flags.Func("text", "literal comment text", func(text string) error {
+			commentText = &text
+			return nil
+		})
+	}
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
+	}
+	if commentText != nil {
+		count = 1
 	}
 	requiresInput := name == "card patch" || name == "card description" || name == "comment post" || name == "lane add" || name == "attachment upload"
 	if requiresInput && flags.NArg() < count {
@@ -161,7 +171,16 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		if value == "" {
 			return cmd, errors.New("attachment upload requires a file path or -")
 		}
-	case "card patch", "card description", "comment post", "lane add":
+	case "comment post":
+		if commentText != nil {
+			if *commentText == "" || !utf8.ValidString(*commentText) {
+				return cmd, errors.New("--text requires nonempty valid UTF-8")
+			}
+			cmd.body, _ = json.Marshal(map[string]string{"text": *commentText})
+			break
+		}
+		fallthrough
+	case "card patch", "card description", "lane add":
 		if value == "" {
 			return cmd, errors.New("input requires a file path or -")
 		}

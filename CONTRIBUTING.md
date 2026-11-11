@@ -19,8 +19,25 @@ seconds. Revisions distinguish edits within the same second. Native snapshots us
 `format_version: 2`.
 
 CLI commands that read JSON require a positional file path or `-` for standard input.
-Omitting the input path is a command error. Card creation takes `board_id`
-in its JSON document. The CLI obtains the board revision validator.
+Omitting the input path in document mode is a command error. Card creation in
+document mode takes `board_id` in its JSON. The CLI obtains the board revision
+validator.
+
+Use the concise forms for routine writes. Set the variables to the UUIDs of the
+board, lane, cards, and priority you want to use.
+
+```powershell
+localswim card create --title "Check pool hours" --description "Verify the holiday schedule." $board $lane
+localswim comment post --text "Confirmed weekend hours." $card
+localswim card set-priorities --priority $priority $board $card $otherCard
+```
+
+The concise create uses the board's default owner and priority. The existing
+document forms accept a JSON file or `-` for standard input. Use them for fields
+such as an explicit card or comment ID for focused readback after a lost reply.
+Append `--help` to an action name for its argument forms and examples. Put
+`--revision N` before the positional arguments to require the board revision for
+creation and priority batches, or the card revision for comment posting.
 
 Full card JSON and native card snapshots carry a positive safe-integer `revision`
 for the board commit that last changed that card. Unrelated board edits leave it

@@ -8,7 +8,6 @@ import (
 	"mime"
 	"net/http"
 	"regexp"
-	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -33,17 +32,14 @@ func isUnavailableRefusal(reply *http.Response) bool {
 		return false
 	}
 	var problem struct {
-		Type      string  `json:"type"`
-		Title     string  `json:"title"`
-		Status    int     `json:"status"`
-		Code      string  `json:"code"`
-		Detail    *string `json:"detail"`
-		RequestID string  `json:"request_id"`
-		Outcome   string  `json:"outcome"`
-		Errors    []struct {
-			Field string `json:"field"`
-			Code  string `json:"code"`
-		} `json:"errors"`
+		Type      string       `json:"type"`
+		Title     string       `json:"title"`
+		Status    int          `json:"status"`
+		Code      string       `json:"code"`
+		Detail    *string      `json:"detail"`
+		RequestID string       `json:"request_id"`
+		Outcome   string       `json:"outcome"`
+		Errors    []fieldError `json:"errors"`
 	}
 	if jsonv2.Unmarshal(data, &problem, jsonv2.RejectUnknownMembers(true)) != nil ||
 		problem.Type != "about:blank" || problem.Title == "" || utf8.RuneCountInString(problem.Title) > 120 ||
@@ -52,13 +48,30 @@ func isUnavailableRefusal(reply *http.Response) bool {
 		problem.Outcome != "not_applied" || problem.Errors == nil {
 		return false
 	}
-	validCodes := []string{"required", "invalid_type", "invalid_value", "duplicate", "unknown_reference", "forbidden_field", "incompatible_history", "integrity_failure"}
 	for _, issue := range problem.Errors {
-		if issue.Field == "" || utf8.RuneCountInString(issue.Field) > 128 || !slices.Contains(validCodes, issue.Code) {
+		if !issue.valid() {
 			return false
 		}
 	}
 	return true
+}
+
+type fieldError struct {
+	Field string `json:"field"`
+	Code  string `json:"code"`
+}
+
+func (e fieldError) valid() bool {
+	if e.Field == "" || utf8.RuneCountInString(e.Field) > 128 {
+		return false
+	}
+	switch e.Code {
+	case "required", "invalid_type", "invalid_value", "duplicate", "unknown_reference",
+		"forbidden_field", "incompatible_history", "integrity_failure":
+		return true
+	default:
+		return false
+	}
 }
 
 // BoardAvailability verifies the response identifies the addressed board and

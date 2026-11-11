@@ -30,3 +30,20 @@ func TestM074NativeCLIDispatchRefusesLanesView(t *testing.T) {
 		t.Fatalf("expected a live-only lanes refusal, got %v", err)
 	}
 }
+
+func TestCLIBoardDataOptionRejectsExplicitlyEmptyPath(t *testing.T) {
+	for _, action := range []string{"get", "export", "verify"} {
+		for _, option := range [][]string{{"--data", ""}, {"--data="}} {
+			args := append([]string{"board", action}, option...)
+			args = append(args, t03Board)
+			var stdout, stderr bytes.Buffer
+			exit := runCLIWithInput(args, strings.NewReader(""), &stdout, &stderr, func(key string) string {
+				t.Fatalf("board %s with empty --data tried to read live configuration %s", action, key)
+				return ""
+			})
+			if exit != 2 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "command options require nonempty values") {
+				t.Fatalf("board %s %q returned exit=%d, stdout=%q, stderr=%q", action, option, exit, &stdout, &stderr)
+			}
+		}
+	}
+}

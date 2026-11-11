@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -105,6 +106,43 @@ func TestCLIBoardVerifyReportsAndExitCodes(t *testing.T) {
 			current, err := os.ReadFile(snapshot)
 			if err != nil || !bytes.Equal(current, fixture.snapshot) {
 				t.Fatalf("verification modified snapshot: %v", err)
+			}
+		})
+	}
+}
+
+func TestCLIBoardVerifyRejectsUnusableLiveReports(t *testing.T) {
+	const report = `{"board_id":"` + t03Board + `","at":"2026-11-10 14:44:56+00:00","valid":true,"revision":1,"issues":[]}`
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"verdict only", `{"valid":true}`},
+		{"wrong board", strings.Replace(report, t03Board, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", 1)},
+		{"null verdict", strings.Replace(report, `"valid":true`, `"valid":null`, 1)},
+		{"invalid timestamp", strings.Replace(report, "2026-11-10", "2026-02-30", 1)},
+		{"missing revision", strings.Replace(report, `"revision":1,`, "", 1)},
+		{"string revision", strings.Replace(report, `"revision":1`, `"revision":"1"`, 1)},
+		{"unsafe revision", strings.Replace(report, `"revision":1`, `"revision":9007199254740992`, 1)},
+		{"null issues", strings.Replace(report, `"issues":[]`, `"issues":null`, 1)},
+		{"incomplete issue", strings.Replace(report, `"issues":[]`, `"issues":[{"field":"snapshot"}]`, 1)},
+		{"duplicate verdict", strings.Replace(report, `"valid":true`, `"valid":false,"valid":true`, 1)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Path != "/api/"+v2.Version+"/verifications/"+t03Board {
+					t.Error("verification used the wrong method or route")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(tc.body))
+			}))
+			t.Cleanup(server.Close)
+			env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
+			var stdout, stderr bytes.Buffer
+			exit := runCLIWithInput([]string{"board", "verify", t03Board}, strings.NewReader(""), &stdout, &stderr,
+				func(key string) string { return env[key] })
+			if exit != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "complete verification report for the requested board") {
+				t.Fatalf("unusable report was not refused: exit=%d, stdout=%q, stderr=%q", exit, &stdout, &stderr)
 			}
 		})
 	}

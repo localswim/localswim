@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 
+	"github.com/localswim/localswim/internal/client"
 	"github.com/localswim/localswim/internal/v2"
 )
 
@@ -24,17 +25,15 @@ func executeOfflineVerification(command cliCommand, stdout io.Writer) error {
 	return nil
 }
 
-func writeLiveVerificationReport(stdout io.Writer, document json.RawMessage) error {
-	var report struct {
-		Valid *bool `json:"valid"`
+func writeLiveVerificationReport(stdout io.Writer, reply client.Response, boardID string) error {
+	valid, err := reply.BoardVerification(boardID)
+	if err != nil {
+		return err
 	}
-	if err := json.Unmarshal(document, &report); err != nil || report.Valid == nil {
-		return errors.New("service did not return a verification result")
-	}
-	if err := writeCLIJSON(stdout, document); err != nil {
+	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
 		return errors.New("could not write the verification report")
 	}
-	if !*report.Valid {
+	if !valid {
 		return errBoardVerificationFailed
 	}
 	return nil

@@ -684,7 +684,7 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		}
 	}
 	if command.verifyBoard {
-		return writeLiveVerificationReport(stdout, reply.JSON)
+		return writeLiveVerificationReport(stdout, reply, command.boardID)
 	}
 	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
 		if command.edit.uploadID != "" {

@@ -86,6 +86,7 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 	lifecycleWrite := method == http.MethodPatch && path == "/service" || method == http.MethodPost && path == "/activations"
 	activationRead := method == http.MethodGet && strings.HasPrefix(path, "/activations/")
 	lifecycleRead := method == http.MethodGet && path == "/service" || activationRead
+	verificationRead := method == http.MethodGet && strings.HasPrefix(path, "/verifications/")
 	reply, err := c.http.Do(request)
 	if err != nil {
 		return Response{}, responseError("could not reach the local service or read its response", mutation)
@@ -99,7 +100,7 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 		return Response{}, responseError(fmt.Sprintf("service returned HTTP %d", reply.StatusCode),
 			mutation && uncertainStatus)
 	}
-	if lifecycleRead && reply.StatusCode != http.StatusOK {
+	if (lifecycleRead || verificationRead) && reply.StatusCode != http.StatusOK {
 		return Response{}, fmt.Errorf("service returned unexpected HTTP %d", reply.StatusCode)
 	}
 	var etag string
@@ -147,7 +148,7 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 			return Response{}, responseError("service did not return matching ETag and X-Board-ETag validators", true)
 		}
 	}
-	if lifecycleRead || lifecycleWrite {
+	if lifecycleRead || lifecycleWrite || verificationRead {
 		types := reply.Header.Values("Content-Type")
 		mediaType, _, err := mime.ParseMediaType(reply.Header.Get("Content-Type"))
 		if len(types) != 1 || err != nil || mediaType != "application/json" {

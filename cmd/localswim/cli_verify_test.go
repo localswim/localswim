@@ -147,3 +147,39 @@ func TestCLIBoardVerifyRejectsUnusableLiveReports(t *testing.T) {
 		})
 	}
 }
+
+func TestCLIBoardVerifyChecksLiveHTTPResponse(t *testing.T) {
+	const report = `{"board_id":"` + t03Board + `","at":"2026-11-10 14:44:56+00:00","valid":true,"revision":1,"issues":[]}`
+	for _, tc := range []struct {
+		name      string
+		status    int
+		mediaType string
+		wantError string
+	}{
+		{"unexpected success status", http.StatusAccepted, "application/json", "unexpected HTTP 202"},
+		{"wrong media type", http.StatusOK, "text/plain", "did not return an application/json response"},
+		{"JSON with parameters", http.StatusOK, "application/json; charset=utf-8", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", tc.mediaType)
+				w.WriteHeader(tc.status)
+				w.Write([]byte(report))
+			}))
+			t.Cleanup(server.Close)
+			env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
+			var stdout, stderr bytes.Buffer
+			exit := runCLIWithInput([]string{"board", "verify", t03Board}, strings.NewReader(""), &stdout, &stderr,
+				func(key string) string { return env[key] })
+			if tc.wantError != "" {
+				if exit != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), tc.wantError) {
+					t.Fatalf("unexpected response was not refused: exit=%d, stdout=%q, stderr=%q", exit, &stdout, &stderr)
+				}
+				return
+			}
+			if exit != 0 || stderr.Len() != 0 || !equalCLIJSON(t, stdout.Bytes(), []byte(report)) {
+				t.Fatalf("expected response was not preserved: exit=%d, stdout=%q, stderr=%q", exit, &stdout, &stderr)
+			}
+		})
+	}
+}

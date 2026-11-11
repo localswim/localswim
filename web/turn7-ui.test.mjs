@@ -24,7 +24,14 @@ async function harness(api, pathname = "/boards/" + board, {
     set textContent(value) { this.ownText = value; this.children = []; }
     get textContent() { return this.ownText + this.children.map((node) => node.textContent).join(""); }
     get isConnected() { return this.root === true || Boolean(this.parent?.isConnected); }
-    append(...nodes) { for (const node of nodes) { node.parent = this; this.children.push(node); } }
+    append(...nodes) {
+      for (const child of nodes) {
+        const node = typeof child === "string" ? new Element("#text") : child;
+        if (typeof child === "string") node.textContent = child;
+        node.parent = this;
+        this.children.push(node);
+      }
+    }
     replaceChildren(...nodes) { for (const node of this.children) node.parent = undefined; this.children = []; this.ownText = ""; this.append(...nodes); }
     prepend(node) { node.parent = this; this.children.unshift(node); }
     setAttribute(key, value) { this.attributes[key] = value; }

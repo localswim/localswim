@@ -1225,11 +1225,12 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
      * @param {{label: string, after_id: string, create_for: string[], connect_for: string[], notes?: string}} lane */
     async createLane(boardId, boardEtag, lane) {
       const id = resourceId(boardId);
+      const data = { ...lane, board_id: id, board_etag: strongTag(boardEtag) };
       const result = await request("/lanes", {
-        method: "POST", successStatus: 201,
-        data: { ...lane, board_id: id, board_etag: strongTag(boardEtag) },
+        method: "POST", successStatus: 201, data,
       });
-      if (!validLane(result.data, undefined, id)) {
+      const saved = /** @type {{notes?: unknown}} */ (result.data);
+      if (!validLane(saved, undefined, id) || (data.notes !== undefined && (saved.notes ?? "") !== data.notes)) {
         throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
       }
       return result;

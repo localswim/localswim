@@ -72,14 +72,28 @@ test("lane writes preserve exact notes and accept the canonical omitted note aft
   const notes = " Review first.\nReady 🧭 ";
   const bulk = " Approved ";
   const reviewed = { ...laneData, role: "ready_for_review", bulk_approval_comment: bulk };
-  const create = { label: "Ready", after_id: priority, create_for: [], connect_for: [], notes };
-  const createApi = client(async (path, request) => {
-    assert.equal(path, prefix + "/lanes");
-    assert.equal(request.method, "POST");
-    assert.deepEqual(JSON.parse(request.body), { ...create, board_id: board, board_etag: tag(board, 3) });
-    return Response.json({ ...laneData, notes }, { status: 201, headers: { ETag: tag(lane, 2) } });
-  });
-  assert.equal((await createApi.createLane(board, tag(board, 3), create)).data.notes, notes);
+  for (const [submitted, returned] of [[notes, notes], ["", undefined], [undefined, undefined],
+    [notes, undefined], [notes, "Different note"]]) {
+    const create = { label: "Ready", after_id: priority, create_for: [], connect_for: [],
+      ...(submitted === undefined ? {} : { notes: submitted }) };
+    const saved = returned === undefined ? laneData : { ...laneData, notes: returned };
+    let posts = 0;
+    const api = client(async (path, request) => {
+      posts++;
+      assert.equal(path, prefix + "/lanes");
+      assert.equal(request.method, "POST");
+      assert.deepEqual(JSON.parse(request.body), { ...create, board_id: board, board_etag: tag(board, 3) });
+      return Response.json(saved, { status: 201, headers: { ETag: tag(lane, 2) } });
+    });
+    const result = api.createLane(board, tag(board, 3), create);
+    if (submitted === notes && returned !== notes) {
+      await assert.rejects(result, (error) => error instanceof ApiError && error.code === "invalid_response"
+        && error.status === 201 && error.outcomeUnknown);
+    } else {
+      assert.deepEqual((await result).data, saved);
+    }
+    assert.equal(posts, 1);
+  }
 
   for (const text of [notes, ""]) {
     const change = { notes: text, bulk_approval_comment: bulk };

@@ -24,7 +24,7 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	switch name {
 	case "card set-priorities", "backup create":
 		flags.StringVar(&revision, "revision", "", "expected board revision")
-	case "ticket-order preview", "backup get", "backup download":
+	case "ticket-order preview", "backup info", "backup download":
 	default:
 		return cmd, errors.New("unknown command")
 	}
@@ -70,7 +70,7 @@ func parseT06(name string, args []string) (cliCommand, error) {
 			backupID = newUploadID()
 		}
 		cmd.body, _ = json.Marshal(map[string]string{"id": strings.ToLower(backupID)})
-	case "backup get", "backup download":
+	case "backup info", "backup download":
 		cmd.resource = "/backups/" + id
 		if name == "backup download" {
 			cmd.downloadPath = flags.Arg(1)
@@ -150,7 +150,7 @@ func executeT06(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 				ID string `json:"id"`
 			}
 			_ = json.Unmarshal(body, &identity)
-			return fmt.Errorf("%w (backup ID %s)", err, identity.ID)
+			return fmt.Errorf("%w. Run backup info %s before retrying", err, identity.ID)
 		}
 		return err
 	}
@@ -161,7 +161,7 @@ func executeT06(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 		_ = json.Unmarshal(body, &requested)
 		_ = json.Unmarshal(reply.JSON, &returned)
 		if requested.ID != returned.ID {
-			return fmt.Errorf("%w. Service returned a different backup ID. Inspect backup %s before retrying", client.ErrMutationOutcomeUnknown, requested.ID)
+			return fmt.Errorf("%w. Service returned a different backup ID. Run backup info %s before retrying", client.ErrMutationOutcomeUnknown, requested.ID)
 		}
 	}
 	if cmd.t06Action == "ticket-order preview" {

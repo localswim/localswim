@@ -113,8 +113,9 @@ Attachment verification and archive construction run after releasing that lock.
 The ZIP includes the native snapshot and exact audited immutable attachment
 paths, including detached files. Backup metadata uses `sha2_256` for the archive
 digest and `board_revision` for the captured commit. Later edits remain available
-to subsequent captures. Inspect the original backup ID after an uncertain POST
-before attempting another capture.
+to subsequent captures. Use `backup info BACKUP_ID` to read metadata for the
+original backup after an uncertain POST before attempting another capture.
+Use `backup download BACKUP_ID FILE|-` to verify and save the ZIP.
 
 `attachment detach` removes active content access and clears a matching cover in
 one transaction. Inspect the inactive record with `attachment get`. The original

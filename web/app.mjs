@@ -459,6 +459,7 @@ function writeRefusal(error) {
     }
     switch (error.code) {
       case "invalid_target": return "Choose a different, existing ticket on this board.";
+      case "move_view_changed": return "The board view changed. Drag the card again from its current lane.";
       case "attachment_upload_active": return "Wait for attachments to finish uploading before making this change.";
       case "attachment_upload_inspection": return "Open the affected card and use Inspect saved card before making this change.";
     }
@@ -2765,7 +2766,7 @@ async function load(savedAvailability) {
           reloadBoard, "card", scope);
         moveCard(card, lane.id, async () => {
           const { saved, tag } = await readWithSession(() => readCardVersion(board.id, card.id), signal);
-          if (!canDrop(drag, lane, column)) throw new ApiError("invalid_target");
+          if (!canDrop(drag, lane, column)) throw new ApiError("move_view_changed");
           if (saved.revision !== card.revision || saved.lane_id !== card.lane_id || saved.archived) {
             throw new ApiError("card_changed", { status: 412 });
           }

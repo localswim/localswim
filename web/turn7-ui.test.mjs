@@ -314,7 +314,7 @@ test("M48 drag moves only the rendered card to a granted lane with its exact rev
   const ui = await harness(api);
   t.after(() => ui.navigate("/"));
   await ui.load();
-  const {main, details} = ui.nodes;
+  const {main, details, status} = ui.nodes;
   const column = (label) => ui.find(main, "h2", label).parent;
   const opener = ui.find(main, "button", "#1 Original");
   assert.equal(opener.draggable, true);
@@ -383,6 +383,34 @@ test("M48 drag moves only the rendered card to a granted lane with its exact rev
   assert.equal(priorTarget.dataset.dropTarget, undefined);
   priorTarget.dispatch("drop", {dataTransfer: transfer});
   assert.equal(writes.length, 0);
+
+  // A repaint during the focused read must also cancel the move.
+  const readCard = api.getCard;
+  const releaseRead = Promise.withResolvers();
+  const preflights = [];
+  api.getCard = async (id) => {
+    preflights.push(id);
+    await releaseRead.promise;
+    return readCard(id);
+  };
+  const pendingOpener = ui.find(main, "button", "#1 Changed elsewhere");
+  const pendingTarget = column(target.label);
+  transfer = dragTransfer();
+  pendingOpener.dispatch("dragstart", {dataTransfer: transfer});
+  pendingTarget.dispatch("drop", {dataTransfer: transfer});
+  try {
+    await until(() => preflights.length === 1);
+    filter.value = "1";
+    filter.dispatch("input");
+    assert.equal(pendingOpener.isConnected, false);
+  } finally {
+    releaseRead.resolve();
+    await ui.settled();
+    api.getCard = readCard;
+  }
+  assert.deepEqual(preflights, [card]);
+  assert.equal(writes.length, 0);
+  assert.match(status.textContent, /The board view changed\. Drag the card again/);
 
   const fresh = ui.find(main, "button", "#1 Changed elsewhere");
   fresh.click();

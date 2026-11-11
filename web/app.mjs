@@ -20,7 +20,7 @@ import { ApiError, createBrowserApi, openBrowserSession, validPublishing } from 
 /** @typedef {() => Promise<void|boolean>} InspectionRead */
 /** @typedef {{scope: string, label: string, require: (read: InspectionRead) => void,
  * inspect: () => void, sync: () => void}} Inspection */
-/** @typedef {{title?: string, description?: string, lane?: string, owner?: string, comment?: string}} CardDraft */
+/** @typedef {{title?: string, description?: string, lane?: string, owner?: string, priority?: string, comment?: string}} CardDraft */
 /** @typedef {import("./api.mjs").Service} Service */
 /** @typedef {import("./api.mjs").Build} Build */
 /** @typedef {{prior: Service, activation?: {id: string, buildId: string}, acknowledged: boolean, refusal?: string}} LifecycleOperation */
@@ -75,7 +75,8 @@ const pendingPublications = new Map();
 const pendingInspections = new Map();
 /** @type {{id: string, control: HTMLTextAreaElement}|undefined} */
 let activeComment;
-/** @type {{boardId: string, id: string, close: () => void, refreshWorkflow: () => Promise<void>}|undefined} */
+/** @type {{boardId: string, id: string, close: () => void, refreshWorkflow: () => Promise<void>,
+ * refreshPriority: (requested: string, effective: Labeled|undefined, replaced: boolean) => Promise<void>}|undefined} */
 let activeDrawer;
 /** @type {(() => void)|undefined} */
 let releaseCardMedia;
@@ -597,6 +598,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     if (previous?.description !== undefined) description.value = previous.description;
     if (previous?.lane !== undefined && activeLanes(lanes).some(({ id }) => id === previous.lane)) lane.value = previous.lane;
     if (previous?.owner !== undefined && users.some(({ id }) => id === previous.owner)) owner.value = previous.owner;
+    if (previous?.priority !== undefined && priorities.some(({ id }) => id === previous.priority)) priority.value = previous.priority;
     if (previous?.comment !== undefined) comment.value = previous.comment;
     retainCardDraft = () => {
       /** @type {CardDraft} */
@@ -605,6 +607,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       if (description.value !== descriptionBaseline) draft.description = description.value;
       if (lane.value && lane.value !== savedCard.lane_id) draft.lane = lane.value;
       if (owner.value !== savedCard.owner_id) draft.owner = owner.value;
+      if (priority.value && priority.value !== savedCard.priority_id) draft.priority = priority.value;
       if (comment.value) draft.comment = comment.value;
       if (Object.keys(draft).length) cardDrafts.set(card.id, draft);
       else cardDrafts.delete(card.id);
@@ -661,7 +664,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         inspection.sync();
       }
     }
-    activeDrawer = { boardId, id: card.id, close: closeDrawer, refreshWorkflow };
+    activeDrawer = { boardId, id: card.id, close: closeDrawer, refreshWorkflow, refreshPriority };
     const close = button("Close card", () => { if (!writing) closeDrawer(); });
     const heading = element("h2", `#${card.ticket} ${card.title}`);
     heading.tabIndex = -1;
@@ -1062,6 +1065,26 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     const priorityResult = element("p");
     priorityResult.setAttribute("aria-live", "polite");
     priority.addEventListener("change", () => { priorityResult.textContent = ""; });
+    /** @param {string} requested @param {Labeled|undefined} effective @param {boolean} replaced */
+    async function refreshPriority(requested, effective, replaced) {
+      try {
+        await reloadBoard();
+      } catch (error) {
+        if (replaced && cardView === activeCard) {
+          priorityResult.textContent = "Readback failed. Use " + inspection.label + " before making another edit.";
+        }
+        throw error;
+      }
+      if (cardView !== activeCard || view.dataset.unavailable === "true") return;
+      if (effective) {
+        if (priority.value === requested) priority.value = savedCard.priority_id;
+        priorityResult.textContent = effective.id === requested
+          ? "Effective priority: " + effective.label + "."
+          : "Dependency floor kept the effective priority at " + effective.label + ".";
+      } else if (replaced) {
+        priorityResult.textContent = "Compare the saved priority with your selection before making another edit.";
+      }
+    }
     const setPriority = form("Set priority", [field("Priority", priority)], (submit) => {
       if (cardView !== activeCard) return;
       const requested = priority.value;
@@ -1079,12 +1102,12 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
           throw new ApiError("invalid_response", { outcomeUnknown: true });
         }
       }, async () => {
-        await reloadBoard();
-        if (cardView === activeCard && effective) {
-          if (priority.value === requested) priority.value = savedCard.priority_id;
-          priorityResult.textContent = effective.id === requested
-            ? "Effective priority: " + effective.label + "."
-            : "Dependency floor kept the effective priority at " + effective.label + ".";
+        const drawer = activeDrawer;
+        const sameCard = drawer?.boardId === boardId && drawer.id === card.id;
+        if (sameCard) await drawer.refreshPriority(requested, effective, cardView !== activeCard);
+        if ((!sameCard || drawer !== activeDrawer) && boardAtLocation() === boardId && selectedCardId(boardId) === card.id) {
+          // A replacement drawer was still opening or changed during readback.
+          await load();
         }
         return effective !== undefined;
       }, "Priority saved.", inspection);

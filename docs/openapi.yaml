@@ -11080,9 +11080,10 @@ paths:
       x-milestones:
       - 34
       - 36
-      description: Serialize by repository, preserve unrelated staged files and refuse unsupported hooks,
-        content filters and filesystem monitors before staging. Publish only the selected immutable backup
-        or workspace preference artifact. A Location identifies the accepted publication.
+      description: Serialize by repository and publish the selected immutable artifact. Reconcile the
+        captured index paths under the worktree's Git index lock while preserving unrelated staging and
+        later working-tree edits. Refuse staged overlap, unsupported hooks, content filters and filesystem
+        monitors. A Location identifies the accepted publication.
       requestBody:
         required: true
         content:
@@ -13326,7 +13327,9 @@ components:
           type: boolean
         error_code:
           description: Fixed publication failure code. publication_path_ignored means Git ignores a captured
-            path. git_ignore_unavailable means Git could not verify the ignore rules.
+            path. git_ignore_unavailable means Git could not verify the ignore rules. publication_index_busy
+            means the worktree's index is locked. publication_index_overlap means staged changes intersect
+            the capture. publication_index_uncertain means the local branch and index update require inspection.
           anyOf:
           - type: string
             minLength: 0
@@ -14382,7 +14385,9 @@ components:
           - type: 'null'
         error_code:
           description: Fixed publication failure code. publication_path_ignored means Git ignores a captured
-            path. git_ignore_unavailable means Git could not verify the ignore rules.
+            path. git_ignore_unavailable means Git could not verify the ignore rules. publication_index_busy
+            means the worktree's index is locked. publication_index_overlap means staged changes intersect
+            the capture. publication_index_uncertain means the local branch and index update require inspection.
           anyOf:
           - type: string
             minLength: 0
@@ -18458,10 +18463,12 @@ x-publishing-worker:
     publishing opt-in by refusing a snapshot with different publishing settings.
   admission: Check all captured paths against Git ignore rules before writing objects. An ignored board,
     audited attachment, or workspace file refuses the capture, including a path already tracked or staged.
-  synchronization: Serialize every board and workspace publisher sharing one repository with the same
-    persistent OS lock.
-  retry: Retain failed attempts as pending and retry with bounded backoff even without another edit. Preserve
-    already committed history and unrelated staged work.
+  synchronization: Serialize publishers with the persistent Git common-directory lock. Use the
+    worktree's Git index lock to reconcile exact captured paths. Preserve unrelated staging and
+    later working-tree edits.
+  retry: Retain the exact capture inventory and retry pending attempts with bounded backoff even without
+    another edit. Check scoped staging before advancing the local branch. Require proof of consistent
+    local index state before pushing an interrupted update.
   status: Report pending, last_success_at, and a fixed error_code on the board summary or workspace.
     Publishing progress does not advance data revisions. While live status is visible, an exact matching
     revision tag still returns current status. After a disabled restart, durable publishing history is

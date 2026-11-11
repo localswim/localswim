@@ -37,11 +37,7 @@ func TestM35BoardPublicationResumesExactPendingCommit(t *testing.T) {
 
 	m34Write(t, filepath.Join(fixture.repository, "staged.txt"), []byte("unrelated staged content\n"))
 	m34Git(t, fixture.repository, "add", "--", "staged.txt")
-	indexPath := filepath.Join(fixture.repository, ".git", "index")
-	indexBefore, err := os.ReadFile(indexPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	staged := m34Git(t, fixture.repository, "ls-files", "--stage", "-z", "--", "staged.txt")
 	baseline := strings.TrimSpace(string(m34Git(t, fixture.repository, "rev-parse", "HEAD")))
 	offline := fixture.remote + "-offline"
 	if err := os.Rename(fixture.remote, offline); err != nil {
@@ -106,9 +102,11 @@ func TestM35BoardPublicationResumesExactPendingCommit(t *testing.T) {
 			t.Fatalf("published bytes differ for %s", artifact)
 		}
 	}
-	indexAfter, err := os.ReadFile(indexPath)
-	if err != nil || !bytes.Equal(indexBefore, indexAfter) {
-		t.Fatal("automatic publication changed unrelated staged work", err)
+	if names := m34Git(t, fixture.repository, "diff", "--cached", "--name-only", "-z"); string(names) != "staged.txt\x00" {
+		t.Fatalf("automatic publication left unexpected staged paths: %q", names)
+	}
+	if after := m34Git(t, fixture.repository, "ls-files", "--stage", "-z", "--", "staged.txt"); !bytes.Equal(staged, after) {
+		t.Fatal("automatic publication changed unrelated staged work")
 	}
 	stored, err := app.store.durable(original.ID)
 	if err != nil || stored.Board.Publishing.Pending || stored.Board.Publishing.ErrorCode != nil || stored.Board.Publishing.LastSuccessAt != nil {
@@ -169,7 +167,7 @@ func TestM35PendingPublicationSettlesAfterAnotherPublisherPushesDescendant(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	commit, err := repo.prepareCommit(previous, m35Capture("first"))
+	commit, names, err := repo.preparePublication(ref, previous, m35Capture("first"))
 	if err != nil || commit == previous {
 		t.Fatal("failed to prepare first publication", err)
 	}
@@ -179,7 +177,7 @@ func TestM35PendingPublicationSettlesAfterAnotherPublisherPushesDescendant(t *te
 	}
 	firstRef := publicationCheckpointRef(root, "first")
 	intent := publicationCheckpoint{Revision: 1, Pending: &pendingPublication{
-		Commit: commit, Parent: previous, Branch: ref, Remote: publicationRemoteDigest(target),
+		Commit: commit, Parent: previous, Branch: ref, Remote: publicationRemoteDigest(target), Names: names,
 	}}
 	// Simulate an interruption after the journal was installed but before the branch CAS.
 	if _, err := repo.saveCheckpoint(firstRef, "", intent); err != nil {
@@ -242,7 +240,7 @@ func TestM35PinnedTransportIgnoresRetargetAndSecondRewrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	commit, err := repo.prepareCommit(previous, m35Capture("pinned"))
+	commit, _, err := repo.preparePublication(ref, previous, m35Capture("pinned"))
 	if err != nil || commit == previous {
 		t.Fatal("failed to prepare pinned publication", err)
 	}
@@ -286,11 +284,10 @@ func TestM35NoDeltaCaptureConfirmsRemoteBeforeSuccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	capture := m35Capture("already-committed")
-	commit, err := repo.prepareCommit(previous, capture)
+	commit, err := repo.publishCapture(ref, previous, capture)
 	if err != nil || commit == previous {
 		t.Fatal("failed to prepare exact local commit", err)
 	}
-	m34Git(t, fixture.repository, "update-ref", ref, commit, previous)
 	offline := fixture.remote + "-offline"
 	if err := os.Rename(fixture.remote, offline); err != nil {
 		t.Fatal(err)
@@ -326,7 +323,7 @@ func TestM35ExactCommitIgnoresReplacementObjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer releasePublicationRepository(repo.lease)
-	_, previous, err := repo.head()
+	ref, previous, err := repo.head()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +333,7 @@ func TestM35ExactCommitIgnoresReplacementObjects(t *testing.T) {
 	if got := strings.TrimSpace(string(m34Git(t, fixture.repository, "rev-parse", previous+"^{tree}"))); got != tree {
 		t.Fatal("fixture did not activate the replacement object")
 	}
-	commit, err := repo.prepareCommit(previous, m35Capture("replacement-proof"))
+	commit, _, err := repo.preparePublication(ref, previous, m35Capture("replacement-proof"))
 	if err != nil || commit == previous {
 		t.Fatal("failed to prepare exact commit", err)
 	}

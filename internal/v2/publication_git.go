@@ -26,11 +26,12 @@ func (e publicationGitError) Error() string { return string(e) }
 func gitPublicationError(code string) error { return publicationGitError(code) }
 
 type boundedGitOutput struct {
-	data bytes.Buffer
+	data  bytes.Buffer
+	limit int
 }
 
 func (output *boundedGitOutput) Write(data []byte) (int, error) {
-	if output.data.Len()+len(data) > 64*1024 {
+	if output.data.Len()+len(data) > output.limit {
 		return 0, errors.New("Git output exceeds limit")
 	}
 	return output.data.Write(data)
@@ -45,6 +46,12 @@ func publicationGitConfigured(cwd, index string, input []byte, configuration []s
 }
 
 func runPublicationGit(cwd, index string, input []byte, configuration []string, stderr io.Writer, args ...string) ([]byte, error) {
+	output := boundedGitOutput{limit: 64 * 1024}
+	err := runPublicationGitOutput(cwd, index, input, configuration, &output, stderr, args...)
+	return output.data.Bytes(), err
+}
+
+func runPublicationGitOutput(cwd, index string, input []byte, configuration []string, stdout, stderr io.Writer, args ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), publicationGitTimeout)
 	defer cancel()
 	command := exec.CommandContext(ctx, "git", args...)
@@ -62,11 +69,9 @@ func runPublicationGit(cwd, index string, input []byte, configuration []string, 
 		command.Env = append(command.Env, "GIT_INDEX_FILE="+index)
 	}
 	command.Stdin = bytes.NewReader(input)
-	var output boundedGitOutput
-	command.Stdout = &output
+	command.Stdout = stdout
 	command.Stderr = stderr
-	err := command.Run()
-	return output.data.Bytes(), err
+	return command.Run()
 }
 
 func publicationGitText(cwd string, args ...string) (string, error) {
@@ -287,38 +292,40 @@ func publicationInventory(prefix string, files []publicationFile) ([]string, err
 		return nil, gitPublicationError("capture_unavailable")
 	}
 	names := make([]string, len(files))
-	seen := make(map[string]bool, len(files))
 	for index, file := range files {
 		relative := filepath.ToSlash(file.path)
-		name := filepath.ToSlash(filepath.Join(prefix, file.path))
-		if file.read == nil || !filepath.IsLocal(file.path) || !fs.ValidPath(relative) || relative == "." ||
-			!fs.ValidPath(name) || strings.ContainsRune(name, 0) || seen[name] {
+		if file.read == nil || !filepath.IsLocal(file.path) || !fs.ValidPath(relative) || relative == "." {
 			return nil, gitPublicationError("capture_unavailable")
 		}
-		names[index] = name
+		names[index] = filepath.ToSlash(filepath.Join(prefix, file.path))
+	}
+	if !validPublicationNames(names) {
+		return nil, gitPublicationError("capture_unavailable")
+	}
+	return names, nil
+}
+
+func validPublicationNames(names []string) bool {
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		if !fs.ValidPath(name) || name == "." || strings.ContainsRune(name, 0) || seen[name] {
+			return false
+		}
 		seen[name] = true
 	}
 	for _, name := range names {
 		for parent := path.Dir(name); parent != "."; parent = path.Dir(parent) {
 			if seen[parent] {
-				return nil, gitPublicationError("capture_unavailable")
+				return false
 			}
 		}
 	}
-	return names, nil
+	return len(names) != 0
 }
 
 // A private index overlays only the exact capture inventory onto the accepted
-// parent. Hashing stdin without --path stores captured bytes verbatim. Neither
-// the caller's index nor the live files are opened for staging or rewritten.
-func (repo publicationRepository) prepareCommit(previous string, capture publicationCapture) (string, error) {
-	names, err := publicationInventory(repo.prefix, capture.files)
-	if err != nil {
-		return "", err
-	}
-	if err := publicationGitSafety(repo.root, names); err != nil {
-		return "", err
-	}
+// parent. Hashing stdin without --path stores captured bytes verbatim.
+func (repo publicationRepository) prepareCommit(previous string, capture publicationCapture, names []string) (string, error) {
 	directory, err := os.MkdirTemp("", "localswim-publication-*")
 	if err != nil {
 		return "", gitPublicationError("capture_unavailable")
@@ -393,14 +400,9 @@ func publishVerifiedBackup(dataRoot string, item backup) error {
 	if err != nil {
 		return err
 	}
-	commit, err := repo.prepareCommit(previous, publicationCapture{message: "localswim backup " + item.ID, files: files})
+	commit, err := repo.publishCapture(ref, previous, publicationCapture{message: "localswim backup " + item.ID, files: files})
 	if err != nil {
 		return err
-	}
-	if commit != previous {
-		if _, err := publicationGit(repo.root, "", nil, "update-ref", ref, commit, previous); err != nil {
-			return gitPublicationError("git_ref_failed")
-		}
 	}
 	return repo.push(publicationRemote{name: "origin"}, commit, ref)
 }

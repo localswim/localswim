@@ -221,13 +221,18 @@ admitting an earlier audit history.
 Manual publication discovers the Git worktree enclosing the service data directory. It requires
 an initial commit, local branch, configured identity and an origin remote. The publication commit's
 changes consist of the captured native snapshot and exact audited attachment paths. The push follows
-normal Git ancestry. Publication uses a private index under the persistent
-Git common-directory localswim-autopush.lock. The caller's index and unrelated staged work remain
-intact. Before writing Git objects, publication checks every captured path against Git's ignore
+normal Git ancestry. Publication constructs its commit in a private index under the persistent
+Git common-directory localswim-autopush.lock. It updates the exact captured paths in the worktree's
+index to the published commit, preserving unrelated staging and later working-tree edits.
+Before writing Git objects, publication checks every captured path against Git's ignore
 rules, including paths already tracked or staged. Any ignored path refuses the entire capture with
 `publication_path_ignored`. An ignore check that fails or warns reports `git_ignore_unavailable`.
 Unsupported hooks, external content filters and filesystem monitors also refuse before object publication.
-Inspect the original publication UUID after an uncertain result.
+Publication uses Git's worktree index lock to detect staged overlap and reconcile the index.
+`publication_index_overlap` means staging intersects a captured path, including an ancestor or
+descendant. `publication_index_busy` means Git's index lock is already held. If the branch update
+and index installation cannot both be confirmed, `publication_index_uncertain` stops the push.
+Inspect the original publication UUID, current branch, and staged diff after an uncertain result.
 
 Enable automatic publication independently with
 `board publishing enable [--revision N] BOARD_ID` or
@@ -245,6 +250,9 @@ push time, and a fixed failure code. Failed automatic attempts remain pending an
 retry with bounded backoff without another edit. Status changes leave board,
 card, and workspace revisions intact. Use `disable` with the same revision
 options to stop new attempts. A disabled publisher keeps durable pending intent.
+Pending intent keeps the exact capture inventory. A retry checks staging before advancing the
+local branch. After an interrupted local update, a retry requires a consistent index and
+leaves any overlapping staging for inspection.
 After a disabled restart, status history is loaded when the publisher is
 re-enabled. Inspect status after an uncertain settings write.
 A board restore requires matching publishing settings. Reconcile any difference

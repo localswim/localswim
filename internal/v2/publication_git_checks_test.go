@@ -114,11 +114,8 @@ func TestM34ChecksCapturedInventoryAndStagedWorkSurvive(t *testing.T) {
 	unrelated := []string{"added.txt", "modified.txt", "deleted.txt"}
 	m34Git(t, fixture.repository, append([]string{"add", "--"}, unrelated...)...)
 	beforeDiff := m34Git(t, fixture.repository, append([]string{"diff", "--cached", "--binary", "--"}, unrelated...)...)
+	beforeStaged := m34Git(t, fixture.repository, append([]string{"ls-files", "--stage", "-z", "--"}, unrelated...)...)
 	indexPath := filepath.Join(fixture.repository, ".git", "index")
-	beforeIndex, err := os.ReadFile(indexPath)
-	if err != nil {
-		t.Fatal(err)
-	}
 	previous := strings.TrimSpace(string(m34Git(t, fixture.repository, "rev-parse", "HEAD")))
 	m34Write(t, filepath.Join(fixture.repository, ".gitattributes"), []byte("* text eol=crlf\n"))
 	m34Git(t, fixture.repository, "config", "core.autocrlf", "true")
@@ -126,11 +123,12 @@ func TestM34ChecksCapturedInventoryAndStagedWorkSurvive(t *testing.T) {
 		t.Fatal(err)
 	}
 	afterIndex, err := os.ReadFile(indexPath)
-	if err != nil || !bytes.Equal(beforeIndex, afterIndex) {
-		t.Fatalf("publication changed caller index: %v", err)
+	if err != nil {
+		t.Fatal(err)
 	}
 	afterDiff := m34Git(t, fixture.repository, append([]string{"diff", "--cached", "--binary", "--"}, unrelated...)...)
-	if !bytes.Equal(beforeDiff, afterDiff) {
+	afterStaged := m34Git(t, fixture.repository, append([]string{"ls-files", "--stage", "-z", "--"}, unrelated...)...)
+	if !bytes.Equal(beforeDiff, afterDiff) || !bytes.Equal(beforeStaged, afterStaged) {
 		t.Fatal("unrelated staged additions/modifications/deletions changed")
 	}
 	gotPaths := strings.Split(strings.TrimSuffix(string(m34Git(t, fixture.repository, "diff-tree", "--no-commit-id", "--name-only", "-r", "-z", previous, "HEAD")), "\x00"), "\x00")
@@ -148,6 +146,14 @@ func TestM34ChecksCapturedInventoryAndStagedWorkSurvive(t *testing.T) {
 	if !slices.Equal(gotPaths, wantPaths) {
 		t.Fatalf("published paths %q, want exact capture %q", gotPaths, wantPaths)
 	}
+	staged := m34Git(t, fixture.repository, "diff", "--cached", "--name-only", "-z")
+	if string(staged) != "added.txt\x00deleted.txt\x00modified.txt\x00" {
+		t.Fatalf("unexpected staged paths: %q", staged)
+	}
+	status := m34Git(t, fixture.repository, append([]string{"status", "--porcelain=v1", "-z", "--"}, wantPaths...)...)
+	if want := " M " + fixture.prefix + "/boards/" + fixture.state.Board.ID + ".json\x00"; string(status) != want {
+		t.Fatalf("captured inventory status %q, want only the later unstaged edit %q", status, want)
+	}
 	afterLive, err := os.ReadFile(fixture.app.store.snapshotPath(fixture.state.Board.ID))
 	if err != nil || !bytes.Equal(live, afterLive) {
 		t.Fatal("publication changed later live snapshot", err)
@@ -164,8 +170,8 @@ func TestM34ChecksCapturedInventoryAndStagedWorkSurvive(t *testing.T) {
 	if !bytes.Equal(localHead, m34Git(t, fixture.repository, "rev-parse", "HEAD")) {
 		t.Fatal("identical capture created another commit")
 	}
-	afterIndex, err = os.ReadFile(indexPath)
-	if err != nil || !bytes.Equal(beforeIndex, afterIndex) {
+	noOpIndex, err := os.ReadFile(indexPath)
+	if err != nil || !bytes.Equal(afterIndex, noOpIndex) {
 		t.Fatal("no-op publication changed caller index", err)
 	}
 }

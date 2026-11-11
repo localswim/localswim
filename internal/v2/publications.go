@@ -142,6 +142,7 @@ func validPublicationCode(code string) bool {
 		"git_attributes_unavailable", "unsupported_filter", "publication_path_ignored", "git_ignore_unavailable",
 		"branch_unavailable", "remote_unavailable",
 		"head_unavailable", "capture_unavailable", "git_index_failed", "git_object_failed", "git_tree_failed",
+		"publication_branch_changed", "publication_index_busy", "publication_index_overlap", "publication_index_uncertain",
 		"git_commit_failed", "git_ref_failed", "git_push_failed", "publication_failed"}, code)
 }
 

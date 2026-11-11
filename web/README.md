@@ -33,6 +33,13 @@ after a refusal or uncertain response. If readback fails, open the affected card
 and use **Inspect saved card**. The browser reads the original card without
 repeating the move.
 
+Use **Filter by title or ticket** to narrow the active cards on the board as you
+type. Matching uses a case-insensitive literal title or displayed ticket
+fragment. Press **/** from outside an editor to focus the filter, and press
+**Escape** in the filter to clear it. The filter and lane headings show matching
+and total counts while the filter is active. Clear the filter to preview ticket
+order or approve all cards in a lane where the filter hides cards.
+
 Lane headings show the number of active cards, including zero in empty lanes.
 Card faces show nonzero comment and active attachment counts. The card opener's
 accessible description names the exact counts. The board refreshes them from
@@ -227,11 +234,11 @@ drawer. When a board change makes the displayed results stale, the search keeps
 your filters and prompts you to run it again. Relationship ticket lookup keeps
 its default numeric order.
 
-Each tab remembers its search filters and results query, selected card, and lane
-scroll positions for each board. Returning through the board list, Back, or
-Forward, or reloading the tab restores that board's view. Restored search results
-and drawers are read from the service. A retired search lane resets to All lanes,
-and a missing saved card clears the selection.
+Each tab remembers its inline filter, deeper search filters and results query,
+selected card, and lane scroll positions for each board. Returning through the
+board list, Back, or Forward, or reloading the tab restores that board's view.
+Restored search results and drawers are read from the service. A retired search
+lane resets to All lanes, and a missing saved card clears the selection.
 
 A changed **Preview ticket order** offers **Apply ticket order**. Apply submits
 the captured board validator and proposed ordered card UUIDs exactly once.

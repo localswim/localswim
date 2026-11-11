@@ -50,6 +50,12 @@ relationship is visible from both cards. Human comments link ticket references t
 focused board reads, including archived tickets. Bot comments render as text. Card
 priorities are shown on the board and in the drawer and refresh after link edits.
 
+Use **Set priority** in the card drawer to change that card's priority against
+its displayed revision. The drawer shows the effective saved priority and
+reports when a dependency floor prevents the requested demotion. After a
+stale or uncertain result, compare the saved priority with your selection
+before submitting again.
+
 Attachments offer authenticated downloads. Raster attachments also offer a preview
 and cover selection. The selected cover appears on the card in its lane. Detach
 revokes active file access and clears the selected cover when it refers to the file.

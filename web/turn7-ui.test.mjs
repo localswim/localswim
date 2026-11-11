@@ -1334,8 +1334,10 @@ test("drawer priority uses the card validator and shows the effective dependency
   api.patchCard = async (id, etag, change) => {
     writes.push([id, etag, change.priority_id]);
     assert.equal(etag, tag(card, revision));
+    const previous = (await getCard()).data.priority_id;
     const result = await patchCard(id, etag, {priority_id: change.priority_id === low ? priority : change.priority_id});
-    return {...result, etag: tag(card, ++revision)};
+    if (result.data.priority_id !== previous) revision++;
+    return {...result, etag: tag(card, revision)};
   };
   const ui = await harness(api);
   await ui.load();
@@ -1359,7 +1361,14 @@ test("drawer priority uses the card validator and shows the effective dependency
   assert.match(drawer.textContent, /Dependency floor kept the effective priority at Normal/);
   assert.equal(choice.value, priority);
   assert.equal(title.value, "Keep my title draft");
-  assert.deepEqual(writes, [[card, tag(card, 1), urgent], [card, tag(card, 2), low]]);
+
+  choice.value = low;
+  ui.submit(drawer, "Set priority");
+  await ui.settled();
+  assert.match(drawer.textContent, /Dependency floor kept the effective priority at Normal/);
+  assert.equal(choice.value, priority);
+  assert.equal(revision, 3);
+  assert.deepEqual(writes, [[card, tag(card, 1), urgent], [card, tag(card, 2), low], [card, tag(card, 3), low]]);
 });
 
 test("drawer priority refreshes stale and uncertain results without replaying or claiming a floor", async () => {
@@ -1399,3 +1408,65 @@ test("drawer priority refreshes stale and uncertain results without replaying or
   assert.equal(choice.value, urgent);
   assert.deepEqual(writes, [[card, tag(card, 1), urgent], [card, tag(card, 1), urgent]]);
 });
+
+
+for (const lostResponse of [false, true]) {
+  test("drawer priority reconciles a same-address replacement after " + (lostResponse ? "a lost response" : "a confirmed write"), async () => {
+    const {api} = boardApi();
+    api.listComments = async () => page("comments", []);
+    api.listAttachments = async () => page("attachments", []);
+    const urgent = "1de08e49-ed9f-4822-b6b8-4981c57b133d";
+    const listPriorities = api.listPriorities;
+    api.listPriorities = async () => page("priorities", [
+      {id: urgent, label: "Urgent"}, ...(await listPriorities()).data.priorities,
+    ]);
+    const patchCard = api.patchCard;
+    const getCard = api.getCard;
+    const started = Promise.withResolvers();
+    const finish = Promise.withResolvers();
+    let revision = 1;
+    const writes = [];
+    api.getCard = async () => ({...await getCard(), etag: tag(card, revision)});
+    api.patchCard = async (id, etag, change) => {
+      writes.push([id, etag, change.priority_id]);
+      if (writes.length === 1) {
+        started.resolve();
+        await finish.promise;
+      }
+      const saved = await patchCard(id, etag, change);
+      const reply = {...saved, etag: tag(card, ++revision)};
+      if (lostResponse && writes.length === 1) throw new ApiError("transport_failed", {outcomeUnknown: true});
+      return reply;
+    };
+    const ui = await harness(api);
+    const {main, details} = ui.nodes;
+    await ui.load();
+    ui.find(main, "button", "#1 Original").click();
+    await ui.settled();
+    ui.field(details, "Title").value = "Keep this title draft";
+    ui.field(details, "Priority").value = urgent;
+    ui.submit(details, "Set priority");
+    await started.promise;
+    try {
+      await ui.load();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assert.match(details.textContent, /Priority: Normal/);
+    } finally {
+      finish.resolve();
+    }
+    await ui.settled();
+    assert.match(details.textContent, /Priority: Urgent/);
+    assert.equal(ui.field(details, "Title").value, "Keep this title draft");
+    assert.deepEqual(writes, [[card, tag(card, 1), urgent]]);
+    if (lostResponse) {
+      assert.doesNotMatch(details.textContent, /Effective priority:|Dependency floor/);
+      assert.match(details.textContent, /Compare the saved priority/);
+    }
+    else assert.match(details.textContent, /Effective priority: Urgent/);
+
+    ui.field(details, "Priority").value = priority;
+    ui.submit(details, "Set priority");
+    await ui.settled();
+    assert.deepEqual(writes, [[card, tag(card, 1), urgent], [card, tag(card, 2), priority]]);
+  });
+}

@@ -77,8 +77,9 @@ func (x *request) listCards() {
 		return
 	}
 	rows := selectCards(state, filters)
-	page(x, "cards", rows, id, filters.laneID, strconv.FormatUint(filters.ticket, 10),
-		filters.archived, filters.sort, filters.query, strconv.FormatBool(filters.searchContent))
+	page(x, "cards", rows, id, filters.laneScope(), strconv.FormatUint(filters.ticket, 10),
+		filters.archived, filters.sort, filters.query, strconv.FormatBool(filters.searchContent),
+		strconv.FormatBool(filters.unfinishedOnly))
 }
 
 func readCardCreation(fields map[string]json.RawMessage) (cardCreation, error) {

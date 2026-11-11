@@ -20,14 +20,26 @@ func parseT07(name string, args []string) (cliCommand, error) {
 	cmd := cliCommand{method: http.MethodGet, t07Action: name}
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	var revision, id, search, lane, cursor string
+	var revision, id, search, lane, cursor, archived string
+	var lanes []string
 	var content bool
 	limit := 50
 	count := 1
 	switch name {
 	case "card search", "card next", "card lookup":
 		flags.StringVar(&search, "search", "", "literal title or ticket search")
-		flags.StringVar(&lane, "lane", "", "lane UUIDv4")
+		if name == "card lookup" {
+			flags.StringVar(&lane, "lane", "", "lane UUIDv4")
+		} else {
+			flags.Func("lane", "lane UUIDv4 (repeatable)", func(value string) error {
+				if !boardIDPattern.MatchString(value) {
+					return errors.New("--lane requires a UUIDv4")
+				}
+				lanes = append(lanes, strings.ToLower(value))
+				return nil
+			})
+			flags.StringVar(&archived, "archived", "", "exclude, include, or only archived cards")
+		}
 		flags.BoolVar(&content, "search-content", false, "search readable descriptions and comments")
 		if name == "card next" {
 			limit = 1
@@ -69,8 +81,13 @@ func parseT07(name string, args []string) (cliCommand, error) {
 				optionErr = errors.New("--id requires a UUIDv4")
 			}
 		case "lane":
-			if !boardIDPattern.MatchString(lane) {
+			if name == "card lookup" && !boardIDPattern.MatchString(lane) {
 				optionErr = errors.New("--lane requires a UUIDv4")
+			}
+		case "archived":
+			archived = strings.ToLower(archived)
+			if archived != "exclude" && archived != "include" && archived != "only" {
+				optionErr = errors.New("--archived requires exclude, include, or only")
 			}
 		case "search", "cursor":
 			if f.Value.String() == "" {
@@ -96,6 +113,14 @@ func parseT07(name string, args []string) (cliCommand, error) {
 		}
 		if lane != "" {
 			query.Set("lane_id", strings.ToLower(lane))
+		}
+		if len(lanes) != 0 {
+			query["lane_id"] = lanes
+		} else if name == "card next" {
+			query.Set("unfinished_only", "true")
+		}
+		if archived != "" {
+			query.Set("archived", archived)
 		}
 		if content {
 			query.Set("search_content", "true")

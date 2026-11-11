@@ -37,7 +37,7 @@ func TestCardTriageWholeGraph(t *testing.T) {
 			t.Fatalf("ticket %d metrics = %d/%d/%d", item.Ticket, item.BlockedCardCount, item.TriageScore, item.BlockingDepth)
 		}
 	}
-	filters := cardFilters{laneID: "a", archived: "exclude", sort: "triage"}
+	filters := cardFilters{laneIDs: map[string]bool{"a": true}, archived: "exclude", sort: "triage"}
 	rows := selectCards(s, filters)
 	if !slices.Equal(laneTickets(rows), []uint64{8, 1, 4, 5, 6, 7}) || rows[1].BlockedCardCount != 4 {
 		t.Fatalf("triage order/filter = %v", laneTickets(rows))
@@ -247,4 +247,88 @@ func TestCardSearchHTTPPaginationAndDurability(t *testing.T) {
 	if string(left) != string(right) {
 		t.Fatal("search changed board revision or persisted derived metrics")
 	}
+}
+
+func TestM067CardTriageAcrossLanes(t *testing.T) {
+	_, client := eventHTTPServer(t)
+	raw, _ := client.call("POST", "/boards", `{"name":"M067 disposable"}`, "", 201)
+	b := turnOneDecode[board](t, raw)
+	backlog, ready, inProgress, review, completed := b.LaneIDs[0], b.LaneIDs[1], b.LaneIDs[2], b.LaneIDs[3], b.LaneIDs[4]
+	create := func(title, laneID, priorityID string) card {
+		t.Helper()
+		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":%q,"priority_id":%q}`,
+			b.ID, b.ETag, laneID, title, priorityID)
+		raw, headers := client.call("POST", "/cards", body, "", 201)
+		b.ETag = headers.Get("X-Board-ETag")
+		return turnOneDecode[card](t, raw)
+	}
+	patch := func(item card, body string) card {
+		t.Helper()
+		raw, headers := client.call("PATCH", "/cards/"+item.ID, body, item.entityTag(), 200)
+		b.ETag = headers.Get("X-Board-ETag")
+		return turnOneDecode[card](t, raw)
+	}
+	blocks := func(source, target card) {
+		t.Helper()
+		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"source_card_id":%q,"target_card_id":%q,"kind":"blocks"}`,
+			b.ID, b.ETag, source.ID, target.ID)
+		_, headers := client.call("POST", "/relationships", body, "", 201)
+		b.ETag = headers.Get("X-Board-ETag")
+	}
+	normal := b.PriorityIDs[1]
+	first := create("Backlog", backlog, normal)
+	second := create("Ready", ready, normal)
+	archived := create("Archived", backlog, normal)
+	create("Another ready", ready, normal)
+	outside := create("Outside", backlog, normal)
+	closed := create("Completed urgent", backlog, b.PriorityIDs[0])
+	patch(outside, fmt.Sprintf(`{"lane_id":%q}`, inProgress))
+	for _, laneID := range []string{inProgress, review, completed} {
+		closed = patch(closed, fmt.Sprintf(`{"lane_id":%q}`, laneID))
+	}
+	blocks(second, outside)
+	blocks(archived, first)
+	blocks(archived, second)
+	raw, _ = client.call("GET", "/cards/"+archived.ID, "", "", 200)
+	patch(turnOneDecode[card](t, raw), `{"archived":true}`)
+
+	base := "/cards?board_id=" + b.ID + "&sort=triage"
+	lanes := "&lane_id=" + backlog + "&lane_id=" + ready
+	for _, tc := range []struct {
+		name, query string
+		tickets     []uint64
+	}{
+		{"top three across both lanes", lanes + "&limit=3", []uint64{2, 1, 4}},
+		{"include archived", lanes + "&archived=include&limit=3", []uint64{3, 2, 1}},
+		{"only archived", lanes + "&archived=only&limit=3", []uint64{3}},
+		{"unscoped next", "&unfinished_only=true&limit=1", []uint64{2}},
+		{"unscoped search includes Completed", "&limit=1", []uint64{6}},
+		{"explicit Completed lane", "&lane_id=" + completed + "&limit=1", []uint64{6}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw, _ := client.call("GET", base+tc.query, "", "", 200)
+			got := turnOnePage[card](t, raw, "cards").Values
+			if !slices.Equal(laneTickets(got), tc.tickets) {
+				t.Fatalf("tickets = %v, want %v", laneTickets(got), tc.tickets)
+			}
+			if got[0].Ticket == 2 && got[0].BlockedCardCount != 1 {
+				t.Fatal("score missed the blocker target outside the selected lanes")
+			}
+		})
+	}
+
+	raw, _ = client.call("GET", base+lanes+"&limit=1", "", "", 200)
+	page := turnOnePage[card](t, raw, "cards")
+	if page.NextCursor == nil {
+		t.Fatal("first page missing cursor")
+	}
+	cursor := "&limit=1&cursor=" + url.QueryEscape(*page.NextCursor)
+	reordered := "&lane_id=" + strings.ToUpper(ready) + "&lane_id=" + backlog + "&lane_id=" + ready
+	raw, _ = client.call("GET", base+reordered+cursor, "", "", 200)
+	if rows := turnOnePage[card](t, raw, "cards").Values; !slices.Equal(laneTickets(rows), []uint64{1}) {
+		t.Fatal("the equivalent lane set did not continue the same selection")
+	}
+	client.call("GET", base+lanes+"&unfinished_only=true"+cursor, "", "", 400)
+	client.call("GET", base+lanes+"&lane_id=invalid", "", "", 400)
+	client.call("GET", base+"&unfinished_only=true&unfinished_only=false", "", "", 400)
 }

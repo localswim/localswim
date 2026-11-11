@@ -2,9 +2,11 @@ package v2
 
 import (
 	"cmp"
+	"maps"
 	"math/big"
 	"math/bits"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,25 +15,41 @@ import (
 )
 
 type cardFilters struct {
-	ticket        uint64
-	laneID        string
-	archived      string
-	sort          string
-	query         string
-	searchTicket  string
-	searchContent bool
+	ticket         uint64
+	laneIDs        map[string]bool
+	unfinishedOnly bool
+	archived       string
+	sort           string
+	query          string
+	searchTicket   string
+	searchContent  bool
 }
 
 func readCardFilters(r *http.Request) (cardFilters, error) {
+	query, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		return cardFilters{}, invalid("ticket", "Malformed query string.")
+	}
 	result := cardFilters{archived: "exclude", sort: "ticket"}
-	for _, field := range []string{"ticket", "lane_id", "archived", "sort", "q", "search_content"} {
-		raw, err := singleQuery(r, field)
-		if err != nil {
-			return cardFilters{}, err
+	if entries := query["lane_id"]; len(entries) != 0 {
+		result.laneIDs = make(map[string]bool, len(entries))
+		for _, raw := range entries {
+			value, valid := normalizeID(raw)
+			if !valid {
+				return cardFilters{}, invalid("lane_id", "Expected a UUIDv4.")
+			}
+			result.laneIDs[value] = true
 		}
-		if !r.URL.Query().Has(field) {
+	}
+	for _, field := range []string{"ticket", "archived", "sort", "q", "search_content", "unfinished_only"} {
+		entries := query[field]
+		if len(entries) == 0 {
 			continue
 		}
+		if len(entries) > 1 {
+			return cardFilters{}, invalid(field, "Repeated query parameter.")
+		}
+		raw := entries[0]
 		if raw == "" {
 			return cardFilters{}, invalid(field, "Expected a nonempty value.")
 		}
@@ -42,12 +60,6 @@ func readCardFilters(r *http.Request) (cardFilters, error) {
 				return cardFilters{}, invalid(field, "Expected a positive safe integer.")
 			}
 			result.ticket = value
-		case "lane_id":
-			value, valid := normalizeID(raw)
-			if !valid {
-				return cardFilters{}, invalid(field, "Expected a UUIDv4.")
-			}
-			result.laneID = value
 		case "archived":
 			value := asciiLowerEnum(raw)
 			if !slices.Contains([]string{"exclude", "include", "only"}, value) {
@@ -78,9 +90,18 @@ func readCardFilters(r *http.Request) (cardFilters, error) {
 				return cardFilters{}, invalid(field, "Expected true or false.")
 			}
 			result.searchContent = raw == "true"
+		case "unfinished_only":
+			if raw != "true" && raw != "false" {
+				return cardFilters{}, invalid(field, "Expected true or false.")
+			}
+			result.unfinishedOnly = raw == "true"
 		}
 	}
 	return result, nil
+}
+
+func (filters cardFilters) laneScope() string {
+	return strings.Join(slices.Sorted(maps.Keys(filters.laneIDs)), ",")
 }
 
 func asciiLowerEnum(raw string) string {
@@ -144,7 +165,8 @@ func selectCards(s snapshot, filters cardFilters) []card {
 	rows := make([]card, 0, len(cards))
 	for _, item := range cards {
 		if filters.ticket != 0 && item.Ticket != filters.ticket ||
-			filters.laneID != "" && item.LaneID != filters.laneID ||
+			len(filters.laneIDs) != 0 && !filters.laneIDs[item.LaneID] ||
+			filters.unfinishedOnly && item.CompletedAt != nil ||
 			filters.archived != "include" && item.Archived != (filters.archived == "only") {
 			continue
 		}

@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -149,6 +151,47 @@ func TestT07OperationUnknownKeepsOriginalID(t *testing.T) {
 		server.Close()
 		if code == 0 || writes != 1 || !strings.Contains(errout.String(), t03Card) || !strings.Contains(errout.String(), "Mutation outcome unknown") {
 			t.Fatalf("lost operation identity %s", &errout)
+		}
+	}
+}
+
+func TestM067CLISelection(t *testing.T) {
+	for _, tc := range []struct {
+		name, action             string
+		options, lanes           []string
+		archived, unfinishedOnly string
+	}{
+		{"search selected lanes", "search", []string{"--lane", strings.ToUpper(t03Lane), "--lane", t03Card, "--archived", "INCLUDE"}, []string{t03Lane, t03Card}, "include", ""},
+		{"next selected lanes", "next", []string{"--lane", t03Lane, "--lane", t03Card, "--archived", "only"}, []string{t03Lane, t03Card}, "only", ""},
+		{"unscoped next", "next", nil, nil, "", "true"},
+		{"unscoped search", "search", nil, nil, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append([]string{"card", tc.action}, tc.options...)
+			cmd, err := parseCLI(append(args, t03Board))
+			if err != nil {
+				t.Fatal(err)
+			}
+			target, err := url.Parse(cmd.resource)
+			if err != nil {
+				t.Fatal(err)
+			}
+			query := target.Query()
+			if !slices.Equal(query["lane_id"], tc.lanes) || query.Get("archived") != tc.archived ||
+				query.Get("unfinished_only") != tc.unfinishedOnly || query.Get("sort") != "triage" {
+				t.Fatalf("unexpected filters: %v", query)
+			}
+		})
+	}
+	for _, opts := range [][]string{
+		{"--lane", "invalid", "--lane", t03Lane},
+		{"--lane", t03Lane, "--lane", ""},
+		{"--archived", "invalid"},
+		{"--archived", ""},
+	} {
+		args := append([]string{"card", "next"}, opts...)
+		if _, err := parseCLI(append(args, t03Board)); err == nil {
+			t.Errorf("accepted invalid options: %v", opts)
 		}
 	}
 }

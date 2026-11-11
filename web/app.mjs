@@ -27,7 +27,7 @@ import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
 /** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number, board_id: string, active: boolean, previewable: boolean, revision: number, sha2_256: string}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
  * owner_id: string, priority_id: string, ticket: number, revision: number, comment_count: number, attachment_count: number,
- * archived: boolean, cover_attachment_id: string|null, parent_id: string|null, child_ids: string[]}} Card */
+ * archived: boolean, completed_at: string|null, cover_attachment_id: string|null, parent_id: string|null, child_ids: string[]}} Card */
 /** @typedef {{ticket: string, kind: RelationshipKind}} RelationshipSeedDraft */
 /** @typedef {RelationshipSeedDraft & {row: RelationshipSeedDraft}} SubmittedRelationshipSeed */
 /** @typedef {{rows: RelationshipSeedDraft[], discard?: (submitted: SubmittedRelationshipSeed[]) => void}} RelationshipSeedState */
@@ -2602,6 +2602,7 @@ async function load(savedAvailability) {
     const updates = boardUpdates(boardId, signal, () => paintedRevision, applyBoardRefresh);
     const reloadBoard = updates.request;
     let currentCards = cards;
+    let showOlderCompleted = false;
     const columns = element("div");
     columns.className = "lanes";
     const state = boardViewState(boardId);
@@ -2725,6 +2726,7 @@ async function load(savedAvailability) {
       const render = coverRead;
       const active = activeLanes(lanes);
       const completed = active.find(({ role }) => role === "completed");
+      const completionCutoff = Date.now() - 24 * 60 * 60 * 1000;
       columns.replaceChildren(...active.map((lane) => {
         const column = element("section");
         column.className = "lane";
@@ -2838,9 +2840,9 @@ async function load(savedAvailability) {
             }, "Lane approved and moved to Completed.", inspection);
           }));
         }
-        for (const card of members) {
+        /** @param {Card} card */
+        function cardFace(card) {
           const opener = cardOpener(card);
-          column.append(opener);
           if (card.cover_attachment_id) {
             const slot = element("span");
             slot.className = "card-cover-space";
@@ -2848,7 +2850,36 @@ async function load(savedAvailability) {
             opener.prepend(slot);
             void showCover(card, slot, render);
           }
+          return opener;
         }
+        const older = lane.role === "completed" && !showOlderCompleted
+          ? new Set(members.filter(({ completed_at }) => completedBefore(completed_at, completionCutoff)))
+          : new Set();
+        if (older.size === 0) {
+          for (const card of members) column.append(cardFace(card));
+          return column;
+        }
+        const faces = element("div");
+        const reveal = button("Show " + countLabel(older.size, "older card"), () => {
+          if (view !== activeView || !column.isConnected || !reveal.isConnected) return;
+          showOlderCompleted = true;
+          const openers = new Map([...faces.querySelectorAll("button")].map((face) => [face.dataset.cardId, face]));
+          faces.replaceChildren();
+          /** @type {HTMLButtonElement|undefined} */
+          let firstOlder;
+          for (const card of members) {
+            const opener = openers.get(card.id) ?? cardFace(card);
+            if (older.has(card)) firstOlder ??= opener;
+            faces.append(opener);
+          }
+          reveal.remove();
+          firstOlder?.focus();
+        });
+        reveal.className = "show-older-completed";
+        for (const card of members) {
+          if (!older.has(card)) faces.append(cardFace(card));
+        }
+        column.append(reveal, faces);
         return column;
       }));
       restoreScroll();
@@ -3118,6 +3149,14 @@ async function load(savedAvailability) {
 function activeLanes(lanes) {
   return lanes.filter(({ retired }) => !retired)
     .sort((a, b) => a.position - b.position);
+}
+
+/** @param {string|null} completedAt @param {number} cutoff */
+function completedBefore(completedAt, cutoff) {
+  if (typeof completedAt !== "string") return false;
+  const completion = new Date(completedAt.replace(" ", "T"));
+  return completion.getTime() < cutoff
+    && completion.toISOString().replace("T", " ").replace(".000Z", "+00:00") === completedAt;
 }
 
 /** @param {string} boardId @param {Lane[]} lanes @param {Labeled[]} users

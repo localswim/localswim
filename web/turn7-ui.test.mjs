@@ -337,6 +337,66 @@ test("lane totals and card counts render authoritative comment and detach readba
   ]);
 });
 
+test("Completed shows recent and unknown ages, reveals older cards in board order, and honors ticket links", async () => {
+  class Clock extends Date {
+    static now() { return Date.parse("2026-11-11T12:00:00Z"); }
+  }
+  const {api} = boardApi();
+  const {data: original} = await api.getCard();
+  const {data: {lanes: [ordinary]}} = await api.listLanes();
+  const completedLane = "c431860a-123f-422e-975f-dc6ffcb21727";
+  const malformedId = "70992244-8910-4b56-aa27-c1e4dba5af43";
+  const ordinaryId = "59741c0b-7498-4d34-ad17-60fc9e04245e";
+  const completed = (id, ticket, title, completed_at) => ({...original,
+    id, ticket, title, completed_at, lane_id: completedLane, updated_at: "2026-11-11 12:00:00+00:00"});
+  const cards = [
+    completed(backup, 2, "Older", "2026-11-10 11:59:59+00:00"),
+    completed(card, 1, "Recent", "2026-11-11 11:59:59+00:00"),
+    completed(priority, 3, "At the cutoff", "2026-11-10 12:00:00+00:00"),
+    completed(user, 4, "Unknown", null),
+    completed(malformedId, 5, "Invalid date", "2026-02-30 11:59:59+00:00"),
+    {...completed(ordinaryId, 6, "Other lane", "2026-11-01 11:59:59+00:00"), lane_id: lane},
+  ];
+  const read = api.getBoardLanes;
+  api.getBoardLanes = async () => {
+    const reply = await read();
+    return {...reply, data: {...reply.data, cards}};
+  };
+  api.listLanes = async () => page("lanes", [
+    {...ordinary, label: "Completed"},
+    {...ordinary, id: completedLane, label: "Delivered", position: 1, role: "completed"},
+  ]);
+  api.getCard = async (id) => ({data: cards.find((card) => card.id === id), etag: tag(id, 1)});
+  api.listCards = async (_, {ticket}) => page("cards", cards.filter((card) => card.ticket === ticket));
+
+  const ui = await harness(api, "/boards/" + board, {clock: Clock});
+  await ui.load();
+  const {main, details} = ui.nodes;
+  const laneHeading = ui.find(main, "h2", "Delivered");
+  assert.equal(laneHeading.children[0].textContent, "5 cards");
+  const faces = () => laneHeading.parent.querySelectorAll("button")
+    .filter(({dataset}) => dataset.cardId).map(({ownText}) => ownText);
+  assert.deepEqual(faces(), ["#1 Recent", "#3 At the cutoff", "#4 Unknown", "#5 Invalid date"]);
+  assert.ok(ui.find(main, "button", "#6 Other lane"));
+  const add = ui.find(main, "button", "Add card");
+
+  ui.find(main, "button", "Show 1 older card").click();
+  assert.deepEqual(faces(), ["#2 Older", "#1 Recent", "#3 At the cutoff", "#4 Unknown", "#5 Invalid date"]);
+  assert.equal(ui.find(main, "button", "Show 1 older card"), undefined);
+  assert.equal(ui.find(main, "button", "Add card"), add);
+  const older = ui.find(main, "button", "#2 Older");
+  assert.equal(ui.focused(), older);
+  older.click();
+  await ui.settled();
+  assert.equal(ui.field(details, "Title").value, "Older");
+  ui.find(details, "button", "Close card").click();
+
+  await ui.popstate("/boards/" + board + "?ticket=2");
+  assert.ok(ui.find(main, "button", "Show 1 older card"));
+  assert.equal(ui.find(main, "button", "#2 Older"), undefined);
+  assert.equal(ui.field(details, "Title").value, "Older");
+});
+
 test("Back, Forward and reload restore each board's own search, drawer and lane scroll in one tab", async () => {
   const {api} = boardApi();
   const other = "c431860a-123f-422e-975f-dc6ffcb21727";

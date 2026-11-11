@@ -27,6 +27,7 @@ async function harness(api, pathname = "/boards/" + board, {
   workspaceEvents = false,
 } = {}) {
   let document;
+  let pointerHit;
   const downloads = [];
   class Element {
     scrollTop = 0;
@@ -59,6 +60,7 @@ async function harness(api, pathname = "/boards/" + board, {
       if (this.tagName === "a" && this.download) downloads.push(this.download);
       this.dispatch("click", {button: 0});
     }
+    setPointerCapture(id) { this.capturedPointer = id; }
     focus(options) { document.activeElement = this; this.focusOptions = options; }
     closest(selector) {
       if (selector === '[data-unavailable="true"]' && this.dataset.unavailable === "true") return this;
@@ -108,6 +110,7 @@ async function harness(api, pathname = "/boards/" + board, {
   }));
   document = {getElementById: (id) => nodes[id], querySelector: (selector) => nodes[selector] ?? null,
     title: "localswim", adoptedStyleSheets: [],
+    elementFromPoint: () => pointerHit ?? null,
     createElement: (tag) => new ({input: Input, textarea: Textarea, button: Button, select: Select}[tag] ?? Element)(tag)};
   const windowEvents = {};
   const window = {sessionStorage: storage, addEventListener: (name, handler) => { windowEvents[name] = handler; }};
@@ -125,7 +128,7 @@ async function harness(api, pathname = "/boards/" + board, {
     openBrowserSession: openSession});
   let source = await fs.readFile(new URL("./app.mjs", import.meta.url), "utf8");
   source = source.replace(/^import \{[^}]+\} from "[^"]+";\r?\n/gm, "").replace(/void load\(\);\s*$/, "");
-  vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing, uploadingToCard, inspect:()=>cardInspection.inspect(), abortView:()=>activeBoardLoad?.abort()};", context);
+  vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing || Boolean(pinWrite), uploadingToCard, inspect:()=>cardInspection.inspect(), abortView:()=>activeBoardLoad?.abort()};", context);
   async function settled() { for (let count = 0; count < 40; count++) { await new Promise((resolve) => setTimeout(resolve, 0)); if (!context.hooks.busy()) return; } throw Error("UI did not settle"); }
   const find = (root, tagName, text) => root.querySelectorAll(tagName).find((node) => node.ownText === text);
   const field = (root, label) => find(root, "label", label)?.children[0];
@@ -153,7 +156,7 @@ async function harness(api, pathname = "/boards/" + board, {
     return event.defaultPrevented;
   }
   return {nodes, downloads, ...context.hooks, settled, find, field, submit, submitValidated, navigate, popstate,
-    keydown,
+    keydown, pointerHit: (node) => { pointerHit = node; },
     pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement,
     stylesheet: () => document.adoptedStyleSheets[0].text, title: () => document.title};
 }
@@ -1415,55 +1418,125 @@ test("board publishing inspects an uncertain save once and renders automatic pus
   assert.deepEqual(writes, [{id: board, enabled: true, etag: tag(board, 1)}]);
 });
 
-test("workspace publishing and pin order save independently against current workspace tags", async () => {
+function sidebarControl(ui, label) {
+  const control = ui.nodes.boards.querySelectorAll("button").find((button) => button.attributes["aria-label"] === label);
+  assert.ok(control, label);
+  return control;
+}
+
+function pinnedBoards(ui) {
+  return ui.nodes.boards.children[1].querySelectorAll("a").map(({dataset}) => dataset.boardId);
+}
+
+test("sidebar pin actions and workspace publishing use the same saved workspace revision", async () => {
   let workspace = {revision: 1, pinned_board_ids: [], publishing: {...publishingOff}};
   const workspaceTag = () => tag("workspace-test-id", workspace.revision);
+  const read = async () => ({data: workspace, etag: workspaceTag()});
   const writes = [];
-  const second = {id: backup, name: "Second board"};
   const api = {
     getSession: async () => ({data: {kind: "human", workspace_admin: true}}),
-    listBoards: async () => page("boards", [{id: board, name: "First board"}, second]),
-    getWorkspace: async () => ({data: workspace, etag: workspaceTag()}),
+    listBoards: async () => page("boards", [{id: board, name: "First board"}, {id: backup, name: "Second board"}]),
+    getWorkspace: read,
     configureWorkspacePublishing: async (enabled, etag) => {
       writes.push({enabled, etag});
       assert.equal(etag, workspaceTag());
       workspace = {...workspace, revision: workspace.revision + 1, publishing: {...workspace.publishing, enabled}};
+      return read();
     },
     setPinnedBoards: async (pins, etag) => {
       writes.push({pins: Array.from(pins), etag});
       assert.equal(etag, workspaceTag());
       workspace = {...workspace, revision: workspace.revision + 1, pinned_board_ids: pins};
+      return read();
     },
   };
   const ui = await harness(api, "/");
   await ui.load();
   const main = ui.nodes.main;
-  for (const name of ["First board", "Second board"]) {
-    const pin = ui.field(main, "Pin " + name);
-    pin.checked = true;
-    pin.dispatch("change");
-  }
-  ui.find(main, "button", "Move Second board up").click();
   const name = ui.field(main, "Board name");
   name.value = "Unsaved board name";
   const enabled = ui.field(main, "Enable workspace publishing");
   enabled.checked = true;
   enabled.dispatch("change");
+  sidebarControl(ui, "Pin First board").click();
+  await ui.settled();
+  assert.equal(enabled.checked, true);
+  assert.equal(workspace.publishing.enabled, false);
   ui.submit(main, "Save workspace publishing");
   await ui.settled();
-  assert.deepEqual(workspace.pinned_board_ids, []);
-  assert.equal(ui.field(main, "Pin Second board").checked, true);
-  assert.equal(ui.field(main, "Pin First board").checked, true);
-  ui.submit(main, "Save pin order");
+  sidebarControl(ui, "Pin Second board").click();
   await ui.settled();
-  assert.equal(workspace.publishing.enabled, true);
   assert.deepEqual(writes, [
-    {enabled: true, etag: tag("workspace-test-id", 1)},
-    {pins: [backup, board], etag: tag("workspace-test-id", 2)},
+    {pins: [board], etag: tag("workspace-test-id", 1)},
+    {enabled: true, etag: tag("workspace-test-id", 2)},
+    {pins: [board, backup], etag: tag("workspace-test-id", 3)},
   ]);
   assert.equal(name.value, "Unsaved board name");
   assert.match(main.querySelector("#workspace-publishing-status").textContent, /publishing is on/);
-  assert.equal(ui.nodes.boards.querySelector("a").dataset.boardId, second.id);
+  assert.deepEqual(pinnedBoards(ui), [board, backup]);
+});
+
+test("sidebar pins rebase keyboard and pointer moves while preserving the selected board and drawer", async () => {
+  const state = boardApi();
+  const {api} = state;
+  const names = [{id: board, name: "First"}, {id: backup, name: "Second"}, {id: priority, name: "Third"}];
+  let workspace = {revision: 1, pinned_board_ids: [], publishing: publishingOff};
+  const workspaceTag = () => tag("workspace-test-id", workspace.revision);
+  const writes = [];
+  api.getSession = async () => ({data: {kind: "human", principal_id: user, workspace_admin: true}});
+  api.listBoards = async () => page("boards", names);
+  api.getWorkspace = async () => ({data: workspace, etag: workspaceTag()});
+  api.setPinnedBoards = async (pins, etag) => {
+    writes.push({pins: Array.from(pins), etag});
+    if (etag !== workspaceTag()) throw new ApiError("stale_revision", {status: 412});
+    workspace = {...workspace, revision: workspace.revision + 1, pinned_board_ids: pins};
+    return api.getWorkspace();
+  };
+  const ui = await harness(api);
+  await ui.load();
+  await ui.settled();
+  ui.find(ui.nodes.main, "button", "#1 Original").click();
+  await ui.settled();
+  const comment = ui.field(ui.nodes.details, "Comment");
+  comment.value = "Unsubmitted draft";
+
+  for (const name of ["First", "Second"]) {
+    sidebarControl(ui, "Pin " + name).click();
+    await ui.settled();
+  }
+  workspace = {...workspace, revision: 4, pinned_board_ids: [priority, board, backup]};
+  const grip = sidebarControl(ui, "Reorder Second");
+  grip.focus();
+  assert.equal(grip.dispatch("keydown", {key: "ArrowUp"}), true);
+  await ui.settled();
+  assert.deepEqual(writes.slice(-2), [
+    {pins: [backup, board], etag: tag("workspace-test-id", 3)},
+    {pins: [priority, backup, board], etag: tag("workspace-test-id", 4)},
+  ]);
+  assert.deepEqual(pinnedBoards(ui), [priority, backup, board]);
+  assert.equal(ui.focused(), sidebarControl(ui, "Reorder Second"));
+
+  const pointer = sidebarControl(ui, "Reorder Second");
+  pointer.dispatch("pointerdown", {isPrimary: true, button: 0, pointerId: 7});
+  assert.equal(pointer.capturedPointer, 7);
+  const first = ui.nodes.boards.querySelectorAll("a").find(({dataset}) => dataset.boardId === board);
+  ui.pointerHit(first);
+  pointer.dispatch("pointermove", {pointerId: 7});
+  assert.equal(first.parent.attributes["data-pin-drop"], "true");
+  pointer.dispatch("pointerup", {pointerId: 7});
+  assert.equal(first.parent.attributes["data-pin-drop"], undefined);
+  await ui.settled();
+  assert.deepEqual(pinnedBoards(ui), [priority, board, backup]);
+
+  sidebarControl(ui, "Unpin Third").click();
+  await ui.settled();
+  assert.deepEqual(pinnedBoards(ui), [board, backup]);
+  assert.equal(ui.nodes.boards.querySelectorAll("a").find(({dataset}) => dataset.boardId === board).attributes["aria-current"], "page");
+  assert.equal(ui.field(ui.nodes.details, "Comment"), comment);
+  assert.equal(comment.value, "Unsubmitted draft");
+  const second = await harness(api, "/");
+  await second.load();
+  assert.deepEqual(pinnedBoards(second), [board, backup]);
 });
 
 test("board publishing keeps an explicit off draft across an unavailable read and navigation", async () => {
@@ -1709,101 +1782,80 @@ test("an old Attention read cannot replace the catalog after navigation", async 
   assert.equal(ui.find(ui.nodes.boards, "span", "Old view catalog"), undefined);
 });
 
-test("workspace recovery retains explicit off and unpin-all drafts and adopts saved values in a clean view", async () => {
-  const workspace = {revision: 1, pinned_board_ids: [board], publishing: {...publishingOff, enabled: true}};
+test("uncertain pin writes wait for inspection and retain the intended edit through navigation", async () => {
+  let workspace = {revision: 1, pinned_board_ids: [board], publishing: {...publishingOff, enabled: true}};
   let available = true;
+  let writes = 0;
   const api = {
     getSession: async () => ({data: {kind: "human", workspace_admin: true}}),
     listBoards: async () => page("boards", [{id: board, name: "First board"}]),
     getWorkspace: async () => {
       if (!available) throw new ApiError("transport_failed");
-      return {data: workspace, etag: tag("workspace-test-id", 1)};
+      return {data: workspace, etag: tag("workspace-test-id", workspace.revision)};
+    },
+    setPinnedBoards: async (pinned_board_ids, etag) => {
+      ++writes;
+      assert.equal(etag, tag("workspace-test-id", workspace.revision));
+      if (!available) throw new ApiError("transport_failed", {outcomeUnknown: true});
+      workspace = {...workspace, revision: workspace.revision + 1, pinned_board_ids};
+      return api.getWorkspace();
     },
   };
   const ui = await harness(api, "/");
   const {main} = ui.nodes;
   const enabled = () => ui.field(main, "Enable workspace publishing");
-  const pin = () => ui.field(main, "Pin First board");
   await ui.load();
-  for (const control of [enabled(), pin()]) {
-    assert.equal(control.checked, true);
-    control.checked = false;
-    control.dispatch("change");
-  }
+  enabled().checked = false;
+  enabled().dispatch("change");
   available = false;
-  await ui.load();
-  assert.match(main.querySelector("#workspace-publishing-status").textContent, /unavailable/);
+  sidebarControl(ui, "Unpin First board").click();
+  await ui.settled();
+  assert.equal(writes, 1);
+  assert.deepEqual(pinnedBoards(ui), [board]);
   await ui.navigate("/missing");
   await ui.navigate("/");
-  const clean = await harness(api, "/");
-  await clean.load();
-  available = true;
-  for (const view of [ui, clean]) {
-    view.find(view.nodes.main, "button", "Refresh workspace publishing status").click();
-    await view.settled();
-  }
-  assert.match(main.querySelector("#workspace-publishing-status").textContent, /publishing is on/);
+  assert.equal(writes, 1);
   assert.equal(enabled().checked, false);
-  assert.equal(pin().checked, false);
-  assert.equal(clean.field(clean.nodes.main, "Enable workspace publishing").checked, true);
-  assert.equal(clean.field(clean.nodes.main, "Pin First board").checked, true);
+  assert.match(main.querySelector("#workspace-publishing-status").textContent, /unavailable/);
+
+  available = true;
+  ui.find(ui.nodes.boards, "button", "Retry pin change").click();
+  await ui.settled();
+  assert.equal(writes, 2);
+  assert.deepEqual(pinnedBoards(ui), []);
+  assert.deepEqual(workspace.pinned_board_ids, []);
+  assert.equal(enabled().checked, false);
+  assert.match(main.querySelector("#workspace-publishing-status").textContent, /publishing is on/);
 });
 
-test("workspace saves freeze only their own editors through readback and navigation", async () => {
-  let workspace = {revision: 1, pinned_board_ids: [board], publishing: {...publishingOff}};
-  let finishPublishing;
+test("a delayed pin write remains serialized across navigation without blocking publishing drafts", async () => {
+  let workspace = {revision: 1, pinned_board_ids: [board], publishing: {...publishingOff, enabled: true}};
   let finishPins;
   const api = {
     getSession: async () => ({data: {kind: "human", workspace_admin: true}}),
     listBoards: async () => page("boards", [{id: board, name: "First board"}]),
     getWorkspace: async () => ({data: workspace, etag: tag("workspace-test-id", workspace.revision)}),
-    configureWorkspacePublishing: (enabled) => new Promise((resolve) => {
-      finishPublishing = () => {
-        workspace = {...workspace, revision: 2, publishing: {...workspace.publishing, enabled}};
-        resolve();
-      };
-    }),
     setPinnedBoards: (pinned_board_ids) => new Promise((resolve) => {
       finishPins = () => {
-        workspace = {...workspace, revision: 3, pinned_board_ids};
-        resolve();
+        workspace = {...workspace, revision: 2, pinned_board_ids};
+        resolve(api.getWorkspace());
       };
     }),
   };
   const ui = await harness(api, "/");
-  const {main} = ui.nodes;
-  const enabled = () => ui.field(main, "Enable workspace publishing");
-  const pin = () => ui.field(main, "Pin First board");
-  function toggle(control, checked) {
-    assert.equal(control.disabled, false);
-    control.checked = checked;
-    control.dispatch("change");
-  }
   await ui.load();
-  toggle(enabled(), true);
-  ui.submit(main, "Save workspace publishing");
-  assert.equal(enabled().disabled, true);
-  toggle(pin(), false);
-  finishPublishing();
-  await ui.settled();
-  assert.equal(pin().checked, false);
-
-  ui.submit(main, "Save pin order");
-  assert.equal(pin().disabled, true);
-  toggle(enabled(), false);
+  const enabled = () => ui.field(ui.nodes.main, "Enable workspace publishing");
+  sidebarControl(ui, "Unpin First board").click();
+  assert.equal(sidebarControl(ui, "Unpin First board").attributes["aria-disabled"], "true");
+  enabled().checked = false;
+  enabled().dispatch("change");
   await ui.navigate("/missing");
-  await ui.navigate("/");
-  assert.equal(pin().disabled, true);
-  assert.equal(enabled().checked, false);
+  const reloading = ui.navigate("/");
   finishPins();
-  await ui.settled();
-  assert.equal(pin().disabled, false);
-  ui.find(main, "button", "Refresh workspace publishing status").click();
-  await ui.settled();
+  await reloading;
+  assert.deepEqual(pinnedBoards(ui), []);
   assert.equal(enabled().checked, false);
-  assert.equal(pin().checked, false);
-  assert.equal(workspace.pinned_board_ids.length, 0);
-  assert.equal(workspace.publishing.enabled, true);
+  assert.equal(sidebarControl(ui, "Pin First board").attributes["aria-disabled"], undefined);
 });
 
 test("native restore refreshes the open drawer through board reload while preserving drafts and focus", async () => {

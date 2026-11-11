@@ -105,10 +105,18 @@ is selected, the first active raster attachment. Detaching the selected cover cl
 that selection and shows the first remaining raster attachment when available.
 Detach revokes active file access. History retains the attachment ID and attribution.
 
+Use **Pin** or **Unpin** beside a board in the Attention sidebar. In **Pinned
+boards**, drag a board by its grip or focus the grip and press Up or Down to move
+it. The order is saved in shared workspace preferences, so another client sees
+it when it opens or refreshes the workspace. If the order changes during a
+save, the browser reads the latest order and applies the same edit to it once.
+If the change remains pending, review the saved order before choosing **Retry
+pin change** or **Cancel pending pin change**.
+
 Expand **Board actions** to turn automatic publishing on or off for that board.
-On the **Workspace** page, administrators can save workspace publishing and
-pin order independently. The board uses its own HTTP validator. Both workspace
-forms use the workspace validator and retain unsaved changes across readback.
+Administrators can also save workspace publishing on the **Workspace** page.
+Publishing and pin edits share the workspace HTTP validator. The board uses
+its own validator.
 
 Use **Refresh board publishing status** or **Refresh workspace publishing
 status** to inspect pending work, failed pushes, and the last successful publish.
@@ -160,8 +168,8 @@ keeps its existing language-convention method, argument, and error property name
 Each successful result exposes the JSON object as `data` and the server's HTTP ETag
 header as `etag`. Workspace JSON contains its numeric `revision`, `pinned_board_ids`,
 and `publishing`. Pass the separate workspace result's `etag` back to
-`setPinnedBoards(boardIds, etag)` for its `If-Match` header. A
-`412` calls for a fresh workspace read and a user decision on the original change.
+`setPinnedBoards(boardIds, etag)` for its `If-Match` header. The sidebar
+handles a `412` by applying the intended edit to a fresh workspace read.
 Use the board ETag for `configureOwnerNotices(boardId, settings, etag)`. Pass only the
 notice settings to change. An explicit `target_thread_id: null` clears the target.
 

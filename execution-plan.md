@@ -1,6 +1,6 @@
 # V2 development execution plan
 
-See the current T07–T09 roster in [assignment revision 9](#current-assignment-revision-9).
+See the current T08–T10 roster in [assignment revision 10](#current-assignment-revision-10).
 
 Revision 1. Scope comes from approved board cards #0375 and #0376, [the milestone plan](milestone-plan.md), and [the API contract](docs/openapi.yaml). This is the staffing proposal for Turns 1-10. The milestone demos, estimates, and approved turn placement remain the scope.
 
@@ -308,3 +308,30 @@ The Sol / High primary owns shared schema and transaction integration, board ent
 Use rolling author-to-reviewer waves within eight direct active slots and depth one. Replace finished authors with fresh non-author reviewers. Start sol_high_0417_checks only after a separate verification boundary exists and a slot is free. T07 has seven planned concurrent author/helper/client assignments, T08 four, and T09 three. Reviewers replace authors as those slots open.
 
 Missing inputs remain each later turn's explicit start and prerequisite approval or scoped override. T07 has pending T06 owner reviews. T08 depends on unstarted M34, and T09 depends on unstarted M35. Terry retains control of Completed.
+
+## Current assignment revision 10
+
+Reconciled 2026-11-10 after T07. T08–T10 are the new remaining turns 1–3. Historical rosters remain evidence.
+
+Terry authorized T07–T10. The next turn may launch through Dev Manager once every prior-turn milestone passes independent review and reaches Ready for Review. Owner demos and formal Completed approvals continue separately.
+
+Verified T07 implementation 7548c0dd3e3b33dbea69a749c7581e8b9c5b93ab. #0396 M13 Ready for Review, #0405 M22 Ready for Review, #0413 M30 Ready for Review, #0417 M34 Ready for Review.
+
+The authorized scope for every row remains owner-accepted #0375, #0376 and #0377, its milestone acceptance and the dated OpenAPI contract. Planning is maintained on #0426.
+
+| Remaining | Turn | Card | Current lane | Scope | Author | Helper | Fresh reviewer | Actual prerequisites |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | T08 | #0418 M35 | Backlog | Publish after quiet and recover the pending push without another edit. | `sol_high_0418_author` (gpt-6.1-sol / high) | — | `sol_high_0418_review` (gpt-6.1-sol / high) | #0417 Ready for Review |
+| 1 | T08 | #0419 M36 | Backlog | Publish only workspace preferences under the same repository lock. | `sol_medium_0419_author` (gpt-6.1-sol / medium) | — | `sol_high_0419_review` (gpt-6.1-sol / high) | #0410 Completed, #0417 Ready for Review |
+| 2 | T09 | #0420 M37 | Backlog | Close and reopen one board while other boards remain live. | `sol_high_0420_author` (gpt-6.1-sol / high) | — | `sol_high_0420_review` (gpt-6.1-sol / high) | #0418 Backlog |
+| 3 | T10 | #0422 M39 | Backlog | Activate a staged build on the same port and drain admitted work and enabled publishing safely. | `sol_high_0422_author` (gpt-6.1-sol / high) | `sol_high_0422_checks` (gpt-6.1-sol / high) | `sol_high_0422_review` (gpt-6.1-sol / high) | #0414 Completed, #0420 Backlog, #0421 Completed |
+
+- T08 browser `sol_medium_t08_browser_author` (gpt-6.1-sol / medium), fresh review `sol_high_t08_browser_review` (gpt-6.1-sol / high). CLI `sol_medium_t08_cli_author` (gpt-6.1-sol / medium), fresh review `sol_high_t08_cli_review` (gpt-6.1-sol / high).
+- T09 browser `sol_medium_t09_browser_author` (gpt-6.1-sol / medium), fresh review `sol_high_t09_browser_review` (gpt-6.1-sol / high). CLI `sol_medium_t09_cli_author` (gpt-6.1-sol / medium), fresh review `sol_high_t09_cli_review` (gpt-6.1-sol / high).
+- T10 browser `sol_medium_t10_browser_author` (gpt-6.1-sol / medium), fresh review `sol_high_t10_browser_review` (gpt-6.1-sol / high). CLI `sol_medium_t10_cli_author` (gpt-6.1-sol / medium), fresh review `sol_high_t10_cli_review` (gpt-6.1-sol / high).
+
+The Sol / High primary owns entry checks, lane updates, shared integration, final verification, source publication, demo packets and Dev Manager handoff. Use at most eight concurrently active direct subagents and depth one. Replace finished authors with fresh non-author reviewers. Start M39 helper after its independent test boundary exists. Planned future workers occupy no active slots.
+
+Dev Manager launched T08 from the verified T07 implementation under the sequence rule. T09 awaits independent review and handoff of both T08 milestones. T10 awaits the same handoff of T09. Terry controls formal Completed approvals.
+
+Recheck actual lanes and prerequisite links at dispatch. Move each eligible card In Progress before work. Preserve unfinished carryover visibly.

@@ -8,13 +8,21 @@ import (
 
 var threadIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
+// ValidNotificationTarget reports whether target is a canonical external chat UUID.
+func ValidNotificationTarget(target string) bool {
+	return threadIDPattern.MatchString(target)
+}
+
 type notifications struct {
 	Enabled        bool    `json:"enabled"`
 	TargetThreadID *string `json:"target_thread_id"`
 }
 
 func (value notifications) validate() error {
-	if value.TargetThreadID != nil && !threadIDPattern.MatchString(*value.TargetThreadID) {
+	if value.Enabled && value.TargetThreadID == nil {
+		return invalid("notifications.target_thread_id", "required when notifications are enabled")
+	}
+	if value.TargetThreadID != nil && !ValidNotificationTarget(*value.TargetThreadID) {
 		return invalid("notifications.target_thread_id", "must be a canonical external chat UUID")
 	}
 	return nil

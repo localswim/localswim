@@ -69,6 +69,8 @@ func (x *request) dispatch() {
 	case "comments", "attachments":
 		if !hasID {
 			methods = append(methods, "POST")
+		} else if resource == "attachments" && !contentRoute {
+			methods = append(methods, "DELETE")
 		}
 	case "relationships":
 		if hasID {
@@ -86,7 +88,7 @@ func (x *request) dispatch() {
 			return
 		}
 		methods = []string{"POST"}
-	case "service", "users", "priorities", "session":
+	case "service", "users", "priorities", "session", "activities":
 		if hasID {
 			x.fail(errMissing)
 			return
@@ -197,6 +199,8 @@ func (x *request) dispatch() {
 		x.bootstrapBrowser()
 	case "session":
 		x.sessionResource()
+	case "activities":
+		x.listActivities()
 	case "cards":
 		switch {
 		case !hasID:
@@ -274,7 +278,7 @@ func singleQuery(r *http.Request, field string) (string, error) {
 	return "", nil
 }
 
-func page[T any](x *request, resource string, items []T) {
+func page[T any](x *request, resource string, items []T, filters ...string) {
 	limitValue, err := singleQuery(x.r, "limit")
 	if err != nil {
 		x.fail(err)
@@ -299,7 +303,14 @@ func page[T any](x *request, resource string, items []T) {
 	start := 0
 	var scope string
 	if cursor != "" || len(items) > limit {
-		data, err := marshalCanonical(items)
+		var selection any = items
+		if len(filters) != 0 {
+			selection = struct {
+				Filters []string
+				Items   []T
+			}{filters, items}
+		}
+		data, err := marshalCanonical(selection)
 		if err != nil {
 			x.fail(err)
 			return

@@ -103,3 +103,27 @@ func TestCustomWorkflowExpandsLaneGrants(t *testing.T) {
 		t.Fatalf("expected both move directions without duplication, got %+v", got.Policy.MoveGrants)
 	}
 }
+
+func TestNativeSnapshotReplaysUnconnectedInitialLane(t *testing.T) {
+	const laneID = "a0000000-0000-4000-8000-000000000006"
+	input := strings.Replace(workflowTestInput, `"role":"CoMpLeTeD"}`,
+		`"role":"CoMpLeTeD"},{"id":"`+laneID+`","label":"Unconnected"}`, 1)
+	now := canonicalTime(time.Now())
+	wf, err := customWorkflow(json.RawMessage(input), workflowTestBoardID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := freshSnapshot(workflowTestBoardID, "Independent lane", wf, humanID, now)
+	state.Board.DefaultOwnerID = wf.Users[0].ID
+	native := marshalVerificationFixture(t, state)
+	if _, err := parseSnapshot(native, workflowTestBoardID); err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Activity) != 2 || state.Activity[1].Revision != 1 || state.Activity[1].ResourceID != laneID {
+		t.Fatal("unconnected initial lane has no creation audit")
+	}
+	state.Activity = state.Activity[:1]
+	if _, err := parseSnapshot(marshalVerificationFixture(t, state), workflowTestBoardID); err == nil {
+		t.Fatal("unconnected lane was admitted without initial or later creation audit")
+	}
+}

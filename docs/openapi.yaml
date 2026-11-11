@@ -2276,7 +2276,12 @@ paths:
         lane, owner, relationships, and audit. Restore requires an active lane. Ordinary lists exclude
         archived cards and focused reads retain them. A cover change requires manage_attachments and an
         active raster attachment on this card. A null cover clears it. Repeating the current archive or
-        cover value is a no-op. A completed-lane move alone does not create a Human approval receipt.
+        cover value is a no-op. Changing priority requires set_priority. An unfinished card's effective
+        priority is at least as urgent as each unfinished card it blocks through unfinished paths.
+        A lower requested priority is clamped to this floor. An unchanged effective priority alone
+        does not advance the revision. An increase can promote other cards in the same audited commit.
+        Archived unfinished cards participate. Completed cards stop paths. A completed-lane move
+        alone does not create a Human approval receipt.
       requestBody:
         required: true
         content:
@@ -6039,10 +6044,13 @@ paths:
       - 18
       - 19
       - 20
+      - 15
       description: UUID is immutable. All referenced users and lanes must exist in the board. Changing
         key is M20 semantic key migration and never changes UUID. Completed role/key is protected. Label-only
-        edits preserve the key. Retiring requires no active cards and retains history and archived cards;
-        new arrivals/unarchive into a retired lane refuse.
+        edits preserve the key. Retirement is one-way and requires zero active cards. The remaining workflow
+        must still allow creation and completion. Retired lanes retain UUID, key, label, archived cards,
+        history, and grants. New arrivals and in-place restore refuse. Approval can be enabled only on
+        an active Ready for Review lane. Retiring preserves any saved approval setting.
       requestBody:
         required: true
         content:
@@ -6618,6 +6626,7 @@ paths:
         schema:
           type: integer
           minimum: 1
+          maximum: 9007199254740991
       - name: limit
         in: query
         required: false
@@ -6666,7 +6675,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
+                anyOf:
                 - $ref: '#/components/schemas/ChangePage'
                 - $ref: '#/components/schemas/ActivityMetadataPage'
         '304':
@@ -6758,6 +6767,7 @@ paths:
         schema:
           type: integer
           minimum: 1
+          maximum: 9007199254740991
       - name: limit
         in: query
         required: false
@@ -7032,6 +7042,8 @@ paths:
               $ref: '#/components/headers/CorsOrigin'
             Access-Control-Expose-Headers:
               $ref: '#/components/headers/CorsExpose'
+            X-Board-ETag:
+              $ref: '#/components/headers/BoardEtag'
             Date:
               $ref: '#/components/headers/Date'
           content:
@@ -8398,8 +8410,10 @@ paths:
         capability: manage_attachments
       x-milestones:
       - 25
-      description: Retain bytes and audit. Clear the selected cover in the same transaction. Detached
-        file content is no longer served.
+      description: Check the attachment and board validators together. Clear any selected cover and
+        decrement the active attachment count in the same audited commit. Inactive metadata remains
+        available for inspection with its detach revision and original digest. Retained immutable
+        bytes remain in the backup inventory. The content endpoint refuses detached attachments.
     head:
       operationId: headReadAttachment
       summary: Read headers without content
@@ -13860,6 +13874,8 @@ components:
           $ref: '#/components/schemas/Uuid'
         card_ids:
           type: array
+          minItems: 1
+          maxItems: 1000
           items:
             $ref: '#/components/schemas/Uuid'
         actor_id:
@@ -13873,6 +13889,8 @@ components:
           description: Board commit revision shared by every change in this immutable receipt.
         changes:
           type: array
+          minItems: 2
+          maxItems: 2000
           items:
             $ref: '#/components/schemas/Change'
     BatchResult:
@@ -15949,14 +15967,15 @@ components:
       additionalProperties: false
       required:
       - board_id
-      - board_etag
+      - board_revision
       - card_ids
       - changed
       properties:
         board_id:
           $ref: '#/components/schemas/Uuid'
-        board_etag:
-          $ref: '#/components/schemas/EntityTag'
+        board_revision:
+          $ref: '#/components/schemas/Revision'
+          minimum: 1
         card_ids:
           type: array
           maxItems: 0
@@ -17944,8 +17963,9 @@ x-workflow-validation:
     snapshot admission. Policy replacement must preserve these requirements.
   creation: At least one active lane must have a create_grants entry for a board member whose resource
     grants include create_card.
-  completion: Every active lane must have a path through allowed directed move_grants to the lane
-    with the completed role. Transitions along a path may use different actors' grants.
+  completion: Every active lane reachable from a creation lane must have a path through allowed
+    directed move_grants to the lane with the completed role. Transitions along a path may use
+    different actors' grants.
 x-ui-response-headers:
   Content-Security-Policy: 'default-src ''none''; script-src ''self''; style-src ''self''; img-src ''self''
     data: blob:; connect-src ''self''; font-src ''self''; object-src ''none''; base-uri ''none''; frame-ancestors

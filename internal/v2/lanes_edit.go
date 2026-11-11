@@ -1,12 +1,16 @@
 package v2
 
 import (
+	"encoding/json"
+	"errors"
 	"math"
 	"net/http"
 	"slices"
 	"strconv"
 	"time"
 )
+
+var errLaneOccupied = errors.New("a lane with active cards cannot be retired")
 
 func (x *request) createLane() {
 	obj, err := x.body()
@@ -87,14 +91,20 @@ func (x *request) renameLane(id string) {
 		x.fail(err)
 		return
 	}
-	fields := &workflowFields{path: "lane", fields: obj, err: rejectFields(obj, []string{"board_etag", "label"}, false)}
+	fields := &workflowFields{path: "lane", fields: obj, err: rejectFields(obj,
+		[]string{"board_etag", "label", "retired", "approval_enabled"}, false)}
 	boardTag := laneBoardTag(fields)
-	for _, name := range []string{"key", "retired", "approval_enabled", "reorder_enabled", "position"} {
+	for _, name := range []string{"key", "reorder_enabled", "position"} {
 		if _, found := obj[name]; found {
 			fields.fail(name, "This patch field is unavailable.")
 		}
 	}
-	label := fields.string("label", 1, 256, true)
+	label := fields.string("label", 1, 256, false)
+	retired := lanePatchBool(fields, "retired")
+	approval := lanePatchBool(fields, "approval_enabled")
+	if label == "" && retired == nil && approval == nil {
+		fields.fail("label", "Supply at least one editable lane field.")
+	}
 	if fields.err != nil {
 		x.fail(fields.err)
 		return
@@ -112,23 +122,83 @@ func (x *request) renameLane(id string) {
 		if !matchesStrongTag(laneTag, item.entityTag()) {
 			return errStale
 		}
-		if item.Label == label {
-			return nil
+		if err := applyLanePatch(current, index, x.actor, label, retired, approval); err != nil {
+			return err
 		}
-		now := laneEditTime(*current, time.Now())
-		before := item.Label
-		appendLaneAudit(current, x.actor, item.ID, "patch", "label", &before, &label, now)
-		item.Label = label
-		item.UpdatedAt, item.Revision = now, current.Board.Revision+1
-		current.Lanes[index] = item
+		item = current.Lanes[index]
 		return nil
 	})
+	if errors.Is(err, errLaneOccupied) {
+		x.problem(http.StatusConflict, "conflict", "A lane with active cards cannot be retired.", "", nil)
+		return
+	}
 	if err != nil {
 		x.fail(err)
 		return
 	}
 	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
 	x.respond(http.StatusOK, item, item.entityTag())
+}
+
+func lanePatchBool(fields *workflowFields, name string) *bool {
+	raw, present := fields.fields[name]
+	if !present {
+		return nil
+	}
+	var value *bool
+	if err := json.Unmarshal(raw, &value); err != nil || value == nil {
+		fields.fail(name, "Expected a Boolean.")
+	}
+	return value
+}
+
+func applyLanePatch(current *snapshot, index int, actor, label string, retired, approval *bool) error {
+	item := current.Lanes[index]
+	willRetire := retired != nil && *retired && !item.Retired
+	if retired != nil && !*retired && item.Retired {
+		return invalid("retired", "A retired lane cannot be restored.")
+	}
+	if willRetire {
+		if item.Role == "completed" {
+			return invalid("retired", "The Completed lane cannot be retired.")
+		}
+		if slices.ContainsFunc(current.Cards, func(c card) bool { return c.LaneID == item.ID && !c.Archived }) {
+			return errLaneOccupied
+		}
+	}
+	if approval != nil && (item.Role != "ready_for_review" || item.Retired || (willRetire && *approval)) {
+		return invalid("approval_enabled", "Lane approval requires an active Ready for Review lane.")
+	}
+
+	changedLabel := label != "" && item.Label != label
+	changedApproval := approval != nil && item.ApprovalEnabled != *approval
+	if !changedLabel && !changedApproval && !willRetire {
+		return nil
+	}
+	now := laneEditTime(*current, time.Now())
+	if changedLabel {
+		before := item.Label
+		appendLaneAudit(current, actor, item.ID, "patch", "label", &before, &label, now)
+		item.Label = label
+	}
+	if changedApproval {
+		before, after := strconv.FormatBool(item.ApprovalEnabled), strconv.FormatBool(*approval)
+		appendLaneAudit(current, actor, item.ID, "patch", "approval_enabled", &before, &after, now)
+		item.ApprovalEnabled = *approval
+	}
+	if willRetire {
+		before, after := "false", "true"
+		appendLaneAudit(current, actor, item.ID, "patch", "retired", &before, &after, now)
+		item.Retired = true
+	}
+	item.UpdatedAt, item.Revision = now, current.Board.Revision+1
+	current.Lanes[index] = item
+	if willRetire {
+		if issue := validateWorkflowPaths(current.Lanes, current.Policy); issue != nil {
+			return *issue
+		}
+	}
+	return nil
 }
 
 func insertLane(current *snapshot, fields *workflowFields, actor string, at time.Time) (lane, error) {

@@ -19,7 +19,7 @@ references, author, text, and timestamps. The comment validator is returned in t
 HTTP response header. Posting uses the parent card's current validator and advances
 its revision. Comment lists and focused attachment reads
 can identify the exact submission. Files up to 10 MiB can be uploaded. The board offers its newest
-comments and lane insertion and rename controls. Server-side policy determines
+comments and lane insertion, rename, and retirement controls. Server-side policy determines
 which actions the Human session may perform. Lane JSON carries a positive safe integer
 `revision`. `renameLane(laneId, revision, boardEtag, label)` reads the lane afresh,
 checks the expected numeric revision, and uses the returned HTTP ETag for its
@@ -28,18 +28,27 @@ stale, or failed read prevents the PATCH. Lane list and write responses validate
 the numeric revision and response shape. HTTP validators stay in response headers.
 
 Archive a card from its drawer. Expand Archived cards to reopen it and restore
-it to the same lane. Expand History in the drawer to inspect that card's audited
-changes. On a Ready for Review card, Reviewed & approved posts the approval
+it to the same lane while that lane is active. Retired lanes stay visible in Manage
+lanes and in archived card details. Active cards prevent retirement, and Completed
+is protected. Retired lanes are omitted from the board and lane selectors. Expand
+History in the drawer to inspect attributed activity for that ticket, including
+attachment detaches and priority changes. On a Ready for Review card, Reviewed & approved posts the approval
 comment and moves the card to Completed in one action. The drawer closes on a
 confirmed approval and retains any comment draft. A stale or uncertain response
-keeps the draft available for inspection.
+keeps the draft available for inspection. Manage lanes can enable or disable
+Approve all in lane for Ready for Review. The action submits the complete rendered
+active membership and its original versions, including the rendered board version.
+A stale set requires inspection before another submission.
 
 Add a typed link from the drawer or seed a link while creating a card. The same
 relationship is visible from both cards. Human comments link ticket references to
-focused board reads, including archived tickets. Bot comments render as text.
+focused board reads, including archived tickets. Bot comments render as text. Card
+priorities are shown on the board and in the drawer and refresh after link edits.
 
 Attachments offer authenticated downloads. Raster attachments also offer a preview
-and cover selection. The selected cover appears on the card in its lane.
+and cover selection. The selected cover appears on the card in its lane. Detach
+revokes active file access and clears the selected cover when it refers to the file.
+History retains the attachment ID and attribution.
 
 ## Browser API client
 

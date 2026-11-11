@@ -152,6 +152,9 @@ func applyRelationshipSeeds(state *snapshot, sourceID string, seeds []relationsh
 	for _, link := range links {
 		addRelationship(state, cards, newID(), link, actor, now)
 	}
+	if slices.ContainsFunc(links, func(link relationshipLink) bool { return link.Kind == "blocks" }) {
+		promotePriorityFloor(state, actor, now)
+	}
 	return nil
 }
 
@@ -171,9 +174,14 @@ func recordRelationshipEdit(state *snapshot, cards map[string]*card, id, operati
 		endpoint.Revision = revision
 		endpoint.UpdatedAt = maxCardTime(now, endpoint.UpdatedAt)
 	}
+	var field *string
+	if after != nil && link.Kind == "blocks" {
+		marker := priorityFloorAuditField
+		field = &marker
+	}
 	state.Activity = append(state.Activity, activity{
 		ID: newID(), BoardID: state.Board.ID, Revision: revision, At: now, ActorID: actor,
-		Operation: operation, ResourceType: "relationship", ResourceID: id, Before: before, After: after,
+		Operation: operation, ResourceType: "relationship", ResourceID: id, Field: field, Before: before, After: after,
 	})
 }
 
@@ -442,6 +450,9 @@ func (in relationshipCreation) apply(state *snapshot, actor string) error {
 	}
 	now := maxCardTime(canonicalTime(time.Now()), state.Board.UpdatedAt)
 	addRelationship(state, cards, in.id, in.link, actor, now)
+	if in.link.Kind == "blocks" {
+		promotePriorityFloor(state, actor, now)
+	}
 	return nil
 }
 
@@ -526,6 +537,9 @@ func editRelationship(state *snapshot, id, expected, kind, actor string) error {
 	item.UpdatedAt = now
 	after := relationshipAuditValue(link)
 	recordRelationshipEdit(state, relationshipCards(state), id, "patch", &before, &after, link, actor, now)
+	if link.Kind == "blocks" {
+		promotePriorityFloor(state, actor, now)
+	}
 	return nil
 }
 
@@ -569,7 +583,7 @@ func (refs snapshotReferences) validateRelationshipAudit(value snapshot, cardCre
 		}
 		id := event.ResourceID
 		if !validSnapshotID(id) || (refs.ids[id] && active[id].ID == "") ||
-			!refs.capabilities[event.ActorID]["manage_relationships"] || event.Field != nil ||
+			!refs.capabilities[event.ActorID]["manage_relationships"] ||
 			event.Revision < 2 || revisions[id] >= event.Revision {
 			return invalidSnapshot("activity", "Relationship audit identity, actor, or revision is invalid.")
 		}
@@ -580,7 +594,7 @@ func (refs snapshotReferences) validateRelationshipAudit(value snapshot, cardCre
 			}
 			delete(keys, item.key())
 		}
-		if event.Operation == "remove" && wasActive && event.After == nil {
+		if event.Operation == "remove" && wasActive && event.After == nil && event.Field == nil {
 			if err := refs.validateRelationshipEndpointVersions(item.relationshipLink, event); err != nil {
 				return err
 			}
@@ -592,6 +606,9 @@ func (refs snapshotReferences) validateRelationshipAudit(value snapshot, cardCre
 		if event.After == nil || len(*event.After) > 140 || json.Unmarshal([]byte(*event.After), &link) != nil ||
 			*event.After != relationshipAuditValue(link) || !refs.validRelationshipLink(link) || keys[link.key()] {
 			return invalidSnapshot("activity", "Relationship audit link is invalid or repeated.")
+		}
+		if event.Field != nil && (*event.Field != priorityFloorAuditField || link.Kind != "blocks") {
+			return invalidSnapshot("activity", "Relationship audit field is invalid.")
 		}
 		switch event.Operation {
 		case "create":

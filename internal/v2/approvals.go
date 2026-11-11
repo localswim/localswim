@@ -3,6 +3,7 @@ package v2
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"time"
@@ -10,17 +11,27 @@ import (
 
 const (
 	approvalOperation  = "approve"
+	maxApprovalCards   = 1000
 	reviewApprovalText = "Reviewed & approved, moving to Completed."
 )
 
-var errApprovalState = errors.New("card is unavailable for approval")
+var (
+	errApprovalState      = errors.New("card is unavailable for approval")
+	errApprovalLane       = errors.New("lane is unavailable for approval")
+	errApprovalMembership = errors.New("lane membership has changed")
+)
 
 type approvalPreconditionRequired string
 
 func (field approvalPreconditionRequired) Error() string { return string(field) + " is required." }
 
 type approvalInput struct {
-	id, boardID, boardTag, cardID, cardTag string
+	id, boardID, boardTag, laneID string
+	cards                         []approvalCardVersion
+}
+
+type approvalCardVersion struct {
+	id, tag string
 }
 
 type approval struct {
@@ -33,9 +44,16 @@ type approval struct {
 	Changes       []activity `json:"changes"`
 }
 
+type approvalNoop struct {
+	BoardID       string   `json:"board_id"`
+	BoardRevision uint64   `json:"board_revision"`
+	CardIDs       []string `json:"card_ids"`
+	Changed       bool     `json:"changed"`
+}
+
 func readApprovalInput(fields map[string]json.RawMessage) (approvalInput, error) {
 	var in approvalInput
-	if err := rejectFields(fields, []string{"id", "board_id", "expected_board_etag", "cards"}, true); err != nil {
+	if err := rejectFields(fields, []string{"id", "board_id", "expected_board_etag", "lane_id", "cards"}, true); err != nil {
 		return in, err
 	}
 	var err error
@@ -53,19 +71,49 @@ func readApprovalInput(fields map[string]json.RawMessage) (approvalInput, error)
 	if err != nil {
 		return in, err
 	}
-	var cards []map[string]json.RawMessage
-	if json.Unmarshal(fields["cards"], &cards) != nil || len(cards) != 1 || cards[0] == nil {
-		return in, invalid("cards", "Expected exactly one card version object.")
+	if raw, present := fields["lane_id"]; present {
+		in.laneID, err = inputID(raw, "lane_id")
+		if err != nil {
+			return in, err
+		}
 	}
-	if err := rejectFields(cards[0], []string{"card_id", "etag"}, true); err != nil {
-		return in, err
-	}
-	in.cardID, err = inputID(cards[0]["card_id"], "cards[0].card_id")
-	if err != nil {
-		return in, err
-	}
-	in.cardTag, err = approvalTag(cards[0]["etag"], "cards[0].etag")
+	in.cards, err = readApprovalCards(fields["cards"], in.laneID != "")
 	return in, err
+}
+
+func readApprovalCards(raw json.RawMessage, batch bool) ([]approvalCardVersion, error) {
+	var cards []map[string]json.RawMessage
+	if json.Unmarshal(raw, &cards) != nil || cards == nil || len(cards) > maxApprovalCards {
+		return nil, invalid("cards", "Expected an array of up to 1000 card version objects.")
+	}
+	if !batch && len(cards) != 1 {
+		return nil, invalid("cards", "Expected exactly one card version object.")
+	}
+	versions := make([]approvalCardVersion, 0, len(cards))
+	seen := make(map[string]bool, len(cards))
+	for index, fields := range cards {
+		path := fmt.Sprintf("cards[%d]", index)
+		if fields == nil {
+			return nil, invalid(path, "Expected a card version object.")
+		}
+		if err := rejectFields(fields, []string{"card_id", "etag"}, true); err != nil {
+			return nil, invalid(path, "Unrecognized card version member.")
+		}
+		id, err := inputID(fields["card_id"], path+".card_id")
+		if err != nil {
+			return nil, err
+		}
+		if seen[id] {
+			return nil, invalid(path+".card_id", "Repeated card identity.")
+		}
+		tag, err := approvalTag(fields["etag"], path+".etag")
+		if err != nil {
+			return nil, err
+		}
+		seen[id] = true
+		versions = append(versions, approvalCardVersion{id, tag})
+	}
+	return versions, nil
 }
 
 func approvalTag(raw json.RawMessage, field string) (string, error) {
@@ -98,23 +146,35 @@ func (x *request) createApproval() {
 		}
 		return
 	}
-	if in.id == "" {
+	if in.id == "" && len(in.cards) != 0 {
 		in.id = newID()
 	}
 	next, err := x.service.store.updateChecked(in.boardID, nil, func(state *snapshot) error {
 		return in.apply(state, x.actor)
 	})
-	if errors.Is(err, errApprovalState) {
+	switch {
+	case errors.Is(err, errApprovalState):
 		x.problem(http.StatusConflict, "conflict", "Approval requires an active Ready for Review card on an open board.", "", nil)
 		return
-	}
-	if err != nil {
+	case errors.Is(err, errApprovalLane):
+		x.problem(http.StatusConflict, "conflict", "Lane approval requires an enabled, active Ready for Review lane on an open board.", "", nil)
+		return
+	case errors.Is(err, errApprovalMembership):
+		x.problem(http.StatusConflict, "conflict", "The supplied cards must match the active Ready for Review lane membership.", "", nil)
+		return
+	case err != nil:
 		x.fail(err)
 		return
 	}
-	value := approvalReceipt(next.Activity[len(next.Activity)-2:])
+	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	if len(in.cards) == 0 {
+		x.respond(http.StatusOK, approvalNoop{
+			BoardID: next.Board.ID, BoardRevision: next.Board.Revision, CardIDs: []string{},
+		}, "")
+		return
+	}
+	value := approvalReceipt(next.Activity[len(next.Activity)-2*len(in.cards):])
 	x.w.Header().Set("Location", Prefix+"/approvals/"+value.ID)
-	x.w.Header().Set("X-Board-ETag", etag(value.BoardID, value.BoardRevision))
 	x.respond(http.StatusCreated, value, "")
 }
 
@@ -127,33 +187,96 @@ func (in approvalInput) apply(state *snapshot, actor string) error {
 	}) {
 		return errForbidden
 	}
-	index := slices.IndexFunc(state.Cards, func(c card) bool { return c.ID == in.cardID })
-	if index < 0 {
-		return errMissing
-	}
-	item := &state.Cards[index]
-	if !matchesStrongTag(in.boardTag, state.Board.ETag) || !matchesStrongTag(in.cardTag, item.entityTag()) {
-		return errStale
-	}
-	if state.Board.Availability != "open" || item.Archived || !slices.ContainsFunc(state.Lanes, func(l lane) bool {
-		return l.ID == item.LaneID && l.Role == "ready_for_review" && !l.Retired
-	}) {
-		return errApprovalState
+	indices, err := in.selectCards(state)
+	if err != nil {
+		return err
 	}
 	target := slices.IndexFunc(state.Lanes, func(l lane) bool { return l.Role == "completed" && !l.Retired })
 	if target < 0 {
 		return errInvalidSnapshot
+	}
+	if len(indices) == 0 {
+		grant := moveGrant{UserID: actor, FromLaneID: in.laneID, ToLaneID: state.Lanes[target].ID}
+		if !slices.Contains(state.Policy.MoveGrants, grant) {
+			return errForbidden
+		}
+		return nil
 	}
 	if snapshotIdentityExists(state, in.id) {
 		return errIdentityConflict
 	}
 
 	now := maxCardTime(canonicalTime(time.Now()), state.Board.UpdatedAt)
-	if _, err := applyCardLane(state, item, state.Lanes[target].ID, actor, now); err != nil {
+	start := len(state.Activity)
+	for _, index := range indices {
+		if err := approveCard(state, &state.Cards[index], state.Lanes[target].ID, actor, now); err != nil {
+			return err
+		}
+	}
+	state.Activity[start].ID = in.id
+	return nil
+}
+
+func (in approvalInput) selectCards(state *snapshot) ([]int, error) {
+	if in.laneID == "" {
+		version := in.cards[0]
+		index := slices.IndexFunc(state.Cards, func(c card) bool { return c.ID == version.id })
+		if index < 0 {
+			return nil, errMissing
+		}
+		item := state.Cards[index]
+		if !matchesStrongTag(in.boardTag, state.Board.ETag) || !matchesStrongTag(version.tag, item.entityTag()) {
+			return nil, errStale
+		}
+		if state.Board.Availability != "open" || item.Archived || !slices.ContainsFunc(state.Lanes, func(l lane) bool {
+			return l.ID == item.LaneID && l.Role == "ready_for_review" && !l.Retired
+		}) {
+			return nil, errApprovalState
+		}
+		return []int{index}, nil
+	}
+	if !matchesStrongTag(in.boardTag, state.Board.ETag) {
+		return nil, errStale
+	}
+	laneIndex := slices.IndexFunc(state.Lanes, func(l lane) bool { return l.ID == in.laneID })
+	if laneIndex < 0 {
+		return nil, errMissing
+	}
+	source := state.Lanes[laneIndex]
+	if state.Board.Availability != "open" || source.Role != "ready_for_review" || source.Retired || !source.ApprovalEnabled {
+		return nil, errApprovalLane
+	}
+
+	active := make(map[string]int, len(in.cards))
+	for index, item := range state.Cards {
+		if item.LaneID == source.ID && !item.Archived {
+			active[item.ID] = index
+		}
+	}
+	if len(active) != len(in.cards) {
+		return nil, errApprovalMembership
+	}
+	indices := make([]int, 0, len(in.cards))
+	for _, version := range in.cards {
+		index, exists := active[version.id]
+		if !exists {
+			return nil, errApprovalMembership
+		}
+		indices = append(indices, index)
+	}
+	for position, index := range indices {
+		if !matchesStrongTag(in.cards[position].tag, state.Cards[index].entityTag()) {
+			return nil, errStale
+		}
+	}
+	return indices, nil
+}
+
+func approveCard(state *snapshot, item *card, targetID, actor string, now time.Time) error {
+	if _, err := applyCardLane(state, item, targetID, actor, now); err != nil {
 		return err
 	}
 	movement := &state.Activity[len(state.Activity)-1]
-	movement.ID = in.id
 	movement.Operation = approvalOperation
 
 	// The approval grant authorizes the fixed system comment as part of the move.
@@ -183,7 +306,11 @@ func validApprovalPair(approved, added activity, note comment) bool {
 
 func approvalReceipt(changes []activity) approval {
 	first := changes[0]
-	return approval{ID: first.ID, BoardID: first.BoardID, CardIDs: []string{first.ResourceID},
+	cardIDs := make([]string, 0, len(changes)/2)
+	for index := 0; index < len(changes); index += 2 {
+		cardIDs = append(cardIDs, changes[index].ResourceID)
+	}
+	return approval{ID: first.ID, BoardID: first.BoardID, CardIDs: cardIDs,
 		ActorID: first.ActorID, At: first.At, BoardRevision: first.Revision,
 		Changes: changes}
 }
@@ -192,11 +319,15 @@ func findApproval(state snapshot, id string) (approval, bool) {
 	index := slices.IndexFunc(state.Activity, func(event activity) bool {
 		return event.ID == id && event.Operation == approvalOperation
 	})
-	if index < 0 {
+	if index < 0 || (index > 0 && state.Activity[index-1].Revision == state.Activity[index].Revision) {
 		return approval{}, false
 	}
-	// Admitted snapshots verify that the matching move has its comment immediately after it.
-	return approvalReceipt(state.Activity[index : index+2]), true
+	// Admitted snapshots verify that the revision contains only approval and comment pairs.
+	end := index + 2
+	for end < len(state.Activity) && state.Activity[end].Revision == state.Activity[index].Revision {
+		end += 2
+	}
+	return approvalReceipt(state.Activity[index:end]), true
 }
 
 func (x *request) approvalResource(id string) {

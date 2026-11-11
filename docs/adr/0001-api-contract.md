@@ -14,7 +14,7 @@ Status: Accepted for the owner-approved decisions below. The detailed OpenAPI do
 - Use `snake_case` for JSON member names, path parameter identifiers, and query parameter names across the V2 API. Standard HTTP header names keep their defined spelling. Preserve enum values and user text. Source-language identifiers follow Go and JavaScript conventions.
 - Keep timestamps and ordering explicit. Use 16-byte UUID storage where practical.
 - Publish closed response schemas with canonical values. Accept harmless input variation without weakening meaning or authority. Preserve user text exactly.
-- Name each collection response array for its plural resource, such as `boards`, `cards`, or `builds`. Both activity views use `activities`. Workspace board summaries use `boards`. Empty collections return an empty array, and `next_cursor` retains its pagination meaning.
+- Name each collection response array for its plural resource, such as `boards`, `cards`, or `builds`. Both activity views use `activities`. Monitor entries contain only event identity, UTC time, board revision, actor identity and kind, operation, and ticket numbers. Workspace board summaries use `boards`. Empty collections return an empty array, and `next_cursor` retains its pagination meaning.
 
 During the reboot, use only the current API, CLI, and storage contracts. Use fresh test data when a contract changes.
 
@@ -38,17 +38,17 @@ The attachment digest field is `sha2_256`, the lowercase hexadecimal SHA-2-256 d
 of the file bytes. Hash names in API fields and documentation explicitly identify
 their hash family and digest size.
 
-CLI updates accept `--revision N` to require the positive numeric `revision` from a prior read. The CLI fetches the current representation, compares any supplied revision, and uses the returned ETag for the write. With no explicit revision, only changes after that fetch are guarded. For a card write, comment creation, or attachment upload, the optional numeric revision checks the addressed card during preflight. `lane rename` checks the addressed lane revision. Card creation, policy changes, and `lane add` check the board revision. The server guards the addressed resource version at commit.
+CLI updates accept `--revision N` to require the positive numeric `revision` from a prior read. The CLI fetches the current representation, compares any supplied revision, and uses the returned ETag for the write. With no explicit revision, only changes after that fetch are guarded. For a card write, comment creation, or attachment upload, the optional numeric revision checks the addressed card during preflight. Lane rename, retirement, and approval-button configuration check the addressed lane revision. Attachment detach checks the addressed attachment revision and supplies both resource and board validators. Card creation, policy changes, and `lane add` check the board revision. The server guards the addressed resource version at commit.
 
 `card patch`, `card description`, `comment post`, and `lane add` require a positional input source. Pass a file path or `-` for standard input. Card descriptions take UTF-8 text and preserve whitespace and line endings. The other three commands take a JSON object.
 
-Item writes use the addressed resource's strong ETag. Operations spanning resources carry explicit board/card preconditions in their bodies. Data, permission checks, derived changes, and audit commit together. A lost or unreadable write response requires inspection before another attempt.
+Item writes use the addressed resource's strong ETag. Operations spanning resources carry explicit board/card preconditions in request bodies or in the documented HTTP headers. Data, permission checks, derived changes, and audit commit together. A lost or unreadable write response requires inspection before another attempt.
 
 The proposed security baseline is one loopback origin, exact authority checks, separate runtime-issued Human and Bot capabilities, and authenticated API calls. A same-origin browser bootstrap issues a separate, process-scoped Human capability. Foreign/null origins are refused. CORS grants name only the configured origin and enumerated headers/methods. Tokens stay out of URLs, persisted browser storage, logs, and error bodies. Browser streaming and file reads use authenticated fetch.
 
 Board recovery preserves existing global user configuration. A recovery candidate with an unknown or incompatible user identity refuses before mutation.
 
-A resolved workflow must permit creation in at least one active lane through a lane grant for a board member with the `create_card` capability. Every active lane must have a path through allowed directed transitions to the Completed lane. Transitions along a path may be performed by different actors. Apply the shared validator after shorthand expansion at board creation and native snapshot admission, and retain the invariant when implementing policy replacement.
+A resolved workflow must permit creation in at least one active lane through a lane grant for a board member with the `create_card` capability. Every active lane reachable from a creation lane must have a path through allowed directed transitions to the Completed lane. Transitions along a path may be performed by different actors. Apply the shared validator after shorthand expansion at board creation, on lane retirement, on policy updates, and during native snapshot admission.
 
 OpenAPI describes messages and authentication schemes. Runtime enforcement is still required for origin/authority checks, forbidden headers, duplicate-key detection, authorization, transaction behavior, and uncertain outcomes. Those requirements are recorded in the contract's `x-*` policy fields.
 

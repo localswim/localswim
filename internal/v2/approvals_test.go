@@ -64,7 +64,7 @@ func TestSingleReviewApproval(t *testing.T) {
 	human.call("POST", "/approvals", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"cards":[{"card_id":%q}]}`,
 		b.ID, currentTag, c.ID), "", 428)
 	human.call("POST", "/approvals", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"cards":[]}`, b.ID, currentTag), "", 400)
-	human.call("POST", "/approvals", strings.Replace(good, `"cards":`, fmt.Sprintf(`"lane_id":%q,"cards":`, c.LaneID), 1), "", 400)
+	human.call("POST", "/approvals", strings.Replace(good, `"cards":`, `"lane_id":null,"cards":`, 1), "", 400)
 	human.call("POST", "/approvals", strings.Replace(good, `"card_id":`, fmt.Sprintf(`"author_id":%q,"card_id":`, botID), 1), "", 400)
 	afterRefusals, _ := app.store.accepted(b.ID)
 	if !reflect.DeepEqual(before, afterRefusals) {
@@ -110,7 +110,8 @@ func TestSingleReviewApproval(t *testing.T) {
 	}
 	receiptPath := "/approvals/" + approvalID
 	if result.ID != approvalID || result.ActorID != humanID || result.BoardID != b.ID ||
-		!slices.Equal(result.CardIDs, []string{c.ID}) || result.BoardRevision != before.Board.Revision+1 || etag(result.BoardID, result.BoardRevision) != created.Header().Get("X-Board-ETag") ||
+		!slices.Equal(result.CardIDs, []string{c.ID}) || result.BoardRevision != before.Board.Revision+1 ||
+		etag(b.ID, result.BoardRevision) != created.Header().Get("X-Board-ETag") ||
 		created.Header().Get("Location") != Prefix+receiptPath {
 		t.Fatal("approval receipt did not identify its committed card and revision")
 	}
@@ -125,7 +126,7 @@ func TestSingleReviewApproval(t *testing.T) {
 		t.Fatal(err)
 	}
 	moved := committed.Cards[0]
-	if committed.Board.Revision != before.Board.Revision+1 || committed.Board.Revision != result.BoardRevision ||
+	if committed.Board.Revision != result.BoardRevision || committed.Board.ETag != created.Header().Get("X-Board-ETag") ||
 		!reflect.DeepEqual(moved.OwnerID, c.OwnerID) || moved.LaneID != b.LaneIDs[4] || moved.CompletedAt == nil ||
 		!moved.CompletedAt.Equal(result.At) || moved.entityTag() == c.entityTag() || moved.CommentCount != c.CommentCount+1 ||
 		committed.Board.Attention.ReadyForReview != 0 || committed.Board.LastCardEditAt == nil ||
@@ -163,12 +164,12 @@ func TestSingleReviewApproval(t *testing.T) {
 		}
 	}
 
-	human.call("POST", "/approvals", body(etag(result.BoardID, result.BoardRevision), moved.entityTag()), "", 409)
+	human.call("POST", "/approvals", body(committed.Board.ETag, moved.entityTag()), "", 409)
 
 	// A policy-authorized reopening does not alter the historical approval receipt.
 	p := committed.Policy
 	p.MoveGrants = append(p.MoveGrants, moveGrant{humanID, moved.LaneID, c.LaneID})
-	human.call("PUT", "/policies/"+p.ID, policyPutBody(t, p, etag(result.BoardID, result.BoardRevision)), p.ETag, 200)
+	human.call("PUT", "/policies/"+p.ID, policyPutBody(t, p, committed.Board.ETag), p.ETag, 200)
 	raw, _ = human.call("PATCH", path, fmt.Sprintf(`{"lane_id":%q}`, c.LaneID), moved.entityTag(), 200)
 	reopened := turnOneDecode[card](t, raw)
 	if reopened.CompletedAt != nil || reopened.LaneID != c.LaneID {
@@ -193,7 +194,8 @@ func TestSingleReviewApprovalPolicyRefusals(t *testing.T) {
 	state := freshSnapshot(id, "Synthetic", defaultWorkflow(id, now, principals), humanID, now)
 	item := card{ID: newID(), Revision: 1, CreatedAt: now, UpdatedAt: now, BoardID: id, LaneID: state.Lanes[3].ID, OwnerID: botID}
 	state.Cards = append(state.Cards, item)
-	in := approvalInput{id: newID(), boardID: id, boardTag: state.Board.ETag, cardID: item.ID, cardTag: item.entityTag()}
+	in := approvalInput{id: newID(), boardID: id, boardTag: state.Board.ETag,
+		cards: []approvalCardVersion{{item.ID, item.entityTag()}}}
 
 	for _, tc := range []struct {
 		name, actor string

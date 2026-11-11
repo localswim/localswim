@@ -131,12 +131,92 @@ func (x *request) attachmentsCollection() {
 }
 
 func (x *request) attachmentResource(id string) {
+	if x.r.Method == http.MethodDelete {
+		for _, state := range x.service.store.list() {
+			if slices.Contains(state.Board.UserIDs, x.actor) &&
+				slices.ContainsFunc(state.Attachments, func(item attachment) bool { return item.ID == id }) {
+				x.detachAttachment(state, id)
+				return
+			}
+		}
+		x.fail(errMissing)
+		return
+	}
 	item, err := x.findAttachment(id)
 	if err != nil {
 		x.fail(err)
 		return
 	}
 	x.respond(http.StatusOK, item, item.entityTag())
+}
+
+func (x *request) detachAttachment(state snapshot, id string) {
+	if !state.can(x.actor, "manage_attachments") {
+		x.fail(errForbidden)
+		return
+	}
+	expected, err := x.ifMatch()
+	if err != nil {
+		x.fail(err)
+		return
+	}
+	const header = "X-Expected-Board-ETag"
+	boardTags := x.r.Header.Values(header)
+	if len(boardTags) == 0 {
+		x.problem(http.StatusPreconditionRequired, "precondition_required", header+" is required.", "", nil)
+		return
+	}
+	if len(boardTags) != 1 || !snapshotETagPattern.MatchString(boardTags[0]) {
+		x.fail(invalid(header, "Expected one canonical entity tag."))
+		return
+	}
+	updated, err := x.service.store.update(state.Board.ID, boardTags[0], func(next *snapshot) error {
+		return detachAttachment(next, id, expected, x.actor)
+	})
+	if err != nil {
+		x.fail(err)
+		return
+	}
+	x.w.Header().Set("Cache-Control", "no-store")
+	x.w.Header().Set("X-Board-ETag", updated.Board.ETag)
+	x.w.WriteHeader(http.StatusNoContent)
+}
+
+func detachAttachment(state *snapshot, id, expected, actor string) error {
+	if !slices.Contains(state.Board.UserIDs, actor) {
+		return errMissing
+	}
+	if !state.can(actor, "manage_attachments") {
+		return errForbidden
+	}
+	i := slices.IndexFunc(state.Attachments, func(item attachment) bool { return item.ID == id && item.Active })
+	if i < 0 {
+		return errMissing
+	}
+	item := &state.Attachments[i]
+	if !matchesStrongTag(expected, item.entityTag()) {
+		return errStale
+	}
+	i = slices.IndexFunc(state.Cards, func(c card) bool { return c.ID == item.CardID })
+	if i < 0 {
+		return errMissing
+	}
+	c := &state.Cards[i]
+	now := maxCardTime(canonicalTime(time.Now()), state.Board.UpdatedAt)
+	revision := state.Board.Revision + 1
+	if c.CoverAttachmentID != nil && *c.CoverAttachmentID == id {
+		recordCardAssignment(state, c.ID, actor, "cover_attachment_id", c.CoverAttachmentID, nil, now)
+		c.CoverAttachmentID = nil
+	}
+	c.AttachmentCount--
+	c.UpdatedAt = now
+	c.Revision = revision
+	item.Active = false
+	item.UpdatedAt = now
+	item.Revision = revision
+	state.Activity = append(state.Activity, activity{ID: newID(), BoardID: state.Board.ID,
+		Revision: revision, At: now, ActorID: actor, Operation: "detach", ResourceType: "attachment", ResourceID: id})
+	return nil
 }
 
 func (x *request) findAttachment(id string) (attachment, error) {

@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const reopenOperation = "reopen"
+
 // applyCardLane uses the current directed lane grant for the requesting actor.
 func applyCardLane(s *snapshot, value *card, laneID, actorID string, now time.Time) (bool, error) {
 	index := slices.IndexFunc(s.Lanes, func(l lane) bool { return l.ID == laneID })
@@ -16,12 +18,16 @@ func applyCardLane(s *snapshot, value *card, laneID, actorID string, now time.Ti
 		return false, errForbidden
 	}
 	value.LaneID = laneID
+	operation := "patch"
 	if s.Lanes[index].Role == "completed" {
 		value.CompletedAt = &now
 	} else {
+		if value.CompletedAt != nil {
+			operation = reopenOperation
+		}
 		value.CompletedAt = nil
 	}
-	recordCardAssignment(s, value.ID, actorID, "lane_id", &from, &laneID, now)
+	recordCardFieldChange(s, value.ID, actorID, operation, "lane_id", &from, &laneID, now)
 	return true, nil
 }
 
@@ -43,9 +49,13 @@ func applyCardOwner(s *snapshot, value *card, ownerID string, actorID string, no
 }
 
 func recordCardAssignment(s *snapshot, cardID, actorID, field string, before, after *string, now time.Time) {
+	recordCardFieldChange(s, cardID, actorID, "patch", field, before, after, now)
+}
+
+func recordCardFieldChange(s *snapshot, cardID, actorID, operation, field string, before, after *string, now time.Time) {
 	s.Activity = append(s.Activity, activity{
 		ID: newID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
-		ActorID: actorID, Operation: "patch", ResourceType: "card", ResourceID: cardID, Field: &field,
+		ActorID: actorID, Operation: operation, ResourceType: "card", ResourceID: cardID, Field: &field,
 		Before: cloneSnapshotPointer(before), After: cloneSnapshotPointer(after),
 	})
 }

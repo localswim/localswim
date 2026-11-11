@@ -44,12 +44,14 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	var validator, field string
 	count := 1
 	switch name {
-	case "card patch", "card description", "card move", "card assign", "card title", "card cover":
+	case "card patch", "card description", "card move", "card assign", "card title", "card cover", "card set-priority":
 		cmd.method, validator, count = http.MethodPatch, "/cards/", 2
 	case "card archive", "card unarchive":
 		cmd.method, validator = http.MethodPatch, "/cards/"
-	case "lane rename":
+	case "lane rename", "lane set-approval-button":
 		cmd.method, validator, count = http.MethodPatch, "/lanes/", 2
+	case "lane retire":
+		cmd.method, validator = http.MethodPatch, "/lanes/"
 	case "lane add":
 		cmd.method, cmd.resource, validator, field = http.MethodPost, "/lanes", "/boards/", "board_id"
 		count = 2
@@ -65,6 +67,11 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		return parseCLIList(name, args)
 	case "attachment get":
 		cmd.method, cmd.resource = http.MethodGet, "/attachments/"
+	case "attachment detach":
+		cmd.method, cmd.resource = http.MethodDelete, "/attachments/"
+		cmd.detachAttachment = true
+	case "lane get":
+		cmd.method, cmd.resource = http.MethodGet, "/lanes/"
 	default:
 		return cmd, errors.New("unknown command")
 	}
@@ -108,7 +115,7 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	if optionErr != nil {
 		return cmd, optionErr
 	}
-	if name == "attachment get" {
+	if cmd.method == http.MethodGet || cmd.detachAttachment {
 		cmd.resource += strings.ToLower(flags.Arg(0))
 		return cmd, nil
 	}
@@ -121,6 +128,13 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	switch name {
 	case "card archive", "card unarchive":
 		cmd.body, _ = json.Marshal(map[string]bool{"archived": name == "card archive"})
+	case "lane retire":
+		cmd.body, _ = json.Marshal(map[string]bool{"retired": true})
+	case "lane set-approval-button":
+		if value != "enabled" && value != "disabled" {
+			return cmd, errors.New("expected enabled or disabled")
+		}
+		cmd.body, _ = json.Marshal(map[string]bool{"approval_enabled": value == "enabled"})
 	case "card cover":
 		switch {
 		case value == "none":
@@ -153,6 +167,11 @@ func parseT03(name string, args []string) (cliCommand, error) {
 			return cmd, errors.New("expected a UUIDv4 owner ID")
 		}
 		cmd.body, _ = json.Marshal(map[string]string{"owner_id": value})
+	case "card set-priority":
+		if !boardIDPattern.MatchString(value) {
+			return cmd, errors.New("expected a UUIDv4 priority ID")
+		}
+		cmd.body, _ = json.Marshal(map[string]string{"priority_id": value})
 	case "card title", "lane rename":
 		if value == "" || !utf8.ValidString(value) {
 			return cmd, errors.New("title or label must be nonempty valid UTF-8")
@@ -250,13 +269,12 @@ func prepareT03(api *client.Client, cmd cliCommand, stdin io.Reader) (json.RawMe
 		if err != nil {
 			return nil, "", "", err
 		}
-		var label struct {
-			Label string `json:"label"`
-		}
-		if err := json.Unmarshal(body, &label); err != nil {
+		fields, err := cliInputFields(body)
+		if err != nil {
 			return nil, "", "", err
 		}
-		body, err = json.Marshal(map[string]string{"label": label.Label, "board_etag": board.ETag})
+		fields["board_etag"], _ = json.Marshal(board.ETag)
+		body, err = json.Marshal(fields)
 		return body, current.ETag, "", err
 	}
 	if cmd.method == http.MethodPatch {

@@ -213,6 +213,15 @@ func freshSnapshot(id, name string, wf workflow, actorID string, now time.Time) 
 		s.Board.PriorityIDs = append(s.Board.PriorityIDs, p.ID)
 	}
 	s.Activity = append(s.Activity, activity{ID: newID(), BoardID: id, Revision: 1, At: now, ActorID: actorID, Operation: "create", ResourceType: "board", ResourceID: id})
+	// Original grants identify connected lanes. Record other initial lanes so
+	// a later insertion in the same second cannot masquerade as an initial lane.
+	referenced := initialLaneIDs(s.Lanes, s.Policy)
+	for _, item := range s.Lanes {
+		if !referenced[item.ID] {
+			s.Activity = append(s.Activity, activity{ID: newID(), BoardID: id, Revision: 1, At: now,
+				ActorID: actorID, Operation: "create", ResourceType: "lane", ResourceID: item.ID})
+		}
+	}
 	return s
 }
 func (s snapshot) can(userID, capability string) bool {

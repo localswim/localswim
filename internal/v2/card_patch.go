@@ -11,6 +11,7 @@ import (
 type cardPatch struct {
 	text                cardTextPatch
 	laneID              *string
+	priorityID          *string
 	ownerID, parentID   *string
 	hasOwner, hasParent bool
 	archived            *bool
@@ -28,12 +29,9 @@ func nullableCardID(raw json.RawMessage, field string) (*string, error) {
 
 func readCardPatch(fields map[string]json.RawMessage) (cardPatch, error) {
 	var patch cardPatch
-	allowed := []string{"title", "description", "lane_id", "owner_id", "parent_id", "archived", "cover_attachment_id"}
+	allowed := []string{"title", "description", "lane_id", "owner_id", "parent_id", "archived", "cover_attachment_id", "priority_id"}
 	if err := rejectFields(fields, allowed, false); err != nil {
 		return patch, err
-	}
-	if _, exists := fields["priority_id"]; exists {
-		return patch, invalid("priority_id", "This card edit is unavailable.")
 	}
 	recognized := false
 	for _, field := range allowed {
@@ -55,6 +53,13 @@ func readCardPatch(fields map[string]json.RawMessage) (cardPatch, error) {
 			return patch, err
 		}
 		patch.laneID = &id
+	}
+	if raw, present := fields["priority_id"]; present {
+		id, err := inputID(raw, "priority_id")
+		if err != nil {
+			return patch, err
+		}
+		patch.priorityID = &id
 	}
 	if raw, present := fields["owner_id"]; present {
 		patch.hasOwner = true
@@ -107,7 +112,8 @@ func (x *request) patchCard(id string) {
 		return
 	}
 	updated, err := x.service.store.updateChecked(state.Board.ID, nil, func(candidate *snapshot) error {
-		return patch.apply(candidate, id, tag, x.actor, canonicalTime(time.Now()))
+		now := maxCardTime(canonicalTime(time.Now()), candidate.Board.UpdatedAt)
+		return patch.apply(candidate, id, tag, x.actor, now)
 	})
 	if err != nil {
 		x.fail(err)
@@ -141,6 +147,7 @@ func (patch cardPatch) applyToCard(s *snapshot, item *card, tag, actor string, n
 	if !matchesStrongTag(tag, item.entityTag()) {
 		return errStale
 	}
+	wasCompleted := item.CompletedAt != nil
 	changed, err := patch.text.apply(s, item, actor, now)
 	if err != nil {
 		return err
@@ -187,6 +194,13 @@ func (patch cardPatch) applyToCard(s *snapshot, item *card, tag, actor string, n
 	if changed {
 		item.Revision = s.Board.Revision + 1
 		item.UpdatedAt = maxCardTime(item.UpdatedAt, now)
+	}
+	reopened := wasCompleted && item.CompletedAt == nil
+	if patch.priorityID != nil {
+		return applyCardPriority(s, item, *patch.priorityID, actor, reopened, now)
+	}
+	if reopened {
+		promotePriorityFloor(s, actor, now)
 	}
 	return nil
 }

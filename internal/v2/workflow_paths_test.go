@@ -41,13 +41,17 @@ func TestWorkflowPaths(t *testing.T) {
 		}, "policy.move_grants"},
 		{"isolated active lane", func(l *[]lane, _ *policy) {
 			*l = append(*l, lane{ID: "island", Label: "Island"})
-		}, "policy.move_grants"},
+		}, ""},
 		{"retired lane", func(l *[]lane, _ *policy) {
 			*l = append(*l, lane{ID: "retired", Label: "Retired", Retired: true})
 		}, ""},
 		{"route through retired lane", func(l *[]lane, _ *policy) {
 			(*l)[1].Retired = true
 		}, "policy.move_grants"},
+		{"retired route with surviving completion path", func(l *[]lane, p *policy) {
+			(*l)[1].Retired = true
+			p.MoveGrants = append(p.MoveGrants, moveGrant{UserID: "human", FromLaneID: "inbox", ToLaneID: "done"})
+		}, ""},
 		{"cycle with exit", func(_ *[]lane, p *policy) {
 			p.MoveGrants = append(p.MoveGrants, moveGrant{UserID: "bot", FromLaneID: "doing", ToLaneID: "inbox"})
 		}, ""},

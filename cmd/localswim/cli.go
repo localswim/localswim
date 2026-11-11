@@ -40,6 +40,7 @@ const cliHelp = `Usage:
   localswim card move [--revision N] CARD_ID LANE_ID
   localswim card assign [--revision N] CARD_ID OWNER_ID
   localswim card title [--revision N] CARD_ID TITLE
+  localswim card set-priority [--revision N] CARD_ID PRIORITY_ID
   localswim card description [--revision N] CARD_ID FILE|-
   localswim card archive [--revision N] CARD_ID
   localswim card unarchive [--revision N] CARD_ID
@@ -51,12 +52,18 @@ const cliHelp = `Usage:
   localswim relationship remove [--revision N] RELATIONSHIP_ID
   localswim comment list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim comment post [--revision N] CARD_ID FILE|-
+  localswim activity list --from UTC --to UTC [--view full|monitor] [--ticket N]
+                        [--limit N] [--cursor CURSOR] BOARD_ID
   localswim lane add [--revision N] BOARD_ID FILE|-
+  localswim lane get LANE_ID
   localswim lane rename [--revision N] LANE_ID LABEL
+  localswim lane retire [--revision N] LANE_ID
+  localswim lane set-approval-button [--revision N] LANE_ID enabled|disabled
   localswim attachment list [--limit N] [--cursor CURSOR] CARD_ID
   localswim attachment get ATTACHMENT_ID
   localswim attachment download ATTACHMENT_ID FILE|-
   localswim attachment upload [--revision N] [--id UUID] [--filename NAME] CARD_ID <FILE|->
+  localswim attachment detach [--revision N] ATTACHMENT_ID
   localswim policy get BOARD_ID
   localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
   localswim service status
@@ -82,7 +89,10 @@ Policy grant reads create_grants and/or move_grants and preserves existing permi
 Comment post reads an object containing text and an optional ID.
 Lane add reads the lane definition. The CLI supplies its board ID and validator.
 Card edits, comment post, and attachment upload check the card revision.
-Lane add checks the board revision. Lane rename checks the lane revision.
+Lane add checks the board revision. Attachment detach checks the attachment revision.
+Lane rename, retire, and set-approval-button check the lane revision.
+Activity intervals are inclusive. Quote both UTC bounds in YYYY-MM-DD HH:MM:SS+00:00.
+The full activity view is the default. Monitor returns sanitized edit metadata.
 The CLI manages HTTP validators.
 For FILE|-, pass a file path or use - to read standard input.
 Card description reads UTF-8 text verbatim, including trailing newlines.
@@ -101,6 +111,8 @@ Attachment upload reads raw bytes from FILE or standard input with -.
 Without --filename, FILE uses its basename and - uses the attachment UUID.
 Attachment upload generates an ID when --id is omitted and reports the ID
 on an unknown outcome. Use attachment get to inspect that exact ID.
+Attachment detach exits silently on success. Use attachment get to check active
+after an unknown detach outcome.
 `
 
 type exportFormat string
@@ -134,6 +146,7 @@ type cliCommand struct {
 	edit                               t03Edit
 	relationshipWrite                  bool
 	downloadPath                       string
+	detachAttachment                   bool
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -239,6 +252,8 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "service builds":
 		command.method, command.resource = http.MethodGet, "/builds"
 		paginated = true
+	case "activity list":
+		return parseActivityList(optionArgs)
 	case "card list", "relationship list":
 		return parseCLIList(name, optionArgs)
 	case "relationship get", "relationship create", "relationship patch", "relationship remove", "attachment download":
@@ -409,6 +424,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	api, err := client.New(getenv("LOCALSWIM_URL"), getenv("LOCALSWIM_TOKEN"))
 	if err != nil {
 		return err
+	}
+	if command.detachAttachment {
+		return detachAttachment(api, command)
 	}
 	if command.downloadPath != "" {
 		return downloadAttachment(api, command.resource, command.downloadPath, stdout)

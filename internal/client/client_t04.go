@@ -45,6 +45,17 @@ func (c *Client) RemoveRelationship(resource, ifMatch, boardTag string) error {
 	if !IsEntityTag(ifMatch) || !IsEntityTag(boardTag) {
 		return errors.New("relationship removal requires strong relationship and board ETags")
 	}
+	return c.deleteBoardResource(resource, ifMatch, boardTag)
+}
+
+func (c *Client) DetachAttachment(resource, ifMatch, boardTag string) error {
+	if !IsEntityTag(ifMatch) || !IsEntityTag(boardTag) {
+		return errors.New("attachment detachment requires strong attachment and board ETags")
+	}
+	return c.deleteBoardResource(resource, ifMatch, boardTag)
+}
+
+func (c *Client) deleteBoardResource(resource, ifMatch, boardTag string) error {
 	request, err := c.newRequest(http.MethodDelete, resource, nil, ifMatch, "", "application/json")
 	if err != nil {
 		return err

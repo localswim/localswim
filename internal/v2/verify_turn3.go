@@ -22,14 +22,16 @@ func (refs snapshotReferences) validateCardChildren(value snapshot) error {
 		if !refs.claim(entity{ID: item.ID, ETag: item.entityTag(), CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}) ||
 			item.Revision == 0 || item.Revision > value.Board.Revision || item.Revision > maxSnapshotInteger || item.BoardID != value.Board.ID ||
 			refs.cards[item.CardID].ID == "" || refs.users[item.AddedBy].ID == "" ||
-			!item.Active || !item.CreatedAt.Equal(item.UpdatedAt) {
+			item.Active && !item.CreatedAt.Equal(item.UpdatedAt) {
 			return invalidSnapshot("attachments", "Attachment identity, references, or attribution are invalid.")
 		}
 		if err := validateAttachmentMetadata(item, index); err != nil {
 			return err
 		}
 		refs.attachments[item.ID] = item
-		attachments[item.CardID]++
+		if item.Active {
+			attachments[item.CardID]++
+		}
 	}
 	for _, item := range value.Cards {
 		if item.CoverAttachmentID != nil && !refs.validAttachmentCover(item.ID, *item.CoverAttachmentID) {
@@ -55,9 +57,14 @@ func (refs snapshotReferences) validResourceCreation(event activity, cardCreatio
 			cardCreations[item.CardID] > 0 && cardCreations[item.CardID] < event.Revision
 	case "attachment":
 		item := refs.attachments[event.ResourceID]
+		original := item
+		original.Active = true
+		original.Revision = event.Revision
+		original.UpdatedAt = original.CreatedAt
 		return item.ID != "" && event.Operation == "attach" && capabilities["manage_attachments"] &&
-			item.AddedBy == event.ActorID && item.CreatedAt.Equal(event.At) && item.Revision == event.Revision &&
-			event.After != nil && *event.After == attachmentAuditValue(item) &&
+			item.AddedBy == event.ActorID && item.CreatedAt.Equal(event.At) &&
+			(!item.Active || item.Revision == event.Revision) &&
+			event.After != nil && *event.After == attachmentAuditValue(original) &&
 			cardCreations[item.CardID] > 0 && cardCreations[item.CardID] < event.Revision
 	case "lane":
 		item := refs.lanes[event.ResourceID]
@@ -81,18 +88,19 @@ func initialAuditedPolicy(value snapshot) policy {
 	return value.Policy
 }
 
-// At creation every active lane has a path to Completed. Thus each original
-// lane other than Completed appears in at least one initial move grant.
-func initialLaneIDs(value snapshot, grants []moveGrant) map[string]bool {
-	ids := make(map[string]bool, len(value.Lanes))
-	for _, item := range value.Lanes {
+func initialLaneIDs(lanes []lane, original policy) map[string]bool {
+	ids := make(map[string]bool, len(lanes))
+	for _, item := range lanes {
 		if item.Role == "completed" {
 			ids[item.ID] = true
 		}
 	}
-	for _, grant := range grants {
+	for _, grant := range original.MoveGrants {
 		ids[grant.FromLaneID] = true
 		ids[grant.ToLaneID] = true
+	}
+	for _, grant := range original.CreateGrants {
+		ids[grant.LaneID] = true
 	}
 	return ids
 }
@@ -120,20 +128,38 @@ func validCardLaneAudit(grants []moveGrant, event activity) bool {
 	})
 }
 
-func (refs snapshotReferences) approvalAuditComment(value snapshot, index int, latest map[snapshotAuditField]*string) (string, bool) {
-	event := value.Activity[index]
-	if index+1 >= len(value.Activity) || value.Activity[index-1].Revision == event.Revision ||
-		(index+2 < len(value.Activity) && value.Activity[index+2].Revision == event.Revision) {
-		return "", false
+func (refs snapshotReferences) approvalAuditEnd(value snapshot, start int, latest map[snapshotAuditField]*string, occupancy map[string]int) int {
+	first := value.Activity[start]
+	source, target := snapshotString(first.Before), snapshotString(first.After)
+	if value.Activity[start-1].Revision == first.Revision ||
+		refs.users[first.ActorID].Kind != "human" || !refs.capabilities[first.ActorID]["approve"] ||
+		refs.lanes[source].Role != "ready_for_review" || refs.lanes[target].Role != "completed" ||
+		snapshotString(latest[snapshotAuditField{"lane", source, "retired"}]) != "false" {
+		return 0
 	}
-	if refs.users[event.ActorID].Kind != "human" || !refs.capabilities[event.ActorID]["approve"] ||
-		refs.lanes[snapshotString(event.Before)].Role != "ready_for_review" ||
-		refs.lanes[snapshotString(event.After)].Role != "completed" ||
-		snapshotString(latest[snapshotAuditField{"card", event.ResourceID, "archived"}]) != "false" {
-		return "", false
+	end := start
+	members := make(map[string]bool)
+	for end < len(value.Activity) && value.Activity[end].Revision == first.Revision {
+		move := value.Activity[end]
+		if end+1 >= len(value.Activity) || move.ActorID != first.ActorID || !move.At.Equal(first.At) ||
+			snapshotString(move.Before) != source || snapshotString(move.After) != target ||
+			snapshotString(latest[snapshotAuditField{"card", move.ResourceID, "lane_id"}]) != source ||
+			snapshotString(latest[snapshotAuditField{"card", move.ResourceID, "archived"}]) != "false" ||
+			members[move.ResourceID] {
+			return 0
+		}
+		note := value.Activity[end+1]
+		if !validApprovalPair(move, note, refs.comments[note.ResourceID]) {
+			return 0
+		}
+		members[move.ResourceID] = true
+		end += 2
 	}
-	noteEvent := value.Activity[index+1]
-	return noteEvent.ResourceID, validApprovalPair(event, noteEvent, refs.comments[noteEvent.ResourceID])
+	if len(members) > maxApprovalCards || len(members) > 1 && (len(members) != occupancy[source] ||
+		snapshotString(latest[snapshotAuditField{"lane", source, "approval_enabled"}]) != "true") {
+		return 0
+	}
+	return end
 }
 
 func (refs snapshotReferences) validAttachmentCover(cardID, attachmentID string) bool {
@@ -155,7 +181,11 @@ func (refs snapshotReferences) validCardAuditValue(actor string, field snapshotA
 	case "description":
 		return capabilities["edit_card"] && value != nil && snapshotText(*value, 0, 4194304)
 	case "cover_attachment_id":
-		return capabilities["manage_attachments"] && (value == nil || refs.validAttachmentCover(field.resourceID, *value))
+		if value == nil {
+			return capabilities["manage_attachments"]
+		}
+		item := refs.attachments[*value]
+		return capabilities["manage_attachments"] && item.CardID == field.resourceID && item.Previewable
 	case "archived":
 		return capabilities["archive_card"] && (snapshotString(value) == "true" || snapshotString(value) == "false")
 	case "owner_id":
@@ -174,6 +204,10 @@ func (refs snapshotReferences) validLaneAuditValue(actor string, field snapshotA
 	case "position":
 		position, err := strconv.Atoi(*value)
 		return err == nil && position >= 0 && strconv.Itoa(position) == *value
+	case "retired":
+		return refs.lanes[field.resourceID].Role != "completed" && (*value == "false" || *value == "true")
+	case "approval_enabled":
+		return refs.lanes[field.resourceID].Role == "ready_for_review" && (*value == "false" || *value == "true")
 	}
 	return false
 }
@@ -189,6 +223,8 @@ func (refs snapshotReferences) currentCardAuditValue(field snapshotAuditField) *
 		return &item.Description
 	case "owner_id":
 		return &item.OwnerID
+	case "priority_id":
+		return &item.PriorityID
 	case "lane_id":
 		return &item.LaneID
 	case "archived":
@@ -204,9 +240,71 @@ func (refs snapshotReferences) currentLaneAuditValue(field snapshotAuditField) *
 	switch field.name {
 	case "label":
 		return &item.Label
+	case "retired":
+		return archiveAuditValue(item.Retired)
+	case "approval_enabled":
+		return archiveAuditValue(item.ApprovalEnabled)
 	case "position":
 		position := strconv.Itoa(item.Position)
 		return &position
 	}
 	return nil
+}
+
+func originalCardLanes(value snapshot) map[string]string {
+	origins := make(map[string]string, len(value.Cards))
+	for _, item := range value.Cards {
+		origins[item.ID] = item.LaneID
+	}
+	for i := len(value.Activity) - 1; i >= 0; i-- {
+		event := value.Activity[i]
+		if event.ResourceType == "card" && snapshotString(event.Field) == "lane_id" && event.Before != nil {
+			origins[event.ResourceID] = *event.Before
+		}
+	}
+	return origins
+}
+
+func validDetachAuditShape(events []activity, index int, item attachment) bool {
+	detach := events[index]
+	if index+1 < len(events) && events[index+1].Revision == detach.Revision {
+		return false
+	}
+	clear := events[index-1]
+	if clear.Revision != detach.Revision {
+		return true
+	}
+	return (index < 2 || events[index-2].Revision != detach.Revision) &&
+		clear.At.Equal(detach.At) && clear.Operation == "patch" && clear.ResourceType == "card" &&
+		clear.ResourceID == item.CardID && snapshotString(clear.Field) == "cover_attachment_id" &&
+		snapshotString(clear.Before) == item.ID && clear.After == nil
+}
+
+func validHistoricalRetirement(lanes []lane, rules policy, retiring string, exists func(string) bool,
+	latest map[snapshotAuditField]*string) bool {
+	historical := make([]lane, 0, len(lanes))
+	for _, item := range lanes {
+		if exists(item.ID) {
+			item.Retired = item.ID == retiring ||
+				snapshotString(latest[snapshotAuditField{"lane", item.ID, "retired"}]) == "true"
+			historical = append(historical, item)
+		}
+	}
+	return validateWorkflowPaths(historical, rules) == nil
+}
+
+func validRetirementAuditShape(events []activity, index int) bool {
+	retired := events[index]
+	if index+1 < len(events) && events[index+1].Revision == retired.Revision {
+		return false
+	}
+	for i := index - 1; i >= 0 && events[i].Revision == retired.Revision; i-- {
+		edit := events[i]
+		field := snapshotString(edit.Field)
+		if !edit.At.Equal(retired.At) || edit.ResourceType != "lane" || edit.ResourceID != retired.ResourceID ||
+			edit.Operation != "patch" || (field != "label" && field != "approval_enabled") {
+			return false
+		}
+	}
+	return true
 }

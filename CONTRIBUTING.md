@@ -65,8 +65,34 @@ resolved by reading the original receipt UUID before considering another write.
 For card edits, comment posting, and attachment upload, CLI `--revision N` checks
 the addressed card revision before writing with its current HTTP validator. Card
 creation, relationship creation, policy changes, and `lane add` check the board
-revision. `lane rename` checks the addressed lane revision. Relationship patch
-and remove check the addressed relationship revision.
+revision. `lane rename`, `lane retire`, and `lane set-approval-button` check the
+addressed lane revision. Relationship patch and remove check the addressed
+relationship revision. `attachment detach` checks the attachment revision and
+sends the parent board validator with the attachment's HTTP validator.
+
+Use `activity list` with inclusive canonical UTC `--from` and `--to`. The default
+view returns attributed changes. Use `--view monitor` for event metadata and
+ticket numbers without card prose. Both views support a ticket filter, page
+limit, and cursor tied to the original query.
+
+`lane set-approval-button` configures the optional Human lane action. The browser
+submits every rendered active member with its original card version and the
+original board version. The service commits all moves and comments together or
+refuses the whole request. Empty approval requests leave the revision unchanged.
+
+`lane retire` preserves archived cards and historical lane identity. It refuses
+active occupancy, the Completed role, and any retirement that would break a
+required workflow path. Retired lanes stay inspectable. New arrivals and
+restoring an archived card in a retired lane are refused.
+
+`card set-priority` applies the effective blocking floor. Creating or changing a
+blocking link and raising a priority can promote upstream cards in one audited
+revision. Archived unfinished cards participate, and Completed cards stop paths.
+Removing a link does not lower priorities.
+
+`attachment detach` removes active content access and clears a matching cover in
+one transaction. Inspect the inactive record with `attachment get`. The original
+metadata and immutable bytes remain available for backup.
 
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
 Unicode. Entity and build IDs are immutable UUIDv4 values. The service_instance_id

@@ -180,6 +180,49 @@ function matchesApproval(data, id, boardId, cardId) {
     && note.field === null && note.before === null && note.after === null;
 }
 
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** @param {string} id @param {unknown} revision */
+function versionTag(id, revision) {
+  if (!isInteger(revision) || revision < 1) throw new TypeError("Expected a positive safe integer revision.");
+  return '"' + resourceId(id).toLowerCase() + "-" + revision + '"';
+}
+
+/** @param {object} data @param {string} id @param {string} boardId @param {string} boardTag
+ * @param {string} laneId @param {string} completedLaneId @param {string[]} cardIds */
+function matchesLaneApproval(data, id, boardId, boardTag, laneId, completedLaneId, cardIds) {
+  const receipt = /** @type {Record<string, unknown>} */ (data);
+  const { board_revision: revision, changes } = receipt;
+  const ids = receipt.card_ids;
+  if (Object.keys(receipt).length !== 7 || receipt.id !== id || receipt.board_id !== boardId
+      || !isId(receipt.actor_id) || !isTimestamp(receipt.at) || !isInteger(revision) || revision < 2
+      || versionTag(boardId, revision - 1) !== boardTag
+      || !Array.isArray(ids) || ids.length !== cardIds.length || !cardIds.every((cardId, index) => ids[index] === cardId)
+      || !Array.isArray(changes) || changes.length !== cardIds.length * 2) return false;
+  const auditIds = new Set();
+  /** @param {unknown} value @returns {value is Record<string, unknown>} */
+  function matchesChange(value) {
+    if (!isObject(value) || Object.keys(value).length !== 11 || !isId(value.id) || auditIds.has(value.id)
+        || value.board_id !== boardId || value.actor_id !== receipt.actor_id
+        || value.at !== receipt.at || value.revision !== revision) return false;
+    auditIds.add(value.id);
+    return true;
+  }
+  return cardIds.every((cardId, index) => {
+    const move = /** @type {unknown} */ (changes[index * 2]);
+    const note = /** @type {unknown} */ (changes[index * 2 + 1]);
+    if (!matchesChange(move) || !matchesChange(note) || (index === 0 && move.id !== id)
+        || move.operation !== "approve" || move.resource_type !== "card" || move.resource_id !== cardId
+        || move.field !== "lane_id" || move.before !== laneId || move.after !== completedLaneId
+        || note.operation !== "comment" || note.resource_type !== "comment" || !isId(note.resource_id)
+        || note.field !== null || note.before !== null || note.after !== null) return false;
+    return true;
+  });
+}
+
 /** @param {Response} response @param {boolean} write */
 async function responseObject(response, write) {
   try {
@@ -492,6 +535,16 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       return reply;
     },
+    /** @param {string} id @param {number} revision @param {string} boardEtag */
+    async detachAttachment(id, revision, boardEtag) {
+      const response = await send("/attachments/" + resourceId(id), {
+        method: "DELETE", etag: versionTag(id, revision), boardEtag: strongTag(boardEtag),
+      });
+      if (response.status !== 204 || !STRONG_ETAG.test(response.headers.get("X-Board-ETag") ?? "")) {
+        await discardBody(response);
+        throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
+      }
+    },
     /** @param {unknown} attachmentId @param {"attachment"|"inline"} disposition @param {number} size @param {string} digest */
     async getAttachmentContent(attachmentId, disposition, size, digest) {
       if (!Number.isSafeInteger(size) || size < 0 || size > MAX_ATTACHMENT_BYTES
@@ -631,6 +684,75 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         throw new ApiError("invalid_response");
       }
     },
+    /** @param {string} id @param {string} boardId @param {string} boardEtag @param {string} laneId
+     * @param {string} completedLaneId @param {{id: string, revision: number}[]} cards */
+    async approveLane(id, boardId, boardEtag, laneId, completedLaneId, cards) {
+      const expectedId = resourceId(id).toLowerCase();
+      const board = resourceId(boardId).toLowerCase();
+      const lane = resourceId(laneId).toLowerCase();
+      const completed = resourceId(completedLaneId).toLowerCase();
+      const expected = strongTag(boardEtag);
+      const versions = cards.map((card) => ({
+        card_id: resourceId(card.id).toLowerCase(), etag: versionTag(card.id, card.revision),
+      }));
+      const cardIds = versions.map(({ card_id }) => card_id);
+      if (versions.length > 1000 || new Set(cardIds).size !== cardIds.length) {
+        throw new TypeError("Expected up to 1000 distinct cards.");
+      }
+      const response = await send("/approvals", { method: "POST", data: {
+        id: expectedId, board_id: board, lane_id: lane, expected_board_etag: expected, cards: versions,
+      } });
+      const location = response.headers.get("Location");
+      const tag = response.headers.get("X-Board-ETag");
+      const empty = cardIds.length === 0;
+      const status = empty ? 200 : 201;
+      if (response.status !== status || !STRONG_ETAG.test(tag ?? "")
+          || (empty ? location !== null || tag !== expected : location !== API_PREFIX + "/approvals/" + expectedId)) {
+        await discardBody(response);
+        throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
+      }
+      const data = /** @type {Record<string, unknown>} */ (await responseObject(response, true));
+      const revision = data.board_revision;
+      if (!isInteger(revision) || revision < 1 || tag !== versionTag(board, revision)
+          || (empty ? Object.keys(data).length !== 4 || data.board_id !== board || data.changed !== false
+            || !Array.isArray(data.card_ids) || data.card_ids.length !== 0
+            : !matchesLaneApproval(data, expectedId, board, expected, lane, completed, cardIds))) {
+        throw new ApiError("invalid_response", { status, outcomeUnknown: true });
+      }
+    },
+    /** @param {string} id @param {string} boardId @param {string} boardEtag @param {string} laneId
+     * @param {string} completedLaneId @param {string[]} cardIds */
+    async inspectLaneApproval(id, boardId, boardEtag, laneId, completedLaneId, cardIds) {
+      const expectedId = resourceId(id).toLowerCase();
+      const board = resourceId(boardId).toLowerCase();
+      const expected = strongTag(boardEtag);
+      const lane = resourceId(laneId).toLowerCase();
+      const completed = resourceId(completedLaneId).toLowerCase();
+      const cards = cardIds.map((cardId) => resourceId(cardId).toLowerCase());
+      const response = await send("/approvals/" + expectedId);
+      if (response.status !== 200 || response.headers.get("ETag") !== versionTag(expectedId, 1)) {
+        await discardBody(response);
+        throw new ApiError("invalid_response", { status: response.status });
+      }
+      const data = await responseObject(response, false);
+      if (!matchesLaneApproval(data, expectedId, board, expected, lane, completed, cards)) {
+        throw new ApiError("invalid_response", { status: response.status });
+      }
+    },
+    /** @param {string} boardId @param {string} laneId @param {number} revision @param {string} boardEtag
+     * @param {{retired: true}|{approval_enabled: boolean}} change */
+    async updateLaneSettings(boardId, laneId, revision, boardEtag, change) {
+      const id = resourceId(laneId);
+      const board = resourceId(boardId);
+      const result = await request("/lanes/" + id, {
+        method: "PATCH", etag: versionTag(id, revision), data: { board_etag: strongTag(boardEtag), ...change },
+      });
+      const saved = /** @type {Record<string, unknown>} */ (result.data);
+      if (!validLane(saved, id, board) || !Object.entries(change).every(([key, value]) => saved[key] === value)) {
+        throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
+      }
+      return result;
+    },
     /** @param {unknown} boardId @param {unknown} boardEtag
      * @param {{label: string, after_id: string, create_for: string[], connect_for: string[]}} lane */
     async createLane(boardId, boardEtag, lane) {
@@ -762,8 +884,15 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       return result;
     },
-    /** @param {unknown} boardId */
-    listPriorities: (boardId) => request(`/priorities?board_id=${resourceId(boardId)}`),
+    /** @param {unknown} boardId @param {string} [cursor] */
+    listPriorities: (boardId, cursor) => list("/priorities", { board_id: resourceId(boardId) }, cursor),
+    /** @param {string} boardId @param {string} from @param {string} to @param {number} ticket @param {string} [cursor] */
+    listCardActivity(boardId, from, to, ticket, cursor) {
+      if (!isTimestamp(from) || !isTimestamp(to) || from > to || !Number.isSafeInteger(ticket) || ticket < 1) {
+        throw new TypeError("Expected an ordered UTC interval and a positive safe integer ticket.");
+      }
+      return list("/activities", { board_id: resourceId(boardId), from, to, ticket: String(ticket) }, cursor);
+    },
     /** @param {unknown} boardId @param {string} [cursor] */
     listUsers: (boardId, cursor) => list("/users", { board_id: resourceId(boardId) }, cursor),
     /** @param {unknown} policyId */

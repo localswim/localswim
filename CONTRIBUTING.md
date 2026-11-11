@@ -278,7 +278,7 @@ choosing whether to try again.
 Use an explicit `--data DIR` to read a saved board through the local filesystem.
 
 - `board get --data DIR BOARD_ID` returns saved board metadata.
-- `board export --data DIR BOARD_ID` emits the validated native snapshot.
+- `board export --data DIR BOARD_ID -` emits the validated native snapshot to stdout.
 - `card inspect --data DIR [--prose] BOARD_ID TICKET` inspects a focused ticket.
 
 Each invocation validates one committed snapshot. The directory must be directly

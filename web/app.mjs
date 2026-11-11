@@ -47,7 +47,8 @@ import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
  * captureMessage?: string, publicationMessage?: string, downloadMessage?: string}} BackupState */
 /** @typedef {{query: string, content: boolean, order: "triage"|"ticket", lane: string, limit: string}} SearchFields */
 /** @typedef {{open: boolean, fields: SearchFields, submitted?: SearchFields}} BoardSearch */
-/** @typedef {{card?: {id: string, ticket: string|null}, search?: BoardSearch, scroll?: {left: number, lanes: Record<string, number>}}} BoardView */
+/** @typedef {{card?: {id: string, ticket: string|null}, filter?: string, search?: BoardSearch,
+ * scroll?: {left: number, lanes: Record<string, number>}}} BoardView */
 /** @typedef {import("./api.mjs").Service} Service */
 /** @typedef {import("./api.mjs").Build} Build */
 /** @typedef {{prior: Service, activation?: {id: string, buildId: string}, acknowledged: boolean, refusal?: string}} LifecycleOperation */
@@ -963,7 +964,9 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       view.hidden = true;
       view.replaceChildren();
       const replacement = main?.querySelector(`button[data-card-id="${card.id}"]`);
-      const target = replacement instanceof HTMLButtonElement ? replacement : opener.isConnected ? opener : refresh;
+      const filter = main?.querySelector("#board-filter");
+      const fallback = filter instanceof HTMLInputElement ? filter : refresh;
+      const target = replacement instanceof HTMLButtonElement ? replacement : opener.isConnected ? opener : fallback;
       target?.focus();
     }
     let workflowRead = 0;
@@ -2605,6 +2608,31 @@ async function load(savedAvailability) {
     const columns = element("div");
     columns.className = "lanes";
     const state = boardViewState(boardId);
+    const filter = element("input");
+    filter.id = "board-filter";
+    filter.type = "search";
+    filter.value = typeof state.filter === "string" ? state.filter : "";
+    filter.setAttribute("aria-keyshortcuts", "/");
+    const filterCount = element("span");
+    filterCount.setAttribute("role", "status");
+    const filterBar = element("div");
+    filterBar.className = "board-filter";
+    filterBar.append(field("Filter by title or ticket", filter), filterCount);
+
+    function applyFilter() {
+      if (view !== activeView || !filter.isConnected) return;
+      state.filter = filter.value;
+      renderCards(currentCards, boardTag);
+      persistBoardView(board.id);
+    }
+    filter.addEventListener("input", applyFilter);
+    filter.addEventListener("keydown", (event) => {
+      if (event.defaultPrevented || event.isComposing || event.key !== "Escape" || !filter.value) return;
+      event.preventDefault();
+      filter.value = "";
+      applyFilter();
+    });
+
     /** @type {Map<string, HTMLElement>} */
     const laneColumns = new Map();
 
@@ -2725,14 +2753,21 @@ async function load(savedAvailability) {
       const render = coverRead;
       const active = activeLanes(lanes);
       const completed = active.find(({ role }) => role === "completed");
+      const query = filter.value.trim().toLowerCase();
+      let matchingCount = 0;
       columns.replaceChildren(...active.map((lane) => {
         const column = element("section");
         column.className = "lane";
         laneColumns.set(lane.id, column);
         const members = visibleCards.filter(({ lane_id }) => lane_id === lane.id);
+        const matches = query ? members.filter(({ title, ticket }) =>
+          title.toLowerCase().includes(query) || ("#" + ticket).includes(query)) : members;
+        const wholeLaneVisible = matches.length === members.length;
+        matchingCount += matches.length;
         const heading = element("h2", lane.label);
         heading.className = "lane-heading";
-        const total = element("small", countLabel(members.length, "card"));
+        const total = element("small", query ? matches.length + " of " + members.length + " cards"
+          : countLabel(members.length, "card"));
         total.className = "lane-total";
         heading.append(total);
         column.append(heading);
@@ -2749,7 +2784,7 @@ async function load(savedAvailability) {
           column.append(add);
         }
         if (lane.reorder_enabled) {
-          const canPreview = members.length >= 2;
+          const canPreview = wholeLaneVisible && members.length >= 2;
           const preview = element("div");
           const selectedTickets = element("input");
           selectedTickets.dataset.previewLane = lane.id;
@@ -2809,9 +2844,10 @@ async function load(savedAvailability) {
           selectedTickets.disabled = !canPreview;
           column.append(selectedTickets, previewButton, preview);
         }
-        if (completed && lane.role === "ready_for_review" && lane.approval_enabled
-            && members.length > 0 && members.length <= MAX_LANE_APPROVAL_CARDS) {
-          const versions = members.map(({ id, revision }) => ({ id, revision }));
+        const canApprove = completed && lane.role === "ready_for_review" && lane.approval_enabled
+          && members.length > 0 && members.length <= MAX_LANE_APPROVAL_CARDS;
+        if (canApprove && wholeLaneVisible) {
+          const versions = matches.map(({ id, revision }) => ({ id, revision }));
           const cardIds = versions.map(({ id }) => id);
           column.append(form("Approve all in lane", [], (submit) => {
             if (view !== activeView || !column.isConnected) return;
@@ -2838,7 +2874,10 @@ async function load(savedAvailability) {
             }, "Lane approved and moved to Completed.", inspection);
           }));
         }
-        for (const card of members) {
+        if (!wholeLaneVisible && (canApprove || (lane.reorder_enabled && members.length >= 2))) {
+          column.append(element("p", "Clear the filter to use lane-wide actions."));
+        }
+        for (const card of matches) {
           const opener = cardOpener(card);
           column.append(opener);
           if (card.cover_attachment_id) {
@@ -2851,9 +2890,14 @@ async function load(savedAvailability) {
         }
         return column;
       }));
+      const count = query ? matchingCount + " of " + visibleCards.length + " cards match"
+        : countLabel(visibleCards.length, "card");
+      if (filterCount.textContent !== count) filterCount.textContent = count;
       restoreScroll();
-      if (focusedId) [...columns.querySelectorAll("button")].find((control) =>
-        control.dataset.cardId === focusedId)?.focus({ preventScroll: true });
+      if (focusedId) {
+        const opener = [...columns.querySelectorAll("button")].find((control) => control.dataset.cardId === focusedId);
+        (opener ?? filter).focus({ preventScroll: true });
+      }
       if (focusedAdd) findAddButton(focusedAdd)?.focus({ preventScroll: true });
       if (focusedPreview) [...columns.querySelectorAll("input")].find((control) =>
         control.dataset.previewLane === focusedPreview)?.focus({ preventScroll: true });
@@ -3067,7 +3111,7 @@ async function load(savedAvailability) {
     };
     renderCards(cards, boardTag);
     main.replaceChildren(element("h1", board.name), updates.panel, editor, search.panel, recent,
-      laneEditor.editor, boardActions, columns, archived);
+      laneEditor.editor, boardActions, filterBar, columns, archived);
     retainBoardView = () => {
       retainScroll();
       search.retain();
@@ -3080,10 +3124,10 @@ async function load(savedAvailability) {
     updates.start();
     const ticketValue = new URLSearchParams(location.search).get("ticket");
     const selectedCard = rememberedCard(boardId, ticketValue);
-    if (selectedCard && refresh) {
+    if (selectedCard) {
       const opener = [...columns.querySelectorAll("button")].find((control) => control.dataset.cardId === selectedCard);
       void openCard(board.id, { id: selectedCard }, lanes, users, priorities, () => boardTag, reloadBoard,
-        currentWorkflow, opener ?? refresh, () => board.actor_presentation, true);
+        currentWorkflow, opener ?? filter, () => board.actor_presentation, true);
       restoreScroll();
       return;
     }
@@ -3099,9 +3143,9 @@ async function load(savedAvailability) {
         if (view === activeView && cardView === activeCard) announce("error", readError(error));
         return;
       }
-      if (view !== activeView || cardView !== activeCard || !refresh) return;
+      if (view !== activeView || cardView !== activeCard) return;
       if (selected) void openCard(board.id, selected, lanes, users, priorities, () => boardTag, reloadBoard,
-        currentWorkflow, refresh, () => board.actor_presentation);
+        currentWorkflow, filter, () => board.actor_presentation);
       else announce("error", "This ticket is unavailable.");
     }
   } catch (error) {
@@ -3655,6 +3699,18 @@ refresh.addEventListener("click", () => {
   else void load();
 });
 details.addEventListener("paste", (event) => activeDrawer?.pasteAttachments(event));
+window.addEventListener("keydown", (event) => {
+  if (event.defaultPrevented || event.isComposing || event.repeat || event.key !== "/"
+      || event.altKey || event.ctrlKey || event.metaKey) return;
+  const target = event.target;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement
+      || (target instanceof HTMLElement && target.isContentEditable)) return;
+  const filter = main?.querySelector("#board-filter");
+  if (!(filter instanceof HTMLInputElement)) return;
+  event.preventDefault();
+  filter.focus();
+  filter.select();
+});
 window.addEventListener("popstate", () => void load());
 window.addEventListener("pagehide", () => retainBoardView?.());
 void load();

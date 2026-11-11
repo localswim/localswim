@@ -41,6 +41,10 @@ header a { color: inherit; font-size: 1.3rem; font-weight: 700; }
 [data-attention=ready_for_review] { --attention-bg: #d7e9fd; --attention-ink: #164177; }
 main { flex: 1; min-width: 0; }
 #details { flex: 0 0 min(26rem, 40vw); }
+.board-filter, .board-filter label { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.board-filter { margin-block: 0.7rem; }
+.board-filter input { max-inline-size: 100%; }
+.board-filter [role=status] { font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 .lanes { display: flex; gap: 0.65rem; overflow: auto; }
 .lane { flex: 0 0 13rem; max-block-size: max(16rem, 70dvh); overflow-y: auto; }
 .lane > input { max-inline-size: 100%; }

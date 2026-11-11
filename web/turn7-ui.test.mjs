@@ -74,6 +74,7 @@ async function harness(api, pathname = "/boards/" + board, {
     querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; }
   }
   class Input extends Element {
+    select() { this.selectedText = this.value; }
     get valueAsNumber() { return Number(this.value); }
     get willValidate() {
       for (let ancestor = this.parent; ancestor; ancestor = ancestor.parent) {
@@ -105,6 +106,7 @@ async function harness(api, pathname = "/boards/" + board, {
   const window = {sessionStorage: storage, addEventListener: (name, handler) => { windowEvents[name] = handler; }};
   class StyleSheet { replaceSync(text) { this.text = text; } }
   const context = vm.createContext({document, window, CSSStyleSheet: StyleSheet,
+    HTMLElement: Element,
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
     Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, MAX_ATTACHMENT_BYTES, newOperationId,
@@ -135,7 +137,14 @@ async function harness(api, pathname = "/boards/" + board, {
     windowEvents.popstate();
     await settled();
   }
+  function keydown(target, key, options = {}) {
+    const event = {target, key, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...options};
+    if (target.dispatch("keydown", event)) return true;
+    windowEvents.keydown(event);
+    return event.defaultPrevented;
+  }
   return {nodes, downloads, ...context.hooks, settled, find, field, submit, submitValidated, navigate, popstate,
+    keydown,
     pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement,
     stylesheet: () => document.adoptedStyleSheets[0].text};
 }
@@ -337,6 +346,106 @@ test("lane totals and card counts render authoritative comment and detach readba
   ]);
 });
 
+test("inline filter matches literal titles and tickets while keeping drawer drafts and guarded lane actions", async () => {
+  const {api} = boardApi();
+  const original = {...(await api.getCard()).data, title: "Review [Café]"};
+  const second = {...original, id: backup, ticket: 12, title: "Review code"};
+  const ready = {...(await api.listLanes()).data.lanes[0], role: "ready_for_review",
+    approval_enabled: true, reorder_enabled: true};
+  api.listLanes = async () => page("lanes", [ready, {...ready, id: priority, label: "Completed",
+    role: "completed", position: 1, approval_enabled: false, reorder_enabled: false}]);
+  const getLanes = api.getBoardLanes;
+  api.getBoardLanes = async () => {
+    const reply = await getLanes();
+    return {...reply, data: {...reply.data, cards: [original, second]}};
+  };
+  api.getCard = async () => ({data: original, etag: tag(card, 1)});
+  const previews = [];
+  const writes = [];
+  const current = [{card_id: card, ticket: 1}, {card_id: backup, ticket: 12}];
+  api.previewTicketOrder = async (id, laneId, ids) => {
+    previews.push([id, laneId, [...ids]]);
+    return {data: {board_revision: 1, current, changed: true,
+      proposed: [{card_id: backup, ticket: 1}, {card_id: card, ticket: 12}]}, etag: tag(board, 1)};
+  };
+  api.applyTicketOrder = async (...args) => writes.push(args);
+  api.approveLane = async (...args) => writes.push(args);
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details, refresh} = ui.nodes;
+  const filter = ui.field(main, "Filter by title or ticket");
+  const find = (label) => ui.find(main, "button", label);
+  const total = (label) => ui.find(main, "h2", label).children[0].textContent;
+  const count = () => main.querySelectorAll("span").find(({attributes}) => attributes.role === "status").textContent;
+  const setFilter = (value) => { filter.value = value; filter.dispatch("input"); };
+  const previewInput = () => main.querySelectorAll("input").find(({dataset}) => dataset.previewLane === lane);
+  const approve = find("Approve all in lane");
+  previewInput().value = "1, 12";
+  find("Preview ticket order").click();
+  await ui.settled();
+  const apply = find("Apply ticket order");
+  assert.ok(apply);
+  assert.ok(approve);
+  assert.equal(count(), "2 cards");
+
+  assert.equal(ui.keydown(refresh, "/", {ctrlKey: true}), false);
+  assert.equal(ui.keydown(refresh, "/", {isComposing: true}), false);
+  assert.equal(ui.keydown(refresh, "/"), true);
+  assert.equal(ui.focused(), filter);
+  setFilter(" [CAFÉ] ");
+  assert.equal(count(), "1 of 2 cards match");
+  assert.equal(total("Ready"), "1 of 2 cards");
+  assert.equal(total("Completed"), "0 of 0 cards");
+  assert.equal(find("#12 Review code"), undefined);
+  assert.equal(find("Approve all in lane"), undefined);
+  assert.equal(find("Preview ticket order").disabled, true);
+  find("Preview ticket order").click();
+  approve.parent.dispatch("submit");
+  apply.parent.dispatch("submit");
+  await ui.settled();
+  assert.deepEqual(writes, []);
+  assert.deepEqual(previews, [[board, lane, [card, backup]]]);
+
+  find("#1 Review [Café]").click();
+  await ui.settled();
+  const comment = ui.field(details, "Comment");
+  comment.value = "Draft / path";
+  comment.focus();
+  assert.equal(ui.keydown(comment, "/"), false);
+  assert.equal(ui.focused(), comment);
+  assert.equal(ui.keydown(details.querySelector("h2"), "/"), true);
+  assert.equal(filter.selectedText, " [CAFÉ] ");
+  assert.equal(ui.keydown(filter, "Escape", {isComposing: true}), false);
+  assert.equal(filter.value, " [CAFÉ] ");
+  assert.equal(ui.keydown(filter, "Escape"), true);
+  assert.equal(filter.value, "");
+  assert.equal(previewInput().value, "1, 12");
+  assert.equal(find("Preview ticket order").disabled, false);
+  assert.ok(find("Approve all in lane"));
+  assert.equal(find("Apply ticket order"), undefined);
+  assert.equal(details.hidden, false);
+  assert.equal(comment.value, "Draft / path");
+
+  setFilter("#12");
+  assert.ok(find("#12 Review code"));
+  assert.equal(find("#1 Review [Café]"), undefined);
+  setFilter("Original description");
+  assert.equal(count(), "0 of 2 cards match");
+  setFilter(".*");
+  assert.equal(count(), "0 of 2 cards match");
+  ui.find(details, "button", "Close card").click();
+  assert.equal(ui.focused(), filter);
+  assert.equal(ui.keydown(filter, "Escape"), true);
+  find("#1 Review [Café]").click();
+  await ui.settled();
+  assert.equal(ui.field(details, "Comment").value, "Draft / path");
+  setFilter("Review");
+  assert.equal(total("Ready"), "2 of 2 cards");
+  assert.ok(find("Approve all in lane"));
+  assert.ok(ui.find(main, "summary", "Find cards"));
+});
+
 test("Back, Forward and reload restore each board's own search, drawer and lane scroll in one tab", async () => {
   const {api} = boardApi();
   const other = "c431860a-123f-422e-975f-dc6ffcb21727";
@@ -366,6 +475,11 @@ test("Back, Forward and reload restore each board's own search, drawer and lane 
   const searchPanel = (ui) => ui.find(ui.nodes.main, "summary", "Find cards").parent;
   const columns = (ui) => ui.nodes.main.querySelectorAll("div").find((node) => node.className === "lanes");
   const query = (ui) => ui.field(searchPanel(ui), "Title or ticket");
+  const filter = (ui) => ui.field(ui.nodes.main, "Filter by title or ticket");
+  function setFilter(ui, value) {
+    filter(ui).value = value;
+    filter(ui).dispatch("input");
+  }
   await ui.load();
   searchPanel(ui).open = true;
   query(ui).value = "Original";
@@ -376,19 +490,23 @@ test("Back, Forward and reload restore each board's own search, drawer and lane 
   query(ui).value = "Unsubmitted text";
   ui.find(ui.nodes.main, "button", "#1 Original").click();
   await ui.settled();
+  setFilter(ui, "#1");
   columns(ui).scrollLeft = 88;
   columns(ui).children[0].scrollTop = 320;
   await ui.navigate(otherUrl);
   assert.equal(ui.nodes.details.hidden, true);
   assert.equal(query(ui).value, "");
+  assert.equal(filter(ui).value, "");
   assert.equal(columns(ui).children[0].scrollTop, 0);
   query(ui).value = "Second query";
+  setFilter(ui, "Second filter");
   ui.field(searchPanel(ui), "Search lane").value = otherLane;
   columns(ui).children[0].scrollTop = 130;
 
   await ui.popstate(url);
   assert.equal(searchPanel(ui).open, true);
   assert.equal(query(ui).value, "Unsubmitted text");
+  assert.equal(filter(ui).value, "#1");
   assert.equal(ui.field(searchPanel(ui), "Search lane").value, lane);
   assert.equal(columns(ui).scrollLeft, 88);
   assert.equal(columns(ui).children[0].scrollTop, 320);
@@ -398,6 +516,7 @@ test("Back, Forward and reload restore each board's own search, drawer and lane 
   assert.deepEqual(searches.map(({id, q}) => [id, q]), [[board, "Original"], [board, "Original"]]);
   await ui.popstate(otherUrl);
   assert.equal(query(ui).value, "Second query");
+  assert.equal(filter(ui).value, "Second filter");
   assert.equal(ui.field(searchPanel(ui), "Search lane").value, otherLane);
   assert.equal(columns(ui).children[0].scrollTop, 130);
   assert.equal(ui.nodes.details.hidden, true);
@@ -409,6 +528,7 @@ test("Back, Forward and reload restore each board's own search, drawer and lane 
   await reloaded.load();
   await reloaded.settled();
   assert.equal(query(reloaded).value, "Unsubmitted text");
+  assert.equal(filter(reloaded).value, "#1");
   assert.equal(columns(reloaded).children[0].scrollTop, 275);
   assert.equal(reloaded.nodes.details.querySelector("h2").textContent, "#1 Original");
   reloaded.find(reloaded.nodes.details, "button", "Close card").click();
@@ -419,6 +539,7 @@ test("Back, Forward and reload restore each board's own search, drawer and lane 
   const separate = await harness(api, url);
   await separate.load();
   assert.equal(query(separate).value, "");
+  assert.equal(filter(separate).value, "");
   assert.equal(columns(separate).children[0].scrollTop, 0);
   assert.equal(separate.nodes.details.hidden, true);
 });

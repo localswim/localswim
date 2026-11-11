@@ -61,6 +61,19 @@ A failed push can recover automatically without another edit. If a settings
 save has an uncertain outcome, the browser reads the saved setting before
 another submission and keeps the draft available for comparison.
 
+## Board availability
+
+Members with the board's `close_board` grant can select **Close board** under
+**Board actions**. A closed board stays at the same address and offers **Reopen
+board** to those members. Other boards and the Workspace remain available. The
+browser keeps the selected card and unsaved card, add-card, lane, and publishing
+drafts in memory for reopening in the same tab.
+
+Each action sends one availability PATCH with the board's current HTTP ETag.
+The browser reads the saved board after success, a stale validator, or an
+uncertain response. If readback fails, use **Inspect saved board** or **Refresh**
+before submitting another change. The browser never replays the PATCH.
+
 ## Browser API client
 
 `api.mjs` is a dependency-free ES module for the same-origin V2 API. It calls

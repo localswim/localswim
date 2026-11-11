@@ -1318,11 +1318,17 @@ paths:
       - 32
       - 35
       - 37
-      description: Closing a board drains admitted work and flushes its publisher without closing other
-        boards. Failed flush preserves availability for inspection. Notification settings default off;
-        target changes preserve enabled state. Updating automatic publishing requires the board publish
-        capability. Replacing user_ids requires workspace_admin and manage_permissions, validates
-        all references, and refuses removing members needed by retained state/history or grants.
+      description: Changing availability requires close_board. Closing a board drains admitted operations
+        on that board and flushes the final accepted open revision if automatic publishing is enabled.
+        Failed flush returns 503 and leaves the board open with publishing status available for inspection.
+        A successful availability change commits one audited board revision. Board and policy metadata,
+        the catalog, shared events, and authorized activity, publication, verification and snapshot
+        inspection remain available. Operational requests on a closed or draining board return 503.
+        Reopening validates the saved snapshot at the same board address and uses the current validator.
+        Notification settings default off. Target changes preserve enabled state. Updating automatic
+        publishing requires the board publish capability. Replacing user_ids requires workspace_admin
+        and manage_permissions, validates all references, and refuses removing members needed by retained
+        state/history or grants.
       requestBody:
         required: true
         content:
@@ -18028,6 +18034,7 @@ x-runtime-requirements:
     global labels/colors remain current, even when an older snapshot contains earlier display metadata.
     Snapshot metadata remains historical evidence. Creating missing global users requires the separate
     workspace-admin user operation.
+    Recovery preserves the accepted board availability. A mismatching snapshot is refused.
 x-notification-worker:
   trigger: Only committed, actual Human card edits while the board setting is enabled.
   quietSeconds: 15
@@ -18050,6 +18057,9 @@ x-publishing-worker:
     Publishing progress does not advance data revisions. While live status is visible, an exact matching
     revision tag still returns current status. After a disabled restart, durable publishing history is
     loaded on re-enable.
+  boardClose: Stop new work on the selected board and drain its admitted operations. With publishing
+    enabled, flush the final accepted open revision before committing closed availability. Refuse close
+    when the flush fails. Resume enabled publishing when the board reopens.
   shutdown: The explicit shutdown and activation operations in milestone 39 flush enabled publishers before
     success. A failed final push leaves the service available with failure status.
 

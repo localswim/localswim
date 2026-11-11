@@ -80,12 +80,13 @@ func (s *Service) Close() error {
 }
 
 type request struct {
-	w       http.ResponseWriter
-	r       *http.Request
-	service *Service
-	id      string
-	actor   string
-	port    int
+	w         http.ResponseWriter
+	r         *http.Request
+	service   *Service
+	id        string
+	actor     string
+	port      int
+	boardDone func()
 }
 
 func (s *Service) Handler(address *net.TCPAddr) http.Handler {
@@ -135,6 +136,11 @@ func (s *Service) Handler(address *net.TCPAddr) http.Handler {
 			x.id = id
 			h.Set("X-Request-ID", id)
 		}
+		defer func() {
+			if x.boardDone != nil {
+				x.boardDone()
+			}
+		}()
 		if !x.serveBrowser() {
 			x.dispatch()
 		}
@@ -244,6 +250,10 @@ func (x *request) fail(err error) {
 		x.problem(409, "conflict", "The replacement must retain existing grants, resource permissions, and the default priority.", "", nil)
 	case errors.Is(err, errWriteUncertain):
 		x.problem(503, "outcome_unknown", "Inspect the saved state before attempting another write.", "unknown", nil)
+	case errors.Is(err, errBoardUnavailable):
+		x.problem(503, "unavailable", "This board is closed or draining.", "", nil)
+	case errors.Is(err, errBoardFlush):
+		x.problem(503, "unavailable", "Board publication could not be flushed. The board is still open.", "", nil)
 	case errors.Is(err, errWorkspaceUnavailable), errors.Is(err, errInvalidSnapshot):
 		x.problem(503, "unavailable", "Durable state is unavailable.", "", nil)
 	default:
@@ -269,7 +279,8 @@ type problemBody struct {
 func (x *request) problem(status int, code, detail, outcome string, issues []fieldIssue) {
 	if outcome == "" {
 		outcome = "not_applicable"
-		if x.r.Method == "POST" || x.r.Method == "PATCH" || x.r.Method == "PUT" {
+		switch x.r.Method {
+		case http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodDelete:
 			outcome = "not_applied"
 		}
 	}

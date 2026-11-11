@@ -51,6 +51,10 @@ let retainBoardDraft;
 const cardDrafts = new Map();
 /** @type {Map<string, string[]>} */
 const boardDrafts = new Map();
+/** @type {Map<string, string>} */
+const suspendedSelections = new Map();
+/** @type {{boardId: string, id: string, address: string}|undefined} */
+let cardSelection;
 /** @type {Map<string, boolean>} */
 const publishingDrafts = new Map();
 /** @type {Map<string, Promise<void>>} */
@@ -345,12 +349,13 @@ function createInspection(region, isCurrent, read, resource, scope) {
       void readWithSession(async () => {
         if (!pending) return read();
         const confirmed = await pending.read();
-        if (!pending.isCurrent()) await read();
+        if (!pending.isCurrent() && isCurrent()) await read();
         return confirmed;
       }).then((confirmed) => {
-        pendingInspections.delete(scope);
+        if (pendingInspections.get(scope) === pending) pendingInspections.delete(scope);
+        if (cardInspection?.scope === scope) cardInspection.sync();
+        if (boardInspection?.scope === scope) boardInspection.sync();
         if (!isCurrent()) return;
-        setSubmissionsDisabled(false);
         if (confirmed === false) {
           announce("unknown", "The submission could not be confirmed. Compare the saved state with your draft.");
         } else {
@@ -517,6 +522,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
   activeDrawer = undefined;
   const view = details;
   const cardView = ++activeCard;
+  cardSelection = { boardId, id: summary.id, address: location.pathname + location.search };
   view.hidden = false;
   delete view.dataset.unavailable;
   view.replaceChildren(element("p", "Loading card…"));
@@ -588,6 +594,8 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       cardInspection = undefined;
       activeComment = undefined;
       activeDrawer = undefined;
+      cardSelection = undefined;
+      suspendedSelections.delete(boardId);
       ++activeCard;
       view.hidden = true;
       view.replaceChildren();
@@ -1248,8 +1256,33 @@ function renderWorkspacePreferences(boards, showSavedOrder, initial, inspection)
   return { panel, showBoards, inspect, retain };
 }
 
-async function load() {
+function boardAtLocation() {
+  return location.pathname.match(/^\/boards\/([0-9a-f-]{36})\/?$/i)?.[1]?.toLowerCase();
+}
+
+/** @param {string} boardId */
+function selectedCardId(boardId) {
+  return cardSelection?.boardId === boardId ? cardSelection.id : undefined;
+}
+
+/** @param {import("./api.mjs").BoardAvailability} board @param {unknown} principalId */
+async function canSetAvailability(board, principalId) {
+  if (typeof principalId !== "string" || board.availability === "unhealthy") return false;
+  try {
+    const reply = await readWithSession(() => api.getPolicy(board.policy_id));
+    const policy = /** @type {{id?: unknown, board_id?: unknown, resource_grants?: {user_id?: unknown, capabilities?: unknown}[]}} */ (reply.data);
+    return policy.id === board.policy_id && policy.board_id === board.id && Array.isArray(policy.resource_grants)
+      && policy.resource_grants.some((grant) => grant?.user_id === principalId && Array.isArray(grant.capabilities)
+        && grant.capabilities.includes("close_board"));
+  } catch {
+    return false;
+  }
+}
+
+/** @param {Awaited<ReturnType<typeof api.getBoardAvailability>>} [savedAvailability] */
+async function load(savedAvailability) {
   if (!identity || !navigation || !main || !details) return;
+  if (cardSelection?.address !== location.pathname + location.search) cardSelection = undefined;
   retainCardDraft?.();
   retainBoardDraft?.();
   releaseCardMedia?.();
@@ -1276,10 +1309,10 @@ async function load() {
       api.getSession(), /** @type {Promise<BoardSummary[]>} */ (collect(api.listBoards, "boards")),
     ]);
     if (view !== activeView) return;
-    const context = /** @type {{kind?: unknown, workspace_admin?: unknown}} */ (session.data);
+    const context = /** @type {{kind?: unknown, principal_id?: unknown, workspace_admin?: unknown}} */ (session.data);
     if (context.kind !== "human") throw new ApiError("invalid_response");
     identity.textContent = "Human";
-    const boardId = location.pathname.match(/^\/boards\/([0-9a-f-]{36})\/?$/i)?.[1]?.toLowerCase();
+    const boardId = boardAtLocation();
     /** @type {string[]} */
     let visiblePins = [];
     /** @param {BoardSummary[]} rows */
@@ -1355,11 +1388,72 @@ async function load() {
         showBoards(boards);
       }
     });
-    const [{ board: boardReply, lanes, cards, priorities }, users] = await Promise.all([
-      readBoardContents(boardId),
+    const readAvailability = () => api.getBoardAvailability(boardId);
+    let metadata = savedAvailability?.data.id === boardId ? savedAvailability : await readAvailability();
+    const readContents = () => Promise.all([readBoardContents(boardId),
       /** @type {Promise<User[]>} */ (collect((cursor) => api.listUsers(boardId, cursor), "users")),
     ]);
+    /** @type {Awaited<ReturnType<typeof readContents>>|undefined} */
+    let contents;
+    if (metadata.data.availability === "open") {
+      try {
+        contents = await readContents();
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 503) throw error;
+        metadata = await readAvailability();
+        if (metadata.data.availability === "open") throw error;
+      }
+    }
+    const allowed = await canSetAvailability(metadata.data, context.principal_id);
     if (view !== activeView) return;
+
+    /** @param {Awaited<ReturnType<typeof readAvailability>>} latest */
+    async function showAvailability(latest) {
+      if (view !== activeView) return;
+      await load(latest);
+    }
+
+    /** @param {import("./api.mjs").AvailabilityChange} requested @param {() => string} currentTag
+     * @param {(latest: Awaited<ReturnType<typeof readAvailability>>) => Promise<void>} refreshCurrent @param {Inspection} inspection */
+    function availabilityForm(requested, currentTag, refreshCurrent, inspection) {
+      return form(requested === "open" ? "Reopen board" : "Close board", [], (submit) => {
+        const expected = currentTag();
+        const { id, availability: prior } = metadata.data;
+        const selected = requested === "closed" ? selectedCardId(id) : undefined;
+        void writeResource(submit, () => api.setBoardAvailability(id, requested, expected), async () => {
+          const latest = await readAvailability();
+          if (latest.data.availability === "closed" && view !== activeView && selected !== undefined) {
+            suspendedSelections.set(id, selected);
+          }
+          if (latest.data.availability !== prior) {
+            if (view === activeView) await showAvailability(latest);
+            else if (boardAtLocation() === id) await load();
+          } else if (view === activeView) await refreshCurrent(latest);
+          return latest.data.availability === requested && latest.etag !== expected;
+        }, requested === "open" ? "Board reopened." : "Board closed.", inspection);
+      });
+    }
+
+    if (!contents) {
+      const selected = selectedCardId(boardId);
+      if (selected !== undefined) suspendedSelections.set(boardId, selected);
+      cardSelection = undefined;
+      const message = metadata.data.availability === "closed" ? "This board is closed." : "This board is unhealthy.";
+      const inspection = createInspection(main, () => view === activeView,
+        async () => showAvailability(await readAvailability()), "board", "board:" + boardId);
+      boardInspection = inspection;
+      main.replaceChildren(element("h1", metadata.data.name), element("p", message),
+        button(inspection.label, inspection.inspect));
+      if (allowed && metadata.data.availability === "closed") {
+        main.append(availabilityForm("open", () => metadata.etag, async (latest) => {
+          metadata = latest;
+        }, inspection));
+      }
+      inspection.sync();
+      announce(metadata.data.availability === "closed" ? "ready" : "error", message);
+      return;
+    }
+    const [{ board: boardReply, lanes, cards, priorities }, users] = contents;
     const board = /** @type {Board} */ (boardReply.data);
     let boardTag = etag(boardReply);
     let currentCards = cards;
@@ -1625,9 +1719,17 @@ async function load() {
     });
 
     async function reloadBoard() {
-      const [latest, latestUsers] = await Promise.all([readBoardContents(board.id),
-        /** @type {Promise<User[]>} */ (collect((cursor) => api.listUsers(board.id, cursor), "users")),
-      ]);
+      let next;
+      try {
+        next = await readContents();
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 503) throw error;
+        const latest = await readAvailability();
+        if (latest.data.availability === "open") throw error;
+        await showAvailability(latest);
+        return;
+      }
+      const [latest, latestUsers] = next;
       if (view !== activeView) return;
       users.splice(0, users.length, ...latestUsers);
       const updatedBoard = /** @type {Board} */ (latest.board.data);
@@ -1659,6 +1761,7 @@ async function load() {
       () => api.getBoardPublishing(board.id),
       (enabled, tag) => api.configureBoardPublishing(board.id, enabled, tag), reloadBoard, inspection);
     boardActions.append(boardPublishing.panel);
+    if (allowed) boardActions.append(availabilityForm("closed", () => boardTag, reloadBoard, inspection));
     const search = renderCardSearch(board.id, lanes, (card, opener) => {
       if (!writing) void openCard(board.id, card, lanes, users, priorities, () => boardTag, reloadBoard, opener);
     });
@@ -1671,6 +1774,12 @@ async function load() {
     main.replaceChildren(element("h1", board.name), editor, search.panel, recent, laneEditor.editor, boardActions, columns, archived);
     inspection.sync();
     announce("ready", "Board loaded.");
+    const selectedCard = selectedCardId(boardId) ?? suspendedSelections.get(boardId);
+    if (selectedCard && refresh) {
+      suspendedSelections.delete(boardId);
+      void openCard(board.id, { id: selectedCard }, lanes, users, priorities, () => boardTag, reloadBoard, refresh);
+      return;
+    }
     const ticketValue = new URLSearchParams(location.search).get("ticket");
     if (ticketValue !== null) {
       const ticket = Number(ticketValue);

@@ -257,6 +257,9 @@ func (x *request) createPublication() {
 		x.fail(errForbidden)
 		return
 	}
+	if !x.useBoard(boardID) {
+		return
+	}
 	backup, err := readBackup(x.service.store.root, backupID)
 	if err != nil {
 		x.backupFailure(err)

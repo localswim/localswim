@@ -82,6 +82,9 @@ func (x *request) ticketOrderResource(id string) {
 			x.fail(invalid("lane_id", "Expected an active lane."))
 			return
 		}
+		if !x.useBoard(state.Board.ID) {
+			return
+		}
 		value, err := previewTicketOrder(&state, id, ids, preview)
 		if err != nil {
 			x.fail(err)

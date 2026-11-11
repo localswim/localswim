@@ -174,6 +174,23 @@ through the explicit settings command before restoring.
 A Git transport helper can outlive Git's timeout. The worker retains its lock
 while the admitted command joins.
 
+Use `board close [--revision N] BOARD_ID` and
+`board reopen [--revision N] BOARD_ID` to change availability at the existing
+board address. The revision option checks the board revision and the write uses
+its current HTTP validator. Both commands require the board's `close_board`
+capability and return the resulting Board document.
+
+Close drains admitted operations on that board. If its accepted publishing
+settings are enabled, the publisher flushes the final accepted open revision
+before the closed revision is saved. A failed flush leaves the board open with
+publishing status available for inspection. While closed, board metadata and
+the workspace remain available, and the other boards continue on the same
+listener. Reopen restores access to the saved board and restarts enabled
+publishing. If the service restarts with the board closed, the reopened worker
+loads the durable publication checkpoint. After an uncertain write, inspect
+`board get BOARD_ID` before
+choosing whether to try again.
+
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
 Unicode. Entity and build IDs are immutable UUIDv4 values. The service_instance_id
 uses UUIDv7, with the instance creation time encoded as Unix milliseconds.

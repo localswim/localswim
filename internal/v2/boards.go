@@ -99,6 +99,9 @@ func (x *request) boardResource(id string) {
 		return
 	}
 	if strings.EqualFold(view, "lanes") {
+		if !x.useBoard(id) {
+			return
+		}
 		x.boardLanes(s)
 		return
 	}
@@ -121,11 +124,11 @@ func (x *request) patchBoard(s snapshot) {
 		x.fail(err)
 		return
 	}
-	if err = rejectFields(obj, []string{"name", "notifications", "default_owner_id", "publishing"}, false); err != nil {
+	if err = rejectFields(obj, []string{"name", "notifications", "default_owner_id", "publishing", "availability"}, false); err != nil {
 		x.fail(err)
 		return
 	}
-	for _, name := range []string{"availability", "user_ids", "user_css"} {
+	for _, name := range []string{"user_ids", "user_css"} {
 		if _, ok := obj[name]; ok {
 			x.fail(invalid(name, "This patch field is not available."))
 			return
@@ -135,26 +138,44 @@ func (x *request) patchBoard(s snapshot) {
 	defaultOwner, hasDefaultOwner := obj["default_owner_id"]
 	raw, hasNotifications := obj["notifications"]
 	publishingInput, hasPublishing := obj["publishing"]
-	if !hasName && !hasNotifications && !hasDefaultOwner && !hasPublishing {
+	availabilityInput, hasAvailability := obj["availability"]
+	hasSettings := hasName || hasNotifications || hasDefaultOwner || hasPublishing
+	if !hasSettings && !hasAvailability {
 		x.fail(invalid("body", "A supported change is required."))
 		return
 	}
 	authorized := func(s snapshot) bool {
 		return s.can(x.actor, "read") && (!(hasName || hasDefaultOwner) || s.can(x.actor, "manage_board")) &&
-			(!hasNotifications || s.can(x.actor, "manage_notifications")) && (!hasPublishing || s.can(x.actor, "publish"))
+			(!hasNotifications || s.can(x.actor, "manage_notifications")) && (!hasPublishing || s.can(x.actor, "publish")) &&
+			(!hasAvailability || s.can(x.actor, "close_board"))
 	}
 	if !authorized(s) {
 		x.fail(errForbidden)
 		return
 	}
-	next, err := x.service.store.update(s.Board.ID, expected, func(s *snapshot) error {
-		if !authorized(*s) {
-			return errForbidden
+	var availability string
+	if hasAvailability {
+		value, err := textField(availabilityInput, "availability", 4, 6)
+		if err != nil {
+			x.fail(err)
+			return
 		}
+		availability = strings.ToLower(value)
+		if availability != "open" && availability != "closed" {
+			x.fail(invalid("availability", "Expected open or closed."))
+			return
+		}
+	}
+	next, err := x.service.store.patchBoard(s.Board.ID, expected, availability, hasSettings, authorized, func(s *snapshot) error {
 		now := canonicalTime(time.Now())
 		appendChange := func(field string, before, after *string) {
 			s.Activity = append(s.Activity, activity{ID: newID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
 				ActorID: x.actor, Operation: "patch", ResourceType: "board", ResourceID: s.Board.ID, Field: &field, Before: before, After: after})
+		}
+		if hasAvailability && availability != s.Board.Availability {
+			before := s.Board.Availability
+			appendChange("availability", &before, &availability)
+			s.Board.Availability = availability
 		}
 		if hasName {
 			value, err := textField(name, "name", 1, 256)
@@ -218,6 +239,7 @@ func (x *request) patchBoard(s snapshot) {
 		return
 	}
 	value := x.service.store.boardPublishingStatus(next.Board)
+	x.w.Header().Set("X-Board-ETag", value.ETag)
 	x.respond(200, value, value.ETag)
 }
 
@@ -237,6 +259,9 @@ func (x *request) workflowCollection(resource string) {
 	s, ok := x.service.store.accepted(id)
 	if !ok || !s.can(x.actor, "read") {
 		x.fail(errMissing)
+		return
+	}
+	if !x.useBoard(id) {
 		return
 	}
 	switch resource {

@@ -46,6 +46,14 @@ Item writes use the addressed resource's strong ETag. Operations spanning resour
 
 The proposed security baseline is one loopback origin, exact authority checks, separate runtime-issued Human and Bot capabilities, and authenticated API calls. A same-origin browser bootstrap issues a separate, process-scoped Human capability. Foreign/null origins are refused. CORS grants name only the configured origin and enumerated headers/methods. Tokens stay out of URLs, persisted browser storage, logs, and error bodies. Browser streaming and file reads use authenticated fetch.
 
+Board lifecycle uses `PATCH /boards/{board_id}` with a board validator and
+the board's `close_board` grant. Close drains admitted board operations and
+flushes any enabled publisher through the last accepted open revision. The
+availability change then commits as one audited revision. On flush failure,
+the board remains open. Board metadata, catalog entries and shared event
+streams remain readable across close and reopen. The same board ID, URL and
+stored cards survive the transition.
+
 Board recovery preserves existing global user configuration. A recovery candidate with an unknown or incompatible user identity refuses before mutation.
 
 A resolved workflow must permit creation in at least one active lane through a lane grant for a board member with the `create_card` capability. Every active lane reachable from a creation lane must have a path through allowed directed transitions to the Completed lane. Transitions along a path may be performed by different actors. Apply the shared validator after shorthand expansion at board creation, on lane retirement, on policy updates, and during native snapshot admission.

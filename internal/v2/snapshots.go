@@ -108,6 +108,9 @@ func (s *store) recoverSnapshot(boardID, actor, expected, eventID string, candid
 	if err := validateSnapshot(candidate, boardID); err != nil {
 		return snapshot{}, err
 	}
+	if candidate.Board.Availability != current.Board.Availability {
+		return snapshot{}, invalid("board.availability", "Use PATCH to change board availability.")
+	}
 	if !samePublishingSettings(current.Board.Publishing, candidate.Board.Publishing) {
 		return snapshot{}, invalid("board.publishing", "Use PATCH to reconcile publishing settings before restoring this snapshot.")
 	}
@@ -306,6 +309,9 @@ func (x *request) admitSnapshot(id string) {
 		x.fail(errForbidden)
 		return
 	}
+	if !x.useBoard(id) {
+		return
+	}
 	mediaType, params, err := mime.ParseMediaType(x.r.Header.Get("Content-Type"))
 	if err != nil || (mediaType != "application/json" && mediaType != "application/zip") ||
 		(params["charset"] != "" && !strings.EqualFold(params["charset"], "utf-8")) {
@@ -408,6 +414,9 @@ func (x *request) restoreBackup() {
 	}
 	if !state.can(x.actor, "restore") {
 		x.fail(errForbidden)
+		return
+	}
+	if !x.useBoard(boardID) {
 		return
 	}
 	item, err := readBackup(x.service.store.root, backupID)

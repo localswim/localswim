@@ -31,7 +31,7 @@ func (s *store) closeBoardPublishers() {
 
 // Called only with command admission held, after the snapshot is durable.
 func (s *store) boardPublishingCommitted(board board) {
-	if s.publishers == nil {
+	if s.publishers == nil || board.Availability != "open" {
 		return
 	}
 	publisher := s.publishers[board.ID]
@@ -41,10 +41,19 @@ func (s *store) boardPublishingCommitted(board board) {
 		}
 		return
 	}
+	var checkpoint publicationCheckpoint
+	if publisher != nil {
+		last, closed := publisher.closedCheckpoint()
+		if closed {
+			checkpoint = last
+			publisher = nil
+		}
+	}
 	if publisher == nil {
 		publisher = newAutomaticPublisher(s.root, board.ID, func() (publicationCapture, error) {
 			return s.captureBoardPublication(board.ID)
 		})
+		publisher.checkpoint = checkpoint
 		s.publishers[board.ID] = publisher
 	}
 	publisher.schedule()
@@ -65,7 +74,7 @@ func (s *store) captureBoardPublication(id string) (publicationCapture, error) {
 	var captured backupCapture
 	value, ok := s.boards[id]
 	err := s.writable()
-	if err == nil && ok && value.Board.Publishing.Enabled {
+	if err == nil && ok && value.Board.Availability == "open" && value.Board.Publishing.Enabled {
 		captured, err = s.captureSnapshotLocked(value)
 	} else {
 		err = errBackupIntegrity

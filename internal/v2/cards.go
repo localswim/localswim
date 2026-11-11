@@ -32,6 +32,9 @@ func (x *request) cardResource(id string) {
 		x.fail(errMissing)
 		return
 	}
+	if !x.useBoard(state.Board.ID) {
+		return
+	}
 	x.respond(http.StatusOK, value, value.entityTag())
 }
 
@@ -68,6 +71,9 @@ func (x *request) listCards() {
 	filters, err := readCardFilters(x.r)
 	if err != nil {
 		x.fail(err)
+		return
+	}
+	if !x.useBoard(id) {
 		return
 	}
 	rows := selectCards(state, filters)
@@ -204,7 +210,7 @@ func (x *request) createCard() {
 		x.fail(errIdentityConflict)
 		return
 	}
-	next, err := x.service.store.update(in.boardID, in.expected, func(s *snapshot) error {
+	next, err := x.updateBoard(in.boardID, in.expected, func(s *snapshot) error {
 		return in.apply(s, x.actor)
 	})
 	if err != nil {

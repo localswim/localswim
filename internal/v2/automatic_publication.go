@@ -60,6 +60,7 @@ type automaticPublisher struct {
 	mu         sync.Mutex
 	wake       chan struct{}
 	done       chan struct{}
+	flushes    chan chan error
 	started    bool
 	closed     bool
 	enabled    bool
@@ -74,7 +75,7 @@ type automaticPublisher struct {
 
 func newAutomaticPublisher(root, key string, capture func() (publicationCapture, error)) *automaticPublisher {
 	return &automaticPublisher{root: root, ref: publicationCheckpointRef(root, key), capture: capture,
-		wake: make(chan struct{}, 1), done: make(chan struct{})}
+		wake: make(chan struct{}, 1), done: make(chan struct{}), flushes: make(chan chan error)}
 }
 
 func (p *automaticPublisher) signal() {
@@ -123,6 +124,12 @@ func (p *automaticPublisher) stop() <-chan struct{} {
 	return nil
 }
 
+func (p *automaticPublisher) closedCheckpoint() (publicationCheckpoint, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.checkpoint, p.closed
+}
+
 func (p *automaticPublisher) close() {
 	if done := p.stop(); done != nil {
 		<-done
@@ -150,9 +157,33 @@ func (p *automaticPublisher) current(generation uint64) bool {
 	return p.enabled && !p.closed && generation == p.generation
 }
 
+// Flush runs on the publisher's worker, after any in-flight attempt. Its
+// caller must hold the corresponding command admission closed.
+func (p *automaticPublisher) flush() error {
+	p.mu.Lock()
+	ready := p.started && p.enabled && !p.closed
+	p.mu.Unlock()
+	if !ready {
+		return gitPublicationError("publication_failed")
+	}
+	result := make(chan error, 1)
+	select {
+	case p.flushes <- result:
+		return <-result
+	case <-p.done:
+		return gitPublicationError("publication_failed")
+	}
+}
+
 func (p *automaticPublisher) run() {
 	defer close(p.done)
 	for {
+		select {
+		case result := <-p.flushes:
+			result <- p.flushCurrent()
+			continue
+		default:
+		}
 		p.mu.Lock()
 		if p.closed {
 			p.mu.Unlock()
@@ -160,7 +191,7 @@ func (p *automaticPublisher) run() {
 		}
 		if !p.enabled || (!p.dirty && p.retryAt.IsZero()) {
 			p.mu.Unlock()
-			<-p.wake
+			p.wait(nil)
 			continue
 		}
 		now := time.Now()
@@ -171,27 +202,55 @@ func (p *automaticPublisher) run() {
 		if now.Before(due) {
 			p.mu.Unlock()
 			timer := time.NewTimer(time.Until(due))
-			select {
-			case <-timer.C:
-			case <-p.wake:
-			}
+			p.wait(timer.C)
 			timer.Stop()
 			continue
 		}
 		generation := p.generation
 		capture := p.dirty && !now.Before(p.quietUntil)
 		p.mu.Unlock()
-
-		checkpoint, loaded, captured, err := p.attempt(generation, capture)
-		p.mu.Lock()
-		if loaded {
-			p.checkpoint = checkpoint
-		}
-		if p.enabled && !p.closed {
-			p.recordAttempt(generation, captured, err)
-		}
-		p.mu.Unlock()
+		_ = p.runAttempt(generation, capture, false)
 	}
+}
+
+func (p *automaticPublisher) wait(timer <-chan time.Time) {
+	select {
+	case <-timer:
+	case <-p.wake:
+	case result := <-p.flushes:
+		result <- p.flushCurrent()
+	}
+}
+
+func (p *automaticPublisher) flushCurrent() error {
+	p.mu.Lock()
+	generation, dirty := p.generation, p.dirty
+	pending := p.checkpoint.Pending != nil || !p.retryAt.IsZero()
+	enabled := p.enabled && !p.closed
+	p.mu.Unlock()
+	if !enabled {
+		return gitPublicationError("publication_failed")
+	}
+	if !dirty && !pending {
+		return nil
+	}
+	return p.runAttempt(generation, dirty, true)
+}
+
+func (p *automaticPublisher) runAttempt(generation uint64, capture, flush bool) error {
+	checkpoint, loaded, captured, err := p.attempt(generation, capture, flush)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if loaded {
+		p.checkpoint = checkpoint
+	}
+	if p.enabled && !p.closed {
+		p.recordAttempt(generation, captured, err)
+	}
+	if flush && (!p.enabled || p.closed || p.generation != generation) {
+		return gitPublicationError("publication_failed")
+	}
+	return err
 }
 
 func (p *automaticPublisher) recordAttempt(generation uint64, captured bool, err error) {
@@ -214,7 +273,7 @@ func (p *automaticPublisher) recordAttempt(generation uint64, captured bool, err
 	p.retryAt = time.Now().Add(p.backoff)
 }
 
-func (p *automaticPublisher) attempt(generation uint64, capture bool) (publicationCheckpoint, bool, bool, error) {
+func (p *automaticPublisher) attempt(generation uint64, capture, flush bool) (publicationCheckpoint, bool, bool, error) {
 	repo, err := lockPublication(p.root)
 	if err != nil {
 		return publicationCheckpoint{}, false, false, err
@@ -229,7 +288,13 @@ func (p *automaticPublisher) attempt(generation uint64, capture bool) (publicati
 	}
 	if checkpoint.Pending != nil {
 		checkpoint, err = repo.finishPending(p.ref, oid, checkpoint)
-		return checkpoint, true, false, err
+		if err != nil || !flush || !capture {
+			return checkpoint, true, false, err
+		}
+		checkpoint, oid, err = repo.checkpoint(p.ref)
+		if err != nil {
+			return publicationCheckpoint{}, false, false, err
+		}
 	}
 	if !capture || !p.current(generation) {
 		return checkpoint, true, false, nil

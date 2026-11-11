@@ -40,7 +40,7 @@ func (x *request) createLane() {
 		return
 	}
 	var item lane
-	next, err := x.service.store.update(boardID, boardTag, func(current *snapshot) error {
+	next, err := x.updateBoard(boardID, boardTag, func(current *snapshot) error {
 		if !current.can(x.actor, "manage_workflow") {
 			return errForbidden
 		}
@@ -111,7 +111,7 @@ func (x *request) renameLane(id string) {
 		return
 	}
 	var item lane
-	next, err := x.service.store.update(boardID, boardTag, func(current *snapshot) error {
+	next, err := x.updateBoard(boardID, boardTag, func(current *snapshot) error {
 		if !current.can(x.actor, "manage_workflow") {
 			return errForbidden
 		}
@@ -440,6 +440,9 @@ func (x *request) laneResource(id string) {
 	for _, current := range x.service.store.list() {
 		if current.can(x.actor, "read") {
 			if index := laneIndex(current.Lanes, id); index >= 0 {
+				if !x.useBoard(current.Board.ID) {
+					return
+				}
 				item := current.Lanes[index]
 				x.respond(http.StatusOK, item, item.entityTag())
 				return

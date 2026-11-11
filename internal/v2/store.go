@@ -33,6 +33,7 @@ type store struct {
 	events           *eventHub
 	ownerNotices     *ownerNoticeWorker
 	publishers       map[string]*automaticPublisher
+	admissions       map[string]*boardAdmission
 }
 
 func openStore(root string, principals ...user) (*store, error) {
@@ -55,6 +56,7 @@ func openStore(root string, principals ...user) (*store, error) {
 		root:       absolute,
 		lease:      lease,
 		boards:     make(map[string]snapshot),
+		admissions: make(map[string]*boardAdmission),
 		principals: slices.Clone(principals),
 	}
 	if err := s.load(); err != nil {
@@ -177,8 +179,12 @@ func (s *store) list() []snapshot {
 	return values
 }
 
+func (s *store) boardsPath() string {
+	return filepath.Join(s.root, "boards")
+}
+
 func (s *store) snapshotPath(id string) string {
-	return filepath.Join(s.root, "boards", id+".json")
+	return filepath.Join(s.boardsPath(), id+".json")
 }
 
 func (s *store) durable(id string) (snapshot, error) {
@@ -264,26 +270,45 @@ func (s *store) updateChecked(id string, matches func(snapshot) bool, change fun
 	if matches != nil && !matches(current) {
 		return snapshot{}, errStale
 	}
+	if current.Board.Availability != "open" {
+		return snapshot{}, errBoardUnavailable
+	}
+	return s.updateLocked(current, change)
+}
+
+func (s *store) updateLocked(current snapshot, change func(*snapshot) error) (snapshot, error) {
+	next, changed, err := s.prepareUpdateLocked(current, change)
+	if err != nil || !changed {
+		return next, err
+	}
+	// Detach from data that the callback supplied or retained.
+	if err := s.commit(cloneSnapshot(next), false); err != nil {
+		return snapshot{}, err
+	}
+	return next, nil
+}
+
+func (s *store) prepareUpdateLocked(current snapshot, change func(*snapshot) error) (snapshot, bool, error) {
 	next := cloneSnapshot(current)
 	if err := change(&next); err != nil {
-		return snapshot{}, err
+		return snapshot{}, false, err
 	}
 	// The callback owns the business fields and audit. The store owns the board version.
 	next.Board.entity = current.Board.entity
 	next.Board.Revision = current.Board.Revision
 	next.Board.Attention, next.Board.LastCardEditAt = deriveAttention(next)
 	if reflect.DeepEqual(current, next) {
-		return cloneSnapshot(current), nil
+		return cloneSnapshot(current), false, nil
 	}
 	if current.Board.Revision == math.MaxUint64 {
-		return snapshot{}, errors.New("board revision exhausted")
+		return snapshot{}, false, errors.New("board revision exhausted")
 	}
-	info, err := os.Lstat(s.snapshotPath(id))
+	info, err := os.Lstat(s.snapshotPath(current.Board.ID))
 	if err != nil {
-		return snapshot{}, err
+		return snapshot{}, false, err
 	}
 	if !info.Mode().IsRegular() {
-		return snapshot{}, errInvalidSnapshot
+		return snapshot{}, false, errInvalidSnapshot
 	}
 	next.Board.Revision++
 	next.Board.UpdatedAt = canonicalTime(time.Now())
@@ -293,12 +318,8 @@ func (s *store) updateChecked(id string, matches func(snapshot) bool, change fun
 	if next.Board.UpdatedAt.Before(current.Board.UpdatedAt) {
 		next.Board.UpdatedAt = current.Board.UpdatedAt
 	}
-	next.Board.ETag = etag(id, next.Board.Revision)
-	// Detach from data that the callback supplied or retained.
-	if err := s.commit(cloneSnapshot(next), false); err != nil {
-		return snapshot{}, err
-	}
-	return next, nil
+	next.Board.ETag = etag(current.Board.ID, next.Board.Revision)
+	return next, true, nil
 }
 
 func (s *store) writable() error {
@@ -312,20 +333,33 @@ func (s *store) writable() error {
 }
 
 func (s *store) commit(value snapshot, reuseUsers bool) error {
-	id := value.Board.ID
-	if err := validateSnapshot(value, id); err != nil {
-		return err
-	}
-	if err := s.checkIdentities(value, reuseUsers); err != nil {
-		return err
-	}
-	data, err := marshalCanonical(value)
+	data, err := s.prepareCommit(value, reuseUsers)
 	if err != nil {
 		return err
 	}
-	if len(data) > maxSnapshotBytes {
-		return fmt.Errorf("snapshot exceeds durable size limit: %w", errInvalidSnapshot)
+	return s.writeCommit(value, data)
+}
+
+func (s *store) prepareCommit(value snapshot, reuseUsers bool) ([]byte, error) {
+	id := value.Board.ID
+	if err := validateSnapshot(value, id); err != nil {
+		return nil, err
 	}
+	if err := s.checkIdentities(value, reuseUsers); err != nil {
+		return nil, err
+	}
+	data, err := marshalCanonical(value)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxSnapshotBytes {
+		return nil, fmt.Errorf("snapshot exceeds durable size limit: %w", errInvalidSnapshot)
+	}
+	return data, nil
+}
+
+func (s *store) writeCommit(value snapshot, data []byte) error {
+	id := value.Board.ID
 	path := s.snapshotPath(id)
 	if err := s.checkBoardsDirectory(filepath.Dir(path)); err != nil {
 		return err

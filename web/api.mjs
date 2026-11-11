@@ -9,6 +9,8 @@ const RASTER_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "ima
 /** @typedef {"blocks"|"blocked_by"|"duplicates"|"duplicated_by"|"references"|"referenced_by"|"relates_to"} RelationshipKind */
 /** @typedef {{enabled: boolean, repository: string|null, last_success_at: string|null, pending: boolean, error_code: string|null}} Publishing */
 /** @typedef {{revision: number, pinned_board_ids: string[], publishing: Publishing}} Workspace */
+/** @typedef {"open"|"closed"} AvailabilityChange */
+/** @typedef {{id: string, name: string, policy_id: string, revision: number, availability: AvailabilityChange|"unhealthy"}} BoardAvailability */
 
 export class ApiError extends Error {
   /**
@@ -288,6 +290,38 @@ async function responseObject(response, write) {
   throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: write });
 }
 
+/** @param {Response} response */
+async function availabilityRefused(response) {
+  if (response.status !== 503 || response.body === null || response.body.locked
+      || response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase() !== "application/problem+json") {
+    return false;
+  }
+  const reader = response.body.getReader();
+  const bytes = new Uint8Array(4096);
+  let length = 0;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value.length > bytes.length - length) return false;
+      bytes.set(value, length);
+      length += value.length;
+    }
+    const problem = /** @type {unknown} */ (JSON.parse(new TextDecoder("utf-8", { fatal: true })
+      .decode(bytes.subarray(0, length))));
+    return isObject(problem) && Object.keys(problem).length === 8 && problem.type === "about:blank" && problem.status === 503
+      && problem.code === "unavailable" && problem.outcome === "not_applied"
+      && typeof problem.title === "string" && problem.title.length > 0 && problem.title.length <= 120
+      && typeof problem.detail === "string" && problem.detail.length <= 512
+      && isId(problem.request_id) && Array.isArray(problem.errors) && problem.errors.length === 0;
+  } catch {
+    return false;
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
+
 const EVENT_TYPES = new Set(["snapshot", "change"]);
 const MAX_EVENT_CHARS = 64 * 1024;
 
@@ -387,9 +421,9 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /**
    * @param {string} path
-   * @param {{ method?: string, data?: unknown, form?: FormData, raw?: Blob, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal }} [options]
+   * @param {{ method?: string, data?: unknown, form?: FormData, raw?: Blob, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal, availabilityWrite?: boolean }} [options]
    */
-  async function send(path, { method = "GET", data, form, raw, etag, ifNoneMatch, boardEtag, accept = "application/json", signal } = {}) {
+  async function send(path, { method = "GET", data, form, raw, etag, ifNoneMatch, boardEtag, accept = "application/json", signal, availabilityWrite = false } = {}) {
     const body = raw ?? (data === undefined ? form : JSON.stringify(data));
     let headers;
     try {
@@ -437,6 +471,9 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     }
 
     if (!response.ok && !(response.status === 304 && ifNoneMatch !== undefined)) {
+      if (availabilityWrite && await availabilityRefused(response)) {
+        throw new ApiError("unavailable", { status: 503 });
+      }
       await discardBody(response);
       throw new ApiError("http_error", {
         status: response.status,
@@ -478,6 +515,19 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       throw new ApiError("invalid_response", { status: 200, outcomeUnknown: write });
     }
     return { data: board.publishing, etag: strongTag(reply.etag) };
+  }
+
+  /** @param {{data: object, etag: string|null}} reply @param {string} id
+   * @param {AvailabilityChange} [requested] */
+  function boardAvailabilityReply(reply, id, requested) {
+    const data = /** @type {Record<string, unknown>} */ (reply.data);
+    if (data.id !== id || !isInteger(data.revision) || data.revision < 1
+        || reply.etag !== versionTag(id, data.revision) || typeof data.name !== "string" || !data.name.length
+        || !isId(data.policy_id) || !["open", "closed", "unhealthy"].some((state) => state === data.availability)
+        || (requested !== undefined && data.availability !== requested)) {
+      throw new ApiError("invalid_response", { status: 200, outcomeUnknown: requested !== undefined });
+    }
+    return { data: /** @type {BoardAvailability} */ (reply.data), etag: strongTag(reply.etag) };
   }
 
   /** @param {string} path @param {string} id @param {{data?: unknown, form?: FormData}} content */
@@ -1170,6 +1220,26 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     listBoards: (cursor) => list("/boards", {}, cursor),
     /** @param {unknown} id */
     getBoard: (id) => request(`/boards/${resourceId(id)}`),
+    /** @param {unknown} boardId */
+    async getBoardAvailability(boardId) {
+      const id = resourceId(boardId).toLowerCase();
+      return boardAvailabilityReply(await request("/boards/" + id), id);
+    },
+    /** @param {unknown} boardId @param {AvailabilityChange} availability @param {unknown} etag */
+    async setBoardAvailability(boardId, availability, etag) {
+      const id = resourceId(boardId).toLowerCase();
+      if (availability !== "open" && availability !== "closed") throw new TypeError("Expected open or closed.");
+      const response = await send("/boards/" + id, {
+        method: "PATCH", data: { availability }, etag: strongTag(etag), availabilityWrite: true,
+      });
+      const responseTag = response.headers.get("ETag");
+      if (response.status !== 200 || !STRONG_ETAG.test(responseTag ?? "")
+          || response.headers.get("X-Board-ETag") !== responseTag) {
+        await discardBody(response);
+        throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
+      }
+      return boardAvailabilityReply({ data: await responseObject(response, true), etag: responseTag }, id, availability);
+    },
     /** @param {unknown} data */
     createBoard: (data) => request("/boards", { method: "POST", data, successStatus: 201 }),
     /**

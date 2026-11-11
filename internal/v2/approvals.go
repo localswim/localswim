@@ -146,10 +146,19 @@ func (x *request) createApproval() {
 		}
 		return
 	}
+	current, exists := x.service.store.accepted(in.boardID)
+	if !exists || !slices.Contains(current.Board.UserIDs, x.actor) {
+		x.fail(errMissing)
+		return
+	}
+	if !canApprove(&current, x.actor) {
+		x.fail(errForbidden)
+		return
+	}
 	if in.id == "" && len(in.cards) != 0 {
 		in.id = newID()
 	}
-	next, err := x.service.store.updateChecked(in.boardID, nil, func(state *snapshot) error {
+	next, err := x.updateBoardChecked(in.boardID, nil, func(state *snapshot) error {
 		return in.apply(state, x.actor)
 	})
 	switch {
@@ -178,13 +187,17 @@ func (x *request) createApproval() {
 	x.respond(http.StatusCreated, value, "")
 }
 
+func canApprove(state *snapshot, actor string) bool {
+	return state.can(actor, "approve") && slices.ContainsFunc(state.Users, func(u user) bool {
+		return u.ID == actor && u.Kind == "human"
+	})
+}
+
 func (in approvalInput) apply(state *snapshot, actor string) error {
 	if !slices.Contains(state.Board.UserIDs, actor) {
 		return errMissing
 	}
-	if !state.can(actor, "approve") || !slices.ContainsFunc(state.Users, func(u user) bool {
-		return u.ID == actor && u.Kind == "human"
-	}) {
+	if !canApprove(state, actor) {
 		return errForbidden
 	}
 	indices, err := in.selectCards(state)

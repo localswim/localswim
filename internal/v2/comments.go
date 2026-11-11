@@ -34,6 +34,9 @@ func (x *request) commentResource(id string) {
 					x.fail(errForbidden)
 					return
 				}
+				if !x.useBoard(state.Board.ID) {
+					return
+				}
 				x.respond(http.StatusOK, value, value.entityTag())
 				return
 			}
@@ -63,6 +66,9 @@ func (x *request) listComments() {
 		return
 	}
 
+	if !x.useBoard(boardID) {
+		return
+	}
 	cardID, err := singleQuery(x.r, "card_id")
 	if err != nil {
 		x.fail(err)
@@ -158,7 +164,7 @@ func (x *request) createComment() {
 	if in.id == "" {
 		in.id = newID()
 	}
-	next, err := x.service.store.updateChecked(current.Board.ID, nil, func(state *snapshot) error {
+	next, err := x.updateBoardChecked(current.Board.ID, nil, func(state *snapshot) error {
 		return in.apply(state, x.actor)
 	})
 	if err != nil {

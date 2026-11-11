@@ -32,6 +32,8 @@ const cliHelp = `Usage:
   localswim board create --json <JSON_FILE|->
   localswim board get [--view lanes] BOARD_ID
   localswim board rename [--revision N] BOARD_ID NEW_NAME
+  localswim board close [--revision N] BOARD_ID
+  localswim board reopen [--revision N] BOARD_ID
   localswim board patch [--revision N] BOARD_ID <JSON_FILE|->
   localswim board publishing enable [--revision N] BOARD_ID
   localswim board publishing disable [--revision N] BOARD_ID
@@ -102,6 +104,8 @@ Pin remove skips failed targets with WARNING messages and preserves the remainin
 Pin set validates the entire list and reports ERROR if any target fails.
 Publishing commands return the full board or workspace JSON, including publishing status.
 Board publishing uses the board revision. Workspace publishing uses the workspace revision.
+Board close and reopen use the board revision and return the full board JSON.
+Use board get BOARD_ID to inspect availability after an unknown close or reopen outcome.
 Omit --revision to use the current resource validator.
 Supply --revision to require the version you previously inspected.
 For card create and policy grant, --revision refers to the board revision.
@@ -191,6 +195,7 @@ type cliCommand struct {
 	t06Action                          string
 	t07Action                          string
 	publishingAction                   string
+	boardAvailability                  string
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -305,6 +310,13 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "board rename":
 		command.method, command.resource, needBoardID = http.MethodPatch, "/boards", true
 		rename = true
+	case "board close", "board reopen":
+		command.method, command.resource, needBoardID = http.MethodPatch, "/boards", true
+		command.boardAvailability = "open"
+		if name == "board close" {
+			command.boardAvailability = "closed"
+		}
+		command.body = json.RawMessage(`{"availability":"` + command.boardAvailability + `"}`)
 	case "board patch":
 		command.method, command.resource, needBoardID = http.MethodPatch, "/boards", true
 	case "board verify":
@@ -572,6 +584,11 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 				return err
 			}
 		}
+		if command.boardAvailability != "" {
+			if _, err := current.BoardAvailability(command.boardID); err != nil {
+				return err
+			}
+		}
 		if command.pinAction != "" {
 			var warnings []string
 			body, warnings, err = pinRequestBody(command.pinAction, command.pinIDs, current.JSON)
@@ -585,12 +602,27 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	if command.method == http.MethodDelete {
 		return api.RemoveRelationship(command.resource, ifMatch, boardTag)
 	}
-	reply, err := api.DoWithContentType(command.method, command.resource, body, ifMatch, contentType)
+	var reply client.Response
+	if command.boardAvailability != "" {
+		reply, err = api.PatchBoardAvailability(command.resource, body, ifMatch)
+	} else {
+		reply, err = api.DoWithContentType(command.method, command.resource, body, ifMatch, contentType)
+	}
 	if err != nil {
 		if command.edit.uploadID != "" && errors.Is(err, client.ErrMutationOutcomeUnknown) {
 			return fmt.Errorf("%w (attachment ID %s)", err, command.edit.uploadID)
 		}
+		if command.boardAvailability != "" && errors.Is(err, client.ErrMutationOutcomeUnknown) {
+			return fmt.Errorf("%w. Read back with localswim board get %s", err, command.boardID)
+		}
 		return err
+	}
+	if command.boardAvailability != "" {
+		availability, err := reply.BoardAvailability(command.boardID)
+		if err != nil || availability != command.boardAvailability {
+			return fmt.Errorf("service did not confirm the requested board availability. %w. Read back with localswim board get %s before retrying",
+				client.ErrMutationOutcomeUnknown, command.boardID)
+		}
 	}
 	if command.publishingAction != "" {
 		enabled, err := reply.PublishingEnabled(command.boardID)

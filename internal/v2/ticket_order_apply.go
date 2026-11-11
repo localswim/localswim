@@ -78,7 +78,7 @@ func (x *request) applyTicketOrder(laneID string) {
 		return
 	}
 	var result ticketOrder
-	next, err := x.service.store.update(in.boardID, in.boardTag, func(candidate *snapshot) error {
+	next, err := x.updateBoard(in.boardID, in.boardTag, func(candidate *snapshot) error {
 		var err error
 		result, err = in.apply(candidate, laneID, x.actor)
 		return err

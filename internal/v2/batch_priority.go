@@ -88,7 +88,7 @@ func (x *request) batchPriorities() {
 		return
 	}
 	start := 0
-	next, err := x.service.store.update(in.boardID, in.boardTag, func(candidate *snapshot) error {
+	next, err := x.updateBoard(in.boardID, in.boardTag, func(candidate *snapshot) error {
 		start = len(candidate.Activity)
 		return in.apply(candidate, x.actor)
 	})

@@ -391,6 +391,18 @@ func (x *request) createBackup() {
 		x.fail(invalid("expected_board_etag", "Expected one canonical entity tag."))
 		return
 	}
+	state, exists := x.service.store.accepted(boardID)
+	if !exists || !slices.Contains(state.Board.UserIDs, x.actor) {
+		x.fail(errMissing)
+		return
+	}
+	if !state.can(x.actor, "backup") {
+		x.fail(errForbidden)
+		return
+	}
+	if !x.useBoard(boardID) {
+		return
+	}
 	captured, err := x.service.store.captureBackupSnapshot(boardID, x.actor, expected)
 	if err != nil {
 		x.backupFailure(err)
@@ -447,6 +459,9 @@ func (x *request) backupContent(id string) {
 	item, err := x.authorizedBackup(id)
 	if err != nil {
 		x.backupFailure(err)
+		return
+	}
+	if !x.useBoard(item.BoardID) {
 		return
 	}
 	file, err := copyVerifiedBackup(x.service.store.root, item)

@@ -111,7 +111,7 @@ func (x *request) patchCard(id string) {
 		x.fail(err)
 		return
 	}
-	updated, err := x.service.store.updateChecked(state.Board.ID, nil, func(candidate *snapshot) error {
+	updated, err := x.updateBoardChecked(state.Board.ID, nil, func(candidate *snapshot) error {
 		now := maxCardTime(canonicalTime(time.Now()), candidate.Board.UpdatedAt)
 		return patch.apply(candidate, id, tag, x.actor, now)
 	})

@@ -536,9 +536,10 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		return invalidSnapshot("activity", "Board creation audit is invalid.")
 	}
 
-	// Opt-in board settings must match replay even before their first patch.
-	disabled := "false"
+	// Availability and opt-in settings must match replay from board creation.
+	disabled, open := "false", "open"
 	latest := map[snapshotAuditField]*string{
+		{"board", b.ID, "availability"}:                   &open,
 		{"board", b.ID, "notifications.enabled"}:          &disabled,
 		{"board", b.ID, "notifications.target_thread_id"}: nil,
 		{"board", b.ID, "publishing.enabled"}:             &disabled,
@@ -899,6 +900,8 @@ func (refs snapshotReferences) validAuditField(boardID, actorID string, field sn
 			return capabilities["manage_board"] && value != nil && refs.users[*value].ID != ""
 		case "name":
 			return capabilities["manage_board"] && snapshotText(snapshotString(value), 1, 256)
+		case "availability":
+			return capabilities["close_board"] && (snapshotString(value) == "open" || snapshotString(value) == "closed")
 		case "notifications.enabled":
 			return capabilities["manage_notifications"] &&
 				(snapshotString(value) == "true" || snapshotString(value) == "false")
@@ -929,6 +932,8 @@ func (refs snapshotReferences) currentAuditField(b board, field snapshotAuditFie
 		return &b.DefaultOwnerID
 	case "name":
 		return &b.Name
+	case "availability":
+		return &b.Availability
 	case "notifications.enabled":
 		enabled := strconv.FormatBool(b.Notifications.Enabled)
 		return &enabled

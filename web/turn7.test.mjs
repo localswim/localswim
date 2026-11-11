@@ -122,3 +122,73 @@ test("unusable publication success requires inspection with no replay", async ()
     assert.equal(calls, 1);
   }
 });
+
+
+test("availability PATCH uses the original validator and validates the selected board's response", async () => {
+  const writes = [];
+  const states = ["closed", "open"];
+  const api = client(async (path, request) => {
+    const index = writes.length;
+    writes.push({path, method: request.method, tag: request.headers.get("If-Match"), body: JSON.parse(request.body)});
+    const revision = 2 + index;
+    return Response.json({id: board, name: "Board", policy_id: lane, revision, availability: states[index]},
+      {headers: {ETag: tag(board, revision), "X-Board-ETag": tag(board, revision)}});
+  });
+  assert.equal((await api.setBoardAvailability(board, "closed", tag(board, 1))).etag, tag(board, 2));
+  assert.equal((await api.setBoardAvailability(board, "open", tag(board, 2))).data.availability, "open");
+  assert.deepEqual(writes, states.map((availability, index) => ({
+    path: "/api/2026-11-10/boards/" + board, method: "PATCH", tag: tag(board, index + 1), body: {availability},
+  })));
+});
+
+test("availability PATCH refusal or unusable success is never replayed", async () => {
+  const metadata = {id: board, name: "Board", policy_id: lane, revision: 2, availability: "closed"};
+  for (const response of [
+    new Response(null, {status: 412}),
+    Response.json({...metadata, id: lane}, {headers: {ETag: tag(board, 2), "X-Board-ETag": tag(board, 2)}}),
+    Response.json({...metadata, availability: "open"}, {headers: {ETag: tag(board, 2), "X-Board-ETag": tag(board, 2)}}),
+    Response.json(metadata, {headers: {ETag: tag(board, 1), "X-Board-ETag": tag(board, 1)}}),
+    Response.json(metadata, {headers: {ETag: tag(board, 2)}}),
+    Response.json(metadata, {headers: {ETag: tag(board, 2), "X-Board-ETag": tag(board, 1)}}),
+  ]) {
+    let calls = 0;
+    const api = client(async () => { calls++; return response; });
+    await assert.rejects(api.setBoardAvailability(board, "closed", tag(board, 1)),
+      (error) => error instanceof ApiError && (error.status === 412 ? !error.outcomeUnknown : error.outcomeUnknown));
+    assert.equal(calls, 1);
+  }
+});
+
+
+test("availability metadata only requires the entity ETag", async () => {
+  const metadata = {id: board, name: "Board", policy_id: lane, revision: 2, availability: "closed"};
+  const api = client(async () => Response.json(metadata, {headers: {ETag: tag(board, 2)}}));
+  assert.deepEqual(await api.getBoardAvailability(board), {data: metadata, etag: tag(board, 2)});
+});
+
+test("only an exact unavailable lifecycle problem establishes a 503 refusal", async () => {
+  const problem = {type: "about:blank", title: "Service Unavailable", status: 503, code: "unavailable",
+    detail: "Board availability change refused.", request_id: first, outcome: "not_applied", errors: []};
+  const cases = [
+    [problem, 503, "application/problem+json", false],
+    [{...problem, outcome: "unknown"}, 503, "application/problem+json", true],
+    [{...problem, code: "outcome_unknown"}, 503, "application/problem+json", true],
+    [{...problem, status: "503"}, 503, "application/problem+json", true],
+    [{...problem, request_id: "bad"}, 503, "application/problem+json", true],
+    [problem, 503, "application/json", true],
+    [problem, 500, "application/problem+json", true],
+    ["invalid JSON", 503, "application/problem+json", true],
+    [" ".repeat(4096) + JSON.stringify(problem), 503, "application/problem+json", true],
+  ];
+  for (const [body, status, contentType, outcomeUnknown] of cases) {
+    let writes = 0;
+    const api = client(async () => {
+      writes++;
+      return new Response(typeof body === "string" ? body : JSON.stringify(body),
+        {status, headers: {"Content-Type": contentType}});
+    });
+    await assert.rejects(api.setBoardAvailability(board, "closed", tag(board, 1)),
+      (error) => error instanceof ApiError && error.status === status && error.outcomeUnknown === outcomeUnknown);
+    assert.equal(writes, 1);
+  }
+});

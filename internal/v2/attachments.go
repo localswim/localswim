@@ -112,6 +112,9 @@ func (x *request) attachmentsCollection() {
 		x.fail(errMissing)
 		return
 	}
+	if !x.useBoard(state.Board.ID) {
+		return
+	}
 	state, err = x.service.store.readback(state.Board.ID)
 	if err != nil {
 		x.fail(err)
@@ -170,7 +173,7 @@ func (x *request) detachAttachment(state snapshot, id string) {
 		x.fail(invalid(header, "Expected one canonical entity tag."))
 		return
 	}
-	updated, err := x.service.store.update(state.Board.ID, boardTags[0], func(next *snapshot) error {
+	updated, err := x.updateBoard(state.Board.ID, boardTags[0], func(next *snapshot) error {
 		return detachAttachment(next, id, expected, x.actor)
 	})
 	if err != nil {
@@ -244,6 +247,9 @@ func (x *request) attachmentReadback(boardID, id string) (attachment, error) {
 	if state.can(x.actor, "read") {
 		for _, item := range state.Attachments {
 			if item.ID == id {
+				if err := x.admitBoard(boardID); err != nil {
+					return attachment{}, err
+				}
 				return item, nil
 			}
 		}
@@ -372,6 +378,9 @@ func (x *request) uploadAttachment() {
 	}
 	if !state.can(x.actor, "manage_attachments") {
 		x.fail(errForbidden)
+		return
+	}
+	if !x.useBoard(state.Board.ID) {
 		return
 	}
 	value, boardTag, err := x.service.store.attach(state.Board.ID, x.actor, input)

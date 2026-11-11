@@ -59,7 +59,7 @@ func (x *request) policyGrants(id string) {
 		x.fail(fields.err)
 		return
 	}
-	next, err := x.service.store.update(boardID, boardTag, func(current *snapshot) error {
+	next, err := x.updateBoard(boardID, boardTag, func(current *snapshot) error {
 		if !current.can(x.actor, "manage_permissions") {
 			return errForbidden
 		}

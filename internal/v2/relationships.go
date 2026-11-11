@@ -218,6 +218,9 @@ func (x *request) listRelationships() {
 		x.fail(errForbidden)
 		return
 	}
+	if !x.useBoard(boardID) {
+		return
+	}
 	cardID, err := singleQuery(x.r, "card_id")
 	if err != nil {
 		x.fail(err)
@@ -311,6 +314,9 @@ func (x *request) readRelationship(boardID, id string) {
 	i := relationshipIndex(&state, id)
 	if !state.can(x.actor, "read") || i < 0 {
 		x.fail(errMissing)
+		return
+	}
+	if !x.useBoard(boardID) {
 		return
 	}
 	item := state.Relationships[i]
@@ -418,7 +424,7 @@ func (x *request) createRelationship() {
 	if in.id == "" {
 		in.id = newID()
 	}
-	next, err := x.service.store.update(in.boardID, in.boardTag, func(s *snapshot) error {
+	next, err := x.updateBoard(in.boardID, in.boardTag, func(s *snapshot) error {
 		return in.apply(s, x.actor)
 	})
 	if err != nil {
@@ -486,7 +492,7 @@ func (x *request) changeRelationship(boardID, id string) {
 			return
 		}
 	}
-	next, err := x.service.store.update(boardID, boardTag, func(s *snapshot) error {
+	next, err := x.updateBoard(boardID, boardTag, func(s *snapshot) error {
 		return editRelationship(s, id, expected, kind, x.actor)
 	})
 	if err != nil {

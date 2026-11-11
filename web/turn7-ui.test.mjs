@@ -85,6 +85,7 @@ function boardApi() {
   let patched;
   const api = {
     getSession: async () => ({data: {kind: "human"}}), listBoards: async () => page("boards", [{id: board, name: "Board"}]),
+    getBoardAvailability: async () => ({data: {id: board, name: "Board", availability: "open", policy_id: backup, revision}, etag: tag(board, revision)}),
     getBoardLanes: async () => ({data: {board: {id: board, name: "Board"}, cards: saved ? [saved] : []}, etag: tag(board, revision)}),
     getBoardIfChanged: async () => ({data: null}), listLanes: async () => page("lanes", lanes),
     listPriorities: async () => page("priorities", [{id: priority, label: "Normal"}]),
@@ -525,4 +526,257 @@ test("an older publication status response cannot clear a newer pending publicat
   assert.equal(publish.disabled, true);
   assert.equal(refreshStatus.hidden, false);
   assert.match(revisited.textContent, /Publication running/);
+});
+
+
+function boardAvailabilityApi() {
+  const {api} = boardApi();
+  const savedBoard = {id: board, name: "Board", policy_id: backup, revision: 1, availability: "open"};
+  const writes = [];
+  let mutationError;
+  let readError;
+  let allowed = true;
+  let closedOperationalReads = 0;
+  const baseRead = api.getBoardLanes;
+  api.getSession = async () => ({data: {kind: "human", principal_id: user, workspace_admin: false}});
+  api.getPolicy = async () => ({data: {id: backup, board_id: board, resource_grants: [
+    {user_id: user, capabilities: allowed ? ["read", "close_board"] : ["read"]},
+    {user_id: priority, capabilities: ["close_board"]},
+  ]}});
+  api.getBoardAvailability = async () => {
+    if (readError) throw readError;
+    return {data: {...savedBoard}, etag: tag(board, savedBoard.revision)};
+  };
+  api.getBoardLanes = async () => {
+    if (savedBoard.availability === "closed") {
+      closedOperationalReads++;
+      throw new ApiError("http_error", {status: 503});
+    }
+    return {...await baseRead(), etag: tag(board, savedBoard.revision)};
+  };
+  api.setBoardAvailability = async (id, availability, originalTag) => {
+    writes.push([id, availability, originalTag]);
+    if (originalTag !== tag(board, savedBoard.revision)) throw new ApiError("http_error", {status: 412});
+    if (mutationError && !mutationError.outcomeUnknown) throw mutationError;
+    savedBoard.availability = availability;
+    savedBoard.revision++;
+    if (mutationError) throw mutationError;
+    return api.getBoardAvailability();
+  };
+  return {api, savedBoard, writes, closedOperationalReads: () => closedOperationalReads,
+    failMutation: (error) => { mutationError = error; },
+    failRead: (error) => { readError = error; },
+    deny: () => { allowed = false; }};
+}
+
+test("board close and reopen use the original tags and retain drafts and selection across workspace navigation", async () => {
+  const fixture = boardAvailabilityApi();
+  const {api, savedBoard, writes} = fixture;
+  const ui = await harness(api);
+  const {main, details} = ui.nodes;
+  await ui.load();
+  ui.find(main, "button", "#1 Original").click();
+  await ui.settled();
+  ui.field(main, "New title").value = "New card draft";
+  ui.field(details, "Description").value = "Saved in memory";
+  ui.field(details, "Comment").value = "Unsubmitted comment";
+
+  ui.submit(main, "Close board");
+  await ui.settled();
+  assert.equal(savedBoard.availability, "closed");
+  assert.equal(details.hidden, true);
+  assert.equal(ui.find(main, "button", "Add card"), undefined);
+  assert.match(main.textContent, /This board is closed/);
+  await ui.navigate("/");
+  assert.ok(ui.find(main, "h1", "Workspace"));
+  await ui.navigate("/boards/" + board);
+  ui.submit(main, "Reopen board");
+  await ui.settled();
+  assert.equal(savedBoard.availability, "open");
+  assert.equal(details.hidden, false);
+  assert.equal(ui.field(main, "New title").value, "New card draft");
+  assert.equal(ui.field(details, "Description").value, "Saved in memory");
+  assert.equal(ui.field(details, "Comment").value, "Unsubmitted comment");
+  assert.deepEqual(writes, [[board, "closed", tag(board, 1)], [board, "open", tag(board, 2)]]);
+  assert.equal(fixture.closedOperationalReads(), 0);
+});
+
+test("availability actions require the selected board's grant for the current human", async () => {
+  const fixture = boardAvailabilityApi();
+  fixture.deny();
+  const ui = await harness(fixture.api);
+  const {main} = ui.nodes;
+  await ui.load();
+  assert.ok(ui.find(main, "button", "Add card"));
+  assert.equal(ui.find(main, "button", "Close board"), undefined);
+  fixture.savedBoard.availability = "closed";
+  await ui.load();
+  assert.match(main.textContent, /This board is closed/);
+  assert.equal(ui.find(main, "button", "Reopen board"), undefined);
+  assert.deepEqual(fixture.writes, []);
+});
+
+test("an unconfirmed close waits for readable board metadata and never replays the PATCH", async () => {
+  const fixture = boardAvailabilityApi();
+  const ui = await harness(fixture.api);
+  const {main, status} = ui.nodes;
+  await ui.load();
+  fixture.failMutation(new ApiError("transport_failed", {outcomeUnknown: true}));
+  fixture.failRead(new ApiError("transport_failed"));
+  const close = ui.submit(main, "Close board");
+  await ui.settled();
+  assert.equal(close.disabled, true);
+  assert.match(status.textContent, /Readback failed/);
+  ui.submit(main, "Close board");
+  fixture.failRead(undefined);
+  ui.find(main, "button", "Inspect saved board").click();
+  await ui.settled();
+  assert.match(main.textContent, /This board is closed/);
+  assert.equal(ui.find(main, "button", "Reopen board").disabled, false);
+  assert.equal(fixture.closedOperationalReads(), 0);
+  assert.deepEqual(fixture.writes, [[board, "closed", tag(board, 1)]]);
+});
+
+test("stale or refused availability actions retain board content and require deliberate retry", async () => {
+  const fixture = boardAvailabilityApi();
+  const ui = await harness(fixture.api);
+  const {main, status} = ui.nodes;
+  await ui.load();
+  fixture.savedBoard.revision = 2;
+  ui.submit(main, "Close board");
+  await ui.settled();
+  assert.match(status.textContent, /State changed/);
+  assert.ok(ui.find(main, "button", "#1 Original"));
+  fixture.failMutation(new ApiError("unavailable", {status: 503}));
+  ui.submit(main, "Close board");
+  await ui.settled();
+  assert.match(status.textContent, /refused/);
+  assert.equal(fixture.savedBoard.availability, "open");
+  assert.deepEqual(fixture.writes, [[board, "closed", tag(board, 1)], [board, "closed", tag(board, 2)]]);
+});
+
+
+test("navigation while close is in flight preserves the selected card and draft for reopening", async () => {
+  const {api, savedBoard} = boardAvailabilityApi();
+  const setAvailability = api.setBoardAvailability;
+  let finishClose;
+  const delayed = new Promise((resolve) => { finishClose = resolve; });
+  api.setBoardAvailability = async (id, availability, etag) => {
+    if (availability === "closed") await delayed;
+    return setAvailability(id, availability, etag);
+  };
+  const ui = await harness(api);
+  const {main, details} = ui.nodes;
+  await ui.load();
+  ui.find(main, "button", "#1 Original").click();
+  await ui.settled();
+  ui.field(details, "Comment").value = "Comment before leaving";
+  ui.submit(main, "Close board");
+  await ui.navigate("/");
+  assert.equal(savedBoard.availability, "open");
+  assert.ok(ui.find(main, "h1", "Workspace"));
+  finishClose();
+  await ui.settled();
+  assert.equal(savedBoard.availability, "closed");
+  assert.ok(ui.find(main, "h1", "Workspace"));
+  await ui.navigate("/boards/" + board);
+  ui.submit(main, "Reopen board");
+  await ui.settled();
+  assert.equal(ui.field(details, "Comment").value, "Comment before leaving");
+});
+
+test("refresh after another client closes the board preserves the drawer and draft for reopening", async () => {
+  for (const refresh of [(ui) => ui.load(), (ui) => ui.nodes.refresh.click()]) {
+    const {api, savedBoard} = boardAvailabilityApi();
+    const ui = await harness(api);
+    const {main, details} = ui.nodes;
+    await ui.load();
+    ui.find(main, "button", "#1 Original").click();
+    await ui.settled();
+    ui.field(details, "Comment").value = "Comment before refresh";
+    savedBoard.availability = "closed";
+    savedBoard.revision++;
+    await refresh(ui);
+    await ui.settled();
+    assert.match(main.textContent, /This board is closed/);
+    assert.equal(details.hidden, true);
+    ui.submit(main, "Reopen board");
+    await ui.settled();
+    assert.equal(ui.field(details, "Comment").value, "Comment before refresh");
+  }
+});
+
+
+test("overlapping full loads after an external close retain only a still-selected drawer", async () => {
+  const {api, savedBoard} = boardAvailabilityApi();
+  const ui = await harness(api);
+  const {main, details} = ui.nodes;
+  await ui.load();
+  ui.find(main, "button", "#1 Original").click();
+  await ui.settled();
+  ui.field(details, "Comment").value = "Draft through overlapping reads";
+
+  savedBoard.availability = "closed";
+  savedBoard.revision++;
+  const readAvailability = api.getBoardAvailability;
+  const firstStarted = Promise.withResolvers();
+  const releaseFirst = Promise.withResolvers();
+  api.getBoardAvailability = async () => {
+    api.getBoardAvailability = readAvailability;
+    firstStarted.resolve();
+    await releaseFirst.promise;
+    return readAvailability();
+  };
+  const earlier = ui.load();
+  await firstStarted.promise;
+  await ui.load();
+  assert.match(main.textContent, /This board is closed/);
+  releaseFirst.resolve();
+  await earlier;
+
+  ui.submit(main, "Reopen board");
+  await ui.settled();
+  assert.equal(ui.field(details, "Comment").value, "Draft through overlapping reads");
+  ui.find(details, "button", "Close card").click();
+  savedBoard.availability = "closed";
+  savedBoard.revision++;
+  await ui.load();
+  ui.submit(main, "Reopen board");
+  await ui.settled();
+  assert.equal(details.hidden, true);
+});
+
+test("returning to the same board during close reconciles the new view from saved state", async () => {
+  const {api, savedBoard, writes} = boardAvailabilityApi();
+  const setAvailability = api.setBoardAvailability;
+  const closeStarted = Promise.withResolvers();
+  const finishClose = Promise.withResolvers();
+  api.setBoardAvailability = async (id, availability, etag) => {
+    if (availability === "closed") {
+      closeStarted.resolve();
+      await finishClose.promise;
+    }
+    return setAvailability(id, availability, etag);
+  };
+  const ui = await harness(api);
+  const {main, details} = ui.nodes;
+  await ui.load();
+  ui.find(main, "button", "#1 Original").click();
+  await ui.settled();
+  ui.field(details, "Comment").value = "Draft from the original view";
+  ui.submit(main, "Close board");
+  await closeStarted.promise;
+  await ui.navigate("/");
+  await ui.navigate("/boards/" + board);
+  assert.equal(savedBoard.availability, "open");
+  assert.ok(ui.find(main, "button", "Close board"));
+
+  finishClose.resolve();
+  await ui.settled();
+  assert.match(main.textContent, /This board is closed/);
+  assert.equal(ui.find(main, "button", "Close board"), undefined);
+  assert.deepEqual(writes, [[board, "closed", tag(board, 1)]]);
+  ui.submit(main, "Reopen board");
+  await ui.settled();
+  assert.equal(ui.field(details, "Comment").value, "Draft from the original view");
 });

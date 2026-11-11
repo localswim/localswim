@@ -231,9 +231,27 @@ Inspect accepted state after an uncertain result. A later restore can supersede 
 admitting an earlier audit history.
 
 Manual publication discovers the Git worktree enclosing the service data directory. It requires
-an initial commit, local branch, configured identity and an origin remote. The publication commit's
-changes consist of the captured native snapshot and exact audited attachment paths. The push follows
-normal Git ancestry. Publication uses a private index under the persistent
+an initial commit, local branch, configured identity and a configured Git remote. Use
+`publication create [--remote NAME] [--branch BRANCH] BOARD_ID BACKUP_ID` to choose
+the destination. The API accepts the same optional `remote` and `branch` members.
+The branch is a short name or a full `refs/heads/...` ref.
+
+Without an explicit remote, the publisher uses the local branch's `pushRemote`,
+`remote.pushDefault`, its configured fetch remote, or the sole configured remote, in that order.
+Without an explicit destination branch, the publisher accepts a single unforced push refspec
+from `HEAD` or the current full branch ref to a full branch ref. Otherwise it follows
+the supported Git push mode: `current`, `simple`, or `upstream` (`tracking`).
+With neither a configured push mode nor a tracking branch, publication uses the local branch name.
+Use `upstream` or an explicit destination when the upstream branch has a different name.
+
+Multiple or unresolved destinations are refused before Git objects or refs are written.
+The selected remote must have one effective push URL. Git's URL-scoped transport and
+credential configuration applies; remote-name-specific transport overrides refuse with
+`unsupported_remote_transport`. Receipts carry fixed error codes without transport details.
+
+The publication commit changes the captured native snapshot and exact audited attachment paths.
+It advances the local source branch and pushes that exact commit to the resolved destination
+using normal Git ancestry. Publication uses a private index under the persistent
 Git common-directory localswim-autopush.lock. The caller's index and unrelated staged work remain
 intact. Before writing Git objects, publication checks every captured path against Git's ignore
 rules, including paths already tracked or staged. Any ignored path refuses the entire capture with

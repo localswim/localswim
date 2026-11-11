@@ -11008,7 +11008,11 @@ paths:
       - 36
     post:
       operationId: publishBackup
-      summary: Publish a captured board or workspace preferences
+      summary: Publish a captured board to one Git destination
+      description: >-
+        Select a configured remote and destination branch explicitly or resolve
+        them from Git configuration. Ambiguous or unavailable targets produce a
+        failed publication receipt before any Git objects or refs are written.
       tags:
       - Publishing
       parameters:
@@ -16181,6 +16185,16 @@ components:
           $ref: '#/components/schemas/UuidInput'
         backup_id:
           $ref: '#/components/schemas/UuidV7Input'
+        remote:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          description: Configured Git remote name. Omit to resolve from Git configuration.
+        branch:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          description: Destination branch name or full refs/heads ref. Omit to resolve from Git configuration.
         workspace:
           type: boolean
         actor: false
@@ -16218,6 +16232,8 @@ components:
             const: true
           board_id: false
           backup_id: false
+          remote: false
+          branch: false
     ServicePatch:
       type: object
       additionalProperties: false

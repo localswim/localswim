@@ -94,22 +94,11 @@ func (repo publicationRepository) saveCheckpoint(ref, oid string, checkpoint pub
 }
 
 func (repo publicationRepository) pushTarget() (string, error) {
-	// The pinned remote uses Git's URL-scoped configuration. An explicit
-	// origin transport setting, including an empty proxy, cannot be copied
-	// implicitly to that separate remote.
-	const transport = `^remote\.origin\.(proxy|proxyauthmethod|receivepack|uploadpack|vcs|serveroption)$`
-	_, err := publicationGitText(repo.root, "config", "--includes", "--name-only", "--get-regexp", transport)
-	if err == nil {
-		return "", gitPublicationError("unsupported_remote_transport")
-	}
-	if !gitConfigAbsent(err) {
-		return "", gitPublicationError("git_configuration_unavailable")
-	}
-	url, err := publicationGitText(repo.root, "remote", "get-url", "--push", "--all", "origin")
-	if err != nil || url == "" || strings.ContainsAny(url, "\r\n") {
+	target, err := repo.resolvedPushURL("origin")
+	if err == gitPublicationError("publication_target_ambiguous") {
 		return "", gitPublicationError("remote_unavailable")
 	}
-	return url, nil
+	return target, err
 }
 
 func publicationRemoteDigest(url string) string {

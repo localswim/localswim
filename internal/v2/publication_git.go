@@ -367,7 +367,15 @@ func (repo publicationRepository) prepareCommit(previous string, capture publica
 	return strings.TrimSpace(string(data)), nil
 }
 
-func publishVerifiedBackup(dataRoot string, item backup) error {
+func publishVerifiedBackup(dataRoot string, item backup, selections ...publicationSelection) error {
+	var selection publicationSelection
+	switch len(selections) {
+	case 0:
+	case 1:
+		selection = selections[0]
+	default:
+		return gitPublicationError("publication_target_ambiguous")
+	}
 	archive, err := openVerifiedBackupArchive(dataRoot, item)
 	if err != nil {
 		return gitPublicationError("backup_integrity")
@@ -386,10 +394,11 @@ func publishVerifiedBackup(dataRoot string, item backup) error {
 			return archive.attachmentData(attachment)
 		}})
 	}
-	if _, err := publicationGitText(repo.root, "remote", "get-url", "origin"); err != nil {
-		return gitPublicationError("remote_unavailable")
-	}
 	ref, previous, err := repo.head()
+	if err != nil {
+		return err
+	}
+	destination, err := repo.manualDestination(ref, selection)
 	if err != nil {
 		return err
 	}
@@ -402,5 +411,5 @@ func publishVerifiedBackup(dataRoot string, item backup) error {
 			return gitPublicationError("git_ref_failed")
 		}
 	}
-	return repo.push(publicationRemote{name: "origin"}, commit, ref)
+	return repo.push(destination.remote, commit, destination.ref)
 }

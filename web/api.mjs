@@ -938,8 +938,9 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /**
      * @param {unknown} boardId
      * @param {{ ticket?: number, limit?: number, cursor?: string, archived?: "include"|"only", q?: string, searchContent?: boolean, sort?: "ticket"|"triage", laneId?: string }} [filters]
+     * @param {AbortSignal} [signal]
      */
-    listCards(boardId, { ticket, limit, cursor, archived, q, searchContent, sort, laneId } = {}) {
+    listCards(boardId, { ticket, limit, cursor, archived, q, searchContent, sort, laneId } = {}, signal) {
       const query = new URLSearchParams({ board_id: resourceId(boardId) });
       if (ticket !== undefined) {
         if (!Number.isSafeInteger(ticket) || ticket < 1) {
@@ -962,7 +963,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       if (cursor !== undefined) {
         query.set("cursor", cursor);
       }
-      return request("/cards?" + query);
+      return request("/cards?" + query, { signal });
     },
     /** @param {unknown} cardId */
     async getCard(cardId) {

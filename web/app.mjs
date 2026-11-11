@@ -692,6 +692,7 @@ async function readWithSession(read, signal) {
   try {
     return await read();
   } catch (error) {
+    signal?.throwIfAborted();
     if (!(error instanceof ApiError) || error.status !== 401) throw error;
     if (capability === original) capability = "";
     await ensureCapability(signal);
@@ -2956,9 +2957,20 @@ async function load(savedAvailability) {
   const boardId = boardAtLocation();
   let catalogHint = false;
   let navigationReady = false;
+  let warmNavigationFailed = false;
+  /** @type {Promise<void>|undefined} */
+  let warmNavigationRead;
+  navigation.querySelector("#warm-attention-error")?.remove();
+  const warmAttentionError = element("div");
+  warmAttentionError.id = "warm-attention-error";
+  const warmAttentionStatus = element("p", "Attention could not be refreshed. Showing the last saved counts.");
+  warmAttentionStatus.setAttribute("role", "status");
+  warmAttentionError.append(warmAttentionStatus, button("Retry Attention", invalidateCatalog));
   let refreshAttention = () => {
+    if (signal.aborted) return Promise.resolve();
+    if (warmNavigationFailed) return loadWarmNavigation(true);
     catalogHint = true;
-    return Promise.resolve();
+    return warmNavigationRead ?? Promise.resolve();
   };
   announce("loading", "Loading…");
   /** @type {{board?: BoardWatch, controller: AbortController}|undefined} */
@@ -2981,31 +2993,53 @@ async function load(savedAvailability) {
       }, streamSignal),
     });
   }
-  /** @param {boolean} [refreshing] */
-  async function readCatalog(refreshing = false) {
+  /** @param {boolean} [refreshing] @param {AbortSignal} [readSignal] */
+  async function readCatalog(refreshing = false, readSignal = signal) {
     let continuation = false;
     const read = () => /** @type {Promise<BoardSummary[]>} */ (collect((cursor) => {
       continuation = cursor !== undefined;
-      return api.listBoards(cursor, signal);
-    }, "boards", signal));
-    if (!refreshing) return read();
+      return api.listBoards(cursor, readSignal);
+    }, "boards", readSignal));
     try {
-      return await readWithSession(read, signal);
+      return await readWithSession(read, readSignal);
     } catch (error) {
-      signal.throwIfAborted();
-      if (!(error instanceof ApiError)) throw error;
+      readSignal.throwIfAborted();
+      if (!refreshing || !(error instanceof ApiError)) throw error;
       // Catalog cursors are tied to the full row set. Start over on a refusal.
       const staleCursor = continuation && error.status === 400;
       const temporary = error.code === "transport_failed" || (error.status ?? 0) >= 500;
       if (!staleCursor && !temporary) throw error;
-      if (temporary) await waitForRetry(signal, CATALOG_RETRY_MS);
-      return readWithSession(read, signal);
+      if (temporary) await waitForRetry(readSignal, CATALOG_RETRY_MS);
+      return readWithSession(read, readSignal);
     }
   }
+
+  /** @param {boolean} [retrying] */
+  function loadWarmNavigation(retrying = false) {
+    if (warmNavigationRead) return warmNavigationRead;
+    warmNavigationFailed = false;
+    warmNavigationRead = loadNavigation(retrying).then(() => {}, () => {
+      if (signal.aborted) return;
+      warmNavigationFailed = true;
+      if (!warmAttentionError.isConnected) navigation?.append(warmAttentionError);
+    }).finally(() => {
+      warmNavigationRead = undefined;
+      if (warmNavigationFailed && catalogHint) {
+        catalogHint = false;
+        invalidateCatalog();
+      }
+    });
+    return warmNavigationRead;
+  }
+
   try {
     const retained = boardId && !savedAvailability && !writing ? readRecentBoard(boardId) : undefined;
     if (boardId && retained) {
-      void loadNavigation().catch(() => {});
+      for (const link of navigation.querySelectorAll("a")) {
+        if (link.dataset.boardId === boardId) link.setAttribute("aria-current", "page");
+        else link.removeAttribute("aria-current");
+      }
+      void loadWarmNavigation();
       await paintOpenBoard(boardId, retained);
       return;
     }
@@ -3045,12 +3079,15 @@ async function load(savedAvailability) {
     announce("error", readError(error));
   }
 
-  async function loadNavigation() {
+  /** @param {boolean} [retrying] */
+  async function loadNavigation(retrying = false) {
     if (!identity || !navigation || !main) return;
-    const [session, boards] = await readWithSession(() => Promise.all([
-      api.getSession(signal), readCatalog(),
-    ]), signal);
-    if (view !== activeView) return;
+    const group = new AbortController();
+    const readSignal = AbortSignal.any([signal, group.signal]);
+    const [session, boards] = await Promise.all([
+      readWithSession(() => api.getSession(readSignal), readSignal), readCatalog(retrying, readSignal),
+    ]).finally(() => group.abort());
+    if (signal.aborted || view !== activeView) return;
     const context = /** @type {{kind?: unknown, principal_id?: unknown, workspace_admin?: unknown}} */ (session.data);
     if (context.kind !== "human") throw new ApiError("invalid_response");
     identity.textContent = "Human";
@@ -3205,7 +3242,10 @@ async function load(savedAvailability) {
     };
     showBoards(latestBoards);
     navigationReady = true;
-    if (catalogHint) invalidateCatalog();
+    if (catalogHint) {
+      catalogHint = false;
+      invalidateCatalog();
+    }
     const readPreferences = canEditPins
       ? Promise.resolve(pinWrite).then(() => view === activeView ? readWorkspace() : undefined).catch(() => {
         if (view === activeView) {
@@ -4108,7 +4148,9 @@ async function load(savedAvailability) {
       const [latest, latestUsers] = result.contents;
       const updatedBoard = /** @type {Board} */ (latest.board.data);
       const latestTag = etag(latest.board);
-      if (validPublishing(updatedBoard.publishing)) boardPublishing.show({ data: updatedBoard.publishing, etag: latestTag });
+      const publishing = validPublishing(updatedBoard.publishing)
+        ? { data: updatedBoard.publishing, etag: latestTag } : undefined;
+      if (!retained && publishing) boardPublishing.show(publishing);
       if (!retained && automatic && latestTag === boardTag && paintedRevision === updatedBoard.revision
           && workflow?.actor === latest.workflow?.actor) return true;
       workflow = latest.workflow;
@@ -4128,13 +4170,14 @@ async function load(savedAvailability) {
       retained = false;
       boardStyle.replaceSync(updatedBoard.user_css ?? "");
       updateNewCardForm();
-      laneEditor.showLanes();
+      laneEditor.showLanes(firstConfirmation);
       search.refreshBoard(boardChanged);
       const batchPriority = boardActions.querySelector("#batch-priority-value");
       if (batchPriority instanceof HTMLSelectElement) setOptions(batchPriority, priorities, batchPriority.value);
       renderCards(latest.cards, boardTag);
       if (firstConfirmation) {
         enableConfirmedControls();
+        if (publishing) boardPublishing.show(publishing);
         announce("ready", "Board loaded.");
         void restoreCardSelection();
       }
@@ -4161,7 +4204,7 @@ async function load(savedAvailability) {
       else if (!boardActions.contains(closeBoard)) boardActions.append(closeBoard);
     }
     updateCloseBoard();
-    const search = renderCardSearch(board.id, lanes, selectCard);
+    const search = renderCardSearch(board.id, lanes, selectCard, boardSignal);
     function enableConfirmedControls() {
       main?.insertBefore(editor, search.panel);
       for (const panel of [recent, laneEditor.editor, boardActions]) main?.insertBefore(panel, filterBar);
@@ -4286,15 +4329,11 @@ function renderLaneEditor(boardId, lanes, users, boardTag, reloadBoard, inspecti
   if (previous?.[7] !== undefined) retireLane.value = previous[7];
   if (previous?.[8] !== undefined) keyLane.value = previous[8];
   keyValue.value = previous?.[9] ?? "";
-  for (const [control, value] of [[createFor, previous?.[4]], [connectFor, previous?.[5]]]) {
-    if (!(control instanceof HTMLSelectElement) || typeof value !== "string") continue;
-    const ids = value.split(",");
-    for (const option of control.options) option.selected = ids.includes(option.value);
-  }
-
-  function showLanes() {
-    for (const control of [createFor, connectFor]) {
-      const selectedIds = new Set(Array.from(control.selectedOptions, ({ value }) => value));
+  /** @param {boolean} [restoreGrantDraft] */
+  function showLanes(restoreGrantDraft = false) {
+    const grants = /** @type {const} */ ([[createFor, previous?.[4]], [connectFor, previous?.[5]]]);
+    for (const [control, draft] of grants) {
+      const selectedIds = new Set(restoreGrantDraft ? draft?.split(",") : selected(control));
       setOptions(control, users, null);
       for (const option of control.options) option.selected = selectedIds.has(option.value);
     }
@@ -4372,7 +4411,7 @@ function renderLaneEditor(boardId, lanes, users, boardTag, reloadBoard, inspecti
 
   /** @param {HTMLSelectElement} control */
   const selected = (control) => Array.from(control.selectedOptions, ({ value }) => value);
-  showLanes();
+  showLanes(true);
   editor.append(element("summary", "Manage lanes"), names,
     form("Add lane", [field("Lane label", addName), field("Insert after", after),
       field("Create rights", createFor), field("Connect rights", connectFor)], (submit) => {
@@ -4404,8 +4443,9 @@ function renderLaneEditor(boardId, lanes, users, boardTag, reloadBoard, inspecti
 }
 
 
-/** @param {string} boardId @param {Lane[]} lanes @param {(card: Card, opener: HTMLButtonElement) => void} open */
-function renderCardSearch(boardId, lanes, open) {
+/** @param {string} boardId @param {Lane[]} lanes @param {(card: Card, opener: HTMLButtonElement) => void} open
+ * @param {AbortSignal} signal */
+function renderCardSearch(boardId, lanes, open, signal) {
   const view = activeView;
   const state = boardViewState(boardId);
   /** @param {unknown} value @returns {value is SearchFields} */
@@ -4446,7 +4486,9 @@ function renderCardSearch(boardId, lanes, open) {
   results.setAttribute("aria-live", "polite");
   let read = 0;
   let submitted = validFields(saved?.submitted) ? saved.submitted : undefined;
-  const isCurrent = () => view === activeView && panel.isConnected;
+  /** @type {AbortController|undefined} */
+  let inFlight;
+  const isCurrent = () => !signal.aborted && view === activeView && panel.isConnected;
   /** @returns {SearchFields} */
   function controls() {
     return { query: query.value, content: content.checked, order: order.value === "ticket" ? "ticket" : "triage",
@@ -4459,12 +4501,16 @@ function renderCardSearch(boardId, lanes, open) {
   }
   /** @param {SearchFields} requested */
   function run(requested) {
+    inFlight?.abort();
+    const request = new AbortController();
+    inFlight = request;
+    const readSignal = AbortSignal.any([signal, request.signal]);
     const generation = ++read;
     const current = () => isCurrent() && generation === read;
     submitButton.disabled = true;
     const filters = { q: requested.query.trim() === "" ? undefined : requested.query, searchContent: requested.content,
       sort: requested.order, laneId: requested.lane || undefined, limit: Number(requested.limit) };
-    void readWithSession(() => api.listCards(boardId, filters))
+    void readWithSession(() => api.listCards(boardId, filters, readSignal), readSignal)
       .then((reply) => {
         if (!current()) return;
         const cards = /** @type {Card[]} */ (items(reply, "cards"));
@@ -4478,6 +4524,7 @@ function renderCardSearch(boardId, lanes, open) {
       }).catch(() => {
         if (current()) results.textContent = "Cards could not be read. Submit the search again.";
       }).finally(() => {
+        if (inFlight === request) inFlight = undefined;
         if (current()) submitButton.disabled = false;
       });
   }
@@ -4509,6 +4556,7 @@ function renderCardSearch(boardId, lanes, open) {
       if (!changed || !submitted) return;
       submitted = undefined;
       ++read;
+      inFlight?.abort();
       results.textContent = "Board changed. Run the search again for current results.";
       submitButton.disabled = false;
       retain();

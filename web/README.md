@@ -325,7 +325,8 @@ description while the board refreshes. Editing and attachment previews resume
 after the service confirms the board. If the refresh fails, **Retry board update**
 checks the service again while keeping the retained view visible. If the service
 reports that the board is closed, unhealthy, or unavailable, the view updates
-to show that state.
+to show that state. If Attention cannot refresh when you return, **Retry Attention**
+reads the workspace counts again while the board stays open.
 
 Open **Recent board cache** on the workspace page to set the budget for this tab.
 The default is 4 MiB and the maximum is 32 MiB. Set it to 0 to turn the cache off.

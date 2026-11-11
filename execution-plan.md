@@ -366,7 +366,7 @@ Recheck lanes and prerequisites at dispatch. Move each eligible card to In Progr
 Reconciled 2026-11-10 after T09. T10 is the sole remaining turn. Earlier rosters remain in this plan.
 
 T09 M37 #0420 passed independent backend, browser and CLI review, and is Ready for Review.
-The published implementation is `bc3ad35055d2912546341f7741d83b7ed9bf2abe`. The T09 entry gate is satisfied. Dev Manager owns T10 launch.
+The published implementation is `bc3ad35055d2912546341f7741d83b7ed9bf2abe`. Dev Manager launched T10 from the verified M37 implementation under Terry's sequence authorization.
 
 The authorized scope is #0375, #0376, #0377, milestone-plan.md and docs/openapi.yaml. Planning remains on #0426.
 

@@ -41,7 +41,7 @@ func TestTerryWorkflowPreset(t *testing.T) {
 	if len(initial.Lanes) != len(lanes) {
 		t.Fatalf("got %d preset lanes, want %d", len(initial.Lanes), len(lanes))
 	}
-	if len(initial.Policy.CreateGrants) != 8 || len(initial.Policy.MoveGrants) != 47 ||
+	if len(initial.Policy.CreateGrants) != 8 || len(initial.Policy.MoveGrants) != 49 ||
 		!initial.can(humanID, "approve") || initial.can(botID, "approve") {
 		t.Fatal("preset policy has incorrect grant counts or approval authority")
 	}

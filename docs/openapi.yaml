@@ -2562,7 +2562,8 @@ paths:
   /comments:
     get:
       operationId: listComments
-      summary: Read newest comments with attribution
+      summary: Read newest comments with attribution and current ticket numbers
+      description: Archive selection is applied before pagination. Equal timestamps are ordered by newest commit first.
       tags:
       - Comments
       parameters:
@@ -2578,6 +2579,16 @@ paths:
         required: false
         schema:
           $ref: '#/components/schemas/UuidInput'
+      - name: archived
+        in: query
+        required: false
+        description: Select active cards (exclude), all cards (include), or archived cards (only). Defaults to exclude for board-wide reads and include when card_id is supplied. ASCII case-insensitive.
+        schema:
+          type: string
+          enum:
+          - exclude
+          - include
+          - only
       - name: limit
         in: query
         required: false
@@ -2783,6 +2794,16 @@ paths:
         required: false
         schema:
           $ref: '#/components/schemas/UuidInput'
+      - name: archived
+        in: query
+        required: false
+        description: Select active cards (exclude), all cards (include), or archived cards (only). Defaults to exclude for board-wide reads and include when card_id is supplied. ASCII case-insensitive.
+        schema:
+          type: string
+          enum:
+          - exclude
+          - include
+          - only
       - name: limit
         in: query
         required: false
@@ -13796,6 +13817,40 @@ components:
           maxLength: 4194304
         author_id:
           $ref: '#/components/schemas/Uuid'
+    CommentListEntry:
+      description: Immutable comment fields with the parent card's current ticket number.
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - created_at
+      - updated_at
+      - board_id
+      - card_id
+      - text
+      - author_id
+      - ticket
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+        board_id:
+          $ref: '#/components/schemas/Uuid'
+        card_id:
+          $ref: '#/components/schemas/Uuid'
+        text:
+          type: string
+          minLength: 1
+          maxLength: 4194304
+        author_id:
+          $ref: '#/components/schemas/Uuid'
+        ticket:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
     Change:
       type: object
       additionalProperties: false
@@ -14505,7 +14560,7 @@ components:
         comments:
           type: array
           items:
-            $ref: '#/components/schemas/Comment'
+            $ref: '#/components/schemas/CommentListEntry'
           maxItems: 200
         next_cursor:
           anyOf:

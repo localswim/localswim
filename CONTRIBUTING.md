@@ -56,6 +56,14 @@ identity, parent references, attribution, text, and timestamps. Comment HTTP val
 are carried in response headers. Posting a comment still requires the parent card
 validator and advances that card's revision.
 
+Use `comment list --limit N BOARD_ID` to read the newest comments on active cards
+with their current numeric `ticket`, attribution, and full text. The limit is 1 to
+200 and defaults to 50. Equal timestamps retain newest commit order. Add
+`--archived include` to read active and archived work together or `--archived only`
+for archived work. The limit applies after filtering. Pass a `CARD_ID` after
+`BOARD_ID` to focus the report on one card, which remains readable when archived.
+Use `--cursor CURSOR` with the same selection to continue a report.
+
 Approval receipts are immutable. Their `board_revision` is the positive safe-integer
 board commit revision shared by every receipt change. Approval requests retain
 `expected_board_etag` and each selected card's `etag`. The response's

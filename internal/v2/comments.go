@@ -11,6 +11,11 @@ import (
 
 var errCommentCardETagRequired = errors.New("comment creation requires expected_card_etag")
 
+type commentListEntry struct {
+	comment
+	Ticket uint64 `json:"ticket"`
+}
+
 type commentCreation struct {
 	id, cardID, expected, text string
 }
@@ -86,6 +91,22 @@ func (x *request) listComments() {
 			return
 		}
 	}
+	archived, err := singleQuery(x.r, "archived")
+	if err != nil {
+		x.fail(err)
+		return
+	}
+	if query.Has("archived") {
+		archived = asciiLowerEnum(archived)
+		if !slices.Contains([]string{"exclude", "include", "only"}, archived) {
+			x.fail(invalid("archived", "Expected exclude, include, or only."))
+			return
+		}
+	} else if cardID == "" {
+		archived = "exclude"
+	} else {
+		archived = "include"
+	}
 	for _, field := range []string{"limit", "cursor"} {
 		if query.Has(field) && query.Get(field) == "" {
 			x.fail(invalid(field, "Expected a nonempty value."))
@@ -93,16 +114,22 @@ func (x *request) listComments() {
 		}
 	}
 
-	rows := []comment{}
+	tickets := make(map[string]uint64)
+	for _, item := range state.Cards {
+		if (cardID == "" || cardID == item.ID) && (archived == "include" || item.Archived == (archived == "only")) {
+			tickets[item.ID] = item.Ticket
+		}
+	}
+	rows := []commentListEntry{}
 	for _, value := range state.Comments {
-		if cardID == "" || value.CardID == cardID {
-			rows = append(rows, value)
+		if ticket, eligible := tickets[value.CardID]; eligible {
+			rows = append(rows, commentListEntry{comment: value, Ticket: ticket})
 		}
 	}
 	// Preserve newest commit order when server timestamps are equal.
 	slices.Reverse(rows)
-	slices.SortStableFunc(rows, func(a, b comment) int { return b.CreatedAt.Compare(a.CreatedAt) })
-	page(x, "comments", rows)
+	slices.SortStableFunc(rows, func(a, b commentListEntry) int { return b.CreatedAt.Compare(a.CreatedAt) })
+	page(x, "comments", rows, boardID, cardID, archived)
 }
 
 func readCommentCreation(fields map[string]json.RawMessage) (commentCreation, error) {

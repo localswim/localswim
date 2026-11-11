@@ -209,7 +209,8 @@ func parseCLIList(name string, args []string) (cliCommand, error) {
 	limit := flags.Int("limit", 50, "page size")
 	cursor := flags.String("cursor", "", "cursor from the preceding page")
 	var archived string
-	if name == "card list" {
+	archiveFilter := name == "card list" || name == "comment list"
+	if archiveFilter {
 		flags.StringVar(&archived, "archived", "exclude", "exclude, include, or only archived cards")
 	}
 	if err := flags.Parse(args); err != nil {
@@ -222,7 +223,11 @@ func parseCLIList(name string, args []string) (cliCommand, error) {
 	if *cursor != "" {
 		query.Set("cursor", *cursor)
 	}
-	if name == "card list" {
+	explicitArchive := false
+	flags.Visit(func(f *flag.Flag) {
+		explicitArchive = explicitArchive || f.Name == "archived"
+	})
+	if archiveFilter && (name == "card list" || flags.NArg() == 1 || explicitArchive) {
 		archived = strings.ToLower(archived)
 		switch archived {
 		case "exclude", "include", "only":

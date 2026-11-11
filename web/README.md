@@ -29,8 +29,8 @@ uploads have client-assigned IDs. Immutable comment JSON contains identity, pare
 references, author, text, and timestamps. The comment validator is returned in the
 HTTP response header. Posting uses the parent card's current validator and advances
 its revision. Comment lists and focused attachment reads
-can identify the exact submission. Files up to 10 MiB can be uploaded. The board offers its newest
-comments and lane insertion, rename, and retirement controls. Server-side policy determines
+can identify the exact submission. The board offers its newest comments and lane
+insertion, rename, and retirement controls. Server-side policy determines
 which actions the Human session may perform. Lane JSON carries a positive safe integer
 `revision`. `renameLane(laneId, revision, boardEtag, label)` reads the lane afresh,
 checks the expected numeric revision, and uses the returned HTTP ETag for its
@@ -61,6 +61,14 @@ its displayed revision. The drawer shows the effective saved priority and
 reports when a dependency floor prevents the requested demotion. After a
 stale or uncertain result, compare the saved priority with your selection
 before submitting again.
+
+Use **Files** in the card drawer to select several attachments, then choose
+**Upload attachments**. You can also paste a clipboard image into the open drawer.
+Each file has its own outcome. The drawer rejects files larger than 10 MiB before
+uploading and submits the remaining files one at a time for that card. You can
+open another card while the batch finishes on the original card. If a file's
+outcome is uncertain, the drawer checks its original ID. If it cannot confirm the
+upload, it stops the batch and offers **Inspect saved card** before another write.
 
 Attachments offer authenticated downloads. Raster attachments also offer a preview
 and cover selection. The selected cover appears on the card in its lane. Detach

@@ -4,7 +4,7 @@ const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 const STRONG_ETAG = /^"[A-Za-z0-9_-]{16,128}"$/;
 const CAPABILITY = /^[A-Za-z0-9_-]{43,128}$/;
 const REQUEST_TIMEOUT_MS = 15000;
-const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const RASTER_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
 /** @typedef {"blocks"|"blocked_by"|"duplicates"|"duplicated_by"|"references"|"referenced_by"|"relates_to"} RelationshipKind */

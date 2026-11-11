@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import vm from "node:vm";
 import test from "node:test";
 import { newOperationId } from "./operation-id.mjs";
-import {ApiError, createBrowserApi, validPublishing} from "./api.mjs";
+import {ApiError, createBrowserApi, MAX_ATTACHMENT_BYTES, validPublishing} from "./api.mjs";
 import {createBoardRefresh, watchBoard} from "./board-updates.mjs";
 const board = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
 const lane = "ceab10a8-1492-4c90-aa07-13b83138919a";
@@ -44,7 +44,11 @@ async function harness(api, pathname = "/boards/" + board, {
     setAttribute(key, value) { this.attributes[key] = value; }
     removeAttribute(key) { delete this.attributes[key]; }
     addEventListener(key, handler) { (this.events[key] ??= []).push(handler); }
-    dispatch(key) { for (const handler of this.events[key] ?? []) handler({preventDefault() {}}); }
+    dispatch(key, data = {}) {
+      const event = {defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...data};
+      for (const handler of this.events[key] ?? []) handler(event);
+      return event.defaultPrevented;
+    }
     click() { if (!this.disabled) this.dispatch("click"); }
     focus(options) { document.activeElement = this; this.focusOptions = options; }
     closest(selector) { if (selector === '[data-unavailable="true"]' && this.dataset.unavailable === "true") return this; return this.parent?.closest(selector) ?? null; }
@@ -78,13 +82,13 @@ async function harness(api, pathname = "/boards/" + board, {
   const context = vm.createContext({document, window, CSSStyleSheet: class {replaceSync() {}},
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
-    Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, newOperationId,
+    Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, MAX_ATTACHMENT_BYTES, newOperationId,
     createBoardRefresh, watchBoard: typeof api.streamEvents === "function" ? watchBoard : async () => {},
     createBrowserApi: ({getCapability}) => typeof api === "function" ? api(getCapability) : api,
     openBrowserSession: openSession});
   let source = await fs.readFile(new URL("./app.mjs", import.meta.url), "utf8");
   source = source.replace(/^import .*?;\r?\n/gm, "").replace(/void load\(\);\s*$/, "");
-  vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing, inspect:()=>cardInspection.inspect()};", context);
+  vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing, uploadingToCard, inspect:()=>cardInspection.inspect()};", context);
   async function settled() { for (let count = 0; count < 40; count++) { await new Promise((resolve) => setTimeout(resolve, 0)); if (!context.hooks.busy()) return; } throw Error("UI did not settle"); }
   const find = (root, tagName, text) => root.querySelectorAll(tagName).find((node) => node.ownText === text);
   const field = (root, label) => find(root, "label", label)?.children[0];
@@ -2265,4 +2269,266 @@ test("live invalidation deferred by a write survives until the write ends", asyn
   await until(() => revision === 3);
   assert.equal(reads, 1);
   controller.abort();
+});
+
+const uploadBoard = "b4979c23-4be2-4553-bbeb-66a47b7c021c";
+
+async function attachmentUploadFixture(secondBoard = board) {
+  const {api} = boardApi();
+  const initial = (await api.getCard(card)).data;
+  const cards = new Map([
+    [card, {...initial, attachment_count: 0}],
+    [backup, {...initial, id: backup, board_id: secondBoard, title: "Other card", ticket: 2, attachment_count: 0}],
+  ]);
+  const revisions = new Map([[board, 1], [secondBoard, 1]]);
+  const saved = new Map();
+  const calls = [];
+  const readbacks = [];
+  const boardData = (id) => ({id, name: id === board ? "Board" : "Other board", revision: revisions.get(id)});
+  api.listBoards = async () => page("boards", [...revisions.keys()].map(boardData));
+  api.getBoardAvailability = async (id) => ({
+    data: {...boardData(id), availability: "open", policy_id: priority}, etag: tag(id, revisions.get(id)),
+  });
+  api.getBoardLanes = async (id) => ({data: {board: boardData(id),
+    cards: [...cards.values()].filter((entry) => entry.board_id === id)}, etag: tag(id, revisions.get(id))});
+  api.getCard = async (id) => ({data: cards.get(id), etag: tag(id, cards.get(id).revision)});
+  api.listAttachments = async (id) => page("attachments", [...saved.values()].filter((entry) => entry.card_id === id));
+  api.getAttachment = async (id) => {
+    readbacks.push(id);
+    const item = saved.get(id);
+    if (!item) throw new ApiError("http_error", {status: 404});
+    return {data: item, etag: tag(id, item.revision)};
+  };
+  function commit(id, file, attachmentId) {
+    const prior = cards.get(id);
+    const revision = revisions.get(prior.board_id) + 1;
+    revisions.set(prior.board_id, revision);
+    cards.set(id, {...prior, revision, attachment_count: prior.attachment_count + 1});
+    const item = {
+      id: attachmentId, card_id: id, board_id: prior.board_id, original_name: file.name, size: file.size, revision,
+      added_by: user, active: true, previewable: false, created_at: "2026-11-10 00:00:00+00:00",
+    };
+    saved.set(attachmentId, item);
+    return {data: item};
+  }
+  const behavior = {write: commit};
+  api.uploadAttachment = async (id, expected, file, attachmentId) => {
+    calls.push({id, expected, name: file.name, attachmentId});
+    assert.equal(expected, tag(id, cards.get(id).revision));
+    assert.match(attachmentId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    return behavior.write(id, file, attachmentId);
+  };
+  const ui = await harness(api);
+  await ui.load();
+  ui.find(ui.nodes.main, "button", "#1 Original").click();
+  await until(() => ui.find(ui.nodes.details, "button", "Upload attachments"));
+  const choose = (...files) => {
+    ui.field(ui.nodes.details, "Files").files = files;
+    return ui.submit(ui.nodes.details, "Upload attachments");
+  };
+  const paste = (files, types = ["Files"], target = ui.nodes.details) =>
+    ui.nodes.details.dispatch("paste", {target, clipboardData: {files, types}});
+  return {ui, api, cards, calls, readbacks, saved, behavior, commit, choose, paste};
+}
+
+test("attachment picker preflights every file, permits exactly 10 MiB and serializes by card ETag", async () => {
+  const {ui, calls, behavior, commit, choose} = await attachmentUploadFixture();
+  const first = Promise.withResolvers();
+  behavior.write = async (id, file, attachmentId) => {
+    if (file.name === "limit.dat") await first.promise;
+    if (file.name === "refused.dat") throw new ApiError("invalid_input", {status: 422});
+    return commit(id, file, attachmentId);
+  };
+  const draft = ui.field(ui.nodes.details, "Comment");
+  draft.value = "Keep the draft";
+  assert.equal(ui.field(ui.nodes.details, "Files").multiple, true);
+  choose({name: "limit.dat", size: MAX_ATTACHMENT_BYTES}, {name: "oversized.dat", size: MAX_ATTACHMENT_BYTES + 1},
+    {name: "refused.dat", size: 1}, {name: "last.dat", size: 1});
+  assert.equal(calls.length, 1);
+  assert.match(ui.nodes.details.textContent, /limit\.dat — Uploading…/);
+  assert.match(ui.nodes.details.textContent, /oversized\.dat — Refused\. Files are limited to 10 MiB/);
+  assert.match(ui.nodes.details.textContent, /last\.dat — Waiting/);
+  assert.equal(ui.find(ui.nodes.details, "button", "Post comment").disabled, true);
+  assert.equal(ui.find(ui.nodes.details, "button", "Close card").disabled, false);
+  first.resolve();
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.deepEqual(calls.map(({name, expected}) => [name, expected]), [
+    ["limit.dat", tag(card, 1)], ["refused.dat", tag(card, 2)], ["last.dat", tag(card, 2)],
+  ]);
+  assert.match(ui.nodes.details.textContent, /4 of 4 files processed/);
+  assert.match(ui.nodes.details.textContent, /refused\.dat — Upload refused/);
+  assert.match(ui.nodes.details.textContent, /last\.dat — Uploaded/);
+  assert.equal(ui.find(ui.nodes.details, "button", "Post comment").disabled, false);
+  assert.equal(draft.value, "Keep the draft");
+});
+
+test("attachment paste preserves ordinary text paste and independent card uploads across board navigation", async () => {
+  const {ui, calls, behavior, commit, paste} = await attachmentUploadFixture(uploadBoard);
+  const first = Promise.withResolvers();
+  behavior.write = async (id, file, attachmentId) => {
+    if (file.name === "origin.png") await first.promise;
+    return commit(id, file, attachmentId);
+  };
+  const editor = ui.field(ui.nodes.details, "Description");
+  const clip = {name: "origin.png", type: "image/png", size: 20};
+  assert.equal(paste([], ["text/plain"], editor), false);
+  assert.equal(paste([clip], ["Files", "text/plain"], editor), false);
+  assert.equal(paste([{name: "plain.txt", type: "text/plain", size: 20}]), false);
+  assert.equal(calls.length, 0);
+  assert.equal(paste([clip, {...clip, name: "origin-second.png"}]), true);
+  await ui.navigate("/boards/" + uploadBoard);
+  ui.find(ui.nodes.main, "button", "#2 Other card").click();
+  await until(() => ui.find(ui.nodes.details, "button", "Upload attachments"));
+  assert.doesNotMatch(ui.nodes.details.textContent, /origin\.png/);
+  assert.equal(paste([{...clip, name: "other.png"}]), true);
+  await until(() => !ui.uploadingToCard(uploadBoard, backup));
+  assert.equal(ui.uploadingToCard(board, card), true);
+  assert.match(ui.nodes.details.textContent, /other\.png — Uploaded/);
+  first.resolve();
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.deepEqual(calls.map(({id, expected, name}) => [id, expected, name]), [
+    [card, tag(card, 1), "origin.png"],
+    [backup, tag(backup, 1), "other.png"],
+    [card, tag(card, 2), "origin-second.png"],
+  ]);
+  assert.doesNotMatch(ui.nodes.details.textContent, /origin\.png/);
+  await ui.navigate("/boards/" + board);
+  await until(() => /origin-second\.png — Uploaded/.test(ui.nodes.details.textContent));
+  assert.doesNotMatch(ui.nodes.details.textContent, /other\.png/);
+});
+
+test("attachment upload confirms a lost response by original UUID before advancing", async () => {
+  const {ui, calls, readbacks, behavior, commit, choose} = await attachmentUploadFixture();
+  behavior.write = (id, file, attachmentId) => {
+    const reply = commit(id, file, attachmentId);
+    if (file.name === "lost.dat") throw new ApiError("transport_failed", {outcomeUnknown: true});
+    return reply;
+  };
+  choose({name: "lost.dat", size: 1}, {name: "next.dat", size: 2});
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].expected, tag(card, 2));
+  assert.deepEqual(readbacks, [calls[0].attachmentId]);
+  assert.match(ui.nodes.details.textContent, /lost\.dat — Uploaded\. Confirmed by readback/);
+  assert.match(ui.nodes.details.textContent, /next\.dat — Uploaded/);
+});
+
+test("attachment upload rejects foreign identity and requires inspection before another write", async () => {
+  const {ui, calls, readbacks, behavior, saved, commit, choose} = await attachmentUploadFixture();
+  let committed;
+  behavior.write = (id, file, attachmentId) => {
+    committed = commit(id, file, attachmentId).data;
+    const foreign = {...committed, board_id: uploadBoard};
+    saved.set(attachmentId, foreign);
+    return {data: foreign};
+  };
+  choose({name: "inspect.dat", size: 1}, {name: "stop.dat", size: 1});
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.equal(calls.length, 1);
+  assert.deepEqual(readbacks, [calls[0].attachmentId]);
+  assert.match(ui.nodes.details.textContent, /inspect\.dat — Outcome uncertain/);
+  assert.match(ui.nodes.details.textContent, /stop\.dat — Upload stopped/);
+  assert.equal(ui.find(ui.nodes.details, "button", "Upload attachments").disabled, true);
+  ui.find(ui.nodes.details, "button", "Inspect saved card").click();
+  await ui.settled();
+  assert.equal(ui.find(ui.nodes.details, "button", "Upload attachments").disabled, true);
+  saved.set(calls[0].attachmentId, committed);
+  ui.find(ui.nodes.details, "button", "Inspect saved card").click();
+  await ui.settled();
+  assert.equal(ui.find(ui.nodes.details, "button", "Upload attachments").disabled, false);
+  assert.match(ui.nodes.details.textContent, /inspect\.dat — Uploaded\. Confirmed by readback/);
+  assert.equal(calls.length, 1);
+});
+
+test("attachment upload stops before the next file when the card revision changed after a confirmed upload", async () => {
+  const {ui, cards, calls, behavior, commit, choose} = await attachmentUploadFixture();
+  behavior.write = (id, file, attachmentId) => {
+    const reply = commit(id, file, attachmentId);
+    const current = cards.get(id);
+    cards.set(id, {...current, revision: current.revision + 1});
+    return reply;
+  };
+  choose({name: "saved.dat", size: 1}, {name: "stopped.dat", size: 1});
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.equal(calls.length, 1);
+  assert.match(ui.nodes.details.textContent, /saved\.dat — Uploaded/);
+  assert.match(ui.nodes.details.textContent, /stopped\.dat — Upload stopped/);
+  assert.match(ui.nodes.details.textContent, /The card changed during upload/);
+});
+
+test("lane approval waits only for uploads on its rendered card members", async () => {
+  const {ui, api, cards, calls, behavior, commit, choose} = await attachmentUploadFixture();
+  const ready = (await api.listLanes()).data.lanes[0];
+  const completed = "a57df7d8-0476-44d6-97a4-3b2e5486650a";
+  const other = cards.get(backup);
+  cards.set(backup, {...other, lane_id: uploadBoard});
+  api.listLanes = async () => page("lanes", [
+    {...ready, role: "ready_for_review", approval_enabled: true},
+    {...ready, id: uploadBoard, key: "other", position: 1},
+    {...ready, id: completed, key: "completed", role: "completed", position: 2},
+  ]);
+  const approvals = [];
+  api.approveLane = async (...args) => { approvals.push(args[5]); };
+  await ui.load();
+  await until(() => ui.find(ui.nodes.details, "button", "Upload attachments"));
+  const memberUpload = Promise.withResolvers();
+  const otherUpload = Promise.withResolvers();
+  behavior.write = async (id, file, attachmentId) => {
+    await (id === card ? memberUpload.promise : otherUpload.promise);
+    return commit(id, file, attachmentId);
+  };
+  choose({name: "member.txt", size: 1});
+  ui.submit(ui.nodes.main, "Approve all in lane");
+  assert.equal(approvals.length, 0);
+  assert.match(ui.nodes.status.textContent, /Wait for attachments/);
+  memberUpload.resolve();
+  await until(() => !ui.uploadingToCard(board, card));
+  ui.find(ui.nodes.main, "button", "#2 Other card").click();
+  await until(() => /#2 Other card/.test(ui.nodes.details.textContent));
+  choose({name: "unrelated.txt", size: 1});
+  ui.submit(ui.nodes.main, "Approve all in lane");
+  await ui.settled();
+  assert.deepEqual(approvals[0].map(({id}) => id), [card]);
+  assert.equal(ui.uploadingToCard(board, backup), true);
+  assert.equal(calls.length, 2);
+  otherUpload.resolve();
+  await until(() => !ui.uploadingToCard(board, backup));
+});
+
+test("attachment inspection preserves an independent pending link readback on the same card", async () => {
+  const {ui, api, calls, behavior, commit, choose} = await attachmentUploadFixture();
+  const relationship = {
+    id: uploadBoard, board_id: board, source_card_id: card, target_card_id: backup, kind: "relates_to", revision: 1,
+  };
+  let failLinkRead = false;
+  api.listRelationships = async () => {
+    if (failLinkRead) throw new ApiError("transport_failed");
+    return page("relationships", [relationship]);
+  };
+  api.removeRelationship = async () => {
+    failLinkRead = true;
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  await ui.load();
+  await until(() => ui.find(ui.nodes.details, "button", "Remove link"));
+  const finish = Promise.withResolvers();
+  const file = {name: "uncertain.txt", size: 1};
+  behavior.write = async () => {
+    await finish.promise;
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  choose(file);
+  ui.submit(ui.nodes.details, "Remove link");
+  await ui.settled();
+  assert.match(ui.nodes.status.textContent, /Readback failed/);
+  finish.resolve();
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.match(ui.nodes.details.textContent, /Outcome uncertain/);
+  failLinkRead = false;
+  commit(card, file, calls[0].attachmentId);
+  ui.find(ui.nodes.details, "button", "Inspect saved card").click();
+  await ui.settled();
+  assert.match(ui.nodes.details.textContent, /uncertain\.txt — Uploaded\. Confirmed by readback/);
+  assert.match(ui.nodes.status.textContent, /The submission could not be confirmed/);
+  assert.equal(ui.find(ui.nodes.details, "button", "Remove link").disabled, false);
 });

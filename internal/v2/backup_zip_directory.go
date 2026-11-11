@@ -11,6 +11,7 @@ const (
 	zipDirectoryEndSize    = 22
 	zip64DirectoryEndSize  = 56
 	zip64LocatorSize       = 20
+	zip64ExtraFieldID      = 1
 	zipLocalHeaderSize     = 30
 	maxBackupEntryNameSize = len("attachments/") + 3*36 + 2
 
@@ -153,7 +154,7 @@ func backupLocalHeaderOffset(header, extra []byte) (uint64, bool) {
 		if size > len(extra)-4 {
 			break
 		}
-		if tag == 1 {
+		if tag == zip64ExtraFieldID {
 			if found || size < skip+8 {
 				return 0, false
 			}

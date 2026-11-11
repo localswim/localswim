@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"encoding/binary"
 	"errors"
+	"hash/crc32"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 const (
 	zipDataDescriptorFlag      = 1 << 3
 	zipDataDescriptorSignature = 0x08074b50
+	zipSizeSentinel            = 0xffffffff
 )
 
 // An archive opened from stored backup metadata owns a private copy. No ZIP path is extracted or
@@ -147,8 +149,45 @@ func (d backupZIPDirectory) matchesLocalMember(offset, limit int64, entry *zip.F
 		string(name[:nameSize]) != entry.Name {
 		return false
 	}
-	return entry.Flags&zipDataDescriptorFlag == 0 ||
-		d.matchesDataDescriptor(payload+int64(entry.CompressedSize64), limit, &entry.FileHeader)
+	if entry.Flags&zipDataDescriptorFlag != 0 {
+		return d.matchesDataDescriptor(payload+int64(entry.CompressedSize64), limit, &entry.FileHeader)
+	}
+
+	compressed, uncompressed := le.Uint32(header[18:]), le.Uint32(header[22:])
+	if le.Uint32(header[14:]) != entry.CRC32 ||
+		(compressed != zipSizeSentinel && uint64(compressed) != entry.CompressedSize64) ||
+		(uncompressed != zipSizeSentinel && uint64(uncompressed) != entry.UncompressedSize64) {
+		return false
+	}
+	return compressed != zipSizeSentinel && uncompressed != zipSizeSentinel ||
+		d.matchesLocalZIP64Sizes(payload-int64(extraSize), extraSize, &entry.FileHeader)
+}
+
+// When the local header needs ZIP64 sizes, the extra field carries the
+// uncompressed size followed by the compressed size.
+func (d backupZIPDirectory) matchesLocalZIP64Sizes(offset int64, size int, entry *zip.FileHeader) bool {
+	extra := make([]byte, size)
+	if _, err := d.file.ReadAt(extra, offset); err != nil {
+		return false
+	}
+	le := binary.LittleEndian
+	found := false
+	for len(extra) >= 4 {
+		tag, length := le.Uint16(extra), int(le.Uint16(extra[2:]))
+		if length > len(extra)-4 {
+			return false
+		}
+		if tag == zip64ExtraFieldID {
+			if found || length < 16 ||
+				le.Uint64(extra[4:]) != entry.UncompressedSize64 ||
+				le.Uint64(extra[12:]) != entry.CompressedSize64 {
+				return false
+			}
+			found = true
+		}
+		extra = extra[4+length:]
+	}
+	return found && len(extra) == 0
 }
 
 // Native ZIP members with a descriptor pack it immediately before the next
@@ -191,12 +230,21 @@ func readBackupEntry(entry *zip.File, limit int64) ([]byte, error) {
 		entry.CompressedSize64 > uint64(limit)+uint64(limit)/8+(64<<10) {
 		return nil, errBackupIntegrity
 	}
-	reader, err := entry.Open()
+	// The inspector already checked the descriptor against the directory.
+	// Keep archive/zip's bounded decompression without having it infer a
+	// descriptor signature from a potentially identical CRC.
+	member := *entry
+	member.Flags &^= zipDataDescriptorFlag
+	reader, err := member.Open()
 	if err != nil {
 		return nil, errBackupIntegrity
 	}
 	data, readErr := io.ReadAll(io.LimitReader(reader, limit+1))
 	if errors.Join(readErr, reader.Close()) != nil || int64(len(data)) > limit || uint64(len(data)) != entry.UncompressedSize64 {
+		return nil, errBackupIntegrity
+	}
+	// archive/zip treats a zero CRC without a descriptor as unspecified.
+	if entry.CRC32 == 0 && crc32.ChecksumIEEE(data) != 0 {
 		return nil, errBackupIntegrity
 	}
 	return data, nil

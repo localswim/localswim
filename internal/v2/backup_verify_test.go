@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"net/http"
 	"os"
@@ -298,6 +299,155 @@ func TestM96DataDescriptorWidths(t *testing.T) {
 				t.Fatal("accepted data descriptor crossing the next record boundary")
 			}
 		})
+	}
+}
+
+func TestM96VerifiesZeroCRCWithoutDescriptor(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		data  []byte
+		valid bool
+	}{
+		{"actualZero", []byte{0x9d, 0x0a, 0xd9, 0x6d}, true},
+		{"falseZero", []byte("attachment content"), false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if (crc32.ChecksumIEEE(test.data) == 0) != test.valid {
+				t.Fatal("test payload does not have the expected CRC")
+			}
+			archive, want := m96OneAttachmentZIP(t, test.data, func(writer *zip.Writer, name string) {
+				size := uint64(len(test.data))
+				header := &zip.FileHeader{Name: name, Method: zip.Store, CompressedSize64: size, UncompressedSize64: size}
+				header.SetMode(0o600)
+				member, err := writer.CreateRaw(header)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := member.Write(test.data); err != nil {
+					t.Fatal(err)
+				}
+			})
+			m96CheckArchive(t, archive, want, test.valid)
+		})
+	}
+}
+
+func TestM96VerifiesUnsignedDescriptorWithSignatureCRC(t *testing.T) {
+	data := []byte{0xac, 0x0a, 0x7a, 0xd5}
+	if crc32.ChecksumIEEE(data) != zipDataDescriptorSignature {
+		t.Fatal("test payload must have a CRC equal to the descriptor signature")
+	}
+	archive, want := m96OneAttachmentZIP(t, data, func(writer *zip.Writer, name string) {
+		header := &zip.FileHeader{Name: name, Method: zip.Deflate}
+		header.SetMode(0o600)
+		member, err := writer.CreateHeader(header)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := member.Write(data); err != nil {
+			t.Fatal(err)
+		}
+	})
+	reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	member := reader.File[len(reader.File)-1]
+	payload, err := member.DataOffset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	le := binary.LittleEndian
+	descriptor := int(payload) + int(member.CompressedSize64)
+	directory := int(le.Uint32(archive[len(archive)-zipDirectoryEndSize+16:]))
+	if descriptor+16 != directory || le.Uint32(archive[descriptor:]) != zipDataDescriptorSignature {
+		t.Fatal("expected the final member's complete signed descriptor")
+	}
+	// The last member's descriptor is directly before the central directory.
+	// Removing only its signature shifts the directory by four bytes.
+	unsigned := append(bytes.Clone(archive[:descriptor]), archive[descriptor+4:]...)
+	le.PutUint32(unsigned[len(unsigned)-zipDirectoryEndSize+16:], uint32(directory-4))
+	m96CheckArchive(t, unsigned, want, true)
+}
+
+func TestM96ChecksDescriptorFreeLocalZIP64Sizes(t *testing.T) {
+	const name = "member"
+	const size = 3
+	le := binary.LittleEndian
+	extra := le.AppendUint16(nil, zip64ExtraFieldID)
+	extra = le.AppendUint16(extra, 16)
+	extra = le.AppendUint64(extra, size)
+	extra = le.AppendUint64(extra, size)
+	entry := &zip.File{FileHeader: zip.FileHeader{
+		Name: name, CRC32: crc32.ChecksumIEEE([]byte("abc")),
+		CompressedSize64: size, UncompressedSize64: size,
+	}}
+	var header [zipLocalHeaderSize]byte
+	le.PutUint32(header[:], 0x04034b50)
+	le.PutUint32(header[14:], entry.CRC32)
+	le.PutUint32(header[18:], zipSizeSentinel)
+	le.PutUint32(header[22:], zipSizeSentinel)
+	le.PutUint16(header[26:], uint16(len(name)))
+	le.PutUint16(header[28:], uint16(len(extra)))
+	data := bytes.Join([][]byte{header[:], []byte(name), extra, []byte("abc")}, nil)
+	directory := backupZIPDirectory{file: bytes.NewReader(data)}
+	if !directory.matchesLocalMember(0, int64(len(data)), entry) {
+		t.Fatal("rejected valid descriptor-free ZIP64 local header")
+	}
+	for _, offset := range []int{14, zipLocalHeaderSize + len(name) + 4, zipLocalHeaderSize + len(name) + 12} {
+		data[offset] ^= 1
+		if directory.matchesLocalMember(0, int64(len(data)), entry) {
+			t.Fatal("accepted mismatched local CRC or ZIP64 size")
+		}
+		data[offset] ^= 1
+	}
+}
+
+func m96OneAttachmentZIP(t *testing.T, data []byte, writeAttachment func(*zip.Writer, string)) ([]byte, backupVerification) {
+	t.Helper()
+	app, editor := attachmentHTTPServer(t)
+	raw, _ := editor.call("POST", "/boards", `{"name":"ZIP member verification"}`, "", 201)
+	b := turnOneDecode[board](t, raw)
+	c := attachmentHTTPCard(t, editor, b)
+	raw, _ = attachmentHTTPUpload(t, editor, []attachmentFormField{
+		{"card_id", c.ID}, {"expected_card_etag", c.entityTag()},
+	}, "fixture.bin", data, 201)
+	item := turnOneDecode[attachment](t, raw)
+	snapshot, err := os.ReadFile(app.store.snapshotPath(b.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+	if err := writeBackupEntry(writer, "boards/"+b.ID+".json", snapshot); err != nil {
+		t.Fatal(err)
+	}
+	writeAttachment(writer, filepath.ToSlash(attachmentPath(item)))
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return archive.Bytes(), backupVerification{b.ID, item.Revision, 1}
+}
+
+func m96CheckArchive(t *testing.T, data []byte, want backupVerification, valid bool) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "fixture.zip")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := VerifyBackupFile(path)
+	if valid && (err != nil || got != want) || !valid && !errors.Is(err, errBackupIntegrity) {
+		t.Fatalf("offline verification: got %+v, %v (valid=%t)", got, err, valid)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	restored, err := inspectBackupArchive(file, want.BoardID)
+	if valid && (err != nil || restored.state.Board.Revision != want.BoardRevision) ||
+		!valid && !errors.Is(err, errBackupIntegrity) {
+		t.Fatalf("restore archive verification: %v (valid=%t)", err, valid)
 	}
 }
 

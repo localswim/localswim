@@ -16,6 +16,7 @@ const priority = "163b1fa0-2a32-424b-8489-6bbd7761201c";
 const backup = "f7e04b53-cfd9-417c-af8e-b6316af0a085";
 const tag = (id, revision) => JSON.stringify(id + "-" + revision);
 const page = (key, rows) => ({data: {[key]: rows, next_cursor: null}, etag: null});
+const createdCardReply = ({id, board_id}, revision = 2) => ({data: {id, board_id}, etag: tag(id, revision)});
 
 // A small DOM surface executes app.mjs event handlers and asynchronous reads.
 // Browser rendering and platform behavior remain covered by the real-browser gate.
@@ -473,7 +474,7 @@ test("creation and keyboard moves use the current actor's directed workflow and 
     ],
   }});
   const creates = [];
-  api.createCard = async (input) => creates.push(input);
+  api.createCard = async (input) => { creates.push(input); return createdCardReply(input); };
   const moves = [];
   const patch = api.patchCard;
   let refuse = true;
@@ -3864,7 +3865,7 @@ test("new card resolves typed seed rows and submits one atomic create with the c
     await lookup.promise;
     return page("cards", [target]);
   };
-  api.createCard = async (draft) => { writes.push(draft); };
+  api.createCard = async (draft) => { writes.push(draft); return createdCardReply(draft); };
 
   const ui = await harness(api);
   await ui.load();
@@ -3909,7 +3910,7 @@ test("withdrawing relationship permission preserves seed drafts and still permit
     return reply;
   };
   const writes = [];
-  api.createCard = async (draft) => { writes.push(draft); };
+  api.createCard = async (draft) => { writes.push(draft); return createdCardReply(draft); };
   let targetReads = 0;
   api.listCards = async () => {
     targetReads++;
@@ -4051,6 +4052,7 @@ test("acknowledged seeded create reconciles the originating draft while another 
     writes.push(draft);
     dispatched.resolve();
     await finishWrite.promise;
+    return createdCardReply(draft);
   };
   let readbacks = 0;
   api.getCard = async () => { readbacks++; };
@@ -4317,7 +4319,7 @@ test("foreground readback waits for a live read and satisfies its queued invalid
     return reply;
   };
   let writes = 0;
-  api.createCard = async () => { writes++; };
+  api.createCard = async (draft) => { writes++; return createdCardReply(draft); };
   const ui = await harness(api);
   t.after(() => ui.navigate("/"));
   await ui.load();
@@ -4453,7 +4455,11 @@ async function attachmentUploadFixture(secondBoard = board, options) {
   });
   api.getBoardLanes = async (id) => ({data: {board: boardData(id),
     cards: [...cards.values()].filter((entry) => entry.board_id === id)}, etag: tag(id, revisions.get(id))});
-  api.getCard = async (id) => ({data: cards.get(id), etag: tag(id, cards.get(id).revision)});
+  api.getCard = async (id) => {
+    const saved = cards.get(id);
+    if (!saved) throw new ApiError("http_error", {status: 404});
+    return {data: saved, etag: tag(id, saved.revision)};
+  };
   api.listAttachments = async (id) => page("attachments", [...saved.values()].filter((entry) => entry.card_id === id));
   api.getAttachment = async (id) => {
     readbacks.push(id);
@@ -4541,6 +4547,155 @@ test("M48 drag waits for the source card's upload and permits an unrelated card 
     pending.resolve();
     await until(() => !ui.uploadingToCard(board, card));
   }
+});
+
+async function newCardFileFixture() {
+  const fixture = await attachmentUploadFixture();
+  const {ui, api, cards} = fixture;
+  const {main} = ui.nodes;
+  const writes = [];
+  function create(request) {
+    assert.equal(request.expected_board_etag, tag(board, 1));
+    const saved = {...cards.get(card), id: request.id, title: request.title,
+      description: request.description, ticket: 3, attachment_count: 0};
+    cards.set(saved.id, saved);
+    return {data: saved, etag: tag(saved.id, saved.revision)};
+  }
+  const creation = {write: create};
+  api.createCard = async (request) => {
+    writes.push(request);
+    return creation.write(request);
+  };
+  ui.find(main, "button", "Add card").click();
+  ui.field(main, "New title").value = "Files on a new card";
+  function choose(...files) {
+    const picker = ui.field(main, "Files to attach");
+    assert.equal(picker.multiple, true);
+    picker.files = files;
+    picker.dispatch("change");
+  }
+  function paste(files, types = ["Files"]) {
+    const target = ui.field(main, "New description");
+    return target.parent.parent.parent.dispatch("paste", {target, clipboardData: {files, types}});
+  }
+  return {...fixture, writes, creation, create, choose, paste};
+}
+
+test("New card stages selected files and a pasted image and keeps earlier uploads after an interruption", async () => {
+  const {ui, writes, calls, choose, paste, commit, behavior, saved, readbacks} = await newCardFileFixture();
+  const {main, details} = ui.nodes;
+  const final = Promise.withResolvers();
+  behavior.write = async (id, file, attachmentId) => {
+    if (file.type === "image/png") {
+      await final.promise;
+      throw new ApiError("transport_failed", {outcomeUnknown: true});
+    }
+    return commit(id, file, attachmentId);
+  };
+  choose({name: "first.txt", size: 1}, {name: "second.txt", size: 2}, {name: "remove.txt", size: 3});
+  ui.find(main, "button", "Remove remove.txt").click();
+  const image = {name: "paste.png", size: 4, type: "image/png"};
+  assert.equal(paste([image], ["text/plain", "Files"]), false);
+  assert.equal(paste([image]), true);
+  assert.match(main.textContent, /first\.txt.*second\.txt.*paste\.png/s);
+  assert.equal(calls.length, 0);
+
+  ui.submit(main, "Create card");
+  ui.submit(main, "Create card");
+  await until(() => calls.length === 3 && ui.find(details, "h2", "#3 Files on a new card"));
+  assert.equal(writes.length, 1);
+  const created = writes[0].id;
+  assert.deepEqual(calls.map(({id, name, expected}) => [id, name, expected]), [
+    [created, "first.txt", tag(created, 1)], [created, "second.txt", tag(created, 2)],
+    [created, "paste.png", tag(created, 3)],
+  ]);
+  final.resolve();
+  await until(() => !ui.uploadingToCard(board, created));
+  assert.deepEqual([...saved.values()].map(({card_id, original_name}) => [card_id, original_name]), [
+    [created, "first.txt"], [created, "second.txt"],
+  ]);
+  assert.deepEqual(readbacks, [calls[2].attachmentId]);
+  assert.match(details.textContent, /first\.txt — Uploaded\./);
+  assert.match(details.textContent, /second\.txt — Uploaded\./);
+  assert.match(details.textContent, /paste\.png — Outcome uncertain/);
+  assert.equal(ui.find(details, "button", "Post comment").disabled, true);
+  assert.equal(ui.find(main, "button", "Remove paste.png"), undefined);
+  assert.equal(writes.length, 1);
+});
+
+test("New card upload waits for exact creation readback and starts once after explicit inspection", async () => {
+  const {ui, api, calls, writes, choose, create, creation} = await newCardFileFixture();
+  const {main, details} = ui.nodes;
+  const readCard = api.getCard;
+  let readable = false;
+  const readbacks = [];
+  api.getCard = async (id) => {
+    if (id === writes[0]?.id) {
+      readbacks.push(id);
+      if (!readable) throw new ApiError("transport_failed");
+    }
+    return readCard(id);
+  };
+  creation.write = async (request) => {
+    create(request);
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  choose({name: "after-readback.txt", size: 1});
+  ui.submit(main, "Create card");
+  await ui.settled();
+  assert.equal(writes.length, 1);
+  const created = writes[0].id;
+  assert.deepEqual(readbacks, [created]);
+  assert.equal(calls.length, 0);
+  assert.equal(ui.find(main, "button", "Create card").disabled, true);
+
+  readable = true;
+  ui.find(main, "button", "Inspect saved board").click();
+  await until(() => calls.length === 1 && !ui.uploadingToCard(board, created));
+  assert.equal(writes.length, 1);
+  assert.equal(readbacks[1], created);
+  assert.equal(calls[0].id, created);
+  assert.match(details.textContent, /after-readback\.txt — Uploaded\./);
+});
+
+test("staged files follow the original creation across board navigation", async () => {
+  const {ui, calls, writes, choose, create, creation} = await newCardFileFixture();
+  const {main, details} = ui.nodes;
+  const acknowledged = Promise.withResolvers();
+  creation.write = async (request) => {
+    await acknowledged.promise;
+    return create(request);
+  };
+  choose({name: "original-board.txt", size: 1});
+  await ui.navigate("/");
+  await ui.navigate("/boards/" + board);
+  assert.ok(ui.find(main, "button", "Remove original-board.txt"));
+  ui.submit(main, "Create card");
+  await until(() => writes.length === 1);
+  await ui.navigate("/");
+  acknowledged.resolve();
+  const created = writes[0].id;
+  await until(() => calls.length === 1 && !ui.uploadingToCard(board, created));
+  assert.equal(calls[0].id, created);
+  assert.equal(details.hidden, true);
+  await ui.navigate("/boards/" + board);
+  assert.equal(ui.find(main, "button", "Remove original-board.txt"), undefined);
+  ui.find(main, "button", "#3 Files on a new card").click();
+  await until(() => ui.find(details, "h2", "#3 Files on a new card"));
+  assert.match(details.textContent, /original-board\.txt — Uploaded\./);
+});
+
+test("a stale create retains its staged files without dispatching an upload", async () => {
+  const {ui, writes, calls, choose, creation} = await newCardFileFixture();
+  const {main} = ui.nodes;
+  creation.write = async () => { throw new ApiError("http_error", {status: 412}); };
+  choose({name: "stay-staged.txt", size: 1});
+  ui.submit(main, "Create card");
+  await ui.settled();
+  assert.equal(writes.length, 1);
+  assert.equal(calls.length, 0);
+  assert.equal(ui.field(main, "New title").value, "Files on a new card");
+  assert.ok(ui.find(main, "button", "Remove stay-staged.txt"));
 });
 
 test("attachment picker preflights every file, permits exactly 10 MiB and serializes by card ETag", async () => {
@@ -4810,7 +4965,7 @@ test("seeded creation preserves its draft while a resolved target uploads", asyn
   const finish = Promise.withResolvers();
   behavior.write = async (...args) => { await finish.promise; return commit(...args); };
   const creates = [];
-  api.createCard = async (request) => { creates.push(request); };
+  api.createCard = async (request) => { creates.push(request); return createdCardReply(request); };
   choose({name: "target.txt", size: 1});
   const {main, status} = ui.nodes;
   ui.find(main, "button", "Add card").click();

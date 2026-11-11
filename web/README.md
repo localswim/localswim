@@ -105,6 +105,12 @@ reports when a dependency floor prevents the requested demotion. After a
 stale or uncertain result, compare the saved priority with your selection
 before submitting again.
 
+In **New card**, use **Files to attach** or paste files into the form. You can
+remove individual files before submitting. Staged files stay in the current tab
+for that board until the card is confirmed. After creation, the same card drawer
+shows per-file upload results. The card and its confirmed files stay saved if a
+later upload fails.
+
 Use **Files** in the card drawer to select several attachments, then choose
 **Upload attachments**. You can also paste a clipboard image into the open drawer.
 Each file has its own outcome. The drawer rejects files larger than 10 MiB before

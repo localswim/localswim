@@ -19,6 +19,13 @@ to submit again. Inspect or Refresh rereads the active editor and preserves
 the draft. If readback fails, inspect the affected card or board before
 submitting another change there. The page makes one write attempt per submission.
 
+**Add card** appears in each active lane where the current actor can start a
+card. It opens the shared new-card form with that destination selected. In a
+card drawer, **Move card** offers the active destinations granted to the current
+actor from the saved lane. The browser reads these grants from the board's
+policy and refreshes them with the board. The service checks its current policy
+and the original conditional-write validator when it receives either action.
+
 Lane headings show the number of active cards, including zero in empty lanes.
 Card faces show nonzero comment and active attachment counts. The card opener's
 accessible description names the exact counts. The board refreshes them from

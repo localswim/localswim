@@ -118,9 +118,11 @@ function boardApi() {
   const lanes = [{id: lane, label: "Ready", key: "ready", retired: false, position: 0, role: "ordinary", revision: 1}];
   let patched;
   const api = {
-    getSession: async () => ({data: {kind: "human"}}), listBoards: async () => page("boards", [{id: board, name: "Board"}]),
+    getSession: async () => ({data: {kind: "human", principal_id: user}}), listBoards: async () => page("boards", [{id: board, name: "Board"}]),
     getBoardAvailability: async () => ({data: {id: board, name: "Board", availability: "open", policy_id: backup, revision}, etag: tag(board, revision)}),
-    getBoardLanes: async () => ({data: {board: {id: board, name: "Board", revision}, cards: saved ? [saved] : []}, etag: tag(board, revision)}),
+    getBoardLanes: async () => ({data: {board: {id: board, name: "Board", policy_id: backup, revision}, cards: saved ? [saved] : []}, etag: tag(board, revision)}),
+    getPolicy: async () => ({data: {id: backup, board_id: board, resource_grants: [{user_id: user, capabilities: ["read", "create_card"]}],
+      create_grants: [{user_id: user, lane_id: lane}], move_grants: []}}),
     getBoardIfChanged: async () => ({data: null}), listLanes: async () => page("lanes", lanes),
     listPriorities: async () => page("priorities", [{id: priority, label: "Normal"}]),
     listUsers: async () => page("users", [{id: user, label: "Human", kind: "human"}]),
@@ -134,6 +136,102 @@ function boardApi() {
   api.restoreSnapshot = async () => { restore(); };
   return {api, restore, patched: () => patched};
 }
+
+test("creation and keyboard moves use the current actor's directed workflow and original validators", async () => {
+  const {api} = boardApi();
+  const source = (await api.listLanes()).data.lanes[0];
+  const target = {...source, id: backup, label: "Next", position: 1};
+  const forbidden = {...source, id: priority, label: "Other actor", position: 2};
+  const retired = {...source, id: user, label: "Retired", position: 3, retired: true};
+  api.listLanes = async () => page("lanes", [source, target, forbidden, retired]);
+  let actor = user;
+  let policyBoard = board;
+  let mayCreate = true;
+  api.getSession = async () => ({data: {kind: "human", principal_id: actor}});
+  api.getPolicy = async () => ({data: {
+    id: backup, board_id: policyBoard,
+    resource_grants: [{user_id: user, capabilities: mayCreate ? ["read", "create_card"] : ["read"]},
+      {user_id: priority, capabilities: ["read", "create_card"]}],
+    create_grants: [{user_id: user, lane_id: source.id}, {user_id: user, lane_id: retired.id},
+      {user_id: priority, lane_id: forbidden.id}],
+    move_grants: [
+      {user_id: user, from_lane_id: source.id, to_lane_id: target.id},
+      {user_id: user, from_lane_id: target.id, to_lane_id: forbidden.id},
+      {user_id: user, from_lane_id: source.id, to_lane_id: retired.id},
+      {user_id: priority, from_lane_id: source.id, to_lane_id: forbidden.id},
+    ],
+  }});
+  const creates = [];
+  api.createCard = async (input) => creates.push(input);
+  const moves = [];
+  const patch = api.patchCard;
+  let refuse = true;
+  api.patchCard = async (...args) => {
+    moves.push(args);
+    if (refuse) throw new ApiError("http_error", {status: 403});
+    return patch(...args);
+  };
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details, status} = ui.nodes;
+  const addButtons = () => main.querySelectorAll("button").filter((button) => button.dataset.createLane);
+  assert.deepEqual(addButtons().map(({dataset}) => dataset.createLane), [source.id]);
+  ui.submit(main, "Create card");
+  assert.equal(creates.length, 0);
+  addButtons()[0].click();
+  assert.equal(ui.focused(), ui.field(main, "New title"));
+  assert.ok(ui.find(main, "h2", "New card in Ready"));
+  ui.field(main, "New title").value = "  Exact title  ";
+  ui.submit(main, "Create card");
+  await ui.settled();
+  assert.equal(creates.length, 1);
+  assert.match(creates[0].id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.deepEqual([creates[0].board_id, creates[0].lane_id, creates[0].expected_board_etag, creates[0].title],
+    [board, source.id, tag(board, 1), "  Exact title  "]);
+
+  ui.find(main, "button", "#1 Original").click();
+  await ui.settled();
+  const destination = ui.field(details, "Move to lane");
+  assert.deepEqual(destination.options.map(({value}) => value), ["", target.id]);
+  destination.value = forbidden.id;
+  ui.submit(details, "Move card");
+  assert.equal(moves.length, 0);
+  destination.value = target.id;
+  ui.submit(details, "Move card");
+  await ui.settled();
+  assert.equal(moves.length, 1);
+  assert.deepEqual([moves[0][0], moves[0][1], moves[0][2].lane_id], [card, tag(card, 1), target.id]);
+  assert.match(status.textContent, /edit refused/);
+  assert.equal(destination.value, target.id);
+  assert.match(details.textContent, /Lane: Ready/);
+
+  refuse = false;
+  ui.submit(details, "Move card");
+  await ui.settled();
+  assert.equal(moves.length, 2);
+  assert.match(details.textContent, /Lane: Next/);
+  assert.deepEqual(destination.options.map(({value}) => value), ["", forbidden.id]);
+
+  const title = ui.field(main, "New title");
+  title.value = "Draft across policy refresh";
+  mayCreate = false;
+  ui.nodes.refresh.click();
+  await ui.settled();
+  assert.deepEqual(addButtons(), []);
+  assert.equal(title.value, "Draft across policy refresh");
+  assert.equal(title.parent.parent.parent.hidden, true);
+  actor = priority;
+  ui.nodes.refresh.click();
+  await ui.settled();
+  assert.deepEqual(addButtons().map(({dataset}) => dataset.createLane), [forbidden.id]);
+  assert.equal(destination.parent.parent.parent.hidden, true);
+  policyBoard = priority;
+  ui.nodes.refresh.click();
+  await ui.settled();
+  assert.deepEqual(addButtons(), []);
+  assert.ok(ui.find(main, "button", "#1 Original"));
+});
 
 test("lane totals and card counts render authoritative comment and detach readbacks", async () => {
   const {api} = boardApi();
@@ -472,6 +570,7 @@ test("board publishing inspects an uncertain save once and renders automatic pus
   };
   const ui = await harness(api);
   await ui.load();
+  ui.find(ui.nodes.main, "button", "Add card").click();
   const title = ui.field(ui.nodes.main, "New title");
   title.value = "Draft survives publishing";
   const enabled = ui.field(ui.nodes.main, "Enable board publishing");
@@ -1081,9 +1180,9 @@ function boardAvailabilityApi() {
   const baseRead = api.getBoardLanes;
   api.getSession = async () => ({data: {kind: "human", principal_id: user, workspace_admin: false}});
   api.getPolicy = async () => ({data: {id: backup, board_id: board, resource_grants: [
-    {user_id: user, capabilities: allowed ? ["read", "close_board"] : ["read"]},
+    {user_id: user, capabilities: allowed ? ["read", "close_board", "create_card"] : ["read", "create_card"]},
     {user_id: priority, capabilities: ["close_board"]},
-  ]}});
+  ], create_grants: [{user_id: user, lane_id: lane}], move_grants: []}});
   api.getBoardAvailability = async () => {
     if (readError) throw readError;
     return {data: {...savedBoard}, etag: tag(board, savedBoard.revision)};
@@ -1119,6 +1218,7 @@ test("board close and reopen use the original tags and retain drafts and selecti
   await ui.load();
   ui.find(main, "button", "#1 Original").click();
   await ui.settled();
+  ui.find(main, "button", "Add card").click();
   ui.field(main, "New title").value = "New card draft";
   ui.field(details, "Description").value = "Saved in memory";
   ui.field(details, "Comment").value = "Unsubmitted comment";
@@ -1837,6 +1937,7 @@ test("live changes coalesce behind one selected-board read and preserve open dra
   await until(() => ui.field(details, "Title"));
   const title = ui.field(details, "Title");
   const comment = ui.field(details, "Comment");
+  ui.find(main, "button", "Add card").click();
   const newTitle = ui.field(main, "New title");
   const preview = () => main.querySelectorAll("input").find((input) => input.dataset.previewLane === lane);
   title.value = "Unsaved title";
@@ -2173,13 +2274,13 @@ test("foreground readback waits for a live read and satisfies its queued invalid
   await ui.load();
   await until(() => streams.length === 1);
   const {main} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
   streams[0].send("snapshot", 1);
   streams[0].send("change", commit("Paused live read"));
   await entered.promise;
   const title = ui.field(main, "New title");
   title.value = "Card being created";
-  ui.field(main, "New card lane").value = lane;
-  ui.submit(main, "Add card");
+  ui.submit(main, "Create card");
   await until(() => writes === 1 && title.value === "");
   streams[0].send("change", commit("Latest saved revision"));
   assert.equal(ui.busy(), true);

@@ -940,7 +940,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       return reply;
     },
-    getSession: () => request("/session"),
+    /** @param {AbortSignal} [signal] */
+    getSession: (signal) => request("/session", { signal }),
     /** @param {{board_id: string, card_id?: string}} filter
      * @param {number} [limit] @param {string} [cursor] */
     listComments(filter, limit, cursor) {
@@ -1380,8 +1381,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {unknown} boardId @param {string} [cursor] @param {AbortSignal} [signal] */
     listUsers: (boardId, cursor, signal) => list("/users", { board_id: resourceId(boardId) }, cursor, signal),
-    /** @param {unknown} policyId */
-    getPolicy: (policyId) => request(`/policies/${resourceId(policyId)}`),
+    /** @param {unknown} policyId @param {AbortSignal} [signal] */
+    getPolicy: (policyId, signal) => request(`/policies/${resourceId(policyId)}`, { signal }),
     /** @param {unknown} boardId */
     getVerification: (boardId) => request(`/verifications/${resourceId(boardId)}`),
     /** @param {unknown} boardId */

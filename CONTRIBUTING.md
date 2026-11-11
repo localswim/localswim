@@ -122,6 +122,13 @@ all actual audit changes, and `board_revision`. `X-Board-ETag` carries the commi
 validator. Duplicate IDs and Completed selections refuse the entire operation.
 An unchanged effective result preserves the revision and audit.
 
+Use `card set-priorities [--revision N] --priority PRIORITY_ID --tickets BOARD_ID TICKET [TICKET ...]`
+to select cards by their tickets. Every focused lookup must agree on the same
+board validator. The CLI rejects duplicate tickets before lookup and sends one
+batch with the original board validator. `--revision` checks the board revision.
+After a stale response, inspect the current ticket mapping before issuing another
+command. After an uncertain response, inspect the affected cards before retrying.
+
 `GET /boards/{board_id}?view=lanes` returns `board`, active `lanes`, and visible
 `cards` in lane order. Within each lane, priority precedes same-rank blocking
 relationships. Cycles stay together in ticket order. Archived cards do not
@@ -364,6 +371,14 @@ generated for that upload. A file path defaults to its basename. `--filename`
 overrides either default with a UTF-8 name of 1 to 1024 characters, without line
 breaks or NUL. Both input sources have a 10 MiB limit. The parent card revision
 is checked before reading attachment bytes.
+
+Use `attachment upload [--revision N] [--id UUID] [--filename NAME] BOARD_ID TICKET <FILE|->`
+to resolve the parent card from a ticket. The upload includes the card validator
+and the original board validator from the focused read. Use
+`attachment detach [--revision N] BOARD_ID TICKET ATTACHMENT_ID` to verify the
+attachment belongs to the resolved card and detach it with the original board
+validator and the attachment validator. Detach's `--revision` checks the attachment
+revision. After an uncertain result, inspect the original attachment UUID.
 
 ## References
 

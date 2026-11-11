@@ -52,6 +52,7 @@ const cliHelp = `Usage:
   localswim card title [--revision N] CARD_ID TITLE
   localswim card set-priority [--revision N] CARD_ID PRIORITY_ID
   localswim card set-priorities [--revision N] BOARD_ID FILE|-
+  localswim card set-priorities [--revision N] --priority PRIORITY_ID --tickets BOARD_ID TICKET [TICKET ...]
   localswim card description [--revision N] CARD_ID FILE|-
   localswim card archive [--revision N] CARD_ID
   localswim card archive [--revision N] BOARD_ID TICKET
@@ -77,7 +78,9 @@ const cliHelp = `Usage:
   localswim attachment get ATTACHMENT_ID
   localswim attachment download ATTACHMENT_ID FILE|-
   localswim attachment upload [--revision N] [--id UUID] [--filename NAME] CARD_ID <FILE|->
+  localswim attachment upload [--revision N] [--id UUID] [--filename NAME] BOARD_ID TICKET <FILE|->
   localswim attachment detach [--revision N] ATTACHMENT_ID
+  localswim attachment detach [--revision N] BOARD_ID TICKET ATTACHMENT_ID
   localswim policy get BOARD_ID
   localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
   localswim ticket-order preview LANE_ID [CARD_ID ...]
@@ -133,6 +136,7 @@ Ticket-based move, assign, archive, and unarchive also check the board version f
 Lane add checks the board revision. Attachment detach checks the attachment revision.
 Lane rename, set-key, retire, and set-approval-button check the lane revision.
 Card set-priorities reads card_ids and priority_id and checks the board revision.
+With --priority and --tickets, resolve distinct tickets from one board version before applying the batch.
 The batch evaluates all selected cards together and returns effective priorities and changes.
 Board get --view lanes returns visible cards in their swimlane order.
 Ticket-order preview defaults to all active lane cards. Optional card IDs select the ticket pool.
@@ -175,6 +179,8 @@ or - for raw bytes on standard output. Inspect the destination after a local wri
 If a mutation outcome is unknown, inspect the resource before retrying.
 Attachment upload reads raw bytes from FILE or standard input with -.
 --filename overrides the display filename for either input source.
+Ticket-based upload and detach use the board version from the focused read.
+Ticket-based detach also checks that the attachment belongs to the resolved card.
 Without --filename, FILE uses its basename and - uses the attachment UUID.
 Attachment upload generates an ID when --id is omitted and reports the ID
 on an unknown outcome. Use attachment get to inspect that exact ID.
@@ -218,7 +224,9 @@ type cliCommand struct {
 	t06Action                          string
 	nativeRead                         string
 	ticketInspection                   *cliTicketInspection
-	ticketPatch                        *ticketCardPatchTarget
+	ticketPatch                        *cliTicketTarget
+	ticketAttachment                   *cliTicketTarget
+	batchTickets                       []uint64
 	t07Action                          string
 	publishingAction                   string
 	boardAvailability                  string
@@ -596,6 +604,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	}
 	if command.detachAttachment {
 		return detachAttachment(api, command)
+	}
+	if command.ticketAttachment != nil {
+		return uploadTicketAttachment(api, command, stdin, stdout)
 	}
 	if command.downloadPath != "" {
 		return downloadAttachment(api, command.resource, command.downloadPath, stdout)

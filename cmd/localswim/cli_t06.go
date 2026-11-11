@@ -20,9 +20,14 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	cmd := cliCommand{method: http.MethodGet, t06Action: name}
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	var revision, backupID string
+	var revision, backupID, priority string
+	var tickets bool
 	switch name {
-	case "card set-priorities", "backup create":
+	case "card set-priorities":
+		flags.StringVar(&revision, "revision", "", "expected board revision")
+		flags.StringVar(&priority, "priority", "", "target priority UUIDv4")
+		flags.BoolVar(&tickets, "tickets", false, "select cards by ticket number")
+	case "backup create":
 		flags.StringVar(&revision, "revision", "", "expected board revision")
 	case "ticket-order preview", "backup info", "backup download":
 	default:
@@ -42,7 +47,7 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	if name == "backup info" || name == "backup download" {
 		resourcePattern = operationIDPattern
 	}
-	if flags.NArg() < count || (name != "ticket-order preview" && flags.NArg() != count) ||
+	if flags.NArg() < count || (name != "ticket-order preview" && !tickets && flags.NArg() != count) ||
 		!resourcePattern.MatchString(flags.Arg(0)) || (count == 2 && flags.Arg(1) == "") {
 		return cmd, errors.New("expected a valid resource ID and the documented arguments")
 	}
@@ -54,6 +59,10 @@ func parseT06(name string, args []string) (cliCommand, error) {
 			cmd.revision, err = parseCLIRevision(revision)
 			if err != nil {
 				optionErr = err
+			}
+		case "priority":
+			if !tickets {
+				optionErr = errors.New("--priority requires --tickets")
 			}
 		case "id":
 			if !operationIDPattern.MatchString(backupID) {
@@ -67,7 +76,16 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	id := strings.ToLower(flags.Arg(0))
 	switch name {
 	case "card set-priorities":
-		cmd.method, cmd.resource, cmd.boardID, cmd.inputPath = http.MethodPatch, "/cards", id, flags.Arg(1)
+		cmd.method, cmd.resource, cmd.boardID = http.MethodPatch, "/cards", id
+		if tickets {
+			var err error
+			cmd.batchTickets, cmd.body, err = parseTicketPriorityBatch(priority, flags.Args()[1:])
+			if err != nil {
+				return cmd, err
+			}
+		} else {
+			cmd.inputPath = flags.Arg(1)
+		}
 	case "backup create":
 		cmd.method, cmd.resource, cmd.boardID = http.MethodPost, "/backups", id
 		if backupID == "" {
@@ -130,18 +148,12 @@ func executeT06(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 		if fields["board_id"] != nil || fields["expected_board_etag"] != nil {
 			return errors.New("CLI supplies board_id and expected_board_etag")
 		}
-		board, err := api.Do(http.MethodGet, "/boards/"+cmd.boardID, nil, "")
+		boardTag, err := t06BoardValidator(api, cmd, fields)
 		if err != nil {
 			return err
 		}
-		if board.ETag == "" {
-			return errors.New("service did not return a strong board ETag")
-		}
-		if err := checkCLIRevision(cmd.revision, board.JSON); err != nil {
-			return err
-		}
 		fields["board_id"], _ = json.Marshal(cmd.boardID)
-		fields["expected_board_etag"], _ = json.Marshal(board.ETag)
+		fields["expected_board_etag"], _ = json.Marshal(boardTag)
 		body, err = json.Marshal(fields)
 		if err != nil || len(body) > maxCLIInput {
 			return errors.New("request exceeds 96 MiB after adding resource validators")
@@ -190,6 +202,28 @@ func executeT06(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 		return errors.New("could not write the API response")
 	}
 	return nil
+}
+
+func t06BoardValidator(api *client.Client, cmd cliCommand, fields map[string]json.RawMessage) (string, error) {
+	if len(cmd.batchTickets) != 0 {
+		ids, boardTag, err := resolvePriorityTickets(api, cmd)
+		if err != nil {
+			return "", err
+		}
+		fields["card_ids"], _ = json.Marshal(ids)
+		return boardTag, nil
+	}
+	board, err := api.Do(http.MethodGet, "/boards/"+cmd.boardID, nil, "")
+	if err != nil {
+		return "", err
+	}
+	if board.ETag == "" {
+		return "", errors.New("service did not return a strong board ETag")
+	}
+	if err := checkCLIRevision(cmd.revision, board.JSON); err != nil {
+		return "", err
+	}
+	return board.ETag, nil
 }
 
 func downloadBackup(api *client.Client, resource, output string, stdout io.Writer) error {

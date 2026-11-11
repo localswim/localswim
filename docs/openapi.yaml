@@ -8127,6 +8127,12 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
+      - name: X-Expected-Board-ETag
+        in: header
+        required: false
+        schema:
+          $ref: '#/components/schemas/EntityTag'
+        description: Original board validator when the caller resolves a card by ticket.
       responses:
         '201':
           description: Success.
@@ -8198,6 +8204,7 @@ paths:
       - 23
       description: Use multipart/form-data. Publish immutable file bytes before metadata. Keep bytes after
         any uncertain metadata outcome. The server computes size, media type and SHA-2-256 from the bytes.
+        When supplied, X-Expected-Board-ETag and expected_card_etag are checked together before publishing bytes.
         Never use filename as a storage path. This operation is not replayed automatically.
       requestBody:
         required: true

@@ -2841,28 +2841,43 @@ async function load(savedAvailability) {
     const archivedList = element("div");
     archived.append(archivedHeading, archivedList);
     let archivedRead = 0;
-    let coverRead = 0;
+    let coverReads = new AbortController();
     /** @type {Set<string>} */
     const covers = new Set();
     function clearCovers() {
-      ++coverRead;
+      coverReads.abort();
       for (const url of covers) URL.revokeObjectURL(url);
       covers.clear();
     }
     releaseBoardMedia = clearCovers;
 
-    /** @param {Card} card @param {HTMLElement} slot @param {number} read */
-    async function showCover(card, slot, read) {
-      const id = card.cover_attachment_id;
-      if (!id) return;
-      const current = () => view === activeView && read === coverRead && slot.isConnected;
+    /** @param {Card} card @param {HTMLElement} slot @param {AbortSignal} readSignal */
+    async function showCover(card, slot, readSignal) {
+      const explicitId = card.cover_attachment_id;
+      const current = () => view === activeView && !readSignal.aborted && slot.isConnected;
+      /** @param {Attachment} entry */
+      const eligible = (entry) => activeAttachment(board.id, card.id, entry) && entry.previewable;
       try {
         const blob = await readWithSession(async () => {
-          const meta = /** @type {Attachment} */ ((await api.getAttachment(id)).data);
-          if (!current() || meta.id !== id || !activeAttachment(board.id, card.id, meta) || !meta.previewable) return;
-          return api.getAttachmentContent(id, "inline", meta.size, meta.sha2_256);
-        });
-        if (!current() || !blob) return;
+          if (!current()) return;
+          /** @type {Attachment|undefined} */
+          let selected;
+          if (explicitId) {
+            const entry = /** @type {Attachment} */ ((await api.getAttachment(explicitId, readSignal)).data);
+            if (entry.id === explicitId && eligible(entry)) selected = entry;
+          } else {
+            const entries = /** @type {Attachment[]} */ (await collect((cursor) =>
+              api.listAttachments(card.id, cursor, readSignal), "attachments", readSignal));
+            selected = entries.find(eligible);
+          }
+          if (!current() || !selected) return;
+          return api.getAttachmentContent(selected.id, "inline", selected.size, selected.sha2_256, readSignal);
+        }, readSignal);
+        if (!current()) return;
+        if (!blob) {
+          if (!explicitId) slot.hidden = true;
+          return;
+        }
         const url = URL.createObjectURL(blob);
         covers.add(url);
         const image = element("img");
@@ -2871,13 +2886,13 @@ async function load(savedAvailability) {
         image.alt = "";
         image.addEventListener("error", () => {
           image.remove();
-          covers.delete(url);
-          URL.revokeObjectURL(url);
+          if (covers.delete(url)) URL.revokeObjectURL(url);
+          if (!explicitId) slot.hidden = true;
         });
         image.src = url;
         slot.replaceChildren(image);
       } catch {
-        // The card remains usable when the cover cannot be read.
+        if (!explicitId && current()) slot.hidden = true;
       }
     }
 
@@ -2936,7 +2951,8 @@ async function load(savedAvailability) {
       const focusedPreview = focused instanceof HTMLInputElement && columns.contains(focused) ? focused.dataset.previewLane : undefined;
       const previews = new Map([...columns.querySelectorAll("input")].map((input) => [input.dataset.previewLane, input.value]));
       clearCovers();
-      const render = coverRead;
+      coverReads = new AbortController();
+      const coverSignal = coverReads.signal;
       const active = activeLanes(lanes);
       const completed = active.find(({ role }) => role === "completed");
       const query = filter.value.trim().toLowerCase();
@@ -3080,12 +3096,12 @@ async function load(savedAvailability) {
         function cardFace(card) {
           const opener = cardOpener(card);
           if (mayDrag) bindDrag(opener, card, renderedTag);
-          if (card.cover_attachment_id) {
+          if (card.cover_attachment_id || card.attachment_count > 0) {
             const slot = element("span");
             slot.className = "card-cover-space";
             slot.setAttribute("aria-hidden", "true");
             opener.prepend(slot);
-            void showCover(card, slot, render);
+            void showCover(card, slot, coverSignal);
           }
           return opener;
         }

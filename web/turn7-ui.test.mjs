@@ -60,7 +60,12 @@ async function harness(api, pathname = "/boards/" + board, {
       this.dispatch("click", {button: 0});
     }
     focus(options) { document.activeElement = this; this.focusOptions = options; }
-    closest(selector) { if (selector === '[data-unavailable="true"]' && this.dataset.unavailable === "true") return this; return this.parent?.closest(selector) ?? null; }
+    closest(selector) {
+      if (selector === '[data-unavailable="true"]' && this.dataset.unavailable === "true") return this;
+      if (selector === "details[data-card-search]:not([open])" && this.tagName === "details"
+          && this.dataset.cardSearch && !this.open) return this;
+      return this.parent?.closest(selector) ?? null;
+    }
     contains(node) { return node === this || this.children.some((child) => child.contains(node)); }
     hasChildNodes() { return this.children.length > 0; }
     cloneNode() { return new this.constructor(this.tagName); }
@@ -627,6 +632,97 @@ test("inline filter matches literal titles and tickets while keeping drawer draf
   assert.equal(total("Ready"), "2 of 2 cards");
   assert.ok(find("Approve all in lane"));
   assert.ok(ui.find(main, "summary", "Find cards"));
+});
+
+test("pending approval inspection still blocks recreated lane forms and a late ticket-order Apply", async () => {
+  const {api} = boardApi();
+  const original = (await api.getCard()).data;
+  const second = {...original, id: backup, ticket: 2, title: "Second card"};
+  const ready = {...(await api.listLanes()).data.lanes[0], role: "ready_for_review",
+    approval_enabled: true, reorder_enabled: true};
+  api.listLanes = async () => page("lanes", [ready, {...ready, id: priority, label: "Completed",
+    role: "completed", position: 1, approval_enabled: false, reorder_enabled: false}]);
+  const getLanes = api.getBoardLanes;
+  api.getBoardLanes = async () => {
+    const reply = await getLanes();
+    return {...reply, data: {...reply.data, cards: [original, second]}};
+  };
+  const preview = Promise.withResolvers();
+  api.previewTicketOrder = () => preview.promise;
+  const applies = [];
+  const approvals = [];
+  const inspections = [];
+  let available = false;
+  api.applyTicketOrder = async (...args) => applies.push(args);
+  api.approveLane = async (id) => {
+    approvals.push(id);
+    throw new ApiError("network_error", {outcomeUnknown: true});
+  };
+  api.inspectLaneApproval = async (id) => {
+    inspections.push(id);
+    throw new ApiError("http_error", {status: available ? 404 : 503});
+  };
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main, status} = ui.nodes;
+  const find = (label) => ui.find(main, "button", label);
+  find("Preview ticket order").click();
+  ui.submit(main, "Approve all in lane");
+  await ui.settled();
+  assert.match(status.textContent, /Readback failed/);
+  assert.equal(approvals.length, 1);
+  assert.deepEqual(inspections, approvals);
+
+  preview.resolve({data: {board_revision: 1, changed: true,
+    current: [{card_id: card, ticket: 1}, {card_id: backup, ticket: 2}],
+    proposed: [{card_id: backup, ticket: 1}, {card_id: card, ticket: 2}]}, etag: tag(board, 1)});
+  await until(() => find("Apply ticket order"));
+  assert.equal(find("Apply ticket order").disabled, true);
+  find("Apply ticket order").parent.dispatch("submit");
+  assert.deepEqual(applies, []);
+
+  const filter = ui.field(main, "Filter by title or ticket");
+  filter.value = "#2";
+  filter.dispatch("input");
+  assert.equal(find("Approve all in lane"), undefined);
+  ui.keydown(filter, "Escape");
+  assert.equal(find("Approve all in lane").disabled, true);
+  find("Approve all in lane").parent.dispatch("submit");
+  assert.equal(approvals.length, 1);
+
+  available = true;
+  find("Inspect saved board").click();
+  await ui.settled();
+  assert.deepEqual(inspections, [approvals[0], approvals[0]]);
+  assert.equal(find("Approve all in lane").disabled, false);
+});
+
+test("closing a filtered-out Find result focuses the inline filter if Find collapsed", async () => {
+  const {api} = boardApi();
+  api.listCards = async () => page("cards", [(await api.getCard()).data]);
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details} = ui.nodes;
+  const filter = ui.field(main, "Filter by title or ticket");
+  filter.value = "Other";
+  filter.dispatch("input");
+  const find = ui.find(main, "summary", "Find cards").parent;
+  find.open = true;
+  ui.submit(find, "Find cards");
+  await ui.settled();
+  const result = ui.find(find, "button", "#1 Original");
+  result.click();
+  await ui.settled();
+  ui.find(details, "button", "Close card").click();
+  assert.equal(ui.focused(), result);
+
+  result.click();
+  await ui.settled();
+  find.open = false;
+  assert.equal(result.isConnected, true);
+  ui.find(details, "button", "Close card").click();
+  assert.equal(ui.focused() === filter, true);
 });
 
 test("Back, Forward and reload restore each board's own search, drawer and lane scroll in one tab", async () => {

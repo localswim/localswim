@@ -143,6 +143,7 @@ func validPublicationCode(code string) bool {
 		"branch_unavailable", "remote_unavailable", "unsupported_remote_transport",
 		"publication_target_ambiguous", "publication_destination_unavailable",
 		"head_unavailable", "capture_unavailable", "git_index_failed", "git_object_failed", "git_tree_failed",
+		"publication_branch_changed", "publication_index_busy", "publication_index_overlap", "publication_index_uncertain",
 		"git_commit_failed", "git_ref_failed", "git_push_failed", "publication_failed"}, code)
 }
 

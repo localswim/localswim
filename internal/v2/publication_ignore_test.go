@@ -26,6 +26,7 @@ func TestM88ManualAndAutomaticPublicationRefuseIgnoredBoard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	staged := m34Git(t, repo, "ls-files", "--stage", "-z", "--", "unrelated.txt")
 	head := strings.TrimSpace(string(m34Git(t, repo, "rev-parse", "HEAD")))
 	refs := m34Git(t, repo, "for-each-ref", "--format=%(refname) %(objectname)")
 	remoteRefs := m34Git(t, fixture.remote, "for-each-ref", "--format=%(refname) %(objectname)")
@@ -39,6 +40,9 @@ func TestM88ManualAndAutomaticPublicationRefuseIgnoredBoard(t *testing.T) {
 		}
 		if len(m34Git(t, fixture.remote, "ls-tree", "-r", "refs/heads/main", "--", boardPath)) != 0 {
 			t.Fatal("ignored board appeared on the remote")
+		}
+		if after, err := os.ReadFile(indexPath); err != nil || !bytes.Equal(indexBefore, after) {
+			t.Fatal("ignored capture changed the caller's index", err)
 		}
 	}
 
@@ -92,9 +96,11 @@ func TestM88ManualAndAutomaticPublicationRefuseIgnoredBoard(t *testing.T) {
 	if !slices.Equal(want, got) {
 		t.Fatalf("remote commit inventory %q, want %q", got, want)
 	}
-	indexAfter, err := os.ReadFile(indexPath)
-	if err != nil || !bytes.Equal(indexBefore, indexAfter) {
-		t.Fatal("publication changed the caller's index", err)
+	if names := m34Git(t, repo, "diff", "--cached", "--name-only", "-z"); string(names) != "unrelated.txt\x00" {
+		t.Fatalf("allowed capture left unexpected staged paths: %q", names)
+	}
+	if after := m34Git(t, repo, "ls-files", "--stage", "-z", "--", "unrelated.txt"); !bytes.Equal(staged, after) {
+		t.Fatal("allowed capture changed unrelated staged work")
 	}
 	fixture.editor.call("PATCH", address, `{"publishing":{"enabled":false}}`, allowed.entityTag(), 200)
 }
@@ -153,7 +159,7 @@ func TestM88PublicationRejectsAmbiguousInventoryBeforeReading(t *testing.T) {
 				}})
 			}
 			repo := publicationRepository{prefix: "nested"}
-			if _, err := repo.prepareCommit("", capture); err != publicationGitError("capture_unavailable") {
+			if _, _, err := repo.preparePublication("", "", capture); err != publicationGitError("capture_unavailable") {
 				t.Fatalf("invalid inventory produced %v", err)
 			}
 		})

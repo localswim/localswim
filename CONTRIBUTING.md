@@ -240,24 +240,30 @@ Without an explicit remote, the publisher uses the local branch's `pushRemote`,
 `remote.pushDefault`, its configured fetch remote, or the sole configured remote, in that order.
 Without an explicit destination branch, the publisher accepts a single unforced push refspec
 from `HEAD` or the current full branch ref to a full branch ref. Otherwise it follows
-the supported Git push mode: `current`, `simple`, or `upstream` (`tracking`).
+the supported Git push mode of `current`, `simple`, or `upstream` (`tracking`).
 With neither a configured push mode nor a tracking branch, publication uses the local branch name.
 Use `upstream` or an explicit destination when the upstream branch has a different name.
 
 Multiple or unresolved destinations are refused before Git objects or refs are written.
 The selected remote must have one effective push URL. Git's URL-scoped transport and
-credential configuration applies; remote-name-specific transport overrides refuse with
+credential configuration applies. Remote-name-specific transport overrides refuse with
 `unsupported_remote_transport`. Receipts carry fixed error codes without transport details.
 
-The publication commit changes the captured native snapshot and exact audited attachment paths.
-It advances the local source branch and pushes that exact commit to the resolved destination
-using normal Git ancestry. Publication uses a private index under the persistent
-Git common-directory localswim-autopush.lock. The caller's index and unrelated staged work remain
-intact. Before writing Git objects, publication checks every captured path against Git's ignore
-rules, including paths already tracked or staged. Any ignored path refuses the entire capture with
+The publisher constructs the commit in a private index under the persistent
+Git common-directory `localswim-autopush.lock`. It advances the local source branch and
+updates the worktree index for the exact captured snapshot and audited attachment paths.
+Unrelated staging and later working-tree edits are preserved. Once the local branch and
+index are consistent, the publisher pushes the exact commit to the resolved destination
+using normal Git ancestry. Before writing Git objects, publication checks every captured
+path against Git's ignore rules, including paths already tracked or staged.
+Any ignored path refuses the entire capture with
 `publication_path_ignored`. An ignore check that fails or warns reports `git_ignore_unavailable`.
 Unsupported hooks, external content filters and filesystem monitors also refuse before object publication.
-Inspect the original publication UUID after an uncertain result.
+Publication uses Git's worktree index lock to detect staged overlap and reconcile the index.
+`publication_index_overlap` means staging intersects a captured path, including an ancestor or
+descendant. `publication_index_busy` means Git's index lock is already held. If the branch update
+and index installation cannot both be confirmed, `publication_index_uncertain` stops the push.
+Inspect the original publication UUID, current branch, and staged diff after an uncertain result.
 
 Enable automatic publication independently with
 `board publishing enable [--revision N] BOARD_ID` or
@@ -275,6 +281,9 @@ push time, and a fixed failure code. Failed automatic attempts remain pending an
 retry with bounded backoff without another edit. Status changes leave board,
 card, and workspace revisions intact. Use `disable` with the same revision
 options to stop new attempts. A disabled publisher keeps durable pending intent.
+Pending intent keeps the exact capture inventory. A retry checks staging before advancing the
+local branch. After an interrupted local update, a retry requires a consistent index and
+leaves any overlapping staging for inspection.
 After a disabled restart, status history is loaded when the publisher is
 re-enabled. Inspect status after an uncertain settings write.
 A board restore requires matching publishing settings. Reconcile any difference

@@ -88,7 +88,7 @@ func TestM82RefusesSnapshotChangedDuringWritePreparation(t *testing.T) {
 		t.Fatalf("expected a valid same-revision replacement: %v", err)
 	}
 
-	_, err := s.update(initial.Board.ID, initial.Board.entityTag(), func(next *snapshot) error {
+	_, err := s.update(initial.Board.ID, initial.Board.Revision, func(next *snapshot) error {
 		if err := writeAtomic(path, replacement); err != nil {
 			return err
 		}

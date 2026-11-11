@@ -7,7 +7,7 @@ import {
   ApiError, createBrowserApi, DEFAULT_APPROVAL_COMMENT, MAX_ATTACHMENT_BYTES, MAX_BULK_APPROVAL_COMMENT_LENGTH,
   MAX_LANE_APPROVAL_CARDS, validPublishing,
 } from "./api.mjs";
-import {createBoardRefresh, watchUpdates} from "./board-updates.mjs";
+import {createBoardRefresh, waitForRetry, watchUpdates} from "./board-updates.mjs";
 const board = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
 const lane = "ceab10a8-1492-4c90-aa07-13b83138919a";
 const card = "d2ef6295-ace1-4e6e-bbf7-b1c1823f56fc";
@@ -112,7 +112,7 @@ async function harness(api, pathname = "/boards/" + board, {
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
     Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, MAX_ATTACHMENT_BYTES, newOperationId,
-    createBoardRefresh,
+    createBoardRefresh, waitForRetry,
     watchUpdates: (options) => typeof api.streamEvents === "function" && (options.board || workspaceEvents)
       ? watchUpdates(options) : Promise.resolve(),
     DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH, MAX_LANE_APPROVAL_CARDS,
@@ -1307,8 +1307,10 @@ test("an Attention read failure keeps confirmed card saves and the last catalog 
     last_card_edit_at: null};
   let unavailable = false;
   let reads = 0;
+  const retried = Promise.withResolvers();
   api.listBoards = async () => {
     reads++;
+    if (reads === 3) retried.resolve();
     if (unavailable) throw new ApiError("transport_failed");
     return page("boards", [row]);
   };
@@ -1322,10 +1324,11 @@ test("an Attention read failure keeps confirmed card saves and the last catalog 
   title.value = "Saved during catalog outage";
   unavailable = true;
   ui.submit(ui.nodes.details, "Save text");
+  await retried.promise;
   await ui.settled();
   assert.equal(ui.nodes.status.textContent, "Card saved.");
   assert.ok(ui.find(ui.nodes.main, "button", "#1 Saved during catalog outage"));
-  assert.equal(reads, 2);
+  assert.equal(reads, 3);
   assert.equal(ui.nodes.boards.querySelector("a").children[3].textContent, "1");
   assert.equal(attentionStatus.hidden, false);
 
@@ -1333,7 +1336,7 @@ test("an Attention read failure keeps confirmed card saves and the last catalog 
   row.attention.ready_for_review = 2;
   ui.nodes.refresh.click();
   await ui.settled();
-  assert.equal(reads, 3);
+  assert.equal(reads, 4);
   assert.equal(ui.nodes.boards.querySelector("a").children[3].textContent, "2");
   assert.equal(attentionStatus.hidden, true);
 });
@@ -2670,6 +2673,148 @@ test("an unavailable board route keeps receiving workspace Attention", async (t)
   streams[0].sendCatalog("snapshot");
   await until(() => ui.title() === "(1) localswim");
   assert.equal(ui.find(ui.nodes.main, "button", "Retry board update"), retry);
+});
+
+test("a refused selected-board reconnect keeps a single catalog stream and the open draft", async (t) => {
+  const {api} = boardApi();
+  const streams = boardStreams(api);
+  const connect = api.streamEvents;
+  const attempts = [];
+  let readable = true;
+  api.streamEvents = (options) => {
+    attempts.push(options);
+    if (options.boardId === board && !readable) throw new ApiError("http_error", {status: 403});
+    return connect(options);
+  };
+  const row = (id, name, ready_for_review) => ({id, name, availability: "open",
+    attention: {blocked: 0, needs_input: 0, ready_for_review}, last_card_edit_at: null});
+  let rows = [row(board, "Selected", 0), row(backup, "Other board", 0)];
+  api.listBoards = async () => page("boards", rows);
+  const ui = await harness(api);
+  t.after(ui.abortView);
+  await ui.load();
+  await until(() => streams.length === 1);
+  const [selected] = streams;
+  selected.sendCatalog("snapshot");
+  selected.send("snapshot", 1);
+  const connection = ui.nodes.main.querySelector("#board-live-connection");
+  await until(() => connection.textContent === "Live updates connected.");
+  ui.find(ui.nodes.main, "button", "#1 Original").click();
+  await ui.settled();
+  const draft = ui.field(ui.nodes.details, "Title");
+  draft.value = "Draft through refusal";
+  draft.focus();
+
+  readable = false;
+  selected.close();
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  await until(() => streams.length === 2);
+  assert.deepEqual(attempts.map(({boardId}) => boardId), [board, board, undefined]);
+  assert.equal(selected.signal.aborted, true);
+  assert.equal(attempts[1].signal.aborted, true);
+  assert.equal(connection.textContent, "Live updates for this board are unavailable.");
+  const catalog = streams[1];
+  rows = [row(backup, "Other board", 1)];
+  catalog.sendCatalog("snapshot");
+  await until(() => ui.title() === "(1) localswim");
+  rows = [row(backup, "Other board", 2)];
+  catalog.sendCatalog("change");
+  await until(() => ui.title() === "(2) localswim");
+  assert.equal(ui.nodes.details.hidden, false);
+  assert.equal(ui.field(ui.nodes.details, "Title"), draft);
+  assert.equal(draft.value, "Draft through refusal");
+  assert.equal(ui.focused(), draft);
+  assert.equal(attempts.length, 3);
+
+  await ui.navigate("/");
+  assert.equal(catalog.signal.aborted, true);
+});
+
+test("a single catalog hint recovers from a transient transport failure", async (t) => {
+  const {api} = boardApi();
+  const streams = boardStreams(api);
+  const retried = Promise.withResolvers();
+  const row = (ready_for_review) => ({id: board, name: "Board", availability: "open",
+    attention: {blocked: 0, needs_input: 0, ready_for_review}, last_card_edit_at: null});
+  let reads = 0;
+  api.listBoards = async () => {
+    reads++;
+    if (reads === 2) throw new ApiError("transport_failed");
+    if (reads === 3) retried.resolve();
+    return page("boards", [row(reads === 1 ? 1 : 2)]);
+  };
+  const ui = await harness(api, "/", {workspaceEvents: true});
+  t.after(ui.abortView);
+  await ui.load();
+  await until(() => streams.length === 1);
+  assert.equal(ui.title(), "(1) localswim");
+  streams[0].sendCatalog("snapshot");
+  await retried.promise;
+  await until(() => ui.title() === "(2) localswim");
+  assert.equal(reads, 3);
+});
+
+test("leaving the view cancels a scheduled catalog retry", async (t) => {
+  const {api} = boardApi();
+  const streams = boardStreams(api);
+  const failed = Promise.withResolvers();
+  const signals = [];
+  const row = (name) => ({id: board, name, availability: "open",
+    attention: {blocked: 0, needs_input: 0, ready_for_review: 1}, last_card_edit_at: null});
+  api.listBoards = async (_cursor, signal) => {
+    signals.push(signal);
+    if (signals.length === 2) {
+      failed.resolve(signal);
+      throw new ApiError("http_error", {status: 503});
+    }
+    return page("boards", [row(signals.length === 1 ? "Old view" : "Current view")]);
+  };
+  const ui = await harness(api);
+  t.after(ui.abortView);
+  await ui.load();
+  await until(() => streams.length === 1);
+  streams[0].sendCatalog("snapshot");
+  const signal = await failed.promise;
+  await ui.settled();
+  await ui.navigate("/");
+  assert.equal(signal.aborted, true);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(signals.length, 3);
+  assert.ok(ui.find(ui.nodes.boards, "span", "Current view"));
+});
+
+test("a refused catalog continuation restarts from page one and discards partial rows", async (t) => {
+  const {api} = boardApi();
+  const streams = boardStreams(api);
+  const secondPage = Promise.withResolvers();
+  const pending = Promise.withResolvers();
+  const cursors = [];
+  const row = (id, name, ready_for_review) => ({id, name, availability: "open",
+    attention: {blocked: 0, needs_input: 0, ready_for_review}, last_card_edit_at: null});
+  api.listBoards = async (cursor) => {
+    cursors.push(cursor);
+    switch (cursors.length) {
+      case 1: return page("boards", [row(board, "Last accepted", 1)]);
+      case 2: return {data: {boards: [row(board, "Partial page", 9)], next_cursor: "stale"}, etag: null};
+      case 3: secondPage.resolve(); return pending.promise;
+      case 4: return {data: {boards: [row(backup, "Fresh first page", 2)], next_cursor: "fresh"}, etag: null};
+      default: return page("boards", [row(board, "Fresh second page", 3)]);
+    }
+  };
+  const ui = await harness(api, "/", {workspaceEvents: true});
+  t.after(ui.abortView);
+  await ui.load();
+  await until(() => streams.length === 1);
+  streams[0].sendCatalog("snapshot");
+  await secondPage.promise;
+  assert.equal(ui.title(), "(1) localswim");
+  assert.equal(ui.nodes.boards.querySelector("a").children[0].textContent, "Last accepted");
+  pending.reject(new ApiError("http_error", {status: 400}));
+
+  await until(() => ui.title() === "(5) localswim");
+  assert.deepEqual(cursors, [undefined, undefined, "stale", undefined, "fresh"]);
+  assert.deepEqual(ui.nodes.boards.querySelectorAll("a").map((link) => link.children[0].textContent),
+    ["Fresh first page", "Fresh second page"]);
 });
 
 function changingBoard() {

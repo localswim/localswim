@@ -192,6 +192,10 @@ triggers a fresh read of the workspace's Attention counts, availability, and
 recency. The sidebar uses the catalog's board order and refreshes without
 closing the current drawer. The tab title quietly shows the sum of Blocked,
 Needs Terry, and Ready for Review counts across the available boards.
+If the service refuses to watch the selected board, the connection continues
+with workspace Attention for that view. A transient catalog failure or a refused
+page cursor gets one retry from the first page. The last complete catalog remains
+visible until a fresh read succeeds.
 
 Run the focused checks with `npm --prefix web run check` and `npm --prefix web test`.
 

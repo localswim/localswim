@@ -1,9 +1,11 @@
+import { ApiError } from "./api.mjs";
+
 const CONNECT_TIMEOUT_MS = 15000;
 const INITIAL_RETRY_MS = 500;
 const MAX_RETRY_MS = 8000;
 
 /** @typedef {import("./api.mjs").StreamEvent} StreamEvent */
-/** @typedef {"connecting"|"connected"|"disconnected"} Connection */
+/** @typedef {"connecting"|"connected"|"disconnected"|"unavailable"} Connection */
 /** @typedef {"ready"|"refreshing"|"error"} Readiness */
 /** @typedef {{id: string, report: (state: Connection) => void,
  * invalidate: (revision: number, needsCatchUp: boolean) => void}} BoardWatch */
@@ -81,7 +83,7 @@ export function createBoardRefresh({ signal, read, revision, canReadAutomaticall
 }
 
 /** @param {AbortSignal} signal @param {number} delay */
-function waitToReconnect(signal, delay) {
+export function waitForRetry(signal, delay) {
   return new Promise((resolve) => {
     if (signal.aborted) {
       resolve(undefined);
@@ -101,12 +103,13 @@ function waitToReconnect(signal, delay) {
  * The catalog snapshot closes the gap between the initial read and subscription.
  * A replacement connection also catches up the selected board at an equal revision.
  * @param {{board?: BoardWatch, signal: AbortSignal, invalidateCatalog: () => void,
- * connect: (signal: AbortSignal, receive: (event: StreamEvent) => void) => Promise<void>}} options
+ * connect: (boardId: string|undefined, signal: AbortSignal, receive: (event: StreamEvent) => void) => Promise<void>}} options
  */
 export async function watchUpdates({ board, signal, connect, invalidateCatalog }) {
+  let watchedBoard = board;
   let retryDelay = INITIAL_RETRY_MS;
   let reconnecting = false;
-  if (!signal.aborted) board?.report("connecting");
+  if (!signal.aborted) watchedBoard?.report("connecting");
   while (!signal.aborted) {
     const attempt = new AbortController();
     const attemptSignal = AbortSignal.any([signal, attempt.signal]);
@@ -118,36 +121,44 @@ export async function watchUpdates({ board, signal, connect, invalidateCatalog }
       connected = true;
       clearTimeout(timer);
       retryDelay = INITIAL_RETRY_MS;
-      board?.report("connected");
+      watchedBoard?.report("connected");
     }
 
     try {
-      await connect(attemptSignal, (event) => {
+      await connect(watchedBoard?.id, attemptSignal, (event) => {
         if (attemptSignal.aborted) return;
         if (event.resource === "catalog") {
           if (!catalogReady && event.type !== "snapshot") return;
           catalogReady = true;
-          if (!board && !connected) markConnected();
+          if (!watchedBoard && !connected) markConnected();
           invalidateCatalog();
           return;
         }
-        if (!board || event.resource !== "board" || event.board_id !== board.id) return;
+        if (!watchedBoard || event.resource !== "board" || event.board_id !== watchedBoard.id) return;
         const first = !connected;
         if (first) {
           if (event.type !== "snapshot") return;
           markConnected();
         }
-        board.invalidate(event.board_revision, first && reconnecting);
+        watchedBoard.invalidate(event.board_revision, first && reconnecting);
       });
-    } catch {
+    } catch (error) {
+      if (watchedBoard && !connected && !attemptSignal.aborted && error instanceof ApiError
+          && error.code === "http_error" && (error.status === 403 || error.status === 404)) {
+        // The service refuses the entire connection if the selected board cannot be watched.
+        watchedBoard.report("unavailable");
+        watchedBoard = undefined;
+        retryDelay = INITIAL_RETRY_MS;
+        continue;
+      }
       // EOF, invalid frames, and transport failures all require a fresh snapshot.
     } finally {
       clearTimeout(timer);
       attempt.abort();
     }
     if (signal.aborted) return;
-    board?.report("disconnected");
-    await waitToReconnect(signal, retryDelay);
+    watchedBoard?.report("disconnected");
+    await waitForRetry(signal, retryDelay);
     retryDelay = Math.min(retryDelay * 2, MAX_RETRY_MS);
     reconnecting = true;
   }

@@ -3,7 +3,7 @@ import {
   ApiError, createBrowserApi, DEFAULT_APPROVAL_COMMENT, MAX_ATTACHMENT_BYTES, MAX_BULK_APPROVAL_COMMENT_LENGTH,
   MAX_LANE_APPROVAL_CARDS, openBrowserSession, validPublishing,
 } from "./api.mjs";
-import { createBoardRefresh, watchUpdates } from "./board-updates.mjs";
+import { createBoardRefresh, waitForRetry, watchUpdates } from "./board-updates.mjs";
 
 /** @typedef {{id: string, label: string}} Labeled */
 /** @typedef {Labeled & {kind: "human"|"bot", color?: string}} User */
@@ -58,6 +58,7 @@ import { createBoardRefresh, watchUpdates } from "./board-updates.mjs";
 
 
 const CARD_DRAG_TYPE = "application/x-localswim-card";
+const CATALOG_RETRY_MS = 250;
 const status = /** @type {HTMLParagraphElement|null} */ (document.getElementById("status"));
 const identity = document.getElementById("identity");
 const navigation = document.getElementById("boards");
@@ -2385,6 +2386,7 @@ function boardUpdates(boardId, signal, revision, read) {
     connecting: "Connecting live updates…",
     connected: "Live updates connected.",
     disconnected: "Live updates disconnected. Reconnecting…",
+    unavailable: "Live updates for this board are unavailable.",
   };
 
   function show() {
@@ -2393,7 +2395,7 @@ function boardUpdates(boardId, signal, revision, read) {
       : readState === "refreshing" ? "Checking for board updates…" : "";
     if (connection.textContent !== connectionText) connection.textContent = connectionText;
     if (readiness.textContent !== readinessText) readiness.textContent = readinessText;
-    retry.hidden = connectionState !== "disconnected" && readState !== "error";
+    retry.hidden = connectionState !== "disconnected" && connectionState !== "unavailable" && readState !== "error";
     retry.disabled = readState === "refreshing";
   }
 
@@ -2448,8 +2450,27 @@ async function load(savedAvailability) {
   announce("loading", "Loading…");
   /** @type {((board?: BoardWatch) => void)|undefined} */
   let subscribe;
-  const readCatalog = () => /** @type {Promise<BoardSummary[]>} */ (
-    collect((cursor) => api.listBoards(cursor, signal), "boards", signal));
+  /** @param {boolean} [refreshing] */
+  async function readCatalog(refreshing = false) {
+    let continuation = false;
+    const read = () => /** @type {Promise<BoardSummary[]>} */ (collect((cursor) => {
+      continuation = cursor !== undefined;
+      return api.listBoards(cursor, signal);
+    }, "boards", signal));
+    if (!refreshing) return read();
+    try {
+      return await readWithSession(read, signal);
+    } catch (error) {
+      signal.throwIfAborted();
+      if (!(error instanceof ApiError)) throw error;
+      // Catalog cursors are tied to the full row set. Start over on a refusal.
+      const staleCursor = continuation && error.status === 400;
+      const temporary = error.code === "transport_failed" || (error.status ?? 0) >= 500;
+      if (!staleCursor && !temporary) throw error;
+      if (temporary) await waitForRetry(signal, CATALOG_RETRY_MS);
+      return readWithSession(read, signal);
+    }
+  }
   try {
     const [session, boards] = await readWithSession(() => Promise.all([
       api.getSession(signal), readCatalog(),
@@ -2487,7 +2508,7 @@ async function load(savedAvailability) {
         queuedCatalog = undefined;
         if (signal.aborted) return;
         try {
-          const rows = await readWithSession(readCatalog, signal);
+          const rows = await readCatalog(true);
           if (signal.aborted) return;
           showBoards(rows);
           latestBoards = rows;
@@ -2510,8 +2531,8 @@ async function load(savedAvailability) {
       subscribed = true;
       void watchUpdates({
         board, signal, invalidateCatalog,
-        connect: (streamSignal, receive) => readWithSession(async () => {
-          for await (const event of api.streamEvents({ boardId: board?.id, signal: streamSignal })) receive(event);
+        connect: (watchedBoardId, streamSignal, receive) => readWithSession(async () => {
+          for await (const event of api.streamEvents({ boardId: watchedBoardId, signal: streamSignal })) receive(event);
         }, streamSignal),
       });
     };

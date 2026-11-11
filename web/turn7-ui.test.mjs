@@ -1626,6 +1626,80 @@ test("fallback previews grow a lane only after decode and after an active drag e
 
 const publishingOff = {enabled: false, repository: null, last_success_at: null, pending: false, error_code: null};
 
+test("a clamped cover scroll survives warm confirmation and superseded paints until the user scrolls", async () => {
+  const {api} = boardApi();
+  const getBoard = api.getBoardLanes;
+  const entry = {...(await api.listAttachments()).data.attachments[0], previewable: true};
+  const confirmation = Promise.withResolvers();
+  let gateNextRead = false;
+  let attachmentReads = 0;
+  api.getBoardLanes = async (...args) => {
+    if (gateNextRead) {
+      gateNextRead = false;
+      await confirmation.promise;
+    }
+    const reply = await getBoard(...args);
+    return {...reply, data: {...reply.data, cards: [{...reply.data.cards[0], attachment_count: 1}]}};
+  };
+  api.listAttachments = async () => {
+    attachmentReads++;
+    return page("attachments", [entry]);
+  };
+  api.getAttachmentContent = async () => new Blob(["image"]);
+  const storage = tabStorage();
+  storage.setItem("localswim:board-view:" + board, JSON.stringify({scroll: {left: 0, lanes: {[lane]: 240}}}));
+  const url = "/boards/" + board;
+  const ui = await harness(api, url, {storage, scrollLimit: (node) => {
+    if (node.className !== "lane") return Infinity;
+    return node.querySelectorAll("span").some((slot) => slot.className === "card-cover-space" && !slot.hidden)
+      ? 248 : 120;
+  }});
+  const {main, refresh, status} = ui.nodes;
+  const laneColumn = () => main.querySelectorAll("section").find((node) => node.className === "lane");
+  const cover = () => laneColumn()?.querySelector("img");
+  const repaint = async (previous) => {
+    refresh.click();
+    await until(() => cover() && cover() !== previous);
+    return cover();
+  };
+  await ui.load();
+  await until(cover);
+  cover().dispatch("load");
+  assert.equal(laneColumn().scrollTop, 240);
+  await ui.navigate("/");
+
+  gateNextRead = true;
+  const reopening = ui.navigate(url);
+  await until(() => status.textContent === "Showing the last confirmed board.");
+  assert.equal(ui.find(main, "button", "Add card"), undefined);
+  assert.equal(cover(), null);
+  assert.equal(attachmentReads, 1);
+  assert.equal(laneColumn().scrollTop, 120);
+
+  confirmation.resolve();
+  await reopening;
+  await until(cover);
+  const confirmedCover = cover();
+  assert.equal(status.textContent, "Board loaded.");
+  assert.ok(ui.find(main, "button", "Add card"));
+  assert.equal(confirmedCover.parent.hidden, true);
+  assert.equal(laneColumn().scrollTop, 120);
+
+  const latestCover = await repaint(confirmedCover);
+  confirmedCover.dispatch("load");
+  assert.equal(confirmedCover.parent.hidden, true);
+  assert.equal(laneColumn().scrollTop, 120);
+  latestCover.dispatch("load");
+  assert.equal(laneColumn().scrollTop, 240);
+
+  const pendingCover = await repaint(latestCover);
+  assert.equal(laneColumn().scrollTop, 120);
+  laneColumn().scrollTop = 75;
+  const userCover = await repaint(pendingCover);
+  userCover.dispatch("load");
+  assert.equal(laneColumn().scrollTop, 75);
+});
+
 test("a recent board paints before refresh, survives failure, and upgrades its drawer after Retry", async () => {
   const {api, restore, patched} = boardApi();
   const getBoard = api.getBoardLanes;

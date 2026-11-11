@@ -3529,10 +3529,19 @@ async function load(savedAvailability) {
       else clampedLaneScroll.delete(column);
     }
 
+    /** @param {HTMLElement} column */
+    function retainedLaneTop(column) {
+      const top = column.scrollTop;
+      const clamped = clampedLaneScroll.get(column);
+      if (clamped?.actual === top) return clamped.requested;
+      clampedLaneScroll.delete(column);
+      return top;
+    }
+
     function retainScroll() {
       if (!columns.isConnected) return;
       state.scroll = { left: columns.scrollLeft,
-        lanes: Object.fromEntries([...laneColumns].map(([id, column]) => [id, column.scrollTop])) };
+        lanes: Object.fromEntries([...laneColumns].map(([id, column]) => [id, retainedLaneTop(column)])) };
     }
 
     function restoreScroll() {
@@ -3594,10 +3603,9 @@ async function load(savedAvailability) {
         image.alt = "";
         function reveal() {
           if (!current() || !covers.has(url)) return;
-          const top = column.scrollTop;
-          const clamped = clampedLaneScroll.get(column);
+          const top = retainedLaneTop(column);
           slot.hidden = false;
-          restoreLaneTop(column, clamped?.actual === top ? clamped.requested : top);
+          restoreLaneTop(column, top);
         }
         if (!explicitId) image.addEventListener("load", () => {
           if (!current()) return;

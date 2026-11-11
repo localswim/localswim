@@ -39,6 +39,14 @@ func parseCLIRevision(value string) (*uint64, error) {
 	return &revision, nil
 }
 
+func parseCLITicket(value string) (uint64, error) {
+	ticket, err := strconv.ParseUint(value, 10, 53)
+	if err != nil || ticket == 0 {
+		return 0, errors.New("ticket requires an integer from 1 to 9007199254740991")
+	}
+	return ticket, nil
+}
+
 func parseT03(name string, args []string) (cliCommand, error) {
 	var cmd cliCommand
 	var validator, field string
@@ -103,7 +111,8 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		return cmd, errors.New("expected a UUIDv4 resource ID followed by FILE or -")
 	}
 	ticketPatch := isTicketCardPatch(name) && flags.NArg() == count+1
-	if (!ticketPatch && flags.NArg() != count) || !boardIDPattern.MatchString(flags.Arg(0)) {
+	ticketAttachment := (name == "attachment upload" || name == "attachment detach") && flags.NArg() == 3
+	if (!ticketPatch && !ticketAttachment && flags.NArg() != count) || !boardIDPattern.MatchString(flags.Arg(0)) {
 		return cmd, errors.New("expected a UUIDv4 resource ID and the documented arguments")
 	}
 	var optionErr error
@@ -126,19 +135,32 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	if optionErr != nil {
 		return cmd, optionErr
 	}
+	value := flags.Arg(1)
+	if ticketPatch || ticketAttachment {
+		ticket, err := parseCLITicket(flags.Arg(1))
+		if err != nil {
+			return cmd, err
+		}
+		target := &cliTicketTarget{boardID: strings.ToLower(flags.Arg(0)), ticket: ticket}
+		if ticketPatch {
+			cmd.ticketPatch = target
+		} else {
+			cmd.ticketAttachment = target
+		}
+		value = flags.Arg(2)
+	}
 	if cmd.method == http.MethodGet || cmd.detachAttachment {
-		cmd.resource += strings.ToLower(flags.Arg(0))
+		id := flags.Arg(0)
+		if ticketAttachment {
+			id = value
+			if !boardIDPattern.MatchString(id) {
+				return cmd, errors.New("expected a UUIDv4 attachment ID")
+			}
+		}
+		cmd.resource += strings.ToLower(id)
 		return cmd, nil
 	}
-	value := flags.Arg(1)
-	if ticketPatch {
-		ticket, err := strconv.ParseUint(flags.Arg(1), 10, 53)
-		if err != nil || ticket == 0 {
-			return cmd, errors.New("ticket requires an integer from 1 to 9007199254740991")
-		}
-		cmd.ticketPatch = &ticketCardPatchTarget{boardID: strings.ToLower(flags.Arg(0)), ticket: ticket}
-		value = flags.Arg(2)
-	} else {
+	if !ticketPatch && !ticketAttachment {
 		cmd.edit.idField, cmd.edit.id = field, flags.Arg(0)
 		cmd.edit.validatorPath = validator + cmd.edit.id
 		if cmd.method == http.MethodPatch {

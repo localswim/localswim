@@ -48,6 +48,14 @@ func (c *Client) RemoveRelationship(resource, ifMatch, boardTag string) error {
 	return c.deleteBoardResource(resource, ifMatch, boardTag)
 }
 
+// UploadTicketAttachment retains the board validator from the focused ticket lookup.
+func (c *Client) UploadTicketAttachment(target TicketTarget, body []byte, contentType string) (Response, error) {
+	if !IsEntityTag(target.BoardETag) {
+		return Response{}, errors.New("ticket attachment upload requires a strong board ETag")
+	}
+	return c.doWithContentType(http.MethodPost, "/attachments", body, "", contentType, target.BoardETag, false)
+}
+
 func (c *Client) DetachAttachment(resource, ifMatch, boardTag string) error {
 	if !IsEntityTag(ifMatch) || !IsEntityTag(boardTag) {
 		return errors.New("attachment detachment requires strong attachment and board ETags")

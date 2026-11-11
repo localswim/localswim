@@ -36,14 +36,17 @@ Examples:
 
 const priorityBatchHelp = `Usage:
   localswim card set-priorities [--revision N] --priority PRIORITY_ID BOARD_ID CARD_ID [CARD_ID ...]
+  localswim card set-priorities [--revision N] --priority PRIORITY_ID --tickets BOARD_ID TICKET [TICKET ...]
   localswim card set-priorities [--revision N] BOARD_ID <JSON_FILE|->
 
-Supply 1 to 1000 distinct card UUIDs, or a JSON object with priority_id and card_ids.
+Supply 1 to 1000 distinct card UUIDs or, with --tickets, distinct ticket numbers.
+The JSON object takes priority_id and card_ids.
 The document form requires a file path or - for standard input. The batch checks
 the board revision and applies the effective blocking floor to all selections together.
 
 Examples:
   localswim card set-priorities --priority $priority $board $card1 $card2
+  localswim card set-priorities --priority $priority --tickets $board 12 17
   localswim card set-priorities --revision 14 $board priorities.json
 `
 

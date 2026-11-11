@@ -26,7 +26,7 @@ func parseT07(name string, args []string) (cliCommand, error) {
 	limit := 50
 	count := 1
 	switch name {
-	case "card search", "card next", "card lookup":
+	case "card search", "card triage-order", "card lookup":
 		flags.StringVar(&search, "search", "", "literal title or ticket search")
 		if name == "card lookup" {
 			flags.StringVar(&lane, "lane", "", "lane UUIDv4")
@@ -41,7 +41,7 @@ func parseT07(name string, args []string) (cliCommand, error) {
 			flags.StringVar(&archived, "archived", "", "exclude, include, or only archived cards")
 		}
 		flags.BoolVar(&content, "search-content", false, "search readable descriptions and comments")
-		if name == "card next" {
+		if name == "card triage-order" {
 			limit = 1
 		}
 		flags.IntVar(&limit, "limit", limit, "page size")
@@ -104,7 +104,7 @@ func parseT07(name string, args []string) (cliCommand, error) {
 	}
 	resourceID := strings.ToLower(flags.Arg(0))
 	switch name {
-	case "card search", "card next", "card lookup":
+	case "card search", "card triage-order", "card lookup":
 		if limit < 1 || limit > 200 || len(cursor) > 2048 {
 			return cmd, errors.New("page limit must be 1 to 200 and cursor must fit within 2048 bytes")
 		}
@@ -120,7 +120,7 @@ func parseT07(name string, args []string) (cliCommand, error) {
 		}
 		if len(lanes) != 0 {
 			query["lane_id"] = lanes
-		} else if name == "card next" {
+		} else if name == "card triage-order" {
 			query.Set("unfinished_only", "true")
 		}
 		if archived != "" {

@@ -1928,7 +1928,6 @@ async function load(savedAvailability) {
       }
     });
 
-    boardStyle.replaceSync(board.user_css ?? "");
     const addTitle = element("input");
     addTitle.required = true;
     const addDescription = element("textarea");
@@ -2072,6 +2071,7 @@ async function load(savedAvailability) {
     renderCards(cards, boardTag);
     main.replaceChildren(element("h1", board.name), editor, search.panel, recent, laneEditor.editor, boardActions, columns, archived);
     inspection.sync();
+    boardStyle.replaceSync(board.user_css ?? "");
     announce("ready", "Board loaded.");
     const selectedCard = selectedCardId(boardId) ?? suspendedSelections.get(boardId);
     if (selectedCard && refresh) {
@@ -2099,6 +2099,7 @@ async function load(savedAvailability) {
     if (view !== activeView) return;
     if (error instanceof ApiError && error.status === 401) capability = "";
     main.replaceChildren();
+    boardStyle.replaceSync("");
     announce("error", readError(error));
   }
 }

@@ -239,6 +239,11 @@ Bot ID is a member. Custom boards without Bot must supply a member explicitly.
 Changing the default requires `manage_board` and applies to subsequent card
 creation. Owner assignment audit values record the previous and new user UUIDs.
 
+Set `user_css` in `board create --json` or `board patch` JSON to apply a stylesheet
+while viewing that board. Patches require `manage_board`. An empty string clears
+the stylesheet. The browser replaces the active stylesheet when switching boards
+and uses the same content security policy throughout.
+
 ## Checks
 
 Install the pinned development compiler.

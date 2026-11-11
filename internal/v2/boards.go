@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const maxBoardCSSLength = 1048576
+
 func (x *request) listBoards() {
 	rows := make([]boardSummary, 0)
 	for _, s := range x.service.store.list() {
@@ -27,7 +29,7 @@ func (x *request) createBoard() {
 		x.fail(err)
 		return
 	}
-	if err = rejectFields(obj, []string{"id", "name", "workflow", "default_owner_id", "actor_presentation"}, false); err != nil {
+	if err = rejectFields(obj, []string{"id", "name", "workflow", "default_owner_id", "actor_presentation", "user_css"}, false); err != nil {
 		x.fail(err)
 		return
 	}
@@ -56,6 +58,13 @@ func (x *request) createBoard() {
 		wf = defaultWorkflow(id, now, x.service.principals)
 	}
 	s := freshSnapshot(id, name, wf, x.actor, now)
+	if raw, ok := obj["user_css"]; ok {
+		s.Board.UserCSS, err = exactCardText(raw, "user_css", 0, maxBoardCSSLength)
+		if err != nil {
+			x.fail(err)
+			return
+		}
+	}
 	if raw, ok := obj["actor_presentation"]; ok {
 		s.Board.ActorPresentation, err = readActorPresentation(raw)
 		if err != nil {
@@ -131,15 +140,13 @@ func (x *request) patchBoard(s snapshot) {
 		x.fail(err)
 		return
 	}
-	if err = rejectFields(obj, []string{"name", "notifications", "default_owner_id", "publishing", "availability", "actor_presentation"}, false); err != nil {
+	if err = rejectFields(obj, []string{"name", "notifications", "default_owner_id", "publishing", "availability", "actor_presentation", "user_css"}, false); err != nil {
 		x.fail(err)
 		return
 	}
-	for _, name := range []string{"user_ids", "user_css"} {
-		if _, ok := obj[name]; ok {
-			x.fail(invalid(name, "This patch field is not available."))
-			return
-		}
+	if _, ok := obj["user_ids"]; ok {
+		x.fail(invalid("user_ids", "This patch field is not available."))
+		return
 	}
 	name, hasName := obj["name"]
 	defaultOwner, hasDefaultOwner := obj["default_owner_id"]
@@ -147,13 +154,15 @@ func (x *request) patchBoard(s snapshot) {
 	publishingInput, hasPublishing := obj["publishing"]
 	availabilityInput, hasAvailability := obj["availability"]
 	presentationInput, hasPresentation := obj["actor_presentation"]
-	hasSettings := hasName || hasNotifications || hasDefaultOwner || hasPublishing || hasPresentation
+	cssInput, hasCSS := obj["user_css"]
+	managesBoard := hasName || hasDefaultOwner || hasPresentation || hasCSS
+	hasSettings := managesBoard || hasNotifications || hasPublishing
 	if !hasSettings && !hasAvailability {
 		x.fail(invalid("body", "A supported change is required."))
 		return
 	}
 	authorized := func(s snapshot) bool {
-		return s.can(x.actor, "read") && (!(hasName || hasDefaultOwner || hasPresentation) || s.can(x.actor, "manage_board")) &&
+		return s.can(x.actor, "read") && (!managesBoard || s.can(x.actor, "manage_board")) &&
 			(!hasNotifications || s.can(x.actor, "manage_notifications")) && (!hasPublishing || s.can(x.actor, "publish")) &&
 			(!hasAvailability || s.can(x.actor, "close_board"))
 	}
@@ -219,6 +228,17 @@ func (x *request) patchBoard(s snapshot) {
 			if value != before {
 				appendChange("actor_presentation", before.auditValue(), value.auditValue())
 				s.Board.ActorPresentation = value
+			}
+		}
+		if hasCSS {
+			value, err := exactCardText(cssInput, "user_css", 0, maxBoardCSSLength)
+			if err != nil {
+				return err
+			}
+			before := s.Board.UserCSS
+			if value != before {
+				appendChange("user_css", &before, &value)
+				s.Board.UserCSS = value
 			}
 		}
 		if hasNotifications {

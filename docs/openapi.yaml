@@ -15243,6 +15243,11 @@ components:
           type: string
           minLength: 1
           maxLength: 256
+        user_css:
+          type: string
+          maxLength: 1048576
+          default: ''
+          description: Stylesheet applied while this board is open in the browser. The browser's existing content security policy applies.
         workflow:
           $ref: '#/components/schemas/WorkflowInput'
         actor: false
@@ -15287,6 +15292,7 @@ components:
           type: string
           minLength: 0
           maxLength: 1048576
+          description: Replaces the board stylesheet and requires manage_board. An empty string clears it. Omission preserves it.
         availability:
           type: string
           pattern: ^(?:[oO][pP][eE][nN]|[cC][lL][oO][sS][eE][dD])$

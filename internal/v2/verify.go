@@ -212,7 +212,7 @@ func validateSnapshot(value snapshot, boardID string) error {
 	if !validSnapshotEntity(b.entity) || b.Revision > maxSnapshotInteger || b.ETag != etag(b.ID, b.Revision) {
 		return invalidSnapshot("board", "Board version or entity metadata is invalid.")
 	}
-	if !snapshotText(b.Name, 1, 256) || !snapshotText(b.UserCSS, 0, 1048576) ||
+	if !snapshotText(b.Name, 1, 256) || !snapshotText(b.UserCSS, 0, maxBoardCSSLength) ||
 		(b.Availability != "open" && b.Availability != "closed") {
 		return invalidSnapshot("board", "Board metadata is invalid.")
 	}
@@ -923,6 +923,8 @@ func (refs snapshotReferences) validAuditField(boardID, actorID string, field sn
 			return capabilities["manage_board"] && value != nil && refs.users[*value].ID != ""
 		case "name":
 			return capabilities["manage_board"] && snapshotText(snapshotString(value), 1, 256)
+		case "user_css":
+			return capabilities["manage_board"] && value != nil && snapshotText(*value, 0, maxBoardCSSLength)
 		case "availability":
 			return capabilities["close_board"] && (snapshotString(value) == "open" || snapshotString(value) == "closed")
 		case "notifications.enabled":
@@ -957,6 +959,8 @@ func (refs snapshotReferences) currentAuditField(b board, field snapshotAuditFie
 		return &b.DefaultOwnerID
 	case "name":
 		return &b.Name
+	case "user_css":
+		return &b.UserCSS
 	case "availability":
 		return &b.Availability
 	case "notifications.enabled":

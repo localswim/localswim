@@ -256,21 +256,33 @@ test("board publishing keeps an explicit off draft across an unavailable read an
 test("Attention keeps pin and catalog order, fixed count slots, accessible zeroes, and audited recency", async () => {
   const counts = (blocked, needs_input, ready_for_review) => ({blocked, needs_input, ready_for_review});
   const sameEdit = "2026-11-11 00:00:00+00:00";
-  class Clock extends Date { static now() { return Date.parse("2026-11-11T00:07:30Z"); } }
+  let now = Date.parse("2026-11-11T00:07:30Z");
+  class Clock extends Date { static now() { return now; } }
   const rows = [
     {id: board, name: "Zulu", attention: counts(0, 4, 105), last_card_edit_at: sameEdit},
     {id: backup, name: "Alpha", attention: counts(1, 0, 0), last_card_edit_at: sameEdit},
     {id: user, name: "Empty", attention: counts(0, 0, 0), last_card_edit_at: null},
     {id: priority, name: null, attention: null, last_card_edit_at: null},
   ];
+  let requested;
+  const preferencesRequested = new Promise((resolve) => { requested = resolve; });
+  let resolvePreferences;
+  const preferences = new Promise((resolve) => { resolvePreferences = resolve; });
   const ui = await harness({
     getSession: async () => ({data: {kind: "human", workspace_admin: true}}),
     listBoards: async () => page("boards", rows),
-    getWorkspace: async () => ({data: {
-      revision: 1, pinned_board_ids: [priority, lane, user], publishing: publishingOff,
-    }, etag: tag(board, 1)}),
+    getWorkspace: () => {
+      requested();
+      return preferences;
+    },
   }, "/", {clock: Clock});
-  await ui.load();
+  const loading = ui.load();
+  await preferencesRequested;
+  ui.nodes.boards.querySelector("a").focus();
+  resolvePreferences({data: {
+    revision: 1, pinned_board_ids: [priority, lane, user], publishing: publishingOff,
+  }, etag: tag(board, 1)});
+  await loading;
   const [header, pinned, other] = ui.nodes.boards.children;
   const keys = ["blocked", "needs_input", "ready_for_review"];
   assert.deepEqual(header.children.slice(1).map((node) => node.dataset.attention), keys);
@@ -281,6 +293,7 @@ test("Attention keeps pin and catalog order, fixed count slots, accessible zeroe
   assert.deepEqual(other.querySelectorAll("a").map((node) => node.dataset.boardId), [board, backup]);
 
   const [unavailable, empty, zulu, alpha] = ui.nodes.boards.querySelectorAll("a");
+  assert.equal(ui.focused(), zulu);
   for (const row of [unavailable, empty, zulu, alpha]) {
     assert.deepEqual(row.children.slice(1, 4).map((node) => node.dataset.attention), keys);
     assert.equal(row.attributes["aria-describedby"], row.children[4].id);
@@ -297,6 +310,11 @@ test("Attention keeps pin and catalog order, fixed count slots, accessible zeroe
   assert.equal(empty.title, "No recorded card edits");
   assert.equal(zulu.title, "Last card edit 7 minutes ago");
   assert.equal(alpha.title, zulu.title);
+  now += 2 * 60_000;
+  zulu.dispatch("pointerenter");
+  assert.equal(zulu.title, "Last card edit 9 minutes ago");
+  assert.match(zulu.children[4].textContent, /Last card edit 9 minutes ago$/);
+  assert.deepEqual(other.querySelectorAll("a").map((node) => node.dataset.boardId), [board, backup]);
 });
 
 test("workspace recovery retains explicit off and unpin-all drafts and adopts saved values in a clean view", async () => {

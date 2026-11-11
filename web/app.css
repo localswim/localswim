@@ -20,7 +20,6 @@ header a { color: inherit; font-size: 1.3rem; font-weight: 700; }
 .attention-group { display: grid; gap: 0.35rem; }
 .attention-group h3 { color: #455973; font-size: 0.8rem; font-weight: 650; }
 .attention-name { overflow-wrap: anywhere; }
-.attention-summary { display: none; }
 .attention-label, .attention-slot { text-align: center; }
 .attention-label, .attention-count {
   background: var(--attention-bg);

@@ -1541,7 +1541,6 @@ function attentionRecency(board, now) {
 function renderAttention(sidebar, rows, pins, selected) {
   const byId = new Map(rows.map((board) => [board.id, board]));
   const pinIds = new Set(pins);
-  const now = Date.now();
   const header = element("div");
   header.className = "attention-grid attention-header";
   header.append(element("h2", "Attention"));
@@ -1572,7 +1571,6 @@ function renderAttention(sidebar, rows, pins, selected) {
       const title = element("span", name);
       title.className = "attention-name";
       item.append(title);
-      const recency = attentionRecency(board, now);
       const accessible = [];
       for (const { key, label } of attentionColumns) {
         const count = board.attention?.[key];
@@ -1590,12 +1588,19 @@ function renderAttention(sidebar, rows, pins, selected) {
         accessible.push(label + " " + (count ?? "unavailable"));
         item.append(slot);
       }
-      item.title = recency;
-      const summary = element("span", [...accessible, recency].join(". "));
-      summary.className = "attention-summary";
+      const summary = element("span");
+      summary.hidden = true;
       summary.id = "attention-" + board.id;
       item.setAttribute("aria-describedby", summary.id);
       item.append(summary);
+      const countSummary = accessible.join(". ");
+      const updateRecency = () => {
+        item.title = attentionRecency(board, Date.now());
+        summary.textContent = countSummary + ". " + item.title;
+      };
+      updateRecency();
+      item.addEventListener("pointerenter", updateRecency);
+      item.addEventListener("focus", updateRecency);
       section.append(item);
     }
     return section;

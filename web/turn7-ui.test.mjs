@@ -1075,3 +1075,69 @@ test("aborting a lifecycle read does not cancel a shared session bootstrap", asy
   assert.equal(await navigation, "navigation");
   assert.equal(sessions, 1);
 });
+
+test("M63 lane dependency reorder hides disabled lanes and requires two active cards", async () => {
+  const {api} = boardApi();
+  const original = (await api.getCard()).data;
+  const readLanes = api.getBoardLanes;
+  let cardCount = 1;
+  const second = {...original, id: backup, ticket: 2, title: "Blocker"};
+  api.getBoardLanes = async () => {
+    const reply = await readLanes();
+    const cards = cardCount === 1 ? [original] : [original, second];
+    return {...reply, data: {...reply.data, cards}};
+  };
+  const readLaneList = api.listLanes;
+  api.listLanes = async () => {
+    const first = (await readLaneList()).data.lanes[0];
+    return page("lanes", [
+      {...first, label: "Backlog", reorder_enabled: true},
+      {...first, id: user, label: "Second lane", position: 1, reorder_enabled: false},
+    ]);
+  };
+  const current = [{card_id: card, ticket: 1}, {card_id: backup, ticket: 2}];
+  const proposed = [{card_id: backup, ticket: 1}, {card_id: card, ticket: 2}];
+  const previews = [];
+  const applies = [];
+  let previewRevision = 2;
+  api.previewTicketOrder = async (...args) => {
+    previews.push(args);
+    return {data: {board_revision: previewRevision, current, proposed, changed: true}, etag: tag(board, previewRevision)};
+  };
+  api.applyTicketOrder = async (...args) => {
+    applies.push(args);
+    throw new ApiError("http_error", {status: 412});
+  };
+  const ui = await harness(api);
+  const {main} = ui.nodes;
+  const previewButton = () => ui.find(main, "button", "Preview ticket order");
+  await ui.load();
+  assert.equal(main.querySelectorAll("button").filter((control) => control.dataset.action === "preview-ticket-order").length, 1);
+  assert.equal(previewButton().disabled, true);
+  previewButton().click();
+  assert.equal(previews.length, 0);
+  assert.equal(ui.find(main, "button", "Apply ticket order"), undefined);
+
+  cardCount = 2;
+  await ui.load();
+  assert.equal(previewButton().disabled, false);
+  const input = main.querySelectorAll("input").find((control) => control.attributes["aria-label"] === "Tickets to preview in Backlog");
+  input.value = "1";
+  previewButton().click();
+  assert.equal(previews.length, 0);
+  assert.match(main.textContent, /Choose at least two active tickets/);
+  input.value = "";
+  previewButton().click();
+  await ui.settled();
+  assert.deepEqual(previews, [[board, lane, undefined]]);
+  assert.match(main.textContent, /The board changed/);
+  assert.equal(ui.find(main, "button", "Apply ticket order"), undefined);
+
+  previewRevision = 1;
+  previewButton().click();
+  await ui.settled();
+  assert.match(main.textContent, /Preview at board revision 1/);
+  ui.submit(main, "Apply ticket order");
+  await ui.settled();
+  assert.deepEqual(applies, [[board, lane, tag(board, 1), proposed]]);
+});

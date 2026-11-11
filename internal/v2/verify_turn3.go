@@ -207,6 +207,8 @@ func (refs snapshotReferences) validLaneAuditValue(actor string, field snapshotA
 		return err == nil && position >= 0 && strconv.Itoa(position) == *value
 	case "retired":
 		return refs.lanes[field.resourceID].Role != "completed" && (*value == "false" || *value == "true")
+	case "reorder_enabled":
+		return *value == "false" || *value == "true"
 	case "approval_enabled":
 		return refs.lanes[field.resourceID].Role == "ready_for_review" && (*value == "false" || *value == "true")
 	}
@@ -248,6 +250,8 @@ func (refs snapshotReferences) currentLaneAuditValue(field snapshotAuditField) *
 		return &item.Key
 	case "retired":
 		return archiveAuditValue(item.Retired)
+	case "reorder_enabled":
+		return archiveAuditValue(item.ReorderEnabled)
 	case "approval_enabled":
 		return archiveAuditValue(item.ApprovalEnabled)
 	case "position":
@@ -308,7 +312,8 @@ func validRetirementAuditShape(events []activity, index int) bool {
 		edit := events[i]
 		field := snapshotString(edit.Field)
 		if !edit.At.Equal(retired.At) || edit.ResourceType != "lane" || edit.ResourceID != retired.ResourceID ||
-			edit.Operation != "patch" || (field != "label" && field != "key" && field != "approval_enabled") {
+			edit.Operation != "patch" || (field != "label" && field != "key" &&
+			field != "approval_enabled" && field != "reorder_enabled") {
 			return false
 		}
 	}

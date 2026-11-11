@@ -92,18 +92,17 @@ func (x *request) renameLane(id string) {
 		return
 	}
 	fields := &workflowFields{path: "lane", fields: obj, err: rejectFields(obj,
-		[]string{"board_etag", "label", "key", "retired", "approval_enabled"}, false)}
+		[]string{"board_etag", "label", "key", "retired", "approval_enabled", "reorder_enabled"}, false)}
 	boardTag := laneBoardTag(fields)
-	for _, name := range []string{"reorder_enabled", "position"} {
-		if _, found := obj[name]; found {
-			fields.fail(name, "This patch field is unavailable.")
-		}
+	if _, found := obj["position"]; found {
+		fields.fail("position", "This patch field is unavailable.")
 	}
 	label := fields.string("label", 1, 256, false)
 	key := fields.string("key", 1, 128, false)
 	retired := lanePatchBool(fields, "retired")
 	approval := lanePatchBool(fields, "approval_enabled")
-	if label == "" && key == "" && retired == nil && approval == nil {
+	reorder := lanePatchBool(fields, "reorder_enabled")
+	if label == "" && key == "" && retired == nil && approval == nil && reorder == nil {
 		fields.fail("label", "Supply at least one editable lane field.")
 	}
 	if fields.err != nil {
@@ -123,7 +122,7 @@ func (x *request) renameLane(id string) {
 		if !matchesStrongTag(laneTag, item.entityTag()) {
 			return errStale
 		}
-		if err := applyLanePatch(current, index, x.actor, label, key, retired, approval); err != nil {
+		if err := applyLanePatch(current, index, x.actor, label, key, retired, approval, reorder); err != nil {
 			return err
 		}
 		item = current.Lanes[index]
@@ -153,7 +152,7 @@ func lanePatchBool(fields *workflowFields, name string) *bool {
 	return value
 }
 
-func applyLanePatch(current *snapshot, index int, actor, label, key string, retired, approval *bool) error {
+func applyLanePatch(current *snapshot, index int, actor, label, key string, retired, approval, reorder *bool) error {
 	item := current.Lanes[index]
 	if key != "" && key != item.Key {
 		if item.Role == "completed" || key == "completed" {
@@ -182,7 +181,8 @@ func applyLanePatch(current *snapshot, index int, actor, label, key string, reti
 	changedLabel := label != "" && item.Label != label
 	changedKey := key != "" && item.Key != key
 	changedApproval := approval != nil && item.ApprovalEnabled != *approval
-	if !changedLabel && !changedKey && !changedApproval && !willRetire {
+	changedReorder := reorder != nil && item.ReorderEnabled != *reorder
+	if !changedLabel && !changedKey && !changedApproval && !changedReorder && !willRetire {
 		return nil
 	}
 	now := laneEditTime(*current, time.Now())
@@ -200,6 +200,11 @@ func applyLanePatch(current *snapshot, index int, actor, label, key string, reti
 		before, after := strconv.FormatBool(item.ApprovalEnabled), strconv.FormatBool(*approval)
 		appendLaneAudit(current, actor, item.ID, "patch", "approval_enabled", &before, &after, now)
 		item.ApprovalEnabled = *approval
+	}
+	if changedReorder {
+		before, after := strconv.FormatBool(item.ReorderEnabled), strconv.FormatBool(*reorder)
+		appendLaneAudit(current, actor, item.ID, "patch", "reorder_enabled", &before, &after, now)
+		item.ReorderEnabled = *reorder
 	}
 	if willRetire {
 		before, after := "false", "true"

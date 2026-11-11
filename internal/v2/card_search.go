@@ -5,7 +5,6 @@ import (
 	"maps"
 	"math/big"
 	"math/bits"
-	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
@@ -25,8 +24,8 @@ type cardFilters struct {
 	searchContent  bool
 }
 
-func readCardFilters(r *http.Request) (cardFilters, error) {
-	query, err := url.ParseQuery(r.URL.RawQuery)
+func readCardFilters(rawQuery string) (cardFilters, error) {
+	query, err := url.ParseQuery(rawQuery)
 	if err != nil {
 		return cardFilters{}, invalid("ticket", "Malformed query string.")
 	}
@@ -98,6 +97,12 @@ func readCardFilters(r *http.Request) (cardFilters, error) {
 		}
 	}
 	return result, nil
+}
+
+func (filters cardFilters) page(state snapshot, rawQuery string) (map[string]any, error) {
+	return pageItems(rawQuery, "cards", selectCards(state, filters), state.Board.ID,
+		filters.laneScope(), strconv.FormatUint(filters.ticket, 10), filters.archived, filters.sort,
+		filters.query, strconv.FormatBool(filters.searchContent), strconv.FormatBool(filters.unfinishedOnly))
 }
 
 func (filters cardFilters) laneScope() string {

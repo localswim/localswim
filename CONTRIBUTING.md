@@ -274,11 +274,18 @@ Use an explicit `--data DIR` to read a saved board through the local filesystem.
 - `board get --data DIR BOARD_ID` returns saved board metadata.
 - `board export --data DIR BOARD_ID` emits the validated native snapshot.
 - `card inspect --data DIR [--prose] BOARD_ID TICKET` inspects a focused ticket.
+- `card next --data DIR [--lane UUID]... BOARD_ID` ranks work across the selected lanes.
+- `card search --data DIR --search TEXT BOARD_ID` applies the usual search and triage rules.
+- `comment list --data DIR [--limit N] BOARD_ID [CARD_ID]` reads the newest comments.
 
-Each invocation validates one committed snapshot. The directory must be directly
-readable. These commands work with the writer stopped and with open or closed
-boards. The same inspections without `--data` use the authenticated live API.
-Closed boards still refuse card writes.
+Each invocation validates one committed snapshot from a directly readable directory.
+These commands work with the writer stopped and with open or closed saved boards.
+Omit `--data` to use the authenticated live API. For the same snapshot and selection,
+both sources return the same report, including pagination cursors. Use the same
+selection when continuing a report. An intervening edit that changes its results
+can invalidate a cursor. Focused inspection includes descriptions and comments
+only with `--prose`. Board-wide comment reports default to active cards and include
+comment text. Closed boards still refuse card writes.
 
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
 Unicode. Ordinary entity, comment, attachment, build, and request correlation IDs

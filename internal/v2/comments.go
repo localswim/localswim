@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -74,33 +75,41 @@ func (x *request) listComments() {
 	if !x.useBoard(boardID) {
 		return
 	}
-	cardID, err := singleQuery(x.r, "card_id")
+	result, err := commentPage(state, x.r.URL.RawQuery)
 	if err != nil {
 		x.fail(err)
 		return
 	}
-	query := x.r.URL.Query()
+	x.respond(http.StatusOK, result, "")
+}
+
+func commentPage(state snapshot, rawQuery string) (map[string]any, error) {
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return nil, invalid("card_id", "Malformed query string.")
+	}
+	cardID, err := queryEntry(query, "card_id")
+	if err != nil {
+		return nil, err
+	}
 	if query.Has("card_id") {
+		var valid bool
 		cardID, valid = normalizeID(cardID)
 		if !valid {
-			x.fail(invalid("card_id", "Expected a UUIDv4."))
-			return
+			return nil, invalid("card_id", "Expected a UUIDv4.")
 		}
 		if !slices.ContainsFunc(state.Cards, func(c card) bool { return c.ID == cardID }) {
-			x.fail(errMissing)
-			return
+			return nil, errMissing
 		}
 	}
-	archived, err := singleQuery(x.r, "archived")
+	archived, err := queryEntry(query, "archived")
 	if err != nil {
-		x.fail(err)
-		return
+		return nil, err
 	}
 	if query.Has("archived") {
 		archived = asciiLowerEnum(archived)
 		if !slices.Contains([]string{"exclude", "include", "only"}, archived) {
-			x.fail(invalid("archived", "Expected exclude, include, or only."))
-			return
+			return nil, invalid("archived", "Expected exclude, include, or only.")
 		}
 	} else if cardID == "" {
 		archived = "exclude"
@@ -109,8 +118,7 @@ func (x *request) listComments() {
 	}
 	for _, field := range []string{"limit", "cursor"} {
 		if query.Has(field) && query.Get(field) == "" {
-			x.fail(invalid(field, "Expected a nonempty value."))
-			return
+			return nil, invalid(field, "Expected a nonempty value.")
 		}
 	}
 
@@ -129,7 +137,7 @@ func (x *request) listComments() {
 	// Preserve newest commit order when server timestamps are equal.
 	slices.Reverse(rows)
 	slices.SortStableFunc(rows, func(a, b commentListEntry) int { return b.CreatedAt.Compare(a.CreatedAt) })
-	page(x, "comments", rows, boardID, cardID, archived)
+	return pageItems(rawQuery, "comments", rows, state.Board.ID, cardID, archived)
 }
 
 func readCommentCreation(fields map[string]json.RawMessage) (commentCreation, error) {

@@ -358,6 +358,10 @@ func singleQuery(r *http.Request, field string) (string, error) {
 	if err != nil {
 		return "", invalid(field, "Malformed query string.")
 	}
+	return queryEntry(query, field)
+}
+
+func queryEntry(query url.Values, field string) (string, error) {
 	entries := query[field]
 	if len(entries) > 1 {
 		return "", invalid(field, "Repeated query parameter.")
@@ -369,23 +373,33 @@ func singleQuery(r *http.Request, field string) (string, error) {
 }
 
 func page[T any](x *request, resource string, items []T, filters ...string) {
-	limitValue, err := singleQuery(x.r, "limit")
+	result, err := pageItems(x.r.URL.RawQuery, resource, items, filters...)
 	if err != nil {
 		x.fail(err)
 		return
+	}
+	x.respond(http.StatusOK, result, "")
+}
+
+func pageItems[T any](rawQuery, resource string, items []T, filters ...string) (map[string]any, error) {
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return nil, invalid("limit", "Malformed query string.")
+	}
+	limitValue, err := queryEntry(query, "limit")
+	if err != nil {
+		return nil, err
 	}
 	limit := 50
 	if limitValue != "" {
 		limit, err = strconv.Atoi(limitValue)
 		if err != nil || limit < 1 || limit > 200 {
-			x.fail(invalid("limit", "Expected an integer between 1 and 200."))
-			return
+			return nil, invalid("limit", "Expected an integer between 1 and 200.")
 		}
 	}
-	cursor, err := singleQuery(x.r, "cursor")
+	cursor, err := queryEntry(query, "cursor")
 	if err != nil {
-		x.fail(err)
-		return
+		return nil, err
 	}
 	if items == nil {
 		items = []T{}
@@ -402,23 +416,20 @@ func page[T any](x *request, resource string, items []T, filters ...string) {
 		}
 		data, err := marshalCanonical(selection)
 		if err != nil {
-			x.fail(err)
-			return
+			return nil, err
 		}
 		hash := sha256.Sum256(data)
 		scope = fmt.Sprintf("%x", hash[:16])
 	}
 	if cursor != "" {
 		if len(cursor) > 2048 {
-			x.fail(invalid("cursor", "Invalid or stale cursor."))
-			return
+			return nil, invalid("cursor", "Invalid or stale cursor.")
 		}
 		raw, decodeErr := base64.RawURLEncoding.Strict().DecodeString(cursor)
 		token, pos, ok := strings.Cut(string(raw), ":")
 		start, err = strconv.Atoi(pos)
 		if decodeErr != nil || err != nil || !ok || token != scope || start <= 0 || start >= len(items) {
-			x.fail(invalid("cursor", "Invalid or stale cursor."))
-			return
+			return nil, invalid("cursor", "Invalid or stale cursor.")
 		}
 	}
 	end := min(start+limit, len(items))
@@ -427,5 +438,5 @@ func page[T any](x *request, resource string, items []T, filters ...string) {
 		next := base64.RawURLEncoding.EncodeToString([]byte(scope + ":" + strconv.Itoa(end)))
 		nextCursor = &next
 	}
-	x.respond(200, map[string]any{resource: items[start:end], "next_cursor": nextCursor}, "")
+	return map[string]any{resource: items[start:end], "next_cursor": nextCursor}, nil
 }

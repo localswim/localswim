@@ -63,7 +63,8 @@ const cliHelp = `Usage:
   localswim relationship create [--revision N] BOARD_ID FILE|-
   localswim relationship patch [--revision N] RELATIONSHIP_ID FILE|-
   localswim relationship remove [--revision N] RELATIONSHIP_ID
-  localswim comment list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
+  localswim comment list [--data DIRECTORY] [--archived exclude|include|only]
+                         [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim comment post [--revision N] CARD_ID FILE|-
   localswim activity list --from UTC --to UTC [--view full|monitor] [--ticket N]
                         [--actor-id UUID] [--operation OP] [--limit N] [--cursor CURSOR] BOARD_ID
@@ -85,9 +86,9 @@ const cliHelp = `Usage:
   localswim backup info BACKUP_ID
   localswim backup download BACKUP_ID FILE|-
   localswim backup verify FILE
-  localswim card search [--search TEXT] [--search-content] [--lane ID]...
+  localswim card search [--data DIRECTORY] [--search TEXT] [--search-content] [--lane ID]...
                        [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
-  localswim card next [--search TEXT] [--search-content] [--lane ID]...
+  localswim card next [--data DIRECTORY] [--search TEXT] [--search-content] [--lane ID]...
                      [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card lookup [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim ticket-order apply LANE_ID FILE|-
@@ -106,7 +107,8 @@ Live commands use LOCALSWIM_URL (http://127.0.0.1:<port>) and LOCALSWIM_TOKEN.
 Board creation requires exactly one of --name or --json.
 --json reads a new board definition from JSON_FILE or standard input.
 JSON_FILE is required. Use a file path or - to read standard input.
-Set --data on board get, board export, card inspect, or board verify to read saved board data offline.
+Set --data to read saved board data offline for board get, board export, board verify,
+card inspect, card next, card search, and comment list.
 Offline board get returns board metadata. The lanes view requires a live service.
 Verification prints the full JSON report and exits 1 if the board is invalid.
 Board export writes JSON to standard output. The default --type is json.
@@ -383,6 +385,11 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "card inspect":
 		var err error
 		command.ticketInspection, err = parseTicketInspection(optionArgs)
+		if err == nil {
+			command.dataDir = command.ticketInspection.dataDir
+			command.boardID = command.ticketInspection.boardID
+			command.nativeRead = "ticket"
+		}
 		return command, err
 	case "policy get", "policy grant":
 		command.method, command.resource, needBoardID = http.MethodGet, "/policies", true
@@ -565,11 +572,8 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	if command.backupVerifyPath != "" {
 		return verifyBackupFile(command.backupVerifyPath, stdout)
 	}
-	if inspect := command.ticketInspection; inspect != nil && inspect.dataDir != "" {
-		return executeNativeRead(inspect.dataDir, inspect.boardID, "ticket", inspect.ticket, inspect.prose, stdout)
-	}
 	if command.dataDir != "" && command.nativeRead != "" {
-		return executeNativeRead(command.dataDir, command.boardID, command.nativeRead, 0, false, stdout)
+		return executeNativeRead(command, stdout)
 	}
 	if command.dataDir != "" {
 		return executeOfflineVerification(command, stdout)

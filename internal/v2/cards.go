@@ -68,7 +68,7 @@ func (x *request) listCards() {
 		x.fail(errMissing)
 		return
 	}
-	filters, err := readCardFilters(x.r)
+	filters, err := readCardFilters(x.r.URL.RawQuery)
 	if err != nil {
 		x.fail(err)
 		return
@@ -76,10 +76,12 @@ func (x *request) listCards() {
 	if !x.useBoard(id) {
 		return
 	}
-	rows := selectCards(state, filters)
-	page(x, "cards", rows, id, filters.laneScope(), strconv.FormatUint(filters.ticket, 10),
-		filters.archived, filters.sort, filters.query, strconv.FormatBool(filters.searchContent),
-		strconv.FormatBool(filters.unfinishedOnly))
+	result, err := filters.page(state, x.r.URL.RawQuery)
+	if err != nil {
+		x.fail(err)
+		return
+	}
+	x.respond(http.StatusOK, result, "")
 }
 
 func readCardCreation(fields map[string]json.RawMessage) (cardCreation, error) {

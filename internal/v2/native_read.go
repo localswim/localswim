@@ -43,3 +43,34 @@ func (b NativeBoard) InspectTicketJSON(ticket uint64, includeProse bool) (json.R
 	}
 	return marshalCanonical(result)
 }
+
+func (b NativeBoard) ListCardsJSON(rawQuery string) (json.RawMessage, error) {
+	filters, err := readCardFilters(rawQuery)
+	if err != nil {
+		return nil, err
+	}
+	result, err := filters.page(b.state, rawQuery)
+	if err != nil {
+		return nil, err
+	}
+	return marshalNativePage(result)
+}
+
+func (b NativeBoard) ListCommentsJSON(rawQuery string) (json.RawMessage, error) {
+	result, err := commentPage(b.state, rawQuery)
+	if err != nil {
+		return nil, err
+	}
+	return marshalNativePage(result)
+}
+
+func marshalNativePage(result map[string]any) (json.RawMessage, error) {
+	data, err := marshalCanonical(result)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxJSONBytes {
+		return nil, errors.New("saved board response exceeds 96 MiB")
+	}
+	return data, nil
+}

@@ -43,6 +43,12 @@ async function harness(api, pathname = "/boards/" + board, {
       }
     }
     replaceChildren(...nodes) { for (const node of this.children) node.parent = undefined; this.children = []; this.ownText = ""; this.append(...nodes); }
+    insertBefore(node, reference) {
+      const index = this.children.indexOf(reference);
+      assert.notEqual(index, -1);
+      node.parent = this;
+      this.children.splice(index, 0, node);
+    }
     prepend(node) { node.parent = this; this.children.unshift(node); }
     remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = undefined; }
     setAttribute(key, value) { this.attributes[key] = value; }
@@ -107,7 +113,7 @@ async function harness(api, pathname = "/boards/" + board, {
   const context = vm.createContext({document, window, CSSStyleSheet: StyleSheet,
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
-    Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, MAX_ATTACHMENT_BYTES, newOperationId,
+    Blob, TextEncoder, TextDecoder, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, MAX_ATTACHMENT_BYTES, newOperationId,
     createBoardRefresh, watchBoard: typeof api.streamEvents === "function" ? watchBoard : async () => {},
     DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH, MAX_LANE_APPROVAL_CARDS,
     createBrowserApi: ({getCapability}) => typeof api === "function" ? api(getCapability) : api,
@@ -624,6 +630,201 @@ test("cover space exists before bytes arrive and repaint restores scroll without
 });
 
 const publishingOff = {enabled: false, repository: null, last_success_at: null, pending: false, error_code: null};
+
+test("a recent board paints before refresh, survives failure, and upgrades its drawer after Retry", async () => {
+  const {api, restore, patched} = boardApi();
+  const getBoard = api.getBoardLanes;
+  const getCard = api.getCard;
+  const started = Promise.withResolvers();
+  const blocked = Promise.withResolvers();
+  let reads = 0;
+  let cardReads = 0;
+  api.getBoardLanes = async (...args) => {
+    if (++reads === 2) {
+      started.resolve();
+      await blocked.promise;
+    }
+    return getBoard(...args);
+  };
+  api.getCard = async (...args) => {
+    cardReads++;
+    return getCard(...args);
+  };
+  const ui = await harness(api);
+  const {main, details, status} = ui.nodes;
+  await ui.load();
+  await ui.navigate("/");
+  const reopening = ui.navigate("/boards/" + board);
+  await started.promise;
+  assert.match(status.textContent, /Showing the last confirmed board/);
+  assert.match(main.textContent, /Checking for board updates/);
+  assert.equal(ui.find(main, "button", "Add card"), undefined);
+  assert.equal(ui.find(main, "button", "Create backup"), undefined);
+  ui.find(main, "button", "#1 Original").click();
+  assert.match(details.textContent, /Original description/);
+  assert.equal(ui.find(details, "button", "Save text"), undefined);
+  assert.equal(cardReads, 0);
+
+  blocked.reject(new ApiError("transport_failed"));
+  await reopening;
+  assert.match(main.textContent, /Board update could not be completed/);
+  assert.match(status.textContent, /Showing the last confirmed board/);
+  assert.match(details.textContent, /Original description/);
+  restore();
+  const retry = ui.find(main, "button", "Retry board update");
+  assert.equal(retry.hidden, false);
+  retry.click();
+  retry.click();
+  await ui.settled();
+  assert.equal(reads, 3);
+  assert.equal(cardReads, 1);
+  assert.equal(status.textContent, "Board loaded.");
+  assert.ok(ui.find(main, "button", "#9 Recovered"));
+  assert.equal(ui.field(details, "Title").value, "Recovered");
+  ui.field(details, "Title").value = "Edited after confirmation";
+  ui.submit(details, "Save text");
+  await ui.settled();
+  assert.equal(patched(), tag(card, 7));
+});
+
+test("reducing the recent board budget evicts the least recently used board and ignores late reads", async () => {
+  const {api} = boardApi();
+  const second = "d131a3c5-1ae0-4f15-9704-80bb84a6a414";
+  const getBoard = api.getBoardLanes;
+  const getAvailability = api.getBoardAvailability;
+  const delayed = new Map();
+  api.listBoards = async () => page("boards", [{id: board, name: "First"}, {id: second, name: "Second"}]);
+  api.getBoardAvailability = async (id) => {
+    const reply = await getAvailability();
+    return {data: {...reply.data, id, name: id === board ? "First" : "Second"}, etag: tag(id, 1)};
+  };
+  api.getBoardLanes = async (id) => {
+    const gate = delayed.get(id);
+    if (gate) {
+      delayed.delete(id);
+      gate.started.resolve();
+      await gate.release.promise;
+    }
+    const reply = await getBoard();
+    const name = id === board ? "First" : "Second";
+    return {data: {board: {...reply.data.board, id, name}, cards: reply.data.cards.map((card) =>
+      ({...card, board_id: id}))}, etag: tag(id, 1)};
+  };
+
+  const storage = tabStorage();
+  const ui = await harness(api, "/boards/" + board, {storage});
+  const {main, status} = ui.nodes;
+  await ui.load();
+  await ui.navigate("/boards/" + second);
+  await ui.navigate("/boards/" + board);
+  await ui.navigate("/");
+  const {data: {board: {id, name, revision}, cards}} = await api.getBoardLanes(board);
+  const {data: {lanes}} = await api.listLanes();
+  const {data: {priorities}} = await api.listPriorities();
+  const oneEntry = new TextEncoder().encode(JSON.stringify({board: {id, name, revision}, lanes, cards, priorities})).byteLength;
+  ui.field(main, "Cache budget in bytes").value = String(oneEntry);
+  ui.submit(main, "Save cache budget");
+
+  const secondGate = {started: Promise.withResolvers(), release: Promise.withResolvers()};
+  delayed.set(second, secondGate);
+  const loadingSecond = ui.navigate("/boards/" + second);
+  await secondGate.started.promise;
+  assert.equal(status.textContent, "Loading…");
+  assert.equal(ui.find(main, "h1", "Second"), undefined);
+
+  const firstGate = {started: Promise.withResolvers(), release: Promise.withResolvers()};
+  delayed.set(board, firstGate);
+  const reopeningFirst = ui.navigate("/boards/" + board);
+  await firstGate.started.promise;
+  assert.ok(ui.find(main, "h1", "First"));
+  assert.match(status.textContent, /Showing the last confirmed board/);
+  secondGate.release.resolve();
+  await loadingSecond;
+  assert.ok(ui.find(main, "h1", "First"));
+  firstGate.release.resolve();
+  await reopeningFirst;
+  assert.equal(status.textContent, "Board loaded.");
+
+  await ui.navigate("/");
+  ui.field(main, "Cache budget in bytes").value = "0";
+  ui.submit(main, "Save cache budget");
+  delayed.set(board, {started: Promise.withResolvers(), release: Promise.withResolvers()});
+  const zero = delayed.get(board);
+  const loadingFirst = ui.navigate("/boards/" + board);
+  await zero.started.promise;
+  assert.equal(status.textContent, "Loading…");
+  zero.release.resolve();
+  await loadingFirst;
+  const reload = await harness(api, "/", {storage});
+  await reload.load();
+  assert.equal(reload.field(reload.nodes.main, "Cache budget in bytes").value, "0");
+});
+
+test("the recent board cache skips entries above its UTF-8 byte budget", async () => {
+  const {api} = boardApi();
+  const getBoard = api.getBoardLanes;
+  let blockRead;
+  api.getBoardLanes = async () => {
+    if (blockRead) {
+      blockRead.started.resolve();
+      await blockRead.release.promise;
+    }
+    const reply = await getBoard();
+    reply.data.cards = reply.data.cards.map((card) => ({...card, description: "🌊".repeat(400)}));
+    return reply;
+  };
+  const {data: {board: {id, name, revision}, cards}} = await api.getBoardLanes();
+  const {data: {lanes}} = await api.listLanes();
+  const {data: {priorities}} = await api.listPriorities();
+  const serialized = JSON.stringify({board: {id, name, revision}, lanes, cards, priorities});
+  const storage = tabStorage();
+  const ui = await harness(api, "/", {storage});
+  await ui.load();
+  ui.field(ui.nodes.main, "Cache budget in bytes").value = String(serialized.length);
+  ui.submit(ui.nodes.main, "Save cache budget");
+  await ui.navigate("/boards/" + board);
+  await ui.navigate("/");
+  blockRead = {started: Promise.withResolvers(), release: Promise.withResolvers()};
+  const reopened = ui.navigate("/boards/" + board);
+  await blockRead.started.promise;
+  assert.equal(ui.nodes.status.textContent, "Loading…");
+  blockRead.release.resolve();
+  await reopened;
+  assert.ok(ui.find(ui.nodes.main, "button", "#1 Original"));
+});
+
+test("a definitive refusal clears the retained board and its provisional drawer", async () => {
+  const {api} = boardApi();
+  const getAvailability = api.getBoardAvailability;
+  const started = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  let removed = false;
+  api.getBoardAvailability = async (id) => {
+    if (!removed) return getAvailability(id);
+    started.resolve();
+    await release.promise;
+    throw new ApiError("http_error", {status: 404});
+  };
+  const ui = await harness(api);
+  const {main, details, status} = ui.nodes;
+  await ui.load();
+  await ui.navigate("/");
+  removed = true;
+  const reopening = ui.navigate("/boards/" + board);
+  await started.promise;
+  ui.find(main, "button", "#1 Original").click();
+  assert.equal(details.hidden, false);
+  release.resolve();
+  await reopening;
+  assert.equal(details.hidden, true);
+  assert.equal(ui.find(main, "button", "#1 Original"), undefined);
+  assert.match(status.textContent, /unavailable/);
+  ui.find(main, "button", "Retry board update").click();
+  assert.equal(status.textContent, "Loading…");
+  assert.equal(ui.find(main, "button", "#1 Original"), undefined);
+  await ui.settled();
+  assert.match(status.textContent, /unavailable/);
+});
 
 test("board CSS follows the active board and is read again after reload", async () => {
   const {api} = boardApi();

@@ -9,7 +9,8 @@ import { ApiError, createBrowserApi, openBrowserSession, validPublishing } from 
  * actor_id: string, board_id: string, at: string, revision: number, before: string|null, after: string|null}} Change */
 /** @typedef {import("./api.mjs").Publishing} Publishing */
 /** @typedef {{id: string, name: string, default_owner_id: string, user_css?: string, notifications?: object, publishing?: unknown}} Board */
-/** @typedef {{id: string, name: string|null}} BoardSummary */
+/** @typedef {{blocked: number, needs_input: number, ready_for_review: number}} Attention */
+/** @typedef {{id: string, name: string|null, attention: Attention|null, last_card_edit_at: string|null}} BoardSummary */
 /** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string, approval_enabled: boolean}} Lane */
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
 /** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number, board_id: string, active: boolean, previewable: boolean, revision: number, sha2_256: string}} Attachment */
@@ -1553,6 +1554,100 @@ async function canSetAvailability(board, principalId) {
   }
 }
 
+/** @type {readonly {key: keyof Attention, label: string}[]} */
+const attentionColumns = [
+  { key: "blocked", label: "Blocked" },
+  { key: "needs_input", label: "Needs Terry" },
+  { key: "ready_for_review", label: "Ready for Review" },
+];
+
+/** @param {BoardSummary} board @param {number} now */
+function attentionRecency(board, now) {
+  if (board.last_card_edit_at) {
+    const editedAt = Date.parse(board.last_card_edit_at.replace(" ", "T"));
+    if (Number.isFinite(editedAt)) {
+      const minutes = Math.max(0, Math.floor((now - editedAt) / 60_000));
+      return "Last card edit " + minutes + (minutes === 1 ? " minute ago" : " minutes ago");
+    }
+  }
+  return board.attention ? "No recorded card edits" : "Card edit history unavailable";
+}
+
+/** @param {HTMLElement} sidebar @param {BoardSummary[]} rows @param {string[]} pins
+ * @param {string|undefined|null} selected */
+function renderAttention(sidebar, rows, pins, selected) {
+  const byId = new Map(rows.map((board) => [board.id, board]));
+  const pinIds = new Set(pins);
+  const header = element("div");
+  header.className = "attention-grid attention-header";
+  header.append(element("h2", "Attention"));
+  for (const { key, label } of attentionColumns) {
+    const heading = element("span", label);
+    heading.className = "attention-label";
+    heading.dataset.attention = key;
+    heading.setAttribute("aria-hidden", "true");
+    header.append(heading);
+  }
+
+  const focusedId = [...sidebar.querySelectorAll("a")]
+    .find((item) => item === document.activeElement)?.dataset.boardId;
+  const groups = [
+    { label: "Pinned boards", boards: pins.flatMap((id) => byId.get(id) ?? []) },
+    { label: "Other boards", boards: rows.filter(({ id }) => !pinIds.has(id)) },
+  ];
+  const sections = groups.map(({ label, boards }) => {
+    const section = element("section");
+    section.className = "attention-group";
+    section.append(element("h3", label));
+    for (const board of boards) {
+      const name = board.name ?? "Unavailable board";
+      const item = link("/boards/" + board.id, "");
+      item.className = "attention-grid attention-row";
+      item.dataset.boardId = board.id;
+      if (board.id === selected) item.setAttribute("aria-current", "page");
+      const title = element("span", name);
+      title.className = "attention-name";
+      item.append(title);
+      const accessible = [];
+      for (const { key, label } of attentionColumns) {
+        const count = board.attention?.[key];
+        const slot = element("span");
+        slot.className = "attention-slot";
+        slot.setAttribute("aria-hidden", "true");
+        slot.dataset.attention = key;
+        if (count == null) {
+          slot.textContent = "—";
+        } else if (count > 0) {
+          const badge = element("span", count > 99 ? "99+" : String(count));
+          badge.className = "attention-count";
+          slot.append(badge);
+        }
+        accessible.push(label + " " + (count ?? "unavailable"));
+        item.append(slot);
+      }
+      const summary = element("span");
+      summary.hidden = true;
+      summary.id = "attention-" + board.id;
+      item.setAttribute("aria-describedby", summary.id);
+      item.append(summary);
+      const countSummary = accessible.join(". ");
+      const updateRecency = () => {
+        item.title = attentionRecency(board, Date.now());
+        summary.textContent = countSummary + ". " + item.title;
+      };
+      updateRecency();
+      item.addEventListener("pointerenter", updateRecency);
+      item.addEventListener("focus", updateRecency);
+      section.append(item);
+    }
+    return section;
+  });
+  sidebar.replaceChildren(header, ...sections);
+  if (focusedId) {
+    [...sidebar.querySelectorAll("a")].find((item) => item.dataset.boardId === focusedId)?.focus();
+  }
+}
+
 /** @param {Awaited<ReturnType<typeof api.getBoardAvailability>>} [savedAvailability] */
 async function load(savedAvailability) {
   if (!identity || !navigation || !main || !details) return;
@@ -1590,14 +1685,7 @@ async function load(savedAvailability) {
     let visiblePins = [];
     /** @param {BoardSummary[]} rows */
     function showBoards(rows) {
-      const byId = new Map(rows.map((board) => [board.id, board]));
-      const ordered = [...visiblePins.flatMap((id) => byId.get(id) ?? []),
-        ...rows.filter(({ id }) => !visiblePins.includes(id))];
-      navigation?.replaceChildren(...ordered.map((board) => {
-        const item = link("/boards/" + board.id, board.name ?? "Unavailable board");
-        if (board.id === boardId) item.setAttribute("aria-current", "page");
-        return item;
-      }));
+      if (navigation) renderAttention(navigation, rows, visiblePins, boardId);
     }
     showBoards(boards);
     const readPreferences = context.workspace_admin === true

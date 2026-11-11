@@ -93,8 +93,8 @@ func TestCLIExportUsesSnapshotEndpoint(t *testing.T) {
 	const boardID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 	const snapshot = `{"format":"localswim-snapshot","format_version":2}`
 	for _, args := range [][]string{
-		{"board", "export", boardID},
-		{"board", "export", "--type", "json", boardID},
+		{"board", "export", boardID, "-"},
+		{"board", "export", "--type", "json", boardID, "-"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			var requests atomic.Int32

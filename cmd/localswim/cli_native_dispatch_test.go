@@ -10,7 +10,7 @@ func TestM074NativeCLIDispatchAvoidsLiveConfiguration(t *testing.T) {
 	dataDir := t.TempDir()
 	for _, args := range [][]string{
 		{"board", "get", "--data", dataDir, t03Board},
-		{"board", "export", "--data", dataDir, t03Board},
+		{"board", "export", "--data", dataDir, t03Board, "-"},
 		{"card", "inspect", "--data", dataDir, "--prose", t03Board, "1"},
 	} {
 		var out, stderr bytes.Buffer

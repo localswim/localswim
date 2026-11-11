@@ -48,7 +48,7 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		cmd.method, validator, count = http.MethodPatch, "/cards/", 2
 	case "card archive", "card unarchive":
 		cmd.method, validator = http.MethodPatch, "/cards/"
-	case "lane rename", "lane set-approval-button":
+	case "lane rename", "lane set-key", "lane set-approval-button":
 		cmd.method, validator, count = http.MethodPatch, "/lanes/", 2
 	case "lane retire":
 		cmd.method, validator = http.MethodPatch, "/lanes/"
@@ -172,13 +172,16 @@ func parseT03(name string, args []string) (cliCommand, error) {
 			return cmd, errors.New("expected a UUIDv4 priority ID")
 		}
 		cmd.body, _ = json.Marshal(map[string]string{"priority_id": value})
-	case "card title", "lane rename":
+	case "card title", "lane rename", "lane set-key":
 		if value == "" || !utf8.ValidString(value) {
 			return cmd, errors.New("title or label must be nonempty valid UTF-8")
 		}
 		key := "title"
 		if name == "lane rename" {
 			key = "label"
+		}
+		if name == "lane set-key" {
+			key = "key"
 		}
 		cmd.body, _ = json.Marshal(map[string]string{key: value})
 	}

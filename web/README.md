@@ -98,3 +98,28 @@ capability. Breaking out of iteration releases the stream. An AbortSignal can
 also cancel a pending read. Call again to reconnect and receive current state.
 
 Run the focused checks with `npm --prefix web run check` and `npm --prefix web test`.
+
+## Turn 6 board actions
+
+The board uses `GET /boards/{board_id}?view=lanes` for the server's visible
+priority and dependency order. Archived cards remain in the separate archived
+section. Per-lane **Preview ticket order** accepts comma- or space-separated
+tickets, or an empty selection for all active cards. It displays the current
+and proposed assignments at the captured revision. Preview is read-only.
+
+In **Manage lanes**, **Change lane key** preserves the lane UUID. Saved lane
+labels display their current keys. The Completed lane is excluded from this
+control. The request retains the original lane and board validators.
+
+In **Board actions**, **Set batch priority** accepts distinct ticket numbers,
+including archived unfinished cards. The service evaluates the selection in
+one revision-checked transaction. The result lists selected effective priorities
+and every actual priority change, including upstream promotions. Completed
+selections and invalid ticket selections are refused. An uncertain write is
+followed by a saved-state read and is never automatically submitted again.
+
+**Create backup** captures the current board revision and verified attachment
+inventory. **Download backup** retrieves the ZIP through authenticated fetch,
+checks its exact size and SHA-2-256 digest, and then offers the download. A lost
+capture response is inspected using the original generated backup UUID. Capture
+is never replayed automatically. A later explicit capture uses a fresh UUID.

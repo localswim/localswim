@@ -1,6 +1,6 @@
 # V2 development execution plan
 
-See the current T06–T08 roster in [assignment revision 8](#current-assignment-revision-8).
+See the current T07–T09 roster in [assignment revision 9](#current-assignment-revision-9).
 
 Revision 1. Scope comes from approved board cards #0375 and #0376, [the milestone plan](milestone-plan.md), and [the API contract](docs/openapi.yaml). This is the staffing proposal for Turns 1-10. The milestone demos, estimates, and approved turn placement remain the scope.
 
@@ -280,3 +280,31 @@ T05 handoff includes #0390 Ready for Review, #0398 Ready for Review, #0402 Ready
 | 3 | T08 | #0419 M36 | Publish only workspace preferences and verify the shared repository lock. | `sol_medium_0419_author` (gpt-6.1-sol / medium) | — | `sol_high_0419_review` (gpt-6.1-sol / high) | #0410 Completed, #0417 Backlog |
 
 Plan `sol_medium_browser_author` and `sol_medium_cli_author` (gpt-6.1-sol / medium) for browser and CLI changes in each affected turn. Fresh independent client reviewers use `sol_high_browser_review` and `sol_high_cli_review` (gpt-6.1-sol / high). Reviewers replace finished authors. Start each M29 or M34 helper after a separate verification boundary is available and a slot is free. The Sol / High primary owns integration, verification, publication, board handoff, and demo evidence.
+
+## Current assignment revision 9
+
+Recorded 2026-11-10 after T06 verification. T07–T09 are the new remaining turns 1–3. The authorized scope for every row is owner-accepted #0375, #0376, and #0377, its milestone acceptance in milestone-plan.md, and docs/openapi.yaml. Planning is recorded on #0426 because Terry preserved Completed #0377.
+
+T06 hands #0403 M20, #0394 M11, #0395 M12, #0404 M21, and #0412 M29 to Ready for Review. Terry approved all five T05 stories during T06, including #0390, #0393, #0398, #0402, and #0408. Earlier approved prerequisites remain Completed. Historical rosters above remain evidence.
+
+Each later turn requires a separate Terry start. Review approval or an explicit new scoped override must resolve its prerequisite gates. Planned workers do not occupy active slots or authorize execution. Recheck eligibility and move every eligible card In Progress before work.
+
+| Remaining | Turn | Card | Scope | Author | Helper | Fresh reviewer | Prerequisites at reconciliation |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | T07 | #0396 M13 | Search cards using whole-board triage before filters. | `sol_medium_0396_author` (gpt-6.1-sol / medium) | — | `sol_medium_0396_review` (gpt-6.1-sol / medium) | #0395 ready for review |
+| 1 | T07 | #0405 M22 | Apply the current dependency ticket preview while preserving UUIDs and attachments. | `sol_medium_0405_author` (gpt-6.1-sol / medium) | — | `sol_high_0405_review` (gpt-6.1-sol / high) | #0404 ready for review, #0406 completed |
+| 1 | T07 | #0413 M30 | Validate and restore a native backup at the existing board identity. | `sol_high_0413_author` (gpt-6.1-sol / high) | — | `sol_high_0413_review` (gpt-6.1-sol / high) | #0412 ready for review |
+| 1 | T07 | #0417 M34 | Publish exactly the captured paths and preserve unrelated staged work. | `sol_high_0417_author` (gpt-6.1-sol / high) | `sol_high_0417_checks` (gpt-6.1-sol / high) | `sol_high_0417_review` (gpt-6.1-sol / high) | #0412 ready for review |
+| 2 | T08 | #0418 M35 | Publish after quiet and recover a pending push without another edit. | `sol_high_0418_author` (gpt-6.1-sol / high) | — | `sol_high_0418_review` (gpt-6.1-sol / high) | #0417 backlog |
+| 2 | T08 | #0419 M36 | Publish only workspace preferences under the shared repository lock. | `sol_medium_0419_author` (gpt-6.1-sol / medium) | — | `sol_high_0419_review` (gpt-6.1-sol / high) | #0410 completed, #0417 backlog |
+| 3 | T09 | #0420 M37 | Close and reopen one board while other boards remain live. | `sol_high_0420_author` (gpt-6.1-sol / high) | — | `sol_high_0420_review` (gpt-6.1-sol / high) | #0418 backlog |
+
+- T07 browser `sol_medium_t07_browser_author` (gpt-6.1-sol / medium), reviewed by `sol_high_t07_browser_review` (gpt-6.1-sol / high). CLI `sol_medium_t07_cli_author` (gpt-6.1-sol / medium), reviewed by `sol_high_t07_cli_review` (gpt-6.1-sol / high).
+- T08 browser `sol_medium_t08_browser_author` (gpt-6.1-sol / medium), reviewed by `sol_high_t08_browser_review` (gpt-6.1-sol / high). CLI `sol_medium_t08_cli_author` (gpt-6.1-sol / medium), reviewed by `sol_high_t08_cli_review` (gpt-6.1-sol / high).
+- T09 browser `sol_medium_t09_browser_author` (gpt-6.1-sol / medium), reviewed by `sol_high_t09_browser_review` (gpt-6.1-sol / high). CLI `sol_medium_t09_cli_author` (gpt-6.1-sol / medium), reviewed by `sol_high_t09_cli_review` (gpt-6.1-sol / high).
+
+The Sol / High primary owns shared schema and transaction integration, board entry gates, Windows verification, demo evidence, publication, and handoff. The primary also assembles each turn's demo packet. Source and private plans retain this assignment revision together.
+
+Use rolling author-to-reviewer waves within eight direct active slots and depth one. Replace finished authors with fresh non-author reviewers. Start sol_high_0417_checks only after a separate verification boundary exists and a slot is free. T07 has seven planned concurrent author/helper/client assignments, T08 four, and T09 three. Reviewers replace authors as those slots open.
+
+Missing inputs remain each later turn's explicit start and prerequisite approval or scoped override. T07 has pending T06 owner reviews. T08 depends on unstarted M34, and T09 depends on unstarted M35. Terry retains control of Completed.

@@ -90,6 +90,32 @@ blocking link and raising a priority can promote upstream cards in one audited
 revision. Archived unfinished cards participate, and Completed cards stop paths.
 Removing a link does not lower priorities.
 
+Batch priority changes send one `priority_id` and the selected `card_ids` to
+`PATCH /cards` under `expected_board_etag`. Evaluate every selection together
+before applying the blocking floor. The result includes effective selected cards,
+all actual audit changes, and `board_revision`. `X-Board-ETag` carries the committed
+validator. Duplicate IDs and Completed selections refuse the entire operation.
+An unchanged effective result preserves the revision and audit.
+
+`GET /boards/{board_id}?view=lanes` returns `board`, active `lanes`, and visible
+`cards` in lane order. Within each lane, priority precedes same-rank blocking
+relationships. Cycles stay together in ticket order. Archived cards do not
+participate in this visible graph.
+
+Lane key patches preserve the lane UUID and its card, grant, and historical
+references. The Completed role and `completed` key are protected. Read-only
+ticket-order previews follow full blocking paths through intermediate cards,
+reject selected cycles, and permute only the selected ticket pool. They preserve
+the board revision and return it as `board_revision`.
+
+Backup capture holds the board read lock while capturing one committed snapshot.
+Attachment verification and archive construction run after releasing that lock.
+The ZIP includes the native snapshot and exact audited immutable attachment
+paths, including detached files. Backup metadata uses `sha2_256` for the archive
+digest and `board_revision` for the captured commit. Later edits remain available
+to subsequent captures. Inspect the original backup ID after an uncertain POST
+before attempting another capture.
+
 `attachment detach` removes active content access and clears a matching cover in
 one transaction. Inspect the inactive record with `attachment get`. The original
 metadata and immutable bytes remain available for backup.

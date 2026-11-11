@@ -27,7 +27,7 @@ const cliHelp = `Usage:
   localswim board list [--limit N] [--cursor CURSOR]
   localswim board create --name NAME
   localswim board create --json <JSON_FILE|->
-  localswim board get BOARD_ID
+  localswim board get [--view lanes] BOARD_ID
   localswim board rename [--revision N] BOARD_ID NEW_NAME
   localswim board patch [--revision N] BOARD_ID <JSON_FILE|->
   localswim board verify [--data DIRECTORY] BOARD_ID
@@ -41,6 +41,7 @@ const cliHelp = `Usage:
   localswim card assign [--revision N] CARD_ID OWNER_ID
   localswim card title [--revision N] CARD_ID TITLE
   localswim card set-priority [--revision N] CARD_ID PRIORITY_ID
+  localswim card set-priorities [--revision N] BOARD_ID FILE|-
   localswim card description [--revision N] CARD_ID FILE|-
   localswim card archive [--revision N] CARD_ID
   localswim card unarchive [--revision N] CARD_ID
@@ -57,6 +58,7 @@ const cliHelp = `Usage:
   localswim lane add [--revision N] BOARD_ID FILE|-
   localswim lane get LANE_ID
   localswim lane rename [--revision N] LANE_ID LABEL
+  localswim lane set-key [--revision N] LANE_ID KEY
   localswim lane retire [--revision N] LANE_ID
   localswim lane set-approval-button [--revision N] LANE_ID enabled|disabled
   localswim attachment list [--limit N] [--cursor CURSOR] CARD_ID
@@ -66,6 +68,10 @@ const cliHelp = `Usage:
   localswim attachment detach [--revision N] ATTACHMENT_ID
   localswim policy get BOARD_ID
   localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
+  localswim ticket-order preview LANE_ID [CARD_ID ...]
+  localswim backup create [--revision N] [--id UUID] BOARD_ID
+  localswim backup get BACKUP_ID
+  localswim backup download BACKUP_ID FILE|-
   localswim service status
   localswim service builds [--limit N] [--cursor CURSOR]
 
@@ -90,7 +96,16 @@ Comment post reads an object containing text and an optional ID.
 Lane add reads the lane definition. The CLI supplies its board ID and validator.
 Card edits, comment post, and attachment upload check the card revision.
 Lane add checks the board revision. Attachment detach checks the attachment revision.
-Lane rename, retire, and set-approval-button check the lane revision.
+Lane rename, set-key, retire, and set-approval-button check the lane revision.
+Card set-priorities reads card_ids and priority_id and checks the board revision.
+The batch evaluates all selected cards together and returns effective priorities and changes.
+Board get --view lanes returns visible cards in their swimlane order.
+Ticket-order preview defaults to all active lane cards. Optional card IDs select the ticket pool.
+Preview is read-only and returns the board revision and proposed ticket numbers.
+Backup create captures the current board and audited attachment bytes and checks the board revision.
+Backup create generates an ID when --id is omitted and reports it on an unknown outcome.
+Use backup get with that ID before considering another capture.
+Backup download verifies its size and SHA-2-256 digest before writing a new file or stdout.
 Activity intervals are inclusive. Quote both UTC bounds in YYYY-MM-DD HH:MM:SS+00:00.
 The full activity view is the default. Monitor returns sanitized edit metadata.
 The CLI manages HTTP validators.
@@ -147,6 +162,7 @@ type cliCommand struct {
 	relationshipWrite                  bool
 	downloadPath                       string
 	detachAttachment                   bool
+	t06Action                          string
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -189,6 +205,9 @@ func parseCLI(args []string) (cliCommand, error) {
 
 	name := args[0] + " " + args[1]
 	optionArgs := args[2:]
+	if name == "card set-priorities" || name == "ticket-order preview" || strings.HasPrefix(name, "backup ") {
+		return parseT06(name, optionArgs)
+	}
 	if name == "workspace pin" {
 		if len(optionArgs) == 0 {
 			return command, errors.New("workspace pin requires set, add, or remove")
@@ -207,6 +226,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	creating := false
 	var createName string
 	var jsonInput bool
+	var boardView string
 	paginated := false
 	format := exportJSON
 	switch name {
@@ -225,6 +245,7 @@ func parseCLI(args []string) (cliCommand, error) {
 		flags.BoolVar(&jsonInput, "json", false, "read a new board definition from standard input")
 	case "board get":
 		command.method, command.resource, needBoardID = http.MethodGet, "/boards", true
+		flags.StringVar(&boardView, "view", "", "board view (lanes)")
 	case "board rename":
 		command.method, command.resource, needBoardID = http.MethodPatch, "/boards", true
 		rename = true
@@ -396,6 +417,12 @@ func parseCLI(args []string) (cliCommand, error) {
 			return command, err
 		}
 	}
+	if boardView != "" {
+		if boardView != "lanes" {
+			return command, errors.New("--view requires lanes")
+		}
+		command.resource += "?view=lanes"
+	}
 	return command, nil
 }
 
@@ -424,6 +451,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	api, err := client.New(getenv("LOCALSWIM_URL"), getenv("LOCALSWIM_TOKEN"))
 	if err != nil {
 		return err
+	}
+	if command.t06Action != "" {
+		return executeT06(api, command, stdin, stdout)
 	}
 	if command.detachAttachment {
 		return detachAttachment(api, command)

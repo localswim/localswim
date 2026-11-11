@@ -1799,6 +1799,8 @@ paths:
               $ref: '#/components/headers/CorsOrigin'
             Access-Control-Expose-Headers:
               $ref: '#/components/headers/CorsExpose'
+            X-Board-ETag:
+              $ref: '#/components/headers/BoardEtag'
             Date:
               $ref: '#/components/headers/Date'
           content:
@@ -7495,6 +7497,8 @@ paths:
               $ref: '#/components/headers/CorsExpose'
             ETag:
               $ref: '#/components/headers/EntityTag'
+            X-Board-ETag:
+              $ref: '#/components/headers/BoardEtag'
             Date:
               $ref: '#/components/headers/Date'
           content:
@@ -7527,6 +7531,8 @@ paths:
               $ref: '#/components/headers/CorsExpose'
             ETag:
               $ref: '#/components/headers/EntityTag'
+            X-Board-ETag:
+              $ref: '#/components/headers/BoardEtag'
             Date:
               $ref: '#/components/headers/Date'
         '400':
@@ -13898,14 +13904,14 @@ components:
       additionalProperties: false
       required:
       - board_id
-      - board_etag
+      - board_revision
       - cards
       - changes
       properties:
         board_id:
           $ref: '#/components/schemas/Uuid'
-        board_etag:
-          $ref: '#/components/schemas/EntityTag'
+        board_revision:
+          $ref: '#/components/schemas/Revision'
         cards:
           type: array
           items:
@@ -13932,7 +13938,7 @@ components:
       required:
       - board_id
       - lane_id
-      - board_etag
+      - board_revision
       - selected_card_ids
       - current
       - proposed
@@ -13942,8 +13948,8 @@ components:
           $ref: '#/components/schemas/Uuid'
         lane_id:
           $ref: '#/components/schemas/Uuid'
-        board_etag:
-          $ref: '#/components/schemas/EntityTag'
+        board_revision:
+          $ref: '#/components/schemas/Revision'
         selected_card_ids:
           type: array
           items:
@@ -14047,7 +14053,7 @@ components:
       - board_id
       - board_revision
       - created_at
-      - sha256
+      - sha2_256
       - size
       - attachment_ids
       properties:
@@ -14059,7 +14065,7 @@ components:
           $ref: '#/components/schemas/Revision'
         created_at:
           $ref: '#/components/schemas/Timestamp'
-        sha256:
+        sha2_256:
           $ref: '#/components/schemas/Digest'
         size:
           type: integer

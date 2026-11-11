@@ -86,6 +86,18 @@ function isTimestamp(value) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\+00:00$/.test(value);
 }
 
+/** @param {unknown} value @param {string} boardId @param {string} id */
+function validBackup(value, boardId, id) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const backup = /** @type {Record<string, unknown>} */ (value);
+  return Object.keys(backup).length === 7 && backup.id === id && backup.board_id === boardId
+    && isInteger(backup.board_revision) && backup.board_revision > 0
+    && isTimestamp(backup.created_at) && isInteger(backup.size) && backup.size >= 0
+    && typeof backup.sha2_256 === "string" && /^[0-9a-f]{64}$/.test(backup.sha2_256)
+    && Array.isArray(backup.attachment_ids) && backup.attachment_ids.every(isId)
+    && new Set(backup.attachment_ids).size === backup.attachment_ids.length;
+}
+
 /** @param {object} data @param {string} [id] @param {string} [boardId] */
 function validLane(data, id, boardId) {
   const lane = /** @type {Record<string, unknown>} */ (data);
@@ -450,6 +462,159 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
   }
 
   return Object.freeze({
+    /** @param {string} boardId */
+    async getBoardLanes(boardId) {
+      const board = resourceId(boardId).toLowerCase();
+      const reply = await request("/boards/" + board + "?view=lanes");
+      const data = /** @type {{board?: {id?: unknown, revision?: unknown}, lanes?: unknown, cards?: unknown}} */ (reply.data);
+      if (data.board?.id !== board || !isInteger(data.board.revision) || data.board.revision < 1
+          || reply.etag !== versionTag(board, data.board.revision) || !Array.isArray(data.lanes)
+          || !Array.isArray(data.cards)) throw new ApiError("invalid_response", { status: 200 });
+      const ids = new Set();
+      let position = -1;
+      for (const lane of data.lanes) {
+        if (!lane || typeof lane !== "object" || !validLane(lane, undefined, board)
+            || lane.retired || lane.position <= position || ids.has(lane.id)) {
+          throw new ApiError("invalid_response", { status: 200 });
+        }
+        ids.add(lane.id);
+        position = lane.position;
+      }
+      if (new Set(data.cards.map((card) => card?.id)).size !== data.cards.length
+          || !data.cards.every((card) => card && validCard(card, board, undefined)
+            && ids.has(card.lane_id) && !card.archived)) throw new ApiError("invalid_response", { status: 200 });
+      return reply;
+    },
+    /** @param {string} boardId @param {string} boardEtag @param {string[]} cardIds @param {string} priorityId */
+    async setPriorities(boardId, boardEtag, cardIds, priorityId) {
+      const board = resourceId(boardId).toLowerCase();
+      const ids = cardIds.map((id) => resourceId(id).toLowerCase());
+      if (!ids.length || ids.length > 1000 || new Set(ids).size !== ids.length) {
+        throw new TypeError("Choose between 1 and 1000 distinct cards.");
+      }
+      const response = await send("/cards", { method: "PATCH", data: {
+        board_id: board, expected_board_etag: strongTag(boardEtag), card_ids: ids,
+        priority_id: resourceId(priorityId),
+      } });
+      const data = /** @type {{board_id?: unknown, board_revision?: unknown, cards?: unknown, changes?: unknown}} */ (await responseObject(response, true));
+      const tag = response.headers.get("X-Board-ETag");
+      if (response.status !== 200 || data.board_id !== board || !isInteger(data.board_revision)
+          || data.board_revision < 1 || tag !== versionTag(board, data.board_revision)
+          || !Array.isArray(data.cards) || data.cards.length !== ids.length
+          || new Set(data.cards.map((card) => card?.id)).size !== ids.length
+          || !data.cards.every((card) => card && validCard(card, board, undefined) && ids.includes(card.id))
+          || !Array.isArray(data.changes) || !data.changes.every((change) => change
+            && change.board_id === board && change.revision === data.board_revision
+            && isId(change.id) && isId(change.resource_id) && isId(change.actor_id)
+            && isTimestamp(change.at) && change.resource_type === "card" && change.field === "priority_id"
+            && isId(change.before) && isId(change.after))) {
+        throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
+      }
+      return { data, etag: tag };
+    },
+    /** @param {string} boardId @param {string} laneId @param {string[]} [cardIds] */
+    async previewTicketOrder(boardId, laneId, cardIds) {
+      const board = resourceId(boardId).toLowerCase();
+      const lane = resourceId(laneId).toLowerCase();
+      const query = new URLSearchParams({ preview: "true" });
+      if (cardIds !== undefined) {
+        const ids = cardIds.map((id) => resourceId(id).toLowerCase());
+        if (!ids.length || ids.length > 1000 || new Set(ids).size !== ids.length) {
+          throw new TypeError("Choose between 1 and 1000 distinct cards.");
+        }
+        for (const id of ids) query.append("card_id", id);
+      }
+      const response = await send("/ticket-orders/" + lane + "?" + query);
+      const data = /** @type {{board_id?: unknown, lane_id?: unknown, board_revision?: unknown, selected_card_ids?: unknown, current?: unknown, proposed?: unknown, changed?: unknown}} */ (await responseObject(response, false));
+      const tag = response.headers.get("X-Board-ETag");
+      if (response.status !== 200 || data.board_id !== board || data.lane_id !== lane
+          || !isInteger(data.board_revision) || data.board_revision < 1
+          || tag !== versionTag(board, data.board_revision) || typeof data.changed !== "boolean"
+          || !Array.isArray(data.selected_card_ids) || !data.selected_card_ids.every(isId)
+          || new Set(data.selected_card_ids).size !== data.selected_card_ids.length
+          || !Array.isArray(data.current) || !Array.isArray(data.proposed)) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      const selected = data.selected_card_ids;
+      for (const assignments of [data.current, data.proposed]) {
+        if (assignments.length !== selected.length || new Set(assignments.map((item) => item?.card_id)).size !== selected.length
+            || new Set(assignments.map((item) => item?.ticket)).size !== selected.length
+            || !assignments.every((item) => item && selected.includes(item.card_id)
+              && isInteger(item.ticket) && item.ticket > 0)) throw new ApiError("invalid_response", { status: 200 });
+      }
+      const current = data.current;
+      const proposed = data.proposed;
+      if (current.some((entry) => !proposed.some((item) => item.ticket === entry.ticket))
+          || data.changed !== current.some((entry) => proposed.find((item) => item.card_id === entry.card_id)?.ticket !== entry.ticket)) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      if (cardIds && (cardIds.length !== selected.length || !cardIds.every((id) => selected.includes(id.toLowerCase())))) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      return { data, etag: tag };
+    },
+    /** @param {string} id @param {string} boardId @param {string} boardEtag */
+    async createBackup(id, boardId, boardEtag) {
+      const backup = resourceId(id).toLowerCase();
+      const board = resourceId(boardId).toLowerCase();
+      const response = await send("/backups", { method: "POST", data: {
+        id: backup, board_id: board, expected_board_etag: strongTag(boardEtag),
+      } });
+      if (response.status !== 201 || response.headers.get("Location") !== API_PREFIX + "/backups/" + backup) {
+        await discardBody(response);
+        throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
+      }
+      const data = await responseObject(response, true);
+      if (!validBackup(data, board, backup)) {
+        throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
+      }
+      return { data };
+    },
+    /** @param {string} id @param {string} boardId */
+    async getBackup(id, boardId) {
+      const backup = resourceId(id).toLowerCase();
+      const reply = await request("/backups/" + backup);
+      if (!STRONG_ETAG.test(reply.etag ?? "") || !validBackup(reply.data, resourceId(boardId).toLowerCase(), backup)) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      return reply;
+    },
+    /** @param {string} id @param {number} size @param {string} digest */
+    async getBackupContent(id, size, digest) {
+      if (!isInteger(size) || size < 0 || !/^[0-9a-f]{64}$/.test(digest)) throw new TypeError("Invalid backup metadata.");
+      const response = await send("/backups/" + resourceId(id) + "/content", { accept: "application/zip" });
+      if (response.status !== 200 || !response.body
+          || response.headers.get("Content-Type")?.split(";", 1)[0].trim() !== "application/zip") {
+        await discardBody(response);
+        throw new ApiError("invalid_response", { status: response.status });
+      }
+      const reader = response.body.getReader();
+      /** @type {Uint8Array<ArrayBuffer>[]} */
+      const chunks = [];
+      let received = 0;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          received += value.byteLength;
+          if (received > size) throw new ApiError("invalid_response", { status: 200 });
+          chunks.push(new Uint8Array(value));
+        }
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        throw new ApiError("transport_failed");
+      } finally {
+        await reader.cancel().catch(() => {});
+        reader.releaseLock();
+      }
+      if (received !== size) throw new ApiError("invalid_response", { status: 200 });
+      const blob = new Blob(chunks, { type: "application/zip" });
+      const bytes = await blob.arrayBuffer();
+      const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
+        .map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      if (hash !== digest) throw new ApiError("invalid_response", { status: 200 });
+      return blob;
+    },
 
     /**
      * @param {unknown} boardId
@@ -740,7 +905,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
     },
     /** @param {string} boardId @param {string} laneId @param {number} revision @param {string} boardEtag
-     * @param {{retired: true}|{approval_enabled: boolean}} change */
+     * @param {{retired: true}|{approval_enabled: boolean}|{key: string}} change */
     async updateLaneSettings(boardId, laneId, revision, boardEtag, change) {
       const id = resourceId(laneId);
       const board = resourceId(boardId);

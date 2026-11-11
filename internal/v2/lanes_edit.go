@@ -92,17 +92,18 @@ func (x *request) renameLane(id string) {
 		return
 	}
 	fields := &workflowFields{path: "lane", fields: obj, err: rejectFields(obj,
-		[]string{"board_etag", "label", "retired", "approval_enabled"}, false)}
+		[]string{"board_etag", "label", "key", "retired", "approval_enabled"}, false)}
 	boardTag := laneBoardTag(fields)
-	for _, name := range []string{"key", "reorder_enabled", "position"} {
+	for _, name := range []string{"reorder_enabled", "position"} {
 		if _, found := obj[name]; found {
 			fields.fail(name, "This patch field is unavailable.")
 		}
 	}
 	label := fields.string("label", 1, 256, false)
+	key := fields.string("key", 1, 128, false)
 	retired := lanePatchBool(fields, "retired")
 	approval := lanePatchBool(fields, "approval_enabled")
-	if label == "" && retired == nil && approval == nil {
+	if label == "" && key == "" && retired == nil && approval == nil {
 		fields.fail("label", "Supply at least one editable lane field.")
 	}
 	if fields.err != nil {
@@ -122,7 +123,7 @@ func (x *request) renameLane(id string) {
 		if !matchesStrongTag(laneTag, item.entityTag()) {
 			return errStale
 		}
-		if err := applyLanePatch(current, index, x.actor, label, retired, approval); err != nil {
+		if err := applyLanePatch(current, index, x.actor, label, key, retired, approval); err != nil {
 			return err
 		}
 		item = current.Lanes[index]
@@ -152,8 +153,16 @@ func lanePatchBool(fields *workflowFields, name string) *bool {
 	return value
 }
 
-func applyLanePatch(current *snapshot, index int, actor, label string, retired, approval *bool) error {
+func applyLanePatch(current *snapshot, index int, actor, label, key string, retired, approval *bool) error {
 	item := current.Lanes[index]
+	if key != "" && key != item.Key {
+		if item.Role == "completed" || key == "completed" {
+			return invalid("key", "The Completed lane key is protected.")
+		}
+		if slices.ContainsFunc(current.Lanes, func(other lane) bool { return other.Key == key }) {
+			return errIdentityConflict
+		}
+	}
 	willRetire := retired != nil && *retired && !item.Retired
 	if retired != nil && !*retired && item.Retired {
 		return invalid("retired", "A retired lane cannot be restored.")
@@ -171,8 +180,9 @@ func applyLanePatch(current *snapshot, index int, actor, label string, retired, 
 	}
 
 	changedLabel := label != "" && item.Label != label
+	changedKey := key != "" && item.Key != key
 	changedApproval := approval != nil && item.ApprovalEnabled != *approval
-	if !changedLabel && !changedApproval && !willRetire {
+	if !changedLabel && !changedKey && !changedApproval && !willRetire {
 		return nil
 	}
 	now := laneEditTime(*current, time.Now())
@@ -180,6 +190,11 @@ func applyLanePatch(current *snapshot, index int, actor, label string, retired, 
 		before := item.Label
 		appendLaneAudit(current, actor, item.ID, "patch", "label", &before, &label, now)
 		item.Label = label
+	}
+	if changedKey {
+		before := item.Key
+		appendLaneAudit(current, actor, item.ID, "patch", "key", &before, &key, now)
+		item.Key = key
 	}
 	if changedApproval {
 		before, after := strconv.FormatBool(item.ApprovalEnabled), strconv.FormatBool(*approval)

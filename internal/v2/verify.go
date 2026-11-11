@@ -547,6 +547,9 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 	changed := make(map[snapshotAuditField]bool)
 	replayPolicy := initialAuditedPolicy(value)
 	initialLanes := initialLaneIDs(value.Lanes, replayPolicy)
+	if !validLaneKeyHistory(value, initialLanes) {
+		return invalidSnapshot("activity", "Lane key history contains a duplicate key.")
+	}
 	laneOrigins := originalCardLanes(value)
 	activeLaneOccupancy := make(map[string]int, len(value.Lanes))
 	detached := make(map[string]bool)

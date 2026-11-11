@@ -201,6 +201,8 @@ func (refs snapshotReferences) validLaneAuditValue(actor string, field snapshotA
 	switch field.name {
 	case "label":
 		return snapshotText(*value, 1, 256)
+	case "key":
+		return refs.lanes[field.resourceID].Role != "completed" && *value != "completed" && snapshotText(*value, 1, 128)
 	case "position":
 		position, err := strconv.Atoi(*value)
 		return err == nil && position >= 0 && strconv.Itoa(position) == *value
@@ -240,6 +242,8 @@ func (refs snapshotReferences) currentLaneAuditValue(field snapshotAuditField) *
 	switch field.name {
 	case "label":
 		return &item.Label
+	case "key":
+		return &item.Key
 	case "retired":
 		return archiveAuditValue(item.Retired)
 	case "approval_enabled":
@@ -302,7 +306,7 @@ func validRetirementAuditShape(events []activity, index int) bool {
 		edit := events[i]
 		field := snapshotString(edit.Field)
 		if !edit.At.Equal(retired.At) || edit.ResourceType != "lane" || edit.ResourceID != retired.ResourceID ||
-			edit.Operation != "patch" || (field != "label" && field != "approval_enabled") {
+			edit.Operation != "patch" || (field != "label" && field != "key" && field != "approval_enabled") {
 			return false
 		}
 	}

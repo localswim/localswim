@@ -9,7 +9,7 @@ import { ApiError, createBrowserApi, openBrowserSession } from "./api.mjs";
  * actor_id: string, board_id: string, at: string, revision: number, before: string|null, after: string|null}} Change */
 /** @typedef {{id: string, name: string, default_owner_id: string, user_css?: string, notifications?: object}} Board */
 /** @typedef {{id: string, name: string|null}} BoardSummary */
-/** @typedef {Labeled & {revision: number, retired: boolean, position: number, role: string, approval_enabled: boolean}} Lane */
+/** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string, approval_enabled: boolean}} Lane */
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
 /** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number, board_id: string, active: boolean, previewable: boolean, revision: number, sha2_256: string}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
@@ -946,11 +946,12 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
 /** @param {string} boardId */
 async function readBoardContents(boardId) {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const board = await api.getBoard(boardId);
-    if (/** @type {Board} */ (board.data).id !== boardId) throw new ApiError("invalid_response");
-    const [lanes, cards, priorities] = await Promise.all([
+    const ordered = await api.getBoardLanes(boardId);
+    const data = /** @type {{board: Board, cards: Card[]}} */ (ordered.data);
+    const board = { data: data.board, etag: ordered.etag };
+    const cards = data.cards;
+    const [lanes, priorities] = await Promise.all([
       /** @type {Promise<Lane[]>} */ (collect((cursor) => api.listLanes(boardId, cursor), "lanes")),
-      /** @type {Promise<Card[]>} */ (collect((cursor) => api.listCards(boardId, { cursor }), "cards")),
       /** @type {Promise<Labeled[]>} */ (collect((cursor) => api.listPriorities(boardId, cursor), "priorities")),
     ]);
     const check = await api.getBoardIfChanged(boardId, etag(board));
@@ -1050,6 +1051,7 @@ async function load() {
     if (view !== activeView) return;
     const board = /** @type {Board} */ (boardReply.data);
     let boardTag = etag(boardReply);
+    let currentCards = cards;
     const columns = element("div");
     columns.className = "lanes";
 
@@ -1128,6 +1130,35 @@ async function load() {
         column.className = "lane";
         column.append(element("h2", lane.label));
         const members = visibleCards.filter(({ lane_id }) => lane_id === lane.id);
+        const preview = element("div");
+        const selectedTickets = element("input");
+        selectedTickets.placeholder = "All active cards";
+        selectedTickets.setAttribute("aria-label", "Tickets to preview in " + lane.label);
+        const previewButton = button("Preview ticket order", () => {
+          let ids;
+          try {
+            ids = selectedTickets.value === "" ? undefined : ticketSelection(selectedTickets.value, members).map(({ id }) => id);
+          } catch {
+            preview.textContent = "Enter distinct active ticket numbers from this lane.";
+            return;
+          }
+          previewButton.disabled = true;
+          void readWithSession(() => api.previewTicketOrder(board.id, lane.id, ids)).then((reply) => {
+            if (!preview.isConnected || view !== activeView) return;
+            const result = /** @type {{board_revision: number, current: {card_id: string, ticket: number}[], proposed: {card_id: string, ticket: number}[]}} */ (reply.data);
+            preview.replaceChildren(element("p", "Preview at board revision " + result.board_revision));
+            for (const entry of result.proposed) {
+              const before = result.current.find(({ card_id }) => card_id === entry.card_id);
+              preview.append(element("p", "#" + before?.ticket + " → #" + entry.ticket + " "
+                + (members.find(({ id }) => id === entry.card_id)?.title ?? entry.card_id)));
+            }
+            if (!result.proposed.length) preview.append(element("p", "No active cards in this lane."));
+          }).catch(() => {
+            if (preview.isConnected) preview.textContent = "Preview refused or unavailable. A selected dependency cycle cannot be reordered.";
+          }).finally(() => { previewButton.disabled = false; });
+        });
+        previewButton.dataset.action = "preview-ticket-order";
+        column.append(selectedTickets, previewButton, preview);
         if (completed && lane.role === "ready_for_review" && lane.approval_enabled
             && members.length > 0 && members.length <= 1000) {
           const versions = members.map(({ id, revision }) => ({ id, revision }));
@@ -1275,6 +1306,7 @@ async function load() {
       const latest = await readBoardContents(board.id);
       if (view !== activeView) return;
       lanes.splice(0, lanes.length, ...latest.lanes);
+      currentCards = latest.cards;
       priorities.splice(0, priorities.length, ...latest.priorities);
       boardTag = etag(latest.board);
       boardStyle.replaceSync(/** @type {Board} */ (latest.board.data).user_css ?? "");
@@ -1286,12 +1318,13 @@ async function load() {
       await reloadArchived();
     }
     const laneEditor = renderLaneEditor(board.id, lanes, users, () => boardTag, reloadBoard, inspection);
+    const boardActions = renderBoardActions(board.id, priorities, () => currentCards, () => boardTag, reloadBoard, inspection);
     retainBoardDraft = () => {
       boardDrafts.set(board.id, [addTitle.value, addDescription.value, addLane.value, seedTicket.value, seedType.value]);
       laneEditor.retainDraft();
     };
     renderCards(cards, boardTag);
-    main.replaceChildren(element("h1", board.name), editor, recent, laneEditor.editor, columns, archived);
+    main.replaceChildren(element("h1", board.name), editor, recent, laneEditor.editor, boardActions, columns, archived);
     inspection.sync();
     announce("ready", "Board loaded.");
     const ticketValue = new URLSearchParams(location.search).get("ticket");
@@ -1346,6 +1379,13 @@ function renderLaneEditor(boardId, lanes, users, boardTag, reloadBoard, inspecti
   const renameName = element("input");
   renameName.required = true;
   renameName.maxLength = 256;
+  const keyLane = select(activeLanes(lanes).filter(({ role }) => role !== "completed"), null);
+  keyLane.id = "lane-key-target";
+  keyLane.required = true;
+  const keyValue = element("input");
+  keyValue.id = "lane-key-value";
+  keyValue.required = true;
+  keyValue.maxLength = 256;
   const names = element("p");
   const draftKey = boardId + ":lanes";
   const previous = boardDrafts.get(draftKey);
@@ -1355,6 +1395,8 @@ function renderLaneEditor(boardId, lanes, users, boardTag, reloadBoard, inspecti
   if (previous?.[3] !== undefined) target.value = previous[3];
   if (previous?.[6] !== undefined) reviewLane.value = previous[6];
   if (previous?.[7] !== undefined) retireLane.value = previous[7];
+  if (previous?.[8] !== undefined) keyLane.value = previous[8];
+  keyValue.value = previous?.[9] ?? "";
   for (const [control, value] of [[createFor, previous?.[4]], [connectFor, previous?.[5]]]) {
     if (!(control instanceof HTMLSelectElement) || typeof value !== "string") continue;
     const ids = value.split(",");
@@ -1365,11 +1407,12 @@ function renderLaneEditor(boardId, lanes, users, boardTag, reloadBoard, inspecti
     const active = activeLanes(lanes);
     setOptions(after, active, after.value);
     setOptions(target, active, target.value);
+    setOptions(keyLane, active.filter(({ role }) => role !== "completed"), keyLane.value);
     setOptions(reviewLane, active.filter(({ role }) => role === "ready_for_review"), reviewLane.value);
     setOptions(retireLane, active.filter(({ role }) => role !== "completed"), retireLane.value);
     updateApprovalAction();
     retireForm.hidden = !retireLane.options.length;
-    names.textContent = "Saved lanes: " + lanes.map(({ label, retired }) => label + (retired ? " (retired)" : "")).join(", ");
+    names.textContent = "Saved lanes: " + lanes.map(({ label, key, retired }) => label + " [" + key + "]" + (retired ? " (retired)" : "")).join(", ");
   }
 
   function updateApprovalAction() {
@@ -1416,13 +1459,107 @@ function renderLaneEditor(boardId, lanes, users, boardTag, reloadBoard, inspecti
       if (!lane) return;
       void writeResource(submit, () => api.renameLane(lane.id, lane.revision, boardTag(), renameName.value),
         reloadBoard, "Lane renamed.", inspection);
+    }), form("Change lane key", [field("Lane key target", keyLane), field("New lane key", keyValue)], (submit) => {
+      const lane = lanes.find(({ id, role }) => id === keyLane.value && role !== "completed");
+      if (!lane) return;
+      const key = keyValue.value;
+      void writeResource(submit, () => api.updateLaneSettings(boardId, lane.id, lane.revision, boardTag(), { key }),
+        async () => {
+          await reloadBoard();
+          return /** @type {Lane & {key?: string} | undefined} */ (lanes.find(({ id }) => id === lane.id))?.key === key;
+        }, "Lane key changed.", inspection);
     }), approvalForm, retireForm);
   return { editor, showLanes, retainDraft() {
     boardDrafts.set(draftKey, [addName.value, renameName.value, after.value, target.value,
-      selected(createFor).join(","), selected(connectFor).join(","), reviewLane.value, retireLane.value]);
+      selected(createFor).join(","), selected(connectFor).join(","), reviewLane.value, retireLane.value, keyLane.value, keyValue.value]);
   } };
 }
 
+
+/** @param {string} value @param {Card[]} cards */
+function ticketSelection(value, cards) {
+  const tickets = value.split(/[\s,]+/);
+  if (!tickets.length || tickets.some((ticket) => !/^[1-9][0-9]*$/.test(ticket))) throw new Error();
+  const selected = tickets.map((ticket) => cards.find((card) => card.ticket === Number(ticket)));
+  if (selected.some((card) => !card) || new Set(selected).size !== selected.length) throw new Error();
+  return /** @type {Card[]} */ (selected);
+}
+
+/** @param {string} boardId @param {Labeled[]} priorities @param {() => Card[]} cards
+ * @param {() => string} boardTag @param {() => Promise<void>} reloadBoard @param {Inspection} inspection */
+function renderBoardActions(boardId, priorities, cards, boardTag, reloadBoard, inspection) {
+  const panel = element("details");
+  panel.className = "editor";
+  panel.append(element("summary", "Board actions"));
+  const tickets = element("input");
+  tickets.id = "batch-priority-tickets";
+  tickets.required = true;
+  tickets.placeholder = "1, 2, 3";
+  const priority = select(priorities, null);
+  priority.id = "batch-priority-value";
+  priority.required = true;
+  const result = element("div");
+  result.setAttribute("aria-live", "polite");
+  panel.append(form("Set batch priority", [field("Ticket numbers", tickets), field("Priority", priority)], (submit) => {
+    const requestedTickets = tickets.value;
+    const requestedPriority = priority.value;
+    const requestedTag = boardTag();
+    /** @type {{cards: Card[], changes: {resource_id: string, before: string, after: string}[]} | undefined} */
+    let saved;
+    void writeResource(submit, async () => {
+      const allCards = /** @type {Card[]} */ (await collect((cursor) => api.listCards(boardId, { cursor, archived: "include" }), "cards"));
+      let selected;
+      try { selected = ticketSelection(requestedTickets, allCards); }
+      catch { result.textContent = "Enter distinct ticket numbers from this board."; throw new ApiError("invalid_target"); }
+      const reply = await api.setPriorities(boardId, requestedTag, selected.map(({ id }) => id), requestedPriority);
+      saved = /** @type {{cards: Card[], changes: {resource_id: string, before: string, after: string}[]}} */ (reply.data);
+    }, async () => {
+      await reloadBoard();
+      if (!saved) return false;
+      result.replaceChildren(element("p", saved.changes.length + " priority changes committed."));
+      for (const card of saved.cards) result.append(element("p", "#" + card.ticket + " "
+        + (priorities.find(({ id }) => id === card.priority_id)?.label ?? card.priority_id)));
+      for (const change of saved.changes) {
+        const changedCard = cards().find(({ id }) => id === change.resource_id) ?? saved.cards.find(({ id }) => id === change.resource_id);
+        result.append(element("p", (changedCard ? "#" + changedCard.ticket : change.resource_id)
+          + " " + (priorities.find(({ id }) => id === change.before)?.label ?? change.before)
+          + " → " + (priorities.find(({ id }) => id === change.after)?.label ?? change.after)));
+      }
+      return true;
+    }, "Batch priorities saved.", inspection);
+  }), result);
+  const backupResult = element("div");
+  backupResult.setAttribute("aria-live", "polite");
+  panel.append(form("Create backup", [], (submit) => {
+    const id = crypto.randomUUID();
+    void writeResource(submit, () => api.createBackup(id, boardId, boardTag()), async () => {
+      let reply;
+      try { reply = await api.getBackup(id, boardId); }
+      catch (error) {
+        if (error instanceof ApiError && error.status === 404) return false;
+        throw error;
+      }
+      const backup = /** @type {{id: string, board_revision: number, size: number, sha2_256: string, attachment_ids: string[]}} */ (reply.data);
+      const download = button("Download backup", () => {
+        download.disabled = true;
+        void readWithSession(() => api.getBackupContent(backup.id, backup.size, backup.sha2_256)).then((blob) => {
+          const url = URL.createObjectURL(blob);
+          const anchor = element("a");
+          anchor.href = url;
+          anchor.download = "localswim-" + boardId + "-r" + backup.board_revision + ".zip";
+          anchor.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }).catch(() => { announce("error", "Backup download could not be verified. Try downloading again."); })
+          .finally(() => { download.disabled = false; });
+      });
+      download.id = "download-backup";
+      backupResult.replaceChildren(element("p", "Captured revision " + backup.board_revision + " with "
+        + backup.attachment_ids.length + (backup.attachment_ids.length === 1 ? " attachment file." : " attachment files.")), download);
+      return true;
+    }, "Backup captured.", inspection);
+  }), backupResult);
+  return panel;
+}
 document.querySelector("header a")?.addEventListener("click", (event) => {
   if (event instanceof MouseEvent) followLink(event, "/");
 });

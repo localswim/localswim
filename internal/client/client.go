@@ -101,7 +101,11 @@ func (c *Client) DoWithContentType(method, resource string, body []byte, ifMatch
 			if len(tags) != 0 || !validBoardTag {
 				return Response{}, responseError("service did not return the expected policy replacement validators", true)
 			}
-		} else if etag == "" {
+		} else if method == http.MethodPatch && request.URL.Path == apiPath+"/cards" {
+			if !validBoardTag {
+				return Response{}, responseError("service did not return one canonical strong X-Board-ETag", true)
+			}
+		} else if etag == "" && !(method == http.MethodPost && request.URL.Path == apiPath+"/backups") {
 			return Response{}, responseError("service did not return one canonical strong ETag", true)
 		}
 		if requiresBoardTag(method, request.URL.Path[len(apiPath):]) && !validBoardTag {
@@ -114,6 +118,11 @@ func (c *Client) DoWithContentType(method, resource string, body []byte, ifMatch
 	}
 	if strings.HasPrefix(pathWithoutQuery(resource), "/attachments") && !validAttachmentResponse(resource, data) {
 		return Response{}, responseError("service returned invalid attachment metadata", mutation)
+	}
+	if (method == http.MethodPatch && pathWithoutQuery(resource) == "/cards" ||
+		strings.HasPrefix(pathWithoutQuery(resource), "/ticket-orders/") ||
+		strings.HasPrefix(pathWithoutQuery(resource), "/backups")) && !validT06Response(resource, data) {
+		return Response{}, responseError("service returned invalid batch, ticket-order, or backup metadata", mutation)
 	}
 	return Response{JSON: data, ETag: etag}, nil
 }

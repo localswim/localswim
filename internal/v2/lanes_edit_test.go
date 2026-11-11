@@ -94,9 +94,9 @@ func TestLaneEditsHTTP(t *testing.T) {
 	patch := map[string]any{"board_etag": after.Board.ETag, "label": "QA desk"}
 	client.call("PATCH", lanePath, asJSON(patch), "", 428)
 	client.call("PATCH", lanePath, asJSON(patch), etag(inserted.ID, 99), 412)
-	patch["key"] = "unrelated"
+	patch["position"] = 12
 	client.call("PATCH", lanePath, asJSON(patch), inserted.entityTag(), 400)
-	delete(patch, "key")
+	delete(patch, "position")
 	refusalBytes, err := os.ReadFile(path)
 	if err != nil || !bytes.Equal(committedBytes, refusalBytes) {
 		t.Fatalf("a refusal changed durable state: %v", err)

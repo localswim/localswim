@@ -17,7 +17,7 @@ func (x *request) dispatch() {
 		return
 	}
 	resource, rawID, hasID := strings.Cut(strings.TrimPrefix(x.r.URL.Path, Prefix+"/"), "/")
-	contentRoute := hasID && resource == "attachments" && strings.HasSuffix(rawID, "/content")
+	contentRoute := hasID && (resource == "attachments" || resource == "backups") && strings.HasSuffix(rawID, "/content")
 	if contentRoute {
 		rawID = strings.TrimSuffix(rawID, "/content")
 	}
@@ -52,7 +52,16 @@ func (x *request) dispatch() {
 		if hasID {
 			methods = append(methods, "PATCH")
 		} else {
-			methods = append(methods, "POST")
+			methods = append(methods, "POST", "PATCH")
+		}
+	case "backups":
+		if !hasID {
+			methods = []string{"POST"}
+		}
+	case "ticket-orders":
+		if !hasID {
+			x.fail(errMissing)
+			return
 		}
 	case "events":
 		if hasID {
@@ -139,7 +148,11 @@ func (x *request) dispatch() {
 		return
 	}
 	if contentRoute {
-		x.attachmentContent(id)
+		if resource == "backups" {
+			x.backupContent(id)
+		} else {
+			x.attachmentContent(id)
+		}
 		return
 	}
 	if !acceptsJSON(x.r.Header.Values("Accept")) {
@@ -203,6 +216,8 @@ func (x *request) dispatch() {
 		x.listActivities()
 	case "cards":
 		switch {
+		case !hasID && x.r.Method == "PATCH":
+			x.batchPriorities()
 		case !hasID:
 			x.cardsCollection()
 		case x.r.Method == "PATCH":
@@ -218,6 +233,14 @@ func (x *request) dispatch() {
 		}
 	case "verifications", "snapshots":
 		x.recoveryResource(resource, id)
+	case "backups":
+		if hasID {
+			x.backupResource(id)
+		} else {
+			x.createBackup()
+		}
+	case "ticket-orders":
+		x.ticketOrderResource(id)
 	case "service":
 		x.serviceStatus()
 	case "builds":

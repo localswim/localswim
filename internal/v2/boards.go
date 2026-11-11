@@ -98,6 +98,10 @@ func (x *request) boardResource(id string) {
 		x.fail(err)
 		return
 	}
+	if strings.EqualFold(view, "lanes") {
+		x.boardLanes(s)
+		return
+	}
 	if view != "" && !strings.EqualFold(view, "summary") {
 		x.fail(invalid("view", "This board view is unavailable."))
 		return

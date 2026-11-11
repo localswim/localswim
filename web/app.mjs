@@ -30,6 +30,7 @@ import { createBoardRefresh, watchUpdates } from "./board-updates.mjs";
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
  * owner_id: string, priority_id: string, ticket: number, revision: number, comment_count: number, attachment_count: number,
  * archived: boolean, cover_attachment_id: string|null, parent_id: string|null, child_ids: string[]}} Card */
+/** @typedef {{card: Card, opener: HTMLButtonElement, payload: string, boardTag: string}} CardDrag */
 /** @typedef {{ticket: string, kind: RelationshipKind}} RelationshipSeedDraft */
 /** @typedef {RelationshipSeedDraft & {row: RelationshipSeedDraft}} SubmittedRelationshipSeed */
 /** @typedef {{rows: RelationshipSeedDraft[], discard?: (submitted: SubmittedRelationshipSeed[]) => void}} RelationshipSeedState */
@@ -55,6 +56,7 @@ import { createBoardRefresh, watchUpdates } from "./board-updates.mjs";
 /** @typedef {{prior: Service, activation?: {id: string, buildId: string}, acknowledged: boolean, refusal?: string}} LifecycleOperation */
 
 
+const CARD_DRAG_TYPE = "application/x-localswim-card";
 const status = /** @type {HTMLParagraphElement|null} */ (document.getElementById("status"));
 const identity = document.getElementById("identity");
 const navigation = document.getElementById("boards");
@@ -523,12 +525,12 @@ function createInspection(region, isCurrent, read, resource, scope, busy = () =>
   };
 }
 
-/** @param {HTMLButtonElement} submit @param {() => Promise<unknown>} request
+/** @param {HTMLButtonElement|null} submit @param {() => Promise<unknown>} request
  * @param {InspectionRead} update @param {string} success @param {Inspection} inspection */
 async function writeResource(submit, request, update, success, inspection) {
   const view = activeView;
   writing = true;
-  submit.disabled = true;
+  if (submit) submit.disabled = true;
   announce("writing", "Saving…");
   let phase = "ready";
   try {
@@ -563,8 +565,10 @@ async function writeResource(submit, request, update, success, inspection) {
     }
   } finally {
     finishWriting();
-    submit.disabled = (phase !== "error" && !inspected)
-      || submit.closest('[data-unavailable="true"]') !== null;
+    if (submit) {
+      submit.disabled = (phase !== "error" && !inspected)
+        || submit.closest('[data-unavailable="true"]') !== null;
+    }
   }
 }
 
@@ -801,6 +805,47 @@ function requireAttachmentUploadsSettled(boardId, cardIds) {
     if (batch.running) throw new ApiError("attachment_upload_active");
     if (batch.needsInspection) throw new ApiError("attachment_upload_inspection");
   }
+}
+
+/** @param {string} boardId @param {string} cardId */
+async function readCardVersion(boardId, cardId) {
+  const latest = await api.getCard(cardId);
+  const saved = /** @type {Card} */ (latest.data);
+  if (saved.id !== cardId || saved.board_id !== boardId) throw new ApiError("invalid_response");
+  return { saved, tag: etag(latest) };
+}
+
+/** @param {Lane[]} lanes @param {Workflow|null} workflow @param {string} source */
+function moveDestinations(lanes, workflow, source) {
+  const grants = workflow?.move.get(source);
+  return activeLanes(lanes).filter(({ id }) => id !== source && grants?.has(id));
+}
+
+/** @param {Card} card @param {string} destination @param {string|(() => Promise<string>)} validator
+ * @param {HTMLButtonElement|null} submit @param {() => Promise<void>} reloadBoard @param {Inspection} inspection */
+function moveCard(card, destination, validator, submit, reloadBoard, inspection) {
+  const { id, board_id: boardId } = card;
+  let accepted = false;
+  void writeResource(submit, async () => {
+    requireAttachmentUploadsSettled(boardId, [id]);
+    const expected = typeof validator === "string" ? validator : await validator();
+    const reply = await api.patchCard(id, expected, { lane_id: destination });
+    const saved = /** @type {Card} */ (reply.data);
+    if (saved.id !== id || saved.board_id !== boardId || saved.lane_id !== destination) {
+      throw new ApiError("invalid_response", { outcomeUnknown: true });
+    }
+    accepted = true;
+  }, async () => {
+    if (!accepted) {
+      try {
+        await readCardVersion(boardId, id);
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
+      }
+    }
+    await reloadBoard();
+    return accepted;
+  }, "Card saved.", inspection);
 }
 
 /** @param {string} boardId @param {string} cardId @param {Attachment} attachment */
@@ -1104,20 +1149,11 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       showCurrent(saved);
     }
 
-    async function readCardVersion() {
-      const latest = await api.getCard(card.id);
-      const saved = /** @type {Card} */ (latest.data);
-      if (saved.id !== card.id || saved.board_id !== boardId) {
-        throw new ApiError("invalid_response");
-      }
-      return { saved, tag: etag(latest) };
-    }
-
     let savedRead = 0;
     /** @param {() => boolean} [canApply] */
     async function readSavedCard(canApply = () => true) {
       const read = ++savedRead;
-      const { saved, tag } = await readCardVersion();
+      const { saved, tag } = await readCardVersion(boardId, card.id);
       if (cardView === activeCard && read === savedRead && canApply()) {
         delete view.dataset.unavailable;
         const ownerSelection = owner.value || savedCard.owner_id;
@@ -1303,7 +1339,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       try {
         for (const { file, index } of pending) {
           if (committedRevision !== undefined) {
-            const { saved, tag } = await readWithSession(readCardVersion);
+            const { saved, tag } = await readWithSession(() => readCardVersion(boardId, card.id));
             if (saved.revision !== committedRevision) {
               batch.message = " The card changed during upload. Review the card before selecting more files.";
               break;
@@ -1723,22 +1759,16 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     });
     priorityAction.append(setPriority, priorityResult);
 
-    /** @param {Card} saved */
-    function moveDestinations(saved) {
-      const grants = currentWorkflow()?.move.get(saved.lane_id);
-      return activeLanes(lanes).filter(({ id }) => id !== saved.lane_id && grants?.has(id));
-    }
-
     moveAction.append(cardRevisionForm("Move card", [field("Move to lane", lane)], (submit) => {
       if (isSelected() && !moveAction.hidden && moveBoardTag === boardTag()
-          && moveDestinations(savedCard).some(({ id }) => id === lane.value)) {
-        void save({ lane_id: lane.value }, submit);
+          && moveDestinations(lanes, currentWorkflow(), savedCard.lane_id).some(({ id }) => id === lane.value)) {
+        moveCard(savedCard, lane.value, cardTag, submit, reloadBoard, inspection);
       }
     }));
 
     /** @param {Card} saved */
     function updateActions(saved) {
-      const destinations = moveDestinations(saved);
+      const destinations = moveDestinations(lanes, currentWorkflow(), saved.lane_id);
       moveBoardTag = boardTag();
       moveDraft = lane.value || moveDraft;
       if (moveDraft === saved.lane_id) moveDraft = "";
@@ -2644,6 +2674,98 @@ async function load(savedAvailability) {
     const state = boardViewState(boardId);
     /** @type {Map<string, HTMLElement>} */
     const laneColumns = new Map();
+    /** @type {CardDrag|undefined} */
+    let dragged;
+    /** @type {HTMLElement|undefined} */
+    let dropTarget;
+
+    /** @param {HTMLElement} [target] */
+    function markDropTarget(target) {
+      if (dropTarget === target) return;
+      if (dropTarget) delete dropTarget.dataset.dropTarget;
+      dropTarget = target;
+      if (target) target.dataset.dropTarget = "true";
+    }
+
+    function clearDrag() {
+      if (dragged) delete dragged.opener.dataset.dragging;
+      dragged = undefined;
+      markDropTarget();
+    }
+
+    /** @param {CardDrag} drag @param {Lane} lane @param {HTMLElement} column */
+    function canDrop(drag, lane, column) {
+      const { card, opener } = drag;
+      return view === activeView && opener.isConnected && column.isConnected && laneColumns.get(lane.id) === column
+        && drag.boardTag === boardTag && card.board_id === boardId && !card.archived
+        && lane.id !== card.lane_id && workflow?.move.get(card.lane_id)?.has(lane.id) === true;
+    }
+
+    /** @param {HTMLElement} column @param {Lane} lane */
+    function bindDrop(column, lane) {
+      column.addEventListener("dragover", (event) => {
+        const transfer = event.dataTransfer;
+        if (writing || !dragged || !transfer?.types.includes(CARD_DRAG_TYPE)
+            || !canDrop(dragged, lane, column)) {
+          markDropTarget();
+          return;
+        }
+        event.preventDefault();
+        transfer.dropEffect = "move";
+        markDropTarget(column);
+      });
+      column.addEventListener("dragleave", (event) => {
+        if (dropTarget === column
+            && !(event.relatedTarget instanceof Node && column.contains(event.relatedTarget))) markDropTarget();
+      });
+      column.addEventListener("drop", (event) => {
+        const drag = dragged;
+        clearDrag();
+        const transfer = event.dataTransfer;
+        if (!drag || !transfer?.types.includes(CARD_DRAG_TYPE)) return;
+        event.preventDefault();
+        if (writing || transfer.getData(CARD_DRAG_TYPE) !== drag.payload || !canDrop(drag, lane, column)) return;
+        const { card, opener } = drag;
+        if (!currentCards.some((entry) => entry.id === card.id && entry.board_id === board.id
+            && entry.lane_id === card.lane_id && entry.revision === card.revision && !entry.archived)) return;
+        const scope = cardScope(board.id, card.id);
+        if (pendingInspections.has(scope)) {
+          announce("error", "Open the affected card and use Inspect saved card before moving it.");
+          return;
+        }
+        const inspection = createInspection(opener, () => view === activeView && opener.isConnected,
+          reloadBoard, "card", scope);
+        moveCard(card, lane.id, async () => {
+          const { saved, tag } = await readWithSession(() => readCardVersion(board.id, card.id), signal);
+          if (!canDrop(drag, lane, column)) throw new ApiError("invalid_target");
+          if (saved.revision !== card.revision || saved.lane_id !== card.lane_id || saved.archived) {
+            throw new ApiError("card_changed", { status: 412 });
+          }
+          return tag;
+        }, null, reloadBoard, inspection);
+      });
+    }
+
+    /** @param {HTMLButtonElement} opener @param {Card} card @param {string} renderedTag */
+    function bindDrag(opener, card, renderedTag) {
+      opener.draggable = true;
+      opener.addEventListener("dragstart", (event) => {
+        clearDrag();
+        const transfer = event.dataTransfer;
+        if (writing || !transfer || view !== activeView || !opener.isConnected || renderedTag !== boardTag) {
+          event.preventDefault();
+          return;
+        }
+        const payload = JSON.stringify({ board_id: boardId, card_id: card.id, lane_id: card.lane_id, revision: card.revision });
+        transfer.setData(CARD_DRAG_TYPE, payload);
+        transfer.effectAllowed = "move";
+        dragged = { card, opener, payload, boardTag: renderedTag };
+        opener.dataset.dragging = "true";
+      });
+      opener.addEventListener("dragend", () => {
+        if (dragged?.opener === opener) clearDrag();
+      });
+    }
 
     function retainScroll() {
       if (!columns.isConnected) return;
@@ -2691,6 +2813,7 @@ async function load(savedAvailability) {
         const url = URL.createObjectURL(blob);
         covers.add(url);
         const image = element("img");
+        image.draggable = false;
         image.className = "card-cover";
         image.alt = "";
         image.addEventListener("error", () => {
@@ -2751,6 +2874,7 @@ async function load(savedAvailability) {
 
     /** @param {Card[]} visibleCards @param {string} renderedTag */
     function renderCards(visibleCards, renderedTag) {
+      clearDrag();
       retainScroll();
       laneColumns.clear();
       const focused = document.activeElement;
@@ -2766,6 +2890,7 @@ async function load(savedAvailability) {
         const column = element("section");
         column.className = "lane";
         laneColumns.set(lane.id, column);
+        bindDrop(column, lane);
         const members = visibleCards.filter(({ lane_id }) => lane_id === lane.id);
         const heading = element("h2", lane.label);
         heading.className = "lane-heading";
@@ -2875,8 +3000,10 @@ async function load(savedAvailability) {
             }, "Lane approved and moved to Completed.", inspection);
           }));
         }
+        const mayDrag = moveDestinations(lanes, workflow, lane.id).length > 0;
         for (const card of members) {
           const opener = cardOpener(card);
+          if (mayDrag) bindDrag(opener, card, renderedTag);
           column.append(opener);
           if (card.cover_attachment_id) {
             const slot = element("span");
@@ -3106,6 +3233,7 @@ async function load(savedAvailability) {
     main.replaceChildren(element("h1", board.name), updates.panel, editor, search.panel, recent,
       laneEditor.editor, boardActions, columns, archived);
     retainBoardView = () => {
+      clearDrag();
       retainScroll();
       search.retain();
     };

@@ -107,7 +107,7 @@ async function harness(api, pathname = "/boards/" + board, {
   const window = {sessionStorage: storage, addEventListener: (name, handler) => { windowEvents[name] = handler; }};
   class StyleSheet { replaceSync(text) { this.text = text; } }
   const context = vm.createContext({document, window, CSSStyleSheet: StyleSheet,
-    HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
+    Node: Element, HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
     Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, MAX_ATTACHMENT_BYTES, newOperationId,
     createBoardRefresh,
@@ -242,7 +242,7 @@ test("creation and keyboard moves use the current actor's directed workflow and 
   await ui.settled();
   assert.equal(moves.length, 1);
   assert.deepEqual([moves[0][0], moves[0][1], moves[0][2].lane_id], [card, tag(card, 1), target.id]);
-  assert.match(status.textContent, /edit refused/);
+  assert.match(status.textContent, /refused the change/);
   assert.equal(destination.value, target.id);
   assert.match(details.textContent, /Lane: Ready/);
 
@@ -271,6 +271,170 @@ test("creation and keyboard moves use the current actor's directed workflow and 
   await ui.settled();
   assert.deepEqual(addButtons(), []);
   assert.ok(ui.find(main, "button", "#1 Original"));
+});
+
+function dragTransfer() {
+  const entries = new Map();
+  return {
+    get types() { return [...entries.keys()]; },
+    setData(type, value) { entries.set(type, value); },
+    getData(type) { return entries.get(type) ?? ""; },
+  };
+}
+
+function grantMove(api, target) {
+  const getPolicy = api.getPolicy;
+  api.getPolicy = async (...args) => {
+    const {data} = await getPolicy(...args);
+    return {data: {...data, move_grants: [{user_id: user, from_lane_id: lane, to_lane_id: target}]}};
+  };
+}
+
+test("M48 drag moves only the rendered card to a granted lane with its exact revision", async (t) => {
+  const {api, target, commit} = changingBoard();
+  const listLanes = api.listLanes;
+  api.listLanes = async () => page("lanes", [...(await listLanes()).data.lanes,
+    {...target, id: priority, label: "Forbidden", position: 2}]);
+  grantMove(api, target.id);
+  const writes = [];
+  api.patchCard = async (id, expected, patch) => {
+    writes.push([id, expected, patch.lane_id]);
+    commit("Original", patch.lane_id);
+    return api.getCard(id);
+  };
+  const ui = await harness(api);
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  const {main, details} = ui.nodes;
+  const column = (label) => ui.find(main, "h2", label).parent;
+  const opener = ui.find(main, "button", "#1 Original");
+  assert.equal(opener.draggable, true);
+  const next = column(target.label);
+  const start = () => {
+    const transfer = dragTransfer();
+    opener.dispatch("dragstart", {dataTransfer: transfer});
+    assert.equal(transfer.effectAllowed, "move");
+    return transfer;
+  };
+  const clear = () => {
+    assert.equal(opener.dataset.dragging, undefined);
+    assert.equal(next.dataset.dropTarget, undefined);
+  };
+
+  let transfer = start();
+  assert.equal(next.dispatch("dragover", {dataTransfer: transfer}), true);
+  assert.equal(next.dataset.dropTarget, "true");
+  assert.equal(transfer.dropEffect, "move");
+  next.dispatch("dragleave", {relatedTarget: next.children[0]});
+  assert.equal(next.dataset.dropTarget, "true");
+  next.dispatch("dragleave", {relatedTarget: column("Forbidden")});
+  assert.equal(next.dataset.dropTarget, undefined);
+  opener.dispatch("dragend");
+  clear();
+  next.dispatch("drop", {dataTransfer: transfer}); // A copied payload has no live drag.
+  assert.equal(writes.length, 0);
+
+  transfer = start();
+  assert.equal(column("Forbidden").dispatch("dragover", {dataTransfer: transfer}), false);
+  column("Forbidden").dispatch("drop", {dataTransfer: transfer});
+  clear();
+  assert.equal(writes.length, 0);
+
+  for (const substitute of [
+    () => "{",
+    (payload) => JSON.stringify({...JSON.parse(payload), board_id: user}),
+    (payload) => JSON.stringify({...JSON.parse(payload), card_id: user}),
+    (payload) => JSON.stringify({...JSON.parse(payload), revision: 2}),
+  ]) {
+    transfer = start();
+    const [type] = transfer.types;
+    transfer.setData(type, substitute(transfer.getData(type)));
+    next.dispatch("drop", {dataTransfer: transfer});
+    clear();
+  }
+  assert.equal(writes.length, 0);
+
+  // A concurrent edit after paint must not upgrade the original drag's validator.
+  commit("Changed elsewhere", lane);
+  next.dispatch("drop", {dataTransfer: start()});
+  clear();
+  await ui.settled();
+  assert.equal(writes.length, 0);
+  const fresh = ui.find(main, "button", "#1 Changed elsewhere");
+  fresh.click();
+  await until(() => ui.field(details, "Comment"));
+  const draft = ui.field(details, "Comment");
+  draft.value = "Keep my draft";
+  transfer = dragTransfer();
+  fresh.dispatch("dragstart", {dataTransfer: transfer});
+  column(target.label).dispatch("drop", {dataTransfer: transfer});
+  await ui.settled();
+  assert.deepEqual(writes, [[card, tag(card, 2), target.id]]);
+  assert.equal(ui.find(main, "button", "#1 Original").parent, column(target.label));
+  assert.equal(draft.value, "Keep my draft");
+  assert.match(details.textContent, /Lane: Next lane/);
+});
+
+test("M48 refuses or inspects the original drop once while retaining the open draft", async (t) => {
+  const {api, target, commit} = changingBoard();
+  grantMove(api, target.id);
+  let refuse = true;
+  let failReadback = false;
+  const reads = [];
+  const writes = [];
+  const readCard = api.getCard;
+  api.getCard = async (id) => {
+    reads.push(id);
+    if (failReadback) throw new ApiError("transport_failed");
+    return readCard(id);
+  };
+  api.patchCard = async (id, expected, patch) => {
+    writes.push([id, expected, patch.lane_id]);
+    if (refuse) throw new ApiError("http_error", {status: 403});
+    commit("Original", patch.lane_id);
+    failReadback = true;
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  const ui = await harness(api);
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  const {main, details, status} = ui.nodes;
+  const opener = ui.find(main, "button", "#1 Original");
+  opener.click();
+  await until(() => ui.field(details, "Title"));
+  const title = ui.field(details, "Title");
+  title.value = "Unsaved title";
+  const next = ui.find(main, "h2", target.label).parent;
+  const drop = () => {
+    const dataTransfer = dragTransfer();
+    opener.dispatch("dragstart", {dataTransfer});
+    next.dispatch("dragover", {dataTransfer});
+    next.dispatch("drop", {dataTransfer});
+    assert.equal(opener.dataset.dragging, undefined);
+    assert.equal(next.dataset.dropTarget, undefined);
+  };
+
+  drop();
+  await ui.settled();
+  assert.match(status.textContent, /refused the change/);
+  assert.equal(title.value, "Unsaved title");
+  assert.match(details.textContent, /Lane: Ready/);
+
+  refuse = false;
+  drop();
+  await ui.settled();
+  assert.match(status.textContent, /Readback failed/);
+  assert.equal(title.value, "Unsaved title");
+  assert.equal(details.hidden, false);
+  drop();
+  assert.equal(writes.length, 2);
+  failReadback = false;
+  ui.find(details, "button", "Inspect saved card").click();
+  await ui.settled();
+  assert.deepEqual(writes, [[card, tag(card, 1), target.id], [card, tag(card, 1), target.id]]);
+  assert.ok(reads.length >= 5 && reads.every((id) => id === card));
+  assert.match(details.textContent, /Lane: Next lane/);
+  assert.equal(title.value, "Unsaved title");
 });
 
 test("lane totals and card counts render authoritative comment and detach readbacks", async () => {
@@ -3202,6 +3366,52 @@ async function attachmentUploadFixture(secondBoard = board, options) {
     ui.nodes.details.dispatch("paste", {target, clipboardData: {files, types}});
   return {ui, api, cards, calls, readbacks, saved, behavior, commit, choose, paste, getCapability};
 }
+
+test("M48 drag waits for the source card's upload and permits an unrelated card move", async () => {
+  const {ui, api, cards, behavior, commit, choose} = await attachmentUploadFixture();
+  const [source] = (await api.listLanes()).data.lanes;
+  const target = {...source, id: uploadBoard, key: "next", label: "Next lane", position: 1};
+  api.listLanes = async () => page("lanes", [source, target]);
+  grantMove(api, target.id);
+  const writes = [];
+  api.patchCard = async (id, expected, patch) => {
+    writes.push([id, expected, patch.lane_id]);
+    cards.set(id, {...cards.get(id), ...patch});
+    return api.getCard(id);
+  };
+  await ui.load();
+  const {main, details, status} = ui.nodes;
+  await until(() => ui.find(details, "button", "Upload attachments"));
+  const pending = Promise.withResolvers();
+  behavior.write = async (...args) => {
+    await pending.promise;
+    return commit(...args);
+  };
+  choose({name: "pending.txt", size: 1});
+  const drop = (title) => {
+    const opener = ui.find(main, "button", title);
+    const next = ui.find(main, "h2", target.label).parent;
+    const dataTransfer = dragTransfer();
+    opener.dispatch("dragstart", {dataTransfer});
+    next.dispatch("dragover", {dataTransfer});
+    next.dispatch("drop", {dataTransfer});
+    assert.equal(opener.dataset.dragging, undefined);
+    assert.equal(next.dataset.dropTarget, undefined);
+  };
+  try {
+    drop("#1 Original");
+    await ui.settled();
+    assert.deepEqual(writes, []);
+    assert.match(status.textContent, /Wait for attachments/);
+    drop("#2 Other card");
+    await ui.settled();
+    assert.deepEqual(writes, [[backup, tag(backup, 1), target.id]]);
+    assert.equal(ui.uploadingToCard(board, card), true);
+  } finally {
+    pending.resolve();
+    await until(() => !ui.uploadingToCard(board, card));
+  }
+});
 
 test("attachment picker preflights every file, permits exactly 10 MiB and serializes by card ETag", async () => {
   const {ui, calls, behavior, commit, choose} = await attachmentUploadFixture();

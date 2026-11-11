@@ -43,6 +43,7 @@ main { flex: 1; min-width: 0; }
 #details { flex: 0 0 min(26rem, 40vw); }
 .lanes { display: flex; gap: 0.65rem; overflow: auto; }
 .lane { flex: 0 0 13rem; max-block-size: max(16rem, 70dvh); overflow-y: auto; }
+.lane[data-drop-target="true"] { outline: 2px solid #2463a0; outline-offset: -2px; }
 .lane > input { max-inline-size: 100%; }
 .lane-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 0.25rem 0.5rem; }
 .lane-total { font-size: 0.8rem; font-weight: normal; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -58,6 +59,8 @@ main { flex: 1; min-width: 0; }
 .attachment button + button { margin-inline-start: 0.4rem; }
 #details article { border-top: 1px solid #ccd6e3; padding-block: 0.45rem; }
 .card { width: 100%; text-align: start; margin-bottom: 0.4rem; }
+.card[draggable="true"] { cursor: grab; }
+.card[data-dragging="true"] { opacity: 0.65; cursor: grabbing; }
 .card-priority { display: block; margin-top: 0.2rem; }
 .lane form { margin-bottom: 0.5rem; }
 .editor { margin: 0.7rem 0; }

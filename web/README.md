@@ -1,9 +1,15 @@
 # Browser application
 
-`index.html`, `app.mjs`, and `app.css` are embedded in the V2 executable. Open
+The browser page and its local assets are embedded in the V2 executable. Open
 the service's loopback URL or a board link at `/boards/{board_id}`. The page opens
 a same-origin Human session and keeps the capability in memory. The HTML and
 local assets are independent of the capability.
+
+The selected board updates when another client commits an edit. Live connection
+status is separate from the loaded board, so an interruption leaves the last
+view and drafts available. A replacement connection checks the current board
+revision and reads any missed changes. Use **Retry board update** to reread the
+board while the stream reconnects or after a refresh failure.
 
 Open a card to edit its text, lane, or owner. Each submission uses the last card
 ETag read from the HTTP response header. Card JSON exposes its positive integer

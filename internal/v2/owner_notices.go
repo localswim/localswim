@@ -46,15 +46,14 @@ func (event ownerNoticeEvent) message() string {
 	var message strings.Builder
 	message.WriteString("localswim board-change notice\n\n")
 	fmt.Fprintf(&message, "- Board: %q (`%s`)\n", event.label, event.boardID)
-	const displayTime = "2006-01-02 15:04:05 UTC"
 	since, until := event.since.UTC(), event.until.UTC()
 	if until.Sub(since) < time.Second {
-		fmt.Fprintf(&message, "- Time: %s\n", since.Format(displayTime))
+		fmt.Fprintf(&message, "- Time: %s\n", since.Format(timestampLayout))
 	} else {
 		if until.Nanosecond() != 0 {
 			until = until.Truncate(time.Second).Add(time.Second)
 		}
-		fmt.Fprintf(&message, "- Start: %s\n- End: %s\n", since.Format(displayTime), until.Format(displayTime))
+		fmt.Fprintf(&message, "- Start: %s\n- End: %s\n", since.Format(timestampLayout), until.Format(timestampLayout))
 	}
 	message.WriteString("- Tickets: ")
 	for index, ticket := range event.tickets {

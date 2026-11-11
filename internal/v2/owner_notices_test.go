@@ -76,7 +76,7 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 		t.Fatalf("attributed tickets = %v", event.tickets)
 	}
 	message := event.message()
-	for _, want := range []string{previous.Board.ID, "Synthetic\\nboard", "12:00:01 UTC", "12:00:04 UTC", "0001, 0002, 0003, 0005"} {
+	for _, want := range []string{previous.Board.ID, "Synthetic\\nboard", "12:00:01+00:00", "12:00:04+00:00", "0001, 0002, 0003, 0005"} {
 		if !strings.Contains(message, want) {
 			t.Errorf("notice omitted %q", want)
 		}
@@ -415,6 +415,26 @@ func TestOwnerNoticeRevalidatesPendingAfterSettingsRead(t *testing.T) {
 					t.Fatal("expected one delivery of the current burst to the current target")
 				}
 			})
+		})
+	}
+}
+
+func TestOwnerNoticeProjectTimestampFormat(t *testing.T) {
+	start := time.Date(2026, 11, 11, 2, 3, 4, 123000000, time.FixedZone("source", 5*3600+30*60))
+	for _, tc := range []struct {
+		name     string
+		duration time.Duration
+		want     string
+	}{
+		{"single time", 100 * time.Millisecond, "- Time: 2026-11-10 20:33:04+00:00\n"},
+		{"interval", 2200 * time.Millisecond, "- Start: 2026-11-10 20:33:04+00:00\n- End: 2026-11-10 20:33:07+00:00\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			event := ownerNoticeEvent{boardID: "board", label: "Test", since: start, until: start.Add(tc.duration), tickets: []uint64{1}}
+			want := "localswim board-change notice\n\n- Board: \"Test\" (`board`)\n" + tc.want + "- Tickets: 0001"
+			if got := event.message(); got != want {
+				t.Fatalf("notice timestamp format mismatch\ngot: %s\nwant: %s", got, want)
+			}
 		})
 	}
 }

@@ -42,7 +42,8 @@ header a { color: inherit; font-size: 1.3rem; font-weight: 700; }
 main { flex: 1; min-width: 0; }
 #details { flex: 0 0 min(26rem, 40vw); }
 .lanes { display: flex; gap: 0.65rem; overflow: auto; }
-.lane { flex: 0 0 13rem; }
+.lane { flex: 0 0 13rem; max-block-size: max(16rem, 70dvh); overflow-y: auto; }
+.lane > input { max-inline-size: 100%; }
 .lane-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 0.25rem 0.5rem; }
 .lane-total { font-size: 0.8rem; font-weight: normal; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .card-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; margin-block-start: 0.3rem; font-size: 0.8rem; font-variant-numeric: tabular-nums; }

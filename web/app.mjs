@@ -118,7 +118,7 @@ const boardDrafts = new Map();
 let activeNewCardText;
 /** @type {Map<string, File[]>} */
 const newCardFiles = new Map();
-/** @type {{boardId: string, paint: () => void}|undefined} */
+/** @type {{boardId: string, paint: () => void, sync: () => void}|undefined} */
 let activeNewCardFiles;
 /** @type {Map<string, RelationshipSeedState>} */
 const relationshipSeedDrafts = new Map();
@@ -363,7 +363,10 @@ function storeTextDraft(scope, draft) {
 /** @param {string} scope */
 function syncInspection(scope) {
   if (cardInspection?.scope === scope) cardInspection.sync();
-  if (boardInspection?.scope === scope) boardInspection.sync();
+  if (boardInspection?.scope === scope) {
+    boardInspection.sync();
+    activeNewCardFiles?.sync();
+  }
 }
 
 /** @param {string} scope @param {SavedSubmission} submission */
@@ -450,8 +453,14 @@ function announce(phase, message) {
   status.textContent = message;
 }
 
+function startWriting() {
+  writing = true;
+  activeNewCardFiles?.sync();
+}
+
 function finishWriting() {
   writing = false;
+  activeNewCardFiles?.sync();
   activeBoardRefresh?.resume();
 }
 
@@ -548,7 +557,7 @@ function renderPublishing(scope, key, initial, read, save, afterSave, inspection
       inspection.inspect();
       return;
     }
-    writing = true;
+    startWriting();
     refreshStatus.disabled = true;
     void readWithSession(read).then(show).catch(() => {
       if (panel.isConnected) current.textContent = "Publishing status could not be read. Try refreshing again.";
@@ -796,7 +805,7 @@ function createInspection(region, isCurrent, read, resource, scope, busy = () =>
     },
     inspect() {
       if (writing || !isCurrent() || attachmentUploads.get(scope)?.running) return;
-      writing = true;
+      startWriting();
       announce("loading", "Reading saved " + resource + "…");
       const pending = pendingInspections.get(scope);
       const submission = recover && !(pending && attachmentUploads.get(scope)?.needsInspection)
@@ -836,7 +845,7 @@ function createInspection(region, isCurrent, read, resource, scope, busy = () =>
  * @param {InspectionRead} update @param {string} success @param {Inspection} inspection */
 async function writeResource(submit, request, update, success, inspection) {
   const view = activeView;
-  writing = true;
+  startWriting();
   if (submit) submit.disabled = true;
   announce("writing", "Saving…");
   let phase = "ready";
@@ -1129,6 +1138,11 @@ function renderNewCardFiles(boardId, canStage) {
   const scope = newCardScope(boardId);
   const canChange = () => canStage() && !writing && !pendingInspections.has(scope) && !savedSubmission(scope);
 
+  function sync() {
+    picker.disabled = !canChange();
+    for (const control of list.querySelectorAll("button")) control.disabled = picker.disabled;
+  }
+
   /** @param {File[]} files */
   function store(files) {
     if (files.length) newCardFiles.set(boardId, files);
@@ -1148,6 +1162,7 @@ function renderNewCardFiles(boardId, canStage) {
       }));
       return row;
     }));
+    sync();
   }
 
   picker.addEventListener("change", () => {
@@ -1164,7 +1179,7 @@ function renderNewCardFiles(boardId, canStage) {
     store([...(newCardFiles.get(boardId) ?? []), ...files]);
   }
   paint();
-  return { field: field("Files to attach", picker), list, paint, paste };
+  return { field: field("Files to attach", picker), list, paint, paste, sync };
 }
 
 /** @param {string} boardId @param {SubmittedRelationshipSeed[]} submitted @param {() => boolean} isCurrent */
@@ -1748,7 +1763,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     /** @param {Record<string, string>} draft @param {HTMLButtonElement} submit */
     async function save(draft, submit) {
       if (cardView !== activeCard) return;
-      writing = true;
+      startWriting();
       submit.disabled = true;
       announce("writing", "Saving card…");
       let refreshed = false;
@@ -3974,6 +3989,7 @@ async function load(savedAvailability) {
     function updateNewCardForm() {
       const destination = canCreateIn(addLane) ? lanes.find(({ id }) => id === addLane) : undefined;
       newCard.hidden = !destination;
+      files.sync();
       seeds.setAllowed(workflow?.canManageRelationships === true);
       if (destination) newCardHeading.textContent = "New card in " + destination.label;
     }
@@ -4168,7 +4184,7 @@ async function load(savedAvailability) {
       main?.append(archived);
       boardInspection = inspection;
       activeNewCardText = { boardId: board.id, title: addTitle, description: addDescription };
-      activeNewCardFiles = { boardId: board.id, paint: files.paint };
+      activeNewCardFiles = { boardId: board.id, paint: files.paint, sync: files.sync };
       retainNewCardDraft = retainNewCardText;
       retainBoardDraft = () => {
         retainNewCardText();

@@ -4866,6 +4866,7 @@ test("New card upload waits for exact creation readback and starts once after ex
   const {ui, api, calls, writes, choose, create, creation} = await newCardFileFixture();
   const {main, details} = ui.nodes;
   const readCard = api.getCard;
+  const response = Promise.withResolvers();
   let readable = false;
   const readbacks = [];
   api.getCard = async (id) => {
@@ -4877,24 +4878,59 @@ test("New card upload waits for exact creation readback and starts once after ex
   };
   creation.write = async (request) => {
     create(request);
+    await response.promise;
     throw new ApiError("transport_failed", {outcomeUnknown: true});
   };
   choose({name: "after-readback.txt", size: 1});
+  const picker = ui.field(main, "Files to attach");
+  const remove = ui.find(main, "button", "Remove after-readback.txt");
+  assert.equal(picker.disabled, false);
+  assert.equal(remove.disabled, false);
   ui.submit(main, "Create card");
+  assert.equal(picker.disabled, true);
+  assert.equal(remove.disabled, true);
+  await until(() => writes.length === 1);
+  response.resolve();
   await ui.settled();
   assert.equal(writes.length, 1);
   const created = writes[0].id;
   assert.deepEqual(readbacks, [created]);
   assert.equal(calls.length, 0);
   assert.equal(ui.find(main, "button", "Create card").disabled, true);
+  assert.equal(picker.disabled, true);
+  assert.equal(remove.disabled, true);
+  remove.click();
+  assert.equal(ui.find(main, "button", "Remove after-readback.txt"), remove);
 
   readable = true;
   ui.find(main, "button", "Inspect saved board").click();
   await until(() => calls.length === 1 && !ui.uploadingToCard(board, created));
+  await ui.settled();
+  assert.equal(picker.disabled, false);
+  assert.equal(ui.find(main, "button", "Remove after-readback.txt"), undefined);
   assert.equal(writes.length, 1);
   assert.equal(readbacks[1], created);
   assert.equal(calls[0].id, created);
   assert.match(details.textContent, /after-readback\.txt — Uploaded\./);
+});
+
+test("dismissing an unresolved create unlocks its retained staged files", async () => {
+  const {ui, calls, writes, choose, creation} = await newCardFileFixture();
+  const {main} = ui.nodes;
+  creation.write = async () => { throw new ApiError("transport_failed", {outcomeUnknown: true}); };
+  choose({name: "retained.txt", size: 1});
+  const picker = ui.field(main, "Files to attach");
+  const remove = ui.find(main, "button", "Remove retained.txt");
+  ui.submit(main, "Create card");
+  await ui.settled();
+  assert.equal(picker.disabled, true);
+  assert.equal(remove.disabled, true);
+
+  ui.find(main, "button", "Dismiss unresolved action").click();
+  assert.equal(picker.disabled, false);
+  assert.equal(remove.disabled, false);
+  assert.equal(writes.length, 1);
+  assert.equal(calls.length, 0);
 });
 
 test("staged files follow the original creation across board navigation", async () => {
@@ -4934,7 +4970,8 @@ test("a stale create retains its staged files without dispatching an upload", as
   assert.equal(writes.length, 1);
   assert.equal(calls.length, 0);
   assert.equal(ui.field(main, "New title").value, "Files on a new card");
-  assert.ok(ui.find(main, "button", "Remove stay-staged.txt"));
+  assert.equal(ui.field(main, "Files to attach").disabled, false);
+  assert.equal(ui.find(main, "button", "Remove stay-staged.txt").disabled, false);
 });
 
 test("attachment picker preflights every file, permits exactly 10 MiB and serializes by card ETag", async () => {

@@ -194,10 +194,12 @@ selections and invalid ticket selections are refused. An uncertain write is
 followed by a saved-state read and is never automatically submitted again.
 
 **Create backup** captures the current board revision and verified attachment
-inventory. **Download backup** retrieves the ZIP through authenticated fetch,
-checks its exact size and SHA-2-256 digest, and then offers the download. A lost
-capture response is inspected using the original generated backup UUID. Capture
-is never replayed automatically. A later explicit capture uses a fresh UUID.
+inventory. You can edit cards and switch boards while capture runs. Its progress,
+result, and download remain with the originating board in the same tab.
+**Download backup** retrieves the ZIP for the displayed captured revision and
+checks its exact size and SHA-2-256 digest before offering the download. After a
+lost response, **Refresh backup status** checks the original backup UUID. A
+later explicit capture uses a fresh UUID.
 
 ## Turn 7 find, renumber, restore, and publish
 
@@ -232,10 +234,11 @@ requires saved-state inspection before another explicit submission.
 After **Create backup**, **Publish backup** publishes that exact captured backup.
 The service data root must already be inside a Git worktree with an initial
 commit, local branch, configured identity, and origin remote. The page displays
-the publication outcome and fixed error code. It retains the generated publication
-UUID for focused readback after an uncertain response. **Refresh publication
-status** stays available while the publication is queued or running, including
-after navigating away and returning. A new submission requires a terminal status.
+the publication outcome and fixed error code on the originating board while card
+edits and navigation continue. It retains the generated publication UUID for
+focused readback after an uncertain response. **Refresh publication status** stays
+available while the publication is queued or running, including after navigating
+away and returning. A new submission requires a terminal status.
 Publication does not require a board ETag because its selected backup is immutable.
 
 Backup, publication, restoration, build activation, audit event, and approval receipt IDs use UUIDv7. Client-supplied operation IDs accept mixed case and are serialized in lowercase. Backup and publication creation time is encoded in the ID. Completion time remains in `finished_at`, and audit, approval, and restoration `at` records execution time. Other resource IDs remain UUIDv4.

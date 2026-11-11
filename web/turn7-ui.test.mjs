@@ -23,6 +23,7 @@ async function harness(api, pathname = "/boards/" + board, {
   storage = tabStorage(),
 } = {}) {
   let document;
+  const downloads = [];
   class Element {
     scrollTop = 0;
     scrollLeft = 0;
@@ -49,7 +50,11 @@ async function harness(api, pathname = "/boards/" + board, {
       for (const handler of this.events[key] ?? []) handler(event);
       return event.defaultPrevented;
     }
-    click() { if (!this.disabled) this.dispatch("click", {button: 0}); }
+    click() {
+      if (this.disabled) return;
+      if (this.tagName === "a" && this.download) downloads.push(this.download);
+      this.dispatch("click", {button: 0});
+    }
     focus(options) { document.activeElement = this; this.focusOptions = options; }
     closest(selector) { if (selector === '[data-unavailable="true"]' && this.dataset.unavailable === "true") return this; return this.parent?.closest(selector) ?? null; }
     contains(node) { return node === this || this.children.some((child) => child.contains(node)); }
@@ -122,7 +127,7 @@ async function harness(api, pathname = "/boards/" + board, {
     windowEvents.popstate();
     await settled();
   }
-  return {nodes, ...context.hooks, settled, find, field, submit, submitValidated, navigate, popstate,
+  return {nodes, downloads, ...context.hooks, settled, find, field, submit, submitValidated, navigate, popstate,
     pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement};
 }
 
@@ -1164,6 +1169,141 @@ test("default next-work control omits blank q and sends supported triage filters
   assert.equal(query.has("q"), false);
 });
 
+const backupDigest = "0".repeat(64);
+const backupReceipt = (id, revision = 1) => ({data: {id, board_revision: revision, size: 3,
+  sha2_256: backupDigest, attachment_ids: []}});
+
+test("a delayed backup permits card edits and navigation and downloads the initiating board's earlier revision", async () => {
+  const {api, commit} = changingBoard();
+  delete api.streamEvents;
+  const other = "4cbd90c1-e555-4431-8be2-cf9a96a6bc09";
+  const availability = api.getBoardAvailability;
+  const lanes = api.getBoardLanes;
+  api.listBoards = async () => page("boards", [{id: board, name: "Board"}, {id: other, name: "Other board"}]);
+  api.getBoardAvailability = async (id) => id === board ? availability() : {
+    data: {...(await availability()).data, id: other, name: "Other board"}, etag: tag(other, 1),
+  };
+  api.getBoardLanes = async (id) => id === board ? lanes() : {
+    data: {board: {...(await lanes()).data.board, id: other, name: "Other board", revision: 1}, cards: []},
+    etag: tag(other, 1),
+  };
+  api.patchCard = async (id, expected, patch) => {
+    assert.equal(expected, tag(card, 1));
+    assert.equal(commit(patch.title, lane), 2);
+    return api.getCard(id);
+  };
+  const capture = Promise.withResolvers();
+  const captured = [];
+  api.createBackup = async (...args) => {
+    captured.push(args);
+    await capture.promise;
+  };
+  api.getBackup = async (id, boardId) => {
+    assert.equal(boardId, board);
+    assert.equal(id, captured[0][0]);
+    return backupReceipt(id);
+  };
+  const downloads = [];
+  api.getBackupContent = async (...args) => {
+    downloads.push(args);
+    return new Blob(["ZIP"]);
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details, status} = ui.nodes;
+  const create = () => ui.find(main, "button", "Create backup");
+  create().click();
+  create().click();
+  assert.equal(ui.busy(), false);
+  assert.equal(create().disabled, true);
+  assert.match(main.textContent, /Capturing backup/);
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.field(details, "Title"));
+  ui.field(details, "Title").value = "Edited during capture";
+  ui.submit(details, "Save text");
+  await ui.settled();
+  assert.equal((await api.getCard(card)).data.revision, 2);
+  assert.match(main.textContent, /Capturing backup/);
+
+  await ui.navigate("/boards/" + other);
+  assert.equal(create().disabled, false);
+  assert.doesNotMatch(main.textContent, /Capturing backup/);
+  await ui.navigate("/boards/" + board);
+  assert.equal(create().disabled, true);
+  create().click();
+  assert.equal(captured.length, 1);
+  await ui.navigate("/boards/" + other);
+  const otherStatus = status.textContent;
+  capture.resolve();
+  await ui.settled();
+  assert.doesNotMatch(main.textContent, /Captured revision/);
+  assert.equal(status.textContent, otherStatus);
+  await ui.navigate("/boards/" + board);
+  assert.match(main.textContent, /Captured revision 1 with 0 attachment files/);
+  assert.equal(create().disabled, false);
+  ui.find(main, "button", "Download backup").click();
+  await ui.settled();
+  assert.equal(captured.length, 1);
+  const [captureId, captureBoard, validator] = captured[0];
+  assert.match(captureId, /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(captureBoard, board);
+  assert.equal(validator, tag(board, 1));
+  assert.deepEqual(downloads, [[captureId, 3, backupDigest]]);
+  assert.deepEqual(ui.downloads, ["localswim-" + board + "-r1.zip"]);
+});
+
+test("uncertain backup capture reads the original ID without blocking edits or replaying the POST", async () => {
+  const writes = [];
+  const reads = [];
+  const {api} = boardApi();
+  api.createBackup = async (id) => {
+    writes.push(id);
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  api.getBackup = async (id, boardId) => {
+    reads.push([id, boardId]);
+    if (reads.length === 1) throw new ApiError("http_error", {status: 404});
+    return backupReceipt(id);
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main} = ui.nodes;
+  const create = ui.find(main, "button", "Create backup");
+  create.click(); await ui.settled();
+  assert.equal(create.disabled, true);
+  assert.match(main.textContent, /Backup capture could not be confirmed/);
+  assert.equal(ui.busy(), false);
+  ui.find(main, "button", "Refresh backup status").click(); await ui.settled();
+  assert.equal(create.disabled, false);
+  assert.match(main.textContent, /Captured revision 1/);
+  assert.equal(writes.length, 1);
+  assert.deepEqual(reads, [[writes[0], board], [writes[0], board]]);
+});
+
+test("a late backup refusal preserves a newer browser capability", async () => {
+  const started = Promise.withResolvers();
+  const response = Promise.withResolvers();
+  let sessions = 0;
+  let capability;
+  const ui = await harness((getCapability) => {
+    capability = getCapability;
+    return {createBackup: async () => { started.resolve(); await response.promise; }};
+  }, "/boards/" + board, {openSession: async () => "session-" + ++sessions});
+  const panel = ui.renderBoardActions(board, [], () => [], () => tag(board, 1), async () => {}, {sync() {}, require() {}});
+  ui.nodes.main.append(panel);
+  ui.find(panel, "button", "Create backup").click();
+  await started.promise;
+  assert.equal(capability(), "session-1");
+  await ui.readWithSession(async () => {
+    if (capability() === "session-1") throw new ApiError("http_error", {status: 401});
+  });
+  response.reject(new ApiError("http_error", {status: 401}));
+  await ui.settled();
+  assert.equal(capability(), "session-2");
+  assert.match(panel.textContent, /The service refused to create the backup/);
+  assert.equal(sessions, 2);
+});
+
 test("publication keeps original ID and blocks replacement until explicit status refresh reaches terminal", async () => {
   const ids = [];
   let state = "running";
@@ -1174,8 +1314,9 @@ test("publication keeps original ID and blocks replacement until explicit status
   const inspection = {sync() {}, require() {}};
   const panel = ui.renderBoardActions(board, [], () => [], () => tag(board, 1), async () => {}, inspection);
   ui.nodes.main.append(panel);
-  ui.submit(panel, "Create backup"); await ui.settled();
-  const publish = ui.submit(panel, "Publish backup"); await ui.settled();
+  ui.find(panel, "button", "Create backup").click(); await ui.settled();
+  const publish = ui.find(panel, "button", "Publish backup");
+  publish.click(); await ui.settled();
   assert.equal(publish.disabled, true);
   const status = ui.find(panel, "button", "Refresh publication status");
   assert.equal(status.hidden, false);
@@ -1193,6 +1334,7 @@ test("publication keeps original ID and blocks replacement until explicit status
   assert.equal(ids.length, 1);
   assert.equal(ui.find(revisited, "button", "Publish backup").disabled, false);
   assert.equal(revisitedStatus.hidden, true);
+  assert.match(revisited.textContent, /Publication succeeded/);
 });
 
 test("known publication refusal clears pending status and permits an explicit later attempt", async () => {
@@ -1202,44 +1344,60 @@ test("known publication refusal clears pending status and permits an explicit la
   const ui = await harness(api);
   const panel = ui.renderBoardActions(board, [], () => [], () => tag(board, 1), async () => {}, {sync() {}, require() {}});
   ui.nodes.main.append(panel);
-  ui.submit(panel, "Create backup"); await ui.settled();
-  const publish = ui.submit(panel, "Publish backup"); await ui.settled();
+  ui.find(panel, "button", "Create backup").click(); await ui.settled();
+  const publish = ui.find(panel, "button", "Publish backup");
+  publish.click(); await ui.settled();
   assert.equal(writes, 1);
   assert.equal(publish.disabled, false);
   assert.equal(ui.find(panel, "button", "Refresh publication status").hidden, true);
 });
 
-test("an older publication status response cannot clear a newer pending publication", async () => {
+test("publication submission and refresh stay scoped across navigation without duplicate requests", async () => {
   const ids = [];
-  let oldReads = 0;
-  let releaseOld;
+  const reads = [];
+  const dispatch = Promise.withResolvers();
+  const finish = Promise.withResolvers();
   const status = (state) => ({data: {state, error_code: null}});
-  const api = {createBackup: async () => {}, getBackup: async () => ({data: {id: backup, board_revision: 1, size: 0, sha2_256: "0".repeat(64), attachment_ids: []}}),
-    publishBackup: async (id) => { ids.push(id); },
-    getPublication: async (id) => {
-      if (id !== ids[0]) return status("running");
-      oldReads++;
-      if (oldReads === 2) return new Promise((resolve) => { releaseOld = () => resolve(status("succeeded")); });
-      return status(oldReads === 1 ? "running" : "succeeded");
+  const api = {createBackup: async () => {}, getBackup: async (id) => backupReceipt(id),
+    publishBackup: async (...args) => { ids.push(args); await dispatch.promise; },
+    getPublication: async (...args) => {
+      reads.push(args);
+      if (reads.length === 2) return finish.promise;
+      return status("running");
     }};
   const ui = await harness(api);
-  const render = () => ui.renderBoardActions(board, [], () => [], () => tag(board, 1), async () => {}, {sync() {}, require() {}});
-  const panel = render(); ui.nodes.main.append(panel);
-  ui.submit(panel, "Create backup"); await ui.settled();
-  ui.submit(panel, "Publish backup"); await ui.settled();
-  ui.find(panel, "button", "Refresh publication status").click(); await ui.settled();
-  assert.ok(releaseOld);
-  const revisited = render(); ui.nodes.main.replaceChildren(revisited);
-  const refreshStatus = ui.find(revisited, "button", "Refresh publication status");
-  refreshStatus.click(); await ui.settled();
-  const publish = ui.submit(revisited, "Publish backup"); await ui.settled();
+  const render = (id = board) => {
+    const panel = ui.renderBoardActions(id, [], () => [], () => tag(id, 1), async () => {}, {sync() {}, require() {}});
+    ui.nodes.main.replaceChildren(panel);
+    return panel;
+  };
+  const panel = render();
+  const control = (view, label) => ui.find(view, "button", label);
+  control(panel, "Create backup").click(); await ui.settled();
+  control(panel, "Publish backup").click();
+  assert.equal(ui.busy(), false);
+  const other = render(lane);
+  assert.doesNotMatch(other.textContent, /Submitting publication/);
+  const duringPost = render();
+  assert.match(duringPost.textContent, /Submitting publication/);
+  control(duringPost, "Publish backup").click();
+  control(duringPost, "Refresh publication status").click();
+  assert.equal(ids.length, 1);
+  assert.deepEqual(reads, []);
+  dispatch.resolve(); await ui.settled();
+  assert.match(duringPost.textContent, /Publication running/);
+
+  control(duringPost, "Refresh publication status").click(); await ui.settled();
+  const duringRead = render();
+  control(duringRead, "Refresh publication status").click();
+  assert.deepEqual(reads, [ids[0], ids[0]]);
+  assert.equal(control(duringRead, "Publish backup").disabled, true);
+  finish.resolve(status("failed")); await ui.settled();
+  assert.match(duringRead.textContent, /Publication failed/);
+  control(duringRead, "Publish backup").click(); await ui.settled();
   assert.equal(ids.length, 2);
-  assert.equal(publish.disabled, true);
-  releaseOld(); await ui.settled();
-  refreshStatus.click(); await ui.settled();
-  assert.equal(publish.disabled, true);
-  assert.equal(refreshStatus.hidden, false);
-  assert.match(revisited.textContent, /Publication running/);
+  assert.notEqual(ids[1][0], ids[0][0]);
+  assert.deepEqual(ids[1].slice(1), ids[0].slice(1));
 });
 
 

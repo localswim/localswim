@@ -44,8 +44,8 @@ async function harness(api, pathname = "/boards/" + board, {
     setAttribute(key, value) { this.attributes[key] = value; }
     removeAttribute(key) { delete this.attributes[key]; }
     addEventListener(key, handler) { (this.events[key] ??= []).push(handler); }
-    dispatch(key) { for (const handler of this.events[key] ?? []) handler({preventDefault() {}}); }
-    click() { if (!this.disabled) this.dispatch("click"); }
+    dispatch(key, options) { for (const handler of this.events[key] ?? []) handler({preventDefault() {}, ...options}); }
+    click() { if (!this.disabled) this.dispatch("click", {button: 0}); }
     focus(options) { document.activeElement = this; this.focusOptions = options; }
     closest(selector) { if (selector === '[data-unavailable="true"]' && this.dataset.unavailable === "true") return this; return this.parent?.closest(selector) ?? null; }
     contains(node) { return node === this || this.children.some((child) => child.contains(node)); }
@@ -121,7 +121,7 @@ function boardApi() {
     getSession: async () => ({data: {kind: "human", principal_id: user}}), listBoards: async () => page("boards", [{id: board, name: "Board"}]),
     getBoardAvailability: async () => ({data: {id: board, name: "Board", availability: "open", policy_id: backup, revision}, etag: tag(board, revision)}),
     getBoardLanes: async () => ({data: {board: {id: board, name: "Board", policy_id: backup, revision}, cards: saved ? [saved] : []}, etag: tag(board, revision)}),
-    getPolicy: async () => ({data: {id: backup, board_id: board, resource_grants: [{user_id: user, capabilities: ["read", "create_card"]}],
+    getPolicy: async () => ({data: {id: backup, board_id: board, resource_grants: [{user_id: user, capabilities: ["read", "create_card", "manage_relationships"]}],
       create_grants: [{user_id: user, lane_id: lane}], move_grants: []}}),
     getBoardIfChanged: async () => ({data: null}), listLanes: async () => page("lanes", lanes),
     listPriorities: async () => page("priorities", [{id: priority, label: "Normal"}]),
@@ -2086,6 +2086,197 @@ test("a live drawer read failure preserves the original approval receipt inspect
   assert.equal(details.hidden, true);
   assert.deepEqual(inspections, [originalInspection, originalInspection, originalInspection]);
   assert.equal(approvals.length, 1);
+});
+
+test("hierarchy opens an archived child and returns to the parent with its draft", async () => {
+  const {api} = boardApi();
+  const getCard = api.getCard;
+  const parent = {...(await getCard(card)).data, parent_id: null, child_ids: [backup]};
+  const child = {...parent, id: backup, ticket: 8, title: "Archived child",
+    archived: true, parent_id: parent.id, child_ids: []};
+  api.getCard = async (id) => ({data: id === parent.id ? parent : child, etag: tag(id, 1)});
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details} = ui.nodes;
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.find(details, "a", "#8 Archived child"));
+  const childLink = ui.find(details, "a", "#8 Archived child");
+  assert.equal(childLink.parent.ownText, "Child ");
+  assert.equal(childLink.href, "/boards/" + board + "?ticket=8");
+  ui.field(details, "Description").value = "Parent draft";
+  childLink.click();
+
+  await until(() => ui.find(details, "a", "#1 Original"));
+  const parentLink = ui.find(details, "a", "#1 Original");
+  assert.equal(parentLink.parent.ownText, "Parent ");
+  assert.ok(ui.find(details, "h2", "#8 Archived child"));
+  assert.ok(ui.find(details, "p", "Archived"));
+  parentLink.click();
+
+  await until(() => ui.find(details, "h2", "#1 Original"));
+  assert.equal(ui.field(details, "Description").value, "Parent draft");
+});
+
+test("new card resolves typed seed rows and submits one atomic create with the captured values", async () => {
+  const {api} = boardApi();
+  const original = (await api.getCard(card)).data;
+  const target = {...original, id: backup, board_id: board, ticket: 8, archived: true};
+  const reads = [];
+  const writes = [];
+  const lookup = Promise.withResolvers();
+  api.listCards = async (id, query) => {
+    reads.push([id, {...query}]);
+    await lookup.promise;
+    return page("cards", [target]);
+  };
+  api.createCard = async (draft) => { writes.push(draft); };
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
+  const add = ui.find(main, "button", "Add relationship");
+  const rows = () => add.parent.querySelectorAll("fieldset");
+  ui.field(main, "New title").value = "Seeded card";
+  add.click();
+  ui.field(rows()[0], "Target ticket").value = "8";
+  ui.field(rows()[0], "Link type").value = "blocks";
+  ui.field(rows()[1], "Target ticket").value = "8";
+  ui.field(rows()[1], "Link type").value = "referenced_by";
+  ui.submit(main, "Create card");
+  await until(() => reads.length === 1);
+  ui.field(rows()[1], "Link type").value = "duplicates";
+  lookup.resolve();
+  await ui.settled();
+
+  assert.deepEqual(reads, [[board, {ticket: 8, archived: "include", limit: 2}]]);
+  assert.equal(writes.length, 1);
+  const {id, ...request} = writes[0];
+  assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(request.expected_board_etag, tag(board, 1));
+  assert.equal(request.lane_id, lane);
+  assert.equal(request.title, "Seeded card");
+  assert.deepEqual(Array.from(request.relationships, ({target_card_id, kind}) => [target_card_id, kind]).flat(),
+    [target.id, "blocks", target.id, "referenced_by"]);
+  assert.match(ui.nodes.status.textContent, /Card created/);
+  assert.equal(rows().length, 1);
+  assert.equal(ui.field(rows()[0], "Target ticket").value, "8");
+  assert.equal(ui.field(rows()[0], "Link type").value, "duplicates");
+});
+
+test("withdrawing relationship permission preserves seed drafts and still permits a plain card", async () => {
+  const {api} = boardApi();
+  const readPolicy = api.getPolicy;
+  let canLink = true;
+  api.getPolicy = async () => {
+    const reply = await readPolicy();
+    if (!canLink) reply.data.resource_grants[0].capabilities = ["read", "create_card"];
+    return reply;
+  };
+  const writes = [];
+  api.createCard = async (draft) => { writes.push(draft); };
+  let targetReads = 0;
+  api.listCards = async () => {
+    targetReads++;
+    return page("cards", []);
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main, refresh} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
+  const panel = ui.find(main, "button", "Add relationship").parent;
+  const target = ui.field(panel, "Target ticket");
+  target.value = "7";
+  canLink = false;
+  refresh.click();
+  await until(() => panel.hidden);
+  assert.equal(target.value, "7");
+
+  ui.field(main, "New title").value = "Plain card";
+  ui.submit(main, "Create card");
+  await ui.settled();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].relationships, undefined);
+  assert.equal(writes[0].expected_board_etag, tag(board, 1));
+  assert.equal(targetReads, 0);
+
+  canLink = true;
+  refresh.click();
+  await until(() => !panel.hidden);
+  assert.equal(target.value, "7");
+});
+
+test("invalid seed target preserves all drafts and sends no create", async () => {
+  const {api} = boardApi();
+  const original = (await api.getCard(card)).data;
+  api.listCards = async (_id, {ticket}) => page("cards", ticket === original.ticket ? [original] : []);
+  let writes = 0;
+  api.createCard = async () => { writes++; };
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
+  const rows = () => ui.find(main, "button", "Add relationship").parent.querySelectorAll("fieldset");
+  ui.find(main, "button", "Add relationship").click();
+  ui.field(main, "New title").value = "Draft with missing target";
+  ui.field(rows()[0], "Target ticket").value = "1";
+  ui.field(rows()[1], "Target ticket").value = "999";
+  ui.field(rows()[1], "Link type").value = "duplicates";
+  ui.submit(main, "Create card");
+  await ui.settled();
+
+  assert.equal(writes, 0);
+  assert.match(ui.nodes.status.textContent, /existing ticket/);
+  await ui.navigate("/");
+  await ui.navigate("/boards/" + board);
+  assert.equal(ui.field(main, "New title").value, "Draft with missing target");
+  assert.equal(ui.field(rows()[0], "Target ticket").value, "1");
+  assert.equal(ui.field(rows()[1], "Target ticket").value, "999");
+  assert.equal(ui.field(rows()[1], "Link type").value, "duplicates");
+});
+
+test("uncertain seeded create reads the original ID without replay and clears only confirmed rows", async () => {
+  const {api} = boardApi();
+  const getCard = api.getCard;
+  const original = (await getCard(card)).data;
+  const dispatched = Promise.withResolvers();
+  const finishWrite = Promise.withResolvers();
+  const writes = [];
+  const readbacks = [];
+  api.listCards = async () => page("cards", [original]);
+  api.createCard = async (draft) => {
+    writes.push(draft);
+    dispatched.resolve();
+    await finishWrite.promise;
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  api.getCard = async (id) => {
+    readbacks.push(id);
+    return {data: {...original, id, title: "Created before the response was lost"}, etag: tag(id, 2)};
+  };
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
+  const rows = () => ui.find(main, "button", "Add relationship").parent.querySelectorAll("fieldset");
+  ui.field(main, "New title").value = "Create with readback";
+  ui.field(rows()[0], "Target ticket").value = "1";
+  ui.submit(main, "Create card");
+  await dispatched.promise;
+  await ui.navigate("/");
+  await ui.navigate("/boards/" + board);
+  ui.find(main, "button", "Add relationship").click();
+  ui.field(rows()[1], "Target ticket").value = "5";
+  finishWrite.resolve();
+  await ui.settled();
+
+  assert.equal(writes.length, 1);
+  assert.deepEqual(readbacks, [writes[0].id]);
+  assert.equal(rows().length, 1);
+  assert.equal(ui.field(rows()[0], "Target ticket").value, "5");
 });
 
 test("live link repaint keeps the dirty selector, focus, and its relationship revision", async (t) => {

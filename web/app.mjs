@@ -12,7 +12,8 @@ import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
  * actor_id: string, board_id: string, at: string, revision: number, before: string|null, after: string|null}} Change */
 /** @typedef {import("./api.mjs").Publishing} Publishing */
 /** @typedef {{id: string, name: string, revision: number, policy_id: string, default_owner_id: string, user_css?: string, notifications?: object, publishing?: unknown}} Board */
-/** @typedef {{actor: string, create: Set<string>, move: Map<string, Set<string>>, canClose: boolean}} Workflow */
+/** @typedef {{actor: string, create: Set<string>, move: Map<string, Set<string>>,
+ * canClose: boolean, canManageRelationships: boolean}} Workflow */
 /** @typedef {{blocked: number, needs_input: number, ready_for_review: number}} Attention */
 /** @typedef {{id: string, name: string|null, attention: Attention|null, last_card_edit_at: string|null}} BoardSummary */
 /** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string, approval_enabled: boolean}} Lane */
@@ -20,7 +21,10 @@ import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
 /** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number, board_id: string, active: boolean, previewable: boolean, revision: number, sha2_256: string}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
  * owner_id: string, priority_id: string, ticket: number, revision: number, comment_count: number, attachment_count: number,
- * archived: boolean, cover_attachment_id: string|null}} Card */
+ * archived: boolean, cover_attachment_id: string|null, parent_id: string|null, child_ids: string[]}} Card */
+/** @typedef {{ticket: string, kind: RelationshipKind}} RelationshipSeedDraft */
+/** @typedef {RelationshipSeedDraft & {row: RelationshipSeedDraft}} SubmittedRelationshipSeed */
+/** @typedef {{rows: RelationshipSeedDraft[], discard?: (submitted: SubmittedRelationshipSeed[]) => void}} RelationshipSeedState */
 /** @typedef {{data: object, etag: string|null}} Reply */
 /** @typedef {() => Promise<void|boolean>} InspectionRead */
 /** @typedef {{scope: string, label: string, require: (read: InspectionRead) => void,
@@ -75,6 +79,8 @@ let retainBoardView;
 const cardDrafts = new Map();
 /** @type {Map<string, string[]>} */
 const boardDrafts = new Map();
+/** @type {Map<string, RelationshipSeedState>} */
+const relationshipSeedDrafts = new Map();
 /** @type {Map<string, BoardView>} */
 const boardViews = new Map();
 /** @type {Map<string, boolean>} */
@@ -596,6 +602,112 @@ function ticketInput() {
   return control;
 }
 
+/** @param {RelationshipSeedDraft} row @param {SubmittedRelationshipSeed[]} submitted */
+function matchesSubmittedSeed(row, submitted) {
+  return submitted.some((seed) => seed.row === row && seed.ticket === row.ticket && seed.kind === row.kind);
+}
+
+/** @param {string} boardId */
+function renderRelationshipSeeds(boardId) {
+  const panel = element("details");
+  const list = element("div");
+  const state = relationshipSeedDrafts.get(boardId) ?? { rows: [] };
+  relationshipSeedDrafts.set(boardId, state);
+  /** @type {Map<RelationshipSeedDraft, {node: HTMLElement, ticket: HTMLInputElement, kind: HTMLSelectElement}>} */
+  const controls = new Map();
+  const add = button("Add relationship", () => {
+    if (state.rows.length >= 1000) return;
+    append({ ticket: "", kind: "relates_to" }).focus();
+    add.disabled = state.rows.length >= 1000;
+  });
+  panel.append(element("summary", "Link the new card"), list, add);
+
+  /** @param {RelationshipSeedDraft} row */
+  function mount(row) {
+    const node = element("fieldset");
+    const ticket = ticketInput();
+    ticket.value = row.ticket;
+    const kind = select(relationshipChoices, row.kind);
+    node.append(element("legend", "Relationship"), field("Target ticket", ticket), field("Link type", kind),
+      button("Remove relationship", () => {
+        remove(row);
+        add.focus();
+      }));
+    controls.set(row, { node, ticket, kind });
+    list.append(node);
+    return ticket;
+  }
+
+  /** @param {RelationshipSeedDraft} row */
+  function append(row) {
+    state.rows.push(row);
+    return mount(row);
+  }
+
+  /** @param {RelationshipSeedDraft} row */
+  function remove(row) {
+    controls.get(row)?.node.remove();
+    controls.delete(row);
+    state.rows = state.rows.filter((candidate) => candidate !== row);
+    add.disabled = false;
+  }
+
+  function syncValues() {
+    for (const [row, { ticket, kind }] of controls) {
+      row.ticket = ticket.value;
+      row.kind = /** @type {RelationshipKind} */ (kind.value);
+    }
+  }
+
+  for (const row of state.rows) mount(row);
+  if (!state.rows.length) append({ ticket: "", kind: "relates_to" });
+  panel.open = state.rows.some((row) => row.ticket !== "");
+  add.disabled = state.rows.length >= 1000;
+  state.discard = (submitted) => {
+    syncValues();
+    for (const row of state.rows) {
+      if (matchesSubmittedSeed(row, submitted)) remove(row);
+    }
+    if (!state.rows.length) append({ ticket: "", kind: "relates_to" });
+  };
+  return {
+    panel,
+    capture() {
+      syncValues();
+      return state.rows.filter((row) => row.ticket !== "").map((row) => ({ ...row, row }));
+    },
+    /** @param {SubmittedRelationshipSeed[]} submitted */
+    clearSubmitted(submitted) {
+      if (!submitted.length) return;
+      if (state.discard) state.discard(submitted);
+      else state.rows = state.rows.filter((row) => !matchesSubmittedSeed(row, submitted));
+    },
+    retain() {
+      syncValues();
+      delete state.discard;
+    },
+  };
+}
+
+/** @param {string} boardId @param {SubmittedRelationshipSeed[]} submitted @param {() => boolean} isCurrent */
+async function resolveRelationshipSeeds(boardId, submitted, isCurrent) {
+  /** @type {Map<number, string>} */
+  const targets = new Map();
+  for (const { ticket } of submitted) {
+    const number = Number(ticket);
+    if (!isCurrent() || !Number.isSafeInteger(number) || number < 1) throw new ApiError("invalid_target");
+    if (targets.has(number)) continue;
+    const target = await readWithSession(() => findCardByTicket(boardId, number));
+    if (!target || !isCurrent()) throw new ApiError("invalid_target");
+    targets.set(number, target.id);
+  }
+  return submitted.map(({ ticket, kind }) => {
+    const id = targets.get(Number(ticket));
+    if (!id) throw new ApiError("invalid_target");
+    return { target_card_id: id, kind };
+  });
+}
+
 /** @param {string} name */
 function downloadName(name) {
   const safe = name.replace(/[<>:"/\\|?*\p{Cc}\p{Cf}]/gu, "_").replace(/^[ .]+|[ .]+$/g, "");
@@ -677,6 +789,11 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     const historyPanel = element("details");
     const historyList = element("div");
     const relationshipList = element("div");
+    const hierarchy = element("section");
+    const hierarchyList = element("div");
+    hierarchy.append(element("h3", "Hierarchy"), hierarchyList);
+    hierarchy.hidden = true;
+    let hierarchyRead = 0;
     const archiveAction = element("div");
     const approvalAction = element("div");
     let attachmentGeneration = 0;
@@ -757,6 +874,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         view.dataset.unavailable = "true";
         ++listRead;
         ++relationshipRead;
+        ++hierarchyRead;
         ++historyRead;
         clearPreviews();
         heading.textContent = "Card unavailable";
@@ -764,6 +882,8 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         commentList.replaceChildren();
         attachmentList.replaceChildren();
         relationshipList.replaceChildren();
+        hierarchy.hidden = true;
+        hierarchyList.replaceChildren();
         historyList.replaceChildren();
         archiveAction.hidden = true;
         approvalAction.hidden = true;
@@ -780,9 +900,60 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     cardInspection = inspection;
 
     /** @param {Card} saved */
+    async function refreshHierarchy(saved) {
+      const read = ++hierarchyRead;
+      const ids = [...(saved.parent_id ? [saved.parent_id] : []), ...(saved.child_ids ?? [])];
+      hierarchy.hidden = ids.length === 0;
+      if (!ids.length) {
+        hierarchyList.replaceChildren();
+        return;
+      }
+      const isCurrent = () => cardView === activeCard && read === hierarchyRead;
+      try {
+        const targets = await readWithSession(async () => {
+          /** @type {Card[]} */
+          const found = [];
+          for (let i = 0; i < ids.length && isCurrent(); i += 16) {
+            found.push(...await Promise.all(ids.slice(i, i + 16).map(async (id) => {
+              const target = /** @type {Card} */ ((await api.getCard(id)).data);
+              if (target.board_id !== boardId || target.id !== id) throw new ApiError("invalid_response");
+              return target;
+            })));
+          }
+          return found;
+        });
+        if (!isCurrent()) return;
+        const focusedId = [...hierarchyList.querySelectorAll("a")].find((node) =>
+          node === document.activeElement)?.dataset.hierarchyCardId;
+        const rows = targets.map((target) => {
+          const row = element("p", (target.id === saved.parent_id ? "Parent" : "Child") + " ");
+          const openerLink = element("a", "#" + target.ticket + " " + target.title);
+          openerLink.href = ticketHref(boardId, target.ticket);
+          openerLink.dataset.hierarchyCardId = target.id;
+          openerLink.addEventListener("click", (event) => {
+            if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+            event.preventDefault();
+            if (!writing && cardView === activeCard
+                && (savedCard.parent_id === target.id || savedCard.child_ids?.includes(target.id))) {
+              void openCard(boardId, target, lanes, users, priorities, boardTag, reloadBoard, currentWorkflow, opener);
+            }
+          });
+          row.append(openerLink);
+          return row;
+        });
+        hierarchyList.replaceChildren(...rows);
+        if (focusedId) [...hierarchyList.querySelectorAll("a")].find((node) =>
+          node.dataset.hierarchyCardId === focusedId)?.focus({ preventScroll: true });
+      } catch {
+        if (isCurrent()) hierarchyList.replaceChildren(element("p", "Hierarchy could not be read."));
+      }
+    }
+
+    /** @param {Card} saved */
     function showCurrent(saved) {
       heading.textContent = `#${saved.ticket} ${saved.title}`;
       updateActions(saved);
+      void refreshHierarchy(saved);
       const body = element("p", saved.description);
       body.className = "body-text";
       const savedLane = lanes.find(({ id }) => id === saved.lane_id);
@@ -1287,7 +1458,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       moveAction,
       form("Assign owner", [field("Owner", owner)], (submit) => void save({ owner_id: owner.value }, submit)),
       priorityAction,
-      element("h3", "Relationships"), relationshipList, addLink,
+      hierarchy, element("h3", "Relationships"), relationshipList, addLink,
       element("h3", "Comments"), commentList,
       form("Post comment", [field("Comment", comment)], (submit) => {
         const id = crypto.randomUUID();
@@ -1728,9 +1899,10 @@ async function readWorkflow(board, principalId, signal) {
       move_grants?: {user_id?: unknown, from_lane_id?: unknown, to_lane_id?: unknown}[]}} */ (reply.data);
     if (policy.id !== board.policy_id || policy.board_id !== board.id || !Array.isArray(policy.resource_grants)
         || !Array.isArray(policy.create_grants) || !Array.isArray(policy.move_grants)) return null;
-    const capabilities = policy.resource_grants.find((grant) => grant?.user_id === principalId)?.capabilities;
+    const granted = policy.resource_grants.find((grant) => grant?.user_id === principalId)?.capabilities;
+    const capabilities = Array.isArray(granted) ? granted : [];
     const create = new Set();
-    if (Array.isArray(capabilities) && capabilities.includes("create_card")) {
+    if (capabilities.includes("create_card")) {
       for (const grant of policy.create_grants) {
         if (grant?.user_id === principalId && typeof grant.lane_id === "string") create.add(grant.lane_id);
       }
@@ -1743,7 +1915,8 @@ async function readWorkflow(board, principalId, signal) {
       destinations.add(grant.to_lane_id);
       move.set(grant.from_lane_id, destinations);
     }
-    return { actor: principalId, create, move, canClose: Array.isArray(capabilities) && capabilities.includes("close_board") };
+    return { actor: principalId, create, move, canClose: capabilities.includes("close_board"),
+      canManageRelationships: capabilities.includes("manage_relationships") };
   } catch (error) {
     signal.throwIfAborted();
     if (error instanceof ApiError && error.status === 401) throw error;
@@ -2388,14 +2561,11 @@ async function load(savedAvailability) {
     const addTitle = element("input");
     addTitle.required = true;
     const addDescription = element("textarea");
-    const seedTicket = ticketInput();
-    const seedType = select(relationshipChoices, "relates_to");
+    const seeds = renderRelationshipSeeds(board.id);
     const previous = boardDrafts.get(board.id);
     addTitle.value = previous?.[0] ?? "";
     addDescription.value = previous?.[1] ?? "";
     let addLane = previous?.[2] ?? "";
-    seedTicket.value = previous?.[3] ?? "";
-    if (previous?.[4] && Object.hasOwn(relationshipLabels, previous[4])) seedType.value = previous[4];
     const editor = element("section");
     editor.className = "editor";
     const inspection = createInspection(main, () => view === activeView, reloadBoard, "board", "board:" + board.id);
@@ -2417,30 +2587,23 @@ async function load(savedAvailability) {
     function updateNewCardForm() {
       const destination = canCreateIn(addLane) ? lanes.find(({ id }) => id === addLane) : undefined;
       newCard.hidden = !destination;
+      seeds.panel.hidden = workflow?.canManageRelationships !== true;
       if (destination) newCardHeading.textContent = "New card in " + destination.label;
     }
 
-    const seedControls = element("details");
-    seedControls.append(element("summary", "Link the new card"),
-      field("Target ticket", seedTicket), field("Link type", seedType));
-    seedControls.open = Boolean(seedTicket.value);
     newCard.append(newCardHeading, form("Create card", [field("New title", addTitle), field("New description", addDescription),
-      seedControls], (submit) => {
+      seeds.panel], (submit) => {
       if (view !== activeView || newCard.hidden || !canCreateIn(addLane)) return;
       const id = crypto.randomUUID();
       let created = false;
       const draft = { title: addTitle.value, description: addDescription.value, lane_id: addLane };
-      const targetValue = seedTicket.value;
-      const targetTicket = seedTicket.valueAsNumber;
-      const linkKind = /** @type {RelationshipKind} */ (seedType.value);
+      const submitted = workflow?.canManageRelationships === true ? seeds.capture() : [];
       const expected = boardTag;
       void writeResource(submit, async () => {
-        let relationships;
-        if (targetValue !== "") {
-          const target = await readWithSession(() => findCardByTicket(board.id, targetTicket));
-          if (!target || view !== activeView) throw new ApiError("invalid_target");
-          relationships = [{ target_card_id: target.id, kind: linkKind }];
-        }
+        const relationships = submitted.length
+          ? await resolveRelationshipSeeds(board.id, submitted, () => view === activeView)
+          : undefined;
+        if (view !== activeView) throw new ApiError("invalid_target");
         await api.createCard({ ...draft, id, board_id: board.id, expected_board_etag: expected, relationships });
         created = true;
       }, async () => {
@@ -2456,7 +2619,7 @@ async function load(savedAvailability) {
         if (created) {
           if (addTitle.value === draft.title) addTitle.value = "";
           if (addDescription.value === draft.description) addDescription.value = "";
-          if (seedTicket.value === targetValue) seedTicket.value = "";
+          seeds.clearSubmitted(submitted);
         }
         await reloadBoard();
         return created;
@@ -2553,7 +2716,8 @@ async function load(savedAvailability) {
       if (!writing) void openCard(board.id, card, lanes, users, priorities, () => boardTag, reloadBoard, currentWorkflow, opener);
     });
     retainBoardDraft = () => {
-      boardDrafts.set(board.id, [addTitle.value, addDescription.value, addLane, seedTicket.value, seedType.value]);
+      boardDrafts.set(board.id, [addTitle.value, addDescription.value, addLane]);
+      seeds.retain();
       laneEditor.retainDraft();
       boardPublishing.retain();
     };

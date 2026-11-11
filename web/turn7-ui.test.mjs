@@ -4,7 +4,7 @@ import vm from "node:vm";
 import test from "node:test";
 import { newOperationId } from "./operation-id.mjs";
 import {
-  ApiError, createBrowserApi, DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH,
+  ApiError, createBrowserApi, DEFAULT_APPROVAL_COMMENT, MAX_ATTACHMENT_BYTES, MAX_BULK_APPROVAL_COMMENT_LENGTH,
   MAX_LANE_APPROVAL_CARDS, validPublishing,
 } from "./api.mjs";
 import {createBoardRefresh, watchBoard} from "./board-updates.mjs";
@@ -26,6 +26,7 @@ async function harness(api, pathname = "/boards/" + board, {
   storage = tabStorage(),
 } = {}) {
   let document;
+  const downloads = [];
   class Element {
     scrollTop = 0;
     scrollLeft = 0;
@@ -47,8 +48,16 @@ async function harness(api, pathname = "/boards/" + board, {
     setAttribute(key, value) { this.attributes[key] = value; }
     removeAttribute(key) { delete this.attributes[key]; }
     addEventListener(key, handler) { (this.events[key] ??= []).push(handler); }
-    dispatch(key) { for (const handler of this.events[key] ?? []) handler({preventDefault() {}}); }
-    click() { if (!this.disabled) this.dispatch("click"); }
+    dispatch(key, data = {}) {
+      const event = {defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...data};
+      for (const handler of this.events[key] ?? []) handler(event);
+      return event.defaultPrevented;
+    }
+    click() {
+      if (this.disabled) return;
+      if (this.tagName === "a" && this.download) downloads.push(this.download);
+      this.dispatch("click", {button: 0});
+    }
     focus(options) { document.activeElement = this; this.focusOptions = options; }
     closest(selector) { if (selector === '[data-unavailable="true"]' && this.dataset.unavailable === "true") return this; return this.parent?.closest(selector) ?? null; }
     contains(node) { return node === this || this.children.some((child) => child.contains(node)); }
@@ -64,7 +73,20 @@ async function harness(api, pathname = "/boards/" + board, {
     }
     querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; }
   }
-  class Input extends Element { get valueAsNumber() { return Number(this.value); } }
+  class Input extends Element {
+    get valueAsNumber() { return Number(this.value); }
+    get willValidate() {
+      for (let ancestor = this.parent; ancestor; ancestor = ancestor.parent) {
+        if (ancestor.tagName === "fieldset" && ancestor.disabled) return false;
+      }
+      return !this.disabled;
+    }
+    checkValidity() {
+      if (!this.willValidate) return true;
+      if (!this.value) return !this.required;
+      return this.type !== "number" || (this.valueAsNumber >= Number(this.min) && this.valueAsNumber <= Number(this.max));
+    }
+  }
   class Textarea extends Element {
     setCustomValidity(message) { this.validationMessage = message; }
     reportValidity() { return !this.validationMessage; }
@@ -85,18 +107,23 @@ async function harness(api, pathname = "/boards/" + board, {
   const context = vm.createContext({document, window, CSSStyleSheet: StyleSheet,
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
-    Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, newOperationId,
+    Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, MAX_ATTACHMENT_BYTES, newOperationId,
     createBoardRefresh, watchBoard: typeof api.streamEvents === "function" ? watchBoard : async () => {},
     DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH, MAX_LANE_APPROVAL_CARDS,
     createBrowserApi: ({getCapability}) => typeof api === "function" ? api(getCapability) : api,
     openBrowserSession: openSession});
   let source = await fs.readFile(new URL("./app.mjs", import.meta.url), "utf8");
   source = source.replace(/^import \{[^}]+\} from "[^"]+";\r?\n/gm, "").replace(/void load\(\);\s*$/, "");
-  vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing, inspect:()=>cardInspection.inspect()};", context);
+  vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing, uploadingToCard, inspect:()=>cardInspection.inspect()};", context);
   async function settled() { for (let count = 0; count < 40; count++) { await new Promise((resolve) => setTimeout(resolve, 0)); if (!context.hooks.busy()) return; } throw Error("UI did not settle"); }
   const find = (root, tagName, text) => root.querySelectorAll(tagName).find((node) => node.ownText === text);
   const field = (root, label) => find(root, "label", label)?.children[0];
   const submit = (root, label) => { const control = find(root, "button", label); assert.ok(control, label); if (!control.disabled) control.parent.dispatch("submit"); return control; };
+  function submitValidated(root, label) {
+    const control = find(root, "button", label);
+    assert.ok(control, label);
+    if (control.parent.querySelectorAll("input").every((input) => input.checkValidity())) submit(root, label);
+  }
   async function navigate(path) {
     context.location.pathname = path;
     await context.hooks.load();
@@ -108,7 +135,7 @@ async function harness(api, pathname = "/boards/" + board, {
     windowEvents.popstate();
     await settled();
   }
-  return {nodes, ...context.hooks, settled, find, field, submit, navigate, popstate,
+  return {nodes, downloads, ...context.hooks, settled, find, field, submit, submitValidated, navigate, popstate,
     pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement,
     stylesheet: () => document.adoptedStyleSheets[0].text};
 }
@@ -127,9 +154,11 @@ function boardApi() {
   const lanes = [{id: lane, label: "Ready", key: "ready", retired: false, position: 0, role: "ordinary", revision: 1}];
   let patched;
   const api = {
-    getSession: async () => ({data: {kind: "human"}}), listBoards: async () => page("boards", [{id: board, name: "Board"}]),
+    getSession: async () => ({data: {kind: "human", principal_id: user}}), listBoards: async () => page("boards", [{id: board, name: "Board"}]),
     getBoardAvailability: async () => ({data: {id: board, name: "Board", availability: "open", policy_id: backup, revision}, etag: tag(board, revision)}),
-    getBoardLanes: async () => ({data: {board: {id: board, name: "Board", revision}, cards: saved ? [saved] : []}, etag: tag(board, revision)}),
+    getBoardLanes: async () => ({data: {board: {id: board, name: "Board", policy_id: backup, revision}, cards: saved ? [saved] : []}, etag: tag(board, revision)}),
+    getPolicy: async () => ({data: {id: backup, board_id: board, resource_grants: [{user_id: user, capabilities: ["read", "create_card", "manage_relationships"]}],
+      create_grants: [{user_id: user, lane_id: lane}], move_grants: []}}),
     getBoardIfChanged: async () => ({data: null}), listLanes: async () => page("lanes", lanes),
     listPriorities: async () => page("priorities", [{id: priority, label: "Normal"}]),
     listUsers: async () => page("users", [{id: user, label: "Human", kind: "human"}]),
@@ -143,6 +172,102 @@ function boardApi() {
   api.restoreSnapshot = async () => { restore(); };
   return {api, restore, patched: () => patched};
 }
+
+test("creation and keyboard moves use the current actor's directed workflow and original validators", async () => {
+  const {api} = boardApi();
+  const source = (await api.listLanes()).data.lanes[0];
+  const target = {...source, id: backup, label: "Next", position: 1};
+  const forbidden = {...source, id: priority, label: "Other actor", position: 2};
+  const retired = {...source, id: user, label: "Retired", position: 3, retired: true};
+  api.listLanes = async () => page("lanes", [source, target, forbidden, retired]);
+  let actor = user;
+  let policyBoard = board;
+  let mayCreate = true;
+  api.getSession = async () => ({data: {kind: "human", principal_id: actor}});
+  api.getPolicy = async () => ({data: {
+    id: backup, board_id: policyBoard,
+    resource_grants: [{user_id: user, capabilities: mayCreate ? ["read", "create_card"] : ["read"]},
+      {user_id: priority, capabilities: ["read", "create_card"]}],
+    create_grants: [{user_id: user, lane_id: source.id}, {user_id: user, lane_id: retired.id},
+      {user_id: priority, lane_id: forbidden.id}],
+    move_grants: [
+      {user_id: user, from_lane_id: source.id, to_lane_id: target.id},
+      {user_id: user, from_lane_id: target.id, to_lane_id: forbidden.id},
+      {user_id: user, from_lane_id: source.id, to_lane_id: retired.id},
+      {user_id: priority, from_lane_id: source.id, to_lane_id: forbidden.id},
+    ],
+  }});
+  const creates = [];
+  api.createCard = async (input) => creates.push(input);
+  const moves = [];
+  const patch = api.patchCard;
+  let refuse = true;
+  api.patchCard = async (...args) => {
+    moves.push(args);
+    if (refuse) throw new ApiError("http_error", {status: 403});
+    return patch(...args);
+  };
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details, status} = ui.nodes;
+  const addButtons = () => main.querySelectorAll("button").filter((button) => button.dataset.createLane);
+  assert.deepEqual(addButtons().map(({dataset}) => dataset.createLane), [source.id]);
+  ui.submit(main, "Create card");
+  assert.equal(creates.length, 0);
+  addButtons()[0].click();
+  assert.equal(ui.focused(), ui.field(main, "New title"));
+  assert.ok(ui.find(main, "h2", "New card in Ready"));
+  ui.field(main, "New title").value = "  Exact title  ";
+  ui.submit(main, "Create card");
+  await ui.settled();
+  assert.equal(creates.length, 1);
+  assert.match(creates[0].id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.deepEqual([creates[0].board_id, creates[0].lane_id, creates[0].expected_board_etag, creates[0].title],
+    [board, source.id, tag(board, 1), "  Exact title  "]);
+
+  ui.find(main, "button", "#1 Original").click();
+  await ui.settled();
+  const destination = ui.field(details, "Move to lane");
+  assert.deepEqual(destination.options.map(({value}) => value), ["", target.id]);
+  destination.value = forbidden.id;
+  ui.submit(details, "Move card");
+  assert.equal(moves.length, 0);
+  destination.value = target.id;
+  ui.submit(details, "Move card");
+  await ui.settled();
+  assert.equal(moves.length, 1);
+  assert.deepEqual([moves[0][0], moves[0][1], moves[0][2].lane_id], [card, tag(card, 1), target.id]);
+  assert.match(status.textContent, /edit refused/);
+  assert.equal(destination.value, target.id);
+  assert.match(details.textContent, /Lane: Ready/);
+
+  refuse = false;
+  ui.submit(details, "Move card");
+  await ui.settled();
+  assert.equal(moves.length, 2);
+  assert.match(details.textContent, /Lane: Next/);
+  assert.deepEqual(destination.options.map(({value}) => value), ["", forbidden.id]);
+
+  const title = ui.field(main, "New title");
+  title.value = "Draft across policy refresh";
+  mayCreate = false;
+  ui.nodes.refresh.click();
+  await ui.settled();
+  assert.deepEqual(addButtons(), []);
+  assert.equal(title.value, "Draft across policy refresh");
+  assert.equal(title.parent.parent.parent.hidden, true);
+  actor = priority;
+  ui.nodes.refresh.click();
+  await ui.settled();
+  assert.deepEqual(addButtons().map(({dataset}) => dataset.createLane), [forbidden.id]);
+  assert.equal(destination.parent.parent.parent.hidden, true);
+  policyBoard = priority;
+  ui.nodes.refresh.click();
+  await ui.settled();
+  assert.deepEqual(addButtons(), []);
+  assert.ok(ui.find(main, "button", "#1 Original"));
+});
 
 test("lane totals and card counts render authoritative comment and detach readbacks", async () => {
   const {api} = boardApi();
@@ -616,6 +741,7 @@ test("board publishing inspects an uncertain save once and renders automatic pus
   };
   const ui = await harness(api);
   await ui.load();
+  ui.find(ui.nodes.main, "button", "Add card").click();
   const title = ui.field(ui.nodes.main, "New title");
   title.value = "Draft survives publishing";
   const enabled = ui.field(ui.nodes.main, "Enable board publishing");
@@ -1135,6 +1261,151 @@ test("default next-work control omits blank q and sends supported triage filters
   assert.equal(query.has("q"), false);
 });
 
+const backupDigest = "0".repeat(64);
+const backupReceipt = (id, revision = 1) => ({data: {id, board_revision: revision, size: 3,
+  sha2_256: backupDigest, attachment_ids: []}});
+
+test("a delayed backup permits card edits and navigation and downloads the initiating board's earlier revision", async () => {
+  const {api, commit} = changingBoard();
+  delete api.streamEvents;
+  const other = "4cbd90c1-e555-4431-8be2-cf9a96a6bc09";
+  const availability = api.getBoardAvailability;
+  const lanes = api.getBoardLanes;
+  api.listBoards = async () => page("boards", [{id: board, name: "Board"}, {id: other, name: "Other board"}]);
+  api.getBoardAvailability = async (id) => id === board ? availability() : {
+    data: {...(await availability()).data, id: other, name: "Other board"}, etag: tag(other, 1),
+  };
+  api.getBoardLanes = async (id) => id === board ? lanes() : {
+    data: {board: {...(await lanes()).data.board, id: other, name: "Other board", revision: 1}, cards: []},
+    etag: tag(other, 1),
+  };
+  api.patchCard = async (id, expected, patch) => {
+    assert.equal(expected, tag(card, 1));
+    assert.equal(commit(patch.title, lane), 2);
+    return api.getCard(id);
+  };
+  const capture = Promise.withResolvers();
+  const captured = [];
+  api.createBackup = async (...args) => {
+    captured.push(args);
+    await capture.promise;
+  };
+  api.getBackup = async (id, boardId) => {
+    assert.equal(boardId, board);
+    assert.equal(id, captured[0][0]);
+    return backupReceipt(id);
+  };
+  const downloads = [];
+  api.getBackupContent = async (...args) => {
+    downloads.push(args);
+    return new Blob(["ZIP"]);
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details, status} = ui.nodes;
+  const create = () => ui.find(main, "button", "Create backup");
+  create().click();
+  create().click();
+  assert.equal(ui.busy(), false);
+  assert.equal(create().disabled, true);
+  assert.match(main.textContent, /Capturing backup/);
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.field(details, "Title"));
+  ui.field(details, "Title").value = "Edited during capture";
+  ui.submit(details, "Save text");
+  await ui.settled();
+  assert.equal((await api.getCard(card)).data.revision, 2);
+  assert.match(main.textContent, /Capturing backup/);
+
+  await ui.navigate("/boards/" + other);
+  assert.equal(create().disabled, false);
+  assert.doesNotMatch(main.textContent, /Capturing backup/);
+  await ui.navigate("/boards/" + board);
+  assert.equal(create().disabled, true);
+  create().click();
+  assert.equal(captured.length, 1);
+  await ui.navigate("/boards/" + other);
+  const otherStatus = status.textContent;
+  capture.resolve();
+  await ui.settled();
+  assert.doesNotMatch(main.textContent, /Captured revision/);
+  assert.equal(status.textContent, otherStatus);
+  await ui.navigate("/boards/" + board);
+  assert.match(main.textContent, /Captured revision 1 with 0 attachment files/);
+  assert.equal(create().disabled, false);
+  ui.find(main, "button", "Download backup").click();
+  await ui.settled();
+  assert.equal(captured.length, 1);
+  const [captureId, captureBoard, validator] = captured[0];
+  assert.match(captureId, /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(captureBoard, board);
+  assert.equal(validator, tag(board, 1));
+  assert.deepEqual(downloads, [[captureId, 3, backupDigest]]);
+  assert.deepEqual(ui.downloads, ["localswim-" + board + "-r1.zip"]);
+});
+
+test("early backup 404s preserve the original capture across navigation without replaying the POST", async () => {
+  const writes = [];
+  const reads = [];
+  const {api} = boardApi();
+  api.createBackup = async (id) => {
+    writes.push(id);
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  api.getBackup = async (id, boardId) => {
+    reads.push([id, boardId]);
+    if (reads.length <= 2) throw new ApiError("http_error", {status: 404});
+    return backupReceipt(id);
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main} = ui.nodes;
+  const create = () => ui.find(main, "button", "Create backup");
+  const refresh = () => ui.find(main, "button", "Refresh backup status");
+  create().click(); await ui.settled();
+  assert.equal(create().disabled, true);
+  assert.match(main.textContent, /Backup capture could not be confirmed/);
+  assert.equal(ui.busy(), false);
+  refresh().click(); await ui.settled();
+  assert.equal(create().disabled, true);
+  assert.match(main.textContent, /Backup capture could not be confirmed/);
+  create().click();
+  await ui.navigate("/");
+  await ui.navigate("/boards/" + board);
+  assert.equal(create().disabled, true);
+  assert.equal(refresh().hidden, false);
+  create().click();
+  refresh().click(); await ui.settled();
+  assert.equal(create().disabled, false);
+  assert.match(main.textContent, /Captured revision 1/);
+  assert.equal(writes.length, 1);
+  assert.deepEqual(reads, [[writes[0], board], [writes[0], board], [writes[0], board]]);
+});
+
+test("a late backup refusal preserves a newer browser capability", async () => {
+  const started = Promise.withResolvers();
+  const response = Promise.withResolvers();
+  let sessions = 0;
+  let capability;
+  const ui = await harness((getCapability) => {
+    capability = getCapability;
+    return {createBackup: async () => { started.resolve(); await response.promise; }};
+  }, "/boards/" + board, {openSession: async () => "session-" + ++sessions});
+  const panel = ui.renderBoardActions(board, [], () => [], () => tag(board, 1), async () => {}, {sync() {}, require() {}});
+  ui.nodes.main.append(panel);
+  ui.find(panel, "button", "Create backup").click();
+  await started.promise;
+  assert.equal(capability(), "session-1");
+  await ui.readWithSession(async () => {
+    if (capability() === "session-1") throw new ApiError("http_error", {status: 401});
+  });
+  response.reject(new ApiError("http_error", {status: 401}));
+  await ui.settled();
+  assert.equal(capability(), "session-2");
+  assert.match(panel.textContent, /The service refused to create the backup/);
+  assert.equal(sessions, 2);
+});
+
 test("publication keeps original ID and blocks replacement until explicit status refresh reaches terminal", async () => {
   const ids = [];
   let state = "running";
@@ -1145,8 +1416,9 @@ test("publication keeps original ID and blocks replacement until explicit status
   const inspection = {sync() {}, require() {}};
   const panel = ui.renderBoardActions(board, [], () => [], () => tag(board, 1), async () => {}, inspection);
   ui.nodes.main.append(panel);
-  ui.submit(panel, "Create backup"); await ui.settled();
-  const publish = ui.submit(panel, "Publish backup"); await ui.settled();
+  ui.find(panel, "button", "Create backup").click(); await ui.settled();
+  const publish = ui.find(panel, "button", "Publish backup");
+  publish.click(); await ui.settled();
   assert.equal(publish.disabled, true);
   const status = ui.find(panel, "button", "Refresh publication status");
   assert.equal(status.hidden, false);
@@ -1164,6 +1436,7 @@ test("publication keeps original ID and blocks replacement until explicit status
   assert.equal(ids.length, 1);
   assert.equal(ui.find(revisited, "button", "Publish backup").disabled, false);
   assert.equal(revisitedStatus.hidden, true);
+  assert.match(revisited.textContent, /Publication succeeded/);
 });
 
 test("known publication refusal clears pending status and permits an explicit later attempt", async () => {
@@ -1173,44 +1446,73 @@ test("known publication refusal clears pending status and permits an explicit la
   const ui = await harness(api);
   const panel = ui.renderBoardActions(board, [], () => [], () => tag(board, 1), async () => {}, {sync() {}, require() {}});
   ui.nodes.main.append(panel);
-  ui.submit(panel, "Create backup"); await ui.settled();
-  const publish = ui.submit(panel, "Publish backup"); await ui.settled();
+  ui.find(panel, "button", "Create backup").click(); await ui.settled();
+  const publish = ui.find(panel, "button", "Publish backup");
+  publish.click(); await ui.settled();
   assert.equal(writes, 1);
   assert.equal(publish.disabled, false);
   assert.equal(ui.find(panel, "button", "Refresh publication status").hidden, true);
+  assert.match(panel.textContent, /The service refused to publish revision 1/);
 });
 
-test("an older publication status response cannot clear a newer pending publication", async () => {
+test("publication follows its original capture through navigation and a newer backup", async () => {
+  let revision = 1;
+  const backups = new Map();
   const ids = [];
-  let oldReads = 0;
-  let releaseOld;
+  const reads = [];
+  const dispatch = Promise.withResolvers();
+  const finish = Promise.withResolvers();
   const status = (state) => ({data: {state, error_code: null}});
-  const api = {createBackup: async () => {}, getBackup: async () => ({data: {id: backup, board_revision: 1, size: 0, sha2_256: "0".repeat(64), attachment_ids: []}}),
-    publishBackup: async (id) => { ids.push(id); },
-    getPublication: async (id) => {
-      if (id !== ids[0]) return status("running");
-      oldReads++;
-      if (oldReads === 2) return new Promise((resolve) => { releaseOld = () => resolve(status("succeeded")); });
-      return status(oldReads === 1 ? "running" : "succeeded");
+  const api = {createBackup: async (id) => { backups.set(id, revision); },
+    getBackup: async (id) => backupReceipt(id, backups.get(id)),
+    publishBackup: async (...args) => { ids.push(args); await dispatch.promise; },
+    getPublication: async (...args) => {
+      reads.push(args);
+      if (reads.length === 2) return finish.promise;
+      return status(reads.length === 1 ? "running" : "failed");
     }};
   const ui = await harness(api);
-  const render = () => ui.renderBoardActions(board, [], () => [], () => tag(board, 1), async () => {}, {sync() {}, require() {}});
-  const panel = render(); ui.nodes.main.append(panel);
-  ui.submit(panel, "Create backup"); await ui.settled();
-  ui.submit(panel, "Publish backup"); await ui.settled();
-  ui.find(panel, "button", "Refresh publication status").click(); await ui.settled();
-  assert.ok(releaseOld);
-  const revisited = render(); ui.nodes.main.replaceChildren(revisited);
-  const refreshStatus = ui.find(revisited, "button", "Refresh publication status");
-  refreshStatus.click(); await ui.settled();
-  const publish = ui.submit(revisited, "Publish backup"); await ui.settled();
+  const render = (id = board) => {
+    const panel = ui.renderBoardActions(id, [], () => [], () => tag(id, revision), async () => {}, {sync() {}, require() {}});
+    ui.nodes.main.replaceChildren(panel);
+    return panel;
+  };
+  const panel = render();
+  const control = (view, label) => ui.find(view, "button", label);
+  control(panel, "Create backup").click(); await ui.settled();
+  control(panel, "Publish backup").click();
+  assert.equal(ui.busy(), false);
+  const other = render(lane);
+  assert.doesNotMatch(other.textContent, /Submitting publication/);
+  const duringPost = render();
+  assert.match(duringPost.textContent, /Submitting publication for revision 1/);
+  revision = 2;
+  control(duringPost, "Create backup").click(); await ui.settled();
+  assert.match(duringPost.textContent, /Captured revision 2/);
+  assert.match(duringPost.textContent, /Submitting publication for revision 1/);
+  control(duringPost, "Publish backup").click();
+  control(duringPost, "Refresh publication status").click();
+  assert.equal(ids.length, 1);
+  assert.deepEqual(reads, []);
+  dispatch.resolve(); await ui.settled();
+  assert.match(duringPost.textContent, /Publication running for revision 1/);
+
+  control(duringPost, "Refresh publication status").click(); await ui.settled();
+  const duringRead = render();
+  control(duringRead, "Refresh publication status").click();
+  assert.deepEqual(reads, [ids[0], ids[0]]);
+  assert.equal(control(duringRead, "Publish backup").disabled, true);
+  assert.match(duringRead.textContent, /Checking publication status for revision 1/);
+  finish.resolve(status("succeeded")); await ui.settled();
+  assert.match(duringRead.textContent, /Captured revision 2/);
+  assert.match(duringRead.textContent, /Publication succeeded for revision 1/);
+  assert.equal(backups.get(ids[0][2]), 1);
+  control(duringRead, "Publish backup").click(); await ui.settled();
   assert.equal(ids.length, 2);
-  assert.equal(publish.disabled, true);
-  releaseOld(); await ui.settled();
-  refreshStatus.click(); await ui.settled();
-  assert.equal(publish.disabled, true);
-  assert.equal(refreshStatus.hidden, false);
-  assert.match(revisited.textContent, /Publication running/);
+  assert.notEqual(ids[1][0], ids[0][0]);
+  assert.equal(ids[1][1], ids[0][1]);
+  assert.equal(backups.get(ids[1][2]), 2);
+  assert.match(duringRead.textContent, /Publication failed for revision 2/);
 });
 
 
@@ -1225,9 +1527,9 @@ function boardAvailabilityApi() {
   const baseRead = api.getBoardLanes;
   api.getSession = async () => ({data: {kind: "human", principal_id: user, workspace_admin: false}});
   api.getPolicy = async () => ({data: {id: backup, board_id: board, resource_grants: [
-    {user_id: user, capabilities: allowed ? ["read", "close_board"] : ["read"]},
+    {user_id: user, capabilities: allowed ? ["read", "close_board", "create_card"] : ["read", "create_card"]},
     {user_id: priority, capabilities: ["close_board"]},
-  ]}});
+  ], create_grants: [{user_id: user, lane_id: lane}], move_grants: []}});
   api.getBoardAvailability = async () => {
     if (readError) throw readError;
     return {data: {...savedBoard}, etag: tag(board, savedBoard.revision)};
@@ -1263,6 +1565,7 @@ test("board close and reopen use the original tags and retain drafts and selecti
   await ui.load();
   ui.find(main, "button", "#1 Original").click();
   await ui.settled();
+  ui.find(main, "button", "Add card").click();
   ui.field(main, "New title").value = "New card draft";
   ui.field(details, "Description").value = "Saved in memory";
   ui.field(details, "Comment").value = "Unsubmitted comment";
@@ -1989,6 +2292,7 @@ test("live changes coalesce behind one selected-board read and preserve open dra
   await until(() => ui.field(details, "Title"));
   const title = ui.field(details, "Title");
   const comment = ui.field(details, "Comment");
+  ui.find(main, "button", "Add card").click();
   const newTitle = ui.field(main, "New title");
   const preview = () => main.querySelectorAll("input").find((input) => input.dataset.previewLane === lane);
   title.value = "Unsaved title";
@@ -2085,6 +2389,269 @@ test("a live drawer read failure preserves the original approval receipt inspect
   assert.equal(details.hidden, true);
   assert.deepEqual(inspections, [originalInspection, originalInspection, originalInspection]);
   assert.equal(approvals.length, 1);
+});
+
+test("hierarchy opens an archived child and returns to the parent with its draft", async () => {
+  const {api} = boardApi();
+  const getCard = api.getCard;
+  const parent = {...(await getCard(card)).data, parent_id: null, child_ids: [backup]};
+  const child = {...parent, id: backup, ticket: 8, title: "Archived child",
+    archived: true, parent_id: parent.id, child_ids: []};
+  api.getCard = async (id) => ({data: id === parent.id ? parent : child, etag: tag(id, 1)});
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details} = ui.nodes;
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.find(details, "a", "#8 Archived child"));
+  const childLink = ui.find(details, "a", "#8 Archived child");
+  assert.equal(childLink.parent.ownText, "Child ");
+  assert.equal(childLink.href, "/boards/" + board + "?ticket=8");
+  ui.field(details, "Description").value = "Parent draft";
+  childLink.click();
+
+  await until(() => ui.find(details, "a", "#1 Original"));
+  const parentLink = ui.find(details, "a", "#1 Original");
+  assert.equal(parentLink.parent.ownText, "Parent ");
+  assert.ok(ui.find(details, "h2", "#8 Archived child"));
+  assert.ok(ui.find(details, "p", "Archived"));
+  parentLink.click();
+
+  await until(() => ui.find(details, "h2", "#1 Original"));
+  assert.equal(ui.field(details, "Description").value, "Parent draft");
+});
+
+test("new card resolves typed seed rows and submits one atomic create with the captured values", async () => {
+  const {api} = boardApi();
+  const original = (await api.getCard(card)).data;
+  const target = {...original, id: backup, board_id: board, ticket: 8, archived: true};
+  const reads = [];
+  const writes = [];
+  const lookup = Promise.withResolvers();
+  api.listCards = async (id, query) => {
+    reads.push([id, {...query}]);
+    await lookup.promise;
+    return page("cards", [target]);
+  };
+  api.createCard = async (draft) => { writes.push(draft); };
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
+  const add = ui.find(main, "button", "Add relationship");
+  const rows = () => add.parent.querySelectorAll("fieldset");
+  ui.field(main, "New title").value = "Seeded card";
+  add.click();
+  ui.field(rows()[0], "Target ticket").value = "8";
+  ui.field(rows()[0], "Link type").value = "blocks";
+  ui.field(rows()[1], "Target ticket").value = "8";
+  ui.field(rows()[1], "Link type").value = "referenced_by";
+  ui.submit(main, "Create card");
+  await until(() => reads.length === 1);
+  ui.field(rows()[1], "Link type").value = "duplicates";
+  lookup.resolve();
+  await ui.settled();
+
+  assert.deepEqual(reads, [[board, {ticket: 8, archived: "include", limit: 2}]]);
+  assert.equal(writes.length, 1);
+  const {id, ...request} = writes[0];
+  assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(request.expected_board_etag, tag(board, 1));
+  assert.equal(request.lane_id, lane);
+  assert.equal(request.title, "Seeded card");
+  assert.deepEqual(Array.from(request.relationships, ({target_card_id, kind}) => [target_card_id, kind]).flat(),
+    [target.id, "blocks", target.id, "referenced_by"]);
+  assert.match(ui.nodes.status.textContent, /Card created/);
+  assert.equal(rows().length, 1);
+  assert.equal(ui.field(rows()[0], "Target ticket").value, "8");
+  assert.equal(ui.field(rows()[0], "Link type").value, "duplicates");
+});
+
+test("withdrawing relationship permission preserves seed drafts and still permits a plain card", async () => {
+  const {api} = boardApi();
+  const readPolicy = api.getPolicy;
+  let canLink = true;
+  api.getPolicy = async () => {
+    const reply = await readPolicy();
+    if (!canLink) reply.data.resource_grants[0].capabilities = ["read", "create_card"];
+    return reply;
+  };
+  const writes = [];
+  api.createCard = async (draft) => { writes.push(draft); };
+  let targetReads = 0;
+  api.listCards = async () => {
+    targetReads++;
+    return page("cards", []);
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main, refresh} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
+  const panel = ui.find(main, "button", "Add relationship").parent;
+  const target = ui.field(panel, "Target ticket");
+  panel.open = true;
+  target.value = "0";
+  assert.equal(target.checkValidity(), false);
+  canLink = false;
+  refresh.click();
+  await until(() => panel.hidden);
+  assert.equal(target.value, "0");
+  assert.equal(target.willValidate, false);
+  assert.equal(target.checkValidity(), true);
+
+  ui.field(main, "New title").value = "Plain card";
+  ui.submitValidated(main, "Create card");
+  await ui.settled();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].relationships, undefined);
+  assert.equal(writes[0].expected_board_etag, tag(board, 1));
+  assert.equal(targetReads, 0);
+
+  canLink = true;
+  refresh.click();
+  await until(() => !panel.hidden);
+  assert.equal(target.value, "0");
+  assert.equal(target.willValidate, true);
+  assert.equal(target.checkValidity(), false);
+  ui.field(main, "New title").value = "Still blocked";
+  ui.submitValidated(main, "Create card");
+  assert.equal(writes.length, 1);
+});
+
+test("invalid seed target preserves all drafts and sends no create", async () => {
+  const {api} = boardApi();
+  const original = (await api.getCard(card)).data;
+  api.listCards = async (_id, {ticket}) => page("cards", ticket === original.ticket ? [original] : []);
+  let writes = 0;
+  api.createCard = async () => { writes++; };
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
+  const rows = () => ui.find(main, "button", "Add relationship").parent.querySelectorAll("fieldset");
+  ui.find(main, "button", "Add relationship").click();
+  ui.field(main, "New title").value = "Draft with missing target";
+  ui.field(rows()[0], "Target ticket").value = "1";
+  ui.field(rows()[1], "Target ticket").value = "999";
+  ui.field(rows()[1], "Link type").value = "duplicates";
+  ui.submit(main, "Create card");
+  await ui.settled();
+
+  assert.equal(writes, 0);
+  assert.match(ui.nodes.status.textContent, /existing ticket/);
+  await ui.navigate("/");
+  await ui.navigate("/boards/" + board);
+  assert.equal(ui.field(main, "New title").value, "Draft with missing target");
+  assert.equal(ui.field(rows()[0], "Target ticket").value, "1");
+  assert.equal(ui.field(rows()[1], "Target ticket").value, "999");
+  assert.equal(ui.field(rows()[1], "Link type").value, "duplicates");
+});
+
+test("uncertain seeded create reads the original ID and reconciles the reopened form without replay", async () => {
+  const {api} = boardApi();
+  const getCard = api.getCard;
+  const original = (await getCard(card)).data;
+  const dispatched = Promise.withResolvers();
+  const finishWrite = Promise.withResolvers();
+  const writes = [];
+  const readbacks = [];
+  api.listCards = async () => page("cards", [original]);
+  api.createCard = async (draft) => {
+    writes.push(draft);
+    dispatched.resolve();
+    await finishWrite.promise;
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  api.getCard = async (id) => {
+    readbacks.push(id);
+    return {data: {...original, id, title: "Created before the response was lost"}, etag: tag(id, 2)};
+  };
+
+  const ui = await harness(api);
+  await ui.load();
+  const {main} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
+  const rows = () => ui.find(main, "button", "Add relationship").parent.querySelectorAll("fieldset");
+  ui.field(main, "New title").value = "Create with readback";
+  ui.field(main, "New description").value = "Submitted description";
+  ui.field(rows()[0], "Target ticket").value = "1";
+  ui.submit(main, "Create card");
+  await dispatched.promise;
+  await ui.navigate("/");
+  await ui.navigate("/boards/" + board);
+  ui.find(main, "button", "Add relationship").click();
+  ui.field(rows()[1], "Target ticket").value = "5";
+  ui.field(main, "New description").value = "Edited after returning";
+  finishWrite.resolve();
+  await ui.settled();
+
+  assert.equal(writes.length, 1);
+  assert.deepEqual(readbacks, [writes[0].id]);
+  assert.equal(ui.field(main, "New title").value, "");
+  assert.equal(ui.field(main, "New description").value, "Edited after returning");
+  assert.equal(rows().length, 1);
+  assert.equal(ui.field(rows()[0], "Target ticket").value, "5");
+  ui.submitValidated(main, "Create card");
+  assert.equal(writes.length, 1);
+});
+
+
+test("acknowledged seeded create reconciles the originating draft while another board is open", async () => {
+  const {api} = boardApi();
+  const other = "4cbd90c1-e555-4431-8be2-cf9a96a6bc09";
+  const availability = await api.getBoardAvailability();
+  const lanes = await api.getBoardLanes();
+  const policy = await api.getPolicy();
+  const original = (await api.getCard(card)).data;
+  api.listBoards = async () => page("boards", [{id: board, name: "Board"}, {id: other, name: "Other board"}]);
+  api.getBoardAvailability = async (id) => id === board ? availability
+    : {data: {...availability.data, id: other, policy_id: other, name: "Other board"}, etag: tag(other, 1)};
+  api.getBoardLanes = async (id) => id === board ? lanes
+    : {data: {board: {...lanes.data.board, id: other, policy_id: other, name: "Other board"}, cards: []},
+      etag: tag(other, 1)};
+  api.getPolicy = async (id) => id === backup ? policy : {data: {...policy.data, id: other, board_id: other}};
+  api.listCards = async () => page("cards", [original]);
+  const dispatched = Promise.withResolvers();
+  const finishWrite = Promise.withResolvers();
+  const writes = [];
+  api.createCard = async (draft) => {
+    writes.push(draft);
+    dispatched.resolve();
+    await finishWrite.promise;
+  };
+  let readbacks = 0;
+  api.getCard = async () => { readbacks++; };
+
+  const ui = await harness(api, "/boards/" + other);
+  await ui.load();
+  const {main} = ui.nodes;
+  function fillDraft() {
+    ui.find(main, "button", "Add card").click();
+    ui.field(main, "New title").value = "Same title on both boards";
+    ui.field(main, "New description").value = "Same description on both boards";
+    ui.field(main, "Target ticket").value = "1";
+  }
+  fillDraft();
+  await ui.navigate("/boards/" + board);
+  fillDraft();
+  ui.submitValidated(main, "Create card");
+  await dispatched.promise;
+  ui.field(main, "New title").value = "Edited origin title";
+  await ui.navigate("/boards/" + other);
+  finishWrite.resolve();
+  await ui.settled();
+
+  assert.equal(ui.field(main, "New title").value, "Same title on both boards");
+  assert.equal(ui.field(main, "New description").value, "Same description on both boards");
+  assert.equal(ui.field(main, "Target ticket").value, "1");
+  await ui.navigate("/boards/" + board);
+  assert.equal(ui.field(main, "New title").value, "Edited origin title");
+  assert.equal(ui.field(main, "New description").value, "");
+  assert.equal(ui.field(main, "Target ticket").value, "");
+  assert.equal(writes.length, 1);
+  assert.equal(readbacks, 0);
 });
 
 test("live link repaint keeps the dirty selector, focus, and its relationship revision", async (t) => {
@@ -2325,13 +2892,13 @@ test("foreground readback waits for a live read and satisfies its queued invalid
   await ui.load();
   await until(() => streams.length === 1);
   const {main} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
   streams[0].send("snapshot", 1);
   streams[0].send("change", commit("Paused live read"));
   await entered.promise;
   const title = ui.field(main, "New title");
   title.value = "Card being created";
-  ui.field(main, "New card lane").value = lane;
-  ui.submit(main, "Add card");
+  ui.submit(main, "Create card");
   await until(() => writes === 1 && title.value === "");
   streams[0].send("change", commit("Latest saved revision"));
   assert.equal(ui.busy(), true);
@@ -2432,3 +2999,504 @@ test("M63 lane dependency reorder hides disabled lanes and requires two active c
   await ui.settled();
   assert.deepEqual(applies, [[board, lane, tag(board, 1), proposed]]);
 });
+
+const uploadBoard = "b4979c23-4be2-4553-bbeb-66a47b7c021c";
+
+async function attachmentUploadFixture(secondBoard = board, options) {
+  const {api} = boardApi();
+  const initial = (await api.getCard(card)).data;
+  const cards = new Map([
+    [card, {...initial, attachment_count: 0}],
+    [backup, {...initial, id: backup, board_id: secondBoard, title: "Other card", ticket: 2, attachment_count: 0}],
+  ]);
+  const revisions = new Map([[board, 1], [secondBoard, 1]]);
+  const saved = new Map();
+  const calls = [];
+  const readbacks = [];
+  const boardData = (id) => ({id, name: id === board ? "Board" : "Other board", policy_id: backup, revision: revisions.get(id)});
+  api.listCards = async (id, {ticket, archived} = {}) => page("cards", [...cards.values()].filter((entry) =>
+    entry.board_id === id && (ticket === undefined || entry.ticket === ticket) && (archived !== "only" || entry.archived)));
+  api.listBoards = async () => page("boards", [...revisions.keys()].map(boardData));
+  api.getBoardAvailability = async (id) => ({
+    data: {...boardData(id), availability: "open", policy_id: priority}, etag: tag(id, revisions.get(id)),
+  });
+  api.getBoardLanes = async (id) => ({data: {board: boardData(id),
+    cards: [...cards.values()].filter((entry) => entry.board_id === id)}, etag: tag(id, revisions.get(id))});
+  api.getCard = async (id) => ({data: cards.get(id), etag: tag(id, cards.get(id).revision)});
+  api.listAttachments = async (id) => page("attachments", [...saved.values()].filter((entry) => entry.card_id === id));
+  api.getAttachment = async (id) => {
+    readbacks.push(id);
+    const item = saved.get(id);
+    if (!item) throw new ApiError("http_error", {status: 404});
+    return {data: item, etag: tag(id, item.revision)};
+  };
+  function commit(id, file, attachmentId) {
+    const prior = cards.get(id);
+    const revision = revisions.get(prior.board_id) + 1;
+    revisions.set(prior.board_id, revision);
+    cards.set(id, {...prior, revision, attachment_count: prior.attachment_count + 1});
+    const item = {
+      id: attachmentId, card_id: id, board_id: prior.board_id, original_name: file.name, size: file.size, revision,
+      added_by: user, active: true, previewable: false, created_at: "2026-11-10 00:00:00+00:00",
+    };
+    saved.set(attachmentId, item);
+    return {data: item};
+  }
+  const behavior = {write: commit};
+  api.uploadAttachment = async (id, expected, file, attachmentId) => {
+    calls.push({id, expected, name: file.name, attachmentId});
+    assert.equal(expected, tag(id, cards.get(id).revision));
+    assert.match(attachmentId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    return behavior.write(id, file, attachmentId);
+  };
+  let getCapability;
+  const ui = await harness((readCapability) => {
+    getCapability = readCapability;
+    return api;
+  }, "/boards/" + board, options);
+  await ui.load();
+  ui.find(ui.nodes.main, "button", "#1 Original").click();
+  await until(() => ui.find(ui.nodes.details, "button", "Upload attachments"));
+  const choose = (...files) => {
+    ui.field(ui.nodes.details, "Files").files = files;
+    return ui.submit(ui.nodes.details, "Upload attachments");
+  };
+  const paste = (files, types = ["Files"], target = ui.nodes.details) =>
+    ui.nodes.details.dispatch("paste", {target, clipboardData: {files, types}});
+  return {ui, api, cards, calls, readbacks, saved, behavior, commit, choose, paste, getCapability};
+}
+
+test("attachment picker preflights every file, permits exactly 10 MiB and serializes by card ETag", async () => {
+  const {ui, calls, behavior, commit, choose} = await attachmentUploadFixture();
+  const first = Promise.withResolvers();
+  behavior.write = async (id, file, attachmentId) => {
+    if (file.name === "limit.dat") await first.promise;
+    if (file.name === "refused.dat") throw new ApiError("invalid_input", {status: 422});
+    return commit(id, file, attachmentId);
+  };
+  const draft = ui.field(ui.nodes.details, "Comment");
+  draft.value = "Keep the draft";
+  assert.equal(ui.field(ui.nodes.details, "Files").multiple, true);
+  choose({name: "limit.dat", size: MAX_ATTACHMENT_BYTES}, {name: "oversized.dat", size: MAX_ATTACHMENT_BYTES + 1},
+    {name: "refused.dat", size: 1}, {name: "last.dat", size: 1});
+  assert.equal(calls.length, 1);
+  assert.match(ui.nodes.details.textContent, /limit\.dat — Uploading…/);
+  assert.match(ui.nodes.details.textContent, /oversized\.dat — Refused\. Files are limited to 10 MiB/);
+  assert.match(ui.nodes.details.textContent, /last\.dat — Waiting/);
+  assert.equal(ui.find(ui.nodes.details, "button", "Post comment").disabled, true);
+  assert.equal(ui.find(ui.nodes.details, "button", "Close card").disabled, false);
+  first.resolve();
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.deepEqual(calls.map(({name, expected}) => [name, expected]), [
+    ["limit.dat", tag(card, 1)], ["refused.dat", tag(card, 2)], ["last.dat", tag(card, 2)],
+  ]);
+  assert.match(ui.nodes.details.textContent, /4 of 4 files processed/);
+  assert.match(ui.nodes.details.textContent, /refused\.dat — Upload refused/);
+  assert.match(ui.nodes.details.textContent, /last\.dat — Uploaded/);
+  assert.equal(ui.find(ui.nodes.details, "button", "Post comment").disabled, false);
+  assert.equal(draft.value, "Keep the draft");
+});
+
+test("attachment paste preserves ordinary text paste and independent card uploads across board navigation", async () => {
+  const {ui, calls, behavior, commit, paste} = await attachmentUploadFixture(uploadBoard);
+  const first = Promise.withResolvers();
+  behavior.write = async (id, file, attachmentId) => {
+    if (file.name === "origin.png") await first.promise;
+    return commit(id, file, attachmentId);
+  };
+  const editor = ui.field(ui.nodes.details, "Description");
+  const clip = {name: "origin.png", type: "image/png", size: 20};
+  assert.equal(paste([], ["text/plain"], editor), false);
+  assert.equal(paste([clip], ["Files", "text/plain"], editor), false);
+  assert.equal(paste([{name: "plain.txt", type: "text/plain", size: 20}]), false);
+  assert.equal(calls.length, 0);
+  assert.equal(paste([clip, {...clip, name: "origin-second.png"}]), true);
+  await ui.navigate("/boards/" + uploadBoard);
+  ui.find(ui.nodes.main, "button", "#2 Other card").click();
+  await until(() => ui.find(ui.nodes.details, "button", "Upload attachments"));
+  assert.doesNotMatch(ui.nodes.details.textContent, /origin\.png/);
+  assert.equal(paste([{...clip, name: "other.png"}]), true);
+  await until(() => !ui.uploadingToCard(uploadBoard, backup));
+  assert.equal(ui.uploadingToCard(board, card), true);
+  assert.match(ui.nodes.details.textContent, /other\.png — Uploaded/);
+  first.resolve();
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.deepEqual(calls.map(({id, expected, name}) => [id, expected, name]), [
+    [card, tag(card, 1), "origin.png"],
+    [backup, tag(backup, 1), "other.png"],
+    [card, tag(card, 2), "origin-second.png"],
+  ]);
+  assert.doesNotMatch(ui.nodes.details.textContent, /origin\.png/);
+  await ui.navigate("/boards/" + board);
+  await until(() => /origin-second\.png — Uploaded/.test(ui.nodes.details.textContent));
+  assert.doesNotMatch(ui.nodes.details.textContent, /other\.png/);
+});
+
+test("a late upload refusal keeps the renewed capability for a write on another card", async () => {
+  let sessions = 0;
+  const {ui, api, cards, behavior, commit, choose, calls, readbacks, getCapability} =
+    await attachmentUploadFixture(board, {openSession: async () => "session-" + ++sessions});
+  const first = Promise.withResolvers();
+  const refused = Promise.withResolvers();
+  const uploadCapabilities = [];
+  behavior.write = async (...args) => {
+    uploadCapabilities.push(getCapability());
+    if (args[1].name === "first.txt") {
+      await first.promise;
+      return commit(...args);
+    }
+    await refused.promise;
+  };
+  const otherWrites = [];
+  api.patchCard = async (id, expected, draft) => {
+    otherWrites.push([id, expected, getCapability()]);
+    const saved = {...cards.get(id), ...draft};
+    cards.set(id, saved);
+    return {data: saved, etag: tag(id, saved.revision)};
+  };
+  async function renewCapability(prior) {
+    await ui.readWithSession(async () => {
+      if (getCapability() === prior) throw new ApiError("http_error", {status: 401});
+    });
+  }
+  choose({name: "first.txt", size: 1}, {name: "late.txt", size: 1}, {name: "waiting.txt", size: 1});
+  assert.deepEqual(uploadCapabilities, ["session-1"]);
+  await renewCapability("session-1");
+  first.resolve();
+  await until(() => uploadCapabilities.length === 2);
+  assert.deepEqual(uploadCapabilities, ["session-1", "session-2"]);
+  await renewCapability("session-2");
+  ui.find(ui.nodes.main, "button", "#2 Other card").click();
+  await until(() => /#2 Other card/.test(ui.nodes.details.textContent));
+  refused.reject(new ApiError("http_error", {status: 401}));
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.equal(getCapability(), "session-3");
+  ui.field(ui.nodes.details, "Title").value = "Updated other card";
+  ui.submit(ui.nodes.details, "Save text");
+  await ui.settled();
+  assert.deepEqual(otherWrites, [[backup, tag(backup, 1), "session-3"]]);
+  assert.equal(sessions, 3);
+  assert.deepEqual(calls.map(({name}) => name), ["first.txt", "late.txt"]);
+  assert.deepEqual(readbacks, []);
+});
+
+test("attachment upload confirms a lost response by original UUID before advancing", async () => {
+  const {ui, calls, readbacks, behavior, commit, choose} = await attachmentUploadFixture();
+  behavior.write = (id, file, attachmentId) => {
+    const reply = commit(id, file, attachmentId);
+    if (file.name === "lost.dat") throw new ApiError("transport_failed", {outcomeUnknown: true});
+    return reply;
+  };
+  choose({name: "lost.dat", size: 1}, {name: "next.dat", size: 2});
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].expected, tag(card, 2));
+  assert.deepEqual(readbacks, [calls[0].attachmentId]);
+  assert.match(ui.nodes.details.textContent, /lost\.dat — Uploaded\. Confirmed by readback/);
+  assert.match(ui.nodes.details.textContent, /next\.dat — Uploaded/);
+});
+
+test("attachment upload rejects foreign identity and requires inspection before another write", async () => {
+  const {ui, calls, readbacks, behavior, saved, commit, choose} = await attachmentUploadFixture();
+  let committed;
+  behavior.write = (id, file, attachmentId) => {
+    committed = commit(id, file, attachmentId).data;
+    const foreign = {...committed, board_id: uploadBoard};
+    saved.set(attachmentId, foreign);
+    return {data: foreign};
+  };
+  choose({name: "inspect.dat", size: 1}, {name: "stop.dat", size: 1});
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.equal(calls.length, 1);
+  assert.deepEqual(readbacks, [calls[0].attachmentId]);
+  assert.match(ui.nodes.details.textContent, /inspect\.dat — Outcome uncertain/);
+  assert.match(ui.nodes.details.textContent, /stop\.dat — Upload stopped/);
+  assert.equal(ui.find(ui.nodes.details, "button", "Upload attachments").disabled, true);
+  ui.find(ui.nodes.details, "button", "Inspect saved card").click();
+  await ui.settled();
+  assert.equal(ui.find(ui.nodes.details, "button", "Upload attachments").disabled, true);
+  saved.set(calls[0].attachmentId, committed);
+  ui.find(ui.nodes.details, "button", "Inspect saved card").click();
+  await ui.settled();
+  assert.equal(ui.find(ui.nodes.details, "button", "Upload attachments").disabled, false);
+  assert.match(ui.nodes.details.textContent, /inspect\.dat — Uploaded\. Confirmed by readback/);
+  assert.equal(calls.length, 1);
+});
+
+test("attachment upload stops before the next file when the card revision changed after a confirmed upload", async () => {
+  const {ui, cards, calls, behavior, commit, choose} = await attachmentUploadFixture();
+  behavior.write = (id, file, attachmentId) => {
+    const reply = commit(id, file, attachmentId);
+    const current = cards.get(id);
+    cards.set(id, {...current, revision: current.revision + 1});
+    return reply;
+  };
+  choose({name: "saved.dat", size: 1}, {name: "stopped.dat", size: 1});
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.equal(calls.length, 1);
+  assert.match(ui.nodes.details.textContent, /saved\.dat — Uploaded/);
+  assert.match(ui.nodes.details.textContent, /stopped\.dat — Upload stopped/);
+  assert.match(ui.nodes.details.textContent, /The card changed during upload/);
+});
+
+test("lane approval waits only for uploads on its rendered card members", async () => {
+  const {ui, api, cards, calls, behavior, commit, choose} = await attachmentUploadFixture();
+  const ready = (await api.listLanes()).data.lanes[0];
+  const completed = "a57df7d8-0476-44d6-97a4-3b2e5486650a";
+  const other = cards.get(backup);
+  cards.set(backup, {...other, lane_id: uploadBoard});
+  api.listLanes = async () => page("lanes", [
+    {...ready, role: "ready_for_review", approval_enabled: true},
+    {...ready, id: uploadBoard, key: "other", position: 1},
+    {...ready, id: completed, key: "completed", role: "completed", position: 2},
+  ]);
+  const approvals = [];
+  api.approveLane = async (...args) => { approvals.push(args[5]); };
+  await ui.load();
+  await until(() => ui.find(ui.nodes.details, "button", "Upload attachments"));
+  const memberUpload = Promise.withResolvers();
+  const otherUpload = Promise.withResolvers();
+  behavior.write = async (id, file, attachmentId) => {
+    await (id === card ? memberUpload.promise : otherUpload.promise);
+    return commit(id, file, attachmentId);
+  };
+  choose({name: "member.txt", size: 1});
+  ui.submit(ui.nodes.main, "Approve all in lane");
+  await ui.settled();
+  assert.equal(approvals.length, 0);
+  assert.match(ui.nodes.status.textContent, /Wait for attachments/);
+  memberUpload.resolve();
+  await until(() => !ui.uploadingToCard(board, card));
+  ui.find(ui.nodes.main, "button", "#2 Other card").click();
+  await until(() => /#2 Other card/.test(ui.nodes.details.textContent));
+  choose({name: "unrelated.txt", size: 1});
+  ui.submit(ui.nodes.main, "Approve all in lane");
+  await ui.settled();
+  assert.deepEqual(approvals[0].map(({id}) => id), [card]);
+  assert.equal(ui.uploadingToCard(board, backup), true);
+  assert.equal(calls.length, 2);
+  otherUpload.resolve();
+  await until(() => !ui.uploadingToCard(board, backup));
+});
+
+test("relationship writes wait for uploads on either endpoint and allow unrelated endpoints", async () => {
+  const {ui, api, cards, behavior, commit, choose} = await attachmentUploadFixture();
+  const third = "a57df7d8-0476-44d6-97a4-3b2e5486650a";
+  cards.set(third, {...cards.get(backup), id: third, ticket: 3, title: "Unrelated"});
+  const relationships = [
+    {id: uploadBoard, board_id: board, source_card_id: card, target_card_id: backup, kind: "relates_to", revision: 1},
+  ];
+  api.listRelationships = async () => page("relationships", relationships);
+  const writes = [];
+  api.replaceRelationship = async (...args) => { writes.push(["patch", ...args]); };
+  api.removeRelationship = async (...args) => { writes.push(["remove", ...args]); };
+  api.createRelationship = async (id, boardId, _expected, source, target, kind) => {
+    writes.push(["add", source, target]);
+    relationships.push({id, board_id: boardId, source_card_id: source, target_card_id: target, kind, revision: 1});
+  };
+  await ui.load();
+  await until(() => ui.find(ui.nodes.details, "button", "Change link type"));
+  const finish = Promise.withResolvers();
+  behavior.write = async (...args) => { await finish.promise; return commit(...args); };
+  choose({name: "endpoint.txt", size: 1});
+  const {details, main, status} = ui.nodes;
+  async function submitLinkActions(ticket) {
+    ui.field(details, "Target ticket").value = String(ticket);
+    ui.submit(details, "Add link");
+    await ui.settled();
+    assert.match(status.textContent, /Wait for attachments/);
+    const edit = ui.find(details, "button", "Change link type");
+    ui.field(edit.parent, "Link type").value = "duplicates";
+    ui.submit(details, "Change link type");
+    await ui.settled();
+    assert.match(status.textContent, /Wait for attachments/);
+    ui.submit(details, "Remove link");
+    await ui.settled();
+    assert.match(status.textContent, /Wait for attachments/);
+  }
+  await submitLinkActions(2);
+  ui.find(main, "button", "#2 Other card").click();
+  await until(() => /#2 Other card/.test(details.textContent) && ui.find(details, "button", "Change link type"));
+  await submitLinkActions(1);
+  assert.deepEqual(writes, []);
+  ui.field(details, "Target ticket").value = "3";
+  ui.submit(details, "Add link");
+  await ui.settled();
+  assert.deepEqual(writes, [["add", backup, third]]);
+  assert.equal(ui.uploadingToCard(board, card), true);
+  finish.resolve();
+  await until(() => !ui.uploadingToCard(board, card));
+});
+
+test("seeded creation preserves its draft while a resolved target uploads", async () => {
+  const {ui, api, behavior, commit, choose} = await attachmentUploadFixture();
+  const finish = Promise.withResolvers();
+  behavior.write = async (...args) => { await finish.promise; return commit(...args); };
+  const creates = [];
+  api.createCard = async (request) => { creates.push(request); };
+  choose({name: "target.txt", size: 1});
+  const {main, status} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
+  const add = ui.find(main, "button", "Add relationship");
+  add.click();
+  const row = add.parent.querySelectorAll("fieldset")[0];
+  const title = ui.field(main, "New title");
+  const target = ui.field(row, "Target ticket");
+  title.value = "Retain this draft";
+  target.value = "1";
+  ui.submit(main, "Create card");
+  await ui.settled();
+  assert.match(status.textContent, /Wait for attachments/);
+  assert.equal(creates.length, 0);
+  assert.equal(title.value, "Retain this draft");
+  assert.equal(target.value, "1");
+  target.value = "2";
+  ui.submit(main, "Create card");
+  await ui.settled();
+  assert.equal(creates.length, 1);
+  assert.equal(creates[0].relationships[0].target_card_id, backup);
+  assert.equal(ui.uploadingToCard(board, card), true);
+  finish.resolve();
+  await until(() => !ui.uploadingToCard(board, card));
+});
+
+test("batch priority checks only explicitly selected cards for attachment uploads", async () => {
+  const {ui, api, cards, behavior, commit, choose} = await attachmentUploadFixture();
+  const finish = Promise.withResolvers();
+  behavior.write = async (...args) => { await finish.promise; return commit(...args); };
+  const selections = [];
+  api.setPriorities = async (_board, _expected, ids) => {
+    selections.push(Array.from(ids));
+    return {data: {cards: Array.from(ids, (id) => cards.get(id)), changes: []}};
+  };
+  choose({name: "selected.txt", size: 1});
+  const {main, status} = ui.nodes;
+  const tickets = ui.field(main, "Ticket numbers");
+  tickets.value = "1, 2";
+  ui.submit(main, "Set batch priority");
+  await ui.settled();
+  assert.deepEqual(selections, []);
+  assert.match(status.textContent, /Wait for attachments/);
+  tickets.value = "2";
+  ui.submit(main, "Set batch priority");
+  await ui.settled();
+  assert.deepEqual(selections, [[backup]]);
+  assert.equal(ui.uploadingToCard(board, card), true);
+  finish.resolve();
+  await until(() => !ui.uploadingToCard(board, card));
+});
+
+test("ticket order checks only cards whose ticket changes for attachment uploads", async () => {
+  const {ui, api, cards, behavior, commit, choose} = await attachmentUploadFixture();
+  const listLanes = api.listLanes;
+  api.listLanes = async (...args) => page("lanes", (await listLanes(...args)).data.lanes.map((entry) =>
+    entry.id === lane ? {...entry, reorder_enabled: true} : entry));
+  const third = "a57df7d8-0476-44d6-97a4-3b2e5486650a";
+  cards.set(third, {...cards.get(backup), id: third, ticket: 3, title: "Unrelated"});
+  const finish = Promise.withResolvers();
+  behavior.write = async (...args) => { await finish.promise; return commit(...args); };
+  const ids = [card, backup, third];
+  const current = ids.map((card_id, index) => ({card_id, ticket: index + 1}));
+  let tickets = [2, 1, 3];
+  api.previewTicketOrder = async () => ({data: {
+    board_revision: 1, changed: true, current, proposed: ids.map((card_id, index) => ({card_id, ticket: tickets[index]})),
+  }, etag: tag(board, 1)});
+  const applies = [];
+  api.applyTicketOrder = async (_board, _lane, _tag, proposed) => {
+    applies.push(Array.from(proposed, ({card_id, ticket}) => [card_id, ticket]));
+    for (const {card_id, ticket} of proposed) cards.set(card_id, {...cards.get(card_id), ticket});
+  };
+  const {main, status} = ui.nodes;
+  ui.nodes.refresh.click();
+  await until(() => ui.find(main, "button", "Preview ticket order"));
+  choose({name: "renumbered.txt", size: 1});
+  ui.find(main, "button", "Preview ticket order").click();
+  await until(() => ui.find(main, "button", "Apply ticket order"));
+  ui.submit(main, "Apply ticket order");
+  await ui.settled();
+  assert.deepEqual(applies, []);
+  assert.match(status.textContent, /Wait for attachments/);
+  tickets = [1, 3, 2];
+  ui.find(main, "button", "Preview ticket order").click();
+  await until(() => /#2 → #3/.test(main.textContent));
+  ui.submit(main, "Apply ticket order");
+  await ui.settled();
+  assert.deepEqual(applies, [[[card, 1], [backup, 3], [third, 2]]]);
+  assert.equal(ui.uploadingToCard(board, card), true);
+  finish.resolve();
+  await until(() => !ui.uploadingToCard(board, card));
+});
+
+test("native restore waits only on attachment uploads for its target board", async () => {
+  const {ui, api, behavior, commit, choose} = await attachmentUploadFixture(uploadBoard);
+  const finish = Promise.withResolvers();
+  behavior.write = async (...args) => { await finish.promise; return commit(...args); };
+  const reads = [];
+  const restores = [];
+  api.getSnapshot = async (id) => {
+    reads.push(id);
+    return {data: {board: {id, revision: 1}}, etag: tag(id, 1)};
+  };
+  api.restoreSnapshot = async (id) => { restores.push(id); };
+  choose({name: "origin.txt", size: 1});
+  const {main, status} = ui.nodes;
+  async function restore() {
+    ui.field(main, "Native backup ZIP").files = [new Blob(["backup"])];
+    ui.submit(main, "Restore native backup");
+    await ui.settled();
+  }
+  await restore();
+  assert.deepEqual(reads, []);
+  assert.deepEqual(restores, []);
+  assert.match(status.textContent, /Wait for attachments/);
+  await ui.navigate("/boards/" + uploadBoard);
+  await restore();
+  assert.deepEqual(reads, [uploadBoard]);
+  assert.deepEqual(restores, [uploadBoard]);
+  assert.equal(ui.uploadingToCard(board, card), true);
+  finish.resolve();
+  await until(() => !ui.uploadingToCard(board, card));
+});
+
+for (const lost of [true, false]) {
+  test("lane approval waits for a rendered member's " + (lost ? "uncertain upload" : "failed upload refresh"), async () => {
+    const {ui, api, behavior, commit, choose, calls, readbacks} = await attachmentUploadFixture();
+    const ready = (await api.listLanes()).data.lanes[0];
+    api.listLanes = async () => page("lanes", [
+      {...ready, role: "ready_for_review", approval_enabled: true},
+      {...ready, id: uploadBoard, key: "completed", role: "completed", position: 1},
+    ]);
+    const approvals = [];
+    api.approveLane = async (...args) => { approvals.push(Array.from(args[5], ({id}) => id)); };
+    await ui.load();
+    const {details, main, status} = ui.nodes;
+    await until(() => ui.find(details, "button", "Upload attachments"));
+    const readBoard = api.getBoardLanes;
+    let refuseBoardRead = false;
+    api.getBoardLanes = async (...args) => {
+      if (refuseBoardRead) throw new ApiError("transport_failed");
+      return readBoard(...args);
+    };
+    behavior.write = async (...args) => {
+      if (lost) throw new ApiError("transport_failed", {outcomeUnknown: true});
+      const reply = commit(...args);
+      refuseBoardRead = true;
+      return reply;
+    };
+    choose({name: "pending.txt", size: 1});
+    await until(() => !ui.uploadingToCard(board, card));
+    assert.match(details.textContent, lost ? /Outcome uncertain/ : /Use Inspect saved card to read the saved attachments/);
+    ui.submit(main, "Approve all in lane");
+    await ui.settled();
+    assert.deepEqual(approvals, []);
+    assert.match(status.textContent, /Inspect saved card/);
+    refuseBoardRead = false;
+    ui.find(details, "button", "Inspect saved card").click();
+    await ui.settled();
+    assert.match(details.textContent, lost ? /Outcome unconfirmed after inspection/ : /pending\.txt — Uploaded/);
+    assert.deepEqual(readbacks, lost ? [calls[0].attachmentId, calls[0].attachmentId] : []);
+    ui.submit(main, "Approve all in lane");
+    await ui.settled();
+    assert.deepEqual(approvals, [[card, backup]]);
+  });
+}

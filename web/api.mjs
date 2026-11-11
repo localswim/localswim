@@ -8,7 +8,7 @@ export const MAX_LANE_APPROVAL_CARDS = 5000;
 export const MAX_BULK_APPROVAL_COMMENT_LENGTH = 1024;
 export const DEFAULT_APPROVAL_COMMENT = "Reviewed & approved, moving to Completed.";
 const MAX_LANE_NOTES_LENGTH = 4096;
-const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const RASTER_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
 /** @typedef {"blocks"|"blocked_by"|"duplicates"|"duplicated_by"|"references"|"referenced_by"|"relates_to"} RelationshipKind */
@@ -975,7 +975,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       return reply;
     },
-    getSession: () => request("/session"),
+    /** @param {AbortSignal} [signal] */
+    getSession: (signal) => request("/session", { signal }),
     /** @param {{board_id: string, card_id?: string}} filter
      * @param {number} [limit] @param {string} [cursor] */
     listComments(filter, limit, cursor) {
@@ -1418,8 +1419,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {unknown} boardId @param {string} [cursor] @param {AbortSignal} [signal] */
     listUsers: (boardId, cursor, signal) => list("/users", { board_id: resourceId(boardId) }, cursor, signal),
-    /** @param {unknown} policyId */
-    getPolicy: (policyId) => request(`/policies/${resourceId(policyId)}`),
+    /** @param {unknown} policyId @param {AbortSignal} [signal] */
+    getPolicy: (policyId, signal) => request(`/policies/${resourceId(policyId)}`, { signal }),
     /** @param {unknown} boardId */
     getVerification: (boardId) => request(`/verifications/${resourceId(boardId)}`),
     /** @param {unknown} boardId */

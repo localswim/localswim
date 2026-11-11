@@ -19,6 +19,13 @@ to submit again. Inspect or Refresh rereads the active editor and preserves
 the draft. If readback fails, inspect the affected card or board before
 submitting another change there. The page makes one write attempt per submission.
 
+**Add card** appears in each active lane where the current actor can start a
+card. It opens the shared new-card form with that destination selected. In a
+card drawer, **Move card** offers the active destinations granted to the current
+actor from the saved lane. The browser reads these grants from the board's
+policy and refreshes them with the board. The service checks its current policy
+and the original conditional-write validator when it receives either action.
+
 Lane headings show the number of active cards, including zero in empty lanes.
 Card faces show nonzero comment and active attachment counts. The card opener's
 accessible description names the exact counts. The board refreshes them from
@@ -29,8 +36,8 @@ uploads have client-assigned IDs. Immutable comment JSON contains identity, pare
 references, author, text, and timestamps. The comment validator is returned in the
 HTTP response header. Posting uses the parent card's current validator and advances
 its revision. Comment lists and focused attachment reads
-can identify the exact submission. Files up to 10 MiB can be uploaded. The board offers its newest
-comments and lane insertion, rename, and retirement controls. Server-side policy determines
+can identify the exact submission. The board offers its newest comments and lane
+insertion, rename, and retirement controls. Server-side policy determines
 which actions the Human session may perform. Lane JSON carries a positive safe integer
 `revision`. `renameLane(laneId, revision, boardEtag, label)` reads the lane afresh,
 checks the expected numeric revision, and uses the returned HTTP ETag for its
@@ -51,16 +58,27 @@ Approve all in lane for Ready for Review. The action submits the complete render
 active membership and its original versions, including the rendered board version.
 A stale set requires inspection before another submission.
 
-Add a typed link from the drawer or seed a link while creating a card. The same
-relationship is visible from both cards. Human comments link ticket references to
-focused board reads, including archived tickets. Bot comments render as text. Card
-priorities are shown on the board and in the drawer and refresh after link edits.
+Use the drawer's parent and child links to open those cards, including archived
+cards. Add a typed link from the drawer. If you can manage relationships, expand
+**Link the new card** in the new card form to add several links. The service saves
+the card and all its links together. Each relationship is visible from both cards.
+Human comments link ticket references to focused board reads, including archived
+tickets. Bot comments render as text. Card priorities are shown on the board and
+in the drawer and refresh after link edits.
 
 Use **Set priority** in the card drawer to change that card's priority against
 its displayed revision. The drawer shows the effective saved priority and
 reports when a dependency floor prevents the requested demotion. After a
 stale or uncertain result, compare the saved priority with your selection
 before submitting again.
+
+Use **Files** in the card drawer to select several attachments, then choose
+**Upload attachments**. You can also paste a clipboard image into the open drawer.
+Each file has its own outcome. The drawer rejects files larger than 10 MiB before
+uploading and submits the remaining files one at a time for that card. You can
+open another card while the batch finishes on the original card. If a file's
+outcome is uncertain, the drawer checks its original ID. If it cannot confirm the
+upload, it stops the batch and offers **Inspect saved card** before another write.
 
 Attachments offer authenticated downloads. Raster attachments also offer a preview
 and cover selection. The selected cover appears on the card in its lane. Detach
@@ -177,10 +195,13 @@ selections and invalid ticket selections are refused. An uncertain write is
 followed by a saved-state read and is never automatically submitted again.
 
 **Create backup** captures the current board revision and verified attachment
-inventory. **Download backup** retrieves the ZIP through authenticated fetch,
-checks its exact size and SHA-2-256 digest, and then offers the download. A lost
-capture response is inspected using the original generated backup UUID. Capture
-is never replayed automatically. A later explicit capture uses a fresh UUID.
+inventory. You can edit cards and switch boards while capture runs. Its progress,
+result, and download remain with the originating board in the same tab.
+**Download backup** retrieves the ZIP for the displayed captured revision and
+checks its exact size and SHA-2-256 digest before offering the download. After a
+lost response, **Refresh backup status** checks the original backup UUID. If
+the backup is still unavailable, the capture remains pending and the next
+refresh checks that same UUID.
 
 ## Turn 7 find, renumber, restore, and publish
 
@@ -215,10 +236,12 @@ requires saved-state inspection before another explicit submission.
 After **Create backup**, **Publish backup** publishes that exact captured backup.
 The service data root must already be inside a Git worktree with an initial
 commit, local branch, configured identity, and origin remote. The page displays
-the publication outcome and fixed error code. It retains the generated publication
-UUID for focused readback after an uncertain response. **Refresh publication
-status** stays available while the publication is queued or running, including
-after navigating away and returning. A new submission requires a terminal status.
+the publication outcome, its captured revision, and any fixed error code on the
+originating board while card edits and navigation continue. It retains the
+generated publication UUID for focused readback after an uncertain response.
+**Refresh publication status** stays available while the publication is queued
+or running, including after navigating away and returning. A new submission
+requires a terminal status.
 Publication does not require a board ETag because its selected backup is immutable.
 
 Backup, publication, restoration, build activation, audit event, and approval receipt IDs use UUIDv7. Client-supplied operation IDs accept mixed case and are serialized in lowercase. Backup and publication creation time is encoded in the ID. Completion time remains in `finished_at`, and audit, approval, and restoration `at` records execution time. Other resource IDs remain UUIDv4.

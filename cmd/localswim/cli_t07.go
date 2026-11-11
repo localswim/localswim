@@ -38,10 +38,10 @@ func parseT07(name string, args []string) (cliCommand, error) {
 		flags.StringVar(&revision, "revision", "", "expected board revision")
 		count = 2
 		if name == "restoration create" {
-			flags.StringVar(&id, "id", "", "restoration UUIDv4")
+			flags.StringVar(&id, "id", "", "restoration UUIDv7")
 		}
 	case "publication create":
-		flags.StringVar(&id, "id", "", "publication UUIDv4")
+		flags.StringVar(&id, "id", "", "publication UUIDv7")
 		count = 2
 	case "ticket-order apply":
 		count = 2
@@ -52,8 +52,12 @@ func parseT07(name string, args []string) (cliCommand, error) {
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
 	}
-	if flags.NArg() != count || !boardIDPattern.MatchString(flags.Arg(0)) || (count == 2 && flags.Arg(1) == "") {
-		return cmd, errors.New("expected a UUIDv4 resource ID and the documented arguments, including FILE or - where required")
+	resourcePattern := boardIDPattern
+	if name == "restoration get" || name == "publication get" {
+		resourcePattern = operationIDPattern
+	}
+	if flags.NArg() != count || !resourcePattern.MatchString(flags.Arg(0)) || (count == 2 && flags.Arg(1) == "") {
+		return cmd, errors.New("expected a valid resource ID and the documented arguments, including FILE or - where required")
 	}
 	var optionErr error
 	flags.Visit(func(f *flag.Flag) {
@@ -65,8 +69,8 @@ func parseT07(name string, args []string) (cliCommand, error) {
 				optionErr = revisionErr
 			}
 		case "id":
-			if !boardIDPattern.MatchString(id) {
-				optionErr = errors.New("--id requires a UUIDv4")
+			if !operationIDPattern.MatchString(id) {
+				optionErr = errors.New("--id requires a UUIDv7")
 			}
 		case "lane":
 			if !boardIDPattern.MatchString(lane) {
@@ -109,11 +113,11 @@ func parseT07(name string, args []string) (cliCommand, error) {
 	case "board restore":
 		cmd.method, cmd.resource, cmd.boardID, cmd.inputPath = http.MethodPut, "/snapshots/"+resourceID, resourceID, flags.Arg(1)
 	case "restoration create", "publication create":
-		if !boardIDPattern.MatchString(flags.Arg(1)) {
-			return cmd, errors.New("expected a UUIDv4 backup ID")
+		if !operationIDPattern.MatchString(flags.Arg(1)) {
+			return cmd, errors.New("expected a UUIDv7 backup ID")
 		}
 		if id == "" {
-			id = newUploadID()
+			id = newOperationID()
 		}
 		cmd.method, cmd.boardID = http.MethodPost, resourceID
 		cmd.resource = "/restorations"

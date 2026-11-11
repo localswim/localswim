@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -40,6 +41,8 @@ func (c *Client) BackupContent(resource string, size uint64, output io.Writer) e
 	return nil
 }
 
+var operationIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+
 func validT06Response(resource string, data json.RawMessage) bool {
 	path := pathWithoutQuery(resource)
 	if path == "/cards" {
@@ -71,14 +74,13 @@ func validT06Response(resource string, data json.RawMessage) bool {
 		ID            string   `json:"id"`
 		BoardID       string   `json:"board_id"`
 		BoardRevision uint64   `json:"board_revision"`
-		CreatedAt     string   `json:"created_at"`
 		Digest        string   `json:"sha2_256"`
 		Size          *uint64  `json:"size"`
 		AttachmentIDs []string `json:"attachment_ids"`
 	}
-	return json.Unmarshal(data, &result) == nil && attachmentIDPattern.MatchString(result.ID) &&
+	return json.Unmarshal(data, &result) == nil && operationIDPattern.MatchString(result.ID) &&
 		(path == "/backups" || strings.EqualFold(result.ID, strings.TrimPrefix(path, "/backups/"))) &&
 		attachmentIDPattern.MatchString(result.BoardID) && result.BoardRevision > 0 &&
-		result.BoardRevision <= 9007199254740991 && result.CreatedAt != "" &&
+		result.BoardRevision <= 9007199254740991 &&
 		attachmentDigestPattern.MatchString(result.Digest) && result.Size != nil && *result.Size <= 9007199254740991 && result.AttachmentIDs != nil
 }

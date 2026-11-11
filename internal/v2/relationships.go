@@ -180,7 +180,7 @@ func recordRelationshipEdit(state *snapshot, cards map[string]*card, id, operati
 		field = &marker
 	}
 	state.Activity = append(state.Activity, activity{
-		ID: newID(), BoardID: state.Board.ID, Revision: revision, At: now, ActorID: actor,
+		ID: newOperationID(), BoardID: state.Board.ID, Revision: revision, At: now, ActorID: actor,
 		Operation: operation, ResourceType: "relationship", ResourceID: id, Field: field, Before: before, After: after,
 	})
 }

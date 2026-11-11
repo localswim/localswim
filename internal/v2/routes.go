@@ -29,8 +29,13 @@ func (x *request) dispatch() {
 	if hasID {
 		var ok bool
 		id, ok = normalizeID(rawID)
+		version := "UUIDv4"
+		if slices.Contains([]string{"backups", "publications", "restorations", "activations", "approvals"}, resource) {
+			id, ok = normalizeOperationID(rawID)
+			version = "UUIDv7"
+		}
 		if !ok {
-			x.fail(invalid("id", "Expected a UUIDv4."))
+			x.fail(invalid("id", "Expected a "+version+"."))
 			return
 		}
 	}

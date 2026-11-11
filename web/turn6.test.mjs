@@ -6,7 +6,7 @@ const lane = "ceab10a8-1492-4c90-aa07-13b83138919a";
 const card = "d2ef6295-ace1-4e6e-bbf7-b1c1823f56fc";
 const priority = "163b1fa0-2a32-424b-8489-6bbd7761201c";
 const owner = "84b4ae21-e224-4f5a-9fca-9abf8e0c86bc";
-const backup = "f7e04b53-cfd9-417c-af8e-b6316af0a085";
+const backup = "f7e04b53-cfd9-717c-af8e-b6316af0a085";
 const at = "2026-11-10 12:00:00+00:00";
 const tag = (id, revision) => `"${id}-${revision}"`;
 const client = (fetchImpl) => createBrowserApi({ getCapability: () => "test-capability", fetchImpl });
@@ -76,7 +76,7 @@ test("ticket preview is read-only with repeated selected-card query", async () =
   assert.equal((await api.previewTicketOrder(board, lane, [card])).data.changed, false);
 });
 test("backup capture keeps UUID for focused uncertain-outcome readback", async () => {
-  const data = { id: backup, board_id: board, board_revision: 3, created_at: at,
+  const data = { id: backup, board_id: board, board_revision: 3,
     sha2_256: "0".repeat(64), size: 10, attachment_ids: [] };
   let writes = 0;
   const api = client(async (path, request) => {
@@ -112,7 +112,7 @@ test("backup bytes are bounded by metadata and SHA-2-256 verified before downloa
 });
 
 test("backup creation rejects malformed success without replay", async () => {
-  const data = { id: backup, board_id: board, board_revision: 3, created_at: at,
+  const data = { id: backup, board_id: board, board_revision: 3,
     sha2_256: "0".repeat(64), size: 10, attachment_ids: [] };
   for (const response of [
     Response.json(data, { status: 201 }),

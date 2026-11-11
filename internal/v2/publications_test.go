@@ -8,14 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestM34PublicationClosedInputAndDurableFailure(t *testing.T) {
 	app, editor, state, _ := backupCaptureFixture(t)
 	raw, _ := editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, state.Board.ID, state.Board.ETag), "", 201)
 	capture := turnOneDecode[backup](t, raw)
-	id := newID()
+	id := newOperationID()
 	body := fmt.Sprintf(`{"id":%q,"board_id":%q,"backup_id":%q}`, strings.ToUpper(id), strings.ToUpper(state.Board.ID), strings.ToUpper(capture.ID))
 	for _, bad := range []string{
 		strings.TrimSuffix(body, "}") + `,"unknown":true}`,
@@ -67,7 +66,7 @@ func TestM34PublicationRefusesDifferentBoardCapture(t *testing.T) {
 
 func TestM34InterruptedPublicationIsInspectableAndReserved(t *testing.T) {
 	root := t.TempDir()
-	item := publication{ID: newID(), BoardID: newID(), BackupID: newID(), State: "running", CreatedAt: canonicalTime(time.Now())}
+	item := publication{ID: newOperationID(), BoardID: newID(), BackupID: newOperationID(), State: "running"}
 	// An interruption after writing the temporary manifest but before its
 	// atomic install leaves no accepted operation or orphan reservation.
 	dir, err := publicationDirectory(root, true)

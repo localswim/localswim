@@ -54,7 +54,7 @@ func recordCardAssignment(s *snapshot, cardID, actorID, field string, before, af
 
 func recordCardFieldChange(s *snapshot, cardID, actorID, operation, field string, before, after *string, now time.Time) {
 	s.Activity = append(s.Activity, activity{
-		ID: newID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
+		ID: newOperationID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
 		ActorID: actorID, Operation: operation, ResourceType: "card", ResourceID: cardID, Field: &field,
 		Before: cloneSnapshotPointer(before), After: cloneSnapshotPointer(after),
 	})

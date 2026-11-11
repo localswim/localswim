@@ -86,7 +86,7 @@ func TestM25DetachAttachment(t *testing.T) {
 	field, before, after := "name", state.Board.Name, "Injected same-revision edit"
 	altered.Board.Name = after
 	altered.Activity = append(altered.Activity, activity{
-		ID: newID(), BoardID: b.ID, Revision: detach.Revision, At: detach.At,
+		ID: newOperationID(), BoardID: b.ID, Revision: detach.Revision, At: detach.At,
 		ActorID: detach.ActorID, Operation: "patch", ResourceType: "board", ResourceID: b.ID,
 		Field: &field, Before: &before, After: &after,
 	})

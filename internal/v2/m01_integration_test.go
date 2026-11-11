@@ -57,7 +57,7 @@ func m01Rename(value *snapshot) error {
 	field, before, after := "name", value.Board.Name, m01UpdatedName
 	value.Board.Name = after
 	value.Activity = append(value.Activity, activity{
-		ID: newID(), BoardID: m01BoardID, Revision: value.Board.Revision + 1,
+		ID: newOperationID(), BoardID: m01BoardID, Revision: value.Board.Revision + 1,
 		At: canonicalTime(time.Now()), ActorID: m01HumanID, Operation: "patch",
 		ResourceType: "board", ResourceID: m01BoardID,
 		Field: &field, Before: &before, After: &after,

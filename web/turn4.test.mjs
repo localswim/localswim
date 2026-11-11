@@ -5,7 +5,7 @@ import { ApiError, createBrowserApi } from "./api.mjs";
 const boardId = "7133bef8-ef9e-4878-a1d9-53b33575110f";
 const cardId = "466eeb0d-57fc-44ae-8ecc-79a21fe7358e";
 const otherCard = "f86b1842-a0b3-47f2-a536-6a9583491946";
-const id = "9908fb8f-f6b9-47ed-aa92-5650cd120602";
+const approvalId = "9908fb8f-f6b9-77ed-aa92-5650cd120602";
 const actorId = "22e1ffb8-7d2a-43ed-a8cf-8871165a98e9";
 const cardTag = '"card_0123456789abcdef"';
 const boardTag = '"board_0123456789abcdef"';
@@ -13,15 +13,16 @@ const updatedBoardTag = `"${boardId}-4"`;
 const capability = "A".repeat(43);
 const prefix = "/api/2026-11-10";
 const at = "2026-11-10 16:55:00+00:00";
+const id = "9908fb8f-f6b9-47ed-aa92-5650cd120602";
 const relationship = { id, board_id: boardId, revision: 7, created_at: at, updated_at: at,
   source_card_id: cardId, target_card_id: otherCard, kind: "blocks" };
-const approvalMove = { id, board_id: boardId, revision: 4, at, actor_id: actorId,
+const approvalMove = { id: approvalId, board_id: boardId, revision: 4, at, actor_id: actorId,
   operation: "approve", resource_type: "card", resource_id: cardId, field: "lane_id",
   before: "c5d47d1d-17a5-4b6a-9db6-5878c4013d2d", after: "3c27731a-d7b8-48aa-a57e-1da339b8160e" };
-const approvalNote = { id: "988428d1-691b-4404-91e5-ff78694cde65", board_id: boardId, revision: 4, at,
+const approvalNote = { id: "988428d1-691b-7404-91e5-ff78694cde65", board_id: boardId, revision: 4, at,
   actor_id: actorId, operation: "comment", resource_type: "comment", resource_id: otherCard,
   field: null, before: null, after: null };
-const approval = { id, board_id: boardId, card_ids: [cardId], actor_id: actorId,
+const approval = { id: approvalId, board_id: boardId, card_ids: [cardId], actor_id: actorId,
   at, board_revision: 4, changes: [approvalMove, approvalNote] };
 
 test("a focused approval sends the board and card versions and validates its receipt", async () => {
@@ -29,19 +30,19 @@ test("a focused approval sends the board and card versions and validates its rec
   const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (url, options) => {
     calls.push([url, options]);
     if (options.method === "POST") return Response.json(approval, { status: 201,
-      headers: { Location: prefix + "/approvals/" + id, "X-Board-ETag": updatedBoardTag } });
+      headers: { Location: prefix + "/approvals/" + approvalId, "X-Board-ETag": updatedBoardTag } });
     return Response.json(approval, { headers: { ETag: cardTag } });
   } });
-  await api.approveCard(id, boardId, boardTag, cardId, cardTag);
-  await api.inspectApproval(id, boardId, cardId);
+  await api.approveCard(approvalId, boardId, boardTag, cardId, cardTag);
+  await api.inspectApproval(approvalId, boardId, cardId);
   assert.equal(calls.length, 2);
   assert.equal(calls[0][0], prefix + "/approvals");
   assert.equal(calls[0][1].method, "POST");
   assert.deepEqual(JSON.parse(calls[0][1].body),
-    { id, board_id: boardId, expected_board_etag: boardTag, cards: [{ card_id: cardId, etag: cardTag }] });
-  assert.equal(calls[1][0], prefix + "/approvals/" + id);
+    { id: approvalId, board_id: boardId, expected_board_etag: boardTag, cards: [{ card_id: cardId, etag: cardTag }] });
+  assert.equal(calls[1][0], prefix + "/approvals/" + approvalId);
   assert.equal(calls[1][1].method, "GET");
-  await assert.rejects(api.inspectApproval(id, boardId, otherCard), (error) =>
+  await assert.rejects(api.inspectApproval(approvalId, boardId, otherCard), (error) =>
     error instanceof ApiError && error.code === "invalid_response" && !error.outcomeUnknown);
 });
 
@@ -53,9 +54,9 @@ test("a stale, lost, or wrong-card approval response does not cause a replay", a
       if (failure === "lost") throw new Error("Connection lost.");
       if (failure === "stale") return Response.json({}, { status: 412 });
       return Response.json({ ...approval, card_ids: [otherCard] }, { status: 201,
-        headers: { Location: prefix + "/approvals/" + id, "X-Board-ETag": updatedBoardTag } });
+        headers: { Location: prefix + "/approvals/" + approvalId, "X-Board-ETag": updatedBoardTag } });
     } });
-    await assert.rejects(api.approveCard(id, boardId, boardTag, cardId, cardTag), (error) =>
+    await assert.rejects(api.approveCard(approvalId, boardId, boardTag, cardId, cardTag), (error) =>
       error instanceof ApiError && error.outcomeUnknown === (failure !== "stale")
       && (failure !== "stale" || error.status === 412));
     assert.equal(calls, 1);
@@ -68,12 +69,12 @@ test("incomplete or inconsistent approval audits cannot confirm a write or readb
     const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (_url, options) => {
       const body = { ...approval, changes };
       if (options.method === "POST") return Response.json(body, { status: 201,
-        headers: { Location: prefix + "/approvals/" + id, "X-Board-ETag": updatedBoardTag } });
+        headers: { Location: prefix + "/approvals/" + approvalId, "X-Board-ETag": updatedBoardTag } });
       return Response.json(body, { headers: { ETag: cardTag } });
     } });
-    await assert.rejects(api.approveCard(id, boardId, boardTag, cardId, cardTag), (error) =>
+    await assert.rejects(api.approveCard(approvalId, boardId, boardTag, cardId, cardTag), (error) =>
       error instanceof ApiError && error.code === "invalid_response" && error.outcomeUnknown);
-    await assert.rejects(api.inspectApproval(id, boardId, cardId), (error) =>
+    await assert.rejects(api.inspectApproval(approvalId, boardId, cardId), (error) =>
       error instanceof ApiError && error.code === "invalid_response" && !error.outcomeUnknown);
   }
 });
@@ -90,13 +91,13 @@ test("approval receipts require a positive safe board revision matching every ch
       if (options.method === "POST") {
         writes++;
         return Response.json(body, { status: 201,
-          headers: { Location: prefix + "/approvals/" + id, "X-Board-ETag": updatedBoardTag } });
+          headers: { Location: prefix + "/approvals/" + approvalId, "X-Board-ETag": updatedBoardTag } });
       }
       return Response.json(body, { headers: { ETag: cardTag } });
     } });
-    await assert.rejects(api.approveCard(id, boardId, boardTag, cardId, cardTag), (error) =>
+    await assert.rejects(api.approveCard(approvalId, boardId, boardTag, cardId, cardTag), (error) =>
       error instanceof ApiError && error.code === "invalid_response" && error.outcomeUnknown);
-    await assert.rejects(api.inspectApproval(id, boardId, cardId), (error) =>
+    await assert.rejects(api.inspectApproval(approvalId, boardId, cardId), (error) =>
       error instanceof ApiError && error.code === "invalid_response" && !error.outcomeUnknown);
     assert.equal(writes, 1);
   }
@@ -108,20 +109,20 @@ test("approval receipts accept the largest safe board commit revision", async ()
     changes: approval.changes.map((change) => ({ ...change, revision: board_revision })) };
   const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (_url, options) =>
     options.method === "POST"
-      ? Response.json(body, { status: 201, headers: { Location: prefix + "/approvals/" + id,
+      ? Response.json(body, { status: 201, headers: { Location: prefix + "/approvals/" + approvalId,
         "X-Board-ETag": `"${boardId}-${board_revision}"` } })
       : Response.json(body, { headers: { ETag: cardTag } }) });
-  await api.approveCard(id, boardId, boardTag, cardId, cardTag);
-  await api.inspectApproval(id, boardId, cardId);
+  await api.approveCard(approvalId, boardId, boardTag, cardId, cardTag);
+  await api.inspectApproval(approvalId, boardId, cardId);
 });
 
 test("approval writes require the board header to match the committed receipt revision", async () => {
   for (const tag of [null, boardTag, `"${boardId}-5"`, `"${otherCard}-4"`]) {
-    const headers = { Location: prefix + "/approvals/" + id };
+    const headers = { Location: prefix + "/approvals/" + approvalId };
     if (tag !== null) headers["X-Board-ETag"] = tag;
     const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async () =>
       Response.json(approval, { status: 201, headers }) });
-    await assert.rejects(api.approveCard(id, boardId, boardTag, cardId, cardTag), (error) =>
+    await assert.rejects(api.approveCard(approvalId, boardId, boardTag, cardId, cardTag), (error) =>
       error instanceof ApiError && error.code === "invalid_response" && error.outcomeUnknown);
   }
 });
@@ -133,9 +134,9 @@ test("a lost approval response is recovered by its immutable receipt without ano
     if (options.method === "POST") throw new Error("Connection lost.");
     return Response.json(approval, { headers: { ETag: cardTag } });
   } });
-  await assert.rejects(api.approveCard(id, boardId, boardTag, cardId, cardTag), (error) =>
+  await assert.rejects(api.approveCard(approvalId, boardId, boardTag, cardId, cardTag), (error) =>
     error instanceof ApiError && error.outcomeUnknown);
-  await api.inspectApproval(id, boardId, cardId);
+  await api.inspectApproval(approvalId, boardId, cardId);
   assert.deepEqual(methods, ["POST", "GET"]);
 });
 

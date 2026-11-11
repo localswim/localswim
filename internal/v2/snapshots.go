@@ -56,7 +56,7 @@ func validRecoveryAudit(event activity, boardID string, sourceRevision uint64, m
 		(member.ID == "" || member.Kind == evidence.ActorKind) &&
 		event.Revision == max(evidence.SourceRevision, evidence.PreviousRevision)+1 &&
 		*event.Before == etag(boardID, evidence.PreviousRevision) &&
-		(evidence.BackupID == nil || validSnapshotID(*evidence.BackupID))
+		(evidence.BackupID == nil || validSnapshotOperationID(*evidence.BackupID))
 }
 
 // Recovery replaces board-owned state while reusing the current global user
@@ -77,6 +77,9 @@ func (s *store) recoverSnapshot(boardID, actor, expected, eventID string, candid
 	backupID *string, attachmentData func(attachment) ([]byte, error)) (snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !validSnapshotOperationID(eventID) || (backupID != nil && !validSnapshotOperationID(*backupID)) {
+		return snapshot{}, invalid("id", "Expected a UUIDv7.")
+	}
 	if err := s.writable(); err != nil {
 		return snapshot{}, err
 	}
@@ -361,7 +364,7 @@ func (x *request) admitSnapshot(id string) {
 			return
 		}
 	}
-	updated, err := x.service.store.recoverSnapshot(id, x.actor, expected, newID(), candidate, nil, attachmentData)
+	updated, err := x.service.store.recoverSnapshot(id, x.actor, expected, newOperationID(), candidate, nil, attachmentData)
 	if err != nil {
 		x.recoveryFailure(err)
 		return
@@ -385,14 +388,14 @@ func (x *request) restoreBackup() {
 		x.fail(err)
 		return
 	}
-	backupID, err := inputID(obj["backup_id"], "backup_id")
+	backupID, err := inputOperationID(obj["backup_id"], "backup_id")
 	if err != nil {
 		x.fail(err)
 		return
 	}
-	id := newID()
+	id := newOperationID()
 	if raw, exists := obj["id"]; exists {
-		id, err = inputID(raw, "id")
+		id, err = inputOperationID(raw, "id")
 		if err != nil {
 			x.fail(err)
 			return
@@ -518,6 +521,8 @@ func normalizeSnapshotIDs(value any) {
 			if key == "id" || strings.HasSuffix(key, "_id") {
 				if text, ok := child.(string); ok {
 					if id, valid := normalizeID(text); valid {
+						value[key] = id
+					} else if id, valid := normalizeOperationID(text); valid {
 						value[key] = id
 					}
 				}

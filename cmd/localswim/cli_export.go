@@ -15,7 +15,7 @@ func executeBoardExport(command cliCommand, stdout io.Writer, getenv func(string
 	var data json.RawMessage
 	if command.dataDir != "" {
 		var err error
-		data, err = readNativeBoard(command.dataDir, command.boardID, "export", 0, false)
+		data, err = readNativeBoard(command)
 		if err != nil {
 			return err
 		}

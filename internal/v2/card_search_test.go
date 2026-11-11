@@ -2,7 +2,6 @@ package v2
 
 import (
 	"fmt"
-	"net/http/httptest"
 	"net/url"
 	"slices"
 	"strings"
@@ -122,8 +121,7 @@ func TestCardSearchSelection(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%s/%t", test.query, test.content), func(t *testing.T) {
-			request := httptest.NewRequest("GET", "/?q="+url.QueryEscape(test.query)+"&search_content="+fmt.Sprint(test.content), nil)
-			filters, err := readCardFilters(request)
+			filters, err := readCardFilters("q=" + url.QueryEscape(test.query) + "&search_content=" + fmt.Sprint(test.content))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -149,7 +147,7 @@ func TestSearchFullUnicodeFolding(t *testing.T) {
 	}
 	s := snapshot{Cards: []card{{ID: "one", Ticket: 1, Title: "Straße", Description: "ﬃ"}, {ID: "two", Ticket: 2, Title: "other"}}, Comments: []comment{{CardID: "two", Text: "Σ"}}}
 	for _, query := range []string{"STRASSE", "ffi", "ς"} {
-		filters, err := readCardFilters(httptest.NewRequest("GET", "/?q="+url.QueryEscape(query)+"&search_content=true", nil))
+		filters, err := readCardFilters("q=" + url.QueryEscape(query) + "&search_content=true")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -183,12 +181,12 @@ func TestSearchLaneAndNumericLookupOrders(t *testing.T) {
 
 func TestCardSearchQueryValidation(t *testing.T) {
 	for _, query := range []string{"q=%C2%B2", "q=%232%C2%B2", "q=", "q=+%09", "q=%1C%1F", "q=" + strings.Repeat("x", 1025), "q=%FF", "q=a&q=b", "search_content=1", "search_content=TRUE", "search_content=", "sort=t%C4%B0cket", "sort=tr%C4%B0age", "archived=%C4%B0nclude", "sort=unknown", "sort=", "ticket=9007199254740992", "ticket=0", "lane_id=no"} {
-		if _, err := readCardFilters(httptest.NewRequest("GET", "/?"+query, nil)); err == nil {
+		if _, err := readCardFilters(query); err == nil {
 			t.Errorf("accepted %q", query)
 		}
 	}
 	for _, query := range []string{"sort=TRIAGE", "sort=LaNe", "sort=TICKET", "q=" + strings.Repeat("é", 1024), "search_content=false"} {
-		if _, err := readCardFilters(httptest.NewRequest("GET", "/?"+query, nil)); err != nil {
+		if _, err := readCardFilters(query); err != nil {
 			t.Errorf("rejected valid query %q", query)
 		}
 	}

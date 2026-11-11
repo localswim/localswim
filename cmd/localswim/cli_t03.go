@@ -250,6 +250,10 @@ func parseCLIList(name string, args []string) (cliCommand, error) {
 	limit := flags.Int("limit", 50, "page size")
 	cursor := flags.String("cursor", "", "cursor from the preceding page")
 	var archived string
+	if name == "comment list" {
+		flags.StringVar(&cmd.dataDir, "data", "", "private data directory")
+		cmd.nativeRead = "comments"
+	}
 	archiveFilter := name == "card list" || name == "comment list"
 	if archiveFilter {
 		flags.StringVar(&archived, "archived", "exclude", "exclude, include, or only archived cards")
@@ -264,10 +268,14 @@ func parseCLIList(name string, args []string) (cliCommand, error) {
 	if *cursor != "" {
 		query.Set("cursor", *cursor)
 	}
-	explicitArchive := false
+	var explicitArchive, explicitData bool
 	flags.Visit(func(f *flag.Flag) {
 		explicitArchive = explicitArchive || f.Name == "archived"
+		explicitData = explicitData || f.Name == "data"
 	})
+	if explicitData && cmd.dataDir == "" {
+		return cmd, errors.New("--data requires a nonempty directory")
+	}
 	if archiveFilter && (name == "card list" || flags.NArg() == 1 || explicitArchive) {
 		archived = strings.ToLower(archived)
 		switch archived {
@@ -291,7 +299,8 @@ func parseCLIList(name string, args []string) (cliCommand, error) {
 		}
 		return cmd, errors.New("expected one UUIDv4 board ID")
 	default:
-		query.Set("board_id", flags.Arg(0))
+		cmd.boardID = flags.Arg(0)
+		query.Set("board_id", cmd.boardID)
 		if flags.NArg() == 2 {
 			if !boardIDPattern.MatchString(flags.Arg(1)) {
 				return cmd, errors.New("expected a UUIDv4 card ID")

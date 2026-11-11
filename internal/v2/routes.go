@@ -358,6 +358,10 @@ func singleQuery(r *http.Request, field string) (string, error) {
 	if err != nil {
 		return "", invalid(field, "Malformed query string.")
 	}
+	return queryEntry(query, field)
+}
+
+func queryEntry(query url.Values, field string) (string, error) {
 	entries := query[field]
 	if len(entries) > 1 {
 		return "", invalid(field, "Repeated query parameter.")
@@ -369,16 +373,28 @@ func singleQuery(r *http.Request, field string) (string, error) {
 }
 
 func page[T any](x *request, resource string, items []T, filters ...string) {
-	values, nextCursor, err := collectionSlice(x.r, items, filters...)
+	result, err := pageItems(x.r.URL.RawQuery, resource, items, filters...)
 	if err != nil {
 		x.fail(err)
 		return
 	}
-	x.respond(200, map[string]any{resource: values, "next_cursor": nextCursor}, "")
+	x.respond(http.StatusOK, result, "")
 }
 
-func collectionSlice[T any](r *http.Request, items []T, filters ...string) ([]T, *string, error) {
-	limitValue, err := singleQuery(r, "limit")
+func pageItems[T any](rawQuery, resource string, items []T, filters ...string) (map[string]any, error) {
+	values, nextCursor, err := collectionSlice(rawQuery, items, filters...)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{resource: values, "next_cursor": nextCursor}, nil
+}
+
+func collectionSlice[T any](rawQuery string, items []T, filters ...string) ([]T, *string, error) {
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return nil, nil, invalid("limit", "Malformed query string.")
+	}
+	limitValue, err := queryEntry(query, "limit")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -389,7 +405,7 @@ func collectionSlice[T any](r *http.Request, items []T, filters ...string) ([]T,
 			return nil, nil, invalid("limit", "Expected an integer between 1 and 200.")
 		}
 	}
-	cursor, err := singleQuery(r, "cursor")
+	cursor, err := queryEntry(query, "cursor")
 	if err != nil {
 		return nil, nil, err
 	}

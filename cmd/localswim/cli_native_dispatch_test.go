@@ -12,6 +12,9 @@ func TestM074NativeCLIDispatchAvoidsLiveConfiguration(t *testing.T) {
 		{"board", "get", "--data", dataDir, t03Board},
 		{"board", "export", "--data", dataDir, t03Board, "-"},
 		{"card", "inspect", "--data", dataDir, "--prose", t03Board, "1"},
+		{"card", "next", "--data", dataDir, t03Board},
+		{"card", "search", "--data", dataDir, t03Board},
+		{"comment", "list", "--data", dataDir, t03Board},
 	} {
 		var out, stderr bytes.Buffer
 		code := runCLIWithInput(args, strings.NewReader(""), &out, &stderr, func(name string) string {

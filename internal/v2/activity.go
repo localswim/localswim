@@ -366,7 +366,7 @@ func writeActivityPage(x *request, observation activityObservation, query activi
 }
 
 func respondActivity[T any](x *request, items []T, result map[string]any, botOnly bool, scope []string) {
-	values, cursor, err := collectionSlice(x.r, items, scope...)
+	values, cursor, err := collectionSlice(x.r.URL.RawQuery, items, scope...)
 	if err != nil {
 		x.fail(err)
 		return

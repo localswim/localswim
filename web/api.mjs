@@ -367,6 +367,11 @@ async function unavailableRefusalCode(response) {
 const EVENT_TYPES = new Set(["snapshot", "change"]);
 const MAX_EVENT_CHARS = 64 * 1024;
 
+/** @typedef {{type: "snapshot"|"change"} & (
+ * {resource: "board", board_id: string, board_revision: number} |
+ * {resource: "workspace", workspace_revision: number} |
+ * {resource: "catalog"})} StreamEvent */
+
 /** @param {string} frame */
 function parseEvent(frame) {
   const dataLines = frame.split(/\r?\n/)
@@ -399,7 +404,7 @@ function parseEvent(frame) {
   } else if (resource !== "catalog" || count !== 2) {
     throw new Error();
   }
-  return value;
+  return /** @type {StreamEvent} */ (value);
 }
 
 /** @param {ReadableStream<Uint8Array>} body */
@@ -452,6 +457,12 @@ async function* readEvents(body) {
     reader.releaseLock();
   }
 }
+/** @param {AbortSignal} [signal] */
+function boundedReadSignal(signal) {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 /**
  * The embedding page supplies the current browser capability from memory.
  * @param {{ getCapability: () => unknown, fetchImpl?: typeof fetch }} options
@@ -500,7 +511,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     try {
       response = await fetchImpl(API_PREFIX + path, {
         method,
-        signal: signal ?? (accept === "text/event-stream" ? undefined : AbortSignal.timeout(REQUEST_TIMEOUT_MS)),
+        signal: accept === "text/event-stream" ? signal : boundedReadSignal(signal),
         headers,
         body,
         mode: "same-origin",
@@ -602,11 +613,11 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     return reply;
   }
 
-  /** @param {string} path @param {Record<string, string>} filters @param {string} [cursor] */
-  function list(path, filters, cursor) {
+  /** @param {string} path @param {Record<string, string>} filters @param {string} [cursor] @param {AbortSignal} [signal] */
+  function list(path, filters, cursor, signal) {
     const query = new URLSearchParams(filters);
     if (cursor !== undefined) query.set("cursor", cursor);
-    return request(query.size ? path + "?" + query : path);
+    return request(query.size ? path + "?" + query : path, { signal });
   }
 
   /** @param {unknown} relationshipId @param {unknown} revision */
@@ -632,10 +643,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
   }
 
   return Object.freeze({
-    /** @param {string} boardId */
-    async getBoardLanes(boardId) {
+    /** @param {string} boardId @param {AbortSignal} [signal] */
+    async getBoardLanes(boardId, signal) {
       const board = resourceId(boardId).toLowerCase();
-      const reply = await request("/boards/" + board + "?view=lanes");
+      const reply = await request("/boards/" + board + "?view=lanes", { signal });
       const data = /** @type {{board?: {id?: unknown, revision?: unknown}, lanes?: unknown, cards?: unknown}} */ (reply.data);
       if (data.board?.id !== board || !isInteger(data.board.revision) || data.board.revision < 1
           || reply.etag !== versionTag(board, data.board.revision) || !Array.isArray(data.lanes)
@@ -856,11 +867,12 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /**
      * @param {unknown} boardId
      * @param {unknown} etag The ETag of the previously read board summary.
+     * @param {AbortSignal} [signal]
      */
-    async getBoardIfChanged(boardId, etag) {
+    async getBoardIfChanged(boardId, etag, signal) {
       const id = resourceId(boardId).toLowerCase();
       const originalTag = strongTag(etag);
-      const response = await send("/boards/" + id, { ifNoneMatch: originalTag });
+      const response = await send("/boards/" + id, { ifNoneMatch: originalTag, signal });
       const responseTag = response.headers.get("ETag");
       const unchanged = response.status === 304;
       if (responseTag === null || !STRONG_ETAG.test(responseTag)
@@ -1282,10 +1294,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     listBoards: (cursor) => list("/boards", {}, cursor),
     /** @param {unknown} id */
     getBoard: (id) => request(`/boards/${resourceId(id)}`),
-    /** @param {unknown} boardId */
-    async getBoardAvailability(boardId) {
+    /** @param {unknown} boardId @param {AbortSignal} [signal] */
+    async getBoardAvailability(boardId, signal) {
       const id = resourceId(boardId).toLowerCase();
-      return boardAvailabilityReply(await request("/boards/" + id), id);
+      return boardAvailabilityReply(await request("/boards/" + id, { signal }), id);
     },
     /** @param {unknown} boardId @param {AvailabilityChange} availability @param {unknown} etag */
     async setBoardAvailability(boardId, availability, etag) {
@@ -1333,10 +1345,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         method: "PATCH", data: publishingChange(enabled), etag: strongTag(etag),
       }), id, true);
     },
-    /** @param {unknown} boardId @param {string} [cursor] */
-    async listLanes(boardId, cursor) {
+    /** @param {unknown} boardId @param {string} [cursor] @param {AbortSignal} [signal] */
+    async listLanes(boardId, cursor, signal) {
       const id = resourceId(boardId);
-      const result = await list("/lanes", { board_id: id }, cursor);
+      const result = await list("/lanes", { board_id: id }, cursor, signal);
       const data = /** @type {{lanes?: unknown}} */ (result.data);
       if (!Array.isArray(data.lanes) || !data.lanes.every((lane) =>
         lane !== null && typeof lane === "object" && !Array.isArray(lane) && validLane(lane, undefined, id))) {
@@ -1344,8 +1356,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       return result;
     },
-    /** @param {unknown} boardId @param {string} [cursor] */
-    listPriorities: (boardId, cursor) => list("/priorities", { board_id: resourceId(boardId) }, cursor),
+    /** @param {unknown} boardId @param {string} [cursor] @param {AbortSignal} [signal] */
+    listPriorities: (boardId, cursor, signal) => list("/priorities", { board_id: resourceId(boardId) }, cursor, signal),
     /** @param {string} boardId @param {string} from @param {string} to @param {number} ticket @param {string} [cursor] */
     listCardActivity(boardId, from, to, ticket, cursor) {
       if (!isTimestamp(from) || !isTimestamp(to) || from > to || !Number.isSafeInteger(ticket) || ticket < 1) {
@@ -1353,8 +1365,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       return list("/activities", { board_id: resourceId(boardId), from, to, ticket: String(ticket) }, cursor);
     },
-    /** @param {unknown} boardId @param {string} [cursor] */
-    listUsers: (boardId, cursor) => list("/users", { board_id: resourceId(boardId) }, cursor),
+    /** @param {unknown} boardId @param {string} [cursor] @param {AbortSignal} [signal] */
+    listUsers: (boardId, cursor, signal) => list("/users", { board_id: resourceId(boardId) }, cursor, signal),
     /** @param {unknown} policyId */
     getPolicy: (policyId) => request(`/policies/${resourceId(policyId)}`),
     /** @param {unknown} boardId */

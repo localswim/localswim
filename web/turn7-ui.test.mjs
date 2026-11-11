@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import vm from "node:vm";
 import test from "node:test";
 import {ApiError, createBrowserApi, validPublishing} from "./api.mjs";
+import {createBoardRefresh, watchBoard} from "./board-updates.mjs";
 const board = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
 const lane = "ceab10a8-1492-4c90-aa07-13b83138919a";
 const card = "d2ef6295-ace1-4e6e-bbf7-b1c1823f56fc";
@@ -70,11 +71,12 @@ async function harness(api, pathname = "/boards/" + board, {
   const context = vm.createContext({document, window: {addEventListener() {}}, CSSStyleSheet: class {replaceSync() {}},
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
-    Blob, setTimeout: pollTimer, Date: clock, AbortSignal, crypto: globalThis.crypto, ApiError, validPublishing,
+    Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing,
+    createBoardRefresh, watchBoard: typeof api.streamEvents === "function" ? watchBoard : async () => {},
     createBrowserApi: ({getCapability}) => typeof api === "function" ? api(getCapability) : api,
     openBrowserSession: openSession});
   let source = await fs.readFile(new URL("./app.mjs", import.meta.url), "utf8");
-  source = source.replace(/^import .*?;\r?\n/, "").replace(/void load\(\);\s*$/, "");
+  source = source.replace(/^import .*?;\r?\n/gm, "").replace(/void load\(\);\s*$/, "");
   vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing, inspect:()=>cardInspection.inspect()};", context);
   async function settled() { for (let count = 0; count < 40; count++) { await new Promise((resolve) => setTimeout(resolve, 0)); if (!context.hooks.busy()) return; } throw Error("UI did not settle"); }
   const find = (root, tagName, text) => root.querySelectorAll(tagName).find((node) => node.ownText === text);
@@ -98,7 +100,7 @@ function boardApi() {
   const api = {
     getSession: async () => ({data: {kind: "human"}}), listBoards: async () => page("boards", [{id: board, name: "Board"}]),
     getBoardAvailability: async () => ({data: {id: board, name: "Board", availability: "open", policy_id: backup, revision}, etag: tag(board, revision)}),
-    getBoardLanes: async () => ({data: {board: {id: board, name: "Board"}, cards: saved ? [saved] : []}, etag: tag(board, revision)}),
+    getBoardLanes: async () => ({data: {board: {id: board, name: "Board", revision}, cards: saved ? [saved] : []}, etag: tag(board, revision)}),
     getBoardIfChanged: async () => ({data: null}), listLanes: async () => page("lanes", lanes),
     listPriorities: async () => page("priorities", [{id: priority, label: "Normal"}]),
     listUsers: async () => page("users", [{id: user, label: "Human", kind: "human"}]),
@@ -843,7 +845,8 @@ function boardAvailabilityApi() {
       closedOperationalReads++;
       throw new ApiError("http_error", {status: 503});
     }
-    return {...await baseRead(), etag: tag(board, savedBoard.revision)};
+    const {data} = await baseRead();
+    return {data: {...data, board: {...data.board, revision: savedBoard.revision}}, etag: tag(board, savedBoard.revision)};
   };
   api.setBoardAvailability = async (id, availability, originalTag) => {
     writes.push([id, availability, originalTag]);
@@ -1516,3 +1519,306 @@ for (const lostResponse of [false, true]) {
     assert.deepEqual(writes, [[card, tag(card, 1), urgent], [card, tag(card, 2), priority]]);
   });
 }
+
+function boardStreams(api) {
+  const streams = [];
+  api.streamEvents = ({ boardId, signal }) => new ReadableStream({
+    start(controller) {
+      let closed = false;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        controller.close();
+      };
+      signal.addEventListener("abort", close, {once: true});
+      streams.push({boardId, signal, close,
+        send(type, revision, id = boardId) {
+          controller.enqueue({type, resource: "board", board_id: id, board_revision: revision});
+        }});
+    },
+  }).values();
+  return streams;
+}
+
+function changingBoard() {
+  const {api} = boardApi();
+  const streams = boardStreams(api);
+  const target = {id: backup, label: "Next lane", key: "next_lane", retired: false,
+    position: 1, role: "ordinary", revision: 1};
+  const listLanes = api.listLanes;
+  api.listLanes = async () => page("lanes", [...(await listLanes()).data.lanes, target]);
+  let revision = 1;
+  let changes = {};
+  const getBoard = api.getBoardLanes;
+  api.getBoardLanes = async () => {
+    const {data} = await getBoard();
+    return {data: {board: {...data.board, revision}, cards: [{...data.cards[0], ...changes, revision}]},
+      etag: tag(board, revision)};
+  };
+  const getCard = api.getCard;
+  api.getCard = async () => ({data: {...(await getCard()).data, ...changes, revision}, etag: tag(card, revision)});
+  return {api, streams, target,
+    commit(title, lane_id = target.id) { changes = {title, lane_id}; return ++revision; }};
+}
+
+test("live changes coalesce behind one selected-board read and preserve open drafts", async (t) => {
+  const {api, streams, target, commit} = changingBoard();
+  const read = api.getBoardLanes;
+  const firstRefresh = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  let reads = 0;
+  api.getBoardLanes = async (...args) => {
+    const reply = await read(...args);
+    if (++reads === 2) {
+      firstRefresh.resolve();
+      await release.promise;
+    }
+    return reply;
+  };
+  const ui = await harness(api);
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  await until(() => streams.length === 1);
+  const {main, details} = ui.nodes;
+  assert.equal(streams[0].boardId, board);
+  assert.match(main.querySelector("#board-live-connection").textContent, /Connecting/);
+  streams[0].send("snapshot", 1);
+  await until(() => main.querySelector("#board-live-connection").textContent === "Live updates connected.");
+  assert.equal(reads, 1);
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.field(details, "Title"));
+  const title = ui.field(details, "Title");
+  const comment = ui.field(details, "Comment");
+  const newTitle = ui.field(main, "New title");
+  const preview = () => main.querySelectorAll("input").find((input) => input.dataset.previewLane === lane);
+  title.value = "Unsaved title";
+  comment.value = "Unsaved comment";
+  newTitle.value = "Unsaved new card";
+  preview().value = "1";
+  preview().focus();
+
+  streams[0].send("change", commit("First move"));
+  await firstRefresh.promise;
+  streams[0].send("change", commit("Second move"));
+  streams[0].send("change", commit("Latest move"));
+  streams[0].send("change", 100, priority);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(reads, 2);
+  release.resolve();
+  await until(() => ui.find(main, "button", "#1 Latest move") && /Latest move/.test(details.textContent));
+  assert.equal(reads, 3);
+  assert.equal(ui.find(main, "button", "#1 Latest move").parent.querySelector("h2").ownText, target.label);
+  assert.equal(ui.field(details, "Title"), title);
+  assert.equal(title.value, "Unsaved title");
+  assert.equal(comment.value, "Unsaved comment");
+  assert.equal(newTitle.value, "Unsaved new card");
+  assert.equal(preview().value, "1");
+  assert.equal(ui.focused(), preview());
+});
+
+test("live board Retry and reconnect catch up without discarding the loaded board", async (t) => {
+  const {api, streams, commit} = changingBoard();
+  const read = api.getBoardLanes;
+  let fail = false;
+  let lists = 0;
+  const listBoards = api.listBoards;
+  api.listBoards = async (...args) => { lists++; return listBoards(...args); };
+  api.getBoardLanes = (...args) => {
+    if (fail) throw new ApiError("transport_failed");
+    return read(...args);
+  };
+  const stream = api.streamEvents;
+  let rejectOldSession = false;
+  api.streamEvents = (options) => {
+    if (rejectOldSession) {
+      rejectOldSession = false;
+      throw new ApiError("http_error", {status: 401});
+    }
+    return stream(options);
+  };
+  let sessions = 0;
+  const ui = await harness(api, "/boards/" + board, {
+    openSession: async () => "capability-" + ++sessions,
+  });
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  await until(() => streams.length === 1);
+  const {main} = ui.nodes;
+  const connection = main.querySelector("#board-live-connection");
+  const readiness = main.querySelector("#board-live-readiness");
+  const retry = ui.find(main, "button", "Retry board update");
+  const draft = ui.field(main, "New description");
+  draft.value = "Keep my draft";
+  streams[0].send("snapshot", 1);
+  fail = true;
+  streams[0].send("change", commit("After retry"));
+  await until(() => /could not be completed/.test(readiness.textContent));
+  assert.equal(connection.textContent, "Live updates connected.");
+  assert.ok(ui.find(main, "button", "#1 Original"));
+  assert.equal(retry.hidden, false);
+
+  fail = false;
+  retry.click();
+  await until(() => retry.hidden && ui.find(main, "button", "#1 After retry"));
+  rejectOldSession = true;
+  streams[0].close();
+  await until(() => /disconnected/.test(connection.textContent));
+  assert.ok(ui.find(main, "button", "#1 After retry"));
+  assert.equal(retry.hidden, false);
+  const missed = commit("While disconnected");
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  await until(() => streams.length === 2);
+  streams[1].send("snapshot", missed);
+  await until(() => retry.hidden && ui.find(main, "button", "#1 While disconnected"));
+  assert.equal(connection.textContent, "Live updates connected.");
+  assert.equal(draft.value, "Keep my draft");
+  assert.equal(lists, 3); // Initial catalog plus one Attention refresh per successful board repaint.
+  assert.equal(sessions, 2);
+});
+
+test("navigating away aborts the selected stream and discards its in-flight read", async (t) => {
+  const {api, streams, commit} = changingBoard();
+  const read = api.getBoardLanes;
+  const started = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  let reads = 0;
+  api.getBoardLanes = async (boardId, signal) => {
+    const reply = await read(boardId);
+    if (++reads === 2) {
+      started.resolve(signal);
+      await release.promise;
+    }
+    return reply;
+  };
+  const ui = await harness(api);
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  await until(() => streams.length === 1);
+  const old = streams[0];
+  old.send("snapshot", 1);
+  old.send("change", commit("Obsolete"));
+  const signal = await started.promise;
+  old.send("change", commit("Current"));
+  await ui.navigate("/");
+  assert.equal(old.signal.aborted, true);
+  assert.equal(signal.aborted, true);
+  await ui.navigate("/boards/" + board);
+  await until(() => streams.length === 2);
+  streams[1].send("snapshot", 3);
+  release.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.ok(ui.find(ui.nodes.main, "button", "#1 Current"));
+  assert.equal(ui.find(ui.nodes.main, "button", "#1 Obsolete"), undefined);
+  assert.equal(reads, 3);
+});
+
+test("a selected board stream renews a refused session before reading its snapshot", async (t) => {
+  const {api, streams, commit} = changingBoard();
+  const stream = api.streamEvents;
+  let attempts = 0;
+  api.streamEvents = (options) => {
+    if (++attempts === 1) throw new ApiError("http_error", {status: 401});
+    return stream(options);
+  };
+  let sessions = 0;
+  const ui = await harness(api, "/boards/" + board, {
+    openSession: async () => "capability-" + ++sessions,
+  });
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  await until(() => streams.length === 1);
+  streams[0].send("snapshot", commit("Changed before subscribing"));
+  await until(() => ui.find(ui.nodes.main, "button", "#1 Changed before subscribing"));
+  assert.equal(sessions, 2);
+  assert.equal(attempts, 2);
+});
+
+test("live close and reopen keep the selected card and its draft", async (t) => {
+  const {api, savedBoard} = boardAvailabilityApi();
+  const streams = boardStreams(api);
+  const ui = await harness(api);
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  await until(() => streams.length === 1);
+  const {main, details} = ui.nodes;
+  streams[0].send("snapshot", 1);
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.field(details, "Comment"));
+  ui.field(details, "Comment").value = "Draft while closed";
+
+  savedBoard.availability = "closed";
+  streams[0].send("change", ++savedBoard.revision);
+  await until(() => streams.length === 2);
+  assert.match(main.textContent, /This board is closed/);
+  assert.equal(details.hidden, true);
+  assert.equal(streams[0].signal.aborted, true);
+  streams[1].send("snapshot", savedBoard.revision);
+  savedBoard.availability = "open";
+  streams[1].send("change", ++savedBoard.revision);
+  await until(() => streams.length === 3 && ui.field(details, "Comment"));
+  assert.equal(ui.field(details, "Comment").value, "Draft while closed");
+  assert.equal(streams[1].signal.aborted, true);
+});
+
+test("foreground readback waits for a live read and satisfies its queued invalidations", async (t) => {
+  const {api, streams, commit} = changingBoard();
+  const read = api.getBoardLanes;
+  const entered = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  let reads = 0;
+  api.getBoardLanes = async (...args) => {
+    const reply = await read(...args);
+    if (++reads === 2) {
+      entered.resolve();
+      await release.promise;
+    }
+    return reply;
+  };
+  let writes = 0;
+  api.createCard = async () => { writes++; };
+  const ui = await harness(api);
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  await until(() => streams.length === 1);
+  const {main} = ui.nodes;
+  streams[0].send("snapshot", 1);
+  streams[0].send("change", commit("Paused live read"));
+  await entered.promise;
+  const title = ui.field(main, "New title");
+  title.value = "Card being created";
+  ui.field(main, "New card lane").value = lane;
+  ui.submit(main, "Add card");
+  await until(() => writes === 1 && title.value === "");
+  streams[0].send("change", commit("Latest saved revision"));
+  assert.equal(ui.busy(), true);
+  assert.equal(reads, 2);
+  release.resolve();
+  await ui.settled();
+  assert.equal(reads, 3);
+  assert.ok(ui.find(main, "button", "#1 Latest saved revision"));
+  assert.match(ui.nodes.status.textContent, /Card created/);
+});
+
+test("live invalidation deferred by a write survives until the write ends", async () => {
+  const controller = new AbortController();
+  let revision = 1;
+  let writing = true;
+  let reads = 0;
+  const updates = createBoardRefresh({signal: controller.signal, revision: () => revision,
+    canReadAutomatically: () => !writing, report: () => {},
+    read: async (automatic) => {
+      assert.equal(automatic, true);
+      reads++;
+      revision = 3;
+      return true;
+    }});
+  updates.invalidate(2, false);
+  updates.invalidate(3, false);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(reads, 0);
+  writing = false;
+  updates.resume();
+  await until(() => revision === 3);
+  assert.equal(reads, 1);
+  controller.abort();
+});

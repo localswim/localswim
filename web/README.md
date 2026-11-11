@@ -26,6 +26,13 @@ actor from the saved lane. The browser reads these grants from the board's
 policy and refreshes them with the board. The service checks its current policy
 and the original conditional-write validator when it receives either action.
 
+Drag an active card to a highlighted destination lane, or use **Move card** in
+the drawer. A drop checks that the card is still at its displayed revision and
+uses that revision's HTTP validator. The drawer and its drafts stay available
+after a refusal or uncertain response. If readback fails, open the affected card
+and use **Inspect saved card**. The browser reads the original card without
+repeating the move.
+
 Lane headings show the number of active cards, including zero in empty lanes.
 Card faces show nonzero comment and active attachment counts. The card opener's
 accessible description names the exact counts. The board refreshes them from

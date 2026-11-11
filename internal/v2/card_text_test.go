@@ -65,7 +65,7 @@ func TestM04CardTextConflictAndLostReply(t *testing.T) {
 		raw, headers := editor.call("POST", "/cards", body, "", 201)
 		return turnOneDecode[card](t, raw), headers.Get("X-Board-ETag")
 	}
-	first, tag := makeCard(initial.Board.ETag)
+	first, tag := makeCard(initial.Board.entityTag())
 	second, _ := makeCard(tag)
 	path := "/cards/" + first.ID
 	reader.call("GET", path, "", "", 200)

@@ -55,7 +55,6 @@ func parseServiceAction(name string, args []string) (cliCommand, error) {
 
 type cliServiceStatus struct {
 	Port              int             `json:"port"`
-	ETag              string          `json:"etag"`
 	ServiceInstanceID string          `json:"service_instance_id"`
 	BuildID           string          `json:"build_id"`
 	State             string          `json:"state"`
@@ -69,7 +68,7 @@ var serviceInstanceIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-
 
 func (s *cliServiceStatus) decode(document json.RawMessage) bool {
 	return jsonv2.Unmarshal(document, s, jsonv2.RejectUnknownMembers(true)) == nil &&
-		s.Port > 0 && s.Port <= 65535 && client.IsEntityTag(s.ETag) &&
+		s.Port > 0 && s.Port <= 65535 &&
 		serviceInstanceIDPattern.MatchString(s.ServiceInstanceID) && canonicalLifecycleID(s.BuildID) &&
 		(s.State == "running" || s.State == "draining") && s.APIVersion == v2.Version &&
 		validLifecycleErrorCode(s.RestartErrorCode)
@@ -115,23 +114,25 @@ func executeServiceAction(api *client.Client, command cliCommand, stdout io.Writ
 		return err
 	}
 	var current cliServiceStatus
-	if !current.decode(reply.JSON) || current.ETag != reply.ETag {
+	if !current.decode(reply.JSON) || !client.IsEntityTag(reply.ETag) {
 		return errors.New("service did not return a valid instance with a matching strong ETag")
 	}
 
+	currentTag := reply.ETag
 	var confirmed bool
 	inspection := "use localswim service status to inspect availability"
 	if command.serviceAction == "service stop" {
-		reply, err = api.Do(http.MethodPatch, "/service", json.RawMessage(`{"state":"stopped"}`), current.ETag)
+		reply, err = api.Do(http.MethodPatch, "/service", json.RawMessage(`{"state":"stopped"}`), currentTag)
 		var stopped cliServiceStatus
 		confirmed = err == nil && stopped.decode(reply.JSON) &&
 			stopped.ServiceInstanceID == current.ServiceInstanceID && stopped.State == "draining" &&
-			stopped.Port == current.Port && stopped.BuildID == current.BuildID && stopped.ETag != current.ETag
+			stopped.Port == current.Port && stopped.BuildID == current.BuildID &&
+			client.IsEntityTag(reply.ETag) && reply.ETag != currentTag
 	} else {
 		id := command.serviceActivationID
 		inspection = "use localswim service activation " + id + " with refreshed credentials as needed"
 		body, _ := json.Marshal(map[string]string{
-			"id": id, "build_id": command.serviceResourceID, "expected_service_etag": current.ETag,
+			"id": id, "build_id": command.serviceResourceID, "expected_service_etag": currentTag,
 		})
 		reply, err = api.Do(http.MethodPost, "/activations", body, "")
 		var activation cliActivation

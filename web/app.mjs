@@ -50,7 +50,7 @@ import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
 /** @typedef {{card?: {id: string, ticket: string|null}, search?: BoardSearch, scroll?: {left: number, lanes: Record<string, number>}}} BoardView */
 /** @typedef {import("./api.mjs").Service} Service */
 /** @typedef {import("./api.mjs").Build} Build */
-/** @typedef {{prior: Service, activation?: {id: string, buildId: string}, acknowledged: boolean, refusal?: string}} LifecycleOperation */
+/** @typedef {{prior: Service, priorEtag: string, activation?: {id: string, buildId: string}, acknowledged: boolean, refusal?: string}} LifecycleOperation */
 
 
 const status = /** @type {HTMLParagraphElement|null} */ (document.getElementById("status"));
@@ -1984,13 +1984,15 @@ function renderServiceControls(canManage, isCurrent) {
   let inspectAgain = false;
   /** @type {Service|undefined} */
   let service;
+  /** @type {string|undefined} */
+  let serviceEtag;
   /** @type {Build|undefined} */
   let candidate;
   const activate = button("Activate staged build", () => {
-    if (service && candidate) void submit(service, { id: newOperationId(), buildId: candidate.id });
+    if (service && serviceEtag && candidate) void submit(service, serviceEtag, { id: newOperationId(), buildId: candidate.id });
   });
   const stop = button("Shut down service", () => {
-    if (service) void submit(service);
+    if (service && serviceEtag) void submit(service, serviceEtag);
   });
   const refreshStatus = button("Refresh service status", () => {
     if (!writing && !busy) void inspect(true);
@@ -2006,15 +2008,18 @@ function renderServiceControls(canManage, isCurrent) {
   /** @param {AbortSignal} [signal] */
   async function readService(signal) {
     try {
-      const { data } = await readWithSession(() => api.getService(signal), signal);
+      const reply = await readWithSession(() => api.getService(signal), signal);
+      const data = reply.data;
       if (!isCurrent()) return;
       service = data;
+      serviceEtag = reply.etag;
       health.textContent = "Service is " + service.state + " on port " + service.port
         + ". Running build " + service.build_id + "."
         + (service.restart_error_code ? " Last lifecycle error: " + service.restart_error_code + "." : "");
     } catch {
       if (!isCurrent()) return;
       service = undefined;
+      serviceEtag = undefined;
       health.textContent = "Service status is unavailable.";
     }
     return service;
@@ -2067,7 +2072,7 @@ function renderServiceControls(canManage, isCurrent) {
         }
       } else if (changed && latest.state === "running") {
         message = "The service is running on a new instance.";
-      } else if (latest.state === "running" && latest.restart_error_code && latest.etag !== prior.etag) {
+      } else if (latest.state === "running" && latest.restart_error_code && serviceEtag !== operation.priorEtag) {
         message = "Shutdown did not complete. The service is still running.";
       } else if (explicit && latest.state === "running" && !operation.acknowledged) {
         message = "Shutdown could not be confirmed. The service is running.";
@@ -2108,11 +2113,11 @@ function renderServiceControls(canManage, isCurrent) {
     }
   }
 
-  /** @param {Service} prior @param {{id: string, buildId: string}} [activation] */
-  async function submit(prior, activation) {
+  /** @param {Service} prior @param {string} priorEtag @param {{id: string, buildId: string}} [activation] */
+  async function submit(prior, priorEtag, activation) {
     if (writing || busy || pendingLifecycle || !isCurrent()) return;
     /** @type {LifecycleOperation} */
-    const operation = { prior, activation, acknowledged: false };
+    const operation = { prior, priorEtag, activation, acknowledged: false };
     const submittingCapability = capability;
     writing = busy = true;
     pendingLifecycle = operation;
@@ -2121,9 +2126,9 @@ function renderServiceControls(canManage, isCurrent) {
     try {
       try {
         if (activation) {
-          await api.activateBuild(activation.id, activation.buildId, prior.etag);
+          await api.activateBuild(activation.id, activation.buildId, priorEtag);
         } else {
-          const draining = await api.stopService(prior);
+          const draining = await api.stopService(prior, priorEtag);
           if (isCurrent() && pendingLifecycle === operation) service = draining;
         }
         if (pendingLifecycle !== operation) return;

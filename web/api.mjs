@@ -14,7 +14,7 @@ const RASTER_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "ima
 /** @typedef {"blocks"|"duplicates"|"references"|"relates_to"} RelationshipKind */
 /** @typedef {{enabled: boolean, repository: string|null, last_success_at: string|null, pending: boolean, error_code: string|null}} Publishing */
 /** @typedef {{revision: number, pinned_board_ids: string[], publishing: Publishing}} Workspace */
-/** @typedef {{etag: string, port: number, service_instance_id: string, build_id: string,
+/** @typedef {{port: number, service_instance_id: string, build_id: string,
  * state: "running"|"draining", api_version: "2026-11-10", restart_error_code: string|null}} Service */
 /** @typedef {{id: string, version: string, validation: "pending"|"valid"|"invalid", error_code: string|null}} Build */
 /** @typedef {{id: string, build_id: string, state: "accepted"|"activated"|"failed", error_code: string|null}} Activation */
@@ -125,7 +125,7 @@ function validErrorCode(value) {
 /** @param {unknown} value @returns {value is Service} */
 function validService(value) {
   if (!isObject(value)) return false;
-  return Object.keys(value).length === 7 && typeof value.etag === "string" && STRONG_ETAG.test(value.etag)
+  return Object.keys(value).length === 6
     && isInteger(value.port) && value.port >= 1 && value.port <= 65535
     && typeof value.service_instance_id === "string" && UUID_V7.test(value.service_instance_id)
     && canonicalId(value.build_id) && (value.state === "running" || value.state === "draining")
@@ -1452,10 +1452,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {AbortSignal} [signal] */
     async getService(signal) {
       const reply = await readLifecycle("/service", signal);
-      if (!validService(reply.data) || reply.etag !== reply.data.etag) {
+      if (!validService(reply.data)) {
         throw new ApiError("invalid_response", { status: 200 });
       }
-      return { data: reply.data, etag: reply.data.etag };
+      return { data: reply.data, etag: strongTag(reply.etag) };
     },
     async listBuilds() {
       const reply = await readLifecycle("/builds");
@@ -1493,13 +1493,14 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       return reply.data;
     },
-    /** @param {Service} service */
-    async stopService(service) {
-      const response = await send("/service", { method: "PATCH", etag: strongTag(service.etag),
+    /** @param {Service} service @param {string} serviceEtag */
+    async stopService(service, serviceEtag) {
+      const response = await send("/service", { method: "PATCH", etag: strongTag(serviceEtag),
         data: { state: "stopped" }, knownUnavailable: true });
       await requireLifecycleResponse(response, 202, true);
       const data = await responseObject(response, true);
-      if (!validService(data) || data.state !== "draining"
+      if (!STRONG_ETAG.test(response.headers.get("ETag") ?? "")
+          || !validService(data) || data.state !== "draining"
           || data.service_instance_id !== service.service_instance_id || data.port !== service.port
           || data.build_id !== service.build_id) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });

@@ -32,7 +32,7 @@ func TestM25DetachAttachment(t *testing.T) {
 	attachmentHTTPDetach(t, editor, path, "", boardTag, 428)
 	attachmentHTTPDetach(t, editor, path, cover.entityTag(), "", 428)
 	attachmentHTTPDetach(t, editor, path, cover.entityTag(), "*", 400)
-	attachmentHTTPDetach(t, editor, path, cover.entityTag(), b.ETag, 412)
+	attachmentHTTPDetach(t, editor, path, cover.entityTag(), b.entityTag(), 412)
 	attachmentHTTPDetach(t, editor, path, "W/"+cover.entityTag(), boardTag, 412)
 
 	headers = attachmentHTTPDetach(t, editor, path, cover.entityTag(), boardTag, 204)
@@ -65,7 +65,7 @@ func TestM25DetachAttachment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state.Board.ETag != newBoardTag || len(state.Activity) < 2 {
+	if state.Board.entityTag() != newBoardTag || len(state.Activity) < 2 {
 		t.Fatal("durable readback did not include the detach revision")
 	}
 	clear, detach := state.Activity[len(state.Activity)-2], state.Activity[len(state.Activity)-1]

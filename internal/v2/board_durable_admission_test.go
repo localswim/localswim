@@ -88,7 +88,7 @@ func TestM82RefusesSnapshotChangedDuringWritePreparation(t *testing.T) {
 		t.Fatalf("expected a valid same-revision replacement: %v", err)
 	}
 
-	_, err := s.update(initial.Board.ID, initial.Board.ETag, func(next *snapshot) error {
+	_, err := s.update(initial.Board.ID, initial.Board.entityTag(), func(next *snapshot) error {
 		if err := writeAtomic(path, replacement); err != nil {
 			return err
 		}
@@ -139,7 +139,7 @@ func TestM82OrdinaryWritesRefuseChangedDurableSnapshot(t *testing.T) {
 				external.Board.Name = "Independently changed board"
 				replacement = marshalVerificationFixture(t, external)
 				saved, err := parseSnapshot(replacement, accepted.ID)
-				if err != nil || saved.Board.ETag != accepted.ETag || saved.Board.Revision != accepted.Revision {
+				if err != nil || saved.Board.entityTag() != accepted.entityTag() || saved.Board.Revision != accepted.Revision {
 					t.Fatalf("replacement must be valid at the accepted revision: %v", err)
 				}
 			}
@@ -160,13 +160,13 @@ func TestM82OrdinaryWritesRefuseChangedDurableSnapshot(t *testing.T) {
 			}
 
 			for _, body := range []string{`{"name":"Attempted rename"}`, `{"name":"Accepted board"}`} {
-				raw, _ = client.call("PATCH", boardPath, body, accepted.ETag, 503)
+				raw, _ = client.call("PATCH", boardPath, body, accepted.entityTag(), 503)
 				refusal := turnOneDecode[problemBody](t, raw)
 				if refusal.Code != "unavailable" || refusal.Outcome != "not_applied" || refusal.Detail != tc.detail {
 					t.Fatalf("unexpected write refusal: %+v", refusal)
 				}
 			}
-			raw, _ = client.call("PATCH", "/boards/"+second.ID, `{"name":"Second board renamed"}`, second.ETag, 200)
+			raw, _ = client.call("PATCH", "/boards/"+second.ID, `{"name":"Second board renamed"}`, second.entityTag(), 200)
 			if got := turnOneDecode[board](t, raw); got.Name != "Second board renamed" || got.Revision != second.Revision+1 {
 				t.Fatal("the second board did not commit its rename")
 			}
@@ -188,7 +188,7 @@ func TestM82OrdinaryWritesRefuseChangedDurableSnapshot(t *testing.T) {
 			}
 			raw, _ = recoveryPut(t, client, accepted.ID, recoveryTag, "application/json", source, 200)
 			recovered := turnOneDecode[board](t, raw)
-			client.call("PATCH", boardPath, `{"name":"Renamed after recovery"}`, recovered.ETag, 200)
+			client.call("PATCH", boardPath, `{"name":"Renamed after recovery"}`, recovered.entityTag(), 200)
 
 			raw, _ = client.call("GET", "/boards", "", "", 200)
 			rows = turnOnePage[boardSummary](t, raw, "boards").Values

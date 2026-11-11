@@ -298,9 +298,9 @@ func (s *store) create(value snapshot) error {
 	return s.commit(cloneSnapshot(value), true, nil)
 }
 
-func (s *store) update(id, expected string, change func(*snapshot) error) (snapshot, error) {
+func (s *store) update(id string, expected uint64, change func(*snapshot) error) (snapshot, error) {
 	return s.updateChecked(id, func(current snapshot) bool {
-		return matchesStrongTag(expected, current.Board.ETag)
+		return expected == current.Board.Revision
 	}, change)
 }
 
@@ -361,7 +361,6 @@ func (s *store) prepareUpdateLocked(current snapshot, change func(*snapshot) err
 	if next.Board.UpdatedAt.Before(current.Board.UpdatedAt) {
 		next.Board.UpdatedAt = current.Board.UpdatedAt
 	}
-	next.Board.ETag = etag(current.Board.ID, next.Board.Revision)
 	return next, true, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	jsonv2 "encoding/json/v2"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -79,7 +80,6 @@ func (e fieldError) valid() bool {
 func (r Response) BoardAvailability(boardID string) (string, error) {
 	var board struct {
 		ID           string `json:"id"`
-		ETag         string `json:"etag"`
 		Revision     uint64 `json:"revision"`
 		Availability string `json:"availability"`
 	}
@@ -87,8 +87,8 @@ func (r Response) BoardAvailability(boardID string) (string, error) {
 		board.Revision == 0 || board.Revision > 1<<53-1 {
 		return "", errors.New("service did not return the addressed board and its revision")
 	}
-	if r.ETag == "" || board.ETag != r.ETag {
-		return "", errors.New("service board JSON ETag did not match its HTTP ETag")
+	if r.ETag != fmt.Sprintf("\"%s-%d\"", strings.ToLower(board.ID), board.Revision) {
+		return "", errors.New("service board revision did not match its HTTP validator")
 	}
 	if board.Availability != "open" && board.Availability != "closed" {
 		return "", errors.New("service did not return valid board availability")

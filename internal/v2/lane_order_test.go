@@ -102,7 +102,7 @@ func TestBoardLanesHTTPView(t *testing.T) {
 	client := turnOneClient{t, server.URL, human, server.Client()}
 	raw, _ := client.call("POST", "/boards", `{"name":"Visible lanes"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
-	tag := b.ETag
+	tag := b.entityTag()
 	cards := make([]card, 0, 3)
 	for i := 0; i < 3; i++ {
 		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"Card %d"}`, b.ID, tag, b.LaneIDs[0], i)

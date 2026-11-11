@@ -3,6 +3,7 @@ package client
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -11,7 +12,6 @@ import (
 func (r Response) PublishingEnabled(boardID string) (bool, error) {
 	var resource struct {
 		ID             string   `json:"id"`
-		ETag           string   `json:"etag"`
 		Revision       uint64   `json:"revision"`
 		PinnedBoardIDs []string `json:"pinned_board_ids"`
 		Publishing     struct {
@@ -27,8 +27,8 @@ func (r Response) PublishingEnabled(boardID string) (bool, error) {
 		!strings.EqualFold(resource.ID, boardID) || (boardID == "" && resource.PinnedBoardIDs == nil) {
 		return false, errors.New("service did not return the addressed board or workspace with its revision and validator")
 	}
-	if boardID != "" && resource.ETag != r.ETag {
-		return false, errors.New("service board JSON ETag did not match its HTTP ETag")
+	if boardID != "" && r.ETag != fmt.Sprintf("\"%s-%d\"", strings.ToLower(resource.ID), resource.Revision) {
+		return false, errors.New("service board revision did not match its HTTP validator")
 	}
 	state := resource.Publishing
 	if state.Enabled == nil || state.Pending == nil || !isNullableString(state.Repository) ||

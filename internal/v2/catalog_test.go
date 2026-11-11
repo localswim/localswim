@@ -60,7 +60,7 @@ func TestDeriveAttentionCountsCardOwnedAudit(t *testing.T) {
 func TestSummarizeDistinguishesZeroAttentionFromUnknown(t *testing.T) {
 	state := snapshot{
 		Board: board{
-			entity:       entity{ID: "board", ETag: "\"accepted\""},
+			entity:       entity{ID: "board", Revision: 1},
 			Name:         "Accepted name",
 			Availability: "open",
 		},
@@ -74,7 +74,7 @@ func TestSummarizeDistinguishesZeroAttentionFromUnknown(t *testing.T) {
 
 	failed := summarize(state, errors.New("private disk error"))
 	if failed.ID != state.Board.ID || failed.Name == nil || *failed.Name != state.Board.Name ||
-		failed.ETag == nil || *failed.ETag != state.Board.ETag || failed.Availability != "unhealthy" ||
+		failed.Revision == nil || *failed.Revision != state.Board.Revision || failed.Availability != "unhealthy" ||
 		failed.Attention != nil || failed.LastCardEditAt != nil || failed.ErrorCode == nil {
 		t.Fatalf("unexpected unhealthy summary: %+v", failed)
 	}

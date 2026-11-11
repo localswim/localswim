@@ -29,7 +29,7 @@ func TestM68InspectTicket(t *testing.T) {
 	c := turnOneClient{t, server.URL, human, server.Client()}
 	raw, _ := c.call("POST", "/boards", `{"name":"Ticket context"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
-	tag := b.ETag
+	tag := b.entityTag()
 	createCard := func(title, description, parent, laneID string) card {
 		t.Helper()
 		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":%q,"description":%q`,
@@ -71,14 +71,14 @@ func TestM68InspectTicket(t *testing.T) {
 	commentOn(focus.ID, "older-comment-private")
 	commentOn(focus.ID, "newer-comment-private")
 	commentOn(child.ID, "child-comment-private")
-	focusRaw, focusHeaders := c.call("GET", "/cards/"+focus.ID, "", "", 200)
+	focusRaw, _ := c.call("GET", "/cards/"+focus.ID, "", "", 200)
 	current := turnOneDecode[card](t, focusRaw)
 	before, _ := c.call("GET", "/snapshots/"+b.ID, "", "", 200)
 	path := "/boards/" + b.ID + "?view=ticket&ticket=0002"
 	raw, headers := c.call("GET", path, "", "", 200)
 	value := turnOneDecode[TicketInspection](t, raw)
 	if value.BoardID != b.ID || value.BoardRevision <= value.Card.Revision || value.Card.ID != focus.ID ||
-		value.Card.Ticket != 2 || value.Card.Revision != current.Revision || value.Card.ETag != focusHeaders.Get("ETag") ||
+		value.Card.Ticket != 2 || value.Card.Revision != current.Revision ||
 		headers.Get("X-Board-ETag") != tag || value.Card.Lane.ID != current.LaneID ||
 		value.Card.Owner.ID != current.OwnerID || value.Card.Priority.ID != current.PriorityID {
 		t.Fatalf("wrong focused ticket identity, workflow, or revisions: %+v", value)
@@ -95,7 +95,7 @@ func TestM68InspectTicket(t *testing.T) {
 		value.Relationships[3].Card.ID != other.ID || value.Relationships[3].Direction != "symmetric" {
 		t.Fatalf("wrong direct link context: %+v", value.Relationships)
 	}
-	if value.Prose != nil || bytes.Contains(raw, []byte("private")) || bytes.Contains(raw, []byte(`"prose"`)) {
+	if value.Prose != nil || bytes.Contains(raw, []byte("private")) || bytes.Contains(raw, []byte(`"prose"`)) || bytes.Contains(raw, []byte(`"etag"`)) {
 		t.Fatal("default inspection exposed descriptions or comments")
 	}
 	withProse, proseHeaders := c.call("GET", path+"&include_prose=true", "", "", 200)
@@ -103,7 +103,7 @@ func TestM68InspectTicket(t *testing.T) {
 	if value.Prose == nil || value.Prose.Description != "  selected-private\n  " || len(value.Prose.Comments) != 2 ||
 		value.Prose.Comments[0].Text != "newer-comment-private" || value.Prose.Comments[1].Text != "older-comment-private" ||
 		value.Prose.Comments[0].AuthorID != humanID || bytes.Contains(withProse, []byte("child-comment-private")) ||
-		bytes.Contains(withProse, []byte("dependency-private")) || proseHeaders.Get("ETag") == headers.Get("ETag") {
+		bytes.Contains(withProse, []byte("dependency-private")) || bytes.Contains(withProse, []byte(`"etag"`)) || proseHeaders.Get("ETag") == headers.Get("ETag") {
 		t.Fatal("prose inspection lost exact focused text or included linked-card text")
 	}
 	withoutProse, _ := c.call("GET", path+"&include_prose=false", "", "", 200)

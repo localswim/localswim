@@ -92,18 +92,18 @@ func TestM37CloseDrainsSelectedBoardAndReopensSameResources(t *testing.T) {
 	path := "/boards/" + initial.ID
 	item := attachmentHTTPCard(t, editor, initial)
 	contents := []byte("retained attachment")
-	upload, uploaded := attachmentHTTPUpload(t, editor, []attachmentFormField{
+	upload, _ := attachmentHTTPUpload(t, editor, []attachmentFormField{
 		{"card_id", item.ID}, {"expected_card_etag", item.entityTag()},
 	}, "note.txt", contents, 201)
 	attached := turnOneDecode[attachment](t, upload)
 	contentPath := "/attachments/" + attached.ID + "/content"
 	postUpload := initial
-	postUpload.ETag = uploaded.Get("X-Board-ETag")
+	postUpload.Revision = attached.Revision
 	otherCard := attachmentHTTPCard(t, editor, postUpload)
 	raw, _ = editor.call("GET", path, "", "", 200)
 	withCards := turnOneDecode[board](t, raw)
 	relationshipBody := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"source_card_id":%q,"target_card_id":%q,"kind":"references"}`,
-		withCards.ID, withCards.ETag, item.ID, otherCard.ID)
+		withCards.ID, withCards.entityTag(), item.ID, otherCard.ID)
 	raw, _ = editor.call("POST", "/relationships", relationshipBody, "", 201)
 	linked := turnOneDecode[relationship](t, raw)
 	relationshipPath := "/relationships/" + linked.ID
@@ -132,12 +132,12 @@ func TestM37CloseDrainsSelectedBoardAndReopensSameResources(t *testing.T) {
 	other := turnOneDecode[board](t, raw)
 
 	for _, body := range []string{`{"availability":"closed "}`, `{"availability":"closing"}`, `{"availability":null}`, `{"availability":42}`} {
-		editor.call("PATCH", path, body, before.ETag, 400)
+		editor.call("PATCH", path, body, before.entityTag(), 400)
 	}
-	editor.call("PATCH", path, `{"availability":"closed"}`, initial.ETag, 412)
+	editor.call("PATCH", path, `{"availability":"closed"}`, initial.entityTag(), 412)
 	editor.call("PATCH", path, `{"availability":"closed"}`, "", 428)
-	raw, _ = editor.call("PATCH", path, `{"availability":"OPEN"}`, before.ETag, 200)
-	if current := turnOneDecode[board](t, raw); current.ETag != before.ETag {
+	raw, _ = editor.call("PATCH", path, `{"availability":"OPEN"}`, before.entityTag(), 200)
+	if current := turnOneDecode[board](t, raw); current.entityTag() != before.entityTag() {
 		t.Fatal("availability no-op advanced revision")
 	}
 
@@ -159,7 +159,7 @@ func TestM37CloseDrainsSelectedBoardAndReopensSameResources(t *testing.T) {
 
 	closedResult := make(chan boardHTTPResult, 1)
 	go func() {
-		closedResult <- boardRequest(editor, "PATCH", path, `{"availability":"CloSEd","name":"Closed board"}`, before.ETag)
+		closedResult <- boardRequest(editor, "PATCH", path, `{"availability":"CloSEd","name":"Closed board"}`, before.entityTag())
 	}()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -181,11 +181,11 @@ func TestM37CloseDrainsSelectedBoardAndReopensSameResources(t *testing.T) {
 	default:
 	}
 	raw, _ = editor.call("GET", path, "", "", 200)
-	if current := turnOneDecode[board](t, raw); current.Availability != "open" || current.ETag != before.ETag || current.Name != before.Name {
+	if current := turnOneDecode[board](t, raw); current.Availability != "open" || current.entityTag() != before.entityTag() || current.Name != before.Name {
 		t.Fatal("uncommitted close candidate was visible")
 	}
-	editor.call("PATCH", path, `{"availability":"open"}`, before.ETag, 503)
-	assertDeletesRefused(before.ETag)
+	editor.call("PATCH", path, `{"availability":"open"}`, before.entityTag(), 503)
+	assertDeletesRefused(before.entityTag())
 	editor.call("GET", "/cards/"+item.ID, "", "", 503)
 	_ = attachmentHTTPCard(t, editor, other)
 	editor.call("GET", "/workspace", "", "", 200)
@@ -200,7 +200,7 @@ func TestM37CloseDrainsSelectedBoardAndReopensSameResources(t *testing.T) {
 	}
 	closed := turnOneDecode[board](t, result.data)
 	if closed.Availability != "closed" || closed.Name != "Closed board" || closed.ID != before.ID ||
-		closed.Revision != before.Revision+1 || result.header.Get("ETag") != closed.ETag || result.header.Get("X-Board-ETag") != closed.ETag {
+		closed.Revision != before.Revision+1 || result.header.Get("ETag") != closed.entityTag() || result.header.Get("X-Board-ETag") != closed.entityTag() {
 		t.Fatalf("unexpected closed board: %+v", closed)
 	}
 	// The unrelated card also causes a catalog event. Consume it if the
@@ -218,13 +218,13 @@ func TestM37CloseDrainsSelectedBoardAndReopensSameResources(t *testing.T) {
 		editor.call("GET", route, "", "", 503)
 	}
 	editor.call("PATCH", "/cards/"+item.ID, `{"title":"Refused"}`, item.entityTag(), 503)
-	assertDeletesRefused(closed.ETag)
+	assertDeletesRefused(closed.entityTag())
 	editor.call("GET", "/policies/"+closed.PolicyID, "", "", 200)
-	editor.call("PATCH", path, `{"availability":"closed","name":"Refused"}`, closed.ETag, 503)
-	raw, headers := editor.call("PATCH", path, `{"availability":"cLoSeD"}`, closed.ETag, 200)
+	editor.call("PATCH", path, `{"availability":"closed","name":"Refused"}`, closed.entityTag(), 503)
+	raw, headers := editor.call("PATCH", path, `{"availability":"cLoSeD"}`, closed.entityTag(), 200)
 	noOp := turnOneDecode[board](t, raw)
-	if noOp.ETag != closed.ETag || noOp.Revision != closed.Revision || noOp.Name != closed.Name ||
-		headers.Get("X-Board-ETag") != closed.ETag {
+	if noOp.entityTag() != closed.entityTag() || noOp.Revision != closed.Revision || noOp.Name != closed.Name ||
+		headers.Get("X-Board-ETag") != closed.entityTag() {
 		t.Fatalf("availability no-op changed closed board: %+v", noOp)
 	}
 	raw, _ = editor.call("GET", "/boards", "", "", 200)
@@ -238,7 +238,7 @@ func TestM37CloseDrainsSelectedBoardAndReopensSameResources(t *testing.T) {
 		t.Fatal("closed catalog row still advertises attention")
 	}
 	durable, err := app.store.durable(closed.ID)
-	if err != nil || durable.Board.ETag != closed.ETag {
+	if err != nil || durable.Board.entityTag() != closed.entityTag() {
 		t.Fatal("closed revision is not durable", err)
 	}
 	audit := durable.Activity[len(durable.Activity)-2]
@@ -254,14 +254,14 @@ func TestM37CloseDrainsSelectedBoardAndReopensSameResources(t *testing.T) {
 	}
 	_, restarted := restartBoardPublication(t, app.store.root, human)
 	raw, _ = restarted.call("GET", path, "", "", 200)
-	if persisted := turnOneDecode[board](t, raw); persisted.ETag != closed.ETag || persisted.Availability != "closed" {
+	if persisted := turnOneDecode[board](t, raw); persisted.entityTag() != closed.entityTag() || persisted.Availability != "closed" {
 		t.Fatal("service restart changed board availability")
 	}
-	restarted.call("PATCH", path, `{"availability":"open"}`, before.ETag, 412)
-	raw, headers = restarted.call("PATCH", path, `{"availability":"OpEN","name":"Reopened board"}`, closed.ETag, 200)
+	restarted.call("PATCH", path, `{"availability":"open"}`, before.entityTag(), 412)
+	raw, headers = restarted.call("PATCH", path, `{"availability":"OpEN","name":"Reopened board"}`, closed.entityTag(), 200)
 	opened := turnOneDecode[board](t, raw)
 	if opened.ID != closed.ID || opened.Availability != "open" || opened.Name != "Reopened board" ||
-		opened.Revision != closed.Revision+1 || headers.Get("X-Board-ETag") != opened.ETag {
+		opened.Revision != closed.Revision+1 || headers.Get("X-Board-ETag") != opened.entityTag() {
 		t.Fatalf("unexpected reopened board: %+v", opened)
 	}
 	raw, _ = restarted.call("GET", "/cards/"+item.ID, "", "", 200)
@@ -281,26 +281,26 @@ func TestM37FailedFlushLeavesOpenAndRetryPublishesExactLatestRevision(t *testing
 	path := "/boards/" + fixture.state.Board.ID
 	raw, _ := editor.call("GET", path, "", "", 200)
 	start := turnOneDecode[board](t, raw)
-	raw, _ = editor.call("PATCH", path, `{"publishing":{"enabled":true}}`, start.ETag, 200)
+	raw, _ = editor.call("PATCH", path, `{"publishing":{"enabled":true}}`, start.entityTag(), 200)
 	enabled := turnOneDecode[board](t, raw)
 	offline := fixture.remote + "-offline"
 	if err := os.Rename(fixture.remote, offline); err != nil {
 		t.Fatal(err)
 	}
 
-	raw, _ = editor.call("PATCH", path, `{"availability":"closed","name":"Should not apply"}`, enabled.ETag, 503)
+	raw, _ = editor.call("PATCH", path, `{"availability":"closed","name":"Should not apply"}`, enabled.entityTag(), 503)
 	problem := turnOneDecode[problemBody](t, raw)
 	if problem.Code != "unavailable" || problem.Outcome != "not_applied" {
 		t.Fatalf("expected known flush refusal: %+v", problem)
 	}
 	raw, _ = editor.call("GET", path, "", "", 200)
 	failed := turnOneDecode[board](t, raw)
-	if failed.Availability != "open" || failed.ETag != enabled.ETag || failed.Name != start.Name ||
+	if failed.Availability != "open" || failed.entityTag() != enabled.entityTag() || failed.Name != start.Name ||
 		!failed.Publishing.Pending || snapshotString(failed.Publishing.ErrorCode) != "git_push_failed" {
 		t.Fatalf("failed flush changed availability or hid retry state: %+v", failed)
 	}
 	editor.call("GET", path+"?view=lanes", "", "", 200)
-	raw, _ = editor.call("PATCH", path, `{"name":"Final open revision"}`, failed.ETag, 200)
+	raw, _ = editor.call("PATCH", path, `{"name":"Final open revision"}`, failed.entityTag(), 200)
 	latest := turnOneDecode[board](t, raw)
 	want, err := os.ReadFile(fixture.app.store.snapshotPath(latest.ID))
 	if err != nil {
@@ -309,7 +309,7 @@ func TestM37FailedFlushLeavesOpenAndRetryPublishesExactLatestRevision(t *testing
 	if err := os.Rename(offline, fixture.remote); err != nil {
 		t.Fatal(err)
 	}
-	raw, _ = editor.call("PATCH", path, `{"availability":"closed","publishing":{"enabled":false}}`, latest.ETag, 200)
+	raw, _ = editor.call("PATCH", path, `{"availability":"closed","publishing":{"enabled":false}}`, latest.entityTag(), 200)
 	closed := turnOneDecode[board](t, raw)
 	if closed.Availability != "closed" || closed.Revision != latest.Revision+1 || closed.Publishing.Enabled ||
 		closed.Publishing.Pending || closed.Publishing.ErrorCode != nil || closed.Publishing.LastSuccessAt == nil {
@@ -324,7 +324,7 @@ func TestM37FailedFlushLeavesOpenAndRetryPublishesExactLatestRevision(t *testing
 	if published.Board.Availability != "open" || published.Board.Revision != latest.Revision {
 		t.Fatal("the uncommitted closed candidate was sent to origin")
 	}
-	raw, _ = editor.call("PATCH", path, `{"availability":"open","publishing":{"enabled":true}}`, closed.ETag, 200)
+	raw, _ = editor.call("PATCH", path, `{"availability":"open","publishing":{"enabled":true}}`, closed.entityTag(), 200)
 	reopened := turnOneDecode[board](t, raw)
 	if reopened.Availability != "open" || !reopened.Publishing.Pending || reopened.Publishing.LastSuccessAt == nil {
 		t.Fatalf("reopen did not restart the board publisher: %+v", reopened)

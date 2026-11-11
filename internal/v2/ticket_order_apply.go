@@ -88,7 +88,7 @@ func (x *request) applyTicketOrder(laneID string) {
 		return
 	}
 	result.BoardRevision = next.Board.Revision
-	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", next.Board.entityTag())
 	x.respond(http.StatusOK, result, "")
 }
 

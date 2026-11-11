@@ -136,7 +136,7 @@ Card set-priorities reads card_ids and priority_id and checks the board revision
 The batch evaluates all selected cards together and returns effective priorities and changes.
 Board get --view lanes returns visible cards in their swimlane order.
 Ticket-order preview defaults to all active lane cards. Optional card IDs select the ticket pool.
-Preview is read-only and returns the board revision, expected_board_etag, and proposed ticket numbers.
+Preview is read-only and returns the board revision and proposed ticket numbers.
 Ticket-order apply reads that saved preview and uses its original validator. Stale previews refuse.
 Card search and next use whole-board triage ordering. Lookup uses numeric ticket order.
 Card next defaults to unfinished lanes. Repeat --lane to select multiple lanes, including Completed.

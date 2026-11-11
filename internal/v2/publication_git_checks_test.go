@@ -71,7 +71,7 @@ func m34PublicationFixture(t *testing.T) m34Fixture {
 	m34Git(t, repository, "add", "--", "unchanged.txt", "modified.txt", "deleted.txt")
 	m34Git(t, repository, "commit", "-m", "Disposable publication baseline")
 	m34Git(t, repository, "push", "origin", "HEAD:refs/heads/main")
-	capture, err := app.store.captureBackupSnapshot(state.Board.ID, humanID, state.Board.ETag)
+	capture, err := app.store.captureBackupSnapshot(state.Board.ID, humanID, state.Board.Revision)
 	if err != nil {
 		t.Fatal(err)
 	}

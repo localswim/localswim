@@ -33,7 +33,7 @@ func TestM05AttributedCommentAndNewestPages(t *testing.T) {
 
 	raw, _ := h.call("POST", "/boards", `{"name":"Comments"}`, "", 201)
 	board := turnOneDecode[board](t, raw)
-	boardTag := board.ETag
+	boardTag := board.entityTag()
 	createCard := func(title string) card {
 		t.Helper()
 		raw, headers := h.call("POST", "/cards", fmt.Sprintf(

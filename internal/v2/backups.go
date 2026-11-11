@@ -38,7 +38,7 @@ type backupCapture struct {
 // lock. Close the native file before releasing it so Windows can replace the
 // snapshot during subsequent edits. Parsing, audit validation and all attachment
 // verification and archive work happen after unlock.
-func (s *store) captureBackupSnapshot(boardID, actor, expected string) (backupCapture, error) {
+func (s *store) captureBackupSnapshot(boardID, actor string, expected uint64) (backupCapture, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if err := s.writable(); err != nil {
@@ -51,7 +51,7 @@ func (s *store) captureBackupSnapshot(boardID, actor, expected string) (backupCa
 	if !state.can(actor, "backup") {
 		return backupCapture{}, errForbidden
 	}
-	if !matchesStrongTag(expected, state.Board.ETag) {
+	if expected != state.Board.Revision {
 		return backupCapture{}, errStale
 	}
 	return s.captureSnapshotLocked(state)
@@ -404,7 +404,7 @@ func (x *request) createBackup() {
 	if !x.useBoard(boardID) {
 		return
 	}
-	captured, err := x.service.store.captureBackupSnapshot(boardID, x.actor, expected)
+	captured, err := x.service.store.captureBackupSnapshot(boardID, x.actor, expectedBoardRevision(expected, boardID))
 	if err != nil {
 		x.backupFailure(err)
 		return

@@ -25,8 +25,6 @@ type relationship struct {
 	relationshipLink
 }
 
-func (r relationship) entityTag() string { return etag(r.ID, r.Revision) }
-
 type relationshipSeed struct {
 	targetID, kind string
 }
@@ -420,7 +418,7 @@ func (x *request) createRelationship() {
 	}
 	value := next.Relationships[len(next.Relationships)-1]
 	x.w.Header().Set("Location", Prefix+"/relationships/"+value.ID)
-	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", next.Board.entityTag())
 	x.respond(http.StatusCreated, value, value.entityTag())
 }
 
@@ -486,7 +484,7 @@ func (x *request) changeRelationship(boardID, id string) {
 		x.fail(err)
 		return
 	}
-	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", next.Board.entityTag())
 	if x.r.Method == http.MethodDelete {
 		x.w.WriteHeader(http.StatusNoContent)
 		return

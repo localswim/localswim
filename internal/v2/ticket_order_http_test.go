@@ -33,7 +33,7 @@ func TestM21TicketOrderHTTP(t *testing.T) {
 	board := turnOneDecode[board](t, raw)
 	raw, headers := client.call("POST", "/cards", fmt.Sprintf(
 		`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"First"}`,
-		board.ID, board.ETag, board.LaneIDs[0]), "", 201)
+		board.ID, board.entityTag(), board.LaneIDs[0]), "", 201)
 	first := turnOneDecode[card](t, raw)
 	raw, _ = client.call("POST", "/cards", fmt.Sprintf(
 		`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"Second","relationships":[{"target_card_id":%q,"kind":"blocks"}]}`,
@@ -53,7 +53,7 @@ func TestM21TicketOrderHTTP(t *testing.T) {
 	preview := turnOneDecode[ticketOrder](t, raw)
 	if !preview.Changed || preview.BoardRevision != before.Board.Revision ||
 		!reflect.DeepEqual(preview.Proposed, []ticketOrderEntry{{second.ID, first.Ticket}, {first.ID, second.Ticket}}) ||
-		headers.Get("X-Board-ETag") != before.Board.ETag || headers.Get("ETag") == "" {
+		headers.Get("X-Board-ETag") != before.Board.entityTag() || headers.Get("ETag") == "" {
 		t.Fatalf("unexpected preview response: %+v", preview)
 	}
 	tag := headers.Get("ETag")
@@ -76,7 +76,7 @@ func TestM21TicketOrderHTTP(t *testing.T) {
 		}
 		body, err := io.ReadAll(response.Body)
 		_ = response.Body.Close()
-		if err != nil || response.StatusCode != test.status || response.Header.Get("X-Board-ETag") != before.Board.ETag {
+		if err != nil || response.StatusCode != test.status || response.Header.Get("X-Board-ETag") != before.Board.entityTag() {
 			t.Fatalf("conditional %s %s failed: status %d, error %v", test.method, test.query, response.StatusCode, err)
 		}
 		if test.status == 304 && (len(body) != 0 || response.Header.Get("ETag") != tag) {

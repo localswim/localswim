@@ -20,15 +20,15 @@ func TestM63LaneDependencyReorder(t *testing.T) {
 		return fmt.Sprintf(`{"board_etag":%q,"reorder_enabled":%s}`, boardTag, value)
 	}
 	for _, invalid := range []string{"null", "1", `"true"`} {
-		client.call("PATCH", path, config(b.ETag, invalid), initialLaneTag, 400)
+		client.call("PATCH", path, config(b.entityTag(), invalid), initialLaneTag, 400)
 	}
-	raw, header = client.call("PATCH", path, config(b.ETag, "true"), initialLaneTag, 200)
+	raw, header = client.call("PATCH", path, config(b.entityTag(), "true"), initialLaneTag, 200)
 	item = turnOneDecode[lane](t, raw)
 	boardTag, laneTag := header.Get("X-Board-ETag"), header.Get("ETag")
-	if !item.ReorderEnabled || item.Revision != b.Revision+1 || boardTag == b.ETag || laneTag == initialLaneTag {
+	if !item.ReorderEnabled || item.Revision != b.Revision+1 || boardTag == b.entityTag() || laneTag == initialLaneTag {
 		t.Fatal("lane opt-in did not advance the lane and board versions")
 	}
-	client.call("PATCH", path, config(b.ETag, "false"), laneTag, 412)
+	client.call("PATCH", path, config(b.entityTag(), "false"), laneTag, 412)
 	client.call("PATCH", path, config(boardTag, "false"), initialLaneTag, 412)
 	_, header = client.call("PATCH", path, config(boardTag, "true"), laneTag, 200)
 	if header.Get("ETag") != laneTag || header.Get("X-Board-ETag") != boardTag {

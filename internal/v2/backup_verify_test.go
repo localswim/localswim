@@ -40,7 +40,7 @@ func TestM96VerifyDownloadedBackupWithDetachedAttachment(t *testing.T) {
 	}
 	snapshotPath := app.store.snapshotPath(b.ID)
 	originalBoard := m96FileDigest(t, snapshotPath)
-	request := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, b.ID, live.Board.ETag)
+	request := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, b.ID, live.Board.entityTag())
 	raw, _ = editor.call("POST", "/backups", request, "", 201)
 	item := turnOneDecode[backup](t, raw)
 

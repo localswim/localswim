@@ -200,7 +200,7 @@ func (x *request) createComment() {
 	}
 	value := next.Comments[len(next.Comments)-1]
 	x.w.Header().Set("Location", Prefix+"/comments/"+value.ID)
-	x.w.Header().Set("X-Board-ETag", next.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", next.Board.entityTag())
 	x.respond(http.StatusCreated, value, value.entityTag())
 }
 

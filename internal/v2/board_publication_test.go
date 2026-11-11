@@ -31,7 +31,7 @@ func TestM35BoardPublicationResumesExactPendingCommit(t *testing.T) {
 		`{"publishing":{"repository":"https://unexpected.invalid"}}`,
 		`{"publishing":{"enabled":true,"pending":false}}`,
 	} {
-		editor.call("PATCH", path, body, disabled.ETag, 400)
+		editor.call("PATCH", path, body, disabled.entityTag(), 400)
 	}
 	editor.call("PATCH", path, `{"publishing":{"enabled":true}}`, etag(original.ID, 1), 412)
 
@@ -48,13 +48,13 @@ func TestM35BoardPublicationResumesExactPendingCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	raw, _ = editor.call("PATCH", path, `{"publishing":{"enabled":true,"repository":"origin"}}`, disabled.ETag, 200)
+	raw, _ = editor.call("PATCH", path, `{"publishing":{"enabled":true,"repository":"origin"}}`, disabled.entityTag(), 200)
 	enabled := turnOneDecode[board](t, raw)
 	if !enabled.Publishing.Enabled || !enabled.Publishing.Pending || snapshotString(enabled.Publishing.Repository) != "origin" {
 		t.Fatalf("enable did not schedule publication: %+v", enabled.Publishing)
 	}
 	start := time.Now()
-	raw, _ = editor.call("PATCH", path, `{"name":"Board edit during quiet"}`, enabled.ETag, 200)
+	raw, _ = editor.call("PATCH", path, `{"name":"Board edit during quiet"}`, enabled.entityTag(), 200)
 	edited := turnOneDecode[board](t, raw)
 	if got := strings.TrimSpace(string(m34Git(t, fixture.repository, "rev-parse", "HEAD"))); got != baseline {
 		t.Fatal("publication ran before quiet")
@@ -62,10 +62,10 @@ func TestM35BoardPublicationResumesExactPendingCommit(t *testing.T) {
 	failed := waitBoardPublishing(t, editor, path, func(info publishing) bool {
 		return info.Pending && snapshotString(info.ErrorCode) == "git_push_failed"
 	})
-	if failed.ETag != edited.ETag || failed.Publishing.LastSuccessAt != nil || time.Since(start) < automaticPublicationQuiet {
+	if failed.entityTag() != edited.entityTag() || failed.Publishing.LastSuccessAt != nil || time.Since(start) < automaticPublicationQuiet {
 		t.Fatal("failed status advanced the revision or ran before quiet")
 	}
-	checkEventConditionalGet(t, editor, failed, failed.ETag, http.StatusOK)
+	checkEventConditionalGet(t, editor, failed, failed.entityTag(), http.StatusOK)
 	checkEventConditionalGet(t, editor, failed, "*", http.StatusNotModified)
 	pending := strings.TrimSpace(string(m34Git(t, fixture.repository, "rev-parse", "HEAD")))
 	if pending == baseline {
@@ -89,10 +89,10 @@ func TestM35BoardPublicationResumesExactPendingCommit(t *testing.T) {
 	recovered := waitBoardPublishing(t, restarted, path, func(info publishing) bool {
 		return info.LastSuccessAt != nil && !info.Pending && info.ErrorCode == nil
 	})
-	if recovered.ETag != edited.ETag || recovered.Revision != edited.Revision {
+	if recovered.entityTag() != edited.entityTag() || recovered.Revision != edited.Revision {
 		t.Fatal("push recovery rewrote the board revision")
 	}
-	checkEventConditionalGet(t, restarted, recovered, failed.ETag, http.StatusOK)
+	checkEventConditionalGet(t, restarted, recovered, failed.entityTag(), http.StatusOK)
 	if got := strings.TrimSpace(string(m34Git(t, fixture.remote, "rev-parse", "refs/heads/main"))); got != pending {
 		t.Fatal("retry pushed a different commit")
 	}
@@ -115,11 +115,11 @@ func TestM35BoardPublicationResumesExactPendingCommit(t *testing.T) {
 		t.Fatal("worker status entered the durable snapshot", err)
 	}
 	rejected, _ := restarted.call("POST", "/restorations", fmt.Sprintf(`{"board_id":%q,"backup_id":%q,"expected_board_etag":%q}`,
-		original.ID, fixture.item.ID, recovered.ETag), "", 400)
+		original.ID, fixture.item.ID, recovered.entityTag()), "", 400)
 	if !bytes.Contains(rejected, []byte("board.publishing")) {
 		t.Fatal("restore did not report the publishing mismatch")
 	}
-	restarted.call("PATCH", path, `{"publishing":{"enabled":false}}`, recovered.ETag, 200)
+	restarted.call("PATCH", path, `{"publishing":{"enabled":false}}`, recovered.entityTag(), 200)
 }
 
 func waitBoardPublishing(t *testing.T, editor turnOneClient, path string, ready func(publishing) bool) board {

@@ -36,7 +36,7 @@ func TestM09RelationshipLifecycle(t *testing.T) {
 	raw, _ := c.call("POST", "/boards", `{"name":"Relationships"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
 	firstBody := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":"First"}`,
-		b.ID, b.ETag, b.LaneIDs[0])
+		b.ID, b.entityTag(), b.LaneIDs[0])
 	raw, headers := c.call("POST", "/cards", firstBody, "", 201)
 	first := turnOneDecode[card](t, raw)
 	boardTag := headers.Get("X-Board-ETag")
@@ -52,7 +52,7 @@ func TestM09RelationshipLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if refused.Board.ETag != boardTag || len(refused.Cards) != 1 || len(refused.Relationships) != 0 ||
+	if refused.Board.entityTag() != boardTag || len(refused.Cards) != 1 || len(refused.Relationships) != 0 ||
 		len(refused.Activity) != 2 || refused.Cards[0].Revision != first.Revision {
 		t.Fatal("refused seed changed board, ticket allocation, endpoint or audit")
 	}
@@ -125,7 +125,7 @@ func TestM09RelationshipLifecycle(t *testing.T) {
 	c.call("PATCH", path, patchBody(`"contains.invalid.punctuation"`, "blocks"), links[0].entityTag(), 400)
 	c.call("PATCH", path, patchBody(boardTag, "blocks"), links[0].entityTag(), 409)
 	c.call("PATCH", path, patchBody(boardTag, "DUPLICATES"), block.entityTag(), 412)
-	c.call("PATCH", path, patchBody(seeded.Board.ETag, "DUPLICATES"), links[0].entityTag(), 412)
+	c.call("PATCH", path, patchBody(seeded.Board.entityTag(), "DUPLICATES"), links[0].entityTag(), 412)
 	raw, headers = botClient.call("PATCH", path, patchBody(boardTag, "DUPLICATES"), links[0].entityTag(), 200)
 	patched := assertRelationshipRevision(t, raw, seeded.Board.Revision+2, headers.Get("ETag"))
 	boardTag = headers.Get("X-Board-ETag")

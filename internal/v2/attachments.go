@@ -40,8 +40,6 @@ type attachment struct {
 	AddedBy      string    `json:"added_by"`
 }
 
-func (a attachment) entityTag() string { return etag(a.ID, a.Revision) }
-
 func validAttachmentName(name string) bool {
 	return name != "" && utf8.ValidString(name) && utf8.RuneCountInString(name) <= 1024
 }
@@ -181,7 +179,7 @@ func (x *request) detachAttachment(state snapshot, id string) {
 		return
 	}
 	x.w.Header().Set("Cache-Control", "no-store")
-	x.w.Header().Set("X-Board-ETag", updated.Board.ETag)
+	x.w.Header().Set("X-Board-ETag", updated.Board.entityTag())
 	x.w.WriteHeader(http.StatusNoContent)
 }
 
@@ -454,7 +452,7 @@ func (s *store) attach(boardID, actor string, input attachmentUpload) (attachmen
 		definitelyUncommitted = !errors.Is(err, errWriteUncertain)
 		return attachment{}, "", err
 	}
-	return value, updated.Board.ETag, nil
+	return value, updated.Board.entityTag(), nil
 }
 
 func attachmentAuditValue(item attachment) string {

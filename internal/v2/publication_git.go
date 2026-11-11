@@ -48,6 +48,7 @@ func runPublicationGit(cwd, index string, input []byte, configuration []string, 
 	ctx, cancel := context.WithTimeout(context.Background(), publicationGitTimeout)
 	defer cancel()
 	command := exec.CommandContext(ctx, "git", args...)
+	configurePublicationGitCommand(command)
 	command.Dir = cwd
 	for _, entry := range os.Environ() {
 		name, _, _ := strings.Cut(entry, "=")

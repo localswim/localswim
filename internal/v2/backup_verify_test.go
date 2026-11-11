@@ -207,6 +207,100 @@ func TestM96RejectsLocalHeaderMismatch(t *testing.T) {
 	}
 }
 
+func TestM96RejectsCapturedDataDescriptorSizeMismatch(t *testing.T) {
+	app, _, source, _ := backupCaptureFixture(t)
+	_, original := captureRecoveryBackup(t, app, source)
+	reader, err := zip.NewReader(bytes.NewReader(original), int64(len(original)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := reader.File[0]
+	payload, err := entry.DataOffset()
+	if err != nil || entry.Flags&zipDataDescriptorFlag == 0 {
+		t.Fatalf("expected a capture-generated descriptor: %v", err)
+	}
+	descriptor := payload + int64(entry.CompressedSize64)
+	if descriptor+16 > int64(len(original)) ||
+		binary.LittleEndian.Uint32(original[descriptor:]) != zipDataDescriptorSignature {
+		t.Fatal("expected a complete signed capture descriptor")
+	}
+	for _, test := range []struct {
+		field  string
+		offset int64
+	}{
+		{"compressed", 8},
+		{"uncompressed", 12},
+	} {
+		t.Run(test.field, func(t *testing.T) {
+			// Preserve the captured payload, CRC, and central directory.
+			modified := bytes.Clone(original)
+			modified[descriptor+test.offset] ^= 1
+			reader, err := zip.NewReader(bytes.NewReader(modified), int64(len(modified)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := readBackupEntry(reader.File[0], maxSnapshotBytes); err != nil {
+				t.Fatalf("fixture unexpectedly broke the ZIP member payload: %v", err)
+			}
+			path := filepath.Join(t.TempDir(), "descriptor.zip")
+			if err := os.WriteFile(path, modified, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := VerifyBackupFile(path); !errors.Is(err, errBackupIntegrity) {
+				t.Fatalf("offline verifier accepted mismatched %s descriptor size: %v", test.field, err)
+			}
+			file, err := os.Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer file.Close()
+			if _, err := inspectBackupArchive(file, source.Board.ID); !errors.Is(err, errBackupIntegrity) {
+				t.Fatalf("restore inspector accepted mismatched %s descriptor size: %v", test.field, err)
+			}
+		})
+	}
+}
+
+func TestM96DataDescriptorWidths(t *testing.T) {
+	le := binary.LittleEndian
+	entry := zip.FileHeader{
+		CRC32: zipDataDescriptorSignature, CompressedSize64: 9, UncompressedSize64: 17,
+	}
+	for _, test := range []struct {
+		name   string
+		signed bool
+		wide   bool
+	}{
+		{"unsigned32", false, false},
+		{"signed32", true, false},
+		{"unsigned64", false, true},
+		{"signed64", true, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var data []byte
+			if test.signed {
+				data = le.AppendUint32(data, zipDataDescriptorSignature)
+			}
+			data = le.AppendUint32(data, entry.CRC32)
+			if test.wide {
+				data = le.AppendUint64(data, entry.CompressedSize64)
+				data = le.AppendUint64(data, entry.UncompressedSize64)
+			} else {
+				data = le.AppendUint32(data, uint32(entry.CompressedSize64))
+				data = le.AppendUint32(data, uint32(entry.UncompressedSize64))
+			}
+			directory := backupZIPDirectory{file: bytes.NewReader(data)}
+			size := int64(len(data))
+			if !directory.matchesDataDescriptor(0, size, &entry) {
+				t.Fatal("rejected valid data descriptor")
+			}
+			if directory.matchesDataDescriptor(0, size-1, &entry) {
+				t.Fatal("accepted data descriptor crossing the next record boundary")
+			}
+		})
+	}
+}
+
 func TestM96BoundedZIP64Directory(t *testing.T) {
 	var zipped bytes.Buffer
 	writer := zip.NewWriter(&zipped)

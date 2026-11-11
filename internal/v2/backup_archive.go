@@ -2,6 +2,7 @@ package v2
 
 import (
 	"archive/zip"
+	"cmp"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -9,6 +10,11 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+)
+
+const (
+	zipDataDescriptorFlag      = 1 << 3
+	zipDataDescriptorSignature = 0x08074b50
 )
 
 // An archive opened from stored backup metadata owns a private copy. No ZIP path is extracted or
@@ -66,10 +72,24 @@ func inspectBackupArchiveSize(file *os.File, size int64, boardID string) (*verif
 	if err != nil || len(reader.File) != len(directory.localOffsets) {
 		return nil, errBackupIntegrity
 	}
+	// The central directory can list members in a different order than the
+	// local headers. Bound each member by the next physical record.
+	order := make([]int, len(reader.File))
+	for i := range order {
+		order[i] = i
+	}
+	slices.SortFunc(order, func(a, b int) int {
+		return cmp.Compare(directory.localOffsets[a], directory.localOffsets[b])
+	})
 	archive := &verifiedBackupArchive{file: file, entries: make(map[string]*zip.File, len(reader.File))}
-	for i, entry := range reader.File {
+	for i, index := range order {
+		entry := reader.File[index]
+		limit := directory.offset
+		if i+1 < len(order) {
+			limit = directory.localOffsets[order[i+1]]
+		}
 		if !entry.Mode().IsRegular() || archive.entries[entry.Name] != nil || entry.Flags&1 != 0 ||
-			!directory.matchesLocalHeader(directory.localOffsets[i], entry) {
+			!directory.matchesLocalMember(directory.localOffsets[index], limit, entry) {
 			return nil, errBackupIntegrity
 		}
 		archive.entries[entry.Name] = entry
@@ -103,11 +123,11 @@ func inspectBackupArchiveSize(file *os.File, size int64, boardID string) (*verif
 	return archive, nil
 }
 
-// archive/zip opens each member using its central metadata. Check the local
-// fields too so readers using either header see the same member.
-func (d backupZIPDirectory) matchesLocalHeader(offset int64, entry *zip.File) bool {
+// archive/zip opens each member using its central metadata. Compare the local
+// header and any trailing data descriptor with that metadata.
+func (d backupZIPDirectory) matchesLocalMember(offset, limit int64, entry *zip.File) bool {
 	var header [zipLocalHeaderSize]byte
-	if offset > d.offset-zipLocalHeaderSize {
+	if offset > limit-zipLocalHeaderSize {
 		return false
 	}
 	if _, err := d.file.ReadAt(header[:], offset); err != nil {
@@ -118,13 +138,50 @@ func (d backupZIPDirectory) matchesLocalHeader(offset int64, entry *zip.File) bo
 	payload := offset + int64(zipLocalHeaderSize+nameSize+extraSize)
 	if le.Uint32(header[:]) != 0x04034b50 || le.Uint16(header[6:]) != entry.Flags ||
 		le.Uint16(header[8:]) != entry.Method || nameSize != len(entry.Name) ||
-		nameSize > maxBackupEntryNameSize || payload > d.offset ||
-		entry.CompressedSize64 > uint64(d.offset-payload) {
+		nameSize > maxBackupEntryNameSize || payload > limit ||
+		entry.CompressedSize64 > uint64(limit-payload) {
 		return false
 	}
 	var name [maxBackupEntryNameSize]byte
-	_, err := d.file.ReadAt(name[:nameSize], offset+zipLocalHeaderSize)
-	return err == nil && string(name[:nameSize]) == entry.Name
+	if _, err := d.file.ReadAt(name[:nameSize], offset+zipLocalHeaderSize); err != nil ||
+		string(name[:nameSize]) != entry.Name {
+		return false
+	}
+	return entry.Flags&zipDataDescriptorFlag == 0 ||
+		d.matchesDataDescriptor(payload+int64(entry.CompressedSize64), limit, &entry.FileHeader)
+}
+
+// Native ZIP members with a descriptor pack it immediately before the next
+// local header or the directory. The span distinguishes the optional signature
+// from the CRC and 32-bit sizes from ZIP64 sizes.
+func (d backupZIPDirectory) matchesDataDescriptor(offset, limit int64, entry *zip.FileHeader) bool {
+	var descriptor [24]byte
+	size := limit - offset
+	switch size {
+	case 12, 16, 20, 24:
+	default:
+		return false
+	}
+	data := descriptor[:size]
+	if _, err := d.file.ReadAt(data, offset); err != nil {
+		return false
+	}
+	le := binary.LittleEndian
+	if size == 16 || size == 24 {
+		if le.Uint32(data) != zipDataDescriptorSignature {
+			return false
+		}
+		data = data[4:]
+	}
+	if le.Uint32(data) != entry.CRC32 {
+		return false
+	}
+	if len(data) == 12 {
+		return uint64(le.Uint32(data[4:])) == entry.CompressedSize64 &&
+			uint64(le.Uint32(data[8:])) == entry.UncompressedSize64
+	}
+	return le.Uint64(data[4:]) == entry.CompressedSize64 &&
+		le.Uint64(data[12:]) == entry.UncompressedSize64
 }
 
 func readBackupEntry(entry *zip.File, limit int64) ([]byte, error) {

@@ -193,7 +193,7 @@ func TestM39ActivationReceiptValidatorsAndDurableClosure(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = original.Close() })
 	service := original.builds.service()
-	id, buildID := newID(), newID()
+	id, buildID := newOperationID(), newID()
 	record := activationRecord{
 		activation: activation{ID: id, BuildID: buildID, State: "accepted"},
 		Origin:     service.ServiceInstanceID,

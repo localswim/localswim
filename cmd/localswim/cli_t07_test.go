@@ -18,10 +18,10 @@ func TestT07ParseRequiredInputs(t *testing.T) {
 		{"card", "lookup", t03Board},
 		{"ticket-order", "apply", t03Lane, "-"},
 		{"board", "restore", "--revision", "12", t03Board, "-"},
-		{"restoration", "create", "--id", t03Card, t03Board, t03Lane},
-		{"publication", "create", "--id", t03Card, t03Board, t03Lane},
-		{"restoration", "get", t03Card},
-		{"publication", "get", t03Card},
+		{"restoration", "create", "--id", t06Operation, t03Board, t06Operation},
+		{"publication", "create", "--id", t06Operation, t03Board, t06Operation},
+		{"restoration", "get", t06Operation},
+		{"publication", "get", t06Operation},
 	} {
 		if _, err := parseCLI(args); err != nil {
 			t.Errorf("%v: %v", args, err)
@@ -31,8 +31,8 @@ func TestT07ParseRequiredInputs(t *testing.T) {
 		{"board", "restore", t03Board},
 		{"ticket-order", "apply", t03Lane},
 		{"publication", "create", t03Board},
-		{"restoration", "create", "--id", "bad", t03Board, t03Lane},
-		{"restoration", "create", "--id", "bad", "--revision", "12", t03Board, t03Lane},
+		{"restoration", "create", "--id", "bad", t03Board, t06Operation},
+		{"restoration", "create", "--id", "bad", "--revision", "12", t03Board, t06Operation},
 		{"card", "search", "--lane", "bad", t03Board},
 		{"card", "next", "--limit", "0", t03Board},
 	} {
@@ -145,9 +145,9 @@ func TestT07OperationUnknownKeepsOriginalID(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
 		var out, errout bytes.Buffer
-		code := runCLIWithInput([]string{group, "create", "--id", t03Card, t03Board, t03Lane}, strings.NewReader(""), &out, &errout, t03Env(server.URL))
+		code := runCLIWithInput([]string{group, "create", "--id", t06Operation, t03Board, t06Operation}, strings.NewReader(""), &out, &errout, t03Env(server.URL))
 		server.Close()
-		if code == 0 || writes != 1 || !strings.Contains(errout.String(), t03Card) || !strings.Contains(errout.String(), "Mutation outcome unknown") {
+		if code == 0 || writes != 1 || !strings.Contains(errout.String(), t06Operation) || !strings.Contains(errout.String(), "Mutation outcome unknown") {
 			t.Fatalf("lost operation identity %s", &errout)
 		}
 	}

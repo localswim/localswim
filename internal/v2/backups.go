@@ -15,20 +15,18 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 )
 
 var errBackupIntegrity = errors.New("backup integrity verification failed")
 var errBackupExists = errors.New("backup already exists")
 
 type backup struct {
-	ID            string    `json:"id"`
-	BoardID       string    `json:"board_id"`
-	BoardRevision uint64    `json:"board_revision"`
-	CreatedAt     time.Time `json:"created_at"`
-	SHA256        string    `json:"sha2_256"`
-	Size          int64     `json:"size"`
-	AttachmentIDs []string  `json:"attachment_ids"`
+	ID            string   `json:"id"`
+	BoardID       string   `json:"board_id"`
+	BoardRevision uint64   `json:"board_revision"`
+	SHA256        string   `json:"sha2_256"`
+	Size          int64    `json:"size"`
+	AttachmentIDs []string `json:"attachment_ids"`
 }
 
 type backupCapture struct {
@@ -119,8 +117,11 @@ func buildBackup(rootPath, id string, state snapshot, data []byte) (backup, erro
 
 func buildBackupWithPublisher(rootPath, id string, state snapshot, data []byte,
 	publish func(*os.Root, *os.File) error) (backup, error) {
+	if !validSnapshotOperationID(id) {
+		return backup{}, errBackupIntegrity
+	}
 	item := backup{ID: id, BoardID: state.Board.ID, BoardRevision: state.Board.Revision,
-		CreatedAt: canonicalTime(time.Now()), AttachmentIDs: []string{}}
+		AttachmentIDs: []string{}}
 	root, err := os.OpenRoot(rootPath)
 	if err != nil {
 		return backup{}, errBackupIntegrity
@@ -304,9 +305,9 @@ func readBackup(rootPath, id string) (backup, error) {
 		return backup{}, errBackupIntegrity
 	}
 	canonical, err := marshalCanonical(item)
-	if err != nil || !matchesSnapshotJSON(data, canonical) || item.ID != id ||
+	if err != nil || !matchesSnapshotJSON(data, canonical) || item.ID != id || !validSnapshotOperationID(item.ID) ||
 		!validSnapshotID(item.BoardID) || item.BoardRevision == 0 || item.BoardRevision > maxSnapshotInteger ||
-		!validSnapshotTime(item.CreatedAt) || item.Size <= 0 || item.Size > maxSnapshotInteger ||
+		item.Size <= 0 || item.Size > maxSnapshotInteger ||
 		len(item.SHA256) != 64 || strings.ToLower(item.SHA256) != item.SHA256 || item.AttachmentIDs == nil {
 		return backup{}, errBackupIntegrity
 	}
@@ -374,9 +375,9 @@ func (x *request) createBackup() {
 		x.fail(err)
 		return
 	}
-	id := newID()
+	id := newOperationID()
 	if raw, ok := obj["id"]; ok {
-		id, err = inputID(raw, "id")
+		id, err = inputOperationID(raw, "id")
 		if err != nil {
 			x.fail(err)
 			return

@@ -58,7 +58,7 @@ func readApprovalInput(fields map[string]json.RawMessage) (approvalInput, error)
 	}
 	var err error
 	if raw, present := fields["id"]; present {
-		in.id, err = inputID(raw, "id")
+		in.id, err = inputOperationID(raw, "id")
 		if err != nil {
 			return in, err
 		}
@@ -156,7 +156,7 @@ func (x *request) createApproval() {
 		return
 	}
 	if in.id == "" && len(in.cards) != 0 {
-		in.id = newID()
+		in.id = newOperationID()
 	}
 	next, err := x.updateBoardChecked(in.boardID, nil, func(state *snapshot) error {
 		return in.apply(state, x.actor)
@@ -299,7 +299,7 @@ func approveCard(state *snapshot, item *card, targetID, actor string, now time.T
 	item.CommentCount++
 	item.Revision = movement.Revision
 	item.UpdatedAt = now
-	state.Activity = append(state.Activity, activity{ID: newID(), BoardID: state.Board.ID,
+	state.Activity = append(state.Activity, activity{ID: newOperationID(), BoardID: state.Board.ID,
 		Revision: movement.Revision, At: now, ActorID: actor, Operation: "comment",
 		ResourceType: "comment", ResourceID: note.ID})
 	return nil

@@ -8,11 +8,12 @@ Status: Accepted for the owner-approved decisions below. The detailed OpenAPI do
 
 - Use flat, plural resource addresses. Cards, boards, lanes, comments, attachments, and relationships each have their own canonical address. Use query parameters for collection filters and requested views.
 - Version the API by ISO 8601 calendar date. The first namespace is `/api/2026-11-10`. API contract dates, software builds, and resource revisions are separate values.
-- Use immutable UUIDv4 entity IDs generated with a cryptographically secure random source. Return lowercase, hyphenated UUIDs. Accept mixed-case UUIDv4 input and normalize before lookup, reference checks, and duplicate detection.
-- Use UUIDv7 for service_instance_id so it encodes the service instance creation time.
+- Use immutable UUIDv4 IDs for ordinary entities, comments, attachments, builds, and request correlation, generated with a cryptographically secure random source. Return lowercase, hyphenated UUIDs. Accept mixed-case input of each field's declared UUID version and normalize before lookup, reference checks, and duplicate detection.
+- Use UUIDv7 for backup, publication, restoration, build activation, audit event, and approval receipt IDs, and for `service_instance_id`. Each ID encodes its generation time in Unix milliseconds.
+- Decode backup and publication creation time from their UUIDv7 IDs and display it in UTC whole seconds. Omit their redundant stored and API `created_at` fields. Preserve publication `finished_at` and audit, approval, and restoration `at` as actual execution times. Caller-supplied operation IDs may be generated before execution.
 - Keep human ticket numbers and board-local lane/priority keys separate from entity IDs. M20 changes a lane key, never its UUID. Preserve the completed-lane role independently of its display label.
 - Use `snake_case` for JSON member names, path parameter identifiers, and query parameter names across the V2 API. Standard HTTP header names keep their defined spelling. Preserve enum values and user text. Source-language identifiers follow Go and JavaScript conventions.
-- Keep timestamps and ordering explicit. Use 16-byte UUID storage where practical.
+- Keep execution timestamps and revision ordering explicit. Use 16-byte UUID storage where practical.
 - Publish closed response schemas with canonical values. Accept harmless input variation without weakening meaning or authority. Preserve user text exactly.
 - Name each collection response array for its plural resource, such as `boards`, `cards`, or `builds`. Both activity views use `activities`. Monitor entries contain only event identity, UTC time, board revision, actor identity and kind, operation, and ticket numbers. Workspace board summaries use `boards`. Empty collections return an empty array, and `next_cursor` retains its pagination meaning.
 

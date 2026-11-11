@@ -5,15 +5,15 @@ const board = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
 const lane = "ceab10a8-1492-4c90-aa07-13b83138919a";
 const first = "d2ef6295-ace1-4e6e-bbf7-b1c1823f56fc";
 const second = "163b1fa0-2a32-424b-8489-6bbd7761201c";
-const backup = "f7e04b53-cfd9-417c-af8e-b6316af0a085";
-const publication = "84b4ae21-e224-4f5a-9fca-9abf8e0c86bc";
+const backup = "f7e04b53-cfd9-717c-af8e-b6316af0a085";
+const publication = "84b4ae21-e224-7f5a-9fca-9abf8e0c86bc";
 const at = "2026-11-10 12:00:00+00:00";
 const tag = (id, revision) => `"${id}-${revision}"`;
 const client = (fetchImpl) => createBrowserApi({ getCapability: () => "test-capability", fetchImpl });
 const proposed = [{card_id: second, ticket: 1}, {card_id: first, ticket: 2}];
 const current = [{card_id: first, ticket: 1}, {card_id: second, ticket: 2}];
 const order = { board_id: board, lane_id: lane, board_revision: 4, selected_card_ids: [first, second], current, proposed, changed: true };
-const published = { id: publication, board_id: board, workspace: false, state: "succeeded", created_at: at,
+const published = { id: publication, board_id: board, workspace: false, state: "succeeded",
   finished_at: at, backup_id: backup, error_code: null };
 
 test("search preserves literal UTF-8 query and explicit content/triage/lane/limit filters", async () => {

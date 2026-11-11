@@ -78,7 +78,7 @@ const cliHelp = `Usage:
   localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
   localswim ticket-order preview LANE_ID [CARD_ID ...]
   localswim backup create [--revision N] [--id UUID] BOARD_ID
-  localswim backup get BACKUP_ID
+  localswim backup info BACKUP_ID
   localswim backup download BACKUP_ID FILE|-
   localswim backup verify FILE
   localswim card search [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
@@ -142,7 +142,8 @@ After an unknown activation outcome, refresh LOCALSWIM_TOKEN as needed and use s
 After an unknown stop outcome, use service status to inspect availability.
 Backup create captures the current board and audited attachment bytes and checks the board revision.
 Backup create generates an ID when --id is omitted and reports it on an unknown outcome.
-Use backup get with that ID before considering another capture.
+Backup info reads metadata for the supplied backup ID.
+Use backup info with the original ID after an unknown capture outcome.
 Backup download verifies its size and SHA-2-256 digest before writing a new file or stdout.
 Backup verify checks a local ZIP and writes its verification report without contacting a service.
 Activity intervals are inclusive. Quote both UTC bounds in YYYY-MM-DD HH:MM:SS+00:00.

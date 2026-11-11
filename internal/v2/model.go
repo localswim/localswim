@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"uuid"
 )
 
 const Version = "2026-11-10"
@@ -31,9 +32,19 @@ func newID() string {
 	data[8] = data[8]&0x3f | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", data[:4], data[4:6], data[6:8], data[8:10], data[10:])
 }
+func newOperationID() string { return uuid.NewV7().String() }
+
 func normalizeID(input string) (string, bool) {
+	return normalizeIDVersion(input, '4')
+}
+
+func normalizeOperationID(input string) (string, bool) {
+	return normalizeIDVersion(input, '7')
+}
+
+func normalizeIDVersion(input string, version byte) (string, bool) {
 	id := strings.ToLower(input)
-	if len(id) != 36 || id[8] != '-' || id[13] != '-' || id[18] != '-' || id[23] != '-' || id[14] != '4' || !strings.ContainsRune("89ab", rune(id[19])) || strings.Count(id, "-") != 4 {
+	if len(id) != 36 || id[8] != '-' || id[13] != '-' || id[18] != '-' || id[23] != '-' || id[14] != version || !strings.ContainsRune("89ab", rune(id[19])) || strings.Count(id, "-") != 4 {
 		return "", false
 	}
 	_, err := hex.DecodeString(strings.ReplaceAll(id, "-", ""))
@@ -212,13 +223,13 @@ func freshSnapshot(id, name string, wf workflow, actorID string, now time.Time) 
 	for _, p := range wf.Priorities {
 		s.Board.PriorityIDs = append(s.Board.PriorityIDs, p.ID)
 	}
-	s.Activity = append(s.Activity, activity{ID: newID(), BoardID: id, Revision: 1, At: now, ActorID: actorID, Operation: "create", ResourceType: "board", ResourceID: id})
+	s.Activity = append(s.Activity, activity{ID: newOperationID(), BoardID: id, Revision: 1, At: now, ActorID: actorID, Operation: "create", ResourceType: "board", ResourceID: id})
 	// Original grants identify connected lanes. Record other initial lanes so
 	// a later insertion in the same second cannot masquerade as an initial lane.
 	referenced := initialLaneIDs(s.Lanes, s.Policy)
 	for _, item := range s.Lanes {
 		if !referenced[item.ID] {
-			s.Activity = append(s.Activity, activity{ID: newID(), BoardID: id, Revision: 1, At: now,
+			s.Activity = append(s.Activity, activity{ID: newOperationID(), BoardID: id, Revision: 1, At: now,
 				ActorID: actorID, Operation: "create", ResourceType: "lane", ResourceID: item.ID})
 		}
 	}

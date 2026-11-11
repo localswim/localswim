@@ -125,7 +125,7 @@ func patchParent(s *snapshot, cardID, expectedCardETag string, parentID *string,
 			after = &id
 		}
 		s.Activity = append(s.Activity, activity{
-			ID: newID(), BoardID: s.Board.ID, Revision: revision, At: now, ActorID: actorID,
+			ID: newOperationID(), BoardID: s.Board.ID, Revision: revision, At: now, ActorID: actorID,
 			Operation: "patch", ResourceType: "card", ResourceID: cardID, Field: &field,
 			Before: before, After: after,
 		})

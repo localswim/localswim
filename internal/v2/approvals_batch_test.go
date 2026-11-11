@@ -96,7 +96,7 @@ func TestLaneReviewApproval(t *testing.T) {
 		t.Fatal("a refused batch changed accepted state")
 	}
 
-	approvalID := newID()
+	approvalID := newOperationID()
 	good = strings.Replace(good, "{", fmt.Sprintf(`{"id":%q,`, approvalID), 1)
 	raw, header = human.call("POST", "/approvals", good, "", 201)
 	result := turnOneDecode[approval](t, raw)

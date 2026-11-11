@@ -17,6 +17,13 @@
   fix findings at their source, and justify any narrowly scoped suppression.
 - Use `YYYY-MM-DD HH:MM:SS+00:00` for application timestamps, normalized to UTC
   and whole seconds. Preserve revision ordering for edits within the same second.
+- Use UUIDv7 for backup, publication, restoration, build activation, audit event,
+  approval receipt, and service instance IDs. Keep ordinary entities, comments,
+  attachments, builds, and request correlation UUIDv4. Accept mixed-case input of
+  the declared version and emit lowercase UUIDs.
+- Decode backup and publication creation time from the ID for UTC whole-second
+  display. Preserve publication `finished_at` and audit, approval, and restoration
+  `at` as actual execution times, independent of ID generation.
 
 - All parent agents, including project managers and turn leads, use GPT-6.1 Sol
   (`gpt-6.1-sol`) with high reasoning, displayed as Sol / High.

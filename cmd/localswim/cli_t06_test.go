@@ -15,15 +15,17 @@ import (
 	"testing"
 )
 
+const t06Operation = "019b1111-2222-7333-a444-555555555555"
+
 func TestT06ParseAndHelp(t *testing.T) {
 	for _, args := range [][]string{
 		{"lane", "set-key", "--revision", "12", t03Lane, "ready_now"},
 		{"board", "get", "--view", "lanes", t03Board},
 		{"ticket-order", "preview", t03Lane, t03Card},
 		{"card", "set-priorities", "--revision", "12", t03Board, "-"},
-		{"backup", "create", "--id", t03Card, "--revision", "12", t03Board},
-		{"backup", "get", t03Card},
-		{"backup", "download", t03Card, "-"},
+		{"backup", "create", "--id", t06Operation, "--revision", "12", t03Board},
+		{"backup", "info", t06Operation},
+		{"backup", "download", t06Operation, "-"},
 	} {
 		if _, err := parseCLI(args); err != nil {
 			t.Errorf("%v: %v", args, err)
@@ -34,14 +36,14 @@ func TestT06ParseAndHelp(t *testing.T) {
 		{"card", "set-priorities", "--revision", "0", t03Board, "-"},
 		{"ticket-order", "preview", t03Lane, t03Card, strings.ToUpper(t03Card)},
 		{"backup", "create", "--id", "bad", t03Board},
-		{"backup", "download", t03Card},
+		{"backup", "download", t06Operation},
 		{"board", "get", "--view", "other", t03Board},
 	} {
 		if _, err := parseCLI(args); err == nil {
 			t.Errorf("accepted %v", args)
 		}
 	}
-	for _, command := range []string{"lane set-key", "card set-priorities", "ticket-order preview", "backup create", "backup get", "backup download", "board get [--view lanes]"} {
+	for _, command := range []string{"lane set-key", "card set-priorities", "ticket-order preview", "backup create", "backup info BACKUP_ID", "backup download", "board get [--view lanes]"} {
 		if !strings.Contains(cliHelp, command) {
 			t.Errorf("help missing %q", command)
 		}
@@ -77,7 +79,7 @@ func TestT06BatchAndBackupValidators(t *testing.T) {
 						w.Header().Set("X-Board-ETag", t03BoardTag)
 						fmt.Fprintf(w, `{"board_id":%q,"board_revision":13,"cards":[],"changes":[]}`, t03Board)
 					} else {
-						if r.Method != http.MethodPost || r.URL.Path != t03Root+"/backups" || string(body["id"]) != fmt.Sprintf("%q", t03Card) {
+						if r.Method != http.MethodPost || r.URL.Path != t03Root+"/backups" || string(body["id"]) != fmt.Sprintf("%q", t06Operation) {
 							t.Error("wrong capture")
 						}
 						w.Header().Set("ETag", t03ResourceTag)
@@ -88,7 +90,7 @@ func TestT06BatchAndBackupValidators(t *testing.T) {
 				defer server.Close()
 				args := []string{"card", "set-priorities", "--revision", revision, t03Board, "-"}
 				if action == "backup" {
-					args = []string{"backup", "create", "--revision", revision, "--id", t03Card, t03Board}
+					args = []string{"backup", "create", "--revision", revision, "--id", t06Operation, t03Board}
 				}
 				var stdout, stderr bytes.Buffer
 				code := runCLIWithInput(args, strings.NewReader(fmt.Sprintf(`{"card_ids":[%q],"priority_id":%q}`, t03Card, t03Lane)), &stdout, &stderr, t03Env(server.URL))
@@ -135,7 +137,38 @@ func TestT06ReadViews(t *testing.T) {
 
 func t06BackupMetadata(data []byte) string {
 	digest := sha256.Sum256(data)
-	return fmt.Sprintf(`{"id":%q,"board_id":%q,"board_revision":12,"created_at":"2026-11-10 20:00:00+00:00","sha2_256":%q,"size":%d,"attachment_ids":[]}`, t03Card, t03Board, hex.EncodeToString(digest[:]), len(data))
+	return fmt.Sprintf(`{"id":%q,"board_id":%q,"board_revision":12,"sha2_256":%q,"size":%d,"attachment_ids":[]}`, t06Operation, t03Board, hex.EncodeToString(digest[:]), len(data))
+}
+
+func TestT06BackupInfoOnlyReadsMetadata(t *testing.T) {
+	metadata := t06BackupMetadata([]byte("zip"))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.RequestURI() != t03Root+"/backups/"+t06Operation {
+			t.Errorf("unexpected backup info request: %s %s", r.Method, r.URL.RequestURI())
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		io.WriteString(w, metadata)
+	}))
+	defer server.Close()
+	var out, stderr bytes.Buffer
+	code := runCLIWithInput([]string{"backup", "info", t06Operation}, strings.NewReader(""), &out, &stderr, t03Env(server.URL))
+	var compact bytes.Buffer
+	if code != 0 || stderr.Len() != 0 || json.Compact(&compact, out.Bytes()) != nil || compact.String() != metadata {
+		t.Fatalf("backup info returned code=%d, output=%q, error=%s", code, &out, &stderr)
+	}
+}
+
+func TestT06BackupGetIsUnknown(t *testing.T) {
+	var out, stderr bytes.Buffer
+	code := runCLIWithInput([]string{"backup", "get", t06Operation}, strings.NewReader(""), &out, &stderr, func(name string) string {
+		t.Errorf("obsolete command read environment variable %s", name)
+		return ""
+	})
+	if code != 2 || out.Len() != 0 || !strings.Contains(stderr.String(), "unknown command") ||
+		strings.Contains(stderr.String(), "backup get") {
+		t.Fatalf("backup get returned code=%d, output=%q, error=%s", code, &out, &stderr)
+	}
 }
 
 func TestT06BackupDownloadVerifiedBeforeOutput(t *testing.T) {
@@ -156,7 +189,7 @@ func TestT06BackupDownloadVerifiedBeforeOutput(t *testing.T) {
 			defer server.Close()
 			path := filepath.Join(t.TempDir(), "backup.zip")
 			var out, errOut bytes.Buffer
-			code := runCLIWithInput([]string{"backup", "download", t03Card, path}, strings.NewReader(""), &out, &errOut, t03Env(server.URL))
+			code := runCLIWithInput([]string{"backup", "download", t06Operation, path}, strings.NewReader(""), &out, &errOut, t03Env(server.URL))
 			if corrupt {
 				if code == 0 {
 					t.Fatal("corrupt download accepted")
@@ -189,8 +222,8 @@ func TestT06BackupUnknownIncludesIdentityWithoutRetry(t *testing.T) {
 	}))
 	defer server.Close()
 	var out, errOut bytes.Buffer
-	code := runCLIWithInput([]string{"backup", "create", "--id", t03Card, t03Board}, strings.NewReader(""), &out, &errOut, t03Env(server.URL))
-	if code == 0 || writes != 1 || !strings.Contains(errOut.String(), "Mutation outcome unknown") || !strings.Contains(errOut.String(), t03Card) {
+	code := runCLIWithInput([]string{"backup", "create", "--id", t06Operation, t03Board}, strings.NewReader(""), &out, &errOut, t03Env(server.URL))
+	if code == 0 || writes != 1 || !strings.Contains(errOut.String(), "Mutation outcome unknown") || !strings.Contains(errOut.String(), "backup info "+t06Operation) {
 		t.Fatalf("unknown response %d %d %s", code, writes, &errOut)
 	}
 }
@@ -251,7 +284,7 @@ func TestT06BackupAcceptedOutputFailureRetainsGeneratedIdentity(t *testing.T) {
 		}
 		backupID = body.ID
 		w.WriteHeader(http.StatusCreated)
-		io.WriteString(w, strings.ReplaceAll(t06BackupMetadata([]byte("zip")), t03Card, backupID))
+		io.WriteString(w, strings.ReplaceAll(t06BackupMetadata([]byte("zip")), t06Operation, backupID))
 	}))
 	defer server.Close()
 	reader, writer := io.Pipe()
@@ -259,7 +292,7 @@ func TestT06BackupAcceptedOutputFailureRetainsGeneratedIdentity(t *testing.T) {
 	defer writer.Close()
 	var stderr bytes.Buffer
 	code := runCLIWithInput([]string{"backup", "create", t03Board}, strings.NewReader(""), writer, &stderr, t03Env(server.URL))
-	if code == 0 || writes != 1 || !boardIDPattern.MatchString(backupID) ||
+	if code == 0 || writes != 1 || !operationIDPattern.MatchString(backupID) ||
 		!strings.Contains(stderr.String(), "service accepted backup "+backupID) ||
 		!strings.Contains(stderr.String(), "response could not be written") ||
 		strings.Contains(stderr.String(), "Mutation outcome unknown") {

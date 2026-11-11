@@ -16,7 +16,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/localswim/localswim/internal/client"
-	"github.com/localswim/localswim/internal/v2"
 )
 
 const cliHelp = `Usage:
@@ -106,6 +105,7 @@ Board creation requires exactly one of --name or --json.
 JSON_FILE is required. Use a file path or - to read standard input.
 Set --data on board get, board export, card inspect, or board verify to read saved board data offline.
 Offline board get returns board metadata. The lanes view requires a live service.
+Verification prints the full JSON report and exits 1 if the board is invalid.
 Board export writes JSON to standard output. The default --type is json.
 All pin commands require at least one board ID. Pin set replaces the order.
 Pin add appends new boards in the supplied order.
@@ -207,6 +207,7 @@ type cliCommand struct {
 	edit                               t03Edit
 	relationshipWrite                  bool
 	downloadPath                       string
+	verifyBoard                        bool
 	detachAttachment                   bool
 	t06Action                          string
 	nativeRead                         string
@@ -347,6 +348,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "board patch":
 		command.method, command.resource, needBoardID = http.MethodPatch, "/boards", true
 	case "board verify":
+		command.verifyBoard = true
 		command.method, command.resource, needBoardID = http.MethodGet, "/verifications", true
 		flags.StringVar(&command.dataDir, "data", "", "private data directory")
 	case "board export":
@@ -548,14 +550,7 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		return executeNativeRead(command.dataDir, command.boardID, command.nativeRead, 0, false, stdout)
 	}
 	if command.dataDir != "" {
-		report, err := v2.VerifyOffline(command.dataDir, command.boardID)
-		if err != nil {
-			return errors.New("offline verification could not read or verify the requested board")
-		}
-		if err := json.NewEncoder(stdout).Encode(report); err != nil {
-			return errors.New("could not write the verification report")
-		}
-		return nil
+		return executeOfflineVerification(command, stdout)
 	}
 
 	api, err := client.New(getenv("LOCALSWIM_URL"), getenv("LOCALSWIM_TOKEN"))
@@ -683,6 +678,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		if err != nil {
 			return err
 		}
+	}
+	if command.verifyBoard {
+		return writeLiveVerificationReport(stdout, reply.JSON)
 	}
 	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
 		if command.edit.uploadID != "" {

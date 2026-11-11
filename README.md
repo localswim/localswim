@@ -35,4 +35,9 @@ Use `board create --json definition.json` for a custom workflow. Commands that r
 JSON require a file path or `-` for standard input.
 Export a board with `board export BOARD_ID`. The default format is JSON.
 
+Use `board verify BOARD_ID` to verify the durable board through the service or
+`board verify --data DIRECTORY BOARD_ID` to read the local snapshot offline.
+Both forms write the full JSON report to standard output. A valid report exits
+with status 0. An invalid report exits with status 1 and includes the issues.
+
 [Development and conventions](CONTRIBUTING.md) · [API](docs/openapi.yaml) · [Milestones](milestone-plan.md)

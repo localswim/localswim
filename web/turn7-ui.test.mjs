@@ -81,7 +81,8 @@ async function harness(api, pathname = "/boards/" + board, {
     adoptedStyleSheets: [], createElement: (tag) => new ({input: Input, textarea: Textarea, button: Button, select: Select}[tag] ?? Element)(tag)};
   const windowEvents = {};
   const window = {sessionStorage: storage, addEventListener: (name, handler) => { windowEvents[name] = handler; }};
-  const context = vm.createContext({document, window, CSSStyleSheet: class {replaceSync() {}},
+  class StyleSheet { replaceSync(text) { this.text = text; } }
+  const context = vm.createContext({document, window, CSSStyleSheet: StyleSheet,
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
     Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, newOperationId,
@@ -108,7 +109,8 @@ async function harness(api, pathname = "/boards/" + board, {
     await settled();
   }
   return {nodes, ...context.hooks, settled, find, field, submit, navigate, popstate,
-    pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement};
+    pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement,
+    stylesheet: () => document.adoptedStyleSheets[0].text};
 }
 
 function tabStorage() {
@@ -497,6 +499,51 @@ test("cover space exists before bytes arrive and repaint restores scroll without
 });
 
 const publishingOff = {enabled: false, repository: null, last_success_at: null, pending: false, error_code: null};
+
+test("board CSS follows the active board and is read again after reload", async () => {
+  const {api} = boardApi();
+  const second = backup;
+  let css = "  .lanes { color: #246; } /* Café */\n ";
+  let beforeStyledRead = async () => {};
+  const readLanes = api.getBoardLanes;
+  const readAvailability = api.getBoardAvailability;
+  api.listBoards = async () => page("boards", [{id: board, name: "Styled"}, {id: second, name: "Unstyled"}]);
+  api.getBoardAvailability = async (id) => id === board ? readAvailability() :
+    {data: {id, name: "Unstyled", availability: "open", revision: 1}, etag: tag(id, 1)};
+  api.getBoardLanes = async (id) => {
+    if (id === second) return {data: {board: {id, name: "Unstyled", user_css: ""}, cards: []}, etag: tag(id, 1)};
+    await beforeStyledRead();
+    const reply = await readLanes();
+    reply.data.board.user_css = css;
+    return reply;
+  };
+  const ui = await harness(api);
+  await ui.load();
+  assert.equal(ui.stylesheet(), css);
+  const changing = ui.navigate("/boards/" + second);
+  assert.equal(ui.stylesheet(), "");
+  await changing;
+  assert.equal(ui.nodes.main.querySelector("h1").textContent, "Unstyled");
+  assert.equal(ui.stylesheet(), "");
+  await ui.navigate("/boards/" + board);
+  assert.equal(ui.stylesheet(), css);
+
+  const reopened = await harness(api);
+  await reopened.load();
+  assert.equal(reopened.stylesheet(), css);
+  const reading = Promise.withResolvers();
+  const unblock = Promise.withResolvers();
+  beforeStyledRead = async () => { reading.resolve(); await unblock.promise; };
+  const stale = reopened.load();
+  await reading.promise;
+  await reopened.navigate("/boards/" + second);
+  unblock.resolve();
+  await stale;
+  assert.equal(reopened.stylesheet(), "");
+  css = "";
+  await reopened.navigate("/boards/" + board);
+  assert.equal(reopened.stylesheet(), "");
+});
 
 test("board lane notes and Human and Bot attribution preserve literal text", async () => {
   const {api} = boardApi();

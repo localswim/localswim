@@ -2369,7 +2369,6 @@ async function load(savedAvailability) {
       }
     });
 
-    boardStyle.replaceSync(board.user_css ?? "");
     const addTitle = element("input");
     addTitle.required = true;
     const addDescription = element("textarea");
@@ -2529,6 +2528,7 @@ async function load(savedAvailability) {
     restoreScroll();
     search.restore();
     inspection.sync();
+    boardStyle.replaceSync(board.user_css ?? "");
     announce("ready", "Board loaded.");
     updates.start();
     const ticketValue = new URLSearchParams(location.search).get("ticket");
@@ -2560,6 +2560,7 @@ async function load(savedAvailability) {
     if (view !== activeView) return;
     if (error instanceof ApiError && error.status === 401) capability = "";
     main.replaceChildren();
+    boardStyle.replaceSync("");
     if (boardAtLocation()) main.append(button("Retry board update", () => void load()));
     announce("error", readError(error));
   }

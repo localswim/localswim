@@ -253,12 +253,13 @@ over 96 MiB, and leaves both the archive and service data untouched.
 one transaction. Inspect the inactive record with `attachment get`. The original
 metadata and immutable bytes remain available for backup.
 
-Repeat `--lane UUID` on `card search` and `card next` to select the union of those lanes.
+Repeat `--lane UUID` on `card search` and `card triage-order` to select the union of those lanes.
 Both commands accept `--archived exclude|include|only` and default to excluding archived cards.
-Without a lane filter, `card next` selects unfinished cards. To inspect Completed work with
-`card next`, pass the Completed lane UUID. `card search` includes Completed cards by default.
+`card triage-order` is read-only and returns one card by default. Use `--limit` for more.
+Without a lane filter, it selects unfinished cards. To inspect Completed work with
+`card triage-order`, pass the Completed lane UUID. `card search` includes Completed cards by default.
 
-Search and next-work queries compute distinct unfinished downstream counts over the whole board
+Search and triage-order queries compute distinct unfinished downstream counts over the whole board
 before lane, archive, completion, search, cursor and limit filters. Completed cards stop paths. Archived unfinished
 cards participate. The triage score is (priority rank + 1) * 100 - downstream count, followed by
 priority rank and ticket. Numeric relationship lookup retains ticket order. Search uses full Unicode
@@ -349,7 +350,7 @@ Use an explicit `--data DIR` to read a saved board through the local filesystem.
 - `board get --data DIR BOARD_ID` returns saved board metadata.
 - `board export --data DIR BOARD_ID FILE|-` writes the validated native snapshot.
 - `card inspect --data DIR [--prose] BOARD_ID TICKET` inspects a focused ticket.
-- `card next --data DIR [--lane UUID]... BOARD_ID` ranks work across the selected lanes.
+- `card triage-order --data DIR [--lane UUID]... BOARD_ID` ranks work across the selected lanes.
 - `card search --data DIR --search TEXT BOARD_ID` applies the usual search and triage rules.
 - `comment list --data DIR [--limit N] BOARD_ID [CARD_ID]` reads the newest comments.
 

@@ -111,13 +111,13 @@ func TestM075CLIReportsMatchCapturedRevisionAfterWriterStops(t *testing.T) {
 		Cards      []cardRef `json:"cards"`
 		NextCursor *string   `json:"next_cursor"`
 	}
-	decode(capture("card", "next", "--lane", backlog, "--lane", ready, board.ID), &next)
+	decode(capture("card", "triage-order", "--lane", backlog, "--lane", ready, board.ID), &next)
 	if len(next.Cards) != 1 || next.Cards[0].Ticket != blocker.Ticket ||
 		next.Cards[0].BlockedCardCount != 1 || next.NextCursor == nil {
 		t.Fatal("next did not apply the whole-board blocking score before the default limit")
 	}
 	cursor := *next.NextCursor
-	decode(capture("card", "next", "--lane", ready, "--lane", backlog, "--cursor", cursor, board.ID), &next)
+	decode(capture("card", "triage-order", "--lane", ready, "--lane", backlog, "--cursor", cursor, board.ID), &next)
 	if len(next.Cards) != 1 || next.Cards[0].Ticket != other.Ticket || next.NextCursor != nil {
 		t.Fatal("next did not continue the same lane selection in triage order")
 	}
@@ -195,7 +195,7 @@ func TestM075CLIReportsMatchCapturedRevisionAfterWriterStops(t *testing.T) {
 
 func TestM075CLIRejectsEmptyDataAndOfflineWrites(t *testing.T) {
 	for _, args := range [][]string{
-		{"card", "next", "--data=", t03Board},
+		{"card", "triage-order", "--data=", t03Board},
 		{"card", "search", "--data=", t03Board},
 		{"comment", "list", "--data=", t03Board},
 		{"card", "archive", "--data", t.TempDir(), t03Card},

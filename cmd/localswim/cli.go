@@ -103,8 +103,8 @@ const cliHelp = `Usage:
   localswim backup verify FILE
   localswim card search [--data DIRECTORY] [--search TEXT] [--search-content] [--lane ID]...
                        [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
-  localswim card next [--data DIRECTORY] [--search TEXT] [--search-content] [--lane ID]...
-                     [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
+  localswim card triage-order [--data DIRECTORY] [--search TEXT] [--search-content] [--lane ID]...
+                             [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card lookup [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim ticket-order apply LANE_ID FILE|-
   localswim board restore [--revision N] BOARD_ID FILE|-
@@ -123,7 +123,7 @@ Board creation requires exactly one of --name or --json.
 --json reads a new board definition from JSON_FILE or standard input.
 JSON_FILE is required. Use a file path or - to read standard input.
 Set --data to read saved board data offline for board get, board export, board verify,
-card inspect, card next, card search, and comment list.
+card inspect, card triage-order, card search, and comment list.
 Offline board get returns board metadata. The lanes view requires a live service.
 Verification prints the full JSON report and exits 1 if the board is invalid.
 Board export writes JSON to a new FILE, or standard output when given -. The default --type is json.
@@ -160,8 +160,9 @@ Board get --view lanes returns visible cards in their swimlane order.
 Ticket-order preview defaults to all active lane cards. Optional card IDs select the ticket pool.
 Preview is read-only and returns the board revision and proposed ticket numbers.
 Ticket-order apply reads that saved preview and uses its original validator. Stale previews refuse.
-Card search and next use whole-board triage ordering. Lookup uses numeric ticket order.
-Card next defaults to unfinished lanes. Repeat --lane to select multiple lanes, including Completed.
+Card search and triage-order use whole-board triage ordering. Lookup uses numeric ticket order.
+Card triage-order returns the highest-ranked unfinished card by default and makes no changes.
+Use --limit for more cards. Repeat --lane to select multiple lanes, including Completed.
 --search matches literal titles and ticket numbers. --search-content includes readable descriptions and comments.
 Board restore requires a native JSON snapshot or ZIP backup file, or - for raw stdin.
 Direct restore reads the current durable snapshot validator before writing.
@@ -338,7 +339,7 @@ func parseCLI(args []string) (cliCommand, error) {
 			return command, errors.New("publishing requires enable, disable, or status")
 		}
 	}
-	if name == "card search" || name == "card next" || name == "card lookup" || name == "ticket-order apply" || name == "board restore" || strings.HasPrefix(name, "restoration ") || strings.HasPrefix(name, "publication ") {
+	if name == "card search" || name == "card triage-order" || name == "card lookup" || name == "ticket-order apply" || name == "board restore" || strings.HasPrefix(name, "restoration ") || strings.HasPrefix(name, "publication ") {
 		return parseT07(name, optionArgs)
 	}
 	if name == "card set-priorities" || name == "ticket-order preview" || strings.HasPrefix(name, "backup ") {

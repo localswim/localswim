@@ -322,7 +322,7 @@ func insertLane(current *snapshot, fields *workflowFields, actor string, at time
 		current.Policy.ETag, current.Policy.UpdatedAt = etag(current.Policy.ID, current.Board.Revision+1), now
 		field := policyGrantsField
 		current.Activity = append(current.Activity, activity{
-			ID: newID(), BoardID: current.Board.ID, Revision: current.Board.Revision + 1, At: now,
+			ID: newOperationID(), BoardID: current.Board.ID, Revision: current.Board.Revision + 1, At: now,
 			ActorID: actor, Operation: "patch", ResourceType: "policy", ResourceID: current.Policy.ID,
 			Field: &field, Before: &before, After: &afterPolicy,
 		})
@@ -362,7 +362,7 @@ func laneEditTime(current snapshot, at time.Time) time.Time {
 
 func appendLaneAudit(current *snapshot, actor, id, operation, field string, before, after *string, now time.Time) {
 	event := activity{
-		ID: newID(), BoardID: current.Board.ID, Revision: current.Board.Revision + 1, At: now,
+		ID: newOperationID(), BoardID: current.Board.ID, Revision: current.Board.Revision + 1, At: now,
 		ActorID: actor, Operation: operation, ResourceType: "lane", ResourceID: id, Before: before, After: after,
 	}
 	if field != "" {

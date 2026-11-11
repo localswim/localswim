@@ -16,7 +16,6 @@ type publication struct {
 	BoardID    string     `json:"board_id"`
 	Workspace  bool       `json:"workspace"`
 	State      string     `json:"state"`
-	CreatedAt  time.Time  `json:"created_at"`
 	FinishedAt *time.Time `json:"finished_at"`
 	BackupID   string     `json:"backup_id"`
 	ErrorCode  *string    `json:"error_code"`
@@ -119,9 +118,13 @@ func readPublication(rootPath, id string) (publication, error) {
 	data, err := io.ReadAll(io.LimitReader(file, 16*1024+1))
 	var item publication
 	if err != nil || len(data) > 16*1024 || unmarshalCanonical(data, &item) != nil ||
-		item.ID != id || !validSnapshotID(item.BoardID) || !validSnapshotID(item.BackupID) ||
-		item.Workspace || !validSnapshotTime(item.CreatedAt) ||
+		item.ID != id || !validSnapshotOperationID(item.ID) || !validSnapshotID(item.BoardID) || !validSnapshotOperationID(item.BackupID) ||
+		item.Workspace ||
 		!slices.Contains([]string{"running", "succeeded", "failed"}, item.State) {
+		return publication{}, errPublicationUnavailable
+	}
+	canonical, err := marshalCanonical(item)
+	if err != nil || !matchesSnapshotJSON(data, canonical) {
 		return publication{}, errPublicationUnavailable
 	}
 	if item.State == "running" && (item.FinishedAt != nil || item.ErrorCode != nil) ||
@@ -184,7 +187,7 @@ func (x *request) publicationsCollection() {
 		}
 		for _, entry := range entries {
 			id, hasSuffix := strings.CutSuffix(entry.Name(), ".json")
-			if !hasSuffix || !validSnapshotID(id) {
+			if !hasSuffix || !validSnapshotOperationID(id) {
 				continue
 			}
 			item, err := readPublication(x.service.store.root, id)
@@ -235,14 +238,14 @@ func (x *request) createPublication() {
 		x.fail(err)
 		return
 	}
-	backupID, err := inputID(obj["backup_id"], "backup_id")
+	backupID, err := inputOperationID(obj["backup_id"], "backup_id")
 	if err != nil {
 		x.fail(err)
 		return
 	}
-	id := newID()
+	id := newOperationID()
 	if raw, ok := obj["id"]; ok {
-		id, err = inputID(raw, "id")
+		id, err = inputOperationID(raw, "id")
 		if err != nil {
 			x.fail(err)
 			return
@@ -269,7 +272,7 @@ func (x *request) createPublication() {
 		x.fail(errMissing)
 		return
 	}
-	item := publication{ID: id, BoardID: boardID, BackupID: backupID, State: "running", CreatedAt: canonicalTime(time.Now())}
+	item := publication{ID: id, BoardID: boardID, BackupID: backupID, State: "running"}
 	if err := savePublication(x.service.store.root, item, true); err != nil {
 		x.publicationFailure(err)
 		return

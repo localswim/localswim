@@ -173,7 +173,7 @@ func (x *request) patchBoard(s snapshot) {
 	next, err := x.service.store.patchBoard(s.Board.ID, expected, availability, hasSettings, authorized, func(s *snapshot) error {
 		now := canonicalTime(time.Now())
 		appendChange := func(field string, before, after *string) {
-			s.Activity = append(s.Activity, activity{ID: newID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
+			s.Activity = append(s.Activity, activity{ID: newOperationID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
 				ActorID: x.actor, Operation: "patch", ResourceType: "board", ResourceID: s.Board.ID, Field: &field, Before: before, After: after})
 		}
 		if hasAvailability && availability != s.Board.Availability {

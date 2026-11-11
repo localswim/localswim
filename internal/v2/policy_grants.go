@@ -119,7 +119,7 @@ func addPolicyGrants(current *snapshot, next policy, actorID string, now time.Ti
 	field := policyGrantsField
 	current.Policy = next
 	current.Activity = append(current.Activity, activity{
-		ID: newID(), BoardID: current.Board.ID, Revision: current.Board.Revision + 1, At: now,
+		ID: newOperationID(), BoardID: current.Board.ID, Revision: current.Board.Revision + 1, At: now,
 		ActorID: actorID, Operation: "patch", ResourceType: "policy", ResourceID: old.ID,
 		Field: &field, Before: &before, After: &after,
 	})

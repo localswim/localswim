@@ -67,6 +67,19 @@ function resourceId(id) {
   return id;
 }
 
+/** @param {unknown} id */
+function operationId(id) {
+  if (typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    throw new TypeError("Expected a UUIDv7 operation ID.");
+  }
+  return id.toLowerCase();
+}
+
+/** @param {unknown} value @returns {value is string} */
+function isOperationId(value) {
+  return typeof value === "string" && UUID_V7.test(value);
+}
+
 /** @param {unknown} etag */
 function strongTag(etag) {
   if (typeof etag !== "string" || !STRONG_ETAG.test(etag)) {
@@ -161,9 +174,9 @@ function publishingChange(enabled) {
 function validBackup(value, boardId, id) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const backup = /** @type {Record<string, unknown>} */ (value);
-  return Object.keys(backup).length === 7 && backup.id === id && backup.board_id === boardId
+  return Object.keys(backup).length === 6 && backup.id === id && backup.board_id === boardId
     && isInteger(backup.board_revision) && backup.board_revision > 0
-    && isTimestamp(backup.created_at) && isInteger(backup.size) && backup.size >= 0
+    && isInteger(backup.size) && backup.size >= 0
     && typeof backup.sha2_256 === "string" && /^[0-9a-f]{64}$/.test(backup.sha2_256)
     && Array.isArray(backup.attachment_ids) && backup.attachment_ids.every(isId)
     && new Set(backup.attachment_ids).size === backup.attachment_ids.length;
@@ -172,8 +185,8 @@ function validBackup(value, boardId, id) {
 /** @param {object} value @param {string} id @param {string} boardId @param {string} backupId */
 function validPublication(value, id, boardId, backupId) {
   const item = /** @type {Record<string, unknown>} */ (value);
-  return Object.keys(item).length === 8 && item.id === id && item.board_id === boardId
-    && item.backup_id === backupId && item.workspace === false && isTimestamp(item.created_at)
+  return Object.keys(item).length === 7 && item.id === id && item.board_id === boardId
+    && item.backup_id === backupId && item.workspace === false
     && ["queued", "running", "succeeded", "failed"].includes(String(item.state))
     && (item.finished_at === null || isTimestamp(item.finished_at))
     && (item.error_code === null || (typeof item.error_code === "string" && /^[a-z0-9_]{1,80}$/.test(item.error_code)));
@@ -260,7 +273,7 @@ function matchesApproval(data, id, boardId, cardId) {
   const matchesChange = (raw) => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
     const change = /** @type {Record<string, unknown>} */ (raw);
-    return Object.keys(change).length === 11 && isId(change.id) && isId(change.resource_id)
+    return Object.keys(change).length === 11 && isOperationId(change.id) && isId(change.resource_id)
       && change.board_id === boardId && change.actor_id === approval.actor_id && change.at === approval.at
       && isInteger(change.revision) && change.revision > 1
       && change.revision === approval.board_revision;
@@ -298,7 +311,7 @@ function matchesLaneApproval(data, id, boardId, boardTag, laneId, completedLaneI
   const auditIds = new Set();
   /** @param {unknown} value @returns {value is Record<string, unknown>} */
   function matchesChange(value) {
-    if (!isObject(value) || Object.keys(value).length !== 11 || !isId(value.id) || auditIds.has(value.id)
+    if (!isObject(value) || Object.keys(value).length !== 11 || !isOperationId(value.id) || auditIds.has(value.id)
         || value.board_id !== boardId || value.actor_id !== receipt.actor_id
         || value.at !== receipt.at || value.revision !== revision) return false;
     auditIds.add(value.id);
@@ -675,7 +688,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
           || !data.cards.every((card) => card && validCard(card, board, undefined) && ids.includes(card.id))
           || !Array.isArray(data.changes) || !data.changes.every((change) => change
             && change.board_id === board && change.revision === data.board_revision
-            && isId(change.id) && isId(change.resource_id) && isId(change.actor_id)
+            && isOperationId(change.id) && isId(change.resource_id) && isId(change.actor_id)
             && isTimestamp(change.at) && change.resource_type === "card" && change.field === "priority_id"
             && isId(change.before) && isId(change.after))) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
@@ -769,9 +782,9 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {string} id @param {string} boardId @param {string} backupId */
     async publishBackup(id, boardId, backupId) {
-      const publication = resourceId(id).toLowerCase();
+      const publication = operationId(id).toLowerCase();
       const board = resourceId(boardId).toLowerCase();
-      const backup = resourceId(backupId).toLowerCase();
+      const backup = operationId(backupId).toLowerCase();
       const response = await send("/publications", { method: "POST", data: {
         id: publication, board_id: board, backup_id: backup,
       } });
@@ -784,15 +797,15 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {string} id @param {string} boardId @param {string} backupId */
     async getPublication(id, boardId, backupId) {
-      const reply = await request("/publications/" + resourceId(id));
-      if (!STRONG_ETAG.test(reply.etag ?? "") || !validPublication(reply.data, id, boardId, backupId)) {
+      const reply = await request("/publications/" + operationId(id));
+      if (!STRONG_ETAG.test(reply.etag ?? "") || !validPublication(reply.data, operationId(id), resourceId(boardId).toLowerCase(), operationId(backupId))) {
         throw new ApiError("invalid_response", { status: 200 });
       }
       return reply;
     },
     /** @param {string} id @param {string} boardId @param {string} boardEtag */
     async createBackup(id, boardId, boardEtag) {
-      const backup = resourceId(id).toLowerCase();
+      const backup = operationId(id).toLowerCase();
       const board = resourceId(boardId).toLowerCase();
       const response = await send("/backups", { method: "POST", data: {
         id: backup, board_id: board, expected_board_etag: strongTag(boardEtag),
@@ -809,7 +822,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {string} id @param {string} boardId */
     async getBackup(id, boardId) {
-      const backup = resourceId(id).toLowerCase();
+      const backup = operationId(id).toLowerCase();
       const reply = await request("/backups/" + backup);
       if (!STRONG_ETAG.test(reply.etag ?? "") || !validBackup(reply.data, resourceId(boardId).toLowerCase(), backup)) {
         throw new ApiError("invalid_response", { status: 200 });
@@ -819,7 +832,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {string} id @param {number} size @param {string} digest */
     async getBackupContent(id, size, digest) {
       if (!isInteger(size) || size < 0 || !/^[0-9a-f]{64}$/.test(digest)) throw new TypeError("Invalid backup metadata.");
-      const response = await send("/backups/" + resourceId(id) + "/content", { accept: "application/zip" });
+      const response = await send("/backups/" + operationId(id) + "/content", { accept: "application/zip" });
       if (response.status !== 200 || !response.body
           || response.headers.get("Content-Type")?.split(";", 1)[0].trim() !== "application/zip") {
         await discardBody(response);
@@ -1077,7 +1090,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {string} id @param {string} boardId @param {string} boardEtag
      * @param {string} cardId @param {string} cardEtag */
     async approveCard(id, boardId, boardEtag, cardId, cardEtag) {
-      const expectedId = resourceId(id);
+      const expectedId = operationId(id);
       const board = resourceId(boardId);
       const card = resourceId(cardId);
       const response = await send("/approvals", { method: "POST", data: {
@@ -1097,15 +1110,15 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {string} id @param {string} boardId @param {string} cardId */
     async inspectApproval(id, boardId, cardId) {
-      const reply = await request("/approvals/" + resourceId(id));
-      if (!STRONG_ETAG.test(reply.etag ?? "") || !matchesApproval(reply.data, id, boardId, cardId)) {
+      const reply = await request("/approvals/" + operationId(id));
+      if (!STRONG_ETAG.test(reply.etag ?? "") || !matchesApproval(reply.data, operationId(id), resourceId(boardId).toLowerCase(), resourceId(cardId).toLowerCase())) {
         throw new ApiError("invalid_response");
       }
     },
     /** @param {string} id @param {string} boardId @param {string} boardEtag @param {string} laneId
      * @param {string} completedLaneId @param {{id: string, revision: number}[]} cards */
     async approveLane(id, boardId, boardEtag, laneId, completedLaneId, cards) {
-      const expectedId = resourceId(id).toLowerCase();
+      const expectedId = operationId(id).toLowerCase();
       const board = resourceId(boardId).toLowerCase();
       const lane = resourceId(laneId).toLowerCase();
       const completed = resourceId(completedLaneId).toLowerCase();
@@ -1141,14 +1154,14 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {string} id @param {string} boardId @param {string} boardEtag @param {string} laneId
      * @param {string} completedLaneId @param {string[]} cardIds */
     async inspectLaneApproval(id, boardId, boardEtag, laneId, completedLaneId, cardIds) {
-      const expectedId = resourceId(id).toLowerCase();
+      const expectedId = operationId(id).toLowerCase();
       const board = resourceId(boardId).toLowerCase();
       const expected = strongTag(boardEtag);
       const lane = resourceId(laneId).toLowerCase();
       const completed = resourceId(completedLaneId).toLowerCase();
       const cards = cardIds.map((cardId) => resourceId(cardId).toLowerCase());
       const response = await send("/approvals/" + expectedId);
-      if (response.status !== 200 || response.headers.get("ETag") !== versionTag(expectedId, 1)) {
+      if (response.status !== 200 || response.headers.get("ETag") !== '"' + expectedId + '-1"') {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status });
       }
@@ -1395,7 +1408,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {string} id @param {string} buildId @param {string} serviceEtag */
     async activateBuild(id, buildId, serviceEtag) {
-      const activation = resourceId(id).toLowerCase();
+      const activation = operationId(id).toLowerCase();
       const build = resourceId(buildId).toLowerCase();
       const response = await send("/activations", { method: "POST", knownUnavailable: true, data: {
         id: activation, build_id: build, expected_service_etag: strongTag(serviceEtag),
@@ -1410,7 +1423,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {string} id @param {string} buildId @param {AbortSignal} [signal] */
     async getActivation(id, buildId, signal) {
-      const activation = resourceId(id).toLowerCase();
+      const activation = operationId(id).toLowerCase();
       const build = resourceId(buildId).toLowerCase();
       const reply = await readLifecycle("/activations/" + activation, signal);
       if (!validActivation(reply.data, activation, build)) {

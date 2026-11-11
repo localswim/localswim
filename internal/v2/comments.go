@@ -231,7 +231,7 @@ func (in commentCreation) apply(state *snapshot, actor string) error {
 	parent.CommentCount++
 	parent.Revision = revision
 	parent.UpdatedAt = now
-	state.Activity = append(state.Activity, activity{ID: newID(), BoardID: state.Board.ID,
+	state.Activity = append(state.Activity, activity{ID: newOperationID(), BoardID: state.Board.ID,
 		Revision: revision, At: now, ActorID: actor, Operation: "comment", ResourceType: "comment", ResourceID: value.ID})
 	return nil
 }

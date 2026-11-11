@@ -217,7 +217,7 @@ func detachAttachment(state *snapshot, id, expected, actor string) error {
 	item.Active = false
 	item.UpdatedAt = now
 	item.Revision = revision
-	state.Activity = append(state.Activity, activity{ID: newID(), BoardID: state.Board.ID,
+	state.Activity = append(state.Activity, activity{ID: newOperationID(), BoardID: state.Board.ID,
 		Revision: revision, At: now, ActorID: actor, Operation: "detach", ResourceType: "attachment", ResourceID: id})
 	return nil
 }
@@ -446,7 +446,7 @@ func (s *store) attach(boardID, actor string, input attachmentUpload) (attachmen
 		item.Revision = revision
 		next.Attachments = append(next.Attachments, value)
 		after := attachmentAuditValue(value)
-		next.Activity = append(next.Activity, activity{ID: newID(), BoardID: boardID, Revision: revision,
+		next.Activity = append(next.Activity, activity{ID: newOperationID(), BoardID: boardID, Revision: revision,
 			At: now, ActorID: actor, Operation: "attach", ResourceType: "attachment", ResourceID: value.ID, After: &after})
 		return nil
 	})

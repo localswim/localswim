@@ -43,7 +43,7 @@ func TestM29BackupHTTPAndIntegrity(t *testing.T) {
 	app, editor := attachmentHTTPServer(t)
 	raw, _ := editor.call("POST", "/boards", `{"name":"Backup source"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
-	id := newID()
+	id := newOperationID()
 	body := fmt.Sprintf(`{"id":%q,"board_id":%q,"expected_board_etag":%q,"ignored":true}`, strings.ToUpper(id), strings.ToUpper(b.ID), b.ETag)
 	raw, headers := editor.call("POST", "/backups", body, "", 201)
 	item := turnOneDecode[backup](t, raw)
@@ -117,7 +117,7 @@ func TestM29BackupRequestValidation(t *testing.T) {
 	editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, b.ID, etag(b.ID, 99)), "", 412)
 	editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"actor_id":%q}`, b.ID, b.ETag, botID), "", 400)
 	editor.call("POST", "/backups", fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q}`, newID(), b.ETag), "", 404)
-	editor.call("GET", "/backups/"+newID(), "", "", 404)
+	editor.call("GET", "/backups/"+newOperationID(), "", "", 404)
 	if err := os.WriteFile(app.store.snapshotPath(b.ID), []byte("damaged snapshot"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestM29BackupRefusesDamagedBytes(t *testing.T) {
 				t.Fatal(err)
 			}
 			state, _ := app.store.accepted(b.ID)
-			id := newID()
+			id := newOperationID()
 			editor.call("POST", "/backups", fmt.Sprintf(`{"id":%q,"board_id":%q,"expected_board_etag":%q}`, id, b.ID, state.Board.ETag), "", 503)
 			editor.call("GET", "/backups/"+id, "", "", 404)
 			if _, err := os.Stat(filepath.Join(app.store.root, "backups", id)); !os.IsNotExist(err) {
@@ -179,7 +179,7 @@ func TestM29PublicationFailureRetainsOnlyUncertainCaptures(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			id := newID()
+			id := newOperationID()
 			publisher := func(dir *os.Root, manifest *os.File) error {
 				if phase == "refused" {
 					return errors.New("synthetic refusal")
@@ -248,7 +248,7 @@ func TestM29ConcurrentIdentityAndRestartPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id := newID()
+	id := newOperationID()
 	results := make(chan error, 2)
 	start := make(chan struct{})
 	for range 2 {

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { newOperationId } from "./operation-id.mjs";
 import { ApiError, createBrowserApi, readWorkspaceOverview } from "./api.mjs";
 
+const OPERATION = "019b1111-2222-7333-a444-555555555555";
 const BOARD = "9d86fce9-1991-428b-a784-d41588192126";
 const TAG = '"workspace_tag_07"';
 const PUBLISHING_OFF = { enabled: false, repository: null, last_success_at: null, pending: false, error_code: null };
@@ -470,7 +472,7 @@ test("rejects incomplete event frames and handles the exact bound across chunks"
 });
 
 test("lifecycle writes use the service validator and confirm the addressed receipt", async () => {
-  const id = "2dd42d30-8545-4e43-bd65-e5430893d196";
+  const id = "2dd42d30-8545-7e43-bd65-e5430893d196";
   const activation = { id, build_id: BOARD, state: "accepted", error_code: null };
   const calls = [];
   const api = client(async (url, options) => {
@@ -500,7 +502,7 @@ test("lifecycle transport loss and malformed 202 receipts remain uncertain witho
     if (attempts === 1) throw new TypeError("Disconnected");
     return Response.json({ ...SERVICE, state: "draining", port: 1 }, { status: 202 });
   });
-  await assert.rejects(api.activateBuild(BOARD, BOARD, SERVICE.etag), { code: "transport_failed", outcomeUnknown: true });
+  await assert.rejects(api.activateBuild(OPERATION, BOARD, SERVICE.etag), { code: "transport_failed", outcomeUnknown: true });
   await assert.rejects(api.stopService(SERVICE), { code: "invalid_response", outcomeUnknown: true });
   assert.equal(attempts, 2);
 });
@@ -521,12 +523,12 @@ test("shutdown distinguishes a validated final publication refusal from a generi
 });
 
 test("lifecycle reads require exact HTTP success, JSON media and strong response tags", async () => {
-  const activation = { id: BOARD, build_id: BOARD, state: "activated", error_code: null };
+  const activation = { id: OPERATION, build_id: BOARD, state: "activated", error_code: null };
   const page = { builds: [], next_cursor: null };
   const reads = [
     ["/service", SERVICE, SERVICE.etag, (api) => api.getService()],
     ["/builds", page, TAG, (api) => api.listBuilds()],
-    ["/activations/" + BOARD, activation, TAG, (api) => api.getActivation(BOARD, BOARD)],
+    ["/activations/" + OPERATION, activation, TAG, (api) => api.getActivation(OPERATION, BOARD)],
   ];
   for (const [path, data, tag, read] of reads) {
     const headers = { "Content-Type": "application/json; charset=utf-8", ETag: tag };
@@ -568,10 +570,10 @@ test("staged build pages validate their closed shape and OpenAPI array and curso
 });
 
 test("lifecycle mutations with non-JSON or missing receipt media stay uncertain after one write", async () => {
-  const activation = { id: BOARD, build_id: BOARD, state: "accepted", error_code: null };
+  const activation = { id: OPERATION, build_id: BOARD, state: "accepted", error_code: null };
   const draining = { ...SERVICE, state: "draining", etag: SERVICE.etag.replace('-0"', '-1"') };
   const writes = [
-    [activation, { Location: "/api/2026-11-10/activations/" + BOARD }, (api) => api.activateBuild(BOARD, BOARD, SERVICE.etag)],
+    [activation, { Location: "/api/2026-11-10/activations/" + BOARD }, (api) => api.activateBuild(OPERATION, BOARD, SERVICE.etag)],
     [draining, {}, (api) => api.stopService(SERVICE)],
   ];
   for (const [body, headers, write] of writes) {
@@ -587,4 +589,38 @@ test("lifecycle mutations with non-JSON or missing receipt media stay uncertain 
       assert.equal(requests, 1);
     }
   }
+});
+
+test("operation IDs carry current milliseconds, RFC version and variant, and random entropy", () => {
+  const before = Date.now();
+  const ids = Array.from({ length: 100 }, () => newOperationId());
+  const after = Date.now();
+  assert.equal(new Set(ids).size, ids.length);
+  for (const id of ids) {
+    assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    const timestamp = Number.parseInt(id.replaceAll("-", "").slice(0, 12), 16);
+    assert.ok(timestamp >= before && timestamp <= after);
+  }
+});
+
+test("operation inputs accept mixed case and reject swapped resource versions before dispatch", async () => {
+  let calls = 0;
+  const api = client(async (url, options) => {
+    calls++;
+    assert.equal(url, "/api/2026-11-10/activations");
+    const input = JSON.parse(options.body);
+    assert.equal(input.id, OPERATION);
+    return Response.json({ id: OPERATION, build_id: BOARD, state: "accepted", error_code: null }, {
+      status: 202, headers: { Location: "/api/2026-11-10/activations/" + OPERATION },
+    });
+  });
+  await api.activateBuild(OPERATION.toUpperCase(), BOARD, SERVICE.etag);
+  for (const action of [
+    () => api.activateBuild(BOARD, BOARD, SERVICE.etag),
+    () => api.activateBuild(OPERATION, OPERATION, SERVICE.etag),
+    () => api.createBackup(BOARD, BOARD, TAG),
+    () => api.publishBackup(OPERATION, BOARD, BOARD),
+    () => api.approveCard(BOARD, BOARD, TAG, BOARD, TAG),
+  ]) await assert.rejects(action, TypeError);
+  assert.equal(calls, 1);
 });

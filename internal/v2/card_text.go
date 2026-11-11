@@ -55,7 +55,7 @@ func (in cardTextPatch) apply(s *snapshot, value *card, actor string, now time.T
 		field, before, after := edit.field, *edit.current, *edit.input
 		*edit.current = after
 		s.Activity = append(s.Activity, activity{
-			ID: newID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
+			ID: newOperationID(), BoardID: s.Board.ID, Revision: s.Board.Revision + 1, At: now,
 			ActorID: actor, Operation: "patch", ResourceType: "card", ResourceID: value.ID,
 			Field: &field, Before: &before, After: &after,
 		})

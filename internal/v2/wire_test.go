@@ -75,7 +75,7 @@ func TestSameSecondMutationsAdvanceRevisions(t *testing.T) {
 			field, before, after := "name", value.Board.Name, fmt.Sprintf("Rename %d", i)
 			value.Board.Name = after
 			value.Activity = append(value.Activity, activity{
-				ID: newID(), BoardID: m01BoardID, Revision: value.Board.Revision + 1,
+				ID: newOperationID(), BoardID: m01BoardID, Revision: value.Board.Revision + 1,
 				At: at, ActorID: m01HumanID, Operation: "patch", ResourceType: "board", ResourceID: m01BoardID,
 				Field: &field, Before: &before, After: &after,
 			})

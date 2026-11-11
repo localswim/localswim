@@ -236,9 +236,16 @@ boards. The same inspections without `--data` use the authenticated live API.
 Closed boards still refuse card writes.
 
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
-Unicode. Entity and build IDs are immutable UUIDv4 values. The service_instance_id
-uses UUIDv7, with the instance creation time encoded as Unix milliseconds.
-Publish UUIDs in lowercase. Accepted UUID input may use either hex case.
+Unicode. Ordinary entity, comment, attachment, build, and request correlation IDs
+use UUIDv4. Backup, publication, restoration, build activation, audit event,
+approval receipt, and service instance IDs use UUIDv7, which encodes ID generation
+time as Unix milliseconds. IDs are immutable. Publish UUIDs in lowercase and
+accept either hex case for the declared version.
+
+Derive backup and publication creation time from the ID and display it as
+`YYYY-MM-DD HH:MM:SS+00:00`. Their stored and API records omit `created_at`.
+Publication `finished_at` and audit, approval, and restoration `at` retain actual
+execution times. A caller-supplied operation ID can precede execution.
 
 The reboot has only Terry and Bot as users. Keep one current API, CLI, and storage
 contract. Follow the current owner-approved direction and the rules in [AGENTS.md](AGENTS.md).

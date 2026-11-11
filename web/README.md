@@ -122,7 +122,7 @@ When `outcomeUnknown` is true, inspect authoritative state before another write.
 
 Create a card with `createCard(card)` using the board's current
 `expected_board_etag` in the request body. On success, `etag` identifies the card
-and `boardEtag` identifies the updated board. Supply your own UUIDv4 `id` when
+and `boardEtag` identifies the updated board. Supply your own UUIDv7 `id` when
 you need focused readback after an uncertain response. Use `getCard(id)` for that
 readback or `listCards(boardId, { ticket })` to find an active card by its ticket.
 
@@ -196,3 +196,5 @@ UUID for focused readback after an uncertain response. **Refresh publication
 status** stays available while the publication is queued or running, including
 after navigating away and returning. A new submission requires a terminal status.
 Publication does not require a board ETag because its selected backup is immutable.
+
+Backup, publication, restoration, build activation, audit event, and approval receipt IDs use UUIDv7. Client-supplied operation IDs accept mixed case and are serialized in lowercase. Backup and publication creation time is encoded in the ID. Completion time remains in `finished_at`, and audit, approval, and restoration `at` records execution time. Other resource IDs remain UUIDv4.

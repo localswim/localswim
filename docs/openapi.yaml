@@ -6,8 +6,8 @@ info:
   description: Proposed full-release contract for the fresh Go implementation. The date in the URL identifies
     the API contract, independently of software builds and resource revisions. Schemas describe the complete
     planned surface; they do not claim that endpoints are already implemented. Outputs are closed and
-    canonical. Ordinary input ignores unknown harmless members, accepts mixed-case UUIDv4 and documented
-    case-insensitive enums, and retains user text exactly. Ambiguous JSON, protected attribution, invalid
+    canonical. Ordinary input ignores unknown harmless members, accepts mixed-case UUIDs of each
+    field's declared version and documented case-insensitive enums, and retains user text exactly. Ambiguous JSON, protected attribution, invalid
     types, and unauthorized operations are refused. Collection responses use their plural resource name
     for the array, including activities for either activity view and boards for workspace summaries.
     Empty collections return an empty array. The next_cursor field retains its pagination meaning.
@@ -7316,7 +7316,7 @@ paths:
       in: path
       required: true
       schema:
-        $ref: '#/components/schemas/UuidInput'
+        $ref: '#/components/schemas/UuidV7Input'
     get:
       operationId: readApproval
       summary: Inspect an approval result
@@ -9885,7 +9885,7 @@ paths:
       in: path
       required: true
       schema:
-        $ref: '#/components/schemas/UuidInput'
+        $ref: '#/components/schemas/UuidV7Input'
     get:
       operationId: readBackup
       summary: Read backup metadata
@@ -10158,7 +10158,7 @@ paths:
       in: path
       required: true
       schema:
-        $ref: '#/components/schemas/UuidInput'
+        $ref: '#/components/schemas/UuidV7Input'
     get:
       operationId: downloadBackup
       summary: Download the native backup archive
@@ -10605,7 +10605,7 @@ paths:
       in: path
       required: true
       schema:
-        $ref: '#/components/schemas/UuidInput'
+        $ref: '#/components/schemas/UuidV7Input'
     get:
       operationId: readRestoration
       summary: Inspect restoration outcome
@@ -11277,7 +11277,7 @@ paths:
       in: path
       required: true
       schema:
-        $ref: '#/components/schemas/UuidInput'
+        $ref: '#/components/schemas/UuidV7Input'
     get:
       operationId: readPublication
       summary: Inspect publication outcome
@@ -12808,7 +12808,7 @@ paths:
       in: path
       required: true
       schema:
-        $ref: '#/components/schemas/UuidInput'
+        $ref: '#/components/schemas/UuidV7Input'
     get:
       operationId: readActivation
       summary: Inspect build activation outcome
@@ -13096,6 +13096,23 @@ components:
       type: string
       format: uuid
       pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+    UuidV7Input:
+      type: string
+      format: uuid
+      pattern: ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-7[0-9A-Fa-f]{3}-[89ABab][0-9A-Fa-f]{3}-[0-9A-Fa-f]{12}$
+      description: RFC 9562 UUIDv7 for backups, publications, restorations, activations, audit events,
+        and approval receipts. Mixed hex case is accepted and normalized before lookup, uniqueness,
+        and duplicate checks. The embedded Unix milliseconds identify ID generation time.
+      examples:
+      - 019a6f6b-83c0-7abc-8def-0123456789ab
+      - 019A6F6B-83C0-7ABC-8DEF-0123456789AB
+    UuidV7:
+      type: string
+      format: uuid
+      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+      description: Canonical RFC 9562 UUIDv7. The embedded Unix milliseconds identify ID generation time.
+      examples:
+      - 019a6f6b-83c0-7abc-8def-0123456789ab
     ServiceInstanceId:
       type: string
       format: uuid
@@ -13868,13 +13885,14 @@ components:
       - after
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          $ref: '#/components/schemas/UuidV7'
         board_id:
           $ref: '#/components/schemas/Uuid'
         revision:
           $ref: '#/components/schemas/Revision'
         at:
           $ref: '#/components/schemas/Timestamp'
+          description: Actual execution time, independent of when the UUIDv7 id was generated.
         actor_id:
           $ref: '#/components/schemas/Uuid'
         operation:
@@ -13927,13 +13945,14 @@ components:
       - tickets
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          $ref: '#/components/schemas/UuidV7'
         board_id:
           $ref: '#/components/schemas/Uuid'
         revision:
           $ref: '#/components/schemas/Revision'
         at:
           $ref: '#/components/schemas/Timestamp'
+          description: Actual execution time, independent of when the UUIDv7 id was generated.
         actor_id:
           $ref: '#/components/schemas/Uuid'
         actor_kind:
@@ -14074,7 +14093,7 @@ components:
       - changes
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          $ref: '#/components/schemas/UuidV7'
         board_id:
           $ref: '#/components/schemas/Uuid'
         card_ids:
@@ -14087,6 +14106,7 @@ components:
           $ref: '#/components/schemas/Uuid'
         at:
           $ref: '#/components/schemas/Timestamp'
+          description: Actual execution time, independent of when the UUIDv7 id was generated.
         board_revision:
           type: integer
           minimum: 1
@@ -14247,23 +14267,21 @@ components:
     Backup:
       type: object
       additionalProperties: false
+      description: Creation time is decoded from the UUIDv7 id and displayed in UTC whole seconds.
       required:
       - id
       - board_id
       - board_revision
-      - created_at
       - sha2_256
       - size
       - attachment_ids
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          $ref: '#/components/schemas/UuidV7'
         board_id:
           $ref: '#/components/schemas/Uuid'
         board_revision:
           $ref: '#/components/schemas/Revision'
-        created_at:
-          $ref: '#/components/schemas/Timestamp'
         sha2_256:
           $ref: '#/components/schemas/Digest'
         size:
@@ -14276,18 +14294,18 @@ components:
     Publication:
       type: object
       additionalProperties: false
+      description: Creation time is decoded from the UUIDv7 id and displayed in UTC whole seconds.
       required:
       - id
       - board_id
       - workspace
       - state
-      - created_at
       - finished_at
       - backup_id
       - error_code
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          $ref: '#/components/schemas/UuidV7'
         board_id:
           anyOf:
           - $ref: '#/components/schemas/Uuid'
@@ -14300,15 +14318,13 @@ components:
           - running
           - succeeded
           - failed
-        created_at:
-          $ref: '#/components/schemas/Timestamp'
         finished_at:
           anyOf:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
         backup_id:
           anyOf:
-          - $ref: '#/components/schemas/Uuid'
+          - $ref: '#/components/schemas/UuidV7'
           - type: 'null'
         error_code:
           anyOf:
@@ -14388,7 +14404,7 @@ components:
       - error_code
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          $ref: '#/components/schemas/UuidV7'
         build_id:
           $ref: '#/components/schemas/Uuid'
         state:
@@ -14414,13 +14430,14 @@ components:
       - revision
       properties:
         id:
-          $ref: '#/components/schemas/Uuid'
+          $ref: '#/components/schemas/UuidV7'
         board_id:
           $ref: '#/components/schemas/Uuid'
         backup_id:
-          $ref: '#/components/schemas/Uuid'
+          $ref: '#/components/schemas/UuidV7'
         at:
           $ref: '#/components/schemas/Timestamp'
+          description: Actual execution time, independent of when the UUIDv7 id was generated.
         board_etag:
           $ref: '#/components/schemas/EntityTag'
         revision:
@@ -15887,7 +15904,7 @@ components:
       additionalProperties: false
       properties:
         id:
-          $ref: '#/components/schemas/UuidInput'
+          $ref: '#/components/schemas/UuidV7Input'
         board_id:
           $ref: '#/components/schemas/UuidInput'
         expected_board_etag:
@@ -16019,7 +16036,7 @@ components:
       additionalProperties: true
       properties:
         id:
-          $ref: '#/components/schemas/UuidInput'
+          $ref: '#/components/schemas/UuidV7Input'
         board_id:
           $ref: '#/components/schemas/UuidInput'
         expected_board_etag:
@@ -16053,11 +16070,11 @@ components:
       additionalProperties: false
       properties:
         id:
-          $ref: '#/components/schemas/UuidInput'
+          $ref: '#/components/schemas/UuidV7Input'
         board_id:
           $ref: '#/components/schemas/UuidInput'
         backup_id:
-          $ref: '#/components/schemas/UuidInput'
+          $ref: '#/components/schemas/UuidV7Input'
         expected_board_etag:
           $ref: '#/components/schemas/EntityTag'
         actor: false
@@ -16089,11 +16106,11 @@ components:
       additionalProperties: false
       properties:
         id:
-          $ref: '#/components/schemas/UuidInput'
+          $ref: '#/components/schemas/UuidV7Input'
         board_id:
           $ref: '#/components/schemas/UuidInput'
         backup_id:
-          $ref: '#/components/schemas/UuidInput'
+          $ref: '#/components/schemas/UuidV7Input'
         workspace:
           type: boolean
         actor: false
@@ -16167,7 +16184,7 @@ components:
       additionalProperties: false
       properties:
         id:
-          $ref: '#/components/schemas/UuidInput'
+          $ref: '#/components/schemas/UuidV7Input'
         build_id:
           $ref: '#/components/schemas/UuidInput'
         expected_service_etag:
@@ -17049,13 +17066,14 @@ components:
       - after
       properties:
         id:
-          $ref: '#/components/schemas/UuidInput'
+          $ref: '#/components/schemas/UuidV7Input'
         board_id:
           $ref: '#/components/schemas/UuidInput'
         revision:
           $ref: '#/components/schemas/Revision'
         at:
           $ref: '#/components/schemas/Timestamp'
+          description: Actual execution time, independent of when the UUIDv7 id was generated.
         actor_id:
           $ref: '#/components/schemas/UuidInput'
         operation:
@@ -18218,8 +18236,10 @@ components:
             $ref: '#/components/schemas/Problem'
 x-contract-status: proposed; describes planned behavior, not implemented availability
 x-input-policy:
-  uuid: Normalize valid mixed-case UUIDv4 before validation, lookup, equality, and duplicate detection;
-    emit lowercase hyphenated UUIDs.
+  uuid: Validate the field-specific UUID version and normalize valid mixed-case input before lookup,
+    equality, and duplicate detection; emit lowercase hyphenated UUIDs. Ordinary entities, comments,
+    attachments, builds, and request correlation use UUIDv4. Backups, publications, restorations,
+    activations, audit events, approval receipts, and service instances use UUIDv7.
   unknownMembers: Ignore harmless unknown members only in schemas with additionalProperties:true. Reject
     declared protected fields, ambiguous duplicates, invalid known types, and unknown fields in security-sensitive
     closed objects.

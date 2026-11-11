@@ -3,7 +3,7 @@ import test from "node:test";
 import { ApiError, createBrowserApi } from "./api.mjs";
 
 const prefix = "/api/2026-11-10";
-const approvalId = "cda7b0d0-26d5-4632-859c-fc9af8ccb1f5";
+const approvalId = "cda7b0d0-26d5-7632-859c-fc9af8ccb1f5";
 const boardId = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
 const reviewLane = "ceab10a8-1492-4c90-aa07-13b83138919a";
 const completedLane = "7e90e6f9-e7eb-45c8-808e-e5f49b23c259";
@@ -15,8 +15,8 @@ const tag = (id, version) => '"' + id + "-" + version + '"';
 const boardTag = tag(boardId, 8);
 const committedTag = tag(boardId, 9);
 const cards = cardIds.map((id, index) => ({ id, revision: index + 4 }));
-const auditIds = [approvalId, "84236db3-7230-49fd-a1d6-94b50282e1ef",
-  "df8eb525-06d2-485a-8535-af1919969b0e", "c28dd74e-b5c1-4b9a-bb3f-c90349455853"];
+const auditIds = [approvalId, "84236db3-7230-79fd-a1d6-94b50282e1ef",
+  "df8eb525-06d2-785a-8535-af1919969b0e", "c28dd74e-b5c1-7b9a-bb3f-c90349455853"];
 const commentIds = ["f9fb5025-5111-4f5f-9ee5-2b0b9e8f1574", "71a8c2c7-2107-493c-a13c-c5d16e8cc175"];
 const revision = { board_id: boardId, at, actor_id: actor, revision: 9 };
 const changes = cardIds.flatMap((cardId, index) => [

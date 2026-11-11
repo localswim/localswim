@@ -476,6 +476,11 @@ func validSnapshotID(id string) bool {
 	return ok && canonical == id
 }
 
+func validSnapshotOperationID(id string) bool {
+	canonical, ok := normalizeOperationID(id)
+	return ok && canonical == id
+}
+
 func validSnapshotEntity(item entity) bool {
 	return validSnapshotID(item.ID) && snapshotETagPattern.MatchString(item.ETag) &&
 		validSnapshotTime(item.CreatedAt) && validSnapshotTime(item.UpdatedAt) &&
@@ -589,7 +594,7 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 	var recoveryRevision uint64
 	policyRevision := uint64(1)
 	for index, event := range value.Activity {
-		if !validSnapshotID(event.ID) || refs.ids[event.ID] ||
+		if !validSnapshotOperationID(event.ID) || refs.ids[event.ID] ||
 			event.BoardID != b.ID || !validSnapshotTime(event.At) {
 			return invalidSnapshot("activity", "Audit identity or metadata is invalid.")
 		}

@@ -40,7 +40,7 @@ func TestSingleReviewApproval(t *testing.T) {
 		b.ID, b.ETag, b.LaneIDs[0], botID), "", 201)
 	c := turnOneDecode[card](t, raw)
 	path := "/cards/" + c.ID
-	approvalID := newID()
+	approvalID := "00000000-0000-7000-8000-000000000001"
 	body := func(boardTag, cardTag string) string {
 		return fmt.Sprintf(`{"id":%q,"board_id":%q,"expected_board_etag":%q,"cards":[{"card_id":%q,"etag":%q}]}`,
 			approvalID, b.ID, boardTag, c.ID, cardTag)
@@ -96,6 +96,9 @@ func TestSingleReviewApproval(t *testing.T) {
 		t.Fatalf("concurrent approval statuses = %d, %d. Wanted 201 and 412.", created.Code, refused.Code)
 	}
 	result := turnOneDecode[approval](t, created.Body.Bytes())
+	if result.At.Before(before.Board.UpdatedAt) || result.At.Year() < 2026 {
+		t.Fatal("approval execution time was derived from its preallocated ID")
+	}
 	receiptFields := turnOneDecode[map[string]json.RawMessage](t, created.Body.Bytes())
 	if _, present := receiptFields["board_etag"]; present {
 		t.Fatal("approval receipt exposes board_etag")
@@ -194,7 +197,7 @@ func TestSingleReviewApprovalPolicyRefusals(t *testing.T) {
 	state := freshSnapshot(id, "Synthetic", defaultWorkflow(id, now, principals), humanID, now)
 	item := card{ID: newID(), Revision: 1, CreatedAt: now, UpdatedAt: now, BoardID: id, LaneID: state.Lanes[3].ID, OwnerID: botID}
 	state.Cards = append(state.Cards, item)
-	in := approvalInput{id: newID(), boardID: id, boardTag: state.Board.ETag,
+	in := approvalInput{id: newOperationID(), boardID: id, boardTag: state.Board.ETag,
 		cards: []approvalCardVersion{{item.ID, item.entityTag()}}}
 
 	for _, tc := range []struct {

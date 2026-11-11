@@ -172,17 +172,38 @@ func TestM91InterruptedIndexInstallLeavesInspectableFailure(t *testing.T) {
 	}
 	// Simulate the distinct ref and index transactions being interrupted.
 	m34Git(t, fixture.repository, "update-ref", ref, commit, previous)
-	staged := m34Git(t, fixture.repository, "diff", "--cached", "--binary")
-	if _, err := repo.finishPending(stateRef, oid, checkpoint); err != publicationGitError("publication_index_uncertain") {
-		t.Fatal("interrupted index install had no explicit uncertainty", err)
+	for _, checkout := range []struct {
+		name string
+		args []string
+	}{
+		{name: "publishing branch"},
+		{name: "detached HEAD", args: []string{"switch", "--quiet", "--detach", previous}},
+		{name: "another branch", args: []string{"switch", "--quiet", "--create", "operator-branch", previous}},
+	} {
+		t.Run(checkout.name, func(t *testing.T) {
+			if checkout.args != nil {
+				m34Git(t, fixture.repository, checkout.args...)
+			}
+			staged := m34Git(t, fixture.repository, "diff", "--cached", "--binary")
+			if _, err := repo.finishPending(stateRef, oid, checkpoint); err != publicationGitError("publication_index_uncertain") {
+				t.Fatal("interrupted index install had no explicit uncertainty", err)
+			}
+			if after := m34Git(t, fixture.repository, "diff", "--cached", "--binary"); !bytes.Equal(staged, after) {
+				t.Fatal("uncertainty caused a blind index repair")
+			}
+			if got := strings.TrimSpace(string(m34Git(t, fixture.remote, "rev-parse", ref))); got != previous {
+				t.Fatal("publication pushed before resolving local index uncertainty")
+			}
+			if loaded, readOID, err := repo.checkpoint(stateRef); err != nil || readOID != oid || loaded.Pending == nil {
+				t.Fatal("interruption changed durable pending intent", err)
+			}
+		})
 	}
-	if after := m34Git(t, fixture.repository, "diff", "--cached", "--binary"); !bytes.Equal(staged, after) {
-		t.Fatal("uncertainty caused a blind index repair")
+	m34Git(t, fixture.repository, "switch", "--quiet", strings.TrimPrefix(ref, "refs/heads/"))
+	if settled, err := repo.finishPending(stateRef, oid, checkpoint); err != nil || settled.Pending != nil {
+		t.Fatal("publication did not settle once the checked-out branch's index matched", err)
 	}
-	if got := strings.TrimSpace(string(m34Git(t, fixture.remote, "rev-parse", ref))); got != previous {
-		t.Fatal("publication pushed before resolving local index uncertainty")
-	}
-	if _, readOID, err := repo.checkpoint(stateRef); err != nil || readOID != oid {
-		t.Fatal("interruption changed durable pending intent", err)
+	if got := strings.TrimSpace(string(m34Git(t, fixture.remote, "rev-parse", ref))); got != commit {
+		t.Fatal("publication did not push the original commit after reconciliation")
 	}
 }

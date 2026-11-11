@@ -270,7 +270,11 @@ func (repo publicationRepository) confirmPublicationIndex(pending pendingPublica
 		return gitPublicationError("publication_index_uncertain")
 	}
 	if branch != pending.Branch {
-		// Another branch or detached HEAD owns this worktree's index.
+		// Another checkout cannot establish index consistency for the
+		// pending branch after its ref advanced.
+		if pending.Commit != pending.Parent {
+			return gitPublicationError("publication_index_uncertain")
+		}
 		return nil
 	}
 	err = repo.checkPublicationIndex(pending.Branch, tip, pending.Names)

@@ -174,6 +174,12 @@ drawer. When a board change makes the displayed results stale, the search keeps
 your filters and prompts you to run it again. Relationship ticket lookup keeps
 its default numeric order.
 
+Each tab remembers its search filters and results query, selected card, and lane
+scroll positions for each board. Returning through the board list, Back, or
+Forward, or reloading the tab restores that board's view. Restored search results
+and drawers are read from the service. A retired search lane resets to All lanes,
+and a missing saved card clears the selection.
+
 A changed **Preview ticket order** offers **Apply ticket order**. Apply submits
 the captured board validator and proposed ordered card UUIDs exactly once.
 Readback checks the new assignments. A stale preview refuses and requires a fresh

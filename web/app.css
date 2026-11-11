@@ -12,7 +12,8 @@ header a { color: inherit; font-size: 1.3rem; font-weight: 700; }
 main { flex: 1; min-width: 0; }
 #details { flex: 0 0 min(26rem, 40vw); }
 .lanes { display: flex; gap: 0.65rem; overflow: auto; }
-.lane { flex: 0 0 13rem; }
+.lane { flex: 0 0 13rem; max-block-size: max(16rem, 70dvh); overflow-y: auto; }
+.lane > input { max-inline-size: 100%; }
 .card-cover { display: block; width: 100%; max-height: 8rem; object-fit: cover; margin-bottom: 0.35rem; }
 .attachment img { display: block; max-width: 100%; max-height: 22rem; margin: 0.5rem 0; }
 .attachment button + button { margin-inline-start: 0.4rem; }

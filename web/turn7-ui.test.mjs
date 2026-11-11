@@ -17,9 +17,12 @@ const page = (key, rows) => ({data: {[key]: rows, next_cursor: null}, etag: null
 async function harness(api, pathname = "/boards/" + board, {
   openSession = async () => "capability",
   pollTimer = setTimeout,
+  storage = tabStorage(),
 } = {}) {
   let document;
   class Element {
+    scrollTop = 0;
+    scrollLeft = 0;
     constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; }
     set textContent(value) { this.ownText = value; this.children = []; }
     get textContent() { return this.ownText + this.children.map((node) => node.textContent).join(""); }
@@ -59,7 +62,9 @@ async function harness(api, pathname = "/boards/" + board, {
   }));
   document = {getElementById: (id) => nodes[id], querySelector: (selector) => nodes[selector] ?? null,
     adoptedStyleSheets: [], createElement: (tag) => new ({input: Input, textarea: Textarea, button: Button, select: Select}[tag] ?? Element)(tag)};
-  const context = vm.createContext({document, window: {addEventListener() {}}, CSSStyleSheet: class {replaceSync() {}},
+  const windowEvents = {};
+  const window = {sessionStorage: storage, addEventListener: (name, handler) => { windowEvents[name] = handler; }};
+  const context = vm.createContext({document, window, CSSStyleSheet: class {replaceSync() {}},
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
     Blob, setTimeout: pollTimer, AbortSignal, crypto: globalThis.crypto, ApiError, validPublishing,
@@ -76,7 +81,20 @@ async function harness(api, pathname = "/boards/" + board, {
     context.location.pathname = path;
     await context.hooks.load();
   }
-  return {nodes, ...context.hooks, settled, find, field, submit, navigate, focused: () => document.activeElement};
+  async function popstate(href) {
+    const url = new URL(href, "http://localhost");
+    context.location.pathname = url.pathname;
+    context.location.search = url.search;
+    windowEvents.popstate();
+    await settled();
+  }
+  return {nodes, ...context.hooks, settled, find, field, submit, navigate, popstate,
+    pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement};
+}
+
+function tabStorage() {
+  const entries = new Map();
+  return {getItem: (key) => entries.get(key) ?? null, setItem: (key, value) => entries.set(key, value)};
 }
 
 function boardApi() {
@@ -104,6 +122,136 @@ function boardApi() {
   api.restoreSnapshot = async () => { restore(); };
   return {api, restore, patched: () => patched};
 }
+
+test("Back, Forward and reload restore each board's own search, drawer and lane scroll in one tab", async () => {
+  const {api} = boardApi();
+  const other = "c431860a-123f-422e-975f-dc6ffcb21727";
+  const otherLane = "70992244-8910-4b56-aa27-c1e4dba5af43";
+  const url = "/boards/" + board;
+  const otherUrl = "/boards/" + other;
+  const names = [{id: board, name: "First board"}, {id: other, name: "Second board"}];
+  api.listBoards = async () => page("boards", names);
+  const readAvailability = api.getBoardAvailability;
+  api.getBoardAvailability = async (id) => {
+    const first = await readAvailability();
+    return id === board ? first : {data: {...first.data, ...names[1]}, etag: tag(id, 1)};
+  };
+  const readContents = api.getBoardLanes;
+  api.getBoardLanes = async (id) => id === board ? readContents()
+    : {data: {board: names[1], cards: []}, etag: tag(id, 1)};
+  const readLanes = api.listLanes;
+  api.listLanes = async (id) => id === board ? readLanes()
+    : page("lanes", [{id: otherLane, label: "Ready", key: "ready", retired: false, position: 0, role: "ordinary", revision: 1}]);
+  const searches = [];
+  api.listCards = async (id, fields) => {
+    searches.push({id, ...fields});
+    return page("cards", id === board ? [(await api.getCard()).data] : []);
+  };
+  const storage = tabStorage();
+  const ui = await harness(api, url, {storage});
+  const searchPanel = (ui) => ui.find(ui.nodes.main, "summary", "Find cards").parent;
+  const columns = (ui) => ui.nodes.main.querySelectorAll("div").find((node) => node.className === "lanes");
+  const query = (ui) => ui.field(searchPanel(ui), "Title or ticket");
+  await ui.load();
+  searchPanel(ui).open = true;
+  query(ui).value = "Original";
+  ui.field(searchPanel(ui), "Search lane").value = lane;
+  ui.field(searchPanel(ui), "Search descriptions and comments").checked = true;
+  ui.submit(searchPanel(ui), "Find cards");
+  await ui.settled();
+  query(ui).value = "Unsubmitted text";
+  ui.find(ui.nodes.main, "button", "#1 Original").click();
+  await ui.settled();
+  columns(ui).scrollLeft = 88;
+  columns(ui).children[0].scrollTop = 320;
+  await ui.navigate(otherUrl);
+  assert.equal(ui.nodes.details.hidden, true);
+  assert.equal(query(ui).value, "");
+  assert.equal(columns(ui).children[0].scrollTop, 0);
+  query(ui).value = "Second query";
+  ui.field(searchPanel(ui), "Search lane").value = otherLane;
+  columns(ui).children[0].scrollTop = 130;
+
+  await ui.popstate(url);
+  assert.equal(searchPanel(ui).open, true);
+  assert.equal(query(ui).value, "Unsubmitted text");
+  assert.equal(ui.field(searchPanel(ui), "Search lane").value, lane);
+  assert.equal(columns(ui).scrollLeft, 88);
+  assert.equal(columns(ui).children[0].scrollTop, 320);
+  assert.equal(ui.nodes.details.querySelector("h2").textContent, "#1 Original");
+  assert.ok(ui.find(searchPanel(ui), "button", "#1 Original"));
+  assert.equal(ui.focused()?.isConnected, false);
+  assert.deepEqual(searches.map(({id, q}) => [id, q]), [[board, "Original"], [board, "Original"]]);
+  await ui.popstate(otherUrl);
+  assert.equal(query(ui).value, "Second query");
+  assert.equal(ui.field(searchPanel(ui), "Search lane").value, otherLane);
+  assert.equal(columns(ui).children[0].scrollTop, 130);
+  assert.equal(ui.nodes.details.hidden, true);
+  await ui.popstate(url);
+  columns(ui).children[0].scrollTop = 275;
+  ui.pagehide();
+
+  const reloaded = await harness(api, url, {storage});
+  await reloaded.load();
+  await reloaded.settled();
+  assert.equal(query(reloaded).value, "Unsubmitted text");
+  assert.equal(columns(reloaded).children[0].scrollTop, 275);
+  assert.equal(reloaded.nodes.details.querySelector("h2").textContent, "#1 Original");
+  reloaded.find(reloaded.nodes.details, "button", "Close card").click();
+  const closed = await harness(api, url, {storage});
+  await closed.load();
+  assert.equal(closed.nodes.details.hidden, true);
+
+  const separate = await harness(api, url);
+  await separate.load();
+  assert.equal(query(separate).value, "");
+  assert.equal(columns(separate).children[0].scrollTop, 0);
+  assert.equal(separate.nodes.details.hidden, true);
+});
+
+test("missing or foreign saved cards clear selection, and a late refusal leaves the current drawer intact", async () => {
+  const {api} = boardApi();
+  const url = "/boards/" + board;
+  const key = "localswim:board-view:" + board;
+  const storage = tabStorage();
+  storage.setItem(key, JSON.stringify({card: {id: card, ticket: null}}));
+  const readCard = api.getCard;
+  const {promise, resolve} = Promise.withResolvers();
+  const {promise: started, resolve: start} = Promise.withResolvers();
+  api.getCard = async () => {
+    api.getCard = readCard;
+    start();
+    await promise;
+    throw new ApiError("http_error", {status: 404});
+  };
+  const ui = await harness(api, url, {storage});
+  await ui.load();
+  await started;
+  await ui.popstate("/");
+  await ui.popstate(url);
+  resolve();
+  await ui.settled();
+  assert.equal(ui.nodes.details.querySelector("h2").textContent, "#1 Original");
+  assert.equal(JSON.parse(storage.getItem(key)).card.id, card);
+
+  api.getCard = async () => { throw new ApiError("transport_failed"); };
+  await ui.load();
+  await ui.settled();
+  assert.equal(JSON.parse(storage.getItem(key)).card.id, card);
+  api.getCard = async () => { throw new ApiError("http_error", {status: 404}); };
+  await ui.load();
+  await ui.settled();
+  assert.equal(ui.nodes.details.hidden, true);
+  assert.equal(JSON.parse(storage.getItem(key)).card, undefined);
+
+  storage.setItem(key, JSON.stringify({card: {id: card, ticket: null}}));
+  api.getCard = async () => ({data: {...(await readCard()).data, board_id: backup}, etag: tag(card, 1)});
+  const foreign = await harness(api, url, {storage});
+  await foreign.load();
+  await foreign.settled();
+  assert.equal(foreign.nodes.details.hidden, true);
+  assert.equal(JSON.parse(storage.getItem(key)).card, undefined);
+});
 
 const publishingOff = {enabled: false, repository: null, last_success_at: null, pending: false, error_code: null};
 

@@ -8018,7 +8018,7 @@ paths:
       x-milestones:
       - 23
       description: Use multipart/form-data. Publish immutable file bytes before metadata. Keep bytes after
-        any uncertain metadata outcome. The server computes size, media type and SHA-256 from the bytes.
+        any uncertain metadata outcome. The server computes size, media type and SHA-2-256 from the bytes.
         Never use filename as a storage path. This operation is not replayed automatically.
       requestBody:
         required: true
@@ -13420,14 +13420,14 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
       - card_id
       - original_name
       - size
-      - sha256
+      - sha2_256
       - media_type
       - previewable
       - active
@@ -13435,8 +13435,14 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          readOnly: true
+          description: Board revision of the commit that uploaded this attachment or last changed
+            its metadata. Unrelated board edits and no-op operations preserve this value, so
+            successive attachment revisions can skip values. The service assigns this field.
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -13453,8 +13459,9 @@ components:
           type: integer
           minimum: 0
           maximum: 10485760
-        sha256:
+        sha2_256:
           $ref: '#/components/schemas/Digest'
+          description: Lowercase hexadecimal SHA-2-256 digest of the attachment bytes.
         media_type:
           type: string
           minLength: 1
@@ -16638,14 +16645,14 @@ components:
       additionalProperties: false
       required:
       - id
-      - etag
+      - revision
       - created_at
       - updated_at
       - board_id
       - card_id
       - original_name
       - size
-      - sha256
+      - sha2_256
       - media_type
       - previewable
       - active
@@ -16653,8 +16660,13 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UuidInput'
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          description: Board revision of the commit that uploaded this attachment or last changed
+            its metadata. Unrelated board edits and no-op operations preserve this value, so
+            successive attachment revisions can skip values. The service assigns this field.
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
@@ -16671,8 +16683,9 @@ components:
           type: integer
           minimum: 0
           maximum: 10485760
-        sha256:
+        sha2_256:
           $ref: '#/components/schemas/Digest'
+          description: Lowercase hexadecimal SHA-2-256 digest of the attachment bytes.
         media_type:
           type: string
           minLength: 1

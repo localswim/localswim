@@ -148,7 +148,7 @@ func TestT04CLIDownloadVerifiesBeforePublishing(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
 				case t03Root + "/attachments/" + t03Lane:
-					_, _ = fmt.Fprintf(w, "{\"id\":%q,\"active\":true,\"size\":%d,\"sha256\":\"%x\"}", t03Lane, len(want), sha256.Sum256(want))
+					_, _ = w.Write(attachmentFixture(t03Lane, want))
 				case t03Root + "/attachments/" + t03Lane + "/content":
 					if r.URL.Query().Get("disposition") != "attachment" || r.Header.Get("Authorization") != "Bearer t03-test-token" {
 						t.Error("download did not request authenticated attachment content")
@@ -191,4 +191,15 @@ func TestT04CLIDownloadVerifiesBeforePublishing(t *testing.T) {
 			}
 		})
 	}
+}
+
+func attachmentFixture(id string, data []byte) []byte {
+	digest := sha256.Sum256(data)
+	result, _ := json.Marshal(map[string]any{
+		"id": id, "board_id": t03Board, "card_id": t03Card, "revision": 23,
+		"created_at": "2026-11-10 18:00:00+00:00", "updated_at": "2026-11-10 18:00:00+00:00",
+		"original_name": "test.bin", "size": len(data), "sha2_256": fmt.Sprintf("%x", digest),
+		"media_type": "application/octet-stream", "active": true, "previewable": false, "added_by": t03Board,
+	})
+	return result
 }

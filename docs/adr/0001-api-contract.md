@@ -28,6 +28,16 @@ Full card responses, card version responses, and native card snapshots require a
 
 Full lane responses and native lane snapshots require a positive safe-integer `revision` identifying the board commit that created or last changed that lane, including its position. Initial workflow lanes use revision 1. Unrelated board edits preserve this value, and successive lane revisions may skip values. Lane creation and patch inputs reject this service-managed field. Lane responses retain their HTTP `ETag` headers, and lane mutation requests retain both lane and board conditional validators. Native snapshots remain format version 2 under the current contract.
 
+Full attachment responses and native attachment snapshots require a service-managed
+positive safe-integer `revision` identifying the board commit that uploaded the
+attachment or last changed its metadata. Unrelated board edits and no-op operations
+preserve this value, and successive attachment revisions may skip values. Attachment
+HTTP validators remain in headers.
+
+The attachment digest field is `sha2_256`, the lowercase hexadecimal SHA-2-256 digest
+of the file bytes. Hash names in API fields and documentation explicitly identify
+their hash family and digest size.
+
 CLI updates accept `--revision N` to require the positive numeric `revision` from a prior read. The CLI fetches the current representation, compares any supplied revision, and uses the returned ETag for the write. With no explicit revision, only changes after that fetch are guarded. For a card write, comment creation, or attachment upload, the optional numeric revision checks the addressed card during preflight. `lane rename` checks the addressed lane revision. Card creation, policy changes, and `lane add` check the board revision. The server guards the addressed resource version at commit.
 
 `card patch`, `card description`, `comment post`, and `lane add` require a positional input source. Pass a file path or `-` for standard input. Card descriptions take UTF-8 text and preserve whitespace and line endings. The other three commands take a JSON object.

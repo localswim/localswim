@@ -14,6 +14,14 @@ const savedComment = {
   card_id: cardId, text: "Comment", author_id: resourceId,
 };
 
+const savedAttachment = {
+  id: resourceId, board_id: resourceId, card_id: cardId, revision: 17,
+  created_at: "2026-11-10 18:00:00+00:00", updated_at: "2026-11-10 18:00:00+00:00",
+  original_name: "test.txt", size: 5,
+  sha2_256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+  media_type: "text/plain", previewable: false, active: true, added_by: resourceId,
+};
+
 const savedCard = {
   id: cardId, revision: 1, created_at: "2026-11-10 18:00:00+00:00",
   updated_at: "2026-11-10 18:00:00+00:00", board_id: resourceId, ticket: 1,
@@ -66,7 +74,7 @@ test("comment and multipart upload carry caller IDs and original card ETags", as
   const requests = [];
   const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (url, options) => {
     requests.push([url, options]);
-    return Response.json(url.endsWith("/comments") ? savedComment : { id: resourceId },
+    return Response.json(url.endsWith("/comments") ? savedComment : savedAttachment,
       { status: 201, headers: { ETag: tag } });
   } });
   assert.deepEqual(await api.createComment(cardId, tag, "Comment", resourceId),
@@ -130,7 +138,7 @@ test("attachment readback targets the original submission ID", async () => {
     ++calls;
     assert.equal(url, "/api/2026-11-10/attachments/" + resourceId);
     assert.equal(options.method, "GET");
-    return Response.json({ id: resourceId, card_id: cardId });
+    return Response.json(savedAttachment, { headers: { ETag: tag } });
   } });
   assert.equal((await api.getAttachment(resourceId)).data.id, resourceId);
   assert.equal(calls, 1);
@@ -310,6 +318,32 @@ test("lane lists and creation require numeric revision and omit JSON validators"
         { label: "Ready", after_id: cardId, create_for: [], connect_for: [] });
       if (valid) assert.deepEqual((await result).data, method === "GET" ? { lanes: [data], next_cursor: null } : data);
       else await assert.rejects(result, { name: "ApiError", code: "invalid_response", outcomeUnknown: method === "POST" });
+      assert.equal(calls, 1);
+    }
+  }
+});
+
+
+test("attachment get, list, and upload require numeric revisions and SHA-2-256 metadata", async () => {
+  for (const item of [savedAttachment, { ...savedAttachment, revision: Number.MAX_SAFE_INTEGER },
+    ...[undefined, null, false, 0, -1, 1.5, "17"].map((revision) => ({ ...savedAttachment, revision })),
+    { ...savedAttachment, etag: tag }, { ...savedAttachment, sha256: savedAttachment.sha2_256 },
+    { ...savedAttachment, sha2_256: undefined }, { ...savedAttachment, sha2_256: "invalid" }]) {
+    const valid = Number.isSafeInteger(item.revision) && item.revision > 0
+      && !Object.hasOwn(item, "etag") && !Object.hasOwn(item, "sha256") && /^[0-9a-f]{64}$/.test(item.sha2_256 ?? "");
+    for (const operation of ["get", "list", "upload"]) {
+      let calls = 0;
+      const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async () => {
+        ++calls;
+        return Response.json(operation === "list" ? { attachments: [item], next_cursor: null } : item,
+          { status: operation === "upload" ? 201 : 200, headers: { ETag: tag } });
+      } });
+      const pending = operation === "get" ? api.getAttachment(resourceId)
+        : operation === "list" ? api.listAttachments(cardId)
+        : api.uploadAttachment(cardId, tag, new File(["hello"], "test.txt"), resourceId);
+      if (valid) assert.equal((await pending).etag, tag);
+      else await assert.rejects(pending, (error) => error instanceof ApiError
+        && error.code === "invalid_response" && error.outcomeUnknown === (operation === "upload"));
       assert.equal(calls, 1);
     }
   }

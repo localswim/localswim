@@ -39,7 +39,7 @@ func TestM24VerifiedAttachmentContent(t *testing.T) {
 	disposition := headers.Get("Content-Disposition")
 	kind, params, err := mime.ParseMediaType(disposition)
 	if !bytes.Equal(body, data) || headers.Get("Content-Type") != "image/png" ||
-		headers.Get("Content-Length") != strconv.Itoa(len(data)) || headers.Get("ETag") != raster.ETag ||
+		headers.Get("Content-Length") != strconv.Itoa(len(data)) || headers.Get("ETag") != raster.entityTag() ||
 		headers.Get("Cache-Control") != "private, no-cache" || headers.Get("X-Content-Type-Options") != "nosniff" ||
 		err != nil || kind != "inline" || params["filename"] != "_unsafe_café.png" ||
 		!strings.Contains(disposition, "filename=_unsafe_caf_.png; filename*=UTF-8''_unsafe_caf%C3%A9.png") {
@@ -51,8 +51,8 @@ func TestM24VerifiedAttachmentContent(t *testing.T) {
 		!strings.HasPrefix(headers.Get("Content-Disposition"), "attachment;") {
 		t.Fatal("HEAD did not preserve the headers for the default download representation")
 	}
-	body, headers = attachmentHTTPContent(t, editor, "GET", path, "", "W/"+raster.ETag, 304)
-	if len(body) != 0 || headers.Get("ETag") != raster.ETag {
+	body, headers = attachmentHTTPContent(t, editor, "GET", path, "", "W/"+raster.entityTag(), 304)
+	if len(body) != 0 || headers.Get("ETag") != raster.entityTag() {
 		t.Fatal("conditional read did not return the verified attachment tag")
 	}
 
@@ -75,7 +75,7 @@ func TestM24VerifiedAttachmentContent(t *testing.T) {
 	if err := os.WriteFile(file, []byte("tampered"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	attachmentHTTPContent(t, editor, "GET", path, "", raster.ETag, 503)
+	attachmentHTTPContent(t, editor, "GET", path, "", raster.entityTag(), 503)
 	if err := os.Remove(file); err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestAttachmentCoverEligibility(t *testing.T) {
 	id := newID()
 	cardID := newID()
 	value := snapshot{Attachments: []attachment{{
-		entity: entity{ID: id}, CardID: cardID, Active: true, Previewable: true,
+		ID: id, CardID: cardID, Active: true, Previewable: true,
 	}}}
 	if err := validateAttachmentCover(&value, cardID, nil); err != nil {
 		t.Fatal(err)

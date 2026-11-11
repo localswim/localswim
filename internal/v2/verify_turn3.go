@@ -19,7 +19,8 @@ func (refs snapshotReferences) validateCardChildren(value snapshot) error {
 		comments[item.CardID]++
 	}
 	for index, item := range value.Attachments {
-		if !refs.claim(item.entity) || item.BoardID != value.Board.ID ||
+		if !refs.claim(entity{ID: item.ID, ETag: item.entityTag(), CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}) ||
+			item.Revision == 0 || item.Revision > value.Board.Revision || item.Revision > maxSnapshotInteger || item.BoardID != value.Board.ID ||
 			refs.cards[item.CardID].ID == "" || refs.users[item.AddedBy].ID == "" ||
 			!item.Active || !item.CreatedAt.Equal(item.UpdatedAt) {
 			return invalidSnapshot("attachments", "Attachment identity, references, or attribution are invalid.")
@@ -42,7 +43,7 @@ func (refs snapshotReferences) validateCardChildren(value snapshot) error {
 }
 
 func (refs snapshotReferences) validResourceCreation(event activity, cardCreations map[string]uint64, approvalComment bool) bool {
-	if event.Revision < 2 || event.Field != nil || event.Before != nil || event.After != nil {
+	if event.Revision < 2 || event.Field != nil || event.Before != nil || (event.ResourceType != "attachment" && event.After != nil) {
 		return false
 	}
 	capabilities := refs.capabilities[event.ActorID]
@@ -55,7 +56,8 @@ func (refs snapshotReferences) validResourceCreation(event activity, cardCreatio
 	case "attachment":
 		item := refs.attachments[event.ResourceID]
 		return item.ID != "" && event.Operation == "attach" && capabilities["manage_attachments"] &&
-			item.AddedBy == event.ActorID && item.CreatedAt.Equal(event.At) &&
+			item.AddedBy == event.ActorID && item.CreatedAt.Equal(event.At) && item.Revision == event.Revision &&
+			event.After != nil && *event.After == attachmentAuditValue(item) &&
 			cardCreations[item.CardID] > 0 && cardCreations[item.CardID] < event.Revision
 	case "lane":
 		item := refs.lanes[event.ResourceID]

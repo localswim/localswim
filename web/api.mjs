@@ -113,6 +113,23 @@ function validRelationship(data, id, boardId) {
     && ["blocks", "blocked_by", "duplicates", "duplicated_by", "references", "referenced_by", "relates_to"].includes(link.kind);
 }
 
+/** @param {object} data @param {string} [id] @param {string} [cardId] */
+function validAttachment(data, id, cardId) {
+  const item = /** @type {Record<string, unknown>} */ (data);
+  return Object.keys(item).length === 13 && !Object.hasOwn(item, "etag")
+    && isId(item.id) && (id === undefined || item.id.toLowerCase() === id.toLowerCase())
+    && isId(item.card_id) && (cardId === undefined || item.card_id.toLowerCase() === cardId.toLowerCase())
+    && isId(item.board_id) && isId(item.added_by)
+    && isInteger(item.revision) && item.revision > 0
+    && isTimestamp(item.created_at) && isTimestamp(item.updated_at)
+    && typeof item.original_name === "string" && item.original_name.length > 0
+    && isInteger(item.size) && item.size >= 0 && item.size <= MAX_ATTACHMENT_BYTES
+    && typeof item.sha2_256 === "string" && /^[0-9a-f]{64}$/.test(item.sha2_256)
+    && typeof item.media_type === "string" && item.media_type.includes("/")
+    && typeof item.active === "boolean" && typeof item.previewable === "boolean"
+    && item.previewable === RASTER_MEDIA_TYPES.has(item.media_type.split(";", 1)[0].trim().toLowerCase());
+}
+
 /** @param {object} data @param {string} boardId @param {string | undefined} id */
 function validCard(data, boardId, id) {
   const card = /** @type {Record<string, unknown>} */ (data);
@@ -455,12 +472,30 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       });
     },
     /** @param {unknown} cardId @param {string} [cursor] */
-    listAttachments: (cardId, cursor) => list("/attachments", { card_id: resourceId(cardId) }, cursor),
+    async listAttachments(cardId, cursor) {
+      const card = resourceId(cardId);
+      const reply = await list("/attachments", { card_id: card }, cursor);
+      const page = /** @type {{attachments?: unknown}} */ (reply.data);
+      if (!Array.isArray(page.attachments) || !page.attachments.every((item) =>
+        item !== null && typeof item === "object" && !Array.isArray(item)
+        && validAttachment(item, undefined, card))) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      return reply;
+    },
     /** @param {unknown} attachmentId */
-    getAttachment: (attachmentId) => request("/attachments/" + resourceId(attachmentId)),
-    /** @param {unknown} attachmentId @param {"attachment"|"inline"} disposition @param {number} size */
-    async getAttachmentContent(attachmentId, disposition, size) {
-      if (!Number.isSafeInteger(size) || size < 0 || size > MAX_ATTACHMENT_BYTES) {
+    async getAttachment(attachmentId) {
+      const id = resourceId(attachmentId);
+      const reply = await request("/attachments/" + id);
+      if (!STRONG_ETAG.test(reply.etag ?? "") || !validAttachment(reply.data, id)) {
+        throw new ApiError("invalid_response", { status: 200 });
+      }
+      return reply;
+    },
+    /** @param {unknown} attachmentId @param {"attachment"|"inline"} disposition @param {number} size @param {string} digest */
+    async getAttachmentContent(attachmentId, disposition, size, digest) {
+      if (!Number.isSafeInteger(size) || size < 0 || size > MAX_ATTACHMENT_BYTES
+          || typeof digest !== "string" || !/^[0-9a-f]{64}$/.test(digest)) {
         throw new ApiError("invalid_response");
       }
       const response = await send("/attachments/" + resourceId(attachmentId) + "/content?"
@@ -491,17 +526,30 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         await reader?.cancel().catch(() => {});
         reader?.releaseLock();
       }
-      return new Blob(chunks, { type: disposition === "inline" ? media : "application/octet-stream" });
+      const blob = new Blob(chunks, { type: disposition === "inline" ? media : "application/octet-stream" });
+      try {
+        const hash = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", await blob.arrayBuffer()));
+        if (Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("") !== digest) {
+          throw new Error();
+        }
+      } catch {
+        throw new ApiError("invalid_response", { status: response.status });
+      }
+      return blob;
     },
     /** @param {unknown} cardId @param {unknown} etag @param {File} file @param {unknown} id */
-    uploadAttachment(cardId, etag, file, id) {
+    async uploadAttachment(cardId, etag, file, id) {
       const expectedId = resourceId(id);
       const form = new FormData();
       form.set("card_id", resourceId(cardId));
       form.set("expected_card_etag", strongTag(etag));
       form.set("id", expectedId);
       form.set("file", file);
-      return createWithId("/attachments", expectedId, { form });
+      const reply = await createWithId("/attachments", expectedId, { form });
+      if (!validAttachment(reply.data, expectedId, resourceId(cardId))) {
+        throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
+      }
+      return reply;
     },
     /** @param {string} boardId @param {string} cardId @param {string} [cursor] */
     async listRelationships(boardId, cardId, cursor) {

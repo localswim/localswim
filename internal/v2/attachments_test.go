@@ -122,7 +122,7 @@ func TestM23UploadAndListAttachments(t *testing.T) {
 		item.Size != maxAttachmentBytes || item.SHA256 != fmt.Sprintf("%x", sha256.Sum256(data)) {
 		t.Fatalf("upload metadata differs from supplied bytes, identity, or actor: %+v", item)
 	}
-	if headers.Get("Location") != Prefix+"/attachments/"+id || headers.Get("ETag") != item.ETag || headers.Get("X-Board-ETag") != etag(b.ID, 3) || headers.Get("Cache-Control") != "no-store" {
+	if headers.Get("Location") != Prefix+"/attachments/"+id || headers.Get("ETag") != item.entityTag() || headers.Get("X-Board-ETag") != etag(b.ID, 3) || headers.Get("Cache-Control") != "no-store" {
 		t.Fatalf("incorrect upload headers: %v", headers)
 	}
 	stored, err := os.ReadFile(filepath.Join(app.store.root, attachmentPath(item)))
@@ -177,13 +177,13 @@ func TestM23UploadAndListAttachments(t *testing.T) {
 		t.Fatal(err)
 	}
 	request.Header.Set("Authorization", "Bearer "+editor.token)
-	request.Header.Set("If-None-Match", item.ETag)
+	request.Header.Set("If-None-Match", item.entityTag())
 	response, err := editor.client.Do(request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
-	if response.StatusCode != 304 || response.Header.Get("ETag") != item.ETag {
+	if response.StatusCode != 304 || response.Header.Get("ETag") != item.entityTag() {
 		t.Fatal("attachment HEAD did not return the conditional representation tag")
 	}
 }
@@ -255,7 +255,7 @@ func TestM23AttachmentCommitRefusalAndAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 	attachmentHTTPUpload(t, editor, fields, "test.bin", []byte("content"), 500)
-	file := filepath.Join(app.store.root, attachmentPath(attachment{entity: entity{ID: id}, BoardID: c.BoardID, CardID: c.ID}))
+	file := filepath.Join(app.store.root, attachmentPath(attachment{ID: id, BoardID: c.BoardID, CardID: c.ID}))
 	if _, err := os.Stat(file); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("failed metadata transaction left its uncommitted file", err)
 	}

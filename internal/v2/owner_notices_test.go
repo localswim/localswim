@@ -53,7 +53,7 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 	next := ownerNoticeTestEdit(previous, humanID, "card", "one", at.Add(time.Second))
 	next.Relationships = nil
 	next.Comments = []comment{{ID: "comment", CardID: "two", Text: "private comment text"}}
-	next.Attachments = []attachment{{entity: entity{ID: "attachment"}, CardID: "five", OriginalName: "private filename"}}
+	next.Attachments = []attachment{{ID: "attachment", CardID: "five", OriginalName: "private filename"}}
 	for _, changed := range []struct {
 		kind, id string
 		offset   time.Duration

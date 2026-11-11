@@ -137,7 +137,7 @@ func downloadAttachment(api *client.Client, resource, output string, stdout io.W
 	var metadata struct {
 		ID     string  `json:"id"`
 		Size   *uint64 `json:"size"`
-		Digest string  `json:"sha256"`
+		Digest string  `json:"sha2_256"`
 		Active bool    `json:"active"`
 	}
 	if err := json.Unmarshal(reply.JSON, &metadata); err != nil ||
@@ -154,7 +154,7 @@ func downloadAttachment(api *client.Client, resource, output string, stdout io.W
 	}
 	digest := sha256.Sum256(data)
 	if uint64(len(data)) != *metadata.Size || hex.EncodeToString(digest[:]) != metadata.Digest {
-		return errors.New("attachment content does not match its size and SHA-256 metadata")
+		return errors.New("attachment content does not match its size and SHA-2-256 metadata")
 	}
 	if output == "-" {
 		if _, err := io.Copy(stdout, bytes.NewReader(data)); err != nil {

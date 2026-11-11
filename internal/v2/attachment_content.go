@@ -78,9 +78,9 @@ func (x *request) attachmentContent(id string) {
 
 	h := x.w.Header()
 	h.Set("Cache-Control", "private, no-cache")
-	h.Set("ETag", item.ETag)
+	h.Set("ETag", item.entityTag())
 	for _, candidate := range conditions {
-		if candidate.opaque == "*" || candidate.opaque == item.ETag {
+		if candidate.opaque == "*" || candidate.opaque == item.entityTag() {
 			x.w.WriteHeader(http.StatusNotModified)
 			return
 		}

@@ -41,6 +41,16 @@ edits and no-op patches leave the value unchanged, and successive revisions may 
 values. Relationship creation, seed, and patch inputs reject this service-managed
 field. HTTP validators remain in response headers.
 
+Full attachment JSON and native attachment snapshots carry a service-managed positive
+safe-integer `revision` for the board commit that uploaded the attachment or last
+changed its metadata. Unrelated board edits and no-op operations preserve the value,
+and successive attachment revisions may skip values. Attachment upload still checks
+the parent card's revision with CLI `--revision N`. HTTP validators remain in headers.
+
+Hash names in API fields and documentation identify both the hash family and digest
+size. Attachment `sha2_256` contains the lowercase hexadecimal SHA-2-256 digest of
+the file bytes.
+
 Comments are immutable after creation. Their JSON and native snapshot records contain
 identity, parent references, attribution, text, and timestamps. Comment HTTP validators
 are carried in response headers. Posting a comment still requires the parent card
@@ -100,12 +110,12 @@ starting at 1.
 
 For local build staging, place `candidate.json` and the native `candidate.exe`
 (Windows) or `candidate` (Unix) in the data directory. The manifest contains
-`version` and lowercase SHA-256 `sha256`. The `/service` response identifies the
+`version` and lowercase SHA-2-256 `sha256`. The `/service` response identifies the
 running service instance, and `/builds` reports staged validation. Activation is a
 separate milestone.
 
 Attachment bytes use `attachments/<board UUID>/<card UUID>/<attachment UUID>`
-inside the data directory. The original filename, size, and SHA-256 digest are
+inside the data directory. The original filename, size, and SHA-2-256 digest are
 stored in the board snapshot. Focused attachment metadata readback can resolve
 an uncertain upload by its original attachment UUID.
 

@@ -141,7 +141,7 @@ func testAttachmentReadback(t *testing.T, requestedID string) {
 			return
 		}
 		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, t03Root+"/attachments/") {
-			_, _ = io.WriteString(w, `{"id":"`+strings.TrimPrefix(r.URL.Path, t03Root+"/attachments/")+`"}`)
+			_, _ = w.Write(attachmentFixture(strings.TrimPrefix(r.URL.Path, t03Root+"/attachments/"), want))
 			return
 		}
 		if r.Method != http.MethodPost || r.URL.Path != t03Root+"/attachments" {
@@ -199,7 +199,7 @@ func testAttachmentReadback(t *testing.T, requestedID string) {
 	out.Reset()
 	stderr.Reset()
 	code = runCLIWithInput([]string{"attachment", "get", id}, strings.NewReader(""), &out, &stderr, t03Env(server.URL))
-	if code != 0 || out.String() != `{"id":"`+id+`"}`+"\n" {
+	if code != 0 || out.String() != string(attachmentFixture(id, want))+"\n" {
 		t.Fatalf("focused attachment readback failed: %d %s", code, &stderr)
 	}
 }
@@ -236,5 +236,56 @@ func TestCLICardAssignRequiresOwner(t *testing.T) {
 	var body map[string]string
 	if err != nil || json.Unmarshal(command.body, &body) != nil || body["owner_id"] != t03Board {
 		t.Fatalf("valid owner assignment: %+v, %v", command, err)
+	}
+}
+
+func TestAttachmentUploadRevisionChecksParentCard(t *testing.T) {
+	for _, revision := range []string{"12", "11"} {
+		t.Run(revision, func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), "test.bin")
+			if err := os.WriteFile(file, []byte("hello"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			gets, posts := 0, 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("ETag", t03ResourceTag)
+				if r.Method == http.MethodGet && r.URL.Path == t03Root+"/cards/"+t03Card {
+					gets++
+					_, _ = io.WriteString(w, `{"revision":12}`)
+					return
+				}
+				if r.Method != http.MethodPost || r.URL.Path != t03Root+"/attachments" {
+					t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				posts++
+				if err := r.ParseMultipartForm(1024); err != nil {
+					t.Error(err)
+					return
+				}
+				defer r.MultipartForm.RemoveAll()
+				if r.FormValue("expected_card_etag") != t03ResourceTag {
+					t.Error("lost card validator")
+				}
+				w.Header().Set("X-Board-ETag", t03BoardTag)
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write(attachmentFixture(t03Lane, []byte("hello")))
+			}))
+			defer server.Close()
+			var stdout, stderr bytes.Buffer
+			code := runCLIWithInput([]string{"attachment", "upload", "--revision", revision, "--id", t03Lane, t03Card, file},
+				nil, &stdout, &stderr, t03Env(server.URL))
+			if gets != 1 {
+				t.Fatalf("parent card reads=%d", gets)
+			}
+			if revision == "11" {
+				if code != 1 || posts != 0 || !strings.Contains(stderr.String(), "revision mismatch") {
+					t.Fatal("stale parent card was accepted")
+				}
+			} else if code != 0 || posts != 1 || !strings.Contains(stdout.String(), `"revision":23`) {
+				t.Fatalf("matching parent revision rejected: %s", &stderr)
+			}
+		})
 	}
 }

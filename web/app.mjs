@@ -11,7 +11,7 @@ import { ApiError, createBrowserApi, openBrowserSession } from "./api.mjs";
 /** @typedef {{id: string, name: string|null}} BoardSummary */
 /** @typedef {Labeled & {revision: number, retired: boolean, position: number, role: string}} Lane */
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
-/** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number, board_id: string, active: boolean, previewable: boolean}} Attachment */
+/** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number, board_id: string, active: boolean, previewable: boolean, revision: number, sha2_256: string}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
  * owner_id: string, ticket: number, revision: number, comment_count: number, attachment_count: number,
  * archived: boolean, cover_attachment_id: string|null}} Card */
@@ -667,7 +667,7 @@ async function openCard(boardId, summary, lanes, users, boardTag, reloadBoard, o
         control.disabled = true;
         note.textContent = "";
         try {
-          const blob = await readWithSession(() => api.getAttachmentContent(entry.id, disposition, entry.size));
+          const blob = await readWithSession(() => api.getAttachmentContent(entry.id, disposition, entry.size, entry.sha2_256));
           return current() ? blob : undefined;
         } catch {
           if (current()) note.textContent = "Attachment could not be read.";
@@ -1028,7 +1028,7 @@ async function load() {
         const blob = await readWithSession(async () => {
           const meta = /** @type {Attachment} */ ((await api.getAttachment(id)).data);
           if (!current() || meta.id !== id || !activeAttachment(board.id, card.id, meta) || !meta.previewable) return;
-          return api.getAttachmentContent(id, "inline", meta.size);
+          return api.getAttachmentContent(id, "inline", meta.size, meta.sha2_256);
         });
         if (!current() || !blob) return;
         const url = URL.createObjectURL(blob);

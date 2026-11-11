@@ -201,11 +201,11 @@ test("authenticated attachment content permits only bounded raster previews and 
       return new Response(data, { headers: { "Content-Type": type, "Content-Disposition": served } });
     } });
     if (expected) {
-      const blob = await api.getAttachmentContent(id, requested, size);
+      const blob = await api.getAttachmentContent(id, requested, size, "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
       assert.equal(blob.type, expected);
       assert.deepEqual(new Uint8Array(await blob.arrayBuffer()), data);
     } else {
-      await assert.rejects(api.getAttachmentContent(id, requested, size), (error) =>
+      await assert.rejects(api.getAttachmentContent(id, requested, size, "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81"), (error) =>
         error instanceof ApiError && error.code === "invalid_response" && !error.outcomeUnknown);
     }
     assert.equal(calls, 1);
@@ -282,5 +282,22 @@ test("relationship list and create responses require numeric revisions without b
     await assert.rejects(api.listRelationships(boardId, cardId), { code: "invalid_response", outcomeUnknown: false });
     await assert.rejects(api.createRelationship(id, boardId, boardTag, cardId, otherCard, "blocks"),
       { code: "invalid_response", outcomeUnknown: true });
+  }
+});
+
+
+test("attachment integrity failures never publish download or preview blobs", async () => {
+  for (const disposition of ["inline", "attachment"]) {
+    let calls = 0;
+    const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async () => {
+      ++calls;
+      return new Response(new Uint8Array([1, 2, 4]), {
+        headers: { "Content-Type": "image/png", "Content-Disposition": disposition },
+      });
+    } });
+    await assert.rejects(api.getAttachmentContent(id, disposition, 3,
+      "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81"),
+      (error) => error instanceof ApiError && error.code === "invalid_response" && !error.outcomeUnknown);
+    assert.equal(calls, 1);
   }
 });

@@ -25,17 +25,22 @@ const maxAttachmentBody = maxAttachmentBytes + (256 << 10)
 var errAttachmentTagRequired = errors.New("attachment upload requires expected_card_etag")
 
 type attachment struct {
-	entity
-	BoardID      string `json:"board_id"`
-	CardID       string `json:"card_id"`
-	OriginalName string `json:"original_name"`
-	Size         int64  `json:"size"`
-	SHA256       string `json:"sha256"`
-	MediaType    string `json:"media_type"`
-	Previewable  bool   `json:"previewable"`
-	Active       bool   `json:"active"`
-	AddedBy      string `json:"added_by"`
+	ID           string    `json:"id"`
+	Revision     uint64    `json:"revision"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	BoardID      string    `json:"board_id"`
+	CardID       string    `json:"card_id"`
+	OriginalName string    `json:"original_name"`
+	Size         int64     `json:"size"`
+	SHA256       string    `json:"sha2_256"`
+	MediaType    string    `json:"media_type"`
+	Previewable  bool      `json:"previewable"`
+	Active       bool      `json:"active"`
+	AddedBy      string    `json:"added_by"`
 }
+
+func (a attachment) entityTag() string { return etag(a.ID, a.Revision) }
 
 func validAttachmentName(name string) bool {
 	return name != "" && utf8.ValidString(name) && utf8.RuneCountInString(name) <= 1024
@@ -61,7 +66,7 @@ func validateAttachmentMetadata(item attachment, index int) error {
 		return bad("size", "Attachment size is outside the allowed range.")
 	}
 	if _, err := hex.DecodeString(item.SHA256); err != nil || len(item.SHA256) != 64 || item.SHA256 != strings.ToLower(item.SHA256) {
-		return bad("sha256", "Expected a lowercase SHA-256 digest.")
+		return bad("sha2_256", "Expected a lowercase SHA-2-256 digest.")
 	}
 	mediaType, _, err := mime.ParseMediaType(item.MediaType)
 	if err != nil || !strings.Contains(mediaType, "/") || len(item.MediaType) > 128 {
@@ -131,7 +136,7 @@ func (x *request) attachmentResource(id string) {
 		x.fail(err)
 		return
 	}
-	x.respond(http.StatusOK, item, item.ETag)
+	x.respond(http.StatusOK, item, item.entityTag())
 }
 
 func (x *request) findAttachment(id string) (attachment, error) {
@@ -297,7 +302,7 @@ func (x *request) uploadAttachment() {
 	x.w.Header().Set("Cache-Control", "no-store")
 	x.w.Header().Set("X-Board-ETag", boardTag)
 	x.w.Header().Set("Location", Prefix+"/attachments/"+value.ID)
-	x.respond(http.StatusCreated, value, value.ETag)
+	x.respond(http.StatusCreated, value, value.entityTag())
 }
 
 func (s *store) attach(boardID, actor string, input attachmentUpload) (attachment, string, error) {
@@ -339,19 +344,21 @@ func (s *store) attach(boardID, actor string, input attachmentUpload) (attachmen
 			}
 		}
 		now := maxCardTime(canonicalTime(time.Now()), next.Board.UpdatedAt)
-		value.entity = newEntity(input.id, now)
+		revision := next.Board.Revision + 1
+		value.ID, value.Revision = input.id, revision
+		value.CreatedAt, value.UpdatedAt = now, now
 		var err error
 		published, err = publishAttachment(s.root, value, input.data)
 		if err != nil {
 			return err
 		}
-		revision := next.Board.Revision + 1
 		item.AttachmentCount++
 		item.UpdatedAt = now
 		item.Revision = revision
 		next.Attachments = append(next.Attachments, value)
+		after := attachmentAuditValue(value)
 		next.Activity = append(next.Activity, activity{ID: newID(), BoardID: boardID, Revision: revision,
-			At: now, ActorID: actor, Operation: "attach", ResourceType: "attachment", ResourceID: value.ID})
+			At: now, ActorID: actor, Operation: "attach", ResourceType: "attachment", ResourceID: value.ID, After: &after})
 		return nil
 	})
 	if err != nil {
@@ -359,6 +366,12 @@ func (s *store) attach(boardID, actor string, input attachmentUpload) (attachmen
 		return attachment{}, "", err
 	}
 	return value, updated.Board.ETag, nil
+}
+
+func attachmentAuditValue(item attachment) string {
+	// Validated metadata contains only scalar values and canonical timestamps.
+	data, _ := marshalCanonical(item)
+	return string(data)
 }
 
 // Attachment filenames derive only from canonical UUIDs. The card UUID is a

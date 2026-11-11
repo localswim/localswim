@@ -112,6 +112,9 @@ func (c *Client) DoWithContentType(method, resource string, body []byte, ifMatch
 	if err != nil || len(data) > maxResponseBytes || !IsJSONObject(data) {
 		return Response{}, responseError("service returned an unreadable, oversized, or invalid JSON object", mutation)
 	}
+	if strings.HasPrefix(pathWithoutQuery(resource), "/attachments") && !validAttachmentResponse(resource, data) {
+		return Response{}, responseError("service returned invalid attachment metadata", mutation)
+	}
 	return Response{JSON: data, ETag: etag}, nil
 }
 

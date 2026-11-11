@@ -1,5 +1,7 @@
 # V2 development execution plan
 
+See the current T06–T08 roster in [assignment revision 8](#current-assignment-revision-8).
+
 Revision 1. Scope comes from approved board cards #0375 and #0376, [the milestone plan](milestone-plan.md), and [the API contract](docs/openapi.yaml). This is the staffing proposal for Turns 1-10. The milestone demos, estimates, and approved turn placement remain the scope.
 
 ## Staffing rule
@@ -256,3 +258,25 @@ T05 through T07 are the new remaining turns 1–3. Scope is recorded in owner-ac
 Fresh reviewers replace finished authors. The M29 and M34 verification helpers start after their separate test boundaries are available and an active slot is free. T05 and T07 can dispatch up to seven authors, helpers and clients. T06 has eight total assignments and can stagger the M29 helper if the turn is authorized with a smaller active limit. The primary owns integration, final checks, publishing, and demo assembly.
 
 Terry’s walkthroughs for the five T04 stories and the fuller M26 demonstration remain on the Dev Manager demo list. Terry controls completion and formal acceptance.
+
+## Current assignment revision 8
+
+Recorded 2026-11-10 after T05 handoff. T06–T08 are the new remaining turns 1–3. Scope comes from owner-accepted #0375, #0376, and #0377, the milestone acceptance and the dated API contract. Terry’s 2026-11-10 override permitted T05 to use landed T01–T04 work while owner approvals continued. Each next turn requires its own authorization and prerequisite check before any In Progress move or dispatch.
+
+T05 handoff includes #0390 Ready for Review, #0398 Ready for Review, #0402 Ready for Review, #0393 Ready for Review, #0408 Ready for Review. Owner-accepted inputs at reconciliation include #0386, #0389, #0391, #0392, #0397, #0400, #0401, #0406, #0407, #0409, #0410, #0411, #0414, #0416, #0425.
+
+| Remaining | Turn | Card | Scope | Author | Helper | Fresh reviewer | Prerequisites at reconciliation |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | T06 | #0403 M20 | Change a lane key while retaining its UUID and validating constraints. | `sol_medium_0403_author` (gpt-6.1-sol / medium) | — | `sol_high_0403_review` (gpt-6.1-sol / high) | #0402 Ready for Review |
+| 1 | T06 | #0394 M11 | Apply revision-checked priority batches and report effective changes. | `sol_medium_0394_author` (gpt-6.1-sol / medium) | — | `sol_high_0394_review` (gpt-6.1-sol / high) | #0393 Ready for Review |
+| 1 | T06 | #0395 M12 | Order visible swimlanes by priority and same-lane blockers. | `sol_medium_0395_author` (gpt-6.1-sol / medium) | — | `sol_medium_0395_review` (gpt-6.1-sol / medium) | #0393 Ready for Review |
+| 1 | T06 | #0404 M21 | Preview dependency-first ticket order for a selected lane. | `sol_medium_0404_author` (gpt-6.1-sol / medium) | — | `sol_medium_0404_review` (gpt-6.1-sol / medium) | #0393 Ready for Review |
+| 1 | T06 | #0412 M29 | Capture a coherent backup and independently verify concurrent edits and immutable attachment inventory. | `sol_high_0412_author` (gpt-6.1-sol / high) | `sol_high_0412_checks` (gpt-6.1-sol / high) | `sol_high_0412_review` (gpt-6.1-sol / high) | #0408 Ready for Review, #0411 Completed |
+| 2 | T07 | #0396 M13 | Search cards and compute whole-board triage before filters and limits. | `sol_medium_0396_author` (gpt-6.1-sol / medium) | — | `sol_medium_0396_review` (gpt-6.1-sol / medium) | #0395 Backlog |
+| 2 | T07 | #0405 M22 | Apply a current ticket-order preview, preserving card UUIDs and attachment anchors. | `sol_medium_0405_author` (gpt-6.1-sol / medium) | — | `sol_high_0405_review` (gpt-6.1-sol / high) | #0404 Backlog, #0406 Completed |
+| 2 | T07 | #0413 M30 | Refuse damaged native backups and verify recovery at the existing board identity. | `sol_high_0413_author` (gpt-6.1-sol / high) | — | `sol_high_0413_review` (gpt-6.1-sol / high) | #0412 Backlog |
+| 2 | T07 | #0417 M34 | Publish exactly the verified backup paths and independently check staged-file preservation and lock behavior. | `sol_high_0417_author` (gpt-6.1-sol / high) | `sol_high_0417_checks` (gpt-6.1-sol / high) | `sol_high_0417_review` (gpt-6.1-sol / high) | #0412 Backlog |
+| 3 | T08 | #0418 M35 | Publish after quiet and recover the pending push without another card edit. | `sol_high_0418_author` (gpt-6.1-sol / high) | — | `sol_high_0418_review` (gpt-6.1-sol / high) | #0417 Backlog |
+| 3 | T08 | #0419 M36 | Publish only workspace preferences and verify the shared repository lock. | `sol_medium_0419_author` (gpt-6.1-sol / medium) | — | `sol_high_0419_review` (gpt-6.1-sol / high) | #0410 Completed, #0417 Backlog |
+
+Plan `sol_medium_browser_author` and `sol_medium_cli_author` (gpt-6.1-sol / medium) for browser and CLI changes in each affected turn. Fresh independent client reviewers use `sol_high_browser_review` and `sol_high_cli_review` (gpt-6.1-sol / high). Reviewers replace finished authors. Start each M29 or M34 helper after a separate verification boundary is available and a slot is free. The Sol / High primary owns integration, verification, publication, board handoff, and demo evidence.

@@ -69,19 +69,20 @@ type publishing struct {
 }
 type board struct {
 	entity
-	Name           string        `json:"name"`
-	DefaultOwnerID string        `json:"default_owner_id"`
-	PolicyID       string        `json:"policy_id"`
-	UserIDs        []string      `json:"user_ids"`
-	LaneIDs        []string      `json:"lane_ids"`
-	PriorityIDs    []string      `json:"priority_ids"`
-	Availability   string        `json:"availability"`
-	Revision       uint64        `json:"revision"`
-	Attention      attention     `json:"attention"`
-	LastCardEditAt *time.Time    `json:"last_card_edit_at"`
-	Notifications  notifications `json:"notifications"`
-	Publishing     publishing    `json:"publishing"`
-	UserCSS        string        `json:"user_css"`
+	Name              string            `json:"name"`
+	DefaultOwnerID    string            `json:"default_owner_id"`
+	PolicyID          string            `json:"policy_id"`
+	UserIDs           []string          `json:"user_ids"`
+	LaneIDs           []string          `json:"lane_ids"`
+	PriorityIDs       []string          `json:"priority_ids"`
+	Availability      string            `json:"availability"`
+	Revision          uint64            `json:"revision"`
+	Attention         attention         `json:"attention"`
+	LastCardEditAt    *time.Time        `json:"last_card_edit_at"`
+	Notifications     notifications     `json:"notifications"`
+	Publishing        publishing        `json:"publishing"`
+	UserCSS           string            `json:"user_css"`
+	ActorPresentation actorPresentation `json:"actor_presentation,omitzero"`
 }
 type user struct {
 	entity
@@ -97,6 +98,7 @@ type lane struct {
 	BoardID             string    `json:"board_id"`
 	Key                 string    `json:"key"`
 	Label               string    `json:"label"`
+	Notes               string    `json:"notes,omitempty"`
 	Position            int       `json:"position"`
 	Role                string    `json:"role"`
 	Retired             bool      `json:"retired"`

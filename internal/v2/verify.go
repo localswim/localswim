@@ -293,6 +293,9 @@ func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 	if !matchSnapshotIDs(b.UserIDs, refs.users) {
 		return invalidSnapshot("board.user_ids", "Board users do not match native users.")
 	}
+	if !b.ActorPresentation.valid() {
+		return invalidSnapshot("board.actor_presentation", "Actor presentation is invalid.")
+	}
 
 	laneKeys := make(map[string]bool, len(value.Lanes))
 	positions := make(map[uint64]bool, len(value.Lanes))
@@ -322,6 +325,9 @@ func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 		}
 		if !snapshotText(l.BulkApprovalComment, 0, maxBulkApprovalComment) {
 			return invalidSnapshot("lanes.bulk_approval_comment", "Bulk approval comment is invalid.")
+		}
+		if !snapshotText(l.Notes, 0, maxLaneNotes) {
+			return invalidSnapshot("lanes.notes", "Lane notes are invalid.")
 		}
 		refs.ids[l.ID] = true
 		refs.lanes[l.ID] = l
@@ -911,6 +917,8 @@ func (refs snapshotReferences) validAuditField(boardID, actorID string, field sn
 			return false
 		}
 		switch field.name {
+		case "actor_presentation":
+			return capabilities["manage_board"] && validActorPresentationAudit(value)
 		case "default_owner_id":
 			return capabilities["manage_board"] && value != nil && refs.users[*value].ID != ""
 		case "name":
@@ -943,6 +951,8 @@ func (refs snapshotReferences) currentAuditField(b board, field snapshotAuditFie
 		return refs.currentLaneAuditValue(field)
 	}
 	switch field.name {
+	case "actor_presentation":
+		return b.ActorPresentation.auditValue()
 	case "default_owner_id":
 		return &b.DefaultOwnerID
 	case "name":

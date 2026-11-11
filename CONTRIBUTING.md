@@ -115,6 +115,18 @@ ticket-order previews follow full blocking paths through intermediate cards,
 reject selected cycles, and permute only the selected ticket pool. They preserve
 the board revision and return it as `board_revision`.
 
+Set `notes` on an initial workflow lane, in `lane add` JSON, or in a
+revision-checked lane PATCH. Notes display as plain text above the lane's cards,
+preserve line breaks, and accept up to 4,096 characters. An empty string clears
+the note. Choose the position of a new lane with `before_id` or `after_id`.
+
+Set `actor_presentation` in board creation JSON or use `board patch` with the
+`manage_board` capability. The optional `human` and `bot` entries each accept a
+`label` and a six-digit hexadecimal `accent` such as `#356AAB`. Board patches
+replace all overrides. Send an empty object to restore the users' display
+metadata. Attribution still uses the saved user UUID and permissions still use
+the authenticated principal.
+
 Use `PATCH /lanes/{lane_id}` with Boolean `reorder_enabled` and the current
 `board_etag`. Send the current lane validator in `If-Match`. The caller needs
 `manage_workflow`. The setting defaults to false. An enabled lane offers the

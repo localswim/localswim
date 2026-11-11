@@ -24,11 +24,17 @@ async function harness(api, pathname = "/boards/" + board, {
 } = {}) {
   let document;
   class Element {
-    constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; }
+    constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; this.style = {}; }
     set textContent(value) { this.ownText = value; this.children = []; }
     get textContent() { return this.ownText + this.children.map((node) => node.textContent).join(""); }
     get isConnected() { return this.root === true || Boolean(this.parent?.isConnected); }
-    append(...nodes) { for (const node of nodes) { node.parent = this; this.children.push(node); } }
+    append(...nodes) {
+      for (const node of nodes) {
+        const child = typeof node === "string" ? Object.assign(new Element("#text"), {ownText: node}) : node;
+        child.parent = this;
+        this.children.push(child);
+      }
+    }
     replaceChildren(...nodes) { for (const node of this.children) node.parent = undefined; this.children = []; this.ownText = ""; this.append(...nodes); }
     prepend(node) { node.parent = this; this.children.unshift(node); }
     setAttribute(key, value) { this.attributes[key] = value; }
@@ -114,6 +120,38 @@ function boardApi() {
 }
 
 const publishingOff = {enabled: false, repository: null, last_success_at: null, pending: false, error_code: null};
+
+test("board lane notes and Human and Bot attribution preserve literal text", async () => {
+  const {api} = boardApi();
+  const bot = "90b26733-26a1-41ae-b850-251c72978af1";
+  const notes = " Review first.\n<example> ";
+  const humanLabel = " Reviewer <Human> ";
+  const readLanes = api.getBoardLanes;
+  const listLanes = api.listLanes;
+  const listUsers = api.listUsers;
+  const listComments = api.listComments;
+  api.getBoardLanes = async () => {
+    const reply = await readLanes();
+    reply.data.board.actor_presentation = {human: {label: humanLabel, accent: "#123ABC"}, bot: {accent: "#456def"}};
+    return reply;
+  };
+  api.listLanes = async () => {
+    const reply = await listLanes();
+    return page("lanes", reply.data.lanes.map((item) => ({...item, notes})));
+  };
+  api.listUsers = async () => page("users", [...(await listUsers()).data.users, {id: bot, label: "Automation", kind: "bot"}]);
+  api.listComments = async () => page("comments", [...(await listComments()).data.comments,
+    {id: "bot-comment", card_id: card, author_id: bot, text: "Bot comment", created_at: "2026-11-10 00:00:01+00:00"}]);
+  const ui = await harness(api);
+  await ui.load();
+  assert.equal(ui.find(ui.nodes.main, "p", notes).className, "lane-note body-text");
+  const recent = ui.find(ui.nodes.main, "summary", "Newest comments").parent;
+  recent.open = true;
+  recent.dispatch("toggle");
+  await ui.settled();
+  assert.equal(ui.find(recent, "span", humanLabel).style.borderInlineStartColor, "#123ABC");
+  assert.equal(ui.find(recent, "span", "Automation").style.borderInlineStartColor, "#456def");
+});
 
 test("board loading retries a changed revision and adopts current publishing status at a matching revision", async () => {
   const {api} = boardApi();

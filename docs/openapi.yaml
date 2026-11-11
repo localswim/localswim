@@ -1326,9 +1326,8 @@ paths:
         inspection remain available. Operational requests on a closed or draining board return 503.
         Reopening validates the saved snapshot at the same board address and uses the current validator.
         Notification settings default off. Target changes preserve enabled state. Updating automatic
-        publishing requires the board publish capability. Replacing user_ids requires workspace_admin
-        and manage_permissions, validates all references, and refuses removing members needed by retained
-        state/history or grants.
+        publishing requires the board publish capability. Actor presentation requires manage_board.
+        Membership is established by the board workflow.
       requestBody:
         required: true
         content:
@@ -13218,6 +13217,27 @@ components:
       - required:
         - repository
       description: Closed opt-in settings for the enclosing Git worktree. Origin and null select its configured origin. Runtime status is read-only.
+    ActorDecoration:
+      type: object
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 256
+        accent:
+          type: string
+          pattern: '^#[0-9a-fA-F]{6}$'
+    ActorPresentation:
+      type: object
+      additionalProperties: false
+      properties:
+        human:
+          $ref: '#/components/schemas/ActorDecoration'
+        bot:
+          $ref: '#/components/schemas/ActorDecoration'
+      description: Board-local attribution overrides by actor kind. A patch replaces all overrides.
+        Missing overrides fall back to the user display metadata. An empty object restores defaults.
     Board:
       type: object
       additionalProperties: false
@@ -13240,6 +13260,8 @@ components:
       - publishing
       - user_css
       properties:
+        actor_presentation:
+          $ref: '#/components/schemas/ActorPresentation'
         default_owner_id:
           $ref: '#/components/schemas/Uuid'
           description: Board member used when card creation omits owner_id.
@@ -13378,6 +13400,10 @@ components:
       - approval_enabled
       - reorder_enabled
       properties:
+        notes:
+          type: string
+          maxLength: 4096
+          description: Plain text displayed in the lane. An empty input clears the note.
         id:
           $ref: '#/components/schemas/Uuid'
         revision:
@@ -14743,6 +14769,10 @@ components:
       type: object
       additionalProperties: true
       properties:
+        notes:
+          type: string
+          maxLength: 4096
+          description: Plain text displayed in the lane. An empty input clears the note.
         id:
           $ref: '#/components/schemas/UuidInput'
         board_id:
@@ -14807,6 +14837,10 @@ components:
       type: object
       additionalProperties: true
       properties:
+        notes:
+          type: string
+          maxLength: 4096
+          description: Plain text displayed in the lane. An empty input clears the note.
         board_etag:
           $ref: '#/components/schemas/EntityTag'
         key:
@@ -14828,9 +14862,7 @@ components:
         reorder_enabled:
           type: boolean
           description: Enable or disable the browser ticket-order preview and Apply action for this lane.
-        position:
-          type: integer
-          minimum: 0
+        position: false
         actor: false
         actor_id: false
         by: false
@@ -14868,7 +14900,7 @@ components:
       - required:
         - reorder_enabled
       - required:
-        - position
+        - notes
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
     CreateGrantInput:
@@ -15046,6 +15078,10 @@ components:
       type: object
       additionalProperties: true
       properties:
+        notes:
+          type: string
+          maxLength: 4096
+          description: Plain text displayed in the lane. An empty input clears the note.
         id:
           $ref: '#/components/schemas/UuidInput'
         key:
@@ -15196,6 +15232,8 @@ components:
       type: object
       additionalProperties: true
       properties:
+        actor_presentation:
+          $ref: '#/components/schemas/ActorPresentation'
         default_owner_id:
           $ref: '#/components/schemas/UuidInput'
           description: Board member used when card creation omits owner_id. Omission selects the global runtime Bot ID when it is a member; otherwise an explicit member ID is required.
@@ -15236,6 +15274,8 @@ components:
       type: object
       additionalProperties: true
       properties:
+        actor_presentation:
+          $ref: '#/components/schemas/ActorPresentation'
         default_owner_id:
           $ref: '#/components/schemas/UuidInput'
           description: Board member used when card creation omits owner_id. Requires manage_board. Existing cards retain their owners.
@@ -15277,11 +15317,7 @@ components:
         kind: false
         created_by: false
         updated_by: false
-        user_ids:
-          type: array
-          items:
-            $ref: '#/components/schemas/UuidInput'
-          maxItems: 1000
+        user_ids: false
       anyOf:
       - required:
         - default_owner_id
@@ -15296,7 +15332,7 @@ components:
       - required:
         - publishing
       - required:
-        - user_ids
+        - actor_presentation
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
     RelationshipSeed:
@@ -16237,6 +16273,8 @@ components:
       - publishing
       - user_css
       properties:
+        actor_presentation:
+          $ref: '#/components/schemas/ActorPresentation'
         default_owner_id:
           $ref: '#/components/schemas/UuidInput'
           description: Board member used when card creation omits owner_id.
@@ -16396,6 +16434,10 @@ components:
       - approval_enabled
       - reorder_enabled
       properties:
+        notes:
+          type: string
+          maxLength: 4096
+          description: Plain text displayed in the lane. An empty input clears the note.
         id:
           $ref: '#/components/schemas/UuidInput'
         revision:
@@ -18032,7 +18074,7 @@ x-security-policy:
       notifications: manage_notifications
       publishing: publish
       availability: close_board
-      user_ids: manage_permissions plus workspace_admin
+      actor_presentation: manage_board
   bootstrapDefaults: The local runtime issues bootstrap identities and workspace_admin capabilities to
     the configured local owner Human and CLI Bot. Fresh default boards contain those users with read/edit/comment/relationship/attachment/priority/workflow/management/backup/restore/publishing
     capabilities, lane grants from the default workflow, and approve only for Human. Custom board creation

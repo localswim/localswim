@@ -5,16 +5,17 @@ import {
 } from "./api.mjs";
 
 /** @typedef {{id: string, label: string}} Labeled */
-/** @typedef {Labeled & {kind: "human"|"bot"}} User */
+/** @typedef {Labeled & {kind: "human"|"bot", color?: string}} User */
+/** @typedef {Partial<Record<User["kind"], {label?: string, accent?: string}>>} ActorPresentation */
 /** @typedef {import("./api.mjs").RelationshipKind} RelationshipKind */
 /** @typedef {{id: string, revision: number, board_id: string, source_card_id: string, target_card_id: string,
  * kind: RelationshipKind}} Relationship */
 /** @typedef {{resource_type: string, resource_id: string, operation: string, field: string|null,
  * actor_id: string, board_id: string, at: string, revision: number, before: string|null, after: string|null}} Change */
 /** @typedef {import("./api.mjs").Publishing} Publishing */
-/** @typedef {{id: string, name: string, default_owner_id: string, user_css?: string, notifications?: object, publishing?: unknown}} Board */
+/** @typedef {{id: string, name: string, default_owner_id: string, user_css?: string, notifications?: object, publishing?: unknown, actor_presentation?: ActorPresentation}} Board */
 /** @typedef {{id: string, name: string|null}} BoardSummary */
-/** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string, approval_enabled: boolean, reorder_enabled: boolean, bulk_approval_comment?: string}} Lane */
+/** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string, approval_enabled: boolean, reorder_enabled: boolean, bulk_approval_comment?: string, notes?: string}} Lane */
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
 /** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number, board_id: string, active: boolean, previewable: boolean, revision: number, sha2_256: string}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
@@ -536,10 +537,31 @@ function activeAttachment(boardId, cardId, attachment) {
   return attachment.board_id === boardId && attachment.card_id === cardId && attachment.active === true;
 }
 
+/** @param {User[]} users @param {ActorPresentation|undefined} presentation @param {string} id */
+function actorAttribution(users, presentation, id) {
+  const user = users.find((entry) => entry.id === id);
+  const display = user && presentation?.[user.kind];
+  const label = element("span", display?.label ?? user?.label ?? "Unknown user");
+  label.className = "actor-label";
+  const accent = display?.accent ?? user?.color;
+  if (accent && /^#[0-9a-f]{6}$/i.test(accent)) {
+    label.className += " actor-accent";
+    label.style.borderInlineStartColor = accent;
+  }
+  return label;
+}
+
+/** @param {Lane} lane */
+function laneNotes(lane) {
+  const note = element("p", lane.notes);
+  note.className = "lane-note body-text";
+  return note;
+}
+
 /** @param {string} boardId @param {Pick<Card, "id">} summary @param {Lane[]} lanes @param {User[]} users
  * @param {Labeled[]} priorities @param {() => string} boardTag @param {() => Promise<void>} reloadBoard
- * @param {HTMLElement} opener */
-async function openCard(boardId, summary, lanes, users, priorities, boardTag, reloadBoard, opener) {
+ * @param {HTMLElement} opener @param {() => ActorPresentation|undefined} presentation */
+async function openCard(boardId, summary, lanes, users, priorities, boardTag, reloadBoard, opener, presentation) {
   if (!details) return;
   retainCardDraft?.();
   releaseCardMedia?.();
@@ -612,7 +634,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       else cardDrafts.delete(card.id);
     };
     /** @param {string} id */
-    const userLabel = (id) => users.find((user) => user.id === id)?.label ?? "Unknown user";
+    const attribution = (id) => actorAttribution(users, presentation(), id);
     function closeDrawer() {
       if (cardView !== activeCard) return;
       retainCardDraft?.();
@@ -783,7 +805,9 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         const item = element("article");
         const body = element("p");
         renderCommentText(body, entry, boardId, users);
-        item.append(element("small", userLabel(entry.author_id) + " · " + entry.created_at), body);
+        const byline = element("small");
+        byline.append(attribution(entry.author_id), element("span", " · " + entry.created_at));
+        item.append(byline, body);
         return item;
       }));
       clearPreviews();
@@ -830,7 +854,9 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         historyList.replaceChildren(...entries.reverse().map((entry) => {
           const row = element("article");
           const field = entry.resource_type === "relationship" ? null : entry.field;
-          row.append(element("small", userLabel(entry.actor_id) + " · " + entry.at + " · Revision " + entry.revision),
+          const byline = element("small");
+          byline.append(attribution(entry.actor_id), element("span", " · " + entry.at + " · Revision " + entry.revision));
+          row.append(byline,
             element("p", field === "priority_id" ? "Priority" : field ?? entry.operation));
           if (entry.resource_type === "attachment") row.append(element("small", "Attachment " + entry.resource_id));
           if (field !== null) {
@@ -864,8 +890,9 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     function renderAttachment(entry) {
       const row = element("article");
       row.className = "attachment";
-      const file = element("p", entry.original_name + " · " + entry.size + " bytes · "
-        + userLabel(entry.added_by) + " · " + entry.created_at);
+      const file = element("p");
+      file.append(element("span", entry.original_name + " · " + entry.size + " bytes · "),
+        attribution(entry.added_by), element("span", " · " + entry.created_at));
       file.className = "body-text";
       row.append(file);
       const note = element("p");
@@ -1751,7 +1778,7 @@ async function load(savedAvailability) {
     /** @param {Card} card */
     function cardOpener(card) {
       const opener = button("#" + card.ticket + " " + card.title, () => {
-        if (!writing) void openCard(board.id, card, lanes, users, priorities, () => boardTag, reloadBoard, opener);
+        if (!writing) void openCard(board.id, card, lanes, users, priorities, () => boardTag, reloadBoard, opener, () => board.actor_presentation);
       });
       opener.className = "card";
       opener.dataset.cardId = card.id;
@@ -1778,6 +1805,7 @@ async function load(savedAvailability) {
         const column = element("section");
         column.className = "lane";
         column.append(element("h2", lane.label));
+        if (lane.notes) column.append(laneNotes(lane));
         const members = visibleCards.filter(({ lane_id }) => lane_id === lane.id);
         if (lane.reorder_enabled) {
           const canPreview = members.length >= 2;
@@ -1962,19 +1990,29 @@ async function load(savedAvailability) {
     const recent = element("details");
     const recentList = element("div");
     recent.append(element("summary", "Newest comments"), recentList);
+    /** @type {Comment[]|undefined} */
+    let recentComments;
+    function showRecentComments() {
+      if (!recentComments) return;
+      recentList.replaceChildren(...recentComments.map((entry) => {
+        const item = element("article");
+        const body = element("p");
+        renderCommentText(body, entry, board.id, users);
+        const byline = element("small");
+        byline.append(actorAttribution(users, board.actor_presentation, entry.author_id), element("span", " · " + entry.created_at));
+        item.append(byline, body);
+        return item;
+      }));
+    }
     recent.addEventListener("toggle", () => {
       if (!recent.open) return;
       void api.listComments({ board_id: board.id }, 2).then((reply) => {
-        const comments = /** @type {Comment[]} */ (items(reply, "comments"));
-        recentList.replaceChildren(...comments.map((entry) => {
-          const user = users.find(({ id }) => id === entry.author_id)?.label ?? "Unknown user";
-          const item = element("article");
-          const body = element("p");
-          renderCommentText(body, entry, board.id, users);
-          item.append(element("small", user + " · " + entry.created_at), body);
-          return item;
-        }));
-      }).catch(() => { recentList.textContent = "Comments could not be read."; });
+        recentComments = /** @type {Comment[]} */ (items(reply, "comments"));
+        showRecentComments();
+      }).catch(() => {
+        recentComments = undefined;
+        recentList.textContent = "Comments could not be read.";
+      });
     });
 
     async function reloadBoard() {
@@ -1993,6 +2031,8 @@ async function load(savedAvailability) {
       users.splice(0, users.length, ...latestUsers);
       const updatedBoard = /** @type {Board} */ (latest.board.data);
       board.name = updatedBoard.name;
+      board.actor_presentation = updatedBoard.actor_presentation;
+      if (recent.open) showRecentComments();
       const heading = main?.querySelector("h1");
       if (heading) heading.textContent = board.name;
       lanes.splice(0, lanes.length, ...latest.lanes);
@@ -2022,7 +2062,7 @@ async function load(savedAvailability) {
     boardActions.append(boardPublishing.panel);
     if (allowed) boardActions.append(availabilityForm("closed", () => boardTag, reloadBoard, inspection));
     const search = renderCardSearch(board.id, lanes, (card, opener) => {
-      if (!writing) void openCard(board.id, card, lanes, users, priorities, () => boardTag, reloadBoard, opener);
+      if (!writing) void openCard(board.id, card, lanes, users, priorities, () => boardTag, reloadBoard, opener, () => board.actor_presentation);
     });
     retainBoardDraft = () => {
       boardDrafts.set(board.id, [addTitle.value, addDescription.value, addLane.value, seedTicket.value, seedType.value]);
@@ -2036,7 +2076,7 @@ async function load(savedAvailability) {
     const selectedCard = selectedCardId(boardId) ?? suspendedSelections.get(boardId);
     if (selectedCard && refresh) {
       suspendedSelections.delete(boardId);
-      void openCard(board.id, { id: selectedCard }, lanes, users, priorities, () => boardTag, reloadBoard, refresh);
+      void openCard(board.id, { id: selectedCard }, lanes, users, priorities, () => boardTag, reloadBoard, refresh, () => board.actor_presentation);
       return;
     }
     const ticketValue = new URLSearchParams(location.search).get("ticket");
@@ -2052,7 +2092,7 @@ async function load(savedAvailability) {
         return;
       }
       if (view !== activeView || !refresh) return;
-      if (selected) void openCard(board.id, selected, lanes, users, priorities, () => boardTag, reloadBoard, refresh);
+      if (selected) void openCard(board.id, selected, lanes, users, priorities, () => boardTag, reloadBoard, refresh, () => board.actor_presentation);
       else announce("error", "This ticket is unavailable.");
     }
   } catch (error) {

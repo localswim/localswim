@@ -88,7 +88,7 @@ func TestM29CapturedSnapshotKeepsRevisionWhileMutationCommits(t *testing.T) {
 	if !reflect.DeepEqual(state, before) || !bytes.Equal(data, original) {
 		t.Fatal("capture changed after a later durable commit")
 	}
-	id := newID()
+	id := newOperationID()
 	item, err := buildBackup(app.store.root, id, state, data)
 	if err != nil {
 		t.Fatal(err)
@@ -195,7 +195,7 @@ func TestM29CaptureRefusesMissingOrTamperedAttachments(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				id := newID()
+				id := newOperationID()
 				if _, err := buildBackup(app.store.root, id, state, data); !errors.Is(err, errBackupIntegrity) {
 					t.Fatalf("damaged attachment returned %v, want integrity refusal", err)
 				}

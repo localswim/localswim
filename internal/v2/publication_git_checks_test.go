@@ -79,7 +79,7 @@ func m34PublicationFixture(t *testing.T) m34Fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, err := buildBackup(app.store.root, newID(), checked, data)
+	item, err := buildBackup(app.store.root, newOperationID(), checked, data)
 	if err != nil {
 		t.Fatal(err)
 	}

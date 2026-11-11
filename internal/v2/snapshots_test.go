@@ -27,7 +27,7 @@ func captureRecoveryBackup(t *testing.T, app *Service, state snapshot) (backup, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, err := buildBackup(app.store.root, newID(), state, data)
+	item, err := buildBackup(app.store.root, newOperationID(), state, data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,10 +124,13 @@ func TestM30ZIPRecoveryRefusesDamageThenRecoversSameBoard(t *testing.T) {
 func TestM30StoredRestorationReceiptAndDuplicate(t *testing.T) {
 	app, editor, source, _ := backupCaptureFixture(t)
 	item, _ := captureRecoveryBackup(t, app, source)
-	id := newID()
+	id := "00000000-0000-7000-8000-000000000002"
 	body := fmt.Sprintf(`{"id":%q,"board_id":%q,"backup_id":%q,"expected_board_etag":%q}`, id, source.Board.ID, item.ID, source.Board.ETag)
 	raw, headers := editor.call("POST", "/restorations", body, "", 201)
 	result := turnOneDecode[restoration](t, raw)
+	if result.At.Before(source.Board.UpdatedAt) || result.At.Year() < 2026 {
+		t.Fatal("restoration execution time was derived from its preallocated ID")
+	}
 	if result.ID != id || result.BackupID != item.ID || result.Revision != source.Board.Revision+1 ||
 		headers.Get("Location") != Prefix+"/restorations/"+id {
 		t.Fatal("restoration response invalid")
@@ -203,7 +206,7 @@ func TestM30RecoveryIdentityAndAttachmentValidationBeforeMutation(t *testing.T) 
 	if unmarshalCanonical(data, &unknown) != nil {
 		t.Fatal("decode unknown fixture")
 	}
-	_, err := app.store.recoverSnapshot(source.Board.ID, humanID, snapshotRepresentationTag(source), newID(), unknown, nil, nil)
+	_, err := app.store.recoverSnapshot(source.Board.ID, humanID, snapshotRepresentationTag(source), newOperationID(), unknown, nil, nil)
 	if !errors.Is(err, errIdentityConflict) {
 		t.Fatalf("unknown user result %v", err)
 	}
@@ -211,7 +214,7 @@ func TestM30RecoveryIdentityAndAttachmentValidationBeforeMutation(t *testing.T) 
 	if err := os.Remove(filepath.Join(app.store.root, attachmentPath(missing))); err != nil {
 		t.Fatal(err)
 	}
-	_, err = app.store.recoverSnapshot(source.Board.ID, humanID, snapshotRepresentationTag(source), newID(), source, nil, nil)
+	_, err = app.store.recoverSnapshot(source.Board.ID, humanID, snapshotRepresentationTag(source), newOperationID(), source, nil, nil)
 	if !errors.Is(err, errAttachmentIntegrity) {
 		t.Fatalf("missing file result %v", err)
 	}
@@ -303,7 +306,7 @@ func TestM30RecoveryActorCanBeAbsentFromSourceBoard(t *testing.T) {
 	if err := validateSnapshot(source, source.Board.ID); err != nil {
 		t.Fatal(err)
 	}
-	recovered, err := store.recoverSnapshot(current.Board.ID, m01HumanID, snapshotRepresentationTag(current), newID(), source, nil, nil)
+	recovered, err := store.recoverSnapshot(current.Board.ID, m01HumanID, snapshotRepresentationTag(current), newOperationID(), source, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +365,7 @@ func TestM30DurableSnapshotPreconditionAndDamagedFallback(t *testing.T) {
 		external.Board.Name = name
 		external.Board.Revision++
 		external.Board.ETag = etag(external.Board.ID, external.Board.Revision)
-		external.Activity = append(external.Activity, activity{ID: newID(), BoardID: external.Board.ID,
+		external.Activity = append(external.Activity, activity{ID: newOperationID(), BoardID: external.Board.ID,
 			Revision: external.Board.Revision, At: external.Board.UpdatedAt, ActorID: humanID, Operation: "patch",
 			ResourceType: "board", ResourceID: external.Board.ID, Field: &field, Before: &before, After: &name})
 		data := marshalVerificationFixture(t, external)
@@ -457,15 +460,15 @@ func TestM30RecoveryInvalidatesAllMutableResourceValidators(t *testing.T) {
 
 func TestM30DuplicateStoredRestorationIDAcrossBoards(t *testing.T) {
 	app, client, first, _ := backupCaptureFixture(t)
-	backupID := newID()
-	id := newID()
+	backupID := newOperationID()
+	id := newOperationID()
 	if _, err := app.store.recoverSnapshot(first.Board.ID, humanID, first.Board.ETag, id, first, &backupID, nil); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := client.call("POST", "/boards", `{"name":"Second restore board"}`, "", 201)
 	secondBoard := turnOneDecode[board](t, raw)
 	second, _ := app.store.accepted(secondBoard.ID)
-	restored, err := app.store.recoverSnapshot(second.Board.ID, humanID, second.Board.ETag, newID(), second, &backupID, nil)
+	restored, err := app.store.recoverSnapshot(second.Board.ID, humanID, second.Board.ETag, newOperationID(), second, &backupID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -523,7 +526,7 @@ func TestM30GlobalRecoveryUsersAreCanonicalAndIndependentOfLoadOrder(t *testing.
 		t.Fatal(err)
 	}
 	source := withoutCustom(first)
-	_, err = s.recoverSnapshot(first.Board.ID, custom.ID, snapshotRepresentationTag(first), newID(), source, nil, nil)
+	_, err = s.recoverSnapshot(first.Board.ID, custom.ID, snapshotRepresentationTag(first), newOperationID(), source, nil, nil)
 	if !errors.Is(err, errIdentityConflict) {
 		t.Fatalf("orphaned custom user result %v", err)
 	}
@@ -531,7 +534,7 @@ func TestM30GlobalRecoveryUsersAreCanonicalAndIndependentOfLoadOrder(t *testing.
 	if err := s.create(second); err != nil {
 		t.Fatal(err)
 	}
-	firstResult, err := s.recoverSnapshot(first.Board.ID, custom.ID, snapshotRepresentationTag(first), newID(), source, nil, nil)
+	firstResult, err := s.recoverSnapshot(first.Board.ID, custom.ID, snapshotRepresentationTag(first), newOperationID(), source, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -553,12 +556,12 @@ func TestM30GlobalRecoveryUsersAreCanonicalAndIndependentOfLoadOrder(t *testing.
 	current, _ := reopened.accepted(first.Board.ID)
 	legacy := cloneSnapshot(source)
 	legacy.Users[0].Label = "historical user label"
-	recovered, err := reopened.recoverSnapshot(first.Board.ID, m01HumanID, snapshotRepresentationTag(current), newID(), legacy, nil, nil)
+	recovered, err := reopened.recoverSnapshot(first.Board.ID, m01HumanID, snapshotRepresentationTag(current), newOperationID(), legacy, nil, nil)
 	if err != nil || !reflect.DeepEqual(recovered.Users, source.Users) {
 		t.Fatalf("global metadata changed after restart: %v", err)
 	}
 	second, _ = reopened.accepted(second.Board.ID)
-	_, err = reopened.recoverSnapshot(second.Board.ID, m01HumanID, snapshotRepresentationTag(second), newID(), withoutCustom(second), nil, nil)
+	_, err = reopened.recoverSnapshot(second.Board.ID, m01HumanID, snapshotRepresentationTag(second), newOperationID(), withoutCustom(second), nil, nil)
 	if !errors.Is(err, errIdentityConflict) {
 		t.Fatalf("lost later-board actor definition: %v", err)
 	}

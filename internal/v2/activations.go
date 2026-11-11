@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"uuid"
 )
 
 const activationDirectory = ".localswim-activations"
@@ -50,12 +49,11 @@ func (s *Service) activationRecord(id string) (activationRecord, error) {
 	fields, err := decodeObject(raw)
 	var result activationRecord
 	if err != nil || len(fields) != 7 || fields["error_code"] == nil ||
-		unmarshalCanonical(raw, &result) != nil || result.ID != id || !validSnapshotID(result.BuildID) ||
+		unmarshalCanonical(raw, &result) != nil || result.ID != id || !validSnapshotOperationID(result.ID) || !validSnapshotID(result.BuildID) ||
 		!validBuildManifestFields(result.Version, result.Digest) {
 		return activationRecord{}, errActivationStore
 	}
-	origin, err := uuid.Parse(result.Origin)
-	if err != nil || origin.String() != result.Origin || result.Origin[14] != '7' {
+	if !validSnapshotOperationID(result.Origin) {
 		return activationRecord{}, errActivationStore
 	}
 	switch result.State {
@@ -117,9 +115,9 @@ func (x *request) activateBuild() {
 		x.fail(err)
 		return
 	}
-	id := newID()
+	id := newOperationID()
 	if raw, ok := fields["id"]; ok {
-		id, err = inputID(raw, "id")
+		id, err = inputOperationID(raw, "id")
 		if err != nil {
 			x.fail(err)
 			return
@@ -207,7 +205,7 @@ func (s *Service) prepareBuildActivation(id, buildID, instance string) (exit Ser
 // CompleteActivation runs in the replacement with the writer lease held and
 // before its listener starts admitting requests.
 func (s *Service) CompleteActivation(id string) error {
-	if !validSnapshotID(id) {
+	if !validSnapshotOperationID(id) {
 		return errActivationStore
 	}
 	record, err := s.activationRecord(id)

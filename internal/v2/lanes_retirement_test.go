@@ -96,7 +96,7 @@ func TestLaneRetirementHTTP(t *testing.T) {
 	field, oldName, newName := "name", actual.Board.Name, "Injected retirement edit"
 	tampered.Board.Name = newName
 	tampered.Activity = slices.Insert(tampered.Activity, len(tampered.Activity)-1, activity{
-		ID: newID(), BoardID: created.ID, Revision: event.Revision, At: event.At,
+		ID: newOperationID(), BoardID: created.ID, Revision: event.Revision, At: event.At,
 		ActorID: event.ActorID, Operation: "patch", ResourceType: "board", ResourceID: created.ID,
 		Field: &field, Before: &oldName, After: &newName,
 	})

@@ -38,7 +38,7 @@ func TestBackupContentBoundsAndFraming(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = api.BackupContent("/backups/00000000-0000-4000-8000-000000000000/content", tc.size, io.Discard)
+			err = api.BackupContent("/backups/00000000-0000-7000-8000-000000000000/content", tc.size, io.Discard)
 			if (err == nil) != tc.valid || requests != 1 {
 				t.Fatalf("valid=%v error=%v requests=%d", tc.valid, err, requests)
 			}
@@ -62,7 +62,7 @@ func TestBackupContentSupportsArchivesLargerThanJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := api.BackupContent("/backups/00000000-0000-4000-8000-000000000000/content", size, io.Discard); err != nil {
+	if err := api.BackupContent("/backups/00000000-0000-7000-8000-000000000000/content", size, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 }

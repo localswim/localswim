@@ -2,6 +2,7 @@ package v2
 
 import (
 	"encoding/base64"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -130,13 +131,21 @@ func TestM04BrowserShellHeaders(t *testing.T) {
 		{"/boards/" + newID(), "text/html"},
 		{"/assets/app.mjs", "text/javascript"},
 		{"/assets/api.mjs", "text/javascript"},
+		{"/assets/operation-id.mjs", "text/javascript"},
 		{"/assets/app.css", "text/css"},
 	} {
 		res, err := c.client.Get(c.url + tc.path)
 		if err != nil {
 			t.Fatal(err)
 		}
+		body, readErr := io.ReadAll(io.LimitReader(res.Body, 64<<10))
 		_ = res.Body.Close()
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if tc.path == "/assets/operation-id.mjs" && !strings.Contains(string(body), "export function newOperationId()") {
+			t.Fatal("operation ID module was not served")
+		}
 		if res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), tc.media) ||
 			res.Header.Get("Content-Security-Policy") != browserCSP || res.Header.Get("Cache-Control") != "no-store" ||
 			res.Header.Get("Cross-Origin-Opener-Policy") != "same-origin" ||

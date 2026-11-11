@@ -20,6 +20,8 @@ func (x *request) serveBrowser() bool {
 		file, media = "index.html", "text/html; charset=utf-8"
 	case "/assets/app.mjs":
 		file, media = "app.mjs", "text/javascript; charset=utf-8"
+	case "/assets/operation-id.mjs":
+		file, media = "operation-id.mjs", "text/javascript; charset=utf-8"
 	case "/assets/api.mjs":
 		file, media = "api.mjs", "text/javascript; charset=utf-8"
 	case "/assets/app.css":

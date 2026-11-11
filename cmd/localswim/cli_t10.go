@@ -21,7 +21,7 @@ func parseServiceAction(name string, args []string) (cliCommand, error) {
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	if name == "service activate" {
-		flags.StringVar(&command.serviceActivationID, "id", "", "activation UUIDv4")
+		flags.StringVar(&command.serviceActivationID, "id", "", "activation UUIDv7")
 	}
 	if err := flags.Parse(args); err != nil {
 		return command, err
@@ -32,18 +32,22 @@ func parseServiceAction(name string, args []string) (cliCommand, error) {
 		}
 		return command, nil
 	}
-	if flags.NArg() != 1 || !boardIDPattern.MatchString(flags.Arg(0)) {
-		return command, errors.New("expected one UUIDv4 resource ID")
+	resourcePattern := boardIDPattern
+	if name == "service activation" {
+		resourcePattern = operationIDPattern
+	}
+	if flags.NArg() != 1 || !resourcePattern.MatchString(flags.Arg(0)) {
+		return command, errors.New("expected one valid resource ID")
 	}
 	command.serviceResourceID = strings.ToLower(flags.Arg(0))
 	if name == "service activate" {
 		provided := flags.NFlag() != 0
-		if provided && !boardIDPattern.MatchString(command.serviceActivationID) {
-			return command, errors.New("--id requires a UUIDv4")
+		if provided && !operationIDPattern.MatchString(command.serviceActivationID) {
+			return command, errors.New("--id requires a UUIDv7")
 		}
 		command.serviceActivationID = strings.ToLower(command.serviceActivationID)
 		if !provided {
-			command.serviceActivationID = newUploadID()
+			command.serviceActivationID = newOperationID()
 		}
 	}
 	return command, nil
@@ -58,6 +62,8 @@ type cliServiceStatus struct {
 	APIVersion        string          `json:"api_version"`
 	RestartErrorCode  json.RawMessage `json:"restart_error_code"`
 }
+
+var operationIDPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
 var serviceInstanceIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
@@ -78,7 +84,7 @@ type cliActivation struct {
 
 func (a *cliActivation) decode(document json.RawMessage) bool {
 	if jsonv2.Unmarshal(document, a, jsonv2.RejectUnknownMembers(true)) != nil ||
-		!canonicalLifecycleID(a.ID) || !canonicalLifecycleID(a.BuildID) || !validLifecycleErrorCode(a.ErrorCode) {
+		!(operationIDPattern.MatchString(a.ID) && strings.ToLower(a.ID) == a.ID) || !canonicalLifecycleID(a.BuildID) || !validLifecycleErrorCode(a.ErrorCode) {
 		return false
 	}
 	switch a.State {

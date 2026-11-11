@@ -1700,6 +1700,154 @@ test("a clamped cover scroll survives warm confirmation and superseded paints un
   assert.equal(laneColumn().scrollTop, 75);
 });
 
+for (const recovery of ["catalog hint", "Retry Attention"]) {
+  test("a warm catalog startup failure recovers through " + recovery, async (t) => {
+    const {api} = boardApi();
+    const streams = boardStreams(api);
+    let unavailable = false;
+    let failures = 0;
+    let blocked = 0;
+    const readBoard = api.getBoardLanes;
+    let boardReads = 0;
+    api.getBoardLanes = async (...args) => {
+      boardReads++;
+      return readBoard(...args);
+    };
+    api.listBoards = async () => {
+      if (unavailable) {
+        failures++;
+        if (failures === 1) throw new ApiError("transport_failed");
+        throw new ApiError("http_error", {status: 400});
+      }
+      return page("boards", [{id: board, name: "Selected", availability: "open",
+        attention: {blocked, needs_input: 0, ready_for_review: 0}, last_card_edit_at: null}]);
+    };
+    const ui = await harness(api);
+    t.after(ui.abortView);
+    await ui.load();
+    await ui.navigate("/");
+    unavailable = true;
+    await ui.navigate("/boards/" + board);
+    const {main, boards} = ui.nodes;
+    const opener = ui.find(main, "button", "#1 Original");
+    await until(() => failures === 2);
+    const retry = ui.find(boards, "button", "Retry Attention");
+    assert.ok(retry);
+    assert.equal(boards.querySelector("a").attributes["aria-current"], "page");
+    assert.equal(ui.title(), "localswim");
+
+    unavailable = false;
+    blocked = 2;
+    if (recovery === "catalog hint") streams.at(-1).sendCatalog("snapshot");
+    else retry.click();
+    await until(() => ui.title() === "(2) localswim");
+    assert.equal(boards.querySelector("a").attributes["aria-current"], "page");
+    assert.equal(ui.find(boards, "button", "Retry Attention"), undefined);
+    assert.equal(ui.find(main, "button", "#1 Original"), opener);
+    assert.equal(boardReads, 2);
+  });
+}
+
+test("a warm board applies its authenticated publishing status and validator after mounting", async () => {
+  const {api, restore} = boardApi();
+  const readBoard = api.getBoardLanes;
+  let publishing = publishingOff;
+  api.getBoardLanes = async (...args) => {
+    const reply = await readBoard(...args);
+    reply.data.board.publishing = publishing;
+    return reply;
+  };
+  api.getBoardPublishing = async () => ({data: publishing, etag: tag(board, 7)});
+  const saves = [];
+  api.configureBoardPublishing = async (id, enabled, expected) => {
+    saves.push([id, enabled, expected]);
+    publishing = {...publishing, enabled, pending: false};
+  };
+  const ui = await harness(api);
+  const {main} = ui.nodes;
+  await ui.load();
+  await ui.navigate("/");
+  restore();
+  publishing = {...publishingOff, enabled: true, pending: true};
+  const reopening = ui.navigate("/boards/" + board);
+  assert.equal(ui.find(main, "button", "Save board publishing"), undefined);
+  await reopening;
+  assert.match(main.querySelector("#board-publishing-status").textContent, /publishing is on.*Publication pending/);
+  const enabled = ui.field(main, "Enable board publishing");
+  assert.equal(enabled.checked, true);
+  enabled.checked = false;
+  enabled.dispatch("change");
+  ui.submit(main, "Save board publishing");
+  await ui.settled();
+  assert.deepEqual(saves, [[board, false, tag(board, 7)]]);
+});
+
+test("warm lane grant drafts survive until the confirmed user choices arrive", async () => {
+  const {api} = boardApi();
+  let users = [{id: user, label: "Human", kind: "human"}, {id: backup, label: "Another", kind: "human"},
+    {id: priority, label: "Bot", kind: "bot"}];
+  api.listUsers = async () => page("users", users);
+  const ui = await harness(api);
+  const {main, refresh} = ui.nodes;
+  await ui.load();
+  ui.field(main, "Lane label").value = "Pending lane";
+  const select = (label) => ui.field(main, label);
+  for (const option of select("Create rights").options) option.selected = option.value !== priority;
+  for (const option of select("Connect rights").options) option.selected = option.value === priority;
+  await ui.navigate("/");
+  users = users.filter(({id}) => id !== backup);
+  const reopening = ui.navigate("/boards/" + board);
+  assert.equal(ui.find(main, "summary", "Manage lanes"), undefined);
+  await reopening;
+  const selected = (label) => select(label).selectedOptions.map(({value}) => value);
+  assert.equal(ui.field(main, "Lane label").value, "Pending lane");
+  assert.deepEqual(selected("Create rights"), [user]);
+  assert.deepEqual(selected("Connect rights"), [priority]);
+  select("Connect rights").options.find(({value}) => value === priority).selected = false;
+  refresh.click();
+  await ui.settled();
+  assert.deepEqual(selected("Create rights"), [user]);
+  assert.deepEqual(selected("Connect rights"), []);
+});
+
+test("restored Find is canceled on warm navigation and late 401 cannot renew the session", async () => {
+  const {api} = boardApi();
+  const started = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  let searches = 0;
+  api.listCards = async (id, fields, signal) => {
+    assert.equal(id, board);
+    assert.equal(fields.q, "Original");
+    assert.ok(signal instanceof AbortSignal);
+    if (++searches === 2) {
+      started.resolve(signal);
+      await release.promise;
+      throw new ApiError("http_error", {status: 401});
+    }
+    return page("cards", [(await api.getCard()).data]);
+  };
+  let sessions = 0;
+  const ui = await harness(api, "/boards/" + board, {openSession: async () => "capability-" + ++sessions});
+  const {main} = ui.nodes;
+  const search = () => ui.find(main, "summary", "Find cards").parent;
+  await ui.load();
+  ui.field(search(), "Title or ticket").value = "Original";
+  ui.submit(search(), "Find cards");
+  await until(() => ui.find(search(), "button", "#1 Original"));
+  await ui.navigate("/");
+  await ui.navigate("/boards/" + board);
+  const signal = await started.promise;
+  assert.equal(signal.aborted, false);
+  await ui.navigate("/");
+  assert.equal(signal.aborted, true);
+  release.resolve();
+  await ui.settled();
+  await ui.navigate("/boards/" + board);
+  await until(() => ui.find(search(), "button", "#1 Original"));
+  assert.equal(searches, 3);
+  assert.equal(sessions, 1);
+});
+
 test("a recent board paints before refresh, survives failure, and upgrades its drawer after Retry", async () => {
   const {api, restore, patched} = boardApi();
   const getBoard = api.getBoardLanes;
@@ -2689,7 +2837,7 @@ test("default next-work control omits blank q and sends supported triage filters
     return Response.json({cards: [], next_cursor: null});
   }});
   const ui = await harness(api);
-  const {panel} = ui.renderCardSearch(board, [], () => {});
+  const {panel} = ui.renderCardSearch(board, [], () => {}, new AbortController().signal);
   ui.nodes.main.append(panel);
   ui.submit(panel, "Find cards");
   await ui.settled();

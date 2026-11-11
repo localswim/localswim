@@ -2188,13 +2188,9 @@ async function load(savedAvailability) {
       if (batchPriority instanceof HTMLSelectElement) setOptions(batchPriority, priorities, batchPriority.value);
       renderCards(latest.cards, boardTag);
       inspection.sync();
-      const attention = refreshAttention();
-      try {
-        if (activeDrawer?.boardId === board.id) await activeDrawer.refreshWorkflow();
-        await reloadArchived();
-      } finally {
-        await attention;
-      }
+      void refreshAttention();
+      if (activeDrawer?.boardId === board.id) await activeDrawer.refreshWorkflow();
+      await reloadArchived();
     }
     const laneEditor = renderLaneEditor(board.id, lanes, users, () => boardTag, reloadBoard, inspection);
     const boardActions = renderBoardActions(board.id, priorities, () => currentCards, () => boardTag, reloadBoard, inspection);

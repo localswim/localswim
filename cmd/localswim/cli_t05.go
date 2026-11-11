@@ -19,8 +19,10 @@ func parseActivityList(args []string) (cliCommand, error) {
 	flags.SetOutput(io.Discard)
 	from := flags.String("from", "", "inclusive UTC start")
 	to := flags.String("to", "", "inclusive UTC end")
-	view := flags.String("view", "full", "full or monitor activity view")
+	view := flags.String("view", "monitor", "full or monitor activity view")
 	ticket := flags.String("ticket", "", "filter by card ticket")
+	actorID := flags.String("actor-id", "", "filter by actor UUIDv4")
+	operation := flags.String("operation", "", "filter by operation identifier")
 	limit := flags.Int("limit", 50, "page size")
 	cursor := flags.String("cursor", "", "cursor from the preceding page")
 	if err := flags.Parse(args); err != nil {
@@ -66,6 +68,18 @@ func parseActivityList(args []string) (cliCommand, error) {
 				optionErr = errors.New("--ticket requires an integer from 1 to 9007199254740991")
 			} else {
 				query.Set("ticket", strconv.FormatUint(n, 10))
+			}
+		case "actor-id":
+			if !boardIDPattern.MatchString(*actorID) {
+				optionErr = errors.New("--actor-id requires a UUIDv4")
+			} else {
+				query.Set("actor_id", strings.ToLower(*actorID))
+			}
+		case "operation":
+			if len(*operation) == 0 || len(*operation) > 80 {
+				optionErr = errors.New("--operation requires an operation identifier of 1 to 80 characters")
+			} else {
+				query.Set("operation", *operation)
 			}
 		case "cursor":
 			if *cursor == "" {

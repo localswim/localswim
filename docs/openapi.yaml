@@ -6602,7 +6602,7 @@ paths:
   /activities:
     get:
       operationId: listActivity
-      summary: Read bounded activity or sanitized monitor metadata
+      summary: Read bounded activity metadata or explicit full audit values
       tags:
       - Activity
       parameters:
@@ -6629,7 +6629,23 @@ paths:
         schema:
           type: string
           pattern: ^(?:[fF][uU][lL][lL]|[mM][oO][nN][iI][tT][oO][rR])$
-          description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
+          default: monitor
+          description: ASCII case-insensitive input. Select full explicitly for attributed audit values.
+      - name: actor_id
+        in: query
+        required: false
+        description: Include only changes attributed to this actor UUID.
+        schema:
+          $ref: '#/components/schemas/UuidInput'
+      - name: operation
+        in: query
+        required: false
+        description: Include only changes with this exact operation identifier.
+        schema:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,79}$'
+          minLength: 1
+          maxLength: 80
       - name: ticket
         in: query
         required: false
@@ -6738,9 +6754,10 @@ paths:
         capability: read
       x-milestones:
       - 7
-      description: Inclusive UTC interval using the canonical Timestamp format. Full projection requires content
-        permission. Monitor never returns title, description, comment text, or credential data. Cursor
-        binds filters and projection. Unknown/malformed timestamps refuse.
+      description: Both views require board read permission and use an inclusive UTC interval in the
+        canonical Timestamp format. The default monitor view exposes sanitized event metadata.
+        Select full for attributed audit values. Cursors bind the interval, view, ticket, actor
+        and operation filters.
     head:
       operationId: headListActivity
       summary: Read headers without content
@@ -6770,7 +6787,23 @@ paths:
         schema:
           type: string
           pattern: ^(?:[fF][uU][lL][lL]|[mM][oO][nN][iI][tT][oO][rR])$
-          description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
+          default: monitor
+          description: ASCII case-insensitive input. Select full explicitly for attributed audit values.
+      - name: actor_id
+        in: query
+        required: false
+        description: Include only changes attributed to this actor UUID.
+        schema:
+          $ref: '#/components/schemas/UuidInput'
+      - name: operation
+        in: query
+        required: false
+        description: Include only changes with this exact operation identifier.
+        schema:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,79}$'
+          minLength: 1
+          maxLength: 80
       - name: ticket
         in: query
         required: false
@@ -6873,9 +6906,10 @@ paths:
         capability: read
       x-milestones:
       - 7
-      description: Inclusive UTC interval using the canonical Timestamp format. Full projection requires content
-        permission. Monitor never returns title, description, comment text, or credential data. Cursor
-        binds filters and projection. Unknown/malformed timestamps refuse.
+      description: Both views require board read permission and use an inclusive UTC interval in the
+        canonical Timestamp format. The default monitor view exposes sanitized event metadata.
+        Select full for attributed audit values. Cursors bind the interval, view, ticket, actor
+        and operation filters.
     options:
       operationId: options_activities
       summary: Validate same-origin preflight

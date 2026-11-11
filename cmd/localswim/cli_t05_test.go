@@ -16,14 +16,19 @@ const t05From = "2026-11-10 18:00:00+00:00"
 const t05To = "2026-11-10 18:00:02+00:00"
 
 func TestT05CLIActivityBoundsAndViews(t *testing.T) {
-	for _, view := range []string{"full", "monitor"} {
-		t.Run(view, func(t *testing.T) {
+	for _, tc := range []struct{ name, option, view string }{
+		{"default metadata", "", "monitor"},
+		{"explicit metadata", "MONITOR", "monitor"},
+		{"explicit full", "full", "full"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			var reads atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				reads.Add(1)
 				query := r.URL.Query()
 				if r.Method != http.MethodGet || r.URL.Path != t03Root+"/activities" ||
-					query.Get("board_id") != t03Board || query.Get("view") != view ||
+					query.Get("board_id") != t03Board || query.Get("view") != tc.view || query.Get("actor_id") != t03Card ||
+					query.Get("operation") != "patch" ||
 					query.Get("from") != t05From || query.Get("to") != t05To ||
 					query.Get("ticket") != "7" || query.Get("limit") != "12" || query.Get("cursor") != "a+b=" {
 					t.Errorf("unexpected activity request %s %s", r.Method, r.URL)
@@ -32,9 +37,10 @@ func TestT05CLIActivityBoundsAndViews(t *testing.T) {
 			}))
 			defer server.Close()
 			args := []string{"activity", "list", "--from", t05From, "--to", t05To,
-				"--ticket", "0007", "--limit", "12", "--cursor", "a+b="}
-			if view != "full" {
-				args = append(args, "--view", "MONITOR")
+				"--ticket", "0007", "--limit", "12", "--cursor", "a+b=",
+				"--actor-id", strings.ToUpper(t03Card), "--operation", "patch"}
+			if tc.option != "" {
+				args = append(args, "--view", tc.option)
 			}
 			var stdout, stderr bytes.Buffer
 			code := runCLIWithInput(append(args, t03Board), strings.NewReader(""), &stdout, &stderr, t03Env(server.URL))
@@ -52,6 +58,10 @@ func TestT05CLIActivityBoundsAndViews(t *testing.T) {
 		{"--from", t05From, "--to", t05To, "--limit", "201"},
 		{"--from", t05From, "--to", t05To, "--cursor", ""},
 		{"--from", t05From, "--to", t05To, "--view", "other"},
+		{"--from", t05From, "--to", t05To, "--actor-id", ""},
+		{"--from", t05From, "--to", t05To, "--actor-id", "invalid"},
+		{"--from", t05From, "--to", t05To, "--operation", ""},
+		{"--from", t05From, "--to", t05To, "--operation", strings.Repeat("a", 81)},
 	} {
 		args := append(append([]string{"activity", "list"}, options...), t03Board)
 		if _, err := parseCLI(args); err == nil {

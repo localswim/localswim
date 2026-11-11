@@ -3,6 +3,7 @@ package v2
 import (
 	"encoding/json"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -10,9 +11,10 @@ import (
 )
 
 type activityQuery struct {
-	from, to time.Time
-	monitor  bool
-	ticket   uint64
+	from, to           time.Time
+	full               bool
+	actorID, operation string
+	ticket             uint64
 }
 
 type activityMetadata struct {
@@ -34,9 +36,11 @@ func activityBound(field, text string) (time.Time, error) {
 	return parsed, nil
 }
 
+var activityOperationPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,79}$`)
+
 func readActivityQuery(values url.Values) (activityQuery, error) {
 	var query activityQuery
-	for _, field := range []string{"from", "to", "view", "ticket", "limit", "cursor"} {
+	for _, field := range []string{"from", "to", "view", "ticket", "actor_id", "operation", "limit", "cursor"} {
 		if len(values[field]) > 1 {
 			return query, invalid(field, "Repeated query parameter.")
 		}
@@ -58,9 +62,9 @@ func readActivityQuery(values url.Values) (activityQuery, error) {
 	}
 	view := values.Get("view")
 	switch {
-	case view == "", strings.EqualFold(view, "full"):
-	case strings.EqualFold(view, "monitor"):
-		query.monitor = true
+	case view == "", strings.EqualFold(view, "monitor"):
+	case strings.EqualFold(view, "full"):
+		query.full = true
 	default:
 		return query, invalid("view", "Expected full or monitor.")
 	}
@@ -68,6 +72,19 @@ func readActivityQuery(values url.Values) (activityQuery, error) {
 		query.ticket, err = strconv.ParseUint(values.Get("ticket"), 10, 64)
 		if err != nil || query.ticket == 0 || query.ticket > maxSnapshotInteger {
 			return query, invalid("ticket", "Expected a positive safe integer.")
+		}
+	}
+	if values.Has("actor_id") {
+		var valid bool
+		query.actorID, valid = normalizeID(values.Get("actor_id"))
+		if !valid {
+			return query, invalid("actor_id", "Expected a UUIDv4.")
+		}
+	}
+	if values.Has("operation") {
+		query.operation = values.Get("operation")
+		if !activityOperationPattern.MatchString(query.operation) {
+			return query, invalid("operation", "Expected a lowercase operation identifier of 1 to 80 characters.")
 		}
 	}
 	return query, nil
@@ -170,9 +187,9 @@ func (index activityTicketIndex) tickets(event activity) []uint64 {
 
 func writeActivityPage(x *request, state snapshot, query activityQuery) {
 	var full []activity
-	var monitor []activityMetadata
+	var metadata []activityMetadata
 	var index activityTicketIndex
-	if query.monitor || query.ticket != 0 {
+	if !query.full || query.ticket != 0 {
 		index = indexActivityTickets(state)
 	}
 	// A board's creator can be a runtime principal outside the board membership.
@@ -181,18 +198,20 @@ func writeActivityPage(x *request, state snapshot, query activityQuery) {
 		kinds[member.ID] = member.Kind
 	}
 	for _, event := range state.Activity {
-		if event.At.Before(query.from) || event.At.After(query.to) {
+		if event.At.Before(query.from) || event.At.After(query.to) ||
+			(query.actorID != "" && event.ActorID != query.actorID) ||
+			(query.operation != "" && event.Operation != query.operation) {
 			continue
 		}
 		var tickets []uint64
-		if query.monitor || query.ticket != 0 {
+		if !query.full || query.ticket != 0 {
 			tickets = index.tickets(event)
 		}
 		if query.ticket != 0 && !slices.Contains(tickets, query.ticket) {
 			continue
 		}
-		if query.monitor {
-			monitor = append(monitor, activityMetadata{
+		if !query.full {
+			metadata = append(metadata, activityMetadata{
 				ID: event.ID, BoardID: event.BoardID, Revision: event.Revision, At: event.At,
 				ActorID: event.ActorID, ActorKind: kinds[event.ActorID], Operation: event.Operation, Tickets: tickets,
 			})
@@ -200,14 +219,13 @@ func writeActivityPage(x *request, state snapshot, query activityQuery) {
 			full = append(full, event)
 		}
 	}
-	view := "full"
-	if query.monitor {
-		view = "monitor"
+	scope := []string{
+		state.Board.ID, query.from.Format(timestampLayout), query.to.Format(timestampLayout),
+		strconv.FormatBool(query.full), strconv.FormatUint(query.ticket, 10), query.actorID, query.operation,
 	}
-	scope := []string{state.Board.ID, query.from.Format(timestampLayout), query.to.Format(timestampLayout), view, strconv.FormatUint(query.ticket, 10)}
-	if query.monitor {
-		page(x, "activities", monitor, scope...)
-	} else {
+	if query.full {
 		page(x, "activities", full, scope...)
+	} else {
+		page(x, "activities", metadata, scope...)
 	}
 }

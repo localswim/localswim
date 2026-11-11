@@ -70,10 +70,12 @@ addressed lane revision. Relationship patch and remove check the addressed
 relationship revision. `attachment detach` checks the attachment revision and
 sends the parent board validator with the attachment's HTTP validator.
 
-Use `activity list` with inclusive canonical UTC `--from` and `--to`. The default
-view returns attributed changes. Use `--view monitor` for event metadata and
-ticket numbers without card prose. Both views support a ticket filter, page
-limit, and cursor tied to the original query.
+Use `activity list` with inclusive canonical UTC `--from` and `--to`. By default,
+it returns event metadata and ticket numbers without card prose. Select
+`--view full` to read attributed audit values. Both views support `--actor-id`,
+`--operation`, and `--ticket` filters. Operation identifiers are matched exactly.
+Pages default to 50 records and allow up to 200. A cursor stays tied to the
+original interval, filters, and view.
 
 `lane set-approval-button` configures the optional Human lane action. The browser
 submits every rendered active member with its original card version and the

@@ -44,7 +44,7 @@ func TestActivityHTTP(t *testing.T) {
 		return turnOneDecode[card](t, raw), headers
 	}
 	first, _ := createCard(board.ETag, "Private original title")
-	_, headers := c.call("PATCH", "/cards/"+first.ID, `{"title":"Private revised title"}`, first.entityTag(), 200)
+	_, headers := c.call("PATCH", "/cards/"+first.ID, `{"title":"Private revised title","description":"Private revised description"}`, first.entityTag(), 200)
 	_, headers = botClient.call("POST", "/comments",
 		fmt.Sprintf(`{"card_id":%q,"expected_card_etag":%q,"text":"Private comment"}`, first.ID, headers.Get("ETag")), "", 201)
 	second, headers := createCard(headers.Get("X-Board-ETag"), "Other card")
@@ -82,28 +82,34 @@ func TestActivityHTTP(t *testing.T) {
 		}).Encode()
 	}
 	path := activityPath("0001-01-01 00:00:00+00:00", "9999-12-31 23:59:59+00:00")
-	raw, headers = c.call("GET", path, "", "", 200)
+	fullPath := path + "&view=FuLL"
+	raw, headers = c.call("GET", fullPath, "", "", 200)
 	full := turnOnePage[activity](t, raw, "activities")
-	if len(full.Values) != 7 || full.NextCursor != nil {
-		t.Fatalf("expected seven audit records, got %d", len(full.Values))
+	if len(full.Values) != 8 || full.NextCursor != nil {
+		t.Fatalf("expected eight audit records, got %d", len(full.Values))
 	}
 	edit := full.Values[2]
 	if edit.ActorID != humanID || edit.ResourceID != first.ID || edit.Field == nil || *edit.Field != "title" ||
 		edit.Before == nil || *edit.Before != "Private original title" || edit.After == nil || *edit.After != "Private revised title" {
 		t.Fatalf("title audit lacks attributed values: %+v", edit)
 	}
-	if full.Values[3].ActorID != botID || full.Values[3].ResourceType != "comment" {
+	description := full.Values[3]
+	if description.Field == nil || *description.Field != "description" ||
+		description.After == nil || *description.After != "Private revised description" {
+		t.Fatal("full view did not retain description audit")
+	}
+	if full.Values[4].ActorID != botID || full.Values[4].ResourceType != "comment" {
 		t.Fatal("comment audit lacks Bot attribution")
 	}
-	head := do("HEAD", path, http.Header{}, 200)
+	head := do("HEAD", fullPath, http.Header{}, 200)
 	if tag := headers.Get("ETag"); tag == "" || tag != head.Get("ETag") {
 		t.Fatal("HEAD and GET do not share an ETag")
 	}
-	do("GET", path, http.Header{"If-None-Match": {headers.Get("ETag")}}, 304)
+	do("GET", fullPath, http.Header{"If-None-Match": {headers.Get("ETag")}}, 304)
 
 	at := edit.At.Format(timestampLayout)
 	exact := activityPath(at, at)
-	raw, _ = c.call("GET", exact+"&ticket=1", "", "", 200)
+	raw, _ = c.call("GET", exact+"&ticket=1&view=full", "", "", 200)
 	exactPage := turnOnePage[activity](t, raw, "activities")
 	if !slices.ContainsFunc(exactPage.Values, func(row activity) bool { return row.ID == edit.ID }) {
 		t.Fatal("exact interval did not include both endpoints")
@@ -114,7 +120,57 @@ func TestActivityHTTP(t *testing.T) {
 		}
 	}
 
-	monitorPath := path + "&view=MoNiToR&ticket=1&limit=2"
+	raw, defaultHeaders := c.call("GET", path, "", "", 200)
+	if strings.Contains(string(raw), "Private") {
+		t.Fatal("default activity leaked card or comment text")
+	}
+	metadata := turnOnePage[activityMetadata](t, raw, "activities")
+	if len(metadata.Values) != len(full.Values) ||
+		metadata.Values[2].ActorID != humanID || metadata.Values[2].Operation != "patch" ||
+		metadata.Values[2].Revision != edit.Revision || metadata.Values[3].Revision != description.Revision {
+		t.Fatalf("default activity lacks title and description edit metadata: %+v", metadata)
+	}
+	defaultHead := do("HEAD", path, http.Header{}, 200)
+	if tag := defaultHeaders.Get("ETag"); tag == "" || tag != defaultHead.Get("ETag") || tag == headers.Get("ETag") {
+		t.Fatal("default activity does not have a distinct and consistent validator")
+	}
+	_, monitorHeaders := c.call("GET", path+"&view=MoNiToR", "", "", 200)
+	if monitorHeaders.Get("ETag") != defaultHeaders.Get("ETag") {
+		t.Fatal("default activity and explicit monitor differ")
+	}
+
+	raw, _ = c.call("GET", path+"&actor_id="+botID, "", "", 200)
+	botOnly := turnOnePage[activityMetadata](t, raw, "activities")
+	if len(botOnly.Values) != 1 || botOnly.Values[0].ActorID != botID || botOnly.Values[0].Operation != "comment" {
+		t.Fatal("actor filter did not isolate the Bot comment")
+	}
+
+	filters := "&ticket=1&actor_id=" + strings.ToUpper(humanID) + "&operation=patch&limit=1"
+	raw, _ = c.call("GET", exact+filters, "", "", 200)
+	firstEdit := turnOnePage[activityMetadata](t, raw, "activities")
+	if len(firstEdit.Values) != 1 || firstEdit.Values[0].ID != edit.ID || firstEdit.NextCursor == nil {
+		t.Fatal("combined filters did not return the first edit and a cursor")
+	}
+	editCursor := "&cursor=" + url.QueryEscape(*firstEdit.NextCursor)
+	raw, _ = c.call("GET", exact+filters+editCursor, "", "", 200)
+	secondEdit := turnOnePage[activityMetadata](t, raw, "activities")
+	if len(secondEdit.Values) != 1 || secondEdit.Values[0].ID != description.ID || secondEdit.NextCursor != nil {
+		t.Fatal("combined filters did not return the second edit")
+	}
+	for _, changedFilters := range []string{
+		strings.Replace(filters, "&actor_id="+strings.ToUpper(humanID), "", 1),
+		strings.Replace(filters, "&operation=patch", "", 1),
+		filters + "&view=full",
+	} {
+		c.call("GET", exact+changedFilters+editCursor, "", "", 400)
+	}
+	raw, _ = c.call("GET", exact+filters+"&view=full", "", "", 200)
+	selectedFull := turnOnePage[activity](t, raw, "activities")
+	if len(selectedFull.Values) != 1 || selectedFull.Values[0].ID != edit.ID || selectedFull.Values[0].After == nil {
+		t.Fatal("full view did not preserve the selected audit values")
+	}
+
+	monitorPath := path + "&ticket=1&limit=2"
 	var monitor []activityMetadata
 	requestPath := monitorPath
 	for pageNumber := 0; pageNumber < 3; pageNumber++ {
@@ -139,16 +195,16 @@ func TestActivityHTTP(t *testing.T) {
 		}
 		requestPath = monitorPath + cursor
 	}
-	if len(monitor) != 5 || monitor[0].ID != full.Values[1].ID || monitor[1].ID != edit.ID ||
-		monitor[2].ActorKind != "bot" || monitor[2].Operation != "comment" ||
-		monitor[3].ActorKind != "human" || !slices.Equal(monitor[3].Tickets, []uint64{1, 2}) ||
-		monitor[4].Operation != "remove" || !slices.Equal(monitor[4].Tickets, []uint64{1, 2}) {
+	if len(monitor) != 6 || monitor[0].ID != full.Values[1].ID || monitor[1].ID != edit.ID ||
+		monitor[2].ID != description.ID || monitor[3].ActorKind != "bot" || monitor[3].Operation != "comment" ||
+		monitor[4].ActorKind != "human" || !slices.Equal(monitor[4].Tickets, []uint64{1, 2}) ||
+		monitor[5].Operation != "remove" || !slices.Equal(monitor[5].Tickets, []uint64{1, 2}) {
 		t.Fatalf("wrong paginated monitor metadata: %+v", monitor)
 	}
-	raw, _ = c.call("GET", path+"&ticket=99", "", "", 200)
-	empty := turnOnePage[activity](t, raw, "activities")
+	raw, _ = c.call("GET", path+"&operation=unmatched", "", "", 200)
+	empty := turnOnePage[activityMetadata](t, raw, "activities")
 	if len(empty.Values) != 0 || empty.NextCursor != nil {
-		t.Fatal("no matching ticket should return an empty page")
+		t.Fatal("no matching operation should return an empty page")
 	}
 
 	for _, invalidPath := range []string{
@@ -162,6 +218,13 @@ func TestActivityHTTP(t *testing.T) {
 		path + "&ticket=0",
 		path + "&ticket=9007199254740992",
 		path + "&view=other",
+		path + "&actor_id=",
+		path + "&actor_id=invalid",
+		path + "&actor_id=" + humanID + "&actor_id=" + botID,
+		path + "&operation=",
+		path + "&operation=Patch",
+		path + "&operation=" + strings.Repeat("a", 81),
+		path + "&operation=patch&operation=create",
 		path + "&limit=201",
 		path + "&cursor=",
 		path + "&cursor=invalid",

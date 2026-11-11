@@ -18,7 +18,7 @@ const workspaceFileName = "localswim-workspace.json"
 const maxWorkspaceFile = 64 << 10
 
 type workspace struct {
-	ETag           string     `json:"etag"`
+	ETag           string     `json:"-"`
 	Revision       uint64     `json:"revision"`
 	PinnedBoardIDs []string   `json:"pinned_board_ids"`
 	Publishing     publishing `json:"publishing"`

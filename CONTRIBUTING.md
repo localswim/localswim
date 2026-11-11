@@ -105,8 +105,10 @@ at their source and justify any narrow suppression.
 ## Data and build staging
 
 Native board snapshots live in the data directory's `boards/` folder. Verification
-and export use the same durable format. Workspace pin order has its own revision,
-starting at 1.
+and export use the same durable format. Workspace preferences expose their own numeric
+`revision`, starting at 1, in HTTP JSON and native storage. Workspace conditional reads
+and writes use the HTTP `ETag` and `If-Match` headers. The browser adapter retains the
+response header in its result's `etag` property separately from the JSON `data`.
 
 For local build staging, place `candidate.json` and the native `candidate.exe`
 (Windows) or `candidate` (Unix) in the data directory. The manifest contains

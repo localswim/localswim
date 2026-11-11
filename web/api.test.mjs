@@ -37,6 +37,36 @@ test("reads the workspace and catalog as independent same-origin resources", asy
   assert.equal(capabilityRequests, 2);
 });
 
+test("reads and updates workspace JSON using its separate HTTP validator", async () => {
+  const calls = [];
+  const nextTag = '"workspace_tag_08"';
+  const publishing = {
+    enabled: false, repository: null, last_success_at: null, pending: false, error_code: null,
+  };
+  const original = { revision: 7, pinned_board_ids: [], publishing };
+  const updated = { revision: 8, pinned_board_ids: [BOARD], publishing };
+  const api = client(async (url, options) => {
+    calls.push(options.method);
+    assert.equal(url, "/api/2026-11-10/workspace");
+    if (options.method === "GET") {
+      assert.equal(options.headers.has("If-Match"), false);
+      return Response.json(original, { headers: { ETag: TAG } });
+    }
+    assert.equal(options.method, "PATCH");
+    assert.equal(options.headers.get("If-Match"), TAG);
+    assert.deepEqual(JSON.parse(options.body), { pinned_board_ids: [BOARD] });
+    return Response.json(updated, { headers: { ETag: nextTag } });
+  });
+
+  const workspace = await api.getWorkspace();
+  assert.deepEqual(workspace, { data: original, etag: TAG });
+  assert.equal(Object.hasOwn(workspace.data, "etag"), false);
+  const saved = await api.setPinnedBoards([BOARD], workspace.etag);
+  assert.deepEqual(saved, { data: updated, etag: nextTag });
+  assert.equal(Object.hasOwn(saved.data, "etag"), false);
+  assert.deepEqual(calls, ["GET", "PATCH"]);
+});
+
 test("submits pin order using its original workspace tag and surfaces stale refusal once", async () => {
   let calls = 0;
   const api = client(async (url, options) => {

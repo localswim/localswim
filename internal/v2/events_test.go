@@ -148,7 +148,7 @@ func TestEventsCommittedStateAndReconnect(t *testing.T) {
 		return turnOneDecode[board](t, raw)
 	}
 	selected, retained, other := newBoard("Selected"), newBoard("Retained"), newBoard("Other")
-	raw, _ := c.call(http.MethodGet, "/workspace", "", "", 200)
+	raw, workspaceHeaders := c.call(http.MethodGet, "/workspace", "", "", 200)
 	initialWorkspace := turnOneDecode[workspace](t, raw)
 	path := "/events?board_id=" + strings.ToUpper(selected.ID) + "&watch=" + selected.ID + "&watch=" + retained.ID
 	reader, disconnect := c.openEvents(path, "")
@@ -170,7 +170,7 @@ func TestEventsCommittedStateAndReconnect(t *testing.T) {
 	checkEventConditionalGet(t, c, retained, retainedBefore, http.StatusOK)
 	checkEventConditionalGet(t, c, retained, retained.ETag, http.StatusNotModified)
 
-	raw, _ = c.call(http.MethodPatch, "/workspace", fmt.Sprintf("{%q:[%q]}", "pinned_board_ids", selected.ID), initialWorkspace.ETag, 200)
+	raw, _ = c.call(http.MethodPatch, "/workspace", fmt.Sprintf("{%q:[%q]}", "pinned_board_ids", selected.ID), workspaceHeaders.Get("ETag"), 200)
 	updatedWorkspace := turnOneDecode[workspace](t, raw)
 	assertEventWorkspace(t, readEventFrame(t, reader), "change", updatedWorkspace.Revision)
 

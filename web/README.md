@@ -56,8 +56,10 @@ const { workspace, boards } = await readWorkspaceOverview(api);
 JSON payload fields and query names use `snake_case`. The JavaScript adapter
 keeps its existing language-convention method, argument, and error property names.
 
-Each successful result exposes the JSON object as `data` and the server's ETag as
-`etag`. Pass the workspace ETag back to `setPinnedBoards(boardIds, etag)`. A
+Each successful result exposes the JSON object as `data` and the server's HTTP ETag
+header as `etag`. Workspace JSON contains its numeric `revision`, `pinned_board_ids`,
+and `publishing`. Pass the separate workspace result's `etag` back to
+`setPinnedBoards(boardIds, etag)` for its `If-Match` header. A
 `412` calls for a fresh workspace read and a user decision on the original change.
 Use the board ETag for `configureOwnerNotices(boardId, settings, etag)`. Pass only the
 notice settings to change. An explicit `target_thread_id: null` clears the target.

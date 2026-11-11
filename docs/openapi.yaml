@@ -13734,7 +13734,6 @@ components:
       type: object
       additionalProperties: false
       required:
-      - etag
       - revision
       - pinned_board_ids
       - publishing
@@ -13742,8 +13741,7 @@ components:
         revision:
           $ref: '#/components/schemas/Revision'
           minimum: 1
-        etag:
-          $ref: '#/components/schemas/EntityTag'
+          description: Workspace preference revision. Conditional reads and writes use the HTTP ETag header.
         pinned_board_ids:
           type: array
           items:
@@ -17984,7 +17982,7 @@ x-runtime-requirements:
     fit refuses before mutation instead of truncating committed changes.
   catalogEvents: Every committed edit affecting catalog counts, labels, availability, or recency updates
     catalog_etag and reaches every workspace event stream, even if that board is not selected/watched.
-    workspace_etag changes only with workspace preferences.
+    workspace_revision changes only with workspace preferences.
   restoreUsers: Board recovery never overwrites an existing global User. Every referenced user UUID must
     already exist and have the same immutable kind; otherwise refuse with 409 before mutation. Current
     global labels/colors remain current, even when an older snapshot contains earlier display metadata.

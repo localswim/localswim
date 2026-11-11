@@ -192,12 +192,18 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	}
 	raw, h = c.call("GET", "/workspace", "", "", 200)
 	originalWorkspaceTag := h.Get("ETag")
+	if fields := turnOneDecode[map[string]any](t, raw); len(fields) != 3 || fields["etag"] != nil {
+		t.Fatal("workspace GET must publish revision, pins and publishing without JSON etag")
+	}
 	if turnOneDecode[map[string]any](t, raw)["revision"] != float64(1) {
 		t.Fatal("workspace response did not publish its initial revision")
 	}
 	pins := `{"pinned_board_ids":["` + second.ID + `","` + first.ID + `"]}`
 	raw, h = c.call("PATCH", "/workspace", pins, originalWorkspaceTag, 200)
 	pinsTag := h.Get("ETag")
+	if fields := turnOneDecode[map[string]any](t, raw); len(fields) != 3 || fields["etag"] != nil || fields["revision"] != float64(2) {
+		t.Fatal("workspace PATCH response must publish its numeric revision without JSON etag")
+	}
 	if pinsTag == originalWorkspaceTag {
 		t.Fatal("workspace version did not advance")
 	}

@@ -1252,7 +1252,7 @@ test("a delayed backup permits card edits and navigation and downloads the initi
   assert.deepEqual(ui.downloads, ["localswim-" + board + "-r1.zip"]);
 });
 
-test("uncertain backup capture reads the original ID without blocking edits or replaying the POST", async () => {
+test("early backup 404s preserve the original capture across navigation without replaying the POST", async () => {
   const writes = [];
   const reads = [];
   const {api} = boardApi();
@@ -1262,22 +1262,32 @@ test("uncertain backup capture reads the original ID without blocking edits or r
   };
   api.getBackup = async (id, boardId) => {
     reads.push([id, boardId]);
-    if (reads.length === 1) throw new ApiError("http_error", {status: 404});
+    if (reads.length <= 2) throw new ApiError("http_error", {status: 404});
     return backupReceipt(id);
   };
   const ui = await harness(api);
   await ui.load();
   const {main} = ui.nodes;
-  const create = ui.find(main, "button", "Create backup");
-  create.click(); await ui.settled();
-  assert.equal(create.disabled, true);
+  const create = () => ui.find(main, "button", "Create backup");
+  const refresh = () => ui.find(main, "button", "Refresh backup status");
+  create().click(); await ui.settled();
+  assert.equal(create().disabled, true);
   assert.match(main.textContent, /Backup capture could not be confirmed/);
   assert.equal(ui.busy(), false);
-  ui.find(main, "button", "Refresh backup status").click(); await ui.settled();
-  assert.equal(create.disabled, false);
+  refresh().click(); await ui.settled();
+  assert.equal(create().disabled, true);
+  assert.match(main.textContent, /Backup capture could not be confirmed/);
+  create().click();
+  await ui.navigate("/");
+  await ui.navigate("/boards/" + board);
+  assert.equal(create().disabled, true);
+  assert.equal(refresh().hidden, false);
+  create().click();
+  refresh().click(); await ui.settled();
+  assert.equal(create().disabled, false);
   assert.match(main.textContent, /Captured revision 1/);
   assert.equal(writes.length, 1);
-  assert.deepEqual(reads, [[writes[0], board], [writes[0], board]]);
+  assert.deepEqual(reads, [[writes[0], board], [writes[0], board], [writes[0], board]]);
 });
 
 test("a late backup refusal preserves a newer browser capability", async () => {
@@ -1350,24 +1360,28 @@ test("known publication refusal clears pending status and permits an explicit la
   assert.equal(writes, 1);
   assert.equal(publish.disabled, false);
   assert.equal(ui.find(panel, "button", "Refresh publication status").hidden, true);
+  assert.match(panel.textContent, /The service refused to publish revision 1/);
 });
 
-test("publication submission and refresh stay scoped across navigation without duplicate requests", async () => {
+test("publication follows its original capture through navigation and a newer backup", async () => {
+  let revision = 1;
+  const backups = new Map();
   const ids = [];
   const reads = [];
   const dispatch = Promise.withResolvers();
   const finish = Promise.withResolvers();
   const status = (state) => ({data: {state, error_code: null}});
-  const api = {createBackup: async () => {}, getBackup: async (id) => backupReceipt(id),
+  const api = {createBackup: async (id) => { backups.set(id, revision); },
+    getBackup: async (id) => backupReceipt(id, backups.get(id)),
     publishBackup: async (...args) => { ids.push(args); await dispatch.promise; },
     getPublication: async (...args) => {
       reads.push(args);
       if (reads.length === 2) return finish.promise;
-      return status("running");
+      return status(reads.length === 1 ? "running" : "failed");
     }};
   const ui = await harness(api);
   const render = (id = board) => {
-    const panel = ui.renderBoardActions(id, [], () => [], () => tag(id, 1), async () => {}, {sync() {}, require() {}});
+    const panel = ui.renderBoardActions(id, [], () => [], () => tag(id, revision), async () => {}, {sync() {}, require() {}});
     ui.nodes.main.replaceChildren(panel);
     return panel;
   };
@@ -1379,25 +1393,34 @@ test("publication submission and refresh stay scoped across navigation without d
   const other = render(lane);
   assert.doesNotMatch(other.textContent, /Submitting publication/);
   const duringPost = render();
-  assert.match(duringPost.textContent, /Submitting publication/);
+  assert.match(duringPost.textContent, /Submitting publication for revision 1/);
+  revision = 2;
+  control(duringPost, "Create backup").click(); await ui.settled();
+  assert.match(duringPost.textContent, /Captured revision 2/);
+  assert.match(duringPost.textContent, /Submitting publication for revision 1/);
   control(duringPost, "Publish backup").click();
   control(duringPost, "Refresh publication status").click();
   assert.equal(ids.length, 1);
   assert.deepEqual(reads, []);
   dispatch.resolve(); await ui.settled();
-  assert.match(duringPost.textContent, /Publication running/);
+  assert.match(duringPost.textContent, /Publication running for revision 1/);
 
   control(duringPost, "Refresh publication status").click(); await ui.settled();
   const duringRead = render();
   control(duringRead, "Refresh publication status").click();
   assert.deepEqual(reads, [ids[0], ids[0]]);
   assert.equal(control(duringRead, "Publish backup").disabled, true);
-  finish.resolve(status("failed")); await ui.settled();
-  assert.match(duringRead.textContent, /Publication failed/);
+  assert.match(duringRead.textContent, /Checking publication status for revision 1/);
+  finish.resolve(status("succeeded")); await ui.settled();
+  assert.match(duringRead.textContent, /Captured revision 2/);
+  assert.match(duringRead.textContent, /Publication succeeded for revision 1/);
+  assert.equal(backups.get(ids[0][2]), 1);
   control(duringRead, "Publish backup").click(); await ui.settled();
   assert.equal(ids.length, 2);
   assert.notEqual(ids[1][0], ids[0][0]);
-  assert.deepEqual(ids[1].slice(1), ids[0].slice(1));
+  assert.equal(ids[1][1], ids[0][1]);
+  assert.equal(backups.get(ids[1][2]), 2);
+  assert.match(duringRead.textContent, /Publication failed for revision 2/);
 });
 
 

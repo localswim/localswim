@@ -24,6 +24,8 @@ func (x *request) serveBrowser() bool {
 		file, media = "operation-id.mjs", "text/javascript; charset=utf-8"
 	case "/assets/api.mjs":
 		file, media = "api.mjs", "text/javascript; charset=utf-8"
+	case "/assets/board-updates.mjs":
+		file, media = "board-updates.mjs", "text/javascript; charset=utf-8"
 	case "/assets/app.css":
 		file, media = "app.css", "text/css; charset=utf-8"
 	default:

@@ -1,9 +1,15 @@
 # Browser application
 
-`index.html`, `app.mjs`, and `app.css` are embedded in the V2 executable. Open
+The browser page and its local assets are embedded in the V2 executable. Open
 the service's loopback URL or a board link at `/boards/{board_id}`. The page opens
 a same-origin Human session and keeps the capability in memory. The HTML and
 local assets are independent of the capability.
+
+The selected board updates when another client commits an edit. Live connection
+status is separate from the loaded board, so an interruption leaves the last
+view and drafts available. A replacement connection checks the current board
+revision and reads any missed changes. Use **Retry board update** to reread the
+board while the stream reconnects or after a refresh failure.
 
 Open a card to edit its text, lane, or owner. Each submission uses the last card
 ETag read from the HTTP response header. Card JSON exposes its positive integer
@@ -12,6 +18,11 @@ read so you can compare your draft with the saved card before deciding whether
 to submit again. Inspect or Refresh rereads the active editor and preserves
 the draft. If readback fails, inspect the affected card or board before
 submitting another change there. The page makes one write attempt per submission.
+
+Lane headings show the number of active cards, including zero in empty lanes.
+Card faces show nonzero comment and active attachment counts. The card opener's
+accessible description names the exact counts. The board refreshes them from
+saved state after edits.
 
 Card details also show attributed comments and attachments. New comments and
 uploads have client-assigned IDs. Immutable comment JSON contains identity, parent
@@ -44,6 +55,12 @@ Add a typed link from the drawer or seed a link while creating a card. The same
 relationship is visible from both cards. Human comments link ticket references to
 focused board reads, including archived tickets. Bot comments render as text. Card
 priorities are shown on the board and in the drawer and refresh after link edits.
+
+Use **Set priority** in the card drawer to change that card's priority against
+its displayed revision. The drawer shows the effective saved priority and
+reports when a dependency floor prevents the requested demotion. After a
+stale or uncertain result, compare the saved priority with your selection
+before submitting again.
 
 Attachments offer authenticated downloads. Raster attachments also offer a preview
 and cover selection. The selected cover appears on the card in its lane. Detach
@@ -173,6 +190,12 @@ number** keeps numeric order for lookup. Search results open the usual card
 drawer. When a board change makes the displayed results stale, the search keeps
 your filters and prompts you to run it again. Relationship ticket lookup keeps
 its default numeric order.
+
+Each tab remembers its search filters and results query, selected card, and lane
+scroll positions for each board. Returning through the board list, Back, or
+Forward, or reloading the tab restores that board's view. Restored search results
+and drawers are read from the service. A retired search lane resets to All lanes,
+and a missing saved card clears the selection.
 
 A changed **Preview ticket order** offers **Apply ticket order**. Apply submits
 the captured board validator and proposed ordered card UUIDs exactly once.

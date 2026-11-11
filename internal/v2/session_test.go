@@ -131,6 +131,7 @@ func TestM04BrowserShellHeaders(t *testing.T) {
 		{"/boards/" + newID(), "text/html"},
 		{"/assets/app.mjs", "text/javascript"},
 		{"/assets/api.mjs", "text/javascript"},
+		{"/assets/board-updates.mjs", "text/javascript"},
 		{"/assets/operation-id.mjs", "text/javascript"},
 		{"/assets/app.css", "text/css"},
 	} {

@@ -1,8 +1,10 @@
 {
-  "revision": 1,
-  "status": "proposed_execution_roster",
+  "revision": 2,
+  "status": "planned",
   "scope": "All 62 post-T10 parity milestones; staffing and sequencing only",
-  "source_baseline": "060c99376443c446ed47fcf45df66bafac017415",
+  "previous_revision_commit": "c251e3a46681b993d56a2d1a695324e68543318c",
+  "source_baseline": "c251e3a46681b993d56a2d1a695324e68543318c",
+  "user_direction": "Prioritize total execution time; start all24 T11 milestone authors if work can be safely separated; additional agents permitted when useful.",
   "current_rolling_window": [
     11,
     12,
@@ -12,10 +14,26 @@
     14,
     15
   ],
-  "capacity": {
-    "primary": 1,
-    "direct_subagents": 16,
-    "max_depth": 1
+  "execution_capacity": {
+    "execution_chats": 2,
+    "per_chat_direct_limit": 16,
+    "per_chat_max_depth": 1,
+    "planned_initial_t11_authors": 24,
+    "on_demand_integration_roles": 4,
+    "planned_peak_active_direct_workers": 24,
+    "runtime_requirement": "Two independent execution chats or a larger verified runtime pool; the current single-root pool has16 direct-worker slots."
+  },
+  "leads": {
+    "browser_workflow": {
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "high",
+      "duties": "Browser/workflow coordination and final shared-branch integration."
+    },
+    "operators": {
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "high",
+      "duties": "Operator/recovery coordination and reviewed change handoff."
+    }
   },
   "assumptions": {
     "author_minutes": "Existing single-lead implementation and focused-verification estimate",
@@ -23,17 +41,20 @@
       "medium": 25,
       "high": 40
     },
-    "serial_primary_integration_minutes": 10,
     "final_turn_gate_minutes": 20,
     "individual_demos": "Outside timed implementation model; show due work during three-hour breaks and at turn end",
     "corrections": "Re-estimate after findings; zero in deterministic baseline",
     "human_wait": "Excluded and never treated as acceptance",
     "worktree_isolation": "Independent feature changes with primary-controlled shared-file integration",
-    "parallel_speedup": "None assumed inside one milestone"
+    "parallel_speedup": "None assumed inside one milestone",
+    "domain_integration_minutes": 10,
+    "parallel_domain_queues": 4,
+    "final_turn_gate_scope": "Combine independently reviewed domain results and run full checks; behavioral edits during final consolidation require fresh affected-scope review and measured extra time.",
+    "shared_seams": "Actual overlap is serialized only at the affected function or contract; time beyond the allowance extends the forecast.",
+    "integration_review_order": "Author completes -> domain combines the change -> fresh milestone reviewer assesses complete combined change at pinned commit -> primary combines reviewed domains and runs final gate."
   },
-  "estimated_total_minutes": 1380,
+  "estimated_total_minutes": 1120,
   "qualification_minutes": 120,
-  "turn_offsets_are_minutes": true,
   "work_areas": {
     "Workspace": {
       "scope": "Workspace browser",
@@ -125,22 +146,47 @@
       "coord": "Detached launch, replacement and workload measurement."
     }
   },
+  "integration_domains": {
+    "workflow": {
+      "name": "Workflow and API contracts",
+      "owner": "sol_high_workflow_integrate",
+      "chat": "browser_workflow",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "high"
+    },
+    "cli_activity": {
+      "name": "CLI and activity",
+      "owner": "sol_high_cli_activity_integrate",
+      "chat": "operators",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "high"
+    },
+    "durability_operations": {
+      "name": "Recovery, publication and Windows",
+      "owner": "sol_high_durability_integrate",
+      "chat": "operators",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "high"
+    },
+    "browser": {
+      "name": "Browser application and workspace",
+      "owner": "sol_high_browser_integrate",
+      "chat": "browser_workflow",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "high"
+    }
+  },
   "turns": [
     {
       "turn": 11,
       "start": 0,
-      "end": 350,
-      "minutes": 350,
+      "end": 225,
+      "minutes": 225,
       "gate": {
-        "start": 330,
-        "end": 350
+        "start": 205,
+        "end": 225
       },
-      "lower_bound": {
-        "idealMergeFinish": 330,
-        "optimalUnderModel": 350,
-        "scheduled": 350,
-        "match": true
-      },
+      "peak_active_direct_workers": 24,
       "jobs": [
         {
           "milestone": "M040",
@@ -162,14 +208,18 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 105,
-            "end": 130,
-            "slot": 6
+            "start": 125,
+            "end": 150,
+            "slot": 1
           },
           "integration": {
-            "start": 130,
-            "end": 140
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 115,
+            "end": 125,
+            "slot": 15
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M041",
@@ -184,21 +234,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 135,
-            "slot": 13
+            "slot": 2
           },
           "reviewer": {
             "name": "sol_high_m041_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 135,
-            "end": 175,
-            "slot": 8
+            "start": 145,
+            "end": 185,
+            "slot": 2
           },
           "integration": {
-            "start": 200,
-            "end": 210
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 135,
+            "end": 145,
+            "slot": 15
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M045",
@@ -213,21 +267,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 105,
-            "slot": 11
+            "slot": 3
           },
           "reviewer": {
             "name": "sol_high_m045_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 105,
-            "end": 145,
-            "slot": 11
+            "start": 115,
+            "end": 155,
+            "slot": 3
           },
           "integration": {
-            "start": 150,
-            "end": 160
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 105,
+            "end": 115,
+            "slot": 15
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M047",
@@ -242,21 +300,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 120,
-            "slot": 15
+            "slot": 4
           },
           "reviewer": {
             "name": "sol_high_m047_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 120,
-            "end": 160,
-            "slot": 3
+            "start": 135,
+            "end": 175,
+            "slot": 4
           },
           "integration": {
-            "start": 170,
-            "end": 180
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 125,
+            "end": 135,
+            "slot": 15
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M049",
@@ -271,21 +333,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 75,
-            "slot": 4
+            "slot": 5
           },
           "reviewer": {
             "name": "sol_medium_m049_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 75,
-            "end": 100,
-            "slot": 7
+            "start": 85,
+            "end": 110,
+            "slot": 5
           },
           "integration": {
-            "start": 100,
-            "end": 110
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 75,
+            "end": 85,
+            "slot": 15
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M050",
@@ -300,21 +366,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 60,
-            "slot": 14
+            "slot": 6
           },
           "reviewer": {
             "name": "sol_medium_m050_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 60,
-            "end": 85,
-            "slot": 14
+            "start": 70,
+            "end": 95,
+            "slot": 6
           },
           "integration": {
-            "start": 85,
-            "end": 95
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 60,
+            "end": 70,
+            "slot": 15
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M051",
@@ -327,23 +397,27 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 100,
-            "end": 245,
-            "slot": 4
+            "start": 0,
+            "end": 145,
+            "slot": 7
           },
           "reviewer": {
             "name": "sol_medium_m051_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 245,
-            "end": 270,
-            "slot": 4
+            "start": 165,
+            "end": 190,
+            "slot": 7
           },
           "integration": {
-            "start": 310,
-            "end": 320
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 155,
+            "end": 165,
+            "slot": 15
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M058",
@@ -358,21 +432,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 135,
-            "slot": 9
+            "slot": 8
           },
           "reviewer": {
             "name": "sol_high_m058_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 135,
-            "end": 175,
-            "slot": 13
+            "start": 155,
+            "end": 195,
+            "slot": 8
           },
           "integration": {
-            "start": 210,
-            "end": 220
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 145,
+            "end": 155,
+            "slot": 15
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M062",
@@ -385,23 +463,27 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 130,
-            "end": 220,
-            "slot": 6
+            "start": 0,
+            "end": 90,
+            "slot": 9
           },
           "reviewer": {
             "name": "sol_high_m062_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 220,
-            "end": 260,
-            "slot": 3
+            "start": 100,
+            "end": 140,
+            "slot": 9
           },
           "integration": {
-            "start": 270,
-            "end": 280
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 90,
+            "end": 100,
+            "slot": 15
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M063",
@@ -416,21 +498,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 105,
-            "slot": 6
+            "slot": 10
           },
           "reviewer": {
             "name": "sol_high_m063_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 105,
-            "end": 145,
-            "slot": 1
+            "start": 115,
+            "end": 155,
+            "slot": 10
           },
           "integration": {
-            "start": 160,
-            "end": 170
-          }
+            "owner": "sol_high_workflow_integrate",
+            "start": 105,
+            "end": 115,
+            "slot": 14
+          },
+          "domain": "workflow",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M064",
@@ -443,23 +529,27 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 100,
-            "end": 225,
-            "slot": 7
+            "start": 0,
+            "end": 125,
+            "slot": 11
           },
           "reviewer": {
             "name": "sol_high_m064_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 225,
-            "end": 265,
-            "slot": 6
+            "start": 135,
+            "end": 175,
+            "slot": 11
           },
           "integration": {
-            "start": 280,
-            "end": 290
-          }
+            "owner": "sol_high_workflow_integrate",
+            "start": 125,
+            "end": 135,
+            "slot": 14
+          },
+          "domain": "workflow",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M065",
@@ -474,21 +564,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 155,
-            "slot": 10
+            "slot": 12
           },
           "reviewer": {
             "name": "sol_high_m065_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 155,
-            "end": 195,
-            "slot": 10
+            "start": 165,
+            "end": 205,
+            "slot": 12
           },
           "integration": {
-            "start": 240,
-            "end": 250
-          }
+            "owner": "sol_high_workflow_integrate",
+            "start": 155,
+            "end": 165,
+            "slot": 14
+          },
+          "domain": "workflow",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M067",
@@ -503,21 +597,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 120,
-            "slot": 5
+            "slot": 1
           },
           "reviewer": {
             "name": "sol_medium_m067_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 145,
-            "end": 170,
+            "start": 150,
+            "end": 175,
             "slot": 1
           },
           "integration": {
-            "start": 180,
-            "end": 190
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 140,
+            "end": 150,
+            "slot": 12
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M068",
@@ -530,23 +628,27 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 120,
-            "end": 240,
-            "slot": 15
+            "start": 0,
+            "end": 120,
+            "slot": 2
           },
           "reviewer": {
             "name": "sol_medium_m068_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 240,
-            "end": 265,
-            "slot": 7
+            "start": 160,
+            "end": 185,
+            "slot": 2
           },
           "integration": {
-            "start": 290,
-            "end": 300
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 150,
+            "end": 160,
+            "slot": 12
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M069",
@@ -561,21 +663,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 75,
-            "slot": 7
+            "slot": 3
           },
           "reviewer": {
             "name": "sol_medium_m069_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 75,
-            "end": 100,
-            "slot": 4
+            "start": 85,
+            "end": 110,
+            "slot": 3
           },
           "integration": {
-            "start": 110,
-            "end": 120
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 75,
+            "end": 85,
+            "slot": 12
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M070",
@@ -590,7 +696,7 @@
             "service_tier": "default",
             "start": 0,
             "end": 120,
-            "slot": 3
+            "slot": 4
           },
           "reviewer": {
             "name": "sol_high_m070_review",
@@ -599,12 +705,16 @@
             "service_tier": "default",
             "start": 130,
             "end": 170,
-            "slot": 2
+            "slot": 4
           },
           "integration": {
-            "start": 190,
-            "end": 200
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 120,
+            "end": 130,
+            "slot": 12
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M074",
@@ -619,21 +729,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 120,
-            "slot": 12
+            "slot": 5
           },
           "reviewer": {
             "name": "sol_high_m074_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 145,
-            "end": 185,
-            "slot": 11
+            "start": 140,
+            "end": 180,
+            "slot": 5
           },
           "integration": {
-            "start": 230,
-            "end": 240
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 130,
+            "end": 140,
+            "slot": 12
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M076",
@@ -648,21 +762,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 45,
-            "slot": 16
+            "slot": 6
           },
           "reviewer": {
             "name": "sol_medium_m076_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 45,
-            "end": 70,
-            "slot": 16
+            "start": 55,
+            "end": 80,
+            "slot": 6
           },
           "integration": {
-            "start": 70,
-            "end": 80
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 45,
+            "end": 55,
+            "slot": 12
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M077",
@@ -675,23 +793,27 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 120,
-            "end": 210,
-            "slot": 12
+            "start": 0,
+            "end": 90,
+            "slot": 7
           },
           "reviewer": {
             "name": "sol_high_m077_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 210,
-            "end": 250,
-            "slot": 2
+            "start": 100,
+            "end": 140,
+            "slot": 7
           },
           "integration": {
-            "start": 260,
-            "end": 270
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 90,
+            "end": 100,
+            "slot": 12
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M082",
@@ -704,23 +826,27 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 85,
-            "end": 230,
-            "slot": 14
+            "start": 0,
+            "end": 145,
+            "slot": 8
           },
           "reviewer": {
             "name": "sol_high_m082_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 230,
-            "end": 270,
-            "slot": 1
+            "start": 155,
+            "end": 195,
+            "slot": 8
           },
           "integration": {
-            "start": 320,
-            "end": 330
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 145,
+            "end": 155,
+            "slot": 13
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M088",
@@ -733,23 +859,27 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 120,
-            "end": 225,
-            "slot": 5
+            "start": 0,
+            "end": 105,
+            "slot": 9
           },
           "reviewer": {
             "name": "sol_high_m088_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 225,
-            "end": 265,
-            "slot": 5
+            "start": 115,
+            "end": 155,
+            "slot": 9
           },
           "integration": {
-            "start": 300,
-            "end": 310
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 105,
+            "end": 115,
+            "slot": 13
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M092",
@@ -762,23 +892,27 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 70,
-            "end": 190,
-            "slot": 16
+            "start": 0,
+            "end": 120,
+            "slot": 10
           },
           "reviewer": {
             "name": "sol_high_m092_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 190,
-            "end": 230,
-            "slot": 1
+            "start": 130,
+            "end": 170,
+            "slot": 10
           },
           "integration": {
-            "start": 250,
-            "end": 260
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 120,
+            "end": 130,
+            "slot": 13
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M096",
@@ -793,21 +927,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 135,
-            "slot": 8
+            "slot": 11
           },
           "reviewer": {
             "name": "sol_high_m096_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 135,
-            "end": 175,
-            "slot": 9
+            "start": 145,
+            "end": 185,
+            "slot": 11
           },
           "integration": {
-            "start": 220,
-            "end": 230
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 135,
+            "end": 145,
+            "slot": 13
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M100",
@@ -822,39 +960,38 @@
             "service_tier": "default",
             "start": 0,
             "end": 90,
-            "slot": 2
+            "slot": 13
           },
           "reviewer": {
             "name": "sol_high_m100_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 90,
-            "end": 130,
-            "slot": 2
+            "start": 100,
+            "end": 140,
+            "slot": 13
           },
           "integration": {
-            "start": 140,
-            "end": 150
-          }
+            "owner": "sol_high_workflow_integrate",
+            "start": 90,
+            "end": 100,
+            "slot": 14
+          },
+          "domain": "workflow",
+          "chat": "browser_workflow"
         }
       ]
     },
     {
       "turn": 12,
-      "start": 350,
-      "end": 670,
-      "minutes": 320,
+      "start": 225,
+      "end": 450,
+      "minutes": 225,
       "gate": {
-        "start": 300,
-        "end": 320
+        "start": 205,
+        "end": 225
       },
-      "lower_bound": {
-        "idealMergeFinish": 300,
-        "optimalUnderModel": 320,
-        "scheduled": 320,
-        "match": true
-      },
+      "peak_active_direct_workers": 20,
       "jobs": [
         {
           "milestone": "M042",
@@ -872,21 +1009,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 120,
-            "slot": 6
+            "slot": 1
           },
           "reviewer": {
             "name": "sol_high_m042_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 120,
-            "end": 160,
-            "slot": 10
+            "start": 135,
+            "end": 175,
+            "slot": 1
           },
           "integration": {
-            "start": 170,
-            "end": 180
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 125,
+            "end": 135,
+            "slot": 13
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M043",
@@ -903,21 +1044,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 105,
-            "slot": 7
+            "slot": 2
           },
           "reviewer": {
             "name": "sol_medium_m043_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 105,
-            "end": 130,
-            "slot": 4
+            "start": 165,
+            "end": 190,
+            "slot": 2
           },
           "integration": {
-            "start": 130,
-            "end": 140
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 155,
+            "end": 165,
+            "slot": 13
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M044",
@@ -934,21 +1079,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 75,
-            "slot": 2
+            "slot": 3
           },
           "reviewer": {
             "name": "sol_medium_m044_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 75,
-            "end": 100,
-            "slot": 2
+            "start": 85,
+            "end": 110,
+            "slot": 3
           },
           "integration": {
-            "start": 100,
-            "end": 110
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 75,
+            "end": 85,
+            "slot": 13
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M046",
@@ -966,21 +1115,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 135,
-            "slot": 14
+            "slot": 4
           },
           "reviewer": {
             "name": "sol_high_m046_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 135,
-            "end": 175,
-            "slot": 3
+            "start": 145,
+            "end": 185,
+            "slot": 4
           },
           "integration": {
-            "start": 200,
-            "end": 210
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 135,
+            "end": 145,
+            "slot": 13
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M048",
@@ -1004,14 +1157,18 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 105,
-            "end": 145,
-            "slot": 7
+            "start": 115,
+            "end": 155,
+            "slot": 5
           },
           "integration": {
-            "start": 150,
-            "end": 160
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 105,
+            "end": 115,
+            "slot": 13
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M052",
@@ -1029,21 +1186,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 105,
-            "slot": 11
+            "slot": 6
           },
           "reviewer": {
             "name": "sol_medium_m052_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 105,
-            "end": 130,
-            "slot": 11
+            "start": 175,
+            "end": 200,
+            "slot": 6
           },
           "integration": {
-            "start": 140,
-            "end": 150
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 165,
+            "end": 175,
+            "slot": 13
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M053",
@@ -1060,21 +1221,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 75,
-            "slot": 16
+            "slot": 7
           },
           "reviewer": {
             "name": "sol_medium_m053_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 75,
-            "end": 100,
-            "slot": 16
+            "start": 95,
+            "end": 120,
+            "slot": 7
           },
           "integration": {
-            "start": 110,
-            "end": 120
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 85,
+            "end": 95,
+            "slot": 13
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M056",
@@ -1091,21 +1256,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 135,
-            "slot": 12
+            "slot": 8
           },
           "reviewer": {
             "name": "sol_high_m056_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 135,
-            "end": 175,
+            "start": 155,
+            "end": 195,
             "slot": 8
           },
           "integration": {
-            "start": 210,
-            "end": 220
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 145,
+            "end": 155,
+            "slot": 13
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M059",
@@ -1122,21 +1291,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 105,
-            "slot": 15
+            "slot": 9
           },
           "reviewer": {
             "name": "sol_high_m059_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 130,
-            "end": 170,
-            "slot": 4
+            "start": 125,
+            "end": 165,
+            "slot": 9
           },
           "integration": {
-            "start": 190,
-            "end": 200
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 115,
+            "end": 125,
+            "slot": 13
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M061",
@@ -1153,21 +1326,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 60,
-            "slot": 13
+            "slot": 10
           },
           "reviewer": {
             "name": "sol_medium_m061_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 60,
-            "end": 85,
-            "slot": 13
+            "start": 70,
+            "end": 95,
+            "slot": 10
           },
           "integration": {
-            "start": 85,
-            "end": 95
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 60,
+            "end": 70,
+            "slot": 13
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M066",
@@ -1183,23 +1360,27 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 105,
-            "end": 210,
-            "slot": 15
+            "start": 0,
+            "end": 105,
+            "slot": 11
           },
           "reviewer": {
             "name": "sol_high_m066_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 210,
-            "end": 250,
-            "slot": 4
+            "start": 115,
+            "end": 155,
+            "slot": 11
           },
           "integration": {
-            "start": 290,
-            "end": 300
-          }
+            "owner": "sol_high_workflow_integrate",
+            "start": 105,
+            "end": 115,
+            "slot": 12
+          },
+          "domain": "workflow",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M071",
@@ -1214,23 +1395,27 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 85,
-            "end": 205,
-            "slot": 13
+            "start": 0,
+            "end": 120,
+            "slot": 1
           },
           "reviewer": {
             "name": "sol_high_m071_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 205,
-            "end": 245,
-            "slot": 2
+            "start": 135,
+            "end": 175,
+            "slot": 1
           },
           "integration": {
-            "start": 260,
-            "end": 270
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 125,
+            "end": 135,
+            "slot": 10
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M072",
@@ -1247,21 +1432,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 135,
-            "slot": 8
+            "slot": 2
           },
           "reviewer": {
             "name": "sol_high_m072_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 135,
-            "end": 175,
-            "slot": 11
+            "start": 145,
+            "end": 185,
+            "slot": 2
           },
           "integration": {
-            "start": 220,
-            "end": 230
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 135,
+            "end": 145,
+            "slot": 10
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M075",
@@ -1279,23 +1468,27 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 100,
-            "end": 205,
-            "slot": 16
+            "start": 0,
+            "end": 105,
+            "slot": 3
           },
           "reviewer": {
             "name": "sol_high_m075_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 205,
-            "end": 245,
+            "start": 115,
+            "end": 155,
             "slot": 3
           },
           "integration": {
-            "start": 270,
-            "end": 280
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 105,
+            "end": 115,
+            "slot": 10
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M078",
@@ -1312,21 +1505,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 155,
-            "slot": 1
+            "slot": 4
           },
           "reviewer": {
             "name": "sol_high_m078_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 155,
-            "end": 195,
-            "slot": 1
+            "start": 165,
+            "end": 205,
+            "slot": 4
           },
           "integration": {
-            "start": 250,
-            "end": 260
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 155,
+            "end": 165,
+            "slot": 10
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M079",
@@ -1341,23 +1538,27 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 100,
-            "end": 205,
-            "slot": 2
+            "start": 0,
+            "end": 105,
+            "slot": 5
           },
           "reviewer": {
             "name": "sol_high_m079_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 205,
-            "end": 245,
-            "slot": 1
+            "start": 125,
+            "end": 165,
+            "slot": 5
           },
           "integration": {
-            "start": 280,
-            "end": 290
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 115,
+            "end": 125,
+            "slot": 10
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M083",
@@ -1374,21 +1575,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 135,
-            "slot": 3
+            "slot": 6
           },
           "reviewer": {
             "name": "sol_high_m083_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 135,
-            "end": 175,
-            "slot": 12
+            "start": 145,
+            "end": 185,
+            "slot": 6
           },
           "integration": {
-            "start": 230,
-            "end": 240
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 135,
+            "end": 145,
+            "slot": 11
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M089",
@@ -1405,21 +1610,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 145,
-            "slot": 9
+            "slot": 7
           },
           "reviewer": {
             "name": "sol_high_m089_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 145,
-            "end": 185,
-            "slot": 5
+            "start": 155,
+            "end": 195,
+            "slot": 7
           },
           "integration": {
-            "start": 240,
-            "end": 250
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 145,
+            "end": 155,
+            "slot": 11
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M091",
@@ -1436,21 +1645,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 120,
-            "slot": 10
+            "slot": 8
           },
           "reviewer": {
             "name": "sol_high_m091_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 120,
-            "end": 160,
-            "slot": 6
+            "start": 130,
+            "end": 170,
+            "slot": 8
           },
           "integration": {
-            "start": 180,
-            "end": 190
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 120,
+            "end": 130,
+            "slot": 11
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M098",
@@ -1467,39 +1680,38 @@
             "service_tier": "default",
             "start": 0,
             "end": 105,
-            "slot": 4
+            "slot": 9
           },
           "reviewer": {
             "name": "sol_high_m098_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 105,
-            "end": 145,
-            "slot": 5
+            "start": 155,
+            "end": 195,
+            "slot": 9
           },
           "integration": {
-            "start": 160,
-            "end": 170
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 145,
+            "end": 155,
+            "slot": 10
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         }
       ]
     },
     {
       "turn": 13,
-      "start": 670,
-      "end": 925,
-      "minutes": 255,
+      "start": 450,
+      "end": 675,
+      "minutes": 225,
       "gate": {
-        "start": 235,
-        "end": 255
+        "start": 205,
+        "end": 225
       },
-      "lower_bound": {
-        "idealMergeFinish": 235,
-        "optimalUnderModel": 255,
-        "scheduled": 255,
-        "match": true
-      },
+      "peak_active_direct_workers": 11,
       "jobs": [
         {
           "milestone": "M054",
@@ -1516,21 +1728,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 135,
-            "slot": 4
+            "slot": 1
           },
           "reviewer": {
             "name": "sol_high_m054_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 135,
-            "end": 175,
-            "slot": 4
+            "start": 145,
+            "end": 185,
+            "slot": 1
           },
           "integration": {
-            "start": 175,
-            "end": 185
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 135,
+            "end": 145,
+            "slot": 6
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M055",
@@ -1550,21 +1766,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 90,
-            "slot": 11
+            "slot": 2
           },
           "reviewer": {
             "name": "sol_medium_m055_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 90,
-            "end": 115,
-            "slot": 11
+            "start": 100,
+            "end": 125,
+            "slot": 2
           },
           "integration": {
-            "start": 115,
-            "end": 125
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 90,
+            "end": 100,
+            "slot": 6
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M057",
@@ -1584,21 +1804,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 150,
-            "slot": 1
+            "slot": 3
           },
           "reviewer": {
             "name": "sol_high_m057_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 150,
-            "end": 190,
-            "slot": 1
+            "start": 165,
+            "end": 205,
+            "slot": 3
           },
           "integration": {
-            "start": 225,
-            "end": 235
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 155,
+            "end": 165,
+            "slot": 6
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M060",
@@ -1616,21 +1840,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 135,
-            "slot": 5
+            "slot": 4
           },
           "reviewer": {
             "name": "sol_high_m060_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 135,
-            "end": 175,
-            "slot": 5
+            "start": 155,
+            "end": 195,
+            "slot": 4
           },
           "integration": {
-            "start": 185,
-            "end": 195
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 145,
+            "end": 155,
+            "slot": 6
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M073",
@@ -1648,21 +1876,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 105,
-            "slot": 7
+            "slot": 1
           },
           "reviewer": {
             "name": "sol_high_m073_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 105,
-            "end": 145,
-            "slot": 7
+            "start": 115,
+            "end": 155,
+            "slot": 1
           },
           "integration": {
-            "start": 145,
-            "end": 155
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 105,
+            "end": 115,
+            "slot": 7
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M080",
@@ -1679,21 +1911,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 135,
-            "slot": 6
+            "slot": 2
           },
           "reviewer": {
             "name": "sol_high_m080_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 135,
-            "end": 175,
-            "slot": 6
+            "start": 145,
+            "end": 185,
+            "slot": 2
           },
           "integration": {
-            "start": 195,
-            "end": 205
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 135,
+            "end": 145,
+            "slot": 7
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M081",
@@ -1711,21 +1947,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 105,
-            "slot": 8
+            "slot": 3
           },
           "reviewer": {
             "name": "sol_high_m081_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 105,
-            "end": 145,
-            "slot": 8
+            "start": 125,
+            "end": 165,
+            "slot": 3
           },
           "integration": {
-            "start": 155,
-            "end": 165
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 115,
+            "end": 125,
+            "slot": 7
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         },
         {
           "milestone": "M087",
@@ -1744,21 +1984,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 105,
-            "slot": 9
+            "slot": 5
           },
           "reviewer": {
             "name": "sol_high_m087_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 105,
-            "end": 145,
-            "slot": 9
+            "start": 115,
+            "end": 155,
+            "slot": 5
           },
           "integration": {
-            "start": 165,
-            "end": 175
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 105,
+            "end": 115,
+            "slot": 6
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M095",
@@ -1775,21 +2019,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 145,
-            "slot": 2
+            "slot": 4
           },
           "reviewer": {
             "name": "sol_high_m095_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 145,
-            "end": 185,
-            "slot": 2
+            "start": 155,
+            "end": 195,
+            "slot": 4
           },
           "integration": {
-            "start": 205,
-            "end": 215
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 145,
+            "end": 155,
+            "slot": 8
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M097",
@@ -1806,21 +2054,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 145,
-            "slot": 3
+            "slot": 5
           },
           "reviewer": {
             "name": "sol_high_m097_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 145,
-            "end": 185,
-            "slot": 3
+            "start": 165,
+            "end": 205,
+            "slot": 5
           },
           "integration": {
-            "start": 215,
-            "end": 225
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 155,
+            "end": 165,
+            "slot": 8
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M101",
@@ -1838,39 +2090,38 @@
             "service_tier": "default",
             "start": 0,
             "end": 95,
-            "slot": 10
+            "slot": 6
           },
           "reviewer": {
             "name": "sol_high_m101_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 95,
-            "end": 135,
-            "slot": 10
+            "start": 105,
+            "end": 145,
+            "slot": 6
           },
           "integration": {
-            "start": 135,
-            "end": 145
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 95,
+            "end": 105,
+            "slot": 7
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         }
       ]
     },
     {
       "turn": 14,
-      "start": 925,
-      "end": 1160,
-      "minutes": 235,
+      "start": 675,
+      "end": 900,
+      "minutes": 225,
       "gate": {
-        "start": 215,
-        "end": 235
+        "start": 205,
+        "end": 225
       },
-      "lower_bound": {
-        "idealMergeFinish": 215,
-        "optimalUnderModel": 235,
-        "scheduled": 235,
-        "match": true
-      },
+      "peak_active_direct_workers": 5,
       "jobs": [
         {
           "milestone": "M084",
@@ -1896,14 +2147,18 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 155,
-            "end": 195,
+            "start": 165,
+            "end": 205,
             "slot": 1
           },
           "integration": {
-            "start": 195,
-            "end": 205
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 155,
+            "end": 165,
+            "slot": 6
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M086",
@@ -1921,21 +2176,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 125,
-            "slot": 4
+            "slot": 2
           },
           "reviewer": {
             "name": "sol_high_m086_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 125,
-            "end": 165,
-            "slot": 4
+            "start": 135,
+            "end": 175,
+            "slot": 2
           },
           "integration": {
-            "start": 165,
-            "end": 175
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 125,
+            "end": 135,
+            "slot": 6
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M090",
@@ -1959,14 +2218,18 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 135,
-            "end": 175,
+            "start": 145,
+            "end": 185,
             "slot": 3
           },
           "integration": {
-            "start": 175,
-            "end": 185
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 135,
+            "end": 145,
+            "slot": 6
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M094",
@@ -1987,21 +2250,25 @@
             "service_tier": "default",
             "start": 0,
             "end": 155,
-            "slot": 2
+            "slot": 1
           },
           "reviewer": {
             "name": "sol_high_m094_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 155,
-            "end": 195,
-            "slot": 2
+            "start": 165,
+            "end": 205,
+            "slot": 1
           },
           "integration": {
-            "start": 205,
-            "end": 215
-          }
+            "owner": "sol_high_browser_integrate",
+            "start": 155,
+            "end": 165,
+            "slot": 2
+          },
+          "domain": "browser",
+          "chat": "browser_workflow"
         },
         {
           "milestone": "M099",
@@ -2020,39 +2287,38 @@
             "service_tier": "default",
             "start": 0,
             "end": 90,
-            "slot": 5
+            "slot": 4
           },
           "reviewer": {
             "name": "sol_medium_m099_review",
             "model": "gpt-6.1-sol",
             "reasoning_effort": "medium",
             "service_tier": "default",
-            "start": 90,
-            "end": 115,
-            "slot": 5
+            "start": 100,
+            "end": 125,
+            "slot": 4
           },
           "integration": {
-            "start": 115,
-            "end": 125
-          }
+            "owner": "sol_high_cli_activity_integrate",
+            "start": 90,
+            "end": 100,
+            "slot": 5
+          },
+          "domain": "cli_activity",
+          "chat": "operators"
         }
       ]
     },
     {
       "turn": 15,
-      "start": 1160,
-      "end": 1380,
+      "start": 900,
+      "end": 1120,
       "minutes": 220,
       "gate": {
         "start": 200,
         "end": 220
       },
-      "lower_bound": {
-        "idealMergeFinish": 200,
-        "optimalUnderModel": 220,
-        "scheduled": 220,
-        "match": true
-      },
+      "peak_active_direct_workers": 2,
       "jobs": [
         {
           "milestone": "M085",
@@ -2077,14 +2343,18 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 150,
-            "end": 190,
+            "start": 160,
+            "end": 200,
             "slot": 1
           },
           "integration": {
-            "start": 190,
-            "end": 200
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 150,
+            "end": 160,
+            "slot": 3
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         },
         {
           "milestone": "M093",
@@ -2109,14 +2379,18 @@
             "model": "gpt-6.1-sol",
             "reasoning_effort": "high",
             "service_tier": "default",
-            "start": 105,
-            "end": 145,
+            "start": 115,
+            "end": 155,
             "slot": 2
           },
           "integration": {
-            "start": 145,
-            "end": 155
-          }
+            "owner": "sol_high_durability_integrate",
+            "start": 105,
+            "end": 115,
+            "slot": 3
+          },
+          "domain": "durability_operations",
+          "chat": "operators"
         }
       ]
     }

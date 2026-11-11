@@ -1077,6 +1077,8 @@ test("aborting a lifecycle read does not cancel a shared session bootstrap", asy
 
 test("drawer priority uses the card validator and shows the effective dependency floor", async () => {
   const {api} = boardApi();
+  api.listComments = async () => page("comments", []);
+  api.listAttachments = async () => page("attachments", []);
   const urgent = "1de08e49-ed9f-4822-b6b8-4981c57b133d";
   const low = "af036e96-7b57-49c9-b8ad-b17d574c1a62";
   const listPriorities = api.listPriorities;
@@ -1121,6 +1123,8 @@ test("drawer priority uses the card validator and shows the effective dependency
 
 test("drawer priority refreshes stale and uncertain results without replaying or claiming a floor", async () => {
   const {api} = boardApi();
+  api.listComments = async () => page("comments", []);
+  api.listAttachments = async () => page("attachments", []);
   const urgent = "1de08e49-ed9f-4822-b6b8-4981c57b133d";
   const listPriorities = api.listPriorities;
   api.listPriorities = async () => page("priorities", [

@@ -3161,12 +3161,13 @@ async function load(savedAvailability) {
       const removing = edit?.action === "remove-unavailable";
       pinMessage = edit ? "Saving pin order…" : "Reading pin order…";
       async function readPinWorkspace() {
+        const reply = await readWorkspace();
         if (removing) {
+          // A newly pinned board may first appear in the catalog after the previous read.
+          signal.throwIfAborted();
           await refreshAttention();
           signal.throwIfAborted();
         }
-        const reply = await readWorkspace();
-        if (removing) signal.throwIfAborted();
         return reply;
       }
       const operation = edit ? savePinEdit((pins) => editPinOrder(pins, edit, latestBoards),

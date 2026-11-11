@@ -2168,6 +2168,41 @@ test("unavailable saved pins are removed together using complete catalog and wor
   assert.deepEqual(pinnedBoards(ui), [user, lane, board]);
 });
 
+test("unavailable pin cleanup preserves a board added before the fresh workspace read", async () => {
+  const {api} = boardApi();
+  let catalog = [{id: board, name: "Selected"}];
+  let workspace = {revision: 1, pinned_board_ids: [priority, board], publishing: publishingOff};
+  let addPin = false;
+  const writes = [];
+  const workspaceTag = () => tag("workspace-test-id", workspace.revision);
+  api.getSession = async () => ({data: {kind: "human", principal_id: user, workspace_admin: true}});
+  api.listBoards = async () => page("boards", catalog);
+  api.getWorkspace = async () => {
+    if (addPin) {
+      addPin = false;
+      catalog = [...catalog, {id: backup, name: "New board"}];
+      workspace = {...workspace, revision: 2, pinned_board_ids: [priority, board, backup]};
+    }
+    return {data: workspace, etag: workspaceTag()};
+  };
+  api.setPinnedBoards = async (pins, etag) => {
+    assert.equal(etag, workspaceTag());
+    writes.push({pins: Array.from(pins), etag});
+    workspace = {...workspace, revision: workspace.revision + 1, pinned_board_ids: pins};
+    return api.getWorkspace();
+  };
+  const ui = await harness(api);
+  await ui.load();
+  await ui.settled();
+
+  addPin = true;
+  ui.find(ui.nodes.boards, "button", "Remove unavailable pins").click();
+  await ui.settled();
+
+  assert.deepEqual(writes, [{pins: [board, backup], etag: tag("workspace-test-id", 2)}]);
+  assert.deepEqual(pinnedBoards(ui), [board, backup]);
+});
+
 test("board publishing keeps an explicit off draft across an unavailable read and navigation", async () => {
   const {api} = boardApi();
   const readLanes = api.getBoardLanes;

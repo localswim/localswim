@@ -1770,6 +1770,145 @@ test("live changes coalesce behind one selected-board read and preserve open dra
   assert.equal(columns.children[0].scrollTop, 120);
 });
 
+test("a live drawer read failure preserves the original approval receipt inspection", async (t) => {
+  const {api, streams, commit} = changingBoard();
+  const listLanes = api.listLanes;
+  api.listLanes = async () => page("lanes", (await listLanes()).data.lanes.map((entry) =>
+    entry.id === lane ? {...entry, role: "ready_for_review"} : entry));
+  const approvals = [];
+  const inspections = [];
+  let receiptAvailable = false;
+  api.approveCard = async (...args) => {
+    approvals.push(args);
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  api.inspectApproval = async (...args) => {
+    inspections.push(args);
+    if (!receiptAvailable) throw new ApiError("transport_failed");
+  };
+  const getCard = api.getCard;
+  let failCardRead = false;
+  api.getCard = async (id) => {
+    if (failCardRead && id === card) {
+      failCardRead = false;
+      throw new ApiError("transport_failed");
+    }
+    return getCard(id);
+  };
+  const ui = await harness(api);
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  await until(() => streams.length === 1);
+  streams[0].send("snapshot", 1);
+  const {main, details, status} = ui.nodes;
+  const readiness = main.querySelector("#board-live-readiness");
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.field(details, "Title"));
+  ui.submit(details, "Reviewed & approved");
+  await ui.settled();
+  assert.match(status.textContent, /Readback failed/);
+  assert.equal(approvals.length, 1);
+  const [originalReceipt] = approvals[0];
+  const originalInspection = [originalReceipt, board, card];
+  assert.deepEqual(inspections, [originalInspection]);
+
+  failCardRead = true;
+  streams[0].send("change", commit("Remote edit", lane));
+  await until(() => /could not be completed/.test(readiness.textContent));
+  assert.match(status.textContent, /Readback failed/);
+  const retry = ui.find(main, "button", "Retry board update");
+  failCardRead = true;
+  retry.click();
+  await until(() => !failCardRead && /could not be completed/.test(readiness.textContent));
+  retry.click();
+  await until(() => readiness.textContent === "" && /Remote edit/.test(details.textContent));
+  assert.equal(ui.find(details, "button", "Reviewed & approved").disabled, true);
+
+  ui.inspect();
+  await ui.settled();
+  assert.deepEqual(inspections, [originalInspection, originalInspection]);
+  assert.equal(ui.find(details, "button", "Reviewed & approved").disabled, true);
+  receiptAvailable = true;
+  ui.inspect();
+  await ui.settled();
+  assert.equal(details.hidden, true);
+  assert.deepEqual(inspections, [originalInspection, originalInspection, originalInspection]);
+  assert.equal(approvals.length, 1);
+});
+
+test("live link repaint keeps the dirty selector, focus, and its relationship revision", async (t) => {
+  const {api, streams, commit} = changingBoard();
+  const edited = {id: backup, board_id: board, source_card_id: card, target_card_id: user,
+    kind: "relates_to", revision: 1};
+  const unchanged = {id: priority, board_id: board, source_card_id: card, target_card_id: priority,
+    kind: "duplicates", revision: 1};
+  let links = [edited, unchanged];
+  let linkedTitle = "Linked card";
+  const getCard = api.getCard;
+  api.getCard = async (id) => {
+    if (id === user) return {data: {id, board_id: board, ticket: 2, title: linkedTitle}};
+    if (id === priority) return {data: {id, board_id: board, ticket: 3, title: "Other linked card"}};
+    return getCard(id);
+  };
+  api.listRelationships = async () => page("relationships", links);
+  const changes = [];
+  api.replaceRelationship = async (id, revision, boardTag, kind) => {
+    changes.push([id, revision, boardTag, kind]);
+    const saved = links.find((entry) => entry.id === id);
+    if (revision !== saved.revision) throw new ApiError("http_error", {status: 412});
+    const committed = commit("Original", lane);
+    links = links.map((entry) => entry.id === id ? {...entry, revision: committed, kind} : entry);
+  };
+
+  const ui = await harness(api);
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  await until(() => streams.length === 1);
+  streams[0].send("snapshot", 1);
+  const {main, details, status} = ui.nodes;
+  const readiness = main.querySelector("#board-live-readiness");
+  const row = () => ui.find(details, "a", "#2 " + linkedTitle)?.parent.parent;
+  const selector = () => row() && ui.field(row(), "Link type");
+  const savedType = () => row()?.querySelector("p").ownText;
+  const staleNotice = () => ui.find(row(), "p", "Saved link changed. Review the saved type and change the selection before saving.");
+  ui.find(main, "button", "#1 Original").click();
+  await until(selector);
+  selector().value = "blocks";
+  selector().dispatch("change");
+  selector().focus();
+
+  linkedTitle = "Renamed linked card";
+  links = [unchanged, edited];
+  streams[0].send("change", commit("Original", lane));
+  await until(() => selector() && readiness.textContent === "");
+  assert.equal(selector().value, "blocks");
+  assert.equal(ui.focused(), selector());
+  assert.equal(savedType(), "Relates to ");
+  assert.equal(staleNotice().hidden, true);
+
+  links = [unchanged, {...edited, kind: "references", revision: 3}];
+  streams[0].send("change", commit("Original", lane));
+  await until(() => savedType() === "References " && readiness.textContent === "");
+  assert.equal(selector().value, "blocks");
+  assert.equal(ui.focused(), selector());
+  assert.equal(staleNotice().hidden, false);
+  ui.submit(row(), "Change link type");
+  await ui.settled();
+  assert.deepEqual(changes, [[edited.id, 1, tag(board, 3), "blocks"]]);
+  assert.match(status.textContent, /State changed/);
+  assert.equal(selector().value, "blocks");
+  assert.equal(savedType(), "References ");
+
+  selector().value = "duplicated_by";
+  selector().dispatch("change");
+  assert.equal(staleNotice().hidden, true);
+  ui.submit(row(), "Change link type");
+  await ui.settled();
+  assert.deepEqual(changes[1], [edited.id, 3, tag(board, 3), "duplicated_by"]);
+  assert.equal(savedType(), "Duplicated by ");
+  assert.match(status.textContent, /Link type changed/);
+});
+
 test("live board Retry and reconnect catch up without discarding the loaded board", async (t) => {
   const {api, streams, commit} = changingBoard();
   const read = api.getBoardLanes;

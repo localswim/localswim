@@ -7,6 +7,7 @@ import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
 /** @typedef {import("./api.mjs").RelationshipKind} RelationshipKind */
 /** @typedef {{id: string, revision: number, board_id: string, source_card_id: string, target_card_id: string,
  * kind: RelationshipKind}} Relationship */
+/** @typedef {{type: HTMLSelectElement, direction: RelationshipKind, expectedRevision: number}} RelationshipEditor */
 /** @typedef {{resource_type: string, resource_id: string, operation: string, field: string|null,
  * actor_id: string, board_id: string, at: string, revision: number, before: string|null, after: string|null}} Change */
 /** @typedef {import("./api.mjs").Publishing} Publishing */
@@ -85,7 +86,8 @@ const pendingPublications = new Map();
 const pendingInspections = new Map();
 /** @type {{id: string, control: HTMLTextAreaElement}|undefined} */
 let activeComment;
-/** @type {{boardId: string, id: string, close: () => void, refreshWorkflow: (canApply?: () => boolean) => Promise<void>,
+/** @type {{boardId: string, id: string, close: () => void,
+ * refreshWorkflow: (canApply?: () => boolean, automatic?: boolean) => Promise<void>,
  * refreshPriority: (requested: string, effective: Labeled|undefined, replaced: boolean) => Promise<void>}|undefined} */
 let activeDrawer;
 /** @type {(() => void)|undefined} */
@@ -706,8 +708,8 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       target?.focus();
     }
     let workflowRead = 0;
-    /** @param {() => boolean} [canApply] */
-    async function refreshWorkflow(canApply = () => true) {
+    /** @param {() => boolean} [canApply] @param {boolean} [automatic] */
+    async function refreshWorkflow(canApply = () => true, automatic = false) {
       const read = ++workflowRead;
       const isCurrent = () => cardView === activeCard && read === workflowRead && canApply();
       let cardRead = false;
@@ -719,7 +721,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       } catch (error) {
         if (!isCurrent()) return;
         if (cardRead || !(error instanceof ApiError) || error.status !== 404) {
-          inspection.require(refreshWorkflow);
+          if (!automatic && !pendingInspections.has(inspection.scope)) inspection.require(refreshWorkflow);
           throw error;
         }
         retainCardDraft?.();
@@ -1037,6 +1039,8 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     }
 
     let relationshipRead = 0;
+    /** @type {Map<string, RelationshipEditor>} */
+    let relationshipEditors = new Map();
     async function refreshRelationships() {
       const read = ++relationshipRead;
       const links = /** @type {Relationship[]} */ (await collect((cursor) =>
@@ -1050,19 +1054,33 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         return /** @type {const} */ ([id, other]);
       })));
       if (cardView !== activeCard || read !== relationshipRead) return activeLinks;
-      relationshipList.replaceChildren(...activeLinks.map((entry) => {
+      const focusedId = [...relationshipEditors].find(([, editor]) => editor.type === document.activeElement)?.[0];
+      /** @type {Map<string, RelationshipEditor>} */
+      const nextEditors = new Map();
+      const rows = activeLinks.map((entry) => {
         const other = targets.get(entry.source_card_id === card.id ? entry.target_card_id : entry.source_card_id);
         const direction = relationshipDirection(entry, card.id);
         const row = element("article");
         const title = element("p", relationshipLabels[direction] + " ");
         if (other) title.append(link(ticketHref(boardId, other.ticket), "#" + other.ticket + " " + other.title));
         row.append(title);
-        const type = select(relationshipChoices, direction);
-        row.append(form("Change link type", [field("Link type", type)], (submit) => {
+        const previous = relationshipEditors.get(entry.id);
+        const selected = previous && previous.type.value !== previous.direction ? previous.type.value : direction;
+        const type = select(relationshipChoices, selected);
+        const editor = { type, direction, expectedRevision: selected === direction ? entry.revision
+          : previous?.expectedRevision ?? entry.revision };
+        nextEditors.set(entry.id, editor);
+        const stale = element("p", "Saved link changed. Review the saved type and change the selection before saving.");
+        stale.hidden = editor.expectedRevision === entry.revision;
+        type.addEventListener("change", () => {
+          editor.expectedRevision = entry.revision;
+          stale.hidden = true;
+        });
+        row.append(form("Change link type", [field("Link type", type), stale], (submit) => {
           const wanted = /** @type {RelationshipKind} */ (type.value);
           if (wanted === direction) return;
           const canonical = entry.source_card_id === card.id ? wanted : inverseRelationships[wanted] ?? wanted;
-          void writeResource(submit, () => api.replaceRelationship(entry.id, entry.revision, boardTag(), canonical),
+          void writeResource(submit, () => api.replaceRelationship(entry.id, editor.expectedRevision, boardTag(), canonical),
             async () => (await readLinks()).some((value) => value.id === entry.id
               && relationshipDirection(value, card.id) === wanted), "Link type changed.", inspection);
         }), form("Remove link", [], (submit) => {
@@ -1070,9 +1088,12 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
             async () => !(await readLinks()).some((value) => value.id === entry.id), "Link removed.", inspection);
         }));
         return row;
-      }));
+      });
+      relationshipList.replaceChildren(...rows);
+      relationshipEditors = nextEditors;
       if (!activeLinks.length) relationshipList.textContent = "No links.";
       inspection.sync();
+      if (focusedId) relationshipEditors.get(focusedId)?.type.focus({ preventScroll: true });
       return activeLinks;
     }
 
@@ -2382,7 +2403,7 @@ async function load(savedAvailability) {
       renderCards(latest.cards, boardTag);
       inspection.sync();
       void refreshAttention();
-      if (activeDrawer?.boardId === board.id) await activeDrawer.refreshWorkflow(canApply);
+      if (activeDrawer?.boardId === board.id) await activeDrawer.refreshWorkflow(canApply, automatic);
       if (!canApply()) return false;
       await reloadArchived();
       if (!canApply()) return false;

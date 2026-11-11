@@ -62,7 +62,7 @@ const cliHelp = `Usage:
   localswim comment list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim comment post [--revision N] CARD_ID FILE|-
   localswim activity list --from UTC --to UTC [--view full|monitor] [--ticket N]
-                        [--limit N] [--cursor CURSOR] BOARD_ID
+                        [--actor-id UUID] [--operation OP] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim lane add [--revision N] BOARD_ID FILE|-
   localswim lane get LANE_ID
   localswim lane rename [--revision N] LANE_ID LABEL
@@ -145,7 +145,7 @@ Backup info reads metadata for the supplied backup ID.
 Use backup info with the original ID after an unknown capture outcome.
 Backup download verifies its size and SHA-2-256 digest before writing a new file or stdout.
 Activity intervals are inclusive. Quote both UTC bounds in YYYY-MM-DD HH:MM:SS+00:00.
-The full activity view is the default. Monitor returns sanitized edit metadata.
+Activity lists sanitized edit metadata by default. Use --view full for the attributed audit.
 The CLI manages HTTP validators.
 For FILE|-, pass a file path or use - to read standard input.
 Card description reads UTF-8 text verbatim, including trailing newlines.

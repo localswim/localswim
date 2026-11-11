@@ -75,6 +75,9 @@ func TestWorkspaceRefusesToReplaceInvalidPreferences(t *testing.T) {
 		`{"revision":1,"pinnedBoardIds":[]}`,
 		`{"revision":true,"pinned_board_ids":[]}`,
 		`{"revision":9007199254740992,"pinned_board_ids":[]}`,
+		`{"revision":1,"pinned_board_ids":[],"publishing":null}`,
+		`{"revision":1,"pinned_board_ids":[],"publishing":{"enabled":true,"pending":true}}`,
+		`{"revision":1,"pinned_board_ids":[],"publishing":{"enabled":true,"repository":"other"}}`,
 	} {
 		if err := os.WriteFile(path, []byte(invalid), 0600); err != nil {
 			t.Fatal(err)

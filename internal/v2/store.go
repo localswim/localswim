@@ -32,6 +32,7 @@ type store struct {
 	uncertainBoardID string
 	events           *eventHub
 	ownerNotices     *ownerNoticeWorker
+	publishers       map[string]*automaticPublisher
 }
 
 func openStore(root string, principals ...user) (*store, error) {
@@ -335,6 +336,9 @@ func (s *store) commit(value snapshot, reuseUsers bool) error {
 			// inspection remains available for resolving the uncertain mutation.
 			s.writeUncertain = true
 			s.uncertainBoardID = id
+			if publisher := s.publishers[id]; publisher != nil {
+				publisher.disable()
+			}
 			if s.ownerNotices != nil {
 				s.ownerNotices.settingsChanged(id, false)
 			}
@@ -343,6 +347,7 @@ func (s *store) commit(value snapshot, reuseUsers bool) error {
 	}
 	previous := s.boards[id]
 	s.boards[id] = value
+	s.boardPublishingCommitted(value.Board)
 	if s.ownerNotices != nil {
 		s.ownerNotices.submitCommitted(previous, value)
 	}

@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 )
@@ -36,6 +35,10 @@ func (output *boundedGitOutput) Write(data []byte) (int, error) {
 }
 
 func publicationGit(cwd, index string, input []byte, args ...string) ([]byte, error) {
+	return publicationGitConfigured(cwd, index, input, nil, args...)
+}
+
+func publicationGitConfigured(cwd, index string, input []byte, configuration []string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), publicationGitTimeout)
 	defer cancel()
 	command := exec.CommandContext(ctx, "git", args...)
@@ -46,7 +49,8 @@ func publicationGit(cwd, index string, input []byte, args ...string) ([]byte, er
 			command.Env = append(command.Env, entry)
 		}
 	}
-	command.Env = append(command.Env, "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
+	command.Env = append(command.Env, "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "GIT_NO_REPLACE_OBJECTS=1")
+	command.Env = append(command.Env, configuration...)
 	if index != "" {
 		command.Env = append(command.Env, "GIT_INDEX_FILE="+index)
 	}
@@ -63,7 +67,7 @@ func publicationGitText(cwd string, args ...string) (string, error) {
 	return strings.TrimSuffix(strings.TrimSuffix(string(data), "\n"), "\r"), err
 }
 
-// Shared by board publication and future workspace-artifact publication. The
+// Shared by manual, board and workspace publication. The
 // common directory and persistent lock name match the V1 publisher, including
 // linked worktrees. Never initialize a lock byte before acquiring the OS lock.
 func acquirePublicationRepository(cwd string, wait time.Duration) (*os.File, error) {
@@ -160,119 +164,178 @@ func gitConfigAbsent(err error) bool {
 	return errors.As(err, &status) && status.ExitCode() == 1
 }
 
-func publicationPaths(dataRoot, repository string, archive *verifiedBackupArchive) ([]string, error) {
-	prefix, err := filepath.Rel(repository, dataRoot)
-	if err != nil || !filepath.IsLocal(prefix) {
-		return nil, gitPublicationError("repository_unavailable")
-	}
-	paths := []string{filepath.ToSlash(filepath.Join(prefix, "boards", archive.state.Board.ID+".json"))}
-	for _, item := range archive.state.Attachments {
-		paths = append(paths, filepath.ToSlash(filepath.Join(prefix, attachmentPath(item))))
-	}
-	slices.Sort(paths)
-	return paths, nil
+type publicationFile struct {
+	path string
+	read func() ([]byte, error)
 }
 
-// A private index overlays only the exact capture inventory onto HEAD. Hashing
-// stdin without --path stores the verified bytes verbatim, independent of EOL
-// conversion and attributes. The caller's index and live files are never opened
-// for staging or rewritten, including on commit and push failure.
+type publicationCapture struct {
+	revision uint64
+	message  string
+	files    []publicationFile
+	close    func()
+}
+
+type publicationRepository struct {
+	root   string
+	prefix string
+	lease  *os.File
+}
+
+func lockPublication(dataRoot string) (publicationRepository, error) {
+	root, err := publicationGitText(dataRoot, "rev-parse", "--show-toplevel")
+	if err != nil || root == "" {
+		return publicationRepository{}, gitPublicationError("repository_unavailable")
+	}
+	prefix, err := filepath.Rel(root, dataRoot)
+	if err != nil || !filepath.IsLocal(prefix) {
+		return publicationRepository{}, gitPublicationError("repository_unavailable")
+	}
+	lease, err := acquirePublicationRepository(root, publicationLockWait)
+	if err != nil {
+		return publicationRepository{}, err
+	}
+	return publicationRepository{root: root, prefix: prefix, lease: lease}, nil
+}
+
+func (repo publicationRepository) head() (string, string, error) {
+	ref, err := publicationGitText(repo.root, "symbolic-ref", "--quiet", "HEAD")
+	if err != nil || !strings.HasPrefix(ref, "refs/heads/") {
+		return "", "", gitPublicationError("branch_unavailable")
+	}
+	previous, err := publicationGitText(repo.root, "rev-parse", "--verify", ref)
+	if err != nil {
+		return "", "", gitPublicationError("head_unavailable")
+	}
+	return ref, previous, nil
+}
+
+type publicationRemote struct {
+	name          string
+	configuration []string
+}
+
+func pinnedPublicationRemote(target string) publicationRemote {
+	name := "localswim-publication-" + newID()
+	marker := name + "::"
+	// Git applies insteadOf once. The full unique marker wins over shorter
+	// rules, so the resolved URL is never reinterpreted as a rewrite input.
+	// Explicit pushurl skips pushInsteadOf. Keep the URL in child config.
+	return publicationRemote{name: name, configuration: []string{
+		"GIT_CONFIG_COUNT=3",
+		"GIT_CONFIG_KEY_0=remote." + name + ".url",
+		"GIT_CONFIG_VALUE_0=" + marker,
+		"GIT_CONFIG_KEY_1=remote." + name + ".pushurl",
+		"GIT_CONFIG_VALUE_1=" + marker,
+		"GIT_CONFIG_KEY_2=url." + target + ".insteadOf",
+		"GIT_CONFIG_VALUE_2=" + marker,
+	}}
+}
+
+func (repo publicationRepository) push(remote publicationRemote, commit, ref string) error {
+	if _, err := publicationGitConfigured(repo.root, "", nil, remote.configuration, "-c", "remote."+remote.name+".mirror=false",
+		"push", "--no-follow-tags", "--recurse-submodules=no", "--", remote.name, commit+":"+ref); err != nil {
+		return gitPublicationError("git_push_failed")
+	}
+	return nil
+}
+
+// A private index overlays only the exact capture inventory onto the accepted
+// parent. Hashing stdin without --path stores captured bytes verbatim. Neither
+// the caller's index nor the live files are opened for staging or rewritten.
+func (repo publicationRepository) prepareCommit(previous string, capture publicationCapture) (string, error) {
+	names := make([]string, len(capture.files))
+	for index, file := range capture.files {
+		if !filepath.IsLocal(file.path) {
+			return "", gitPublicationError("capture_unavailable")
+		}
+		names[index] = filepath.ToSlash(filepath.Join(repo.prefix, file.path))
+	}
+	if err := publicationGitSafety(repo.root, names); err != nil {
+		return "", err
+	}
+	directory, err := os.MkdirTemp("", "localswim-publication-*")
+	if err != nil {
+		return "", gitPublicationError("capture_unavailable")
+	}
+	defer os.RemoveAll(directory)
+	index := filepath.Join(directory, "index")
+	if _, err := publicationGit(repo.root, index, nil, "read-tree", previous); err != nil {
+		return "", gitPublicationError("git_index_failed")
+	}
+	for position, file := range capture.files {
+		data, err := file.read()
+		if err != nil {
+			return "", gitPublicationError("backup_integrity")
+		}
+		hash, err := publicationGit(repo.root, index, data, "hash-object", "-w", "--stdin")
+		if err != nil {
+			return "", gitPublicationError("git_object_failed")
+		}
+		oid := strings.TrimSpace(string(hash))
+		name := names[position]
+		// --cacheinfo without --replace refuses file/directory conflicts with
+		// inherited entries. Verify exact mode, path, and object before writing.
+		if _, err := publicationGit(repo.root, index, nil, "update-index", "--add", "--cacheinfo", "100644,"+oid+","+name); err != nil {
+			return "", gitPublicationError("git_index_failed")
+		}
+		staged, err := publicationGit(repo.root, index, nil, "--literal-pathspecs", "ls-files", "--stage", "-z", "--", name)
+		if err != nil || string(staged) != "100644 "+oid+" 0\t"+name+"\x00" {
+			return "", gitPublicationError("git_index_failed")
+		}
+	}
+	tree, err := publicationGit(repo.root, index, nil, "write-tree")
+	if err != nil {
+		return "", gitPublicationError("git_tree_failed")
+	}
+	oldTree, err := publicationGitText(repo.root, "rev-parse", previous+"^{tree}")
+	if err != nil {
+		return "", gitPublicationError("git_tree_failed")
+	}
+	if strings.TrimSpace(string(tree)) == oldTree {
+		return previous, nil
+	}
+	data, err := publicationGit(repo.root, index, []byte(capture.message+"\n"), "commit-tree", strings.TrimSpace(string(tree)), "-p", previous)
+	if err != nil {
+		return "", gitPublicationError("git_commit_failed")
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
 func publishVerifiedBackup(dataRoot string, item backup) error {
 	archive, err := openVerifiedBackupArchive(dataRoot, item)
 	if err != nil {
 		return gitPublicationError("backup_integrity")
 	}
 	defer archive.close()
-	repository, err := publicationGitText(dataRoot, "rev-parse", "--show-toplevel")
-	if err != nil || repository == "" {
-		return gitPublicationError("repository_unavailable")
-	}
-	lease, err := acquirePublicationRepository(repository, publicationLockWait)
+	repo, err := lockPublication(dataRoot)
 	if err != nil {
 		return err
 	}
-	defer releasePublicationRepository(lease)
-	paths, err := publicationPaths(dataRoot, repository, archive)
-	if err != nil {
-		return err
+	defer releasePublicationRepository(repo.lease)
+	files := []publicationFile{{path: "boards/" + archive.state.Board.ID + ".json", read: func() ([]byte, error) {
+		return archive.snapshotData, nil
+	}}}
+	for _, attachment := range archive.state.Attachments {
+		files = append(files, publicationFile{path: attachmentPath(attachment), read: func() ([]byte, error) {
+			return archive.attachmentData(attachment)
+		}})
 	}
-	if err := publicationGitSafety(repository, paths); err != nil {
-		return err
-	}
-	ref, err := publicationGitText(repository, "symbolic-ref", "--quiet", "HEAD")
-	if err != nil || !strings.HasPrefix(ref, "refs/heads/") {
-		return gitPublicationError("branch_unavailable")
-	}
-	if _, err := publicationGitText(repository, "remote", "get-url", "origin"); err != nil {
+	if _, err := publicationGitText(repo.root, "remote", "get-url", "origin"); err != nil {
 		return gitPublicationError("remote_unavailable")
 	}
-	previous, err := publicationGitText(repository, "rev-parse", "--verify", "HEAD")
+	ref, previous, err := repo.head()
 	if err != nil {
-		return gitPublicationError("head_unavailable")
-	}
-	directory, err := os.MkdirTemp("", "localswim-publication-*")
-	if err != nil {
-		return gitPublicationError("capture_unavailable")
-	}
-	defer os.RemoveAll(directory)
-	index := filepath.Join(directory, "index")
-	if _, err := publicationGit(repository, index, nil, "read-tree", previous); err != nil {
-		return gitPublicationError("git_index_failed")
-	}
-	prefix, _ := filepath.Rel(repository, dataRoot)
-	contents := func(path string, data []byte) error {
-		hash, err := publicationGit(repository, index, data, "hash-object", "-w", "--stdin")
-		if err != nil {
-			return gitPublicationError("git_object_failed")
-		}
-		oid := strings.TrimSpace(string(hash))
-		name := filepath.ToSlash(filepath.Join(prefix, path))
-		// --cacheinfo without --replace refuses file/directory conflicts with
-		// inherited HEAD entries. Confirm the exact path, mode, and object before
-		// the private index can become a tree, even if Git reports success.
-		if _, err := publicationGit(repository, index, nil, "update-index", "--add", "--cacheinfo", "100644,"+oid+","+name); err != nil {
-			return gitPublicationError("git_index_failed")
-		}
-		staged, err := publicationGit(repository, index, nil, "--literal-pathspecs", "ls-files", "--stage", "-z", "--", name)
-		if err != nil || string(staged) != "100644 "+oid+" 0\t"+name+"\x00" {
-			return gitPublicationError("git_index_failed")
-		}
-		return nil
-	}
-	if err := contents("boards/"+archive.state.Board.ID+".json", archive.snapshotData); err != nil {
 		return err
 	}
-	for _, attachment := range archive.state.Attachments {
-		data, err := archive.attachmentData(attachment)
-		if err != nil {
-			return gitPublicationError("backup_integrity")
-		}
-		if err := contents(attachmentPath(attachment), data); err != nil {
-			return err
-		}
-	}
-	tree, err := publicationGit(repository, index, nil, "write-tree")
+	commit, err := repo.prepareCommit(previous, publicationCapture{message: "localswim backup " + item.ID, files: files})
 	if err != nil {
-		return gitPublicationError("git_tree_failed")
+		return err
 	}
-	oldTree, err := publicationGitText(repository, "rev-parse", previous+"^{tree}")
-	if err != nil {
-		return gitPublicationError("git_tree_failed")
-	}
-	commit := previous
-	if strings.TrimSpace(string(tree)) != oldTree {
-		data, err := publicationGit(repository, index, []byte("localswim backup "+item.ID+"\n"), "commit-tree", strings.TrimSpace(string(tree)), "-p", previous)
-		if err != nil {
-			return gitPublicationError("git_commit_failed")
-		}
-		commit = strings.TrimSpace(string(data))
-		if _, err := publicationGit(repository, index, nil, "update-ref", ref, commit, previous); err != nil {
+	if commit != previous {
+		if _, err := publicationGit(repo.root, "", nil, "update-ref", ref, commit, previous); err != nil {
 			return gitPublicationError("git_ref_failed")
 		}
 	}
-	// Push the exact accepted commit. Never retry a failed or timed-out push.
-	if _, err := publicationGit(repository, index, nil, "push", "--no-follow-tags", "--recurse-submodules=no", "--", "origin", commit+":"+ref); err != nil {
-		return gitPublicationError("git_push_failed")
-	}
-	return nil
+	return repo.push(publicationRemote{name: "origin"}, commit, ref)
 }

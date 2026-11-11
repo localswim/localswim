@@ -106,7 +106,8 @@ func (x *request) boardResource(id string) {
 		x.fail(invalid("view", "This board view is unavailable."))
 		return
 	}
-	x.respond(200, s.Board, s.Board.ETag)
+	value := x.service.store.boardPublishingStatus(s.Board)
+	x.respondPublishing(200, value, value.ETag, value.Publishing)
 }
 
 func (x *request) patchBoard(s snapshot) {
@@ -120,11 +121,11 @@ func (x *request) patchBoard(s snapshot) {
 		x.fail(err)
 		return
 	}
-	if err = rejectFields(obj, []string{"name", "notifications", "default_owner_id"}, false); err != nil {
+	if err = rejectFields(obj, []string{"name", "notifications", "default_owner_id", "publishing"}, false); err != nil {
 		x.fail(err)
 		return
 	}
-	for _, name := range []string{"publishing", "availability", "user_ids", "user_css"} {
+	for _, name := range []string{"availability", "user_ids", "user_css"} {
 		if _, ok := obj[name]; ok {
 			x.fail(invalid(name, "This patch field is not available."))
 			return
@@ -133,13 +134,14 @@ func (x *request) patchBoard(s snapshot) {
 	name, hasName := obj["name"]
 	defaultOwner, hasDefaultOwner := obj["default_owner_id"]
 	raw, hasNotifications := obj["notifications"]
-	if !hasName && !hasNotifications && !hasDefaultOwner {
+	publishingInput, hasPublishing := obj["publishing"]
+	if !hasName && !hasNotifications && !hasDefaultOwner && !hasPublishing {
 		x.fail(invalid("body", "A supported change is required."))
 		return
 	}
 	authorized := func(s snapshot) bool {
 		return s.can(x.actor, "read") && (!(hasName || hasDefaultOwner) || s.can(x.actor, "manage_board")) &&
-			(!hasNotifications || s.can(x.actor, "manage_notifications"))
+			(!hasNotifications || s.can(x.actor, "manage_notifications")) && (!hasPublishing || s.can(x.actor, "publish"))
 	}
 	if !authorized(s) {
 		x.fail(errForbidden)
@@ -194,13 +196,29 @@ func (x *request) patchBoard(s snapshot) {
 			}
 			s.Board.Notifications = updated
 		}
+		if hasPublishing {
+			current := s.Board.Publishing
+			updated, err := patchPublishing(current, publishingInput)
+			if err != nil {
+				return err
+			}
+			if current.Enabled != updated.Enabled {
+				before, after := strconv.FormatBool(current.Enabled), strconv.FormatBool(updated.Enabled)
+				appendChange("publishing.enabled", &before, &after)
+			}
+			if !sameText(current.Repository, updated.Repository) {
+				appendChange("publishing.repository", current.Repository, updated.Repository)
+			}
+			s.Board.Publishing = updated
+		}
 		return nil
 	})
 	if err != nil {
 		x.fail(err)
 		return
 	}
-	x.respond(200, next.Board, next.Board.ETag)
+	value := x.service.store.boardPublishingStatus(next.Board)
+	x.respond(200, value, value.ETag)
 }
 
 func sameText(a, b *string) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }
@@ -274,7 +292,7 @@ func (x *request) workspaceResource() {
 			x.fail(err)
 			return
 		}
-		x.respond(200, result, result.ETag)
+		x.respondPublishing(200, result, result.ETag, result.Publishing)
 		return
 	}
 	expected, err := x.ifMatch()
@@ -285,6 +303,10 @@ func (x *request) workspaceResource() {
 	fields, err := x.body()
 	if err != nil {
 		x.fail(err)
+		return
+	}
+	if _, configuresPublishing := fields["publishing"]; configuresPublishing && x.actor != humanID {
+		x.fail(errForbidden)
 		return
 	}
 	result, err := x.service.workspace.patch(expected, fields, func(id string) bool {

@@ -4,6 +4,7 @@ import { ApiError, createBrowserApi, readWorkspaceOverview } from "./api.mjs";
 
 const BOARD = "9d86fce9-1991-428b-a784-d41588192126";
 const TAG = '"workspace_tag_07"';
+const PUBLISHING_OFF = { enabled: false, repository: null, last_success_at: null, pending: false, error_code: null };
 
 function client(fetchImpl, getCapability = () => "fixture-capability") {
   return createBrowserApi({ fetchImpl, getCapability });
@@ -21,7 +22,7 @@ test("reads the workspace and catalog as independent same-origin resources", asy
     assert.equal(options.cache, "no-store");
     assert.equal(options.headers.get("Authorization"), "Bearer fixture-capability");
     const workspace = url.endsWith("/workspace");
-    return Response.json(workspace ? { pinned_board_ids: [], revision: 1 } : { boards: [], next_cursor: null }, {
+    return Response.json(workspace ? { pinned_board_ids: [], revision: 1, publishing: PUBLISHING_OFF } : { boards: [], next_cursor: null }, {
       headers: { ETag: workspace ? TAG : '"board_catalog_04"' },
     });
   }, () => {
@@ -30,7 +31,7 @@ test("reads the workspace and catalog as independent same-origin resources", asy
   });
 
   assert.deepEqual(await readWorkspaceOverview(api), {
-    workspace: { data: { pinned_board_ids: [], revision: 1 }, etag: TAG },
+    workspace: { data: { pinned_board_ids: [], revision: 1, publishing: PUBLISHING_OFF }, etag: TAG },
     boards: { data: { boards: [], next_cursor: null }, etag: '"board_catalog_04"' },
   });
   assert.deepEqual(calls, ["/api/2026-11-10/workspace", "/api/2026-11-10/boards"]);
@@ -40,9 +41,7 @@ test("reads the workspace and catalog as independent same-origin resources", asy
 test("reads and updates workspace JSON using its separate HTTP validator", async () => {
   const calls = [];
   const nextTag = '"workspace_tag_08"';
-  const publishing = {
-    enabled: false, repository: null, last_success_at: null, pending: false, error_code: null,
-  };
+  const publishing = PUBLISHING_OFF;
   const original = { revision: 7, pinned_board_ids: [], publishing };
   const updated = { revision: 8, pinned_board_ids: [BOARD], publishing };
   const api = client(async (url, options) => {
@@ -83,6 +82,59 @@ test("submits pin order using its original workspace tag and surfaces stale refu
     name: "ApiError", code: "http_error", status: 412, outcomeUnknown: false,
   });
   assert.equal(calls, 1);
+});
+
+test("publishing settings send only the flag and use separate validators", async () => {
+  const calls = [];
+  const boardTag = JSON.stringify(BOARD + "-8");
+  const publishing = { ...PUBLISHING_OFF, enabled: true };
+  const api = client(async (url, options) => {
+    const workspace = url.endsWith("/workspace");
+    calls.push([url, options.method, options.headers.get("If-Match"), JSON.parse(options.body)]);
+    return Response.json(workspace ? { revision: 8, pinned_board_ids: [BOARD], publishing } : { id: BOARD, revision: 8, publishing }, {
+      headers: { ETag: workspace ? TAG : boardTag },
+    });
+  });
+  assert.equal((await api.configureWorkspacePublishing(true, TAG)).data.publishing.enabled, true);
+  assert.equal((await api.configureBoardPublishing(BOARD, true, boardTag)).data.enabled, true);
+  assert.deepEqual(calls, [
+    ["/api/2026-11-10/workspace", "PATCH", TAG, { publishing: { enabled: true } }],
+    ["/api/2026-11-10/boards/" + BOARD, "PATCH", boardTag, { publishing: { enabled: true } }],
+  ]);
+});
+
+test("publishing reads and writes reject malformed status or mismatched board identity without replay", async () => {
+  const boardTag = JSON.stringify(BOARD + "-8");
+  const configureBoard = (api) => api.configureBoardPublishing(BOARD, true, boardTag);
+  for (const [body, configure, etag] of [
+    [{ id: "other-board", revision: 8, publishing: PUBLISHING_OFF }, configureBoard, boardTag],
+    [{ id: BOARD, revision: 7, publishing: PUBLISHING_OFF }, configureBoard, boardTag],
+    [{ id: BOARD, revision: 0, publishing: PUBLISHING_OFF }, configureBoard, boardTag],
+    [{ revision: 1, pinned_board_ids: [], publishing: { ...PUBLISHING_OFF, pending: "true" } }, (api) =>
+      api.configureWorkspacePublishing(true, TAG), TAG],
+  ]) {
+    let calls = 0;
+    const api = client(async () => {
+      calls++;
+      return Response.json(body, { headers: { ETag: etag } });
+    });
+    await assert.rejects(configure(api), { code: "invalid_response", status: 200, outcomeUnknown: true });
+    assert.equal(calls, 1);
+  }
+  const api = client(async () => Response.json({ id: BOARD, revision: 8, publishing: { enabled: false } }, {
+    headers: { ETag: boardTag },
+  }));
+  await assert.rejects(api.getBoardPublishing(BOARD), { code: "invalid_response", outcomeUnknown: false });
+});
+
+test("a matching board ETag can carry live publishing status without a new revision", async () => {
+  const boardTag = JSON.stringify(BOARD + "-8");
+  const board = { id: BOARD, revision: 8, publishing: { ...PUBLISHING_OFF, enabled: true, pending: true } };
+  const api = client(async (_url, options) => {
+    assert.equal(options.headers.get("If-None-Match"), boardTag);
+    return Response.json(board, { headers: { ETag: boardTag } });
+  });
+  assert.deepEqual(await api.getBoardIfChanged(BOARD, boardTag), { data: board, etag: boardTag });
 });
 
 test("classifies lost or unusable write responses without resubmitting", async () => {
@@ -174,12 +226,13 @@ test("owner notice configuration sends only explicitly supplied fields", async (
 
 test("requires the documented write status and a canonical response ETag", async () => {
   const writes = [
-    { send: (api) => api.createBoard({ name: "Fixture" }), status: 201, wrongStatus: 200 },
-    { send: (api) => api.setPinnedBoards([BOARD], TAG), status: 200, wrongStatus: 201 },
+    { send: (api) => api.createBoard({ name: "Fixture" }), body: {}, status: 201, wrongStatus: 200 },
+    { send: (api) => api.setPinnedBoards([BOARD], TAG), body: { revision: 1, pinned_board_ids: [BOARD], publishing: PUBLISHING_OFF },
+      status: 200, wrongStatus: 201 },
   ];
 
-  for (const { send, status, wrongStatus } of writes) {
-    const confirmed = await send(client(() => Response.json({}, {
+  for (const { send, body, status, wrongStatus } of writes) {
+    const confirmed = await send(client(() => Response.json(body, {
       status, headers: { ETag: TAG },
     })));
     assert.equal(confirmed.etag, TAG);

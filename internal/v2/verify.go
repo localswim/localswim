@@ -219,9 +219,8 @@ func validateSnapshot(value snapshot, boardID string) error {
 	if err := b.Notifications.validate(); err != nil {
 		return invalidSnapshot("board.notifications", "Notification settings are invalid.")
 	}
-	if !snapshotOptionalText(b.Publishing.Repository, 2048) ||
-		!snapshotOptionalText(b.Publishing.ErrorCode, 80) ||
-		(b.Publishing.LastSuccessAt != nil && !validSnapshotTime(*b.Publishing.LastSuccessAt)) {
+	if (b.Publishing.Repository != nil && *b.Publishing.Repository != "origin") ||
+		b.Publishing.LastSuccessAt != nil || b.Publishing.Pending || b.Publishing.ErrorCode != nil {
 		return invalidSnapshot("board.publishing", "Publishing metadata is invalid.")
 	}
 	if value.Users == nil || value.Lanes == nil || value.Priorities == nil || value.Cards == nil ||
@@ -537,12 +536,13 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		return invalidSnapshot("activity", "Board creation audit is invalid.")
 	}
 
-	// Board creation fixes the initial notification settings, so both fields
-	// must match replay even when no notification patch was recorded.
+	// Opt-in board settings must match replay even before their first patch.
 	disabled := "false"
 	latest := map[snapshotAuditField]*string{
 		{"board", b.ID, "notifications.enabled"}:          &disabled,
 		{"board", b.ID, "notifications.target_thread_id"}: nil,
+		{"board", b.ID, "publishing.enabled"}:             &disabled,
+		{"board", b.ID, "publishing.repository"}:          nil,
 	}
 	changed := make(map[snapshotAuditField]bool)
 	replayPolicy := initialAuditedPolicy(value)
@@ -904,6 +904,10 @@ func (refs snapshotReferences) validAuditField(boardID, actorID string, field sn
 				(snapshotString(value) == "true" || snapshotString(value) == "false")
 		case "notifications.target_thread_id":
 			return capabilities["manage_notifications"] && (value == nil || threadIDPattern.MatchString(*value))
+		case "publishing.enabled":
+			return capabilities["publish"] && (snapshotString(value) == "true" || snapshotString(value) == "false")
+		case "publishing.repository":
+			return capabilities["publish"] && (value == nil || *value == "origin")
 		}
 	case "card":
 		return refs.validCardAuditValue(actorID, field, value)
@@ -928,7 +932,14 @@ func (refs snapshotReferences) currentAuditField(b board, field snapshotAuditFie
 	case "notifications.enabled":
 		enabled := strconv.FormatBool(b.Notifications.Enabled)
 		return &enabled
-	default:
+	case "notifications.target_thread_id":
 		return b.Notifications.TargetThreadID
+	case "publishing.enabled":
+		enabled := strconv.FormatBool(b.Publishing.Enabled)
+		return &enabled
+	case "publishing.repository":
+		return b.Publishing.Repository
+	default:
+		return nil
 	}
 }

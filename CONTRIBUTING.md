@@ -149,8 +149,30 @@ changes consist of the captured native snapshot and exact audited attachment pat
 normal Git ancestry. Publication uses a private index under the persistent
 Git common-directory localswim-autopush.lock. The caller's index and unrelated staged work remain
 intact. Unsupported hooks, external content filters and filesystem monitors refuse before object
-publication. Inspect the original publication UUID after an uncertain result. Automatic board
-publishing and workspace preferences publishing are later milestones.
+publication. Inspect the original publication UUID after an uncertain result.
+
+Enable automatic publication independently with
+`board publishing enable [--revision N] BOARD_ID` or
+`workspace publishing enable [--revision N]`. Both default to disabled and use
+the data directory's enclosing Git worktree, local branch, and origin remote.
+An enabled board publishes a coherent committed snapshot and its exact audited
+attachment paths after five seconds of quiet. Enabled workspace publishing
+captures only `localswim-workspace.json`, including saved pin order. Both use
+the manual publisher's Git safety checks and common-directory lock.
+Automatic attempts use the resolved origin push destination. Explicit origin
+transport overrides leave the attempt pending with `unsupported_remote_transport`.
+
+Use the matching `status` command to inspect pending work, the last successful
+push time, and a fixed failure code. Failed automatic pushes remain pending and
+retry with bounded backoff without another edit. Status changes leave board,
+card, and workspace revisions intact. Use `disable` with the same revision
+options to stop new attempts. A disabled publisher keeps durable pending intent.
+After a disabled restart, status history is loaded when the publisher is
+re-enabled. Inspect status after an uncertain settings write.
+A board restore requires matching publishing settings. Reconcile any difference
+through the explicit settings command before restoring.
+A Git transport helper can outlive Git's timeout. The worker retains its lock
+while the admitted command joins.
 
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
 Unicode. Entity and build IDs are immutable UUIDv4 values. The service_instance_id

@@ -56,6 +56,11 @@ func (s *store) captureBackupSnapshot(boardID, actor, expected string) (backupCa
 	if !matchesStrongTag(expected, state.Board.ETag) {
 		return backupCapture{}, errStale
 	}
+	return s.captureSnapshotLocked(state)
+}
+
+func (s *store) captureSnapshotLocked(state snapshot) (backupCapture, error) {
+	boardID := state.Board.ID
 	root, err := os.OpenRoot(s.root)
 	if err != nil {
 		return backupCapture{}, errBackupIntegrity

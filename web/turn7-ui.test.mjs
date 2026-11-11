@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import vm from "node:vm";
 import test from "node:test";
-import {ApiError, createBrowserApi} from "./api.mjs";
+import {ApiError, createBrowserApi, validPublishing} from "./api.mjs";
 const board = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
 const lane = "ceab10a8-1492-4c90-aa07-13b83138919a";
 const card = "d2ef6295-ace1-4e6e-bbf7-b1c1823f56fc";
@@ -14,7 +14,7 @@ const page = (key, rows) => ({data: {[key]: rows, next_cursor: null}, etag: null
 
 // A small DOM surface executes app.mjs event handlers and asynchronous reads.
 // Browser rendering and platform behavior remain covered by the real-browser gate.
-async function harness(api) {
+async function harness(api, pathname = "/boards/" + board) {
   let document;
   class Element {
     constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; }
@@ -58,8 +58,9 @@ async function harness(api) {
     adoptedStyleSheets: [], createElement: (tag) => new ({input: Input, textarea: Textarea, button: Button, select: Select}[tag] ?? Element)(tag)};
   const context = vm.createContext({document, window: {addEventListener() {}}, CSSStyleSheet: class {replaceSync() {}},
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
-    MouseEvent: class {}, location: {pathname: "/boards/" + board, search: ""}, history: {}, URL, URLSearchParams,
-    Blob, setTimeout, crypto: globalThis.crypto, ApiError, createBrowserApi: () => api, openBrowserSession: async () => "capability"});
+    MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
+    Blob, setTimeout, crypto: globalThis.crypto, ApiError, validPublishing,
+    createBrowserApi: () => api, openBrowserSession: async () => "capability"});
   let source = await fs.readFile(new URL("./app.mjs", import.meta.url), "utf8");
   source = source.replace(/^import .*?;\r?\n/, "").replace(/void load\(\);\s*$/, "");
   vm.runInContext(source + "\nglobalThis.hooks = {load, renderCardSearch, renderBoardActions, busy:()=>writing, inspect:()=>cardInspection.inspect()};", context);
@@ -67,7 +68,11 @@ async function harness(api) {
   const find = (root, tagName, text) => root.querySelectorAll(tagName).find((node) => node.ownText === text);
   const field = (root, label) => find(root, "label", label)?.children[0];
   const submit = (root, label) => { const control = find(root, "button", label); assert.ok(control, label); if (!control.disabled) control.parent.dispatch("submit"); return control; };
-  return {nodes, ...context.hooks, settled, find, field, submit, focused: () => document.activeElement};
+  async function navigate(path) {
+    context.location.pathname = path;
+    await context.hooks.load();
+  }
+  return {nodes, ...context.hooks, settled, find, field, submit, navigate, focused: () => document.activeElement};
 }
 
 function boardApi() {
@@ -94,6 +99,250 @@ function boardApi() {
   api.restoreSnapshot = async () => { restore(); };
   return {api, restore, patched: () => patched};
 }
+
+const publishingOff = {enabled: false, repository: null, last_success_at: null, pending: false, error_code: null};
+
+test("board loading retries a changed revision and adopts current publishing status at a matching revision", async () => {
+  const {api} = boardApi();
+  const readLanes = api.getBoardLanes;
+  let reads = 0;
+  api.getBoardLanes = async () => ({...await readLanes(), etag: tag(board, ++reads)});
+  api.getBoardIfChanged = async () => ({
+    data: {id: board, publishing: {...publishingOff, enabled: true, pending: true}},
+    etag: tag(board, 2),
+  });
+  const ui = await harness(api);
+  await ui.load();
+  assert.equal(reads, 2);
+  assert.match(ui.nodes.main.querySelector("#board-publishing-status").textContent, /publishing is on.*Publication pending/);
+  assert.ok(ui.find(ui.nodes.main, "button", "#1 Original"));
+});
+
+test("board publishing inspects an uncertain save once and renders automatic push recovery", async () => {
+  const {api} = boardApi();
+  const readLanes = api.getBoardLanes;
+  let publication = {...publishingOff};
+  let readFails = true;
+  let revision = 1;
+  const writes = [];
+  api.getBoardLanes = async () => {
+    const reply = await readLanes();
+    return {data: {...reply.data, board: {...reply.data.board, publishing: publication}}, etag: tag(board, revision)};
+  };
+  api.configureBoardPublishing = async (id, enabled, etag) => {
+    writes.push({id, enabled, etag});
+    revision++;
+    publication = {...publication, enabled, pending: true, error_code: "git_push_failed"};
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  api.getBoardPublishing = async () => {
+    if (readFails) throw new ApiError("transport_failed");
+    return {data: publication, etag: tag(board, revision)};
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const title = ui.field(ui.nodes.main, "New title");
+  title.value = "Draft survives publishing";
+  const enabled = ui.field(ui.nodes.main, "Enable board publishing");
+  const status = ui.nodes.main.querySelector("#board-publishing-status");
+  const refresh = ui.find(ui.nodes.main, "button", "Refresh board publishing status");
+  enabled.checked = true;
+  enabled.dispatch("change");
+  const save = ui.submit(ui.nodes.main, "Save board publishing");
+  await ui.settled();
+  assert.equal(save.disabled, true);
+  assert.equal(enabled.checked, true);
+  assert.match(ui.nodes.status.textContent, /Readback failed/);
+  ui.submit(ui.nodes.main, "Save board publishing");
+  readFails = false;
+  refresh.click();
+  await ui.settled();
+  assert.equal(save.disabled, false);
+  assert.match(status.textContent, /Git push failed.*Publication pending/);
+  publication = {...publication, pending: false, error_code: null, last_success_at: "2026-11-11 00:00:00+00:00"};
+  refresh.click();
+  await ui.settled();
+  assert.match(status.textContent, /Last successful publish at 2026-11-11/);
+  assert.doesNotMatch(status.textContent, /pending|failed/);
+  assert.equal(title.value, "Draft survives publishing");
+  assert.deepEqual(writes, [{id: board, enabled: true, etag: tag(board, 1)}]);
+});
+
+test("workspace publishing and pin order save independently against current workspace tags", async () => {
+  let workspace = {revision: 1, pinned_board_ids: [], publishing: {...publishingOff}};
+  const workspaceTag = () => tag("workspace-test-id", workspace.revision);
+  const writes = [];
+  const second = {id: backup, name: "Second board"};
+  const api = {
+    getSession: async () => ({data: {kind: "human", workspace_admin: true}}),
+    listBoards: async () => page("boards", [{id: board, name: "First board"}, second]),
+    getWorkspace: async () => ({data: workspace, etag: workspaceTag()}),
+    configureWorkspacePublishing: async (enabled, etag) => {
+      writes.push({enabled, etag});
+      assert.equal(etag, workspaceTag());
+      workspace = {...workspace, revision: workspace.revision + 1, publishing: {...workspace.publishing, enabled}};
+    },
+    setPinnedBoards: async (pins, etag) => {
+      writes.push({pins: Array.from(pins), etag});
+      assert.equal(etag, workspaceTag());
+      workspace = {...workspace, revision: workspace.revision + 1, pinned_board_ids: pins};
+    },
+  };
+  const ui = await harness(api, "/");
+  await ui.load();
+  const main = ui.nodes.main;
+  for (const name of ["First board", "Second board"]) {
+    const pin = ui.field(main, "Pin " + name);
+    pin.checked = true;
+    pin.dispatch("change");
+  }
+  ui.find(main, "button", "Move Second board up").click();
+  const name = ui.field(main, "Board name");
+  name.value = "Unsaved board name";
+  const enabled = ui.field(main, "Enable workspace publishing");
+  enabled.checked = true;
+  enabled.dispatch("change");
+  ui.submit(main, "Save workspace publishing");
+  await ui.settled();
+  assert.deepEqual(workspace.pinned_board_ids, []);
+  assert.equal(ui.field(main, "Pin Second board").checked, true);
+  assert.equal(ui.field(main, "Pin First board").checked, true);
+  ui.submit(main, "Save pin order");
+  await ui.settled();
+  assert.equal(workspace.publishing.enabled, true);
+  assert.deepEqual(writes, [
+    {enabled: true, etag: tag("workspace-test-id", 1)},
+    {pins: [backup, board], etag: tag("workspace-test-id", 2)},
+  ]);
+  assert.equal(name.value, "Unsaved board name");
+  assert.match(main.querySelector("#workspace-publishing-status").textContent, /publishing is on/);
+  assert.equal(ui.nodes.boards.children[0].textContent, "Second board");
+});
+
+test("board publishing keeps an explicit off draft across an unavailable read and navigation", async () => {
+  const {api} = boardApi();
+  const readLanes = api.getBoardLanes;
+  const publishing = {...publishingOff, enabled: true};
+  let available = true;
+  api.getBoardLanes = async () => {
+    const reply = await readLanes();
+    return {data: {...reply.data, board: {...reply.data.board, publishing: available ? publishing : undefined}}, etag: reply.etag};
+  };
+  api.getBoardPublishing = async () => ({data: publishing, etag: tag(board, 1)});
+  const ui = await harness(api);
+  const {main} = ui.nodes;
+  const enabled = () => ui.field(main, "Enable board publishing");
+  await ui.load();
+  assert.equal(enabled().checked, true);
+  enabled().checked = false;
+  enabled().dispatch("change");
+  available = false;
+  await ui.load();
+  assert.match(main.querySelector("#board-publishing-status").textContent, /unavailable/);
+  await ui.navigate("/");
+  await ui.navigate("/boards/" + board);
+  ui.find(main, "button", "Refresh board publishing status").click();
+  await ui.settled();
+  assert.match(main.querySelector("#board-publishing-status").textContent, /publishing is on/);
+  assert.equal(enabled().checked, false);
+});
+
+test("workspace recovery retains explicit off and unpin-all drafts and adopts saved values in a clean view", async () => {
+  const workspace = {revision: 1, pinned_board_ids: [board], publishing: {...publishingOff, enabled: true}};
+  let available = true;
+  const api = {
+    getSession: async () => ({data: {kind: "human", workspace_admin: true}}),
+    listBoards: async () => page("boards", [{id: board, name: "First board"}]),
+    getWorkspace: async () => {
+      if (!available) throw new ApiError("transport_failed");
+      return {data: workspace, etag: tag("workspace-test-id", 1)};
+    },
+  };
+  const ui = await harness(api, "/");
+  const {main} = ui.nodes;
+  const enabled = () => ui.field(main, "Enable workspace publishing");
+  const pin = () => ui.field(main, "Pin First board");
+  await ui.load();
+  for (const control of [enabled(), pin()]) {
+    assert.equal(control.checked, true);
+    control.checked = false;
+    control.dispatch("change");
+  }
+  available = false;
+  await ui.load();
+  assert.match(main.querySelector("#workspace-publishing-status").textContent, /unavailable/);
+  await ui.navigate("/missing");
+  await ui.navigate("/");
+  const clean = await harness(api, "/");
+  await clean.load();
+  available = true;
+  for (const view of [ui, clean]) {
+    view.find(view.nodes.main, "button", "Refresh workspace publishing status").click();
+    await view.settled();
+  }
+  assert.match(main.querySelector("#workspace-publishing-status").textContent, /publishing is on/);
+  assert.equal(enabled().checked, false);
+  assert.equal(pin().checked, false);
+  assert.equal(clean.field(clean.nodes.main, "Enable workspace publishing").checked, true);
+  assert.equal(clean.field(clean.nodes.main, "Pin First board").checked, true);
+});
+
+test("workspace saves freeze only their own editors through readback and navigation", async () => {
+  let workspace = {revision: 1, pinned_board_ids: [board], publishing: {...publishingOff}};
+  let finishPublishing;
+  let finishPins;
+  const api = {
+    getSession: async () => ({data: {kind: "human", workspace_admin: true}}),
+    listBoards: async () => page("boards", [{id: board, name: "First board"}]),
+    getWorkspace: async () => ({data: workspace, etag: tag("workspace-test-id", workspace.revision)}),
+    configureWorkspacePublishing: (enabled) => new Promise((resolve) => {
+      finishPublishing = () => {
+        workspace = {...workspace, revision: 2, publishing: {...workspace.publishing, enabled}};
+        resolve();
+      };
+    }),
+    setPinnedBoards: (pinned_board_ids) => new Promise((resolve) => {
+      finishPins = () => {
+        workspace = {...workspace, revision: 3, pinned_board_ids};
+        resolve();
+      };
+    }),
+  };
+  const ui = await harness(api, "/");
+  const {main} = ui.nodes;
+  const enabled = () => ui.field(main, "Enable workspace publishing");
+  const pin = () => ui.field(main, "Pin First board");
+  function toggle(control, checked) {
+    assert.equal(control.disabled, false);
+    control.checked = checked;
+    control.dispatch("change");
+  }
+  await ui.load();
+  toggle(enabled(), true);
+  ui.submit(main, "Save workspace publishing");
+  assert.equal(enabled().disabled, true);
+  toggle(pin(), false);
+  finishPublishing();
+  await ui.settled();
+  assert.equal(pin().checked, false);
+
+  ui.submit(main, "Save pin order");
+  assert.equal(pin().disabled, true);
+  toggle(enabled(), false);
+  await ui.navigate("/missing");
+  await ui.navigate("/");
+  assert.equal(pin().disabled, true);
+  assert.equal(enabled().checked, false);
+  finishPins();
+  await ui.settled();
+  assert.equal(pin().disabled, false);
+  ui.find(main, "button", "Refresh workspace publishing status").click();
+  await ui.settled();
+  assert.equal(enabled().checked, false);
+  assert.equal(pin().checked, false);
+  assert.equal(workspace.pinned_board_ids.length, 0);
+  assert.equal(workspace.publishing.enabled, true);
+});
 
 test("native restore refreshes the open drawer through board reload while preserving drafts and focus", async () => {
   const state = boardApi();

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -27,6 +28,8 @@ type Service struct {
 	principals          []user
 	human, bot, browser [32]byte
 	browserToken        string
+	closeOnce           sync.Once
+	closeErr            error
 }
 
 func Open(root, humanToken, botToken string) (*Service, error) {
@@ -46,6 +49,7 @@ func Open(root, humanToken, botToken string) (*Service, error) {
 	events := newEventHub()
 	workspace := newWorkspace(boards.root)
 	boards.events, workspace.events = events, events
+	boards.startBoardPublishers()
 	boards.ownerNotices = newOwnerNoticeWorker(ownerNoticeQuietPeriod, boards.ownerNoticeSettings, deliverOwnerNotice)
 	return &Service{events: events, store: boards, workspace: workspace, builds: newBuildStatus(boards.root),
 		principals: principals, browserToken: browserToken, browser: sha256.Sum256([]byte(browserToken)), human: sha256.Sum256([]byte(humanToken)), bot: sha256.Sum256([]byte(botToken))}, nil
@@ -60,11 +64,19 @@ func validToken(token string) bool {
 }
 
 func (s *Service) Close() error {
-	s.StopEvents()
-	if s.store.ownerNotices != nil {
-		s.store.ownerNotices.close()
-	}
-	return s.store.close()
+	s.closeOnce.Do(func() {
+		s.StopEvents()
+		workspaceDone := s.workspace.publisher.stop()
+		s.store.closeBoardPublishers()
+		if workspaceDone != nil {
+			<-workspaceDone
+		}
+		if s.store.ownerNotices != nil {
+			s.store.ownerNotices.close()
+		}
+		s.closeErr = s.store.close()
+	})
+	return s.closeErr
 }
 
 type request struct {
@@ -274,6 +286,17 @@ func (x *request) problem(status int, code, detail, outcome string, issues []fie
 }
 
 func (x *request) respond(status int, value any, tag string) {
+	x.respondWithConditionalTag(status, value, tag, true)
+}
+
+func (x *request) respondPublishing(status int, value any, tag string, info publishing) {
+	// This revision tag remains the command validator. A worker can change the
+	// live status without changing that revision, so reread its representation.
+	stable := !info.Enabled && !info.Pending && info.LastSuccessAt == nil && info.ErrorCode == nil
+	x.respondWithConditionalTag(status, value, tag, stable)
+}
+
+func (x *request) respondWithConditionalTag(status int, value any, tag string, conditional bool) {
 	data, err := marshalCanonical(value)
 	if err != nil || len(data) > maxJSONBytes {
 		x.fail(errors.New("response encoding failed"))
@@ -296,7 +319,7 @@ func (x *request) respond(status int, value any, tag string) {
 		}
 		h.Set("ETag", tag)
 		for _, candidate := range conditions {
-			if candidate.opaque == "*" || candidate.opaque == tag {
+			if candidate.opaque == "*" || conditional && candidate.opaque == tag {
 				x.w.WriteHeader(304)
 				return
 			}

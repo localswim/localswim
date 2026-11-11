@@ -493,6 +493,7 @@ paths:
     patch:
       operationId: updateWorkspace
       summary: Update pins or workspace publishing
+      description: A publishing change requires the Human workspace administrator. Pin-only updates retain their existing authorization.
       tags:
       - Workspace
       parameters:
@@ -560,7 +561,8 @@ paths:
           $ref: '#/components/responses/NotAcceptable'
       x-authorization:
         scope: workspace
-        workspace_admin: true
+        workspace_admin_fields:
+        - publishing
       x-milestones:
       - 27
       - 36
@@ -1318,8 +1320,8 @@ paths:
       - 37
       description: Closing a board drains admitted work and flushes its publisher without closing other
         boards. Failed flush preserves availability for inspection. Notification settings default off;
-        target changes preserve enabled state. Settings writes require management authority in addition
-        to ordinary board access. Replacing user_ids requires workspace_admin and manage_permissions, validates
+        target changes preserve enabled state. Updating automatic publishing requires the board publish
+        capability. Replacing user_ids requires workspace_admin and manage_permissions, validates
         all references, and refuses removing members needed by retained state/history or grants.
       requestBody:
         required: true
@@ -13154,9 +13156,7 @@ components:
           type: boolean
         repository:
           anyOf:
-          - type: string
-            minLength: 0
-            maxLength: 2048
+          - const: origin
           - type: 'null'
         actor: false
         actor_id: false
@@ -13185,7 +13185,7 @@ components:
         - enabled
       - required:
         - repository
-      description: Unknown members are rejected in this security-sensitive object.
+      description: Closed opt-in settings for the enclosing Git worktree. Origin and null select its configured origin. Runtime status is read-only.
     Board:
       type: object
       additionalProperties: false
@@ -13775,7 +13775,7 @@ components:
         revision:
           $ref: '#/components/schemas/Revision'
           minimum: 1
-          description: Workspace preference revision. Conditional reads and writes use the HTTP ETag header.
+          description: Workspace preference revision. The ETag guards writes. While live publishing status is visible, an exact matching revision tag still returns current status.
         pinned_board_ids:
           type: array
           items:
@@ -18038,15 +18038,20 @@ x-notification-worker:
   isolation: Queue failure never changes a committed product operation. Bot-only edits and no-ops create
     no owner notice.
 x-publishing-worker:
-  trigger: Opt-in board edit or enabled workspace preference edit, after a five-second quiet period.
-  capture: Capture a coherent immutable board/attachment or preference snapshot. Git runs outside command
-    admission.
+  trigger: An opt-in board edit or enabled workspace preference edit schedules work after five seconds of quiet.
+  capture: Capture a coherent board snapshot with exact audited immutable attachments, or the exact committed
+    workspace preference file alone. Git runs outside command admission. Board recovery preserves explicit
+    publishing opt-in by refusing a snapshot with different publishing settings.
   synchronization: Serialize every board and workspace publisher sharing one repository with the same
     persistent OS lock.
   retry: Retain failed pushes as pending and retry with bounded backoff even without another edit. Preserve
     already committed history and unrelated staged work.
-  shutdown: Flush enabled publishers before successful explicit shutdown. A failed final push leaves the
-    service available with failure status.
+  status: Report pending, last_success_at, and a fixed error_code on the board summary or workspace.
+    Publishing progress does not advance data revisions. While live status is visible, an exact matching
+    revision tag still returns current status. After a disabled restart, durable publishing history is
+    loaded on re-enable.
+  shutdown: The explicit shutdown and activation operations in milestone 39 flush enabled publishers before
+    success. A failed final push leaves the service available with failure status.
 
 x-owner-validation:
   cards: Every card has a non-null owner_id referencing a board member. Explicit null is refused on create and patch.

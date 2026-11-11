@@ -24,12 +24,18 @@ const cliHelp = `Usage:
   localswim workspace pin set [--revision N] BOARD_ID [BOARD_ID ...]
   localswim workspace pin add [--revision N] BOARD_ID [BOARD_ID ...]
   localswim workspace pin remove [--revision N] BOARD_ID [BOARD_ID ...]
+  localswim workspace publishing enable [--revision N]
+  localswim workspace publishing disable [--revision N]
+  localswim workspace publishing status
   localswim board list [--limit N] [--cursor CURSOR]
   localswim board create --name NAME
   localswim board create --json <JSON_FILE|->
   localswim board get [--view lanes] BOARD_ID
   localswim board rename [--revision N] BOARD_ID NEW_NAME
   localswim board patch [--revision N] BOARD_ID <JSON_FILE|->
+  localswim board publishing enable [--revision N] BOARD_ID
+  localswim board publishing disable [--revision N] BOARD_ID
+  localswim board publishing status BOARD_ID
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] BOARD_ID
   localswim card create [--revision N] <JSON_FILE|->
@@ -94,6 +100,8 @@ All pin commands require at least one board ID. Pin set replaces the order.
 Pin add appends new boards in the supplied order.
 Pin remove skips failed targets with WARNING messages and preserves the remaining order.
 Pin set validates the entire list and reports ERROR if any target fails.
+Publishing commands return the full board or workspace JSON, including publishing status.
+Board publishing uses the board revision. Workspace publishing uses the workspace revision.
 Omit --revision to use the current resource validator.
 Supply --revision to require the version you previously inspected.
 For card create and policy grant, --revision refers to the board revision.
@@ -182,6 +190,7 @@ type cliCommand struct {
 	detachAttachment                   bool
 	t06Action                          string
 	t07Action                          string
+	publishingAction                   string
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -224,6 +233,20 @@ func parseCLI(args []string) (cliCommand, error) {
 
 	name := args[0] + " " + args[1]
 	optionArgs := args[2:]
+	if name == "board publishing" || name == "workspace publishing" {
+		if len(optionArgs) == 0 {
+			return command, errors.New("publishing requires enable, disable, or status")
+		}
+		switch optionArgs[0] {
+		case "--help", "-h":
+			return command, flag.ErrHelp
+		case "enable", "disable", "status":
+			command.publishingAction = optionArgs[0]
+			optionArgs = optionArgs[1:]
+		default:
+			return command, errors.New("publishing requires enable, disable, or status")
+		}
+	}
 	if name == "card search" || name == "card next" || name == "card lookup" || name == "ticket-order apply" || name == "board restore" || strings.HasPrefix(name, "restoration ") || strings.HasPrefix(name, "publication ") {
 		return parseT07(name, optionArgs)
 	}
@@ -252,6 +275,17 @@ func parseCLI(args []string) (cliCommand, error) {
 	paginated := false
 	format := exportJSON
 	switch name {
+	case "board publishing", "workspace publishing":
+		command.method, command.resource = http.MethodGet, "/workspace"
+		if name == "board publishing" {
+			command.resource, needBoardID = "/boards", true
+		}
+		switch command.publishingAction {
+		case "enable":
+			command.method, command.body = http.MethodPatch, json.RawMessage(`{"publishing":{"enabled":true}}`)
+		case "disable":
+			command.method, command.body = http.MethodPatch, json.RawMessage(`{"publishing":{"enabled":false}}`)
+		}
 	case "workspace info":
 		command.method, command.resource = http.MethodGet, "/workspace"
 	case "workspace pin set", "workspace pin add", "workspace pin remove":
@@ -533,6 +567,11 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		if err := checkCLIRevision(command.revision, current.JSON); err != nil {
 			return err
 		}
+		if command.publishingAction != "" {
+			if _, err := current.PublishingEnabled(command.boardID); err != nil {
+				return err
+			}
+		}
 		if command.pinAction != "" {
 			var warnings []string
 			body, warnings, err = pinRequestBody(command.pinAction, command.pinIDs, current.JSON)
@@ -552,6 +591,15 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 			return fmt.Errorf("%w (attachment ID %s)", err, command.edit.uploadID)
 		}
 		return err
+	}
+	if command.publishingAction != "" {
+		enabled, err := reply.PublishingEnabled(command.boardID)
+		if command.method == http.MethodPatch && (err != nil || enabled != (command.publishingAction == "enable")) {
+			return fmt.Errorf("service did not confirm the requested publishing state. %w. Inspect publishing status before retrying", client.ErrMutationOutcomeUnknown)
+		}
+		if err != nil {
+			return err
+		}
 	}
 	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
 		if command.edit.uploadID != "" {

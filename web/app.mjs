@@ -1,4 +1,4 @@
-import { ApiError, createBrowserApi, openBrowserSession } from "./api.mjs";
+import { ApiError, createBrowserApi, openBrowserSession, validPublishing } from "./api.mjs";
 
 /** @typedef {{id: string, label: string}} Labeled */
 /** @typedef {Labeled & {kind: "human"|"bot"}} User */
@@ -7,7 +7,8 @@ import { ApiError, createBrowserApi, openBrowserSession } from "./api.mjs";
  * kind: RelationshipKind}} Relationship */
 /** @typedef {{resource_type: string, resource_id: string, operation: string, field: string|null,
  * actor_id: string, board_id: string, at: string, revision: number, before: string|null, after: string|null}} Change */
-/** @typedef {{id: string, name: string, default_owner_id: string, user_css?: string, notifications?: object}} Board */
+/** @typedef {import("./api.mjs").Publishing} Publishing */
+/** @typedef {{id: string, name: string, default_owner_id: string, user_css?: string, notifications?: object, publishing?: unknown}} Board */
 /** @typedef {{id: string, name: string|null}} BoardSummary */
 /** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string, approval_enabled: boolean}} Lane */
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
@@ -50,6 +51,12 @@ let retainBoardDraft;
 const cardDrafts = new Map();
 /** @type {Map<string, string[]>} */
 const boardDrafts = new Map();
+/** @type {Map<string, boolean>} */
+const publishingDrafts = new Map();
+/** @type {Map<string, Promise<void>>} */
+const preferenceWrites = new Map();
+/** @type {string[]|undefined} */
+let pinDraft;
 /** @type {Map<string, {id: string, backupId: string}>} */
 const pendingPublications = new Map();
 /** @type {Map<string, {read: InspectionRead, isCurrent: () => boolean}>} */
@@ -70,6 +77,113 @@ function announce(phase, message) {
   if (!status) return;
   status.dataset.phase = phase;
   status.textContent = message;
+}
+
+/** @param {Publishing} state */
+function publishingStatus(state) {
+  const parts = [state.enabled ? "Automatic publishing is on." : "Automatic publishing is off."];
+  if (state.error_code !== null) {
+    switch (state.error_code) {
+      case "git_push_failed": parts.push("Git push failed."); break;
+      case "repository_busy": parts.push("The repository is busy."); break;
+      default: parts.push("Publishing failed.");
+    }
+  }
+  if (state.pending) parts.push(state.enabled ? "Publication pending." : "Publication pending while publishing is off.");
+  if (state.last_success_at !== null) parts.push("Last successful publish at " + state.last_success_at + ".");
+  return parts.join(" ");
+}
+
+/** @param {string} key @param {Promise<void>} write */
+function trackPreferenceWrite(key, write) {
+  preferenceWrites.set(key, write);
+  void write.finally(() => { preferenceWrites.delete(key); });
+}
+
+/** @param {string} key @param {(saving: boolean) => void} update */
+function watchPreferenceWrite(key, update) {
+  const write = preferenceWrites.get(key);
+  if (!write) return;
+  update(true);
+  void write.finally(() => { update(false); });
+}
+
+/** @param {"board"|"workspace"} scope @param {string} key
+ * @param {{data: Publishing, etag: string}|undefined} initial
+ * @param {() => Promise<{data: Publishing, etag: string}>} read
+ * @param {(enabled: boolean, tag: string) => Promise<unknown>} save
+ * @param {() => Promise<void>} afterSave @param {Inspection} inspection */
+function renderPublishing(scope, key, initial, read, save, afterSave, inspection) {
+  const panel = element("section");
+  const enabled = element("input");
+  enabled.type = "checkbox";
+  enabled.checked = publishingDrafts.get(key) ?? initial?.data.enabled ?? false;
+  const current = element("p");
+  current.id = scope + "-publishing-status";
+  current.setAttribute("aria-live", "polite");
+  current.textContent = initial ? publishingStatus(initial.data) : "Publishing status is unavailable.";
+  let saved = initial;
+  /** @param {{data: Publishing, etag: string}} reply */
+  function show(reply) {
+    if (!panel.isConnected) return;
+    if (!publishingDrafts.has(key) && (!saved || enabled.checked === saved.data.enabled)) {
+      enabled.checked = reply.data.enabled;
+    }
+    saved = reply;
+    retain();
+    current.textContent = publishingStatus(reply.data);
+    delete settings.dataset.unavailable;
+    inspection.sync();
+  }
+  function retain() {
+    if (!saved) return;
+    if (enabled.checked === saved.data.enabled) publishingDrafts.delete(key);
+    else publishingDrafts.set(key, enabled.checked);
+  }
+  enabled.addEventListener("change", () => {
+    if (saved) retain();
+    else publishingDrafts.set(key, enabled.checked);
+  });
+  const option = field("Enable " + scope + " publishing", enabled);
+  option.className = "check-option";
+  /** @param {boolean} saving */
+  const disableWhileSaving = (saving) => { enabled.disabled = saving; };
+  watchPreferenceWrite(key, disableWhileSaving);
+  const settings = form("Save " + scope + " publishing", [option], (submit) => {
+    if (!saved) return;
+    const requested = enabled.checked;
+    const expected = saved.etag;
+    trackPreferenceWrite(key, writeResource(submit, () => save(requested, expected), async () => {
+      await afterSave();
+      const reply = await read();
+      show(reply);
+      return reply.data.enabled === requested;
+    }, "Publishing settings saved.", inspection));
+    watchPreferenceWrite(key, disableWhileSaving);
+  });
+  if (!saved) {
+    settings.dataset.unavailable = "true";
+    const submit = /** @type {HTMLButtonElement} */ (settings.querySelector("button"));
+    submit.disabled = true;
+  }
+  const refreshStatus = button("Refresh " + scope + " publishing status", () => {
+    if (writing) return;
+    if (pendingInspections.has(inspection.scope)) {
+      inspection.inspect();
+      return;
+    }
+    writing = true;
+    refreshStatus.disabled = true;
+    void readWithSession(read).then(show).catch(() => {
+      if (panel.isConnected) current.textContent = "Publishing status could not be read. Try refreshing again.";
+    }).finally(() => {
+      writing = false;
+      refreshStatus.disabled = false;
+    });
+  });
+  panel.append(element("h3", scope === "board" ? "Board publishing" : "Workspace publishing"),
+    current, settings, refreshStatus);
+  return { panel, show, retain };
 }
 
 /** @template {keyof HTMLElementTagNameMap} Tag @param {Tag} tag @param {string} [text] */
@@ -207,7 +321,8 @@ function createInspection(region, isCurrent, read, resource, scope) {
   /** @param {boolean} disabled */
   function setSubmissionsDisabled(disabled) {
     for (const control of region.querySelectorAll("form button[type=submit]")) {
-      if (control instanceof HTMLButtonElement) control.disabled = disabled || region.dataset.unavailable === "true" || control.dataset.publicationPending === "true";
+      if (control instanceof HTMLButtonElement) control.disabled = disabled
+        || control.closest('[data-unavailable="true"]') !== null || control.dataset.publicationPending === "true";
     }
   }
 
@@ -996,7 +1111,11 @@ async function readBoardContents(boardId) {
       /** @type {Promise<Labeled[]>} */ (collect((cursor) => api.listPriorities(boardId, cursor), "priorities")),
     ]);
     const check = await api.getBoardIfChanged(boardId, etag(board));
-    if (check.data !== null) continue;
+    if (check.data !== null) {
+      if (check.etag !== board.etag) continue;
+      const summary = /** @type {Board} */ (check.data);
+      if (validPublishing(summary.publishing)) data.board.publishing = summary.publishing;
+    }
     const active = new Set(activeLanes(lanes).map(({ id }) => id));
     if (new Set(cards.map(({ id }) => id)).size !== cards.length || cards.some((card) =>
       card.board_id !== boardId || card.archived !== false || !active.has(card.lane_id)
@@ -1004,6 +1123,129 @@ async function readBoardContents(boardId) {
     return { board, lanes, cards, priorities };
   }
   throw new ApiError("board_changed_during_read", { status: 412 });
+}
+
+/** @param {string[]} left @param {string[]} right */
+function sameOrder(left, right) {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
+/** @param {BoardSummary[]} boards @param {(pins: string[]) => void} showSavedOrder
+ * @param {Awaited<ReturnType<typeof api.getWorkspace>>|undefined} initial @param {Inspection} inspection */
+function renderWorkspacePreferences(boards, showSavedOrder, initial, inspection) {
+  const panel = element("section");
+  panel.className = "editor";
+  let saved = initial;
+  let draft = [...(pinDraft ?? saved?.data.pinned_board_ids ?? [])];
+  const pins = element("div");
+  const pinStatus = element("p");
+  pinStatus.setAttribute("aria-live", "polite");
+  const pinSection = element("section");
+  let pinSaving = false;
+  /** @param {boolean} saving */
+  function disablePinsWhileSaving(saving) {
+    pinSaving = saving;
+    if (panel.isConnected) paintPins();
+  }
+  watchPreferenceWrite("workspace-pins", disablePinsWhileSaving);
+  const pinForm = form("Save pin order", [pins], (submit) => {
+    if (!saved) return;
+    const expected = saved.etag;
+    const requested = [...draft];
+    trackPreferenceWrite("workspace-pins", writeResource(submit, () => api.setPinnedBoards(requested, expected), async () => {
+      const reply = await read();
+      return sameOrder(reply.data.pinned_board_ids, requested);
+    }, "Pin order saved.", inspection));
+    watchPreferenceWrite("workspace-pins", disablePinsWhileSaving);
+  });
+  if (!saved) pinForm.dataset.unavailable = "true";
+  pinSection.append(element("h3", "Pin order"), pinStatus, pinForm);
+
+  function retain() {
+    if (saved) pinDraft = sameOrder(draft, saved.data.pinned_board_ids) ? undefined : [...draft];
+    publishing.retain();
+  }
+
+  /** @param {BoardSummary[]} rows */
+  function showBoards(rows) {
+    boards = rows;
+    paintPins();
+    showSavedOrder(saved?.data.pinned_board_ids ?? []);
+  }
+
+  /** @param {string} [focusId] @param {"up"|"down"|"pin"} [focusKind] */
+  function paintPins(focusId, focusKind) {
+    const names = new Map(boards.map(({ id, name }) => [id, name]));
+    /** @type {HTMLElement|undefined} */
+    let nextFocus;
+    const rows = [...draft, ...boards.map(({ id }) => id).filter((id) => !draft.includes(id))].map((id) => {
+      const name = names.get(id) ?? "Unavailable board";
+      const row = element("div");
+      row.className = "pin-row";
+      const pin = element("input");
+      pin.type = "checkbox";
+      const index = draft.indexOf(id);
+      pin.checked = index >= 0;
+      pin.disabled = !saved || pinSaving;
+      pin.addEventListener("change", () => {
+        if (pin.checked && index < 0) draft.push(id);
+        if (!pin.checked && index >= 0) draft.splice(index, 1);
+        retain();
+        paintPins(id, "pin");
+      });
+      const option = field("Pin " + name, pin);
+      option.className = "check-option";
+      row.append(option);
+      if (focusId === id && focusKind === "pin") nextFocus = pin;
+      if (index >= 0) {
+        /** @param {"up"|"down"} direction @param {number} offset */
+        function move(direction, offset) {
+          const to = index + offset;
+          const control = button("Move " + name + " " + direction, () => {
+            [draft[index], draft[to]] = [draft[to], draft[index]];
+            retain();
+            paintPins(id, direction);
+          });
+          control.disabled = !saved || pinSaving || to < 0 || to >= draft.length;
+          if (focusId === id && focusKind === direction) nextFocus = control.disabled ? pin : control;
+          return control;
+        }
+        row.append(move("up", -1), move("down", 1));
+      }
+      return row;
+    });
+    pins.replaceChildren(...rows);
+    nextFocus?.focus();
+    pinStatus.textContent = saved ? "" : "Saved pin order is unavailable. Inspect saved workspace before saving.";
+  }
+
+  async function read() {
+    const reply = await api.getWorkspace();
+    if (panel.isConnected) {
+      if (pinDraft === undefined && (!saved || sameOrder(draft, saved.data.pinned_board_ids))) {
+        draft = [...reply.data.pinned_board_ids];
+      }
+      saved = reply;
+      retain();
+      delete pinForm.dataset.unavailable;
+      paintPins();
+      showSavedOrder(reply.data.pinned_board_ids);
+      publishing.show({ data: reply.data.publishing, etag: reply.etag });
+    }
+    return reply;
+  }
+
+  const publishing = renderPublishing("workspace", "workspace", saved && { data: saved.data.publishing, etag: saved.etag },
+    async () => {
+      const reply = await read();
+      return { data: reply.data.publishing, etag: reply.etag };
+    }, api.configureWorkspacePublishing, async () => {}, inspection);
+  async function inspect() {
+    await read();
+  }
+  paintPins();
+  panel.append(pinSection, publishing.panel);
+  return { panel, showBoards, inspect, retain };
 }
 
 async function load() {
@@ -1038,28 +1280,50 @@ async function load() {
     if (context.kind !== "human") throw new ApiError("invalid_response");
     identity.textContent = "Human";
     const boardId = location.pathname.match(/^\/boards\/([0-9a-f-]{36})\/?$/i)?.[1]?.toLowerCase();
+    /** @type {string[]} */
+    let visiblePins = [];
     /** @param {BoardSummary[]} rows */
     function showBoards(rows) {
-      navigation?.replaceChildren(...rows.map((board) => {
+      const byId = new Map(rows.map((board) => [board.id, board]));
+      const ordered = [...visiblePins.flatMap((id) => byId.get(id) ?? []),
+        ...rows.filter(({ id }) => !visiblePins.includes(id))];
+      navigation?.replaceChildren(...ordered.map((board) => {
         const item = link("/boards/" + board.id, board.name ?? "Unavailable board");
         if (board.id === boardId) item.setAttribute("aria-current", "page");
         return item;
       }));
     }
     showBoards(boards);
+    const readPreferences = context.workspace_admin === true
+      ? readWithSession(api.getWorkspace).catch(() => undefined) : undefined;
     if (!boardId && location.pathname === "/") {
       main.replaceChildren(element("h1", "Workspace"),
         element("p", boards.length ? "Select a board." : "No boards are available."));
       if (context.workspace_admin === true) {
+        const preferences = await readPreferences;
+        if (view !== activeView) return;
+        let latestBoards = boards;
+        visiblePins = preferences?.data.pinned_board_ids ?? [];
+        showBoards(latestBoards);
         const boardName = element("input");
         boardName.required = true;
         boardName.maxLength = 256;
         boardName.value = boardDrafts.get("workspace")?.[0] ?? "";
-        retainBoardDraft = () => { boardDrafts.set("workspace", [boardName.value]); };
         const inspection = createInspection(main, () => view === activeView, async () => {
           const latest = /** @type {BoardSummary[]} */ (await collect(api.listBoards, "boards"));
-          if (view === activeView) showBoards(latest);
+          if (view !== activeView) return;
+          latestBoards = latest;
+          workspaceControls.showBoards(latestBoards);
+          await workspaceControls.inspect();
         }, "workspace", "workspace");
+        const workspaceControls = renderWorkspacePreferences(latestBoards, (pins) => {
+          visiblePins = pins;
+          showBoards(latestBoards);
+        }, preferences, inspection);
+        retainBoardDraft = () => {
+          boardDrafts.set("workspace", [boardName.value]);
+          workspaceControls.retain();
+        };
         boardInspection = inspection;
         main.append(button(inspection.label, inspection.inspect),
           form("Create board", [field("Board name", boardName)], (submit) => {
@@ -1078,13 +1342,19 @@ async function load() {
             await load();
             return true;
           }, "Board created.", inspection);
-        }));
+        }), workspaceControls.panel);
         inspection.sync();
       }
       announce("ready", "Workspace loaded.");
       return;
     }
     if (!boardId) throw new ApiError("http_error", { status: 404 });
+    void readPreferences?.then((preferences) => {
+      if (view === activeView && preferences) {
+        visiblePins = preferences.data.pinned_board_ids;
+        showBoards(boards);
+      }
+    });
     const [{ board: boardReply, lanes, cards, priorities }, users] = await Promise.all([
       readBoardContents(boardId),
       /** @type {Promise<User[]>} */ (collect((cursor) => api.listUsers(boardId, cursor), "users")),
@@ -1360,7 +1630,8 @@ async function load() {
       ]);
       if (view !== activeView) return;
       users.splice(0, users.length, ...latestUsers);
-      board.name = /** @type {Board} */ (latest.board.data).name;
+      const updatedBoard = /** @type {Board} */ (latest.board.data);
+      board.name = updatedBoard.name;
       const heading = main?.querySelector("h1");
       if (heading) heading.textContent = board.name;
       lanes.splice(0, lanes.length, ...latest.lanes);
@@ -1369,7 +1640,8 @@ async function load() {
       const latestTag = etag(latest.board);
       const boardChanged = latestTag !== boardTag;
       boardTag = latestTag;
-      boardStyle.replaceSync(/** @type {Board} */ (latest.board.data).user_css ?? "");
+      if (validPublishing(updatedBoard.publishing)) boardPublishing.show({ data: updatedBoard.publishing, etag: boardTag });
+      boardStyle.replaceSync(updatedBoard.user_css ?? "");
       setOptions(addLane, activeLanes(lanes), addLane.value);
       laneEditor.showLanes();
       search.refreshBoard(boardChanged);
@@ -1382,12 +1654,18 @@ async function load() {
     }
     const laneEditor = renderLaneEditor(board.id, lanes, users, () => boardTag, reloadBoard, inspection);
     const boardActions = renderBoardActions(board.id, priorities, () => currentCards, () => boardTag, reloadBoard, inspection);
+    const boardPublishing = renderPublishing("board", board.id,
+      validPublishing(board.publishing) ? { data: board.publishing, etag: boardTag } : undefined,
+      () => api.getBoardPublishing(board.id),
+      (enabled, tag) => api.configureBoardPublishing(board.id, enabled, tag), reloadBoard, inspection);
+    boardActions.append(boardPublishing.panel);
     const search = renderCardSearch(board.id, lanes, (card, opener) => {
       if (!writing) void openCard(board.id, card, lanes, users, priorities, () => boardTag, reloadBoard, opener);
     });
     retainBoardDraft = () => {
       boardDrafts.set(board.id, [addTitle.value, addDescription.value, addLane.value, seedTicket.value, seedType.value]);
       laneEditor.retainDraft();
+      boardPublishing.retain();
     };
     renderCards(cards, boardTag);
     main.replaceChildren(element("h1", board.name), editor, search.panel, recent, laneEditor.editor, boardActions, columns, archived);

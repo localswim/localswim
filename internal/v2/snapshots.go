@@ -108,6 +108,9 @@ func (s *store) recoverSnapshot(boardID, actor, expected, eventID string, candid
 	if err := validateSnapshot(candidate, boardID); err != nil {
 		return snapshot{}, err
 	}
+	if !samePublishingSettings(current.Board.Publishing, candidate.Board.Publishing) {
+		return snapshot{}, invalid("board.publishing", "Use PATCH to reconcile publishing settings before restoring this snapshot.")
+	}
 	for _, other := range s.boards {
 		if snapshotContainsIdentity(other, map[string]bool{eventID: true}) {
 			return snapshot{}, errIdentityConflict

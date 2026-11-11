@@ -7,6 +7,8 @@ const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const RASTER_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
 /** @typedef {"blocks"|"blocked_by"|"duplicates"|"duplicated_by"|"references"|"referenced_by"|"relates_to"} RelationshipKind */
+/** @typedef {{enabled: boolean, repository: string|null, last_success_at: string|null, pending: boolean, error_code: string|null}} Publishing */
+/** @typedef {{revision: number, pinned_board_ids: string[], publishing: Publishing}} Workspace */
 
 export class ApiError extends Error {
   /**
@@ -84,6 +86,33 @@ function isInteger(value) {
 /** @param {unknown} value */
 function isTimestamp(value) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\+00:00$/.test(value);
+}
+
+/** @param {unknown} value @returns {value is Publishing} */
+export function validPublishing(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = /** @type {Record<string, unknown>} */ (value);
+  return Object.keys(state).length === 5 && typeof state.enabled === "boolean"
+    && (state.repository === null || (typeof state.repository === "string" && state.repository.length <= 2048))
+    && (state.last_success_at === null || isTimestamp(state.last_success_at))
+    && typeof state.pending === "boolean"
+    && (state.error_code === null || (typeof state.error_code === "string" && state.error_code.length <= 80));
+}
+
+/** @param {object} value @returns {value is Workspace} */
+function validWorkspace(value) {
+  const workspace = /** @type {Record<string, unknown>} */ (value);
+  return Object.keys(workspace).length === 3 && isInteger(workspace.revision) && workspace.revision > 0
+    && Array.isArray(workspace.pinned_board_ids)
+    && workspace.pinned_board_ids.every((id) => isId(id) && id === id.toLowerCase())
+    && new Set(workspace.pinned_board_ids).size === workspace.pinned_board_ids.length
+    && validPublishing(workspace.publishing);
+}
+
+/** @param {unknown} enabled */
+function publishingChange(enabled) {
+  if (typeof enabled !== "boolean") throw new TypeError("Expected a publishing setting.");
+  return { publishing: { enabled } };
 }
 
 /** @param {unknown} value @param {string} boardId @param {string} id */
@@ -433,6 +462,24 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     return { data: await responseObject(response, write), etag: responseEtag };
   }
 
+  /** @param {{data: object, etag: string|null}} reply @param {boolean} write */
+  function workspaceReply(reply, write) {
+    if (!STRONG_ETAG.test(reply.etag ?? "") || !validWorkspace(reply.data)) {
+      throw new ApiError("invalid_response", { status: 200, outcomeUnknown: write });
+    }
+    return { data: reply.data, etag: strongTag(reply.etag) };
+  }
+
+  /** @param {{data: object, etag: string|null}} reply @param {string} id @param {boolean} write */
+  function boardPublishingReply(reply, id, write) {
+    const board = /** @type {{id?: unknown, revision?: unknown, publishing?: unknown}} */ (reply.data);
+    if (board.id !== id || !isInteger(board.revision) || board.revision < 1
+        || reply.etag !== versionTag(id, board.revision) || !validPublishing(board.publishing)) {
+      throw new ApiError("invalid_response", { status: 200, outcomeUnknown: write });
+    }
+    return { data: board.publishing, etag: strongTag(reply.etag) };
+  }
+
   /** @param {string} path @param {string} id @param {{data?: unknown, form?: FormData}} content */
   async function createWithId(path, id, content) {
     const reply = await request(path, { ...content, method: "POST", successStatus: 201 });
@@ -699,16 +746,22 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
      * @param {unknown} etag The ETag of the previously read board summary.
      */
     async getBoardIfChanged(boardId, etag) {
+      const id = resourceId(boardId).toLowerCase();
       const originalTag = strongTag(etag);
-      const response = await send("/boards/" + resourceId(boardId), { ifNoneMatch: originalTag });
+      const response = await send("/boards/" + id, { ifNoneMatch: originalTag });
       const responseTag = response.headers.get("ETag");
       const unchanged = response.status === 304;
       if (responseTag === null || !STRONG_ETAG.test(responseTag)
-          || (unchanged ? responseTag !== originalTag : response.status !== 200 || responseTag === originalTag)) {
+          || (unchanged ? responseTag !== originalTag : response.status !== 200)) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status });
       }
-      return { data: unchanged ? null : await responseObject(response, false), etag: responseTag };
+      const data = unchanged ? null : await responseObject(response, false);
+      // Publisher status can change independently of the board's revision.
+      if (data !== null && responseTag === originalTag) {
+        boardPublishingReply({ data, etag: responseTag }, id, false);
+      }
+      return { data, etag: responseTag };
     },
     /**
      * @param {unknown} boardId
@@ -1110,7 +1163,9 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       yield* readEvents(response.body);
     },
-    getWorkspace: () => request("/workspace"),
+    async getWorkspace() {
+      return workspaceReply(await request("/workspace"), false);
+    },
     /** @param {string} [cursor] */
     listBoards: (cursor) => list("/boards", {}, cursor),
     /** @param {unknown} id */
@@ -1121,11 +1176,31 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
      * @param {unknown[]} pinnedBoardIds
      * @param {unknown} etag
      */
-    setPinnedBoards: (pinnedBoardIds, etag) => request("/workspace", {
-      method: "PATCH",
-      data: { pinned_board_ids: pinnedBoardIds.map(resourceId) },
-      etag: strongTag(etag),
-    }),
+    setPinnedBoards(pinnedBoardIds, etag) {
+      return request("/workspace", {
+        method: "PATCH",
+        data: { pinned_board_ids: pinnedBoardIds.map(resourceId) },
+        etag: strongTag(etag),
+      }).then((reply) => workspaceReply(reply, true));
+    },
+    /** @param {unknown} enabled @param {unknown} etag */
+    async configureWorkspacePublishing(enabled, etag) {
+      return workspaceReply(await request("/workspace", {
+        method: "PATCH", data: publishingChange(enabled), etag: strongTag(etag),
+      }), true);
+    },
+    /** @param {unknown} boardId */
+    async getBoardPublishing(boardId) {
+      const id = resourceId(boardId).toLowerCase();
+      return boardPublishingReply(await request("/boards/" + id), id, false);
+    },
+    /** @param {unknown} boardId @param {unknown} enabled @param {unknown} etag */
+    async configureBoardPublishing(boardId, enabled, etag) {
+      const id = resourceId(boardId).toLowerCase();
+      return boardPublishingReply(await request("/boards/" + id, {
+        method: "PATCH", data: publishingChange(enabled), etag: strongTag(etag),
+      }), id, true);
+    },
     /** @param {unknown} boardId @param {string} [cursor] */
     async listLanes(boardId, cursor) {
       const id = resourceId(boardId);

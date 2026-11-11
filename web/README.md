@@ -50,6 +50,17 @@ and cover selection. The selected cover appears on the card in its lane. Detach
 revokes active file access and clears the selected cover when it refers to the file.
 History retains the attachment ID and attribution.
 
+Expand **Board actions** to turn automatic publishing on or off for that board.
+On the **Workspace** page, administrators can save workspace publishing and
+pin order independently. The board uses its own HTTP validator. Both workspace
+forms use the workspace validator and retain unsaved changes across readback.
+
+Use **Refresh board publishing status** or **Refresh workspace publishing
+status** to inspect pending work, failed pushes, and the last successful publish.
+A failed push can recover automatically without another edit. If a settings
+save has an uncertain outcome, the browser reads the saved setting before
+another submission and keeps the draft available for comparison.
+
 ## Browser API client
 
 `api.mjs` is a dependency-free ES module for the same-origin V2 API. It calls
@@ -90,7 +101,10 @@ you need focused readback after an uncertain response. Use `getCard(id)` for tha
 readback or `listCards(boardId, { ticket })` to find an active card by its ticket.
 
 Use `getBoardIfChanged(boardId, etag)` with a board summary ETag. An unchanged
-board returns `{ data: null, etag }` and the caller can retain its existing data.
+board normally returns `{ data: null, etag }`. When live publishing status is
+available, the response can include current board data with the same ETag.
+Use the ETag to compare board revisions and the returned publishing status
+to refresh its display.
 
 `streamEvents({ boardId, watch, signal })` is an async iterable for the selected
 board and optional retained boards. Each connection uses the current browser

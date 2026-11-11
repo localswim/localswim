@@ -3,7 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -90,6 +93,7 @@ func TestT03CLIRequiresExplicitInputSource(t *testing.T) {
 		{"card", "description", t03Card},
 		{"comment", "post", t03Card},
 		{"lane", "add", t03Board},
+		{"attachment", "upload", t03Card},
 	} {
 		t.Run(tc.group+" "+tc.action, func(t *testing.T) {
 			var stderr bytes.Buffer
@@ -121,11 +125,15 @@ func TestT03DescriptionInputCountsCodePoints(t *testing.T) {
 }
 
 func TestT03CLIAttachmentUploadUnknownNoReplay(t *testing.T) {
-	t.Run("generated ID", func(t *testing.T) { testAttachmentReadback(t, "") })
-	t.Run("caller ID", func(t *testing.T) { testAttachmentReadback(t, t03Lane) })
+	for _, source := range []string{"file", "stdin"} {
+		t.Run(source, func(t *testing.T) {
+			t.Run("generated ID", func(t *testing.T) { testAttachmentReadback(t, "", source) })
+			t.Run("caller ID", func(t *testing.T) { testAttachmentReadback(t, t03Lane, source) })
+		})
+	}
 }
 
-func testAttachmentReadback(t *testing.T, requestedID string) {
+func testAttachmentReadback(t *testing.T, requestedID, source string) {
 	t.Helper()
 	file := filepath.Join(t.TempDir(), "café.bin")
 	want := []byte{0xff, 0, 0x7f}
@@ -174,7 +182,11 @@ func testAttachmentReadback(t *testing.T, requestedID string) {
 		}
 		defer part.Close()
 		data, err := io.ReadAll(part)
-		if err != nil || !bytes.Equal(data, want) || meta.Filename != filepath.Base(file) {
+		expectedName := filepath.Base(file)
+		if source == "stdin" {
+			expectedName = id
+		}
+		if err != nil || !bytes.Equal(data, want) || meta.Filename != expectedName {
 			t.Error("upload lost file bytes or original name")
 		}
 		w.Header().Set("X-Board-ETag", t03BoardTag)
@@ -187,8 +199,12 @@ func testAttachmentReadback(t *testing.T, requestedID string) {
 	if requestedID != "" {
 		args = append(args, "--id", strings.ToUpper(requestedID))
 	}
-	args = append(args, t03Card, file)
-	code := runCLIWithInput(args, strings.NewReader(""), &out, &stderr, t03Env(server.URL))
+	inputPath := file
+	if source == "stdin" {
+		inputPath = "-"
+	}
+	args = append(args, t03Card, inputPath)
+	code := runCLIWithInput(args, bytes.NewReader(want), &out, &stderr, t03Env(server.URL))
 	if code != 1 || mutations.Load() != 1 || !strings.Contains(stderr.String(), "Mutation outcome unknown") {
 		t.Fatalf("upload was replayed or the outcome was misreported: %d %s", code, &stderr)
 	}
@@ -287,5 +303,135 @@ func TestAttachmentUploadRevisionChecksParentCard(t *testing.T) {
 				t.Fatalf("matching parent revision rejected: %s", &stderr)
 			}
 		})
+	}
+}
+
+func TestAttachmentUploadStdinBoundsAndFilename(t *testing.T) {
+	const maxFile = 10 << 20
+	for _, tc := range []struct {
+		name, filename string
+		data           []byte
+		wantError      bool
+	}{
+		{"binary", "", []byte{0, 0xff, 0x80, '\r', '\n'}, false},
+		{"UTF8 override", "café 🚩.bin", []byte{0xff, 0}, false},
+		{"maximum filename", strings.Repeat("é", 1024), nil, false},
+		{"exact limit", "", bytes.Repeat([]byte{0xff}, maxFile), false},
+		{"over limit", "", bytes.Repeat([]byte{0xff}, maxFile+1), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := bytes.NewReader(tc.data)
+			body, contentType, err := uploadBody("-", tc.filename, t03Lane, t03Card, t03ResourceTag, input)
+			if tc.wantError {
+				if err == nil || !strings.Contains(err.Error(), "exceeds 10 MiB") {
+					t.Fatalf("oversized stdin accepted: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, parameters, err := mime.ParseMediaType(contentType)
+			if err != nil {
+				t.Fatal(err)
+			}
+			reader := multipart.NewReader(bytes.NewReader(body), parameters["boundary"])
+			for {
+				part, err := reader.NextPart()
+				if err != nil {
+					t.Fatalf("missing file part: %v", err)
+				}
+				if part.FormName() != "file" {
+					continue
+				}
+				wantName := tc.filename
+				if wantName == "" {
+					wantName = t03Lane
+				}
+				data, err := io.ReadAll(part)
+				if err != nil || !bytes.Equal(data, tc.data) || part.FileName() != wantName {
+					t.Fatal("stdin bytes or filename changed")
+				}
+				break
+			}
+		})
+	}
+}
+
+type attachmentErrorReader struct{ reads int }
+
+func (r *attachmentErrorReader) Read([]byte) (int, error) {
+	r.reads++
+	return 0, errors.New("test input failure")
+}
+
+func TestAttachmentUploadStdinReadFailureAndRevisionGate(t *testing.T) {
+	for _, revision := range []string{"11", "12"} {
+		t.Run(revision, func(t *testing.T) {
+			var gets, posts atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Path != t03Root+"/cards/"+t03Card {
+					posts.Add(1)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				gets.Add(1)
+				w.Header().Set("ETag", t03ResourceTag)
+				_, _ = io.WriteString(w, `{"revision":12}`)
+			}))
+			defer server.Close()
+			input := &attachmentErrorReader{}
+			var stderr bytes.Buffer
+			code := runCLIWithInput([]string{"attachment", "upload", "--revision", revision, t03Card, "-"}, input, io.Discard, &stderr, t03Env(server.URL))
+			if code != 1 || gets.Load() != 1 || posts.Load() != 0 {
+				t.Fatalf("unexpected requests or exit: %d %s", code, &stderr)
+			}
+			if revision == "11" {
+				if input.reads != 0 || !strings.Contains(stderr.String(), "revision mismatch") {
+					t.Fatal("stale upload consumed stdin")
+				}
+			} else if input.reads != 1 || !strings.Contains(stderr.String(), "could not read attachment file") {
+				t.Fatalf("read failure lost: %s", &stderr)
+			}
+		})
+	}
+}
+
+func TestAttachmentUploadFilenameOption(t *testing.T) {
+	for _, filename := range []string{"", "bad\rname", "bad\nname", "bad\x00name", string([]byte{0xff}), strings.Repeat("é", 1025)} {
+		if _, err := parseCLI([]string{"attachment", "upload", "--filename", filename, t03Card, "-"}); err == nil {
+			t.Errorf("accepted invalid filename %q", filename)
+		}
+	}
+	filename := "café 🚩.bin"
+	path := filepath.Join(t.TempDir(), "original.bin")
+	want := []byte{0, 0xff}
+	if err := os.WriteFile(path, want, 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, source := range []string{"-", path} {
+		command, err := parseCLI([]string{"attachment", "upload", "--filename", filename, t03Card, source})
+		if err != nil || command.edit.filename != filename {
+			t.Fatalf("filename option lost: %v", err)
+		}
+		body, contentType, err := uploadBody(source, command.edit.filename, t03Lane, t03Card, t03ResourceTag, bytes.NewReader(want))
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := httptest.NewRequest(http.MethodPost, "/attachments", bytes.NewReader(body))
+		request.Header.Set("Content-Type", contentType)
+		if err := request.ParseMultipartForm(1024); err != nil {
+			t.Fatal(err)
+		}
+		part, metadata, err := request.FormFile("file")
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := io.ReadAll(part)
+		_ = part.Close()
+		_ = request.MultipartForm.RemoveAll()
+		if err != nil || metadata.Filename != filename || !bytes.Equal(data, want) {
+			t.Fatal("filename override or bytes lost")
+		}
 	}
 }

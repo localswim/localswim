@@ -119,6 +119,14 @@ inside the data directory. The original filename, size, and SHA-2-256 digest are
 stored in the board snapshot. Focused attachment metadata readback can resolve
 an uncertain upload by its original attachment UUID.
 
+Use `attachment upload [--revision N] [--id UUID] [--filename NAME] CARD_ID <FILE|->`.
+The required `-` input reads raw bytes from standard input without text conversion.
+Its default display filename is the same attachment UUID supplied by `--id` or
+generated for that upload. A file path defaults to its basename. `--filename`
+overrides either default with a UTF-8 name of 1 to 1024 characters, without line
+breaks or NUL. Both input sources have a 10 MiB limit. The parent card revision
+is checked before reading attachment bytes.
+
 ## References
 
 - [API contract](docs/openapi.yaml)

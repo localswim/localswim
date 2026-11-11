@@ -56,7 +56,7 @@ const cliHelp = `Usage:
   localswim attachment list [--limit N] [--cursor CURSOR] CARD_ID
   localswim attachment get ATTACHMENT_ID
   localswim attachment download ATTACHMENT_ID FILE|-
-  localswim attachment upload [--revision N] [--id UUID] CARD_ID FILE
+  localswim attachment upload [--revision N] [--id UUID] [--filename NAME] CARD_ID <FILE|->
   localswim policy get BOARD_ID
   localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
   localswim service status
@@ -96,6 +96,9 @@ Relationship remove exits silently on success.
 Attachment download verifies the active file before writing. Use a new file path
 or - for raw bytes on standard output. Inspect the destination after a local write failure.
 If a mutation outcome is unknown, inspect the resource before retrying.
+Attachment upload reads raw bytes from FILE or standard input with -.
+--filename overrides the display filename for either input source.
+Without --filename, FILE uses its basename and - uses the attachment UUID.
 Attachment upload generates an ID when --id is omitted and reports the ID
 on an unknown outcome. Use attachment get to inspect that exact ID.
 `

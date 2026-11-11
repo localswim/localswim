@@ -28,6 +28,7 @@ type t03Edit struct {
 	textInput     bool
 	file          string
 	uploadID      string
+	filename      string
 }
 
 func parseCLIRevision(value string) (*uint64, error) {
@@ -69,17 +70,18 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	}
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	var revision, uploadID string
+	var revision, uploadID, filename string
 	if cmd.method != http.MethodGet {
 		flags.StringVar(&revision, "revision", "", "expected resource revision")
 	}
 	if name == "attachment upload" {
 		flags.StringVar(&uploadID, "id", "", "known attachment UUIDv4")
+		flags.StringVar(&filename, "filename", "", "display filename")
 	}
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
 	}
-	requiresInput := name == "card patch" || name == "card description" || name == "comment post" || name == "lane add"
+	requiresInput := name == "card patch" || name == "card description" || name == "comment post" || name == "lane add" || name == "attachment upload"
 	if requiresInput && flags.NArg() < count {
 		return cmd, errors.New("expected a UUIDv4 resource ID followed by FILE or -")
 	}
@@ -95,6 +97,8 @@ func parseT03(name string, args []string) (cliCommand, error) {
 			if err != nil {
 				optionErr = err
 			}
+		case "filename":
+			optionErr = validateUploadFilename(filename)
 		case "id":
 			if !boardIDPattern.MatchString(uploadID) {
 				optionErr = errors.New("--id requires a UUIDv4 attachment ID")
@@ -129,8 +133,9 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	case "attachment upload":
 		cmd.edit.file = value
 		cmd.edit.uploadID = strings.ToLower(uploadID)
+		cmd.edit.filename = filename
 		if value == "" {
-			return cmd, errors.New("attachment upload requires a file path")
+			return cmd, errors.New("attachment upload requires a file path or -")
 		}
 	case "card patch", "card description", "comment post", "lane add":
 		if value == "" {
@@ -258,7 +263,7 @@ func prepareT03(api *client.Client, cmd cliCommand, stdin io.Reader) (json.RawMe
 		return body, current.ETag, "", nil
 	}
 	if edit.file != "" {
-		body, contentType, err := uploadBody(edit.file, edit.uploadID, edit.id, current.ETag)
+		body, contentType, err := uploadBody(edit.file, edit.filename, edit.uploadID, edit.id, current.ETag, stdin)
 		return body, "", contentType, err
 	}
 	fields, err := cliInputFields(body)
@@ -321,37 +326,52 @@ func newUploadID() string {
 	return uuid.NewV4().String()
 }
 
-func uploadBody(path, attachmentID, cardID, etag string) ([]byte, string, error) {
+func validateUploadFilename(filename string) error {
+	if filename == "" || !utf8.ValidString(filename) || utf8.RuneCountInString(filename) > 1024 || strings.ContainsAny(filename, "\r\n\x00") {
+		return errors.New("attachment filename must contain 1 to 1024 valid UTF-8 characters without line breaks or NUL")
+	}
+	return nil
+}
+
+func uploadBody(path, filename, attachmentID, cardID, etag string, input io.Reader) ([]byte, string, error) {
 	const maxFile = 10 << 20
 	const maxUpload = maxFile + (256 << 10)
-	filename := filepath.Base(path)
-	if !utf8.ValidString(filename) || bytes.ContainsAny([]byte(filename), "\r\n\x00") {
-		return nil, "", errors.New("attachment filename must be valid UTF-8 without line breaks")
+	if filename == "" {
+		filename = filepath.Base(path)
+		if path == "-" {
+			filename = attachmentID
+		}
 	}
-	candidate, err := os.Stat(path)
-	if err != nil {
-		return nil, "", errors.New("could not inspect attachment file")
+	if err := validateUploadFilename(filename); err != nil {
+		return nil, "", err
 	}
-	if !candidate.Mode().IsRegular() {
-		return nil, "", errors.New("attachment upload requires a regular file")
-	}
-	if candidate.Size() > maxFile {
-		return nil, "", errors.New("attachment file exceeds 10 MiB")
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, "", errors.New("could not open attachment file")
-	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() {
-		return nil, "", errors.New("attachment upload requires a regular file")
-	}
-	if !os.SameFile(candidate, info) {
-		return nil, "", errors.New("attachment file changed before opening")
-	}
-	if info.Size() > maxFile {
-		return nil, "", errors.New("attachment file exceeds 10 MiB")
+	if path != "-" {
+		candidate, err := os.Stat(path)
+		if err != nil {
+			return nil, "", errors.New("could not inspect attachment file")
+		}
+		if !candidate.Mode().IsRegular() {
+			return nil, "", errors.New("attachment upload requires a regular file")
+		}
+		if candidate.Size() > maxFile {
+			return nil, "", errors.New("attachment file exceeds 10 MiB")
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, "", errors.New("could not open attachment file")
+		}
+		defer file.Close()
+		info, err := file.Stat()
+		if err != nil || !info.Mode().IsRegular() {
+			return nil, "", errors.New("attachment upload requires a regular file")
+		}
+		if !os.SameFile(candidate, info) {
+			return nil, "", errors.New("attachment file changed before opening")
+		}
+		if info.Size() > maxFile {
+			return nil, "", errors.New("attachment file exceeds 10 MiB")
+		}
+		input = file
 	}
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
@@ -368,7 +388,7 @@ func uploadBody(path, attachmentID, cardID, etag string) ([]byte, string, error)
 	if err != nil {
 		return nil, "", err
 	}
-	size, err := io.Copy(part, io.LimitReader(file, maxFile+1))
+	size, err := io.Copy(part, io.LimitReader(input, maxFile+1))
 	if err != nil {
 		return nil, "", errors.New("could not read attachment file")
 	}

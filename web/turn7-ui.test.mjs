@@ -317,6 +317,107 @@ test("Attention keeps pin and catalog order, fixed count slots, accessible zeroe
   assert.deepEqual(other.querySelectorAll("a").map((node) => node.dataset.boardId), [board, backup]);
 });
 
+test("refreshing an open board repaints Attention in catalog order and retains sidebar focus", async () => {
+  const state = boardApi();
+  const pinned = {id: user, name: "Pinned", attention: null, last_card_edit_at: null};
+  const first = {id: board, name: "First", attention: {blocked: 1, needs_input: 0, ready_for_review: 0},
+    last_card_edit_at: "2026-11-11 00:00:00+00:00"};
+  const second = {id: backup, name: "Second", attention: {blocked: 0, needs_input: 0, ready_for_review: 0},
+    last_card_edit_at: null};
+  let catalog = [first, second, pinned];
+  let reads = 0;
+  state.api.getSession = async () => ({data: {kind: "human", workspace_admin: true}});
+  state.api.getWorkspace = async () => ({data: {
+    revision: 1, pinned_board_ids: [user], publishing: publishingOff,
+  }, etag: tag(board, 1)});
+  state.api.listBoards = async () => { reads++; return page("boards", catalog); };
+  const ui = await harness(state.api);
+  await ui.load();
+  await ui.settled();
+  const links = () => ui.nodes.boards.querySelectorAll("a");
+  assert.deepEqual(links().map((node) => node.dataset.boardId), [user, board, backup]);
+  links()[2].focus();
+
+  state.restore();
+  catalog = [{...second, attention: {...second.attention, ready_for_review: 3},
+    last_card_edit_at: "2026-11-11 00:01:00+00:00"}, first, pinned];
+  ui.nodes.refresh.click();
+  await ui.settled();
+  assert.equal(reads, 2);
+  assert.ok(ui.find(ui.nodes.main, "button", "#9 Recovered"));
+  assert.match(ui.nodes.status.textContent, /Saved board read/);
+  assert.deepEqual(links().map((node) => node.dataset.boardId), [user, backup, board]);
+  assert.equal(ui.focused(), links()[1]);
+  assert.equal(links()[1].children[3].textContent, "3");
+  assert.match(links()[1].title, /^Last card edit /);
+  assert.equal(links()[2].attributes["aria-current"], "page");
+});
+
+test("an Attention read failure keeps confirmed card saves and the last catalog visible", async () => {
+  const {api} = boardApi();
+  const patchCard = api.patchCard;
+  api.patchCard = async (...args) => { await patchCard(...args); return api.getCard(); };
+  api.listComments = async () => page("comments", []);
+  const row = {id: board, name: "Board", attention: {blocked: 0, needs_input: 0, ready_for_review: 1},
+    last_card_edit_at: null};
+  let unavailable = false;
+  let reads = 0;
+  api.listBoards = async () => {
+    reads++;
+    if (unavailable) throw new ApiError("transport_failed");
+    return page("boards", [row]);
+  };
+  const ui = await harness(api);
+  await ui.load();
+  ui.find(ui.nodes.main, "button", "#1 Original").click();
+  await ui.settled();
+  const attentionStatus = ui.find(ui.nodes.boards, "p", "Attention could not be refreshed. Showing the last saved counts.");
+  assert.equal(attentionStatus.hidden, true);
+  const title = ui.field(ui.nodes.details, "Title");
+  title.value = "Saved during catalog outage";
+  unavailable = true;
+  ui.submit(ui.nodes.details, "Save text");
+  await ui.settled();
+  assert.equal(ui.nodes.status.textContent, "Card saved.");
+  assert.ok(ui.find(ui.nodes.main, "button", "#1 Saved during catalog outage"));
+  assert.equal(reads, 2);
+  assert.equal(ui.nodes.boards.querySelector("a").children[3].textContent, "1");
+  assert.equal(attentionStatus.hidden, false);
+
+  unavailable = false;
+  row.attention.ready_for_review = 2;
+  ui.nodes.refresh.click();
+  await ui.settled();
+  assert.equal(reads, 3);
+  assert.equal(ui.nodes.boards.querySelector("a").children[3].textContent, "2");
+  assert.equal(attentionStatus.hidden, true);
+});
+
+test("an old Attention read cannot replace the catalog after navigation", async () => {
+  const {api} = boardApi();
+  const started = Promise.withResolvers();
+  const late = Promise.withResolvers();
+  let reads = 0;
+  api.listBoards = async () => {
+    reads++;
+    if (reads === 2) {
+      started.resolve();
+      return late.promise;
+    }
+    const name = reads === 1 ? "Original catalog" : "New view catalog";
+    return page("boards", [{id: board, name}]);
+  };
+  const ui = await harness(api);
+  await ui.load();
+  ui.nodes.refresh.click();
+  await started.promise;
+  await ui.navigate("/");
+  late.resolve(page("boards", [{id: board, name: "Old view catalog"}]));
+  await ui.settled();
+  assert.ok(ui.find(ui.nodes.boards, "span", "New view catalog"));
+  assert.equal(ui.find(ui.nodes.boards, "span", "Old view catalog"), undefined);
+});
+
 test("workspace recovery retains explicit off and unpin-all drafts and adopts saved values in a clean view", async () => {
   const workspace = {revision: 1, pinned_board_ids: [board], publishing: {...publishingOff, enabled: true}};
   let available = true;

@@ -1646,11 +1646,31 @@ async function load(savedAvailability) {
     const boardId = boardAtLocation();
     /** @type {string[]} */
     let visiblePins = [];
+    let latestBoards = boards;
+    let catalogRead = 0;
+    const attentionStatus = element("p", "Attention could not be refreshed. Showing the last saved counts.");
+    attentionStatus.setAttribute("role", "status");
+    attentionStatus.hidden = true;
     /** @param {BoardSummary[]} rows */
     function showBoards(rows) {
-      if (navigation) renderAttention(navigation, rows, visiblePins, boardId);
+      if (!navigation) return;
+      renderAttention(navigation, rows, visiblePins, boardId);
+      navigation.append(attentionStatus);
     }
-    showBoards(boards);
+    async function refreshAttention() {
+      if (view !== activeView) return;
+      const read = ++catalogRead;
+      try {
+        const rows = /** @type {BoardSummary[]} */ (await readWithSession(() => collect(api.listBoards, "boards")));
+        if (view !== activeView || read !== catalogRead) return;
+        latestBoards = rows;
+        attentionStatus.hidden = true;
+        showBoards(latestBoards);
+      } catch {
+        if (view === activeView && read === catalogRead) attentionStatus.hidden = false;
+      }
+    }
+    showBoards(latestBoards);
     const readPreferences = context.workspace_admin === true
       ? readWithSession(api.getWorkspace).catch(() => undefined) : undefined;
     if (!boardId && location.pathname === "/") {
@@ -1659,7 +1679,6 @@ async function load(savedAvailability) {
       if (context.workspace_admin === true) {
         const preferences = await readPreferences;
         if (view !== activeView) return;
-        let latestBoards = boards;
         visiblePins = preferences?.data.pinned_board_ids ?? [];
         showBoards(latestBoards);
         const boardName = element("input");
@@ -1713,7 +1732,7 @@ async function load(savedAvailability) {
     void readPreferences?.then((preferences) => {
       if (view === activeView && preferences) {
         visiblePins = preferences.data.pinned_board_ids;
-        showBoards(boards);
+        showBoards(latestBoards);
       }
     });
     const readAvailability = () => api.getBoardAvailability(boardId);
@@ -2079,8 +2098,13 @@ async function load(savedAvailability) {
       if (batchPriority instanceof HTMLSelectElement) setOptions(batchPriority, priorities, batchPriority.value);
       renderCards(latest.cards, boardTag);
       inspection.sync();
-      if (activeDrawer?.boardId === board.id) await activeDrawer.refreshWorkflow();
-      await reloadArchived();
+      const attention = refreshAttention();
+      try {
+        if (activeDrawer?.boardId === board.id) await activeDrawer.refreshWorkflow();
+        await reloadArchived();
+      } finally {
+        await attention;
+      }
     }
     const laneEditor = renderLaneEditor(board.id, lanes, users, () => boardTag, reloadBoard, inspection);
     const boardActions = renderBoardActions(board.id, priorities, () => currentCards, () => boardTag, reloadBoard, inspection);

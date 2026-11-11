@@ -13,6 +13,10 @@ info:
     Empty collections return an empty array. The next_cursor field retains its pagination meaning.
     JSON member names, path parameter identifiers, and query parameter names use snake_case.
     Standard HTTP header names retain their standard spelling. Values retain their defined spelling.
+    Ordinary writes to existing boards check the durable snapshot against the accepted state of the addressed board.
+    A missing, unreadable, or divergent snapshot returns 503 with code unavailable and outcome
+    not_applied. The board catalog distinguishes unavailable and divergent snapshots. Other boards
+    remain writable, and explicit snapshot admission and backup restoration retain their recovery rules.
 servers:
 - url: /api/2026-11-10
   description: Same origin as the local UI. The service binds only to 127.0.0.1 at its configured port.
@@ -13319,6 +13323,8 @@ components:
         pending:
           type: boolean
         error_code:
+          description: Fixed publication failure code. publication_path_ignored means Git ignores a captured
+            path. git_ignore_unavailable means Git could not verify the ignore rules.
           anyOf:
           - type: string
             minLength: 0
@@ -14335,6 +14341,8 @@ components:
           - $ref: '#/components/schemas/UuidV7'
           - type: 'null'
         error_code:
+          description: Fixed publication failure code. publication_path_ignored means Git ignores a captured
+            path. git_ignore_unavailable means Git could not verify the ignore rules.
           anyOf:
           - type: string
             minLength: 0
@@ -16455,6 +16463,10 @@ components:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
         error_code:
+          description: durable_state_unavailable means the native snapshot is missing or invalid.
+            durable_state_changed means the native snapshot is valid and differs from accepted state,
+            including changes at the same revision. Either condition sets availability to unhealthy
+            and clears attention and last_card_edit_at. Null indicates a healthy snapshot.
           anyOf:
           - type: string
             minLength: 0
@@ -18370,9 +18382,11 @@ x-publishing-worker:
   capture: Capture a coherent board snapshot with exact audited immutable attachments, or the exact committed
     workspace preference file alone. Git runs outside command admission. Board recovery preserves explicit
     publishing opt-in by refusing a snapshot with different publishing settings.
+  admission: Check all captured paths against Git ignore rules before writing objects. An ignored board,
+    audited attachment, or workspace file refuses the capture, including a path already tracked or staged.
   synchronization: Serialize every board and workspace publisher sharing one repository with the same
     persistent OS lock.
-  retry: Retain failed pushes as pending and retry with bounded backoff even without another edit. Preserve
+  retry: Retain failed attempts as pending and retry with bounded backoff even without another edit. Preserve
     already committed history and unrelated staged work.
   status: Report pending, last_success_at, and a fixed error_code on the board summary or workspace.
     Publishing progress does not advance data revisions. While live status is visible, an exact matching

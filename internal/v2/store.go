@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	errBoardExists      = errors.New("board already exists")
-	errBoardNotFound    = errors.New("board not found")
-	errIdentityConflict = errors.New("user identity conflicts with an existing workspace user")
-	errStoreClosed      = errors.New("workspace store is closed")
+	errBoardExists         = errors.New("board already exists")
+	errBoardNotFound       = errors.New("board not found")
+	errIdentityConflict    = errors.New("user identity conflicts with an existing workspace user")
+	errStoreClosed         = errors.New("workspace store is closed")
+	errDurableStateChanged = errors.New("durable board snapshot differs from accepted state")
 )
 
 type store struct {
@@ -201,14 +202,56 @@ func (s *store) durable(id string) (snapshot, error) {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.readDurableLocked(id)
+}
+
+func (s *store) readDurableLocked(id string) (snapshot, error) {
+	saved, err := s.readDurableFileLocked(s.snapshotPath(id))
+	if err != nil {
+		return snapshot{}, err
+	}
+	return parseSnapshot(saved.data, id)
+}
+
+func (s *store) readDurableFileLocked(path string) (snapshotFile, error) {
 	if s.lease == nil {
-		return snapshot{}, errStoreClosed
+		return snapshotFile{}, errStoreClosed
 	}
-	path := s.snapshotPath(id)
 	if err := s.checkBoardsDirectory(filepath.Dir(path)); err != nil {
-		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot directory is unavailable.")
+		return snapshotFile{}, invalidSnapshot("snapshot", "Native snapshot directory is unavailable.")
 	}
-	return readSnapshot(path, id)
+	return readSnapshotFile(path)
+}
+
+func (s *store) checkAcceptedDurableLocked(current snapshot) error {
+	path := s.snapshotPath(current.Board.ID)
+	file, err := s.readDurableFileLocked(path)
+	if err != nil {
+		return errInvalidSnapshot
+	}
+	return checkAcceptedSnapshotFile(path, current, file)
+}
+
+func checkAcceptedSnapshotFile(path string, current snapshot, file snapshotFile) error {
+	saved, err := parseSnapshot(file.data, current.Board.ID)
+	if err != nil {
+		return errInvalidSnapshot
+	}
+	if !reflect.DeepEqual(current, saved) {
+		return errDurableStateChanged
+	}
+
+	// Validation takes time. Check that the name still points at the opened file
+	// and that its observable size and modification time have stayed stable.
+	named, err := os.Lstat(path)
+	if err != nil || !named.Mode().IsRegular() {
+		return errInvalidSnapshot
+	}
+	if named.Size() != int64(len(file.data)) || named.Size() != file.info.Size() ||
+		!named.ModTime().Equal(file.info.ModTime()) || !os.SameFile(named, file.info) {
+		return errDurableStateChanged
+	}
+	return nil
 }
 
 func (s *store) fencedBoard() string {
@@ -231,11 +274,7 @@ func (s *store) readback(id string) (snapshot, error) {
 	if !s.writeUncertain || s.uncertainBoardID != id {
 		return cloneSnapshot(current), nil
 	}
-	path := s.snapshotPath(id)
-	if err := s.checkBoardsDirectory(filepath.Dir(path)); err != nil {
-		return snapshot{}, invalidSnapshot("snapshot", "Native snapshot directory is unavailable.")
-	}
-	return readSnapshot(path, id)
+	return s.readDurableLocked(id)
 }
 
 func (s *store) create(value snapshot) error {
@@ -256,7 +295,7 @@ func (s *store) create(value snapshot) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	return s.commit(cloneSnapshot(value), true)
+	return s.commit(cloneSnapshot(value), true, nil)
 }
 
 func (s *store) update(id, expected string, change func(*snapshot) error) (snapshot, error) {
@@ -290,13 +329,16 @@ func (s *store) updateLocked(current snapshot, change func(*snapshot) error) (sn
 		return next, err
 	}
 	// Detach from data that the callback supplied or retained.
-	if err := s.commit(cloneSnapshot(next), false); err != nil {
+	if err := s.commit(cloneSnapshot(next), false, &current); err != nil {
 		return snapshot{}, err
 	}
 	return next, nil
 }
 
 func (s *store) prepareUpdateLocked(current snapshot, change func(*snapshot) error) (snapshot, bool, error) {
+	if err := s.checkAcceptedDurableLocked(current); err != nil {
+		return snapshot{}, false, err
+	}
 	next := cloneSnapshot(current)
 	if err := change(&next); err != nil {
 		return snapshot{}, false, err
@@ -310,13 +352,6 @@ func (s *store) prepareUpdateLocked(current snapshot, change func(*snapshot) err
 	}
 	if current.Board.Revision == math.MaxUint64 {
 		return snapshot{}, false, errors.New("board revision exhausted")
-	}
-	info, err := os.Lstat(s.snapshotPath(current.Board.ID))
-	if err != nil {
-		return snapshot{}, false, err
-	}
-	if !info.Mode().IsRegular() {
-		return snapshot{}, false, errInvalidSnapshot
 	}
 	next.Board.Revision++
 	next.Board.UpdatedAt = canonicalTime(time.Now())
@@ -340,12 +375,12 @@ func (s *store) writable() error {
 	return nil
 }
 
-func (s *store) commit(value snapshot, reuseUsers bool) error {
+func (s *store) commit(value snapshot, reuseUsers bool, accepted *snapshot) error {
 	data, err := s.prepareCommit(value, reuseUsers)
 	if err != nil {
 		return err
 	}
-	return s.writeCommit(value, data)
+	return s.writeCommit(value, data, accepted)
 }
 
 func (s *store) prepareCommit(value snapshot, reuseUsers bool) ([]byte, error) {
@@ -366,13 +401,19 @@ func (s *store) prepareCommit(value snapshot, reuseUsers bool) ([]byte, error) {
 	return data, nil
 }
 
-func (s *store) writeCommit(value snapshot, data []byte) error {
+func (s *store) writeCommit(value snapshot, data []byte, accepted *snapshot) error {
 	id := value.Board.ID
 	path := s.snapshotPath(id)
 	if err := s.checkBoardsDirectory(filepath.Dir(path)); err != nil {
 		return err
 	}
-	if err := writeAtomic(path, data); err != nil {
+	var beforeReplace func() error
+	if accepted != nil {
+		beforeReplace = func() error {
+			return s.checkAcceptedDurableLocked(*accepted)
+		}
+	}
+	if err := writeAtomicChecked(path, data, beforeReplace); err != nil {
 		if errors.Is(err, errWriteUncertain) {
 			// Fence new commits until restart reloads the disk outcome. Durable
 			// inspection remains available for resolving the uncertain mutation.

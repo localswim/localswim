@@ -2,7 +2,6 @@ package v2
 
 import (
 	"errors"
-	"reflect"
 	"sync"
 )
 
@@ -84,13 +83,6 @@ func (s *store) patchBoard(id, expected, availability string, hasSettings bool, 
 	}
 	if availability != "closed" || current.Board.Availability == "closed" {
 		defer s.mu.Unlock()
-		if availability == "open" && current.Board.Availability == "closed" {
-			// A closed board can have been damaged or replaced on disk. Do
-			// not turn reopening into an implicit snapshot recovery.
-			if err := s.checkAcceptedDurableLocked(current); err != nil {
-				return snapshot{}, err
-			}
-		}
 		return s.updateLocked(current, change)
 	}
 	gate.draining = true
@@ -168,23 +160,8 @@ func (s *store) finishBoardCloseLocked(current, next snapshot, data []byte) erro
 	if s.boards[next.Board.ID].Board.ETag != current.Board.ETag {
 		return errStale
 	}
-	if err := s.checkAcceptedDurableLocked(current); err != nil {
-		return err
-	}
 	if err := s.checkIdentities(next, false); err != nil {
 		return err
 	}
-	return s.writeCommit(cloneSnapshot(next), data)
-}
-
-func (s *store) checkAcceptedDurableLocked(current snapshot) error {
-	if err := s.checkBoardsDirectory(s.boardsPath()); err != nil {
-		return errInvalidSnapshot
-	}
-	id := current.Board.ID
-	saved, err := readSnapshot(s.snapshotPath(id), id)
-	if err != nil || !reflect.DeepEqual(current, saved) {
-		return errInvalidSnapshot
-	}
-	return nil
+	return s.writeCommit(cloneSnapshot(next), data, &current)
 }

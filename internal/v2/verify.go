@@ -84,42 +84,55 @@ func snapshotVerification(boardID string, at time.Time, value snapshot, err erro
 }
 
 func readSnapshot(path, boardID string) (snapshot, error) {
-	var value snapshot
+	saved, err := readSnapshotFile(path)
+	if err != nil {
+		return snapshot{}, err
+	}
+	return parseSnapshot(saved.data, boardID)
+}
+
+// snapshotFile captures bytes and metadata from the same opened file.
+type snapshotFile struct {
+	data []byte
+	info os.FileInfo
+}
+
+func readSnapshotFile(path string) (snapshotFile, error) {
 	directory, err := os.Lstat(filepath.Dir(path))
 	if errors.Is(err, fs.ErrNotExist) {
-		return value, fs.ErrNotExist
+		return snapshotFile{}, fs.ErrNotExist
 	}
 	if err != nil || !directory.IsDir() {
-		return value, invalidSnapshot("snapshot", "Native snapshot directory is unavailable.")
+		return snapshotFile{}, invalidSnapshot("snapshot", "Native snapshot directory is unavailable.")
 	}
 	initial, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return value, fs.ErrNotExist
+		return snapshotFile{}, fs.ErrNotExist
 	}
 	if err != nil || !initial.Mode().IsRegular() {
-		return value, invalidSnapshot("snapshot", "Native snapshot must be a regular file.")
+		return snapshotFile{}, invalidSnapshot("snapshot", "Native snapshot must be a regular file.")
 	}
 	if initial.Size() > maxSnapshotBytes {
-		return value, invalidSnapshot("snapshot", "Native snapshot exceeds the size limit.")
+		return snapshotFile{}, invalidSnapshot("snapshot", "Native snapshot exceeds the size limit.")
 	}
 
 	file, err := os.Open(path)
 	if err != nil {
-		return value, invalidSnapshot("snapshot", "Native snapshot cannot be opened.")
+		return snapshotFile{}, invalidSnapshot("snapshot", "Native snapshot cannot be opened.")
 	}
 	defer file.Close()
 	opened, err := file.Stat()
 	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(initial, opened) {
-		return value, invalidSnapshot("snapshot", "Native snapshot changed during open.")
+		return snapshotFile{}, invalidSnapshot("snapshot", "Native snapshot changed during open.")
 	}
 	data, err := io.ReadAll(io.LimitReader(file, maxSnapshotBytes+1))
 	if err != nil {
-		return value, invalidSnapshot("snapshot", "Native snapshot cannot be read.")
+		return snapshotFile{}, invalidSnapshot("snapshot", "Native snapshot cannot be read.")
 	}
 	if len(data) > maxSnapshotBytes {
-		return value, invalidSnapshot("snapshot", "Native snapshot exceeds the size limit.")
+		return snapshotFile{}, invalidSnapshot("snapshot", "Native snapshot exceeds the size limit.")
 	}
-	return parseSnapshot(data, boardID)
+	return snapshotFile{data: data, info: opened}, nil
 }
 
 func parseSnapshot(data []byte, boardID string) (snapshot, error) {

@@ -84,6 +84,7 @@ const cliHelp = `Usage:
   localswim backup create [--revision N] [--id UUID] BOARD_ID
   localswim backup info BACKUP_ID
   localswim backup download BACKUP_ID FILE|-
+  localswim backup verify FILE
   localswim card search [--search TEXT] [--search-content] [--lane ID]...
                        [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card next [--search TEXT] [--search-content] [--lane ID]...
@@ -155,6 +156,7 @@ Backup create generates an ID when --id is omitted and reports it on an unknown 
 Backup info reads metadata for the supplied backup ID.
 Use backup info with the original ID after an unknown capture outcome.
 Backup download verifies its size and SHA-2-256 digest before writing a new file or stdout.
+Backup verify checks a local ZIP and writes its verification report without contacting a service.
 Activity intervals are inclusive. Quote both UTC bounds in YYYY-MM-DD HH:MM:SS+00:00.
 Activity lists sanitized edit metadata by default. Use --view full for the attributed audit.
 The CLI manages HTTP validators.
@@ -223,6 +225,7 @@ type cliCommand struct {
 	serviceAction                      string
 	serviceResourceID                  string
 	serviceActivationID                string
+	backupVerifyPath                   string
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -265,6 +268,18 @@ func parseCLI(args []string) (cliCommand, error) {
 
 	name := args[0] + " " + args[1]
 	optionArgs := args[2:]
+	if name == "backup verify" {
+		flags := flag.NewFlagSet(name, flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		if err := flags.Parse(optionArgs); err != nil {
+			return command, err
+		}
+		if flags.NArg() != 1 || flags.Arg(0) == "" || flags.Arg(0) == "-" {
+			return command, errors.New("backup verify requires one local ZIP file path")
+		}
+		command.backupVerifyPath = flags.Arg(0)
+		return command, nil
+	}
 	if name == "service activate" || name == "service activation" || name == "service stop" {
 		return parseServiceAction(name, optionArgs)
 	}
@@ -547,6 +562,9 @@ func boardNameBody(name string) (json.RawMessage, error) {
 }
 
 func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, getenv func(string) string) error {
+	if command.backupVerifyPath != "" {
+		return verifyBackupFile(command.backupVerifyPath, stdout)
+	}
 	if inspect := command.ticketInspection; inspect != nil && inspect.dataDir != "" {
 		return executeNativeRead(inspect.dataDir, inspect.boardID, "ticket", inspect.ticket, inspect.prose, stdout)
 	}

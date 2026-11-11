@@ -139,7 +139,8 @@ func readPublication(rootPath, id string) (publication, error) {
 func validPublicationCode(code string) bool {
 	return slices.Contains([]string{"backup_integrity", "repository_unavailable", "repository_lock_unavailable",
 		"repository_busy", "unsupported_hooks", "git_configuration_unavailable", "unsupported_fsmonitor",
-		"git_attributes_unavailable", "unsupported_filter", "branch_unavailable", "remote_unavailable",
+		"git_attributes_unavailable", "unsupported_filter", "publication_path_ignored", "git_ignore_unavailable",
+		"branch_unavailable", "remote_unavailable",
 		"head_unavailable", "capture_unavailable", "git_index_failed", "git_object_failed", "git_tree_failed",
 		"git_commit_failed", "git_ref_failed", "git_push_failed", "publication_failed"}, code)
 }

@@ -227,7 +227,7 @@ func (s *store) recoverSnapshot(boardID, actor, expected, eventID string, candid
 			}
 		}
 	}
-	if err := s.commit(next, false); err != nil {
+	if err := s.commit(next, false, nil); err != nil {
 		committed = errors.Is(err, errWriteUncertain)
 		return snapshot{}, err
 	}

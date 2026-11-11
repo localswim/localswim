@@ -144,6 +144,12 @@ to subsequent captures. Use `backup info BACKUP_ID` to read metadata for the
 original backup after an uncertain POST before attempting another capture.
 Use `backup download BACKUP_ID FILE|-` to verify and save the ZIP.
 
+Run `localswim backup verify FILE` to check a downloaded Localswim ZIP offline.
+The command returns the board UUID, captured revision, and attachment count
+after checking the native snapshot, complete audit, exact archive inventory, and
+each active and detached attachment. It reads the ZIP in place, supports archives
+over 96 MiB, and leaves both the archive and service data untouched.
+
 `attachment detach` removes active content access and clears a matching cover in
 one transaction. Inspect the inactive record with `attachment get`. The original
 metadata and immutable bytes remain available for backup.
@@ -165,6 +171,18 @@ order. It recomputes the selected pool and full dependency paths in one transact
 refuses. A real permutation changes only selected ticket numbers, card revisions and renumber audit.
 UUID attachment paths and existing history remain intact. An unchanged order preserves the revision.
 
+Ordinary writes to existing boards compare the saved snapshot with the service's
+accepted snapshot before preparing a change and again immediately before replacing
+the file. After validating the saved contents, the service rechecks the named
+file's identity, size, and modification time. A damaged or missing snapshot returns
+`503 unavailable` and appears as `durable_state_unavailable` in the board catalog.
+A valid replacement that differs from the accepted state returns `503 unavailable`
+and appears as `durable_state_changed`, even when the two revisions match.
+Both refusals leave the saved and accepted state intact. Other boards remain
+writable. Native snapshot verification reports the file's validity, while the
+catalog reports whether the file agrees with the running service. Use explicit
+snapshot admission or backup restoration to recover the affected board.
+
 Native recovery accepts JSON snapshots or application/zip backups at the existing board address.
 Both request entities have an inclusive 96 MiB limit. PUT uses the current durable snapshot
 representation validator when the snapshot is readable. When durable state is unavailable, a previously
@@ -181,8 +199,11 @@ an initial commit, local branch, configured identity and an origin remote. The p
 changes consist of the captured native snapshot and exact audited attachment paths. The push follows
 normal Git ancestry. Publication uses a private index under the persistent
 Git common-directory localswim-autopush.lock. The caller's index and unrelated staged work remain
-intact. Unsupported hooks, external content filters and filesystem monitors refuse before object
-publication. Inspect the original publication UUID after an uncertain result.
+intact. Before writing Git objects, publication checks every captured path against Git's ignore
+rules, including paths already tracked or staged. Any ignored path refuses the entire capture with
+`publication_path_ignored`. An ignore check that fails or warns reports `git_ignore_unavailable`.
+Unsupported hooks, external content filters and filesystem monitors also refuse before object publication.
+Inspect the original publication UUID after an uncertain result.
 
 Enable automatic publication independently with
 `board publishing enable [--revision N] BOARD_ID` or
@@ -196,7 +217,7 @@ Automatic attempts use the resolved origin push destination. Explicit origin
 transport overrides leave the attempt pending with `unsupported_remote_transport`.
 
 Use the matching `status` command to inspect pending work, the last successful
-push time, and a fixed failure code. Failed automatic pushes remain pending and
+push time, and a fixed failure code. Failed automatic attempts remain pending and
 retry with bounded backoff without another edit. Status changes leave board,
 card, and workspace revisions intact. Use `disable` with the same revision
 options to stop new attempts. A disabled publisher keeps durable pending intent.

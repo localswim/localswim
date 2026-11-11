@@ -9,6 +9,8 @@ through one loopback service and port.
 
 Use Go 1.27 to build the service and CLI.
 
+For a console-free Windows installation, see [Run localswim V2 independently on Windows](docs/windows-operations.md).
+
 ```powershell
 go build -o localswim.exe ./cmd/localswim
 ```

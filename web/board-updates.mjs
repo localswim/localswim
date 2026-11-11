@@ -5,6 +5,8 @@ const MAX_RETRY_MS = 8000;
 /** @typedef {import("./api.mjs").StreamEvent} StreamEvent */
 /** @typedef {"connecting"|"connected"|"disconnected"} Connection */
 /** @typedef {"ready"|"refreshing"|"error"} Readiness */
+/** @typedef {{id: string, report: (state: Connection) => void,
+ * invalidate: (revision: number, needsCatchUp: boolean) => void}} BoardWatch */
 
 /**
  * Manual reads and live invalidations share one read and one queued follow-up.
@@ -96,34 +98,46 @@ function waitToReconnect(signal, delay) {
 }
 
 /**
- * Each connection starts with the current server revision. A replacement
- * connection also requests catch-up when the revision happens to match.
- * @param {{boardId: string, signal: AbortSignal,
- * connect: (signal: AbortSignal, receive: (event: StreamEvent) => void) => Promise<void>,
- * report: (state: Connection) => void,
- * invalidate: (revision: number, needsCatchUp: boolean) => void}} options
+ * The catalog snapshot closes the gap between the initial read and subscription.
+ * A replacement connection also catches up the selected board at an equal revision.
+ * @param {{board?: BoardWatch, signal: AbortSignal, invalidateCatalog: () => void,
+ * connect: (signal: AbortSignal, receive: (event: StreamEvent) => void) => Promise<void>}} options
  */
-export async function watchBoard({ boardId, signal, connect, report, invalidate }) {
+export async function watchUpdates({ board, signal, connect, invalidateCatalog }) {
   let retryDelay = INITIAL_RETRY_MS;
   let reconnecting = false;
-  if (!signal.aborted) report("connecting");
+  if (!signal.aborted) board?.report("connecting");
   while (!signal.aborted) {
     const attempt = new AbortController();
     const attemptSignal = AbortSignal.any([signal, attempt.signal]);
     const timer = setTimeout(() => attempt.abort(), CONNECT_TIMEOUT_MS);
     let connected = false;
+    let catalogReady = false;
+
+    function markConnected() {
+      connected = true;
+      clearTimeout(timer);
+      retryDelay = INITIAL_RETRY_MS;
+      board?.report("connected");
+    }
+
     try {
       await connect(attemptSignal, (event) => {
-        if (attemptSignal.aborted || event.resource !== "board" || event.board_id !== boardId) return;
+        if (attemptSignal.aborted) return;
+        if (event.resource === "catalog") {
+          if (!catalogReady && event.type !== "snapshot") return;
+          catalogReady = true;
+          if (!board && !connected) markConnected();
+          invalidateCatalog();
+          return;
+        }
+        if (!board || event.resource !== "board" || event.board_id !== board.id) return;
         const first = !connected;
         if (first) {
           if (event.type !== "snapshot") return;
-          connected = true;
-          clearTimeout(timer);
-          retryDelay = INITIAL_RETRY_MS;
-          report("connected");
+          markConnected();
         }
-        invalidate(event.board_revision, first && reconnecting);
+        board.invalidate(event.board_revision, first && reconnecting);
       });
     } catch {
       // EOF, invalid frames, and transport failures all require a fresh snapshot.
@@ -132,7 +146,7 @@ export async function watchBoard({ boardId, signal, connect, report, invalidate 
       attempt.abort();
     }
     if (signal.aborted) return;
-    report("disconnected");
+    board?.report("disconnected");
     await waitToReconnect(signal, retryDelay);
     retryDelay = Math.min(retryDelay * 2, MAX_RETRY_MS);
     reconnecting = true;

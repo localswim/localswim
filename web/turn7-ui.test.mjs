@@ -7,7 +7,7 @@ import {
   ApiError, createBrowserApi, DEFAULT_APPROVAL_COMMENT, MAX_ATTACHMENT_BYTES, MAX_BULK_APPROVAL_COMMENT_LENGTH,
   MAX_LANE_APPROVAL_CARDS, validPublishing,
 } from "./api.mjs";
-import {createBoardRefresh, watchBoard} from "./board-updates.mjs";
+import {createBoardRefresh, watchUpdates} from "./board-updates.mjs";
 const board = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
 const lane = "ceab10a8-1492-4c90-aa07-13b83138919a";
 const card = "d2ef6295-ace1-4e6e-bbf7-b1c1823f56fc";
@@ -24,6 +24,7 @@ async function harness(api, pathname = "/boards/" + board, {
   pollTimer = setTimeout,
   clock = Date,
   storage = tabStorage(),
+  workspaceEvents = false,
 } = {}) {
   let document;
   const downloads = [];
@@ -100,7 +101,8 @@ async function harness(api, pathname = "/boards/" + board, {
     const node = new Element(id === "main" ? "main" : "div"); node.root = true; return [id, node];
   }));
   document = {getElementById: (id) => nodes[id], querySelector: (selector) => nodes[selector] ?? null,
-    adoptedStyleSheets: [], createElement: (tag) => new ({input: Input, textarea: Textarea, button: Button, select: Select}[tag] ?? Element)(tag)};
+    title: "localswim", adoptedStyleSheets: [],
+    createElement: (tag) => new ({input: Input, textarea: Textarea, button: Button, select: Select}[tag] ?? Element)(tag)};
   const windowEvents = {};
   const window = {sessionStorage: storage, addEventListener: (name, handler) => { windowEvents[name] = handler; }};
   class StyleSheet { replaceSync(text) { this.text = text; } }
@@ -108,13 +110,15 @@ async function harness(api, pathname = "/boards/" + board, {
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
     Blob, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, MAX_ATTACHMENT_BYTES, newOperationId,
-    createBoardRefresh, watchBoard: typeof api.streamEvents === "function" ? watchBoard : async () => {},
+    createBoardRefresh,
+    watchUpdates: (options) => typeof api.streamEvents === "function" && (options.board || workspaceEvents)
+      ? watchUpdates(options) : Promise.resolve(),
     DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH, MAX_LANE_APPROVAL_CARDS,
     createBrowserApi: ({getCapability}) => typeof api === "function" ? api(getCapability) : api,
     openBrowserSession: openSession});
   let source = await fs.readFile(new URL("./app.mjs", import.meta.url), "utf8");
   source = source.replace(/^import \{[^}]+\} from "[^"]+";\r?\n/gm, "").replace(/void load\(\);\s*$/, "");
-  vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing, uploadingToCard, inspect:()=>cardInspection.inspect()};", context);
+  vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing, uploadingToCard, inspect:()=>cardInspection.inspect(), abortView:()=>activeBoardLoad?.abort()};", context);
   async function settled() { for (let count = 0; count < 40; count++) { await new Promise((resolve) => setTimeout(resolve, 0)); if (!context.hooks.busy()) return; } throw Error("UI did not settle"); }
   const find = (root, tagName, text) => root.querySelectorAll(tagName).find((node) => node.ownText === text);
   const field = (root, label) => find(root, "label", label)?.children[0];
@@ -137,7 +141,7 @@ async function harness(api, pathname = "/boards/" + board, {
   }
   return {nodes, downloads, ...context.hooks, settled, find, field, submit, submitValidated, navigate, popstate,
     pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement,
-    stylesheet: () => document.adoptedStyleSheets[0].text};
+    stylesheet: () => document.adoptedStyleSheets[0].text, title: () => document.title};
 }
 
 function tabStorage() {
@@ -1039,10 +1043,10 @@ test("an old Attention read cannot replace the catalog after navigation", async 
   const started = Promise.withResolvers();
   const late = Promise.withResolvers();
   let reads = 0;
-  api.listBoards = async () => {
+  api.listBoards = async (_cursor, signal) => {
     reads++;
     if (reads === 2) {
-      started.resolve();
+      started.resolve(signal);
       return late.promise;
     }
     const name = reads === 1 ? "Original catalog" : "New view catalog";
@@ -1051,8 +1055,9 @@ test("an old Attention read cannot replace the catalog after navigation", async 
   const ui = await harness(api);
   await ui.load();
   ui.nodes.refresh.click();
-  await started.promise;
+  const signal = await started.promise;
   await ui.navigate("/");
+  assert.equal(signal.aborted, true);
   late.resolve(page("boards", [{id: board, name: "Old view catalog"}]));
   await ui.settled();
   assert.ok(ui.find(ui.nodes.boards, "span", "New view catalog"));
@@ -2217,7 +2222,7 @@ for (const lostResponse of [false, true]) {
 
 function boardStreams(api) {
   const streams = [];
-  api.streamEvents = ({ boardId, signal }) => new ReadableStream({
+  api.streamEvents = ({ boardId, watch, signal }) => new ReadableStream({
     start(controller) {
       let closed = false;
       const close = () => {
@@ -2226,7 +2231,8 @@ function boardStreams(api) {
         controller.close();
       };
       signal.addEventListener("abort", close, {once: true});
-      streams.push({boardId, signal, close,
+      streams.push({boardId, watch, signal, close,
+        sendCatalog(type) { controller.enqueue({type, resource: "catalog"}); },
         send(type, revision, id = boardId) {
           controller.enqueue({type, resource: "board", board_id: id, board_revision: revision});
         }});
@@ -2234,6 +2240,137 @@ function boardStreams(api) {
   }).values();
   return streams;
 }
+
+test("catalog hints refresh background Attention and the tab count without repainting the selected drawer", async (t) => {
+  const {api} = boardApi();
+  const streams = boardStreams(api);
+  const selected = {id: board, name: "Selected", availability: "open",
+    attention: {blocked: 1, needs_input: 2, ready_for_review: 0}, last_card_edit_at: "2026-11-11 00:00:00+00:00"};
+  const other = {id: backup, name: "Background", availability: "open",
+    attention: {blocked: 0, needs_input: 0, ready_for_review: 0}, last_card_edit_at: null};
+  let rows = [selected, other];
+  let catalogReads = 0;
+  api.listBoards = async () => { catalogReads++; return page("boards", rows); };
+  let boardReads = 0;
+  const readBoard = api.getBoardLanes;
+  api.getBoardLanes = async (...args) => { boardReads++; return readBoard(...args); };
+  let drawerReads = 0;
+  const readCard = api.getCard;
+  api.getCard = async (...args) => { drawerReads++; return readCard(...args); };
+  class Clock extends Date { static now() { return Date.parse("2026-11-11T00:07:00Z"); } }
+  const ui = await harness(api, "/boards/" + board, {clock: Clock});
+  t.after(ui.abortView);
+  await ui.load();
+  await until(() => streams.length === 1);
+  const stream = streams[0];
+  assert.equal(stream.boardId, board);
+  assert.equal(stream.watch, undefined);
+  stream.sendCatalog("snapshot");
+  stream.send("snapshot", 1);
+  await until(() => catalogReads === 2);
+  assert.equal(ui.title(), "(3) localswim");
+
+  const {boards, main, details} = ui.nodes;
+  ui.find(main, "button", "#1 Original").click();
+  await ui.settled();
+  const draft = ui.field(details, "Title");
+  draft.value = "Unsaved title";
+  draft.focus();
+
+  rows = [{...other, attention: {...other.attention, ready_for_review: 1},
+    last_card_edit_at: "2026-11-11 00:04:00+00:00"}, selected];
+  stream.sendCatalog("change");
+  await until(() => ui.title() === "(4) localswim");
+  const [background, current] = boards.querySelectorAll("a");
+  assert.equal(background.dataset.boardId, backup);
+  assert.equal(background.children[3].textContent, "1");
+  assert.equal(background.title, "Last card edit 3 minutes ago");
+  assert.equal(current.dataset.boardId, board);
+  assert.equal(current.attributes["aria-current"], "page");
+  assert.equal(details.hidden, false);
+  assert.equal(ui.field(details, "Title"), draft);
+  assert.equal(draft.value, "Unsaved title");
+  assert.equal(ui.focused(), draft);
+  assert.equal(boardReads, 1);
+  assert.equal(drawerReads, 1);
+  assert.equal(streams.length, 1);
+
+  rows = [selected, {...other, availability: "closed", attention: null}];
+  stream.sendCatalog("change");
+  await until(() => ui.title() === "(3) localswim");
+  const closed = boards.querySelectorAll("a")[1];
+  assert.equal(closed.children[3].textContent, "—");
+  assert.equal(closed.title, "Board closed. Card edit history unavailable");
+  assert.equal(ui.focused(), draft);
+});
+
+test("Workspace coalesces catalog hints and catches up from a reconnect snapshot", async (t) => {
+  const {api} = boardApi();
+  const streams = boardStreams(api);
+  const started = Promise.withResolvers();
+  const pending = Promise.withResolvers();
+  let reads = 0;
+  let review = 1;
+  const catalog = (ready_for_review) => page("boards", [{id: board, name: "Board", availability: "open",
+    attention: {blocked: 0, needs_input: 0, ready_for_review}, last_card_edit_at: null}]);
+  api.listBoards = async () => {
+    if (++reads === 2) {
+      started.resolve();
+      return pending.promise;
+    }
+    return catalog(review);
+  };
+  const ui = await harness(api, "/", {workspaceEvents: true});
+  t.after(ui.abortView);
+  await ui.load();
+  await until(() => streams.length === 1);
+  const [stream] = streams;
+  assert.equal(stream.boardId, undefined);
+  assert.equal(stream.watch, undefined);
+  assert.equal(ui.title(), "(1) localswim");
+
+  stream.sendCatalog("snapshot");
+  await started.promise;
+  review = 3;
+  for (let count = 0; count < 5; count++) stream.sendCatalog("change");
+  await ui.settled();
+  assert.equal(reads, 2);
+  assert.equal(ui.title(), "(1) localswim");
+  pending.resolve(catalog(2));
+  await until(() => ui.title() === "(3) localswim");
+  assert.equal(reads, 3);
+
+  stream.close();
+  review = 0;
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  await until(() => streams.length === 2);
+  assert.equal(streams[1].boardId, undefined);
+  streams[1].sendCatalog("snapshot");
+  await until(() => ui.title() === "localswim");
+  assert.equal(reads, 4);
+});
+
+test("an unavailable board route keeps receiving workspace Attention", async (t) => {
+  const {api} = boardApi();
+  const streams = boardStreams(api);
+  api.getBoardAvailability = async () => { throw new ApiError("http_error", {status: 404}); };
+  let blocked = 0;
+  api.listBoards = async () => page("boards", [{id: backup, name: "Available", availability: "open",
+    attention: {blocked, needs_input: 0, ready_for_review: 0}, last_card_edit_at: null}]);
+  const ui = await harness(api, "/boards/" + board, {workspaceEvents: true});
+  t.after(ui.abortView);
+  await ui.load();
+  await until(() => streams.length === 1);
+  assert.equal(streams[0].boardId, undefined);
+  const retry = ui.find(ui.nodes.main, "button", "Retry board update");
+  assert.ok(retry);
+  assert.equal(ui.title(), "localswim");
+
+  blocked = 1;
+  streams[0].sendCatalog("snapshot");
+  await until(() => ui.title() === "(1) localswim");
+  assert.equal(ui.find(ui.nodes.main, "button", "Retry board update"), retry);
+});
 
 function changingBoard() {
   const {api} = boardApi();
@@ -2783,7 +2920,7 @@ test("live board Retry and reconnect catch up without discarding the loaded boar
   await until(() => retry.hidden && ui.find(main, "button", "#1 While disconnected"));
   assert.equal(connection.textContent, "Live updates connected.");
   assert.equal(draft.value, "Keep my draft");
-  assert.equal(lists, 3); // Initial catalog plus one Attention refresh per successful board repaint.
+  assert.equal(lists, 2); // Initial catalog plus the manual retry. A board hint alone does not invalidate Attention.
   assert.equal(sessions, 2);
 });
 

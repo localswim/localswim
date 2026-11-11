@@ -1342,8 +1342,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     async getWorkspace() {
       return workspaceReply(await request("/workspace"), false);
     },
-    /** @param {string} [cursor] */
-    listBoards: (cursor) => list("/boards", {}, cursor),
+    /** @param {string} [cursor] @param {AbortSignal} [signal] */
+    listBoards: (cursor, signal) => list("/boards", {}, cursor, signal),
     /** @param {unknown} id */
     getBoard: (id) => request(`/boards/${resourceId(id)}`),
     /** @param {unknown} boardId @param {AbortSignal} [signal] */

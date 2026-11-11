@@ -3,7 +3,7 @@ import {
   ApiError, createBrowserApi, DEFAULT_APPROVAL_COMMENT, MAX_ATTACHMENT_BYTES, MAX_BULK_APPROVAL_COMMENT_LENGTH,
   MAX_LANE_APPROVAL_CARDS, openBrowserSession, validPublishing,
 } from "./api.mjs";
-import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
+import { createBoardRefresh, watchUpdates } from "./board-updates.mjs";
 
 /** @typedef {{id: string, label: string}} Labeled */
 /** @typedef {Labeled & {kind: "human"|"bot", color?: string}} User */
@@ -20,7 +20,9 @@ import { createBoardRefresh, watchBoard } from "./board-updates.mjs";
 /** @typedef {{actor: string, create: Set<string>, move: Map<string, Set<string>>,
  * canClose: boolean, canManageRelationships: boolean}} Workflow */
 /** @typedef {{blocked: number, needs_input: number, ready_for_review: number}} Attention */
-/** @typedef {{id: string, name: string|null, attention: Attention|null, last_card_edit_at: string|null}} BoardSummary */
+/** @typedef {{id: string, name: string|null, attention: Attention|null, last_card_edit_at: string|null,
+ * availability: import("./api.mjs").BoardAvailability["availability"]}} BoardSummary */
+/** @typedef {import("./board-updates.mjs").BoardWatch} BoardWatch */
 /** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string,
  * approval_enabled: boolean, reorder_enabled: boolean, bulk_approval_comment?: string, notes?: string}} Lane */
 /** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
@@ -67,6 +69,7 @@ let capability = "";
 /** @type {Promise<string>|undefined} */
 let connecting;
 const api = createBrowserApi({ getCapability: () => capability });
+const pageTitle = document.title;
 let activeView = 0;
 let activeCard = 0;
 let writing = false;
@@ -2306,8 +2309,10 @@ function renderAttention(sidebar, rows, pins, selected) {
       item.setAttribute("aria-describedby", summary.id);
       item.append(summary);
       const countSummary = accessible.join(". ");
+      const availability = board.availability === "closed" ? "Board closed. "
+        : board.availability === "unhealthy" ? "Board unhealthy. " : "";
       const updateRecency = () => {
-        item.title = attentionRecency(board, Date.now());
+        item.title = availability + attentionRecency(board, Date.now());
         summary.textContent = countSummary + ". " + item.title;
       };
       updateRecency();
@@ -2319,7 +2324,7 @@ function renderAttention(sidebar, rows, pins, selected) {
   });
   sidebar.replaceChildren(header, ...sections);
   if (focusedId) {
-    [...sidebar.querySelectorAll("a")].find((item) => item.dataset.boardId === focusedId)?.focus();
+    [...sidebar.querySelectorAll("a")].find((item) => item.dataset.boardId === focusedId)?.focus({ preventScroll: true });
   }
 }
 
@@ -2365,14 +2370,12 @@ function boardUpdates(boardId, signal, revision, read) {
   });
   return {
     panel, request: updates.request,
-    start() {
+    /** @param {(board: BoardWatch) => void} subscribe */
+    start(subscribe) {
       activeBoardRefresh = updates;
-      void watchBoard({
-        boardId, signal, invalidate: updates.invalidate,
+      subscribe({
+        id: boardId, invalidate: updates.invalidate,
         report: (state) => { connectionState = state; show(); },
-        connect: (streamSignal, receive) => readWithSession(async () => {
-          for await (const event of api.streamEvents({ boardId, signal: streamSignal })) receive(event);
-        }, streamSignal),
       });
     },
   };
@@ -2410,10 +2413,14 @@ async function load(savedAvailability) {
   main.replaceChildren();
   boardStyle.replaceSync("");
   announce("loading", "Loading…");
+  /** @type {((board?: BoardWatch) => void)|undefined} */
+  let subscribe;
+  const readCatalog = () => /** @type {Promise<BoardSummary[]>} */ (
+    collect((cursor) => api.listBoards(cursor, signal), "boards", signal));
   try {
     const [session, boards] = await readWithSession(() => Promise.all([
-      api.getSession(), /** @type {Promise<BoardSummary[]>} */ (collect(api.listBoards, "boards")),
-    ]));
+      api.getSession(signal), readCatalog(),
+    ]), signal);
     if (view !== activeView) return;
     const context = /** @type {{kind?: unknown, principal_id?: unknown, workspace_admin?: unknown}} */ (session.data);
     if (context.kind !== "human") throw new ApiError("invalid_response");
@@ -2422,7 +2429,11 @@ async function load(savedAvailability) {
     /** @type {string[]} */
     let visiblePins = [];
     let latestBoards = boards;
-    let catalogRead = 0;
+    let catalogTail = Promise.resolve();
+    /** @type {Promise<void>|undefined} */
+    let queuedCatalog;
+    /** @type {HTMLParagraphElement|undefined} */
+    let workspacePrompt;
     const attentionStatus = element("p", "Attention could not be refreshed. Showing the last saved counts.");
     attentionStatus.setAttribute("role", "status");
     attentionStatus.hidden = true;
@@ -2431,26 +2442,53 @@ async function load(savedAvailability) {
       if (!navigation) return;
       renderAttention(navigation, rows, visiblePins, boardId);
       navigation.append(attentionStatus);
+      const count = rows.reduce((total, { attention }) =>
+        total + (attention ? attention.blocked + attention.needs_input + attention.ready_for_review : 0), 0);
+      document.title = count > 0 ? "(" + count + ") " + pageTitle : pageTitle;
+      if (workspacePrompt) workspacePrompt.textContent = rows.length ? "Select a board." : "No boards are available.";
     }
-    async function refreshAttention() {
-      if (view !== activeView) return;
-      const read = ++catalogRead;
-      try {
-        const rows = /** @type {BoardSummary[]} */ (await readWithSession(() => collect(api.listBoards, "boards")));
-        if (view !== activeView || read !== catalogRead) return;
-        latestBoards = rows;
-        attentionStatus.hidden = true;
-        showBoards(latestBoards);
-      } catch {
-        if (view === activeView && read === catalogRead) attentionStatus.hidden = false;
-      }
+    function refreshAttention() {
+      if (signal.aborted) return Promise.resolve();
+      if (queuedCatalog) return queuedCatalog;
+      queuedCatalog = catalogTail.then(async () => {
+        queuedCatalog = undefined;
+        if (signal.aborted) return;
+        try {
+          const rows = await readWithSession(readCatalog, signal);
+          if (signal.aborted) return;
+          showBoards(rows);
+          latestBoards = rows;
+          attentionStatus.hidden = true;
+        } catch (error) {
+          if (signal.aborted) return;
+          attentionStatus.hidden = false;
+          throw error;
+        }
+      });
+      catalogTail = queuedCatalog.catch(() => {});
+      return queuedCatalog;
     }
+    function invalidateCatalog() {
+      void refreshAttention().catch(() => {});
+    }
+    let subscribed = false;
+    subscribe = (board) => {
+      if (subscribed) return;
+      subscribed = true;
+      void watchUpdates({
+        board, signal, invalidateCatalog,
+        connect: (streamSignal, receive) => readWithSession(async () => {
+          for await (const event of api.streamEvents({ boardId: board?.id, signal: streamSignal })) receive(event);
+        }, streamSignal),
+      });
+    };
     showBoards(latestBoards);
     const readPreferences = context.workspace_admin === true
       ? readWithSession(api.getWorkspace).catch(() => undefined) : undefined;
     if (!boardId && location.pathname === "/") {
-      main.replaceChildren(element("h1", "Workspace"),
-        element("p", boards.length ? "Select a board." : "No boards are available."));
+      workspacePrompt = element("p", latestBoards.length ? "Select a board." : "No boards are available.");
+      main.replaceChildren(element("h1", "Workspace"), workspacePrompt);
+      subscribe();
       if (context.workspace_admin === true) {
         const preferences = await readPreferences;
         if (view !== activeView) return;
@@ -2461,9 +2499,8 @@ async function load(savedAvailability) {
         boardName.maxLength = 256;
         boardName.value = boardDrafts.get("workspace")?.[0] ?? "";
         const inspection = createInspection(main, () => view === activeView, async () => {
-          const latest = /** @type {BoardSummary[]} */ (await collect(api.listBoards, "boards"));
+          await refreshAttention();
           if (view !== activeView) return;
-          latestBoards = latest;
           workspaceControls.showBoards(latestBoards);
           await workspaceControls.inspect();
         }, "workspace", "workspace");
@@ -2590,7 +2627,7 @@ async function load(savedAvailability) {
       }
       inspection.sync();
       announce(metadata.data.availability === "closed" ? "ready" : "error", message);
-      updates.start();
+      updates.start(subscribe);
       return;
     }
     const [{ board: boardReply, lanes, cards, priorities, workflow: initialWorkflow }, users] = contents;
@@ -3033,7 +3070,7 @@ async function load(savedAvailability) {
       if (batchPriority instanceof HTMLSelectElement) setOptions(batchPriority, priorities, batchPriority.value);
       renderCards(latest.cards, boardTag);
       inspection.sync();
-      void refreshAttention();
+      if (!automatic) invalidateCatalog();
       if (activeDrawer?.boardId === board.id) await activeDrawer.refreshWorkflow(canApply, automatic);
       if (!canApply()) return false;
       await reloadArchived();
@@ -3077,7 +3114,7 @@ async function load(savedAvailability) {
     inspection.sync();
     boardStyle.replaceSync(board.user_css ?? "");
     announce("ready", "Board loaded.");
-    updates.start();
+    updates.start(subscribe);
     const ticketValue = new URLSearchParams(location.search).get("ticket");
     const selectedCard = rememberedCard(boardId, ticketValue);
     if (selectedCard && refresh) {
@@ -3107,6 +3144,7 @@ async function load(savedAvailability) {
   } catch (error) {
     if (view !== activeView) return;
     if (error instanceof ApiError && error.status === 401) capability = "";
+    subscribe?.();
     main.replaceChildren();
     boardStyle.replaceSync("");
     if (boardAtLocation()) main.append(button("Retry board update", () => void load()));

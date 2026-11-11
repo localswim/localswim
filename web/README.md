@@ -172,6 +172,13 @@ board and optional retained boards. Each connection uses the current browser
 capability. Breaking out of iteration releases the stream. An AbortSignal can
 also cancel a pending read. Call again to reconnect and receive current state.
 
+The workspace and board views use one event connection per tab. Board views
+select the current board on that connection. A catalog snapshot or change
+triggers a fresh read of the workspace's Attention counts, availability, and
+recency. The sidebar uses the catalog's board order and refreshes without
+closing the current drawer. The tab title quietly shows the sum of Blocked,
+Needs Terry, and Ready for Review counts across the available boards.
+
 Run the focused checks with `npm --prefix web run check` and `npm --prefix web test`.
 
 ## Turn 6 board actions

@@ -78,6 +78,7 @@ func validateAttachmentMetadata(item attachment, index int) error {
 
 type attachmentUpload struct {
 	id, cardID, expected, name string
+	boardTag                   string
 	data                       []byte
 }
 
@@ -369,6 +370,14 @@ func (x *request) uploadAttachment() {
 		}
 		return
 	}
+	const boardHeader = "X-Expected-Board-ETag"
+	if tags := x.r.Header.Values(boardHeader); len(tags) != 0 {
+		if len(tags) != 1 || !snapshotETagPattern.MatchString(tags[0]) {
+			x.fail(invalid(boardHeader, "Expected one canonical entity tag."))
+			return
+		}
+		input.boardTag = tags[0]
+	}
 	state, _, found := x.findCard(input.cardID)
 	if !found {
 		x.fail(errMissing)
@@ -413,6 +422,9 @@ func (s *store) attach(boardID, actor string, input attachmentUpload) (attachmen
 		}
 		if !next.can(actor, "manage_attachments") {
 			return errForbidden
+		}
+		if input.boardTag != "" && !matchesStrongTag(input.boardTag, next.Board.entityTag()) {
+			return errStale
 		}
 		index := slices.IndexFunc(next.Cards, func(item card) bool { return item.ID == input.cardID })
 		if index < 0 {

@@ -61,4 +61,9 @@ Use `board verify BOARD_ID` to verify the durable board through the service or
 Both forms write the full JSON report to standard output. A valid report exits
 with status 0. An invalid report exits with status 1 and includes the issues.
 
+Add `--data DIRECTORY` before the board ID on `card triage-order`, `card search`,
+`card inspect`, or `comment list` to use the same report against the saved
+snapshot while the writer is stopped. Add `--prose` to include descriptions
+and comments in focused ticket inspection.
+
 [Development and conventions](CONTRIBUTING.md) · [API](docs/openapi.yaml) · [Milestones](milestone-plan.md)

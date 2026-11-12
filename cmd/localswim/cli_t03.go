@@ -39,6 +39,14 @@ func parseCLIRevision(value string) (*uint64, error) {
 	return &revision, nil
 }
 
+func parseCLITicket(value string) (uint64, error) {
+	ticket, err := strconv.ParseUint(value, 10, 53)
+	if err != nil || ticket == 0 {
+		return 0, errors.New("ticket requires an integer from 1 to 9007199254740991")
+	}
+	return ticket, nil
+}
+
 func parseT03(name string, args []string) (cliCommand, error) {
 	var cmd cliCommand
 	var validator, field string
@@ -78,6 +86,7 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var revision, uploadID, filename string
+	var commentText *string
 	if cmd.method != http.MethodGet {
 		flags.StringVar(&revision, "revision", "", "expected resource revision")
 	}
@@ -85,15 +94,25 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		flags.StringVar(&uploadID, "id", "", "known attachment UUIDv4")
 		flags.StringVar(&filename, "filename", "", "display filename")
 	}
+	if name == "comment post" {
+		flags.Func("text", "literal comment text", func(text string) error {
+			commentText = &text
+			return nil
+		})
+	}
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
+	}
+	if commentText != nil {
+		count = 1
 	}
 	requiresInput := name == "card patch" || name == "card description" || name == "comment post" || name == "lane add" || name == "attachment upload"
 	if requiresInput && flags.NArg() < count {
 		return cmd, errors.New("expected a UUIDv4 resource ID followed by FILE or -")
 	}
 	ticketPatch := isTicketCardPatch(name) && flags.NArg() == count+1
-	if (!ticketPatch && flags.NArg() != count) || !boardIDPattern.MatchString(flags.Arg(0)) {
+	ticketAttachment := (name == "attachment upload" || name == "attachment detach") && flags.NArg() == 3
+	if (!ticketPatch && !ticketAttachment && flags.NArg() != count) || !boardIDPattern.MatchString(flags.Arg(0)) {
 		return cmd, errors.New("expected a UUIDv4 resource ID and the documented arguments")
 	}
 	var optionErr error
@@ -116,19 +135,32 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	if optionErr != nil {
 		return cmd, optionErr
 	}
+	value := flags.Arg(1)
+	if ticketPatch || ticketAttachment {
+		ticket, err := parseCLITicket(flags.Arg(1))
+		if err != nil {
+			return cmd, err
+		}
+		target := &cliTicketTarget{boardID: strings.ToLower(flags.Arg(0)), ticket: ticket}
+		if ticketPatch {
+			cmd.ticketPatch = target
+		} else {
+			cmd.ticketAttachment = target
+		}
+		value = flags.Arg(2)
+	}
 	if cmd.method == http.MethodGet || cmd.detachAttachment {
-		cmd.resource += strings.ToLower(flags.Arg(0))
+		id := flags.Arg(0)
+		if ticketAttachment {
+			id = value
+			if !boardIDPattern.MatchString(id) {
+				return cmd, errors.New("expected a UUIDv4 attachment ID")
+			}
+		}
+		cmd.resource += strings.ToLower(id)
 		return cmd, nil
 	}
-	value := flags.Arg(1)
-	if ticketPatch {
-		ticket, err := strconv.ParseUint(flags.Arg(1), 10, 53)
-		if err != nil || ticket == 0 {
-			return cmd, errors.New("ticket requires an integer from 1 to 9007199254740991")
-		}
-		cmd.ticketPatch = &ticketCardPatchTarget{boardID: strings.ToLower(flags.Arg(0)), ticket: ticket}
-		value = flags.Arg(2)
-	} else {
+	if !ticketPatch && !ticketAttachment {
 		cmd.edit.idField, cmd.edit.id = field, flags.Arg(0)
 		cmd.edit.validatorPath = validator + cmd.edit.id
 		if cmd.method == http.MethodPatch {
@@ -161,7 +193,16 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		if value == "" {
 			return cmd, errors.New("attachment upload requires a file path or -")
 		}
-	case "card patch", "card description", "comment post", "lane add":
+	case "comment post":
+		if commentText != nil {
+			if *commentText == "" || !utf8.ValidString(*commentText) {
+				return cmd, errors.New("--text requires nonempty valid UTF-8")
+			}
+			cmd.body, _ = json.Marshal(map[string]string{"text": *commentText})
+			break
+		}
+		fallthrough
+	case "card patch", "card description", "lane add":
 		if value == "" {
 			return cmd, errors.New("input requires a file path or -")
 		}
@@ -209,6 +250,10 @@ func parseCLIList(name string, args []string) (cliCommand, error) {
 	limit := flags.Int("limit", 50, "page size")
 	cursor := flags.String("cursor", "", "cursor from the preceding page")
 	var archived string
+	if name == "comment list" {
+		flags.StringVar(&cmd.dataDir, "data", "", "private data directory")
+		cmd.nativeRead = "comments"
+	}
 	archiveFilter := name == "card list" || name == "comment list"
 	if archiveFilter {
 		flags.StringVar(&archived, "archived", "exclude", "exclude, include, or only archived cards")
@@ -223,10 +268,14 @@ func parseCLIList(name string, args []string) (cliCommand, error) {
 	if *cursor != "" {
 		query.Set("cursor", *cursor)
 	}
-	explicitArchive := false
+	var explicitArchive, explicitData bool
 	flags.Visit(func(f *flag.Flag) {
 		explicitArchive = explicitArchive || f.Name == "archived"
+		explicitData = explicitData || f.Name == "data"
 	})
+	if explicitData && cmd.dataDir == "" {
+		return cmd, errors.New("--data requires a nonempty directory")
+	}
 	if archiveFilter && (name == "card list" || flags.NArg() == 1 || explicitArchive) {
 		archived = strings.ToLower(archived)
 		switch archived {
@@ -250,7 +299,8 @@ func parseCLIList(name string, args []string) (cliCommand, error) {
 		}
 		return cmd, errors.New("expected one UUIDv4 board ID")
 	default:
-		query.Set("board_id", flags.Arg(0))
+		cmd.boardID = flags.Arg(0)
+		query.Set("board_id", cmd.boardID)
 		if flags.NArg() == 2 {
 			if !boardIDPattern.MatchString(flags.Arg(1)) {
 				return cmd, errors.New("expected a UUIDv4 card ID")

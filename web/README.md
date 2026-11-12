@@ -212,7 +212,8 @@ and `publishing`. Pass the separate workspace result's `etag` back to
 `setPinnedBoards(boardIds, etag)` for its `If-Match` header. The sidebar
 handles a `412` by applying the intended edit to a fresh workspace read.
 Use the board ETag for `configureOwnerNotices(boardId, settings, etag)`. Pass only the
-notice settings to change. An explicit `target_thread_id: null` clears the target.
+notice settings to change. An explicit `target_thread_id: null` clears the target
+when the resulting settings are disabled.
 
 Stream messages identify their `resource` as `board`, `workspace`, or `catalog`.
 Board messages contain `board_id` and `board_revision`; workspace messages contain

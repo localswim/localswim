@@ -9,7 +9,7 @@ import (
 	"github.com/localswim/localswim/internal/client"
 )
 
-type ticketCardPatchTarget struct {
+type cliTicketTarget struct {
 	boardID string
 	ticket  uint64
 }

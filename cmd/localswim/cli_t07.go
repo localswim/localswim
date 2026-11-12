@@ -39,6 +39,8 @@ func parseT07(name string, args []string) (cliCommand, error) {
 				return nil
 			})
 			flags.StringVar(&archived, "archived", "", "exclude, include, or only archived cards")
+			flags.StringVar(&cmd.dataDir, "data", "", "private data directory")
+			cmd.nativeRead = "cards"
 		}
 		flags.BoolVar(&content, "search-content", false, "search readable descriptions and comments")
 		if name == "card triage-order" {
@@ -93,6 +95,10 @@ func parseT07(name string, args []string) (cliCommand, error) {
 			if archived != "exclude" && archived != "include" && archived != "only" {
 				optionErr = errors.New("--archived requires exclude, include, or only")
 			}
+		case "data":
+			if cmd.dataDir == "" {
+				optionErr = errors.New("--data requires a nonempty directory")
+			}
 		case "search", "cursor":
 			if f.Value.String() == "" {
 				optionErr = errors.New("options require nonempty values")
@@ -132,6 +138,7 @@ func parseT07(name string, args []string) (cliCommand, error) {
 		if cursor != "" {
 			query.Set("cursor", cursor)
 		}
+		cmd.boardID = resourceID
 		cmd.resource = "/cards?" + query.Encode()
 	case "ticket-order apply":
 		cmd.method, cmd.resource, cmd.inputPath = http.MethodPut, "/ticket-orders/"+resourceID, flags.Arg(1)

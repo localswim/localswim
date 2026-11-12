@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -20,7 +21,9 @@ func parseActivityList(args []string) (cliCommand, error) {
 	from := flags.String("from", "", "inclusive UTC start")
 	to := flags.String("to", "", "inclusive UTC end")
 	view := flags.String("view", "monitor", "full or monitor activity view")
-	ticket := flags.String("ticket", "", "filter by card ticket")
+	ticket := flags.String("ticket", "", "filter by ticket at the event revision")
+	cardID := flags.String("card-id", "", "filter by stable card UUIDv4")
+	writerID := flags.String("writer-id", "", "require this writer UUIDv7 for complete coverage")
 	actorID := flags.String("actor-id", "", "filter by actor UUIDv4")
 	operation := flags.String("operation", "", "filter by operation identifier")
 	limit := flags.Int("limit", 50, "page size")
@@ -75,6 +78,18 @@ func parseActivityList(args []string) (cliCommand, error) {
 			} else {
 				query.Set("actor_id", strings.ToLower(*actorID))
 			}
+		case "card-id":
+			if !boardIDPattern.MatchString(*cardID) {
+				optionErr = errors.New("--card-id requires a UUIDv4")
+			} else {
+				query.Set("card_id", strings.ToLower(*cardID))
+			}
+		case "writer-id":
+			if !operationIDPattern.MatchString(*writerID) {
+				optionErr = errors.New("--writer-id requires a UUIDv7")
+			} else {
+				query.Set("writer_id", strings.ToLower(*writerID))
+			}
 		case "operation":
 			if len(*operation) == 0 || len(*operation) > 80 {
 				optionErr = errors.New("--operation requires an operation identifier of 1 to 80 characters")
@@ -96,6 +111,14 @@ func parseActivityList(args []string) (cliCommand, error) {
 }
 
 func detachAttachment(api *client.Client, cmd cliCommand) error {
+	var target client.TicketTarget
+	if cmd.ticketAttachment != nil {
+		var err error
+		target, err = api.ResolveTicket(cmd.ticketAttachment.boardID, cmd.ticketAttachment.ticket)
+		if err != nil {
+			return err
+		}
+	}
 	current, err := api.Do(http.MethodGet, cmd.resource, nil, "")
 	if err != nil {
 		return err
@@ -103,12 +126,26 @@ func detachAttachment(api *client.Client, cmd cliCommand) error {
 	if current.ETag == "" {
 		return errors.New("service did not return a strong attachment ETag")
 	}
-	if err := checkCLIRevision(cmd.revision, current.JSON); err != nil {
-		return err
+	if cmd.ticketAttachment == nil {
+		if err := checkCLIRevision(cmd.revision, current.JSON); err != nil {
+			return err
+		}
+		board, err := parentBoard(api, current.JSON)
+		if err != nil {
+			return err
+		}
+		return api.DetachAttachment(cmd.resource, current.ETag, board.ETag)
 	}
-	board, err := parentBoard(api, current.JSON)
-	if err != nil {
-		return err
+	id := strings.TrimPrefix(cmd.resource, "/attachments/")
+	revision, matches := resolvedAttachmentRevision(current.JSON, id, target)
+	if !matches {
+		return errors.New("service did not return an active attachment on the resolved ticket")
 	}
-	return api.DetachAttachment(cmd.resource, current.ETag, board.ETag)
+	if revision > target.BoardRevision || !client.MatchesEntityTagRevision(current.ETag, id, revision) {
+		return errors.New("service did not return a matching attachment revision and validator")
+	}
+	if cmd.revision != nil && *cmd.revision != revision {
+		return fmt.Errorf("revision mismatch (expected %d, current %d)", *cmd.revision, revision)
+	}
+	return api.DetachAttachment(cmd.resource, current.ETag, target.BoardETag)
 }

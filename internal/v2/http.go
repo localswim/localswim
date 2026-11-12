@@ -51,8 +51,12 @@ func Open(root, humanToken, botToken string) (*Service, error) {
 	workspace := newWorkspace(boards.root)
 	boards.events, workspace.events = events, events
 	boards.startBoardPublishers()
+	builds := newBuildStatus(boards.root)
+	boards.activityWriterID = builds.running.ServiceInstanceID
+	boards.activitySince = canonicalTime(time.Now()).Add(time.Second)
 	boards.ownerNotices = newOwnerNoticeWorker(ownerNoticeQuietPeriod, boards.ownerNoticeSettings, deliverOwnerNotice)
-	return &Service{events: events, store: boards, workspace: workspace, builds: newBuildStatus(boards.root),
+	boards.ownerNotices.writerID = boards.activityWriterID
+	return &Service{events: events, store: boards, workspace: workspace, builds: builds,
 		lifecycle:  serviceLifecycle{exit: make(chan ServiceExit, 1)},
 		principals: principals, browserToken: browserToken, browser: sha256.Sum256([]byte(browserToken)), human: sha256.Sum256([]byte(humanToken)), bot: sha256.Sum256([]byte(botToken))}, nil
 }

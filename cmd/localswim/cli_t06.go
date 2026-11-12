@@ -21,8 +21,13 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var revision, backupID string
+	var priority *string
+	var tickets bool
 	switch name {
-	case "card set-priorities", "backup create":
+	case "card set-priorities":
+		flags.StringVar(&revision, "revision", "", "expected board revision")
+		flags.BoolVar(&tickets, "tickets", false, "select cards by ticket number")
+	case "backup create":
 		flags.StringVar(&revision, "revision", "", "expected board revision")
 	case "ticket-order preview", "backup info", "backup download":
 	default:
@@ -31,8 +36,17 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	if name == "backup create" {
 		flags.StringVar(&backupID, "id", "", "known backup UUIDv7")
 	}
+	if name == "card set-priorities" {
+		flags.Func("priority", "priority UUIDv4 for all selected cards", func(value string) error {
+			priority = &value
+			return nil
+		})
+	}
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
+	}
+	if tickets && priority == nil {
+		return cmd, errors.New("--tickets requires --priority with a UUIDv4 priority ID")
 	}
 	count := 1
 	if name == "card set-priorities" || name == "backup download" {
@@ -42,7 +56,8 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	if name == "backup info" || name == "backup download" {
 		resourcePattern = operationIDPattern
 	}
-	if flags.NArg() < count || (name != "ticket-order preview" && flags.NArg() != count) ||
+	variadic := name == "ticket-order preview" || priority != nil
+	if flags.NArg() < count || (!variadic && flags.NArg() != count) ||
 		!resourcePattern.MatchString(flags.Arg(0)) || (count == 2 && flags.Arg(1) == "") {
 		return cmd, errors.New("expected a valid resource ID and the documented arguments")
 	}
@@ -67,7 +82,23 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	id := strings.ToLower(flags.Arg(0))
 	switch name {
 	case "card set-priorities":
-		cmd.method, cmd.resource, cmd.boardID, cmd.inputPath = http.MethodPatch, "/cards", id, flags.Arg(1)
+		cmd.method, cmd.resource, cmd.boardID = http.MethodPatch, "/cards", id
+		switch {
+		case tickets:
+			var err error
+			cmd.batchTickets, cmd.body, err = parseTicketPriorityBatch(*priority, flags.Args()[1:])
+			if err != nil {
+				return cmd, err
+			}
+		case priority != nil:
+			var err error
+			cmd.body, err = priorityBatchBody(*priority, flags.Args()[1:])
+			if err != nil {
+				return cmd, err
+			}
+		default:
+			cmd.inputPath = flags.Arg(1)
+		}
 	case "backup create":
 		cmd.method, cmd.resource, cmd.boardID = http.MethodPost, "/backups", id
 		if backupID == "" {
@@ -130,18 +161,12 @@ func executeT06(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 		if fields["board_id"] != nil || fields["expected_board_etag"] != nil {
 			return errors.New("CLI supplies board_id and expected_board_etag")
 		}
-		board, err := api.Do(http.MethodGet, "/boards/"+cmd.boardID, nil, "")
+		boardTag, err := t06BoardValidator(api, cmd, fields)
 		if err != nil {
 			return err
 		}
-		if board.ETag == "" {
-			return errors.New("service did not return a strong board ETag")
-		}
-		if err := checkCLIRevision(cmd.revision, board.JSON); err != nil {
-			return err
-		}
 		fields["board_id"], _ = json.Marshal(cmd.boardID)
-		fields["expected_board_etag"], _ = json.Marshal(board.ETag)
+		fields["expected_board_etag"], _ = json.Marshal(boardTag)
 		body, err = json.Marshal(fields)
 		if err != nil || len(body) > maxCLIInput {
 			return errors.New("request exceeds 96 MiB after adding resource validators")
@@ -193,6 +218,28 @@ func executeT06(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 		return errors.New("could not write the API response")
 	}
 	return nil
+}
+
+func t06BoardValidator(api *client.Client, cmd cliCommand, fields map[string]json.RawMessage) (string, error) {
+	if len(cmd.batchTickets) != 0 {
+		ids, boardTag, err := resolvePriorityTickets(api, cmd)
+		if err != nil {
+			return "", err
+		}
+		fields["card_ids"], _ = json.Marshal(ids)
+		return boardTag, nil
+	}
+	board, err := api.Do(http.MethodGet, "/boards/"+cmd.boardID, nil, "")
+	if err != nil {
+		return "", err
+	}
+	if board.ETag == "" {
+		return "", errors.New("service did not return a strong board ETag")
+	}
+	if err := checkCLIRevision(cmd.revision, board.JSON); err != nil {
+		return "", err
+	}
+	return board.ETag, nil
 }
 
 func downloadBackup(api *client.Client, resource, output string, stdout io.Writer) error {

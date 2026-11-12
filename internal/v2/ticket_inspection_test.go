@@ -98,6 +98,19 @@ func TestM68InspectTicket(t *testing.T) {
 	if value.Prose != nil || bytes.Contains(raw, []byte("private")) || bytes.Contains(raw, []byte(`"prose"`)) || bytes.Contains(raw, []byte(`"etag"`)) {
 		t.Fatal("default inspection exposed descriptions or comments")
 	}
+	if value.RelatedCard != nil {
+		t.Fatal("default inspection returned an unrequested related ticket")
+	}
+	pairRaw, pairHeaders := c.call("GET", path+"&related_ticket=0003", "", "", 200)
+	pair := turnOneDecode[TicketInspection](t, pairRaw)
+	link := pair.Relationships[1]
+	saved, savedHeaders := c.call("GET", "/relationships/"+link.ID, "", "", 200)
+	if pair.RelatedCard == nil || pair.RelatedCard.ID != child.ID || pair.RelatedCard.Ticket != child.Ticket ||
+		pair.RelatedCard.Revision != link.Card.Revision || pair.BoardRevision != value.BoardRevision ||
+		pairHeaders.Get("X-Board-ETag") != tag || savedHeaders.Get("ETag") != etag(link.ID, link.Revision) ||
+		turnOneDecode[relationship](t, saved).Revision != link.Revision || bytes.Contains(pairRaw, []byte(`"etag"`)) {
+		t.Fatal("paired inspection did not preserve same-snapshot identities and numeric revisions")
+	}
 	withProse, proseHeaders := c.call("GET", path+"&include_prose=true", "", "", 200)
 	value = turnOneDecode[TicketInspection](t, withProse)
 	if value.Prose == nil || value.Prose.Description != "  selected-private\n  " || len(value.Prose.Comments) != 2 ||
@@ -116,10 +129,13 @@ func TestM68InspectTicket(t *testing.T) {
 		t.Fatal("HEAD did not retain the ticket view validators")
 	}
 	for _, query := range []string{"", "&ticket=", "&ticket=0", "&ticket=9007199254740992", "&ticket=2&ticket=2",
-		"&ticket=2&include_prose=", "&ticket=2&include_prose=TRUE", "&ticket=2&include_prose=false&include_prose=true"} {
+		"&ticket=2&include_prose=", "&ticket=2&include_prose=TRUE", "&ticket=2&include_prose=false&include_prose=true",
+		"&ticket=2&related_ticket=", "&ticket=2&related_ticket=2", "&ticket=2&related_ticket=9007199254740992",
+		"&ticket=2&related_ticket=1&related_ticket=3"} {
 		c.call("GET", "/boards/"+b.ID+"?view=ticket"+query, "", "", 400)
 	}
 	c.call("GET", "/boards/"+b.ID+"?view=ticket&ticket=200", "", "", 404)
+	c.call("GET", path+"&related_ticket=200", "", "", 404)
 	after, _ := c.call("GET", "/snapshots/"+b.ID, "", "", 200)
 	if !bytes.Equal(before, after) {
 		t.Fatal("ticket inspection changed durable state")

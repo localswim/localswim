@@ -37,9 +37,14 @@ const cliHelp = `Usage:
   localswim board publishing enable [--revision N] BOARD_ID
   localswim board publishing disable [--revision N] BOARD_ID
   localswim board publishing status BOARD_ID
+  localswim board notifications target [--revision N] BOARD_ID THREAD_UUID
+  localswim board notifications enable [--revision N] BOARD_ID
+  localswim board notifications disable [--revision N] BOARD_ID
+  localswim board notifications status BOARD_ID
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] [--data DIRECTORY] BOARD_ID <FILE|->
   localswim card create [--revision N] <JSON_FILE|->
+  localswim card create [--revision N] --title TITLE [--description TEXT] BOARD_ID LANE_ID
   localswim card list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card get CARD_ID
   localswim card get BOARD_ID TICKET
@@ -52,21 +57,30 @@ const cliHelp = `Usage:
   localswim card title [--revision N] CARD_ID TITLE
   localswim card set-priority [--revision N] CARD_ID PRIORITY_ID
   localswim card set-priorities [--revision N] BOARD_ID FILE|-
+  localswim card set-priorities [--revision N] --priority PRIORITY_ID BOARD_ID CARD_ID [CARD_ID ...]
+  localswim card set-priorities [--revision N] --priority PRIORITY_ID --tickets BOARD_ID TICKET [TICKET ...]
   localswim card description [--revision N] CARD_ID FILE|-
   localswim card archive [--revision N] CARD_ID
   localswim card archive [--revision N] BOARD_ID TICKET
   localswim card unarchive [--revision N] CARD_ID
   localswim card unarchive [--revision N] BOARD_ID TICKET
   localswim card cover [--revision N] CARD_ID ATTACHMENT_ID|none
+  localswim card set-parent [--revision N] BOARD_ID TICKET PARENT_TICKET
+  localswim card clear-parent [--revision N] BOARD_ID TICKET
   localswim relationship list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim relationship get RELATIONSHIP_ID
   localswim relationship create [--revision N] [--id UUID] SOURCE_CARD_ID KIND TARGET_CARD_ID
+  localswim relationship create [--revision N] [--id UUID] BOARD_ID SOURCE_TICKET KIND TARGET_TICKET
   localswim relationship patch [--revision N] RELATIONSHIP_ID FILE|-
   localswim relationship remove [--revision N] RELATIONSHIP_ID
-  localswim comment list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
+  localswim relationship remove [--revision N] BOARD_ID SOURCE_TICKET KIND TARGET_TICKET
+  localswim comment list [--data DIRECTORY] [--archived exclude|include|only]
+                         [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim comment post [--revision N] CARD_ID FILE|-
-  localswim activity list --from UTC --to UTC [--view full|monitor] [--ticket N]
-                        [--actor-id UUID] [--operation OP] [--limit N] [--cursor CURSOR] BOARD_ID
+  localswim comment post [--revision N] --text TEXT CARD_ID
+  localswim activity list --from UTC --to UTC [--view full|monitor] [--ticket N] [--card-id CARD_ID]
+                        [--writer-id WRITER_ID] [--actor-id UUID] [--operation OP] [--limit N]
+                        [--cursor CURSOR] BOARD_ID
   localswim lane add [--revision N] BOARD_ID FILE|-
   localswim lane get LANE_ID
   localswim lane rename [--revision N] LANE_ID LABEL
@@ -77,7 +91,9 @@ const cliHelp = `Usage:
   localswim attachment get ATTACHMENT_ID
   localswim attachment download ATTACHMENT_ID FILE|-
   localswim attachment upload [--revision N] [--id UUID] [--filename NAME] CARD_ID <FILE|->
+  localswim attachment upload [--revision N] [--id UUID] [--filename NAME] BOARD_ID TICKET <FILE|->
   localswim attachment detach [--revision N] ATTACHMENT_ID
+  localswim attachment detach [--revision N] BOARD_ID TICKET ATTACHMENT_ID
   localswim policy get BOARD_ID
   localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
   localswim ticket-order preview LANE_ID [CARD_ID ...]
@@ -85,10 +101,10 @@ const cliHelp = `Usage:
   localswim backup info BACKUP_ID
   localswim backup download BACKUP_ID FILE|-
   localswim backup verify FILE
-  localswim card search [--search TEXT] [--search-content] [--lane ID]...
+  localswim card search [--data DIRECTORY] [--search TEXT] [--search-content] [--lane ID]...
                        [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
-  localswim card triage-order [--search TEXT] [--search-content] [--lane ID]...
-                     [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
+  localswim card triage-order [--data DIRECTORY] [--search TEXT] [--search-content] [--lane ID]...
+                             [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card lookup [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim ticket-order apply LANE_ID FILE|-
   localswim board restore [--revision N] BOARD_ID FILE|-
@@ -106,7 +122,8 @@ Live commands use LOCALSWIM_URL (http://127.0.0.1:<port>) and LOCALSWIM_TOKEN.
 Board creation requires exactly one of --name or --json.
 --json reads a new board definition from JSON_FILE or standard input.
 JSON_FILE is required. Use a file path or - to read standard input.
-Set --data on board get, board export, card inspect, or board verify to read saved board data offline.
+Set --data to read saved board data offline for board get, board export, board verify,
+card inspect, card triage-order, card search, and comment list.
 Offline board get returns board metadata. The lanes view requires a live service.
 Verification prints the full JSON report and exits 1 if the board is invalid.
 Board export writes JSON to a new FILE, or standard output when given -. The default --type is json.
@@ -116,23 +133,28 @@ Pin remove skips failed targets with WARNING messages and preserves the remainin
 Pin set validates the entire list and reports ERROR if any target fails.
 Publishing commands return the full board or workspace JSON, including publishing status.
 Board publishing uses the board revision. Workspace publishing uses the workspace revision.
+Board notifications commands return the board ID, revision, enabled state, and target chat UUID.
+Target changes preserve the enabled state. Set a target before enabling. Disable retains the target.
+Notification status reads the service's accepted settings.
+After an uncertain notification write, inspect the saved board with board get --data DIRECTORY BOARD_ID.
 Board close and reopen use the board revision and return the full board JSON.
 Use board get BOARD_ID to inspect availability after an unknown close or reopen outcome.
 Omit --revision to use the current resource validator.
 Supply --revision to require the version you previously inspected.
 For card create and policy grant, --revision refers to the board revision.
-Card create reads JSON_FILE, or standard input when given as -.
-Its JSON must include board_id. The CLI supplies the board revision validator.
-Include an explicit card ID to allow focused readback after a lost create reply.
+Card create takes a title and optional description with a board and lane, or reads JSON.
+Its JSON must include board_id and can include an explicit ID for focused readback after a lost reply.
 Policy grant reads create_grants and/or move_grants and preserves existing permissions.
 Comment list excludes archived cards for a board and includes them when scoped to one card by default.
-Comment post reads an object containing text and an optional ID.
+Comment post takes --text or reads an object containing text and an optional ID.
 Lane add reads the lane definition. The CLI supplies its board ID and validator.
 Card edits, comment post, and attachment upload check the card revision.
 Ticket-based move, assign, archive, and unarchive also check the board version from the focused read.
 Lane add checks the board revision. Attachment detach checks the attachment revision.
 Lane rename, set-key, retire, and set-approval-button check the lane revision.
-Card set-priorities reads card_ids and priority_id and checks the board revision.
+Card set-priorities takes --priority and card IDs or reads card_ids and priority_id from JSON.
+It checks the board revision.
+With --priority and --tickets, resolve distinct tickets from one board version before applying the batch.
 The batch evaluates all selected cards together and returns effective priorities and changes.
 Board get --view lanes returns visible cards in their swimlane order.
 Ticket-order preview defaults to all active lane cards. Optional card IDs select the ticket pool.
@@ -167,7 +189,9 @@ Card description reads UTF-8 text verbatim, including trailing newlines.
 Card list excludes archived cards by default. Focused card get includes them.
 Card inspect returns ticket, lane, owner, priority, and relationship metadata. Use --prose for its description and comments.
 Use card cover CARD_ID none to clear the selected cover.
-Relationship create reads source_card_id, target_card_id, kind, and optional id.
+Use card set-parent or clear-parent with the board and child ticket. --revision checks the child card.
+Relationship create accepts source and target card UUIDs or tickets scoped to one board.
+Relationship kinds are blocks, duplicates, references, and relates_to.
 Relationship patch reads kind. The CLI supplies the required validators.
 For relationship create, --revision refers to the board revision.
 For relationship patch and remove, --revision refers to the relationship revision.
@@ -177,6 +201,8 @@ or - for raw bytes on standard output. Inspect the destination after a local wri
 If a mutation outcome is unknown, inspect the resource before retrying.
 Attachment upload reads raw bytes from FILE or standard input with -.
 --filename overrides the display filename for either input source.
+Ticket-based upload and detach use the board version from the focused read.
+Ticket-based detach also checks that the attachment belongs to the resolved card.
 Without --filename, FILE uses its basename and - uses the attachment UUID.
 Attachment upload generates an ID when --id is omitted and reports the ID
 on an unknown outcome. Use attachment get to inspect that exact ID.
@@ -222,9 +248,14 @@ type cliCommand struct {
 	t06Action                          string
 	nativeRead                         string
 	ticketInspection                   *cliTicketInspection
-	ticketPatch                        *ticketCardPatchTarget
+	ticketPatch                        *cliTicketTarget
+	ticketRelationship                 *cliTicketRelationship
+	ticketAttachment                   *cliTicketTarget
+	batchTickets                       []uint64
 	t07Action                          string
 	publishingAction                   string
+	notificationAction                 string
+	notificationTarget                 string
 	boardAvailability                  string
 	serviceAction                      string
 	serviceResourceID                  string
@@ -248,7 +279,11 @@ func runCLIWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, g
 	command, err := parseCLI(args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			if _, err := io.WriteString(stdout, cliHelp); err != nil {
+			help := cliHelp
+			if contextual := routineWriteHelp(args[0] + " " + args[1]); contextual != "" {
+				help = contextual
+			}
+			if _, err := io.WriteString(stdout, help); err != nil {
 				return 1
 			}
 			return 0
@@ -286,6 +321,9 @@ func parseCLI(args []string) (cliCommand, error) {
 	}
 	if name == "service activate" || name == "service activation" || name == "service stop" {
 		return parseServiceAction(name, optionArgs)
+	}
+	if name == "board notifications" {
+		return parseNotificationAction(optionArgs)
 	}
 	if name == "board publishing" || name == "workspace publishing" {
 		if len(optionArgs) == 0 {
@@ -325,6 +363,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	creating := false
 	var createName string
 	var jsonInput bool
+	var cardTitle, cardDescription string
 	var boardView string
 	paginated := false
 	format := exportJSON
@@ -382,11 +421,20 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "card create":
 		command.method, command.resource = http.MethodPost, "/cards"
 		command.boardAction = name
+		flags.StringVar(&cardTitle, "title", "", "title of the new card")
+		flags.StringVar(&cardDescription, "description", "", "description of the new card")
 	case "card get":
 		command.method, command.resource = http.MethodGet, "/cards"
+	case "card set-parent", "card clear-parent":
+		return parseTicketParentCommand(name, optionArgs)
 	case "card inspect":
 		var err error
 		command.ticketInspection, err = parseTicketInspection(optionArgs)
+		if err == nil {
+			command.dataDir = command.ticketInspection.dataDir
+			command.boardID = command.ticketInspection.boardID
+			command.nativeRead = "ticket"
+		}
 		return command, err
 	case "policy get", "policy grant":
 		command.method, command.resource, needBoardID = http.MethodGet, "/policies", true
@@ -433,12 +481,14 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.resource += "?" + query.Encode()
 	}
 	var optionErr error
-	var hasName, hasJSON, hasRevision bool
+	var hasName, hasJSON, hasRevision, hasTitle, hasDescription bool
 	flags.Visit(func(f *flag.Flag) {
 		hasName = hasName || f.Name == "name"
 		hasJSON = hasJSON || f.Name == "json"
 		hasRevision = hasRevision || f.Name == "revision"
-		if f.Name != "revision" && f.Value.String() == "" {
+		hasTitle = hasTitle || f.Name == "title"
+		hasDescription = hasDescription || f.Name == "description"
+		if f.Name != "revision" && f.Name != "description" && f.Value.String() == "" {
 			optionErr = errors.New("command options require nonempty values")
 		}
 	})
@@ -489,10 +539,11 @@ func parseCLI(args []string) (cliCommand, error) {
 		}
 		command.inputPath = flags.Arg(0)
 	} else if name == "card create" {
-		if flags.NArg() != 1 || flags.Arg(0) == "" {
-			return command, errors.New("card create accepts one JSON file or - for standard input")
+		var err error
+		command.inputPath, command.body, err = cardCreateInput(flags.Args(), hasTitle, hasDescription, cardTitle, cardDescription)
+		if err != nil {
+			return command, err
 		}
-		command.inputPath = flags.Arg(0)
 	} else if name == "card get" {
 		switch {
 		case flags.NArg() == 1 && boardIDPattern.MatchString(flags.Arg(0)):
@@ -579,11 +630,8 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	if command.exportPath != "" {
 		return executeBoardExport(command, stdout, getenv)
 	}
-	if inspect := command.ticketInspection; inspect != nil && inspect.dataDir != "" {
-		return executeNativeRead(inspect.dataDir, inspect.boardID, "ticket", inspect.ticket, inspect.prose, stdout)
-	}
 	if command.dataDir != "" && command.nativeRead != "" {
-		return executeNativeRead(command.dataDir, command.boardID, command.nativeRead, 0, false, stdout)
+		return executeNativeRead(command, stdout)
 	}
 	if command.dataDir != "" {
 		return executeOfflineVerification(command, stdout)
@@ -592,6 +640,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	api, err := client.New(getenv("LOCALSWIM_URL"), getenv("LOCALSWIM_TOKEN"))
 	if err != nil {
 		return err
+	}
+	if command.ticketRelationship != nil {
+		return executeTicketRelationshipCommand(api, command, stdout)
 	}
 	if command.ticketPatch != nil {
 		return executeTicketCardPatch(api, command, stdout)
@@ -602,6 +653,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	if command.serviceAction != "" {
 		return executeServiceAction(api, command, stdout)
 	}
+	if command.notificationAction != "" {
+		return executeNotificationAction(api, command, stdout)
+	}
 	if command.t07Action != "" {
 		return executeT07(api, command, stdin, stdout)
 	}
@@ -610,6 +664,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	}
 	if command.detachAttachment {
 		return detachAttachment(api, command)
+	}
+	if command.ticketAttachment != nil {
+		return uploadTicketAttachment(api, command, stdin, stdout)
 	}
 	if command.downloadPath != "" {
 		return downloadAttachment(api, command.resource, command.downloadPath, stdout)
@@ -686,7 +743,7 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	}
 	var reply client.Response
 	if command.boardAvailability != "" {
-		reply, err = api.PatchBoardAvailability(command.resource, body, ifMatch)
+		reply, err = api.PatchBoardSettings(command.resource, body, ifMatch)
 	} else {
 		reply, err = api.DoWithContentType(command.method, command.resource, body, ifMatch, contentType)
 	}

@@ -19,8 +19,25 @@ seconds. Revisions distinguish edits within the same second. Native snapshots us
 `format_version: 2`.
 
 CLI commands that read JSON require a positional file path or `-` for standard input.
-Omitting the input path is a command error. Card creation takes `board_id`
-in its JSON document. The CLI obtains the board revision validator.
+Omitting the input path in document mode is a command error. Card creation in
+document mode takes `board_id` in its JSON. The CLI obtains the board revision
+validator.
+
+Use the concise forms for routine writes. Set the variables to the UUIDs of the
+board, lane, cards, and priority you want to use.
+
+```powershell
+localswim card create --title "Check pool hours" --description "Verify the holiday schedule." $board $lane
+localswim comment post --text "Confirmed weekend hours." $card
+localswim card set-priorities --priority $priority $board $card $otherCard
+```
+
+The concise create uses the board's default owner and priority. The existing
+document forms accept a JSON file or `-` for standard input. Use them for fields
+such as an explicit card or comment ID for focused readback after a lost reply.
+Append `--help` to an action name for its argument forms and examples. Put
+`--revision N` before the positional arguments to require the board revision for
+creation and priority batches, or the card revision for comment posting.
 
 Full card JSON and native card snapshots carry a positive safe-integer `revision`
 for the board commit that last changed that card. Unrelated board edits leave it
@@ -89,12 +106,59 @@ refuses the edit even when the card itself has not changed. The optional
 inspect the current ticket mapping before issuing another command. After an
 uncertain response, inspect the original card by UUID.
 
-Use `activity list` with inclusive canonical UTC `--from` and `--to`. By default,
-it returns event metadata and ticket numbers without card prose. Select
+Use `card set-parent BOARD_ID TICKET PARENT_TICKET` or
+`card clear-parent BOARD_ID TICKET` to change a child's parent. The optional
+`--revision N` checks the child card revision. Both writes guard the child and
+board versions from one focused view.
+
+Use `relationship create BOARD_ID SOURCE_TICKET KIND TARGET_TICKET` or
+`relationship remove BOARD_ID SOURCE_TICKET KIND TARGET_TICKET` for ticket-based
+links. The kinds are `blocks`, `duplicates`, `references`, and `relates_to`.
+Create checks the board revision. Remove resolves the exact typed edge from the
+same view and checks its relationship revision. Card UUID creation and relationship
+UUID removal remain available. After a stale response, inspect the current
+ticket mapping before trying again. After an uncertain response, inspect the
+original card or relationship UUID.
+
+Use `activity list` with inclusive canonical UTC `--from` and `--to`. The
+default view returns sanitized metadata in audit revision order. Select
 `--view full` to read attributed audit values. Both views support `--actor-id`,
-`--operation`, and `--ticket` filters. Operation identifiers are matched exactly.
-Pages default to 50 records and allow up to 200. A cursor stays tied to the
-original interval, filters, and view.
+`--operation`, `--card-id`, and `--ticket`. Operation identifiers match exactly.
+Tickets use the assignments at the event revision. If both card and ticket are
+given, they must match the same affected card. Renumber events report the new
+assignment from their commit.
+
+For an owner notice, start with its board UUID, `--writer-id`, and inclusive
+interval before applying card or ticket filters. The result identifies the live
+writer and board revision. `coverage.complete` describes elapsed UTC seconds
+covered by that writer and its current durable history. Startup, recovery,
+writer mismatch, a still-open interval, or unverifiable durable state can leave
+coverage incomplete even when matching events are available.
+
+Pages default to 50 records and allow up to 200. Continue with the same interval,
+filters, view, writer and board revision until `pagination_complete` is true.
+An empty page with complete coverage is a valid result. `bot_only` is true only
+on the last page of a complete, nonempty, unfiltered interval whose every event
+belongs to the configured Bot.
+
+Use `board notifications status BOARD_ID` to inspect the owning-chat route. The
+result contains `board_id`, `revision`, `enabled`, and `target_thread_id`. Routes
+start disabled. Set the verified owning chat with
+`board notifications target [--revision N] BOARD_ID THREAD_UUID`. Retargeting
+preserves the current enabled state.
+
+Use `board notifications enable [--revision N] BOARD_ID` after setting a target.
+Use `board notifications disable [--revision N] BOARD_ID` to discard a pending
+burst and retain the target. Settings writes require `manage_notifications` and
+the current board validator. Status reads the running service's accepted
+settings. After a durable write becomes uncertain, status can still show the
+prior revision even when the saved snapshot changed. Use
+`board get --data DIRECTORY BOARD_ID` to inspect the saved settings before
+deciding whether to submit again.
+
+The service coalesces committed Human edits after 15 seconds of quiet. It uses
+the current target and sends board and ticket metadata in one best-effort
+attempt. Bot edits produce no notice.
 
 `lane set-approval-button` controls whether the optional Human lane action is enabled.
 Manage lanes in the browser or PATCH the active Ready for Review lane to set
@@ -124,6 +188,13 @@ before applying the blocking floor. The result includes effective selected cards
 all actual audit changes, and `board_revision`. `X-Board-ETag` carries the committed
 validator. Duplicate IDs and Completed selections refuse the entire operation.
 An unchanged effective result preserves the revision and audit.
+
+Use `card set-priorities [--revision N] --priority PRIORITY_ID --tickets BOARD_ID TICKET [TICKET ...]`
+to select cards by their tickets. Every focused lookup must agree on the same
+board validator. The CLI rejects duplicate tickets before lookup and sends one
+batch with the original board validator. `--revision` checks the board revision.
+After a stale response, inspect the current ticket mapping before issuing another
+command. After an uncertain response, inspect the affected cards before retrying.
 
 `GET /boards/{board_id}?view=lanes` returns `board`, active `lanes`, and visible
 `cards` in lane order. Within each lane, priority precedes same-rank blocking
@@ -285,11 +356,18 @@ Use an explicit `--data DIR` to read a saved board through the local filesystem.
 - `board export --data DIR BOARD_ID FILE|-` writes the validated native snapshot
   to a new file or standard output.
 - `card inspect --data DIR [--prose] BOARD_ID TICKET` inspects a focused ticket.
+- `card triage-order --data DIR [--lane UUID]... BOARD_ID` ranks work across the selected lanes.
+- `card search --data DIR --search TEXT BOARD_ID` applies the usual search and triage rules.
+- `comment list --data DIR [--limit N] BOARD_ID [CARD_ID]` reads the newest comments.
 
-Each invocation validates one committed snapshot. The directory must be directly
-readable. These commands work with the writer stopped and with open or closed
-boards. The same inspections without `--data` use the authenticated live API.
-Closed boards still refuse card writes.
+Each invocation validates one committed snapshot from a directly readable directory.
+These commands work with the writer stopped and with open or closed saved boards.
+Omit `--data` to use the authenticated live API. For the same snapshot and selection,
+both sources return the same report, including pagination cursors. Use the same
+selection when continuing a report. An intervening edit that changes its results
+can invalidate a cursor. Focused inspection includes descriptions and comments
+only with `--prose`. Board-wide comment reports default to active cards and include
+comment text. Closed boards still refuse card writes.
 
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
 Unicode. Ordinary entity, comment, attachment, build, and request correlation IDs
@@ -375,6 +453,14 @@ generated for that upload. A file path defaults to its basename. `--filename`
 overrides either default with a UTF-8 name of 1 to 1024 characters, without line
 breaks or NUL. Both input sources have a 10 MiB limit. The parent card revision
 is checked before reading attachment bytes.
+
+Use `attachment upload [--revision N] [--id UUID] [--filename NAME] BOARD_ID TICKET <FILE|->`
+to resolve the parent card from a ticket. The upload includes the card validator
+and the original board validator from the focused read. Use
+`attachment detach [--revision N] BOARD_ID TICKET ATTACHMENT_ID` to verify the
+attachment belongs to the resolved card and detach it with the original board
+validator and the attachment validator. Detach's `--revision` checks the attachment
+revision. After an uncertain result, inspect the original attachment UUID.
 
 ## References
 

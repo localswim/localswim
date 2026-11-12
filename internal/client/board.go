@@ -13,7 +13,8 @@ import (
 	"unicode/utf8"
 )
 
-func (c *Client) PatchBoardAvailability(resource string, body json.RawMessage, ifMatch string) (Response, error) {
+// PatchBoardSettings sends a focused availability or notification change.
+func (c *Client) PatchBoardSettings(resource string, body json.RawMessage, ifMatch string) (Response, error) {
 	return c.doWithContentType(http.MethodPatch, resource, body, ifMatch, "", "", true)
 }
 
@@ -87,11 +88,16 @@ func (r Response) BoardAvailability(boardID string) (string, error) {
 		board.Revision == 0 || board.Revision > 1<<53-1 {
 		return "", errors.New("service did not return the addressed board and its revision")
 	}
-	if r.ETag != fmt.Sprintf("\"%s-%d\"", strings.ToLower(board.ID), board.Revision) {
+	if !r.MatchesBoardRevision(board.ID, board.Revision) {
 		return "", errors.New("service board revision did not match its HTTP validator")
 	}
 	if board.Availability != "open" && board.Availability != "closed" {
 		return "", errors.New("service did not return valid board availability")
 	}
 	return board.Availability, nil
+}
+
+// MatchesBoardRevision binds the HTTP validator to the addressed board and its numeric revision.
+func (r Response) MatchesBoardRevision(boardID string, revision uint64) bool {
+	return r.ETag == fmt.Sprintf("\"%s-%d\"", strings.ToLower(boardID), revision)
 }

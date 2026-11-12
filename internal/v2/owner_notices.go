@@ -15,55 +15,57 @@ import (
 const (
 	ownerNoticeQuietPeriod = 15 * time.Second
 	ownerNoticeTimeout     = 5 * time.Second
-	maxOwnerNoticeTickets  = 128
+	maxOwnerNoticeCards    = 128
 )
 
 type ownerNoticeEvent struct {
 	boardID   string
 	label     string
+	writerID  string
 	since     time.Time
 	until     time.Time
-	tickets   []uint64
+	cards     []activityCard
 	truncated bool
 }
 
-func (event *ownerNoticeEvent) addTicket(ticket uint64) {
-	index, present := slices.BinarySearch(event.tickets, ticket)
+func (event *ownerNoticeEvent) addCard(card activityCard) {
+	index, present := slices.BinarySearchFunc(event.cards, card, compareActivityCards)
 	if present {
 		return
 	}
-	if len(event.tickets) == maxOwnerNoticeTickets {
+	if len(event.cards) == maxOwnerNoticeCards {
 		event.truncated = true
-		if index == maxOwnerNoticeTickets {
+		if index == maxOwnerNoticeCards {
 			return
 		}
-		event.tickets = event.tickets[:maxOwnerNoticeTickets-1]
+		event.cards = event.cards[:maxOwnerNoticeCards-1]
 	}
-	event.tickets = slices.Insert(event.tickets, index, ticket)
+	event.cards = slices.Insert(event.cards, index, card)
 }
 
 func (event ownerNoticeEvent) message() string {
 	var message strings.Builder
 	message.WriteString("localswim board-change notice\n\n")
 	fmt.Fprintf(&message, "- Board: %q (`%s`)\n", event.label, event.boardID)
-	since, until := event.since.UTC(), event.until.UTC()
-	if until.Sub(since) < time.Second {
-		fmt.Fprintf(&message, "- Time: %s\n", since.Format(timestampLayout))
-	} else {
-		if until.Nanosecond() != 0 {
-			until = until.Truncate(time.Second).Add(time.Second)
+	fmt.Fprintf(&message, "- Writer: `%s`\n", event.writerID)
+	fmt.Fprintf(&message, "- Start: %s\n- End: %s\n",
+		canonicalTime(event.since).Format(timestampLayout), canonicalTime(event.until).Format(timestampLayout))
+	message.WriteString("- Cards: ")
+	for index, card := range event.cards {
+		if index > 0 {
+			message.WriteString(", ")
 		}
-		fmt.Fprintf(&message, "- Start: %s\n- End: %s\n", since.Format(timestampLayout), until.Format(timestampLayout))
+		fmt.Fprintf(&message, "%04d (`%s`)", card.Ticket, card.CardID)
 	}
-	message.WriteString("- Tickets: ")
-	for index, ticket := range event.tickets {
+	if event.truncated {
+		message.WriteString(" (additional card and ticket pairs omitted)")
+	}
+	message.WriteString("\n- Tickets: ")
+	for index, ticket := range activityTickets(event.cards) {
 		if index > 0 {
 			message.WriteString(", ")
 		}
 		fmt.Fprintf(&message, "%04d", ticket)
-	}
-	if event.truncated {
-		message.WriteString(" (additional tickets omitted)")
 	}
 	return message.String()
 }
@@ -84,8 +86,9 @@ type ownerNoticeWorker struct {
 	load    func(string) (notifications, bool)
 	deliver func(context.Context, string, string) bool
 
-	mu      sync.Mutex
-	pending map[string]*pendingOwnerNotice
+	writerID string
+	mu       sync.Mutex
+	pending  map[string]*pendingOwnerNotice
 }
 
 func newOwnerNoticeWorker(quiet time.Duration, load func(string) (notifications, bool), deliver func(context.Context, string, string) bool) *ownerNoticeWorker {
@@ -123,9 +126,10 @@ func (worker *ownerNoticeWorker) submitCommitted(previous, committed snapshot) {
 		return
 	}
 	event := committedOwnerNotice(previous, committed)
-	if len(event.tickets) == 0 {
+	if len(event.cards) == 0 {
 		return
 	}
+	event.writerID = worker.writerID
 	worker.submit(event)
 }
 
@@ -155,71 +159,30 @@ func committedOwnerNotice(previous, committed snapshot) ownerNoticeEvent {
 	newActivity := committed.Activity[first:]
 	// Snapshot validation guarantees a single actor per committed revision.
 	actor := newActivity[0].ActorID
-	if !slices.ContainsFunc(committed.Users, func(user user) bool {
-		return user.ID == actor && user.Kind == "human"
+	if !slices.ContainsFunc(committed.Users, func(member user) bool {
+		return member.ID == actor && member.Kind == "human"
 	}) {
 		return ownerNoticeEvent{}
 	}
+	index := indexActivity(committed)
 	event := ownerNoticeEvent{boardID: committed.Board.ID, label: committed.Board.Name}
-	var cardTickets map[string]uint64
-	addCardEdit := func(cardID string, at time.Time) {
-		if cardID == "" {
-			return
-		}
-		if cardTickets == nil {
-			cardTickets = make(map[string]uint64, len(committed.Cards))
-			for _, item := range committed.Cards {
-				cardTickets[item.ID] = item.Ticket
-			}
-		}
-		if ticket := cardTickets[cardID]; ticket != 0 {
-			event.addTicket(ticket)
-			if event.since.IsZero() || at.Before(event.since) {
-				event.since = at
-			}
-			if at.After(event.until) {
-				event.until = at
-			}
-		}
-	}
-	var commentCards, attachmentCards map[string]string
-	var relationshipCards map[string][2]string
 	for _, audit := range newActivity {
 		if audit.Revision != committed.Board.Revision {
 			continue
 		}
-		switch audit.ResourceType {
-		case "card":
-			addCardEdit(audit.ResourceID, audit.At)
-		case "comment":
-			if commentCards == nil {
-				commentCards = make(map[string]string, len(committed.Comments))
-				for _, item := range committed.Comments {
-					commentCards[item.ID] = item.CardID
-				}
-			}
-			addCardEdit(commentCards[audit.ResourceID], audit.At)
-		case "attachment":
-			if attachmentCards == nil {
-				attachmentCards = make(map[string]string, len(committed.Attachments))
-				for _, item := range committed.Attachments {
-					attachmentCards[item.ID] = item.CardID
-				}
-			}
-			addCardEdit(attachmentCards[audit.ResourceID], audit.At)
-		case "relationship":
-			if relationshipCards == nil {
-				// The prior revision supplies endpoints for removed links.
-				relationshipCards = make(map[string][2]string, len(committed.Relationships))
-				for _, links := range [][]relationship{previous.Relationships, committed.Relationships} {
-					for _, link := range links {
-						relationshipCards[link.ID] = [2]string{link.SourceCardID, link.TargetCardID}
-					}
-				}
-			}
-			for _, endpoint := range relationshipCards[audit.ResourceID] {
-				addCardEdit(endpoint, audit.At)
-			}
+		cards := index.cardReferences(audit)
+		if len(cards) == 0 {
+			continue
+		}
+		for _, card := range cards {
+			event.addCard(card)
+		}
+		at := canonicalTime(audit.At)
+		if event.since.IsZero() || at.Before(event.since) {
+			event.since = at
+		}
+		if event.until.IsZero() || at.After(event.until) {
+			event.until = at
 		}
 	}
 	return event
@@ -233,8 +196,8 @@ func (worker *ownerNoticeWorker) submit(event ownerNoticeEvent) {
 	}
 	if previous, ok := worker.pending[event.boardID]; ok {
 		event.truncated = event.truncated || previous.event.truncated
-		for _, ticket := range previous.event.tickets {
-			event.addTicket(ticket)
+		for _, card := range previous.event.cards {
+			event.addCard(card)
 		}
 		if previous.event.since.Before(event.since) {
 			event.since = previous.event.since

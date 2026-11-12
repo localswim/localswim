@@ -18,19 +18,33 @@ const (
 	maxOwnerNoticeCards    = 128
 )
 
+type activityOperationSet uint8
+
+func (group activityOperationGroup) bit() activityOperationSet {
+	return 1 << group
+}
+
+type ownerNoticeCard struct {
+	activityCard
+	operations activityOperationSet
+}
+
 type ownerNoticeEvent struct {
 	boardID   string
 	label     string
 	writerID  string
 	since     time.Time
 	until     time.Time
-	cards     []activityCard
+	cards     []ownerNoticeCard
 	truncated bool
 }
 
-func (event *ownerNoticeEvent) addCard(card activityCard) {
-	index, present := slices.BinarySearchFunc(event.cards, card, compareActivityCards)
+func (event *ownerNoticeEvent) addCard(card ownerNoticeCard) {
+	index, present := slices.BinarySearchFunc(event.cards, card, func(a, b ownerNoticeCard) int {
+		return compareActivityCards(a.activityCard, b.activityCard)
+	})
 	if present {
+		event.cards[index].operations |= card.operations
 		return
 	}
 	if len(event.cards) == maxOwnerNoticeCards {
@@ -51,7 +65,9 @@ func (event ownerNoticeEvent) message() string {
 	fmt.Fprintf(&message, "- Start: %s\n- End: %s\n",
 		canonicalTime(event.since).Format(timestampLayout), canonicalTime(event.until).Format(timestampLayout))
 	message.WriteString("- Cards: ")
+	var groups activityOperationSet
 	for index, card := range event.cards {
+		groups |= card.operations
 		if index > 0 {
 			message.WriteString(", ")
 		}
@@ -60,14 +76,37 @@ func (event ownerNoticeEvent) message() string {
 	if event.truncated {
 		message.WriteString(" (additional card and ticket pairs omitted)")
 	}
-	message.WriteString("\n- Tickets: ")
-	for index, ticket := range activityTickets(event.cards) {
-		if index > 0 {
+	message.WriteString("\n- Operations: ")
+	for group, label := range activityOperationLabels {
+		bit := activityOperationGroup(group).bit()
+		if groups&bit == 0 {
+			continue
+		}
+		fmt.Fprintf(&message, "%s (", label)
+		event.writeTickets(&message, bit)
+		message.WriteByte(')')
+		groups &^= bit
+		if groups != 0 {
 			message.WriteString(", ")
 		}
-		fmt.Fprintf(&message, "%04d", ticket)
 	}
+	message.WriteString("\n- Tickets: ")
+	event.writeTickets(&message, ^activityOperationSet(0))
 	return message.String()
+}
+
+func (event ownerNoticeEvent) writeTickets(message *strings.Builder, groups activityOperationSet) {
+	var previous uint64
+	for _, card := range event.cards {
+		if card.Ticket == previous || card.operations&groups == 0 {
+			continue
+		}
+		if previous != 0 {
+			message.WriteString(", ")
+		}
+		fmt.Fprintf(message, "%04d", card.Ticket)
+		previous = card.Ticket
+	}
 }
 
 type pendingOwnerNotice struct {
@@ -166,7 +205,7 @@ func committedOwnerNotice(previous, committed snapshot) ownerNoticeEvent {
 	}
 	index := indexActivity(committed)
 	event := ownerNoticeEvent{boardID: committed.Board.ID, label: committed.Board.Name}
-	for _, audit := range newActivity {
+	for i, audit := range newActivity {
 		if audit.Revision != committed.Board.Revision {
 			continue
 		}
@@ -174,8 +213,9 @@ func committedOwnerNotice(previous, committed snapshot) ownerNoticeEvent {
 		if len(cards) == 0 {
 			continue
 		}
+		group := classifyActivityOperation(audit, i > 0 && isApprovalComment(newActivity[i-1], audit))
 		for _, card := range cards {
-			event.addCard(card)
+			event.addCard(ownerNoticeCard{activityCard: card, operations: group.bit()})
 		}
 		at := canonicalTime(audit.At)
 		if event.since.IsZero() || at.Before(event.since) {

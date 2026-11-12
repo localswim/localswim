@@ -25,15 +25,16 @@ type activityCard struct {
 }
 
 type activityMetadata struct {
-	ID        string         `json:"id"`
-	BoardID   string         `json:"board_id"`
-	Revision  uint64         `json:"revision"`
-	At        time.Time      `json:"at"`
-	ActorID   string         `json:"actor_id"`
-	ActorKind string         `json:"actor_kind"`
-	Operation string         `json:"operation"`
-	Cards     []activityCard `json:"cards"`
-	Tickets   []uint64       `json:"tickets"`
+	ID             string         `json:"id"`
+	BoardID        string         `json:"board_id"`
+	Revision       uint64         `json:"revision"`
+	At             time.Time      `json:"at"`
+	ActorID        string         `json:"actor_id"`
+	ActorKind      string         `json:"actor_kind"`
+	Operation      string         `json:"operation"`
+	OperationGroup *string        `json:"operation_group"`
+	Cards          []activityCard `json:"cards"`
+	Tickets        []uint64       `json:"tickets"`
 }
 
 type activityCoverage struct {
@@ -228,7 +229,7 @@ func indexActivity(state snapshot) activityIndex {
 	return index
 }
 
-func (index activityIndex) metadata(event activity) activityMetadata {
+func (index activityIndex) metadata(event activity, approvalComment bool) activityMetadata {
 	kind := index.kinds[event.ActorID]
 	if event.Operation == recoveryOperation && event.ResourceType == "board" {
 		if evidence, ok := recoveryEventEvidence(event); ok {
@@ -236,9 +237,14 @@ func (index activityIndex) metadata(event activity) activityMetadata {
 		}
 	}
 	cards := index.cardReferences(event)
+	var group *string
+	if len(cards) != 0 {
+		group = new(activityOperationLabels[classifyActivityOperation(event, approvalComment)])
+	}
 	return activityMetadata{
 		ID: event.ID, BoardID: event.BoardID, Revision: event.Revision, At: event.At,
-		ActorID: event.ActorID, ActorKind: kind, Operation: event.Operation, Cards: cards, Tickets: activityTickets(cards),
+		ActorID: event.ActorID, ActorKind: kind, Operation: event.Operation, OperationGroup: group,
+		Cards: cards, Tickets: activityTickets(cards),
 	}
 }
 
@@ -339,7 +345,7 @@ func (query activityQuery) page(state snapshot, rawQuery, writerID string, cover
 		var row activityMetadata
 		if withCards {
 			if matches {
-				row = index.metadata(event)
+				row = index.metadata(event, i > 0 && isApprovalComment(state.Activity[i-1], event))
 			}
 			if event.Operation == ticketOrderOperation {
 				ticket, _ := ticketAuditValue(event.Before)

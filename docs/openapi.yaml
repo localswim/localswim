@@ -14065,6 +14065,7 @@ components:
       - actor_id
       - actor_kind
       - operation
+      - operation_group
       - cards
       - tickets
       properties:
@@ -14087,6 +14088,20 @@ components:
           type: string
           minLength: 1
           maxLength: 80
+        operation_group:
+          description: >
+            Fixed owner-notice category for this card event, or null for an event with no card
+            references. The two events of an atomic review approval have the same category.
+          enum:
+          - Created
+          - Contents modified
+          - Comment added
+          - Ticket numbers reordered
+          - Moved lanes
+          - Reviewed & approved
+          - Archived
+          - Restored
+          - null
         cards:
           type: array
           description: Card UUIDs and their ticket assignments as of this commit, ordered by ticket.
@@ -18608,7 +18623,10 @@ x-notification-worker:
   quietSeconds: 15
   payload: >
     Board identity and label, writer UUID, inclusive UTC interval, and at most 128 card UUID and
-    event-time ticket pairs with a truncation marker. Excludes card prose and credentials.
+    event-time ticket pairs with a truncation marker. The Operations line groups the retained
+    tickets by the fixed ActivityMetadata operation groups in schema order. The groups are triage
+    hints. Verify them with the writer and interval in the sanitized activity report. Excludes
+    card prose and credentials.
   destination: Read the current target at delivery. Target-only updates preserve enablement.
   delivery: One native codex queue attempt per quiet burst. No durable cursor, catch-up, or retries. A
     pending burst can be lost at shutdown.

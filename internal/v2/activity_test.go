@@ -139,7 +139,9 @@ func TestActivityHTTP(t *testing.T) {
 	}
 	metadata := turnOneDecode[activityTestPage[activityMetadata]](t, raw)
 	if len(metadata.Values) != len(full.Values) ||
+		metadata.Values[0].OperationGroup != nil ||
 		metadata.Values[2].ActorID != humanID || metadata.Values[2].Operation != "patch" ||
+		snapshotString(metadata.Values[2].OperationGroup) != "Contents modified" ||
 		metadata.Values[2].Revision != edit.Revision || metadata.Values[3].Revision != description.Revision {
 		t.Fatalf("default activity lacks title and description edit metadata: %+v", metadata)
 	}
@@ -193,7 +195,7 @@ func TestActivityHTTP(t *testing.T) {
 		}
 		m := turnOneDecode[activityTestPage[activityMetadata]](t, raw)
 		for _, row := range turnOneDecode[activityTestPage[map[string]json.RawMessage]](t, raw).Values {
-			if len(row) != 9 || row["before"] != nil || row["after"] != nil || row["resource_id"] != nil || row["field"] != nil {
+			if len(row) != 10 || row["before"] != nil || row["after"] != nil || row["resource_id"] != nil || row["field"] != nil {
 				t.Fatal("monitor contains fields outside the metadata contract")
 			}
 		}
@@ -269,6 +271,7 @@ func TestActivityHTTP(t *testing.T) {
 	raw, _ = c.call("GET", path+"&card_id="+first.ID+"&ticket=2", "", "", 200)
 	newTicket := turnOneDecode[activityTestPage[activityMetadata]](t, raw)
 	if len(newTicket.Values) != 1 || newTicket.Values[0].Operation != ticketOrderOperation ||
+		snapshotString(newTicket.Values[0].OperationGroup) != "Ticket numbers reordered" ||
 		!slices.Equal(newTicket.Values[0].Cards, []activityCard{{CardID: first.ID, Ticket: 2}}) {
 		t.Fatal("new ticket selected events before its commit or omitted the renumber")
 	}

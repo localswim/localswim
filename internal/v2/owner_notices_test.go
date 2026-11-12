@@ -69,7 +69,13 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 	next.Activity[1].After = &private
 
 	event := committedOwnerNotice(previous, next)
-	if !slices.Equal(event.cards, []activityCard{{"one", 1}, {"two", 2}, {"three", 3}, {"five", 5}}) {
+	wantCards := []ownerNoticeCard{
+		{activityCard{"one", 1}, activityContentsModified.bit()},
+		{activityCard{"two", 2}, activityCommentAdded.bit()},
+		{activityCard{"three", 3}, activityContentsModified.bit()},
+		{activityCard{"five", 5}, activityContentsModified.bit()},
+	}
+	if !slices.Equal(event.cards, wantCards) {
 		t.Fatalf("attributed cards = %v", event.cards)
 	}
 	message := event.message()
@@ -78,7 +84,7 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 			t.Errorf("notice omitted %q", want)
 		}
 	}
-	if strings.Count(message, "\n") != 7 || strings.Contains(message, "private") {
+	if strings.Count(message, "\n") != 8 || strings.Contains(message, "private") {
 		t.Error("notice contains content outside the bounded metadata lines")
 	}
 	if bot := ownerNoticeTestEdit(next, botID, "card", "four", at.Add(time.Minute)); len(committedOwnerNotice(next, bot).cards) != 0 {
@@ -89,7 +95,7 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 func TestOwnerNoticeCardBound(t *testing.T) {
 	event := ownerNoticeEvent{}
 	for ticket := uint64(maxOwnerNoticeCards + 20); ticket > 0; ticket-- {
-		card := activityCard{CardID: fmt.Sprint(ticket), Ticket: ticket}
+		card := ownerNoticeCard{activityCard{CardID: fmt.Sprint(ticket), Ticket: ticket}, activityCreated.bit()}
 		event.addCard(card)
 		event.addCard(card)
 	}

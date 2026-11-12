@@ -91,4 +91,25 @@ saved activity while the writer is stopped. Quote both inclusive UTC bounds in
 event-time tickets, the captured board revision, and the latest retained event
 time. Saved reports always mark live coverage as incomplete.
 
+### Verify a board-change notice
+
+After 15 seconds of quiet, an enabled owner notice lists the writer, UTC interval,
+and up to 128 card UUID and event-time ticket pairs. Its **Operations** line
+groups the retained tickets by committed Human edits. An approval and its receipt
+comment appear together under **Reviewed & approved**. Ordinary moves, comments,
+and archive or restore actions have their own groups.
+
+Use the notice's board UUID, writer UUID, and Start and End values to read
+sanitized activity, including each event's `operation_group`.
+
+```powershell
+.\localswim.exe activity list --writer-id $writer --from $start --to $end $board
+```
+
+Continue with `--cursor` and the same query until pagination is complete. Check
+`coverage.complete` before relying on the interval. For a focused follow-up,
+match the card UUID and its ticket at the event, which may differ from its
+current ticket. Treat operation groups as triage hints and follow the board's
+work and review gates.
+
 [Development and conventions](CONTRIBUTING.md) · [API](docs/openapi.yaml) · [Milestones](milestone-plan.md)

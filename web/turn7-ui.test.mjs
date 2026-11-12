@@ -6135,3 +6135,99 @@ test("a slow creation projects an unnumbered card and inspects the same ID after
   assert.equal(ui.find(main, "button", "#2 Delayed creation").dataset.pending, undefined);
   assert.equal(ui.field(main, "New title").value, "");
 });
+
+test("lost text save reconciles the same card after navigation during its first readback", async (t) => {
+  const {api, commit} = changingBoard();
+  const started = Promise.withResolvers();
+  const readback = Promise.withResolvers();
+  const writes = [];
+  const getCard = api.getCard;
+  let holdReadback = false;
+  api.getCard = async (id) => {
+    assert.equal(id, card);
+    if (holdReadback) {
+      holdReadback = false;
+      started.resolve();
+      await readback.promise;
+    }
+    return getCard(id);
+  };
+  api.patchCard = async (id, expected, {title}) => {
+    writes.push([id, expected, title]);
+    holdReadback = true;
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  const ui = await harness(api);
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  const {main, details} = ui.nodes;
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.field(details, "Title"));
+  ui.field(details, "Title").value = "Lost response";
+  ui.submit(details, "Save text");
+  await started.promise;
+
+  await ui.navigate("/");
+  await ui.navigate("/boards/" + board);
+  await until(() => ui.field(details, "Title"));
+  const replacement = ui.find(details, "button", "Save text");
+  assert.equal(replacement.disabled, true);
+  assert.match(details.textContent, /Saved cardOriginal/);
+  assert.equal(ui.field(details, "Title").value, "Lost response");
+
+  commit("Lost response", lane);
+  readback.resolve();
+  await ui.settled();
+  assert.ok(ui.find(main, "button", "#1 Lost response"));
+  assert.match(details.textContent, /Saved cardLost response/);
+  assert.equal(replacement.disabled, false);
+  assert.deepEqual(writes, [[card, tag(card, 1), "Lost response"]]);
+});
+
+test("a late failed text readback leaves Workspace status alone and fences its original card", async () => {
+  const {api} = boardApi();
+  const started = Promise.withResolvers();
+  const readback = Promise.withResolvers();
+  const writes = [];
+  const getCard = api.getCard;
+  let holdReadback = false;
+  api.getCard = async (id) => {
+    assert.equal(id, card);
+    if (holdReadback) {
+      holdReadback = false;
+      started.resolve();
+      await readback.promise;
+    }
+    return getCard(id);
+  };
+  api.patchCard = async (id, expected, {title}) => {
+    writes.push([id, expected, title]);
+    holdReadback = true;
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details, status} = ui.nodes;
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.field(details, "Title"));
+  ui.field(details, "Title").value = "Keep this title";
+  ui.submit(details, "Save text");
+  await started.promise;
+
+  await ui.navigate("/");
+  const workspaceStatus = [status.dataset.phase, status.textContent];
+  readback.reject(new ApiError("transport_failed"));
+  await ui.settled();
+  assert.deepEqual([status.dataset.phase, status.textContent], workspaceStatus);
+
+  await ui.navigate("/boards/" + board);
+  await until(() => ui.field(details, "Title"));
+  const save = ui.submit(details, "Save text");
+  assert.equal(save.disabled, true);
+  assert.equal(ui.field(details, "Title").value, "Keep this title");
+  ui.find(details, "button", "Inspect saved card").click();
+  await ui.settled();
+  assert.equal(save.disabled, false);
+  assert.match(details.textContent, /Saved cardOriginal/);
+  assert.deepEqual(writes, [[card, tag(card, 1), "Keep this title"]]);
+});

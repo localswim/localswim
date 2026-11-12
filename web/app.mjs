@@ -1824,6 +1824,42 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       return saved;
     }
 
+    /** @param {"conflict"|"unknown"} phase */
+    async function recoverTextSave(phase) {
+      const hadInspection = pendingInspections.has(scope);
+      inspection.require(async () => {
+        await readSavedCard();
+        if (cardView === activeCard) await reloadBoard();
+      });
+      const pending = pendingInspections.get(scope);
+      let failed = false;
+      if (cardView === activeCard) {
+        try {
+          await readWithSession(readSavedCard);
+        } catch {
+          failed = true;
+        }
+      }
+
+      const drawer = activeDrawer;
+      const refresh = activePendingBoard?.id === boardId ? activeBoardRefresh : undefined;
+      if (refresh && (!failed || cardView !== activeCard)) {
+        try {
+          await refresh.request();
+          if (!hadInspection && pendingInspections.get(scope) === pending && drawer === activeDrawer
+              && drawer?.boardId === boardId && drawer.id === card.id && view.dataset.unavailable !== "true") {
+            pendingInspections.delete(scope);
+          }
+        } catch {
+          failed = true;
+        }
+      }
+      if (cardView !== activeCard) return;
+      announce(phase, failed ? "Readback failed. Use Inspect saved card before making another edit."
+        : phase === "conflict" ? "The card changed. Compare your draft with the saved card before saving again."
+          : "The save outcome was uncertain. Use Inspect saved card to compare your draft with saved state.");
+    }
+
     /** @param {PendingFields} draft @param {HTMLButtonElement} submit */
     async function save(draft, submit) {
       if (cardView !== activeCard) return;
@@ -1833,14 +1869,13 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       startWriting();
       submit.disabled = true;
       announce("writing", "Saving card…");
-      let refreshed = false;
-      let allowSubmit = true;
+      let committed = false;
       try {
         showPendingCard(projection, true);
         const result = await api.patchCard(card.id, cardTag, draft);
         const saved = /** @type {Card} */ (result.data);
         if (saved.board_id !== boardId) throw new ApiError("invalid_response", { outcomeUnknown: true });
-        refreshed = true;
+        committed = true;
         if (cardView !== activeCard) return;
         cardTag = etag(result);
         adoptSaved(saved);
@@ -1848,38 +1883,19 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       } catch (error) {
         showPendingCard(projection, false);
         const phase = writePhase(error);
-        if (cardView !== activeCard) {
-          if (phase !== "error") {
-            inspection.require(async () => { await readSavedCard(); });
-            await refreshReplacementBoard(projection, initiatingView).catch(() => {});
-          }
-          return;
-        }
         if (phase === "error") {
-          announce("error", "Card edit refused. Your draft is still here.");
+          if (cardView === activeCard) announce("error", "Card edit refused. Your draft is still here.");
         } else {
-          try {
-            await readWithSession(readSavedCard);
-            if (cardView !== activeCard) return;
-            refreshed = true;
-            announce(phase, phase === "conflict"
-              ? "The card changed. Compare your draft with the saved card before saving again."
-              : "The save outcome was uncertain. Use Inspect saved card to compare your draft with saved state.");
-          } catch {
-            allowSubmit = false;
-            announce(phase, "Readback failed. Use Inspect saved card before making another edit.");
-            inspection.require(async () => { await readSavedCard(); });
-            return;
-          }
+          await recoverTextSave(phase);
         }
       } finally {
-        if (refreshed) {
-          if (cardView === activeCard) await reloadBoard().catch(() => {});
-          else await refreshReplacementBoard(projection, initiatingView).catch(() => {});
+        if (committed) {
+          if (initiatingView === activeView) await reloadBoard().catch(() => {});
+          await refreshReplacementBoard(projection, initiatingView).catch(() => {});
         }
         showPendingCard(projection, false);
         finishWriting();
-        if (cardView === activeCard) submit.disabled = !allowSubmit || view.dataset.unavailable === "true";
+        syncInspection(scope);
       }
     }
 

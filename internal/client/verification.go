@@ -19,6 +19,7 @@ func (r Response) BoardVerification(boardID string) (bool, error) {
 		Valid    *bool          `json:"valid"`
 		Revision jsontext.Value `json:"revision"`
 		Issues   []fieldError   `json:"issues"`
+		Recovery jsontext.Value `json:"recovery"`
 	}
 	if jsonv2.Unmarshal(r.JSON, &report, jsonv2.RejectUnknownMembers(true)) != nil ||
 		!canonicalUUID4.MatchString(report.BoardID) || !strings.EqualFold(report.BoardID, boardID) ||
@@ -36,6 +37,29 @@ func (r Response) BoardVerification(boardID string) (bool, error) {
 	}
 	for _, issue := range report.Issues {
 		if !issue.valid() {
+			return false, errVerificationReport
+		}
+	}
+	if len(report.Recovery) != 0 {
+		var recovery struct {
+			Mode          string         `json:"mode"`
+			RevisionFloor jsontext.Value `json:"revision_floor"`
+		}
+		var floor *uint64
+		if *report.Valid || revision != nil || jsonv2.Unmarshal(report.Recovery, &recovery, jsonv2.RejectUnknownMembers(true)) != nil ||
+			len(recovery.RevisionFloor) == 0 || jsonv2.Unmarshal(recovery.RevisionFloor, &floor) != nil {
+			return false, errVerificationReport
+		}
+		switch recovery.Mode {
+		case "fresh_only":
+			if floor != nil {
+				return false, errVerificationReport
+			}
+		case "same_id":
+			if floor == nil || *floor == 0 || *floor >= 1<<53-1 {
+				return false, errVerificationReport
+			}
+		default:
 			return false, errVerificationReport
 		}
 	}

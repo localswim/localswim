@@ -141,10 +141,10 @@ func validPublicationCode(code string) bool {
 		"repository_busy", "unsupported_hooks", "git_configuration_unavailable", "unsupported_fsmonitor",
 		"git_attributes_unavailable", "unsupported_filter", "publication_path_ignored", "git_ignore_unavailable",
 		"branch_unavailable", "remote_unavailable", "unsupported_remote_transport",
-		"publication_target_ambiguous", "publication_destination_unavailable",
+		"publication_target_ambiguous", "publication_destination_unavailable", "publication_destination_changed",
 		"head_unavailable", "capture_unavailable", "git_index_failed", "git_object_failed", "git_tree_failed",
 		"publication_branch_changed", "publication_index_busy", "publication_index_overlap", "publication_index_uncertain",
-		"git_commit_failed", "git_ref_failed", "git_push_failed", "publication_failed"}, code)
+		"git_commit_failed", "git_ref_failed", "git_push_failed", "publication_state_unavailable", "publication_failed"}, code)
 }
 
 func (x *request) publicationsCollection() {
@@ -298,18 +298,20 @@ func (x *request) createPublication() {
 		x.publicationFailure(err)
 		return
 	}
-	err = publishVerifiedBackup(x.service.store.root, backup, selection)
-	finished := canonicalTime(time.Now())
-	item.FinishedAt, item.State = &finished, "succeeded"
-	if err != nil {
-		code := "publication_failed"
-		var failure publicationGitError
-		if errors.As(err, &failure) && validPublicationCode(string(failure)) {
-			code = string(failure)
+	err = publishVerifiedBackup(x.service.store.root, backup, selection, func(pushErr error) error {
+		finished := canonicalTime(time.Now())
+		item.FinishedAt, item.State = &finished, "succeeded"
+		if pushErr != nil {
+			code := "publication_failed"
+			var failure publicationGitError
+			if errors.As(pushErr, &failure) && validPublicationCode(string(failure)) {
+				code = string(failure)
+			}
+			item.State, item.ErrorCode = "failed", &code
 		}
-		item.State, item.ErrorCode = "failed", &code
-	}
-	if err := savePublication(x.service.store.root, item, false); err != nil {
+		return savePublication(x.service.store.root, item, false)
+	})
+	if err != nil {
 		x.publicationFailure(err)
 		return
 	}

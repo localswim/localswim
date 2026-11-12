@@ -224,11 +224,53 @@ func TestM83MissingRecoveryActorsQuarantineOnlyDependents(t *testing.T) {
 	if err := os.Remove(providerPath); err != nil {
 		t.Fatal(err)
 	}
-	if reopened, err := openStore(root, principals...); !errors.Is(err, errIdentityConflict) {
+	referencePath := initial.recoveryReferencePath(provider.Board.ID)
+	settled, valid := initial.readRecoveryReference(provider.Board.ID)
+	if !valid {
+		t.Fatal("provider must have a settled recovery reference")
+	}
+	if err := os.Remove(referencePath); err != nil {
+		t.Fatal(err)
+	}
+	refuseOrphanEvidence := func() {
+		t.Helper()
+		reopened, err := openStore(root, principals...)
 		if reopened != nil {
 			_ = reopened.close()
 		}
-		t.Fatalf("startup accepted orphan evidence without a failed saved snapshot: %v", err)
+		if !errors.Is(err, errIdentityConflict) {
+			t.Fatalf("startup accepted orphan evidence without a failed saved snapshot: %v", err)
+		}
+	}
+	refuseOrphanEvidence()
+	if err := writeAtomic(referencePath, []byte("{")); err != nil {
+		t.Fatal(err)
+	}
+	refuseOrphanEvidence()
+	pending := settled.Committed
+	pending.RevisionFloor++
+	pending.SnapshotDigest = recoveryDigest([]byte("pending provider proposal"))
+	if err := initial.writeRecoveryReference(recoveryReference{Committed: settled.Committed, Pending: &pending}); err != nil {
+		t.Fatal(err)
+	}
+	refuseOrphanEvidence()
+
+	if err := initial.writeRecoveryReference(settled); err != nil {
+		t.Fatal(err)
+	}
+	missing, err := openStore(root, principals...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(missing.failedBoards) != 3 || len(missing.list()) != 1 {
+		_ = missing.close()
+		t.Fatal("settled reference did not establish that the committed provider snapshot is missing")
+	}
+	if err := missing.close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(referencePath); err != nil {
+		t.Fatal(err)
 	}
 	if err := writeAtomic(providerPath, []byte("{")); err != nil {
 		t.Fatal(err)

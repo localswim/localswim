@@ -68,9 +68,12 @@ func newWorkspace(root string) *workspaceStore {
 	identity := hex.EncodeToString(digest[:16])
 	store := &workspaceStore{path: filepath.Join(root, workspaceFileName), identity: "workspace-" + identity}
 	store.publisher = newAutomaticPublisher(root, store.identity, store.capturePublication)
-	if preferences, data, err := store.load(); err == nil && preferences.Publishing.config().Enabled {
-		store.publication = workspacePublication(preferences.Revision, data)
-		store.publisher.schedule()
+	if preferences, data, err := store.load(); err == nil {
+		config := preferences.Publishing.config()
+		if config.Enabled {
+			store.publication = workspacePublication(preferences.Revision, data)
+			store.publisher.schedule(config)
+		}
 	}
 	return store
 }
@@ -222,7 +225,7 @@ func (s *workspaceStore) patch(matches func(workspace) bool, fields map[string]j
 	}
 	if config.Enabled {
 		s.publication = workspacePublication(p.Revision, data)
-		s.publisher.schedule()
+		s.publisher.schedule(config)
 	} else {
 		s.publication = nil
 		s.publisher.disable()

@@ -56,7 +56,7 @@ func (s *store) boardPublishingCommitted(board board) {
 		publisher.checkpoint = checkpoint
 		s.publishers[board.ID] = publisher
 	}
-	publisher.schedule()
+	publisher.schedule(board.Publishing)
 }
 
 func (s *store) boardPublishingStatus(value board) board {

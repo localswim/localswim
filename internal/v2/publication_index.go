@@ -156,17 +156,6 @@ func (repo publicationRepository) preparePublication(ref, previous string, captu
 	return commit, names, err
 }
 
-func (repo publicationRepository) publishCapture(ref, previous string, capture publicationCapture) (string, error) {
-	commit, names, err := repo.preparePublication(ref, previous, capture)
-	if err != nil {
-		return "", err
-	}
-	if err := repo.advancePublication(ref, previous, commit, names); err != nil {
-		return "", err
-	}
-	return commit, nil
-}
-
 func copyPublicationIndex(source, destination string) error {
 	info, err := os.Lstat(source)
 	if errors.Is(err, os.ErrNotExist) {
@@ -269,7 +258,7 @@ func (repo publicationRepository) confirmPublicationIndex(pending pendingPublica
 	if err != nil && !gitConfigAbsent(err) {
 		return gitPublicationError("publication_index_uncertain")
 	}
-	if branch != pending.Branch {
+	if branch != pending.SourceRef {
 		// Another checkout cannot establish index consistency for the
 		// pending branch after its ref advanced.
 		if pending.Commit != pending.Parent {
@@ -277,7 +266,7 @@ func (repo publicationRepository) confirmPublicationIndex(pending pendingPublica
 		}
 		return nil
 	}
-	err = repo.checkPublicationIndex(pending.Branch, tip, pending.Names)
+	err = repo.checkPublicationIndex(pending.SourceRef, tip, pending.Names)
 	if err == gitPublicationError("publication_index_overlap") && pending.Commit != pending.Parent {
 		return gitPublicationError("publication_index_uncertain")
 	}

@@ -279,9 +279,36 @@ func pinnedPublicationRemote(target string) publicationRemote {
 	}}
 }
 
-func (repo publicationRepository) push(remote publicationRemote, commit, ref string) error {
-	if _, err := publicationGitConfigured(repo.root, "", nil, remote.configuration, "-c", "remote."+remote.name+".mirror=false",
-		"push", "--no-follow-tags", "--recurse-submodules=no", "--", remote.name, commit+":"+ref); err != nil {
+const publicationSendRefPrefix = "refs/localswim/send/"
+
+func (repo publicationRepository) push(remote publicationRemote, checkpointOID, commit, ref string) error {
+	// Git can reinterpret an explicit destination, even a full ref, when
+	// the advertised refs contain a different DWIM match. Pattern refspecs
+	// look up the substituted destination literally. A private source ref
+	// supplies the captured commit. Its checkpoint-specific namespace also
+	// lets a retry find and clean up the source after an interrupted push.
+	// The singleton source matches with an empty wildcard, so the local
+	// transport ref stays short even for a deeply nested destination.
+	prefix := publicationSendRefPrefix + checkpointOID + "/"
+	source := prefix + "commit"
+	object := commit + "^{commit}"
+	refs, err := publicationGitText(repo.root, "for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)", "--", prefix)
+	switch {
+	case err != nil:
+		return gitPublicationError("git_ref_failed")
+	case refs == "":
+		if _, err := publicationGit(repo.root, "", nil, "update-ref", "--no-deref", source, object, strings.Repeat("0", len(commit))); err != nil {
+			return gitPublicationError("git_ref_failed")
+		}
+	case refs != source+"\x00"+commit+"\x00":
+		return gitPublicationError("publication_state_unavailable")
+	}
+	_, pushErr := publicationGitConfigured(repo.root, "", nil, remote.configuration, "-c", "remote."+remote.name+".mirror=false",
+		"push", "--no-follow-tags", "--recurse-submodules=no", "--", remote.name, source+"*:"+ref+"*")
+	if _, err := publicationGit(repo.root, "", nil, "update-ref", "--no-deref", "-d", source, object); err != nil {
+		return gitPublicationError("git_ref_failed")
+	}
+	if pushErr != nil {
 		return gitPublicationError("git_push_failed")
 	}
 	return nil
@@ -374,44 +401,55 @@ func (repo publicationRepository) prepareCommit(previous string, capture publica
 	return strings.TrimSpace(string(data)), nil
 }
 
-func publishVerifiedBackup(dataRoot string, item backup, selections ...publicationSelection) error {
-	var selection publicationSelection
-	switch len(selections) {
-	case 0:
-	case 1:
-		selection = selections[0]
-	default:
-		return gitPublicationError("publication_target_ambiguous")
-	}
+func publishVerifiedBackup(dataRoot string, item backup, selection publicationSelection, record func(error) error) error {
 	archive, err := openVerifiedBackupArchive(dataRoot, item)
 	if err != nil {
-		return gitPublicationError("backup_integrity")
+		return record(gitPublicationError("backup_integrity"))
 	}
 	defer archive.close()
 	repo, err := lockPublication(dataRoot)
 	if err != nil {
-		return err
+		return record(err)
 	}
 	defer releasePublicationRepository(repo.lease)
-	files := []publicationFile{{path: "boards/" + archive.state.Board.ID + ".json", read: func() ([]byte, error) {
-		return archive.snapshotData, nil
-	}}}
-	for _, attachment := range archive.state.Attachments {
-		files = append(files, publicationFile{path: attachmentPath(attachment), read: func() ([]byte, error) {
-			return archive.attachmentData(attachment)
-		}})
-	}
-	ref, previous, err := repo.head()
-	if err != nil {
+	// A retry has its own receipt ID but resumes the same verified backup.
+	ref := publicationCheckpointRef(dataRoot, "backup-"+item.ID)
+	oid, pushErr := repo.pushVerifiedBackup(ref, item, archive, selection)
+	// Keep the pinned intent under the repository lease until the terminal
+	// receipt is durable. A lost receipt must still constrain a new attempt.
+	if err := record(pushErr); err != nil {
 		return err
 	}
-	destination, err := repo.manualDestination(ref, selection)
-	if err != nil {
-		return err
+	if pushErr == nil {
+		// If cleanup fails, leave the original intent in place. The saved
+		// receipt already confirms the push, and a same-target retry is safe.
+		_, _ = publicationGit(repo.root, "", nil, "update-ref", "-d", ref, oid)
 	}
-	commit, err := repo.publishCapture(ref, previous, publicationCapture{message: "localswim backup " + item.ID, files: files})
+	return nil
+}
+
+func (repo publicationRepository) pushVerifiedBackup(ref string, item backup, archive *verifiedBackupArchive, selection publicationSelection) (string, error) {
+	checkpoint, oid, err := repo.checkpoint(ref)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return repo.push(destination.remote, commit, destination.ref)
+	if oid == "" {
+		files := []publicationFile{{path: "boards/" + archive.state.Board.ID + ".json", read: func() ([]byte, error) {
+			return archive.snapshotData, nil
+		}}}
+		for _, attachment := range archive.state.Attachments {
+			files = append(files, publicationFile{path: attachmentPath(attachment), read: func() ([]byte, error) {
+				return archive.attachmentData(attachment)
+			}})
+		}
+		capture := publicationCapture{revision: item.BoardRevision, message: "localswim backup " + item.ID, files: files}
+		checkpoint, oid, err = repo.preparePending(ref, oid, checkpoint, capture, selection, func() bool { return true })
+		if err != nil {
+			return "", err
+		}
+	}
+	if checkpoint.Pending == nil || checkpoint.Revision != item.BoardRevision {
+		return "", gitPublicationError("publication_state_unavailable")
+	}
+	return oid, repo.pushPending(oid, *checkpoint.Pending, selection)
 }

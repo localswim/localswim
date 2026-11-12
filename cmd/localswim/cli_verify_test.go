@@ -183,3 +183,39 @@ func TestCLIBoardVerifyChecksLiveHTTPResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestM95CLIVerificationRecoveryPoint(t *testing.T) {
+	const report = `{"board_id":"` + t03Board + `","at":"2026-11-10 14:44:56+00:00","valid":false,"revision":null,"issues":[{"field":"snapshot","code":"integrity_failure"}],"recovery":`
+	for _, tc := range []struct {
+		name, recovery string
+		accepted       bool
+	}{
+		{"same ID", `{"mode":"same_id","revision_floor":2}`, true},
+		{"fresh only", `{"mode":"fresh_only","revision_floor":null}`, true},
+		{"missing floor", `{"mode":"same_id"}`, false},
+		{"exhausted revision", `{"mode":"same_id","revision_floor":9007199254740991}`, false},
+		{"contradictory floor", `{"mode":"fresh_only","revision_floor":2}`, false},
+		{"private data", `{"mode":"same_id","revision_floor":2,"restore_actors":[]}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := report + tc.recovery + "}"
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(body))
+			}))
+			t.Cleanup(server.Close)
+			env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
+			var stdout, stderr bytes.Buffer
+			exit := runCLIWithInput([]string{"board", "verify", t03Board}, strings.NewReader(""), &stdout, &stderr,
+				func(key string) string { return env[key] })
+			if tc.accepted {
+				if exit != 1 || !strings.Contains(stderr.String(), "board verification failed") ||
+					!equalCLIJSON(t, stdout.Bytes(), []byte(body)) {
+					t.Fatal("CLI did not preserve the valid recovery report and failed snapshot verdict")
+				}
+			} else if exit != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "complete verification report") {
+				t.Fatal("CLI accepted a malformed recovery report")
+			}
+		})
+	}
+}

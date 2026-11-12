@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 )
@@ -33,6 +34,10 @@ func TestM05AttributedCommentAndNewestPages(t *testing.T) {
 
 	raw, _ := h.call("POST", "/boards", `{"name":"Comments"}`, "", 201)
 	board := turnOneDecode[board](t, raw)
+	raw, _ = h.call("GET", "/users?board_id="+board.ID, "", "", 200)
+	for _, rawUser := range turnOnePage[json.RawMessage](t, raw, "users").Values {
+		assertImmutableUserShape(t, rawUser)
+	}
 	boardTag := board.entityTag()
 	createCard := func(title string) card {
 		t.Helper()
@@ -65,7 +70,7 @@ func TestM05AttributedCommentAndNewestPages(t *testing.T) {
 	assertImmutableCommentShape(t, raw)
 	oldest := turnOneDecode[comment](t, raw)
 	if oldest.ID != id || oldest.BoardID != board.ID || oldest.CardID != first.ID || oldest.Text != text ||
-		oldest.AuthorID != board.UserIDs[0] || oldest.CreatedAt.IsZero() || !oldest.UpdatedAt.Equal(oldest.CreatedAt) ||
+		oldest.AuthorID != board.UserIDs[0] || oldest.CreatedAt.IsZero() ||
 		headers.Get("Location") != Prefix+"/comments/"+id || headers.Get("ETag") != oldest.entityTag() ||
 		headers.Get("X-Board-ETag") == "" || headers.Get("X-Board-ETag") == boardTag {
 		t.Fatal("comment response lost exact text, attribution, entity metadata, or new board tag")
@@ -111,6 +116,26 @@ func TestM05AttributedCommentAndNewestPages(t *testing.T) {
 		saved.Board.LastCardEditAt == nil || !saved.Board.LastCardEditAt.Equal(newest.CreatedAt) {
 		t.Fatal("durable state does not reflect exactly two comment transactions")
 	}
+	rawSnapshot, err := os.ReadFile(app.store.snapshotPath(board.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stored struct {
+		Comments []json.RawMessage `json:"comments"`
+		Users    []json.RawMessage `json:"users"`
+	}
+	if err := json.Unmarshal(rawSnapshot, &stored); err != nil {
+		t.Fatal(err)
+	}
+	if len(stored.Comments) != 2 {
+		t.Fatal("expected two stored comments")
+	}
+	for _, rawComment := range stored.Comments {
+		assertImmutableCommentShape(t, rawComment)
+	}
+	for _, rawUser := range stored.Users {
+		assertImmutableUserShape(t, rawUser)
+	}
 	for i, value := range []comment{oldest, newest} {
 		data, err := marshalCanonical(value)
 		if err != nil {
@@ -128,7 +153,15 @@ func TestM05AttributedCommentAndNewestPages(t *testing.T) {
 func assertImmutableCommentShape(t *testing.T, data []byte) {
 	t.Helper()
 	fields := turnOneDecode[map[string]json.RawMessage](t, data)
-	if len(fields) != 7 || fields["etag"] != nil || fields["revision"] != nil {
+	if len(fields) != 6 || fields["etag"] != nil || fields["revision"] != nil || fields["updated_at"] != nil {
 		t.Fatalf("unexpected immutable comment fields: %s", data)
+	}
+}
+
+func assertImmutableUserShape(t *testing.T, data []byte) {
+	t.Helper()
+	fields := turnOneDecode[map[string]json.RawMessage](t, data)
+	if len(fields) != 6 || fields["updated_at"] != nil || fields["created_at"] == nil {
+		t.Fatalf("unexpected immutable user fields: %s", data)
 	}
 }

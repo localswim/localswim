@@ -84,10 +84,12 @@ type board struct {
 	ActorPresentation actorPresentation `json:"actor_presentation,omitzero"`
 }
 type user struct {
-	entity
-	Label string `json:"label"`
-	Kind  string `json:"kind"`
-	Color string `json:"color"`
+	ID        string    `json:"id"`
+	Revision  uint64    `json:"revision"`
+	CreatedAt time.Time `json:"created_at"`
+	Label     string    `json:"label"`
+	Kind      string    `json:"kind"`
+	Color     string    `json:"color"`
 }
 type lane struct {
 	ID                  string    `json:"id"`
@@ -182,7 +184,6 @@ type activity struct {
 type comment struct {
 	ID        string    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
 	BoardID   string    `json:"board_id"`
 	CardID    string    `json:"card_id"`
 	Text      string    `json:"text"`

@@ -14,7 +14,7 @@ import (
 func nativeVerificationFixture() snapshot {
 	at := time.Date(2026, time.November, 10, 16, 0, 0, 123456000, time.UTC)
 	id := newID()
-	member := user{entity: newEntity(humanID, at), Label: "Owner", Kind: "human"}
+	member := user{ID: humanID, Revision: 1, CreatedAt: canonicalTime(at), Label: "Owner", Kind: "human"}
 	w := defaultWorkflow(id, at, []user{member})
 	value := freshSnapshot(id, "Verification fixture", w, member.ID, at)
 	value.Board.DefaultOwnerID = member.ID

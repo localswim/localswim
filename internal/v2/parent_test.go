@@ -157,7 +157,7 @@ func TestPatchParentChecksTagPermissionAndRecordsAudit(t *testing.T) {
 // Seed the transaction directly until M02 provides the public card resources.
 func TestPatchParentCommitsAndClearsWithAudit(t *testing.T) {
 	now := time.Now().UTC()
-	actor := user{entity: newEntity(newID(), now), Label: "Parent editor", Kind: "human", Color: "#245083"}
+	actor := user{ID: newID(), Revision: 1, CreatedAt: canonicalTime(now), Label: "Parent editor", Kind: "human", Color: "#245083"}
 	st, err := openStore(t.TempDir(), actor)
 	if err != nil {
 		t.Fatal(err)

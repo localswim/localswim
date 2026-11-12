@@ -297,10 +297,15 @@ func (query activityQuery) coverage(observation activityObservation, writerID st
 	default:
 		// Recovery can replace the entire accepted history. The writer can
 		// certify full UTC seconds only after the latest replacement.
-		if i := slices.LastIndexFunc(observation.state.Activity, func(event activity) bool {
-			return event.ResourceType == "board" && event.Operation == recoveryOperation
-		}); i >= 0 && !query.from.After(observation.state.Activity[i].At) {
-			code = "recovery_gap"
+		for i := len(observation.state.Activity) - 1; i >= 0; i-- {
+			event := observation.state.Activity[i]
+			if event.ResourceType != "board" || event.Operation != recoveryOperation {
+				continue
+			}
+			if !query.from.After(event.At) {
+				code = "recovery_gap"
+			}
+			break
 		}
 	}
 	return activityCoverage{From: query.from, To: query.to, Complete: code == "complete", Code: code}

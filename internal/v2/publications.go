@@ -298,18 +298,20 @@ func (x *request) createPublication() {
 		x.publicationFailure(err)
 		return
 	}
-	err = publishVerifiedBackup(x.service.store.root, backup, selection)
-	finished := canonicalTime(time.Now())
-	item.FinishedAt, item.State = &finished, "succeeded"
-	if err != nil {
-		code := "publication_failed"
-		var failure publicationGitError
-		if errors.As(err, &failure) && validPublicationCode(string(failure)) {
-			code = string(failure)
+	err = publishVerifiedBackup(x.service.store.root, backup, selection, func(pushErr error) error {
+		finished := canonicalTime(time.Now())
+		item.FinishedAt, item.State = &finished, "succeeded"
+		if pushErr != nil {
+			code := "publication_failed"
+			var failure publicationGitError
+			if errors.As(pushErr, &failure) && validPublicationCode(string(failure)) {
+				code = string(failure)
+			}
+			item.State, item.ErrorCode = "failed", &code
 		}
-		item.State, item.ErrorCode = "failed", &code
-	}
-	if err := savePublication(x.service.store.root, item, false); err != nil {
+		return savePublication(x.service.store.root, item, false)
+	})
+	if err != nil {
 		x.publicationFailure(err)
 		return
 	}

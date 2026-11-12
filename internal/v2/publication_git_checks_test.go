@@ -91,6 +91,10 @@ func m34PublicationFixture(t *testing.T) m34Fixture {
 	return m34Fixture{app, editor, state, item, repository, remote, filepath.ToSlash(prefix), contents}
 }
 
+func publishFixtureBackup(root string, item backup) error {
+	return publishVerifiedBackup(root, item, publicationSelection{}, func(err error) error { return err })
+}
+
 func TestM34ChecksCapturedInventoryAndStagedWorkSurvive(t *testing.T) {
 	fixture := m34PublicationFixture(t)
 	root := fixture.app.store.root
@@ -119,7 +123,7 @@ func TestM34ChecksCapturedInventoryAndStagedWorkSurvive(t *testing.T) {
 	previous := strings.TrimSpace(string(m34Git(t, fixture.repository, "rev-parse", "HEAD")))
 	m34Write(t, filepath.Join(fixture.repository, ".gitattributes"), []byte("* text eol=crlf\n"))
 	m34Git(t, fixture.repository, "config", "core.autocrlf", "true")
-	if err := publishVerifiedBackup(root, fixture.item); err != nil {
+	if err := publishFixtureBackup(root, fixture.item); err != nil {
 		t.Fatal(err)
 	}
 	afterIndex, err := os.ReadFile(indexPath)
@@ -164,7 +168,7 @@ func TestM34ChecksCapturedInventoryAndStagedWorkSurvive(t *testing.T) {
 		t.Fatal("remote did not receive captured commit")
 	}
 	// A second identical capture must be a tree no-op and still preserve the index.
-	if err := publishVerifiedBackup(root, fixture.item); err != nil {
+	if err := publishFixtureBackup(root, fixture.item); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(localHead, m34Git(t, fixture.repository, "rev-parse", "HEAD")) {
@@ -203,7 +207,7 @@ func TestM34ChecksUnsafeGitFeaturesRefusedBeforePublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = publishVerifiedBackup(fixture.app.store.root, fixture.item)
+			err = publishFixtureBackup(fixture.app.store.root, fixture.item)
 			var refusal publicationGitError
 			if !errors.As(err, &refusal) || string(refusal) != want {
 				t.Fatalf("refusal %v, want %s", err, want)

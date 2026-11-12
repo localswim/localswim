@@ -128,7 +128,7 @@ func TestM34PublicationRefusesFileDirectoryConflicts(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := publishVerifiedBackup(fixture.app.store.root, fixture.item); err != publicationGitError("git_index_failed") {
+			if err := publishFixtureBackup(fixture.app.store.root, fixture.item); err != publicationGitError("git_index_failed") {
 				t.Fatalf("path collision produced %v", err)
 			}
 			if !bytes.Equal(head, m34Git(t, fixture.repository, "rev-parse", "HEAD")) ||
@@ -147,7 +147,7 @@ func TestM34PublicationPushDoesNotFollowTags(t *testing.T) {
 	fixture := m34PublicationFixture(t)
 	m34Git(t, fixture.repository, "tag", "-a", "unrelated", "-m", "Local annotated tag")
 	m34Git(t, fixture.repository, "config", "push.followTags", "true")
-	if err := publishVerifiedBackup(fixture.app.store.root, fixture.item); err != nil {
+	if err := publishFixtureBackup(fixture.app.store.root, fixture.item); err != nil {
 		t.Fatal(err)
 	}
 	if refs := m34Git(t, fixture.remote, "for-each-ref", "--format=%(refname)"); string(refs) != "refs/heads/main\n" {

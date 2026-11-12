@@ -14,7 +14,7 @@ func TestM91PublicationRefusesOperatorStaging(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			fixture := m34PublicationFixture(t)
 			if kind == "edit" || kind == "deletion" {
-				if err := publishVerifiedBackup(fixture.app.store.root, fixture.item); err != nil {
+				if err := publishFixtureBackup(fixture.app.store.root, fixture.item); err != nil {
 					t.Fatal(err)
 				}
 			}

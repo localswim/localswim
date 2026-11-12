@@ -126,7 +126,7 @@ func TestM88PublicationRefusesIgnoredStagedDetachedAttachment(t *testing.T) {
 		t.Fatal(err)
 	}
 	head := m34Git(t, repo, "rev-parse", "HEAD")
-	if err := publishVerifiedBackup(fixture.app.store.root, fixture.item); err != publicationGitError("publication_path_ignored") {
+	if err := publishFixtureBackup(fixture.app.store.root, fixture.item); err != publicationGitError("publication_path_ignored") {
 		t.Fatalf("ignored detached attachment produced %v", err)
 	}
 	if !bytes.Equal(head, m34Git(t, repo, "rev-parse", "HEAD")) ||
@@ -184,7 +184,7 @@ func TestM88PublicationRefusesSkippedIgnoreRules(t *testing.T) {
 	}
 	head := m34Git(t, repo, "rev-parse", "HEAD")
 	objects := m34Git(t, repo, "count-objects", "-v")
-	if err := publishVerifiedBackup(fixture.app.store.root, fixture.item); err != publicationGitError("git_ignore_unavailable") {
+	if err := publishFixtureBackup(fixture.app.store.root, fixture.item); err != publicationGitError("git_ignore_unavailable") {
 		t.Fatalf("skipped ignore rules produced %v", err)
 	}
 	if !bytes.Equal(objects, m34Git(t, repo, "count-objects", "-v")) ||

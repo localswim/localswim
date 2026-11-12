@@ -170,7 +170,7 @@ func publicationRemoteDigest(url string) string {
 	return hex.EncodeToString(digest[:])
 }
 
-func (repo publicationRepository) pushPending(pending pendingPublication, selection publicationSelection) error {
+func (repo publicationRepository) pushPending(oid string, pending pendingPublication, selection publicationSelection) error {
 	if err := publicationGitSafety(repo.root, nil); err != nil {
 		return err
 	}
@@ -201,14 +201,16 @@ func (repo publicationRepository) pushPending(pending pendingPublication, select
 		return err
 	}
 	remote := pinnedPublicationRemote(destination.url)
-	if err := repo.push(remote, pending.Commit, pending.Target.Ref); err != nil && !repo.remoteContains(remote, pending) {
-		return err
+	if err := repo.push(remote, oid, pending.Commit, pending.Target.Ref); err != nil {
+		if err != gitPublicationError("git_push_failed") || !repo.remoteContains(remote, pending) {
+			return err
+		}
 	}
 	return nil
 }
 
 func (repo publicationRepository) finishPending(ref, oid string, checkpoint publicationCheckpoint, selection publicationSelection) (publicationCheckpoint, error) {
-	if err := repo.pushPending(*checkpoint.Pending, selection); err != nil {
+	if err := repo.pushPending(oid, *checkpoint.Pending, selection); err != nil {
 		return checkpoint, err
 	}
 	now := canonicalTime(time.Now())
@@ -232,8 +234,16 @@ func (repo publicationRepository) containsCommit(commit, tip string) bool {
 func (repo publicationRepository) remoteContains(remote publicationRemote, pending pendingPublication) bool {
 	result, err := publicationGitConfigured(repo.root, "", nil, remote.configuration,
 		"ls-remote", "--refs", "--exit-code", "--", remote.name, pending.Target.Ref)
-	oid, ref, found := strings.Cut(strings.TrimRight(string(result), "\r\n"), "\t")
-	return err == nil && found && ref == pending.Target.Ref && gitObjectID(oid) && repo.containsCommit(pending.Commit, oid)
+	if err != nil {
+		return false
+	}
+	for line := range strings.SplitSeq(strings.TrimRight(string(result), "\r\n"), "\n") {
+		oid, ref, found := strings.Cut(line, "\t")
+		if found && ref == pending.Target.Ref {
+			return gitObjectID(oid) && repo.containsCommit(pending.Commit, oid)
+		}
+	}
+	return false
 }
 
 func (repo publicationRepository) preparePending(stateRef, oid string, checkpoint publicationCheckpoint, capture publicationCapture, selection publicationSelection, allowed func() bool) (publicationCheckpoint, string, error) {

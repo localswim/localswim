@@ -400,7 +400,8 @@ Before advancing the local branch, the publisher records the prepared commit, so
 configured remote name, effective push URL digest, and destination branch. A retry with a different
 resolved destination fails with `publication_destination_changed` and retains the pending commit.
 Restore the original Git target before retrying. For manual publication, inspect the original
-receipt and retry a failed push with the same backup and a new publication UUID. The original
+receipt and retry a failed or interrupted push with the same backup and a new publication UUID.
+The manual checkpoint remains pinned until a successful receipt is durable. The original
 `--remote` and `--branch` selections can recover the same destination when defaults changed.
 
 Enable automatic publication independently with

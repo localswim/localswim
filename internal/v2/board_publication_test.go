@@ -270,7 +270,7 @@ func TestM35PinnedTransportIgnoresRetargetAndSecondRewrite(t *testing.T) {
 	m34Git(t, fixture.repository, "config", "remote.origin.pushurl", other)
 	m34Git(t, fixture.repository, "config", "url."+other+".insteadOf", target)
 	remote := pinnedPublicationRemote(target)
-	if err := repo.push(remote, commit, ref); err != nil {
+	if err := repo.push(remote, commit, commit, ref); err != nil {
 		t.Fatal("pinned transport failed", err)
 	}
 	if got := strings.TrimSpace(string(m34Git(t, fixture.remote, "rev-parse", ref))); got != commit {

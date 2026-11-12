@@ -136,13 +136,96 @@ func TestM97ManualRetryKeepsRemoteIdentityAndOriginalCommit(t *testing.T) {
 	m34Git(t, repo, "add", "--", "unrelated-retry.txt")
 	m34Git(t, repo, "commit", "-m", "Unrelated later local commit")
 	head := m34Git(t, repo, "rev-parse", "HEAD")
+	// A hex-shaped local branch name can shadow a bare Git push refspec.
+	m34Git(t, repo, "update-ref", "refs/heads/"+strings.TrimSpace(string(pending)), strings.TrimSpace(string(head)))
+	// Simulate the private source remaining after interruption in Git transport.
+	source := publicationSendRefPrefix + strings.TrimSpace(string(intent)) + "/commit"
+	m34Git(t, repo, "update-ref", source, strings.TrimSpace(string(pending)))
+	collision := source + "-unexpected"
+	m34Git(t, repo, "update-ref", collision, strings.TrimSpace(string(head)))
+	_, blocked := m89Publish(t, fixture, fields)
+	if blocked.State != "failed" || snapshotString(blocked.ErrorCode) != "publication_state_unavailable" ||
+		!bytes.Equal(head, m34Git(t, repo, "show-ref", "--verify", "--hash", collision)) ||
+		!bytes.Equal(baseline, m34Git(t, remote, "show-ref", "--verify", "--hash", m97DestinationRef)) ||
+		string(m34Git(t, remote, "for-each-ref", "--format=%(refname)")) != m97DestinationRef+"\n" {
+		t.Fatal("an unexpected private ref was changed or included in the push")
+	}
+	m34Git(t, repo, "update-ref", "-d", collision, strings.TrimSpace(string(head)))
 	_, recovered := m89Publish(t, fixture, fields)
 	if recovered.State != "succeeded" || recovered.ErrorCode != nil || recovered.ID == failed.ID {
 		t.Fatal("manual recovery did not return a successful new receipt")
 	}
 	m97AssertRemoteCommit(t, remote, baseline, pending)
 	if !bytes.Equal(head, m34Git(t, repo, "rev-parse", "HEAD")) ||
-		len(m34Git(t, repo, "for-each-ref", "--format=%(refname)", stateRef)) != 0 {
+		len(m34Git(t, repo, "for-each-ref", "--format=%(refname)", stateRef, publicationSendRefPrefix)) != 0 {
 		t.Fatal("manual recovery moved the local branch or retained a settled checkpoint")
+	}
+}
+
+func TestM97ManualPendingPushSurvivesInterruptedReceipt(t *testing.T) {
+	fixture := m34PublicationFixture(t)
+	remote, baseline := m97PublicationTarget(t, fixture)
+	root := fixture.app.store.root
+	original := publication{
+		ID: newOperationID(), BoardID: fixture.item.BoardID, BackupID: fixture.item.ID, State: "running",
+	}
+	if err := savePublication(root, original, true); err != nil {
+		t.Fatal(err)
+	}
+	selection := publicationSelection{remote: "delivery", branch: "delivery"}
+	err := publishVerifiedBackup(root, fixture.item, selection, func(pushErr error) error {
+		if pushErr != nil {
+			t.Fatal("fixture push failed before receipt persistence", pushErr)
+		}
+		return errWriteUncertain
+	})
+	if err != errWriteUncertain {
+		t.Fatal("the simulated receipt interruption did not leave an uncertain result", err)
+	}
+	raw, _ := fixture.editor.call("GET", "/publications/"+original.ID, "", "", 200)
+	if item := turnOneDecode[publication](t, raw); item.State != "running" || item.FinishedAt != nil {
+		t.Fatal("the interrupted receipt did not remain inspectable")
+	}
+	pending := m34Git(t, fixture.repository, "rev-parse", "HEAD")
+	m97AssertRemoteCommit(t, remote, baseline, pending)
+
+	_, redirected := m89Publish(t, fixture, `,"remote":"origin","branch":"main"`)
+	if redirected.State != "failed" || snapshotString(redirected.ErrorCode) != "publication_destination_changed" ||
+		!bytes.Equal(baseline, m34Git(t, fixture.remote, "rev-parse", "refs/heads/main")) {
+		t.Fatal("a new receipt could redirect the pending push")
+	}
+	_, recovered := m89Publish(t, fixture, `,"remote":"delivery","branch":"delivery"`)
+	if recovered.State != "succeeded" || recovered.ErrorCode != nil || recovered.ID == original.ID {
+		t.Fatal("the original destination did not settle under a new receipt")
+	}
+	m97AssertRemoteCommit(t, remote, baseline, pending)
+
+	// A durable successful receipt releases the backup for a separate
+	// publication with an intentionally different destination.
+	_, separate := m89Publish(t, fixture, `,"remote":"origin","branch":"main"`)
+	if separate.State != "succeeded" || !bytes.Equal(pending, m34Git(t, fixture.remote, "rev-parse", "refs/heads/main")) {
+		t.Fatal("a settled receipt still prevented deliberate publication to another destination")
+	}
+}
+
+func TestM97PushCreatesExactMissingRefWithExistingGitDWIMMatch(t *testing.T) {
+	fixture := m34PublicationFixture(t)
+	repo := fixture.repository
+	const alternateRef = "refs/heads/refs/heads/delivery"
+	m34Git(t, repo, "push", "origin", "HEAD:"+alternateRef)
+	baseline := m34Git(t, fixture.remote, "show-ref", "--verify", "--hash", alternateRef)
+	_, outcome := m89Publish(t, fixture, `,"remote":"origin","branch":"delivery"`)
+	if outcome.State != "succeeded" || outcome.ErrorCode != nil {
+		t.Fatal("publication failed with a differently named remote ref present")
+	}
+	if got := m34Git(t, fixture.remote, "show-ref", "--verify", "--hash", alternateRef); !bytes.Equal(got, baseline) {
+		t.Fatal("Git redirected the push into the alternate remote ref")
+	}
+	head := m34Git(t, repo, "rev-parse", "HEAD")
+	if got := m34Git(t, fixture.remote, "show-ref", "--verify", "--hash", m97DestinationRef); !bytes.Equal(got, head) {
+		t.Fatal("publication did not create the exact requested destination ref")
+	}
+	if refs := m34Git(t, repo, "for-each-ref", "--format=%(refname)", publicationSendRefPrefix); len(refs) != 0 {
+		t.Fatal("publication did not clean up its private transport ref")
 	}
 }

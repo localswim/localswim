@@ -101,12 +101,12 @@ func TestM90CommandDeadlineContainsInheritedPipes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			command := exec.Command(executable, "-test.run=^TestM90ProcessHelper$")
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			command := exec.CommandContext(ctx, executable, "-test.run=^TestM90ProcessHelper$")
 			command.Env = append(os.Environ(), "LOCALSWIM_M90_MODE="+mode, "LOCALSWIM_M90_ROOT="+root)
 			var stdout, stderr bytes.Buffer
 			command.Stdout, command.Stderr = &stdout, &stderr
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
 			started := time.Now()
 			if err := runPublicationCommand(ctx, command); !errors.Is(err, errPublicationGitTimeout) {
 				t.Fatalf("stalled command returned %v", err)
@@ -117,6 +117,32 @@ func TestM90CommandDeadlineContainsInheritedPipes(t *testing.T) {
 			m90CheckChildStopped(t, root)
 		})
 	}
+}
+
+type m90FailedProcessTermination struct{}
+
+func (m90FailedProcessTermination) attach(*exec.Cmd) error { return nil }
+
+func (m90FailedProcessTermination) stop() error { return errors.New("simulated termination failure") }
+
+func TestM90FailedTreeCancellationStillBoundsRoot(t *testing.T) {
+	root := t.TempDir()
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, executable, "-test.run=^TestM90ProcessHelper$")
+	command.Env = append(os.Environ(), "LOCALSWIM_M90_MODE=child", "LOCALSWIM_M90_ROOT="+root)
+	var output bytes.Buffer
+	command.Stdout, command.Stderr = &output, &output
+	started := time.Now()
+	err = runPublicationProcess(ctx, command, m90FailedProcessTermination{})
+	if !errors.Is(err, errPublicationGitTimeout) || time.Since(started) > 6*time.Second {
+		t.Fatal("failed tree termination did not fall back to bounded root cleanup", err)
+	}
+	m90CheckChildStopped(t, root)
 }
 
 func TestM90StalledPublicationPreservesCommitAndRecovers(t *testing.T) {

@@ -57,7 +57,7 @@ func runPublicationGit(cwd, index string, input []byte, configuration []string, 
 func runPublicationGitOutput(cwd, index string, input []byte, configuration []string, stdout, stderr io.Writer, args ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), publicationGitTimeout)
 	defer cancel()
-	command := exec.Command("git", args...)
+	command := exec.CommandContext(ctx, "git", args...)
 	command.Dir = cwd
 	for _, entry := range os.Environ() {
 		name, _, _ := strings.Cut(entry, "=")
@@ -84,28 +84,43 @@ func runPublicationCommand(ctx context.Context, command *exec.Cmd) error {
 		return err
 	}
 	defer tree.close()
+	return runPublicationProcess(ctx, command, tree)
+}
+
+type publicationProcess interface {
+	attach(*exec.Cmd) error
+	stop() error
+}
+
+func runPublicationProcess(ctx context.Context, command *exec.Cmd, tree publicationProcess) error {
+	attached := make(chan struct{})
+	command.Cancel = func() error {
+		// A Windows child starts suspended. Cancellation must not race its
+		// assignment into the job or resume it after cleanup has already run.
+		<-attached
+		return tree.stop()
+	}
 	command.WaitDelay = publicationGitCleanupTimeout
 	if err := command.Start(); err != nil {
+		close(attached)
 		return err
 	}
-	if err := tree.attach(command); err != nil {
+	err := tree.attach(command)
+	close(attached)
+	if err != nil {
 		_ = command.Process.Kill()
-		return errors.Join(err, tree.stop(), command.Wait())
+		waitErr := command.Wait()
+		return errors.Join(err, tree.stop(), waitErr)
 	}
-	done := make(chan error, 1)
-	go func() { done <- command.Wait() }()
-	select {
-	case err := <-done:
-		cleanupErr := tree.stop()
-		if errors.Is(err, exec.ErrWaitDelay) || ctx.Err() != nil {
-			return errors.Join(errPublicationGitTimeout, cleanupErr)
-		}
-		return errors.Join(err, cleanupErr)
-	case <-ctx.Done():
-		cleanupErr := tree.stop()
-		<-done
+	// CommandContext keeps a separate cancellation watchdog. If group/job
+	// termination fails, WaitDelay force-kills the direct child and closes
+	// its pipes instead of waiting indefinitely for normal process exit.
+	err = command.Wait()
+	cleanupErr := tree.stop()
+	if errors.Is(err, exec.ErrWaitDelay) || ctx.Err() != nil {
 		return errors.Join(errPublicationGitTimeout, cleanupErr)
 	}
+	return errors.Join(err, cleanupErr)
 }
 
 func publicationGitText(cwd string, args ...string) (string, error) {

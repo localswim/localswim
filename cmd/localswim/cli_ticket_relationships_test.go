@@ -152,6 +152,10 @@ func TestM071TicketParentAndLinks(t *testing.T) {
 	run(1, 1, "no relationship matches", "relationship", "remove", board.ID, "1", "references", "2")
 	call(http.MethodGet, "/relationships/"+incomingID, "")
 
+	run(1, 1, "does not belong to BOARD_ID", "relationship", "remove", t03Board, incomingID)
+	run(1, 1, "revision mismatch", "relationship", "remove", "--revision", "1", board.ID, incomingID)
+	run(0, 3, "", "relationship", "remove", strings.ToUpper(board.ID), strings.ToUpper(incomingID))
+
 	cleared := decodeCard(run(0, 2, "", "card", "clear-parent", board.ID, "1"))
 	if cleared.ID != child.ID || cleared.ParentID != nil || len(readCard(parent.ID).ChildIDs) != 0 {
 		t.Fatal("parent clear did not update both cards")

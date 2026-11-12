@@ -72,6 +72,11 @@ A stale board revision refuses the edit. For multiple grants, use
 arrays. The service checks both the board and policy validators on every grant
 and preserves the other grants and default priority.
 
+Remove a relationship with `relationship remove BOARD_ID RELATIONSHIP_ID` or
+`relationship remove BOARD_ID SOURCE_TICKET KIND TARGET_TICKET`. Both forms
+require the board ID first. ID removal checks board membership, and optional
+`--revision N` checks the relationship revision.
+
 Export a board with `board export BOARD_ID FILE|-`. Use a new file path, or `-`
 for standard output. The default format is JSON.
 

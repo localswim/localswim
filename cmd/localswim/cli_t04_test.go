@@ -72,7 +72,7 @@ func TestT04CLIRelationshipValidatorsAndUnknownOutcome(t *testing.T) {
 					_, _ = io.WriteString(w, "{\"revision\":12}")
 				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/relationships/"+t03Lane:
 					w.Header().Set("ETag", t03ResourceTag)
-					_, _ = fmt.Fprintf(w, "{\"board_id\":%q,\"revision\":7}", t03Board)
+					_, _ = fmt.Fprintf(w, "{\"id\":%q,\"board_id\":%q,\"revision\":7}", t03Lane, t03Board)
 				case r.Method == tc.method:
 					mutations.Add(1)
 					var createdID string
@@ -119,7 +119,9 @@ func TestT04CLIRelationshipValidatorsAndUnknownOutcome(t *testing.T) {
 			args := []string{"relationship", tc.action, "--revision", tc.revision, id}
 			if tc.method == http.MethodPost {
 				args = append(args, "references", t03Lane)
-			} else if tc.method != http.MethodDelete {
+			} else if tc.method == http.MethodDelete {
+				args = []string{"relationship", tc.action, "--revision", tc.revision, t03Board, id}
+			} else {
 				args = append(args, "-")
 			}
 			var stdout, stderr bytes.Buffer
@@ -132,6 +134,53 @@ func TestT04CLIRelationshipValidatorsAndUnknownOutcome(t *testing.T) {
 			}
 			if tc.method == http.MethodDelete && stdout.Len() != 0 {
 				t.Fatalf("unexpected stdout for delete: %s", &stdout)
+			}
+		})
+	}
+}
+
+func TestRelationshipRemoveBoardContext(t *testing.T) {
+	command, err := parseCLI([]string{"relationship", "remove", "--revision", "7", strings.ToUpper(t03Board), strings.ToUpper(t03Lane)})
+	if err != nil || command.boardID != t03Board || command.resource != "/relationships/"+t03Lane ||
+		command.revision == nil || *command.revision != 7 {
+		t.Fatalf("invalid board-scoped removal: %+v, %v", command, err)
+	}
+	for _, args := range [][]string{
+		{t03Lane},
+		{t03Board},
+		{t03Board, "invalid"},
+		{"invalid", t03Lane},
+		{t03Board, t03Lane, "extra"},
+	} {
+		if _, err := parseCLI(append([]string{"relationship", "remove"}, args...)); err == nil {
+			t.Fatalf("accepted malformed removal: %v", args)
+		}
+	}
+
+	for _, tc := range []struct {
+		name, response, message string
+	}{
+		{"wrong board", fmt.Sprintf(`{"id":%q,"board_id":%q,"revision":7}`, t03Lane, t03Card), "does not belong to BOARD_ID"},
+		{"wrong relationship", fmt.Sprintf(`{"id":%q,"board_id":%q,"revision":7}`, t03Card, t03Board), "did not confirm the requested relationship"},
+		{"missing board", fmt.Sprintf(`{"id":%q,"revision":7}`, t03Lane), "did not confirm the requested relationship"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				if r.Method != http.MethodGet || r.URL.Path != t03Root+"/relationships/"+t03Lane {
+					t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				w.Header().Set("ETag", t03ResourceTag)
+				_, _ = io.WriteString(w, tc.response)
+			}))
+			defer server.Close()
+			var stdout, stderr bytes.Buffer
+			code := runCLIWithInput([]string{"relationship", "remove", t03Board, t03Lane}, nil, &stdout, &stderr, t03Env(server.URL))
+			if code != 1 || requests.Load() != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), tc.message) {
+				t.Fatalf("code=%d requests=%d stdout=%s stderr=%s", code, requests.Load(), &stdout, &stderr)
 			}
 		})
 	}

@@ -63,6 +63,14 @@ func parseT04(name string, args []string) (cliCommand, error) {
 		cmd.ticketRelationship, optionErr = parseTicketLinkCommand(name, flags.Args(), relationshipID)
 		return cmd, optionErr
 	}
+	if name == "relationship remove" {
+		if flags.NArg() != 2 || !boardIDPattern.MatchString(flags.Arg(0)) || !boardIDPattern.MatchString(flags.Arg(1)) {
+			return cmd, errors.New("relationship remove requires BOARD_ID RELATIONSHIP_ID or BOARD_ID SOURCE_TICKET KIND TARGET_TICKET")
+		}
+		cmd.boardID = strings.ToLower(flags.Arg(0))
+		cmd.resource += "/" + strings.ToLower(flags.Arg(1))
+		return cmd, nil
+	}
 	if name == "relationship create" {
 		if flags.NArg() != 3 || !boardIDPattern.MatchString(flags.Arg(0)) || !boardIDPattern.MatchString(flags.Arg(2)) {
 			return cmd, errors.New("relationship create requires SOURCE_CARD_ID KIND TARGET_CARD_ID")
@@ -148,6 +156,20 @@ func prepareRelationshipWrite(api *client.Client, cmd cliCommand, body json.RawM
 		}
 		if current.ETag == "" {
 			return nil, "", "", errors.New("service did not return a strong relationship ETag")
+		}
+		if cmd.method == http.MethodDelete {
+			var relationship struct {
+				ID      string `json:"id"`
+				BoardID string `json:"board_id"`
+			}
+			if json.Unmarshal(current.JSON, &relationship) != nil ||
+				relationship.ID != strings.TrimPrefix(cmd.resource, "/relationships/") ||
+				!boardIDPattern.MatchString(relationship.BoardID) {
+				return nil, "", "", errors.New("service did not confirm the requested relationship and its board")
+			}
+			if relationship.BoardID != cmd.boardID {
+				return nil, "", "", errors.New("relationship does not belong to BOARD_ID")
+			}
 		}
 		if err := checkCLIRevision(cmd.revision, current.JSON); err != nil {
 			return nil, "", "", err

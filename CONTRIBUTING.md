@@ -116,14 +116,16 @@ Use `card set-parent BOARD_ID TICKET PARENT_TICKET` or
 `--revision N` checks the child card revision. Both writes guard the child and
 board versions from one focused view.
 
-Use `relationship create BOARD_ID SOURCE_TICKET KIND TARGET_TICKET` or
-`relationship remove BOARD_ID SOURCE_TICKET KIND TARGET_TICKET` for ticket-based
-links. The kinds are `blocks`, `duplicates`, `references`, and `relates_to`.
-Create checks the board revision. Remove resolves the exact typed edge from the
-same view and checks its relationship revision. Card UUID creation and relationship
-UUID removal remain available. After a stale response, inspect the current
-ticket mapping before trying again. After an uncertain response, inspect the
-original card or relationship UUID.
+Use `relationship create BOARD_ID SOURCE_TICKET KIND TARGET_TICKET` to add a
+ticket-based link. Remove one with either
+`relationship remove BOARD_ID RELATIONSHIP_ID` or
+`relationship remove BOARD_ID SOURCE_TICKET KIND TARGET_TICKET`. The kinds are
+`blocks`, `duplicates`, `references`, and `relates_to`. Creation checks the board
+revision and also accepts card UUIDs. ID removal verifies the relationship belongs
+to the board. Ticket removal resolves the exact typed edge from one focused view.
+Optional `--revision N` checks the relationship revision for removal.
+After a stale response, inspect the current ticket mapping before trying again.
+After an uncertain response, inspect the original card or relationship UUID.
 
 Use `activity list` with inclusive canonical UTC `--from` and `--to`. The
 default view returns sanitized metadata in audit revision order. Select

@@ -59,7 +59,7 @@ const commandUsage = `Usage:
   localswim relationship create [--revision N] [--id UUID] SOURCE_CARD_ID KIND TARGET_CARD_ID
   localswim relationship create [--revision N] [--id UUID] BOARD_ID SOURCE_TICKET KIND TARGET_TICKET
   localswim relationship patch [--revision N] RELATIONSHIP_ID FILE|-
-  localswim relationship remove [--revision N] RELATIONSHIP_ID
+  localswim relationship remove [--revision N] BOARD_ID RELATIONSHIP_ID
   localswim relationship remove [--revision N] BOARD_ID SOURCE_TICKET KIND TARGET_TICKET
   localswim comment list [--data DIRECTORY] [--archived exclude|include|only]
                          [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
@@ -336,7 +336,7 @@ var commandHelpNotes = map[string]string{
 	"comment post":             "Quote literal --text. The JSON form reads an object with text and an optional id.",
 	"comment list":             "Return newest comments with attribution and full text. --limit is 1 to 200, default 50. --archived accepts exclude, include, or only. Board-wide reports default to active cards; focused card reports include archived cards by default.",
 	"relationship create":      "Choose source and target card UUIDs, or a board UUID and source and target tickets. KIND is blocks, duplicates, references, or relates_to. --id accepts a UUIDv4.",
-	"relationship remove":      "Choose a relationship UUID, or a board UUID and source ticket, kind and target ticket. KIND is blocks, duplicates, references, or relates_to. Success produces no output.",
+	"relationship remove":      "Choose a board UUID and either a relationship UUID or source ticket, kind and target ticket. The relationship must belong to that board. KIND is blocks, duplicates, references, or relates_to. Success produces no output.",
 	"relationship patch":       "Read a JSON object with kind. KIND is blocks, duplicates, references, or relates_to.",
 	"attachment upload":        "Read raw bytes, up to 10 MiB. Choose a card UUID or a board UUID and ticket. --id accepts a UUIDv4. --filename supplies a UTF-8 display name. By default a file uses its basename and stdin uses the attachment UUID. The card revision is checked before bytes are read. Ticket form also guards the board version. Inspect attachment get with the original ID after an unknown outcome.",
 	"attachment download":      "Verify the active file before writing raw bytes. Inspect the destination after a local write failure.",
@@ -357,6 +357,7 @@ var commandHelpNotes = map[string]string{
 }
 
 var commandExamples = map[string]string{
+	"relationship remove": "  localswim relationship remove $board $relationship\n  localswim relationship remove $board 12 blocks 17",
 	"board create":        "  localswim board create --name \"Pool projects\" --preset terry\n  localswim board create --json workflow.json",
 	"board recover":       "  localswim board recover --mode same_id $board backup.zip\n  localswim board recover --mode fresh $board snapshot.json",
 	"card create":         "  localswim card create --title \"Check pool hours\" $board $lane\n  localswim card create --revision 12 card.json",

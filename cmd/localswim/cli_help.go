@@ -128,7 +128,10 @@ func requestedCLIHelp(args []string) (string, bool) {
 	} else if last := args[len(args)-1]; last == "--help" || last == "-h" {
 		path, explicit = args[:len(args)-1], true
 	}
-	name := strings.Join(path, " ")
+	name, ok := cliHelpPath(path)
+	if !ok {
+		return "", false
+	}
 	help := writeCommandHelp(name)
 	if help == "" {
 		return "", false
@@ -141,11 +144,24 @@ func requestedCLIHelp(args []string) (string, bool) {
 
 func contextualCLIHelp(args []string) string {
 	for length := len(args); length > 0; length-- {
-		if help := writeCommandHelp(strings.Join(args[:length], " ")); help != "" {
+		name, ok := cliHelpPath(args[:length])
+		if !ok {
+			continue
+		}
+		if help := writeCommandHelp(name); help != "" {
 			return help
 		}
 	}
 	return cliHelp
+}
+
+func cliHelpPath(tokens []string) (string, bool) {
+	for _, token := range tokens {
+		if token == "" || strings.ContainsRune(token, ' ') {
+			return "", false
+		}
+	}
+	return strings.Join(tokens, " "), true
 }
 
 func commandUsageLines() []string {
@@ -279,6 +295,8 @@ func commandRevision(name string) string {
 		return "relationship"
 	case "attachment detach":
 		return "attachment"
+	case "card set-parent", "card clear-parent":
+		return "child card"
 	case "card create", "card set-priorities", "relationship create", "lane add", "policy grant", "backup create", "restoration create", "board restore", "board rename", "board patch", "board close", "board reopen", "board publishing enable", "board publishing disable":
 		return "board"
 	}

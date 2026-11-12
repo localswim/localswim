@@ -19,6 +19,8 @@ func TestM099HelpDiscovery(t *testing.T) {
 		{[]string{"board", "--help"}, "localswim board create", "localswim attachment upload"},
 		{[]string{"help", "board", "create"}, "--json <JSON_FILE|->", "localswim board patch"},
 		{[]string{"card", "inspect", "-h"}, "--prose", "localswim card create"},
+		{[]string{"card", "set-parent", "--help"}, "child card revision", "localswim card clear-parent"},
+		{[]string{"card", "clear-parent", "--help"}, "child card revision", "localswim card set-parent"},
 		{[]string{"attachment", "upload", "--help"}, "10 MiB", "localswim attachment detach"},
 		{[]string{"board", "notifications", "--help"}, "localswim board notifications target", "localswim board create"},
 		{[]string{"board", "notifications", "target", "--help"}, "notification routing revision", "localswim board notifications enable"},
@@ -59,6 +61,9 @@ func TestM099EveryCommandHasScopedUsage(t *testing.T) {
 func TestM099InvalidInvocationIsScopedAndDoesNotExecute(t *testing.T) {
 	for _, args := range [][]string{
 		{"unknown"}, {"unknown", "--help"}, {"help", "unknown"},
+		{""}, {"", "--help"}, {"help", ""},
+		{"board create", "--help"}, {"help", "board create"},
+		{"board", "notifications target", "--help"},
 		{"board", "unknown", "--help"}, {"board", "create"},
 		{"board", "notifications"}, {"workspace", "pin"},
 		{"card", "inspect", "--bad"}, {"attachment", "upload"},
@@ -79,6 +84,24 @@ func TestM099InvalidInvocationIsScopedAndDoesNotExecute(t *testing.T) {
 				t.Fatal("board usage error included unrelated card help")
 			}
 		})
+	}
+}
+
+func TestM099HelpTokensRemainValidCommandInputs(t *testing.T) {
+	nameArgs := []string{"board", "create", "--name", "--help"}
+	fileArgs := []string{"board", "create", "--json", "--", "--help"}
+	for _, args := range [][]string{nameArgs, fileArgs} {
+		if _, ok := requestedCLIHelp(args); ok {
+			t.Fatalf("help intercepted command input: %q", args)
+		}
+	}
+	named, err := parseCLI(nameArgs)
+	if err != nil || !bytes.Contains(named.body, []byte(`"name":"--help"`)) {
+		t.Fatalf("help token was not preserved as the name: %s, %v", named.body, err)
+	}
+	fromFile, err := parseCLI(fileArgs)
+	if err != nil || fromFile.inputPath != "--help" {
+		t.Fatalf("help token was not preserved as the file path: %q, %v", fromFile.inputPath, err)
 	}
 }
 

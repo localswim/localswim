@@ -16,6 +16,7 @@ var errWorkspaceUnavailable = errors.New("workspace preferences unavailable")
 
 const workspaceFileName = "localswim-workspace.json"
 const maxWorkspaceFile = 64 << 10
+const maxWorkspacePins = 1000
 
 type workspace struct {
 	identity       string
@@ -139,7 +140,7 @@ func (s *workspaceStore) load() (workspacePreferences, []byte, error) {
 
 func parseWorkspacePins(raw json.RawMessage, visible func(string) bool) ([]string, error) {
 	var ids []string
-	if json.Unmarshal(raw, &ids) != nil || ids == nil || len(ids) > 1000 {
+	if json.Unmarshal(raw, &ids) != nil || ids == nil || len(ids) > maxWorkspacePins {
 		return nil, invalid("pinned_board_ids", "expected an array of up to 1000 board UUIDs")
 	}
 	seen := make(map[string]bool, len(ids))
@@ -160,7 +161,7 @@ func parseWorkspacePins(raw json.RawMessage, visible func(string) bool) ([]strin
 	return ids, nil
 }
 
-func (s *workspaceStore) patch(matches func(uint64) bool, fields map[string]json.RawMessage, visible func(string) bool) (workspace, error) {
+func (s *workspaceStore) patch(matches func(workspace) bool, fields map[string]json.RawMessage, visible, hidden func(string) bool) (workspace, error) {
 	if err := rejectFields(fields, []string{"pinned_board_ids", "publishing"}, false); err != nil {
 		return workspace{}, err
 	}
@@ -175,7 +176,8 @@ func (s *workspaceStore) patch(matches func(uint64) bool, fields map[string]json
 	if err != nil {
 		return workspace{}, err
 	}
-	if !matches(p.Revision) {
+	current := s.view(p)
+	if !matches(current) {
 		return workspace{}, errStale
 	}
 	ids := p.PinnedBoardIDs
@@ -183,6 +185,10 @@ func (s *workspaceStore) patch(matches func(uint64) bool, fields map[string]json
 		ids, err = parseWorkspacePins(rawPins, visible)
 		if err != nil {
 			return workspace{}, err
+		}
+		ids = retainHiddenPins(p.PinnedBoardIDs, ids, hidden)
+		if len(ids) > maxWorkspacePins {
+			return workspace{}, invalid("pinned_board_ids", "Workspace pin limit would be exceeded.")
 		}
 	}
 	config := p.Publishing.config()
@@ -194,7 +200,7 @@ func (s *workspaceStore) patch(matches func(uint64) bool, fields map[string]json
 	}
 	publishingChanged := !p.Publishing.matches(config)
 	if slices.Equal(ids, p.PinnedBoardIDs) && !publishingChanged {
-		return s.view(p), nil
+		return current, nil
 	}
 	if p.Revision == maxSnapshotInteger {
 		return workspace{}, errWorkspaceUnavailable
@@ -225,6 +231,24 @@ func (s *workspaceStore) patch(matches func(uint64) bool, fields map[string]json
 		s.events.changed()
 	}
 	return s.view(p), nil
+}
+
+func retainHiddenPins(saved, requested []string, hidden func(string) bool) []string {
+	if hidden == nil || !slices.ContainsFunc(saved, hidden) {
+		return requested
+	}
+	// Use the previous visible slots in order, leaving hidden pins in place
+	// except where deleting a visible pin compacts the list.
+	merged := make([]string, 0, len(saved))
+	for _, id := range saved {
+		if hidden(id) {
+			merged = append(merged, id)
+		} else if len(requested) != 0 {
+			merged = append(merged, requested[0])
+			requested = requested[1:]
+		}
+	}
+	return append(merged, requested...)
 }
 
 func (s *workspaceStore) closePublisher() {

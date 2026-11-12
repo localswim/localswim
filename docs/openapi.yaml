@@ -407,6 +407,8 @@ paths:
     get:
       operationId: readWorkspace
       summary: Read workspace preferences
+      description: Bot responses omit pins for boards with startup diagnostics.
+        A filtered representation has its own ETag and shares the stored workspace revision.
       tags:
       - Workspace
       parameters:
@@ -498,7 +500,8 @@ paths:
       operationId: updateWorkspace
       summary: Update pins or workspace publishing
       description: A publishing change requires the Human workspace administrator.
-        The Human can keep or change pins for boards with startup diagnostics.
+        The Human can keep or change pins for boards with startup diagnostics. Bot pin updates
+        use the Bot workspace ETag, preserve diagnostic pins and omit them from the response.
       tags:
       - Workspace
       parameters:
@@ -16523,7 +16526,8 @@ components:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
         error_code:
-          description: durable_state_unavailable means the native snapshot is missing or invalid.
+          description: durable_state_unavailable means the native snapshot is missing, invalid,
+            or could not be admitted at startup.
             durable_state_changed means the native snapshot is valid and differs from accepted state,
             including changes at the same revision. Either condition sets availability to unhealthy
             and clears attention and last_card_edit_at. Null indicates a healthy snapshot.
@@ -17345,11 +17349,13 @@ components:
         const: default-src 'none'; base-uri 'none'; frame-ancestors 'none'; sandbox
     Vary:
       description: CORS decisions are never reused across origins or preflight request parameters.
+        Workspace preference representations also vary by authorization.
       required: true
       schema:
         enum:
         - Origin
         - Origin, Access-Control-Request-Method, Access-Control-Request-Headers
+        - Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Authorization
     CorsOrigin:
       description: Present only when a supplied Origin is accepted. Exact configured origin, never *.
       required: false

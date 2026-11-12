@@ -86,9 +86,39 @@ func TestM83StartsWithOneDamagedBoard(t *testing.T) {
 
 			_, headers = human.call("GET", "/workspace", "", "", 200)
 			pins := fmt.Sprintf(`{"pinned_board_ids":[%q,%q]}`, failed.ID, healthy.ID)
-			raw, _ = human.call("PATCH", "/workspace", pins, headers.Get("ETag"), 200)
-			if got := turnOneDecode[workspace](t, raw); !slices.Equal(got.PinnedBoardIDs, []string{failed.ID, healthy.ID}) {
+			raw, headers = human.call("PATCH", "/workspace", pins, headers.Get("ETag"), 200)
+			humanPins := turnOneDecode[workspace](t, raw)
+			humanTag := headers.Get("ETag")
+			if !slices.Equal(humanPins.PinnedBoardIDs, []string{failed.ID, healthy.ID}) {
 				t.Fatal("a diagnostic row prevented pin ordering")
+			}
+			raw, headers = bot.call("GET", "/workspace", "", "", 200)
+			botPins := turnOneDecode[workspace](t, raw)
+			botTag := headers.Get("ETag")
+			if botPins.Revision != humanPins.Revision || !slices.Equal(botPins.PinnedBoardIDs, []string{healthy.ID}) ||
+				botTag == "" || botTag == humanTag || !strings.Contains(headers.Get("Vary"), "Authorization") {
+				t.Fatal("Bot did not receive a revision-bound filtered workspace view")
+			}
+			const emptyPins = `{"pinned_board_ids":[]}`
+			bot.call("PATCH", "/workspace", emptyPins, humanTag, 412)
+			bot.call("PATCH", "/workspace", pins, botTag, 400)
+			raw, headers = bot.call("PATCH", "/workspace", emptyPins, botTag, 200)
+			botPins = turnOneDecode[workspace](t, raw)
+			if botPins.PinnedBoardIDs == nil || len(botPins.PinnedBoardIDs) != 0 || botPins.Revision != humanPins.Revision+1 ||
+				headers.Get("ETag") == botTag {
+				t.Fatal("Bot pin update exposed hidden IDs or lost revision protection")
+			}
+			bot.call("PATCH", "/workspace", emptyPins, botTag, 412)
+			botTag = headers.Get("ETag")
+			raw, headers = bot.call("PATCH", "/workspace", emptyPins, botTag, 200)
+			if got := turnOneDecode[workspace](t, raw); got.Revision != botPins.Revision ||
+				got.PinnedBoardIDs == nil || len(got.PinnedBoardIDs) != 0 || headers.Get("ETag") != botTag {
+				t.Fatal("Bot pin no-op exposed hidden IDs or advanced the revision")
+			}
+			raw, _ = human.call("GET", "/workspace", "", "", 200)
+			if got := turnOneDecode[workspace](t, raw); got.Revision != botPins.Revision ||
+				!slices.Equal(got.PinnedBoardIDs, []string{failed.ID}) {
+				t.Fatal("Bot pin update removed the Human diagnostic pin")
 			}
 
 			human.call("GET", "/boards/"+healthy.ID+"?view=lanes", "", "", 200)
@@ -141,5 +171,117 @@ func TestM83WorkspaceNamespaceFailureStillRefusesStartup(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestM83MissingRecoveryActorsQuarantineOnlyDependents(t *testing.T) {
+	healthy, principals := m01Fixture()
+	at := healthy.Board.CreatedAt
+	firstActor := user{entity: newEntity("10000000-0000-4000-8000-000000000004", at),
+		Label: "First historical actor", Kind: "human", Color: "#112233"}
+	secondActor := user{entity: newEntity("10000000-0000-4000-8000-000000000005", at),
+		Label: "Second historical actor", Kind: "human", Color: "#223344"}
+	newBoard := func(id string, actors ...user) snapshot {
+		members := append(slices.Clone(principals), actors...)
+		value := freshSnapshot(id, "Recovery actor fixture", defaultWorkflow(id, at, members), m01HumanID, at)
+		value.Board.DefaultOwnerID = m01BotID
+		return value
+	}
+	provider := newBoard("20000000-0000-4000-8000-000000000001", firstActor)
+	middle := newBoard("30000000-0000-4000-8000-000000000001", firstActor, secondActor)
+	dependent := newBoard("40000000-0000-4000-8000-000000000001", secondActor)
+	root := t.TempDir()
+	initial, err := openStore(root, principals...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer initial.close()
+	for _, value := range []snapshot{provider, middle, dependent, healthy} {
+		if err := initial.create(value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recoverWithoutActor := func(value snapshot, actor string) snapshot {
+		source := cloneSnapshot(value)
+		source.Users = slices.DeleteFunc(source.Users, func(member user) bool { return member.ID == actor })
+		source.Board.UserIDs = slices.DeleteFunc(source.Board.UserIDs, func(id string) bool { return id == actor })
+		source.Policy.CreateGrants = slices.DeleteFunc(source.Policy.CreateGrants, func(g createGrant) bool { return g.UserID == actor })
+		source.Policy.MoveGrants = slices.DeleteFunc(source.Policy.MoveGrants, func(g moveGrant) bool { return g.UserID == actor })
+		source.Policy.ResourceGrants = slices.DeleteFunc(source.Policy.ResourceGrants, func(g resourceGrant) bool { return g.UserID == actor })
+		recovered, err := initial.recoverSnapshot(value.Board.ID, actor, newOperationID(),
+			matchingSnapshotTag(snapshotRepresentationTag(value)), source, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return recovered
+	}
+	middle = recoverWithoutActor(middle, firstActor.ID)
+	dependent = recoverWithoutActor(dependent, secondActor.ID)
+	if err := initial.close(); err != nil {
+		t.Fatal(err)
+	}
+	providerPath := initial.snapshotPath(provider.Board.ID)
+	if err := os.Remove(providerPath); err != nil {
+		t.Fatal(err)
+	}
+	if reopened, err := openStore(root, principals...); !errors.Is(err, errIdentityConflict) {
+		if reopened != nil {
+			_ = reopened.close()
+		}
+		t.Fatalf("startup accepted orphan evidence without a failed saved snapshot: %v", err)
+	}
+	if err := writeAtomic(providerPath, []byte("{")); err != nil {
+		t.Fatal(err)
+	}
+	isolated, err := openStore(root, principals...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer isolated.close()
+	if len(isolated.failedBoards) != 3 || len(isolated.list()) != 1 {
+		t.Fatal("startup did not isolate the provider and both dependents")
+	}
+	for _, value := range []snapshot{provider, middle, dependent} {
+		if _, admitted := isolated.accepted(value.Board.ID); admitted || !isolated.isFailedBoard(value.Board.ID) {
+			t.Fatal("startup admitted a board without trusted recovery actor evidence")
+		}
+	}
+	if _, err := isolated.update(healthy.Board.ID, healthy.Board.Revision, m01Rename); err != nil {
+		t.Fatalf("independent board could not commit an edit: %v", err)
+	}
+	saved, err := isolated.durable(healthy.Board.ID)
+	if err != nil || saved.Board.Name != m01UpdatedName || saved.Board.Revision != healthy.Board.Revision+1 {
+		t.Fatalf("independent board edit was not durable: %v", err)
+	}
+	if err := isolated.close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// The middle board still provides a trusted definition during the
+	// conflict check, even though it will later need quarantine.
+	event := &dependent.Activity[len(dependent.Activity)-1]
+	evidence, ok := recoveryEventEvidence(*event)
+	if !ok {
+		t.Fatal("test fixture lacks recovery evidence")
+	}
+	evidence.ActorKind = "bot"
+	data, err := marshalCanonical(evidence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after := string(data)
+	event.After = &after
+	data = marshalVerificationFixture(t, dependent)
+	if _, err := parseSnapshot(data, dependent.Board.ID); err != nil {
+		t.Fatalf("contradictory evidence must pass local validation: %v", err)
+	}
+	if err := writeAtomic(isolated.snapshotPath(dependent.Board.ID), data); err != nil {
+		t.Fatal(err)
+	}
+	if reopened, err := openStore(root, principals...); !errors.Is(err, errIdentityConflict) {
+		if reopened != nil {
+			_ = reopened.close()
+		}
+		t.Fatalf("a local failure masked contradictory recovery actor evidence: %v", err)
 	}
 }

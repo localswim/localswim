@@ -21,8 +21,7 @@ type boardSummary struct {
 }
 
 func (s *store) canSeeFailedBoard(id, actor string) bool {
-	_, failed := s.failedBoards[id]
-	return actor == humanID && failed
+	return actor == humanID && s.isFailedBoard(id)
 }
 
 func (s *store) appendFailedBoardSummaries(rows []boardSummary, actor string) []boardSummary {

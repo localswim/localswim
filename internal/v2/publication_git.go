@@ -157,9 +157,11 @@ func confirmPublicationFence(path string) error {
 	if !fence.cleanup.confirm() {
 		return gitPublicationError("git_cleanup_unconfirmed")
 	}
+	// Remove only this fence, while its OS lease still excludes the next
+	// publication from acquiring the lock and installing a replacement.
+	publicationFences.CompareAndDelete(path, fence)
 	releasePublicationRepository(fence.lease)
 	fence.lease = nil
-	publicationFences.Delete(path)
 	return nil
 }
 

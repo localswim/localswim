@@ -27,16 +27,41 @@ func (tree *publicationProcessTree) attach(command *exec.Cmd) error {
 	return nil
 }
 
-func (tree *publicationProcessTree) stop(deadline time.Time) error {
-	if tree.pid == 0 {
-		return nil
-	}
-	if !tree.signalAttempted {
-		tree.signalAttempted = true
-		err := syscall.Kill(-tree.pid, syscall.SIGKILL)
-		if err != nil && !errors.Is(err, syscall.ESRCH) {
+func (tree *publicationProcessTree) observeExit(ctx context.Context, _ *exec.Cmd) error {
+	for delay := 5 * time.Millisecond; ; delay = min(delay*2, 100*time.Millisecond) {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
+		exited, err := publicationChildExited(ctx, tree.pid)
+		if err != nil || exited {
+			return err
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		}
+	}
+}
+
+func (tree *publicationProcessTree) terminate(_ time.Time) error {
+	if tree.pid == 0 || tree.signalAttempted {
+		return nil
+	}
+	tree.signalAttempted = true
+	err := syscall.Kill(-tree.pid, syscall.SIGKILL)
+	if errors.Is(err, syscall.ESRCH) {
+		tree.pid = 0
+		return nil
+	}
+	return err
+}
+
+func (tree *publicationProcessTree) quiesce(deadline time.Time) error {
+	if tree.pid == 0 {
+		return nil
 	}
 	for time.Now().Before(deadline) {
 		// A later check never sends another terminating signal to a numeric
@@ -68,14 +93,11 @@ func (*publicationProcessTree) close() {}
 func publicationGroupHasLiveMember(group int, deadline time.Time) (bool, error) {
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
-	command := exec.CommandContext(ctx, "/bin/ps", "-A", "-o", "pgid=", "-o", "stat=")
-	command.WaitDelay = 100 * time.Millisecond
-	output := boundedGitOutput{limit: 4 * 1024 * 1024}
-	command.Stdout = &output
-	if err := command.Run(); err != nil {
+	output, err := publicationProcessList(ctx, 4*1024*1024, "-A", "-o", "pgid=", "-o", "stat=")
+	if err != nil {
 		return false, err
 	}
-	rows := strings.SplitSeq(strings.TrimSpace(output.data.String()), "\n")
+	rows := strings.SplitSeq(strings.TrimSpace(output), "\n")
 	for row := range rows {
 		fields := strings.Fields(row)
 		if len(fields) != 2 {
@@ -90,4 +112,13 @@ func publicationGroupHasLiveMember(group int, deadline time.Time) (bool, error) 
 		}
 	}
 	return false, nil
+}
+
+func publicationProcessList(ctx context.Context, limit int, args ...string) (string, error) {
+	command := exec.CommandContext(ctx, "/bin/ps", args...)
+	command.WaitDelay = 100 * time.Millisecond
+	output := boundedGitOutput{limit: limit}
+	command.Stdout = &output
+	err := command.Run()
+	return output.data.String(), err
 }

@@ -16,7 +16,9 @@ var errPublicationCleanupDeadline = errors.New("publication process cleanup time
 
 type publicationProcess interface {
 	attach(*exec.Cmd) error
-	stop(time.Time) error
+	observeExit(context.Context, *exec.Cmd) error
+	terminate(time.Time) error
+	quiesce(time.Time) error
 	close()
 }
 
@@ -31,11 +33,15 @@ func (*publicationCleanup) Error() string { return "publication process cleanup 
 
 func (cleanup *publicationCleanup) confirm() bool {
 	deadline := time.Now().Add(publicationGitCleanupTimeout)
-	if cleanup.tree.stop(deadline) != nil || !publicationWaitUntil(cleanup.rootDone, deadline) {
+	if cleanup.tree.terminate(deadline) != nil || !cleanup.quiescent(deadline) {
 		return false
 	}
 	cleanup.tree.close()
 	return true
+}
+
+func (cleanup *publicationCleanup) quiescent(deadline time.Time) bool {
+	return publicationWaitUntil(cleanup.rootDone, deadline) && cleanup.tree.quiesce(deadline) == nil
 }
 
 func publicationWaitUntil(done <-chan struct{}, deadline time.Time) bool {
@@ -121,12 +127,6 @@ func runPublicationProcess(ctx context.Context, command *exec.Cmd, tree publicat
 	if attachErr != nil {
 		_ = command.Process.Kill()
 	}
-	rootDone := make(chan struct{})
-	var rootErr error
-	go func() {
-		rootErr = command.Wait()
-		close(rootDone)
-	}()
 	pipeDone := make(chan struct{})
 	var pipeErr error
 	go func() {
@@ -146,29 +146,42 @@ func runPublicationProcess(ctx context.Context, command *exec.Cmd, tree publicat
 
 	var timedOut bool
 	if attachErr == nil {
-		select {
-		case <-rootDone:
+		if err := tree.observeExit(ctx, command); err == nil {
 			drain := time.Now().Add(publicationGitCleanupTimeout)
 			if deadline, ok := ctx.Deadline(); ok && deadline.Before(drain) {
 				drain = deadline
 			}
 			timedOut = !publicationWaitUntil(pipeDone, drain) || ctx.Err() != nil
-		case <-ctx.Done():
+		} else {
+			// If early exit observation is unavailable, retain the original
+			// deadline and keep the root PID reserved until group cleanup.
+			<-ctx.Done()
 			timedOut = true
 		}
 	}
-	cleanup := &publicationCleanup{tree: tree, rootDone: rootDone}
-	confirmed := cleanup.confirm()
-	if !confirmed {
+	// On Unix the unreaped group leader reserves its PID, including when
+	// it has already exited. Do not allow Cmd.Wait to recycle it before
+	// the first group signal has been sent.
+	deadline := time.Now().Add(publicationGitCleanupTimeout)
+	terminated := tree.terminate(deadline) == nil
+	if !terminated {
 		// Keep the exact tree on an unconfirmed result. This direct-child
 		// fallback does not establish anything about its descendants.
 		_ = command.Process.Kill()
 	}
+	rootDone := make(chan struct{})
+	var rootErr error
+	go func() {
+		rootErr = command.Wait()
+		close(rootDone)
+	}()
+	cleanup := &publicationCleanup{tree: tree, rootDone: rootDone}
 	closePublicationPipes(pipes)
 	<-pipeDone // Closing the parent ends releases I/O even if a helper remains.
-	if !confirmed {
+	if !terminated || !cleanup.quiescent(deadline) {
 		return cleanup
 	}
+	tree.close()
 	if timedOut {
 		return errPublicationGitTimeout
 	}

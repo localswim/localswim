@@ -22,6 +22,9 @@ func TestM90ProcessHelper(t *testing.T) {
 	if mode == "" {
 		return
 	}
+	if mode == "exit-root" {
+		os.Exit(0)
+	}
 	root := os.Getenv("LOCALSWIM_M90_ROOT")
 	if mode == "child" {
 		file, err := os.OpenFile(filepath.Join(root, "child.lock"), os.O_CREATE|os.O_RDWR, 0o600)
@@ -129,12 +132,19 @@ type m90FailedProcessTermination struct{ confirmed bool }
 
 func (*m90FailedProcessTermination) attach(*exec.Cmd) error { return nil }
 
-func (tree *m90FailedProcessTermination) stop(time.Time) error {
+func (*m90FailedProcessTermination) observeExit(ctx context.Context, _ *exec.Cmd) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (tree *m90FailedProcessTermination) terminate(time.Time) error {
 	if !tree.confirmed {
 		return errors.New("simulated termination failure")
 	}
 	return nil
 }
+
+func (*m90FailedProcessTermination) quiesce(time.Time) error { return nil }
 
 func (*m90FailedProcessTermination) close() {}
 

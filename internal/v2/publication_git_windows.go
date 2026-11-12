@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"context"
 	"errors"
 	"os/exec"
 	"syscall"
@@ -39,9 +40,10 @@ type publicationThreadEntry struct {
 }
 
 type publicationProcessTree struct {
-	job       syscall.Handle
-	sealed    bool
-	processes []syscall.Handle
+	job        syscall.Handle
+	sealed     bool
+	terminated bool
+	processes  []syscall.Handle
 }
 
 const publicationJobKillOnClose = 0x00002000
@@ -79,6 +81,22 @@ func (tree *publicationProcessTree) attach(command *exec.Cmd) error {
 	return resumePublicationProcess(uint32(command.Process.Pid))
 }
 
+func (*publicationProcessTree) observeExit(ctx context.Context, command *exec.Cmd) error {
+	var waitErr error
+	err := command.Process.WithHandle(func(handle uintptr) {
+		for ctx.Err() == nil {
+			const pollIntervalMillis = 100
+			status, err := syscall.WaitForSingleObject(syscall.Handle(handle), pollIntervalMillis)
+			if err != nil || status == syscall.WAIT_OBJECT_0 {
+				waitErr = err
+				return
+			}
+		}
+		waitErr = ctx.Err()
+	})
+	return errors.Join(err, waitErr)
+}
+
 func resumePublicationProcess(pid uint32) error {
 	const snapshotThreads, threadSuspendResume = 0x00000004, 0x0002
 	snapshot, err := syscall.CreateToolhelp32Snapshot(snapshotThreads, 0)
@@ -107,7 +125,10 @@ func resumePublicationProcess(pid uint32) error {
 	return err
 }
 
-func (tree *publicationProcessTree) stop(deadline time.Time) error {
+func (tree *publicationProcessTree) terminate(deadline time.Time) error {
+	if tree.terminated {
+		return nil
+	}
 	// Set the job's active-process limit to zero before sampling membership.
 	// Existing members can exit, but attempted new members are refused before
 	// running, including a child launched concurrently with this cleanup.
@@ -137,6 +158,11 @@ func (tree *publicationProcessTree) stop(deadline time.Time) error {
 	if result == 0 {
 		return err
 	}
+	tree.terminated = true
+	return nil
+}
+
+func (tree *publicationProcessTree) quiesce(deadline time.Time) error {
 	for len(tree.processes) > 0 {
 		process := tree.processes[0]
 		remaining := max(0, time.Until(deadline)).Milliseconds()

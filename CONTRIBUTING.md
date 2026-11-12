@@ -216,8 +216,11 @@ validation appears to the Human workspace administrator as an unavailable board.
 The catalog identifies it by the filename UUID and `durable_state_unavailable`.
 The service reserves that UUID and serves other boards normally. An unavailable
 board has no accepted policy or revision. The service checks its snapshot again
-at the next startup. Workspace directory or filename namespace damage and
-cross-board identity conflicts still prevent startup.
+at the next startup. If a startup failure leaves another board without trusted
+evidence for a historical recovery actor, that board also receives a diagnostic.
+Workspace directory or filename namespace damage and conflicting cross-board
+identities still prevent startup. Bot workspace preferences omit diagnostic pins
+and preserve them when saving visible pin order.
 
 Native recovery accepts JSON snapshots or application/zip backups at the existing board address.
 Both request entities have an inclusive 96 MiB limit. PUT uses the current durable snapshot

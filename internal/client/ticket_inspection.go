@@ -64,9 +64,11 @@ func (c *Client) inspectTicket(boardID string, ticket, relatedTicket uint64, inc
 		document.BoardID != boardID || document.BoardRevision == 0 || document.BoardRevision > maxTicketInteger ||
 		!canonicalUUID4.MatchString(document.Card.ID) || document.Card.Ticket != ticket ||
 		document.Card.Revision == 0 || document.Card.Revision > document.BoardRevision ||
-		reply.BoardETag == "" ||
 		(!includeProse && len(document.Prose) != 0) || (includeProse && !IsJSONObject(document.Prose)) {
 		return Response{}, TicketTarget{}, errors.New("service did not return the requested ticket with valid board and card validators")
+	}
+	if !MatchesEntityTagRevision(reply.BoardETag, boardID, document.BoardRevision) {
+		return Response{}, TicketTarget{}, errors.New("service did not confirm the ticket view's board validator")
 	}
 	target := TicketTarget{
 		BoardID: boardID, BoardRevision: document.BoardRevision, BoardETag: reply.BoardETag,
@@ -74,6 +76,12 @@ func (c *Client) inspectTicket(boardID string, ticket, relatedTicket uint64, inc
 		CardETag: ticketEntityTag(document.Card.ID, document.Card.Revision),
 	}
 	return reply, target, nil
+}
+
+// MatchesEntityTagRevision binds a header validator to a resource ID and revision.
+func MatchesEntityTagRevision(tag, id string, revision uint64) bool {
+	return canonicalUUID4.MatchString(id) && revision > 0 && revision <= maxTicketInteger &&
+		tag == ticketEntityTag(id, revision)
 }
 
 func ticketEntityTag(id string, revision uint64) string {

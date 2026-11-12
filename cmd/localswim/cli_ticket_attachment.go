@@ -33,7 +33,7 @@ func uploadTicketAttachment(api *client.Client, cmd cliCommand, stdin io.Reader,
 		}
 		return err
 	}
-	if !matchesTicketAttachment(reply.JSON, edit.uploadID, target) {
+	if _, matches := resolvedAttachmentRevision(reply.JSON, edit.uploadID, target); !matches {
 		return fmt.Errorf("service did not confirm the addressed attachment. %w. Read back with localswim attachment get %s",
 			client.ErrMutationOutcomeUnknown, edit.uploadID)
 	}
@@ -43,13 +43,15 @@ func uploadTicketAttachment(api *client.Client, cmd cliCommand, stdin io.Reader,
 	return nil
 }
 
-func matchesTicketAttachment(body []byte, id string, target client.TicketTarget) bool {
+func resolvedAttachmentRevision(body []byte, id string, target client.TicketTarget) (uint64, bool) {
 	var item struct {
-		ID      string `json:"id"`
-		BoardID string `json:"board_id"`
-		CardID  string `json:"card_id"`
-		Active  bool   `json:"active"`
+		ID       string `json:"id"`
+		BoardID  string `json:"board_id"`
+		CardID   string `json:"card_id"`
+		Active   bool   `json:"active"`
+		Revision uint64 `json:"revision"`
 	}
-	return jsonv2.Unmarshal(body, &item) == nil && item.ID == id &&
+	matches := jsonv2.Unmarshal(body, &item) == nil && item.ID == id &&
 		item.BoardID == target.BoardID && item.CardID == target.CardID && item.Active
+	return item.Revision, matches
 }

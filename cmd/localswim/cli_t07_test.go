@@ -16,7 +16,7 @@ import (
 func TestT07ParseRequiredInputs(t *testing.T) {
 	for _, args := range [][]string{
 		{"card", "search", "--search", "text", "--search-content", t03Board},
-		{"card", "next", "--lane", t03Lane, t03Board},
+		{"card", "triage-order", "--lane", t03Lane, t03Board},
 		{"card", "lookup", t03Board},
 		{"ticket-order", "apply", t03Lane, "-"},
 		{"board", "restore", "--revision", "12", t03Board, "-"},
@@ -36,7 +36,7 @@ func TestT07ParseRequiredInputs(t *testing.T) {
 		{"restoration", "create", "--id", "bad", t03Board, t06Operation},
 		{"restoration", "create", "--id", "bad", "--revision", "12", t03Board, t06Operation},
 		{"card", "search", "--lane", "bad", t03Board},
-		{"card", "next", "--limit", "0", t03Board},
+		{"card", "triage-order", "--limit", "0", t03Board},
 	} {
 		if _, err := parseCLI(args); err == nil {
 			t.Errorf("accepted %v", args)
@@ -62,7 +62,7 @@ func TestM89PublicationDestinationOptions(t *testing.T) {
 }
 
 func TestT07SearchOrderAndPrettyJSON(t *testing.T) {
-	for _, action := range []string{"search", "next", "lookup"} {
+	for _, action := range []string{"search", "triage-order", "lookup"} {
 		t.Run(action, func(t *testing.T) {
 			requests := 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -179,8 +179,8 @@ func TestM067CLISelection(t *testing.T) {
 		archived, unfinishedOnly string
 	}{
 		{"search selected lanes", "search", []string{"--lane", strings.ToUpper(t03Lane), "--lane", t03Card, "--archived", "INCLUDE"}, []string{t03Lane, t03Card}, "include", ""},
-		{"next selected lanes", "next", []string{"--lane", t03Lane, "--lane", t03Card, "--archived", "only"}, []string{t03Lane, t03Card}, "only", ""},
-		{"unscoped next", "next", nil, nil, "", "true"},
+		{"triage-order selected lanes", "triage-order", []string{"--lane", t03Lane, "--lane", t03Card, "--archived", "only"}, []string{t03Lane, t03Card}, "only", ""},
+		{"unscoped triage-order", "triage-order", nil, nil, "", "true"},
 		{"unscoped search", "search", nil, nil, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -206,9 +206,41 @@ func TestM067CLISelection(t *testing.T) {
 		{"--archived", "invalid"},
 		{"--archived", ""},
 	} {
-		args := append([]string{"card", "next"}, opts...)
+		args := append([]string{"card", "triage-order"}, opts...)
 		if _, err := parseCLI(append(args, t03Board)); err == nil {
 			t.Errorf("accepted invalid options: %v", opts)
 		}
+	}
+}
+
+func TestCLITriageOrderReplacesNext(t *testing.T) {
+	var out, stderr bytes.Buffer
+	exit := runCLIWithInput([]string{"card", "next", t03Board}, nil, &out, &stderr, func(string) string {
+		t.Fatal("removed command reached execution")
+		return ""
+	})
+	if exit != 2 || out.Len() != 0 || !strings.Contains(stderr.String(), "unknown command") {
+		t.Fatalf("removed command result: exit=%d stdout=%q stderr=%q", exit, &out, &stderr)
+	}
+	out.Reset()
+	stderr.Reset()
+	exit = runCLIWithInput([]string{"card", "triage-order", "--help"}, nil, &out, &stderr, func(string) string {
+		t.Fatal("help reached execution")
+		return ""
+	})
+	if exit != 0 || stderr.Len() != 0 || !strings.Contains(out.String(), "localswim card triage-order") || strings.Contains(out.String(), "localswim card next ") {
+		t.Fatalf("unexpected help: exit=%d stdout=%q stderr=%q", exit, &out, &stderr)
+	}
+	command, err := parseCLI([]string{"card", "triage-order", t03Board})
+	if err != nil {
+		t.Fatal(err)
+	}
+	endpoint, err := url.Parse(command.resource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := endpoint.Query()
+	if query.Get("limit") != "1" || query.Get("sort") != "triage" || query.Get("unfinished_only") != "true" {
+		t.Fatalf("unexpected default ranking query: %v", query)
 	}
 }

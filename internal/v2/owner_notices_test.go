@@ -22,7 +22,7 @@ const ownerNoticeNextTarget = "f02f1e36-c5de-7e85-9e95-9159e83ae10b"
 func ownerNoticeTestSnapshot(id string, settings notifications) snapshot {
 	return snapshot{
 		Board: board{entity: entity{ID: id, Revision: 1}, Name: "Synthetic\nboard", Notifications: settings},
-		Users: []user{{entity: entity{ID: humanID}, Kind: "human"}, {entity: entity{ID: botID}, Kind: "bot"}},
+		Users: []user{{ID: humanID, Kind: "human"}, {ID: botID, Kind: "bot"}},
 		Cards: []card{
 			{ID: "one", Ticket: 1, Title: "private card title"},
 			{ID: "two", Ticket: 2},

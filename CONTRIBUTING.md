@@ -51,8 +51,11 @@ Hash names in API fields and documentation identify both the hash family and dig
 size. Attachment `sha2_256` contains the lowercase hexadecimal SHA-2-256 digest of
 the file bytes.
 
+User records have a creation timestamp and immutable identity metadata.
+Board-specific actor presentation provides editable labels and accents.
+
 Comments are immutable after creation. Their JSON and native snapshot records contain
-identity, parent references, attribution, text, and timestamps. Comment HTTP validators
+identity, parent references, attribution, text, and `created_at` as their sole timestamp. Comment HTTP validators
 are carried in response headers. Posting a comment still requires the parent card
 validator and advances that card's revision.
 
@@ -182,12 +185,13 @@ over 96 MiB, and leaves both the archive and service data untouched.
 one transaction. Inspect the inactive record with `attachment get`. The original
 metadata and immutable bytes remain available for backup.
 
-Repeat `--lane UUID` on `card search` and `card next` to select the union of those lanes.
+Repeat `--lane UUID` on `card search` and `card triage-order` to select the union of those lanes.
 Both commands accept `--archived exclude|include|only` and default to excluding archived cards.
-Without a lane filter, `card next` selects unfinished cards. To inspect Completed work with
-`card next`, pass the Completed lane UUID. `card search` includes Completed cards by default.
+`card triage-order` is read-only and returns one card by default. Use `--limit` for more.
+Without a lane filter, it selects unfinished cards. To inspect Completed work with
+`card triage-order`, pass the Completed lane UUID. `card search` includes Completed cards by default.
 
-Search and next-work queries compute distinct unfinished downstream counts over the whole board
+Search and triage-order queries compute distinct unfinished downstream counts over the whole board
 before lane, archive, completion, search, cursor and limit filters. Completed cards stop paths. Archived unfinished
 cards participate. The triage score is (priority rank + 1) * 100 - downstream count, followed by
 priority rank and ticket. Numeric relationship lookup retains ticket order. Search uses full Unicode

@@ -293,7 +293,7 @@ func (refs snapshotReferences) claim(item entity) bool {
 func (refs snapshotReferences) validateWorkflow(value snapshot) error {
 	b := value.Board
 	for _, u := range value.Users {
-		if !refs.claim(u.entity) || u.Revision != 1 || (u.Kind != "human" && u.Kind != "bot") ||
+		if !refs.claim(entity{ID: u.ID, Revision: u.Revision, CreatedAt: u.CreatedAt, UpdatedAt: u.CreatedAt}) || u.Revision != 1 || (u.Kind != "human" && u.Kind != "bot") ||
 			!snapshotText(u.Label, 1, 256) || !snapshotText(u.Color, 0, 64) {
 			return invalidSnapshot("users", "User identity or metadata is invalid.")
 		}

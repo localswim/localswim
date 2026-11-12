@@ -13475,13 +13475,13 @@ components:
           minLength: 0
           maxLength: 1048576
     User:
+      description: Immutable user identity with a creation timestamp.
       type: object
       additionalProperties: false
       required:
       - id
       - revision
       - created_at
-      - updated_at
       - label
       - kind
       - color
@@ -13491,8 +13491,6 @@ components:
         revision:
           $ref: '#/components/schemas/Revision'
         created_at:
-          $ref: '#/components/schemas/Timestamp'
-        updated_at:
           $ref: '#/components/schemas/Timestamp'
         label:
           type: string
@@ -13864,13 +13862,12 @@ components:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
     Comment:
-      description: Immutable comment with server-assigned attribution and timestamps. HTTP validators are carried in response headers.
+      description: Immutable comment with server-assigned attribution and creation time. HTTP validators are carried in response headers.
       type: object
       additionalProperties: false
       required:
       - id
       - created_at
-      - updated_at
       - board_id
       - card_id
       - text
@@ -13879,8 +13876,6 @@ components:
         id:
           $ref: '#/components/schemas/Uuid'
         created_at:
-          $ref: '#/components/schemas/Timestamp'
-        updated_at:
           $ref: '#/components/schemas/Timestamp'
         board_id:
           $ref: '#/components/schemas/Uuid'
@@ -13899,7 +13894,6 @@ components:
       required:
       - id
       - created_at
-      - updated_at
       - board_id
       - card_id
       - text
@@ -13909,8 +13903,6 @@ components:
         id:
           $ref: '#/components/schemas/Uuid'
         created_at:
-          $ref: '#/components/schemas/Timestamp'
-        updated_at:
           $ref: '#/components/schemas/Timestamp'
         board_id:
           $ref: '#/components/schemas/Uuid'
@@ -16697,13 +16689,13 @@ components:
             maxLength: 80
           - type: 'null'
     UserSnapshotInput:
+      description: Immutable user identity with a creation timestamp.
       type: object
       additionalProperties: false
       required:
       - id
       - revision
       - created_at
-      - updated_at
       - label
       - kind
       - color
@@ -16713,8 +16705,6 @@ components:
         revision:
           $ref: '#/components/schemas/Revision'
         created_at:
-          $ref: '#/components/schemas/Timestamp'
-        updated_at:
           $ref: '#/components/schemas/Timestamp'
         label:
           type: string
@@ -17020,13 +17010,12 @@ components:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
     CommentSnapshotInput:
-      description: Immutable comment with server-assigned attribution and timestamps. HTTP validators are carried in response headers.
+      description: Immutable comment with server-assigned attribution and creation time. HTTP validators are carried in response headers.
       type: object
       additionalProperties: false
       required:
       - id
       - created_at
-      - updated_at
       - board_id
       - card_id
       - text
@@ -17035,8 +17024,6 @@ components:
         id:
           $ref: '#/components/schemas/UuidInput'
         created_at:
-          $ref: '#/components/schemas/Timestamp'
-        updated_at:
           $ref: '#/components/schemas/Timestamp'
         board_id:
           $ref: '#/components/schemas/UuidInput'

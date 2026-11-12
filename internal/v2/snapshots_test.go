@@ -510,7 +510,7 @@ func TestM30DuplicateStoredRestorationIDAcrossBoards(t *testing.T) {
 func TestM30GlobalRecoveryUsersAreCanonicalAndIndependentOfLoadOrder(t *testing.T) {
 	initial, principals := m01Fixture()
 	at := initial.Board.CreatedAt
-	custom := user{entity: newEntity("10000000-0000-4000-8000-000000000004", at.Add(-time.Hour)),
+	custom := user{ID: "10000000-0000-4000-8000-000000000004", Revision: 1, CreatedAt: canonicalTime(at.Add(-time.Hour)),
 		Label: "Shared author", Kind: "human", Color: "#112233"}
 	members := append(slices.Clone(principals), custom)
 	newFixture := func(id string) snapshot {
@@ -558,7 +558,7 @@ func TestM30GlobalRecoveryUsersAreCanonicalAndIndependentOfLoadOrder(t *testing.
 	}
 	freshPrincipals := slices.Clone(principals)
 	for index := range freshPrincipals {
-		freshPrincipals[index].entity = newEntity(freshPrincipals[index].ID, at.Add(time.Hour))
+		freshPrincipals[index].CreatedAt = canonicalTime(at.Add(time.Hour))
 	}
 	reopened, err := openStore(root, freshPrincipals...)
 	if err != nil {

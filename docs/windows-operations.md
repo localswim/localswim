@@ -147,8 +147,8 @@ path for the build you want to run on the next cold launch.
 
 ## Qualify with disposable data
 
-From the repository root, run the Windows lifecycle check in PowerShell 7 with a
-prebuilt executable. Pass `-Candidate` to exercise a separately built staged
+From the repository root, run the Windows lifecycle check in PowerShell 7.3 or
+newer with a prebuilt executable. Pass `-Candidate` to exercise a separately built staged
 image. With the default, the same image still goes through native replacement.
 
 ```powershell

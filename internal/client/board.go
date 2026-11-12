@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 )
 
-// PatchBoardSettings sends a focused availability or notification change.
+// PatchBoardSettings sends a focused availability change.
 func (c *Client) PatchBoardSettings(resource string, body json.RawMessage, ifMatch string) (Response, error) {
 	return c.doWithContentType(http.MethodPatch, resource, body, ifMatch, "", "", true)
 }

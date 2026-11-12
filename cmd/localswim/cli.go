@@ -135,10 +135,10 @@ Pin remove skips failed targets with WARNING messages and preserves the remainin
 Pin set validates the entire list and reports ERROR if any target fails.
 Publishing commands return the full board or workspace JSON, including publishing status.
 Board publishing uses the board revision. Workspace publishing uses the workspace revision.
-Board notifications commands return the board ID, revision, enabled state, and target chat UUID.
+Board notifications commands return the board ID, routing revision, enabled state, and target chat UUID.
 Target changes preserve the enabled state. Set a target before enabling. Disable retains the target.
-Notification status reads the service's accepted settings.
-After an uncertain notification write, inspect the saved board with board get --data DIRECTORY BOARD_ID.
+Notification --revision checks the routing revision. Use board notifications status BOARD_ID to
+inspect saved routing after an uncertain write.
 Board close and reopen use the board revision and return the full board JSON.
 Use board get BOARD_ID to inspect availability after an unknown close or reopen outcome.
 Omit --revision to use the current resource validator.

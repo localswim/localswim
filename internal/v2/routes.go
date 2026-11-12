@@ -47,6 +47,12 @@ func (x *request) dispatch() {
 		} else {
 			methods = append(methods, "POST")
 		}
+	case "notifications":
+		if !hasID {
+			x.fail(errMissing)
+			return
+		}
+		methods = append(methods, "PATCH")
 	case "workspace":
 		if hasID {
 			x.fail(errMissing)
@@ -206,6 +212,8 @@ func (x *request) dispatch() {
 		default:
 			x.listBoards()
 		}
+	case "notifications":
+		x.notificationResource(id)
 	case "workspace":
 		x.workspaceResource()
 	case "users", "priorities":

@@ -165,12 +165,16 @@ preserves the current enabled state.
 
 Use `board notifications enable [--revision N] BOARD_ID` after setting a target.
 Use `board notifications disable [--revision N] BOARD_ID` to discard a pending
-burst and retain the target. Settings writes require `manage_notifications` and
-the current board validator. Status reads the running service's accepted
-settings. After a durable write becomes uncertain, status can still show the
-prior revision even when the saved snapshot changed. Use
-`board get --data DIRECTORY BOARD_ID` to inspect the saved settings before
-deciding whether to submit again.
+burst and retain the target. Both reads and writes require board read access and
+`manage_notifications`. The optional `--revision N` guards the routing revision.
+After an uncertain write, run `board notifications status BOARD_ID` to inspect
+the saved route before deciding whether to submit again.
+
+The service stores routing in a private file beside the workspace's portable
+state. Restart and board restore preserve the saved target, enabled state, and
+routing revision. Board metadata, exports, backup archives, activity, and Git
+publication exclude current and historical routing. A restore discards the
+board's pending notice burst because its audit lineage can change.
 
 The service coalesces committed Human edits after 15 seconds of quiet. It uses
 the current target and sends board and ticket metadata in one best-effort

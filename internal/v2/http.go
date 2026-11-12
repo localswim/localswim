@@ -286,6 +286,8 @@ func (x *request) fail(err error) {
 		x.problem(503, "unavailable", "Board publication could not be flushed. The board is still open.", "", nil)
 	case errors.Is(err, errDurableStateChanged):
 		x.problem(503, "unavailable", "Saved board state differs from the accepted snapshot.", "", nil)
+	case errors.Is(err, errNotificationRouteUnavailable):
+		x.problem(503, "unavailable", "Saved notification settings are unavailable.", "", nil)
 	case errors.Is(err, errWorkspaceUnavailable), errors.Is(err, errInvalidSnapshot):
 		x.problem(503, "unavailable", "Durable state is unavailable.", "", nil)
 	default:
@@ -356,7 +358,9 @@ func (x *request) respondWithConditionalTag(status int, value any, tag string, c
 				return
 			}
 		}
-		h.Set("Cache-Control", "private, no-cache")
+		if h.Get("Cache-Control") == "" {
+			h.Set("Cache-Control", "private, no-cache")
+		}
 		if tag == "" {
 			tag = fmt.Sprintf("\"%x\"", sha256.Sum256(data))
 		}

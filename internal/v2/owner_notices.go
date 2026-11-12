@@ -152,16 +152,8 @@ func ownerNoticeEnabled(settings notifications) bool {
 	return settings.Enabled && settings.TargetThreadID != nil
 }
 
-func (worker *ownerNoticeWorker) submitCommitted(previous, committed snapshot) {
-	if worker.ctx.Err() != nil || previous.Board.ID != committed.Board.ID {
-		return
-	}
-	before, after := previous.Board.Notifications, committed.Board.Notifications
-	enabled := ownerNoticeEnabled(after)
-	if before.Enabled != after.Enabled || !sameText(before.TargetThreadID, after.TargetThreadID) {
-		worker.settingsChanged(committed.Board.ID, enabled)
-	}
-	if !enabled {
+func (worker *ownerNoticeWorker) submitCommitted(previous, committed snapshot, enabled bool) {
+	if !enabled || worker.ctx.Err() != nil || previous.Board.ID != committed.Board.ID {
 		return
 	}
 	event := committedOwnerNotice(previous, committed)

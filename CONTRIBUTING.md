@@ -310,6 +310,17 @@ writable. Native snapshot verification reports the file's validity, while the
 catalog reports whether the file agrees with the running service. Use explicit
 snapshot admission or backup restoration to recover the affected board.
 
+Repeated durable checks reuse validation results for at most 64 boards in each
+service process, evicting the oldest inserted board when full. Each entry holds
+the board UUID, accepted revision, SHA-2-256 digest and verdict. It retains no
+snapshot bytes or decoded board data. Each check still reads the bounded snapshot
+and hashes its current bytes. A healthy result also requires checking the named
+file's identity, size and modification time. An in-place change with the same size
+and timestamp is detected on that check. Changed bytes or an accepted revision
+change require a fresh validation and comparison with the accepted snapshot.
+Native verification, startup admission, recovery and backup verification retain
+their full validation.
+
 At startup, the Human workspace administrator sees a diagnostic for a board
 whose saved snapshot fails admission or whose local recovery reference remains
 after the snapshot goes missing. The catalog identifies the affected UUID by

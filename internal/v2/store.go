@@ -40,6 +40,8 @@ type store struct {
 	ownerNotices     *ownerNoticeWorker
 	publishers       map[string]*automaticPublisher
 	admissions       map[string]*boardAdmission
+
+	durableValidation durableValidationCache
 }
 
 func resolveStoreRoot(root string) (string, error) {
@@ -258,6 +260,16 @@ func (s *store) list() []snapshot {
 	return values
 }
 
+func (s *store) boardIDs() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ids := make([]string, 0, len(s.boards))
+	for id := range s.boards {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
 func (s *store) boardsPath() string {
 	return filepath.Join(s.root, "boards")
 }
@@ -299,18 +311,25 @@ func (s *store) checkAcceptedDurableLocked(current snapshot) error {
 	if err != nil {
 		return errInvalidSnapshot
 	}
-	return checkAcceptedSnapshotFile(path, current, file)
+	return s.checkAcceptedFileCached(path, current, file)
 }
 
 func checkAcceptedSnapshotFile(path string, current snapshot, file snapshotFile) error {
-	saved, err := parseSnapshot(file.data, current.Board.ID)
+	if err := compareAcceptedSnapshot(current, file.data); err != nil {
+		return err
+	}
+	return checkNamedSnapshot(path, file)
+}
+
+func compareAcceptedSnapshot(current snapshot, data []byte) error {
+	saved, err := parseSnapshot(data, current.Board.ID)
 	if err != nil {
 		return errInvalidSnapshot
 	}
 	if !reflect.DeepEqual(current, saved) {
 		return errDurableStateChanged
 	}
-	return checkNamedSnapshot(path, file)
+	return nil
 }
 
 func checkNamedSnapshot(path string, file snapshotFile) error {

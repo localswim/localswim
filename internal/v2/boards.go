@@ -13,8 +13,8 @@ const maxBoardCSSLength = 1048576
 func (x *request) listBoards() {
 	store := x.service.store
 	rows := make([]boardSummary, 0)
-	for _, s := range store.list() {
-		if row, visible := store.boardSummary(s.Board.ID, x.actor); visible {
+	for _, id := range store.boardIDs() {
+		if row, visible := store.boardSummary(id, x.actor); visible {
 			rows = append(rows, row)
 		}
 	}

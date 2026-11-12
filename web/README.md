@@ -38,8 +38,8 @@ IDs. The new-card draft also remembers its destination. Reload restores text
 exactly within the tab's storage budget. The newest drafts take precedence when
 the budget fills. Larger drafts remain available while the page stays open.
 
-An unresolved comment, new card, single-card approval, new link, or attachment
-upload can be inspected after reload. Open the originating board or card and
+An unresolved comment, new card, single-card approval, or new link can be
+inspected after reload. Open the originating board or card and
 choose **Inspect saved board** or **Inspect saved card**. The page reads the
 original submission using the current session. If it still cannot confirm the
 outcome, inspect again or choose **Dismiss unresolved action** to release the
@@ -140,9 +140,21 @@ Use **Files** in the card drawer to select several attachments, then choose
 **Upload attachments**. You can also paste a clipboard image into the open drawer.
 Each file has its own outcome. The drawer rejects files larger than 10 MiB before
 uploading and submits the remaining files one at a time for that card. You can
-open another card while the batch finishes on the original card. If a file's
-outcome is uncertain, the drawer checks its original ID. If it cannot confirm the
-upload, it stops the batch and offers **Inspect saved card** before another write.
+open another card while the batch finishes on the original card.
+
+Each tab saves pending file IDs, names, sizes, and SHA-256 fingerprints for the
+original card before uploading. Files stay out of tab storage. If an upload
+response is lost, open the original card and choose **Inspect saved card**.
+The drawer checks the original ID and fingerprint. An upload may still be
+running when the first inspection finds no saved attachment. In that case
+the card stays fenced and you can inspect again.
+
+Once the attempted file is confirmed, reselect all remaining originals in
+**Files** and choose **Resume pending uploads**. The drawer checks each file's
+name, size, and contents and reads its original ID before sending it with the
+current card revision. **Discard pending files** clears the saved selection
+when there is no unresolved attempt. Uploads require room for their recovery
+details in tab storage.
 
 Attachments offer authenticated downloads. Raster attachments also offer a preview
 and cover selection. A card in its lane shows the selected cover or, when no cover

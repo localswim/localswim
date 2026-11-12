@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {createHash} from "node:crypto";
 import fs from "node:fs/promises";
 import vm from "node:vm";
 import test from "node:test";
@@ -5558,6 +5559,15 @@ test("late ticket-order Apply respects a restored unresolved board submission", 
 });
 
 const uploadBoard = "b4979c23-4be2-4553-bbeb-66a47b7c021c";
+const recoveredUploads = "localswim:tab-uploads";
+const uploadDigests = new WeakMap();
+
+function uploadFile({name, size, type, fill = 0}) {
+  const bytes = new Uint8Array(size).fill(fill);
+  const file = new File([bytes], name, {type});
+  uploadDigests.set(file, createHash("sha256").update(bytes).digest("hex"));
+  return file;
+}
 
 async function attachmentUploadFixture(secondBoard = board, options) {
   const {api} = boardApi();
@@ -5598,6 +5608,7 @@ async function attachmentUploadFixture(secondBoard = board, options) {
     cards.set(id, {...prior, revision, attachment_count: prior.attachment_count + 1});
     const item = {
       id: attachmentId, card_id: id, board_id: prior.board_id, original_name: file.name, size: file.size, revision,
+      sha2_256: uploadDigests.get(file),
       added_by: user, active: true, previewable: false, created_at: "2026-11-10 00:00:00+00:00",
     };
     saved.set(attachmentId, item);
@@ -5611,20 +5622,27 @@ async function attachmentUploadFixture(secondBoard = board, options) {
     return behavior.write(id, file, attachmentId);
   };
   let getCapability;
-  const ui = await harness((readCapability) => {
-    getCapability = readCapability;
-    return api;
-  }, "/boards/" + board, options);
-  await ui.load();
-  ui.find(ui.nodes.main, "button", "#1 Original").click();
-  await until(() => ui.find(ui.nodes.details, "button", "Upload attachments"));
+  async function open() {
+    const ui = await harness((readCapability) => {
+      getCapability = readCapability;
+      return api;
+    }, "/boards/" + board, options);
+    await ui.load();
+    await until(() => ui.find(ui.nodes.main, "button", "#1 Original"));
+    if (!ui.find(ui.nodes.details, "button", "Upload attachments")) {
+      ui.find(ui.nodes.main, "button", "#1 Original").click();
+      await until(() => ui.find(ui.nodes.details, "button", "Upload attachments"));
+    }
+    return ui;
+  }
+  const ui = await open();
   const choose = (...files) => {
-    ui.field(ui.nodes.details, "Files").files = files;
+    ui.field(ui.nodes.details, "Files").files = files.map(uploadFile);
     return ui.submit(ui.nodes.details, "Upload attachments");
   };
   const paste = (files, types = ["Files"], target = ui.nodes.details) =>
-    ui.nodes.details.dispatch("paste", {target, clipboardData: {files, types}});
-  return {ui, api, cards, calls, readbacks, saved, behavior, commit, choose, paste, getCapability};
+    ui.nodes.details.dispatch("paste", {target, clipboardData: {files: files.map(uploadFile), types}});
+  return {ui, api, cards, calls, readbacks, saved, behavior, commit, choose, paste, getCapability, open};
 }
 
 test("restored unresolved comment blocks only its own card from dropping", async () => {
@@ -5672,31 +5690,157 @@ test("restored unresolved comment blocks only its own card from dropping", async
   assert.deepEqual(moves, [[backup, tag(backup, 1), target.id], [card, tag(card, 1), target.id]]);
 });
 
-test("reloaded upload inspection requires the original attachment to be active", async () => {
+test("M60 fences a possibly in-flight upload after reload and resumes only the matching original", async () => {
   const storage = tabStorage();
-  const unresolved = [["card:" + board + ":" + card,
-    {kind: "upload", id: priority, submittedAt: Date.now(), size: 1}]];
-  storage.setItem(recoveredSubmissions, JSON.stringify(unresolved));
-  const {ui, calls, readbacks, saved, commit} = await attachmentUploadFixture(board, {storage});
-  const {data: uploaded} = commit(card, {name: "original.txt", size: 1}, priority);
-  saved.set(priority, {...uploaded, active: false});
+  const {calls, readbacks, commit, choose, behavior, open} = await attachmentUploadFixture(board, {storage});
+  const original = {name: "original.txt", size: 8, fill: 65};
+  const pending = {name: "pending.txt", size: 8, fill: 66};
+  const sent = Promise.withResolvers();
+  behavior.write = (...args) => {
+    sent.resolve(args);
+    return new Promise(() => {});
+  };
+  choose(original, pending);
+  const sentArgs = await sent.promise;
+  const [first, remaining] = JSON.parse(storage.getItem(recoveredUploads))[0][1];
+  assert.deepEqual(Object.keys(first).sort(), ["attempted", "digest", "id", "name", "size"]);
+  assert.equal(first.id, calls[0].attachmentId);
+  assert.equal(first.attempted, true);
+  assert.equal(remaining.attempted, false);
+
+  const ui = await open();
   const {details, status} = ui.nodes;
   const inspect = ui.find(details, "button", "Inspect saved card");
+  const resume = ui.find(details, "button", "Resume pending uploads");
   assert.equal(ui.find(details, "button", "Upload attachments").disabled, true);
+  assert.equal(resume.parent.hidden, true);
+  assert.equal(ui.find(details, "button", "Dismiss unresolved action").hidden, true);
   inspect.click();
   await ui.settled();
-  assert.match(status.textContent, /Saved state could not be read/);
-  assert.deepEqual(JSON.parse(storage.getItem(recoveredSubmissions)), unresolved);
+  assert.match(status.textContent, /may still be running/);
+  assert.deepEqual(JSON.parse(storage.getItem(recoveredUploads))[0][1], [first, remaining]);
   assert.equal(ui.find(details, "button", "Upload attachments").disabled, true);
+  assert.equal(resume.parent.hidden, true);
+  assert.equal(calls.length, 1);
 
-  saved.set(priority, uploaded);
+  // The original request commits without returning a response to its page.
+  commit(...sentArgs);
   inspect.click();
   await ui.settled();
   assert.match(status.textContent, /Original submission confirmed/);
-  assert.deepEqual(JSON.parse(storage.getItem(recoveredSubmissions)), []);
+  assert.deepEqual(JSON.parse(storage.getItem(recoveredUploads))[0][1], [remaining]);
+  assert.match(details.textContent, /1 of 2 files processed/);
+  assert.equal(resume.parent.hidden, false);
+
+  const select = (file) => { ui.field(details, "Files").files = [uploadFile(file)]; };
+  select({...pending, fill: 67});
+  resume.click();
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.match(details.textContent, /must match its recorded name, size and contents/);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(JSON.parse(storage.getItem(recoveredUploads))[0][1], [remaining]);
+
+  behavior.write = commit;
+  select(pending);
+  resume.click();
+  await until(() => calls.length === 2 && !ui.uploadingToCard(board, card));
+  assert.deepEqual(calls.map(({id, attachmentId, expected}) => [id, attachmentId, expected]),
+    [[card, first.id, tag(card, 1)], [card, remaining.id, tag(card, 2)]]);
+  assert.deepEqual(readbacks, [first.id, first.id, remaining.id]);
+  assert.deepEqual(JSON.parse(storage.getItem(recoveredUploads)), []);
   assert.equal(ui.find(details, "button", "Upload attachments").disabled, false);
-  assert.deepEqual(readbacks, [priority, priority]);
+});
+
+test("M60 locates an attachment after its commit and a reload before its response", async () => {
+  const storage = tabStorage();
+  const {calls, readbacks, commit, choose, behavior, open, saved} = await attachmentUploadFixture(board, {storage});
+  const written = Promise.withResolvers();
+  behavior.write = (...args) => {
+    written.resolve(commit(...args).data);
+    return new Promise(() => {});
+  };
+  choose({name: "saved.txt", size: 4, fill: 65});
+  const item = await written.promise;
+  const ui = await open();
+  const {details, status} = ui.nodes;
+  const inspect = ui.find(details, "button", "Inspect saved card");
+  saved.set(item.id, {...item, sha2_256: "0".repeat(64)});
+  inspect.click();
+  await ui.settled();
+  assert.match(status.textContent, /Saved state could not be read/);
+  assert.equal(ui.find(details, "button", "Upload attachments").disabled, true);
+
+  saved.set(item.id, item);
+  inspect.click();
+  await ui.settled();
+  assert.match(status.textContent, /Original submission confirmed/);
+  assert.deepEqual(readbacks, [item.id, item.id]);
+  assert.deepEqual(calls.map(({attachmentId}) => attachmentId), [item.id]);
+  assert.deepEqual(JSON.parse(storage.getItem(recoveredUploads)), []);
+  assert.equal(ui.find(details, "button", "Upload attachments").disabled, false);
+});
+
+test("M60 refuses to send bytes when the tab cannot store recovery details", async () => {
+  const storage = tabStorage();
+  const setItem = storage.setItem;
+  storage.setItem = (key, value) => {
+    if (key === recoveredUploads) throw new Error("Tab storage is full");
+    setItem(key, value);
+  };
+  const {ui, calls, choose} = await attachmentUploadFixture(board, {storage});
+  choose({name: "pending.txt", size: 1});
+  await until(() => !ui.uploadingToCard(board, card));
+  assert.match(ui.nodes.details.textContent, /could not save upload recovery details/);
   assert.deepEqual(calls, []);
+});
+
+test("M60 keeps a refused upload resumable after the board refresh is inspected", async () => {
+  const storage = tabStorage();
+  const {ui, api, calls, readbacks, behavior, commit, choose} = await attachmentUploadFixture(board, {storage});
+  const {details} = ui.nodes;
+  const original = {name: "pending.txt", size: 4, fill: 65};
+  const readBoard = api.getBoardLanes;
+  let closed = false;
+  api.getBoardLanes = async (...args) => {
+    if (closed) throw new ApiError("unavailable", {status: 503});
+    return readBoard(...args);
+  };
+  const refused = createBrowserApi({getCapability: () => "capability", fetchImpl: async () => {
+    closed = true;
+    return Response.json({
+      type: "about:blank", title: "Service Unavailable", status: 503, code: "unavailable",
+      detail: "Board unavailable.", request_id: user, outcome: "not_applied", errors: [],
+    }, {status: 503, headers: {"Content-Type": "application/problem+json"}});
+  }});
+  behavior.write = (id, file, attachmentId) => refused.uploadAttachment(id, tag(id, 1), file, attachmentId);
+  choose(original);
+  await until(() => calls.length === 1 && !ui.uploadingToCard(board, card));
+  const [{id, attempted}] = JSON.parse(storage.getItem(recoveredUploads))[0][1];
+  assert.equal(attempted, false);
+  assert.match(details.textContent, /Refused\. The board is unavailable/);
+  assert.deepEqual(readbacks, []);
+
+  const resume = ui.find(details, "button", "Resume pending uploads");
+  const discard = ui.find(details, "button", "Discard pending files");
+  assert.equal(resume.parent.hidden, true);
+  assert.equal(resume.disabled, true);
+  assert.equal(discard.disabled, true);
+  closed = false;
+  commit(card, uploadFile({name: "other.txt", size: 1}), priority);
+  ui.find(details, "button", "Inspect saved card").click();
+  await ui.settled();
+  assert.equal(resume.parent.hidden, false);
+  assert.equal(resume.disabled, false);
+  assert.equal(discard.disabled, false);
+
+  behavior.write = commit;
+  ui.field(details, "Files").files = [uploadFile(original)];
+  resume.click();
+  await until(() => calls.length === 2 && !ui.uploadingToCard(board, card));
+  assert.deepEqual(calls.map(({attachmentId, expected}) => [attachmentId, expected]),
+    [[id, tag(card, 1)], [id, tag(card, 2)]]);
+  assert.deepEqual(readbacks, [id]);
+  assert.deepEqual(JSON.parse(storage.getItem(recoveredUploads)), []);
 });
 
 test("M48 drag waits for the source card's upload and permits an unrelated card move", async () => {
@@ -5767,12 +5911,12 @@ async function newCardFileFixture() {
   function choose(...files) {
     const picker = ui.field(main, "Files to attach");
     assert.equal(picker.multiple, true);
-    picker.files = files;
+    picker.files = files.map(uploadFile);
     picker.dispatch("change");
   }
   function paste(files, types = ["Files"]) {
     const target = ui.field(main, "New description");
-    return target.parent.parent.parent.dispatch("paste", {target, clipboardData: {files, types}});
+    return target.parent.parent.parent.dispatch("paste", {target, clipboardData: {files: files.map(uploadFile), types}});
   }
   return {...fixture, writes, creation, create, choose, paste};
 }
@@ -5944,7 +6088,7 @@ test("attachment picker preflights every file, permits exactly 10 MiB and serial
   assert.equal(ui.field(ui.nodes.details, "Files").multiple, true);
   choose({name: "limit.dat", size: MAX_ATTACHMENT_BYTES}, {name: "oversized.dat", size: MAX_ATTACHMENT_BYTES + 1},
     {name: "refused.dat", size: 1}, {name: "last.dat", size: 1});
-  assert.equal(calls.length, 1);
+  await until(() => calls.length === 1);
   assert.match(ui.nodes.details.textContent, /limit\.dat — Uploading…/);
   assert.match(ui.nodes.details.textContent, /oversized\.dat — Refused\. Files are limited to 10 MiB/);
   assert.match(ui.nodes.details.textContent, /last\.dat — Waiting/);
@@ -6025,6 +6169,7 @@ test("a late upload refusal keeps the renewed capability for a write on another 
     });
   }
   choose({name: "first.txt", size: 1}, {name: "late.txt", size: 1}, {name: "waiting.txt", size: 1});
+  await until(() => uploadCapabilities.length === 1);
   assert.deepEqual(uploadCapabilities, ["session-1"]);
   await renewCapability("session-1");
   first.resolve();
@@ -6083,7 +6228,7 @@ test("attachment upload rejects foreign identity and requires inspection before 
   saved.set(calls[0].attachmentId, committed);
   ui.find(ui.nodes.details, "button", "Inspect saved card").click();
   await ui.settled();
-  assert.equal(ui.find(ui.nodes.details, "button", "Upload attachments").disabled, false);
+  assert.equal(ui.find(ui.nodes.details, "button", "Resume pending uploads").parent.hidden, false);
   assert.match(ui.nodes.details.textContent, /inspect\.dat — Uploaded\. Confirmed by readback/);
   assert.equal(calls.length, 1);
 });
@@ -6358,11 +6503,11 @@ for (const lost of [true, false]) {
     refuseBoardRead = false;
     ui.find(details, "button", "Inspect saved card").click();
     await ui.settled();
-    assert.match(details.textContent, lost ? /Outcome unconfirmed after inspection/ : /pending\.txt — Uploaded/);
+    assert.match(details.textContent, lost ? /Outcome uncertain/ : /pending\.txt — Uploaded/);
     assert.deepEqual(readbacks, lost ? [calls[0].attachmentId, calls[0].attachmentId] : []);
     ui.submit(main, "Approve all in lane");
     await ui.settled();
-    assert.deepEqual(approvals, [[card, backup]]);
+    assert.deepEqual(approvals, lost ? [] : [[card, backup]]);
   });
 }
 test("shutdown inspection compares the separate HTTP validator after a lost response", async () => {

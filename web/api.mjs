@@ -592,10 +592,11 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /**
    * @param {string} path
-   * @param {{ method?: string, data?: unknown, form?: FormData, etag?: string, successStatus?: number, signal?: AbortSignal }} [options]
+   * @param {{ method?: string, data?: unknown, form?: FormData, etag?: string, successStatus?: number,
+   * signal?: AbortSignal, knownUnavailable?: boolean }} [options]
    */
-  async function request(path, { method = "GET", data, form, etag, successStatus = 200, signal } = {}) {
-    const response = await send(path, { method, data, form, etag, signal });
+  async function request(path, { method = "GET", data, form, etag, successStatus = 200, signal, knownUnavailable } = {}) {
+    const response = await send(path, { method, data, form, etag, signal, knownUnavailable });
     const write = method !== "GET";
     const responseEtag = response.headers.get("ETag");
     if (write && (response.status !== successStatus || !STRONG_ETAG.test(responseEtag ?? ""))) {
@@ -657,7 +658,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     return { data: /** @type {BoardAvailability} */ (reply.data), etag: strongTag(reply.etag) };
   }
 
-  /** @param {string} path @param {string} id @param {{data?: unknown, form?: FormData}} content */
+  /** @param {string} path @param {string} id @param {{data?: unknown, form?: FormData, knownUnavailable?: boolean}} content */
   async function createWithId(path, id, content) {
     const reply = await request(path, { ...content, method: "POST", successStatus: 201 });
     const item = /** @type {{id?: unknown}} */ (reply.data);
@@ -1088,7 +1089,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       form.set("expected_card_etag", strongTag(etag));
       form.set("id", expectedId);
       form.set("file", file);
-      const reply = await createWithId("/attachments", expectedId, { form });
+      const reply = await createWithId("/attachments", expectedId, { form, knownUnavailable: true });
       if (!validAttachment(reply.data, expectedId, resourceId(cardId))) {
         throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
       }

@@ -16,7 +16,7 @@ import { createBoardRefresh, waitForRetry, watchUpdates } from "./board-updates.
  * actor_id: string, board_id: string, at: string, revision: number, before: string|null, after: string|null}} Change */
 /** @typedef {import("./api.mjs").Publishing} Publishing */
 /** @typedef {{id: string, name: string, revision: number, policy_id: string, default_owner_id: string, user_css?: string,
- * notifications?: object, publishing?: unknown, actor_presentation?: ActorPresentation}} Board */
+ * publishing?: unknown, actor_presentation?: ActorPresentation}} Board */
 /** @typedef {{actor: string, create: Set<string>, move: Map<string, Set<string>>,
  * canClose: boolean, canManageRelationships: boolean}} Workflow */
 /** @typedef {{blocked: number, needs_input: number, ready_for_review: number}} Attention */

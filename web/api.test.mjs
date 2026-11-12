@@ -218,21 +218,42 @@ test("uses documented paths and board scoping for Turn 1 reads", async () => {
   ].map((path) => "/api/2026-11-10" + path));
 });
 
-test("owner notice configuration sends only explicitly supplied fields", async () => {
-  const boardTag = '"board_record_006"';
+test("owner notice routing uses a focused read and sends only explicitly supplied fields", async () => {
+  const original = { board_id: BOARD, revision: 6, enabled: false, target_thread_id: OPERATION };
+  const updated = { ...original, revision: 7, target_thread_id: null };
+  const originalTag = '"notifications-' + BOARD + '-6"';
+  const updatedTag = '"notifications-' + BOARD + '-7"';
+  const methods = [];
   const api = client(async (url, options) => {
-    assert.equal(url, "/api/2026-11-10/boards/" + BOARD);
+    assert.equal(url, "/api/2026-11-10/notifications/" + BOARD);
+    methods.push(options.method);
+    if (options.method === "GET") {
+      assert.equal(options.headers.get("If-Match"), null);
+      assert.equal(options.cache, "no-store");
+      return Response.json(original, { headers: { ETag: originalTag } });
+    }
     assert.equal(options.method, "PATCH");
-    assert.equal(options.headers.get("If-Match"), boardTag);
-    assert.deepEqual(JSON.parse(options.body), {
-      notifications: { target_thread_id: null },
-    });
-    return Response.json({ notifications: { enabled: false, target_thread_id: null } }, {
-      headers: { ETag: '"board_record_007"' },
-    });
+    assert.equal(options.headers.get("If-Match"), originalTag);
+    assert.deepEqual(JSON.parse(options.body), { target_thread_id: null });
+    return Response.json(updated, { headers: { ETag: updatedTag } });
   });
-  assert.equal((await api.configureOwnerNotices(BOARD, { target_thread_id: null }, boardTag))
-    .data.notifications.enabled, false);
+
+  const route = await api.getOwnerNoticeRoute(BOARD.toUpperCase());
+  assert.deepEqual(route, { data: original, etag: originalTag });
+  assert.deepEqual(await api.configureOwnerNotices(BOARD, { target_thread_id: null }, route.etag),
+    { data: updated, etag: updatedTag });
+  assert.deepEqual(methods, ["GET", "PATCH"]);
+});
+
+test("owner notice route rejects board validators and unconfirmed settings", async () => {
+  const route = { board_id: BOARD, revision: 6, enabled: false, target_thread_id: OPERATION };
+  const originalTag = '"notifications-' + BOARD + '-6"';
+  const wrongTag = client(() => Response.json(route, { headers: { ETag: '"' + BOARD + '-6"' } }));
+  await assert.rejects(wrongTag.getOwnerNoticeRoute(BOARD),
+    (error) => error instanceof ApiError && error.code === "invalid_response" && !error.outcomeUnknown);
+  const unconfirmed = client(() => Response.json(route, { headers: { ETag: originalTag } }));
+  await assert.rejects(unconfirmed.configureOwnerNotices(BOARD, { target_thread_id: null }, originalTag),
+    (error) => error instanceof ApiError && error.code === "invalid_response" && error.outcomeUnknown);
 });
 
 test("requires the documented write status and a canonical response ETag", async () => {

@@ -1,6 +1,7 @@
 const API_PREFIX = "/api/2026-11-10";
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const NOTICE_TARGET_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const STRONG_ETAG = /^"[A-Za-z0-9_-]{16,128}"$/;
 const CAPABILITY = /^[A-Za-z0-9_-]{43,128}$/;
 const REQUEST_TIMEOUT_MS = 15000;
@@ -18,6 +19,7 @@ const RASTER_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "ima
  * state: "running"|"draining", api_version: "2026-11-10", restart_error_code: string|null}} Service */
 /** @typedef {{id: string, version: string, validation: "pending"|"valid"|"invalid", error_code: string|null}} Build */
 /** @typedef {{id: string, build_id: string, state: "accepted"|"activated"|"failed", error_code: string|null}} Activation */
+/** @typedef {{board_id: string, revision: number, enabled: boolean, target_thread_id: string|null}} NotificationRoute */
 /** @typedef {"open"|"closed"} AvailabilityChange */
 /** @typedef {{id: string, name: string, policy_id: string, revision: number, availability: AvailabilityChange|"unhealthy"}} BoardAvailability */
 
@@ -606,7 +608,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
   }
 
   /** @param {Response} response @param {number} status @param {boolean} write */
-  async function requireLifecycleResponse(response, status, write) {
+  async function requireJSONResponse(response, status, write) {
     const media = response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
     if (response.status !== status || media !== "application/json") {
       await discardBody(response);
@@ -614,10 +616,25 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     }
   }
 
+  /** @param {Response} response @param {string} boardId @param {boolean} write */
+  async function notificationRouteReply(response, boardId, write) {
+    await requireJSONResponse(response, 200, write);
+    const etag = response.headers.get("ETag");
+    const data = await responseObject(response, write);
+    if (!isObject(data) || Object.keys(data).length !== 4 || data.board_id !== boardId
+        || !isInteger(data.revision) || data.revision < 1 || typeof data.enabled !== "boolean"
+        || (data.target_thread_id === null ? data.enabled
+          : typeof data.target_thread_id !== "string" || !NOTICE_TARGET_ID.test(data.target_thread_id))
+        || etag !== '"notifications-' + boardId + "-" + data.revision + '"') {
+      throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: write });
+    }
+    return { data: /** @type {NotificationRoute} */ (data), etag };
+  }
+
   /** @param {string} path @param {AbortSignal} [signal] */
   async function readLifecycle(path, signal) {
     const response = await send(path, { signal });
-    await requireLifecycleResponse(response, 200, false);
+    await requireJSONResponse(response, 200, false);
     const tag = response.headers.get("ETag");
     if (tag === null || !STRONG_ETAG.test(tag)) {
       await discardBody(response);
@@ -1438,19 +1455,34 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     getVerification: (boardId) => request(`/verifications/${resourceId(boardId)}`),
     /** @param {unknown} boardId */
     getSnapshot: (boardId) => request(`/snapshots/${resourceId(boardId)}`),
+    /** @param {unknown} boardId */
+    async getOwnerNoticeRoute(boardId) {
+      const id = resourceId(boardId).toLowerCase();
+      return notificationRouteReply(await send("/notifications/" + id), id, false);
+    },
     /**
      * @param {unknown} boardId
-     * @param {{ enabled?: boolean, target_thread_id?: string | null }} notifications
-     * @param {unknown} etag
+     * @param {{ enabled?: boolean, target_thread_id?: string | null }} settings
+     * @param {unknown} etag The ETag of the saved notification route.
      */
-    configureOwnerNotices: (boardId, { enabled, target_thread_id: targetThreadId }, etag) => request(
-      `/boards/${resourceId(boardId)}`,
-      {
-        method: "PATCH",
-        data: { notifications: { enabled, target_thread_id: targetThreadId } },
-        etag: strongTag(etag),
-      },
-    ),
+    async configureOwnerNotices(boardId, { enabled, target_thread_id: targetThreadId }, etag) {
+      const id = resourceId(boardId).toLowerCase();
+      const target = typeof targetThreadId === "string" ? targetThreadId.toLowerCase() : targetThreadId;
+      if ((enabled !== undefined && typeof enabled !== "boolean")
+          || (target != null && (typeof target !== "string" || !NOTICE_TARGET_ID.test(target)))
+          || (enabled === undefined && target === undefined) || (enabled === true && target === null)) {
+        throw new TypeError("Invalid notification route change.");
+      }
+      const response = await send("/notifications/" + id, {
+        method: "PATCH", data: { enabled, target_thread_id: target }, etag: strongTag(etag), knownUnavailable: true,
+      });
+      const reply = await notificationRouteReply(response, id, true);
+      if ((enabled !== undefined && reply.data.enabled !== enabled)
+          || (target !== undefined && reply.data.target_thread_id !== target)) {
+        throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
+      }
+      return reply;
+    },
     /** @param {AbortSignal} [signal] */
     async getService(signal) {
       const reply = await readLifecycle("/service", signal);
@@ -1477,7 +1509,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const response = await send("/activations", { method: "POST", knownUnavailable: true, data: {
         id: activation, build_id: build, expected_service_etag: strongTag(serviceEtag),
       } });
-      await requireLifecycleResponse(response, 202, true);
+      await requireJSONResponse(response, 202, true);
       const data = await responseObject(response, true);
       if (response.headers.get("Location") !== API_PREFIX + "/activations/" + activation
           || !validActivation(data, activation, build) || data.state !== "accepted") {
@@ -1499,7 +1531,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     async stopService(service, serviceEtag) {
       const response = await send("/service", { method: "PATCH", etag: strongTag(serviceEtag),
         data: { state: "stopped" }, knownUnavailable: true });
-      await requireLifecycleResponse(response, 202, true);
+      await requireJSONResponse(response, 202, true);
       const data = await responseObject(response, true);
       if (!STRONG_ETAG.test(response.headers.get("ETag") ?? "")
           || !validService(data) || data.state !== "draining"

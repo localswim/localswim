@@ -193,6 +193,32 @@ func TestNotificationSettingsControlHumanQuietBurst(t *testing.T) {
 			route.TargetThreadID == nil || *route.TargetThreadID != ownerNoticeTestTarget {
 			t.Fatal("disabling did not discard the pending burst and retain the target")
 		}
+		// Restore discards pending edits even while the route stays enabled.
+		applySettings(`{"enabled":true}`)
+		backupID := newOperationID()
+		send(human, http.MethodPost, "/backups", fmt.Sprintf(
+			`{"id":%q,"board_id":%q,"expected_board_etag":%q}`, backupID, state.ID, tag), "", 201)
+		edit(human)
+		restored := send(human, http.MethodPost, "/restorations", fmt.Sprintf(
+			`{"board_id":%q,"backup_id":%q,"expected_board_etag":%q}`, state.ID, backupID, tag), "", 201)
+		tag = restored.Header().Get("X-Board-ETag")
+		time.Sleep(ownerNoticeQuietPeriod)
+		synctest.Wait()
+		if len(attempts) != 1 {
+			t.Fatal("restore delivered a burst from the previous board history")
+		}
+		saved := send(human, http.MethodGet, path, "", "", 200)
+		got := turnOneDecode[notificationRoute](t, saved.Body.Bytes())
+		if !got.Enabled || !sameText(got.TargetThreadID, route.TargetThreadID) ||
+			saved.Header().Get("ETag") != routeTag {
+			t.Fatal("restore changed the enabled notification route")
+		}
+		edit(human)
+		time.Sleep(ownerNoticeQuietPeriod)
+		synctest.Wait()
+		if len(attempts) != 2 || attempts[1].target != ownerNoticeTestTarget {
+			t.Fatal("the preserved route did not deliver a post-restore edit")
+		}
 	})
 }
 

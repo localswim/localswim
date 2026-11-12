@@ -211,9 +211,11 @@ header as `etag`. Workspace JSON contains its numeric `revision`, `pinned_board_
 and `publishing`. Pass the separate workspace result's `etag` back to
 `setPinnedBoards(boardIds, etag)` for its `If-Match` header. The sidebar
 handles a `412` by applying the intended edit to a fresh workspace read.
-Use the board ETag for `configureOwnerNotices(boardId, settings, etag)`. Pass only the
-notice settings to change. An explicit `target_thread_id: null` clears the target
-when the resulting settings are disabled.
+Read the saved notification route with `getOwnerNoticeRoute(boardId)`. Pass that
+result's independent ETag to `configureOwnerNotices(boardId, settings, etag)`.
+Pass only the route fields to change. An explicit `target_thread_id: null` clears
+the target when the resulting route is disabled. After an uncertain write, read
+the route again before submitting another change.
 
 Stream messages identify their `resource` as `board`, `workspace`, or `catalog`.
 Board messages contain `board_id` and `board_revision`; workspace messages contain

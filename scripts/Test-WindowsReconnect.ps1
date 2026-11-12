@@ -157,25 +157,46 @@ function Get-OwnedServiceProcesses {
 function Clear-FixtureProcesses {
     $timer = [Diagnostics.Stopwatch]::StartNew()
     $emptyScans = 0
-    do {
-        $owned = @(Get-OwnedServiceProcesses)
-        try {
-            if ($owned.Count -eq 0) {
+    $owned = [Collections.Generic.Dictionary[int, M93FixtureProcess]]::new()
+    try {
+        do {
+            $scanComplete = $true
+            try {
+                Get-OwnedServiceProcesses | ForEach-Object {
+                    if (-not $owned.TryAdd($_.Id, $_)) { $_.Dispose() }
+                }
+            }
+            catch { $scanComplete = $false }
+
+            if ($scanComplete -and $owned.Count -eq 0) {
                 $emptyScans++
                 if ($emptyScans -eq 2) { return }
             }
-            else {
-                $emptyScans = 0
-                foreach ($process in $owned) {
-                    $process.Kill()
-                    if (-not $process.WaitForExit(500)) { throw 'A fixture process did not exit during cleanup.' }
+            else { $emptyScans = 0 }
+
+            foreach ($process in $owned.Values) {
+                try { $process.Kill() }
+                catch {
+                    # Keep the captured handle for observation and another attempt.
+                    continue
                 }
             }
-        }
-        finally { $owned | ForEach-Object { $_.Dispose() } }
-        Start-Sleep -Milliseconds 100
-    } while ($timer.Elapsed.TotalSeconds -lt 5)
-    throw 'Fixture process cleanup did not quiesce before its deadline.'
+            foreach ($process in @($owned.Values)) {
+                $remaining = [Math]::Max(0, 5000 - $timer.ElapsedMilliseconds)
+                try { $exited = $process.WaitForExit([uint32][Math]::Min(500, $remaining)) }
+                catch { continue }
+                if ($exited) {
+                    [void]$owned.Remove($process.Id)
+                    $process.Dispose()
+                }
+            }
+
+            $remaining = 5000 - $timer.ElapsedMilliseconds
+            if ($remaining -gt 0) { Start-Sleep -Milliseconds ([Math]::Min(100, $remaining)) }
+        } while ($timer.ElapsedMilliseconds -lt 5000)
+        throw 'Fixture process cleanup did not quiesce before its deadline.'
+    }
+    finally { $owned.Values | ForEach-Object { $_.Dispose() } }
 }
 
 function Start-FixtureService([string]$Human, [string]$Bot) {

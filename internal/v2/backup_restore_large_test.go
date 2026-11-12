@@ -2,6 +2,7 @@ package v2
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +18,10 @@ import (
 
 func TestM86RestoreDownloadedLargeBackup(t *testing.T) {
 	app, editor := attachmentHTTPServer(t)
+	app.store.ownerNotices.close()
+	app.store.ownerNotices = newOwnerNoticeWorker(ownerNoticeQuietPeriod, app.store.ownerNoticeSettings,
+		func(context.Context, string, string) bool { return true })
+	app.store.ownerNotices.writerID = app.store.activityWriterID
 	raw, _ := editor.call("POST", "/boards", `{"name":"Large portable restore"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
 	c := attachmentHTTPCard(t, editor, b)

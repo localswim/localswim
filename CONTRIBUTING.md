@@ -354,7 +354,13 @@ does not expose actor grants or change the snapshot or reference. These reports
 establish the recovery point for a separately authorized recovery operation.
 
 Native recovery accepts JSON snapshots or application/zip backups at the existing board address.
-Both request entities have an inclusive 96 MiB limit. PUT uses the current durable snapshot
+JSON request entities have an inclusive 96 MiB limit. Downloaded ZIP backups
+use a disk-backed upload with a separate inclusive archive limit of 4,690,317,541,376
+bytes, derived from the maximum native entry count and per-file size and ZIP framing
+bounds. The snapshot and directory each retain their 96 MiB limits, and each attachment
+retains its 10 MiB decompressed size and SHA-2-256 integrity checks. The CLI stages
+file or raw stdin input privately and streams the ZIP without loading the archive
+into memory. PUT uses the current durable snapshot
 representation validator when the snapshot is readable. When durable state is unavailable, a previously
 obtained tag for the last accepted snapshot can authorize admission. Stored backup restoration uses the
 live board validator and returns an inspectable receipt.

@@ -311,7 +311,7 @@ var commandHelpNotes = map[string]string{
 	"board get":                "The default returns board metadata. --view lanes returns active lanes and visible cards in lane order and requires the live service.",
 	"board verify":             "Print the full verification report. An invalid board exits 1. Verification does not change saved state.",
 	"board export":             "--type accepts json and defaults to json. Export writes the validated native snapshot.",
-	"board restore":            "Read a native JSON snapshot or ZIP backup. Inspect the accepted board after an uncertain result.",
+	"board restore":            "Read a native JSON snapshot or ZIP backup. ZIP input streams from private staging and can exceed 96 MiB. JSON retains its 96 MiB limit. Inspect the accepted board after an uncertain result.",
 	"board close":              "Drain admitted board operations and flush enabled publishing before closing. Inspect board get after an unknown outcome.",
 	"board reopen":             "Reopen the saved board at its existing address. Inspect board get after an unknown outcome.",
 	"board notifications":      "Set a verified owning-chat target before enabling. Target changes preserve the enabled state. Disable retains the target. Inspect status after an uncertain settings write.",

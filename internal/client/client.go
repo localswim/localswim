@@ -81,6 +81,26 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 	if expectedBoardTag != "" {
 		request.Header.Set("X-Expected-Board-ETag", expectedBoardTag)
 	}
+	return c.doRequest(request, resource, boardSettingsWrite)
+}
+
+// DoWithReader sends one bounded streaming request without installing a replay body.
+func (c *Client) DoWithReader(method, resource string, body io.Reader, size int64, ifMatch, contentType string) (Response, error) {
+	if body == nil || size <= 0 {
+		return Response{}, errors.New("expected a nonempty request body with a known size")
+	}
+	request, err := c.newRequest(method, resource, nil, ifMatch, contentType, "application/json")
+	if err != nil {
+		return Response{}, err
+	}
+	request.Body = io.NopCloser(io.LimitReader(body, size))
+	request.ContentLength = size
+	request.Header.Set("Content-Type", contentType)
+	return c.doRequest(request, resource, false)
+}
+
+func (c *Client) doRequest(request *http.Request, resource string, boardSettingsWrite bool) (Response, error) {
+	method := request.Method
 	mutation := method != http.MethodGet && method != http.MethodHead
 	path := request.URL.Path[len(apiPath):]
 	notificationWrite := method == http.MethodPatch && strings.HasPrefix(path, "/notifications/")

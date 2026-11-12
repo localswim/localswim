@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"mime"
 	"net/http"
 	"os"
@@ -320,26 +319,12 @@ func (x *request) admitSnapshot(id string) {
 	var candidate snapshot
 	var attachmentData func(attachment) ([]byte, error)
 	if mediaType == "application/zip" {
-		file, err := os.CreateTemp("", "localswim-recovery-*")
+		archive, err := x.readUploadedBackup(id)
 		if err != nil {
 			x.recoveryFailure(err)
 			return
 		}
-		defer func() { _ = file.Close(); _ = os.Remove(file.Name()) }()
-		if _, err := io.Copy(file, http.MaxBytesReader(x.w, x.r.Body, maxSnapshotBytes)); err != nil {
-			var tooBig *http.MaxBytesError
-			if errors.As(err, &tooBig) {
-				x.fail(errTooBig)
-			} else {
-				x.fail(invalid("body", "Unreadable recovery archive."))
-			}
-			return
-		}
-		archive, err := inspectBackupArchive(file, id)
-		if err != nil {
-			x.fail(invalid("body", "The native backup archive failed validation."))
-			return
-		}
+		defer archive.close()
 		candidate, attachmentData = archive.state, archive.attachmentData
 	} else {
 		obj, err := x.body()

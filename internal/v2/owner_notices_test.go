@@ -427,10 +427,10 @@ func TestOwnerNoticeProjectTimestampFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			event := ownerNoticeEvent{
 				boardID: "board", label: "Test", writerID: "writer", since: start, until: start.Add(tc.duration),
-				cards: []activityCard{{CardID: "card", Ticket: 1}},
 			}
+			event.addCard(ownerNoticeCard{activityCard{CardID: "card", Ticket: 1}, activityCreated.bit()})
 			want := "localswim board-change notice\n\n- Board: \"Test\" (`board`)\n- Writer: `writer`\n" +
-				tc.want + "- Cards: 0001 (`card`)\n- Tickets: 0001"
+				tc.want + "- Cards: 0001 (`card`)\n- Operations: Created (0001)\n- Tickets: 0001"
 			if got := event.message(); got != want {
 				t.Fatalf("notice timestamp format mismatch\ngot: %s\nwant: %s", got, want)
 			}

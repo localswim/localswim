@@ -177,9 +177,9 @@ func TestM83WorkspaceNamespaceFailureStillRefusesStartup(t *testing.T) {
 func TestM83MissingRecoveryActorsQuarantineOnlyDependents(t *testing.T) {
 	healthy, principals := m01Fixture()
 	at := healthy.Board.CreatedAt
-	firstActor := user{entity: newEntity("10000000-0000-4000-8000-000000000004", at),
+	firstActor := user{ID: "10000000-0000-4000-8000-000000000004", Revision: 1, CreatedAt: at,
 		Label: "First historical actor", Kind: "human", Color: "#112233"}
-	secondActor := user{entity: newEntity("10000000-0000-4000-8000-000000000005", at),
+	secondActor := user{ID: "10000000-0000-4000-8000-000000000005", Revision: 1, CreatedAt: at,
 		Label: "Second historical actor", Kind: "human", Color: "#223344"}
 	newBoard := func(id string, actors ...user) snapshot {
 		members := append(slices.Clone(principals), actors...)

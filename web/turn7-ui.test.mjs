@@ -192,12 +192,12 @@ async function harness(api, pathname = "/boards/" + board, {
     context.location.pathname = path;
     await context.hooks.load();
   }
-  async function popstate(href) {
+  async function popstate(href, wait = true) {
     const url = new URL(href, "http://localhost");
     context.location.pathname = url.pathname;
     context.location.search = url.search;
     windowEvents.popstate();
-    await settled();
+    if (wait) await settled();
   }
   function keydown(target, key, options = {}) {
     const event = {target, key, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...options};
@@ -2484,6 +2484,75 @@ for (const [lostResponse, replaceDrawer] of [[false, false], [true, false], [fal
     assert.equal(activeTitle.value, "Original");
     assert.equal(ui.focused(), activeTitle);
     assert.equal(ui.field(details, "Description").value, "Original\nprose");
+    assert.deepEqual(writes, [[card, tag(card, 1), {title: "Submitted title", description: "Submitted\r\nprose"}]]);
+  });
+}
+
+for (const scenario of ["refused in replacement", "refused while away", "lost without commit", "lost before late commit"]) {
+  test(`text reversion follows the settled write and subsequent revision after popstate (${scenario})`, async () => {
+    const {api} = boardApi();
+    const getBoard = api.getBoardLanes;
+    let saved = {...(await api.getCard(card)).data, description: "Original\r\nprose"};
+    api.getBoardLanes = async (...args) => {
+      const reply = await getBoard(...args);
+      return {data: {board: {...reply.data.board, revision: saved.revision}, cards: [saved]}, etag: tag(board, saved.revision)};
+    };
+    api.getCard = async (id) => {
+      assert.equal(id, card);
+      return {data: saved, etag: tag(card, saved.revision)};
+    };
+    const writes = [];
+    const release = Promise.withResolvers();
+    const refused = scenario.startsWith("refused");
+    const offscreen = scenario === "refused while away";
+    const lateCommit = scenario === "lost before late commit";
+    api.patchCard = async (id, etag, change) => {
+      writes.push([id, etag, {...change}]);
+      await release.promise;
+      throw refused ? new ApiError("invalid_request", {status: 400})
+        : new ApiError("transport_failed", {outcomeUnknown: true});
+    };
+    const ui = await harness(api);
+    await ui.load();
+    const {main, details} = ui.nodes;
+    ui.find(main, "button", "#1 Original").click();
+    await until(() => ui.field(details, "Description"));
+    const title = ui.field(details, "Title");
+    const description = ui.field(details, "Description");
+    title.value = "Submitted title";
+    description.value = "Submitted\nprose";
+    ui.submit(details, "Save text");
+    await until(() => writes.length === 1);
+
+    title.value = "Original";
+    description.value = offscreen ? "Keep exact\nnew prose" : "Original\nprose";
+    title.dispatch("input");
+    description.dispatch("input");
+    await ui.popstate("/", false);
+    assert.equal(details.hidden, true);
+    if (!offscreen) {
+      await ui.popstate("/boards/" + board, false);
+      await until(() => ui.field(details, "Description"));
+      assert.notEqual(ui.field(details, "Title"), title);
+    }
+    release.resolve();
+    await ui.settled();
+    if (offscreen) {
+      await ui.popstate("/boards/" + board);
+      await until(() => ui.field(details, "Description"));
+    }
+    const replacement = ui.field(details, "Title");
+    assert.equal(replacement.value, "Original");
+    replacement.focus();
+
+    const later = lateCommit ? writes[0][2] : {title: "External title", description: "External\r\nprose"};
+    saved = {...saved, ...later, revision: 2};
+    ui.nodes.refresh.click();
+    await until(() => details.querySelector("h2")?.textContent === "#1 " + later.title);
+    assert.equal(replacement.value, lateCommit ? "Original" : "External title");
+    assert.equal(ui.field(details, "Description").value,
+      offscreen ? "Keep exact\nnew prose" : lateCommit ? "Original\nprose" : "External\nprose");
+    assert.equal(ui.focused(), replacement);
     assert.deepEqual(writes, [[card, tag(card, 1), {title: "Submitted title", description: "Submitted\r\nprose"}]]);
   });
 }

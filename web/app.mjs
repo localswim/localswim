@@ -44,7 +44,11 @@ import { appendCardProse } from "./card-prose.mjs";
 /** @typedef {() => Promise<void|boolean>} InspectionRead */
 /** @typedef {{scope: string, label: string, require: (read: InspectionRead) => void,
  * inspect: () => void, sync: () => void, recovery: HTMLElement}} Inspection */
-/** @typedef {Partial<Record<"title"|"description", true>>} TextReversions */
+/** @typedef {keyof CardText} TextField */
+/** @typedef {Pick<Card, "title"|"description">} CardText */
+/** @typedef {{scope: string, revision: number, fields: Partial<CardText>, editor: CardText,
+ * committed: boolean}} CardTextSubmission */
+/** @typedef {Partial<Record<TextField, CardTextSubmission>>} TextReversions */
 /** @typedef {{title?: string, description?: string, lane?: string, owner?: string, priority?: string,
  * comment?: string, textReversions?: TextReversions}} CardDraft */
 /** @typedef {Pick<CardDraft, "title"|"description"|"lane"|"comment">} TextDraft */
@@ -125,7 +129,7 @@ let retainNewCardDraft;
 let retainBoardView;
 /** @type {Map<string, CardDraft>} */
 const cardDrafts = new Map();
-/** @type {({scope: string} & Pick<CardDraft, "title"|"description">)|undefined} */
+/** @type {CardTextSubmission|undefined} */
 let submittedCardText;
 /** @type {Map<string, UploadBatch>} */
 const attachmentUploads = new Map();
@@ -431,6 +435,59 @@ function storeTextDraft(scope, draft) {
   textDrafts.delete(scope);
   if (next) textDrafts.set(scope, next);
   persistTabEntries(draftKey, textDrafts, maxDraftUnits);
+}
+
+/** @param {string} scope @param {CardDraft} draft */
+function storeCardDraft(scope, draft) {
+  if (draft.textReversions && !Object.keys(draft.textReversions).length) delete draft.textReversions;
+  if (Object.keys(draft).length) cardDrafts.set(scope, draft);
+  else cardDrafts.delete(scope);
+  const text = { ...draft };
+  if (draft.textReversions?.title) delete text.title;
+  if (draft.textReversions?.description) delete text.description;
+  storeTextDraft(scope, text);
+}
+
+/** @param {CardTextSubmission} submission */
+function discardRefusedTextReversions(submission) {
+  const draft = cardDrafts.get(submission.scope);
+  if (!draft?.textReversions) return;
+  for (const field of /** @type {const} */ (["title", "description"])) {
+    if (draft.textReversions[field] === submission) {
+      delete draft.textReversions[field];
+      delete draft[field];
+    }
+  }
+  storeCardDraft(submission.scope, draft);
+}
+
+/** @param {string} scope @param {Card} saved */
+function reconcileTextReversions(scope, saved) {
+  const draft = cardDrafts.get(scope);
+  const reversions = draft?.textReversions;
+  /** @type {Partial<Record<TextField, true>>} */
+  const preserve = {};
+  if (!draft || !reversions) return preserve;
+  for (const field of /** @type {const} */ (["title", "description"])) {
+    const submission = reversions[field];
+    if (!submission) continue;
+    if (saved.revision <= submission.revision) {
+      preserve[field] = true;
+      continue;
+    }
+    delete reversions[field];
+    // A later revision ends the original validator's eligibility. Keep the
+    // reversion as an ordinary draft if the submitted text became saved.
+    const { title, description } = submission.fields;
+    if (submission.committed || ((title === undefined || title === saved.title)
+        && (description === undefined || description === saved.description))) {
+      preserve[field] = true;
+    } else {
+      delete draft[field];
+    }
+  }
+  storeCardDraft(scope, draft);
+  return preserve;
 }
 
 /** @param {string} scope */
@@ -1831,6 +1888,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     });
     uploadRecovery.append(element("p", "Reselect all pending originals in Files, then resume their uploads."),
       resumeUploads, discardUploads);
+    reconcileTextReversions(scope, card);
     /** @type {CardDraft|undefined} */
     const previous = cardDrafts.get(scope) ?? textDrafts.get(scope);
     if (previous?.title !== undefined) title.value = previous.title;
@@ -1840,27 +1898,26 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     if (previous?.owner !== undefined && users.some(({ id }) => id === previous.owner)) owner.value = previous.owner;
     if (previous?.priority !== undefined && priorities.some(({ id }) => id === previous.priority)) priority.value = previous.priority;
     if (previous?.comment !== undefined) comment.value = previous.comment;
-    /** @type {TextReversions} */
-    let textReversions = { ...previous?.textReversions };
-    if (title.value !== titleBaseline) delete textReversions.title;
-    if (description.value !== descriptionBaseline) delete textReversions.description;
     /** @param {boolean} [captureReversions] */
     function retainText(captureReversions = true) {
       /** @type {CardDraft} */
       const draft = {};
       const submitted = captureReversions && submittedCardText?.scope === scope ? submittedCardText : undefined;
+      const previous = cardDrafts.get(scope);
       const fields = /** @type {const} */ ([
         ["title", title.value, titleBaseline], ["description", description.value, descriptionBaseline],
       ]);
       for (const [field, value, baseline] of fields) {
         if (value !== baseline) {
-          delete textReversions[field];
           draft[field] = value;
-        } else if (textReversions[field] || (submitted?.[field] !== undefined && submitted[field] !== value)) {
-          // An edit back to the old baseline can still differ from the eventual saved text.
-          textReversions[field] = true;
-          (draft.textReversions ??= {})[field] = true;
-          draft[field] = value;
+        } else {
+          const reversion = submitted?.fields[field] !== undefined && submitted.editor[field] !== value
+            ? submitted : previous?.[field] === value ? previous.textReversions?.[field] : undefined;
+          if (reversion) {
+            // An edit back to the old baseline can still differ from the eventual saved text.
+            (draft.textReversions ??= {})[field] = reversion;
+            draft[field] = value;
+          }
         }
       }
       const selectedMove = lane.value || moveDraft;
@@ -1868,9 +1925,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       if (owner.value !== savedCard.owner_id) draft.owner = owner.value;
       if (priority.value && priority.value !== savedCard.priority_id) draft.priority = priority.value;
       if (comment.value) draft.comment = comment.value;
-      if (Object.keys(draft).length) cardDrafts.set(scope, draft);
-      else cardDrafts.delete(scope);
-      storeTextDraft(scope, draft);
+      storeCardDraft(scope, draft);
     }
     retainCardDraft = retainText;
     for (const control of [title, description, comment]) {
@@ -2043,23 +2098,21 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       }
     }
 
-    /** @param {Card} saved @param {Pick<Card, "title"|"description">} [submitted] */
-    function adoptSaved(saved, submitted) {
-      titleBaseline = adoptText(title, titleBaseline, saved.title,
-        composingTitle || textReversions.title || Boolean(submitted && title.value !== submitted.title));
-      descriptionBaseline = adoptText(description, descriptionBaseline, saved.description,
-        textReversions.description || Boolean(submitted && description.value !== submitted.description));
+    /** @param {Card} saved */
+    function adoptSaved(saved) {
+      const preserve = reconcileTextReversions(scope, saved);
+      titleBaseline = adoptText(title, titleBaseline, saved.title, composingTitle || preserve.title);
+      descriptionBaseline = adoptText(description, descriptionBaseline, saved.description, preserve.description);
       if (owner.value === savedCard.owner_id) owner.value = saved.owner_id;
       if (priority.value === savedCard.priority_id) priority.value = saved.priority_id;
-      if (saved.revision !== savedCard.revision) textReversions = {};
       savedCard = saved;
       showCurrent(saved);
       retainText(false);
     }
 
     let savedRead = 0;
-    /** @param {() => boolean} [canApply] @param {Pick<Card, "title"|"description">} [submitted] */
-    async function readSavedCard(canApply = () => true, submitted) {
+    /** @param {() => boolean} [canApply] */
+    async function readSavedCard(canApply = () => true) {
       const read = ++savedRead;
       const { saved, tag } = await readCardVersion(boardId, card.id);
       if (cardView === activeCard && read === savedRead && canApply()) {
@@ -2068,24 +2121,23 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         setOptions(owner, users.some(({ id }) => id === ownerSelection)
           ? users : [...users, { id: ownerSelection, label: "Unavailable owner draft" }], ownerSelection);
         cardTag = tag;
-        adoptSaved(saved, submitted);
+        adoptSaved(saved);
       }
       return saved;
     }
 
-    /** @param {"conflict"|"unknown"} phase @param {Pick<Card, "title"|"description">} submitted */
-    async function recoverTextSave(phase, submitted) {
-      const readSubmitted = () => readSavedCard(undefined, submitted);
+    /** @param {"conflict"|"unknown"} phase */
+    async function recoverTextSave(phase) {
       const hadInspection = pendingInspections.has(scope);
       inspection.require(async () => {
-        await readSubmitted();
+        await readSavedCard();
         if (cardView === activeCard) await reloadBoard();
       });
       const pending = pendingInspections.get(scope);
       let failed = false;
       if (cardView === activeCard) {
         try {
-          await readWithSession(readSubmitted);
+          await readWithSession(readSavedCard);
         } catch {
           failed = true;
         }
@@ -2114,37 +2166,40 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     async function save(draft, submit) {
       if (cardView !== activeCard) return;
       const initiatingView = activeView;
-      const submitted = { title: title.value, description: description.value };
+      /** @type {CardTextSubmission} */
+      const submission = { scope, revision: savedCard.revision, fields: draft,
+        editor: { title: title.value, description: description.value }, committed: false };
       /** @type {PendingCard} */
       const projection = { kind: "patch", card: savedCard, fields: draft };
       startWriting();
-      submittedCardText = {
-        scope, title: draft.title === undefined ? undefined : submitted.title,
-        description: draft.description === undefined ? undefined : submitted.description,
-      };
+      submittedCardText = submission;
       submit.disabled = true;
       announce("writing", "Saving card…");
-      let committed = false;
       try {
         showPendingCard(projection, true);
         const result = await api.patchCard(card.id, cardTag, draft);
         const saved = /** @type {Card} */ (result.data);
         if (saved.board_id !== boardId) throw new ApiError("invalid_response", { outcomeUnknown: true });
-        committed = true;
+        submission.committed = true;
         if (cardView !== activeCard) return;
         cardTag = etag(result);
-        adoptSaved(saved, submitted);
+        retainText();
+        adoptSaved(saved);
         announce("ready", "Card saved.");
       } catch (error) {
         showPendingCard(projection, false);
         const phase = writePhase(error);
+        if (phase !== "unknown") {
+          submittedCardText = undefined;
+          discardRefusedTextReversions(submission);
+        }
         if (phase === "error") {
           if (cardView === activeCard) announce("error", "Card edit refused. Your draft is still here.");
         } else {
-          await recoverTextSave(phase, submitted);
+          await recoverTextSave(phase);
         }
       } finally {
-        if (committed) {
+        if (submission.committed) {
           if (initiatingView === activeView) await reloadBoard().catch(() => {});
           await refreshReplacementBoard(projection, initiatingView).catch(() => {});
         }

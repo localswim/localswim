@@ -13785,6 +13785,8 @@ components:
             means the worktree's index is locked. publication_index_overlap means staged changes intersect
             the capture. publication_index_uncertain means the local branch and index update require inspection.
             publication_destination_changed means the resolved Git target differs from the pending target.
+            git_push_timeout means Git or its helpers exceeded the command or pipe-drain deadline.
+            The pending local commit is retained and the remote outcome remains unknown until a later attempt.
           anyOf:
           - type: string
             minLength: 0
@@ -14895,6 +14897,8 @@ components:
             means the worktree's index is locked. publication_index_overlap means staged changes intersect
             the capture. publication_index_uncertain means the local branch and index update require inspection.
             publication_destination_changed means the resolved Git target differs from the pending target.
+            git_push_timeout means Git or its helpers exceeded the command or pipe-drain deadline.
+            The pending local commit is retained and the remote outcome remains unknown until a later attempt.
           anyOf:
           - type: string
             minLength: 0

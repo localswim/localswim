@@ -7,9 +7,13 @@ import (
 
 func TestM92WindowsPublicationGitProcessFlags(t *testing.T) {
 	command := exec.Command("git")
-	configurePublicationGitCommand(command)
-	const createNoWindow = 0x08000000
-	if command.SysProcAttr == nil || command.SysProcAttr.CreationFlags != createNoWindow {
-		t.Fatalf("expected CREATE_NO_WINDOW for publication Git, got %+v", command.SysProcAttr)
+	tree, err := newPublicationProcessTree(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tree.close()
+	const createNoWindow, createSuspended = 0x08000000, 0x00000004
+	if command.SysProcAttr == nil || command.SysProcAttr.CreationFlags != createNoWindow|createSuspended {
+		t.Fatalf("expected hidden suspended publication Git, got %+v", command.SysProcAttr)
 	}
 }

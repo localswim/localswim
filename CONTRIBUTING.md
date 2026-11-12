@@ -474,8 +474,18 @@ After a disabled restart, status history is loaded when the publisher is
 re-enabled. Inspect status after an uncertain settings write.
 A board restore requires matching publishing settings. Reconcile any difference
 through the explicit settings command before restoring.
-A Git transport helper can outlive Git's timeout. The worker retains its lock
-while the admitted command joins.
+Each Git command has a 30-second deadline that includes inherited input and
+output pipes. Cleanup terminates its process group on Unix or its Job Object
+on Windows, with a two-second pipe-drain allowance. Windows starts Git suspended
+and assigns the job before its helpers can run. The repository lock remains held
+through command cleanup.
+
+`git_push_timeout` means transport exceeded that deadline or left inherited
+pipes open after Git exited. The local commit and pending destination remain
+pinned. The remote may already have accepted the commit. Inspect the original
+receipt and retry the same backup and destination with a new publication UUID.
+Automatic publishing retains pending intent for its next bounded retry. Both
+paths reuse the prepared commit.
 
 Use `board close [--revision N] BOARD_ID` and
 `board reopen [--revision N] BOARD_ID` to change availability at the existing

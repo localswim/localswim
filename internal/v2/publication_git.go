@@ -15,7 +15,10 @@ import (
 )
 
 const publicationGitTimeout = 30 * time.Second
+const publicationGitCleanupTimeout = 2 * time.Second
 const publicationLockWait = 5 * time.Second
+
+var errPublicationGitTimeout = errors.New("publication Git timed out")
 
 type publicationGitError string
 
@@ -54,8 +57,7 @@ func runPublicationGit(cwd, index string, input []byte, configuration []string, 
 func runPublicationGitOutput(cwd, index string, input []byte, configuration []string, stdout, stderr io.Writer, args ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), publicationGitTimeout)
 	defer cancel()
-	command := exec.CommandContext(ctx, "git", args...)
-	configurePublicationGitCommand(command)
+	command := exec.Command("git", args...)
 	command.Dir = cwd
 	for _, entry := range os.Environ() {
 		name, _, _ := strings.Cut(entry, "=")
@@ -71,7 +73,39 @@ func runPublicationGitOutput(cwd, index string, input []byte, configuration []st
 	command.Stdin = bytes.NewReader(input)
 	command.Stdout = stdout
 	command.Stderr = stderr
-	return command.Run()
+	return runPublicationCommand(ctx, command)
+}
+
+// The command deadline includes inherited pipes. A transport helper can keep
+// those pipes open after Git exits, so killing only the direct child is unsafe.
+func runPublicationCommand(ctx context.Context, command *exec.Cmd) error {
+	tree, err := newPublicationProcessTree(command)
+	if err != nil {
+		return err
+	}
+	defer tree.close()
+	command.WaitDelay = publicationGitCleanupTimeout
+	if err := command.Start(); err != nil {
+		return err
+	}
+	if err := tree.attach(command); err != nil {
+		_ = command.Process.Kill()
+		return errors.Join(err, tree.stop(), command.Wait())
+	}
+	done := make(chan error, 1)
+	go func() { done <- command.Wait() }()
+	select {
+	case err := <-done:
+		cleanupErr := tree.stop()
+		if errors.Is(err, exec.ErrWaitDelay) || ctx.Err() != nil {
+			return errors.Join(errPublicationGitTimeout, cleanupErr)
+		}
+		return errors.Join(err, cleanupErr)
+	case <-ctx.Done():
+		cleanupErr := tree.stop()
+		<-done
+		return errors.Join(errPublicationGitTimeout, cleanupErr)
+	}
 }
 
 func publicationGitText(cwd string, args ...string) (string, error) {
@@ -309,6 +343,9 @@ func (repo publicationRepository) push(remote publicationRemote, checkpointOID, 
 		return gitPublicationError("git_ref_failed")
 	}
 	if pushErr != nil {
+		if errors.Is(pushErr, errPublicationGitTimeout) {
+			return gitPublicationError("git_push_timeout")
+		}
 		return gitPublicationError("git_push_failed")
 	}
 	return nil

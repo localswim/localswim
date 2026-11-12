@@ -144,7 +144,7 @@ func validPublicationCode(code string) bool {
 		"publication_target_ambiguous", "publication_destination_unavailable", "publication_destination_changed",
 		"head_unavailable", "capture_unavailable", "git_index_failed", "git_object_failed", "git_tree_failed",
 		"publication_branch_changed", "publication_index_busy", "publication_index_overlap", "publication_index_uncertain",
-		"git_commit_failed", "git_ref_failed", "git_push_failed", "publication_state_unavailable", "publication_failed"}, code)
+		"git_commit_failed", "git_ref_failed", "git_push_failed", "git_push_timeout", "publication_state_unavailable", "publication_failed"}, code)
 }
 
 func (x *request) publicationsCollection() {

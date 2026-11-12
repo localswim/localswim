@@ -731,6 +731,38 @@ function adoptText(control, previous, saved) {
   return probe.value;
 }
 
+/**
+ * A textarea exposes CRLF and bare CR as LF. Keep the saved spelling of line
+ * endings in the unchanged prefix and suffix. Use the textarea value verbatim
+ * in the changed span, where the original line endings cannot be recovered.
+ * @param {string} saved @param {string} baseline @param {string} edited
+ */
+function editedDescription(saved, baseline, edited) {
+  if (!saved.includes("\r")) return edited;
+  const sharedLength = Math.min(baseline.length, edited.length);
+  let prefix = 0;
+  while (prefix < sharedLength && baseline[prefix] === edited[prefix]) prefix++;
+  let suffix = 0;
+  while (prefix + suffix < sharedLength &&
+      baseline[baseline.length - 1 - suffix] === edited[edited.length - 1 - suffix]) suffix++;
+
+  let rawPrefix = 0;
+  for (let i = 0; i < prefix; i++) {
+    if (saved[rawPrefix] === "\r" && saved[rawPrefix + 1] === "\n") rawPrefix++;
+    rawPrefix++;
+  }
+  let rawSuffix = saved.length;
+  for (let i = 0; i < suffix; i++) {
+    rawSuffix--;
+    if (saved[rawSuffix] === "\n" && saved[rawSuffix - 1] === "\r") rawSuffix--;
+  }
+  const before = saved.slice(0, rawPrefix);
+  const after = edited.slice(prefix, edited.length - suffix) + saved.slice(rawSuffix);
+  // A bare CR followed by a new LF would collapse two visible breaks into one.
+  if (before.endsWith("\r") && after.startsWith("\n")) return before.slice(0, -1) + "\n" + after;
+  return before + after;
+}
+
 /** @param {unknown} error @param {string} [submittingCapability] */
 function writePhase(error, submittingCapability = capability) {
   if (!(error instanceof ApiError)) return "error";
@@ -2278,7 +2310,9 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
           }
           draft.title = title.value;
         }
-        if (description.value !== descriptionBaseline) draft.description = description.value;
+        if (description.value !== descriptionBaseline) {
+          draft.description = editedDescription(savedCard.description, descriptionBaseline, description.value);
+        }
         if (Object.keys(draft).length) void save(draft, submit);
       }),
       moveAction,

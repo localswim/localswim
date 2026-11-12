@@ -114,6 +114,8 @@ async function harness(api, pathname = "/boards/" + board, {
     }
   }
   class Textarea extends Element {
+    get value() { return this.normalizedValue; }
+    set value(value) { this.normalizedValue = value.replace(/\r\n?/g, "\n"); }
     setCustomValidity(message) { this.validationMessage = message; }
     reportValidity() { return !this.validationMessage; }
   }
@@ -2170,6 +2172,39 @@ test("card prose displays the shared search text in both drawer and recent comme
   assert.equal(ui.field(drawer, "Description").value, raw);
   assert.deepEqual(drawerComments().map((item) => item.querySelector("p").textContent),
     fixtures.map(([, , readable]) => readable));
+});
+
+test("saving edited prose keeps unchanged line endings and newly entered breaks", async () => {
+  const {api} = boardApi();
+  const patch = api.patchCard;
+  await patch(card, tag(card, 1), {description: "Café\r\n**Old**\rFollow-up\r\nDone"});
+  const writes = [];
+  api.patchCard = (id, etag, change) => {
+    writes.push(change);
+    return patch(id, etag, change);
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details} = ui.nodes;
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.field(details, "Description"));
+  const description = ui.field(details, "Description");
+  assert.equal(description.value, "Café\n**Old**\nFollow-up\nDone");
+  ui.field(details, "Title").value = "Renamed";
+  ui.submit(details, "Save text");
+  await ui.settled();
+  assert.deepEqual({...writes[0]}, {title: "Renamed"});
+
+  description.value = "Café\n**New 🚲**\nAdded\nFollow-up\nDone";
+  ui.submit(details, "Save text");
+  await ui.settled();
+  assert.equal(writes[1].description, "Café\r\n**New 🚲**\nAdded\rFollow-up\r\nDone");
+
+  description.value = "Café\n**New 🚲**\nAdded\n\nFollow-up\nDone";
+  ui.submit(details, "Save text");
+  await ui.settled();
+  assert.equal(writes[2].description, "Café\r\n**New 🚲**\nAdded\n\nFollow-up\r\nDone");
+  assert.equal((await api.getCard()).data.description, writes[2].description);
 });
 
 test("board loading retries a changed revision and adopts current publishing status at a matching revision", async () => {

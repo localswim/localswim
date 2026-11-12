@@ -104,8 +104,11 @@ backtick code spans within a line. Code displays its contents literally,
 including asterisks and ticket references. Descriptions and Human comments link
 references such as `#0042` to that ticket on the same board, including archived
 tickets. Bot comments use the same formatting and leave ticket references as
-text. HTML is displayed as text, and editors keep the original source. Card
-priorities are shown on the board and in the drawer and refresh after link edits.
+text. HTML is displayed as text, and editors show the source markup. When you
+edit an existing description, the saved line endings outside the changed span
+are retained where they keep the displayed breaks intact. The changed span uses
+the browser's line endings. Card priorities are shown on the board and in the
+drawer and refresh after link edits.
 
 Use **Set priority** in the card drawer to change that card's priority against
 its displayed revision. The drawer shows the effective saved priority and

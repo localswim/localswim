@@ -101,9 +101,10 @@ func TestGroupedOwnerNoticeMatchesActivityInterval(t *testing.T) {
 		for _, laneID := range b.LaneIDs[1:4] {
 			review = patch(botToken, review, fmt.Sprintf(`{"lane_id":%q}`, laneID))
 		}
-		settings := call(humanToken, http.MethodPatch, "/boards/"+b.ID,
-			fmt.Sprintf(`{"notifications":{"enabled":true,"target_thread_id":%q}}`, ownerNoticeTestTarget), boardTag, 200)
-		boardTag = settings.Header().Get("ETag")
+		settingsPath := "/notifications/" + b.ID
+		settings := call(humanToken, http.MethodGet, settingsPath, "", "", 200)
+		call(humanToken, http.MethodPatch, settingsPath,
+			fmt.Sprintf(`{"enabled":true,"target_thread_id":%q}`, ownerNoticeTestTarget), settings.Header().Get("ETag"), 200)
 
 		time.Sleep(time.Second)
 		from := canonicalTime(time.Now()).Format(timestampLayout)

@@ -9677,7 +9677,8 @@ paths:
         source, trusted local and readable durable revisions. Unavailable continuity refuses.
         fresh explicitly creates a new board UUID and new board-owned entity and audit UUIDs,
         retains global user identities and exact prose, and leaves the failed source untouched.
-        Fresh recovery disables publishing and retains source_board_id in the recovery audit.
+        Fresh recovery retains source_board_id in the recovery audit. Both modes disable publishing
+        and record publishing_reset in the recovery audit. Same-ID recovery retains its checkpoint.
         Validate policy, complete audit and all active and detached attachments before replacing
         state. The existing workspace writer owns the entire operation. Refusals retain a repairable
         failure. Lost or unusable replies have unknown outcomes; inspect board list and verification

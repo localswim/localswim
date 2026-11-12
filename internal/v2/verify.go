@@ -640,7 +640,7 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		previousRevision, previousActor = event.Revision, event.ActorID
 		if recovery {
 			evidence, _ := recoveryEventEvidence(event)
-			if evidence.SourceBoardID != nil {
+			if evidence.PublishingReset {
 				latest[snapshotAuditField{"board", b.ID, "publishing.enabled"}] = &disabled
 				latest[snapshotAuditField{"board", b.ID, "publishing.repository"}] = nil
 			}

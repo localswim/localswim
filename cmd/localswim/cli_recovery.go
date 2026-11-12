@@ -73,7 +73,7 @@ func executeBoardRecovery(api *client.Client, command cliCommand, stdin io.Reade
 	}
 	if json.Unmarshal(reply.JSON, &recovered) != nil || !boardIDPattern.MatchString(recovered.ID) ||
 		(command.recoveryMode == "same_id" && recovered.ID != command.boardID) ||
-		(command.recoveryMode == "fresh" && (recovered.ID == command.boardID || recovered.Publishing.Enabled)) {
+		(command.recoveryMode == "fresh" && recovered.ID == command.boardID) || recovered.Publishing.Enabled {
 		return fmt.Errorf("service did not confirm the recovered board identity: %w", client.ErrMutationOutcomeUnknown)
 	}
 	if _, err := reply.BoardAvailability(recovered.ID); err != nil {

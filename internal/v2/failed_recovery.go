@@ -200,8 +200,10 @@ func (s *store) recoverFailed(id, mode, actor, expected string, source snapshot,
 			readSource = func(item attachment) ([]byte, error) { return readVerifiedAttachment(s.root, item) }
 		}
 		attachmentData = func(item attachment) ([]byte, error) { return readSource(originals[item.ID]) }
-		next.Board.Publishing = publishing{}
 	}
+	// A quarantined board has no accepted publishing settings to authorize
+	// scheduling a worker from source history.
+	next.Board.Publishing = publishing{}
 	// Existing workspace users retain their canonical presentation. Verified
 	// source-only users are admitted with the recovered board.
 	known := s.globalUsers(nil)
@@ -220,7 +222,7 @@ func (s *store) recoverFailed(id, mode, actor, expected string, source snapshot,
 	next.Board.UpdatedAt = now
 	restampRecoveryVersions(&next)
 	evidence, err := marshalCanonical(recoveryEvidence{SourceRevision: source.Board.Revision,
-		PreviousRevision: previousRevision, ActorKind: "human", SourceBoardID: sourceBoardID})
+		PreviousRevision: previousRevision, ActorKind: "human", SourceBoardID: sourceBoardID, PublishingReset: true})
 	if err != nil {
 		return snapshot{}, err
 	}

@@ -26,6 +26,7 @@ type recoveryEvidence struct {
 	BackupID         *string `json:"backup_id"`
 	ActorKind        string  `json:"actor_kind"`
 	SourceBoardID    *string `json:"source_board_id,omitempty"`
+	PublishingReset  bool    `json:"publishing_reset,omitempty"`
 }
 
 type restoration struct {
@@ -55,7 +56,8 @@ func validRecoveryAudit(event activity, boardID string, sourceRevision uint64, m
 		event.Revision == max(evidence.SourceRevision, evidence.PreviousRevision)+1 &&
 		*event.Before == strconv.FormatUint(evidence.PreviousRevision, 10) &&
 		(evidence.BackupID == nil || validSnapshotOperationID(*evidence.BackupID)) &&
-		(evidence.SourceBoardID == nil || (validSnapshotID(*evidence.SourceBoardID) && *evidence.SourceBoardID != boardID))
+		(!evidence.PublishingReset || evidence.BackupID == nil) &&
+		(evidence.SourceBoardID == nil || (evidence.PublishingReset && validSnapshotID(*evidence.SourceBoardID) && *evidence.SourceBoardID != boardID))
 }
 
 // Recovery replaces board-owned state while reusing the current global user

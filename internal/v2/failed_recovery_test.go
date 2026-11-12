@@ -224,3 +224,33 @@ func TestM84FreshRecoveryWithNonregularReference(t *testing.T) {
 		t.Fatal("fresh recovery replaced invalid reference")
 	}
 }
+
+func TestM84QuarantinedRecoveryDisablesSourcePublishing(t *testing.T) {
+	initial, human := attachmentHTTPServer(t)
+	raw, _ := human.call("POST", "/boards", `{"name":"Publishing state"}`, "", 201)
+	b := turnOneDecode[board](t, raw)
+	source, _ := initial.store.accepted(b.ID)
+	source.Board.Revision++
+	source.Board.Publishing.Enabled = true
+	field, before, after := "publishing.enabled", "false", "true"
+	source.Activity = append(source.Activity, activity{ID: newOperationID(), BoardID: b.ID,
+		Revision: source.Board.Revision, At: source.Board.UpdatedAt, ActorID: humanID,
+		Operation: "patch", ResourceType: "board", ResourceID: b.ID, Field: &field, Before: &before, After: &after})
+	if err := validateSnapshot(source, b.ID); err != nil {
+		t.Fatalf("source fixture invalid: %v", err)
+	}
+	app, human := restartFailedRecovery(t, initial, human, b.ID, false)
+	_, headers := human.call("GET", "/verifications/"+b.ID, "", "", 200)
+	raw, _ = failedRecoveryPost(t, human, b.ID, "same_id", headers.Get("ETag"), "application/json", mustSnapshotJSON(t, source), 201)
+	if recovered := turnOneDecode[board](t, raw); recovered.Publishing.Enabled {
+		t.Fatal("recovery scheduled source publishing")
+	}
+	durable, err := app.store.durable(b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, ok := recoveryEventEvidence(durable.Activity[len(durable.Activity)-1])
+	if !ok || !evidence.PublishingReset {
+		t.Fatal("durable audit did not record the publishing reset")
+	}
+}

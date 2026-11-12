@@ -363,10 +363,13 @@ revision exceeds the source, trusted local and readable durable revisions.
 
 Use `board recover --mode fresh BOARD_ID FILE|-` explicitly when continuity is
 unavailable. Recovery creates a new board UUID and new board-owned resource and
-audit UUIDs. Global user identities and exact user text are preserved. Publishing
-starts disabled on the new board. The original failed snapshot and diagnostic
-remain available. The recovery audit records `source_board_id` as provenance.
+audit UUIDs. Global user identities and exact user text are preserved. The
+original failed snapshot and diagnostic remain available. The recovery audit
+records `source_board_id` as provenance.
 
+Both modes start with publishing disabled and record `publishing_reset` in
+recovery audit. The existing same-ID publication checkpoint is preserved. Use
+the publishing settings command to enable delivery explicitly after recovery.
 Both modes validate the full policy, audit and active and detached attachment
 inventory before committing through the existing workspace writer. A mismatched
 source refuses. Known refusals retain repairable state. After a lost or unusable

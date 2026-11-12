@@ -252,8 +252,8 @@ Needs Terry, and Ready for Review counts across the available boards.
 While the workspace is open, the browser waits 15 seconds between scheduled
 catalog checks. These checks use the same refresh path as event hints. If a saved
 snapshot becomes unreadable or diverges from the accepted state, its Attention
-counts become unavailable. A selected board labels its contents as the last
-accepted state and keeps its recovery controls. Repairing the saved snapshot
+counts become unavailable. A selected board labels its contents as previously
+loaded data and keeps its recovery controls. Repairing the saved snapshot
 updates both views, including when the board revision stays the same.
 
 If the service refuses to watch the selected board, the connection continues

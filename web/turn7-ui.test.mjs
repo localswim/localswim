@@ -1705,7 +1705,7 @@ test("a clamped cover scroll survives warm confirmation and superseded paints un
   assert.equal(laneColumn().scrollTop, 75);
 });
 
-for (const recovery of ["catalog hint", "Retry Attention"]) {
+for (const recovery of ["catalog hint", "Retry Attention", "scheduled catalog check"]) {
   test("a warm catalog startup failure recovers through " + recovery, async (t) => {
     const {api} = boardApi();
     const streams = boardStreams(api);
@@ -1727,7 +1727,13 @@ for (const recovery of ["catalog hint", "Retry Attention"]) {
       return page("boards", [{id: board, name: "Selected", availability: "open",
         attention: {blocked, needs_input: 0, ready_for_review: 0}, last_card_edit_at: null}]);
     };
-    const ui = await harness(api);
+    const waits = [];
+    const ui = await harness(api, undefined, {catalogTimer: (signal) => {
+      const tick = Promise.withResolvers();
+      waits.push({...tick, signal});
+      return tick.promise;
+    }});
+    const activeWaits = () => waits.filter(({signal}) => !signal.aborted);
     t.after(ui.abortView);
     await ui.load();
     await ui.navigate("/");
@@ -1744,8 +1750,14 @@ for (const recovery of ["catalog hint", "Retry Attention"]) {
     unavailable = false;
     blocked = 2;
     if (recovery === "catalog hint") streams.at(-1).sendCatalog("snapshot");
-    else retry.click();
+    else if (recovery === "Retry Attention") retry.click();
+    else {
+      assert.equal(activeWaits().length, 1);
+      activeWaits()[0].resolve();
+    }
     await until(() => ui.title() === "(2) localswim");
+    await ui.settled();
+    assert.equal(activeWaits().length, recovery === "scheduled catalog check" ? 2 : 1);
     assert.equal(boards.querySelector("a").attributes["aria-current"], "page");
     assert.equal(ui.find(boards, "button", "Retry Attention"), undefined);
     assert.equal(ui.find(main, "button", "#1 Original"), opener);
@@ -4186,10 +4198,10 @@ test("selected durable health uses the catalog and preserves the open drawer and
   draft.value = "Draft during repair";
   draft.focus();
 
-  selected = {...healthy, availability: "unhealthy", attention: null, error_code: "durable_state_changed"};
+  selected = {...healthy, revision: 2, availability: "unhealthy", attention: null, error_code: "durable_state_changed"};
   waits[0].resolve();
   await until(() => !health.hidden);
-  assert.match(health.textContent, /differs from the last accepted state/);
+  assert.match(health.textContent, /differs from the last accepted state\. Showing previously loaded board data\./);
   assert.equal(ui.find(main, "button", "Restore native backup"), restore);
   assert.equal(ui.field(details, "Comment"), draft);
   assert.equal(ui.focused(), draft);
@@ -4201,7 +4213,7 @@ test("selected durable health uses the catalog and preserves the open drawer and
   assert.equal(health.hidden, false);
 
   await until(() => waits.length === 3);
-  selected = healthy;
+  selected = {...healthy, revision: 2};
   waits[2].resolve();
   await until(() => health.hidden);
   assert.equal(draft.value, "Draft during repair");

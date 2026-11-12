@@ -3006,6 +3006,7 @@ async function load(savedAvailability) {
   durableHealth.setAttribute("role", "status");
   durableHealth.hidden = true;
   let catalogHint = false;
+  let revalidatingCatalog = false;
   let navigationReady = false;
   let startupDiagnostic = false;
   let warmNavigationFailed = false;
@@ -3092,6 +3093,7 @@ async function load(savedAvailability) {
         else link.removeAttribute("aria-current");
       }
       void loadWarmNavigation();
+      void revalidateCatalog();
       await paintOpenBoard(boardId, retained);
       return;
     }
@@ -3177,15 +3179,20 @@ async function load(savedAvailability) {
     const row = rows.find(({ id }) => id === boardId);
     if (!row) return;
     // Focused board reads still serve the accepted state and its recovery controls.
-    const message = row.availability !== "unhealthy" ? ""
-      : row.error_code === "durable_state_changed"
-        ? "The saved snapshot differs from the last accepted state. Showing the last accepted board."
-        : "The saved snapshot is unavailable. Showing the last accepted board.";
+    let message = "";
+    if (row.availability === "unhealthy") {
+      const problem = row.error_code === "durable_state_changed"
+        ? "The saved snapshot differs from the last accepted state."
+        : "The saved snapshot is unavailable.";
+      message = problem + " Showing previously loaded board data.";
+    }
     if (durableHealth.textContent !== message) durableHealth.textContent = message;
     durableHealth.hidden = !message;
   }
 
   async function revalidateCatalog() {
+    if (revalidatingCatalog) return;
+    revalidatingCatalog = true;
     // External snapshot changes do not wake the event stream. Wait after each
     // read so a slow refresh cannot build up a backlog of scheduled requests.
     while (!signal.aborted) {

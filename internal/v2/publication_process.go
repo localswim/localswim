@@ -15,8 +15,11 @@ var errPublicationGitTimeout = errors.New("publication Git timed out")
 var errPublicationCleanupDeadline = errors.New("publication process cleanup timed out")
 
 type publicationProcess interface {
-	attach(*exec.Cmd) error
+	start(*exec.Cmd) error
+	attach(context.Context, *exec.Cmd) error
 	observeExit(context.Context, *exec.Cmd) error
+	kill(*exec.Cmd)
+	wait(*exec.Cmd) error
 	terminate(time.Time) error
 	quiesce(time.Time) error
 	close()
@@ -115,7 +118,12 @@ func runPublicationProcess(ctx context.Context, command *exec.Cmd, tree publicat
 		tree.close()
 		return err
 	}
-	if err := command.Start(); err != nil {
+	if err := ctx.Err(); err != nil {
+		closePublicationPipes(pipes)
+		tree.close()
+		return err
+	}
+	if err := tree.start(command); err != nil {
 		closePublicationPipes(pipes)
 		tree.close()
 		return err
@@ -123,9 +131,9 @@ func runPublicationProcess(ctx context.Context, command *exec.Cmd, tree publicat
 	for _, pipe := range pipes {
 		_ = pipe.child.Close()
 	}
-	attachErr := tree.attach(command)
+	attachErr := tree.attach(ctx, command)
 	if attachErr != nil {
-		_ = command.Process.Kill()
+		tree.kill(command)
 	}
 	pipeDone := make(chan struct{})
 	var pipeErr error
@@ -144,7 +152,7 @@ func runPublicationProcess(ctx context.Context, command *exec.Cmd, tree publicat
 		close(pipeDone)
 	}()
 
-	var timedOut bool
+	timedOut := errors.Is(attachErr, context.DeadlineExceeded)
 	if attachErr == nil {
 		if err := tree.observeExit(ctx, command); err == nil {
 			drain := time.Now().Add(publicationGitCleanupTimeout)
@@ -167,12 +175,12 @@ func runPublicationProcess(ctx context.Context, command *exec.Cmd, tree publicat
 	if !terminated {
 		// Keep the exact tree on an unconfirmed result. This direct-child
 		// fallback does not establish anything about its descendants.
-		_ = command.Process.Kill()
+		tree.kill(command)
 	}
 	rootDone := make(chan struct{})
 	var rootErr error
 	go func() {
-		rootErr = command.Wait()
+		rootErr = tree.wait(command)
 		close(rootDone)
 	}()
 	cleanup := &publicationCleanup{tree: tree, rootDone: rootDone}

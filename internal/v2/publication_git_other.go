@@ -22,7 +22,13 @@ func newPublicationProcessTree(command *exec.Cmd) (*publicationProcessTree, erro
 	return &publicationProcessTree{}, nil
 }
 
-func (tree *publicationProcessTree) attach(command *exec.Cmd) error {
+func (*publicationProcessTree) start(command *exec.Cmd) error { return command.Start() }
+
+func (*publicationProcessTree) kill(command *exec.Cmd) { _ = command.Process.Kill() }
+
+func (*publicationProcessTree) wait(command *exec.Cmd) error { return command.Wait() }
+
+func (tree *publicationProcessTree) attach(_ context.Context, command *exec.Cmd) error {
 	tree.pid = command.Process.Pid
 	return nil
 }

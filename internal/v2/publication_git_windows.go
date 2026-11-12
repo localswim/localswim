@@ -3,6 +3,7 @@ package v2
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"syscall"
 	"time"
@@ -16,9 +17,6 @@ var (
 	terminatePublicationJob = kernel32.NewProc("TerminateJobObject")
 	queryPublicationJob     = kernel32.NewProc("QueryInformationJobObject")
 	inPublicationJob        = kernel32.NewProc("IsProcessInJob")
-	publicationThreadFirst  = kernel32.NewProc("Thread32First")
-	publicationThreadNext   = kernel32.NewProc("Thread32Next")
-	openPublicationThread   = kernel32.NewProc("OpenThread")
 	resumePublicationThread = kernel32.NewProc("ResumeThread")
 )
 
@@ -33,14 +31,9 @@ type publicationJobLimits struct {
 	ProcessMemory, JobMemory, PeakProcessMemory, PeakJobMemory uintptr
 }
 
-type publicationThreadEntry struct {
-	Size, Usage, ID, Owner      uint32
-	BasePriority, DeltaPriority int32
-	Flags                       uint32
-}
-
 type publicationProcessTree struct {
 	job        syscall.Handle
+	root       syscall.ProcessInformation
 	sealed     bool
 	terminated bool
 	processes  []syscall.Handle
@@ -48,11 +41,9 @@ type publicationProcessTree struct {
 
 const publicationJobKillOnClose = 0x00002000
 
-func newPublicationProcessTree(command *exec.Cmd) (*publicationProcessTree, error) {
+func newPublicationProcessTree(_ *exec.Cmd) (*publicationProcessTree, error) {
 	// Assign the suspended child before it can launch a transport. Descendants
 	// inherit the job, and closing it also kills them if setup or waiting fails.
-	const createNoWindow, createSuspended = 0x08000000, 0x00000004
-	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNoWindow | createSuspended}
 	job, _, err := createPublicationJob.Call(0, 0)
 	if job == 0 {
 		return nil, err
@@ -67,62 +58,57 @@ func newPublicationProcessTree(command *exec.Cmd) (*publicationProcessTree, erro
 	return tree, nil
 }
 
-func (tree *publicationProcessTree) attach(command *exec.Cmd) error {
-	const processSetQuota, processTerminate = 0x0100, 0x0001
-	process, err := syscall.OpenProcess(processSetQuota|processTerminate, false, uint32(command.Process.Pid))
-	if err != nil {
-		return err
-	}
-	defer syscall.CloseHandle(process)
-	result, _, err := assignPublicationJob.Call(uintptr(tree.job), uintptr(process))
+func (tree *publicationProcessTree) attach(ctx context.Context, _ *exec.Cmd) error {
+	defer func() {
+		_ = syscall.CloseHandle(tree.root.Thread)
+		tree.root.Thread = 0
+	}()
+	result, _, err := assignPublicationJob.Call(uintptr(tree.job), uintptr(tree.root.Process))
 	if result == 0 {
 		return err
 	}
-	return resumePublicationProcess(uint32(command.Process.Pid))
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	resumed, _, err := resumePublicationThread.Call(uintptr(tree.root.Thread))
+	if resumed == 0xffffffff {
+		return err
+	}
+	return nil
 }
 
-func (*publicationProcessTree) observeExit(ctx context.Context, command *exec.Cmd) error {
-	var waitErr error
-	err := command.Process.WithHandle(func(handle uintptr) {
-		for ctx.Err() == nil {
-			const pollIntervalMillis = 100
-			status, err := syscall.WaitForSingleObject(syscall.Handle(handle), pollIntervalMillis)
-			if err != nil || status == syscall.WAIT_OBJECT_0 {
-				waitErr = err
-				return
-			}
+func (tree *publicationProcessTree) observeExit(ctx context.Context, _ *exec.Cmd) error {
+	for ctx.Err() == nil {
+		const pollIntervalMillis = 100
+		status, err := syscall.WaitForSingleObject(tree.root.Process, pollIntervalMillis)
+		if err != nil || status == syscall.WAIT_OBJECT_0 {
+			return err
 		}
-		waitErr = ctx.Err()
-	})
-	return errors.Join(err, waitErr)
+	}
+	return ctx.Err()
 }
 
-func resumePublicationProcess(pid uint32) error {
-	const snapshotThreads, threadSuspendResume = 0x00000004, 0x0002
-	snapshot, err := syscall.CreateToolhelp32Snapshot(snapshotThreads, 0)
+func (tree *publicationProcessTree) kill(_ *exec.Cmd) {
+	_ = syscall.TerminateProcess(tree.root.Process, 1)
+}
+
+func (tree *publicationProcessTree) wait(command *exec.Cmd) error {
+	// The native handle keeps the exact root PID reserved while Go opens
+	// a second handle to obtain its ordinary ProcessState and exit status.
+	process, err := os.FindProcess(int(tree.root.ProcessId))
 	if err != nil {
 		return err
 	}
-	defer syscall.CloseHandle(snapshot)
-	entry := publicationThreadEntry{}
-	entry.Size = uint32(unsafe.Sizeof(entry))
-	result, _, err := publicationThreadFirst.Call(uintptr(snapshot), uintptr(unsafe.Pointer(&entry)))
-	for result != 0 {
-		if entry.Owner == pid {
-			thread, _, err := openPublicationThread.Call(threadSuspendResume, 0, uintptr(entry.ID))
-			if thread == 0 {
-				return err
-			}
-			defer syscall.CloseHandle(syscall.Handle(thread))
-			resumed, _, err := resumePublicationThread.Call(thread)
-			if resumed == 0xffffffff {
-				return err
-			}
-			return nil
-		}
-		result, _, err = publicationThreadNext.Call(uintptr(snapshot), uintptr(unsafe.Pointer(&entry)))
+	defer process.Release()
+	state, err := process.Wait()
+	if err != nil {
+		return err
 	}
-	return err
+	command.ProcessState = state
+	if !state.Success() {
+		return &exec.ExitError{ProcessState: state}
+	}
+	return nil
 }
 
 func (tree *publicationProcessTree) terminate(deadline time.Time) error {
@@ -163,18 +149,28 @@ func (tree *publicationProcessTree) terminate(deadline time.Time) error {
 }
 
 func (tree *publicationProcessTree) quiesce(deadline time.Time) error {
+	if err := waitPublicationProcessHandle(tree.root.Process, deadline); err != nil {
+		return err
+	}
 	for len(tree.processes) > 0 {
 		process := tree.processes[0]
-		remaining := max(0, time.Until(deadline)).Milliseconds()
-		status, err := syscall.WaitForSingleObject(process, uint32(remaining))
-		if err != nil {
+		if err := waitPublicationProcessHandle(process, deadline); err != nil {
 			return err
-		}
-		if status != syscall.WAIT_OBJECT_0 {
-			return errPublicationCleanupDeadline
 		}
 		_ = syscall.CloseHandle(process)
 		tree.processes = tree.processes[1:]
+	}
+	return nil
+}
+
+func waitPublicationProcessHandle(process syscall.Handle, deadline time.Time) error {
+	remaining := max(0, time.Until(deadline)).Milliseconds()
+	status, err := syscall.WaitForSingleObject(process, uint32(remaining))
+	if err != nil {
+		return err
+	}
+	if status != syscall.WAIT_OBJECT_0 {
+		return errPublicationCleanupDeadline
 	}
 	return nil
 }
@@ -240,6 +236,12 @@ func (tree *publicationProcessTree) processIDs(deadline time.Time) ([]uintptr, e
 func (tree *publicationProcessTree) close() {
 	for _, process := range tree.processes {
 		_ = syscall.CloseHandle(process)
+	}
+	if tree.root.Thread != 0 {
+		_ = syscall.CloseHandle(tree.root.Thread)
+	}
+	if tree.root.Process != 0 {
+		_ = syscall.CloseHandle(tree.root.Process)
 	}
 	_ = syscall.CloseHandle(tree.job)
 }

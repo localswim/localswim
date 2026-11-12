@@ -24,9 +24,6 @@ func (c *Client) ResolveTicketRelationship(boardID string, ticket, related uint6
 	if err != nil {
 		return TicketRelationshipTarget{}, err
 	}
-	if focus.BoardETag != ticketEntityTag(focus.BoardID, focus.BoardRevision) {
-		return TicketRelationshipTarget{}, errors.New("service did not confirm the ticket view's board validator")
-	}
 	result := TicketRelationshipTarget{TicketTarget: focus}
 	if related == 0 {
 		return result, nil

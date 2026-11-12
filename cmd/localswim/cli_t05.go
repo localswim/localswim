@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -125,21 +126,26 @@ func detachAttachment(api *client.Client, cmd cliCommand) error {
 	if current.ETag == "" {
 		return errors.New("service did not return a strong attachment ETag")
 	}
-	if err := checkCLIRevision(cmd.revision, current.JSON); err != nil {
-		return err
-	}
-	boardTag := target.BoardETag
 	if cmd.ticketAttachment == nil {
+		if err := checkCLIRevision(cmd.revision, current.JSON); err != nil {
+			return err
+		}
 		board, err := parentBoard(api, current.JSON)
 		if err != nil {
 			return err
 		}
-		boardTag = board.ETag
-	} else {
-		id := strings.TrimPrefix(cmd.resource, "/attachments/")
-		if !matchesTicketAttachment(current.JSON, id, target) {
-			return errors.New("service did not return an active attachment on the resolved ticket")
-		}
+		return api.DetachAttachment(cmd.resource, current.ETag, board.ETag)
 	}
-	return api.DetachAttachment(cmd.resource, current.ETag, boardTag)
+	id := strings.TrimPrefix(cmd.resource, "/attachments/")
+	revision, matches := resolvedAttachmentRevision(current.JSON, id, target)
+	if !matches {
+		return errors.New("service did not return an active attachment on the resolved ticket")
+	}
+	if revision > target.BoardRevision || !client.MatchesEntityTagRevision(current.ETag, id, revision) {
+		return errors.New("service did not return a matching attachment revision and validator")
+	}
+	if cmd.revision != nil && *cmd.revision != revision {
+		return fmt.Errorf("revision mismatch (expected %d, current %d)", *cmd.revision, revision)
+	}
+	return api.DetachAttachment(cmd.resource, current.ETag, target.BoardETag)
 }

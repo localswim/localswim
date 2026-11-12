@@ -198,3 +198,62 @@ func TestM098RejectsInvalidTicketArguments(t *testing.T) {
 		}
 	}
 }
+
+func TestM098TicketDetachBindsAttachmentValidatorToRevision(t *testing.T) {
+	const id = "9faf9dce-2df4-4bd1-9747-9610a86846dd"
+	boardTag := fmt.Sprintf("%q", t03Board+"-8")
+	attachmentTag := func(id string, revision int) string {
+		return fmt.Sprintf("%q", fmt.Sprintf("%s-%d", id, revision))
+	}
+	for _, tc := range []struct {
+		name, tag, revision, wantError string
+	}{
+		{"matching", attachmentTag(id, 6), "6", ""},
+		{"different revision", attachmentTag(id, 7), "6", "matching attachment revision and validator"},
+		{"different identity", attachmentTag(t03Card, 6), "6", "matching attachment revision and validator"},
+		{"unbound strong validator", t03ResourceTag, "6", "matching attachment revision and validator"},
+		{"missing revision", attachmentTag(id, 6), "null", "matching attachment revision and validator"},
+		{"newer than focus", attachmentTag(id, 9), "9", "matching attachment revision and validator"},
+		{"requested revision differs", attachmentTag(id, 7), "7", "revision mismatch"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var reads, deletes atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/boards/"+t03Board &&
+					r.URL.RawQuery == "view=ticket&ticket=2":
+					reads.Add(1)
+					w.Header().Set("X-Board-ETag", boardTag)
+					_, _ = fmt.Fprintf(w, `{"board_id":%q,"board_revision":8,"card":{"id":%q,"ticket":2,"revision":6}}`, t03Board, t03Card)
+				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/attachments/"+id:
+					reads.Add(1)
+					w.Header().Set("ETag", tc.tag)
+					_, _ = fmt.Fprintf(w, `{"id":%q,"board_id":%q,"card_id":%q,"active":true,"revision":%s}`, id, t03Board, t03Card, tc.revision)
+				case r.Method == http.MethodDelete && r.URL.Path == t03Root+"/attachments/"+id:
+					deletes.Add(1)
+					if r.Header.Get("If-Match") != tc.tag || r.Header.Get("X-Expected-Board-ETag") != boardTag {
+						t.Error("DELETE lost the original attachment or board validator")
+					}
+					w.Header().Set("X-Board-ETag", fmt.Sprintf("%q", t03Board+"-9"))
+					w.WriteHeader(http.StatusNoContent)
+				default:
+					t.Errorf("unexpected request %s %s", r.Method, r.URL)
+					w.WriteHeader(http.StatusBadRequest)
+				}
+			}))
+			defer server.Close()
+			var out, stderr bytes.Buffer
+			exit := runCLIWithInput([]string{"attachment", "detach", "--revision", "6", t03Board, "2", id},
+				strings.NewReader(""), &out, &stderr, t03Env(server.URL))
+			wantExit, wantDeletes := 0, int32(1)
+			if tc.wantError != "" {
+				wantExit, wantDeletes = 1, 0
+			}
+			if exit != wantExit || reads.Load() != 2 || deletes.Load() != wantDeletes ||
+				out.Len() != 0 || !strings.Contains(stderr.String(), tc.wantError) {
+				t.Fatalf("exit %d, reads %d, deletes %d, output %q, error %q",
+					exit, reads.Load(), deletes.Load(), &out, &stderr)
+			}
+		})
+	}
+}

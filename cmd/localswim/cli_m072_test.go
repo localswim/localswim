@@ -23,7 +23,7 @@ func TestM072RoutineWritesReuseValidators(t *testing.T) {
 		{
 			name: "create", action: "create", readPath: "/boards/" + t03Board, validator: t03BoardTag,
 			method: http.MethodPost, writePath: "/cards", response: `{"board_id":"` + t03Board + `"}`,
-			args: []string{"--title", text, "--description", text, strings.ToUpper(t03Board), strings.ToUpper(t03Lane)},
+			args: []string{"--description", text, strings.ToUpper(t03Board), strings.ToUpper(t03Lane), text},
 			body: map[string]any{"board_id": t03Board, "lane_id": t03Lane, "title": text, "description": text, "expected_board_etag": t03BoardTag},
 		},
 		{
@@ -117,7 +117,7 @@ func TestM072ContextualHelpAndInputErrors(t *testing.T) {
 	for _, tc := range []struct {
 		group, action, option, input string
 	}{
-		{"card", "create", "--title", "FILE|-"},
+		{"card", "create", "LANE_ID TITLE", "FILE|-"},
 		{"comment", "post", "--text", "FILE|-"},
 		{"card", "set-priorities", "PRIORITY_ID", "CARD_ID"},
 	} {
@@ -136,12 +136,15 @@ func TestM072ContextualHelpAndInputErrors(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"card", "create"}, "requires BOARD_ID FILE|-"},
+		{[]string{"card", "create"}, "requires BOARD_ID LANE_ID TITLE or BOARD_ID FILE|-"},
 		{[]string{"comment", "post", t03Board, t03Card}, "followed by FILE or -"},
 		{[]string{"card", "set-priorities", t03Board}, "requires BOARD_ID PRIORITY_ID"},
-		{[]string{"card", "create", "--description", "text", t03Board, t03Lane}, "requires --title"},
-		{[]string{"card", "create", "--title", "\xff", t03Board, t03Lane}, "valid UTF-8"},
-		{[]string{"card", "create", "--title", "text", "card.json"}, "UUIDv4 board ID"},
+		{[]string{"card", "create", "--description", "text", t03Board, t03Lane}, "requires BOARD_ID LANE_ID TITLE"},
+		{[]string{"card", "create", t03Board, t03Lane, "\xff"}, "valid UTF-8"},
+		{[]string{"card", "create", t03Board, t03Lane, ""}, "nonempty valid UTF-8 title"},
+		{[]string{"card", "create", t03Board, "invalid-lane", "Title"}, "requires BOARD_ID LANE_ID TITLE"},
+		{[]string{"card", "create", t03Board, t03Lane, "Title", "Extra"}, "requires BOARD_ID LANE_ID TITLE"},
+		{[]string{"card", "create", "--title", "text", t03Board, t03Lane}, "flag provided but not defined"},
 		{[]string{"comment", "post", "--text=", t03Board, t03Card}, "nonempty valid UTF-8"},
 		{[]string{"comment", "post", "--text", "\xff", t03Board, t03Card}, "nonempty valid UTF-8"},
 		{[]string{"comment", "post", "--text", "text", t03Board, t03Card, "-"}, "documented arguments"},
@@ -153,6 +156,31 @@ func TestM072ContextualHelpAndInputErrors(t *testing.T) {
 		code := runCLIWithInput(tc.args, nil, &out, &stderr, noService)
 		if code != 2 || out.Len() != 0 || !strings.HasPrefix(stderr.String(), "ERROR ") || !strings.Contains(stderr.String(), tc.want) {
 			t.Errorf("%v result = %d, %s, %s", tc.args, code, &out, &stderr)
+		}
+	}
+}
+
+func TestCardCreatePositionalTitleAndDocumentForms(t *testing.T) {
+	for _, title := range []string{"A title", "  Café 🐝  ", "-", "--title", "card.json"} {
+		cmd, err := parseCLI([]string{"card", "create", t03Board, t03Lane, title})
+		if err != nil {
+			t.Fatalf("title %q: %v", title, err)
+		}
+		var body map[string]string
+		if err := json.Unmarshal(cmd.body, &body); err != nil {
+			t.Fatal(err)
+		}
+		if body["title"] != title || body["board_id"] != t03Board || body["lane_id"] != t03Lane || cmd.inputPath != "" {
+			t.Fatalf("positional title changed: %#v", cmd)
+		}
+		if _, exists := body["description"]; exists {
+			t.Fatal("omitted description was added")
+		}
+	}
+	for _, path := range []string{"card.json", "-"} {
+		cmd, err := parseCLI([]string{"card", "create", t03Board, path})
+		if err != nil || cmd.inputPath != path || cmd.body != nil || cmd.boardID != t03Board {
+			t.Fatalf("document form %q: %#v, %v", path, cmd, err)
 		}
 	}
 }

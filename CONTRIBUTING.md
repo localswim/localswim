@@ -31,7 +31,7 @@ Use the concise forms for routine writes. Set the variables to the UUIDs of the
 board, lane, cards, and priority you want to use.
 
 ```powershell
-localswim card create --title "Check pool hours" --description "Verify the holiday schedule." $board $lane
+localswim card create --description "Verify the holiday schedule." $board $lane "Check pool hours"
 localswim comment post --text "Confirmed weekend hours." $board $card
 localswim card set-priorities $board $priority $card $otherCard
 ```

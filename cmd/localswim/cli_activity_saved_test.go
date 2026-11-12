@@ -59,7 +59,7 @@ func TestM101CLIReadsSavedActivityAfterWriterStops(t *testing.T) {
 		ID       string `json:"id"`
 		Revision uint64 `json:"revision"`
 	}
-	created = run(liveEnv, 0, "card", "create", "--title", "Private card title", board.ID, board.LaneIDs[0])
+	created = run(liveEnv, 0, "card", "create", board.ID, board.LaneIDs[0], "Private card title")
 	if err := json.Unmarshal(created, &card); err != nil || card.At == "" {
 		t.Fatal("fixture card was not created")
 	}

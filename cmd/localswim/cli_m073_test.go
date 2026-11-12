@@ -105,12 +105,12 @@ func TestM073ProvisionAndGrantWorkflow(t *testing.T) {
 		}
 	}
 
-	run(bot, "HTTP 403", "card", "create", "--title", "In Progress card", board.ID, progress)
+	run(bot, "HTTP 403", "card", "create", board.ID, progress, "In Progress card")
 	var card struct {
 		ID     string `json:"id"`
 		LaneID string `json:"lane_id"`
 	}
-	decode(run(bot, "", "card", "create", "--title", "Backlog card", board.ID, backlog), &card)
+	decode(run(bot, "", "card", "create", board.ID, backlog, "Backlog card"), &card)
 	run(bot, "HTTP 403", "card", "move", board.ID, card.ID, progress)
 
 	current := revision()
@@ -122,7 +122,7 @@ func TestM073ProvisionAndGrantWorkflow(t *testing.T) {
 		strings.ToUpper(board.ID), strings.ToUpper(botID), strings.ToUpper(progress))
 	want.CreateGrants = append(want.CreateGrants, map[string]string{"user_id": botID, "lane_id": progress})
 	assertPolicy()
-	run(bot, "", "card", "create", "--title", "In Progress card", board.ID, progress)
+	run(bot, "", "card", "create", board.ID, progress, "In Progress card")
 	run(bot, "HTTP 403", "card", "move", board.ID, card.ID, progress)
 
 	run(human, "", "policy", "grant", "--revision", revision(), "--move", board.ID, botID, backlog, progress)

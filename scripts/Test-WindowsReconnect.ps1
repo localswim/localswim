@@ -278,7 +278,7 @@ try {
         $board = Invoke-FixtureCli @('board', 'create', '--name', 'M93 disposable board', '--preset', 'terry') $human
         $lane = (Invoke-FixtureCli @('board', 'get', '--view', 'lanes', $board.id) $bot).lanes |
             Where-Object key -CEQ 'backlog'
-        $card = Invoke-FixtureCli @('card', 'create', '--title', 'Durable before crash', $board.id, $lane.id) $bot
+        $card = Invoke-FixtureCli @('card', 'create', $board.id, $lane.id, 'Durable before crash') $bot
         Assert-CardWrite $card $board.id 'Durable before crash'
         $phase = 'forced exit'
         $service.Kill()

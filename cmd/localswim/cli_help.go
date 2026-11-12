@@ -32,7 +32,7 @@ const commandUsage = `Usage:
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] [--data DIRECTORY] BOARD_ID <FILE|->
   localswim card create [--revision N] BOARD_ID <JSON_FILE|->
-  localswim card create [--revision N] --title TITLE [--description TEXT] BOARD_ID LANE_ID
+  localswim card create [--revision N] [--description TEXT] BOARD_ID LANE_ID TITLE
   localswim card list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card get BOARD_ID <CARD_ID|TICKET>
   localswim card inspect [--prose] [--data DIRECTORY] BOARD_ID <CARD_ID|TICKET>
@@ -312,7 +312,7 @@ var commandHelpNotes = map[string]string{
 	"board publishing":         "Enable or disable board publishing, or inspect its pending work, latest success and failure code. Inspect status after an uncertain settings write.",
 	"workspace publishing":     "Enable or disable workspace publishing, or inspect its status. Inspect status after an uncertain settings write.",
 	"workspace pin":            "Supply at least one board UUID. Set replaces the order; add appends new boards in order. Remove preserves the remaining order and reports failed targets as warnings.",
-	"card create":              "The concise form uses the board's default owner and priority. The JSON form requires BOARD_ID before FILE or -. An optional board_id in the document must match. An explicit card ID may be supplied for readback after a lost reply.",
+	"card create":              "The concise form requires a title after BOARD_ID and LANE_ID and uses the board's default owner and priority. The JSON form requires BOARD_ID before FILE or -. An optional board_id in the document must match. An explicit card ID may be supplied for readback after a lost reply.",
 	"card inspect":             "Supply BOARD_ID and a card UUID or positive ticket number. Includes archived cards. --prose includes the selected card's description and attributed comments.",
 	"card get":                 "Supply BOARD_ID and a card UUID or positive ticket number. Includes archived cards.",
 	"card move":                "Supply BOARD_ID, a card UUID or ticket, and the destination lane UUID. The card and board versions are guarded.",
@@ -352,7 +352,7 @@ var commandExamples = map[string]string{
 	"relationship remove": "  localswim relationship remove $board $relationship\n  localswim relationship remove $board 12 blocks 17",
 	"board create":        "  localswim board create --name \"Pool projects\" --preset terry\n  localswim board create --json workflow.json",
 	"board recover":       "  localswim board recover --mode same_id $board backup.zip\n  localswim board recover --mode fresh $board snapshot.json",
-	"card create":         "  localswim card create --title \"Check pool hours\" $board $lane\n  localswim card create --revision 12 $board card.json",
+	"card create":         "  localswim card create $board $lane \"Check pool hours\"\n  localswim card create --revision 12 $board card.json",
 	"card inspect":        "  localswim card inspect --prose $board 12",
 	"attachment upload":   "  localswim attachment upload --revision 12 $board 17 photo.png\n  localswim attachment upload --filename photo.png $board $card -",
 	"comment post":        "  localswim comment post --text \"Confirmed weekend hours.\" $board $card\n  localswim comment post --revision 13 $board $card comment.json",

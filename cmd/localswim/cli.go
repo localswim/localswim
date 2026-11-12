@@ -176,7 +176,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	creating := false
 	var createName, createPreset string
 	var jsonInput, createGrant, moveGrant bool
-	var cardTitle, cardDescription string
+	var cardDescription string
 	var boardView string
 	paginated := false
 	format := exportJSON
@@ -235,7 +235,6 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "card create":
 		command.method, command.resource = http.MethodPost, "/cards"
 		command.boardAction = name
-		flags.StringVar(&cardTitle, "title", "", "title of the new card")
 		flags.StringVar(&cardDescription, "description", "", "description of the new card")
 	case "card get":
 		command.method, command.resource = http.MethodGet, "/cards"
@@ -297,13 +296,12 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.resource += "?" + query.Encode()
 	}
 	var optionErr error
-	var hasName, hasJSON, hasRevision, hasTitle, hasDescription bool
+	var hasName, hasJSON, hasRevision, hasDescription bool
 	var hasCreateGrant, hasMoveGrant bool
 	flags.Visit(func(f *flag.Flag) {
 		hasName = hasName || f.Name == "name"
 		hasJSON = hasJSON || f.Name == "json"
 		hasRevision = hasRevision || f.Name == "revision"
-		hasTitle = hasTitle || f.Name == "title"
 		hasDescription = hasDescription || f.Name == "description"
 		hasCreateGrant = hasCreateGrant || f.Name == "create"
 		hasMoveGrant = hasMoveGrant || f.Name == "move"
@@ -362,7 +360,7 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.inputPath = flags.Arg(0)
 	} else if name == "card create" {
 		var err error
-		command.inputPath, command.body, err = cardCreateInput(flags.Args(), hasTitle, hasDescription, cardTitle, cardDescription)
+		command.inputPath, command.body, err = cardCreateInput(flags.Args(), hasDescription, cardDescription)
 		if err != nil {
 			return command, err
 		}

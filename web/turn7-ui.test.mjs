@@ -42,7 +42,7 @@ async function harness(api, pathname = "/boards/" + board, {
     }
     set scrollTop(top) { this._scrollTop = Math.min(top, scrollLimit(this)); }
     scrollLeft = 0;
-    constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; this.style = {}; }
+    constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; this.style = {setProperty(key, value) { this[key] = value; }}; }
     set textContent(value) { this.ownText = value; this.children = []; }
     get textContent() { return this.ownText + this.children.map((node) => node.textContent).join(""); }
     get isConnected() { return this.root === true || Boolean(this.parent?.isConnected); }
@@ -80,8 +80,8 @@ async function harness(api, pathname = "/boards/" + board, {
     focus(options) { document.activeElement = this; this.focusOptions = options; }
     closest(selector) {
       if (selector === '[data-unavailable="true"]' && this.dataset.unavailable === "true") return this;
-      if (selector === "details[data-card-search]:not([open])" && this.tagName === "details"
-          && this.dataset.cardSearch && !this.open) return this;
+      if (selector === "[hidden]" && this.hidden) return this;
+      if (selector === "details:not([open])" && this.tagName === "details" && !this.open) return this;
       return this.parent?.closest(selector) ?? null;
     }
     contains(node) { return node === this || this.children.some((child) => child.contains(node)); }
@@ -92,6 +92,8 @@ async function harness(api, pathname = "/boards/" + board, {
       if (selector === "*") return descendants;
       if (selector === "form button[type=submit]") return descendants.filter((child) => child.tagName === "button" && child.type === "submit" && child.parent.tagName === "form");
       if (selector.startsWith("#")) return descendants.filter((child) => child.id === selector.slice(1));
+      if (selector === "button[data-card-id]") return descendants.filter((child) => child.tagName === "button" && child.dataset.cardId);
+      if (selector === "button[data-lane-write]") return descendants.filter((child) => child.tagName === "button" && child.dataset.laneWrite);
       if (selector.startsWith("button[data-card-id=")) return descendants.filter((child) => child.tagName === "button" && selector.includes(child.dataset.cardId));
       return descendants.filter((child) => child.tagName === selector);
     }
@@ -147,7 +149,9 @@ async function harness(api, pathname = "/boards/" + board, {
     constructor(notify) { sidebarObserver = notify; }
     observe() {}
   }
-  document = {getElementById: (id) => nodes[id], querySelector: (selector) => nodes[selector] ?? null,
+  const body = new Element("body");
+  body.root = true;
+  document = {body, getElementById: (id) => nodes[id], querySelector: (selector) => nodes[selector] ?? null,
     title: "localswim", adoptedStyleSheets: [],
     elementFromPoint: () => pointerHit ?? null,
     createElement: (tag) => new ({input: Input, textarea: Textarea, button: Button, select: Select}[tag] ?? Element)(tag)};
@@ -198,7 +202,7 @@ async function harness(api, pathname = "/boards/" + board, {
   }
   return {nodes, downloads, ...context.hooks, settled, find, field, submit, submitValidated, navigate, popstate,
     keydown, pointerHit: (node) => { pointerHit = node; },
-    pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement,
+    pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement, focusBody: () => body.focus(),
     resizeLayout(width, direction = "row", detailsWidth = 416) {
       layout.clientWidth = width;
       layoutStyle.flexDirection = direction;
@@ -866,11 +870,17 @@ test("inline filter matches literal titles and tickets while keeping drawer draf
   const setFilter = (value) => { filter.value = value; filter.dispatch("input"); };
   const previewInput = () => main.querySelectorAll("input").find(({dataset}) => dataset.previewLane === lane);
   const approve = find("Approve all in lane");
+  assert.equal(approve.attributes["aria-label"], "Approve all in lane Ready");
+  assert.equal(find("Add card").attributes["aria-label"], "Add card in Ready");
+  assert.equal(find("Preview ticket order").attributes["aria-label"], "Preview ticket order in Ready");
   previewInput().value = "1, 12";
   find("Preview ticket order").click();
+  assert.equal(find("Preview ticket order").attributes["aria-disabled"], "true");
   await ui.settled();
   const apply = find("Apply ticket order");
   assert.ok(apply);
+  assert.equal(apply.attributes["aria-label"], "Apply ticket order in Ready");
+  assert.equal(find("Preview ticket order").attributes["aria-disabled"], undefined);
   assert.ok(approve);
   assert.equal(count(), "2 cards");
 
@@ -929,6 +939,151 @@ test("inline filter matches literal titles and tickets while keeping drawer draf
   assert.equal(total("Ready"), "2 of 2 cards");
   assert.ok(find("Approve all in lane"));
   assert.ok(ui.find(main, "summary", "Find cards"));
+});
+
+test("title composition defers saves and drawer close follows the current visible card", async () => {
+  const {api} = boardApi();
+  const writes = [];
+  const patch = api.patchCard;
+  api.patchCard = async (id, revision, draft) => {
+    writes.push([id, revision, {...draft}]);
+    return patch(id, revision, draft);
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details} = ui.nodes;
+  const filter = ui.field(main, "Filter by title or ticket");
+  const source = ui.find(main, "button", "#1 Original");
+  source.focus();
+  source.click();
+  await ui.settled();
+  assert.equal(ui.focused(), details.querySelector("h2"));
+  const title = ui.field(details, "Title");
+  title.focus();
+  title.dispatch("compositionstart");
+  title.value = "Candidate";
+  ui.submit(details, "Save text");
+  assert.deepEqual(writes, []);
+  assert.equal(ui.keydown(title, "Enter", {isComposing: true}), false);
+  title.dispatch("compositionend");
+  title.value = "確定";
+  ui.submit(details, "Save text");
+  assert.deepEqual(writes, []);
+  ui.keydown(title, "Enter");
+  ui.submit(details, "Save text");
+  await ui.settled();
+  assert.deepEqual(writes, [[card, tag(card, 1), {title: "確定"}]]);
+  assert.equal(ui.focused(), title);
+  ui.find(details, "button", "Close card").click();
+  const replacement = ui.find(main, "button", "#1 確定");
+  assert.notEqual(replacement, source);
+  assert.equal(ui.focused(), replacement);
+  replacement.click();
+  await ui.settled();
+  filter.value = "Hidden";
+  filter.dispatch("input");
+  ui.find(details, "button", "Close card").click();
+  assert.equal(ui.focused(), filter);
+});
+
+test("configured action colors and lane-action focus follow the current board paint", async () => {
+  const {api} = boardApi();
+  const getLanes = api.getBoardLanes;
+  let accent = "#777777";
+  api.getBoardLanes = async () => {
+    const reply = await getLanes();
+    reply.data.board.actor_presentation = {human: {accent}};
+    return reply;
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details, refresh} = ui.nodes;
+  const columns = main.querySelectorAll("div").find(({className}) => className === "lanes");
+  for (const region of [columns, details]) {
+    assert.equal(region.style["--action-fill"], "#777777");
+    assert.equal(region.style["--action-ink"], "#000000");
+  }
+  const original = ui.find(main, "button", "Add card");
+  assert.equal(original.className, "board-action");
+  original.focus();
+  accent = "#767676";
+  refresh.click();
+  await ui.settled();
+  for (const region of [columns, details]) {
+    assert.equal(region.style["--action-fill"], "#767676");
+    assert.equal(region.style["--action-ink"], "#ffffff");
+  }
+  const replacement = ui.find(main, "button", "Add card");
+  assert.notEqual(replacement, original);
+  assert.equal(ui.focused(), replacement);
+  assert.equal(replacement.focusOptions?.preventScroll, true);
+});
+
+test("single-card approval preserves unrelated focus and restores lost submit focus", async (t) => {
+  for (const elsewhere of [true, false]) {
+    await t.test(elsewhere ? "filter focused" : "submit focus lost to body", async () => {
+      const {api} = boardApi();
+      const original = (await api.getCard()).data;
+      const second = {...original, id: backup, ticket: 2, title: "Second card"};
+      const ready = {...(await api.listLanes()).data.lanes[0], role: "ready_for_review",
+        approval_enabled: true, reorder_enabled: true};
+      const completed = {...ready, id: priority, role: "completed", label: "Completed", position: 1,
+        approval_enabled: false, reorder_enabled: false};
+      api.listLanes = async () => page("lanes", [ready, completed]);
+      const approval = Promise.withResolvers();
+      let saved = original;
+      api.approveCard = async () => {
+        await approval.promise;
+        saved = {...original, lane_id: completed.id, revision: 2};
+      };
+      api.getCard = async () => ({data: saved, etag: tag(card, saved.revision)});
+      const getLanes = api.getBoardLanes;
+      api.getBoardLanes = async () => {
+        const reply = await getLanes();
+        return {data: {board: {...reply.data.board, revision: saved.revision}, cards: [saved, second]},
+          etag: tag(board, saved.revision)};
+      };
+      api.previewTicketOrder = async () => ({
+        data: {board_revision: 1, changed: true, current: [{card_id: card, ticket: 1}, {card_id: backup, ticket: 2}],
+          proposed: [{card_id: backup, ticket: 1}, {card_id: card, ticket: 2}]}, etag: tag(board, 1),
+      });
+      const writes = [];
+      api.applyTicketOrder = async () => writes.push("apply");
+      api.approveLane = async () => writes.push("approve");
+      const ui = await harness(api);
+      await ui.load();
+      const {main, details} = ui.nodes;
+      const find = (label) => ui.find(main, "button", label);
+      const filter = ui.field(main, "Filter by title or ticket");
+      const opener = find("#1 Original");
+      opener.click();
+      await ui.settled();
+      ui.find(details, "button", "Reviewed & approved").focus();
+      ui.submit(details, "Reviewed & approved");
+
+      assert.equal(find("Add card").attributes["aria-disabled"], "true");
+      assert.equal(find("Approve all in lane").attributes["aria-disabled"], "true");
+      assert.equal(find("Preview ticket order").attributes["aria-disabled"], undefined);
+      find("Preview ticket order").click();
+      await until(() => find("Apply ticket order"));
+      assert.equal(find("Apply ticket order").attributes["aria-disabled"], "true");
+      ui.submit(main, "Apply ticket order");
+      ui.submit(main, "Approve all in lane");
+      assert.deepEqual(writes, []);
+
+      if (elsewhere) filter.focus();
+      else ui.focusBody();
+      approval.resolve();
+      await ui.settled();
+      assert.equal(details.hidden, true);
+      const replacement = find("#1 Original");
+      assert.notEqual(replacement, opener);
+      assert.equal(ui.focused(), elsewhere ? filter : replacement);
+      assert.equal(find("Add card").attributes["aria-disabled"], undefined);
+      assert.equal(find("Approve all in lane").attributes["aria-disabled"], undefined);
+      assert.equal(find("Preview ticket order").disabled, true);
+    });
+  }
 });
 
 test("pending approval inspection still blocks recreated lane forms and a late ticket-order Apply", async () => {

@@ -19,6 +19,13 @@ to submit again. Inspect or Refresh rereads the active editor and preserves
 the draft. If readback fails, inspect the affected card or board before
 submitting another change there. The page makes one write attempt per submission.
 
+Press Enter or Space on a card to open its drawer. In **Title**, Enter saves
+the text once input composition has finished. Use **Close card** to return focus
+to the visible card opener or to **Filter by title or ticket** if it is missing.
+Lane action buttons include the lane name in their accessible name. The board's
+Human accent supplies the action fill, with black or white text selected for
+at least 4.5:1 contrast.
+
 Each tab keeps title, description, and comment drafts with their board and card
 IDs. The new-card draft also remembers its destination. Reload restores text
 exactly within the tab's storage budget. The newest drafts take precedence when

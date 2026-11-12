@@ -149,10 +149,10 @@ The drawer checks the original ID and fingerprint. An upload may still be
 running when the first inspection finds no saved attachment. In that case
 the card stays fenced and you can inspect again.
 
-Once the attempted file is confirmed, reselect all remaining originals in
-**Files** and choose **Resume pending uploads**. The drawer checks each file's
-name, size, and contents and reads its original ID before sending it with the
-current card revision. **Discard pending files** clears the saved selection
+When recovery is available after confirmation or a known refusal, reselect all
+remaining originals in **Files** and choose **Resume pending uploads**. The
+drawer checks each file's name, size, and contents and reads its original ID
+before sending it with the current card revision. **Discard pending files** clears the saved selection
 when there is no unresolved attempt. Uploads require room for their recovery
 details in tab storage.
 

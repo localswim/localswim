@@ -78,8 +78,7 @@ func TestM075CLIReportsMatchCapturedRevisionAfterWriterStops(t *testing.T) {
 	archived := create(backlog, "Archived work", "Archived description")
 	blocker := create(ready, "Ready blocker", "Other card's prose")
 	other := create(backlog, "Active work", "")
-	link := fmt.Sprintf(`{"source_card_id":%q,"target_card_id":%q,"kind":"blocks"}`, blocker.ID, archived.ID)
-	run(liveEnv, link, "relationship", "create", board.ID, "-")
+	run(liveEnv, "", "relationship", "create", blocker.ID, "blocks", archived.ID)
 	for _, post := range []struct{ cardID, text string }{
 		{other.ID, "First active comment"},
 		{blocker.ID, "Latest active comment"},
@@ -114,12 +113,12 @@ func TestM075CLIReportsMatchCapturedRevisionAfterWriterStops(t *testing.T) {
 	decode(capture("card", "triage-order", "--lane", backlog, "--lane", ready, board.ID), &next)
 	if len(next.Cards) != 1 || next.Cards[0].Ticket != blocker.Ticket ||
 		next.Cards[0].BlockedCardCount != 1 || next.NextCursor == nil {
-		t.Fatal("next did not apply the whole-board blocking score before the default limit")
+		t.Fatal("triage-order did not apply the whole-board blocking score before the default limit")
 	}
 	cursor := *next.NextCursor
 	decode(capture("card", "triage-order", "--lane", ready, "--lane", backlog, "--cursor", cursor, board.ID), &next)
 	if len(next.Cards) != 1 || next.Cards[0].Ticket != other.Ticket || next.NextCursor != nil {
-		t.Fatal("next did not continue the same lane selection in triage order")
+		t.Fatal("triage-order did not continue the same lane selection")
 	}
 
 	decode(capture("card", "search", "--archived", "only", "--search", "Archived", board.ID), &next)

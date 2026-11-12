@@ -93,7 +93,8 @@ func runCLIWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, g
 			}
 			return 0
 		}
-		fmt.Fprintln(stderr, "ERROR", err)
+		message := strings.Replace(err.Error(), "flag provided but not defined: -", "flag provided but not defined: --", 1)
+		fmt.Fprintln(stderr, "ERROR", message)
 		fmt.Fprint(stderr, contextualCLIHelp(args))
 		return 2
 	}

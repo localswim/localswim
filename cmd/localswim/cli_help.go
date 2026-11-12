@@ -62,7 +62,7 @@ const commandUsage = `Usage:
   localswim relationship remove [--revision N] BOARD_ID SOURCE_TICKET KIND TARGET_TICKET
   localswim comment list [--data DIRECTORY] [--archived exclude|include|only]
                          [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
-  localswim comment post [--revision N] CARD_ID FILE|-
+  localswim comment post [--revision N] CARD_ID <JSON_FILE|->
   localswim comment post [--revision N] --text TEXT CARD_ID
   localswim activity list [--data DIRECTORY] --from UTC --to UTC [--view full|monitor]
                         [--ticket N] [--card-id CARD_ID]
@@ -133,7 +133,7 @@ func requestedCLIHelp(args []string) (string, bool) {
 	if help == "" {
 		return "", false
 	}
-	if explicit || !hasExactCommand(name) {
+	if explicit || (len(args) == 1 && !hasExactCommand(name)) {
 		return help, true
 	}
 	return "", false

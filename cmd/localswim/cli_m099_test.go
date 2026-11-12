@@ -20,7 +20,7 @@ func TestM099HelpDiscovery(t *testing.T) {
 		{[]string{"help", "board", "create"}, "--json <JSON_FILE|->", "localswim board patch"},
 		{[]string{"card", "inspect", "-h"}, "--prose", "localswim card create"},
 		{[]string{"attachment", "upload", "--help"}, "10 MiB", "localswim attachment detach"},
-		{[]string{"board", "notifications"}, "localswim board notifications target", "localswim board create"},
+		{[]string{"board", "notifications", "--help"}, "localswim board notifications target", "localswim board create"},
 		{[]string{"board", "notifications", "target", "--help"}, "notification routing revision", "localswim board notifications enable"},
 		{[]string{"workspace", "publishing", "-h"}, "localswim workspace publishing enable", "localswim board publishing"},
 		{[]string{"workspace", "pin", "set", "--help"}, "workspace revision", "localswim workspace pin add"},
@@ -60,6 +60,7 @@ func TestM099InvalidInvocationIsScopedAndDoesNotExecute(t *testing.T) {
 	for _, args := range [][]string{
 		{"unknown"}, {"unknown", "--help"}, {"help", "unknown"},
 		{"board", "unknown", "--help"}, {"board", "create"},
+		{"board", "notifications"}, {"workspace", "pin"},
 		{"card", "inspect", "--bad"}, {"attachment", "upload"},
 		{"board", "notifications", "unknown", "--help"},
 		{"workspace", "pin", "unknown", "--help"},

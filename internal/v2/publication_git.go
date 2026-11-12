@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -37,26 +38,28 @@ func (output *boundedGitOutput) Write(data []byte) (int, error) {
 	return output.data.Write(data)
 }
 
-func publicationGit(cwd, index string, input []byte, args ...string) ([]byte, error) {
-	return publicationGitConfigured(cwd, index, input, nil, args...)
+func (repo publicationRepository) git(index string, input []byte, args ...string) ([]byte, error) {
+	return repo.gitConfigured(index, input, nil, args...)
 }
 
-func publicationGitConfigured(cwd, index string, input []byte, configuration []string, args ...string) ([]byte, error) {
-	return runPublicationGit(cwd, index, input, configuration, io.Discard, args...)
+func (repo publicationRepository) gitConfigured(index string, input []byte, configuration []string, args ...string) ([]byte, error) {
+	return repo.runGit(index, input, configuration, io.Discard, args...)
 }
 
-func runPublicationGit(cwd, index string, input []byte, configuration []string, stderr io.Writer, args ...string) ([]byte, error) {
+func (repo publicationRepository) runGit(index string, input []byte, configuration []string, stderr io.Writer, args ...string) ([]byte, error) {
 	output := boundedGitOutput{limit: 64 * 1024}
-	err := runPublicationGitOutput(cwd, index, input, configuration, &output, stderr, args...)
+	err := repo.gitOutput(index, input, configuration, &output, stderr, args...)
 	return output.data.Bytes(), err
 }
 
-func runPublicationGitOutput(cwd, index string, input []byte, configuration []string, stdout, stderr io.Writer, args ...string) error {
+func (repo publicationRepository) gitOutput(index string, input []byte, configuration []string, stdout, stderr io.Writer, args ...string) error {
+	if repo.execution != nil && repo.execution.cleanup != nil {
+		return repo.execution.cleanup
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), publicationGitTimeout)
 	defer cancel()
 	command := exec.CommandContext(ctx, "git", args...)
-	configurePublicationGitCommand(command)
-	command.Dir = cwd
+	command.Dir = repo.root
 	for _, entry := range os.Environ() {
 		name, _, _ := strings.Cut(entry, "=")
 		if !strings.HasPrefix(strings.ToUpper(name), "GIT_") {
@@ -71,11 +74,21 @@ func runPublicationGitOutput(cwd, index string, input []byte, configuration []st
 	command.Stdin = bytes.NewReader(input)
 	command.Stdout = stdout
 	command.Stderr = stderr
-	return command.Run()
+	err := runPublicationCommand(ctx, command)
+	var cleanup *publicationCleanup
+	if errors.As(err, &cleanup) {
+		if repo.execution == nil {
+			// Only read-only repository discovery runs before a lease exists.
+			cleanup.tree.close()
+		} else {
+			repo.execution.cleanup = cleanup
+		}
+	}
+	return err
 }
 
-func publicationGitText(cwd string, args ...string) (string, error) {
-	data, err := publicationGit(cwd, "", nil, args...)
+func (repo publicationRepository) gitText(args ...string) (string, error) {
+	data, err := repo.git("", nil, args...)
 	return strings.TrimSuffix(strings.TrimSuffix(string(data), "\n"), "\r"), err
 }
 
@@ -83,11 +96,14 @@ func publicationGitText(cwd string, args ...string) (string, error) {
 // common directory and persistent lock name match the V1 publisher, including
 // linked worktrees. Never initialize a lock byte before acquiring the OS lock.
 func acquirePublicationRepository(cwd string, wait time.Duration) (*os.File, error) {
-	common, err := publicationGitText(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	common, err := (publicationRepository{root: cwd}).gitText("rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil || common == "" {
 		return nil, gitPublicationError("repository_unavailable")
 	}
 	path := filepath.Join(common, "localswim-autopush.lock")
+	if err := confirmPublicationFence(path); err != nil {
+		return nil, err
+	}
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, gitPublicationError("repository_lock_unavailable")
@@ -117,19 +133,51 @@ func releasePublicationRepository(file *os.File) {
 	_ = file.Close()
 }
 
-func publicationGitSafety(cwd string, paths []string) error {
-	hooks, err := publicationGitText(cwd, "config", "--get", "core.hooksPath")
+type publicationFence struct {
+	mu      sync.Mutex
+	lease   *os.File
+	cleanup *publicationCleanup
+}
+
+// Retain the exact OS lease and tree while quiescence is unconfirmed. Another
+// attempt can check that same tree without dispatching a new mutation.
+var publicationFences sync.Map
+
+func confirmPublicationFence(path string) error {
+	value, ok := publicationFences.Load(path)
+	if !ok {
+		return nil
+	}
+	fence := value.(*publicationFence)
+	fence.mu.Lock()
+	defer fence.mu.Unlock()
+	if fence.lease == nil {
+		return nil
+	}
+	if !fence.cleanup.confirm() {
+		return gitPublicationError("git_cleanup_unconfirmed")
+	}
+	// Remove only this fence, while its OS lease still excludes the next
+	// publication from acquiring the lock and installing a replacement.
+	publicationFences.CompareAndDelete(path, fence)
+	releasePublicationRepository(fence.lease)
+	fence.lease = nil
+	return nil
+}
+
+func (repo publicationRepository) gitSafety(paths []string) error {
+	hooks, err := repo.gitText("config", "--get", "core.hooksPath")
 	if err == nil && hooks != "" {
 		return gitPublicationError("unsupported_hooks")
 	}
 	if err != nil && !gitConfigAbsent(err) {
 		return gitPublicationError("git_configuration_unavailable")
 	}
-	monitor, err := publicationGitText(cwd, "config", "--type=bool", "--get", "core.fsmonitor")
+	monitor, err := repo.gitText("config", "--type=bool", "--get", "core.fsmonitor")
 	if err == nil && monitor != "false" || err != nil && !gitConfigAbsent(err) {
 		return gitPublicationError("unsupported_fsmonitor")
 	}
-	directory, err := publicationGitText(cwd, "rev-parse", "--path-format=absolute", "--git-path", "hooks")
+	directory, err := repo.gitText("rev-parse", "--path-format=absolute", "--git-path", "hooks")
 	if err != nil {
 		return gitPublicationError("git_configuration_unavailable")
 	}
@@ -152,10 +200,10 @@ func publicationGitSafety(cwd string, paths []string) error {
 		}
 		batch := paths[start:end]
 		input := []byte(strings.Join(batch, "\x00") + "\x00")
-		if err := publicationGitIgnore(cwd, batch); err != nil {
+		if err := repo.gitIgnore(batch); err != nil {
 			return err
 		}
-		data, err := publicationGit(cwd, "", input, "check-attr", "-z", "--stdin", "filter")
+		data, err := repo.git("", input, "check-attr", "-z", "--stdin", "filter")
 		fields := strings.Split(string(data), "\x00")
 		if err != nil || len(fields) != len(batch)*3+1 || fields[len(fields)-1] != "" {
 			return gitPublicationError("git_attributes_unavailable")
@@ -185,14 +233,14 @@ func (stderr *gitStderrPresence) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func publicationGitIgnore(cwd string, paths []string) error {
+func (repo publicationRepository) gitIgnore(paths []string) error {
 	// Apply the worktree's ignore rules even to tracked or staged paths.
 	// Staging uses a private index, so the caller's index cannot grant admission.
 	// A leading ./ makes each path literal to check-ignore, which rejects the
 	// global --literal-pathspecs option.
 	input := []byte("./" + strings.Join(paths, "\x00./") + "\x00")
 	var stderr gitStderrPresence
-	data, err := runPublicationGit(cwd, "", input, nil, &stderr, "check-ignore", "--no-index", "-z", "--stdin")
+	data, err := repo.runGit("", input, nil, &stderr, "check-ignore", "--no-index", "-z", "--stdin")
 	if stderr.seen {
 		return gitPublicationError("git_ignore_unavailable")
 	}
@@ -224,13 +272,31 @@ type publicationCapture struct {
 }
 
 type publicationRepository struct {
-	root   string
-	prefix string
-	lease  *os.File
+	root      string
+	prefix    string
+	lease     *os.File
+	execution *publicationExecution
+}
+
+type publicationExecution struct{ cleanup *publicationCleanup }
+
+func (repo publicationRepository) processError(err error) error {
+	if repo.execution != nil && repo.execution.cleanup != nil {
+		return gitPublicationError("git_cleanup_unconfirmed")
+	}
+	return err
+}
+
+func (repo publicationRepository) release() {
+	if repo.execution != nil && repo.execution.cleanup != nil {
+		publicationFences.Store(repo.lease.Name(), &publicationFence{lease: repo.lease, cleanup: repo.execution.cleanup})
+		return
+	}
+	releasePublicationRepository(repo.lease)
 }
 
 func lockPublication(dataRoot string) (publicationRepository, error) {
-	root, err := publicationGitText(dataRoot, "rev-parse", "--show-toplevel")
+	root, err := (publicationRepository{root: dataRoot}).gitText("rev-parse", "--show-toplevel")
 	if err != nil || root == "" {
 		return publicationRepository{}, gitPublicationError("repository_unavailable")
 	}
@@ -242,15 +308,15 @@ func lockPublication(dataRoot string) (publicationRepository, error) {
 	if err != nil {
 		return publicationRepository{}, err
 	}
-	return publicationRepository{root: root, prefix: prefix, lease: lease}, nil
+	return publicationRepository{root: root, prefix: prefix, lease: lease, execution: &publicationExecution{}}, nil
 }
 
 func (repo publicationRepository) head() (string, string, error) {
-	ref, err := publicationGitText(repo.root, "symbolic-ref", "--quiet", "HEAD")
+	ref, err := repo.gitText("symbolic-ref", "--quiet", "HEAD")
 	if err != nil || !strings.HasPrefix(ref, "refs/heads/") {
 		return "", "", gitPublicationError("branch_unavailable")
 	}
-	previous, err := publicationGitText(repo.root, "rev-parse", "--verify", ref)
+	previous, err := repo.gitText("rev-parse", "--verify", ref)
 	if err != nil {
 		return "", "", gitPublicationError("head_unavailable")
 	}
@@ -292,20 +358,28 @@ func (repo publicationRepository) push(remote publicationRemote, checkpointOID, 
 	prefix := publicationSendRefPrefix + checkpointOID + "/"
 	source := prefix + "commit"
 	object := commit + "^{commit}"
-	refs, err := publicationGitText(repo.root, "for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)", "--", prefix)
+	refs, err := repo.gitText("for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)", "--", prefix)
 	switch {
 	case err != nil:
 		return gitPublicationError("git_ref_failed")
 	case refs == "":
-		if _, err := publicationGit(repo.root, "", nil, "update-ref", "--no-deref", source, object, strings.Repeat("0", len(commit))); err != nil {
+		if _, err := repo.git("", nil, "update-ref", "--no-deref", source, object, strings.Repeat("0", len(commit))); err != nil {
 			return gitPublicationError("git_ref_failed")
 		}
 	case refs != source+"\x00"+commit+"\x00":
 		return gitPublicationError("publication_state_unavailable")
 	}
-	_, pushErr := publicationGitConfigured(repo.root, "", nil, remote.configuration, "-c", "remote."+remote.name+".mirror=false",
+	_, pushErr := repo.gitConfigured("", nil, remote.configuration, "-c", "remote."+remote.name+".mirror=false",
 		"push", "--no-follow-tags", "--recurse-submodules=no", "--", remote.name, source+"*:"+ref+"*")
-	if _, err := publicationGit(repo.root, "", nil, "update-ref", "--no-deref", "-d", source, object); err != nil {
+	if errors.Is(pushErr, errPublicationGitTimeout) {
+		// The pinned source is reusable on retry. Avoid a second Git command
+		// masking the known timeout or probing the uncertain remote outcome.
+		return gitPublicationError("git_push_timeout")
+	}
+	if err := repo.processError(nil); err != nil {
+		return err
+	}
+	if _, err := repo.git("", nil, "update-ref", "--no-deref", "-d", source, object); err != nil {
 		return gitPublicationError("git_ref_failed")
 	}
 	if pushErr != nil {
@@ -359,7 +433,7 @@ func (repo publicationRepository) prepareCommit(previous string, capture publica
 	}
 	defer os.RemoveAll(directory)
 	index := filepath.Join(directory, "index")
-	if _, err := publicationGit(repo.root, index, nil, "read-tree", previous); err != nil {
+	if _, err := repo.git(index, nil, "read-tree", previous); err != nil {
 		return "", gitPublicationError("git_index_failed")
 	}
 	for position, file := range capture.files {
@@ -367,7 +441,7 @@ func (repo publicationRepository) prepareCommit(previous string, capture publica
 		if err != nil {
 			return "", gitPublicationError("backup_integrity")
 		}
-		hash, err := publicationGit(repo.root, index, data, "hash-object", "-w", "--stdin")
+		hash, err := repo.git(index, data, "hash-object", "-w", "--stdin")
 		if err != nil {
 			return "", gitPublicationError("git_object_failed")
 		}
@@ -375,26 +449,26 @@ func (repo publicationRepository) prepareCommit(previous string, capture publica
 		name := names[position]
 		// --cacheinfo without --replace refuses file/directory conflicts with
 		// inherited entries. Verify exact mode, path, and object before writing.
-		if _, err := publicationGit(repo.root, index, nil, "update-index", "--add", "--cacheinfo", "100644,"+oid+","+name); err != nil {
+		if _, err := repo.git(index, nil, "update-index", "--add", "--cacheinfo", "100644,"+oid+","+name); err != nil {
 			return "", gitPublicationError("git_index_failed")
 		}
-		staged, err := publicationGit(repo.root, index, nil, "--literal-pathspecs", "ls-files", "--stage", "-z", "--", name)
+		staged, err := repo.git(index, nil, "--literal-pathspecs", "ls-files", "--stage", "-z", "--", name)
 		if err != nil || string(staged) != "100644 "+oid+" 0\t"+name+"\x00" {
 			return "", gitPublicationError("git_index_failed")
 		}
 	}
-	tree, err := publicationGit(repo.root, index, nil, "write-tree")
+	tree, err := repo.git(index, nil, "write-tree")
 	if err != nil {
 		return "", gitPublicationError("git_tree_failed")
 	}
-	oldTree, err := publicationGitText(repo.root, "rev-parse", previous+"^{tree}")
+	oldTree, err := repo.gitText("rev-parse", previous+"^{tree}")
 	if err != nil {
 		return "", gitPublicationError("git_tree_failed")
 	}
 	if strings.TrimSpace(string(tree)) == oldTree {
 		return previous, nil
 	}
-	data, err := publicationGit(repo.root, index, []byte(capture.message+"\n"), "commit-tree", strings.TrimSpace(string(tree)), "-p", previous)
+	data, err := repo.git(index, []byte(capture.message+"\n"), "commit-tree", strings.TrimSpace(string(tree)), "-p", previous)
 	if err != nil {
 		return "", gitPublicationError("git_commit_failed")
 	}
@@ -411,19 +485,19 @@ func publishVerifiedBackup(dataRoot string, item backup, selection publicationSe
 	if err != nil {
 		return record(err)
 	}
-	defer releasePublicationRepository(repo.lease)
+	defer repo.release()
 	// A retry has its own receipt ID but resumes the same verified backup.
 	ref := publicationCheckpointRef(dataRoot, "backup-"+item.ID)
 	oid, pushErr := repo.pushVerifiedBackup(ref, item, archive, selection)
 	// Keep the pinned intent under the repository lease until the terminal
 	// receipt is durable. A lost receipt must still constrain a new attempt.
-	if err := record(pushErr); err != nil {
+	if err := record(repo.processError(pushErr)); err != nil {
 		return err
 	}
 	if pushErr == nil {
 		// If cleanup fails, leave the original intent in place. The saved
 		// receipt already confirms the push, and a same-target retry is safe.
-		_, _ = publicationGit(repo.root, "", nil, "update-ref", "-d", ref, oid)
+		_, _ = repo.git("", nil, "update-ref", "-d", ref, oid)
 	}
 	return nil
 }

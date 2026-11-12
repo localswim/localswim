@@ -39,14 +39,14 @@ func validPublicationDigest(text string) bool {
 
 func (repo publicationRepository) checkpoint(ref string) (publicationCheckpoint, string, error) {
 	var checkpoint publicationCheckpoint
-	oid, err := publicationGitText(repo.root, "for-each-ref", "--format=%(objectname)", "--", ref)
+	oid, err := repo.gitText("for-each-ref", "--format=%(objectname)", "--", ref)
 	if err != nil || (oid != "" && !gitObjectID(oid)) {
 		return checkpoint, "", gitPublicationError("publication_state_unavailable")
 	}
 	if oid == "" {
 		return checkpoint, "", nil
 	}
-	data, err := publicationGit(repo.root, "", nil, "cat-file", "commit", oid)
+	data, err := repo.git("", nil, "cat-file", "commit", oid)
 	headers, message, found := strings.Cut(string(data), "\n\n")
 	if err != nil || !found || unmarshalCanonical([]byte(message), &checkpoint) != nil ||
 		checkpoint.Revision == 0 || checkpoint.Revision > maxSnapshotInteger ||
@@ -75,7 +75,7 @@ func (repo publicationRepository) checkpoint(ref string) (publicationCheckpoint,
 
 func (repo publicationRepository) checkpointInventory(oid string) ([]string, error) {
 	output := boundedGitOutput{limit: maxSnapshotBytes}
-	err := runPublicationGitOutput(repo.root, "", nil, nil, &output, io.Discard, "cat-file", "blob", oid+":inventory")
+	err := repo.gitOutput("", nil, nil, &output, io.Discard, "cat-file", "blob", oid+":inventory")
 	data, terminated := strings.CutSuffix(output.data.String(), "\x00")
 	if err != nil || !terminated {
 		return nil, gitPublicationError("publication_state_unavailable")
@@ -118,14 +118,14 @@ func (repo publicationRepository) checkpointTree(pending *pendingPublication) (s
 		if len(relative) == 0 || len(names) > maxSnapshotBytes {
 			return "", gitPublicationError("publication_state_unavailable")
 		}
-		hash, err := publicationGit(repo.root, "", names, "hash-object", "-w", "--stdin")
+		hash, err := repo.git("", names, "hash-object", "-w", "--stdin")
 		blob := strings.TrimSpace(string(hash))
 		if err != nil || !gitObjectID(blob) {
 			return "", gitPublicationError("publication_state_unavailable")
 		}
 		entry = []byte("100644 blob " + blob + "\tinventory\x00")
 	}
-	output, err := publicationGit(repo.root, "", entry, "mktree", "-z")
+	output, err := repo.git("", entry, "mktree", "-z")
 	tree := strings.TrimSpace(string(output))
 	if err != nil || !gitObjectID(tree) {
 		return "", gitPublicationError("publication_state_unavailable")
@@ -149,7 +149,7 @@ func (repo publicationRepository) saveCheckpoint(ref, oid string, checkpoint pub
 		// reachable before the branch CAS, including during repository pruning.
 		args = append(args, "-p", checkpoint.Pending.Commit)
 	}
-	object, err := publicationGit(repo.root, "", data, args...)
+	object, err := repo.git("", data, args...)
 	next := strings.TrimSpace(string(object))
 	if err != nil || !gitObjectID(next) {
 		return "", gitPublicationError("publication_state_unavailable")
@@ -159,7 +159,7 @@ func (repo publicationRepository) saveCheckpoint(ref, oid string, checkpoint pub
 		change = "update " + ref + " " + next + " " + oid + "\n"
 	}
 	input := []byte(change)
-	if _, err := publicationGit(repo.root, "", input, "update-ref", "--stdin"); err != nil {
+	if _, err := repo.git("", input, "update-ref", "--stdin"); err != nil {
 		return "", gitPublicationError("git_ref_failed")
 	}
 	return next, nil
@@ -171,7 +171,7 @@ func publicationRemoteDigest(url string) string {
 }
 
 func (repo publicationRepository) pushPending(oid string, pending pendingPublication, selection publicationSelection) error {
-	if err := publicationGitSafety(repo.root, nil); err != nil {
+	if err := repo.gitSafety(nil); err != nil {
 		return err
 	}
 	destination, err := repo.resolveDestination(pending.SourceRef, selection)
@@ -181,14 +181,14 @@ func (repo publicationRepository) pushPending(oid string, pending pendingPublica
 	if destination.target != pending.Target {
 		return gitPublicationError("publication_destination_changed")
 	}
-	tip, err := publicationGitText(repo.root, "rev-parse", "--verify", "--end-of-options", pending.SourceRef)
+	tip, err := repo.gitText("rev-parse", "--verify", "--end-of-options", pending.SourceRef)
 	if err != nil || !gitObjectID(tip) {
 		return gitPublicationError("publication_branch_changed")
 	}
 	if tip == pending.Parent && pending.Commit != pending.Parent {
 		// The durable intent precedes this compare-and-swap. Recover an
 		// interruption here only while the branch still names its exact parent.
-		parent, err := publicationGitText(repo.root, "rev-parse", pending.Commit+"^")
+		parent, err := repo.gitText("rev-parse", pending.Commit+"^")
 		if err != nil || parent != pending.Parent {
 			return gitPublicationError("publication_state_unavailable")
 		}
@@ -225,14 +225,14 @@ func (repo publicationRepository) containsCommit(commit, tip string) bool {
 	if commit == tip {
 		return true
 	}
-	_, err := publicationGit(repo.root, "", nil, "merge-base", "--is-ancestor", commit, tip)
+	_, err := repo.git("", nil, "merge-base", "--is-ancestor", commit, tip)
 	return err == nil
 }
 
 // A later publisher can advance this remote branch while this checkpoint is
 // pending. Confirm the known descendant without rewriting any remote ref.
 func (repo publicationRepository) remoteContains(remote publicationRemote, pending pendingPublication) bool {
-	result, err := publicationGitConfigured(repo.root, "", nil, remote.configuration,
+	result, err := repo.gitConfigured("", nil, remote.configuration,
 		"ls-remote", "--refs", "--exit-code", "--", remote.name, pending.Target.Ref)
 	if err != nil {
 		return false

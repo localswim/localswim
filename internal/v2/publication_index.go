@@ -19,7 +19,7 @@ type publicationIndex struct {
 // Use the worktree's own Git lock as well as the common publication lease.
 // Ordinary Git writers know about index.lock, including in linked worktrees.
 func (repo publicationRepository) lockIndex() (*publicationIndex, error) {
-	name, err := publicationGitText(repo.root, "rev-parse", "--path-format=absolute", "--git-path", "index")
+	name, err := repo.gitText("rev-parse", "--path-format=absolute", "--git-path", "index")
 	if err != nil || !filepath.IsAbs(name) {
 		return nil, gitPublicationError("git_index_failed")
 	}
@@ -81,7 +81,7 @@ func (out *gitPathOutput) Write(data []byte) (int, error) {
 }
 
 func (repo publicationRepository) indexMatches(index, tree string, names []string) (bool, error) {
-	config, err := publicationGitText(repo.root, "config", "--type=bool", "--get", "core.ignoreCase")
+	config, err := repo.gitText("config", "--type=bool", "--get", "core.ignoreCase")
 	if err != nil && !gitConfigAbsent(err) {
 		return false, gitPublicationError("git_index_failed")
 	}
@@ -112,7 +112,7 @@ func (repo publicationRepository) indexMatches(index, tree string, names []strin
 		}
 	}}
 	var stderr gitStderrPresence
-	err = runPublicationGitOutput(repo.root, index, nil, nil, &output, &stderr,
+	err = repo.gitOutput(index, nil, nil, &output, &stderr,
 		"diff-index", "--cached", "--name-only", "--no-renames", "--no-ext-diff", "--no-textconv",
 		"--ignore-submodules=none", "--ita-visible-in-index", "-z", tree, "--")
 	if err != nil || stderr.seen || len(output.partial) != 0 {
@@ -141,7 +141,7 @@ func (repo publicationRepository) preparePublication(ref, previous string, captu
 	if err != nil {
 		return "", nil, err
 	}
-	if err := publicationGitSafety(repo.root, names); err != nil {
+	if err := repo.gitSafety(names); err != nil {
 		return "", nil, err
 	}
 	index, err := repo.lockIndex()
@@ -195,7 +195,7 @@ func (repo publicationRepository) prepareLiveIndex(index *publicationIndex, comm
 		return err
 	}
 	paths := []byte(strings.Join(names, "\x00") + "\x00")
-	if _, err := publicationGit(repo.root, temporary, paths, "--literal-pathspecs", "reset", "--quiet",
+	if _, err := repo.git(temporary, paths, "--literal-pathspecs", "reset", "--quiet",
 		"--no-refresh", commit, "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
 		return gitPublicationError("git_index_failed")
 	}
@@ -233,7 +233,7 @@ func (repo publicationRepository) advancePublication(ref, previous, commit strin
 	if branch, tip, err := repo.head(); err != nil || branch != ref || tip != previous {
 		return gitPublicationError("publication_branch_changed")
 	}
-	_, updateErr := publicationGit(repo.root, "", nil, "update-ref", ref, commit, previous)
+	_, updateErr := repo.git("", nil, "update-ref", ref, commit, previous)
 	branch, tip, err := repo.head()
 	if updateErr != nil && err == nil && branch == ref && tip == previous {
 		return gitPublicationError("git_ref_failed")
@@ -254,7 +254,7 @@ func (repo publicationRepository) confirmPublicationIndex(pending pendingPublica
 		return err
 	}
 	defer index.close()
-	branch, err := publicationGitText(repo.root, "symbolic-ref", "--quiet", "HEAD")
+	branch, err := repo.gitText("symbolic-ref", "--quiet", "HEAD")
 	if err != nil && !gitConfigAbsent(err) {
 		return gitPublicationError("publication_index_uncertain")
 	}

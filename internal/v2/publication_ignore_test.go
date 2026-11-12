@@ -195,7 +195,7 @@ func TestM88PublicationRefusesSkippedIgnoreRules(t *testing.T) {
 }
 
 func TestM88PublicationIgnoreCheckFailsClosed(t *testing.T) {
-	if err := publicationGitIgnore(t.TempDir(), []string{"boards/disposable.json"}); err != publicationGitError("git_ignore_unavailable") {
+	if err := (publicationRepository{root: t.TempDir()}).gitIgnore([]string{"boards/disposable.json"}); err != publicationGitError("git_ignore_unavailable") {
 		t.Fatalf("failed ignore check produced %v", err)
 	}
 }

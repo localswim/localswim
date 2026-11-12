@@ -21,9 +21,9 @@ type publicationTarget struct {
 	Ref       string `json:"ref"`
 }
 
-func publicationConfigValue(cwd, query, key string, options ...string) (string, error) {
+func (repo publicationRepository) configValue(query, key string, options ...string) (string, error) {
 	args := append([]string{"config", "--includes", "--null"}, options...)
-	data, err := publicationGit(cwd, "", nil, append(args, query, key)...)
+	data, err := repo.git("", nil, append(args, query, key)...)
 	if gitConfigAbsent(err) && len(data) == 0 {
 		return "", nil
 	}
@@ -40,14 +40,14 @@ func publicationConfigValue(cwd, query, key string, options ...string) (string, 
 	return text, nil
 }
 
-func publicationConfigScalar(cwd, key string, options ...string) (string, error) {
+func (repo publicationRepository) configScalar(key string, options ...string) (string, error) {
 	// Git's scalar lookup applies config precedence, including includes
 	// and worktree overrides.
-	return publicationConfigValue(cwd, "--get", key, options...)
+	return repo.configValue("--get", key, options...)
 }
 
 func (repo publicationRepository) resolveDestination(source string, selection publicationSelection) (publicationDestination, error) {
-	list, err := publicationGitText(repo.root, "remote")
+	list, err := repo.gitText("remote")
 	if err != nil {
 		return publicationDestination{}, gitPublicationError("git_configuration_unavailable")
 	}
@@ -83,7 +83,7 @@ func (repo publicationRepository) configuredRemote(branchKey, explicit string, r
 	if name == "" {
 		for _, key := range []string{branchKey + "pushRemote", "remote.pushDefault", branchKey + "remote"} {
 			var err error
-			name, err = publicationConfigScalar(repo.root, key)
+			name, err = repo.configScalar(key)
 			if err != nil {
 				return "", err
 			}
@@ -116,7 +116,7 @@ func (repo publicationRepository) validRemoteName(name string) bool {
 }
 
 func (repo publicationRepository) validGitRef(ref string) bool {
-	_, err := publicationGit(repo.root, "", nil, "check-ref-format", ref)
+	_, err := repo.git("", nil, "check-ref-format", ref)
 	return err == nil
 }
 
@@ -129,14 +129,14 @@ func (repo publicationRepository) destinationRef(source, branchKey, remote, defa
 		return repo.publicationBranchRef(explicit)
 	}
 	key := "remote." + remote + "."
-	mirror, err := publicationConfigScalar(repo.root, key+"mirror", "--type=bool")
+	mirror, err := repo.configScalar(key+"mirror", "--type=bool")
 	if err != nil {
 		return "", err
 	}
 	if mirror == "true" {
 		return "", gitPublicationError("publication_target_ambiguous")
 	}
-	refspec, err := publicationConfigValue(repo.root, "--get-all", key+"push")
+	refspec, err := repo.configValue("--get-all", key+"push")
 	if err != nil {
 		return "", err
 	}
@@ -149,7 +149,7 @@ func (repo publicationRepository) destinationRef(source, branchKey, remote, defa
 		}
 		return repo.publicationBranchRef(to)
 	}
-	mode, err := publicationConfigScalar(repo.root, "push.default")
+	mode, err := repo.configScalar("push.default")
 	if err != nil {
 		return "", err
 	}
@@ -174,7 +174,7 @@ func (repo publicationRepository) publicationBranchRef(ref string) (string, erro
 
 func (repo publicationRepository) upstreamRef(source, branchKey, remote, defaultFetch, mode string) (string, error) {
 	upstream := mode == "upstream" || mode == "tracking"
-	fetchRemote, err := publicationConfigScalar(repo.root, branchKey+"remote")
+	fetchRemote, err := repo.configScalar(branchKey + "remote")
 	if err != nil {
 		return "", err
 	}
@@ -190,7 +190,7 @@ func (repo publicationRepository) upstreamRef(source, branchKey, remote, default
 		// remotes differ.
 		return source, nil
 	}
-	merge, err := publicationConfigValue(repo.root, "--get-all", branchKey+"merge")
+	merge, err := repo.configValue("--get-all", branchKey+"merge")
 	if err != nil {
 		return "", err
 	}
@@ -205,7 +205,7 @@ func (repo publicationRepository) upstreamRef(source, branchKey, remote, default
 		// tracking branch and no explicitly chosen push mode.
 		return source, nil
 	}
-	autoSetup, err := publicationConfigScalar(repo.root, "push.autoSetupRemote", "--type=bool")
+	autoSetup, err := repo.configScalar("push.autoSetupRemote", "--type=bool")
 	if err != nil {
 		return "", err
 	}
@@ -220,14 +220,14 @@ func (repo publicationRepository) resolvedPushURL(name string) (string, error) {
 	// A synthetic remote preserves URL-scoped Git settings. It cannot
 	// implicitly carry transport overrides scoped to the original name.
 	transport := "^remote\\." + regexp.QuoteMeta(name) + "\\.(proxy|proxyauthmethod|receivepack|uploadpack|vcs|serveroption)$"
-	_, err := publicationGit(repo.root, "", nil, "config", "--includes", "--name-only", "--get-regexp", transport)
+	_, err := repo.git("", nil, "config", "--includes", "--name-only", "--get-regexp", transport)
 	if err == nil {
 		return "", gitPublicationError("unsupported_remote_transport")
 	}
 	if !gitConfigAbsent(err) {
 		return "", gitPublicationError("git_configuration_unavailable")
 	}
-	data, err := publicationGit(repo.root, "", nil, "remote", "get-url", "--push", "--all", "--", name)
+	data, err := repo.git("", nil, "remote", "get-url", "--push", "--all", "--", name)
 	target, ok := strings.CutSuffix(string(data), "\n")
 	if err != nil || !ok || target == "" || strings.ContainsAny(target, "\r\x00") {
 		return "", gitPublicationError("remote_unavailable")

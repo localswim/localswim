@@ -5349,6 +5349,7 @@ test("M60 fences a possibly in-flight upload after reload and resumes only the m
   await ui.settled();
   assert.match(status.textContent, /Original submission confirmed/);
   assert.deepEqual(JSON.parse(storage.getItem(recoveredUploads))[0][1], [remaining]);
+  assert.match(details.textContent, /1 of 2 files processed/);
   assert.equal(resume.parent.hidden, false);
 
   const select = (file) => { ui.field(details, "Files").files = [uploadFile(file)]; };
@@ -5411,6 +5412,55 @@ test("M60 refuses to send bytes when the tab cannot store recovery details", asy
   await until(() => !ui.uploadingToCard(board, card));
   assert.match(ui.nodes.details.textContent, /could not save upload recovery details/);
   assert.deepEqual(calls, []);
+});
+
+test("M60 keeps a refused upload resumable after the board refresh is inspected", async () => {
+  const storage = tabStorage();
+  const {ui, api, calls, readbacks, behavior, commit, choose} = await attachmentUploadFixture(board, {storage});
+  const {details} = ui.nodes;
+  const original = {name: "pending.txt", size: 4, fill: 65};
+  const readBoard = api.getBoardLanes;
+  let closed = false;
+  api.getBoardLanes = async (...args) => {
+    if (closed) throw new ApiError("unavailable", {status: 503});
+    return readBoard(...args);
+  };
+  const refused = createBrowserApi({getCapability: () => "capability", fetchImpl: async () => {
+    closed = true;
+    return Response.json({
+      type: "about:blank", title: "Service Unavailable", status: 503, code: "unavailable",
+      detail: "Board unavailable.", request_id: user, outcome: "not_applied", errors: [],
+    }, {status: 503, headers: {"Content-Type": "application/problem+json"}});
+  }});
+  behavior.write = (id, file, attachmentId) => refused.uploadAttachment(id, tag(id, 1), file, attachmentId);
+  choose(original);
+  await until(() => calls.length === 1 && !ui.uploadingToCard(board, card));
+  const [{id, attempted}] = JSON.parse(storage.getItem(recoveredUploads))[0][1];
+  assert.equal(attempted, false);
+  assert.match(details.textContent, /Refused\. The board is unavailable/);
+  assert.deepEqual(readbacks, []);
+
+  const resume = ui.find(details, "button", "Resume pending uploads");
+  const discard = ui.find(details, "button", "Discard pending files");
+  assert.equal(resume.parent.hidden, true);
+  assert.equal(resume.disabled, true);
+  assert.equal(discard.disabled, true);
+  closed = false;
+  commit(card, uploadFile({name: "other.txt", size: 1}), priority);
+  ui.find(details, "button", "Inspect saved card").click();
+  await ui.settled();
+  assert.equal(resume.parent.hidden, false);
+  assert.equal(resume.disabled, false);
+  assert.equal(discard.disabled, false);
+
+  behavior.write = commit;
+  ui.field(details, "Files").files = [uploadFile(original)];
+  resume.click();
+  await until(() => calls.length === 2 && !ui.uploadingToCard(board, card));
+  assert.deepEqual(calls.map(({attachmentId, expected}) => [attachmentId, expected]),
+    [[id, tag(card, 1)], [id, tag(card, 2)]]);
+  assert.deepEqual(readbacks, [id]);
+  assert.deepEqual(JSON.parse(storage.getItem(recoveredUploads)), []);
 });
 
 test("M48 drag waits for the source card's upload and permits an unrelated card move", async () => {

@@ -831,8 +831,8 @@ function requireInspection(scope, isCurrent, focusedRead) {
  * @param {string} resource @param {string} scope
  * @param {(control: HTMLButtonElement) => boolean} [busy]
  * @param {(submission: SavedSubmission) => Promise<boolean>} [recover]
- * @param {() => Promise<boolean>} [recoverUpload] @returns {Inspection} */
-function createInspection(region, isCurrent, read, resource, scope, busy = () => false, recover, recoverUpload) {
+ * @param {{read: () => Promise<boolean>, sync: () => void}} [uploadRecovery] @returns {Inspection} */
+function createInspection(region, isCurrent, read, resource, scope, busy = () => false, recover, uploadRecovery) {
   const label = "Inspect saved " + resource;
   const recovery = element("div");
   const recoveryMessage = element("p");
@@ -866,8 +866,9 @@ function createInspection(region, isCurrent, read, resource, scope, busy = () =>
       if (!isCurrent()) return;
       const running = attachmentUploads.get(scope)?.running;
       const submission = recover && !running && savedSubmission(scope);
-      const upload = recoverUpload && !running && unconfirmedUpload(scope);
+      const upload = uploadRecovery && !running && unconfirmedUpload(scope);
       setSubmissionsDisabled(pendingInspections.has(scope) || Boolean(submission || upload));
+      uploadRecovery?.sync();
       recovery.hidden = !submission && !upload;
       dismiss.hidden = Boolean(running || upload || attachmentUploads.get(scope)?.needsInspection);
       if (upload) recoveryMessage.textContent =
@@ -880,12 +881,12 @@ function createInspection(region, isCurrent, read, resource, scope, busy = () =>
       startWriting();
       announce("loading", "Reading saved " + resource + "…");
       const pending = pendingInspections.get(scope);
-      const upload = recoverUpload && unconfirmedUpload(scope);
+      const upload = uploadRecovery && unconfirmedUpload(scope);
       const submission = recover && savedSubmission(scope);
       void readWithSession(async () => {
         const liveRead = submission && liveSubmissionReads.get(submission);
         /** @type {boolean|void} */
-        let confirmed = upload ? await recoverUpload?.() : undefined;
+        let confirmed = upload ? await uploadRecovery?.read() : undefined;
         if (submission) {
           confirmed = liveRead ? await liveRead() : await recover?.(submission);
           if (confirmed === true) clearSavedSubmission(scope, submission);
@@ -1510,7 +1511,8 @@ async function uploadFiles(boardId, cardId, initialTag, files, resuming = false)
         } else {
           savePendingUploads(scope, remaining);
           refreshNeeded = true;
-          result.outcome = phase === "conflict" ? "Refused. The card changed." : "Upload refused.";
+          result.outcome = phase === "conflict" ? "Refused. The card changed."
+            : error.code === "unavailable" ? "Refused. The board is unavailable." : "Upload refused.";
           batch.message = " Review the card before resuming pending uploads.";
         }
       }
@@ -1798,7 +1800,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     }, "card", scope, (control) =>
       (control.dataset.cardRevisionWrite === "true" && uploadingToCard(boardId, card.id))
       || (control.dataset.newAttachmentUpload === "true" && pendingUploads?.has(scope) === true),
-    recoverCardSubmission, recoverAttachmentUpload);
+    recoverCardSubmission, { read: recoverAttachmentUpload, sync: syncUploadRecovery });
     cardInspection = inspection;
 
     /** @param {string} label @param {HTMLElement[]} controls @param {(submit: HTMLButtonElement) => void} action */
@@ -2029,9 +2031,20 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       const batch = attachmentUploads.get(scope);
       const result = batch?.results.find(({ id }) => id === upload.id);
       if (result) result.outcome = "Uploaded. Confirmed by readback.";
-      if (batch) batch.message = "";
+      if (batch && result) {
+        batch.processed = Math.min(batch.processed + 1, batch.results.length);
+        batch.message = "";
+      }
       showAttachmentUploads();
       return true;
+    }
+
+    function syncUploadRecovery() {
+      const available = pendingUploads?.has(scope) === true && !uploadingToCard(boardId, card.id)
+        && !hasUnresolvedInspection(scope) && view.dataset.unavailable !== "true";
+      uploadRecovery.hidden = !available;
+      resumeUploads.disabled = !available;
+      discardUploads.disabled = !available;
     }
 
     /** @param {number} [changed] */
@@ -2044,7 +2057,6 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
             outcome: attempted ? "Outcome uncertain. Use Inspect saved card." : "Pending original." })) };
         attachmentUploads.set(scope, batch);
       }
-      uploadRecovery.hidden = !pending || Boolean(batch?.running || unconfirmedUpload(scope));
       uploadProgress.hidden = !batch;
       uploadResults.hidden = !batch;
       if (!batch) {

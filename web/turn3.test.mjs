@@ -117,6 +117,34 @@ test("a created comment or upload must identify the caller's submission", async 
   assert.equal(calls, 2);
 });
 
+test("an exact attachment 503 refusal leaves its original ID eligible for explicit retry", async () => {
+  const problem = {type: "about:blank", title: "Service Unavailable", status: 503, code: "unavailable",
+    detail: "Board unavailable.", request_id: resourceId, outcome: "not_applied", errors: []};
+  const file = new File(["hello"], "test.txt");
+  const cases = [
+    [JSON.stringify(problem), "application/problem+json", "unavailable", false],
+    [JSON.stringify({...problem, code: "outcome_unknown", outcome: "unknown"}), "application/problem+json", "http_error", true],
+    [JSON.stringify(problem), "application/json", "http_error", true],
+    ["invalid JSON", "application/problem+json", "http_error", true],
+    [" ".repeat(4096) + JSON.stringify(problem), "application/problem+json", "http_error", true],
+    [null, null, "transport_failed", true],
+  ];
+  for (const [body, contentType, code, outcomeUnknown] of cases) {
+    let calls = 0;
+    const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (url, options) => {
+      calls++;
+      assert.equal(url, "/api/2026-11-10/attachments");
+      assert.equal(options.method, "POST");
+      assert.equal(options.body.get("id"), resourceId);
+      if (body === null) throw new TypeError("Disconnected");
+      return new Response(body, {status: 503, headers: {"Content-Type": contentType}});
+    } });
+    await assert.rejects(api.uploadAttachment(cardId, tag, file, resourceId),
+      {code, status: body === null ? null : 503, outcomeUnknown});
+    assert.equal(calls, 1);
+  }
+});
+
 test("comment creation requires a strong HTTP validator without replay", async () => {
   for (const responseTag of [null, "W/" + tag, "invalid"]) {
     let calls = 0;

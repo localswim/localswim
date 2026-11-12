@@ -8253,7 +8253,8 @@ paths:
         When supplied, X-Expected-Board-ETag and expected_card_etag are checked together before publishing bytes.
         Never use filename as a storage path. The browser reads focused metadata by original UUID and
         verifies the board, card, size, and SHA-2-256 of any returned attachment. Resumption is explicit
-        and sends only known uncommitted files.
+        and sends only known uncommitted files. A validated unavailable problem with a not_applied
+        outcome is a refusal.
         A 404 after an uncertain POST leaves the outcome unknown because the original upload may still be running.
       requestBody:
         required: true

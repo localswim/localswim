@@ -1,8 +1,10 @@
 package v2
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -157,6 +159,56 @@ func TestSearchFullUnicodeFolding(t *testing.T) {
 	}
 }
 
+func TestCardProseMatchesBrowserReadableText(t *testing.T) {
+	data, err := os.ReadFile("../../web/testdata/card-prose.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixtures [][3]string
+	if err := json.Unmarshal(data, &fixtures); err != nil {
+		t.Fatal(err)
+	}
+	for _, fixture := range fixtures {
+		t.Run(fixture[0], func(t *testing.T) {
+			if got := readableCardProse(fixture[1]); got != fixture[2] {
+				t.Fatalf("readable prose = %q, want %q", got, fixture[2])
+			}
+		})
+	}
+}
+
+func TestCardSearchUsesReadableProseAndLiteralTitles(t *testing.T) {
+	s := snapshot{
+		Cards: []card{
+			{ID: "first", Ticket: 1, Title: "literal **title**", Description: "the **Straße** opens"},
+			{ID: "second", Ticket: 2},
+		},
+		Comments: []comment{{CardID: "second", Text: "check *literal* `<tag> #7 **stars**` now"}},
+	}
+	for _, tt := range []struct {
+		query string
+		want  []uint64
+	}{
+		{"the STRASSE opens", []uint64{1}},
+		{"the **Straße** opens", nil},
+		{"check literal <tag> #7 **stars** now", []uint64{2}},
+		{"check literal <tag> #7 stars now", nil},
+		{"literal **title**", []uint64{1}},
+		{"literal title", nil},
+		{"#0002", []uint64{2}},
+	} {
+		t.Run(tt.query, func(t *testing.T) {
+			filters, err := readCardFilters("q=" + url.QueryEscape(tt.query) + "&search_content=true")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := laneTickets(selectCards(s, filters)); !slices.Equal(got, tt.want) {
+				t.Fatalf("tickets = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSearchLaneAndNumericLookupOrders(t *testing.T) {
 	s := snapshot{
 		Lanes:         []lane{{ID: "a", Position: 1}, {ID: "b", Position: 0}},
@@ -203,7 +255,8 @@ func TestCardSearchHTTPPaginationAndDurability(t *testing.T) {
 		b.Revision++
 		return turnOneDecode[card](t, raw)
 	}
-	a, z := create("Alpha", "secret concept"), create("Zulu", "secret concept")
+	const description = "secret **concept**"
+	a, z := create("Alpha", description), create("Zulu", description)
 	body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"source_card_id":%q,"target_card_id":%q,"kind":"blocks"}`, b.ID, b.entityTag(), z.ID, a.ID)
 	client.call("POST", "/relationships", body, "", 201)
 	before, err := app.store.durable(b.ID)
@@ -222,10 +275,13 @@ func TestCardSearchHTTPPaginationAndDurability(t *testing.T) {
 		t.Fatal("triage continuation is incorrect")
 	}
 	client.call("GET", query+"&sort=ticket&limit=1&cursor="+cursor, "", "", 400)
-	raw, _ = client.call("GET", query+"&q=concept&search_content=true&limit=1", "", "", 200)
+	raw, _ = client.call("GET", query+"&q=secret+concept&search_content=true&limit=1", "", "", 200)
 	searched := turnOnePage[card](t, raw, "cards")
 	if searched.NextCursor == nil || searched.Values[0].ID != a.ID {
 		t.Fatal("relationship lookup lost ascending numeric order")
+	}
+	if searched.Values[0].Description != description {
+		t.Fatal("content search returned projected text instead of the saved description")
 	}
 	client.call("GET", query+"&q=secret&search_content=true&cursor="+url.QueryEscape(*searched.NextCursor), "", "", 400)
 	raw, _ = client.call("GET", query+"&q=concept", "", "", 200)

@@ -162,7 +162,7 @@ func selectCards(s snapshot, filters cardFilters) []card {
 	contentMatches := make(map[string]bool)
 	if filters.searchContent && filters.query != "" && filters.searchTicket == "" {
 		for _, comment := range s.Comments {
-			if strings.Contains(foldSearchText(comment.Text), filters.query) {
+			if !contentMatches[comment.CardID] && strings.Contains(foldSearchText(readableCardProse(comment.Text)), filters.query) {
 				contentMatches[comment.CardID] = true
 			}
 		}
@@ -177,7 +177,7 @@ func selectCards(s snapshot, filters cardFilters) []card {
 		}
 		matches := filters.query == "" || strings.Contains(foldSearchText(item.Title), filters.query) ||
 			strings.Contains(item.ID, filters.query) ||
-			filters.searchContent && (strings.Contains(foldSearchText(item.Description), filters.query) || contentMatches[item.ID])
+			filters.searchContent && (contentMatches[item.ID] || strings.Contains(foldSearchText(readableCardProse(item.Description)), filters.query))
 		if filters.searchTicket != "" {
 			matches = strconv.FormatUint(item.Ticket, 10) == filters.searchTicket
 		}

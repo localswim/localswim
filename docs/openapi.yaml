@@ -1774,7 +1774,9 @@ paths:
         Triage score is ((priority rank + 1) * 100) - distinct unfinished downstream card count.
         Calculate it across the board before filtering and pagination. Completed cards end paths.
         Archived unfinished cards participate. Lane ordering uses visible same-rank blockers and
-        ticket-ordered cycles. Set search_content to search descriptions and comments. Response field
+        ticket-ordered cycles. Set search_content to search readable descriptions and comments.
+        Matched inline emphasis and code delimiters are omitted from matching; code contents, ticket
+        labels, and literal markup remain searchable. Text in responses remains raw. Response field
         permissions still apply. Cursors are tied to the query's effective selection.
     post:
       operationId: createCard
@@ -2124,7 +2126,9 @@ paths:
         Triage score is ((priority rank + 1) * 100) - distinct unfinished downstream card count.
         Calculate it across the board before filtering and pagination. Completed cards end paths.
         Archived unfinished cards participate. Lane ordering uses visible same-rank blockers and
-        ticket-ordered cycles. Set search_content to search descriptions and comments. Response field
+        ticket-ordered cycles. Set search_content to search readable descriptions and comments.
+        Matched inline emphasis and code delimiters are omitted from matching; code contents, ticket
+        labels, and literal markup remain searchable. Text in responses remains raw. Response field
         permissions still apply. Cursors are tied to the query's effective selection.
     options:
       operationId: options_cards

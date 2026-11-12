@@ -4,6 +4,7 @@ import {
   MAX_LANE_APPROVAL_CARDS, openBrowserSession, validPublishing,
 } from "./api.mjs";
 import { createBoardRefresh, waitForRetry, watchUpdates } from "./board-updates.mjs";
+import { appendCardProse } from "./card-prose.mjs";
 
 /** @typedef {{id: string, label: string}} Labeled */
 /** @typedef {Labeled & {revision: number, created_at: string, kind: "human"|"bot", color: string}} User */
@@ -745,6 +746,38 @@ function adoptText(control, previous, saved, preserve = false) {
   return probe.value;
 }
 
+/**
+ * A textarea exposes CRLF and bare CR as LF. Keep the saved spelling of line
+ * endings in the unchanged prefix and suffix. Use the textarea value verbatim
+ * in the changed span, where the original line endings cannot be recovered.
+ * @param {string} saved @param {string} baseline @param {string} edited
+ */
+function editedDescription(saved, baseline, edited) {
+  if (!saved.includes("\r")) return edited;
+  const sharedLength = Math.min(baseline.length, edited.length);
+  let prefix = 0;
+  while (prefix < sharedLength && baseline[prefix] === edited[prefix]) prefix++;
+  let suffix = 0;
+  while (prefix + suffix < sharedLength &&
+      baseline[baseline.length - 1 - suffix] === edited[edited.length - 1 - suffix]) suffix++;
+
+  let rawPrefix = 0;
+  for (let i = 0; i < prefix; i++) {
+    if (saved[rawPrefix] === "\r" && saved[rawPrefix + 1] === "\n") rawPrefix++;
+    rawPrefix++;
+  }
+  let rawSuffix = saved.length;
+  for (let i = 0; i < suffix; i++) {
+    rawSuffix--;
+    if (saved[rawSuffix] === "\n" && saved[rawSuffix - 1] === "\r") rawSuffix--;
+  }
+  const before = saved.slice(0, rawPrefix);
+  const after = edited.slice(prefix, edited.length - suffix) + saved.slice(rawSuffix);
+  // Complete the last bare CR as CRLF so it cannot absorb the following LF.
+  if (before.endsWith("\r") && after.startsWith("\n")) return before + "\n" + after;
+  return before + after;
+}
+
 /** @param {unknown} error @param {string} [submittingCapability] */
 function writePhase(error, submittingCapability = capability) {
   if (!(error instanceof ApiError)) return "error";
@@ -957,21 +990,17 @@ async function findCardByTicket(boardId, ticket) {
   return matches.length === 1 && matches[0].board_id === boardId && matches[0].ticket === ticket ? matches[0] : undefined;
 }
 
-/** @param {HTMLElement} body @param {CommentListEntry} comment @param {string} boardId @param {User[]} users */
-function renderCommentText(body, comment, boardId, users) {
+/** @param {string} text @param {string} boardId @param {boolean} [linkTickets] */
+function cardProse(text, boardId, linkTickets = true) {
+  const body = element("p");
   body.className = "body-text";
-  if (!users.some((user) => user.id === comment.author_id && user.kind === "human")) {
-    body.textContent = comment.text;
-    return;
-  }
-  let last = 0;
-  for (const match of comment.text.matchAll(/(?<![\p{L}\p{N}_#])#([0-9]+)(?![\p{L}\p{N}_])/gu)) {
-    const ticket = Number(match[1]);
-    if (!Number.isSafeInteger(ticket) || ticket < 1) continue;
-    body.append(comment.text.slice(last, match.index), link(ticketHref(boardId, ticket), match[0]));
-    last = match.index + match[0].length;
-  }
-  body.append(comment.text.slice(last));
+  appendCardProse(body, text, linkTickets ? (ticket, label) => link(ticketHref(boardId, ticket), label) : undefined);
+  return body;
+}
+
+/** @param {CommentListEntry} comment @param {string} boardId @param {User[]} users */
+function commentProse(comment, boardId, users) {
+  return cardProse(comment.text, boardId, users.some((user) => user.id === comment.author_id && user.kind === "human"));
 }
 
 const relationshipLabels = Object.freeze({
@@ -1790,8 +1819,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       heading.textContent = `#${saved.ticket} ${saved.title}`;
       updateActions(saved);
       void refreshHierarchy(saved);
-      const body = element("p", saved.description);
-      body.className = "body-text";
+      const body = cardProse(saved.description, boardId);
       const savedLane = lanes.find(({ id }) => id === saved.lane_id);
       current.replaceChildren(element("h3", "Saved card"), element("p", saved.title), body,
         element("p", "Lane: " + (savedLane?.label ?? "Unavailable") + (savedLane?.retired ? " (retired)" : "")),
@@ -1885,8 +1913,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       if (cardView !== activeCard || read !== listRead) return { comments, attachments };
       commentList.replaceChildren(...comments.map((entry) => {
         const item = element("article");
-        const body = element("p");
-        renderCommentText(body, entry, boardId, users);
+        const body = commentProse(entry, boardId, users);
         const byline = element("small");
         byline.append(attribution(entry.author_id), element("span", " · " + entry.created_at));
         item.append(byline, body);
@@ -2340,7 +2367,9 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         }
         draft.title = title.value;
       }
-      if (description.value !== descriptionBaseline) draft.description = description.value;
+      if (description.value !== descriptionBaseline) {
+        draft.description = editedDescription(savedCard.description, descriptionBaseline, description.value);
+      }
       if (Object.keys(draft).length) void save(draft, submit);
     }, true);
     view.replaceChildren(close, inspect, inspection.recovery, heading, current, archiveAction, approvalAction, historyPanel,
@@ -3888,8 +3917,7 @@ async function load(savedAvailability) {
         drawer.replaceChildren();
         restoreCardFocus(card.id, opener);
       });
-      const body = element("p", card.description);
-      body.className = "body-text";
+      const body = cardProse(card.description ?? "", boardId);
       drawer.hidden = false;
       delete drawer.dataset.unavailable;
       drawer.replaceChildren(close, heading, body);
@@ -4356,8 +4384,7 @@ async function load(savedAvailability) {
       if (!recentComments) return;
       recentList.replaceChildren(...recentComments.map((entry) => {
         const item = element("article");
-        const body = element("p");
-        renderCommentText(body, entry, board.id, users);
+        const body = commentProse(entry, board.id, users);
         const byline = element("small");
         byline.append(actorAttribution(users, board.actor_presentation, entry.author_id), element("span", " · " + entry.created_at));
         item.append(byline, body);

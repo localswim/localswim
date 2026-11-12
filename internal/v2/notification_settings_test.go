@@ -140,7 +140,7 @@ func TestNotificationSettingsControlHumanQuietBurst(t *testing.T) {
 		applySettings(`{"target_thread_id":"` + ownerNoticeNextTarget + `"}`)
 		time.Sleep(ownerNoticeQuietPeriod)
 		synctest.Wait()
-		if state.Board.Notifications.Enabled || len(attempts) != 0 {
+		if state.Notifications.Enabled || len(attempts) != 0 {
 			t.Fatal("setting or changing a disabled target activated delivery")
 		}
 
@@ -163,15 +163,15 @@ func TestNotificationSettingsControlHumanQuietBurst(t *testing.T) {
 		}
 
 		applySettings(`{"target_thread_id":"` + ownerNoticeTestTarget + `"}`)
-		if !state.Board.Notifications.Enabled {
+		if !state.Notifications.Enabled {
 			t.Fatal("retargeting disabled the active route")
 		}
 		edit(human)
 		applySettings(`{"enabled":false}`)
 		time.Sleep(ownerNoticeQuietPeriod)
 		synctest.Wait()
-		if len(attempts) != 1 || state.Board.Notifications.Enabled ||
-			state.Board.Notifications.TargetThreadID == nil || *state.Board.Notifications.TargetThreadID != ownerNoticeTestTarget {
+		if len(attempts) != 1 || state.Notifications.Enabled ||
+			state.Notifications.TargetThreadID == nil || *state.Notifications.TargetThreadID != ownerNoticeTestTarget {
 			t.Fatal("disabling did not discard the pending burst and retain the target")
 		}
 	})

@@ -11,12 +11,14 @@ import (
 const maxBoardCSSLength = 1048576
 
 func (x *request) listBoards() {
+	store := x.service.store
 	rows := make([]boardSummary, 0)
-	for _, s := range x.service.store.list() {
-		if row, visible := x.service.store.boardSummary(s.Board.ID, x.actor); visible {
+	for _, s := range store.list() {
+		if row, visible := store.boardSummary(s.Board.ID, x.actor); visible {
 			rows = append(rows, row)
 		}
 	}
+	rows = store.appendFailedBoardSummaries(rows, x.actor)
 	sortSummaries(rows)
 	page(x, "boards", rows)
 }
@@ -111,6 +113,10 @@ func (x *request) createBoard() {
 }
 
 func (x *request) boardResource(id string) {
+	if x.service.store.canSeeFailedBoard(id, x.actor) {
+		x.fail(errInvalidSnapshot)
+		return
+	}
 	s, ok := x.service.store.accepted(id)
 	if !ok || !slices.Contains(s.Board.UserIDs, x.actor) {
 		x.fail(errMissing)
@@ -373,13 +379,19 @@ func (x *request) recoveryResource(resource, id string) {
 }
 
 func (x *request) workspaceResource() {
+	x.w.Header().Set("Vary", x.w.Header().Get("Vary")+", Authorization")
+	var hidden func(string) bool
+	if x.actor != humanID {
+		hidden = x.service.store.isFailedBoard
+	}
 	if x.r.Method == "GET" || x.r.Method == "HEAD" {
 		result, err := x.service.workspace.read()
 		if err != nil {
 			x.fail(err)
 			return
 		}
-		x.respondPublishing(200, result, result.entityTag(), result.Publishing)
+		result, tag := workspaceHTTPView(result, hidden)
+		x.respondPublishing(200, result, tag, result.Publishing)
 		return
 	}
 	expected, err := x.ifMatch()
@@ -396,17 +408,22 @@ func (x *request) workspaceResource() {
 		x.fail(errForbidden)
 		return
 	}
-	result, err := x.service.workspace.patch(func(revision uint64) bool {
-		return matchesStrongTag(expected, etag(x.service.workspace.identity, revision))
+	result, err := x.service.workspace.patch(func(current workspace) bool {
+		_, tag := workspaceHTTPView(current, hidden)
+		return matchesStrongTag(expected, tag)
 	}, fields, func(id string) bool {
+		if x.service.store.canSeeFailedBoard(id, x.actor) {
+			return true
+		}
 		s, ok := x.service.store.accepted(id)
 		return ok && s.can(x.actor, "read")
-	})
+	}, hidden)
 	if err != nil {
 		x.fail(err)
 		return
 	}
-	x.respond(200, result, result.entityTag())
+	result, tag := workspaceHTTPView(result, hidden)
+	x.respond(200, result, tag)
 }
 
 func (x *request) buildsResource(id string) {

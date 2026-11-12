@@ -288,6 +288,17 @@ writable. Native snapshot verification reports the file's validity, while the
 catalog reports whether the file agrees with the running service. Use explicit
 snapshot admission or backup restoration to recover the affected board.
 
+At startup, a board with a canonical UUID filename whose saved snapshot fails
+validation appears to the Human workspace administrator as an unavailable board.
+The catalog identifies it by the filename UUID and `durable_state_unavailable`.
+The service reserves that UUID and serves other boards normally. An unavailable
+board has no accepted policy or revision. The service checks its snapshot again
+at the next startup. If a startup failure leaves another board without trusted
+evidence for a historical recovery actor, that board also receives a diagnostic.
+Workspace directory or filename namespace damage and conflicting cross-board
+identities still prevent startup. Bot workspace preferences omit diagnostic pins
+and preserve them when saving visible pin order.
+
 Native recovery accepts JSON snapshots or application/zip backups at the existing board address.
 Both request entities have an inclusive 96 MiB limit. PUT uses the current durable snapshot
 representation validator when the snapshot is readable. When durable state is unavailable, a previously
@@ -300,15 +311,41 @@ Inspect accepted state after an uncertain result. A later restore can supersede 
 admitting an earlier audit history.
 
 Manual publication discovers the Git worktree enclosing the service data directory. It requires
-an initial commit, local branch, configured identity and an origin remote. The publication commit's
-changes consist of the captured native snapshot and exact audited attachment paths. The push follows
-normal Git ancestry. Publication uses a private index under the persistent
-Git common-directory localswim-autopush.lock. The caller's index and unrelated staged work remain
-intact. Before writing Git objects, publication checks every captured path against Git's ignore
-rules, including paths already tracked or staged. Any ignored path refuses the entire capture with
+an initial commit, local branch, configured identity and a configured Git remote. Use
+`publication create [--remote NAME] [--branch BRANCH] BOARD_ID BACKUP_ID` to choose
+the destination. The API accepts the same optional `remote` and `branch` members.
+The branch is a short name or a full `refs/heads/...` ref.
+
+Without an explicit remote, the publisher uses the local branch's `pushRemote`,
+`remote.pushDefault`, its configured fetch remote, or the sole configured remote, in that order.
+Without an explicit destination branch, the publisher accepts a single unforced push refspec
+from `HEAD` or the current full branch ref to a full branch ref. Otherwise it follows
+the supported Git push mode of `current`, `simple`, or `upstream` (`tracking`).
+With neither a configured push mode nor a tracking branch, publication uses the local branch name.
+When Git's `push.autoSetupRemote` would select the local branch name, publication uses that name
+and leaves the tracking configuration alone. Use `upstream` or an explicit destination when the
+upstream branch has a different name.
+
+Multiple or unresolved destinations are refused before Git objects or refs are written.
+The selected remote must have one effective push URL. Git's URL-scoped transport and
+credential configuration applies. Remote-name-specific transport overrides refuse with
+`unsupported_remote_transport`. Receipts carry fixed error codes without transport details.
+
+The publisher constructs the commit in a private index under the persistent
+Git common-directory `localswim-autopush.lock`. It advances the local source branch and
+updates the worktree index for the exact captured snapshot and audited attachment paths.
+Unrelated staging and later working-tree edits are preserved. Once the local branch and
+index are consistent, the publisher pushes the exact commit to the resolved destination
+using normal Git ancestry. Before writing Git objects, publication checks every captured
+path against Git's ignore rules, including paths already tracked or staged.
+Any ignored path refuses the entire capture with
 `publication_path_ignored`. An ignore check that fails or warns reports `git_ignore_unavailable`.
 Unsupported hooks, external content filters and filesystem monitors also refuse before object publication.
-Inspect the original publication UUID after an uncertain result.
+Publication uses Git's worktree index lock to detect staged overlap and reconcile the index.
+`publication_index_overlap` means staging intersects a captured path, including an ancestor or
+descendant. `publication_index_busy` means Git's index lock is already held. If the branch update
+and index installation cannot both be confirmed, `publication_index_uncertain` stops the push.
+Inspect the original publication UUID, current branch, and staged diff after an uncertain result.
 
 Enable automatic publication independently with
 `board publishing enable [--revision N] BOARD_ID` or
@@ -326,6 +363,9 @@ push time, and a fixed failure code. Failed automatic attempts remain pending an
 retry with bounded backoff without another edit. Status changes leave board,
 card, and workspace revisions intact. Use `disable` with the same revision
 options to stop new attempts. A disabled publisher keeps durable pending intent.
+Pending intent keeps the exact capture inventory. A retry checks staging before advancing the
+local branch. After an interrupted local update, a retry requires a consistent index and
+leaves any overlapping staging for inspection.
 After a disabled restart, status history is loaded when the publisher is
 re-enabled. Inspect status after an uncertain settings write.
 A board restore requires matching publishing settings. Reconcile any difference

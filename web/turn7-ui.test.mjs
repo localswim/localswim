@@ -2521,6 +2521,110 @@ test("Attention keeps pin and catalog order, fixed count slots, accessible zeroe
   assert.deepEqual(other.querySelectorAll("a").map((node) => node.dataset.boardId), [board, backup]);
 });
 
+test("an unadmitted board shows a filename identity and leaves a healthy board selectable", async () => {
+  const {api, patched} = boardApi();
+  const damaged = "eb83343c-b9eb-4ae7-8dd9-63988a53dc2f";
+  api.getSession = async () => ({data: {kind: "human", principal_id: user, workspace_admin: true}});
+  api.getWorkspace = async () => ({data: {revision: 1, pinned_board_ids: [damaged], publishing: publishingOff},
+    etag: tag("workspace-test-id", 1)});
+  const getAvailability = api.getBoardAvailability;
+  api.getBoardAvailability = async (id) => {
+    assert.equal(id, board);
+    return getAvailability();
+  };
+  api.listBoards = async () => page("boards", [
+    {id: board, name: "Board", revision: 1, availability: "open",
+      attention: {blocked: 0, needs_input: 0, ready_for_review: 0}, last_card_edit_at: null, error_code: null},
+    {id: damaged, name: null, revision: null, availability: "unhealthy",
+      attention: null, last_card_edit_at: null, error_code: "durable_state_unavailable"},
+  ]);
+  const ui = await harness(api, "/boards/" + damaged);
+  await ui.load();
+  const {main, boards, details} = ui.nodes;
+  const label = "Unavailable board (eb83343c)";
+  await until(() => pinnedBoards(ui).includes(damaged));
+  const row = boards.querySelectorAll("a").find((item) => item.dataset.boardId === damaged);
+  assert.equal(row.children[0].textContent, label);
+  assert.equal(row.attributes["aria-current"], "page");
+  assert.match(row.title, /could not load .* saved snapshot at startup/);
+  assert.equal(main.querySelector("h1").textContent, label);
+  assert.match(main.textContent, new RegExp(damaged));
+  assert.match(main.textContent, /could not load .* saved snapshot at startup/);
+  assert.equal(main.querySelector("form"), null);
+  assert.equal(ui.find(boards, "button", "Remove unavailable pins").hidden, true);
+
+  await ui.navigate("/boards/" + board);
+  assert.equal(main.querySelector("h1").textContent, "Board");
+  assert.ok(ui.find(boards, "span", label));
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.field(details, "Title"));
+  ui.field(details, "Title").value = "Healthy board edit";
+  ui.submit(details, "Save text");
+  await ui.settled();
+  assert.equal(patched(), tag(card, 1));
+  assert.ok(ui.find(main, "button", "#1 Healthy board edit"));
+});
+
+test("a startup failure evicts a warm board and keeps only the catalog watch", async (t) => {
+  const {api} = boardApi();
+  const streams = boardStreams(api);
+  const catalog = Promise.withResolvers();
+  const availability = Promise.withResolvers();
+  const started = Promise.withResolvers();
+  const getAvailability = api.getBoardAvailability;
+  let reopening = false;
+  let blocked = 0;
+  api.listBoards = async () => {
+    const other = {id: backup, name: "Healthy", revision: 1, availability: "open",
+      attention: {blocked, needs_input: 0, ready_for_review: 0}, last_card_edit_at: null, error_code: null};
+    if (!reopening) return page("boards", [{...other, id: board, name: "Board"}, other]);
+    await catalog.promise;
+    return page("boards", [other, {id: board, name: null, revision: null, availability: "unhealthy",
+      attention: null, last_card_edit_at: null, error_code: "durable_state_unavailable"}]);
+  };
+  api.getBoardAvailability = async (id, signal) => {
+    if (reopening) {
+      started.resolve(signal);
+      await availability.promise;
+    }
+    return getAvailability(id);
+  };
+  const ui = await harness(api, undefined, {workspaceEvents: true});
+  t.after(() => {
+    catalog.resolve();
+    availability.resolve();
+    ui.abortView();
+  });
+  await ui.load();
+  await ui.navigate("/");
+  reopening = true;
+  const warm = ui.navigate("/boards/" + board);
+  const boardRead = await started.promise;
+  const {main, details} = ui.nodes;
+  ui.find(main, "button", "#1 Original").click();
+  assert.equal(details.hidden, false);
+  assert.equal(ui.find(main, "button", "Add card"), undefined);
+  assert.equal(ui.find(details, "button", "Save text"), undefined);
+  await until(() => streams.at(-1)?.boardId === board && !streams.at(-1).signal.aborted);
+  const selectedStream = streams.at(-1);
+
+  catalog.resolve();
+  await until(() => /saved snapshot at startup/.test(main.textContent));
+  assert.equal(boardRead.aborted, true);
+  assert.equal(details.hidden, true);
+  assert.equal(ui.find(main, "button", "#1 Original"), undefined);
+  assert.equal(selectedStream.signal.aborted, true);
+  await until(() => streams.at(-1)?.boardId === undefined && streams.at(-1)?.signal.aborted === false);
+  blocked = 1;
+  streams.at(-1).sendCatalog("snapshot");
+  await until(() => ui.title() === "(1) localswim");
+
+  availability.resolve();
+  await warm;
+  assert.match(main.textContent, /saved snapshot at startup/);
+  assert.equal(main.querySelector("form"), null);
+});
+
 test("refreshing an open board repaints Attention in catalog order and retains sidebar focus", async () => {
   const state = boardApi();
   const pinned = {id: user, name: "Pinned", attention: null, last_card_edit_at: null};

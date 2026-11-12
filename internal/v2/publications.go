@@ -140,8 +140,10 @@ func validPublicationCode(code string) bool {
 	return slices.Contains([]string{"backup_integrity", "repository_unavailable", "repository_lock_unavailable",
 		"repository_busy", "unsupported_hooks", "git_configuration_unavailable", "unsupported_fsmonitor",
 		"git_attributes_unavailable", "unsupported_filter", "publication_path_ignored", "git_ignore_unavailable",
-		"branch_unavailable", "remote_unavailable",
+		"branch_unavailable", "remote_unavailable", "unsupported_remote_transport",
+		"publication_target_ambiguous", "publication_destination_unavailable",
 		"head_unavailable", "capture_unavailable", "git_index_failed", "git_object_failed", "git_tree_failed",
+		"publication_branch_changed", "publication_index_busy", "publication_index_overlap", "publication_index_uncertain",
 		"git_commit_failed", "git_ref_failed", "git_push_failed", "publication_failed"}, code)
 }
 
@@ -226,7 +228,7 @@ func (x *request) createPublication() {
 		x.fail(err)
 		return
 	}
-	if err := rejectFields(obj, []string{"id", "board_id", "backup_id", "workspace"}, true); err != nil {
+	if err := rejectFields(obj, []string{"id", "board_id", "backup_id", "workspace", "remote", "branch"}, true); err != nil {
 		x.fail(err)
 		return
 	}
@@ -243,6 +245,24 @@ func (x *request) createPublication() {
 	if err != nil {
 		x.fail(err)
 		return
+	}
+	var selection publicationSelection
+	for _, field := range []struct {
+		name  string
+		value *string
+	}{{"remote", &selection.remote}, {"branch", &selection.branch}} {
+		if raw, ok := obj[field.name]; ok {
+			text, err := textField(raw, field.name, 1, 1024)
+			if err != nil {
+				x.fail(err)
+				return
+			}
+			if strings.ContainsAny(text, "\x00\r\n") {
+				x.fail(invalid(field.name, "Expected a Git name without NUL or line breaks."))
+				return
+			}
+			*field.value = text
+		}
 	}
 	id := newOperationID()
 	if raw, ok := obj["id"]; ok {
@@ -278,7 +298,7 @@ func (x *request) createPublication() {
 		x.publicationFailure(err)
 		return
 	}
-	err = publishVerifiedBackup(x.service.store.root, backup)
+	err = publishVerifiedBackup(x.service.store.root, backup, selection)
 	finished := canonicalTime(time.Now())
 	item.FinishedAt, item.State = &finished, "succeeded"
 	if err != nil {

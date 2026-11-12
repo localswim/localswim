@@ -107,11 +107,7 @@ func TestM36WorkspacePublishesExactPreferencesAfterBoardLockRelease(t *testing.T
 	baseline := strings.TrimSpace(string(m34Git(t, fixture.remote, "rev-parse", "refs/heads/main")))
 	m34Write(t, filepath.Join(fixture.repository, "unrelated.txt"), []byte("staged work\n"))
 	m34Git(t, fixture.repository, "add", "--", "unrelated.txt")
-	indexPath := filepath.Join(fixture.repository, ".git", "index")
-	indexBefore, err := os.ReadFile(indexPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	staged := m34Git(t, fixture.repository, "ls-files", "--stage", "-z", "--", "unrelated.txt")
 	// Hold the same lease acquired by publishVerifiedBackup across the workspace
 	// worker's first attempt and observe it refuse rather than touch any refs.
 	lease, err := acquirePublicationRepository(fixture.repository, 100*time.Millisecond)
@@ -172,9 +168,11 @@ func TestM36WorkspacePublishesExactPreferencesAfterBoardLockRelease(t *testing.T
 	if err != nil || !bytes.Equal(after, workspaceBytes) {
 		t.Fatal("workspace publishing rewrote the accepted file", err)
 	}
-	indexAfter, err := os.ReadFile(indexPath)
-	if err != nil || !bytes.Equal(indexAfter, indexBefore) {
-		t.Fatal("workspace publishing changed the caller's index", err)
+	if names := m34Git(t, fixture.repository, "diff", "--cached", "--name-only", "-z"); string(names) != "unrelated.txt\x00" {
+		t.Fatalf("workspace publishing left unexpected staged paths: %q", names)
+	}
+	if after := m34Git(t, fixture.repository, "ls-files", "--stage", "-z", "--", "unrelated.txt"); !bytes.Equal(staged, after) {
+		t.Fatal("workspace publishing changed unrelated staged work")
 	}
 	boardBytes, err := os.ReadFile(fixture.app.store.snapshotPath(fixture.state.Board.ID))
 	if err != nil || !bytes.Equal(boardBytes, fixture.contents["boards/"+fixture.state.Board.ID+".json"]) {

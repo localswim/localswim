@@ -3,15 +3,18 @@ package v2
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"io"
+	"path/filepath"
 	"strings"
 	"time"
 )
 
 type pendingPublication struct {
-	Commit string `json:"commit"`
-	Parent string `json:"parent"`
-	Branch string `json:"branch"`
-	Remote string `json:"remote"`
+	Commit string   `json:"commit"`
+	Parent string   `json:"parent"`
+	Branch string   `json:"branch"`
+	Remote string   `json:"remote"`
+	Names  []string `json:"-"`
 }
 
 type publicationCheckpoint struct {
@@ -50,15 +53,81 @@ func (repo publicationRepository) checkpoint(ref string) (publicationCheckpoint,
 		(checkpoint.LastSuccessAt != nil && !validSnapshotTime(*checkpoint.LastSuccessAt)) {
 		return publicationCheckpoint{}, "", gitPublicationError("publication_state_unavailable")
 	}
-	if pending := checkpoint.Pending; pending != nil &&
-		(!gitObjectID(pending.Commit) || !gitObjectID(pending.Parent) ||
+	if pending := checkpoint.Pending; pending != nil {
+		if !gitObjectID(pending.Commit) || !gitObjectID(pending.Parent) ||
 			!strings.HasPrefix(pending.Branch, "refs/heads/") ||
 			strings.ContainsAny(pending.Branch, " \r\n\t") ||
 			len(pending.Remote) != 64 || !validPublicationDigest(pending.Remote) ||
-			!strings.Contains(headers, "\nparent "+pending.Commit+"\n")) {
-		return publicationCheckpoint{}, "", gitPublicationError("publication_state_unavailable")
+			!strings.Contains(headers, "\nparent "+pending.Commit+"\n") {
+			return publicationCheckpoint{}, "", gitPublicationError("publication_state_unavailable")
+		}
+		names, err := repo.checkpointInventory(oid)
+		if err != nil {
+			return publicationCheckpoint{}, "", err
+		}
+		pending.Names = names
 	}
 	return checkpoint, oid, nil
+}
+
+func (repo publicationRepository) checkpointInventory(oid string) ([]string, error) {
+	output := boundedGitOutput{limit: maxSnapshotBytes}
+	err := runPublicationGitOutput(repo.root, "", nil, nil, &output, io.Discard, "cat-file", "blob", oid+":inventory")
+	data, terminated := strings.CutSuffix(output.data.String(), "\x00")
+	if err != nil || !terminated {
+		return nil, gitPublicationError("publication_state_unavailable")
+	}
+	names := strings.Split(data, "\x00")
+	if !validPublicationNames(names) {
+		return nil, gitPublicationError("publication_state_unavailable")
+	}
+	prefix := repo.checkpointInventoryPrefix()
+	for i := range names {
+		names[i] = prefix + names[i]
+	}
+	return names, nil
+}
+
+func (repo publicationRepository) checkpointInventoryPrefix() string {
+	if repo.prefix == "." || repo.prefix == "" {
+		return ""
+	}
+	return filepath.ToSlash(repo.prefix) + "/"
+}
+
+func (repo publicationRepository) checkpointTree(pending *pendingPublication) (string, error) {
+	var entry []byte
+	if pending != nil {
+		// The checkpoint tree retains the exact scope independently of the
+		// changed tree paths. A no-op path can still have operator staging.
+		// Use data-root-relative names so a deep worktree prefix does not
+		// multiply the checkpoint size with every audited attachment.
+		prefix := repo.checkpointInventoryPrefix()
+		relative := make([]string, len(pending.Names))
+		for i, name := range pending.Names {
+			value, found := strings.CutPrefix(name, prefix)
+			if !found {
+				return "", gitPublicationError("publication_state_unavailable")
+			}
+			relative[i] = value
+		}
+		names := []byte(strings.Join(relative, "\x00") + "\x00")
+		if len(relative) == 0 || len(names) > maxSnapshotBytes {
+			return "", gitPublicationError("publication_state_unavailable")
+		}
+		hash, err := publicationGit(repo.root, "", names, "hash-object", "-w", "--stdin")
+		blob := strings.TrimSpace(string(hash))
+		if err != nil || !gitObjectID(blob) {
+			return "", gitPublicationError("publication_state_unavailable")
+		}
+		entry = []byte("100644 blob " + blob + "\tinventory\x00")
+	}
+	output, err := publicationGit(repo.root, "", entry, "mktree", "-z")
+	tree := strings.TrimSpace(string(output))
+	if err != nil || !gitObjectID(tree) {
+		return "", gitPublicationError("publication_state_unavailable")
+	}
+	return tree, nil
 }
 
 func (repo publicationRepository) saveCheckpoint(ref, oid string, checkpoint publicationCheckpoint) (string, error) {
@@ -66,9 +135,9 @@ func (repo publicationRepository) saveCheckpoint(ref, oid string, checkpoint pub
 	if err != nil {
 		return "", gitPublicationError("publication_state_unavailable")
 	}
-	tree, err := publicationGitText(repo.root, "mktree")
-	if err != nil || !gitObjectID(tree) {
-		return "", gitPublicationError("publication_state_unavailable")
+	tree, err := repo.checkpointTree(checkpoint.Pending)
+	if err != nil {
+		return "", err
 	}
 	args := []string{"-c", "user.name=localswim", "-c", "user.email=localswim@local.invalid",
 		"-c", "commit.gpgSign=false", "commit-tree", tree}
@@ -94,22 +163,11 @@ func (repo publicationRepository) saveCheckpoint(ref, oid string, checkpoint pub
 }
 
 func (repo publicationRepository) pushTarget() (string, error) {
-	// The pinned remote uses Git's URL-scoped configuration. An explicit
-	// origin transport setting, including an empty proxy, cannot be copied
-	// implicitly to that separate remote.
-	const transport = `^remote\.origin\.(proxy|proxyauthmethod|receivepack|uploadpack|vcs|serveroption)$`
-	_, err := publicationGitText(repo.root, "config", "--includes", "--name-only", "--get-regexp", transport)
-	if err == nil {
-		return "", gitPublicationError("unsupported_remote_transport")
-	}
-	if !gitConfigAbsent(err) {
-		return "", gitPublicationError("git_configuration_unavailable")
-	}
-	url, err := publicationGitText(repo.root, "remote", "get-url", "--push", "--all", "origin")
-	if err != nil || url == "" || strings.ContainsAny(url, "\r\n") {
+	target, err := repo.resolvedPushURL("origin")
+	if err == gitPublicationError("publication_target_ambiguous") {
 		return "", gitPublicationError("remote_unavailable")
 	}
-	return url, nil
+	return target, err
 }
 
 func publicationRemoteDigest(url string) string {
@@ -140,11 +198,13 @@ func (repo publicationRepository) finishPending(ref, oid string, checkpoint publ
 		if err != nil || parent != pending.Parent {
 			return checkpoint, gitPublicationError("publication_state_unavailable")
 		}
-		if _, err := publicationGit(repo.root, "", nil, "update-ref", pending.Branch, pending.Commit, pending.Parent); err != nil {
-			return checkpoint, gitPublicationError("git_ref_failed")
+		if err := repo.advancePublication(pending.Branch, pending.Parent, pending.Commit, pending.Names); err != nil {
+			return checkpoint, err
 		}
 	} else if !repo.containsCommit(pending.Commit, tip) {
 		return checkpoint, gitPublicationError("publication_branch_changed")
+	} else if err := repo.confirmPublicationIndex(*pending, tip); err != nil {
+		return checkpoint, err
 	}
 	remote := pinnedPublicationRemote(target)
 	if err := repo.push(remote, pending.Commit, pending.Branch); err != nil && !repo.remoteContains(remote, *pending) {
@@ -190,7 +250,7 @@ func (repo publicationRepository) acceptPublication(stateRef, oid string, checkp
 	if err != nil {
 		return checkpoint, err
 	}
-	commit, err := repo.prepareCommit(previous, capture)
+	commit, names, err := repo.preparePublication(ref, previous, capture)
 	if err != nil {
 		return checkpoint, err
 	}
@@ -200,7 +260,9 @@ func (repo publicationRepository) acceptPublication(stateRef, oid string, checkp
 	}
 	// Persist the exact commit before any ref update or push. If the capture
 	// already matches HEAD, the checkpoint still needs remote confirmation.
-	next.Pending = &pendingPublication{Commit: commit, Parent: previous, Branch: ref, Remote: publicationRemoteDigest(target)}
+	next.Pending = &pendingPublication{
+		Commit: commit, Parent: previous, Branch: ref, Remote: publicationRemoteDigest(target), Names: names,
+	}
 	newOID, err := repo.saveCheckpoint(stateRef, oid, next)
 	if err != nil {
 		return checkpoint, err

@@ -20,7 +20,8 @@ import { createBoardRefresh, waitForRetry, watchUpdates } from "./board-updates.
 /** @typedef {{actor: string, create: Set<string>, move: Map<string, Set<string>>,
  * canClose: boolean, canManageRelationships: boolean}} Workflow */
 /** @typedef {{blocked: number, needs_input: number, ready_for_review: number}} Attention */
-/** @typedef {{id: string, name: string|null, attention: Attention|null, last_card_edit_at: string|null,
+/** @typedef {{id: string, name: string|null, revision: number|null, attention: Attention|null,
+ * last_card_edit_at: string|null, error_code: string|null,
  * availability: import("./api.mjs").BoardAvailability["availability"]}} BoardSummary */
 /** @typedef {import("./board-updates.mjs").BoardWatch} BoardWatch */
 /** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string,
@@ -2697,8 +2698,22 @@ const attentionColumns = [
   { key: "ready_for_review", label: "Ready for Review" },
 ];
 
+const startupBoardError = "The service could not load this board’s saved snapshot at startup.";
+
+/** @param {BoardSummary} board */
+function failedAtStartup(board) {
+  return board.revision === null && board.error_code === "durable_state_unavailable";
+}
+
+/** @param {BoardSummary} board */
+function boardSummaryName(board) {
+  if (failedAtStartup(board)) return "Unavailable board (" + board.id.slice(0, 8) + ")";
+  return board.name ?? "Unavailable board";
+}
+
 /** @param {BoardSummary} board @param {number} now */
 function attentionRecency(board, now) {
+  if (failedAtStartup(board)) return startupBoardError;
   if (board.last_card_edit_at) {
     const editedAt = Date.parse(board.last_card_edit_at.replace(" ", "T"));
     if (Number.isFinite(editedAt)) {
@@ -2741,7 +2756,7 @@ function renderAttention(sidebar, rows, pins, selected, pinControls) {
     section.className = "attention-group";
     section.append(element("h3", label));
     for (const board of boards) {
-      const name = board.name ?? "Unavailable board";
+      const name = boardSummaryName(board);
       const item = link("/boards/" + board.id, "");
       item.className = "attention-grid attention-row";
       item.dataset.boardId = board.id;
@@ -2986,6 +3001,7 @@ async function load(savedAvailability) {
   const boardId = boardAtLocation();
   let catalogHint = false;
   let navigationReady = false;
+  let startupDiagnostic = false;
   let warmNavigationFailed = false;
   /** @type {Promise<void>|undefined} */
   let warmNavigationRead;
@@ -3073,13 +3089,13 @@ async function load(savedAvailability) {
       return;
     }
     const context = await loadNavigation();
-    if (!context || view !== activeView) return;
+    if (!context || view !== activeView || boardSignal.aborted) return;
     if (!boardId) {
       if (location.pathname !== "/") throw new ApiError("http_error", { status: 404 });
       return;
     }
     const result = await readBoard(boardId, true, savedAvailability);
-    if (view !== activeView) return;
+    if (view !== activeView || boardSignal.aborted) return;
     if (result.contents) {
       await paintOpenBoard(boardId, boardDisplay(result.contents[0]), result.contents);
     } else {
@@ -3091,21 +3107,55 @@ async function load(savedAvailability) {
 
   /** @param {unknown} error */
   function failBoard(error) {
-    if (view !== activeView) return;
+    if (view !== activeView || startupDiagnostic) return;
     if (error instanceof ApiError && error.status === 401) capability = "";
     if (boardId && definitivelyUnavailable(error)) forgetRecentBoard(boardId);
+    clearSelectedBoard();
+    if (boardId) main?.append(button("Retry board update", () => void load()));
+    announce("error", readError(error));
+  }
+
+  function clearSelectedBoard() {
     selectedLoad.abort();
     if (watch || navigationReady) subscribe();
     activeBoardRefresh = undefined;
     boardInspection = undefined;
+    cardInspection = undefined;
+    activeDrawer = undefined;
+    activeComment = undefined;
+    retrySelectedCard = undefined;
+    retainBoardView?.();
+    retainBoardDraft?.();
+    retainCardDraft?.();
+    releaseBoardMedia?.();
+    releaseCardMedia?.();
     retainBoardView = undefined;
+    retainBoardDraft = undefined;
+    retainCardDraft = undefined;
+    retainNewCardDraft = undefined;
+    activeNewCardText = undefined;
+    activeNewCardFiles = undefined;
+    activeBackupControls = undefined;
+    releaseBoardMedia = undefined;
+    releaseCardMedia = undefined;
     ++activeCard;
     details?.replaceChildren();
     if (details) details.hidden = true;
     main?.replaceChildren();
     boardStyle.replaceSync("");
-    if (boardId) main?.append(button("Retry board update", () => void load()));
-    announce("error", readError(error));
+  }
+
+  /** @param {BoardSummary[]} rows */
+  function showStartupFailure(rows) {
+    if (!boardId || startupDiagnostic || signal.aborted || view !== activeView) return;
+    const failed = rows.find((row) => row.id === boardId && failedAtStartup(row));
+    if (!failed) return;
+    startupDiagnostic = true;
+    forgetRecentBoard(failed.id);
+    clearSelectedBoard();
+    main?.replaceChildren(element("h1", boardSummaryName(failed)), element("p", startupBoardError),
+      element("p", "Board ID " + failed.id), button("Retry board update", () => void load()));
+    announce("error", startupBoardError);
   }
 
   /** @param {boolean} [retrying] */
@@ -3261,6 +3311,7 @@ async function load(savedAvailability) {
           latestBoards = rows;
           attentionStatus.hidden = true;
           showBoards(latestBoards);
+          showStartupFailure(latestBoards);
         } catch (error) {
           if (signal.aborted) return;
           attentionStatus.hidden = false;
@@ -3272,6 +3323,7 @@ async function load(savedAvailability) {
     };
     showBoards(latestBoards);
     navigationReady = true;
+    showStartupFailure(latestBoards);
     if (catalogHint) {
       catalogHint = false;
       invalidateCatalog();
@@ -3414,8 +3466,8 @@ async function load(savedAvailability) {
   async function paintUnavailableBoard(boardId, metadata, principal) {
     forgetRecentBoard(boardId);
     const closedWorkflow = metadata.data.availability === "closed"
-      ? await readWithSession(() => readWorkflow(metadata.data, principal, signal), signal) : null;
-    if (view !== activeView || !main) return;
+      ? await readWithSession(() => readWorkflow(metadata.data, principal, boardSignal), boardSignal) : null;
+    if (view !== activeView || boardSignal.aborted || !main) return;
     const message = metadata.data.availability === "closed" ? "This board is closed." : "This board is unhealthy.";
     const updates = boardUpdates(boardId, boardSignal, () => metadata.data.revision, async (automatic) => {
       const latest = await readWithSession(() => api.getBoardAvailability(boardId, boardSignal), boardSignal);

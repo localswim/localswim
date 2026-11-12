@@ -130,7 +130,13 @@ func TestM90CommandDeadlineContainsInheritedPipes(t *testing.T) {
 
 type m90FailedProcessTermination struct{ confirmed bool }
 
-func (*m90FailedProcessTermination) attach(*exec.Cmd) error { return nil }
+func (*m90FailedProcessTermination) start(command *exec.Cmd) error { return command.Start() }
+
+func (*m90FailedProcessTermination) attach(context.Context, *exec.Cmd) error { return nil }
+
+func (*m90FailedProcessTermination) kill(command *exec.Cmd) { _ = command.Process.Kill() }
+
+func (*m90FailedProcessTermination) wait(command *exec.Cmd) error { return command.Wait() }
 
 func (*m90FailedProcessTermination) observeExit(ctx context.Context, _ *exec.Cmd) error {
 	<-ctx.Done()

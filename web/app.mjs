@@ -43,10 +43,11 @@ import { createBoardRefresh, waitForRetry, watchUpdates } from "./board-updates.
 /** @typedef {{title?: string, description?: string, lane?: string, owner?: string, priority?: string, comment?: string}} CardDraft */
 /** @typedef {Pick<CardDraft, "title"|"description"|"lane"|"comment">} TextDraft */
 /** @typedef {{kind: "comment"|"approve-card"|"add-link", id: string}
- * | {kind: "create-card", id: string, fingerprint: string}
- * | {kind: "upload", id: string, size: number}} SubmissionIdentity */
+ * | {kind: "create-card", id: string, fingerprint: string}} SubmissionIdentity */
 /** @typedef {SubmissionIdentity & {submittedAt: number}} SavedSubmission */
-/** @typedef {{name: string, outcome: string}} UploadResult */
+/** @typedef {{name: string, size: number, digest: string}} UploadFingerprint */
+/** @typedef {UploadFingerprint & {id: string, attempted: boolean}} PendingUpload */
+/** @typedef {{name: string, outcome: string, id?: string}} UploadResult */
 /** @typedef {{boardId: string, running: boolean, needsInspection: boolean, processed: number,
  * results: UploadResult[], message: string}} UploadBatch */
 /** @typedef {{id: string, board_revision: number, size: number, sha2_256: string, attachment_ids: string[]}} CapturedBackup */
@@ -251,8 +252,10 @@ function boardDisplay({ board, lanes, cards, priorities }) {
 
 const draftKey = "localswim:tab-drafts";
 const submissionKey = "localswim:tab-submissions";
+const pendingUploadKey = "localswim:tab-uploads";
 const maxDraftUnits = 512 * 1024;
 const maxSubmissionUnits = 32 * 1024;
+const maxUploadUnits = 128 * 1024;
 const maxDraftFields = { title: 4096, description: 128 * 1024, comment: 128 * 1024, lane: 36 };
 const maxTabScopes = 96;
 const submissionLifetime = 24 * 60 * 60 * 1000;
@@ -263,7 +266,7 @@ const boardDraftScope = new RegExp("^board:" + resourceUUID + "$");
 const cardDraftScope = new RegExp("^card:" + resourceUUID + ":" + resourceUUID + "$");
 const submissionNames = {
   "comment": "comment", "create-card": "new card", "approve-card": "card approval",
-  "add-link": "new link", "upload": "attachment upload",
+  "add-link": "new link",
 };
 
 /** @param {string} boardId */
@@ -335,11 +338,6 @@ function validSavedSubmission(scope, value) {
       || submittedAt > now || now - submittedAt >= submissionLifetime
       || (kind === "create-card") !== boardDraftScope.test(scope)) return undefined;
   if (!(kind === "approve-card" ? draftOperationId : draftResourceId).test(id)) return undefined;
-  if (kind === "upload") {
-    const { size } = entry;
-    if (!Number.isSafeInteger(size) || size < 0 || size > MAX_ATTACHMENT_BYTES) return undefined;
-    return { kind, id, submittedAt, size };
-  }
   if (kind === "create-card") {
     const { fingerprint } = entry;
     if (typeof fingerprint !== "string" || !/^[0-9a-f]{64}$/.test(fingerprint)) return undefined;
@@ -352,6 +350,64 @@ const textDrafts = loadTabEntries(draftKey, maxDraftUnits, boundedTextDraft);
 const savedSubmissions = loadTabEntries(submissionKey, maxSubmissionUnits, validSavedSubmission);
 /** @type {WeakMap<SavedSubmission, InspectionRead>} */
 const liveSubmissionReads = new WeakMap();
+
+/** @returns {Map<string, PendingUpload[]>|undefined} */
+function loadPendingUploads() {
+  try {
+    const raw = window.sessionStorage.getItem(pendingUploadKey) ?? "[]";
+    if (raw.length > maxUploadUnits) return undefined;
+    const entries = JSON.parse(raw);
+    if (!Array.isArray(entries) || entries.length > maxTabScopes) return undefined;
+    /** @type {Map<string, PendingUpload[]>} */
+    const batches = new Map();
+    for (const entry of entries) {
+      if (!Array.isArray(entry) || entry.length !== 2) return undefined;
+      const [scope, files] = entry;
+      if (typeof scope !== "string" || !cardDraftScope.test(scope) || batches.has(scope)
+          || !Array.isArray(files) || !files.length) return undefined;
+      const ids = new Set();
+      for (const [index, file] of files.entries()) {
+        if (!file || typeof file !== "object" || Object.keys(file).length !== 5
+            || typeof file.id !== "string" || !draftResourceId.test(file.id) || ids.has(file.id)
+            || typeof file.name !== "string" || typeof file.digest !== "string" || !/^[0-9a-f]{64}$/.test(file.digest)
+            || !Number.isSafeInteger(file.size) || file.size < 0 || file.size > MAX_ATTACHMENT_BYTES
+            || typeof file.attempted !== "boolean" || (file.attempted && index !== 0)) return undefined;
+        ids.add(file.id);
+      }
+      batches.set(scope, files);
+    }
+    return batches;
+  } catch {
+    return undefined;
+  }
+}
+
+const pendingUploads = loadPendingUploads();
+
+/** @param {string} scope @param {PendingUpload[]} files */
+function savePendingUploads(scope, files) {
+  if (!pendingUploads) throw new ApiError("attachment_upload_storage");
+  const next = new Map(pendingUploads);
+  if (files.length) next.set(scope, files);
+  else next.delete(scope);
+  const serialized = JSON.stringify([...next]);
+  if (next.size > maxTabScopes || serialized.length > maxUploadUnits) {
+    throw new ApiError("attachment_upload_storage");
+  }
+  try {
+    window.sessionStorage.setItem(pendingUploadKey, serialized);
+  } catch {
+    throw new ApiError("attachment_upload_storage");
+  }
+  if (files.length) pendingUploads.set(scope, files);
+  else pendingUploads.delete(scope);
+}
+
+/** @param {string} scope */
+function unconfirmedUpload(scope) {
+  const first = pendingUploads?.get(scope)?.[0];
+  return first?.attempted ? first : undefined;
+}
 
 /** @param {string} scope @param {TextDraft} draft */
 function storeTextDraft(scope, draft) {
@@ -389,7 +445,8 @@ function savedSubmission(scope) {
 /** @param {string} scope */
 function hasUnresolvedInspection(scope) {
   return pendingInspections.has(scope)
-    || (!attachmentUploads.get(scope)?.running && savedSubmission(scope) !== undefined);
+    || (!attachmentUploads.get(scope)?.running
+      && (savedSubmission(scope) !== undefined || Boolean(unconfirmedUpload(scope))));
 }
 
 /** @param {string} scope @param {SubmissionIdentity} identity @param {InspectionRead} [read] */
@@ -750,6 +807,7 @@ function writeRefusal(error) {
       case "move_view_changed": return "The board view changed. Drag the card again from its current lane.";
       case "attachment_upload_active": return "Wait for attachments to finish uploading before making this change.";
       case "attachment_upload_inspection": return "Open the affected card and use Inspect saved card before making this change.";
+      case "attachment_upload_storage": return "The tab could not save upload recovery details. Check available tab storage and try again.";
     }
   }
   return "The service refused the change. Your draft is still here.";
@@ -772,8 +830,9 @@ function requireInspection(scope, isCurrent, focusedRead) {
 /** @param {HTMLElement} region @param {() => boolean} isCurrent @param {InspectionRead} read
  * @param {string} resource @param {string} scope
  * @param {(control: HTMLButtonElement) => boolean} [busy]
- * @param {(submission: SavedSubmission) => Promise<boolean>} [recover] @returns {Inspection} */
-function createInspection(region, isCurrent, read, resource, scope, busy = () => false, recover) {
+ * @param {(submission: SavedSubmission) => Promise<boolean>} [recover]
+ * @param {() => Promise<boolean>} [recoverUpload] @returns {Inspection} */
+function createInspection(region, isCurrent, read, resource, scope, busy = () => false, recover, recoverUpload) {
   const label = "Inspect saved " + resource;
   const recovery = element("div");
   const recoveryMessage = element("p");
@@ -805,11 +864,15 @@ function createInspection(region, isCurrent, read, resource, scope, busy = () =>
     },
     sync() {
       if (!isCurrent()) return;
-      const submission = recover && !attachmentUploads.get(scope)?.running && savedSubmission(scope);
-      setSubmissionsDisabled(pendingInspections.has(scope) || Boolean(submission));
-      recovery.hidden = !submission;
-      dismiss.hidden = Boolean(attachmentUploads.get(scope)?.running || attachmentUploads.get(scope)?.needsInspection);
-      if (submission) recoveryMessage.textContent = "Unresolved " + submissionNames[submission.kind]
+      const running = attachmentUploads.get(scope)?.running;
+      const submission = recover && !running && savedSubmission(scope);
+      const upload = recoverUpload && !running && unconfirmedUpload(scope);
+      setSubmissionsDisabled(pendingInspections.has(scope) || Boolean(submission || upload));
+      recovery.hidden = !submission && !upload;
+      dismiss.hidden = Boolean(running || upload || attachmentUploads.get(scope)?.needsInspection);
+      if (upload) recoveryMessage.textContent =
+        "Upload outcome unknown. Use " + label + " to check the original attachment ID.";
+      else if (submission) recoveryMessage.textContent = "Unresolved " + submissionNames[submission.kind]
         + ". Use " + label + " to check the original submission.";
     },
     inspect() {
@@ -817,11 +880,12 @@ function createInspection(region, isCurrent, read, resource, scope, busy = () =>
       startWriting();
       announce("loading", "Reading saved " + resource + "…");
       const pending = pendingInspections.get(scope);
-      const submission = recover && !(pending && attachmentUploads.get(scope)?.needsInspection)
-        ? savedSubmission(scope) : undefined;
+      const upload = recoverUpload && unconfirmedUpload(scope);
+      const submission = recover && savedSubmission(scope);
       void readWithSession(async () => {
         const liveRead = submission && liveSubmissionReads.get(submission);
-        let confirmed;
+        /** @type {boolean|void} */
+        let confirmed = upload ? await recoverUpload?.() : undefined;
         if (submission) {
           confirmed = liveRead ? await liveRead() : await recover?.(submission);
           if (confirmed === true) clearSavedSubmission(scope, submission);
@@ -830,15 +894,16 @@ function createInspection(region, isCurrent, read, resource, scope, busy = () =>
           const inspected = await pending.read();
           if (!pending.isCurrent() && isCurrent()) await read();
           if (inspected === false) confirmed = false;
-        } else if (!submission) return read();
+        } else if (!submission && !upload) return read();
         return confirmed;
       }).then((confirmed) => {
         if (pendingInspections.get(scope) === pending) pendingInspections.delete(scope);
         syncInspection(scope);
         if (!isCurrent()) return;
         if (confirmed === false) {
-          announce("unknown", "The submission could not be confirmed. Compare the saved state with your draft.");
-        } else if (submission) {
+          announce("unknown", upload ? "The upload may still be running. Use " + label + " again to check its outcome."
+            : "The submission could not be confirmed. Compare the saved state with your draft.");
+        } else if (submission || upload) {
           announce("ready", "Original submission confirmed by readback.");
         } else {
           announce("ready", "Saved " + resource + " read. Compare it with your draft.");
@@ -1233,9 +1298,9 @@ function requireAttachmentUploadsSettled(boardId, cardIds) {
     if (batch.running) throw new ApiError("attachment_upload_active");
     if (batch.needsInspection) throw new ApiError("attachment_upload_inspection");
   }
-  const scopes = cardIds === undefined ? savedSubmissions.keys() : cardIds.map((id) => cardScope(boardId, id));
+  const scopes = cardIds === undefined ? pendingUploads?.keys() ?? [] : cardIds.map((id) => cardScope(boardId, id));
   for (const scope of scopes) {
-    if (scope.startsWith("card:" + boardId + ":") && savedSubmission(scope)?.kind === "upload") {
+    if (scope.startsWith("card:" + boardId + ":") && unconfirmedUpload(scope)) {
       throw new ApiError("attachment_upload_inspection");
     }
   }
@@ -1303,16 +1368,22 @@ async function readSubmittedAttachment(boardId, cardId, id) {
   return item;
 }
 
-/** @param {string} boardId @param {string} cardId @param {string} id @param {number} size @param {Attachment} item */
-function matchesSubmittedUpload(boardId, cardId, id, size, item) {
-  return item.id === id && activeAttachment(boardId, cardId, item) && item.size === size;
+/** @param {PendingUpload} upload @param {Attachment} item */
+function matchesUploadBytes(upload, item) {
+  return item.size === upload.size && item.sha2_256 === upload.digest;
 }
 
-/** @param {string} boardId @param {string} cardId @param {string} id @param {number} size */
-async function readSubmittedUpload(boardId, cardId, id, size) {
-  const item = await readSubmittedAttachment(boardId, cardId, id);
-  if (item && !matchesSubmittedUpload(boardId, cardId, id, size, item)) throw new ApiError("invalid_response");
+/** @param {string} boardId @param {string} cardId @param {PendingUpload} upload */
+async function readSubmittedUpload(boardId, cardId, upload) {
+  const item = await readSubmittedAttachment(boardId, cardId, upload.id);
+  if (item && !matchesUploadBytes(upload, item)) throw new ApiError("invalid_response");
   return item;
+}
+
+/** @param {File} file @returns {Promise<UploadFingerprint>} */
+async function fingerprintUpload(file) {
+  const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
+  return { name: file.name, size: file.size, digest: Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("") };
 }
 
 /** @param {string} boardId @param {string} cardId @param {number} [changed] */
@@ -1327,17 +1398,21 @@ async function refreshUploadBoard(boardId) {
   if (boardAtLocation() === boardId) await activeBoardRefresh?.request();
 }
 
-/** @param {string} boardId @param {string} cardId @param {string} initialTag @param {File[]} files */
-async function uploadFiles(boardId, cardId, initialTag, files) {
+/** @param {string} boardId @param {string} cardId @param {string} initialTag @param {File[]} files
+ * @param {boolean} [resuming] */
+async function uploadFiles(boardId, cardId, initialTag, files, resuming = false) {
   const scope = cardScope(boardId, cardId);
+  const stored = pendingUploads?.get(scope);
+  if (uploadingToCard(boardId, cardId) || unconfirmedUpload(scope) || resuming !== Boolean(stored)) return;
   const isCurrent = () => activeDrawer?.boardId === boardId && activeDrawer.id === cardId;
-  const pending = files.flatMap((file, index) => file.size <= MAX_ATTACHMENT_BYTES ? [{ file, index }] : []);
+  const selected = files.flatMap((file, index) => file.size <= MAX_ATTACHMENT_BYTES ? [{ file, index }] : []);
+  /** @type {UploadBatch} */
   const batch = {
     boardId,
-    running: pending.length > 0,
+    running: resuming || selected.length > 0,
     needsInspection: false,
-    processed: files.length - pending.length,
-    results: files.map(({ name, size }) => ({ name,
+    processed: resuming ? 0 : files.length - selected.length,
+    results: (stored ?? files).map(({ name, size }) => ({ name,
       outcome: size > MAX_ATTACHMENT_BYTES ? "Refused. Files are limited to 10 MiB." : "Waiting." })),
     message: "",
   };
@@ -1350,7 +1425,48 @@ async function uploadFiles(boardId, cardId, initialTag, files) {
   /** @type {number|undefined} */
   let committedRevision;
   try {
-    for (const { file, index } of pending) {
+    if (!pendingUploads) throw new ApiError("attachment_upload_storage");
+    /** @type {{file: File, index: number, upload: PendingUpload}[]} */
+    const pending = [];
+    const originals = stored?.map((upload, index) => ({ upload, index })) ?? [];
+    if (resuming && (originals.length !== files.length || selected.length !== files.length)) {
+      throw new ApiError("attachment_upload_selection");
+    }
+    for (const { file, index } of selected) {
+      const fingerprint = await fingerprintUpload(file);
+      if (resuming) {
+        const match = originals.findIndex(({ upload: { name, size, digest } }) =>
+          name === fingerprint.name && size === fingerprint.size && digest === fingerprint.digest);
+        if (match < 0) throw new ApiError("attachment_upload_selection");
+        const [original] = originals.splice(match, 1);
+        pending.push({ file, ...original });
+      } else {
+        pending.push({ file, index, upload: { ...fingerprint, id: crypto.randomUUID(), attempted: false } });
+      }
+    }
+    if (resuming) {
+      pending.sort((a, b) => a.index - b.index);
+      expected = (await readWithSession(() => readCardVersion(boardId, cardId))).tag;
+    }
+    let remaining = pending.map(({ upload }) => upload);
+    savePendingUploads(scope, remaining);
+
+    for (const { file, index, upload } of pending) {
+      const result = batch.results[index];
+      result.id = upload.id;
+      if (resuming) {
+        const item = await readWithSession(() => readSubmittedUpload(boardId, cardId, upload));
+        if (item) {
+          remaining = remaining.slice(1);
+          savePendingUploads(scope, remaining);
+          committedRevision = item.revision;
+          refreshNeeded = true;
+          result.outcome = "Uploaded. Confirmed by readback.";
+          batch.processed++;
+          reportAttachmentUploads(boardId, cardId, index);
+          continue;
+        }
+      }
       if (committedRevision !== undefined) {
         const { saved, tag } = await readWithSession(() => readCardVersion(boardId, cardId));
         if (saved.revision !== committedRevision) {
@@ -1360,75 +1476,67 @@ async function uploadFiles(boardId, cardId, initialTag, files) {
         expected = tag;
         committedRevision = undefined;
       }
-      const result = batch.results[index];
-      const { size } = file;
-      const id = crypto.randomUUID();
+      // Persist dispatch intent before handing bytes to fetch. A reload cannot distinguish
+      // a request that never left the browser from one that is still on the server.
+      savePendingUploads(scope, [{ ...upload, attempted: true }, ...remaining.slice(1)]);
       result.outcome = "Uploading…";
       reportAttachmentUploads(boardId, cardId, index);
       const submittedCapability = capability;
-      const submission = recordSubmission(scope, { kind: "upload", id, size });
+      /** @type {Attachment|undefined} */
+      let committed;
       try {
-        const reply = await api.uploadAttachment(cardId, expected, file, id);
+        const reply = await api.uploadAttachment(cardId, expected, file, upload.id);
         const item = /** @type {Attachment} */ (reply.data);
-        if (!matchesSubmittedUpload(boardId, cardId, id, size, item)) {
+        if (item.id !== upload.id || !activeAttachment(boardId, cardId, item) || !matchesUploadBytes(upload, item)) {
           throw new ApiError("invalid_response", { outcomeUnknown: true });
         }
-        committedRevision = item.revision;
-        refreshNeeded = true;
+        committed = item;
         result.outcome = "Uploaded.";
-        clearSavedSubmission(scope, submission);
       } catch (error) {
         const phase = writePhase(error, submittedCapability);
-        if (phase !== "unknown") clearSavedSubmission(scope, submission);
-        if (phase === "unknown") {
+        if (phase === "unknown" || !(error instanceof ApiError) || error.status === 409) {
           refreshNeeded = true;
-          const readUpload = () => readSubmittedUpload(boardId, cardId, id, size);
-          const item = await readWithSession(readUpload).catch(() => undefined);
-          if (item) {
-            clearSavedSubmission(scope, submission);
-            committedRevision = item.revision;
+          committed = await readWithSession(() => readSubmittedUpload(boardId, cardId, upload)).catch(() => undefined);
+          if (committed) {
             result.outcome = "Uploaded. Confirmed by readback.";
           } else {
-            batch.needsInspection = true;
             result.outcome = "Outcome uncertain. Use Inspect saved card.";
             batch.message = " Inspect the card before submitting again.";
-            requireInspection(scope, isCurrent, async () => {
-              const confirmed = await readUpload();
-              await refreshUploadBoard(boardId);
-              clearSavedSubmission(scope, submission);
-              batch.needsInspection = false;
-              result.outcome = confirmed ? "Uploaded. Confirmed by readback."
-                : "Outcome unconfirmed after inspection.";
-              batch.message = "";
-              reportAttachmentUploads(boardId, cardId, index);
-              return confirmed !== undefined;
-            });
           }
-        } else if (phase === "conflict") {
-          refreshNeeded = true;
-          result.outcome = "Refused. The card changed.";
-          batch.message = " Review the card before selecting more files.";
-        } else if (error instanceof ApiError && error.status === 413) {
-          result.outcome = "Refused. Files are limited to 10 MiB.";
+        } else if ([400, 413, 422].includes(error.status ?? 0)) {
+          remaining = remaining.slice(1);
+          savePendingUploads(scope, remaining);
+          result.outcome = error.status === 413 ? "Refused. Files are limited to 10 MiB." : "Upload refused.";
         } else {
-          result.outcome = "Upload refused.";
-          if (!(error instanceof ApiError) || ![400, 422].includes(error.status ?? 0)) {
-            batch.message = " Review the card before selecting more files.";
-          }
+          savePendingUploads(scope, remaining);
+          refreshNeeded = true;
+          result.outcome = phase === "conflict" ? "Refused. The card changed." : "Upload refused.";
+          batch.message = " Review the card before resuming pending uploads.";
         }
+      }
+      if (committed) {
+        remaining = remaining.slice(1);
+        savePendingUploads(scope, remaining);
+        committedRevision = committed.revision;
+        refreshNeeded = true;
+        if (!committed.active) batch.message = " The attachment was detached. Review the card before resuming pending uploads.";
       }
       batch.processed++;
       reportAttachmentUploads(boardId, cardId, index);
       if (batch.message) break;
     }
-  } catch {
-    batch.message = " The current card revision could not be read.";
+  } catch (error) {
+    const code = error instanceof ApiError ? error.code : "";
+    batch.message = " " + (code === "attachment_upload_selection"
+      ? "Select all pending originals. Each file must match its recorded name, size and contents."
+      : code === "attachment_upload_storage" ? writeRefusal(error)
+        : "The files or current saved card could not be read.");
   } finally {
     if (refreshNeeded) {
       try {
         await refreshUploadBoard(boardId);
       } catch {
-        if (!batch.needsInspection) {
+        if (!unconfirmedUpload(scope)) {
           batch.needsInspection = true;
           batch.message += " Use Inspect saved card to read the saved attachments.";
           requireInspection(scope, isCurrent, async () => {
@@ -1443,7 +1551,7 @@ async function uploadFiles(boardId, cardId, initialTag, files) {
     for (const result of batch.results) {
       if (result.outcome === "Waiting.") result.outcome = "Upload stopped before this file.";
     }
-    batch.processed = files.length;
+    batch.processed = batch.results.length;
     batch.running = false;
     reportAttachmentUploads(boardId, cardId);
   }
@@ -1570,6 +1678,28 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     const uploadResults = element("ul");
     uploadResults.hidden = true;
     uploadResults.className = "body-text";
+    const uploadRecovery = element("div");
+    uploadRecovery.hidden = true;
+    const resumeUploads = button("Resume pending uploads", () => {
+      if (!canUpload(true)) return;
+      const files = Array.from(upload.files ?? []);
+      if (!files.length) return;
+      upload.value = "";
+      void uploadFiles(boardId, card.id, cardTag, files, true);
+    });
+    const discardUploads = button("Discard pending files", () => {
+      if (!canUpload(true)) return;
+      try {
+        savePendingUploads(scope, []);
+        attachmentUploads.delete(scope);
+        upload.value = "";
+        showAttachmentUploads();
+      } catch (error) {
+        announce("error", writeRefusal(error));
+      }
+    });
+    uploadRecovery.append(element("p", "Reselect all pending originals in Files, then resume their uploads."),
+      resumeUploads, discardUploads);
     /** @type {CardDraft|undefined} */
     const previous = cardDrafts.get(scope) ?? textDrafts.get(scope);
     if (previous?.title !== undefined) title.value = previous.title;
@@ -1666,13 +1796,15 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     const inspection = createInspection(view, () => cardView === activeCard, async () => {
       await reloadBoard();
     }, "card", scope, (control) =>
-      control.dataset.cardRevisionWrite === "true" && uploadingToCard(boardId, card.id), recoverCardSubmission);
+      (control.dataset.cardRevisionWrite === "true" && uploadingToCard(boardId, card.id))
+      || (control.dataset.newAttachmentUpload === "true" && pendingUploads?.has(scope) === true),
+    recoverCardSubmission, recoverAttachmentUpload);
     cardInspection = inspection;
 
     /** @param {string} label @param {HTMLElement[]} controls @param {(submit: HTMLButtonElement) => void} action */
     function cardRevisionForm(label, controls, action) {
       const node = form(label, controls, (submit) => {
-        if (isSelected() && !uploadingToCard(boardId, card.id)) action(submit);
+        if (isSelected() && !uploadingToCard(boardId, card.id) && !unconfirmedUpload(scope)) action(submit);
       });
       const control = node.querySelector("button");
       if (control) control.dataset.cardRevisionWrite = "true";
@@ -1882,22 +2014,43 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
           await readCurrent();
           return approved;
         }
-        case "upload": {
-          const item = await readSubmittedUpload(boardId, card.id, submission.id, submission.size);
-          await readCurrent();
-          return item !== undefined;
-        }
         default:
           return false;
       }
     }
 
+    async function recoverAttachmentUpload() {
+      const upload = unconfirmedUpload(scope);
+      if (!upload) return false;
+      const item = await readSubmittedUpload(boardId, card.id, upload);
+      await readCurrent();
+      if (!item) return false;
+      savePendingUploads(scope, pendingUploads?.get(scope)?.slice(1) ?? []);
+      const batch = attachmentUploads.get(scope);
+      const result = batch?.results.find(({ id }) => id === upload.id);
+      if (result) result.outcome = "Uploaded. Confirmed by readback.";
+      if (batch) batch.message = "";
+      showAttachmentUploads();
+      return true;
+    }
+
     /** @param {number} [changed] */
     function showAttachmentUploads(changed) {
-      const batch = attachmentUploads.get(scope);
-      if (!batch) return;
-      uploadProgress.hidden = false;
-      uploadResults.hidden = false;
+      const pending = pendingUploads?.get(scope);
+      let batch = attachmentUploads.get(scope);
+      if (!batch && pending) {
+        batch = { boardId, running: false, needsInspection: false, processed: 0, message: "",
+          results: pending.map(({ name, id, attempted }) => ({ name, id,
+            outcome: attempted ? "Outcome uncertain. Use Inspect saved card." : "Pending original." })) };
+        attachmentUploads.set(scope, batch);
+      }
+      uploadRecovery.hidden = !pending || Boolean(batch?.running || unconfirmedUpload(scope));
+      uploadProgress.hidden = !batch;
+      uploadResults.hidden = !batch;
+      if (!batch) {
+        inspection.sync();
+        return;
+      }
       const progress = batch.processed + " of " + batch.results.length + " files processed.";
       if (uploadProgress.textContent !== progress + batch.message) {
         uploadProgress.textContent = progress + batch.message;
@@ -1914,9 +2067,11 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       }
     }
 
-    function canUpload() {
+    /** @param {boolean} [resuming] */
+    function canUpload(resuming = false) {
       return isSelected() && !writing && !uploadingToCard(boardId, card.id)
-        && !pendingInspections.has(scope) && !savedSubmission(scope) && view.dataset.unavailable !== "true";
+        && !hasUnresolvedInspection(scope) && view.dataset.unavailable !== "true"
+        && resuming === (pendingUploads?.has(scope) === true);
     }
 
     /** @param {ClipboardEvent} event */
@@ -2270,6 +2425,14 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     }
 
     const inspect = button(inspection.label, inspection.inspect);
+    const uploadForm = cardRevisionForm("Upload attachments", [field("Files", upload)], () => {
+      const files = Array.from(upload.files ?? []);
+      if (!files.length || !canUpload()) return;
+      upload.value = "";
+      void uploadFiles(boardId, card.id, cardTag, files);
+    });
+    const uploadSubmit = uploadForm.querySelector("button");
+    if (uploadSubmit) uploadSubmit.dataset.newAttachmentUpload = "true";
     showCurrent(card);
     view.replaceChildren(close, inspect, inspection.recovery, heading, current, archiveAction, approvalAction, historyPanel,
       cardRevisionForm("Save text", [field("Title", title), field("Description", description)], (submit) => {
@@ -2306,12 +2469,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       }),
       element("h3", "Attachments"), attachmentList,
       element("p", "Select files or paste a clipboard image into the card. Each file can be up to 10 MiB."),
-      cardRevisionForm("Upload attachments", [field("Files", upload)], () => {
-        const files = Array.from(upload.files ?? []);
-        if (!files.length || !canUpload()) return;
-        upload.value = "";
-        void uploadFiles(boardId, card.id, cardTag, files);
-      }), uploadProgress, uploadResults);
+      uploadForm, uploadRecovery, uploadProgress, uploadResults);
     inspection.sync();
     showAttachmentUploads();
     if (focusHeading && document.activeElement === initialFocus) heading.focus();

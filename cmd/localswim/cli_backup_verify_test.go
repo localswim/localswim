@@ -58,7 +58,7 @@ func TestBackupVerifyStdinAndCleanup(t *testing.T) {
 		return map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": human}[key]
 	}
 	var out, stderr bytes.Buffer
-	if code := runCLIWithInput([]string{"board", "create", "--name", "Stdin verification"}, nil, &out, &stderr, getenv); code != 0 {
+	if code := runCLIWithInput([]string{"board", "create", "name", "Stdin verification"}, nil, &out, &stderr, getenv); code != 0 {
 		t.Fatal(&stderr)
 	}
 	var board struct {

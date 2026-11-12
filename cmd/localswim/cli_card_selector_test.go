@@ -21,7 +21,7 @@ func TestBoardCardSelectorGrammar(t *testing.T) {
 			{"card", "title", board, ref, "title"}, {"card", "move", board, ref, lane},
 			{"card", "assign", board, ref, lane}, {"card", "set-priority", board, ref, lane},
 			{"card", "cover", board, ref, "none"}, {"card", "archive", board, ref}, {"card", "unarchive", board, ref},
-			{"comment", "post", "--text", "hello", board, ref}, {"comment", "list", board, ref},
+			{"comment", "post", board, ref, "text", "hello"}, {"comment", "list", board, ref},
 			{"attachment", "list", board, ref}, {"attachment", "upload", board, ref, "-"},
 			{"attachment", "detach", board, ref, lane}, {"card", "set-parent", board, ref, lane},
 			{"relationship", "create", board, ref, "blocks", lane},

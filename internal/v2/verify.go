@@ -421,7 +421,7 @@ func (refs snapshotReferences) validateCards(value snapshot) error {
 			!refs.priorities[c.PriorityID] || refs.users[c.OwnerID].ID == "" {
 			return invalidSnapshot("cards", "Card identity, ticket, or workflow reference is invalid.")
 		}
-		if !snapshotText(c.Title, 1, 1024) || !snapshotText(c.Description, 0, 4194304) ||
+		if !snapshotText(c.Title, 1, 1024) || !cardTitleHasText(c.Title) || !snapshotText(c.Description, 0, 4194304) ||
 			c.ChildIDs == nil ||
 			c.BlockingDepth != 0 || c.BlockedCardCount != 0 {
 			return invalidSnapshot("cards", "Card metadata is invalid or refers to unsupported resources.")

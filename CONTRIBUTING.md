@@ -21,6 +21,10 @@ seconds. Revisions distinguish edits within the same second. Native snapshots us
 Each card ID belongs to exactly one board. CLI and UI card references include
 that board context. REST routes remain UUID-addressed.
 
+Required CLI values, including modes, are positional. Controlled positional values use
+explicit enumerated choices. Optional modifiers use flags. Card titles require at least
+one non-whitespace character. Accepted title text is preserved exactly.
+
 CLI commands that read JSON require a positional file path or `-` for standard input.
 Omitting the input path in document mode is a command error. Card creation in
 document mode uses `card create [--revision N] BOARD_ID FILE|-`; any `board_id`
@@ -32,7 +36,7 @@ board, lane, cards, and priority you want to use.
 
 ```powershell
 localswim card create --description "Verify the holiday schedule." $board $lane "Check pool hours"
-localswim comment post --text "Confirmed weekend hours." $board $card
+localswim comment post $board $card text "Confirmed weekend hours."
 localswim card set-priorities $board $priority $card $otherCard
 ```
 
@@ -141,7 +145,9 @@ Use `relationship get BOARD_ID RELATIONSHIP_ID` and
 `relationship patch BOARD_ID RELATIONSHIP_ID FILE|-` to read or update a
 relationship by ID.
 
-Use `activity list` with inclusive canonical UTC `--from` and `--to`. The
+Use `activity list` with required inclusive `FROM_UTC` and optional `TO_UTC`.
+Omitting `TO_UTC` captures the current UTC second once. When paging, reuse the
+first response’s `coverage.to` as explicit `TO_UTC` with the same filters. The
 default view returns sanitized metadata in audit revision order. Select
 `--view full` to read attributed audit values. Both views support `--actor-id`,
 `--operation`, `--card-id`, and `--ticket`. Operation identifiers match exactly.
@@ -417,7 +423,7 @@ confirm, or pass `-f` or `--force` to skip confirmation for automation. If the
 input is `-` (binary standard input), `--force` is required so the confirmation
 prompt cannot consume payload bytes. File-path input may prompt normally.
 
-Use `board recover --mode same_id [-f|--force] BOARD_ID FILE|-` for a startup-quarantined
+Use `board recover [-f|--force] BOARD_ID same_id FILE|-` for a startup-quarantined
 board with trusted continuity. The Human workspace administrator supplies a
 verified native JSON snapshot or ZIP backup for that board. The command reads
 the current recovery diagnostic and uses its exact ETag once. Same-ID recovery
@@ -425,7 +431,7 @@ requires the unchanged, settled local reference, matching creation identity,
 an eligible runtime restore actor and collision-free identity. The committed
 revision exceeds the source, trusted local and readable durable revisions.
 
-Use `board recover --mode fresh [-f|--force] BOARD_ID FILE|-` explicitly when continuity is
+Use `board recover [-f|--force] BOARD_ID fresh FILE|-` explicitly when continuity is
 unavailable. Recovery creates a new board UUID and new board-owned resource and
 audit UUIDs. Global user identities and exact user text are preserved. The
 original failed snapshot and diagnostic remain available. The recovery audit
@@ -585,7 +591,7 @@ Use an explicit `--data DIR` to read a saved board through the local filesystem.
 - `card triage-order --data DIR [--lane UUID]... BOARD_ID` ranks work across the selected lanes.
 - `card search --data DIR --search TEXT BOARD_ID` applies the usual search and triage rules.
 - `comment list --data DIR [--limit N] BOARD_ID [CARD_ID]` reads the newest comments.
-- `activity list --data DIR --from UTC --to UTC BOARD_ID` reads sanitized saved activity.
+- `activity list --data DIR BOARD_ID FROM_UTC [TO_UTC]` reads sanitized saved activity.
 
 Each invocation validates one committed snapshot from a directly readable directory.
 These commands work with the writer stopped and with open or closed saved boards.
@@ -621,7 +627,7 @@ Bot ID is a member. Custom boards without Bot must supply a member explicitly.
 Changing the default requires `manage_board` and applies to subsequent card
 creation. Owner assignment audit values record the previous and new user UUIDs.
 
-Set `user_css` in `board create --json` or `board patch` JSON to apply a stylesheet
+Set `user_css` in `board create json` or `board patch` JSON to apply a stylesheet
 while viewing that board. Patches require `manage_board`. An empty string clears
 the stylesheet. The browser replaces the active stylesheet when switching boards
 and uses the same content security policy throughout.

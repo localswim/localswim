@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -11,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -35,34 +35,60 @@ func main() {
 	os.Exit(runCLI(args, os.Stdout, os.Stderr))
 }
 
-func serve(args []string, stdout, stderr io.Writer) (result error) {
-	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	root := fs.String("data", "", "V2 data directory")
-	port := fs.Int("port", 0, "IPv4 loopback port (0 selects an available port)")
-	background := fs.Bool("background", false, "start independently without a console (Windows, requires --port)")
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
+func parseServeArguments(args []string) (root string, port int, background bool, err error) {
+	if len(args) > 0 && args[0] == "--background" {
+		background = true
+		args = args[1:]
+	}
+	if len(args) < 1 || len(args) > 2 || !filepath.IsAbs(args[0]) {
+		return "", 0, false, errors.New("serve requires an absolute DATA_DIRECTORY and an optional PORT from 0 to 65535")
+	}
+	root = args[0]
+	if len(args) == 2 {
+		value := args[1]
+		if value == "" {
+			return "", 0, false, errors.New("serve PORT must be an integer from 0 to 65535")
 		}
-		return err
+		for _, digit := range value {
+			if digit < '0' || digit > '9' {
+				return "", 0, false, errors.New("serve PORT must be an integer from 0 to 65535")
+			}
+		}
+		port, err = strconv.Atoi(value)
+		if err != nil || port > 65535 {
+			return "", 0, false, errors.New("serve PORT must be an integer from 0 to 65535")
+		}
 	}
-	if *root == "" || !filepath.IsAbs(*root) || *port < 0 || *port > 65535 || fs.NArg() != 0 {
-		return errors.New("serve requires --data with an absolute directory and accepts --port from 0 to 65535")
+	if background && port == 0 {
+		return "", 0, false, errors.New("serve --background requires an explicit nonzero positional PORT")
 	}
-	if *background {
-		return launchBackground(*root, *port, stdout)
+	return root, port, background, nil
+}
+
+func serve(args []string, stdout, stderr io.Writer) (result error) {
+	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+		fmt.Fprintln(stderr, "Usage: localswim serve [--background] DATA_DIRECTORY [PORT]")
+		fmt.Fprintln(stderr, "DATA_DIRECTORY must be absolute. PORT defaults to 0 (an available IPv4 loopback port).")
+		fmt.Fprintln(stderr, "--background starts independently without a console on Windows and requires an explicit nonzero PORT.")
+		return nil
 	}
-	unlock, err := v2.LockServiceStartup(*root)
+	root, port, background, err := parseServeArguments(args)
 	if err != nil {
 		return err
 	}
-	app, err := openService(*root)
+	if background {
+		return launchBackground(root, port, stdout)
+	}
+	unlock, err := v2.LockServiceStartup(root)
+	if err != nil {
+		return err
+	}
+	app, err := openService(root)
 	if err != nil {
 		return errors.Join(err, unlock())
 	}
 	defer func() { result = errors.Join(result, app.Close()) }()
-	listener, err := listenLoopback(*port)
+	listener, err := listenLoopback(port)
 	if err != nil {
 		return errors.Join(err, unlock())
 	}

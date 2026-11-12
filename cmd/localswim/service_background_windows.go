@@ -14,7 +14,7 @@ import (
 
 func launchBackground(root string, port int, stdout io.Writer) error {
 	if port == 0 {
-		return errors.New("serve --background requires an explicit nonzero --port")
+		return errors.New("serve --background requires an explicit nonzero positional PORT")
 	}
 	executable, err := os.Executable()
 	if err != nil {
@@ -26,7 +26,7 @@ func launchBackground(root string, port int, stdout io.Writer) error {
 	}
 	defer read.Close()
 
-	command := exec.Command(executable, "serve", "--data", root, "--port", strconv.Itoa(port))
+	command := exec.Command(executable, "serve", root, strconv.Itoa(port))
 	// DETACHED_PROCESS prevents console attachment. CREATE_NO_WINDOW can
 	// still associate a hidden console with the service.
 	const detachedProcess = 0x00000008

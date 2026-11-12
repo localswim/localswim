@@ -184,8 +184,8 @@ func TestCLICreationModesSendOneCreateRequest(t *testing.T) {
 		label, input, name string
 		args               []string
 	}{
-		{"name", "invalid JSON must not be read", name, []string{"board", "create", "--name", name}},
-		{"json", jsonInput, "JSON board", []string{"board", "create", "--json", "-"}},
+		{"name", "invalid JSON must not be read", name, []string{"board", "create", "name", name}},
+		{"json", jsonInput, "JSON board", []string{"board", "create", "json", "-"}},
 	} {
 		t.Run(tc.label, func(t *testing.T) {
 			var requests atomic.Int32
@@ -223,11 +223,11 @@ func TestCLICreationModesSendOneCreateRequest(t *testing.T) {
 func TestCLICreationRequiresExactlyOneInputMode(t *testing.T) {
 	for _, args := range [][]string{
 		{"board", "create"},
-		{"board", "create", "--name", "Personal", "--json"},
-		{"board", "create", "--name", "Personal", "--json=false"},
+		{"board", "create", "name", "Personal", "json"},
+		{"board", "create", "name", "Personal", "--json=false"},
 		{"board", "create", "--json=false"},
-		{"board", "create", "--name", ""},
-		{"board", "create", "--name", string([]byte{0xff})},
+		{"board", "create", "name", ""},
+		{"board", "create", "name", string([]byte{0xff})},
 		{"board", "create", "Personal"},
 	} {
 		var stdout, stderr bytes.Buffer
@@ -243,8 +243,8 @@ func TestCLICommandHelpDescribesCreationModes(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	exit := runCLIWithInput([]string{"board", "create", "--help"}, strings.NewReader(""), &stdout, &stderr,
 		func(string) string { t.Fatal("help reached execution"); return "" })
-	if exit != 0 || stderr.Len() != 0 || !strings.Contains(stdout.String(), "board create --name NAME") ||
-		!strings.Contains(stdout.String(), "board create --json <JSON_FILE|->") {
+	if exit != 0 || stderr.Len() != 0 || !strings.Contains(stdout.String(), "board create [--preset terry] name NAME") ||
+		!strings.Contains(stdout.String(), "board create json <JSON_FILE|->") {
 		t.Fatalf("unhelpful command help: exit %d, stdout %q, stderr %q", exit, &stdout, &stderr)
 	}
 }
@@ -444,8 +444,8 @@ func TestCLICardCreateUsesBoardRevisionAndDoesNotReplay(t *testing.T) {
 		{"stale inspection", "2", "revision mismatch", "-", 0, 1, 1},
 		{"stale mutation", "1", "HTTP 412", "-", 412, 2, 1},
 		{"uncertain result", "1", "Mutation outcome unknown", "-", 500, 2, 1},
-		{"invalid revision", "0", "--revision requires", "-", 0, 0, 2},
-		{"empty explicit revision", "", "--revision requires", "-", 0, 0, 2},
+		{"invalid revision", "0", "revision requires", "-", 0, 0, 2},
+		{"empty explicit revision", "", "revision requires", "-", 0, 0, 2},
 		{"missing board tag", "1", "Mutation outcome unknown", "-", 201, 2, 1},
 		{"duplicate board tags", "1", "Mutation outcome unknown", "-", 201, 2, 1},
 		{"weak board tag", "1", "Mutation outcome unknown", "-", 201, 2, 1},
@@ -517,9 +517,9 @@ func TestCLIJSONFileSelection(t *testing.T) {
 	const boardID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 	for _, source := range []string{"definition with spaces.json", "-"} {
 		for _, args := range [][]string{
-			{"board", "create", "--json", source},
+			{"board", "create", "json", source},
 			{"board", "patch", boardID, source},
-			{"policy", "grant", boardID, source},
+			{"policy", "grant", boardID, "json", source},
 		} {
 			command, err := parseCLI(args)
 			if err != nil || command.inputPath != source {
@@ -533,7 +533,7 @@ func TestCLIJSONCommandsRequireInputSource(t *testing.T) {
 	const boardID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 	for _, args := range [][]string{
 		{"card", "create"},
-		{"board", "create", "--json"},
+		{"board", "create", "json"},
 		{"board", "patch", boardID},
 		{"policy", "grant", boardID},
 	} {
@@ -636,7 +636,7 @@ func TestCLIPolicyGrantPreservesOtherGrantsAndUsesBothValidators(t *testing.T) {
 	env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
 	getenv := func(key string) string { return env[key] }
 	var stdout, stderr bytes.Buffer
-	args := []string{"policy", "grant", "--revision", "1", strings.ToUpper(boardID), "-"}
+	args := []string{"policy", "grant", "--revision", "1", strings.ToUpper(boardID), "json", "-"}
 	body := strings.NewReader(`{"create_grants":[` + newGrant + `]}`)
 	if exit := runCLIWithInput(args, body, &stdout, &stderr, getenv); exit != 0 || requests.Load() != 3 ||
 		!equalCLIJSON(t, stdout.Bytes(), []byte(`{"updated":true}`)) || stderr.Len() != 0 {

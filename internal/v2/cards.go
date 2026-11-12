@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -116,7 +117,7 @@ func readCardCreation(fields map[string]json.RawMessage) (cardCreation, error) {
 	if tags, ok := parseTagList(in.expected); !ok || len(tags) != 1 || tags[0].weak || tags[0].opaque != in.expected || in.expected == "*" {
 		return in, invalid("expected_board_etag", "Expected one strong entity tag.")
 	}
-	in.title, err = exactCardText(fields["title"], "title", 1, 1024)
+	in.title, err = exactCardTitle(fields["title"])
 	if err != nil {
 		return in, err
 	}
@@ -145,6 +146,21 @@ func readCardCreation(fields map[string]json.RawMessage) (cardCreation, error) {
 		}
 	}
 	return in, nil
+}
+
+func exactCardTitle(raw json.RawMessage) (string, error) {
+	value, err := exactCardText(raw, "title", 1, 1024)
+	if err != nil {
+		return "", err
+	}
+	if !cardTitleHasText(value) {
+		return "", invalid("title", "Expected a title containing non-whitespace text.")
+	}
+	return value, nil
+}
+
+func cardTitleHasText(value string) bool {
+	return strings.TrimSpace(value) != ""
 }
 
 // JSON's decoder substitutes U+FFFD for unpaired UTF-16 escapes. Reject them

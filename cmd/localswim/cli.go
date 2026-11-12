@@ -174,8 +174,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	needBoardID := false
 	rename := false
 	creating := false
-	var createName, createPreset string
-	var jsonInput, createGrant, moveGrant bool
+	var createPreset string
 	var cardDescription string
 	var boardView string
 	paginated := false
@@ -203,9 +202,7 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "board create":
 		command.method, command.resource = http.MethodPost, "/boards"
 		creating = true
-		flags.StringVar(&createName, "name", "", "new board name")
 		flags.StringVar(&createPreset, "preset", "", "workflow preset (terry)")
-		flags.BoolVar(&jsonInput, "json", false, "read a new board definition from JSON_FILE or standard input with -")
 	case "board get":
 		command.method, command.resource, needBoardID = http.MethodGet, "/boards", true
 		command.nativeRead = "metadata"
@@ -254,8 +251,6 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.boardAction = name
 		if name == "policy grant" {
 			command.method = http.MethodPut
-			flags.BoolVar(&createGrant, "create", false, "allow one user to create cards in one lane")
-			flags.BoolVar(&moveGrant, "move", false, "allow one user to move cards between two lanes")
 		}
 	case "service status":
 		command.method, command.resource = http.MethodGet, "/service"
@@ -296,36 +291,16 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.resource += "?" + query.Encode()
 	}
 	var optionErr error
-	var hasName, hasJSON, hasRevision, hasDescription bool
-	var hasCreateGrant, hasMoveGrant bool
+	var hasRevision, hasDescription bool
 	flags.Visit(func(f *flag.Flag) {
-		hasName = hasName || f.Name == "name"
-		hasJSON = hasJSON || f.Name == "json"
 		hasRevision = hasRevision || f.Name == "revision"
 		hasDescription = hasDescription || f.Name == "description"
-		hasCreateGrant = hasCreateGrant || f.Name == "create"
-		hasMoveGrant = hasMoveGrant || f.Name == "move"
 		if f.Name != "revision" && f.Name != "description" && f.Value.String() == "" {
 			optionErr = errors.New("command options require nonempty values")
 		}
 	})
 	if optionErr != nil {
 		return command, optionErr
-	}
-	if creating {
-		if hasName == hasJSON || (hasJSON && !jsonInput) {
-			return command, errors.New("board create requires exactly one of --name NAME or --json")
-		}
-		if createPreset != "" && (createPreset != "terry" || !hasName) {
-			return command, errors.New("board create accepts only --preset terry with --name")
-		}
-		if hasName {
-			var err error
-			command.body, err = boardNameBody(createName, createPreset)
-			if err != nil {
-				return command, err
-			}
-		}
 	}
 	if command.pinAction != "" {
 		if flags.NArg() == 0 {
@@ -353,11 +328,28 @@ func parseCLI(args []string) (cliCommand, error) {
 			}
 			command.pinIDs = append(command.pinIDs, id)
 		}
-	} else if creating && hasJSON {
-		if flags.NArg() != 1 || flags.Arg(0) == "" {
-			return command, errors.New("board create --json accepts one JSON file or - for standard input")
+	} else if creating {
+		if flags.NArg() != 2 {
+			return command, errors.New("board create requires name NAME or json FILE|-")
 		}
-		command.inputPath = flags.Arg(0)
+		if createPreset != "" && (createPreset != "terry" || flags.Arg(0) != "name") {
+			return command, errors.New("board create accepts only --preset terry with name mode")
+		}
+		switch flags.Arg(0) {
+		case "name":
+			var err error
+			command.body, err = boardNameBody(flags.Arg(1), createPreset)
+			if err != nil {
+				return command, err
+			}
+		case "json":
+			if flags.Arg(1) == "" {
+				return command, errors.New("board create json requires FILE|-")
+			}
+			command.inputPath = flags.Arg(1)
+		default:
+			return command, errors.New("board create mode must be name or json")
+		}
 	} else if name == "card create" {
 		var err error
 		command.inputPath, command.body, err = cardCreateInput(flags.Args(), hasDescription, cardDescription)
@@ -375,17 +367,33 @@ func parseCLI(args []string) (cliCommand, error) {
 			return command, err
 		}
 		command.boardID = command.cardTarget.boardID
-	} else if name == "policy grant" && (hasCreateGrant || hasMoveGrant) {
-		if hasCreateGrant == hasMoveGrant || (!createGrant && !moveGrant) {
-			return command, errors.New("policy grant accepts exactly one of --create or --move")
+	} else if name == "policy grant" {
+		if flags.NArg() < 3 || !boardIDPattern.MatchString(flags.Arg(0)) {
+			return command, errors.New("policy grant requires BOARD_ID and create, move, or json mode")
 		}
-		if !hasRevision {
-			return command, errors.New("policy grant --create and --move require --revision")
-		}
-		var err error
-		command.boardID, command.body, err = scopedPolicyGrantInput(flags.Args(), createGrant)
-		if err != nil {
-			return command, err
+		command.boardID = strings.ToLower(flags.Arg(0))
+		switch flags.Arg(1) {
+		case "json":
+			if flags.NArg() != 3 || flags.Arg(2) == "" {
+				return command, errors.New("policy grant json requires BOARD_ID json FILE|-")
+			}
+			command.inputPath = flags.Arg(2)
+		case "create", "move":
+			if hasRevision {
+				return command, errors.New("policy grant create and move require positional REVISION")
+			}
+			var err error
+			command.revision, err = parseCLIRevision(flags.Arg(2))
+			if err != nil {
+				return command, err
+			}
+			grantArgs := append([]string{flags.Arg(0)}, flags.Args()[3:]...)
+			command.boardID, command.body, err = scopedPolicyGrantInput(grantArgs, flags.Arg(1) == "create")
+			if err != nil {
+				return command, err
+			}
+		default:
+			return command, errors.New("policy grant mode must be create, move, or json")
 		}
 	} else if needBoardID {
 		count, expected := 1, "expected one UUIDv4 board ID"
@@ -399,7 +407,7 @@ func parseCLI(args []string) (cliCommand, error) {
 		if rename {
 			count, expected = 2, "expected a UUIDv4 board ID followed by one new name (quote names containing spaces)"
 		}
-		if name == "board patch" || name == "policy grant" {
+		if name == "board patch" {
 			command.inputPath = flags.Arg(1)
 			if flags.NArg() != 2 || command.inputPath == "" {
 				return command, errors.New("input file path must not be empty")

@@ -19,8 +19,6 @@ func parseActivityList(args []string) (cliCommand, error) {
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	dataDir := flags.String("data", "", "read saved activity from this data directory")
-	from := flags.String("from", "", "inclusive UTC start")
-	to := flags.String("to", "", "inclusive UTC end")
 	view := flags.String("view", "monitor", "full or monitor activity view")
 	ticket := flags.String("ticket", "", "filter by ticket at the event revision")
 	cardID := flags.String("card-id", "", "filter by stable card UUIDv4")
@@ -32,20 +30,24 @@ func parseActivityList(args []string) (cliCommand, error) {
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
 	}
-	if flags.NArg() != 1 || !boardIDPattern.MatchString(flags.Arg(0)) {
-		return cmd, errors.New("expected one UUIDv4 board ID")
+	if flags.NArg() < 2 || flags.NArg() > 3 || !boardIDPattern.MatchString(flags.Arg(0)) {
+		return cmd, errors.New("expected BOARD_ID FROM_UTC [TO_UTC]")
 	}
 	if *limit < 1 || *limit > 200 || len(*cursor) > 2048 {
 		return cmd, errors.New("page limit must be 1 to 200 and cursor must fit within 2048 bytes")
 	}
+	from, to := flags.Arg(1), flags.Arg(2)
 	const layout = "2006-01-02 15:04:05+00:00"
-	start, startErr := time.Parse(layout, *from)
-	end, endErr := time.Parse(layout, *to)
-	if startErr != nil || endErr != nil || start.Format(layout) != *from || end.Format(layout) != *to {
-		return cmd, errors.New("--from and --to require YYYY-MM-DD HH:MM:SS+00:00")
+	if flags.NArg() == 2 {
+		to = time.Now().UTC().Truncate(time.Second).Format(layout)
+	}
+	start, startErr := time.Parse(layout, from)
+	end, endErr := time.Parse(layout, to)
+	if startErr != nil || endErr != nil || start.Format(layout) != from || end.Format(layout) != to {
+		return cmd, errors.New("FROM_UTC and TO_UTC require YYYY-MM-DD HH:MM:SS+00:00")
 	}
 	if end.Before(start) {
-		return cmd, errors.New("--to must be at or after --from")
+		return cmd, errors.New("TO_UTC must be at or after FROM_UTC")
 	}
 	var mode string
 	switch {
@@ -58,8 +60,8 @@ func parseActivityList(args []string) (cliCommand, error) {
 	}
 	query := url.Values{
 		"board_id": {strings.ToLower(flags.Arg(0))},
-		"from":     {*from},
-		"to":       {*to},
+		"from":     {from},
+		"to":       {to},
 		"view":     {mode},
 		"limit":    {strconv.Itoa(*limit)},
 	}

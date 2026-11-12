@@ -58,11 +58,11 @@ func TestM073ProvisionAndGrantWorkflow(t *testing.T) {
 	}
 	const name = "Pool projects café"
 	var board, other boardDetails
-	decode(run(human, "", "board", "create", "--name", name, "--preset", "terry"), &board)
+	decode(run(human, "", "board", "create", "--preset", "terry", "name", name), &board)
 	if board.Name != name || board.Revision != 1 || len(board.LaneIDs) != 7 {
 		t.Fatalf("incorrect Terry preset board: %+v", board)
 	}
-	decode(run(human, "", "board", "create", "--name", "Other board"), &other)
+	decode(run(human, "", "board", "create", "name", "Other board"), &other)
 	if len(other.LaneIDs) != 5 {
 		t.Fatalf("incorrect generic board: %+v", other)
 	}
@@ -114,18 +114,18 @@ func TestM073ProvisionAndGrantWorkflow(t *testing.T) {
 	run(bot, "HTTP 403", "card", "move", board.ID, card.ID, progress)
 
 	current := revision()
-	run(human, "revision mismatch", "policy", "grant", "--revision", "1", "--create", board.ID, botID, progress)
-	run(human, "HTTP 400", "policy", "grant", "--revision", current, "--create", board.ID, botID, other.LaneIDs[0])
-	run(human, "HTTP 400", "policy", "grant", "--revision", current, "--create", board.ID, "ffffffff-ffff-4fff-8fff-ffffffffffff", progress)
+	run(human, "revision mismatch", "policy", "grant", board.ID, "create", "1", botID, progress)
+	run(human, "HTTP 400", "policy", "grant", board.ID, "create", current, botID, other.LaneIDs[0])
+	run(human, "HTTP 400", "policy", "grant", board.ID, "create", current, "ffffffff-ffff-4fff-8fff-ffffffffffff", progress)
 	assertPolicy()
-	run(human, "", "policy", "grant", "--revision", current, "--create",
-		strings.ToUpper(board.ID), strings.ToUpper(botID), strings.ToUpper(progress))
+	run(human, "", "policy", "grant", strings.ToUpper(board.ID), "create", current,
+		strings.ToUpper(botID), strings.ToUpper(progress))
 	want.CreateGrants = append(want.CreateGrants, map[string]string{"user_id": botID, "lane_id": progress})
 	assertPolicy()
 	run(bot, "", "card", "create", board.ID, progress, "In Progress card")
 	run(bot, "HTTP 403", "card", "move", board.ID, card.ID, progress)
 
-	run(human, "", "policy", "grant", "--revision", revision(), "--move", board.ID, botID, backlog, progress)
+	run(human, "", "policy", "grant", board.ID, "move", revision(), botID, backlog, progress)
 	want.MoveGrants = append(want.MoveGrants, map[string]string{"user_id": botID, "from_lane_id": backlog, "to_lane_id": progress})
 	assertPolicy()
 	decode(run(bot, "", "card", "move", board.ID, card.ID, progress), &card)
@@ -145,8 +145,8 @@ func TestM073ContextualHelpAndInvalidInputs(t *testing.T) {
 		group, action string
 		required      []string
 	}{
-		{"board", "create", []string{"--preset terry", "--json <JSON_FILE|->", "custom workflow"}},
-		{"policy", "grant", []string{"--revision N --create", "--revision N --move", "<JSON_FILE|->"}},
+		{"board", "create", []string{"--preset terry", "json <JSON_FILE|->", "custom workflow"}},
+		{"policy", "grant", []string{"BOARD_ID create REVISION", "BOARD_ID move REVISION", "<JSON_FILE|->"}},
 	} {
 		var out, stderr bytes.Buffer
 		code := runCLIWithInput([]string{tc.group, tc.action, "--help"}, nil, &out, &stderr, noService)
@@ -162,17 +162,20 @@ func TestM073ContextualHelpAndInvalidInputs(t *testing.T) {
 	const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 	for _, args := range [][]string{
 		{"board", "create", "--preset", "terry"},
-		{"board", "create", "--name", "Unsupported", "--preset", "other"},
-		{"board", "create", "--name", "Empty", "--preset="},
-		{"board", "create", "--json", "--preset", "terry", "-"},
+		{"board", "create", "--preset", "other", "name", "Unsupported"},
+		{"board", "create", "--preset=", "name", "Empty"},
+		{"board", "create", "--preset", "terry", "json", "-"},
+		{"board", "create", "unknown", "Name"},
+		{"policy", "grant", id, "create", id, id},
+		{"policy", "grant", id, "unknown", "1", id, id},
+		{"policy", "grant", "--revision", "1", id, "create", "1", id, id},
+		{"policy", "grant", id, "create", "1", "unknown-user", id},
+		{"policy", "grant", id, "create", "1", id, "lane-key"},
+		{"policy", "grant", id, "create", "1", id, id, "-"},
+		{"policy", "grant", id, "move", "1", id, id},
+		{"policy", "grant", id, "move", "1", id, id, strings.ToUpper(id)},
+		{"policy", "grant", id, "json", ""},
 		{"policy", "grant", "--create", id, id, id},
-		{"policy", "grant", "--revision", "1", "--create=false", id, "-"},
-		{"policy", "grant", "--revision", "1", "--create", "--move", id, id, id},
-		{"policy", "grant", "--revision", "1", "--create", id, "unknown-user", id},
-		{"policy", "grant", "--revision", "1", "--create", id, id, "lane-key"},
-		{"policy", "grant", "--revision", "1", "--create", id, id, id, "-"},
-		{"policy", "grant", "--revision", "1", "--move", id, id, id},
-		{"policy", "grant", "--revision", "1", "--move", id, id, id, strings.ToUpper(id)},
 	} {
 		var out, stderr bytes.Buffer
 		if code := runCLIWithInput(args, nil, &out, &stderr, noService); code != 2 || out.Len() != 0 || stderr.Len() == 0 {

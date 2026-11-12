@@ -143,7 +143,7 @@ func TestPriorityBatchMixedDuplicateRejected(t *testing.T) {
 
 func TestWholeBoardForceFlagParsing(t *testing.T) {
 	for _, flag := range []string{"-f", "--force"} {
-		for _, args := range [][]string{{"card", "set-priorities", flag, t03Board, t03Lane}, {"board", "restore", flag, t03Board, "-"}, {"board", "recover", flag, "--mode", "same_id", t03Board, "-"}, {"restoration", "create", flag, t03Board, t06Operation}} {
+		for _, args := range [][]string{{"card", "set-priorities", flag, t03Board, t03Lane}, {"board", "restore", flag, t03Board, "-"}, {"board", "recover", flag, t03Board, "same_id", "-"}, {"restoration", "create", flag, t03Board, t06Operation}} {
 			cmd, err := parseCLI(args)
 			if err != nil || !cmd.force {
 				t.Fatalf("%v: %+v %v", args, cmd, err)
@@ -156,7 +156,7 @@ func TestWholeBoardCancellationDoesNotConnect(t *testing.T) {
 	for _, args := range [][]string{
 		{"card", "set-priorities", t03Board, t03Lane},
 		{"board", "restore", t03Board, "unused.json"},
-		{"board", "recover", "--mode", "same_id", t03Board, "unused.json"},
+		{"board", "recover", t03Board, "same_id", "unused.json"},
 		{"restoration", "create", t03Board, t06Operation},
 	} {
 		for _, answer := range []string{"no\n", "", "invalid\n"} {

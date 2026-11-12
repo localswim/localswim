@@ -112,7 +112,11 @@ func TestT03CLIRequiresExplicitInputSource(t *testing.T) {
 				t.Fatal("CLI started executing a command with no input source")
 				return ""
 			})
-			if code != 2 || !strings.Contains(stderr.String(), "FILE or -") {
+			want := "FILE or -"
+			if tc.group == "comment" {
+				want = "documented arguments"
+			}
+			if code != 2 || !strings.Contains(stderr.String(), want) {
 				t.Fatalf("missing input source did not produce a usage error: %d %s", code, &stderr)
 			}
 		})
@@ -466,3 +470,44 @@ func t03ServeCardResolution(w http.ResponseWriter, r *http.Request) bool {
 }
 
 const t03CardTag = `"` + t03Card + `-12"`
+
+func TestCommentPostExplicitInputModes(t *testing.T) {
+	for _, text := range []string{"  café 🚩\r\n", "-", "--text", "comment.json"} {
+		cmd, err := parseCLI([]string{"comment", "post", t03Board, t03Card, "text", text})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var body map[string]string
+		if err := json.Unmarshal(cmd.body, &body); err != nil || body["text"] != text || cmd.inputPath != "" {
+			t.Fatalf("literal comment changed: %#v, %v", cmd, err)
+		}
+	}
+	for _, path := range []string{"comment.json", "-"} {
+		cmd, err := parseCLI([]string{"comment", "post", t03Board, t03Card, "json", path})
+		if err != nil || cmd.inputPath != path || cmd.body != nil {
+			t.Fatalf("JSON comment input %q: %#v, %v", path, cmd, err)
+		}
+	}
+}
+
+func TestCardTitleRejectsWhitespaceBeforeTransport(t *testing.T) {
+	for _, title := range []string{"", " \t\r\n", "\u2003\u00a0"} {
+		var out, stderr bytes.Buffer
+		code := runCLIWithInput([]string{"card", "title", t03Board, t03Card, title}, nil, &out, &stderr, func(string) string {
+			t.Fatal("blank title reached transport")
+			return ""
+		})
+		if code != 2 || out.Len() != 0 {
+			t.Fatalf("accepted blank title %q: %d %s", title, code, &stderr)
+		}
+	}
+	const title = "  café 🚩\t"
+	cmd, err := parseCLI([]string{"card", "title", t03Board, t03Card, title})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(cmd.body, &body); err != nil || body["title"] != title {
+		t.Fatalf("title text changed: %#v, %v", body, err)
+	}
+}

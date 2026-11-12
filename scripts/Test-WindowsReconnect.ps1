@@ -200,7 +200,7 @@ function Clear-FixtureProcesses {
 }
 
 function Start-FixtureService([string]$Human, [string]$Bot) {
-    $reply = Invoke-FixtureExecutable @('serve', '--background', '--data', $data, '--port', "$port") @{
+    $reply = Invoke-FixtureExecutable @('serve', '--background', $data, "$port") @{
         LOCALSWIM_HUMAN_TOKEN = $Human
         LOCALSWIM_BOT_TOKEN = $Bot
     }

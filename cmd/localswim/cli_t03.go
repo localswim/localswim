@@ -34,7 +34,7 @@ type t03Edit struct {
 func parseCLIRevision(value string) (*uint64, error) {
 	revision, err := strconv.ParseUint(value, 10, 64)
 	if err != nil || revision == 0 || revision > maxCLIRevision {
-		return nil, errors.New("--revision requires an integer from 1 to 9007199254740991")
+		return nil, errors.New("revision requires an integer from 1 to 9007199254740991")
 	}
 	return &revision, nil
 }
@@ -86,7 +86,6 @@ func parseT03(name string, args []string) (cliCommand, error) {
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var revision, uploadID, filename string
-	var commentText *string
 	if cmd.method != http.MethodGet {
 		flags.StringVar(&revision, "revision", "", "expected resource revision")
 	}
@@ -94,24 +93,18 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		flags.StringVar(&uploadID, "id", "", "known attachment UUIDv4")
 		flags.StringVar(&filename, "filename", "", "display filename")
 	}
-	if name == "comment post" {
-		flags.Func("text", "literal comment text", func(text string) error {
-			commentText = &text
-			return nil
-		})
-	}
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
 	}
-	if commentText != nil {
-		count = 1
+	if name == "comment post" {
+		count = 3
 	}
 	requiresInput := name == "card patch" || name == "card description" || name == "comment post" || name == "lane add" || name == "attachment upload"
 	cardOperation := strings.HasPrefix(name, "card ") || name == "comment post" || name == "attachment upload"
 	if cardOperation || name != "lane add" {
 		count++
 	}
-	if requiresInput && commentText == nil && flags.NArg() < count {
+	if requiresInput && name != "comment post" && flags.NArg() < count {
 		return cmd, errors.New("expected a UUIDv4 resource ID followed by FILE or -")
 	}
 	if name == "attachment detach" && flags.NArg() == 3 {
@@ -215,14 +208,21 @@ func parseT03(name string, args []string) (cliCommand, error) {
 			return cmd, errors.New("attachment upload requires a file path or -")
 		}
 	case "comment post":
-		if commentText != nil {
-			if *commentText == "" || !utf8.ValidString(*commentText) {
-				return cmd, errors.New("--text requires nonempty valid UTF-8")
+		switch value {
+		case "text":
+			text := flags.Arg(3)
+			if text == "" || !utf8.ValidString(text) {
+				return cmd, errors.New("text requires nonempty valid UTF-8")
 			}
-			cmd.body, _ = json.Marshal(map[string]string{"text": *commentText})
-			break
+			cmd.body, _ = json.Marshal(map[string]string{"text": text})
+		case "json":
+			if flags.Arg(3) == "" {
+				return cmd, errors.New("json requires a file path or -")
+			}
+			cmd.inputPath = flags.Arg(3)
+		default:
+			return cmd, errors.New("comment post requires text or json")
 		}
-		fallthrough
 	case "card patch", "card description", "lane add":
 		if value == "" {
 			return cmd, errors.New("input requires a file path or -")
@@ -245,6 +245,9 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		}
 		cmd.body, _ = json.Marshal(map[string]string{"priority_id": value})
 	case "card title", "lane rename", "lane set-key":
+		if name == "card title" && strings.TrimSpace(value) == "" {
+			return cmd, errors.New("card title must contain non-whitespace text")
+		}
 		if value == "" || !utf8.ValidString(value) {
 			return cmd, errors.New("title or label must be nonempty valid UTF-8")
 		}

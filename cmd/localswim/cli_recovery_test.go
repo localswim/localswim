@@ -15,11 +15,31 @@ import (
 func TestCLIBoardRecoverRequiresExplicitModeAndInput(t *testing.T) {
 	for _, args := range [][]string{
 		{"board", "recover", t03Board, "-"},
-		{"board", "recover", "--mode", "same_id", t03Board},
-		{"board", "recover", "--mode", "auto", t03Board, "-"},
+		{"board", "recover", t03Board, "same_id"},
+		{"board", "recover", t03Board, "auto", "-"},
+		{"board", "recover", t03Board, "SAME_ID", "-"},
+		{"board", "recover", t03Board, "fresh", ""},
+		{"board", "recover", t03Board, "fresh", "-", "extra"},
+		{"board", "recover", "--mode", "same_id", t03Board, "-"},
 	} {
-		if _, err := parseCLI(args); err == nil {
-			t.Fatal("invalid recovery command was accepted")
+		var out, stderr bytes.Buffer
+		code := runCLIWithInput(args, nil, &out, &stderr, func(string) string {
+			t.Fatal("invalid recovery command reached transport")
+			return ""
+		})
+		if code != 2 || out.Len() != 0 {
+			t.Fatalf("invalid recovery command was accepted: %v", args)
+		}
+	}
+}
+
+func TestCLIBoardRecoverPositionalModes(t *testing.T) {
+	for _, mode := range []string{"same_id", "fresh"} {
+		for _, force := range []string{"-f", "--force"} {
+			cmd, err := parseCLI([]string{"board", "recover", force, t03Board, mode, "-"})
+			if err != nil || cmd.recoveryMode != mode || cmd.inputPath != "-" || !cmd.force || cmd.resource != "/recoveries/"+t03Board+"?mode="+mode {
+				t.Fatalf("recovery %s %s: %#v, %v", force, mode, cmd, err)
+			}
 		}
 	}
 }
@@ -53,7 +73,7 @@ func TestCLIBoardRecoverUsesVerifiedFailureAndSingleWrite(t *testing.T) {
 			}))
 			defer server.Close()
 			var out, stderr bytes.Buffer
-			code := runCLIWithInput([]string{"board", "recover", "--force", "--mode", "same_id", t03Board, "-"}, strings.NewReader(`{}`), &out, &stderr, t03Env(server.URL))
+			code := runCLIWithInput([]string{"board", "recover", "--force", t03Board, "same_id", "-"}, strings.NewReader(`{}`), &out, &stderr, t03Env(server.URL))
 			if reads != 1 || writes != 1 || (code == 0) != (status == 201) {
 				t.Fatalf("reads=%d writes=%d code=%d: %s", reads, writes, code, &stderr)
 			}

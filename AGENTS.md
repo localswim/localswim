@@ -17,6 +17,9 @@
 - CLI operations on board-owned resources require `BOARD_ID` before the resource
   selector. Card selectors accept a UUID or ticket within that board. Each card
   ID belongs to exactly one board. Keep REST routes UUID-addressed.
+- Required CLI values, including required modes, are positional. Validate controlled
+  choices against explicit enums and show their allowed values in help. Optional
+  modifiers use flags. Reject whitespace-only card titles and preserve accepted text.
 - Prefer clear short aliases alongside descriptive long options, such as
   `-h`/`--help` and `-f`/`--force`.
 - Treat implicit whole-board and query-selected multi-card writes as candidates

@@ -17,7 +17,7 @@ func TestM099HelpDiscovery(t *testing.T) {
 		{[]string{"--help"}, "localswim attachment upload", ""},
 		{[]string{"board"}, "localswim board create", "localswim card create"},
 		{[]string{"board", "--help"}, "localswim board create", "localswim attachment upload"},
-		{[]string{"help", "board", "create"}, "--json <JSON_FILE|->", "localswim board patch"},
+		{[]string{"help", "board", "create"}, "json <JSON_FILE|->", "localswim board patch"},
 		{[]string{"card", "inspect", "-h"}, "--prose", "localswim card create"},
 		{[]string{"card", "set-parent", "--help"}, "child card revision", "localswim card clear-parent"},
 		{[]string{"card", "clear-parent", "--help"}, "child card revision", "localswim card set-parent"},
@@ -88,8 +88,8 @@ func TestM099InvalidInvocationIsScopedAndDoesNotExecute(t *testing.T) {
 }
 
 func TestM099HelpTokensRemainValidCommandInputs(t *testing.T) {
-	nameArgs := []string{"board", "create", "--name", "--help"}
-	fileArgs := []string{"board", "create", "--json", "--", "--help"}
+	nameArgs := []string{"board", "create", "name", "--help"}
+	fileArgs := []string{"board", "create", "json", "--help"}
 	for _, args := range [][]string{nameArgs, fileArgs} {
 		if _, ok := requestedCLIHelp(args); ok {
 			t.Fatalf("help intercepted command input: %q", args)

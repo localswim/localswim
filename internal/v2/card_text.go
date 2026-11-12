@@ -12,7 +12,7 @@ type cardTextPatch struct {
 func readCardText(fields map[string]json.RawMessage) (cardTextPatch, error) {
 	var in cardTextPatch
 	if raw, ok := fields["title"]; ok {
-		title, err := exactCardText(raw, "title", 1, 1024)
+		title, err := exactCardTitle(raw)
 		if err != nil {
 			return in, err
 		}

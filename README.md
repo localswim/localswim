@@ -20,16 +20,16 @@ Use distinct random base64url values of at least 32 bytes for each server start.
 Start the service with a fresh data directory.
 
 ```powershell
-.\localswim.exe serve --data C:\absolute\path\to\fresh-v2-data --port 0
+.\localswim.exe serve C:\absolute\path\to\fresh-v2-data 0
 ```
 
-Use `--port NUMBER` to select a port, or `--port 0` (the default) to choose an
+Supply positional `PORT` to select a port, or use `0` (the default) to choose an
 available port automatically. The service prints its local URL. In your CLI
 terminal, set `LOCALSWIM_URL` to that URL and `LOCALSWIM_TOKEN` to the chosen
 Human or Bot token. `service status` reports the actual listening port.
 
 ```powershell
-.\localswim.exe board create --name "Personal"
+.\localswim.exe board create name "Personal"
 .\localswim.exe board list
 .\localswim.exe workspace info
 .\localswim.exe --help
@@ -39,7 +39,7 @@ The name-only command creates a board with the generic five-lane workflow and P2
 Normal. Add `--preset terry` to create a board with Terry's workflow.
 
 ```powershell
-$terry = .\localswim.exe board create --name "Terry workflow" --preset terry | ConvertFrom-Json
+$terry = .\localswim.exe board create --preset terry name "Terry workflow" | ConvertFrom-Json
 ```
 
 The preset adds Blocked and Needs Terry, uses P0 through P5 with P3 Normal,
@@ -48,7 +48,7 @@ and Human bulk approval in Ready For Review. Terry and Bot can create cards in
 Backlog, Ready For Work, Blocked, and Needs Terry. Terry alone can move a card
 from Ready For Review to Completed.
 
-Use `board create --json definition.json` with a `workflow` object to define
+Use `board create json definition.json` with a `workflow` object to define
 custom lanes, priorities, and grants. Lane ordering and triage use each
 priority's numeric `rank`. For the Terry preset the rank equals the P-number.
 Commands that read JSON require a file path or `-` for standard input.
@@ -63,12 +63,12 @@ $board = .\localswim.exe board get $terry.id | ConvertFrom-Json
 $lanes = (.\localswim.exe board get --view lanes $terry.id | ConvertFrom-Json).lanes
 $backlog = ($lanes | Where-Object key -eq backlog).id
 $inProgress = ($lanes | Where-Object key -eq in_progress).id
-.\localswim.exe policy grant --revision $board.revision --move $board.id $board.default_owner_id $backlog $inProgress
+.\localswim.exe policy grant $board.id move $board.revision $board.default_owner_id $backlog $inProgress
 ```
 
-For a creation grant, use `--create BOARD_ID USER_ID LANE_ID` with `--revision`.
+For a creation grant, use `policy grant BOARD_ID create REVISION USER_ID LANE_ID`.
 A stale board revision refuses the edit. For multiple grants, use
-`policy grant BOARD_ID grants.json` with `create_grants` and/or `move_grants`
+`policy grant BOARD_ID json grants.json` with `create_grants` and/or `move_grants`
 arrays. The service checks both the board and policy validators on every grant
 and preserves the other grants and default priority.
 
@@ -94,8 +94,8 @@ with status 0. An invalid report exits with status 1 and includes the issues.
 For a board quarantined at startup, the live report is available to the Human
 workspace administrator. Its `recovery` field gives `same_id` with a trusted
 `revision_floor` or `fresh_only` if same-ID continuity cannot be established.
-Use `board recover --mode same_id [-f|--force] BOARD_ID FILE|-` with a verified native snapshot
-or ZIP to preserve a trusted identity. Explicit `--mode fresh` creates a new board
+Use `board recover [-f|--force] BOARD_ID same_id FILE|-` with a verified native snapshot
+or ZIP to preserve a trusted identity. Explicit `fresh` mode creates a new board
 identity and keeps the original failure available. Whole-board mutations print
 an INFO summary and prompt `Continue? [Y/n]`. Press Enter to confirm or use
 `-f`/`--force` to skip confirmation for automation. For `FILE` set to `-`,
@@ -112,7 +112,7 @@ present. If a board is quarantined after restart, follow the recovery mode shown
 `board verify`.
 
 After an uncertain creation, restart and inspect `board list`. If you supplied a
-UUID in the `id` field with `board create --json`, look for that exact UUID. If
+UUID in the `id` field with `board create json`, look for that exact UUID. If
 you omitted `id`, you may not know the UUID the service generated. Board names
 can repeat, so a name match alone cannot establish the outcome or justify a retry.
 
@@ -121,8 +121,9 @@ Add `--data DIRECTORY` before the board ID on `card triage-order`, `card search`
 snapshot while the writer is stopped. Add `--prose` to include descriptions
 and comments in focused ticket inspection.
 
-Use `activity list --data DIRECTORY --from UTC --to UTC BOARD_ID` to inspect
-saved activity while the writer is stopped. Quote both inclusive UTC bounds in
+Use `activity list --data DIRECTORY BOARD_ID FROM_UTC [TO_UTC]` to inspect
+saved activity while the writer is stopped. The optional end defaults to the current
+UTC second. Quote supplied inclusive bounds in
 `YYYY-MM-DD HH:MM:SS+00:00` format. The report includes sanitized metadata,
 event-time tickets, the captured board revision, and the latest retained event
 time. Saved reports always mark live coverage as incomplete.
@@ -139,10 +140,11 @@ Use the notice's board UUID, writer UUID, and Start and End values to read
 sanitized activity, including each event's `operation_group`.
 
 ```powershell
-.\localswim.exe activity list --writer-id $writer --from $start --to $end $board
+.\localswim.exe activity list --writer-id $writer $board $start $end
 ```
 
-Continue with `--cursor` and the same query until pagination is complete. Check
+Continue with `--cursor` and the same query until pagination is complete. When
+the end was omitted, reuse the first response’s `coverage.to` as explicit `TO_UTC`. Check
 `coverage.complete` before relying on the interval. For a focused follow-up,
 match the card UUID and its ticket at the event, which may differ from its
 current ticket. Treat operation groups as triage hints and follow the board's

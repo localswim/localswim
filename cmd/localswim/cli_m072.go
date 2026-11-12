@@ -15,8 +15,8 @@ func cardCreateInput(args []string, hasDescription bool, description string) (st
 		return "", nil, errors.New("card create requires BOARD_ID LANE_ID TITLE or BOARD_ID FILE|-")
 	}
 	title := args[2]
-	if title == "" || !utf8.ValidString(title) || !utf8.ValidString(description) {
-		return "", nil, errors.New("card create requires a nonempty valid UTF-8 title and a valid UTF-8 description if supplied")
+	if strings.TrimSpace(title) == "" || !utf8.ValidString(title) || !utf8.ValidString(description) {
+		return "", nil, errors.New("card create requires a nonblank valid UTF-8 title and a valid UTF-8 description if supplied")
 	}
 	fields := map[string]string{
 		"board_id": strings.ToLower(args[0]),

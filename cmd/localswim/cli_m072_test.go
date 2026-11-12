@@ -29,7 +29,7 @@ func TestM072RoutineWritesReuseValidators(t *testing.T) {
 		{
 			name: "comment", action: "post", readPath: "/cards/" + t03Card, validator: t03CardTag,
 			method: http.MethodPost, writePath: "/comments", response: `{"board_id":"` + t03Board + `","card_id":"` + t03Card + `"}`,
-			args: []string{"--text", text, t03Board, t03Card},
+			args: []string{t03Board, t03Card, "text", text},
 			body: map[string]any{"card_id": t03Card, "text": text, "expected_card_etag": t03CardTag},
 		},
 		{
@@ -118,7 +118,7 @@ func TestM072ContextualHelpAndInputErrors(t *testing.T) {
 		group, action, option, input string
 	}{
 		{"card", "create", "LANE_ID TITLE", "FILE|-"},
-		{"comment", "post", "--text", "FILE|-"},
+		{"comment", "post", "text", "json <JSON_FILE|->"},
 		{"card", "set-priorities", "PRIORITY_ID", "CARD_ID"},
 	} {
 		var out, stderr bytes.Buffer
@@ -137,17 +137,21 @@ func TestM072ContextualHelpAndInputErrors(t *testing.T) {
 		want string
 	}{
 		{[]string{"card", "create"}, "requires BOARD_ID LANE_ID TITLE or BOARD_ID FILE|-"},
-		{[]string{"comment", "post", t03Board, t03Card}, "followed by FILE or -"},
+		{[]string{"comment", "post", t03Board, t03Card}, "documented arguments"},
 		{[]string{"card", "set-priorities", t03Board}, "requires BOARD_ID PRIORITY_ID"},
 		{[]string{"card", "create", "--description", "text", t03Board, t03Lane}, "requires BOARD_ID LANE_ID TITLE"},
 		{[]string{"card", "create", t03Board, t03Lane, "\xff"}, "valid UTF-8"},
-		{[]string{"card", "create", t03Board, t03Lane, ""}, "nonempty valid UTF-8 title"},
+		{[]string{"card", "create", t03Board, t03Lane, ""}, "nonblank valid UTF-8 title"},
 		{[]string{"card", "create", t03Board, "invalid-lane", "Title"}, "requires BOARD_ID LANE_ID TITLE"},
 		{[]string{"card", "create", t03Board, t03Lane, "Title", "Extra"}, "requires BOARD_ID LANE_ID TITLE"},
 		{[]string{"card", "create", "--title", "text", t03Board, t03Lane}, "flag provided but not defined"},
-		{[]string{"comment", "post", "--text=", t03Board, t03Card}, "nonempty valid UTF-8"},
-		{[]string{"comment", "post", "--text", "\xff", t03Board, t03Card}, "nonempty valid UTF-8"},
-		{[]string{"comment", "post", "--text", "text", t03Board, t03Card, "-"}, "documented arguments"},
+		{[]string{"comment", "post", t03Board, t03Card, "text", ""}, "nonempty valid UTF-8"},
+		{[]string{"comment", "post", t03Board, t03Card, "text", "\xff"}, "nonempty valid UTF-8"},
+		{[]string{"comment", "post", t03Board, t03Card, "text", "text", "-"}, "documented arguments"},
+		{[]string{"comment", "post", "--text", "text", t03Board, t03Card}, "flag provided but not defined"},
+		{[]string{"comment", "post", t03Board, t03Card, "TEXT", "hello"}, "requires text or json"},
+		{[]string{"comment", "post", t03Board, t03Card, "other", "hello"}, "requires text or json"},
+		{[]string{"comment", "post", t03Board, t03Card, "json", ""}, "requires a file path or -"},
 		{[]string{"card", "set-priorities", t03Board, "", t03Card}, "UUIDv4 priority ID"},
 		{[]string{"card", "set-priorities", t03Board, t03Lane, "-"}, "ticket requires an integer"},
 		{[]string{"card", "set-priorities", t03Board, t03Lane, t03Card, strings.ToUpper(t03Card)}, "duplicate card selector"},

@@ -58,7 +58,7 @@ func TestM075CLIReportsMatchCapturedRevisionAfterWriterStops(t *testing.T) {
 		LaneIDs  []string `json:"lane_ids"`
 		Revision uint64   `json:"revision"`
 	}
-	decode(run(liveEnv, "", "board", "create", "--name", "Offline reports"), &board)
+	decode(run(liveEnv, "", "board", "create", "name", "Offline reports"), &board)
 	if len(board.LaneIDs) < 2 {
 		t.Fatal("fixture board needs two lanes")
 	}
@@ -84,7 +84,7 @@ func TestM075CLIReportsMatchCapturedRevisionAfterWriterStops(t *testing.T) {
 		{blocker.ID, "Latest active comment"},
 		{archived.ID, "Latest archived comment"},
 	} {
-		run(liveEnv, fmt.Sprintf(`{"text":%q}`, post.text), "comment", "post", board.ID, post.cardID, "-")
+		run(liveEnv, fmt.Sprintf(`{"text":%q}`, post.text), "comment", "post", board.ID, post.cardID, "json", "-")
 	}
 	run(liveEnv, "", "card", "archive", board.ID, archived.ID)
 
@@ -198,7 +198,7 @@ func TestM075CLIRejectsEmptyDataAndOfflineWrites(t *testing.T) {
 		{"card", "search", "--data=", t03Board},
 		{"comment", "list", "--data=", t03Board},
 		{"card", "archive", "--data", t.TempDir(), t03Board, t03Card},
-		{"comment", "post", "--data", t.TempDir(), t03Board, t03Card, "-"},
+		{"comment", "post", "--data", t.TempDir(), t03Board, t03Card, "json", "-"},
 	} {
 		var out, stderr bytes.Buffer
 		code := runCLIWithInput(args, strings.NewReader(""), &out, &stderr, func(key string) string {

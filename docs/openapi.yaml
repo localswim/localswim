@@ -949,7 +949,7 @@ paths:
         Creation never imports V1 data. A custom workflow attaches its explicitly identified users to the new board.
         An existing global UUID must have the same immutable kind and compatible definition.
         The resolved workflow must satisfy x-workflow-validation after shorthand expansion.
-        The CLI board create --name form sends name and, when selected, preset to this operation.
+        The CLI board create name form sends name and, when selected, preset to this operation.
       requestBody:
         required: true
         content:
@@ -6737,7 +6737,7 @@ paths:
         priority, resource permissions, and existing lane grants, and submit additions to creation or
         transition grants. Validate all UUID references, historical compatibility, and x-workflow-validation
         before publishing the replacement. Expected board and policy tags are checked together.
-        The CLI policy grant --create and --move forms require an explicit board revision and
+        The CLI policy grant create and move modes require an explicit positional board revision and
         use this same operation for a single grant with board-specific UUIDs.
         The normalized PUT response omits ETag; GET the target afterward for its new representation validator.
       requestBody:
@@ -14276,6 +14276,8 @@ components:
           type: string
           minLength: 1
           maxLength: 1024
+          pattern: '[^\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028-\u2029\u202F\u205F\u3000]'
+          description: Contains at least one non-whitespace character. Accepted text is preserved exactly.
         description:
           type: string
           minLength: 0
@@ -14958,7 +14960,7 @@ components:
           type: integer
           minimum: 1
           maximum: 65535
-          description: Actual bound TCP listening port, including the OS-assigned port when started with --port 0.
+          description: Actual bound TCP listening port, including the OS-assigned port when started with positional port 0 or with the port omitted.
         service_instance_id:
           $ref: '#/components/schemas/ServiceInstanceId'
         build_id:
@@ -16284,6 +16286,8 @@ components:
           type: string
           minLength: 1
           maxLength: 1024
+          pattern: '[^\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028-\u2029\u202F\u205F\u3000]'
+          description: Contains at least one non-whitespace character. Accepted text is preserved exactly.
         description:
           anyOf:
           - type: string
@@ -16340,6 +16344,8 @@ components:
           type: string
           minLength: 1
           maxLength: 1024
+          pattern: '[^\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028-\u2029\u202F\u205F\u3000]'
+          description: Contains at least one non-whitespace character. Accepted text is preserved exactly.
         description:
           anyOf:
           - type: string
@@ -17556,6 +17562,8 @@ components:
           type: string
           minLength: 1
           maxLength: 1024
+          pattern: '[^\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028-\u2029\u202F\u205F\u3000]'
+          description: Contains at least one non-whitespace character. Accepted text is preserved exactly.
         description:
           type: string
           minLength: 0

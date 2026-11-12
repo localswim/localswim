@@ -35,7 +35,7 @@ func TestCLIBoardVerifyReportsAndExitCodes(t *testing.T) {
 	getenv := func(key string) string { return env[key] }
 
 	var stdout, stderr bytes.Buffer
-	if exit := runCLIWithInput([]string{"board", "create", "--name", "Verification fixture"}, strings.NewReader(""), &stdout, &stderr, getenv); exit != 0 {
+	if exit := runCLIWithInput([]string{"board", "create", "name", "Verification fixture"}, strings.NewReader(""), &stdout, &stderr, getenv); exit != 0 {
 		t.Fatalf("create fixture exited %d: %s", exit, &stderr)
 	}
 	var board struct {

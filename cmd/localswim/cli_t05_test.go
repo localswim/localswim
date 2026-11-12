@@ -7,9 +7,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 const t05From = "2026-11-10 18:00:00+00:00"
@@ -40,7 +42,7 @@ func TestT05CLIActivityBoundsAndViews(t *testing.T) {
 				_, _ = io.WriteString(w, `{"activities":[],"next_cursor":null}`)
 			}))
 			defer server.Close()
-			args := []string{"activity", "list", "--from", t05From, "--to", t05To,
+			args := []string{"activity", "list",
 				"--ticket", "0007", "--limit", "12", "--cursor", "a+b=",
 				"--actor-id", strings.ToUpper(t03Card), "--operation", "patch",
 				"--card-id", strings.ToUpper(t03Card), "--writer-id", strings.ToUpper(t05Writer)}
@@ -48,32 +50,73 @@ func TestT05CLIActivityBoundsAndViews(t *testing.T) {
 				args = append(args, "--view", tc.option)
 			}
 			var stdout, stderr bytes.Buffer
-			code := runCLIWithInput(append(args, t03Board), strings.NewReader(""), &stdout, &stderr, t03Env(server.URL))
+			code := runCLIWithInput(append(args, t03Board, t05From, t05To), strings.NewReader(""), &stdout, &stderr, t03Env(server.URL))
 			if code != 0 || reads.Load() != 1 || !equalCLIJSON(t, stdout.Bytes(), []byte(`{"activities":[],"next_cursor":null}`)) {
 				t.Fatalf("activity result %d, reads %d, stdout %q, stderr %q", code, reads.Load(), &stdout, &stderr)
 			}
 		})
 	}
 	for _, options := range [][]string{
+		{"--ticket", "0"},
+		{"--limit", "201"},
+		{"--cursor", ""},
+		{"--view", "other"},
+		{"--actor-id", ""},
+		{"--actor-id", "invalid"},
+		{"--card-id", t05Writer},
+		{"--writer-id", t03Card},
+		{"--operation", ""},
+		{"--operation", strings.Repeat("a", 81)},
 		{"--from", t05From},
-		{"--from", t05To, "--to", t05From},
-		{"--from", "2026-11-10T18:00:00Z", "--to", t05To},
-		{"--from", "2026-11-10 18:00:00.1+00:00", "--to", t05To},
-		{"--from", t05From, "--to", t05To, "--ticket", "0"},
-		{"--from", t05From, "--to", t05To, "--limit", "201"},
-		{"--from", t05From, "--to", t05To, "--cursor", ""},
-		{"--from", t05From, "--to", t05To, "--view", "other"},
-		{"--from", t05From, "--to", t05To, "--actor-id", ""},
-		{"--from", t05From, "--to", t05To, "--actor-id", "invalid"},
-		{"--from", t05From, "--to", t05To, "--card-id", t05Writer},
-		{"--from", t05From, "--to", t05To, "--writer-id", t03Card},
-		{"--from", t05From, "--to", t05To, "--operation", ""},
-		{"--from", t05From, "--to", t05To, "--operation", strings.Repeat("a", 81)},
+		{"--to", t05To},
 	} {
-		args := append(append([]string{"activity", "list"}, options...), t03Board)
-		if _, err := parseCLI(args); err == nil {
-			t.Errorf("accepted invalid activity options %v", options)
-		}
+		args := append(append([]string{"activity", "list"}, options...), t03Board, t05From, t05To)
+		assertT05ActivityParseRejected(t, args)
+	}
+	for _, bounds := range [][]string{
+		{},
+		{t05To, t05From},
+		{t05From, ""},
+		{"2026-11-10T18:00:00Z", t05To},
+		{"2026-11-10 18:00:00.1+00:00", t05To},
+		{t05From, t05To, "extra"},
+	} {
+		args := append([]string{"activity", "list", t03Board}, bounds...)
+		assertT05ActivityParseRejected(t, args)
+	}
+}
+
+func TestT05CLIActivityDefaultsEndToCurrentUTCSecond(t *testing.T) {
+	const layout = "2006-01-02 15:04:05+00:00"
+	before := time.Now().UTC().Truncate(time.Second)
+	from := before.Add(-time.Hour).Format(layout)
+	cmd, err := parseCLI([]string{"activity", "list", t03Board, from})
+	after := time.Now().UTC().Truncate(time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resource, err := url.Parse(cmd.resource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := resource.Query()
+	end, err := time.Parse(layout, query.Get("to"))
+	if err != nil || end.Before(before) || end.After(after) || end.Format(layout) != query.Get("to") || query.Get("from") != from {
+		t.Fatalf("unexpected current-time bounds: %v, %v", query, err)
+	}
+	future := after.Add(time.Hour).Format(layout)
+	assertT05ActivityParseRejected(t, []string{"activity", "list", t03Board, future})
+}
+
+func assertT05ActivityParseRejected(t *testing.T, args []string) {
+	t.Helper()
+	var out, stderr bytes.Buffer
+	code := runCLIWithInput(args, nil, &out, &stderr, func(string) string {
+		t.Fatal("invalid activity arguments reached transport")
+		return ""
+	})
+	if code != 2 || out.Len() != 0 {
+		t.Fatalf("accepted invalid activity arguments %v: %d %s", args, code, &stderr)
 	}
 }
 

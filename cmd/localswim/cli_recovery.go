@@ -18,17 +18,19 @@ func parseBoardRecovery(args []string) (cliCommand, error) {
 	flags.SetOutput(io.Discard)
 	flags.BoolVar(&command.force, "force", false, "confirm board recovery without prompting")
 	flags.BoolVar(&command.force, "f", false, "confirm board recovery without prompting")
-	flags.StringVar(&command.recoveryMode, "mode", "", "explicit recovery mode (same_id or fresh)")
 	if err := flags.Parse(args); err != nil {
 		return command, err
 	}
-	if command.recoveryMode != "same_id" && command.recoveryMode != "fresh" {
-		return command, errors.New("board recover requires --mode same_id or --mode fresh")
+	if flags.NArg() != 3 || !boardIDPattern.MatchString(flags.Arg(0)) || flags.Arg(2) == "" {
+		return command, errors.New("board recover requires BOARD_ID same_id|fresh FILE|-")
 	}
-	if flags.NArg() != 2 || !boardIDPattern.MatchString(flags.Arg(0)) || flags.Arg(1) == "" {
-		return command, errors.New("board recover requires a UUIDv4 board ID followed by FILE or - for standard input")
+	command.recoveryMode = flags.Arg(1)
+	switch command.recoveryMode {
+	case "same_id", "fresh":
+	default:
+		return command, errors.New("board recover requires same_id or fresh")
 	}
-	command.boardID, command.inputPath = strings.ToLower(flags.Arg(0)), flags.Arg(1)
+	command.boardID, command.inputPath = strings.ToLower(flags.Arg(0)), flags.Arg(2)
 	command.resource = "/recoveries/" + command.boardID + "?mode=" + command.recoveryMode
 	return command, nil
 }
@@ -56,7 +58,7 @@ func executeBoardRecovery(api *client.Client, command cliCommand, stdin io.Reade
 		return errors.New("board recover requires a current startup recovery diagnostic and its validator")
 	}
 	if command.recoveryMode == "same_id" && point.Recovery.Mode != "same_id" {
-		return errors.New("trusted continuity is unavailable; explicit --mode fresh is required")
+		return errors.New("trusted continuity is unavailable; explicit fresh recovery is required")
 	}
 	info, err := file.Stat()
 	if err != nil {

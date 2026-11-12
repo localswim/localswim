@@ -9,11 +9,11 @@ import (
 func scopedPolicyGrantInput(args []string, create bool) (string, json.RawMessage, error) {
 	key := "move_grants"
 	lanes := []string{"from_lane_id", "to_lane_id"}
-	expected := "--move requires UUIDv4 board, user, source lane, and destination lane IDs"
+	expected := "move requires UUIDv4 board, user, source lane, and destination lane IDs"
 	if create {
 		key = "create_grants"
 		lanes = []string{"lane_id"}
-		expected = "--create requires UUIDv4 board, user, and lane IDs"
+		expected = "create requires UUIDv4 board, user, and lane IDs"
 	}
 	if len(args) != len(lanes)+2 {
 		return "", nil, errors.New(expected)
@@ -24,7 +24,7 @@ func scopedPolicyGrantInput(args []string, create bool) (string, json.RawMessage
 		}
 	}
 	if !create && strings.EqualFold(args[2], args[3]) {
-		return "", nil, errors.New("--move requires different source and destination lane IDs")
+		return "", nil, errors.New("move requires different source and destination lane IDs")
 	}
 	grant := map[string]string{"user_id": strings.ToLower(args[1])}
 	for index, field := range lanes {

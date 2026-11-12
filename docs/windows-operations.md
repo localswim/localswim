@@ -53,7 +53,7 @@ $port = 48126
 try {
     $env:LOCALSWIM_HUMAN_TOKEN = (Import-Clixml -LiteralPath (Join-Path $credentialDirectory 'human.xml')).GetNetworkCredential().Password
     $env:LOCALSWIM_BOT_TOKEN = (Import-Clixml -LiteralPath (Join-Path $credentialDirectory 'bot.xml')).GetNetworkCredential().Password
-    & $exe serve --background --data $data --port $port
+    & $exe serve --background $data $port
     if ($LASTEXITCODE -ne 0) { throw 'Localswim did not confirm startup.' }
 }
 finally {

@@ -14,8 +14,8 @@ const commandUsage = `Usage:
   localswim workspace publishing disable [--revision N]
   localswim workspace publishing status
   localswim board list [--limit N] [--cursor CURSOR]
-  localswim board create --name NAME [--preset terry]
-  localswim board create --json <JSON_FILE|->
+  localswim board create [--preset terry] name NAME
+  localswim board create json <JSON_FILE|->
   localswim board get [--view lanes] [--data DIRECTORY] BOARD_ID
   localswim board rename [--revision N] BOARD_ID NEW_NAME
   localswim board close [--revision N] BOARD_ID
@@ -28,7 +28,7 @@ const commandUsage = `Usage:
   localswim board notifications enable [--revision N] BOARD_ID
   localswim board notifications disable [--revision N] BOARD_ID
   localswim board notifications status BOARD_ID
-  localswim board recover [-f|--force] --mode <same_id|fresh> BOARD_ID <FILE|->
+  localswim board recover [-f|--force] BOARD_ID <same_id|fresh> <FILE|->
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] [--data DIRECTORY] BOARD_ID <FILE|->
   localswim card create [--revision N] BOARD_ID <JSON_FILE|->
@@ -56,12 +56,12 @@ const commandUsage = `Usage:
   localswim relationship remove [--revision N] BOARD_ID <SOURCE_CARD_ID|SOURCE_TICKET> KIND <TARGET_CARD_ID|TARGET_TICKET>
   localswim comment list [--data DIRECTORY] [--archived exclude|include|only]
                          [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID|TICKET]
-  localswim comment post [--revision N] BOARD_ID <CARD_ID|TICKET> <JSON_FILE|->
-  localswim comment post [--revision N] --text TEXT BOARD_ID <CARD_ID|TICKET>
-  localswim activity list [--data DIRECTORY] --from UTC --to UTC [--view full|monitor]
+  localswim comment post [--revision N] BOARD_ID <CARD_ID|TICKET> json <JSON_FILE|->
+  localswim comment post [--revision N] BOARD_ID <CARD_ID|TICKET> text TEXT
+  localswim activity list [--data DIRECTORY] [--view full|monitor]
                         [--ticket N] [--card-id CARD_ID]
                         [--writer-id WRITER_ID] [--actor-id UUID] [--operation OP] [--limit N]
-                        [--cursor CURSOR] BOARD_ID
+                        [--cursor CURSOR] BOARD_ID FROM_UTC [TO_UTC]
   localswim lane add [--revision N] BOARD_ID FILE|-
   localswim lane get BOARD_ID LANE_ID
   localswim lane rename [--revision N] BOARD_ID LANE_ID LABEL
@@ -75,9 +75,9 @@ const commandUsage = `Usage:
   localswim attachment detach [--revision N] BOARD_ID ATTACHMENT_ID
   localswim attachment detach [--revision N] BOARD_ID <CARD_ID|TICKET> ATTACHMENT_ID
   localswim policy get BOARD_ID
-  localswim policy grant --revision N --create BOARD_ID USER_ID LANE_ID
-  localswim policy grant --revision N --move BOARD_ID USER_ID FROM_LANE_ID TO_LANE_ID
-  localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
+  localswim policy grant BOARD_ID create REVISION USER_ID LANE_ID
+  localswim policy grant BOARD_ID move REVISION USER_ID FROM_LANE_ID TO_LANE_ID
+  localswim policy grant [--revision N] BOARD_ID json <JSON_FILE|->
   localswim ticket-order preview BOARD_ID LANE_ID [CARD_ID|TICKET ...]
   localswim backup create [--revision N] [--id UUID] BOARD_ID
   localswim backup info BOARD_ID BACKUP_ID
@@ -300,7 +300,7 @@ func commandRevision(name string) string {
 }
 
 var commandHelpNotes = map[string]string{
-	"board create":             "Choose exactly one of --name or --json. Use --name alone for a generic workflow or --preset terry for Terry's seven-lane workflow. --json reads a full custom workflow document.",
+	"board create":             "Choose name or json mode. Name mode creates a generic workflow, or use --preset terry for Terry's seven-lane workflow. Json mode reads a full custom workflow document.",
 	"board get":                "The default returns board metadata. --view lanes returns active lanes and visible cards in lane order and requires the live service.",
 	"board verify":             "Print the full verification report. An invalid board exits 1. Verification does not change saved state.",
 	"board recover":            "Recover a board that failed startup from a verified native JSON snapshot or ZIP backup. Use same_id when trusted continuity is available or fresh to create a new board identity. Print the board-wide scope and ask Continue? [Y/n]. -f or --force skips the prompt and is required with stdin input. Recovery leaves publishing disabled. Inspect board list and the recovery diagnostic after an unknown result.",
@@ -325,7 +325,7 @@ var commandHelpNotes = map[string]string{
 	"card search":              "Match literal titles and tickets. --search-content includes readable descriptions and comments. Repeat --lane for multiple lanes. Results use whole-board triage ordering.",
 	"card triage-order":        "Return the highest-ranked unfinished card by default. --limit requests more. Repeat --lane for multiple lanes. --search-content includes readable descriptions and comments. This command makes no changes.",
 	"card lookup":              "Return matching cards in numeric ticket order. --search-content includes readable descriptions and comments.",
-	"comment post":             "Quote literal --text. The JSON form reads an object with text and an optional id.",
+	"comment post":             "Choose text or json mode. Quote literal text. Json mode reads an object with text and an optional id.",
 	"comment list":             "Return newest comments with attribution and full text. --limit is 1 to 200, default 50. --archived accepts exclude, include, or only. Board-wide reports default to active cards; focused card reports include archived cards by default.",
 	"relationship create":      "Supply BOARD_ID and source and target card UUIDs or tickets. KIND is blocks, duplicates, references, or relates_to. --id accepts a UUIDv4.",
 	"relationship remove":      "Supply BOARD_ID and either a relationship UUID or source card selector, kind and target card selector. The relationship must belong to that board. KIND is blocks, duplicates, references, or relates_to. Success produces no output.",
@@ -333,7 +333,7 @@ var commandHelpNotes = map[string]string{
 	"attachment upload":        "Read raw bytes, up to 10 MiB. Supply BOARD_ID and a card UUID or ticket. --id accepts a UUIDv4. --filename supplies a UTF-8 display name. By default a file uses its basename and stdin uses the attachment UUID. The card revision is checked before bytes are read. Both selectors guard the board version. Inspect attachment get with BOARD_ID and the original attachment ID after an unknown outcome.",
 	"attachment download":      "Verify the active file before writing raw bytes. Inspect the destination after a local write failure.",
 	"attachment detach":        "Supply BOARD_ID and an attachment UUID, optionally preceded by a card UUID or ticket. The attachment must belong to that board and selected card. Success produces no output. Inspect attachment get after an unknown outcome.",
-	"policy grant":             "Add one creation or movement grant using board-specific UUIDv4 IDs. Concise --create and --move forms require --revision. JSON accepts create_grants and/or move_grants. All forms preserve other permissions. Use policy get to inspect the result.",
+	"policy grant":             "Add one creation or movement grant using board-specific UUIDv4 IDs. Modes are create, move, and json. Create and move require positional REVISION from board get. Json mode accepts optional --revision N. JSON accepts create_grants and/or move_grants. All forms preserve other permissions. Use policy get to inspect the result.",
 	"ticket-order preview":     "Supply BOARD_ID and LANE_ID. Select all active cards in the lane, or an explicit subset by card UUID or ticket. Preview returns the original board validator and proposed ticket numbers without changing the board.",
 	"ticket-order apply":       "Read the saved preview, including its original validator and exact proposed order. Stale previews refuse the entire operation.",
 	"backup create":            "Capture the board and audited attachment bytes. --id accepts a UUIDv7; omission generates one. Inspect backup info with the original ID after an unknown outcome.",
@@ -343,20 +343,20 @@ var commandHelpNotes = map[string]string{
 	"publication create":       "Publish a stored backup. --id accepts a UUIDv7; omission generates one. Optional --remote and --branch select the Git destination. Inspect publication get with the original ID after an unknown outcome.",
 	"service activate":         "Activate a staged build with the current service validator. --id accepts a UUIDv7; omission generates one. After an unknown outcome refresh the token as needed and inspect service activation with the original ID.",
 	"service stop":             "Gracefully drain the service and flush enabled publishing. After an unknown outcome, inspect service status.",
-	"activity list":            "--from and --to are required inclusive UTC bounds in YYYY-MM-DD HH:MM:SS+00:00. Quote timestamps. --view accepts monitor (default) or full. Saved data supports monitor only. --limit is 1 to 200, default 50. Continue with the same filters and --cursor. Start owner-notice inspection with its board, writer and interval.",
+	"activity list":            "FROM_UTC is the required inclusive start. Optional TO_UTC defaults to the current UTC second. Both use YYYY-MM-DD HH:MM:SS+00:00. Quote timestamps. --view accepts monitor (default) or full. Saved data supports monitor only. --limit is 1 to 200, default 50. For pagination, reuse response coverage.to as explicit TO_UTC with the same filters and --cursor. Start owner-notice inspection with its board, writer and interval.",
 	"lane set-approval-button": "Choose enabled or disabled. Only the Ready for Review lane can enable approval.",
 	"lane retire":              "Retain lane identity and archived history. Active occupancy and the Completed lane refuse retirement.",
 }
 
 var commandExamples = map[string]string{
 	"relationship remove": "  localswim relationship remove $board $relationship\n  localswim relationship remove $board 12 blocks 17",
-	"board create":        "  localswim board create --name \"Pool projects\" --preset terry\n  localswim board create --json workflow.json",
-	"board recover":       "  localswim board recover --mode same_id $board backup.zip\n  localswim board recover --mode fresh $board snapshot.json",
+	"board create":        "  localswim board create --preset terry name \"Pool projects\"\n  localswim board create json workflow.json",
+	"board recover":       "  localswim board recover $board same_id backup.zip\n  localswim board recover $board fresh snapshot.json",
 	"card create":         "  localswim card create $board $lane \"Check pool hours\"\n  localswim card create --revision 12 $board card.json",
 	"card inspect":        "  localswim card inspect --prose $board 12",
 	"attachment upload":   "  localswim attachment upload --revision 12 $board 17 photo.png\n  localswim attachment upload --filename photo.png $board $card -",
-	"comment post":        "  localswim comment post --text \"Confirmed weekend hours.\" $board $card\n  localswim comment post --revision 13 $board $card comment.json",
+	"comment post":        "  localswim comment post $board $card text \"Confirmed weekend hours.\"\n  localswim comment post --revision 13 $board $card json comment.json",
 	"card set-priorities": "  localswim card set-priorities $board $priority 12 $card2\n  localswim card set-priorities --lane $lane $board $priority\n  localswim card set-priorities --force --revision 14 $board $priority",
-	"policy grant":        "  localswim policy grant --revision 4 --create $board $user $lane\n  localswim policy grant --revision 5 --move $board $user $from $to",
-	"activity list":       "  localswim activity list --from \"2026-11-11 00:00:00+00:00\" --to \"2026-11-11 01:00:00+00:00\" $board",
+	"policy grant":        "  localswim policy grant $board create 4 $user $lane\n  localswim policy grant $board move 5 $user $from $to",
+	"activity list":       "  localswim activity list $board \"2026-11-11 00:00:00+00:00\" \"2026-11-11 01:00:00+00:00\"",
 }

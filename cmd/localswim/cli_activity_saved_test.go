@@ -50,7 +50,7 @@ func TestM101CLIReadsSavedActivityAfterWriterStops(t *testing.T) {
 		ID      string   `json:"id"`
 		LaneIDs []string `json:"lane_ids"`
 	}
-	created := run(liveEnv, 0, "board", "create", "--name", "M101 fixture")
+	created := run(liveEnv, 0, "board", "create", "name", "M101 fixture")
 	if err := json.Unmarshal(created, &board); err != nil || len(board.LaneIDs) == 0 {
 		t.Fatal("fixture board was not created")
 	}
@@ -65,9 +65,9 @@ func TestM101CLIReadsSavedActivityAfterWriterStops(t *testing.T) {
 	}
 	stop()
 
-	activityArgs := []string{"activity", "list", "--data", root, "--from", card.At, "--to", card.At,
+	activityArgs := []string{"activity", "list", "--data", root,
 		"--writer-id", t05Writer, "--ticket", "1", "--card-id", card.ID}
-	raw := run(savedEnv, 0, append(activityArgs, strings.ToUpper(board.ID))...)
+	raw := run(savedEnv, 0, append(activityArgs, strings.ToUpper(board.ID), card.At, card.At)...)
 	var page struct {
 		WriterID           json.RawMessage `json:"writer_id"`
 		BoardRevision      uint64          `json:"board_revision"`
@@ -100,12 +100,12 @@ func TestM101CLIReadsSavedActivityAfterWriterStops(t *testing.T) {
 		event.ActorKind != "human" || event.Operation != "create" || len(event.Tickets) != 1 || event.Tickets[0] != 1 {
 		t.Fatal("saved activity omitted sanitized event attribution")
 	}
-	run(savedEnv, 2, append(activityArgs, "--view", "full", board.ID)...)
-	run(savedEnv, 2, append(activityArgs, "--data=", board.ID)...)
+	run(savedEnv, 2, append(activityArgs, "--view", "full", board.ID, card.At, card.At)...)
+	run(savedEnv, 2, append(activityArgs, "--data=", board.ID, card.At, card.At)...)
 
 	path := filepath.Join(root, "boards", board.ID+".json")
 	if err := os.WriteFile(path, []byte("malformed disposable snapshot"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	run(savedEnv, 1, append(activityArgs, board.ID)...)
+	run(savedEnv, 1, append(activityArgs, board.ID, card.At, card.At)...)
 }

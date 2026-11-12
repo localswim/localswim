@@ -8,6 +8,7 @@ import {
   MAX_LANE_APPROVAL_CARDS, validPublishing,
 } from "./api.mjs";
 import {createBoardRefresh, waitForRetry, watchUpdates} from "./board-updates.mjs";
+import {appendCardProse} from "./card-prose.mjs";
 const board = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
 const lane = "ceab10a8-1492-4c90-aa07-13b83138919a";
 const card = "d2ef6295-ace1-4e6e-bbf7-b1c1823f56fc";
@@ -42,6 +43,7 @@ async function harness(api, pathname = "/boards/" + board, {
     set scrollTop(top) { this._scrollTop = Math.min(top, scrollLimit(this)); }
     scrollLeft = 0;
     constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; this.style = {}; }
+    get ownerDocument() { return document; }
     set textContent(value) { this.ownText = value; this.children = []; }
     get textContent() { return this.ownText + this.children.map((node) => node.textContent).join(""); }
     get isConnected() { return this.root === true || Boolean(this.parent?.isConnected); }
@@ -159,7 +161,7 @@ async function harness(api, pathname = "/boards/" + board, {
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
     Blob, TextEncoder, TextDecoder, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, MAX_ATTACHMENT_BYTES, newOperationId,
-    createBoardRefresh, waitForRetry,
+    createBoardRefresh, waitForRetry, appendCardProse,
     watchUpdates: (options) => typeof api.streamEvents === "function" && (options.board || workspaceEvents)
       ? watchUpdates(options) : Promise.resolve(),
     DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH, MAX_LANE_APPROVAL_CARDS,
@@ -2112,7 +2114,7 @@ test("board lane notes and Human and Bot attribution preserve literal text", asy
   api.listUsers = async () => page("users", [...(await listUsers()).data.users, savedUser(bot, "Automation", "bot")]);
   api.listComments = async () => page("comments", [...(await listComments()).data.comments,
     {id: priority, board_id: board, card_id: card, ticket: 1, author_id: bot,
-      text: "Bot comment", created_at: "2026-11-10 00:00:01+00:00"}]);
+      text: "Bot **comment** #0007", created_at: "2026-11-10 00:00:01+00:00"}]);
   const ui = await harness(api);
   await ui.load();
   assert.equal(ui.find(ui.nodes.main, "p", notes).className, "lane-note body-text");
@@ -2122,6 +2124,52 @@ test("board lane notes and Human and Bot attribution preserve literal text", asy
   await ui.settled();
   assert.equal(ui.find(recent, "span", humanLabel).style.borderInlineStartColor, "#123ABC");
   assert.equal(ui.find(recent, "span", "Automation").style.borderInlineStartColor, "#456def");
+  const botBody = recent.querySelectorAll("article").at(-1).querySelector("p");
+  assert.equal(botBody.textContent, "Bot comment #0007");
+  assert.equal(botBody.querySelector("strong").textContent, "comment");
+  assert.equal(botBody.querySelector("a"), null);
+});
+
+test("card prose displays the shared search text in both drawer and recent comments", async () => {
+  const fixtures = JSON.parse(await fs.readFile(new URL("./testdata/card-prose.json", import.meta.url), "utf8"));
+  const {api} = boardApi();
+  const raw = "Use **the *literal \ntext**, then **run `<img src=x> #7 *x*`**; *see* (#0007), #0, a#2 and ##3.";
+  const title = "**Original**";
+  const readCard = api.getCard;
+  api.getCard = async (...args) => {
+    const reply = await readCard(...args);
+    return {...reply, data: {...reply.data, title, description: raw}};
+  };
+  api.listComments = async () => page("comments", fixtures.map(([, text], index) => ({
+    id: "f7e04b53-cfd9-417c-af8e-b6316af0a08" + index,
+    board_id: board, card_id: card, ticket: 1, author_id: user, text, created_at: createdAt,
+  })));
+  const ui = await harness(api);
+  await ui.load();
+  const recent = ui.find(ui.nodes.main, "summary", "Newest comments").parent;
+  recent.open = true;
+  recent.dispatch("toggle");
+  await until(() => recent.querySelectorAll("article").length === fixtures.length);
+  assert.deepEqual(recent.querySelectorAll("article").map((item) => item.querySelector("p").textContent),
+    fixtures.map(([, , readable]) => readable));
+  assert.deepEqual(recent.querySelectorAll("a").map(({textContent}) => textContent), ["#0007"]);
+  assert.equal(recent.querySelector("img"), null);
+
+  ui.find(ui.nodes.main, "button", "#1 Original").click();
+  const drawer = ui.nodes.details;
+  const drawerComments = () => drawer.querySelectorAll("article").filter(({className}) => className !== "attachment");
+  await until(() => drawerComments().length === fixtures.length);
+  assert.equal(drawer.querySelector("h2").textContent, "#1 " + title);
+  const description = drawer.querySelectorAll("p").find(({className}) => className === "body-text");
+  assert.equal(description.textContent, "Use **the *literal \ntext**, then run <img src=x> #7 *x*; see (#0007), #0, a#2 and ##3.");
+  assert.equal(description.querySelector("strong").textContent, "run <img src=x> #7 *x*");
+  assert.equal(description.querySelector("em").textContent, "see");
+  assert.equal(description.querySelector("code").textContent, "<img src=x> #7 *x*");
+  assert.deepEqual(description.querySelectorAll("a").map(({href}) => href), ["/boards/" + board + "?ticket=7"]);
+  assert.equal(description.querySelector("img"), null);
+  assert.equal(ui.field(drawer, "Description").value, raw);
+  assert.deepEqual(drawerComments().map((item) => item.querySelector("p").textContent),
+    fixtures.map(([, , readable]) => readable));
 });
 
 test("board loading retries a changed revision and adopts current publishing status at a matching revision", async () => {

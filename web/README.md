@@ -99,9 +99,13 @@ the card and all its links together. Each relationship is visible from both card
 Link types are Blocks, Duplicates, References, and Relates to. Incoming links
 identify the other card as the source. Changing a link type preserves its source
 and target.
-Human comments link ticket references to focused board reads, including archived
-tickets. Bot comments render as text. Card priorities are shown on the board and
-in the drawer and refresh after link edits.
+Saved descriptions and comments display `**strong**`, `*emphasis*`, and single
+backtick code spans within a line. Code displays its contents literally,
+including asterisks and ticket references. Descriptions and Human comments link
+references such as `#0042` to that ticket on the same board, including archived
+tickets. Bot comments use the same formatting and leave ticket references as
+text. HTML is displayed as text, and editors keep the original source. Card
+priorities are shown on the board and in the drawer and refresh after link edits.
 
 Use **Set priority** in the card drawer to change that card's priority against
 its displayed revision. The drawer shows the effective saved priority and
@@ -287,7 +291,9 @@ refresh checks that same UUID.
 ## Turn 7 find, renumber, restore, and publish
 
 Expand **Find cards** to search a literal title or ticket. **Search descriptions
-and comments** opts into content matching. **Next work** uses the service's
+and comments** opts into matching their displayed text. Formatting delimiters
+that are hidden on screen are absent from this search, and literal code remains
+searchable. **Next work** uses the service's
 whole-board triage score before lane filtering and the result limit (1–200). **Ticket
 number** keeps numeric order for lookup. Search results open the usual card
 drawer. When a board change makes the displayed results stale, the search keeps

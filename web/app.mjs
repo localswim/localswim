@@ -4,6 +4,7 @@ import {
   MAX_LANE_APPROVAL_CARDS, openBrowserSession, validPublishing,
 } from "./api.mjs";
 import { createBoardRefresh, waitForRetry, watchUpdates } from "./board-updates.mjs";
+import { appendCardProse } from "./card-prose.mjs";
 
 /** @typedef {{id: string, label: string}} Labeled */
 /** @typedef {Labeled & {revision: number, created_at: string, kind: "human"|"bot", color: string}} User */
@@ -942,21 +943,17 @@ async function findCardByTicket(boardId, ticket) {
   return matches.length === 1 && matches[0].board_id === boardId && matches[0].ticket === ticket ? matches[0] : undefined;
 }
 
-/** @param {HTMLElement} body @param {CommentListEntry} comment @param {string} boardId @param {User[]} users */
-function renderCommentText(body, comment, boardId, users) {
+/** @param {string} text @param {string} boardId @param {boolean} [linkTickets] */
+function cardProse(text, boardId, linkTickets = true) {
+  const body = element("p");
   body.className = "body-text";
-  if (!users.some((user) => user.id === comment.author_id && user.kind === "human")) {
-    body.textContent = comment.text;
-    return;
-  }
-  let last = 0;
-  for (const match of comment.text.matchAll(/(?<![\p{L}\p{N}_#])#([0-9]+)(?![\p{L}\p{N}_])/gu)) {
-    const ticket = Number(match[1]);
-    if (!Number.isSafeInteger(ticket) || ticket < 1) continue;
-    body.append(comment.text.slice(last, match.index), link(ticketHref(boardId, ticket), match[0]));
-    last = match.index + match[0].length;
-  }
-  body.append(comment.text.slice(last));
+  appendCardProse(body, text, linkTickets ? (ticket, label) => link(ticketHref(boardId, ticket), label) : undefined);
+  return body;
+}
+
+/** @param {CommentListEntry} comment @param {string} boardId @param {User[]} users */
+function commentProse(comment, boardId, users) {
+  return cardProse(comment.text, boardId, users.some((user) => user.id === comment.author_id && user.kind === "human"));
 }
 
 const relationshipLabels = Object.freeze({
@@ -1734,8 +1731,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       heading.textContent = `#${saved.ticket} ${saved.title}`;
       updateActions(saved);
       void refreshHierarchy(saved);
-      const body = element("p", saved.description);
-      body.className = "body-text";
+      const body = cardProse(saved.description, boardId);
       const savedLane = lanes.find(({ id }) => id === saved.lane_id);
       current.replaceChildren(element("h3", "Saved card"), element("p", saved.title), body,
         element("p", "Lane: " + (savedLane?.label ?? "Unavailable") + (savedLane?.retired ? " (retired)" : "")),
@@ -1829,8 +1825,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       if (cardView !== activeCard || read !== listRead) return { comments, attachments };
       commentList.replaceChildren(...comments.map((entry) => {
         const item = element("article");
-        const body = element("p");
-        renderCommentText(body, entry, boardId, users);
+        const body = commentProse(entry, boardId, users);
         const byline = element("small");
         byline.append(attribution(entry.author_id), element("span", " · " + entry.created_at));
         item.append(byline, body);
@@ -3778,8 +3773,7 @@ async function load(savedAvailability) {
         const replacement = columns.querySelector(`button[data-card-id="${card.id}"]`);
         (replacement instanceof HTMLButtonElement ? replacement : opener.isConnected ? opener : refresh)?.focus();
       });
-      const body = element("p", card.description);
-      body.className = "body-text";
+      const body = cardProse(card.description ?? "", boardId);
       drawer.hidden = false;
       delete drawer.dataset.unavailable;
       drawer.replaceChildren(close, heading, body);
@@ -4201,8 +4195,7 @@ async function load(savedAvailability) {
       if (!recentComments) return;
       recentList.replaceChildren(...recentComments.map((entry) => {
         const item = element("article");
-        const body = element("p");
-        renderCommentText(body, entry, board.id, users);
+        const body = commentProse(entry, board.id, users);
         const byline = element("small");
         byline.append(actorAttribution(users, board.actor_presentation, entry.author_id), element("span", " · " + entry.created_at));
         item.append(byline, body);

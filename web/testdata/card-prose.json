@@ -1,0 +1,11 @@
+[
+  ["plain Unicode and whitespace", "  Café 🚲 & <tag>\r\nnext  ", "  Café 🚲 & <tag>\r\nnext  "],
+  ["punctuation and emphasis", "See **the plan**, *now*! (#0007).", "See the plan, now! (#0007)."],
+  ["code precedes emphasis", "**Run `a * b ** c #7 <tag>` now**.", "Run a * b ** c #7 <tag> now."],
+  ["separate spans", "`<a>` *first* and **second**; `&lt;`.", "<a> first and second; &lt;."],
+  ["unmatched runs", "***triples***, **open and *mismatched", "***triples***, **open and *mismatched"],
+  ["emphasis touches text", "2 * 3 * 4; ** spaced **; ` code `", "2 * 3 * 4; ** spaced **;  code "],
+  ["line boundaries", "*one\ntwo*; `one\rtwo`", "*one\ntwo*; `one\rtwo`"],
+  ["nonempty literal code", "`` empty; `*` and `**not styled**`", "`` empty; * and **not styled**"],
+  ["no invented separators", "a**é**b`c`d", "aébcd"]
+]

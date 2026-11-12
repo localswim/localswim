@@ -27,7 +27,7 @@ const (
 	// directory, and end records. The snapshot and directory each retain their
 	// independent 96 MiB limits.
 	maxBackupMemberFraming       = zipLocalHeaderSize + maxBackupEntryNameSize + 0xffff + 24
-	MaxBackupArchiveBytes  int64 = int64(maxBackupZIPEntries)*(maxAttachmentBytes+maxAttachmentBytes/8+(64<<10)+maxBackupMemberFraming) + 3*maxSnapshotBytes
+	MaxBackupArchiveBytes  int64 = int64(maxBackupZIPEntries)*int64(maxAttachmentBytes+maxAttachmentBytes/8+(64<<10)+maxBackupMemberFraming) + 3*maxSnapshotBytes
 )
 
 // backupZIPDirectory keeps the verified ZIP index stable while archive/zip reads

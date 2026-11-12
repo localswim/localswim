@@ -706,6 +706,7 @@ test("M48 refuses or inspects the original drop once while retaining the open dr
   let failReadback = false;
   const reads = [];
   const writes = [];
+  const refused = Promise.withResolvers();
   const readCard = api.getCard;
   api.getCard = async (id) => {
     reads.push(id);
@@ -714,7 +715,10 @@ test("M48 refuses or inspects the original drop once while retaining the open dr
   };
   api.patchCard = async (id, expected, patch) => {
     writes.push([id, expected, patch.lane_id]);
-    if (refuse) throw new ApiError("http_error", {status: 403});
+    if (refuse) {
+      await refused.promise;
+      throw new ApiError("http_error", {status: 403});
+    }
     commit("Original", patch.lane_id);
     failReadback = true;
     throw new ApiError("transport_failed", {outcomeUnknown: true});
@@ -728,8 +732,9 @@ test("M48 refuses or inspects the original drop once while retaining the open dr
   await until(() => ui.field(details, "Title"));
   const title = ui.field(details, "Title");
   title.value = "Unsaved title";
-  const next = ui.find(main, "h2", target.label).parent;
   const drop = () => {
+    const opener = ui.find(main, "button", "#1 Original");
+    const next = ui.find(main, "h2", target.label).parent;
     const dataTransfer = dragTransfer();
     opener.dispatch("dragstart", {dataTransfer});
     next.dispatch("dragover", {dataTransfer});
@@ -739,8 +744,17 @@ test("M48 refuses or inspects the original drop once while retaining the open dr
   };
 
   drop();
+  await until(() => writes.length === 1);
+  const pending = ui.find(main, "button", "#1 Original");
+  assert.equal(pending.dataset.pending, "true");
+  assert.equal(pending.parent, ui.find(main, "h2", target.label).parent);
+  assert.match(details.textContent, /Moving to Next lane/);
+  refused.resolve();
   await ui.settled();
   assert.match(status.textContent, /refused the change/);
+  const restored = ui.find(main, "button", "#1 Original");
+  assert.equal(restored.dataset.pending, undefined);
+  assert.equal(restored.parent, ui.find(main, "h2", "Ready").parent);
   assert.equal(title.value, "Unsaved title");
   assert.match(details.textContent, /Lane: Ready/);
 
@@ -6009,4 +6023,115 @@ test("shutdown inspection compares the separate HTTP validator after a lost resp
   assert.equal(control.disabled, false);
   assert.match(ui.nodes.main.querySelector("#service-operation-status").textContent,
     /Shutdown did not complete. The service is still running/);
+});
+
+test("a slow text edit projects the submitted title and keeps newer draft text through readback", async (t) => {
+  const {api, commit} = changingBoard();
+  const response = Promise.withResolvers();
+  const checking = Promise.withResolvers();
+  const readback = Promise.withResolvers();
+  const sent = [];
+  const readBoard = api.getBoardLanes;
+  api.getBoardLanes = async (...args) => {
+    const result = await readBoard(...args);
+    if (result.data.board.revision === 2) {
+      checking.resolve();
+      await readback.promise;
+    }
+    return result;
+  };
+  api.patchCard = async (id, validator, {title}) => {
+    sent.push([id, validator, title]);
+    await response.promise;
+    commit(title, lane);
+    return api.getCard(id);
+  };
+  const ui = await harness(api);
+  t.after(() => ui.navigate("/"));
+  await ui.load();
+  const {main, details} = ui.nodes;
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.field(details, "Title"));
+  const input = ui.field(details, "Title");
+  input.value = "Submitted title";
+  ui.submit(details, "Save text");
+  assert.deepEqual(sent, [[card, tag(card, 1), "Submitted title"]]);
+  assert.equal(ui.find(main, "button", "#1 Submitted title").dataset.pending, "true");
+  assert.ok(ui.find(details, "h2", "#1 Submitted title"));
+  assert.match(details.textContent, /Saved cardOriginal/);
+
+  input.value = "Newer draft";
+  input.dispatch("input");
+  await ui.navigate("/");
+  assert.doesNotMatch(main.textContent, /Submitted title/);
+  await ui.navigate("/boards/" + board);
+  assert.equal(ui.find(main, "button", "#1 Submitted title").dataset.pending, "true");
+  response.resolve();
+  await checking.promise;
+  assert.equal(ui.find(main, "button", "#1 Submitted title").dataset.pending, "true");
+  readback.resolve();
+  await ui.settled();
+  assert.equal(ui.find(main, "button", "#1 Submitted title").dataset.pending, undefined);
+  assert.match(details.textContent, /Saved cardSubmitted title/);
+  assert.equal(ui.field(details, "Title").value, "Newer draft");
+  assert.equal(sent.length, 1);
+});
+
+test("a slow creation projects an unnumbered card and inspects the same ID after a lost response", async () => {
+  const {api} = boardApi();
+  const delayed = Promise.withResolvers();
+  const sent = [];
+  const reads = [];
+  let created;
+  const getBoard = api.getBoardLanes;
+  api.getBoardLanes = async () => {
+    const result = await getBoard();
+    if (created) {
+      result.data.cards.push(created);
+      result.data.board.revision = 2;
+      result.etag = tag(board, 2);
+    }
+    return result;
+  };
+  api.getCard = async (id) => {
+    reads.push(id);
+    if (!created || created.id !== id) throw new ApiError("http_error", {status: 404});
+    return {data: created, etag: tag(id, 2)};
+  };
+  api.createCard = async (input) => {
+    sent.push(input);
+    await delayed.promise;
+    throw new ApiError("transport_failed", {outcomeUnknown: true});
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main, status} = ui.nodes;
+  ui.find(main, "button", "Add card").click();
+  ui.field(main, "New title").value = "Delayed creation";
+  const submit = ui.submit(main, "Create card");
+  await until(() => sent.length === 1);
+  const [{id, expected_board_etag}] = sent;
+  const placeholder = ui.find(main, "div", "Delayed creation");
+  assert.equal(placeholder.dataset.cardId, id);
+  assert.equal(placeholder.dataset.pending, "true");
+  assert.equal(placeholder.parent, ui.find(main, "h2", "Ready").parent);
+  assert.equal(placeholder.textContent, "Delayed creationCreating…");
+  assert.equal(expected_board_etag, tag(board, 1));
+
+  delayed.resolve();
+  await ui.settled();
+  assert.equal(ui.find(main, "div", "Delayed creation"), undefined);
+  assert.match(main.textContent, /Unresolved new card/);
+  assert.match(status.textContent, /outcome was uncertain/);
+  assert.equal(submit.disabled, true);
+  assert.deepEqual(reads, [id]);
+
+  created = {id, board_id: board, title: "Delayed creation", description: "", ticket: 2,
+    lane_id: lane, owner_id: user, priority_id: priority, revision: 2, archived: false, cover_attachment_id: null};
+  ui.find(main, "button", "Inspect saved board").click();
+  await ui.settled();
+  assert.deepEqual(reads, [id, id]);
+  assert.equal(sent.length, 1);
+  assert.equal(ui.find(main, "button", "#2 Delayed creation").dataset.pending, undefined);
+  assert.equal(ui.field(main, "New title").value, "");
 });

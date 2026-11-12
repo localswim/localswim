@@ -19,6 +19,13 @@ to submit again. Inspect or Refresh rereads the active editor and preserves
 the draft. If readback fails, inspect the affected card or board before
 submitting another change there. The page makes one write attempt per submission.
 
+While a card edit, move, or creation is saving, the lane shows the requested
+title or destination with a pending label. A new card receives its ticket
+number when the service confirms it. Ticket previews and lane-wide approvals
+use confirmed lane membership. A refusal restores the last confirmed display
+and keeps the draft. If a response is lost, the page reads saved state and
+offers inspection of the original card or creation.
+
 Each tab keeps title, description, and comment drafts with their board and card
 IDs. The new-card draft also remembers its destination. Reload restores text
 exactly within the tab's storage budget. The newest drafts take precedence when

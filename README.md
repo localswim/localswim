@@ -85,4 +85,10 @@ Add `--data DIRECTORY` before the board ID on `card triage-order`, `card search`
 snapshot while the writer is stopped. Add `--prose` to include descriptions
 and comments in focused ticket inspection.
 
+Use `activity list --data DIRECTORY --from UTC --to UTC BOARD_ID` to inspect
+saved activity while the writer is stopped. Quote both inclusive UTC bounds in
+`YYYY-MM-DD HH:MM:SS+00:00` format. The report includes sanitized metadata,
+event-time tickets, the captured board revision, and the latest retained event
+time. Saved reports always mark live coverage as incomplete.
+
 [Development and conventions](CONTRIBUTING.md) · [API](docs/openapi.yaml) · [Milestones](milestone-plan.md)

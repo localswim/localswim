@@ -37,10 +37,12 @@ type activityMetadata struct {
 }
 
 type activityCoverage struct {
-	From     time.Time `json:"from"`
-	To       time.Time `json:"to"`
-	Complete bool      `json:"complete"`
-	Code     string    `json:"code"`
+	From                   time.Time  `json:"from"`
+	To                     time.Time  `json:"to"`
+	Complete               bool       `json:"complete"`
+	Code                   string     `json:"code"`
+	LatestEventAt          *time.Time `json:"latest_event_at,omitempty"`
+	LatestRecoveryRevision uint64     `json:"latest_recovery_revision,omitzero"`
 }
 
 type activityObservation struct {
@@ -163,7 +165,14 @@ func (x *request) listActivities() {
 		x.fail(errMissing)
 		return
 	}
-	writeActivityPage(x, observation, query)
+	writerID := x.service.store.activityWriterID
+	coverage := query.coverage(observation, writerID, x.service.store.activitySince)
+	result, err := query.page(observation.state, x.r.URL.RawQuery, writerID, coverage)
+	if err != nil {
+		x.fail(err)
+		return
+	}
+	x.respond(http.StatusOK, result, "")
 }
 
 func (s *store) observeActivity(id string) (activityObservation, error) {
@@ -311,10 +320,7 @@ func (query activityQuery) coverage(observation activityObservation, writerID st
 	return activityCoverage{From: query.from, To: query.to, Complete: code == "complete", Code: code}
 }
 
-func writeActivityPage(x *request, observation activityObservation, query activityQuery) {
-	state := observation.state
-	writerID := x.service.store.activityWriterID
-	coverage := query.coverage(observation, writerID, x.service.store.activitySince)
+func (query activityQuery) page(state snapshot, rawQuery, writerID string, coverage activityCoverage) (map[string]any, error) {
 	var full []activity
 	var metadata []activityMetadata
 	var index activityIndex
@@ -360,25 +366,29 @@ func writeActivityPage(x *request, observation activityObservation, query activi
 		strconv.FormatBool(query.full), strconv.FormatUint(query.ticket, 10), query.actorID, query.operation,
 		query.cardID, query.writerID, writerID, strconv.FormatUint(state.Board.Revision, 10),
 	}
-	result := map[string]any{"writer_id": writerID, "board_revision": state.Board.Revision, "coverage": coverage}
+	result := map[string]any{"writer_id": nil, "board_revision": state.Board.Revision, "coverage": coverage}
+	if writerID != "" {
+		result["writer_id"] = writerID
+	} else if len(state.Activity) != 0 {
+		// A different saved history can have the same board revision.
+		scope = append(scope, state.Activity[len(state.Activity)-1].ID)
+	}
 	if query.full {
 		slices.Reverse(full)
-		respondActivity(x, full, result, botOnly, scope)
-	} else {
-		slices.Reverse(metadata)
-		respondActivity(x, metadata, result, botOnly, scope)
+		return activityPageResult(rawQuery, full, result, botOnly, scope)
 	}
+	slices.Reverse(metadata)
+	return activityPageResult(rawQuery, metadata, result, botOnly, scope)
 }
 
-func respondActivity[T any](x *request, items []T, result map[string]any, botOnly bool, scope []string) {
-	values, cursor, err := collectionSlice(x.r.URL.RawQuery, items, scope...)
+func activityPageResult[T any](rawQuery string, items []T, result map[string]any, botOnly bool, scope []string) (map[string]any, error) {
+	values, cursor, err := collectionSlice(rawQuery, items, scope...)
 	if err != nil {
-		x.fail(err)
-		return
+		return nil, err
 	}
 	result["activities"] = values
 	result["next_cursor"] = cursor
 	result["pagination_complete"] = cursor == nil
 	result["bot_only"] = cursor == nil && botOnly && len(items) != 0
-	x.respond(http.StatusOK, result, "")
+	return result, nil
 }

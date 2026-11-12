@@ -141,6 +141,22 @@ An empty page with complete coverage is a valid result. `bot_only` is true only
 on the last page of a complete, nonempty, unfiltered interval whose every event
 belongs to the configured Bot.
 
+Add `--data DIRECTORY` before the board ID to read saved activity from one
+verified native snapshot. The saved path supports the monitor view. It uses the
+same inclusive bounds, filters and event-time tickets as the live view.
+`board_revision` identifies the captured revision, and
+`coverage.latest_event_at` reports the greatest retained event timestamp.
+`coverage.latest_recovery_revision`, when present, identifies the last recovery
+that replaced history. The coverage code is `beyond_saved_history` when the
+requested end exceeds the latest event time and `saved_history` otherwise.
+
+Saved activity always reports `writer_id: null`, `coverage.complete: false`,
+and `bot_only: false`. You can reuse a notice's `--writer-id` in the query.
+The snapshot verifies the records it retained. Writer identity, continuous
+coverage and later edits, including edits in the last retained event's second,
+require live evidence. Use the same saved snapshot and filters to continue
+pagination. Live cursors and cursors from a changed captured revision are invalid.
+
 Use `board notifications status BOARD_ID` to inspect the owning-chat route. The
 result contains `board_id`, `revision`, `enabled`, and `target_thread_id`. Routes
 start disabled. Set the verified owning chat with
@@ -401,15 +417,17 @@ Use an explicit `--data DIR` to read a saved board through the local filesystem.
 - `card triage-order --data DIR [--lane UUID]... BOARD_ID` ranks work across the selected lanes.
 - `card search --data DIR --search TEXT BOARD_ID` applies the usual search and triage rules.
 - `comment list --data DIR [--limit N] BOARD_ID [CARD_ID]` reads the newest comments.
+- `activity list --data DIR --from UTC --to UTC BOARD_ID` reads sanitized saved activity.
 
 Each invocation validates one committed snapshot from a directly readable directory.
 These commands work with the writer stopped and with open or closed saved boards.
-Omit `--data` to use the authenticated live API. For the same snapshot and selection,
-both sources return the same report, including pagination cursors. Use the same
-selection when continuing a report. An intervening edit that changes its results
-can invalidate a cursor. Focused inspection includes descriptions and comments
-only with `--prose`. Board-wide comment reports default to active cards and include
-comment text. Closed boards still refuse card writes.
+Omit `--data` to use the authenticated live API. For the same snapshot and
+selection, board, card, and comment reports share their live format and any
+pagination cursors. Activity coverage and cursors are specific to the source.
+Use the same selection when continuing a report. An intervening edit that changes
+its results can invalidate a cursor. Focused inspection includes descriptions and
+comments only with `--prose`. Board-wide comment reports default to active cards
+and include comment text. Closed boards still refuse card writes.
 
 String inputs mean UTF-8. Preserve user text exactly, including whitespace and
 Unicode. Ordinary entity, comment, attachment, build, and request correlation IDs

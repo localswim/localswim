@@ -77,7 +77,8 @@ const cliHelp = `Usage:
                          [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim comment post [--revision N] CARD_ID FILE|-
   localswim comment post [--revision N] --text TEXT CARD_ID
-  localswim activity list --from UTC --to UTC [--view full|monitor] [--ticket N] [--card-id CARD_ID]
+  localswim activity list [--data DIRECTORY] --from UTC --to UTC [--view full|monitor]
+                        [--ticket N] [--card-id CARD_ID]
                         [--writer-id WRITER_ID] [--actor-id UUID] [--operation OP] [--limit N]
                         [--cursor CURSOR] BOARD_ID
   localswim lane add [--revision N] BOARD_ID FILE|-
@@ -124,7 +125,7 @@ Board creation requires exactly one of --name or --json. Use --preset terry with
 --json reads a new board definition from JSON_FILE or standard input.
 JSON_FILE is required. Use a file path or - to read standard input.
 Set --data to read saved board data offline for board get, board export, board verify,
-card inspect, card triage-order, card search, and comment list.
+card inspect, card triage-order, card search, comment list, and activity list.
 Offline board get returns board metadata. The lanes view requires a live service.
 Verification prints the full JSON report and exits 1 if the board is invalid.
 Board export writes JSON to a new FILE, or standard output when given -. The default --type is json.
@@ -184,7 +185,8 @@ Backup download verifies its size and SHA-2-256 digest before writing a new file
 Backup verify checks ZIP bytes from FILE or standard input with -, without contacting a service.
 Standard input is copied to a private temporary file for verification and removed afterward.
 Activity intervals are inclusive. Quote both UTC bounds in YYYY-MM-DD HH:MM:SS+00:00.
-Activity lists sanitized edit metadata by default. Use --view full for the attributed audit.
+Activity lists sanitized edit metadata by default. Use --view full with a live service for the attributed audit.
+Saved activity reports its captured revision and latest retained event time.
 The CLI manages HTTP validators.
 For input FILE|-, pass a file path or use - to read standard input.
 For output FILE|-, pass a new file path or use - to write standard output.

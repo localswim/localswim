@@ -29,6 +29,9 @@ func readNativeBoard(command cliCommand) (json.RawMessage, error) {
 	case "comments":
 		_, query, _ := strings.Cut(command.resource, "?")
 		return source.ListCommentsJSON(query)
+	case "activity":
+		_, query, _ := strings.Cut(command.resource, "?")
+		return source.ListActivitiesJSON(query)
 	default:
 		return nil, errors.New("this view is unavailable for native board reads")
 	}

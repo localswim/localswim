@@ -22,7 +22,7 @@ func TestT06ParseAndHelp(t *testing.T) {
 		{"lane", "set-key", "--revision", "12", t03Lane, "ready_now"},
 		{"board", "get", "--view", "lanes", t03Board},
 		{"ticket-order", "preview", t03Lane, t03Card},
-		{"card", "set-priorities", "--revision", "12", t03Board, "-"},
+		{"card", "set-priorities", "--revision", "12", t03Board, t03Lane, t03Card},
 		{"backup", "create", "--id", t06Operation, "--revision", "12", t03Board},
 		{"backup", "info", t06Operation},
 		{"backup", "download", t06Operation, "-"},
@@ -33,7 +33,7 @@ func TestT06ParseAndHelp(t *testing.T) {
 	}
 	for _, args := range [][]string{
 		{"card", "set-priorities", t03Board},
-		{"card", "set-priorities", "--revision", "0", t03Board, "-"},
+		{"card", "set-priorities", "--revision", "0", t03Board, t03Lane, t03Card},
 		{"ticket-order", "preview", t03Lane, t03Card, strings.ToUpper(t03Card)},
 		{"backup", "create", "--id", "bad", t03Board},
 		{"backup", "download", t06Operation},
@@ -88,7 +88,7 @@ func TestT06BatchAndBackupValidators(t *testing.T) {
 					}
 				}))
 				defer server.Close()
-				args := []string{"card", "set-priorities", "--revision", revision, t03Board, "-"}
+				args := []string{"card", "set-priorities", "--revision", revision, t03Board, t03Lane, t03Card}
 				if action == "backup" {
 					args = []string{"backup", "create", "--revision", revision, "--id", t06Operation, t03Board}
 				}

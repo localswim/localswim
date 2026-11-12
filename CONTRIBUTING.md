@@ -29,11 +29,11 @@ board, lane, cards, and priority you want to use.
 ```powershell
 localswim card create --title "Check pool hours" --description "Verify the holiday schedule." $board $lane
 localswim comment post --text "Confirmed weekend hours." $card
-localswim card set-priorities --priority $priority $board $card $otherCard
+localswim card set-priorities $board $priority $card $otherCard
 ```
 
-The concise create uses the board's default owner and priority. The existing
-document forms accept a JSON file or `-` for standard input. Use them for fields
+The concise create uses the board's default owner and priority. Card creation
+and comment posting also accept a JSON file or `-` for standard input. Use them for fields
 such as an explicit card or comment ID for focused readback after a lost reply.
 Append `--help` to an action name for its argument forms and examples. Put
 `--revision N` before the positional arguments to require the board revision for
@@ -189,7 +189,7 @@ all actual audit changes, and `board_revision`. `X-Board-ETag` carries the commi
 validator. Duplicate IDs and Completed selections refuse the entire operation.
 An unchanged effective result preserves the revision and audit.
 
-Use `card set-priorities [--revision N] --priority PRIORITY_ID --tickets BOARD_ID TICKET [TICKET ...]`
+Use `card set-priorities [--revision N] --tickets BOARD_ID PRIORITY_ID TICKET [TICKET ...]`
 to select cards by their tickets. Every focused lookup must agree on the same
 board validator. The CLI rejects duplicate tickets before lookup and sends one
 batch with the original board validator. `--revision` checks the board revision.

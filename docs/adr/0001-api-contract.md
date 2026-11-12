@@ -44,8 +44,9 @@ CLI updates accept `--revision N` to require the positive numeric `revision` fro
 `card patch`, `card description`, and `lane add` require a positional input source.
 Pass a file path or `-` for standard input. Card descriptions take UTF-8 text and
 preserve whitespace and line endings. The other two commands take a JSON object.
-`card create`, `comment post`, and `card set-priorities` accept concise inputs or
-JSON documents. The document forms require the same file-or-minus positional.
+`card create` and `comment post` accept concise inputs or JSON documents.
+The document forms require the same file-or-minus positional. `card set-priorities`
+takes the board ID, priority ID, and one or more card IDs as positional arguments.
 
 HTTP writes use the addressed resource's strong ETag. Focused inspection and saved ticket-order previews expose numeric revisions, and the CLI derives the required conditional headers from those versions. Operations spanning resources carry explicit board/card preconditions in request bodies or in the documented HTTP headers. Data, permission checks, derived changes, and audit commit together. A lost or unreadable write response requires inspection before another attempt.
 

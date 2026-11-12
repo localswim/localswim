@@ -35,19 +35,17 @@ Examples:
 `
 
 const priorityBatchHelp = `Usage:
-  localswim card set-priorities [--revision N] --priority PRIORITY_ID BOARD_ID CARD_ID [CARD_ID ...]
-  localswim card set-priorities [--revision N] --priority PRIORITY_ID --tickets BOARD_ID TICKET [TICKET ...]
-  localswim card set-priorities [--revision N] BOARD_ID <JSON_FILE|->
+  localswim card set-priorities [--revision N] BOARD_ID PRIORITY_ID CARD_ID [CARD_ID ...]
+  localswim card set-priorities [--revision N] --tickets BOARD_ID PRIORITY_ID TICKET [TICKET ...]
 
 Supply 1 to 1000 distinct card UUIDs or, with --tickets, distinct ticket numbers.
-The JSON object takes priority_id and card_ids.
-The document form requires a file path or - for standard input. The batch checks
-the board revision and applies the effective blocking floor to all selections together.
+All selected cards must belong to the board. The batch checks the board revision
+and applies the effective blocking floor to all selections together.
 
 Examples:
-  localswim card set-priorities --priority $priority $board $card1 $card2
-  localswim card set-priorities --priority $priority --tickets $board 12 17
-  localswim card set-priorities --revision 14 $board priorities.json
+  localswim card set-priorities $board $priority $card1 $card2
+  localswim card set-priorities --tickets $board $priority 12 17
+  localswim card set-priorities --revision 14 $board $priority $card1
 `
 
 func routineWriteHelp(name string) string {
@@ -90,17 +88,17 @@ func cardCreateInput(args []string, hasTitle, hasDescription bool, title, descri
 
 func priorityBatchBody(priority string, ids []string) (json.RawMessage, error) {
 	if !boardIDPattern.MatchString(priority) {
-		return nil, errors.New("--priority requires a UUIDv4 priority ID")
+		return nil, errors.New("priority batch requires a UUIDv4 priority ID")
 	}
 	if len(ids) < 1 || len(ids) > 1000 {
-		return nil, errors.New("--priority requires 1 to 1000 UUIDv4 card IDs")
+		return nil, errors.New("priority batch requires 1 to 1000 UUIDv4 card IDs")
 	}
 	cards := make([]string, 0, len(ids))
 	seen := make(map[string]bool, len(ids))
 	for _, id := range ids {
 		id = strings.ToLower(id)
 		if !boardIDPattern.MatchString(id) || seen[id] {
-			return nil, errors.New("--priority requires distinct UUIDv4 card IDs")
+			return nil, errors.New("priority batch requires distinct UUIDv4 card IDs")
 		}
 		seen[id] = true
 		cards = append(cards, id)

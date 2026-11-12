@@ -11,7 +11,7 @@ import (
 
 func parseTicketPriorityBatch(priority string, args []string) ([]uint64, json.RawMessage, error) {
 	if !boardIDPattern.MatchString(priority) {
-		return nil, nil, errors.New("--tickets requires --priority with a UUIDv4 priority ID")
+		return nil, nil, errors.New("priority batch requires a UUIDv4 priority ID")
 	}
 	if len(args) < 1 || len(args) > 1000 {
 		return nil, nil, errors.New("priority batch requires 1 to 1000 tickets")

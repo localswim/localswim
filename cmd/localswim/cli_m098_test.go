@@ -153,7 +153,7 @@ func TestM098CLITicketFilesAndBatch(t *testing.T) {
 		t.Fatal("resolved attachment did not become inactive on the intended card")
 	}
 
-	batch := []string{"card", "set-priorities", "--priority", board.PriorityIDs[0], "--tickets", board.ID}
+	batch := []string{"card", "set-priorities", "--tickets", board.ID, board.PriorityIDs[0]}
 	run(2, 0, "duplicate ticket", append(batch, "1", "0001")...)
 	staleBatch := rename("Board edited during batch")
 	before.Store(&staleBatch)
@@ -187,7 +187,7 @@ func TestM098RejectsInvalidTicketArguments(t *testing.T) {
 		{"attachment", "upload", t03Board, "9007199254740992", "-"},
 		{"attachment", "detach", t03Board, "2", "bad"},
 		{"card", "set-priorities", "--tickets", t03Board, "2"},
-		{"card", "set-priorities", "--tickets", "--priority", t03Lane, t03Board, "0"},
+		{"card", "set-priorities", "--tickets", t03Board, t03Lane, "0"},
 	} {
 		exit := runCLIWithInput(args, strings.NewReader(""), io.Discard, io.Discard, func(string) string {
 			t.Fatal("invalid arguments reached transport setup")

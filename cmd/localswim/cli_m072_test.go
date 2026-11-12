@@ -36,7 +36,7 @@ func TestM072RoutineWritesReuseValidators(t *testing.T) {
 			name: "batch", action: "set-priorities", readPath: "/boards/" + t03Board, validator: t03BoardTag,
 			method: http.MethodPatch, writePath: "/cards",
 			response: `{"board_id":"` + t03Board + `","board_revision":13,"cards":[],"changes":[]}`,
-			args:     []string{"--priority", strings.ToUpper(t03Lane), t03Board, strings.ToUpper(t03Card), otherCard},
+			args:     []string{t03Board, strings.ToUpper(t03Lane), strings.ToUpper(t03Card), otherCard},
 			body:     map[string]any{"board_id": t03Board, "card_ids": []any{t03Card, otherCard}, "priority_id": t03Lane, "expected_board_etag": t03BoardTag},
 		},
 	} {
@@ -97,18 +97,18 @@ func TestM072ContextualHelpAndInputErrors(t *testing.T) {
 		return ""
 	}
 	for _, tc := range []struct {
-		group, action, option string
+		group, action, option, input string
 	}{
-		{"card", "create", "--title"},
-		{"comment", "post", "--text"},
-		{"card", "set-priorities", "--priority"},
+		{"card", "create", "--title", "JSON_FILE|-"},
+		{"comment", "post", "--text", "JSON_FILE|-"},
+		{"card", "set-priorities", "PRIORITY_ID", "CARD_ID"},
 	} {
 		var out, stderr bytes.Buffer
 		code := runCLIWithInput([]string{tc.group, tc.action, "--help"}, nil, &out, &stderr, noService)
 		if code != 0 || stderr.Len() != 0 || strings.Contains(out.String(), "workspace info") {
 			t.Fatalf("unexpected %s %s help: %d, %s, %s", tc.group, tc.action, code, &out, &stderr)
 		}
-		for _, required := range []string{tc.option, "JSON_FILE|-", "--revision N", "Examples:"} {
+		for _, required := range []string{tc.option, tc.input, "--revision N", "Examples:"} {
 			if !strings.Contains(out.String(), required) {
 				t.Errorf("%s %s help missing %q", tc.group, tc.action, required)
 			}
@@ -120,21 +120,43 @@ func TestM072ContextualHelpAndInputErrors(t *testing.T) {
 	}{
 		{[]string{"card", "create"}, "accepts one JSON file or - for standard input"},
 		{[]string{"comment", "post", t03Card}, "followed by FILE or -"},
-		{[]string{"card", "set-priorities", t03Board}, "expected a valid resource ID and the documented arguments"},
+		{[]string{"card", "set-priorities", t03Board}, "requires BOARD_ID PRIORITY_ID"},
 		{[]string{"card", "create", "--description", "text", t03Board, t03Lane}, "requires --title"},
 		{[]string{"card", "create", "--title", "\xff", t03Board, t03Lane}, "valid UTF-8"},
 		{[]string{"card", "create", "--title", "text", "card.json"}, "UUIDv4 board ID"},
 		{[]string{"comment", "post", "--text=", t03Card}, "nonempty valid UTF-8"},
 		{[]string{"comment", "post", "--text", "\xff", t03Card}, "nonempty valid UTF-8"},
 		{[]string{"comment", "post", "--text", "text", t03Card, "-"}, "documented arguments"},
-		{[]string{"card", "set-priorities", "--priority=", t03Board, t03Card}, "UUIDv4 priority ID"},
-		{[]string{"card", "set-priorities", "--priority", t03Lane, t03Board, "-"}, "distinct UUIDv4 card IDs"},
-		{[]string{"card", "set-priorities", "--priority", t03Lane, t03Board, t03Card, strings.ToUpper(t03Card)}, "distinct UUIDv4 card IDs"},
+		{[]string{"card", "set-priorities", t03Board, "", t03Card}, "UUIDv4 priority ID"},
+		{[]string{"card", "set-priorities", t03Board, t03Lane, "-"}, "distinct UUIDv4 card IDs"},
+		{[]string{"card", "set-priorities", t03Board, t03Lane, t03Card, strings.ToUpper(t03Card)}, "distinct UUIDv4 card IDs"},
 	} {
 		var out, stderr bytes.Buffer
 		code := runCLIWithInput(tc.args, nil, &out, &stderr, noService)
 		if code != 2 || out.Len() != 0 || !strings.HasPrefix(stderr.String(), "ERROR ") || !strings.Contains(stderr.String(), tc.want) {
 			t.Errorf("%v result = %d, %s, %s", tc.args, code, &out, &stderr)
 		}
+	}
+}
+
+func TestPriorityBatchUsesOnlyPositionalPriority(t *testing.T) {
+	for _, args := range [][]string{
+		{"card", "set-priorities", t03Board, "-"},
+		{"card", "set-priorities", t03Board, "priorities.json"},
+		{"card", "set-priorities", "--priority", t03Lane, t03Board, t03Card},
+		{"card", "set-priorities", t03Board, t03Lane},
+		{"card", "set-priorities", "--tickets", t03Board, t03Lane},
+	} {
+		var out, stderr bytes.Buffer
+		code := runCLIWithInput(args, strings.NewReader(`{"card_ids":[],"priority_id":"ignored"}`), &out, &stderr, func(string) string {
+			t.Fatal("invalid positional input reached transport")
+			return ""
+		})
+		if code != 2 || out.Len() != 0 {
+			t.Fatalf("accepted invalid arguments %v: %d %s", args, code, &stderr)
+		}
+	}
+	if strings.Contains(priorityBatchHelp, "JSON_FILE") || strings.Contains(priorityBatchHelp, "--priority") {
+		t.Fatal("priority help retains a removed argument form")
 	}
 }

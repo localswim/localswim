@@ -21,7 +21,6 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var revision, backupID string
-	var priority *string
 	var tickets bool
 	switch name {
 	case "card set-priorities":
@@ -36,27 +35,24 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	if name == "backup create" {
 		flags.StringVar(&backupID, "id", "", "known backup UUIDv7")
 	}
-	if name == "card set-priorities" {
-		flags.Func("priority", "priority UUIDv4 for all selected cards", func(value string) error {
-			priority = &value
-			return nil
-		})
-	}
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
 	}
-	if tickets && priority == nil {
-		return cmd, errors.New("--tickets requires --priority with a UUIDv4 priority ID")
-	}
 	count := 1
-	if name == "card set-priorities" || name == "backup download" {
+	if name == "backup download" {
 		count = 2
+	}
+	if name == "card set-priorities" {
+		count = 3
+		if flags.NArg() < count {
+			return cmd, errors.New("card set-priorities requires BOARD_ID PRIORITY_ID and at least one card")
+		}
 	}
 	resourcePattern := boardIDPattern
 	if name == "backup info" || name == "backup download" {
 		resourcePattern = operationIDPattern
 	}
-	variadic := name == "ticket-order preview" || priority != nil
+	variadic := name == "ticket-order preview" || name == "card set-priorities"
 	if flags.NArg() < count || (!variadic && flags.NArg() != count) ||
 		!resourcePattern.MatchString(flags.Arg(0)) || (count == 2 && flags.Arg(1) == "") {
 		return cmd, errors.New("expected a valid resource ID and the documented arguments")
@@ -83,21 +79,14 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	switch name {
 	case "card set-priorities":
 		cmd.method, cmd.resource, cmd.boardID = http.MethodPatch, "/cards", id
-		switch {
-		case tickets:
-			var err error
-			cmd.batchTickets, cmd.body, err = parseTicketPriorityBatch(*priority, flags.Args()[1:])
-			if err != nil {
-				return cmd, err
-			}
-		case priority != nil:
-			var err error
-			cmd.body, err = priorityBatchBody(*priority, flags.Args()[1:])
-			if err != nil {
-				return cmd, err
-			}
-		default:
-			cmd.inputPath = flags.Arg(1)
+		var err error
+		if tickets {
+			cmd.batchTickets, cmd.body, err = parseTicketPriorityBatch(flags.Arg(1), flags.Args()[2:])
+		} else {
+			cmd.body, err = priorityBatchBody(flags.Arg(1), flags.Args()[2:])
+		}
+		if err != nil {
+			return cmd, err
 		}
 	case "backup create":
 		cmd.method, cmd.resource, cmd.boardID = http.MethodPost, "/backups", id
@@ -129,26 +118,11 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	return cmd, nil
 }
 
-func executeT06(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.Writer) error {
+func executeT06(api *client.Client, cmd cliCommand, stdout io.Writer) error {
 	if cmd.t06Action == "backup download" {
 		return downloadBackup(api, cmd.resource, cmd.downloadPath, stdout)
 	}
 	body := cmd.body
-	if cmd.inputPath != "" {
-		if cmd.inputPath != "-" {
-			file, err := os.Open(cmd.inputPath)
-			if err != nil {
-				return errors.New("could not open input file")
-			}
-			defer file.Close()
-			stdin = file
-		}
-		var err error
-		body, err = io.ReadAll(io.LimitReader(stdin, maxCLIInput+1))
-		if err != nil || len(body) > maxCLIInput || !client.IsJSONObject(body) {
-			return errors.New("JSON input must contain one valid object within 96 MiB")
-		}
-	}
 	if cmd.boardID != "" {
 		fields := make(map[string]json.RawMessage)
 		if body != nil {

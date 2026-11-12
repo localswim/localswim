@@ -14,6 +14,7 @@ var (
 	assignPublicationJob    = kernel32.NewProc("AssignProcessToJobObject")
 	terminatePublicationJob = kernel32.NewProc("TerminateJobObject")
 	queryPublicationJob     = kernel32.NewProc("QueryInformationJobObject")
+	inPublicationJob        = kernel32.NewProc("IsProcessInJob")
 	publicationThreadFirst  = kernel32.NewProc("Thread32First")
 	publicationThreadNext   = kernel32.NewProc("Thread32Next")
 	openPublicationThread   = kernel32.NewProc("OpenThread")
@@ -29,11 +30,6 @@ type publicationJobLimits struct {
 	Priority, Scheduling                                       uint32
 	IO                                                         [6]uint64
 	ProcessMemory, JobMemory, PeakProcessMemory, PeakJobMemory uintptr
-}
-
-type publicationJobAccounting struct {
-	UserTime, KernelTime, PeriodUserTime, PeriodKernelTime int64
-	PageFaults, Processes, Active, Terminated              uint32
 }
 
 type publicationThreadEntry struct {
@@ -108,25 +104,88 @@ func resumePublicationProcess(pid uint32) error {
 }
 
 func (tree *publicationProcessTree) stop() error {
+	deadline := time.Now().Add(publicationGitCleanupTimeout)
+	// Job termination can remove a member before Windows closes that
+	// process's handles. Capture waitable handles before terminating the job.
+	processes, inspectErr := tree.processHandles(deadline)
+	defer func() {
+		for _, process := range processes {
+			_ = syscall.CloseHandle(process)
+		}
+	}()
 	result, _, err := terminatePublicationJob.Call(uintptr(tree.job), 1)
 	if result == 0 {
-		return err
+		return errors.Join(inspectErr, err)
 	}
-	deadline := time.Now().Add(publicationGitCleanupTimeout)
-	for {
-		var accounting publicationJobAccounting
-		result, _, err := queryPublicationJob.Call(uintptr(tree.job), 1, uintptr(unsafe.Pointer(&accounting)), unsafe.Sizeof(accounting), 0)
-		if result == 0 {
-			return err
+	for _, process := range processes {
+		remaining := max(0, time.Until(deadline)).Milliseconds()
+		status, err := syscall.WaitForSingleObject(process, uint32(remaining))
+		if err != nil {
+			return errors.Join(inspectErr, err)
 		}
-		if accounting.Active == 0 {
-			return nil
+		if status != syscall.WAIT_OBJECT_0 {
+			return errors.Join(inspectErr, errors.New("publication process cleanup timed out"))
 		}
+	}
+	return inspectErr
+}
+
+func (tree *publicationProcessTree) processHandles(deadline time.Time) ([]syscall.Handle, error) {
+	ids, err := tree.processIDs(deadline)
+	if err != nil {
+		return nil, err
+	}
+	const processQueryLimitedInformation, processGone = 0x1000, syscall.Errno(87)
+	processes := make([]syscall.Handle, 0, len(ids))
+	for _, id := range ids {
 		if !time.Now().Before(deadline) {
-			return errors.New("publication process cleanup timed out")
+			return processes, errors.New("publication process inspection timed out")
 		}
-		time.Sleep(10 * time.Millisecond)
+		process, err := syscall.OpenProcess(syscall.SYNCHRONIZE|processQueryLimitedInformation, false, uint32(id))
+		if errors.Is(err, processGone) {
+			continue
+		}
+		if err != nil {
+			return processes, err
+		}
+		// A listed process could exit and its PID be reused before OpenProcess.
+		var member int32
+		result, _, err := inPublicationJob.Call(uintptr(process), uintptr(tree.job), uintptr(unsafe.Pointer(&member)))
+		if result != 0 && member != 0 {
+			processes = append(processes, process)
+			continue
+		}
+		_ = syscall.CloseHandle(process)
+		if result == 0 {
+			return processes, err
+		}
 	}
+	return processes, nil
+}
+
+func (tree *publicationProcessTree) processIDs(deadline time.Time) ([]uintptr, error) {
+	// JOBOBJECT_BASIC_PROCESS_ID_LIST has two DWORD counts followed by
+	// a variable-length array of pointer-sized process IDs.
+	const basicProcessIDList = 3
+	const slotSize = unsafe.Sizeof(uintptr(0))
+	const headerSlots = int(unsafe.Sizeof([2]uint32{}) / slotSize)
+	for capacity := 16; time.Now().Before(deadline); {
+		buffer := make([]uintptr, headerSlots+capacity)
+		result, _, err := queryPublicationJob.Call(uintptr(tree.job), basicProcessIDList, uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer))*slotSize, 0)
+		if result == 0 && !errors.Is(err, syscall.ERROR_MORE_DATA) {
+			return nil, err
+		}
+		counts := (*[2]uint32)(unsafe.Pointer(&buffer[0]))
+		assigned, listed := int(counts[0]), int(counts[1])
+		if result != 0 && listed == assigned && listed <= capacity {
+			return buffer[headerSlots : headerSlots+listed], nil
+		}
+		if assigned <= capacity {
+			return nil, errors.New("publication process list could not be read")
+		}
+		capacity = assigned
+	}
+	return nil, errors.New("publication process inspection timed out")
 }
 
 func (tree *publicationProcessTree) close() {

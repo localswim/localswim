@@ -202,9 +202,8 @@ func TestM23AttachmentReadbackAfterUncertainOutcome(t *testing.T) {
 	// Model a lost success response and a commit that reached disk before the
 	// store could acknowledge it. Retain the pre-write accepted state.
 	app.store.mu.Lock()
+	app.store.uncertainBoards = map[string]snapshot{b.ID: app.store.boards[b.ID]}
 	app.store.boards[b.ID] = previous
-	app.store.writeUncertain = true
-	app.store.uncertainBoardID = b.ID
 	app.store.mu.Unlock()
 	if err := os.WriteFile(app.store.snapshotPath(unrelated.ID), []byte("invalid"), 0o600); err != nil {
 		t.Fatal(err)

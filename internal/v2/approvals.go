@@ -369,7 +369,10 @@ func (x *request) approvalResource(id string) {
 		}
 	}
 	// An uncertain commit can have reached disk before the receipt reached accepted memory.
-	if boardID := x.service.store.fencedBoard(); boardID != "" {
+	if boardID := x.service.store.fencedBoardContaining(func(candidate snapshot) bool {
+		_, found := findApproval(candidate, id)
+		return found
+	}); boardID != "" {
 		if known, exists := x.service.store.accepted(boardID); exists && known.can(x.actor, "read") {
 			state, err := x.service.store.readback(boardID)
 			if err != nil {

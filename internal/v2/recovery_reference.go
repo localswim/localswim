@@ -256,6 +256,11 @@ func (s *store) collidesWithHealthyBoardID(id string) bool {
 			return true
 		}
 	}
+	for otherID, other := range s.uncertainBoards {
+		if otherID != id && snapshotContainsIdentity(other, ids) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -299,6 +304,9 @@ func (s *store) writeSnapshotWithRecoveryReference(value snapshot, data []byte, 
 		}
 	}
 	if err := writeAtomicChecked(s.snapshotPath(id), data, func() error {
+		if err := s.checkBoardsDirectory(s.boardsPath()); err != nil {
+			return err
+		}
 		if beforeReplace != nil {
 			if err := beforeReplace(); err != nil {
 				return err
@@ -316,7 +324,17 @@ func (s *store) writeSnapshotWithRecoveryReference(value snapshot, data []byte, 
 		}
 		return err
 	}
-	if err := s.writeRecoveryReferenceChecked(recoveryReference{Committed: current}, checkPending); err != nil {
+	if err := s.writeRecoveryReferenceChecked(recoveryReference{Committed: current}, func() error {
+		if checkPending != nil {
+			if err := checkPending(); err != nil {
+				return err
+			}
+		}
+		if s.beforeRecoverySettlement != nil {
+			return s.beforeRecoverySettlement(id)
+		}
+		return nil
+	}); err != nil {
 		return errors.Join(errWriteUncertain, err)
 	}
 	s.recoveryContexts[id] = current

@@ -230,7 +230,9 @@ func (x *request) findAttachment(id string) (attachment, error) {
 		}
 	}
 	// A just-committed ID may exist only in the fenced board's durable snapshot.
-	if boardID := x.service.store.fencedBoard(); boardID != "" {
+	if boardID := x.service.store.fencedBoardContaining(func(candidate snapshot) bool {
+		return slices.ContainsFunc(candidate.Attachments, func(item attachment) bool { return item.ID == id })
+	}); boardID != "" {
 		if known, ok := x.service.store.accepted(boardID); ok && known.can(x.actor, "read") {
 			return x.attachmentReadback(boardID, id)
 		}

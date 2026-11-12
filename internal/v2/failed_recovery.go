@@ -134,7 +134,10 @@ func (x *request) recoverFailedBoard(id string) {
 func (s *store) reserveFailedRecovery(id, destination, actor string) (func(), error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.writable(); err != nil {
+	if err := s.writable(id); err != nil {
+		return nil, err
+	}
+	if err := s.writable(destination); err != nil {
 		return nil, err
 	}
 	if actor != humanID || !s.isFailedBoardLocked(id) {
@@ -309,10 +312,11 @@ func (s *store) recoverFailed(id, mode, actor, expected string, source snapshot,
 func (s *store) commitFailedRecovery(id string, next snapshot, data []byte, observed failedRecoveryObservation, trustedContext recoveryContext) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// A previous unrelated uncertain write cannot make this recovery uncertain:
-	// its snapshot has not started publication, so its new bytes can be cleaned.
-	if err := s.writable(); err != nil {
-		return errInvalidSnapshot
+	if err := s.writable(id); err != nil {
+		return err
+	}
+	if err := s.writable(next.Board.ID); err != nil {
+		return err
 	}
 	if !s.isFailedBoardLocked(id) {
 		return errStale

@@ -19034,7 +19034,11 @@ x-runtime-requirements:
   maxMultipartBytes: 10747904
   uncertainWrites: A timeout, truncated/unreadable successful response, or mutation 5xx can follow commit.
     Inspect the resource/result and never automatically replay. Emit canonical validated outcomes and
-    distinguish known refusals.
+    distinguish known refusals. After an uncertain board snapshot commit, fence writes and backup or
+    automatic publication capture for the affected board. Keep other boards writable when the durable
+    snapshot matches a known outcome and workspace user definitions are unchanged. Fence workspace board
+    writes when board creation or shared state is uncertain. Later fenced requests that did not begin
+    writing return 503 unavailable with outcome not_applied.
   headers: Required Header Objects declare the published presence contract. Origin-dependent CORS fields
     are conditional. Content-Type is described by response content, not a duplicate ignored header. HTTP
     framing headers are server-owned.

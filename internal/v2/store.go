@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"math"
@@ -18,6 +19,7 @@ var (
 	errBoardNotFound       = errors.New("board not found")
 	errIdentityConflict    = errors.New("user identity conflicts with an existing workspace user")
 	errStoreClosed         = errors.New("workspace store is closed")
+	errWriteFenced         = errors.New("writes are fenced after an uncertain commit")
 	errDurableStateChanged = errors.New("durable board snapshot differs from accepted state")
 )
 
@@ -36,14 +38,17 @@ type store struct {
 	recovering       map[string]bool  // failed sources and fresh destinations reserved under mu
 	recoveryContexts map[string]recoveryContext
 	principals       []user
-	writeUncertain   bool
-	uncertainBoardID string
 	events           *eventHub
 	ownerNotices     *ownerNoticeWorker
 	publishers       map[string]*automaticPublisher
 	admissions       map[string]*boardAdmission
 
+	workspaceWriteFenced bool
+	uncertainBoards      map[string]snapshot // tentative identities, never accepted state
+
 	durableValidation durableValidationCache
+
+	beforeRecoverySettlement func(string) error // fault injection at the final reference replacement
 }
 
 func resolveStoreRoot(root string) (string, error) {
@@ -347,10 +352,15 @@ func checkNamedSnapshot(path string, file snapshotFile) error {
 	return nil
 }
 
-func (s *store) fencedBoard() string {
+func (s *store) fencedBoardContaining(contains func(snapshot) bool) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.uncertainBoardID
+	for id, candidate := range s.uncertainBoards {
+		if contains(candidate) {
+			return id
+		}
+	}
+	return ""
 }
 
 // readback uses durable state only after the writer fences an uncertain commit.
@@ -364,7 +374,7 @@ func (s *store) readback(id string) (snapshot, error) {
 	if !exists {
 		return snapshot{}, errBoardNotFound
 	}
-	if !s.writeUncertain || s.uncertainBoardID != id {
+	if _, fenced := s.uncertainBoards[id]; !fenced {
 		return cloneSnapshot(current), nil
 	}
 	return s.readDurableLocked(id)
@@ -373,10 +383,10 @@ func (s *store) readback(id string) (snapshot, error) {
 func (s *store) create(value snapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.writable(); err != nil {
+	id := value.Board.ID
+	if err := s.writable(id); err != nil {
 		return err
 	}
-	id := value.Board.ID
 	if canonical, ok := normalizeID(id); !ok || canonical != id {
 		return errInvalidSnapshot
 	}
@@ -411,7 +421,7 @@ func (s *store) update(id string, expected uint64, change func(*snapshot) error)
 func (s *store) updateChecked(id string, matches func(snapshot) bool, change func(*snapshot) error) (snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.writable(); err != nil {
+	if err := s.writable(id); err != nil {
 		return snapshot{}, err
 	}
 	current, ok := s.boards[id]
@@ -468,12 +478,14 @@ func (s *store) prepareUpdateLocked(current snapshot, change func(*snapshot) err
 	return next, true, nil
 }
 
-func (s *store) writable() error {
+// The caller holds the store lock. Refusing a subsequent operation does not
+// make that operation uncertain: none of its writes have started.
+func (s *store) writable(id string) error {
 	if s.lease == nil {
 		return errStoreClosed
 	}
-	if s.writeUncertain {
-		return errWriteUncertain
+	if _, fenced := s.uncertainBoards[id]; s.workspaceWriteFenced || fenced {
+		return errWriteFenced
 	}
 	return nil
 }
@@ -527,16 +539,7 @@ func (s *store) writeCommitChecked(value snapshot, data []byte, beforeReplace, b
 	id := value.Board.ID
 	if err := s.writeSnapshotWithRecoveryReference(value, data, beforeReplace, beforePending); err != nil {
 		if errors.Is(err, errWriteUncertain) {
-			// Fence new commits until restart reloads the disk outcome. Durable
-			// inspection remains available for resolving the uncertain mutation.
-			s.writeUncertain = true
-			s.uncertainBoardID = id
-			if publisher := s.publishers[id]; publisher != nil {
-				publisher.disable()
-			}
-			if s.ownerNotices != nil {
-				s.ownerNotices.settingsChanged(id, false)
-			}
+			s.fenceUncertainCommit(value, data)
 		}
 		return err
 	}
@@ -559,6 +562,42 @@ func (s *store) writeCommitChecked(value snapshot, data []byte, beforeReplace, b
 	return nil
 }
 
+func (s *store) fenceUncertainCommit(candidate snapshot, data []byte) {
+	id := candidate.Board.ID
+	if s.uncertainBoards == nil {
+		s.uncertainBoards = make(map[string]snapshot)
+	}
+	s.uncertainBoards[id] = candidate
+	previous, exists := s.boards[id]
+	// Shared user definitions and board creation can affect the whole workspace.
+	// For an existing board with unchanged users, reserve both possible sets of
+	// resource identities and verify that disk still names one of our outcomes.
+	if !exists || !slices.Equal(previous.Users, candidate.Users) || !s.knownUncertainSnapshot(previous, data) {
+		s.workspaceWriteFenced = true
+		for boardID := range s.boards {
+			s.cancelBoardEffects(boardID)
+		}
+	} else {
+		s.cancelBoardEffects(id)
+	}
+}
+
+func (s *store) knownUncertainSnapshot(previous snapshot, data []byte) bool {
+	path := s.snapshotPath(previous.Board.ID)
+	file, err := s.readDurableFileLocked(path)
+	return err == nil && (bytes.Equal(file.data, data) || compareAcceptedSnapshot(previous, file.data) == nil) &&
+		checkNamedSnapshot(path, file) == nil && s.checkBoardsDirectory(filepath.Dir(path)) == nil
+}
+
+func (s *store) cancelBoardEffects(id string) {
+	if publisher := s.publishers[id]; publisher != nil {
+		publisher.disable()
+	}
+	if s.ownerNotices != nil {
+		s.ownerNotices.settingsChanged(id, false)
+	}
+}
+
 func (s *store) checkIdentities(value snapshot, reuseUsers bool) error {
 	if err := s.checkIdentityConflicts(value, reuseUsers); err != nil {
 		return err
@@ -576,18 +615,24 @@ func (s *store) checkIdentityConflicts(value snapshot, reuseUsers bool) error {
 		resourceIDs(value.Comments, func(c comment) string { return c.ID }),
 		resourceIDs(value.Attachments, func(a attachment) string { return a.ID })
 	additionalIDs := auditedResourceIDs(value.Activity)
-	for id, other := range s.boards {
-		if id == value.Board.ID {
-			continue
-		}
-		if snapshotContainsIdentity(other, map[string]bool{value.Board.ID: true}) ||
+	conflicts := func(other snapshot) bool {
+		id := other.Board.ID
+		return id != value.Board.ID && (snapshotContainsIdentity(other, map[string]bool{value.Board.ID: true}) ||
 			snapshotContainsIdentity(value, map[string]bool{id: true}) ||
 			hasResourceID(other.Cards, cardIDs, func(c card) string { return c.ID }) ||
 			hasResourceID(other.Lanes, laneIDs, func(l lane) string { return l.ID }) ||
 			hasResourceID(other.Comments, commentIDs, func(c comment) string { return c.ID }) ||
 			hasResourceID(other.Attachments, attachmentIDs, func(a attachment) string { return a.ID }) ||
 			snapshotContainsIdentity(other, additionalIDs) ||
-			snapshotContainsIdentity(value, auditedResourceIDs(other.Activity)) {
+			snapshotContainsIdentity(value, auditedResourceIDs(other.Activity)))
+	}
+	for _, other := range s.boards {
+		if conflicts(other) {
+			return errIdentityConflict
+		}
+	}
+	for _, candidate := range s.uncertainBoards {
+		if conflicts(candidate) {
 			return errIdentityConflict
 		}
 	}

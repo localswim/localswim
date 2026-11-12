@@ -126,7 +126,7 @@ func (s *store) readNotificationRoute(id string) (notificationRoute, error) {
 func (s *store) ownerNoticeSettings(id string) (notifications, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.lease == nil || s.writeUncertain && s.uncertainBoardID == id {
+	if s.writable(id) != nil {
 		return notifications{}, false
 	}
 	route, err := s.readNotificationRoute(id)
@@ -153,11 +153,8 @@ func (s *store) patchNotificationRoute(id, actor, expected string, fields map[st
 	if err != nil {
 		return notificationRoute{}, err
 	}
-	if s.lease == nil {
-		return notificationRoute{}, errStoreClosed
-	}
-	if s.writeUncertain && s.uncertainBoardID == id {
-		return notificationRoute{}, errWriteUncertain
+	if err := s.writable(id); err != nil {
+		return notificationRoute{}, err
 	}
 	if !matchesStrongTag(expected, current.entityTag()) {
 		return notificationRoute{}, errStale

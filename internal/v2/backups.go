@@ -41,7 +41,7 @@ type backupCapture struct {
 func (s *store) captureBackupSnapshot(boardID, actor string, expected uint64) (backupCapture, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if err := s.writable(); err != nil {
+	if err := s.writable(boardID); err != nil {
 		return backupCapture{}, err
 	}
 	state, ok := s.boards[boardID]
@@ -498,7 +498,7 @@ func (x *request) backupFailure(err error) {
 		x.problem(503, "outcome_unknown", "Inspect the backup by its original ID before attempting another capture.", "unknown", nil)
 	case errors.Is(err, errBackupExists):
 		x.problem(409, "conflict", "The backup ID already exists.", "", nil)
-	case errors.Is(err, errMissing), errors.Is(err, errForbidden), errors.Is(err, errStale):
+	case errors.Is(err, errMissing), errors.Is(err, errForbidden), errors.Is(err, errStale), errors.Is(err, errWriteFenced):
 		x.fail(err)
 	default:
 		x.problem(503, "unavailable", "Durable backup content is unavailable.", "", nil)

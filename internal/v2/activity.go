@@ -187,7 +187,7 @@ func (s *store) observeActivity(id string) (activityObservation, error) {
 		return activityObservation{}, errBoardNotFound
 	}
 	observation := activityObservation{state: cloneSnapshot(current), observedAt: canonicalTime(time.Now())}
-	if s.writeUncertain && s.uncertainBoardID == id {
+	if _, fenced := s.uncertainBoards[id]; fenced {
 		// Preserve durable inspection after an uncertain write, without
 		// certifying the result as continuous accepted writer activity.
 		if saved, err := s.readDurableLocked(id); err == nil {

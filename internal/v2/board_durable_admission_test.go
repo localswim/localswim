@@ -67,7 +67,7 @@ func TestM82FinalCheckRefusesSnapshotChangedAfterRead(t *testing.T) {
 				t.Fatalf("refused write changed the replacement bytes: %v", err)
 			}
 			current, exists := s.accepted(initial.Board.ID)
-			if !exists || !reflect.DeepEqual(current, initial) || s.fencedBoard() != "" {
+			if !exists || !reflect.DeepEqual(current, initial) || len(s.uncertainBoards) != 0 {
 				t.Fatal("refused write changed or fenced the accepted snapshot")
 			}
 			pending, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".pending-*.tmp"))
@@ -102,7 +102,7 @@ func TestM82RefusesSnapshotChangedDuringWritePreparation(t *testing.T) {
 		t.Fatalf("refused write changed the replacement bytes: %v", err)
 	}
 	current, exists := s.accepted(initial.Board.ID)
-	if !exists || !reflect.DeepEqual(current, initial) || s.fencedBoard() != "" {
+	if !exists || !reflect.DeepEqual(current, initial) || len(s.uncertainBoards) != 0 {
 		t.Fatal("refused write changed or fenced the accepted snapshot")
 	}
 	pending, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".pending-*.tmp"))

@@ -268,6 +268,8 @@ func (x *request) fail(err error) {
 		x.problem(409, "conflict", "The replacement must retain existing grants, resource permissions, and the default priority.", "", nil)
 	case errors.Is(err, errWriteUncertain):
 		x.problem(503, "outcome_unknown", "Inspect the saved state before attempting another write.", "unknown", nil)
+	case errors.Is(err, errWriteFenced):
+		x.problem(503, "unavailable", "Writes are paused after an uncertain commit. Inspect the saved state.", "", nil)
 	case errors.Is(err, errServiceDraining):
 		x.problem(503, "unavailable", "The service is draining.", "", nil)
 	case errors.Is(err, errFinalPublish):

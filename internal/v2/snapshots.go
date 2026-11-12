@@ -81,7 +81,7 @@ func (s *store) recoverSnapshot(boardID, actor, eventID string, matches func(sna
 	if !validSnapshotOperationID(eventID) || (backupID != nil && !validSnapshotOperationID(*backupID)) {
 		return snapshot{}, invalid("id", "Expected a UUIDv7.")
 	}
-	if err := s.writable(); err != nil {
+	if err := s.writable(boardID); err != nil {
 		return snapshot{}, err
 	}
 	current, exists := s.boards[boardID]
@@ -117,6 +117,11 @@ func (s *store) recoverSnapshot(boardID, actor, eventID string, matches func(sna
 		return snapshot{}, invalid("board.publishing", "Use PATCH to reconcile publishing settings before restoring this snapshot.")
 	}
 	for _, other := range s.boards {
+		if snapshotContainsIdentity(other, map[string]bool{eventID: true}) {
+			return snapshot{}, errIdentityConflict
+		}
+	}
+	for _, other := range s.uncertainBoards {
 		if snapshotContainsIdentity(other, map[string]bool{eventID: true}) {
 			return snapshot{}, errIdentityConflict
 		}

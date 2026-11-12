@@ -73,7 +73,7 @@ func (s *store) captureBoardPublication(id string) (publicationCapture, error) {
 	s.mu.RLock()
 	var captured backupCapture
 	value, ok := s.boards[id]
-	err := s.writable()
+	err := s.writable(id)
 	if err == nil && ok && value.Board.Availability == "open" && value.Board.Publishing.Enabled {
 		captured, err = s.captureSnapshotLocked(value)
 	} else {

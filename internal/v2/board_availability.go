@@ -98,7 +98,7 @@ func (s *store) patchBoard(id, availability string, matches func(snapshot) bool,
 }
 
 func (s *store) boardForPatchLocked(id string, matches func(snapshot) bool, allowed func(snapshot) bool) (snapshot, error) {
-	if err := s.writable(); err != nil {
+	if err := s.writable(id); err != nil {
 		return snapshot{}, err
 	}
 	current, exists := s.boards[id]
@@ -154,7 +154,7 @@ func (s *store) closeBoard(id string, matches func(snapshot) bool, allowed func(
 }
 
 func (s *store) finishBoardCloseLocked(current, next snapshot, data []byte) error {
-	if err := s.writable(); err != nil {
+	if err := s.writable(next.Board.ID); err != nil {
 		return err
 	}
 	if s.boards[next.Board.ID].Board.Revision != current.Board.Revision {

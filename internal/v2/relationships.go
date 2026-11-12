@@ -280,7 +280,9 @@ func (x *request) relationshipResource(id string) {
 		return
 	}
 	if x.r.Method == http.MethodGet || x.r.Method == http.MethodHead {
-		if boardID := x.service.store.fencedBoard(); boardID != "" {
+		if boardID := x.service.store.fencedBoardContaining(func(candidate snapshot) bool {
+			return relationshipIndex(&candidate, id) >= 0
+		}); boardID != "" {
 			if state, ok := x.service.store.accepted(boardID); ok && state.can(x.actor, "read") {
 				x.readRelationship(boardID, id)
 				return

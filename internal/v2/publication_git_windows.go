@@ -176,7 +176,7 @@ func waitPublicationProcessHandle(process syscall.Handle, deadline time.Time) er
 }
 
 func (tree *publicationProcessTree) processHandles(deadline time.Time) ([]syscall.Handle, error) {
-	ids, err := tree.processIDs(deadline)
+	ids, err := readPublicationProcessIDs(deadline, tree.queryProcessIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -208,29 +208,55 @@ func (tree *publicationProcessTree) processHandles(deadline time.Time) ([]syscal
 	return processes, nil
 }
 
-func (tree *publicationProcessTree) processIDs(deadline time.Time) ([]uintptr, error) {
-	// JOBOBJECT_BASIC_PROCESS_ID_LIST has two DWORD counts followed by
-	// a variable-length array of pointer-sized process IDs.
+// JOBOBJECT_BASIC_PROCESS_ID_LIST has two DWORD counts followed by
+// a variable-length array of pointer-sized process IDs.
+const publicationProcessIDSize = unsafe.Sizeof(uintptr(0))
+const publicationProcessListHeaderSlots = int(unsafe.Sizeof([2]uint32{}) / publicationProcessIDSize)
+
+func (tree *publicationProcessTree) queryProcessIDs(buffer []uintptr) (assigned, listed uint32, err error) {
 	const basicProcessIDList = 3
-	const slotSize = unsafe.Sizeof(uintptr(0))
-	const headerSlots = int(unsafe.Sizeof([2]uint32{}) / slotSize)
-	for capacity := 16; time.Now().Before(deadline); {
-		buffer := make([]uintptr, headerSlots+capacity)
-		result, _, err := queryPublicationJob.Call(uintptr(tree.job), basicProcessIDList, uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer))*slotSize, 0)
-		if result == 0 && !errors.Is(err, syscall.ERROR_MORE_DATA) {
+	result, _, err := queryPublicationJob.Call(uintptr(tree.job), basicProcessIDList, uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer))*publicationProcessIDSize, 0)
+	if result != 0 {
+		err = nil
+	}
+	counts := (*[2]uint32)(unsafe.Pointer(&buffer[0]))
+	return counts[0], counts[1], err
+}
+
+func readPublicationProcessIDs(deadline time.Time, query func([]uintptr) (uint32, uint32, error)) ([]uintptr, error) {
+	const retryInterval = 10 * time.Millisecond
+	const headerSlots = publicationProcessListHeaderSlots
+	// The API accepts a DWORD buffer length in bytes.
+	const maxCapacity = uint32((1<<32-1)/publicationProcessIDSize - uintptr(headerSlots))
+	buffer := make([]uintptr, headerSlots+16)
+	for time.Now().Before(deadline) {
+		capacity := uint32(len(buffer) - headerSlots)
+		clear(buffer[:headerSlots])
+		assigned, listed, err := query(buffer)
+		if err != nil && !errors.Is(err, syscall.ERROR_MORE_DATA) {
 			return nil, err
 		}
-		counts := (*[2]uint32)(unsafe.Pointer(&buffer[0]))
-		assigned, listed := int(counts[0]), int(counts[1])
-		if result != 0 && listed == assigned && listed <= capacity {
-			return buffer[headerSlots : headerSlots+listed], nil
+		if !time.Now().Before(deadline) {
+			break
 		}
-		if assigned <= capacity {
+		if listed > capacity || listed > assigned || assigned > maxCapacity {
 			return nil, errors.New("publication process list could not be read")
 		}
-		capacity = assigned
+		if assigned > capacity {
+			buffer = make([]uintptr, headerSlots+int(assigned))
+			continue
+		}
+		if err != nil {
+			return nil, errors.New("publication process list could not be read")
+		}
+		if listed == assigned {
+			return buffer[headerSlots : headerSlots+int(listed)], nil
+		}
+		// Members can exit after the assigned count is sampled. Require a
+		// complete list before opening any handles or terminating the job.
+		time.Sleep(min(retryInterval, time.Until(deadline)))
 	}
-	return nil, errors.New("publication process inspection timed out")
+	return nil, errPublicationCleanupDeadline
 }
 
 func (tree *publicationProcessTree) close() {

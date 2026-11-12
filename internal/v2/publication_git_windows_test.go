@@ -10,7 +10,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 	"unicode/utf16"
 )
@@ -81,4 +83,81 @@ func TestM90WindowsStartupHelper(t *testing.T) {
 		os.Exit(2)
 	}
 	os.Exit(1)
+}
+
+func TestWindowsPublicationProcessIDsRetryShortSnapshot(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		calls := 0
+		ids, err := readPublicationProcessIDs(start.Add(time.Second), func(buffer []uintptr) (uint32, uint32, error) {
+			slots := buffer[publicationProcessListHeaderSlots:]
+			calls++
+			switch calls {
+			case 1:
+				if len(slots) != 16 {
+					t.Fatalf("initial process list capacity = %d", len(slots))
+				}
+				return 17, 16, syscall.ERROR_MORE_DATA
+			case 2:
+				if len(slots) != 17 {
+					t.Fatalf("grown process list capacity = %d", len(slots))
+				}
+				slots[0] = 123
+				return 2, 1, nil
+			case 3:
+				if !time.Now().After(start) {
+					t.Fatal("short snapshot retry did not wait")
+				}
+				slots[0] = 456
+				return 1, 1, nil
+			default:
+				t.Fatalf("unexpected process list query %d", calls)
+				return 0, 0, nil
+			}
+		})
+		if err != nil || !slices.Equal(ids, []uintptr{456}) || calls != 3 {
+			t.Fatalf("process list = %v, err = %v, queries = %d", ids, err, calls)
+		}
+	})
+}
+
+func TestWindowsPublicationProcessIDsPersistentShortSnapshot(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		deadline := time.Now().Add(25 * time.Millisecond)
+		calls := 0
+		ids, err := readPublicationProcessIDs(deadline, func([]uintptr) (uint32, uint32, error) {
+			calls++
+			if !time.Now().Before(deadline) || calls > 3 {
+				t.Fatal("short snapshot was queried past its retry budget")
+			}
+			return 2, 1, nil
+		})
+		if ids != nil || !errors.Is(err, errPublicationCleanupDeadline) || calls != 3 || !time.Now().Equal(deadline) {
+			t.Fatalf("process list = %v, err = %v, queries = %d, time past deadline = %v", ids, err, calls, time.Since(deadline))
+		}
+	})
+}
+
+func TestWindowsPublicationProcessIDsRejectLateSnapshot(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		deadline := time.Now().Add(time.Millisecond)
+		ids, err := readPublicationProcessIDs(deadline, func([]uintptr) (uint32, uint32, error) {
+			time.Sleep(time.Until(deadline))
+			return 0, 0, nil
+		})
+		if ids != nil || !errors.Is(err, errPublicationCleanupDeadline) {
+			t.Fatalf("late process list = %v, err = %v", ids, err)
+		}
+	})
+}
+
+func TestWindowsPublicationProcessIDsRejectQueryError(t *testing.T) {
+	calls := 0
+	ids, err := readPublicationProcessIDs(time.Now().Add(time.Second), func([]uintptr) (uint32, uint32, error) {
+		calls++
+		return 0, 0, syscall.ERROR_ACCESS_DENIED
+	})
+	if ids != nil || !errors.Is(err, syscall.ERROR_ACCESS_DENIED) || calls != 1 {
+		t.Fatalf("process list = %v, err = %v, queries = %d", ids, err, calls)
+	}
 }

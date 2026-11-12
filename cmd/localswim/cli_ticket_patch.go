@@ -12,20 +12,12 @@ import (
 type cliTicketTarget struct {
 	boardID string
 	ticket  uint64
+	cardID  string
 }
 
-func isTicketCardPatch(name string) bool {
-	switch name {
-	case "card move", "card assign", "card archive", "card unarchive":
-		return true
-	default:
-		return false
-	}
-}
-
-func executeTicketCardPatch(api *client.Client, cmd cliCommand, output io.Writer) error {
+func executeTicketCardPatch(api *client.Client, cmd cliCommand, input io.Reader, output io.Writer) error {
 	request := cmd.ticketPatch
-	target, err := api.ResolveTicket(request.boardID, request.ticket)
+	target, err := resolveCardTarget(api, request)
 	if err != nil {
 		return err
 	}
@@ -33,10 +25,17 @@ func executeTicketCardPatch(api *client.Client, cmd cliCommand, output io.Writer
 		return fmt.Errorf("revision mismatch (expected %d, current %d)", *cmd.revision, target.CardRevision)
 	}
 
-	reply, err := api.PatchTicketCard(target, cmd.body)
+	body := cmd.body
+	if cmd.inputPath != "" {
+		body, err = readCardInput(cmd, input)
+		if err != nil {
+			return err
+		}
+	}
+	reply, err := api.PatchTicketCard(target, body)
 	if err != nil {
 		if errors.Is(err, client.ErrMutationOutcomeUnknown) {
-			return fmt.Errorf("%w. Read back with localswim card get %s", err, target.CardID)
+			return fmt.Errorf("%w. Read back with localswim card get %s %s", err, target.BoardID, target.CardID)
 		}
 		return err
 	}
@@ -47,13 +46,13 @@ func executeTicketCardPatch(api *client.Client, cmd cliCommand, output io.Writer
 		Revision uint64 `json:"revision"`
 	}
 	if err := jsonv2.Unmarshal(reply.JSON, &confirmed); err != nil || confirmed.ID != target.CardID ||
-		confirmed.BoardID != request.boardID || confirmed.Ticket != request.ticket ||
+		confirmed.BoardID != request.boardID || confirmed.Ticket != target.Ticket ||
 		confirmed.Revision < target.CardRevision || confirmed.Revision > maxCLIRevision {
-		return fmt.Errorf("service did not confirm the addressed card. %w. Read back with localswim card get %s before retrying",
-			client.ErrMutationOutcomeUnknown, target.CardID)
+		return fmt.Errorf("service did not confirm the addressed card. %w. Read back with localswim card get %s %s before retrying",
+			client.ErrMutationOutcomeUnknown, target.BoardID, target.CardID)
 	}
 	if err := writeCLIJSON(output, reply.JSON); err != nil {
-		return errors.New("service accepted the mutation, but its response could not be written")
+		return fmt.Errorf("service accepted the mutation, but its response could not be written. Read back with localswim card get %s %s", target.BoardID, target.CardID)
 	}
 	return nil
 }

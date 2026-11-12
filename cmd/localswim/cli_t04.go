@@ -19,16 +19,16 @@ func parseT04(name string, args []string) (cliCommand, error) {
 	cmd := cliCommand{method: http.MethodGet, resource: "/relationships"}
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	count := 1
+	count := 2
 	switch name {
 	case "relationship create":
-		cmd.method, count = http.MethodPost, 3
+		cmd.method, count = http.MethodPost, 4
 	case "relationship patch":
-		cmd.method, count = http.MethodPatch, 2
+		cmd.method, count = http.MethodPatch, 3
 	case "relationship remove":
 		cmd.method = http.MethodDelete
 	case "attachment download":
-		cmd.resource, count = "/attachments", 2
+		cmd.resource, count = "/attachments", 3
 	}
 	cmd.relationshipWrite = cmd.method != http.MethodGet
 	var revision, relationshipID string
@@ -71,41 +71,17 @@ func parseT04(name string, args []string) (cliCommand, error) {
 		cmd.resource += "/" + strings.ToLower(flags.Arg(1))
 		return cmd, nil
 	}
-	if name == "relationship create" {
-		if flags.NArg() != 3 || !boardIDPattern.MatchString(flags.Arg(0)) || !boardIDPattern.MatchString(flags.Arg(2)) {
-			return cmd, errors.New("relationship create requires SOURCE_CARD_ID KIND TARGET_CARD_ID")
-		}
-		kind := strings.ToLower(flags.Arg(1))
-		if !cliRelationshipKind(kind) {
-			return cmd, errors.New("kind must be blocks, duplicates, references, or relates_to")
-		}
-		source, target := strings.ToLower(flags.Arg(0)), strings.ToLower(flags.Arg(2))
-		if source == target {
-			return cmd, errors.New("relationship endpoints must be different cards")
-		}
-		if relationshipID == "" {
-			relationshipID = newUploadID()
-		}
-		cmd.relationshipID = strings.ToLower(relationshipID)
-		cmd.body, _ = json.Marshal(map[string]string{"id": cmd.relationshipID, "source_card_id": source, "target_card_id": target, "kind": kind})
-	} else if count == 2 && flags.NArg() < count {
-		return cmd, errors.New("expected a UUIDv4 resource ID followed by FILE or -")
+	if flags.NArg() != count || !boardIDPattern.MatchString(flags.Arg(0)) ||
+		!boardIDPattern.MatchString(flags.Arg(1)) || (count == 3 && flags.Arg(2) == "") {
+		return cmd, errors.New("expected BOARD_ID RESOURCE_ID and the documented arguments")
 	}
-	if name != "relationship create" && (flags.NArg() != count || !boardIDPattern.MatchString(flags.Arg(0)) ||
-		(count == 2 && flags.Arg(1) == "")) {
-		return cmd, errors.New("expected a UUIDv4 resource ID and the documented arguments")
-	}
-	id := strings.ToLower(flags.Arg(0))
-	if name == "relationship create" {
-		cmd.resource = "/relationships"
-	} else {
-		cmd.resource += "/" + id
-	}
+	cmd.boardID = strings.ToLower(flags.Arg(0))
+	cmd.resource += "/" + strings.ToLower(flags.Arg(1))
 	switch name {
 	case "relationship patch":
-		cmd.inputPath = flags.Arg(1)
+		cmd.inputPath = flags.Arg(2)
 	case "attachment download":
-		cmd.downloadPath = flags.Arg(1)
+		cmd.downloadPath = flags.Arg(2)
 	}
 	return cmd, nil
 }
@@ -129,82 +105,40 @@ func prepareRelationshipWrite(api *client.Client, cmd cliCommand, body json.RawM
 			return nil, "", "", errors.New("CLI supplies the board ID and validator as required")
 		}
 	}
-	var board client.Response
-	var ifMatch string
-	var err error
-	if cmd.method == http.MethodPost {
-		var sourceID, targetID string
-		_ = json.Unmarshal(fields["source_card_id"], &sourceID)
-		_ = json.Unmarshal(fields["target_card_id"], &targetID)
-		sourceCard, source, readErr := relationshipEndpoint(api, sourceID)
-		if readErr != nil {
-			return nil, "", "", readErr
-		}
-		_, target, readErr := relationshipEndpoint(api, targetID)
-		if readErr != nil {
-			return nil, "", "", readErr
-		}
-		if source != target {
-			return nil, "", "", errors.New("relationship endpoints must belong to the same board")
-		}
-		cmd.boardID = source
-		board, err = parentBoard(api, sourceCard.JSON)
-	} else {
-		current, readErr := api.Do(http.MethodGet, cmd.resource, nil, "")
-		if readErr != nil {
-			return nil, "", "", readErr
-		}
-		if current.ETag == "" {
-			return nil, "", "", errors.New("service did not return a strong relationship ETag")
-		}
-		if cmd.method == http.MethodDelete {
-			var relationship struct {
-				ID      string `json:"id"`
-				BoardID string `json:"board_id"`
-			}
-			if json.Unmarshal(current.JSON, &relationship) != nil ||
-				relationship.ID != strings.TrimPrefix(cmd.resource, "/relationships/") ||
-				!boardIDPattern.MatchString(relationship.BoardID) {
-				return nil, "", "", errors.New("service did not confirm the requested relationship and its board")
-			}
-			if relationship.BoardID != cmd.boardID {
-				return nil, "", "", errors.New("relationship does not belong to BOARD_ID")
-			}
-		}
-		if err := checkCLIRevision(cmd.revision, current.JSON); err != nil {
-			return nil, "", "", err
-		}
-		ifMatch = current.ETag
-		board, err = parentBoard(api, current.JSON)
-	}
+	current, err := api.Do(http.MethodGet, cmd.resource, nil, "")
 	if err != nil {
 		return nil, "", "", err
 	}
-	if board.ETag == "" {
-		return nil, "", "", errors.New("service did not return a strong board ETag")
+	if err := validateBoardResource(current.JSON, cmd.boardID, strings.TrimPrefix(cmd.resource, "/relationships/")); err != nil {
+		return nil, "", "", err
 	}
-	if cmd.method == http.MethodPost {
-		if err := checkCLIRevision(cmd.revision, board.JSON); err != nil {
-			return nil, "", "", err
-		}
+	if current.ETag == "" {
+		return nil, "", "", errors.New("service did not return a strong relationship ETag")
+	}
+	if err := checkCLIRevision(cmd.revision, current.JSON); err != nil {
+		return nil, "", "", err
+	}
+	board, err := parentBoard(api, current.JSON)
+	if err != nil {
+		return nil, "", "", err
 	}
 	if cmd.method == http.MethodDelete {
-		return nil, ifMatch, board.ETag, nil
+		return nil, current.ETag, board.ETag, nil
 	}
 	fields["expected_board_etag"], _ = json.Marshal(board.ETag)
-	if cmd.method == http.MethodPost {
-		fields["board_id"], _ = json.Marshal(cmd.boardID)
-	}
 	encoded, err := json.Marshal(fields)
 	if len(encoded) > maxCLIInput {
 		return nil, "", "", errors.New("request exceeds 96 MiB after adding resource validators")
 	}
-	return encoded, ifMatch, "", err
+	return encoded, current.ETag, "", err
 }
 
-func downloadAttachment(api *client.Client, resource, output string, stdout io.Writer) error {
+func downloadAttachment(api *client.Client, boardID, resource, output string, stdout io.Writer) error {
 	reply, err := api.Do(http.MethodGet, resource, nil, "")
 	if err != nil {
+		return err
+	}
+	if err := validateBoardResource(reply.JSON, boardID, strings.TrimPrefix(resource, "/attachments/")); err != nil {
 		return err
 	}
 	var metadata struct {
@@ -249,21 +183,6 @@ func downloadAttachment(api *client.Client, resource, output string, stdout io.W
 
 func cliRelationshipKind(kind string) bool {
 	return kind == "blocks" || kind == "duplicates" || kind == "references" || kind == "relates_to"
-}
-
-func relationshipEndpoint(api *client.Client, id string) (client.Response, string, error) {
-	reply, err := api.Do(http.MethodGet, "/cards/"+id, nil, "")
-	if err != nil {
-		return client.Response{}, "", err
-	}
-	var card struct {
-		ID      string `json:"id"`
-		BoardID string `json:"board_id"`
-	}
-	if json.Unmarshal(reply.JSON, &card) != nil || !boardIDPattern.MatchString(card.ID) || strings.ToLower(card.ID) != id || !boardIDPattern.MatchString(card.BoardID) {
-		return client.Response{}, "", errors.New("service did not return the requested card and a valid parent board ID")
-	}
-	return reply, strings.ToLower(card.BoardID), nil
 }
 
 func confirmedRelationshipCreation(body, response json.RawMessage) bool {

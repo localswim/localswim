@@ -13,3 +13,11 @@ func (c *Client) PatchTicketCard(target TicketTarget, body json.RawMessage) (Res
 	}
 	return c.doWithContentType(http.MethodPatch, "/cards/"+target.CardID, body, target.CardETag, "", target.BoardETag, false)
 }
+
+// PostTicketComment preserves the board revision used to resolve the card.
+func (c *Client) PostTicketComment(target TicketTarget, body json.RawMessage) (Response, error) {
+	if !IsEntityTag(target.CardETag) || !IsEntityTag(target.BoardETag) {
+		return Response{}, errors.New("comment post requires strong card and board ETags")
+	}
+	return c.doWithContentType(http.MethodPost, "/comments", body, "", "", target.BoardETag, false)
+}

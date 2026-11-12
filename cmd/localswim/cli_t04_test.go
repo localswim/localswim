@@ -22,10 +22,10 @@ func TestT04CLIArchiveAndCover(t *testing.T) {
 		value string
 	}{
 		{[]string{"list", "--archived", "only", t03Board}, "archived", "only"},
-		{[]string{"archive", t03Card}, "archived", "true"},
-		{[]string{"unarchive", t03Card}, "archived", "false"},
-		{[]string{"cover", t03Card, t03Lane}, "cover_attachment_id", fmt.Sprintf("%q", t03Lane)},
-		{[]string{"cover", t03Card, "none"}, "cover_attachment_id", "null"},
+		{[]string{"archive", t03Board, t03Card}, "archived", "true"},
+		{[]string{"unarchive", t03Board, t03Card}, "archived", "false"},
+		{[]string{"cover", t03Board, t03Card, t03Lane}, "cover_attachment_id", fmt.Sprintf("%q", t03Lane)},
+		{[]string{"cover", t03Board, t03Card, "none"}, "cover_attachment_id", "null"},
 	} {
 		t.Run(tc.args[0]+"/"+tc.value, func(t *testing.T) {
 			cmd, err := parseCLI(append([]string{"card"}, tc.args...))
@@ -40,7 +40,7 @@ func TestT04CLIArchiveAndCover(t *testing.T) {
 			}
 			var fields map[string]json.RawMessage
 			if err := json.Unmarshal(cmd.body, &fields); err != nil || string(fields[tc.field]) != tc.value ||
-				cmd.method != http.MethodPatch || cmd.edit.validatorPath != "/cards/"+t03Card {
+				cmd.method != http.MethodPatch || (cmd.ticketPatch == nil && cmd.edit.validatorPath != "/cards/"+t03Card) {
 				t.Fatalf("unexpected card patch: %+v", cmd)
 			}
 		})
@@ -66,10 +66,14 @@ func TestT04CLIRelationshipValidatorsAndUnknownOutcome(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch {
 				case r.Method == http.MethodGet && (r.URL.Path == t03Root+"/cards/"+t03Card || r.URL.Path == t03Root+"/cards/"+t03Lane):
-					_, _ = fmt.Fprintf(w, `{"id":%q,"board_id":%q}`, strings.TrimPrefix(r.URL.Path, t03Root+"/cards/"), t03Board)
+					writeScopeCard(w, strings.TrimPrefix(r.URL.Path, t03Root+"/cards/"), t03Board, 12)
 				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/boards/"+t03Board:
+					if tc.method == http.MethodPost {
+						writeScopeView(w, r)
+						return
+					}
 					w.Header().Set("ETag", t03BoardTag)
-					_, _ = io.WriteString(w, "{\"revision\":12}")
+					_, _ = fmt.Fprintf(w, `{"id":%q,"revision":12}`, t03Board)
 				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/relationships/"+t03Lane:
 					w.Header().Set("ETag", t03ResourceTag)
 					_, _ = fmt.Fprintf(w, "{\"id\":%q,\"board_id\":%q,\"revision\":7}", t03Lane, t03Board)
@@ -89,7 +93,11 @@ func TestT04CLIRelationshipValidatorsAndUnknownOutcome(t *testing.T) {
 						}
 					} else {
 						var fields map[string]string
-						if err := json.NewDecoder(r.Body).Decode(&fields); err != nil || fields["expected_board_etag"] != t03BoardTag ||
+						expectedBoardTag := t03BoardTag
+						if tc.method == http.MethodPost {
+							expectedBoardTag = scopeBoardTag
+						}
+						if err := json.NewDecoder(r.Body).Decode(&fields); err != nil || fields["expected_board_etag"] != expectedBoardTag ||
 							(tc.method == http.MethodPost && fields["board_id"] != t03Board) {
 							t.Error("relationship mutation did not bind the board JSON validator")
 						}
@@ -116,7 +124,7 @@ func TestT04CLIRelationshipValidatorsAndUnknownOutcome(t *testing.T) {
 			if tc.method == http.MethodPost {
 				id = t03Card
 			}
-			args := []string{"relationship", tc.action, "--revision", tc.revision, id}
+			args := []string{"relationship", tc.action, "--revision", tc.revision, t03Board, id}
 			if tc.method == http.MethodPost {
 				args = append(args, "references", t03Lane)
 			} else if tc.method == http.MethodDelete {
@@ -160,9 +168,9 @@ func TestRelationshipRemoveBoardContext(t *testing.T) {
 	for _, tc := range []struct {
 		name, response, message string
 	}{
-		{"wrong board", fmt.Sprintf(`{"id":%q,"board_id":%q,"revision":7}`, t03Lane, t03Card), "does not belong to BOARD_ID"},
-		{"wrong relationship", fmt.Sprintf(`{"id":%q,"board_id":%q,"revision":7}`, t03Card, t03Board), "did not confirm the requested relationship"},
-		{"missing board", fmt.Sprintf(`{"id":%q,"revision":7}`, t03Lane), "did not confirm the requested relationship"},
+		{"wrong board", fmt.Sprintf(`{"id":%q,"board_id":%q,"revision":7}`, t03Lane, t03Card), "did not confirm"},
+		{"wrong relationship", fmt.Sprintf(`{"id":%q,"board_id":%q,"revision":7}`, t03Card, t03Board), "did not confirm"},
+		{"missing board", fmt.Sprintf(`{"id":%q,"revision":7}`, t03Lane), "did not confirm"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var requests atomic.Int32
@@ -227,7 +235,7 @@ func TestT04CLIDownloadVerifiesBeforePublishing(t *testing.T) {
 				}
 			}
 			var stdout, stderr bytes.Buffer
-			code := runCLIWithInput([]string{"attachment", "download", t03Lane, output}, nil, &stdout, &stderr, t03Env(server.URL))
+			code := runCLIWithInput([]string{"attachment", "download", t03Board, t03Lane, output}, nil, &stdout, &stderr, t03Env(server.URL))
 			if code != tc.code {
 				t.Fatalf("code %d: %s", code, &stderr)
 			}
@@ -263,23 +271,20 @@ func attachmentFixture(id string, data []byte) []byte {
 
 func TestRelationshipCreatePositionalArguments(t *testing.T) {
 	for _, kind := range []string{"blocks", "duplicates", "references", "relates_to"} {
-		cmd, err := parseCLI([]string{"relationship", "create", "--id", strings.ToUpper(t03Board), "--revision", "12", strings.ToUpper(t03Card), strings.ToUpper(kind), strings.ToUpper(t03Lane)})
+		cmd, err := parseCLI([]string{"relationship", "create", "--id", strings.ToUpper(t03Board), "--revision", "12", strings.ToUpper(t03Board), strings.ToUpper(t03Card), strings.ToUpper(kind), strings.ToUpper(t03Lane)})
 		if err != nil {
 			t.Fatal(err)
 		}
-		var fields map[string]string
-		if err := json.Unmarshal(cmd.body, &fields); err != nil {
-			t.Fatal(err)
-		}
-		if fields["id"] != t03Board || fields["source_card_id"] != t03Card || fields["target_card_id"] != t03Lane || fields["kind"] != kind || cmd.inputPath != "" || cmd.revision == nil || *cmd.revision != 12 {
+		request := cmd.ticketRelationship
+		if request == nil || request.linkID != t03Board || request.boardID != t03Board || request.cardID != t03Card || request.relatedID != t03Lane || request.kind != kind || cmd.inputPath != "" || cmd.revision == nil || *cmd.revision != 12 {
 			t.Fatalf("unexpected parsed create: %+v", cmd)
 		}
 	}
 	for _, args := range [][]string{
-		{t03Board, "-"}, {t03Card, "blocks"}, {t03Card, "blocks", t03Lane, "extra"},
-		{"--id", "", t03Card, "blocks", t03Lane}, {"--id", "invalid", t03Card, "blocks", t03Lane},
-		{"--revision", "0", t03Card, "blocks", t03Lane}, {t03Card, "blocks", strings.ToUpper(t03Card)},
-		{t03Card, "blocked_by", t03Lane}, {t03Card, "DUPLICATED_BY", t03Lane}, {t03Card, "referenced_by", t03Lane},
+		{t03Board, "-"}, {t03Card, "blocks"}, {t03Board, t03Card, "blocks", t03Lane, "extra"},
+		{"--id", "", t03Board, t03Card, "blocks", t03Lane}, {"--id", "invalid", t03Board, t03Card, "blocks", t03Lane},
+		{"--revision", "0", t03Board, t03Card, "blocks", t03Lane}, {t03Board, t03Card, "blocks", strings.ToUpper(t03Card)},
+		{t03Board, t03Card, "blocked_by", t03Lane}, {t03Board, t03Card, "DUPLICATED_BY", t03Lane}, {t03Board, t03Card, "referenced_by", t03Lane},
 	} {
 		if _, err := parseCLI(append([]string{"relationship", "create"}, args...)); err == nil {
 			t.Fatalf("accepted invalid arguments: %q", args)
@@ -300,7 +305,7 @@ func TestRelationshipCreatePreflightAndSingleAttempt(t *testing.T) {
 						t.Fatal(err)
 					}
 					submittedID = fields["id"]
-					if !boardIDPattern.MatchString(submittedID) || fields["source_card_id"] != t03Card || fields["target_card_id"] != t03Lane || fields["kind"] != "blocks" || fields["board_id"] != t03Board || fields["expected_board_etag"] != t03BoardTag {
+					if !boardIDPattern.MatchString(submittedID) || fields["source_card_id"] != t03Card || fields["target_card_id"] != t03Lane || fields["kind"] != "blocks" || fields["board_id"] != t03Board || fields["expected_board_etag"] != scopeBoardTag {
 						t.Errorf("unexpected create body: %v", fields)
 					}
 					if scenario == "server conflict" {
@@ -312,7 +317,7 @@ func TestRelationshipCreatePreflightAndSingleAttempt(t *testing.T) {
 						return
 					}
 					w.Header().Set("ETag", t03ResourceTag)
-					w.Header().Set("X-Board-ETag", t03BoardTag)
+					w.Header().Set("X-Board-ETag", scopeBoardTag)
 					w.WriteHeader(http.StatusCreated)
 					var saved map[string]any
 					if err := json.Unmarshal(relationshipCreateFixture(submittedID, "blocks"), &saved); err != nil {
@@ -352,16 +357,20 @@ func TestRelationshipCreatePreflightAndSingleAttempt(t *testing.T) {
 					if !source && scenario == "cross board" {
 						board = t03Card
 					}
-					_, _ = fmt.Fprintf(w, `{"id":%q,"board_id":%q}`, id, board)
+					writeScopeCard(w, id, board, 12)
 				case t03Root + "/boards/" + t03Board:
 					if scenario == "board failure" {
 						w.WriteHeader(http.StatusNotFound)
 						return
 					}
 					if scenario != "missing board tag" {
-						w.Header().Set("ETag", t03BoardTag)
+						w.Header().Set("X-Board-ETag", scopeBoardTag)
 					}
-					_, _ = io.WriteString(w, `{"revision":12}`)
+					if scenario == "missing board tag" {
+						_, _ = io.WriteString(w, `{}`)
+					} else {
+						writeScopeView(w, r)
+					}
 				default:
 					t.Errorf("unexpected request %s", r.URL.Path)
 					w.WriteHeader(http.StatusNotFound)
@@ -377,15 +386,15 @@ func TestRelationshipCreatePreflightAndSingleAttempt(t *testing.T) {
 			if scenario == "output failure" {
 				stdout = relationshipFailedWriter{}
 			}
-			code := runCLIWithInput([]string{"relationship", "create", "--revision", revision, t03Card, "BLOCKS", t03Lane}, nil, stdout, &errout, t03Env(server.URL))
+			code := runCLIWithInput([]string{"relationship", "create", "--revision", revision, t03Board, t03Card, "BLOCKS", t03Lane}, nil, stdout, &errout, t03Env(server.URL))
 			wantsWrite := scenario == "server conflict" || scenario == "unknown" || scenario == "success" || scenario == "empty success" || strings.HasPrefix(scenario, "saved ") || scenario == "missing revision" || scenario == "output failure"
 			if writes != 0 && !wantsWrite || wantsWrite && writes != 1 || (code == 0) != (scenario == "success") {
 				t.Fatalf("code=%d writes=%d: %s", code, writes, &errout)
 			}
-			if wantsWrite && scenario != "server conflict" && scenario != "success" && scenario != "output failure" && (!strings.Contains(errout.String(), "Mutation outcome unknown") || !strings.Contains(errout.String(), "relationship get "+submittedID)) {
+			if wantsWrite && scenario != "server conflict" && scenario != "success" && scenario != "output failure" && (!strings.Contains(errout.String(), "Mutation outcome unknown") || !strings.Contains(errout.String(), "relationship get "+t03Board+" "+submittedID)) {
 				t.Fatalf("missing readback ID: %s", &errout)
 			}
-			if scenario == "output failure" && !strings.Contains(errout.String(), "relationship get "+submittedID) {
+			if scenario == "output failure" && !strings.Contains(errout.String(), "relationship get "+t03Board+" "+submittedID) {
 				t.Fatalf("output failure lost readback ID: %s", &errout)
 			}
 		})

@@ -79,7 +79,7 @@ func TestBackupVerifyStdinAndCleanup(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "backup.zip")
 	out.Reset()
-	if code := runCLIWithInput([]string{"backup", "download", backup.ID, path}, nil, &out, &stderr, getenv); code != 0 {
+	if code := runCLIWithInput([]string{"backup", "download", board.ID, backup.ID, path}, nil, &out, &stderr, getenv); code != 0 {
 		t.Fatal(&stderr)
 	}
 	data, err := os.ReadFile(path)

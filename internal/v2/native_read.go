@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"slices"
 )
 
 // NativeBoard holds one validated committed snapshot read directly from disk.
@@ -49,6 +50,11 @@ func (b NativeBoard) ListCardsJSON(rawQuery string) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	for id := range filters.laneIDs {
+		if !slices.ContainsFunc(b.state.Lanes, func(item lane) bool { return item.ID == id }) {
+			return nil, invalid("lane_id", "Lane does not belong to this board.")
+		}
+	}
 	result, err := filters.page(b.state, rawQuery)
 	if err != nil {
 		return nil, err
@@ -73,4 +79,24 @@ func marshalNativePage(result map[string]any) (json.RawMessage, error) {
 		return nil, errors.New("saved board response exceeds 96 MiB")
 	}
 	return data, nil
+}
+
+// InspectCardJSON resolves a card within this validated saved board.
+func (b NativeBoard) InspectCardJSON(cardID string, includeProse bool) (json.RawMessage, error) {
+	for _, card := range b.state.Cards {
+		if card.ID == cardID {
+			return b.InspectTicketJSON(card.Ticket, includeProse)
+		}
+	}
+	return nil, errors.New("card does not belong to the saved board")
+}
+
+// CardTicket resolves the board-local ticket for native card-filtered reads.
+func (b NativeBoard) CardTicket(cardID string) (uint64, error) {
+	for _, card := range b.state.Cards {
+		if card.ID == cardID {
+			return card.Ticket, nil
+		}
+	}
+	return 0, errors.New("card does not belong to the saved board")
 }

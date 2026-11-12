@@ -107,13 +107,18 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		count = 1
 	}
 	requiresInput := name == "card patch" || name == "card description" || name == "comment post" || name == "lane add" || name == "attachment upload"
-	if requiresInput && flags.NArg() < count {
+	cardOperation := strings.HasPrefix(name, "card ") || name == "comment post" || name == "attachment upload"
+	if cardOperation || name != "lane add" {
+		count++
+	}
+	if requiresInput && commentText == nil && flags.NArg() < count {
 		return cmd, errors.New("expected a UUIDv4 resource ID followed by FILE or -")
 	}
-	ticketPatch := isTicketCardPatch(name) && flags.NArg() == count+1
-	ticketAttachment := (name == "attachment upload" || name == "attachment detach") && flags.NArg() == 3
-	if (!ticketPatch && !ticketAttachment && flags.NArg() != count) || !boardIDPattern.MatchString(flags.Arg(0)) {
-		return cmd, errors.New("expected a UUIDv4 resource ID and the documented arguments")
+	if name == "attachment detach" && flags.NArg() == 3 {
+		count = 3
+	}
+	if flags.NArg() != count || !boardIDPattern.MatchString(flags.Arg(0)) {
+		return cmd, errors.New("expected BOARD_ID and the documented arguments")
 	}
 	var optionErr error
 	flags.Visit(func(f *flag.Flag) {
@@ -136,32 +141,48 @@ func parseT03(name string, args []string) (cliCommand, error) {
 		return cmd, optionErr
 	}
 	value := flags.Arg(1)
-	if ticketPatch || ticketAttachment {
-		ticket, err := parseCLITicket(flags.Arg(1))
+	if cardOperation {
+		target, err := parseCardTarget(flags.Arg(0), flags.Arg(1))
 		if err != nil {
 			return cmd, err
 		}
-		target := &cliTicketTarget{boardID: strings.ToLower(flags.Arg(0)), ticket: ticket}
-		if ticketPatch {
-			cmd.ticketPatch = target
-		} else {
-			cmd.ticketAttachment = target
-		}
+		cmd.boardID = target.boardID
 		value = flags.Arg(2)
-	}
-	if cmd.method == http.MethodGet || cmd.detachAttachment {
-		id := flags.Arg(0)
-		if ticketAttachment {
-			id = value
-			if !boardIDPattern.MatchString(id) {
-				return cmd, errors.New("expected a UUIDv4 attachment ID")
-			}
+		if name == "attachment upload" {
+			cmd.ticketAttachment = target
+		} else if name == "comment post" {
+			cmd.ticketComment = target
+		} else {
+			cmd.ticketPatch = target
 		}
-		cmd.resource += strings.ToLower(id)
-		return cmd, nil
-	}
-	if !ticketPatch && !ticketAttachment {
-		cmd.edit.idField, cmd.edit.id = field, flags.Arg(0)
+	} else {
+		cmd.boardID = strings.ToLower(flags.Arg(0))
+		if cmd.method == http.MethodGet || cmd.detachAttachment {
+			resourceID := flags.Arg(1)
+			if name == "attachment detach" && flags.NArg() == 3 {
+				var err error
+				cmd.ticketAttachment, err = parseCardTarget(cmd.boardID, flags.Arg(1))
+				if err != nil {
+					return cmd, err
+				}
+				resourceID = flags.Arg(2)
+			}
+			if !boardIDPattern.MatchString(resourceID) {
+				return cmd, errors.New("expected BOARD_ID RESOURCE_ID")
+			}
+			cmd.resource += strings.ToLower(resourceID)
+			return cmd, nil
+		}
+		cmd.edit.idField, cmd.edit.id = field, strings.ToLower(flags.Arg(1))
+		if name != "lane add" && !boardIDPattern.MatchString(cmd.edit.id) {
+			return cmd, errors.New("expected UUIDv4 resource ID")
+		}
+		if name == "lane add" {
+			cmd.edit.id = strings.ToLower(flags.Arg(0))
+		}
+		if name != "lane add" {
+			value = flags.Arg(2)
+		}
 		cmd.edit.validatorPath = validator + cmd.edit.id
 		if cmd.method == http.MethodPatch {
 			cmd.resource = cmd.edit.validatorPath
@@ -286,26 +307,19 @@ func parseCLIList(name string, args []string) (cliCommand, error) {
 		}
 	}
 	optionalCard := name == "comment list" || name == "relationship list"
-	switch {
-	case name == "attachment list":
-		if flags.NArg() != 1 || !boardIDPattern.MatchString(flags.Arg(0)) {
-			return cmd, errors.New("expected one UUIDv4 card ID")
+	if flags.NArg() < 1 || flags.NArg() > 2 || !boardIDPattern.MatchString(flags.Arg(0)) || (name == "attachment list" && flags.NArg() != 2) || (!optionalCard && name != "attachment list" && flags.NArg() != 1) {
+		return cmd, errors.New("expected BOARD_ID and optional CARD_ID|TICKET")
+	}
+	cmd.boardID = strings.ToLower(flags.Arg(0))
+	query.Set("board_id", cmd.boardID)
+	if flags.NArg() == 2 {
+		var err error
+		cmd.cardTarget, err = parseCardTarget(cmd.boardID, flags.Arg(1))
+		if err != nil {
+			return cmd, err
 		}
-		query.Set("card_id", flags.Arg(0))
-	case flags.NArg() < 1 || flags.NArg() > 2 || (flags.NArg() == 2 && !optionalCard) ||
-		!boardIDPattern.MatchString(flags.Arg(0)):
-		if optionalCard {
-			return cmd, errors.New("expected a UUIDv4 board ID and optional UUIDv4 card ID")
-		}
-		return cmd, errors.New("expected one UUIDv4 board ID")
-	default:
-		cmd.boardID = flags.Arg(0)
-		query.Set("board_id", cmd.boardID)
-		if flags.NArg() == 2 {
-			if !boardIDPattern.MatchString(flags.Arg(1)) {
-				return cmd, errors.New("expected a UUIDv4 card ID")
-			}
-			query.Set("card_id", flags.Arg(1))
+		if cmd.cardTarget.cardID != "" {
+			query.Set("card_id", cmd.cardTarget.cardID)
 		}
 	}
 	cmd.resource += "?" + query.Encode()
@@ -325,6 +339,11 @@ func prepareT03(api *client.Client, cmd cliCommand, stdin io.Reader) (json.RawMe
 	current, err := api.Do(http.MethodGet, edit.validatorPath, nil, "")
 	if err != nil {
 		return nil, "", "", err
+	}
+	if edit.idField != "board_id" {
+		if err := validateBoardResource(current.JSON, cmd.boardID, edit.id); err != nil {
+			return nil, "", "", err
+		}
 	}
 	if current.ETag == "" {
 		return nil, "", "", errors.New("service did not return a strong resource ETag")
@@ -384,6 +403,12 @@ func parentBoard(api *client.Client, resource json.RawMessage) (client.Response,
 	board, err := api.Do(http.MethodGet, "/boards/"+parent.BoardID, nil, "")
 	if err != nil {
 		return client.Response{}, err
+	}
+	var identity struct {
+		ID string `json:"id"`
+	}
+	if json.Unmarshal(board.JSON, &identity) != nil || identity.ID != parent.BoardID {
+		return client.Response{}, errors.New("service did not confirm the parent board")
 	}
 	if board.ETag == "" {
 		return client.Response{}, errors.New("service did not return a strong board ETag")

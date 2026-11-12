@@ -459,7 +459,7 @@ func TestCLICardCreateUsesBoardRevisionAndDoesNotReplay(t *testing.T) {
 						t.Error("expected the board preflight")
 					}
 					w.Header().Set("ETag", boardTag)
-					w.Write([]byte(`{"revision":1}`))
+					w.Write([]byte(`{"id":"` + boardID + `","revision":1}`))
 				case 2:
 					var body map[string]string
 					if r.Method != http.MethodPost || r.URL.Path != prefix+"/cards" ||
@@ -480,7 +480,7 @@ func TestCLICardCreateUsesBoardRevisionAndDoesNotReplay(t *testing.T) {
 						w.Header().Set("X-Board-ETag", boardTag)
 					}
 					w.WriteHeader(tc.status)
-					w.Write([]byte(`{"id":"` + cardID + `"}`))
+					w.Write([]byte(`{"id":"` + cardID + `","board_id":"` + boardID + `"}`))
 				default:
 					t.Error("CLI replayed the mutation")
 				}
@@ -500,7 +500,7 @@ func TestCLICardCreateUsesBoardRevisionAndDoesNotReplay(t *testing.T) {
 				body = strings.NewReader("file input must replace stdin")
 			}
 			if source != "" {
-				args = append(args, source)
+				args = append(args, boardID, source)
 			}
 			exit := runCLIWithInput(args, body, &stdout, &stderr, func(key string) string { return env[key] })
 			if exit != tc.exit || int(requests.Load()) != tc.requests || !strings.Contains(stderr.String(), tc.stderr) {
@@ -549,15 +549,14 @@ func TestCLIJSONCommandsRequireInputSource(t *testing.T) {
 }
 
 func TestCLICardCreateRejectsInvalidBoardInputBeforeNetwork(t *testing.T) {
+	const boardID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 	for _, body := range []string{
-		`{}`,
-		`{"board_id":null}`,
-		`{"board_id":12}`,
-		`{"board_id":"invalid"}`,
-		`{"board_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","expected_board_etag":"untrusted"}`,
+		`{"board_id":null}`, `{"board_id":12}`, `{"board_id":"invalid"}`,
+		`{"board_id":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}`,
+		`{"expected_board_etag":"untrusted"}`,
 	} {
 		var stdout, stderr bytes.Buffer
-		exit := runCLIWithInput([]string{"card", "create", "-"}, strings.NewReader(body), &stdout, &stderr, func(key string) string {
+		exit := runCLIWithInput([]string{"card", "create", boardID, "-"}, strings.NewReader(body), &stdout, &stderr, func(key string) string {
 			if key == "LOCALSWIM_URL" {
 				return "http://127.0.0.1:1"
 			}
@@ -570,17 +569,18 @@ func TestCLICardCreateRejectsInvalidBoardInputBeforeNetwork(t *testing.T) {
 }
 
 func TestCLICardGetPaths(t *testing.T) {
-	const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-	for _, tc := range []struct {
-		args []string
-		path string
-	}{
-		{[]string{"card", "get", id}, "/cards/" + id},
-		{[]string{"card", "get", id, "19"}, "/cards?archived=include&board_id=" + id + "&ticket=19"},
-	} {
-		command, err := parseCLI(tc.args)
-		if err != nil || command.resource != tc.path || command.method != http.MethodGet {
-			t.Fatalf("card get %v: %+v, %v", tc.args, command, err)
+	const board = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	const card = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+	for _, ref := range []string{card, "19"} {
+		command, err := parseCLI([]string{"card", "get", board, ref})
+		if err != nil || command.cardTarget == nil || command.cardTarget.boardID != board || command.method != http.MethodGet {
+			t.Fatalf("card get %s: %+v, %v", ref, command, err)
+		}
+		if ref == card && command.cardTarget.cardID != card {
+			t.Fatal("lost card ID")
+		}
+		if ref == "19" && command.cardTarget.ticket != 19 {
+			t.Fatal("lost ticket")
 		}
 	}
 }
@@ -607,7 +607,7 @@ func TestCLIPolicyGrantPreservesOtherGrantsAndUsesBothValidators(t *testing.T) {
 				t.Error("expected board inspection")
 			}
 			w.Header().Set("ETag", boardTag)
-			w.Write([]byte(`{"revision":1,"policy_id":"` + policyID + `"}`))
+			w.Write([]byte(`{"id":"` + boardID + `","revision":1,"policy_id":"` + policyID + `"}`))
 		case 2, 5:
 			if r.Method != http.MethodGet || r.URL.Path != prefix+"/policies/"+policyID {
 				t.Error("expected policy read")
@@ -636,14 +636,14 @@ func TestCLIPolicyGrantPreservesOtherGrantsAndUsesBothValidators(t *testing.T) {
 	env := map[string]string{"LOCALSWIM_URL": server.URL, "LOCALSWIM_TOKEN": "test-token"}
 	getenv := func(key string) string { return env[key] }
 	var stdout, stderr bytes.Buffer
-	args := []string{"policy", "grant", "--revision", "1", boardID, "-"}
+	args := []string{"policy", "grant", "--revision", "1", strings.ToUpper(boardID), "-"}
 	body := strings.NewReader(`{"create_grants":[` + newGrant + `]}`)
 	if exit := runCLIWithInput(args, body, &stdout, &stderr, getenv); exit != 0 || requests.Load() != 3 ||
 		!equalCLIJSON(t, stdout.Bytes(), []byte(`{"updated":true}`)) || stderr.Len() != 0 {
 		t.Fatalf("policy grant exit %d, requests %d, stderr %q", exit, requests.Load(), stderr.String())
 	}
 	stdout.Reset()
-	if exit := runCLIWithInput([]string{"policy", "get", boardID}, strings.NewReader(""), &stdout, &stderr, getenv); exit != 0 ||
+	if exit := runCLIWithInput([]string{"policy", "get", strings.ToUpper(boardID)}, strings.NewReader(""), &stdout, &stderr, getenv); exit != 0 ||
 		requests.Load() != 5 || !equalCLIJSON(t, stdout.Bytes(), []byte(policy)) || stderr.Len() != 0 {
 		t.Fatalf("policy get exit %d, requests %d, stderr %q", exit, requests.Load(), stderr.String())
 	}

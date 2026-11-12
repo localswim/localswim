@@ -39,8 +39,11 @@ func parseT06(name string, args []string) (cliCommand, error) {
 		return cmd, err
 	}
 	count := 1
-	if name == "backup download" {
+	if name == "backup info" || name == "ticket-order preview" {
 		count = 2
+	}
+	if name == "backup download" {
+		count = 3
 	}
 	if name == "card set-priorities" {
 		count = 3
@@ -48,14 +51,15 @@ func parseT06(name string, args []string) (cliCommand, error) {
 			return cmd, errors.New("card set-priorities requires BOARD_ID PRIORITY_ID and at least one card")
 		}
 	}
-	resourcePattern := boardIDPattern
-	if name == "backup info" || name == "backup download" {
-		resourcePattern = operationIDPattern
-	}
 	variadic := name == "ticket-order preview" || name == "card set-priorities"
-	if flags.NArg() < count || (!variadic && flags.NArg() != count) ||
-		!resourcePattern.MatchString(flags.Arg(0)) || (count == 2 && flags.Arg(1) == "") {
-		return cmd, errors.New("expected a valid resource ID and the documented arguments")
+	if flags.NArg() < count || (!variadic && flags.NArg() != count) || !boardIDPattern.MatchString(flags.Arg(0)) {
+		return cmd, errors.New("expected BOARD_ID and the documented resource arguments")
+	}
+	if (name == "backup info" || name == "backup download") && !operationIDPattern.MatchString(flags.Arg(1)) {
+		return cmd, errors.New("expected a UUIDv7 backup ID after BOARD_ID")
+	}
+	if name == "backup download" && flags.Arg(2) == "" {
+		return cmd, errors.New("backup download requires FILE or -")
 	}
 	var optionErr error
 	flags.Visit(func(f *flag.Flag) {
@@ -95,35 +99,62 @@ func parseT06(name string, args []string) (cliCommand, error) {
 		}
 		cmd.body, _ = json.Marshal(map[string]string{"id": strings.ToLower(backupID)})
 	case "backup info", "backup download":
-		cmd.resource = "/backups/" + id
+		cmd.boardID = id
+		cmd.resource = "/backups/" + strings.ToLower(flags.Arg(1))
 		if name == "backup download" {
-			cmd.downloadPath = flags.Arg(1)
+			cmd.downloadPath = flags.Arg(2)
 		}
 	case "ticket-order preview":
-		if flags.NArg() > 1001 {
-			return cmd, errors.New("preview accepts at most 1000 card IDs")
+		if flags.NArg() > 1002 || !boardIDPattern.MatchString(flags.Arg(1)) {
+			return cmd, errors.New("preview requires BOARD_ID LANE_ID and at most 1000 card selectors")
 		}
-		query := url.Values{"preview": {"true"}}
-		seen := make(map[string]bool)
-		for _, cardID := range flags.Args()[1:] {
-			cardID = strings.ToLower(cardID)
-			if !boardIDPattern.MatchString(cardID) || seen[cardID] {
-				return cmd, errors.New("preview requires distinct UUIDv4 card IDs")
+		cmd.boardID = id
+		cmd.resource = "/ticket-orders/" + strings.ToLower(flags.Arg(1)) + "?preview=true"
+		for _, reference := range flags.Args()[2:] {
+			if _, err := parseCardTarget(id, reference); err != nil {
+				return cmd, err
 			}
-			seen[cardID] = true
-			query.Add("card_id", cardID)
+			cmd.cardSelectors = append(cmd.cardSelectors, reference)
 		}
-		cmd.resource = "/ticket-orders/" + id + "?" + query.Encode()
 	}
 	return cmd, nil
 }
 
 func executeT06(api *client.Client, cmd cliCommand, stdout io.Writer) error {
+	var previewBoardTag string
 	if cmd.t06Action == "backup download" {
-		return downloadBackup(api, cmd.resource, cmd.downloadPath, stdout)
+		return downloadBackup(api, cmd.boardID, cmd.resource, cmd.downloadPath, stdout)
+	}
+	if cmd.t06Action == "ticket-order preview" {
+		laneID := strings.TrimSuffix(strings.TrimPrefix(cmd.resource, "/ticket-orders/"), "?preview=true")
+		lane, err := api.Do(http.MethodGet, "/lanes/"+laneID, nil, "")
+		if err != nil {
+			return err
+		}
+		if err := validateBoardResource(lane.JSON, cmd.boardID, laneID); err != nil {
+			return err
+		}
+		query := url.Values{"preview": {"true"}}
+		seen := make(map[string]bool, len(cmd.cardSelectors))
+		for _, reference := range cmd.cardSelectors {
+			selector, err := parseCardTarget(cmd.boardID, reference)
+			if err != nil {
+				return err
+			}
+			target, err := resolveCardTarget(api, selector)
+			if err != nil {
+				return err
+			}
+			if seen[target.CardID] || (previewBoardTag != "" && previewBoardTag != target.BoardETag) {
+				return errors.New("preview requires distinct cards from the same confirmed board revision")
+			}
+			seen[target.CardID], previewBoardTag = true, target.BoardETag
+			query.Add("card_id", target.CardID)
+		}
+		cmd.resource = "/ticket-orders/" + laneID + "?" + query.Encode()
 	}
 	body := cmd.body
-	if cmd.boardID != "" {
+	if cmd.boardID != "" && cmd.method != http.MethodGet {
 		fields := make(map[string]json.RawMessage)
 		if body != nil {
 			var err error
@@ -153,9 +184,14 @@ func executeT06(api *client.Client, cmd cliCommand, stdout io.Writer) error {
 				ID string `json:"id"`
 			}
 			_ = json.Unmarshal(body, &identity)
-			return fmt.Errorf("%w. Run backup info %s before retrying", err, identity.ID)
+			return fmt.Errorf("%w. Run backup info %s %s before retrying", err, cmd.boardID, identity.ID)
 		}
 		return err
+	}
+	if cmd.t06Action == "backup info" {
+		if err := validateBoardResource(reply.JSON, cmd.boardID, strings.TrimPrefix(cmd.resource, "/backups/")); err != nil {
+			return err
+		}
 	}
 	if cmd.t06Action == "backup create" {
 		var requested, returned struct {
@@ -163,16 +199,19 @@ func executeT06(api *client.Client, cmd cliCommand, stdout io.Writer) error {
 		}
 		_ = json.Unmarshal(body, &requested)
 		_ = json.Unmarshal(reply.JSON, &returned)
-		if requested.ID != returned.ID {
-			return fmt.Errorf("%w. Service returned a different backup ID. Run backup info %s before retrying", client.ErrMutationOutcomeUnknown, requested.ID)
+		if requested.ID != returned.ID || validateBoardResource(reply.JSON, cmd.boardID, requested.ID) != nil {
+			return fmt.Errorf("%w. Service returned a different backup identity. Run backup info %s %s before retrying", client.ErrMutationOutcomeUnknown, cmd.boardID, requested.ID)
 		}
 	}
 	if cmd.t06Action == "ticket-order preview" {
+		if previewBoardTag != "" && reply.BoardETag != previewBoardTag {
+			return errors.New("board changed after resolving the preview card selectors")
+		}
 		var preview struct {
 			BoardID       string `json:"board_id"`
 			BoardRevision uint64 `json:"board_revision"`
 		}
-		if json.Unmarshal(reply.JSON, &preview) != nil || !boardIDPattern.MatchString(preview.BoardID) ||
+		if json.Unmarshal(reply.JSON, &preview) != nil || !boardIDPattern.MatchString(preview.BoardID) || preview.BoardID != cmd.boardID ||
 			preview.BoardRevision == 0 || preview.BoardRevision > maxCLIRevision ||
 			reply.BoardETag != fmt.Sprintf("\"%s-%d\"", preview.BoardID, preview.BoardRevision) {
 			return errors.New("service did not return a valid preview board revision")
@@ -216,9 +255,12 @@ func t06BoardValidator(api *client.Client, cmd cliCommand, fields map[string]jso
 	return board.ETag, nil
 }
 
-func downloadBackup(api *client.Client, resource, output string, stdout io.Writer) error {
+func downloadBackup(api *client.Client, boardID, resource, output string, stdout io.Writer) error {
 	reply, err := api.Do(http.MethodGet, resource, nil, "")
 	if err != nil {
+		return err
+	}
+	if err := validateBoardResource(reply.JSON, boardID, strings.TrimPrefix(resource, "/backups/")); err != nil {
 		return err
 	}
 	var metadata struct {

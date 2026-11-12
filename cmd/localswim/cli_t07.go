@@ -60,20 +60,23 @@ func parseT07(name string, args []string) (cliCommand, error) {
 		flags.StringVar(&branch, "branch", "", "destination Git branch")
 		count = 2
 	case "ticket-order apply":
-		count = 2
+		count = 3
 	case "restoration get", "publication get":
+		count = 2
 	default:
 		return cmd, errors.New("unknown command")
 	}
 	if err := flags.Parse(args); err != nil {
 		return cmd, err
 	}
-	resourcePattern := boardIDPattern
-	if name == "restoration get" || name == "publication get" {
-		resourcePattern = operationIDPattern
+	if flags.NArg() != count || !boardIDPattern.MatchString(flags.Arg(0)) || (count > 1 && flags.Arg(1) == "") {
+		return cmd, errors.New("expected BOARD_ID and the documented arguments, including FILE or - where required")
 	}
-	if flags.NArg() != count || !resourcePattern.MatchString(flags.Arg(0)) || (count == 2 && flags.Arg(1) == "") {
-		return cmd, errors.New("expected a valid resource ID and the documented arguments, including FILE or - where required")
+	if (name == "restoration get" || name == "publication get") && !operationIDPattern.MatchString(flags.Arg(1)) {
+		return cmd, errors.New("expected a UUIDv7 operation ID after BOARD_ID")
+	}
+	if name == "ticket-order apply" && (!boardIDPattern.MatchString(flags.Arg(1)) || flags.Arg(2) == "") {
+		return cmd, errors.New("ticket-order apply requires BOARD_ID LANE_ID FILE|-")
 	}
 	var optionErr error
 	flags.Visit(func(f *flag.Flag) {
@@ -111,6 +114,7 @@ func parseT07(name string, args []string) (cliCommand, error) {
 		return cmd, optionErr
 	}
 	resourceID := strings.ToLower(flags.Arg(0))
+	cmd.boardID = resourceID
 	switch name {
 	case "card search", "card triage-order", "card lookup":
 		if limit < 1 || limit > 200 || len(cursor) > 2048 {
@@ -143,7 +147,7 @@ func parseT07(name string, args []string) (cliCommand, error) {
 		cmd.boardID = resourceID
 		cmd.resource = "/cards?" + query.Encode()
 	case "ticket-order apply":
-		cmd.method, cmd.resource, cmd.inputPath = http.MethodPut, "/ticket-orders/"+resourceID, flags.Arg(1)
+		cmd.method, cmd.resource, cmd.inputPath = http.MethodPut, "/ticket-orders/"+strings.ToLower(flags.Arg(1)), flags.Arg(2)
 	case "board restore":
 		cmd.method, cmd.resource, cmd.boardID, cmd.inputPath = http.MethodPut, "/snapshots/"+resourceID, resourceID, flags.Arg(1)
 	case "restoration create", "publication create":
@@ -167,9 +171,9 @@ func parseT07(name string, args []string) (cliCommand, error) {
 		}
 		cmd.body, _ = json.Marshal(fields)
 	case "restoration get":
-		cmd.resource = "/restorations/" + resourceID
+		cmd.resource = "/restorations/" + strings.ToLower(flags.Arg(1))
 	case "publication get":
-		cmd.resource = "/publications/" + resourceID
+		cmd.resource = "/publications/" + strings.ToLower(flags.Arg(1))
 	}
 	return cmd, nil
 }
@@ -177,6 +181,44 @@ func parseT07(name string, args []string) (cliCommand, error) {
 func executeT07(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.Writer) error {
 	if cmd.t07Action == "board restore" {
 		return executeBoardRestore(api, cmd, stdin, stdout)
+	}
+	if cmd.t07Action == "ticket-order apply" {
+		laneID := strings.TrimPrefix(cmd.resource, "/ticket-orders/")
+		lane, err := api.Do(http.MethodGet, "/lanes/"+laneID, nil, "")
+		if err != nil {
+			return err
+		}
+		if err := validateBoardResource(lane.JSON, cmd.boardID, laneID); err != nil {
+			return err
+		}
+	}
+	if cmd.t07Action == "restoration create" || cmd.t07Action == "publication create" {
+		var request struct {
+			BackupID string `json:"backup_id"`
+		}
+		if err := json.Unmarshal(cmd.body, &request); err != nil {
+			return err
+		}
+		backup, err := api.Do(http.MethodGet, "/backups/"+request.BackupID, nil, "")
+		if err != nil {
+			return err
+		}
+		if err := validateBoardResource(backup.JSON, cmd.boardID, request.BackupID); err != nil {
+			return err
+		}
+	}
+	if cmd.t07Action == "card search" || cmd.t07Action == "card triage-order" || cmd.t07Action == "card lookup" {
+		_, encoded, _ := strings.Cut(cmd.resource, "?")
+		query, _ := url.ParseQuery(encoded)
+		for _, laneID := range query["lane_id"] {
+			lane, err := api.Do(http.MethodGet, "/lanes/"+laneID, nil, "")
+			if err != nil {
+				return err
+			}
+			if err := validateBoardResource(lane.JSON, cmd.boardID, laneID); err != nil {
+				return err
+			}
+		}
 	}
 	body := []byte(cmd.body)
 	var err error
@@ -197,7 +239,7 @@ func executeT07(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 	var operationID string
 	switch cmd.t07Action {
 	case "ticket-order apply":
-		body, err = ticketOrderApplyBody(body, strings.TrimPrefix(cmd.resource, "/ticket-orders/"))
+		body, err = ticketOrderApplyBody(body, cmd.boardID, strings.TrimPrefix(cmd.resource, "/ticket-orders/"))
 		if err != nil {
 			return err
 		}
@@ -231,11 +273,18 @@ func executeT07(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 		}
 		return err
 	}
+	if cmd.t07Action == "restoration get" || cmd.t07Action == "publication get" {
+		_, resourceID, _ := strings.Cut(strings.TrimPrefix(cmd.resource, "/"), "/")
+		if err := validateBoardResource(reply.JSON, cmd.boardID, resourceID); err != nil {
+			return err
+		}
+	}
 	if operationID != "" {
 		var identity struct {
 			ID string `json:"id"`
 		}
-		if json.Unmarshal(reply.JSON, &identity) != nil || identity.ID != operationID {
+		if json.Unmarshal(reply.JSON, &identity) != nil || identity.ID != operationID ||
+			validateBoardResource(reply.JSON, cmd.boardID, operationID) != nil {
 			return fmt.Errorf("%w. Inspect original operation ID %s before retrying", client.ErrMutationOutcomeUnknown, operationID)
 		}
 	}
@@ -251,7 +300,7 @@ func executeT07(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 	return nil
 }
 
-func ticketOrderApplyBody(input []byte, laneID string) ([]byte, error) {
+func ticketOrderApplyBody(input []byte, boardID, laneID string) ([]byte, error) {
 	if !client.IsJSONObject(input) {
 		return nil, errors.New("expected a saved ticket-order preview JSON object")
 	}
@@ -266,7 +315,7 @@ func ticketOrderApplyBody(input []byte, laneID string) ([]byte, error) {
 			CardID string `json:"card_id"`
 		} `json:"proposed"`
 	}
-	if json.Unmarshal(input, &preview) != nil || preview.LaneID != laneID || !boardIDPattern.MatchString(preview.BoardID) || (preview.BoardRevision == 0 || preview.BoardRevision > maxCLIRevision) || preview.Proposed == nil || len(preview.Proposed) > 1000 {
+	if json.Unmarshal(input, &preview) != nil || preview.LaneID != laneID || preview.BoardID != boardID || !boardIDPattern.MatchString(preview.BoardID) || (preview.BoardRevision == 0 || preview.BoardRevision > maxCLIRevision) || preview.Proposed == nil || len(preview.Proposed) > 1000 {
 		return nil, errors.New("preview must contain its matching lane, board, proposed order, and original board_revision")
 	}
 	ids := make([]string, 0, len(preview.Proposed))

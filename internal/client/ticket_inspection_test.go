@@ -52,7 +52,7 @@ func TestResolveTicketReadsOnceAndChecksValidators(t *testing.T) {
 			}
 			target, err := api.ResolveTicket(boardID, 2)
 			if test.ok {
-				want := TicketTarget{BoardID: boardID, BoardRevision: 8, BoardETag: boardTag,
+				want := TicketTarget{Ticket: 2, BoardID: boardID, BoardRevision: 8, BoardETag: boardTag,
 					CardID: cardID, CardRevision: 4, CardETag: cardTag}
 				if err != nil || target != want {
 					t.Fatalf("target=%+v error=%v", target, err)

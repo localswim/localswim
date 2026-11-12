@@ -18,12 +18,12 @@ func TestT07ParseRequiredInputs(t *testing.T) {
 		{"card", "search", "--search", "text", "--search-content", t03Board},
 		{"card", "triage-order", "--lane", t03Lane, t03Board},
 		{"card", "lookup", t03Board},
-		{"ticket-order", "apply", t03Lane, "-"},
+		{"ticket-order", "apply", t03Board, t03Lane, "-"},
 		{"board", "restore", "--revision", "12", t03Board, "-"},
 		{"restoration", "create", "--id", t06Operation, t03Board, t06Operation},
 		{"publication", "create", "--id", t06Operation, t03Board, t06Operation},
-		{"restoration", "get", t06Operation},
-		{"publication", "get", t06Operation},
+		{"restoration", "get", t03Board, t06Operation},
+		{"publication", "get", t03Board, t06Operation},
 	} {
 		if _, err := parseCLI(args); err != nil {
 			t.Errorf("%v: %v", args, err)
@@ -92,6 +92,10 @@ func TestT07ApplyUsesSavedValidatorAndNeverRetries(t *testing.T) {
 		requests := 0
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requests++
+			if r.Method == http.MethodGet && r.URL.Path == t03Root+"/lanes/"+t03Lane {
+				fmt.Fprintf(w, `{"id":%q,"board_id":%q}`, t03Lane, t03Board)
+				return
+			}
 			var body struct {
 				BoardID  string   `json:"board_id"`
 				Expected string   `json:"expected_board_etag"`
@@ -105,9 +109,9 @@ func TestT07ApplyUsesSavedValidatorAndNeverRetries(t *testing.T) {
 		}))
 		input := fmt.Sprintf(`{"board_id":%q,"lane_id":%q,"board_revision":12,"proposed":[{"card_id":%q,"ticket":1}]}`, t03Board, t03Lane, t03Card)
 		var out, errout bytes.Buffer
-		code := runCLIWithInput([]string{"ticket-order", "apply", t03Lane, "-"}, strings.NewReader(input), &out, &errout, t03Env(server.URL))
+		code := runCLIWithInput([]string{"ticket-order", "apply", t03Board, t03Lane, "-"}, strings.NewReader(input), &out, &errout, t03Env(server.URL))
 		server.Close()
-		if code == 0 || requests != 1 {
+		if code == 0 || requests != 2 {
 			t.Fatalf("code=%d requests=%d", code, requests)
 		}
 	}
@@ -156,6 +160,10 @@ func TestT07OperationUnknownKeepsOriginalID(t *testing.T) {
 		writes := 0
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodGet {
+				if r.URL.Path == t03Root+"/backups/"+t06Operation {
+					io.WriteString(w, t06BackupMetadata(nil))
+					return
+				}
 				w.Header().Set("ETag", t03BoardTag)
 				io.WriteString(w, `{"revision":12}`)
 				return

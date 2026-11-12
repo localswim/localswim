@@ -72,10 +72,17 @@ A stale board revision refuses the edit. For multiple grants, use
 arrays. The service checks both the board and policy validators on every grant
 and preserves the other grants and default priority.
 
-Remove a relationship with `relationship remove BOARD_ID RELATIONSHIP_ID` or
-`relationship remove BOARD_ID SOURCE_TICKET KIND TARGET_TICKET`. Both forms
-require the board ID first. ID removal checks board membership, and optional
+Board-scoped CLI operations take `BOARD_ID` before their object selector. Card
+selectors accept `CARD_ID` or `TICKET`. Use
+`relationship remove BOARD_ID RELATIONSHIP_ID` to remove a relationship by ID,
+or `relationship remove BOARD_ID SOURCE_TICKET KIND TARGET_TICKET` to remove a
+ticket-based edge. ID removal checks board membership, and optional
 `--revision N` checks the relationship revision.
+
+Each card ID belongs to exactly one board. CLI and UI card references include
+that board context. REST routes remain UUID-addressed. Board-owned lane,
+relationship, attachment, backup, publication, and restoration operations put
+`BOARD_ID` before the resource ID.
 
 Export a board with `board export BOARD_ID FILE|-`. Use a new file path, or `-`
 for standard output. The default format is JSON.

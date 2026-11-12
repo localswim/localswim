@@ -24,7 +24,7 @@ func TestCLIPublishingUsesAddressedResource(t *testing.T) {
 				path, fields, tag := "/workspace", `"pinned_board_ids":["`+id+`"]`, `"workspace-revision-7"`
 				if scope == "board" {
 					args = append(args, strings.ToUpper(id))
-					path, fields, tag = "/boards/"+strings.ToUpper(id), `"id":"`+id+`","name":"  東京 <A>  "`, fmt.Sprintf("\"%s-7\"", id)
+					path, fields, tag = "/boards/"+id, `"id":"`+id+`","name":"  東京 <A>  "`, fmt.Sprintf("\"%s-7\"", id)
 					updatedTag = fmt.Sprintf("\"%s-8\"", id)
 				}
 				status := func(revision int, enabled bool) string {

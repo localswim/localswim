@@ -22,15 +22,15 @@ func TestM072RoutineWritesReuseValidators(t *testing.T) {
 	}{
 		{
 			name: "create", action: "create", readPath: "/boards/" + t03Board, validator: t03BoardTag,
-			method: http.MethodPost, writePath: "/cards", response: "{}",
+			method: http.MethodPost, writePath: "/cards", response: `{"board_id":"` + t03Board + `"}`,
 			args: []string{"--title", text, "--description", text, strings.ToUpper(t03Board), strings.ToUpper(t03Lane)},
 			body: map[string]any{"board_id": t03Board, "lane_id": t03Lane, "title": text, "description": text, "expected_board_etag": t03BoardTag},
 		},
 		{
-			name: "comment", action: "post", readPath: "/cards/" + t03Card, validator: t03ResourceTag,
-			method: http.MethodPost, writePath: "/comments", response: "{}",
-			args: []string{"--text", text, t03Card},
-			body: map[string]any{"card_id": t03Card, "text": text, "expected_card_etag": t03ResourceTag},
+			name: "comment", action: "post", readPath: "/cards/" + t03Card, validator: t03CardTag,
+			method: http.MethodPost, writePath: "/comments", response: `{"board_id":"` + t03Board + `","card_id":"` + t03Card + `"}`,
+			args: []string{"--text", text, t03Board, t03Card},
+			body: map[string]any{"card_id": t03Card, "text": text, "expected_card_etag": t03CardTag},
 		},
 		{
 			name: "batch", action: "set-priorities", readPath: "/boards/" + t03Board, validator: t03BoardTag,
@@ -44,11 +44,15 @@ func TestM072RoutineWritesReuseValidators(t *testing.T) {
 			t.Run(tc.name+"/"+revision, func(t *testing.T) {
 				var reads, writes atomic.Int32
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if tc.name == "comment" && t03ServeCardResolution(w, r) {
+						reads.Add(1)
+						return
+					}
 					switch {
 					case r.Method == http.MethodGet && r.URL.Path == t03Root+tc.readPath:
 						reads.Add(1)
 						w.Header().Set("ETag", tc.validator)
-						_, _ = io.WriteString(w, `{"revision":12}`)
+						_, _ = io.WriteString(w, `{"id":"`+t03Board+`","revision":12}`)
 					case r.Method == tc.method && r.URL.Path == t03Root+tc.writePath:
 						writes.Add(1)
 						var body map[string]any
@@ -74,8 +78,12 @@ func TestM072RoutineWritesReuseValidators(t *testing.T) {
 				args := append([]string{group, tc.action, "--revision", revision}, tc.args...)
 				var out, stderr bytes.Buffer
 				code := runCLIWithInput(args, nil, &out, &stderr, t03Env(server.URL))
-				if reads.Load() != 1 {
-					t.Fatalf("preflight reads = %d, want 1", reads.Load())
+				wantReads := int32(1)
+				if tc.name == "comment" {
+					wantReads = 2
+				}
+				if reads.Load() != wantReads {
+					t.Fatalf("preflight reads = %d, want %d", reads.Load(), wantReads)
 				}
 				if revision == "12" {
 					var compact bytes.Buffer
@@ -99,8 +107,8 @@ func TestM072ContextualHelpAndInputErrors(t *testing.T) {
 	for _, tc := range []struct {
 		group, action, option, input string
 	}{
-		{"card", "create", "--title", "JSON_FILE|-"},
-		{"comment", "post", "--text", "JSON_FILE|-"},
+		{"card", "create", "--title", "FILE|-"},
+		{"comment", "post", "--text", "FILE|-"},
 		{"card", "set-priorities", "PRIORITY_ID", "CARD_ID"},
 	} {
 		var out, stderr bytes.Buffer
@@ -118,15 +126,15 @@ func TestM072ContextualHelpAndInputErrors(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"card", "create"}, "accepts one JSON file or - for standard input"},
-		{[]string{"comment", "post", t03Card}, "followed by FILE or -"},
+		{[]string{"card", "create"}, "requires BOARD_ID FILE|-"},
+		{[]string{"comment", "post", t03Board, t03Card}, "followed by FILE or -"},
 		{[]string{"card", "set-priorities", t03Board}, "requires BOARD_ID PRIORITY_ID"},
 		{[]string{"card", "create", "--description", "text", t03Board, t03Lane}, "requires --title"},
 		{[]string{"card", "create", "--title", "\xff", t03Board, t03Lane}, "valid UTF-8"},
 		{[]string{"card", "create", "--title", "text", "card.json"}, "UUIDv4 board ID"},
-		{[]string{"comment", "post", "--text=", t03Card}, "nonempty valid UTF-8"},
-		{[]string{"comment", "post", "--text", "\xff", t03Card}, "nonempty valid UTF-8"},
-		{[]string{"comment", "post", "--text", "text", t03Card, "-"}, "documented arguments"},
+		{[]string{"comment", "post", "--text=", t03Board, t03Card}, "nonempty valid UTF-8"},
+		{[]string{"comment", "post", "--text", "\xff", t03Board, t03Card}, "nonempty valid UTF-8"},
+		{[]string{"comment", "post", "--text", "text", t03Board, t03Card, "-"}, "documented arguments"},
 		{[]string{"card", "set-priorities", t03Board, "", t03Card}, "UUIDv4 priority ID"},
 		{[]string{"card", "set-priorities", t03Board, t03Lane, "-"}, "distinct UUIDv4 card IDs"},
 		{[]string{"card", "set-priorities", t03Board, t03Lane, t03Card, strings.ToUpper(t03Card)}, "distinct UUIDv4 card IDs"},

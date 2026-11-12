@@ -148,11 +148,11 @@ func TestM071TicketParentAndLinks(t *testing.T) {
 	call(http.MethodGet, "/relationships/"+outgoingID, "")
 
 	loseRemoval.Store(true)
-	run(1, 2, "Read back with localswim relationship get "+outgoingID, "relationship", "remove", board.ID, "1", "references", "2")
+	run(1, 2, "Read back with localswim relationship get "+board.ID+" "+outgoingID, "relationship", "remove", board.ID, "1", "references", "2")
 	run(1, 1, "no relationship matches", "relationship", "remove", board.ID, "1", "references", "2")
 	call(http.MethodGet, "/relationships/"+incomingID, "")
 
-	run(1, 1, "does not belong to BOARD_ID", "relationship", "remove", t03Board, incomingID)
+	run(1, 1, "requested resource in BOARD_ID", "relationship", "remove", t03Board, incomingID)
 	run(1, 1, "revision mismatch", "relationship", "remove", "--revision", "1", board.ID, incomingID)
 	run(0, 3, "", "relationship", "remove", strings.ToUpper(board.ID), strings.ToUpper(incomingID))
 

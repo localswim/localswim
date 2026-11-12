@@ -19,13 +19,13 @@ const t06Operation = "019b1111-2222-7333-a444-555555555555"
 
 func TestT06ParseAndHelp(t *testing.T) {
 	for _, args := range [][]string{
-		{"lane", "set-key", "--revision", "12", t03Lane, "ready_now"},
+		{"lane", "set-key", "--revision", "12", t03Board, t03Lane, "ready_now"},
 		{"board", "get", "--view", "lanes", t03Board},
-		{"ticket-order", "preview", t03Lane, t03Card},
+		{"ticket-order", "preview", t03Board, t03Lane, t03Card},
 		{"card", "set-priorities", "--revision", "12", t03Board, t03Lane, t03Card},
 		{"backup", "create", "--id", t06Operation, "--revision", "12", t03Board},
-		{"backup", "info", t06Operation},
-		{"backup", "download", t06Operation, "-"},
+		{"backup", "info", t03Board, t06Operation},
+		{"backup", "download", t03Board, t06Operation, "-"},
 	} {
 		if _, err := parseCLI(args); err != nil {
 			t.Errorf("%v: %v", args, err)
@@ -34,7 +34,6 @@ func TestT06ParseAndHelp(t *testing.T) {
 	for _, args := range [][]string{
 		{"card", "set-priorities", t03Board},
 		{"card", "set-priorities", "--revision", "0", t03Board, t03Lane, t03Card},
-		{"ticket-order", "preview", t03Lane, t03Card, strings.ToUpper(t03Card)},
 		{"backup", "create", "--id", "bad", t03Board},
 		{"backup", "download", t06Operation},
 		{"board", "get", "--view", "other", t03Board},
@@ -43,7 +42,7 @@ func TestT06ParseAndHelp(t *testing.T) {
 			t.Errorf("accepted %v", args)
 		}
 	}
-	for _, command := range []string{"lane set-key", "card set-priorities", "ticket-order preview", "backup create", "backup info BACKUP_ID", "backup download", "board get [--view lanes]"} {
+	for _, command := range []string{"lane set-key", "card set-priorities", "ticket-order preview", "backup create", "backup info BOARD_ID BACKUP_ID", "backup download", "board get [--view lanes]"} {
 		if !strings.Contains(cliHelp, command) {
 			t.Errorf("help missing %q", command)
 		}
@@ -112,10 +111,18 @@ func TestT06ReadViews(t *testing.T) {
 		}
 		switch r.URL.Path {
 		case t03Root + "/boards/" + t03Board:
+			if r.URL.Query().Get("view") == "ticket" {
+				writeScopeView(w, r)
+				return
+			}
 			if r.URL.Query().Get("view") != "lanes" {
 				t.Error("missing lane view")
 			}
 			io.WriteString(w, `{"board":{},"lanes":[],"cards":[]}`)
+		case t03Root + "/lanes/" + t03Lane:
+			fmt.Fprintf(w, `{"id":%q,"board_id":%q}`, t03Lane, t03Board)
+		case t03Root + "/cards/" + t03Card:
+			writeScopeCard(w, t03Card, t03Board, 12)
 		case t03Root + "/ticket-orders/" + t03Lane:
 			w.Header().Set("X-Board-ETag", fmt.Sprintf("\"%s-12\"", t03Board))
 			if r.URL.Query().Get("preview") != "true" || r.URL.Query().Get("card_id") != t03Card {
@@ -127,7 +134,7 @@ func TestT06ReadViews(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	for _, args := range [][]string{{"board", "get", "--view", "lanes", t03Board}, {"ticket-order", "preview", t03Lane, t03Card}} {
+	for _, args := range [][]string{{"board", "get", "--view", "lanes", t03Board}, {"ticket-order", "preview", t03Board, t03Lane, t03Card}} {
 		var out, errOut bytes.Buffer
 		if code := runCLIWithInput(args, strings.NewReader(""), &out, &errOut, t03Env(server.URL)); code != 0 {
 			t.Fatalf("%v: %s", args, &errOut)
@@ -152,7 +159,7 @@ func TestT06BackupInfoOnlyReadsMetadata(t *testing.T) {
 	}))
 	defer server.Close()
 	var out, stderr bytes.Buffer
-	code := runCLIWithInput([]string{"backup", "info", t06Operation}, strings.NewReader(""), &out, &stderr, t03Env(server.URL))
+	code := runCLIWithInput([]string{"backup", "info", t03Board, t06Operation}, strings.NewReader(""), &out, &stderr, t03Env(server.URL))
 	var compact bytes.Buffer
 	if code != 0 || stderr.Len() != 0 || json.Compact(&compact, out.Bytes()) != nil || compact.String() != metadata {
 		t.Fatalf("backup info returned code=%d, output=%q, error=%s", code, &out, &stderr)
@@ -189,7 +196,7 @@ func TestT06BackupDownloadVerifiedBeforeOutput(t *testing.T) {
 			defer server.Close()
 			path := filepath.Join(t.TempDir(), "backup.zip")
 			var out, errOut bytes.Buffer
-			code := runCLIWithInput([]string{"backup", "download", t06Operation, path}, strings.NewReader(""), &out, &errOut, t03Env(server.URL))
+			code := runCLIWithInput([]string{"backup", "download", t03Board, t06Operation, path}, strings.NewReader(""), &out, &errOut, t03Env(server.URL))
 			if corrupt {
 				if code == 0 {
 					t.Fatal("corrupt download accepted")
@@ -223,7 +230,7 @@ func TestT06BackupUnknownIncludesIdentityWithoutRetry(t *testing.T) {
 	defer server.Close()
 	var out, errOut bytes.Buffer
 	code := runCLIWithInput([]string{"backup", "create", "--id", t06Operation, t03Board}, strings.NewReader(""), &out, &errOut, t03Env(server.URL))
-	if code == 0 || writes != 1 || !strings.Contains(errOut.String(), "Mutation outcome unknown") || !strings.Contains(errOut.String(), "backup info "+t06Operation) {
+	if code == 0 || writes != 1 || !strings.Contains(errOut.String(), "Mutation outcome unknown") || !strings.Contains(errOut.String(), "backup info "+t03Board+" "+t06Operation) {
 		t.Fatalf("unknown response %d %d %s", code, writes, &errOut)
 	}
 }
@@ -236,10 +243,10 @@ func TestT06LaneKeyUsesLaneAndBoardValidators(t *testing.T) {
 				switch {
 				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/lanes/"+t03Lane:
 					w.Header().Set("ETag", t03ResourceTag)
-					fmt.Fprintf(w, `{"board_id":%q,"revision":12}`, t03Board)
+					fmt.Fprintf(w, `{"id":%q,"board_id":%q,"revision":12}`, t03Lane, t03Board)
 				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/boards/"+t03Board:
 					w.Header().Set("ETag", t03BoardTag)
-					io.WriteString(w, `{"revision":99}`)
+					fmt.Fprintf(w, `{"id":%q,"revision":99}`, t03Board)
 				case r.Method == http.MethodPatch && r.URL.Path == t03Root+"/lanes/"+t03Lane:
 					writes++
 					var body map[string]string
@@ -255,7 +262,7 @@ func TestT06LaneKeyUsesLaneAndBoardValidators(t *testing.T) {
 			}))
 			defer server.Close()
 			var out, errOut bytes.Buffer
-			code := runCLIWithInput([]string{"lane", "set-key", "--revision", revision, t03Lane, "ready_now"}, strings.NewReader(""), &out, &errOut, t03Env(server.URL))
+			code := runCLIWithInput([]string{"lane", "set-key", "--revision", revision, t03Board, t03Lane, "ready_now"}, strings.NewReader(""), &out, &errOut, t03Env(server.URL))
 			if revision == "12" && (code != 0 || writes != 1) {
 				t.Fatalf("key failed: %s", &errOut)
 			}

@@ -35,39 +35,46 @@ func TestT03CLIWriteValidatorsAndUTF8(t *testing.T) {
 		name, input, expected string
 		args                  []string
 	}{
-		{"description stdin", text, "description", []string{"card", "description", "--revision", "12", t03Card, "-"}},
-		{"description file", "ignored", "description", []string{"card", "description", "--revision", "12", t03Card, descriptionFile}},
-		{"stale", text, "", []string{"card", "description", "--revision", "11", t03Card, "-"}},
-		{"lane rename", "", "label", []string{"lane", "rename", "--revision", "12", t03Lane, text}},
-		{"lane rename stale", "", "", []string{"lane", "rename", "--revision", "11", t03Lane, text}},
+		{"description stdin", text, "description", []string{"card", "description", "--revision", "12", t03Board, t03Card, "-"}},
+		{"description file", "ignored", "description", []string{"card", "description", "--revision", "12", t03Board, t03Card, descriptionFile}},
+		{"stale", text, "", []string{"card", "description", "--revision", "11", t03Board, t03Card, "-"}},
+		{"lane rename", "", "label", []string{"lane", "rename", "--revision", "12", t03Board, t03Lane, text}},
+		{"lane rename stale", "", "", []string{"lane", "rename", "--revision", "11", t03Board, t03Lane, text}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var mutations atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if t03ServeCardResolution(w, r) {
+					return
+				}
 				w.Header().Set("ETag", t03ResourceTag)
 				switch {
 				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/boards/"+t03Board:
 					w.Header().Set("ETag", t03BoardTag)
-					if tc.name != "lane rename" {
+					if !strings.HasPrefix(tc.name, "lane rename") {
 						t.Error("card edit queried the unrelated board revision")
 					}
-					_, _ = io.WriteString(w, `{"revision":99}`)
+					_, _ = io.WriteString(w, `{"id":"`+t03Board+`","revision":99}`)
 				case r.Method == http.MethodGet:
-					_, _ = io.WriteString(w, `{"board_id":"`+t03Board+`","revision":12}`)
+					_, _ = io.WriteString(w, `{"id":"`+t03Lane+`","board_id":"`+t03Board+`","revision":12}`)
 				case r.Method == http.MethodPatch:
 					mutations.Add(1)
 					var body map[string]string
 					if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body[tc.expected] != text {
 						t.Error("mutation lost exact text")
 					}
-					if r.Header.Get("If-Match") != t03ResourceTag {
+					wantTag := t03ResourceTag
+					if strings.HasPrefix(tc.name, "description") {
+						wantTag = t03CardTag
+					}
+					if r.Header.Get("If-Match") != wantTag {
 						t.Error("mutation did not bind the resource validator")
 					}
 					if tc.name == "lane rename" && body["board_etag"] != t03BoardTag {
 						t.Error("rename did not bind the board validator")
 					}
 					w.Header().Set("X-Board-ETag", t03BoardTag)
-					_, _ = io.WriteString(w, "{}")
+					_, _ = io.WriteString(w, `{"id":"`+t03Card+`","board_id":"`+t03Board+`","ticket":3,"revision":13}`)
 				default:
 					t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 					w.WriteHeader(http.StatusBadRequest)
@@ -97,7 +104,11 @@ func TestT03CLIRequiresExplicitInputSource(t *testing.T) {
 	} {
 		t.Run(tc.group+" "+tc.action, func(t *testing.T) {
 			var stderr bytes.Buffer
-			code := runCLIWithInput([]string{tc.group, tc.action, tc.id}, nil, io.Discard, &stderr, func(string) string {
+			args := []string{tc.group, tc.action, t03Board, tc.id}
+			if tc.group == "lane" {
+				args = args[:3]
+			}
+			code := runCLIWithInput(args, nil, io.Discard, &stderr, func(string) string {
 				t.Fatal("CLI started executing a command with no input source")
 				return ""
 			})
@@ -144,8 +155,7 @@ func testAttachmentReadback(t *testing.T, requestedID, source string) {
 	uploadIDs := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("ETag", t03ResourceTag)
-		if r.Method == http.MethodGet && r.URL.Path == t03Root+"/cards/"+t03Card {
-			_, _ = io.WriteString(w, "{}")
+		if t03ServeCardResolution(w, r) {
 			return
 		}
 		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, t03Root+"/attachments/") {
@@ -172,7 +182,7 @@ func testAttachmentReadback(t *testing.T, requestedID, source string) {
 		if !boardIDPattern.MatchString(id) || id != strings.ToLower(id) || (requestedID != "" && id != requestedID) {
 			t.Error("missing or noncanonical upload ID")
 		}
-		if r.FormValue("card_id") != t03Card || r.FormValue("expected_card_etag") != t03ResourceTag {
+		if r.FormValue("card_id") != t03Card || r.FormValue("expected_card_etag") != t03CardTag {
 			t.Error("missing upload identity or validator")
 		}
 		part, meta, err := r.FormFile("file")
@@ -203,18 +213,18 @@ func testAttachmentReadback(t *testing.T, requestedID, source string) {
 	if source == "stdin" {
 		inputPath = "-"
 	}
-	args = append(args, t03Card, inputPath)
+	args = append(args, t03Board, t03Card, inputPath)
 	code := runCLIWithInput(args, bytes.NewReader(want), &out, &stderr, t03Env(server.URL))
 	if code != 1 || mutations.Load() != 1 || !strings.Contains(stderr.String(), "Mutation outcome unknown") {
 		t.Fatalf("upload was replayed or the outcome was misreported: %d %s", code, &stderr)
 	}
 	id := <-uploadIDs
-	if !strings.Contains(stderr.String(), "attachment ID "+id) {
+	if !strings.Contains(stderr.String(), "attachment get "+t03Board+" "+id) {
 		t.Fatalf("missing attachment ID in outcome: %s", &stderr)
 	}
 	out.Reset()
 	stderr.Reset()
-	code = runCLIWithInput([]string{"attachment", "get", id}, strings.NewReader(""), &out, &stderr, t03Env(server.URL))
+	code = runCLIWithInput([]string{"attachment", "get", t03Board, id}, strings.NewReader(""), &out, &stderr, t03Env(server.URL))
 	if code != 0 || !equalCLIJSON(t, out.Bytes(), attachmentFixture(id, want)) {
 		t.Fatalf("focused attachment readback failed: %d %s", code, &stderr)
 	}
@@ -235,9 +245,9 @@ func t03Env(origin string) func(string) string {
 
 func TestCLICardAssignRequiresOwner(t *testing.T) {
 	for _, args := range [][]string{
-		{"card", "assign", t03Card},
-		{"card", "assign", t03Card, "none"},
-		{"card", "assign", t03Card, ""},
+		{"card", "assign", t03Board, t03Card},
+		{"card", "assign", t03Board, t03Card, "none"},
+		{"card", "assign", t03Board, t03Card, ""},
 	} {
 		var out, stderr bytes.Buffer
 		code := runCLIWithInput(args, nil, &out, &stderr, func(string) string {
@@ -248,7 +258,7 @@ func TestCLICardAssignRequiresOwner(t *testing.T) {
 			t.Fatalf("expected command error for %v: %d %s", args, code, stderr.String())
 		}
 	}
-	command, err := parseCLI([]string{"card", "assign", t03Card, t03Board})
+	command, err := parseCLI([]string{"card", "assign", t03Board, t03Card, t03Board})
 	var body map[string]string
 	if err != nil || json.Unmarshal(command.body, &body) != nil || body["owner_id"] != t03Board {
 		t.Fatalf("valid owner assignment: %+v, %v", command, err)
@@ -265,9 +275,8 @@ func TestAttachmentUploadRevisionChecksParentCard(t *testing.T) {
 			gets, posts := 0, 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("ETag", t03ResourceTag)
-				if r.Method == http.MethodGet && r.URL.Path == t03Root+"/cards/"+t03Card {
+				if t03ServeCardResolution(w, r) {
 					gets++
-					_, _ = io.WriteString(w, `{"revision":12}`)
 					return
 				}
 				if r.Method != http.MethodPost || r.URL.Path != t03Root+"/attachments" {
@@ -281,7 +290,7 @@ func TestAttachmentUploadRevisionChecksParentCard(t *testing.T) {
 					return
 				}
 				defer r.MultipartForm.RemoveAll()
-				if r.FormValue("expected_card_etag") != t03ResourceTag {
+				if r.FormValue("expected_card_etag") != t03CardTag {
 					t.Error("lost card validator")
 				}
 				w.Header().Set("X-Board-ETag", t03BoardTag)
@@ -290,9 +299,9 @@ func TestAttachmentUploadRevisionChecksParentCard(t *testing.T) {
 			}))
 			defer server.Close()
 			var stdout, stderr bytes.Buffer
-			code := runCLIWithInput([]string{"attachment", "upload", "--revision", revision, "--id", t03Lane, t03Card, file},
+			code := runCLIWithInput([]string{"attachment", "upload", "--revision", revision, "--id", t03Lane, t03Board, t03Card, file},
 				nil, &stdout, &stderr, t03Env(server.URL))
-			if gets != 1 {
+			if gets != 2 {
 				t.Fatalf("parent card reads=%d", gets)
 			}
 			if revision == "11" {
@@ -370,20 +379,18 @@ func TestAttachmentUploadStdinReadFailureAndRevisionGate(t *testing.T) {
 		t.Run(revision, func(t *testing.T) {
 			var gets, posts atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method != http.MethodGet || r.URL.Path != t03Root+"/cards/"+t03Card {
-					posts.Add(1)
-					w.WriteHeader(http.StatusBadRequest)
+				if t03ServeCardResolution(w, r) {
+					gets.Add(1)
 					return
 				}
-				gets.Add(1)
-				w.Header().Set("ETag", t03ResourceTag)
-				_, _ = io.WriteString(w, `{"revision":12}`)
+				posts.Add(1)
+				w.WriteHeader(http.StatusBadRequest)
 			}))
 			defer server.Close()
 			input := &attachmentErrorReader{}
 			var stderr bytes.Buffer
-			code := runCLIWithInput([]string{"attachment", "upload", "--revision", revision, t03Card, "-"}, input, io.Discard, &stderr, t03Env(server.URL))
-			if code != 1 || gets.Load() != 1 || posts.Load() != 0 {
+			code := runCLIWithInput([]string{"attachment", "upload", "--revision", revision, t03Board, t03Card, "-"}, input, io.Discard, &stderr, t03Env(server.URL))
+			if code != 1 || gets.Load() != 2 || posts.Load() != 0 {
 				t.Fatalf("unexpected requests or exit: %d %s", code, &stderr)
 			}
 			if revision == "11" {
@@ -399,7 +406,7 @@ func TestAttachmentUploadStdinReadFailureAndRevisionGate(t *testing.T) {
 
 func TestAttachmentUploadFilenameOption(t *testing.T) {
 	for _, filename := range []string{"", "bad\rname", "bad\nname", "bad\x00name", string([]byte{0xff}), strings.Repeat("é", 1025)} {
-		if _, err := parseCLI([]string{"attachment", "upload", "--filename", filename, t03Card, "-"}); err == nil {
+		if _, err := parseCLI([]string{"attachment", "upload", "--filename", filename, t03Board, t03Card, "-"}); err == nil {
 			t.Errorf("accepted invalid filename %q", filename)
 		}
 	}
@@ -410,7 +417,7 @@ func TestAttachmentUploadFilenameOption(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, source := range []string{"-", path} {
-		command, err := parseCLI([]string{"attachment", "upload", "--filename", filename, t03Card, source})
+		command, err := parseCLI([]string{"attachment", "upload", "--filename", filename, t03Board, t03Card, source})
 		if err != nil || command.edit.filename != filename {
 			t.Fatalf("filename option lost: %v", err)
 		}
@@ -435,3 +442,27 @@ func TestAttachmentUploadFilenameOption(t *testing.T) {
 		}
 	}
 }
+
+// t03ServeCardResolution supplies coherent card identity and focused-board validators.
+func t03ServeCardResolution(w http.ResponseWriter, r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case t03Root + "/cards/" + t03Card:
+		w.Header().Set("ETag", t03CardTag)
+		_, _ = io.WriteString(w, `{"id":"`+t03Card+`","board_id":"`+t03Board+`","ticket":3,"revision":12}`)
+		return true
+	case t03Root + "/boards/" + t03Board:
+		if r.URL.RawQuery != "view=ticket&ticket=3" {
+			return false
+		}
+		w.Header().Set("X-Board-ETag", `"`+t03Board+`-99"`)
+		_, _ = io.WriteString(w, `{"board_id":"`+t03Board+`","board_revision":99,"card":{"id":"`+t03Card+`","ticket":3,"revision":12}}`)
+		return true
+	default:
+		return false
+	}
+}
+
+const t03CardTag = `"` + t03Card + `-12"`

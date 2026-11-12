@@ -199,7 +199,19 @@ func (x *request) createComment() {
 	if in.id == "" {
 		in.id = newID()
 	}
-	next, err := x.updateBoardChecked(current.Board.ID, nil, func(state *snapshot) error {
+	const boardHeader = "X-Expected-Board-ETag"
+	boardTags := x.r.Header.Values(boardHeader)
+	var boardMatches func(snapshot) bool
+	if len(boardTags) != 0 {
+		if len(boardTags) != 1 || !snapshotETagPattern.MatchString(boardTags[0]) {
+			x.fail(invalid(boardHeader, "Expected one canonical entity tag."))
+			return
+		}
+		boardMatches = func(state snapshot) bool {
+			return matchesStrongTag(boardTags[0], state.Board.entityTag())
+		}
+	}
+	next, err := x.updateBoardChecked(current.Board.ID, boardMatches, func(state *snapshot) error {
 		return in.apply(state, x.actor)
 	})
 	if err != nil {

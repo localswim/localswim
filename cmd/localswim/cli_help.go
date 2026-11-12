@@ -31,77 +31,70 @@ const commandUsage = `Usage:
   localswim board recover --mode <same_id|fresh> BOARD_ID <FILE|->
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] [--data DIRECTORY] BOARD_ID <FILE|->
-  localswim card create [--revision N] <JSON_FILE|->
+  localswim card create [--revision N] BOARD_ID <JSON_FILE|->
   localswim card create [--revision N] --title TITLE [--description TEXT] BOARD_ID LANE_ID
   localswim card list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
-  localswim card get CARD_ID
-  localswim card get BOARD_ID TICKET
-  localswim card inspect [--prose] [--data DIRECTORY] BOARD_ID TICKET
-  localswim card patch [--revision N] CARD_ID FILE|-
-  localswim card move [--revision N] CARD_ID LANE_ID
-  localswim card move [--revision N] BOARD_ID TICKET LANE_ID
-  localswim card assign [--revision N] CARD_ID OWNER_ID
-  localswim card assign [--revision N] BOARD_ID TICKET OWNER_ID
-  localswim card title [--revision N] CARD_ID TITLE
-  localswim card set-priority [--revision N] CARD_ID PRIORITY_ID
+  localswim card get BOARD_ID <CARD_ID|TICKET>
+  localswim card inspect [--prose] [--data DIRECTORY] BOARD_ID <CARD_ID|TICKET>
+  localswim card patch [--revision N] BOARD_ID <CARD_ID|TICKET> FILE|-
+  localswim card move [--revision N] BOARD_ID <CARD_ID|TICKET> LANE_ID
+  localswim card assign [--revision N] BOARD_ID <CARD_ID|TICKET> OWNER_ID
+  localswim card title [--revision N] BOARD_ID <CARD_ID|TICKET> TITLE
+  localswim card set-priority [--revision N] BOARD_ID <CARD_ID|TICKET> PRIORITY_ID
   localswim card set-priorities [--revision N] BOARD_ID PRIORITY_ID CARD_ID [CARD_ID ...]
   localswim card set-priorities [--revision N] --tickets BOARD_ID PRIORITY_ID TICKET [TICKET ...]
-  localswim card description [--revision N] CARD_ID FILE|-
-  localswim card archive [--revision N] CARD_ID
-  localswim card archive [--revision N] BOARD_ID TICKET
-  localswim card unarchive [--revision N] CARD_ID
-  localswim card unarchive [--revision N] BOARD_ID TICKET
-  localswim card cover [--revision N] CARD_ID ATTACHMENT_ID|none
-  localswim card set-parent [--revision N] BOARD_ID TICKET PARENT_TICKET
-  localswim card clear-parent [--revision N] BOARD_ID TICKET
-  localswim relationship list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
-  localswim relationship get RELATIONSHIP_ID
-  localswim relationship create [--revision N] [--id UUID] SOURCE_CARD_ID KIND TARGET_CARD_ID
-  localswim relationship create [--revision N] [--id UUID] BOARD_ID SOURCE_TICKET KIND TARGET_TICKET
-  localswim relationship patch [--revision N] RELATIONSHIP_ID FILE|-
+  localswim card description [--revision N] BOARD_ID <CARD_ID|TICKET> FILE|-
+  localswim card archive [--revision N] BOARD_ID <CARD_ID|TICKET>
+  localswim card unarchive [--revision N] BOARD_ID <CARD_ID|TICKET>
+  localswim card cover [--revision N] BOARD_ID <CARD_ID|TICKET> ATTACHMENT_ID|none
+  localswim card set-parent [--revision N] BOARD_ID <CARD_ID|TICKET> <PARENT_CARD_ID|PARENT_TICKET>
+  localswim card clear-parent [--revision N] BOARD_ID <CARD_ID|TICKET>
+  localswim relationship list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID|TICKET]
+  localswim relationship get BOARD_ID RELATIONSHIP_ID
+  localswim relationship create [--revision N] [--id UUID] BOARD_ID <SOURCE_CARD_ID|SOURCE_TICKET> KIND <TARGET_CARD_ID|TARGET_TICKET>
+  localswim relationship patch [--revision N] BOARD_ID RELATIONSHIP_ID FILE|-
   localswim relationship remove [--revision N] BOARD_ID RELATIONSHIP_ID
-  localswim relationship remove [--revision N] BOARD_ID SOURCE_TICKET KIND TARGET_TICKET
+  localswim relationship remove [--revision N] BOARD_ID <SOURCE_CARD_ID|SOURCE_TICKET> KIND <TARGET_CARD_ID|TARGET_TICKET>
   localswim comment list [--data DIRECTORY] [--archived exclude|include|only]
-                         [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
-  localswim comment post [--revision N] CARD_ID <JSON_FILE|->
-  localswim comment post [--revision N] --text TEXT CARD_ID
+                         [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID|TICKET]
+  localswim comment post [--revision N] BOARD_ID <CARD_ID|TICKET> <JSON_FILE|->
+  localswim comment post [--revision N] --text TEXT BOARD_ID <CARD_ID|TICKET>
   localswim activity list [--data DIRECTORY] --from UTC --to UTC [--view full|monitor]
                         [--ticket N] [--card-id CARD_ID]
                         [--writer-id WRITER_ID] [--actor-id UUID] [--operation OP] [--limit N]
                         [--cursor CURSOR] BOARD_ID
   localswim lane add [--revision N] BOARD_ID FILE|-
-  localswim lane get LANE_ID
-  localswim lane rename [--revision N] LANE_ID LABEL
-  localswim lane set-key [--revision N] LANE_ID KEY
-  localswim lane retire [--revision N] LANE_ID
-  localswim lane set-approval-button [--revision N] LANE_ID enabled|disabled
-  localswim attachment list [--limit N] [--cursor CURSOR] CARD_ID
-  localswim attachment get ATTACHMENT_ID
-  localswim attachment download ATTACHMENT_ID FILE|-
-  localswim attachment upload [--revision N] [--id UUID] [--filename NAME] CARD_ID <FILE|->
-  localswim attachment upload [--revision N] [--id UUID] [--filename NAME] BOARD_ID TICKET <FILE|->
-  localswim attachment detach [--revision N] ATTACHMENT_ID
-  localswim attachment detach [--revision N] BOARD_ID TICKET ATTACHMENT_ID
+  localswim lane get BOARD_ID LANE_ID
+  localswim lane rename [--revision N] BOARD_ID LANE_ID LABEL
+  localswim lane set-key [--revision N] BOARD_ID LANE_ID KEY
+  localswim lane retire [--revision N] BOARD_ID LANE_ID
+  localswim lane set-approval-button [--revision N] BOARD_ID LANE_ID enabled|disabled
+  localswim attachment list [--limit N] [--cursor CURSOR] BOARD_ID <CARD_ID|TICKET>
+  localswim attachment get BOARD_ID ATTACHMENT_ID
+  localswim attachment download BOARD_ID ATTACHMENT_ID FILE|-
+  localswim attachment upload [--revision N] [--id UUID] [--filename NAME] BOARD_ID <CARD_ID|TICKET> <FILE|->
+  localswim attachment detach [--revision N] BOARD_ID ATTACHMENT_ID
+  localswim attachment detach [--revision N] BOARD_ID <CARD_ID|TICKET> ATTACHMENT_ID
   localswim policy get BOARD_ID
   localswim policy grant --revision N --create BOARD_ID USER_ID LANE_ID
   localswim policy grant --revision N --move BOARD_ID USER_ID FROM_LANE_ID TO_LANE_ID
   localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
-  localswim ticket-order preview LANE_ID [CARD_ID ...]
+  localswim ticket-order preview BOARD_ID LANE_ID [CARD_ID|TICKET ...]
   localswim backup create [--revision N] [--id UUID] BOARD_ID
-  localswim backup info BACKUP_ID
-  localswim backup download BACKUP_ID FILE|-
+  localswim backup info BOARD_ID BACKUP_ID
+  localswim backup download BOARD_ID BACKUP_ID FILE|-
   localswim backup verify <FILE|->
   localswim card search [--data DIRECTORY] [--search TEXT] [--search-content] [--lane ID]...
                        [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card triage-order [--data DIRECTORY] [--search TEXT] [--search-content] [--lane ID]...
                              [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card lookup [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
-  localswim ticket-order apply LANE_ID FILE|-
+  localswim ticket-order apply BOARD_ID LANE_ID FILE|-
   localswim board restore [--revision N] BOARD_ID FILE|-
   localswim restoration create [--revision N] [--id UUID] BOARD_ID BACKUP_ID
-  localswim restoration get RESTORATION_ID
+  localswim restoration get BOARD_ID RESTORATION_ID
   localswim publication create [--id UUID] [--remote NAME] [--branch BRANCH] BOARD_ID BACKUP_ID
-  localswim publication get PUBLICATION_ID
+  localswim publication get BOARD_ID PUBLICATION_ID
   localswim service status
   localswim service builds [--limit N] [--cursor CURSOR]
   localswim service activate [--id UUID] BUILD_ID
@@ -320,13 +313,13 @@ var commandHelpNotes = map[string]string{
 	"board publishing":         "Enable or disable board publishing, or inspect its pending work, latest success and failure code. Inspect status after an uncertain settings write.",
 	"workspace publishing":     "Enable or disable workspace publishing, or inspect its status. Inspect status after an uncertain settings write.",
 	"workspace pin":            "Supply at least one board UUID. Set replaces the order; add appends new boards in order. Remove preserves the remaining order and reports failed targets as warnings.",
-	"card create":              "The concise form uses the board's default owner and priority. The JSON document must include board_id and may include an explicit card ID for readback after a lost reply.",
-	"card inspect":             "Supply a board UUID and positive ticket number. Includes archived cards. --prose includes the selected card's description and attributed comments.",
-	"card get":                 "Choose a card UUID or a board UUID followed by its positive ticket number. Includes archived cards.",
-	"card move":                "Choose a card UUID or a board UUID and ticket, followed by the destination lane UUID. Ticket form also guards the board version from the focused read.",
-	"card assign":              "Choose a card UUID or a board UUID and ticket, followed by a board-member owner UUID. Ticket form also guards the board version.",
-	"card archive":             "Choose a card UUID or a board UUID and ticket. Ticket form also guards the board version. Archived cards retain their contents and history.",
-	"card unarchive":           "Choose a card UUID or a board UUID and ticket. Ticket form also guards the board version. Retired lanes refuse unarchive.",
+	"card create":              "The concise form uses the board's default owner and priority. The JSON form requires BOARD_ID before FILE or -. An optional board_id in the document must match. An explicit card ID may be supplied for readback after a lost reply.",
+	"card inspect":             "Supply BOARD_ID and a card UUID or positive ticket number. Includes archived cards. --prose includes the selected card's description and attributed comments.",
+	"card get":                 "Supply BOARD_ID and a card UUID or positive ticket number. Includes archived cards.",
+	"card move":                "Supply BOARD_ID, a card UUID or ticket, and the destination lane UUID. The card and board versions are guarded.",
+	"card assign":              "Supply BOARD_ID, a card UUID or ticket, and a board-member owner UUID. The card and board versions are guarded.",
+	"card archive":             "Supply BOARD_ID and a card UUID or ticket. The card and board versions are guarded. Archived cards retain their contents and history.",
+	"card unarchive":           "Supply BOARD_ID and a card UUID or ticket. The card and board versions are guarded. Retired lanes refuse unarchive.",
 	"card description":         "Read UTF-8 description text verbatim, including trailing newlines.",
 	"card cover":               "Use an active attachment UUID, or none to clear the cover.",
 	"card set-priorities":      "Supply 1 to 1000 distinct card UUIDs or, with --tickets, distinct positive ticket numbers. All selected cards must belong to the board. The batch applies effective blocking floors to all selections together.",
@@ -335,14 +328,14 @@ var commandHelpNotes = map[string]string{
 	"card lookup":              "Return matching cards in numeric ticket order. --search-content includes readable descriptions and comments.",
 	"comment post":             "Quote literal --text. The JSON form reads an object with text and an optional id.",
 	"comment list":             "Return newest comments with attribution and full text. --limit is 1 to 200, default 50. --archived accepts exclude, include, or only. Board-wide reports default to active cards; focused card reports include archived cards by default.",
-	"relationship create":      "Choose source and target card UUIDs, or a board UUID and source and target tickets. KIND is blocks, duplicates, references, or relates_to. --id accepts a UUIDv4.",
-	"relationship remove":      "Choose a board UUID and either a relationship UUID or source ticket, kind and target ticket. The relationship must belong to that board. KIND is blocks, duplicates, references, or relates_to. Success produces no output.",
+	"relationship create":      "Supply BOARD_ID and source and target card UUIDs or tickets. KIND is blocks, duplicates, references, or relates_to. --id accepts a UUIDv4.",
+	"relationship remove":      "Supply BOARD_ID and either a relationship UUID or source card selector, kind and target card selector. The relationship must belong to that board. KIND is blocks, duplicates, references, or relates_to. Success produces no output.",
 	"relationship patch":       "Read a JSON object with kind. KIND is blocks, duplicates, references, or relates_to.",
-	"attachment upload":        "Read raw bytes, up to 10 MiB. Choose a card UUID or a board UUID and ticket. --id accepts a UUIDv4. --filename supplies a UTF-8 display name. By default a file uses its basename and stdin uses the attachment UUID. The card revision is checked before bytes are read. Ticket form also guards the board version. Inspect attachment get with the original ID after an unknown outcome.",
+	"attachment upload":        "Read raw bytes, up to 10 MiB. Supply BOARD_ID and a card UUID or ticket. --id accepts a UUIDv4. --filename supplies a UTF-8 display name. By default a file uses its basename and stdin uses the attachment UUID. The card revision is checked before bytes are read. Both selectors guard the board version. Inspect attachment get with BOARD_ID and the original attachment ID after an unknown outcome.",
 	"attachment download":      "Verify the active file before writing raw bytes. Inspect the destination after a local write failure.",
-	"attachment detach":        "Choose an attachment UUID, or a board UUID, ticket and attachment UUID. Ticket form checks card ownership and guards the board version. Success produces no output. Inspect attachment get after an unknown outcome.",
+	"attachment detach":        "Supply BOARD_ID and an attachment UUID, optionally preceded by a card UUID or ticket. The attachment must belong to that board and selected card. Success produces no output. Inspect attachment get after an unknown outcome.",
 	"policy grant":             "Add one creation or movement grant using board-specific UUIDv4 IDs. Concise --create and --move forms require --revision. JSON accepts create_grants and/or move_grants. All forms preserve other permissions. Use policy get to inspect the result.",
-	"ticket-order preview":     "Select all active cards in the lane, or an explicit card UUID subset. Preview returns the original board validator and proposed ticket numbers without changing the board.",
+	"ticket-order preview":     "Supply BOARD_ID and LANE_ID. Select all active cards in the lane, or an explicit subset by card UUID or ticket. Preview returns the original board validator and proposed ticket numbers without changing the board.",
 	"ticket-order apply":       "Read the saved preview, including its original validator and exact proposed order. Stale previews refuse the entire operation.",
 	"backup create":            "Capture the board and audited attachment bytes. --id accepts a UUIDv7; omission generates one. Inspect backup info with the original ID after an unknown outcome.",
 	"backup verify":            "Verify ZIP backup bytes locally without a service. Stdin is copied to a private temporary file for verification and removed afterward.",
@@ -360,10 +353,10 @@ var commandExamples = map[string]string{
 	"relationship remove": "  localswim relationship remove $board $relationship\n  localswim relationship remove $board 12 blocks 17",
 	"board create":        "  localswim board create --name \"Pool projects\" --preset terry\n  localswim board create --json workflow.json",
 	"board recover":       "  localswim board recover --mode same_id $board backup.zip\n  localswim board recover --mode fresh $board snapshot.json",
-	"card create":         "  localswim card create --title \"Check pool hours\" $board $lane\n  localswim card create --revision 12 card.json",
+	"card create":         "  localswim card create --title \"Check pool hours\" $board $lane\n  localswim card create --revision 12 $board card.json",
 	"card inspect":        "  localswim card inspect --prose $board 12",
-	"attachment upload":   "  localswim attachment upload --revision 12 $board 17 photo.png\n  localswim attachment upload --filename photo.png $card -",
-	"comment post":        "  localswim comment post --text \"Confirmed weekend hours.\" $card\n  localswim comment post --revision 13 $card comment.json",
+	"attachment upload":   "  localswim attachment upload --revision 12 $board 17 photo.png\n  localswim attachment upload --filename photo.png $board $card -",
+	"comment post":        "  localswim comment post --text \"Confirmed weekend hours.\" $board $card\n  localswim comment post --revision 13 $board $card comment.json",
 	"card set-priorities": "  localswim card set-priorities --tickets $board $priority 12 17\n  localswim card set-priorities --revision 14 $board $priority $card1 $card2",
 	"policy grant":        "  localswim policy grant --revision 4 --create $board $user $lane\n  localswim policy grant --revision 5 --move $board $user $from $to",
 	"activity list":       "  localswim activity list --from \"2026-11-11 00:00:00+00:00\" --to \"2026-11-11 01:00:00+00:00\" $board",

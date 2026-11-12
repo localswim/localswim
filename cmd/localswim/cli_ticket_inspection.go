@@ -1,11 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"io"
-	"strconv"
-	"strings"
 
 	"github.com/localswim/localswim/internal/client"
 )
@@ -13,6 +12,7 @@ import (
 type cliTicketInspection struct {
 	boardID string
 	ticket  uint64
+	cardID  string
 	prose   bool
 	dataDir string
 }
@@ -29,11 +29,11 @@ func parseTicketInspection(args []string) (*cliTicketInspection, error) {
 	if flags.NArg() != 2 || !boardIDPattern.MatchString(flags.Arg(0)) {
 		return nil, errors.New("card inspect requires a board UUIDv4 and ticket")
 	}
-	ticket, err := strconv.ParseUint(flags.Arg(1), 10, 64)
-	if err != nil || ticket == 0 || ticket > 1<<53-1 {
-		return nil, errors.New("ticket must be a positive safe integer")
+	target, err := parseCardTarget(flags.Arg(0), flags.Arg(1))
+	if err != nil {
+		return nil, err
 	}
-	command.boardID, command.ticket = strings.ToLower(flags.Arg(0)), ticket
+	command.boardID, command.ticket, command.cardID = target.boardID, target.ticket, target.cardID
 	var dataProvided bool
 	flags.Visit(func(seen *flag.Flag) { dataProvided = dataProvided || seen.Name == "data" })
 	if dataProvided && command.dataDir == "" {
@@ -43,9 +43,27 @@ func parseTicketInspection(args []string) (*cliTicketInspection, error) {
 }
 
 func executeTicketInspection(api *client.Client, command *cliTicketInspection, stdout io.Writer) error {
-	reply, err := api.InspectTicket(command.boardID, command.ticket, command.prose)
+	ticket := command.ticket
+	if command.cardID != "" {
+		target, err := resolveCardTarget(api, &cliTicketTarget{boardID: command.boardID, cardID: command.cardID})
+		if err != nil {
+			return err
+		}
+		ticket = target.Ticket
+	}
+	reply, err := api.InspectTicket(command.boardID, ticket, command.prose)
 	if err != nil {
 		return err
+	}
+	if command.cardID != "" {
+		var view struct {
+			Card struct {
+				ID string `json:"id"`
+			} `json:"card"`
+		}
+		if json.Unmarshal(reply.JSON, &view) != nil || view.Card.ID != command.cardID {
+			return errors.New("card changed while reading its inspection")
+		}
 	}
 	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
 		return errors.New("could not write the ticket inspection")

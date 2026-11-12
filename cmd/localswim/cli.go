@@ -48,7 +48,6 @@ type cliCommand struct {
 	warnings                           []string
 	edit                               t03Edit
 	relationshipWrite                  bool
-	relationshipID                     string
 	exportPath                         string
 	downloadPath                       string
 	verifyBoard                        bool
@@ -59,7 +58,10 @@ type cliCommand struct {
 	ticketPatch                        *cliTicketTarget
 	ticketRelationship                 *cliTicketRelationship
 	ticketAttachment                   *cliTicketTarget
+	ticketComment                      *cliTicketTarget
 	batchTickets                       []uint64
+	cardSelectors                      []string
+	cardTarget                         *cliTicketTarget
 	t07Action                          string
 	publishingAction                   string
 	notificationAction                 string
@@ -363,20 +365,17 @@ func parseCLI(args []string) (cliCommand, error) {
 		if err != nil {
 			return command, err
 		}
+		command.boardID = strings.ToLower(flags.Arg(0))
 	} else if name == "card get" {
-		switch {
-		case flags.NArg() == 1 && boardIDPattern.MatchString(flags.Arg(0)):
-			command.resource += "/" + flags.Arg(0)
-		case flags.NArg() == 2 && boardIDPattern.MatchString(flags.Arg(0)):
-			ticket, err := strconv.ParseUint(flags.Arg(1), 10, 53)
-			if err != nil || ticket == 0 {
-				return command, errors.New("ticket requires an integer from 1 to 9007199254740991")
-			}
-			query := url.Values{"board_id": {flags.Arg(0)}, "ticket": {strconv.FormatUint(ticket, 10)}, "archived": {"include"}}
-			command.resource += "?" + query.Encode()
-		default:
-			return command, errors.New("expected a UUIDv4 card ID or a UUIDv4 board ID followed by a ticket")
+		if flags.NArg() != 2 {
+			return command, errors.New("card get requires BOARD_ID CARD_ID|TICKET")
 		}
+		var err error
+		command.cardTarget, err = parseCardTarget(flags.Arg(0), flags.Arg(1))
+		if err != nil {
+			return command, err
+		}
+		command.boardID = command.cardTarget.boardID
 	} else if name == "policy grant" && (hasCreateGrant || hasMoveGrant) {
 		if hasCreateGrant == hasMoveGrant || (!createGrant && !moveGrant) {
 			return command, errors.New("policy grant accepts exactly one of --create or --move")
@@ -411,7 +410,7 @@ func parseCLI(args []string) (cliCommand, error) {
 		if flags.NArg() != count || !boardIDPattern.MatchString(flags.Arg(0)) {
 			return command, errors.New(expected)
 		}
-		command.boardID = flags.Arg(0)
+		command.boardID = strings.ToLower(flags.Arg(0))
 		if command.boardAction == "" {
 			command.resource += "/" + command.boardID
 		}
@@ -478,11 +477,30 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	if command.recoveryMode != "" {
 		return executeBoardRecovery(api, command, stdin, stdout)
 	}
+	if command.nativeRead == "activity" {
+		_, rawQuery, _ := strings.Cut(command.resource, "?")
+		query, _ := url.ParseQuery(rawQuery)
+		if id := query.Get("card_id"); id != "" {
+			reply, err := api.Do(http.MethodGet, "/cards/"+id, nil, "")
+			if err != nil {
+				return err
+			}
+			if err := validateBoardResource(reply.JSON, command.boardID, id); err != nil {
+				return err
+			}
+		}
+	}
+	if command.cardTarget != nil {
+		return executeCardRead(api, command, stdout)
+	}
 	if command.ticketRelationship != nil {
 		return executeTicketRelationshipCommand(api, command, stdout)
 	}
+	if command.ticketComment != nil {
+		return postCardComment(api, command, stdin, stdout)
+	}
 	if command.ticketPatch != nil {
-		return executeTicketCardPatch(api, command, stdout)
+		return executeTicketCardPatch(api, command, stdin, stdout)
 	}
 	if command.ticketInspection != nil {
 		return executeTicketInspection(api, command.ticketInspection, stdout)
@@ -506,7 +524,7 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		return uploadTicketAttachment(api, command, stdin, stdout)
 	}
 	if command.downloadPath != "" {
-		return downloadAttachment(api, command.resource, command.downloadPath, stdout)
+		return downloadAttachment(api, command.boardID, command.resource, command.downloadPath, stdout)
 	}
 	body := command.body
 	if command.inputPath != "" && command.inputPath != "-" {
@@ -585,9 +603,7 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		reply, err = api.DoWithContentType(command.method, command.resource, body, ifMatch, contentType)
 	}
 	if err != nil {
-		if command.relationshipID != "" && errors.Is(err, client.ErrMutationOutcomeUnknown) {
-			return fmt.Errorf("%w. Read back with localswim relationship get %s before retrying", err, command.relationshipID)
-		}
+
 		if command.edit.uploadID != "" && errors.Is(err, client.ErrMutationOutcomeUnknown) {
 			return fmt.Errorf("%w (attachment ID %s)", err, command.edit.uploadID)
 		}
@@ -596,9 +612,24 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		}
 		return err
 	}
-	if command.relationshipID != "" && !confirmedRelationshipCreation(body, reply.JSON) {
-		return fmt.Errorf("service did not confirm the requested relationship. %w. Read back with localswim relationship get %s before retrying", client.ErrMutationOutcomeUnknown, command.relationshipID)
+	if command.boardAction == "card create" {
+		if err := validateBoardResource(reply.JSON, command.boardID, ""); err != nil {
+			return fmt.Errorf("service did not confirm the created card in BOARD_ID. %w. Read back with localswim card list %s before retrying", client.ErrMutationOutcomeUnknown, command.boardID)
+		}
 	}
+	if command.method == http.MethodGet && command.boardID != "" && (strings.HasPrefix(command.resource, "/lanes/") || strings.HasPrefix(command.resource, "/attachments/") || strings.HasPrefix(command.resource, "/relationships/")) {
+		path, _, _ := strings.Cut(command.resource, "?")
+		resourceID := path[strings.LastIndex(path, "/")+1:]
+		if err := validateBoardResource(reply.JSON, command.boardID, resourceID); err != nil {
+			return err
+		}
+	}
+	if command.method == http.MethodGet && command.boardID != "" {
+		if err := validateCardListResponse(reply.JSON, command.resource, command.boardID, ""); err != nil {
+			return err
+		}
+	}
+
 	if command.boardAvailability != "" {
 		availability, err := reply.BoardAvailability(command.boardID)
 		if err != nil || availability != command.boardAvailability {
@@ -619,9 +650,7 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		return writeLiveVerificationReport(stdout, reply, command.boardID)
 	}
 	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
-		if command.relationshipID != "" {
-			return fmt.Errorf("service accepted relationship %s, but its response could not be written. Read back with localswim relationship get %s", command.relationshipID, command.relationshipID)
-		}
+
 		if command.edit.uploadID != "" {
 			return fmt.Errorf("service accepted attachment %s, but its response could not be written", command.edit.uploadID)
 		}
@@ -694,10 +723,12 @@ func prepareBoardAction(api *client.Client, command cliCommand, input json.RawMe
 		}
 	}
 	if command.boardAction == "card create" {
-		if json.Unmarshal(fields["board_id"], &command.boardID) != nil || !boardIDPattern.MatchString(command.boardID) {
-			return "", nil, "", errors.New("card create JSON requires a UUIDv4 board_id")
+		if raw := fields["board_id"]; raw != nil {
+			var supplied string
+			if json.Unmarshal(raw, &supplied) != nil || !strings.EqualFold(supplied, command.boardID) {
+				return "", nil, "", errors.New("card create board_id conflicts with BOARD_ID")
+			}
 		}
-		command.boardID = strings.ToLower(command.boardID)
 		if fields["expected_board_etag"] != nil {
 			return "", nil, "", errors.New("card create supplies expected_board_etag")
 		}
@@ -705,6 +736,12 @@ func prepareBoardAction(api *client.Client, command cliCommand, input json.RawMe
 	board, err := api.Do(http.MethodGet, "/boards/"+command.boardID, nil, "")
 	if err != nil {
 		return "", nil, "", err
+	}
+	var identity struct {
+		ID string `json:"id"`
+	}
+	if json.Unmarshal(board.JSON, &identity) != nil || identity.ID != command.boardID {
+		return "", nil, "", errors.New("service did not confirm BOARD_ID")
 	}
 	if command.method != http.MethodGet && board.ETag == "" {
 		return "", nil, "", errors.New("service did not return a strong board ETag")

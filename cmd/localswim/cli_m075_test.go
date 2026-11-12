@@ -72,21 +72,21 @@ func TestM075CLIReportsMatchCapturedRevisionAfterWriterStops(t *testing.T) {
 		t.Helper()
 		input := fmt.Sprintf(`{"board_id":%q,"lane_id":%q,"title":%q,"description":%q}`, board.ID, laneID, title, description)
 		var item cardRef
-		decode(run(liveEnv, input, "card", "create", "-"), &item)
+		decode(run(liveEnv, input, "card", "create", board.ID, "-"), &item)
 		return item
 	}
 	archived := create(backlog, "Archived work", "Archived description")
 	blocker := create(ready, "Ready blocker", "Other card's prose")
 	other := create(backlog, "Active work", "")
-	run(liveEnv, "", "relationship", "create", blocker.ID, "blocks", archived.ID)
+	run(liveEnv, "", "relationship", "create", board.ID, blocker.ID, "blocks", archived.ID)
 	for _, post := range []struct{ cardID, text string }{
 		{other.ID, "First active comment"},
 		{blocker.ID, "Latest active comment"},
 		{archived.ID, "Latest archived comment"},
 	} {
-		run(liveEnv, fmt.Sprintf(`{"text":%q}`, post.text), "comment", "post", post.cardID, "-")
+		run(liveEnv, fmt.Sprintf(`{"text":%q}`, post.text), "comment", "post", board.ID, post.cardID, "-")
 	}
-	run(liveEnv, "", "card", "archive", archived.ID)
+	run(liveEnv, "", "card", "archive", board.ID, archived.ID)
 
 	path := filepath.Join(dataDir, "boards", board.ID+".json")
 	saved, err := os.ReadFile(path)
@@ -197,8 +197,8 @@ func TestM075CLIRejectsEmptyDataAndOfflineWrites(t *testing.T) {
 		{"card", "triage-order", "--data=", t03Board},
 		{"card", "search", "--data=", t03Board},
 		{"comment", "list", "--data=", t03Board},
-		{"card", "archive", "--data", t.TempDir(), t03Card},
-		{"comment", "post", "--data", t.TempDir(), t03Card, "-"},
+		{"card", "archive", "--data", t.TempDir(), t03Board, t03Card},
+		{"comment", "post", "--data", t.TempDir(), t03Board, t03Card, "-"},
 	} {
 		var out, stderr bytes.Buffer
 		code := runCLIWithInput(args, strings.NewReader(""), &out, &stderr, func(key string) string {

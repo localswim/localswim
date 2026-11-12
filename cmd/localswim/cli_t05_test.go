@@ -25,6 +25,9 @@ func TestT05CLIActivityBoundsAndViews(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var reads atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if t03ServeCardResolution(w, r) {
+					return
+				}
 				reads.Add(1)
 				query := r.URL.Query()
 				if r.Method != http.MethodGet || r.URL.Path != t03Root+"/activities" ||
@@ -91,21 +94,28 @@ func TestT05CLILaneEditsAndPriority(t *testing.T) {
 			var writes atomic.Int32
 			var boards atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !tc.board && t03ServeCardResolution(w, r) {
+					return
+				}
 				switch {
 				case r.Method == http.MethodGet && r.URL.Path == t03Root+tc.resource:
 					w.Header().Set("ETag", t03ResourceTag)
-					_, _ = fmt.Fprintf(w, `{"board_id":%q,"revision":12}`, t03Board)
+					_, _ = fmt.Fprintf(w, `{"id":%q,"board_id":%q,"revision":12}`, tc.resource[strings.LastIndex(tc.resource, "/")+1:], t03Board)
 				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/boards/"+t03Board:
 					boards.Add(1)
 					w.Header().Set("ETag", t03BoardTag)
-					_, _ = io.WriteString(w, `{"revision":99}`)
+					_, _ = fmt.Fprintf(w, `{"id":%q,"revision":99}`, t03Board)
 				case r.Method == http.MethodPatch && r.URL.Path == t03Root+tc.resource:
 					writes.Add(1)
 					var body map[string]json.RawMessage
 					if err := json.NewDecoder(r.Body).Decode(&body); err != nil || string(body[tc.field]) != tc.value {
 						t.Errorf("unexpected patch %v (%v)", body, err)
 					}
-					if r.Header.Get("If-Match") != t03ResourceTag {
+					expectedTag := t03ResourceTag
+					if !tc.board {
+						expectedTag = t03CardTag
+					}
+					if r.Header.Get("If-Match") != expectedTag {
 						t.Error("PATCH is missing the resource validator")
 					}
 					if tc.board && (len(body) != 2 || string(body["board_etag"]) != fmt.Sprintf("%q", t03BoardTag)) {
@@ -113,7 +123,7 @@ func TestT05CLILaneEditsAndPriority(t *testing.T) {
 					}
 					w.Header().Set("ETag", t03ResourceTag)
 					w.Header().Set("X-Board-ETag", t03BoardTag)
-					_, _ = io.WriteString(w, "{}")
+					_, _ = fmt.Fprintf(w, `{"id":%q,"board_id":%q,"ticket":3,"revision":13}`, t03Card, t03Board)
 				default:
 					t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 					w.WriteHeader(http.StatusBadRequest)
@@ -124,7 +134,7 @@ func TestT05CLILaneEditsAndPriority(t *testing.T) {
 			if tc.board {
 				id = t03Lane
 			}
-			args := []string{tc.arguments[0], tc.arguments[1], "--revision", tc.revision, id}
+			args := []string{tc.arguments[0], tc.arguments[1], "--revision", tc.revision, t03Board, id}
 			args = append(args, tc.arguments[2:]...)
 			var stdout, stderr bytes.Buffer
 			code := runCLIWithInput(args, strings.NewReader(tc.input), &stdout, &stderr, t03Env(server.URL))
@@ -141,7 +151,7 @@ func TestT05CLILaneEditsAndPriority(t *testing.T) {
 	}
 	for _, args := range [][]string{
 		{"lane", "set-approval-button", t03Lane, "approve"},
-		{"lane", "retire", t03Lane, "false"},
+		{"lane", "retire", t03Board, t03Lane, "false"},
 		{"lane", "approve", t03Lane},
 		{"card", "set-priority", t03Card, "P1"},
 		{"card", "patch", t03Card},
@@ -150,7 +160,7 @@ func TestT05CLILaneEditsAndPriority(t *testing.T) {
 			t.Errorf("accepted invalid edit %v", args)
 		}
 	}
-	if cmd, err := parseCLI([]string{"lane", "get", t03Lane}); err != nil || cmd.method != http.MethodGet || cmd.resource != "/lanes/"+t03Lane {
+	if cmd, err := parseCLI([]string{"lane", "get", t03Board, t03Lane}); err != nil || cmd.method != http.MethodGet || cmd.resource != "/lanes/"+t03Lane {
 		t.Fatalf("unexpected focused lane read: %s %s (%v)", cmd.method, cmd.resource, err)
 	}
 }
@@ -179,7 +189,7 @@ func TestT05CLIDetachPreconditionsAndNoReplay(t *testing.T) {
 					_, _ = w.Write(attachmentFixture(t03Card, nil))
 				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/boards/"+t03Board:
 					w.Header().Set("ETag", t03BoardTag)
-					_, _ = io.WriteString(w, `{"revision":84}`)
+					_, _ = fmt.Fprintf(w, `{"id":%q,"revision":84}`, t03Board)
 				case r.Method == http.MethodDelete && r.URL.Path == t03Root+"/attachments/"+t03Card:
 					writes.Add(1)
 					if r.Header.Get("If-Match") != t03ResourceTag || r.Header.Get("X-Expected-Board-ETag") != t03BoardTag || r.ContentLength != 0 {
@@ -196,7 +206,7 @@ func TestT05CLIDetachPreconditionsAndNoReplay(t *testing.T) {
 			}))
 			defer server.Close()
 			var stdout, stderr bytes.Buffer
-			args := []string{"attachment", "detach", "--revision", tc.revision, t03Card}
+			args := []string{"attachment", "detach", "--revision", tc.revision, t03Board, t03Card}
 			code := runCLIWithInput(args, strings.NewReader(""), &stdout, &stderr, t03Env(server.URL))
 			if code != tc.code || writes.Load() != int32(tc.writes) || stdout.Len() != 0 ||
 				strings.Contains(stderr.String(), "Mutation outcome unknown") != tc.unknown {

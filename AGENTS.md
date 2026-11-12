@@ -14,6 +14,9 @@
 - CLI commands that read or write payload files require an explicit file path
   or `-` for stdin/stdout.
   Output files must be new paths, matching attachment and backup downloads.
+- CLI operations on board-owned resources require `BOARD_ID` before the resource
+  selector. Card selectors accept a UUID or ticket within that board. Each card
+  ID belongs to exactly one board. Keep REST routes UUID-addressed.
 - “String” means UTF-8 unless explicitly stated otherwise. Preserve user-supplied
   text exactly without silent replacement, trimming, or normalization.
 - Run `.\check.ps1` before handoff. Keep the strict compiler and lint gates enabled,

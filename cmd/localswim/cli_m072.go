@@ -9,10 +9,10 @@ import (
 
 func cardCreateInput(args []string, hasTitle, hasDescription bool, title, description string) (string, json.RawMessage, error) {
 	if !hasTitle && !hasDescription {
-		if len(args) != 1 || args[0] == "" {
-			return "", nil, errors.New("card create accepts one JSON file or - for standard input")
+		if len(args) != 2 || !boardIDPattern.MatchString(args[0]) || args[1] == "" {
+			return "", nil, errors.New("card create requires BOARD_ID FILE|-")
 		}
-		return args[0], nil, nil
+		return args[1], nil, nil
 	}
 	if !hasTitle || !utf8.ValidString(title) || !utf8.ValidString(description) {
 		return "", nil, errors.New("card create requires --title with valid UTF-8 text and a valid UTF-8 description if supplied")

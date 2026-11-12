@@ -2900,6 +2900,12 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Origin'
       - $ref: '#/components/parameters/RequestId'
+      - name: X-Expected-Board-ETag
+        in: header
+        required: false
+        schema:
+          $ref: '#/components/schemas/EntityTag'
+        description: Original board validator from the caller's board-scoped card resolution. Checked with the card validator before saving the comment.
       responses:
         '201':
           description: Success.

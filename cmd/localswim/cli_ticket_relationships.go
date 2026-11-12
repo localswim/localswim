@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/localswim/localswim/internal/client"
@@ -18,6 +17,7 @@ import (
 type cliTicketRelationship struct {
 	action, boardID, kind, linkID string
 	ticket, related               uint64
+	cardID, relatedID             string
 }
 
 func parseTicketParentCommand(name string, args []string) (cliCommand, error) {
@@ -70,16 +70,20 @@ func parseTicketRelationship(name, boardID, ticket, related string) (*cliTicketR
 	if !boardIDPattern.MatchString(boardID) {
 		return nil, errors.New("BOARD_ID must be a UUIDv4")
 	}
-	number, err := strconv.ParseUint(ticket, 10, 53)
-	if err != nil || number == 0 {
-		return nil, errors.New("ticket requires an integer from 1 to 9007199254740991")
+	target, err := parseCardTarget(boardID, ticket)
+	if err != nil {
+		return nil, err
 	}
-	request := &cliTicketRelationship{action: name, boardID: strings.ToLower(boardID), ticket: number}
+	request := &cliTicketRelationship{action: name, boardID: target.boardID, ticket: target.ticket, cardID: target.cardID}
 	if name != "card clear-parent" {
-		request.related, err = strconv.ParseUint(related, 10, 53)
-		if err != nil || request.related == 0 || request.related == number {
-			return nil, errors.New("related ticket requires a different integer from 1 to 9007199254740991")
+		other, err := parseCardTarget(boardID, related)
+		if err != nil {
+			return nil, err
 		}
+		if (target.cardID != "" && target.cardID == other.cardID) || (target.ticket != 0 && target.ticket == other.ticket) {
+			return nil, errors.New("related card must be different")
+		}
+		request.related, request.relatedID = other.ticket, other.cardID
 	}
 	return request, nil
 }
@@ -90,9 +94,26 @@ func executeTicketRelationshipCommand(api *client.Client, cmd cliCommand, stdout
 	if request.action == "relationship remove" {
 		removeKind = request.kind
 	}
+	if request.cardID != "" {
+		card, err := resolveCardTarget(api, &cliTicketTarget{boardID: request.boardID, cardID: request.cardID})
+		if err != nil {
+			return err
+		}
+		request.ticket = card.Ticket
+	}
+	if request.relatedID != "" {
+		card, err := resolveCardTarget(api, &cliTicketTarget{boardID: request.boardID, cardID: request.relatedID})
+		if err != nil {
+			return err
+		}
+		request.related = card.Ticket
+	}
 	target, err := api.ResolveTicketRelationship(request.boardID, request.ticket, request.related, removeKind)
 	if err != nil {
 		return err
+	}
+	if (request.cardID != "" && request.cardID != target.CardID) || (request.relatedID != "" && request.relatedID != target.RelatedCardID) {
+		return errors.New("relationship endpoints changed while resolving the board view")
 	}
 	currentRevision := target.CardRevision
 	switch request.action {
@@ -109,7 +130,7 @@ func executeTicketRelationshipCommand(api *client.Client, cmd cliCommand, stdout
 	case "relationship remove":
 		err := api.RemoveRelationship("/relationships/"+target.LinkID, target.LinkETag, target.BoardETag)
 		if errors.Is(err, client.ErrMutationOutcomeUnknown) {
-			return fmt.Errorf("%w. Read back with localswim relationship get %s before retrying", err, target.LinkID)
+			return fmt.Errorf("%w. Read back with localswim relationship get %s %s before retrying", err, target.BoardID, target.LinkID)
 		}
 		return err
 	case "relationship create":
@@ -128,7 +149,7 @@ func createTicketRelationship(api *client.Client, request *cliTicketRelationship
 	if err == nil && !confirmedRelationshipCreation(body, reply.JSON) {
 		err = fmt.Errorf("service did not confirm the requested relationship. %w", client.ErrMutationOutcomeUnknown)
 	}
-	return finishTicketRelationship(stdout, reply, err, "relationship get "+request.linkID)
+	return finishTicketRelationship(stdout, reply, err, "relationship get "+target.BoardID+" "+request.linkID)
 }
 
 func patchTicketParent(api *client.Client, request *cliTicketRelationship, target client.TicketRelationshipTarget, stdout io.Writer) error {
@@ -141,7 +162,7 @@ func patchTicketParent(api *client.Client, request *cliTicketRelationship, targe
 	if err == nil && !confirmedTicketParent(reply.JSON, request, target) {
 		err = fmt.Errorf("service did not confirm the requested parent. %w", client.ErrMutationOutcomeUnknown)
 	}
-	return finishTicketRelationship(stdout, reply, err, "card get "+target.CardID)
+	return finishTicketRelationship(stdout, reply, err, "card get "+target.BoardID+" "+target.CardID)
 }
 
 func confirmedTicketParent(data json.RawMessage, request *cliTicketRelationship, target client.TicketRelationshipTarget) bool {

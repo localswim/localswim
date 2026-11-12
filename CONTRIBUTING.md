@@ -18,9 +18,13 @@ Application timestamps use `YYYY-MM-DD HH:MM:SS+00:00`, normalized to UTC and wh
 seconds. Revisions distinguish edits within the same second. Native snapshots use
 `format_version: 2`.
 
+Each card ID belongs to exactly one board. CLI and UI card references include
+that board context. REST routes remain UUID-addressed.
+
 CLI commands that read JSON require a positional file path or `-` for standard input.
 Omitting the input path in document mode is a command error. Card creation in
-document mode takes `board_id` in its JSON. The CLI obtains the board revision
+document mode uses `card create [--revision N] BOARD_ID FILE|-`; any `board_id`
+in the JSON must match the positional board ID. The CLI obtains the board revision
 validator.
 
 Use the concise forms for routine writes. Set the variables to the UUIDs of the
@@ -28,7 +32,7 @@ board, lane, cards, and priority you want to use.
 
 ```powershell
 localswim card create --title "Check pool hours" --description "Verify the holiday schedule." $board $lane
-localswim comment post --text "Confirmed weekend hours." $card
+localswim comment post --text "Confirmed weekend hours." $board $card
 localswim card set-priorities $board $priority $card $otherCard
 ```
 
@@ -85,8 +89,9 @@ Use `comment list --limit N BOARD_ID` to read the newest comments on active card
 with their current numeric `ticket`, attribution, and full text. The limit is 1 to
 200 and defaults to 50. Equal timestamps retain newest commit order. Add
 `--archived include` to read active and archived work together or `--archived only`
-for archived work. The limit applies after filtering. Pass a `CARD_ID` after
-`BOARD_ID` to focus the report on one card, which remains readable when archived.
+for archived work. The limit applies after filtering. Pass a `CARD_ID` or
+`TICKET` after `BOARD_ID` to focus the report on one card, which remains readable
+when archived.
 Use `--cursor CURSOR` with the same selection to continue a report.
 
 Approval receipts are immutable. Their `board_revision` is the positive safe-integer
@@ -103,21 +108,27 @@ addressed lane revision. Relationship patch and remove check the addressed
 relationship revision. `attachment detach` checks the attachment revision and
 sends the parent board validator with the attachment's HTTP validator.
 
-Use a card UUID or a board UUID followed by the ticket with `card move`,
-`card assign`, `card archive`, and `card unarchive`. A ticket edit reads one
-focused view and submits its card and board validators together. A stale view
-refuses the edit even when the card itself has not changed. The optional
-`--revision N` checks the resolved card revision. After a stale response,
+Every board-scoped card command takes `BOARD_ID` first. Its card selector accepts
+`CARD_ID` or `TICKET`, which applies to get, patch, move, assign, title, priority,
+description, archive, unarchive, cover, and inspect. For example, use
+`card inspect BOARD_ID TICKET` or `card move BOARD_ID CARD_ID LANE_ID`. A ticket
+edit reads one focused view and submits its card and board validators together.
+A stale view refuses the edit even when the card itself has not changed. The
+optional `--revision N` checks the resolved card revision. After a stale response,
 inspect the current ticket mapping before issuing another command. After an
 uncertain response, inspect the original card by UUID.
 
+`card get` returns one card object for either selector.
+
 Use `card set-parent BOARD_ID TICKET PARENT_TICKET` or
-`card clear-parent BOARD_ID TICKET` to change a child's parent. The optional
+`card clear-parent BOARD_ID TICKET` to change a child's parent. Hierarchy
+source and parent selectors accept either a card UUID or ticket. The optional
 `--revision N` checks the child card revision. Both writes guard the child and
 board versions from one focused view.
 
 Use `relationship create BOARD_ID SOURCE_TICKET KIND TARGET_TICKET` to add a
-ticket-based link. Remove one with either
+ticket-based link. Source and target selectors accept a card UUID or ticket.
+Remove one with either
 `relationship remove BOARD_ID RELATIONSHIP_ID` or
 `relationship remove BOARD_ID SOURCE_TICKET KIND TARGET_TICKET`. The kinds are
 `blocks`, `duplicates`, `references`, and `relates_to`. Creation checks the board
@@ -126,6 +137,9 @@ to the board. Ticket removal resolves the exact typed edge from one focused view
 Optional `--revision N` checks the relationship revision for removal.
 After a stale response, inspect the current ticket mapping before trying again.
 After an uncertain response, inspect the original card or relationship UUID.
+Use `relationship get BOARD_ID RELATIONSHIP_ID` and
+`relationship patch BOARD_ID RELATIONSHIP_ID FILE|-` to read or update a
+relationship by ID.
 
 Use `activity list` with inclusive canonical UTC `--from` and `--to`. The
 default view returns sanitized metadata in audit revision order. Select
@@ -228,7 +242,7 @@ command. After an uncertain response, inspect the affected cards before retrying
 relationships. Cycles stay together in ticket order. Archived cards do not
 participate in this visible graph.
 
-Use `card inspect [--prose] BOARD_ID TICKET` to read one ticket, including
+Use `card inspect [--prose] BOARD_ID <CARD_ID|TICKET>` to read one card, including
 archived tickets, and see its current lane, owner, priority, direct relationships,
 parent, and children. The JSON includes the selected card and board revisions.
 Relationships identify whether the selected card is the source, target, or a
@@ -236,6 +250,10 @@ peer in a symmetric relation. Use `--prose` to include only the selected card's
 description and attributed comments. The default contains titles and workflow
 metadata. An authenticated board member with read permission can inspect a
 ticket while the board is closed.
+
+Ticket-order preview uses `ticket-order preview BOARD_ID LANE_ID [CARD_ID|TICKET ...]`.
+its optional pool selectors accept either card UUIDs or tickets. Apply a saved
+preview with `ticket-order apply BOARD_ID LANE_ID FILE|-`.
 
 Lane key patches preserve the lane UUID and its card, grant, and historical
 references. The Completed role and `completed` key are protected. Read-only
@@ -267,13 +285,20 @@ Attachment verification and archive construction run after releasing that lock.
 The ZIP includes the native snapshot and exact audited immutable attachment
 paths, including detached files. Backup metadata uses `sha2_256` for the archive
 digest and `board_revision` for the captured commit. Later edits remain available
-to subsequent captures. Use `backup info BACKUP_ID` to read metadata for the
+to subsequent captures. Use `backup info BOARD_ID BACKUP_ID` to read metadata for the
 original backup after an uncertain POST before attempting another capture.
 Use `board export [--type json] [--data DIRECTORY] BOARD_ID FILE|-` to save the
 complete native JSON snapshot. Supply a new file path or `-` for stdout. Omitting
 the destination is an error. The same destination rule applies online and offline.
 
-Use `backup download BACKUP_ID FILE|-` to verify and save the ZIP.
+Use `backup download BOARD_ID BACKUP_ID FILE|-` to verify and save the ZIP.
+
+Board-owned operations take `BOARD_ID` before the resource ID. Examples include
+`lane get BOARD_ID LANE_ID`, `lane rename BOARD_ID LANE_ID NAME`,
+`attachment get BOARD_ID ATTACHMENT_ID`, `publication get BOARD_ID PUBLICATION_ID`,
+and `restoration get BOARD_ID RESTORATION_ID`. Lane updates, relationship reads
+and writes, and attachment reads or writes use this same order. Backup info and
+download take the board ID before the backup ID as shown above.
 
 Run `localswim backup verify <FILE|->` to check a downloaded Localswim ZIP offline.
 Use a file path or `-` for binary standard input. Standard input is copied into
@@ -623,7 +648,7 @@ inside the data directory. The original filename, size, and SHA-2-256 digest are
 stored in the board snapshot. Focused attachment metadata readback can resolve
 an uncertain upload by its original attachment UUID.
 
-Use `attachment upload [--revision N] [--id UUID] [--filename NAME] CARD_ID <FILE|->`.
+Use `attachment upload [--revision N] [--id UUID] [--filename NAME] BOARD_ID <CARD_ID|TICKET> <FILE|->`.
 The required `-` input reads raw bytes from standard input without text conversion.
 Its default display filename is the same attachment UUID supplied by `--id` or
 generated for that upload. A file path defaults to its basename. `--filename`
@@ -631,13 +656,13 @@ overrides either default with a UTF-8 name of 1 to 1024 characters, without line
 breaks or NUL. Both input sources have a 10 MiB limit. The parent card revision
 is checked before reading attachment bytes.
 
-Use `attachment upload [--revision N] [--id UUID] [--filename NAME] BOARD_ID TICKET <FILE|->`
-to resolve the parent card from a ticket. The upload includes the card validator
-and the original board validator from the focused read. Use
-`attachment detach [--revision N] BOARD_ID TICKET ATTACHMENT_ID` to verify the
-attachment belongs to the resolved card and detach it with the original board
-validator and the attachment validator. Detach's `--revision` checks the attachment
-revision. After an uncertain result, inspect the original attachment UUID.
+The upload selector accepts a card UUID or ticket and includes the card and
+original board validators from the focused read. `attachment list BOARD_ID
+CARD_ID|TICKET` requires a card selector. Detach accepts
+`attachment detach BOARD_ID ATTACHMENT_ID` or
+`attachment detach BOARD_ID CARD_ID|TICKET ATTACHMENT_ID`; the second form
+verifies membership. Detach's `--revision` checks the attachment revision.
+After an uncertain result, inspect the original attachment UUID.
 
 ## References
 

@@ -171,7 +171,7 @@ func TestM070CLITicketCardEdits(t *testing.T) {
 		t.Fatal("ticket commands made extra requests or dispatched after a revision mismatch")
 	}
 
-	run(0, 2, "", "move", first.ID, board.LaneIDs[0])
+	run(0, 3, "", "move", board.ID, first.ID, board.LaneIDs[0])
 	current := call("GET", "/boards/"+board.ID, "")
 	reorder.Store(&reorderRequest{
 		path: v2.Prefix + "/ticket-orders/" + board.LaneIDs[0],
@@ -180,14 +180,14 @@ func TestM070CLITicketCardEdits(t *testing.T) {
 	})
 	run(1, 2, "HTTP 412", "archive", board.ID, "1")
 	currentFirst, currentSecond := read(first.ID), read(second.ID)
-	if lookups.Load() != 6 || edits.Load() != 6 || currentFirst.Ticket != 2 || currentSecond.Ticket != 1 ||
+	if lookups.Load() != 7 || edits.Load() != 6 || currentFirst.Ticket != 2 || currentSecond.Ticket != 1 ||
 		currentFirst.Archived || currentSecond.Archived {
 		t.Fatal("stale command retried, changed a card, or did not exercise an intervening reorder")
 	}
 
 	loseResponse.Store(true)
-	run(1, 2, "Read back with localswim card get "+first.ID, "archive", board.ID, "2")
-	if lookups.Load() != 7 || edits.Load() != 7 || !read(first.ID).Archived || read(second.ID).Archived {
+	run(1, 2, "Read back with localswim card get "+board.ID+" "+first.ID, "archive", board.ID, "2")
+	if lookups.Load() != 8 || edits.Load() != 7 || !read(first.ID).Archived || read(second.ID).Archived {
 		t.Fatal("uncertain response retried or affected the wrong card")
 	}
 }
@@ -197,7 +197,7 @@ func TestM070CLITicketPatchRejectsInvalidArguments(t *testing.T) {
 		{"card", "move", t03Board, "0", t03Lane},
 		{"card", "assign", t03Board, "9007199254740992", t03Lane},
 		{"card", "archive", t03Board, "-1"},
-		{"card", "unarchive", t03Board, t03Card},
+		{"card", "unarchive", t03Board, "invalid-card"},
 		{"card", "move", t03Board, "1", "invalid-lane"},
 	} {
 		code := runCLIWithInput(args, strings.NewReader(""), io.Discard, io.Discard, func(string) string {

@@ -111,7 +111,7 @@ func TestM073ProvisionAndGrantWorkflow(t *testing.T) {
 		LaneID string `json:"lane_id"`
 	}
 	decode(run(bot, "", "card", "create", "--title", "Backlog card", board.ID, backlog), &card)
-	run(bot, "HTTP 403", "card", "move", card.ID, progress)
+	run(bot, "HTTP 403", "card", "move", board.ID, card.ID, progress)
 
 	current := revision()
 	run(human, "revision mismatch", "policy", "grant", "--revision", "1", "--create", board.ID, botID, progress)
@@ -123,16 +123,16 @@ func TestM073ProvisionAndGrantWorkflow(t *testing.T) {
 	want.CreateGrants = append(want.CreateGrants, map[string]string{"user_id": botID, "lane_id": progress})
 	assertPolicy()
 	run(bot, "", "card", "create", "--title", "In Progress card", board.ID, progress)
-	run(bot, "HTTP 403", "card", "move", card.ID, progress)
+	run(bot, "HTTP 403", "card", "move", board.ID, card.ID, progress)
 
 	run(human, "", "policy", "grant", "--revision", revision(), "--move", board.ID, botID, backlog, progress)
 	want.MoveGrants = append(want.MoveGrants, map[string]string{"user_id": botID, "from_lane_id": backlog, "to_lane_id": progress})
 	assertPolicy()
-	decode(run(bot, "", "card", "move", card.ID, progress), &card)
+	decode(run(bot, "", "card", "move", board.ID, card.ID, progress), &card)
 	if card.LaneID != progress {
 		t.Fatal("the granted movement did not put the card in In Progress")
 	}
-	run(bot, "HTTP 403", "card", "move", card.ID, completed)
+	run(bot, "HTTP 403", "card", "move", board.ID, card.ID, completed)
 }
 
 func TestM073ContextualHelpAndInvalidInputs(t *testing.T) {

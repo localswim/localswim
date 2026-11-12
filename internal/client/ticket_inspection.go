@@ -14,6 +14,7 @@ const maxTicketInteger = 1<<53 - 1
 
 // TicketTarget holds the resource identities and write validators from one read.
 type TicketTarget struct {
+	Ticket        uint64
 	BoardID       string
 	BoardRevision uint64
 	BoardETag     string
@@ -71,7 +72,7 @@ func (c *Client) inspectTicket(boardID string, ticket, relatedTicket uint64, inc
 		return Response{}, TicketTarget{}, errors.New("service did not confirm the ticket view's board validator")
 	}
 	target := TicketTarget{
-		BoardID: boardID, BoardRevision: document.BoardRevision, BoardETag: reply.BoardETag,
+		Ticket: ticket, BoardID: boardID, BoardRevision: document.BoardRevision, BoardETag: reply.BoardETag,
 		CardID: document.Card.ID, CardRevision: document.Card.Revision,
 		CardETag: ticketEntityTag(document.Card.ID, document.Card.Revision),
 	}

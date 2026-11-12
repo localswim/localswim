@@ -11,7 +11,7 @@ import (
 
 func uploadTicketAttachment(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.Writer) error {
 	request := cmd.ticketAttachment
-	target, err := api.ResolveTicket(request.boardID, request.ticket)
+	target, err := resolveCardTarget(api, request)
 	if err != nil {
 		return err
 	}
@@ -29,16 +29,16 @@ func uploadTicketAttachment(api *client.Client, cmd cliCommand, stdin io.Reader,
 	reply, err := api.UploadTicketAttachment(target, body, contentType)
 	if err != nil {
 		if errors.Is(err, client.ErrMutationOutcomeUnknown) {
-			return fmt.Errorf("%w (attachment ID %s)", err, edit.uploadID)
+			return fmt.Errorf("%w. Read back with localswim attachment get %s %s before retrying", err, target.BoardID, edit.uploadID)
 		}
 		return err
 	}
 	if _, matches := resolvedAttachmentRevision(reply.JSON, edit.uploadID, target); !matches {
-		return fmt.Errorf("service did not confirm the addressed attachment. %w. Read back with localswim attachment get %s",
-			client.ErrMutationOutcomeUnknown, edit.uploadID)
+		return fmt.Errorf("service did not confirm the addressed attachment. %w. Read back with localswim attachment get %s %s",
+			client.ErrMutationOutcomeUnknown, target.BoardID, edit.uploadID)
 	}
 	if err := writeCLIJSON(stdout, reply.JSON); err != nil {
-		return fmt.Errorf("service accepted attachment %s, but its response could not be written", edit.uploadID)
+		return fmt.Errorf("service accepted attachment %s, but its response could not be written. Read back with localswim attachment get %s %s", edit.uploadID, target.BoardID, edit.uploadID)
 	}
 	return nil
 }

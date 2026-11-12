@@ -223,26 +223,33 @@ blocking link and raising a priority can promote upstream cards in one audited
 revision. Archived unfinished cards participate, and Completed cards stop paths.
 Removing a link does not lower priorities.
 
-Batch priority changes send one `priority_id` and exactly one of `card_ids` or
-`all_unfinished: true` to `PATCH /cards` under `expected_board_etag`. The CLI
-sends `all_unfinished: true` when no card selectors are given. This atomically
+Batch priority changes send one `priority_id` and exactly one of `card_ids`,
+`lane_id`, or `all_unfinished: true` to `PATCH /cards` under `expected_board_etag`. The CLI
+sends `all_unfinished: true` when neither lane nor card selectors are given. This atomically
 selects every unfinished card, including archived cards. Completed cards remain
 immutable. An explicit `card_ids` list must be nonempty and contain at most 1000
 cards. The all-unfinished selection has no separate cap beyond board bounds.
-Omitting both selectors, or supplying `card_ids` as null or empty, is invalid.
+Omitting all three selectors, or supplying `card_ids` as null or empty, is invalid.
 An empty eligible set is a no-op. Evaluate the full selection together
 before applying the blocking floor. The result includes effective selected
 cards, all actual audit changes, and `board_revision`. `X-Board-ETag` carries the
 committed validator. Duplicate IDs and Completed selections refuse the entire
 operation. An unchanged effective result preserves the revision and audit.
 
-Use `card set-priorities [--revision N] [-f|--force] BOARD_ID PRIORITY_ID [CARD_ID ...]`.
-Each `CARD_ID` may be a UUID or ticket. With no selectors, the command prints an
+Use `card set-priorities [--revision N] [-f|--force] [--lane LANE_ID] BOARD_ID PRIORITY_ID [CARD_ID ...]`.
+Each `CARD_ID` may be a UUID or ticket. With neither lane nor card selectors, the command prints an
 INFO summary and prompts `Continue? [Y/n]`. Pressing Enter confirms. Use
 `-f` or `--force` to skip the prompt for bots or noninteractive use. Explicit
 selectors do not prompt. `--revision` checks the board revision. After a stale response,
 inspect the current ticket mapping before issuing another command. After an
 uncertain response, inspect the affected cards before retrying.
+
+Use `card set-priorities --lane LANE_ID BOARD_ID PRIORITY_ID` to select every
+unfinished card in one lane, including archived unfinished cards. `-l` is the
+short form of `--lane`. Lane selection runs without a confirmation prompt and
+cannot be combined with individual card selectors. The API expresses this as
+`lane_id`, resolved inside the guarded transaction. The API accepts exactly one
+of `card_ids`, `lane_id`, or `all_unfinished: true` as its selection.
 
 Consider the same confirmation convention for implicit whole-board or
 query-selected multi-card writes. Explicit `--lane UUID` selection needs no extra

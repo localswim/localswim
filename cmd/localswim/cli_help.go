@@ -41,7 +41,7 @@ const commandUsage = `Usage:
   localswim card assign [--revision N] BOARD_ID <CARD_ID|TICKET> OWNER_ID
   localswim card title [--revision N] BOARD_ID <CARD_ID|TICKET> TITLE
   localswim card set-priority [--revision N] BOARD_ID <CARD_ID|TICKET> PRIORITY_ID
-  localswim card set-priorities [--revision N] [-f|--force] BOARD_ID PRIORITY_ID [CARD_ID ...]
+  localswim card set-priorities [--revision N] [-f|--force] [--lane LANE_ID] BOARD_ID PRIORITY_ID [CARD_ID ...]
   localswim card description [--revision N] BOARD_ID <CARD_ID|TICKET> FILE|-
   localswim card archive [--revision N] BOARD_ID <CARD_ID|TICKET>
   localswim card unarchive [--revision N] BOARD_ID <CARD_ID|TICKET>
@@ -321,7 +321,7 @@ var commandHelpNotes = map[string]string{
 	"card unarchive":           "Supply BOARD_ID and a card UUID or ticket. The card and board versions are guarded. Retired lanes refuse unarchive.",
 	"card description":         "Read UTF-8 description text verbatim, including trailing newlines.",
 	"card cover":               "Use an active attachment UUID, or none to clear the cover.",
-	"card set-priorities":      "CARD_ID accepts a card UUID or positive ticket number, including mixed lists of up to 1000 explicit selectors. Omit the list to select every unfinished card, including archived unfinished cards. Completed cards are immutable. All-card selection prints INFO and asks Continue? [Y/n]. -f or --force skips the prompt. Explicit selections run directly. The batch applies effective blocking floors to all selections together.",
+	"card set-priorities":      "CARD_ID accepts a card UUID or positive ticket number, including mixed lists of up to 1000 explicit selectors. --lane (or -l) selects unfinished cards in that lane, including archived cards, and cannot be combined with card selectors. Omit both to select every unfinished card on the board. Completed cards are immutable. All-board selection prints INFO and asks Continue? [Y/n]. -f or --force skips the prompt. Explicit card or lane selections run directly. The batch applies effective blocking floors to all selections together.",
 	"card search":              "Match literal titles and tickets. --search-content includes readable descriptions and comments. Repeat --lane for multiple lanes. Results use whole-board triage ordering.",
 	"card triage-order":        "Return the highest-ranked unfinished card by default. --limit requests more. Repeat --lane for multiple lanes. --search-content includes readable descriptions and comments. This command makes no changes.",
 	"card lookup":              "Return matching cards in numeric ticket order. --search-content includes readable descriptions and comments.",
@@ -356,7 +356,7 @@ var commandExamples = map[string]string{
 	"card inspect":        "  localswim card inspect --prose $board 12",
 	"attachment upload":   "  localswim attachment upload --revision 12 $board 17 photo.png\n  localswim attachment upload --filename photo.png $board $card -",
 	"comment post":        "  localswim comment post --text \"Confirmed weekend hours.\" $board $card\n  localswim comment post --revision 13 $board $card comment.json",
-	"card set-priorities": "  localswim card set-priorities $board $priority 12 $card2\n  localswim card set-priorities --force --revision 14 $board $priority",
+	"card set-priorities": "  localswim card set-priorities $board $priority 12 $card2\n  localswim card set-priorities --lane $lane $board $priority\n  localswim card set-priorities --force --revision 14 $board $priority",
 	"policy grant":        "  localswim policy grant --revision 4 --create $board $user $lane\n  localswim policy grant --revision 5 --move $board $user $from $to",
 	"activity list":       "  localswim activity list --from \"2026-11-11 00:00:00+00:00\" --to \"2026-11-11 01:00:00+00:00\" $board",
 }

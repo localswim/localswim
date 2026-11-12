@@ -13,6 +13,7 @@ var errPriorityBatchCompleted = errors.New("Completed cards cannot be selected")
 
 type priorityBatchInput struct {
 	boardID, boardTag, priorityID string
+	laneID                        string
 	cardIDs                       []string
 	allUnfinished                 bool
 }
@@ -26,7 +27,7 @@ type priorityBatchResult struct {
 
 func readPriorityBatchInput(fields map[string]json.RawMessage) (priorityBatchInput, error) {
 	var in priorityBatchInput
-	if err := rejectFields(fields, []string{"board_id", "expected_board_etag", "card_ids", "all_unfinished", "priority_id"}, false); err != nil {
+	if err := rejectFields(fields, []string{"board_id", "expected_board_etag", "card_ids", "all_unfinished", "priority_id", "lane_id"}, false); err != nil {
 		return in, err
 	}
 	var err error
@@ -42,11 +43,20 @@ func readPriorityBatchInput(fields map[string]json.RawMessage) (priorityBatchInp
 	if err != nil {
 		return in, err
 	}
-	_, explicit := fields["card_ids"]
-	all, hasAll := fields["all_unfinished"]
-	if explicit == hasAll {
-		return in, invalid("card_ids", "Provide either card_ids or all_unfinished: true.")
+	selectors := 0
+	for _, field := range []string{"card_ids", "all_unfinished", "lane_id"} {
+		if _, exists := fields[field]; exists {
+			selectors++
+		}
 	}
+	if selectors != 1 {
+		return in, invalid("card_ids", "Provide exactly one of card_ids, all_unfinished: true, or lane_id.")
+	}
+	if lane, hasLane := fields["lane_id"]; hasLane {
+		in.laneID, err = inputID(lane, "lane_id")
+		return in, err
+	}
+	all, hasAll := fields["all_unfinished"]
 	if hasAll {
 		if json.Unmarshal(all, &in.allUnfinished) != nil || !in.allUnfinished {
 			return in, invalid("all_unfinished", "Expected true.")
@@ -134,10 +144,13 @@ func (in *priorityBatchInput) apply(state *snapshot, actor string) error {
 	if !slices.Contains(state.Board.PriorityIDs, in.priorityID) {
 		return invalid("priority_id", "Expected a priority on this board.")
 	}
-	if in.allUnfinished {
+	if in.laneID != "" && !slices.Contains(state.Board.LaneIDs, in.laneID) {
+		return invalid("lane_id", "Expected a lane on this board.")
+	}
+	if in.allUnfinished || in.laneID != "" {
 		in.cardIDs = make([]string, 0, len(state.Cards))
 		for _, item := range state.Cards {
-			if item.CompletedAt == nil {
+			if item.CompletedAt == nil && (in.laneID == "" || item.LaneID == in.laneID) {
 				in.cardIDs = append(in.cardIDs, item.ID)
 			}
 		}

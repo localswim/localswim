@@ -26,6 +26,8 @@ func parseT06(name string, args []string) (cliCommand, error) {
 		flags.StringVar(&revision, "revision", "", "expected board revision")
 		flags.BoolVar(&cmd.force, "force", false, "confirm all unfinished cards without prompting")
 		flags.BoolVar(&cmd.force, "f", false, "confirm all unfinished cards without prompting")
+		flags.StringVar(&cmd.priorityLane, "lane", "", "select unfinished cards in one lane")
+		flags.StringVar(&cmd.priorityLane, "l", "", "select unfinished cards in one lane")
 	case "backup create":
 		flags.StringVar(&revision, "revision", "", "expected board revision")
 	case "ticket-order preview", "backup info", "backup download":
@@ -64,6 +66,10 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	var optionErr error
 	flags.Visit(func(f *flag.Flag) {
 		switch f.Name {
+		case "lane", "l":
+			if !boardIDPattern.MatchString(cmd.priorityLane) {
+				optionErr = errors.New("--lane requires a UUIDv4 lane ID")
+			}
 		case "revision":
 			var err error
 			cmd.revision, err = parseCLIRevision(revision)
@@ -84,7 +90,7 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	case "card set-priorities":
 		cmd.method, cmd.resource, cmd.boardID = http.MethodPatch, "/cards", id
 		var err error
-		cmd.cardSelectors, cmd.body, err = parsePriorityBatch(cmd.boardID, flags.Arg(1), flags.Args()[2:])
+		cmd.cardSelectors, cmd.body, err = parsePriorityBatch(cmd.boardID, flags.Arg(1), cmd.priorityLane, flags.Args()[2:])
 		if err != nil {
 			return cmd, err
 		}

@@ -370,3 +370,179 @@ func TestPriorityBatchNoopPreservesUnrelatedPreFloorGraph(t *testing.T) {
 		t.Fatal("no-op batch changed the existing graph, card versions, or audit")
 	}
 }
+
+func TestPriorityBatchLaneInputValidation(t *testing.T) {
+	laneID := newID()
+	base := fmt.Sprintf(`"board_id":%q,"expected_board_etag":%q,"priority_id":%q`, newID(), etag(newID(), 1), newID())
+	for _, test := range []struct {
+		name, selection string
+	}{
+		{"all and lane", fmt.Sprintf(`,"all_unfinished":true,"lane_id":%q`, laneID)},
+		{"explicit cards", fmt.Sprintf(`,"card_ids":[%q],"lane_id":%q`, newID(), laneID)},
+		{"explicit cards and all", fmt.Sprintf(`,"card_ids":[%q],"all_unfinished":true,"lane_id":%q`, newID(), laneID)},
+		{"false all", fmt.Sprintf(`,"all_unfinished":false,"lane_id":%q`, laneID)},
+		{"null lane", `,"lane_id":null`},
+		{"empty lane", `,"lane_id":""`},
+		{"malformed lane", `,"lane_id":"not-a-uuid"`},
+		{"nonstring lane", `,"lane_id":42`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			object, err := decodeObject([]byte("{" + base + test.selection + "}"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := readPriorityBatchInput(object); err == nil {
+				t.Fatal("invalid lane selection accepted")
+			}
+		})
+	}
+	object, err := decodeObject([]byte("{" + base + fmt.Sprintf(`,"lane_id":%q}`, strings.ToUpper(laneID))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := readPriorityBatchInput(object)
+	if err != nil || in.laneID != laneID || in.allUnfinished {
+		t.Fatalf("lane identity was not canonicalized: %v", err)
+	}
+}
+
+func TestPriorityBatchLaneUnfinished(t *testing.T) {
+	human := base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("h", 32)))
+	bot := base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("b", 32)))
+	app, err := Open(t.TempDir(), human, bot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := app.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	server := httptest.NewUnstartedServer(nil)
+	server.Config.Handler = app.Handler(server.Listener.Addr().(*net.TCPAddr))
+	server.Start()
+	t.Cleanup(server.Close)
+	client := turnOneClient{t, server.URL, human, server.Client()}
+	raw, _ := client.call("POST", "/boards", `{"name":"Lane priorities"}`, "", 201)
+	b := turnOneDecode[board](t, raw)
+	boardTag := b.entityTag()
+	high, low := b.PriorityIDs[0], b.PriorityIDs[2]
+	create := func(laneID, title string) card {
+		t.Helper()
+		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"title":%q,"priority_id":%q}`,
+			b.ID, boardTag, laneID, title, high)
+		raw, headers := client.call("POST", "/cards", body, "", 201)
+		boardTag = headers.Get("X-Board-ETag")
+		return turnOneDecode[card](t, raw)
+	}
+	completed := create(b.LaneIDs[0], "Completed")
+	for _, laneID := range []string{b.LaneIDs[2], b.LaneIDs[3], b.LaneIDs[4]} {
+		raw, headers := client.call("PATCH", "/cards/"+completed.ID, fmt.Sprintf(`{"lane_id":%q}`, laneID), completed.entityTag(), 200)
+		completed = turnOneDecode[card](t, raw)
+		boardTag = headers.Get("X-Board-ETag")
+	}
+	active := create(b.LaneIDs[0], "Selected active")
+	archived := create(b.LaneIDs[0], "Selected archived")
+	_, headers := client.call("PATCH", "/cards/"+archived.ID, `{"archived":true}`, archived.entityTag(), 200)
+	boardTag = headers.Get("X-Board-ETag")
+	other := create(b.LaneIDs[1], "Other lane")
+	batch := func(laneID, tag string, status int) (priorityBatchResult, string) {
+		t.Helper()
+		body := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"priority_id":%q,"lane_id":%q}`,
+			b.ID, tag, low, laneID)
+		raw, headers := client.call("PATCH", "/cards", body, "", status)
+		if status != 200 {
+			return priorityBatchResult{}, ""
+		}
+		return turnOneDecode[priorityBatchResult](t, raw), headers.Get("X-Board-ETag")
+	}
+	before, err := app.store.durable(b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = client.call("POST", "/boards", `{"name":"Foreign lane"}`, "", 201)
+	foreign := turnOneDecode[board](t, raw)
+	batch(foreign.LaneIDs[0], boardTag, 400)
+	batch(newID(), boardTag, 400)
+	batch("malformed", boardTag, 400)
+	batch(b.LaneIDs[0], b.entityTag(), 412)
+	unchanged, err := app.store.durable(b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(before, unchanged) {
+		t.Fatal("invalid or stale lane batch changed durable state")
+	}
+	for _, laneID := range []string{b.LaneIDs[2], b.LaneIDs[4]} {
+		result, tag := batch(laneID, boardTag, 200)
+		if tag != boardTag || result.Cards == nil || len(result.Cards) != 0 || result.Changes == nil || len(result.Changes) != 0 {
+			t.Fatal("empty or Completed lane changed revision or returned selected cards")
+		}
+	}
+	result, tag := batch(strings.ToUpper(b.LaneIDs[0]), boardTag, 200)
+	if tag == boardTag || result.BoardRevision != before.Board.Revision+1 || len(result.Cards) != 2 || len(result.Changes) != 2 {
+		t.Fatal("lane selection did not commit both unfinished cards together")
+	}
+	selected := map[string]bool{active.ID: false, archived.ID: true}
+	for _, item := range result.Cards {
+		isArchived, exists := selected[item.ID]
+		if !exists || item.PriorityID != low || item.Archived != isArchived {
+			t.Fatal("lane selection changed the wrong card or archive state")
+		}
+	}
+	for _, change := range result.Changes {
+		if _, exists := selected[change.ResourceID]; !exists || change.Operation != "patch" || change.Revision != result.BoardRevision ||
+			change.ActorID != humanID || snapshotString(change.Field) != "priority_id" || snapshotString(change.Before) != high || snapshotString(change.After) != low {
+			t.Fatal("lane batch audit did not record the selected priority edit and shared revision")
+		}
+	}
+	saved, err := app.store.durable(b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cards := relationshipCards(&saved)
+	if !reflect.DeepEqual(*cards[other.ID], other) || !reflect.DeepEqual(*cards[completed.ID], completed) {
+		t.Fatal("lane batch changed other-lane or Completed cards")
+	}
+	if err := validateSnapshot(saved, b.ID); err != nil {
+		t.Fatal(err)
+	}
+	result, noopTag := batch(b.LaneIDs[0], tag, 200)
+	if noopTag != tag || len(result.Cards) != 2 || len(result.Changes) != 0 {
+		t.Fatal("unchanged lane selection changed revision or audit")
+	}
+	batch(b.LaneIDs[2], boardTag, 412)
+	afterNoops, err := app.store.durable(b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(saved, afterNoops) {
+		t.Fatal("no-op or stale empty-lane selection changed durable state")
+	}
+}
+
+func TestPriorityBatchRetiredLaneIncludesArchivedUnfinished(t *testing.T) {
+	now := canonicalTime(time.Now())
+	state := snapshot{
+		Board:  board{UserIDs: []string{"actor"}, PriorityIDs: []string{"high", "low"}, LaneIDs: []string{"retired", "other"}},
+		Policy: policy{ResourceGrants: []resourceGrant{{UserID: "actor", Capabilities: []string{"set_priority"}}}},
+		Lanes:  []lane{{ID: "retired", Retired: true}, {ID: "other"}},
+		Priorities: []priority{
+			{entity: newEntity("high", now), Rank: 0},
+			{entity: newEntity("low", now), Rank: 1},
+		},
+		Cards: []card{
+			{ID: "archived", LaneID: "retired", Archived: true, PriorityID: "high"},
+			{ID: "completed", LaneID: "retired", CompletedAt: &now, PriorityID: "high"},
+			{ID: "other", LaneID: "other", PriorityID: "high"},
+		},
+	}
+	in := priorityBatchInput{priorityID: "low", laneID: "retired"}
+	if err := in.apply(&state, "actor"); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(in.cardIDs, []string{"archived"}) || state.Cards[0].PriorityID != "low" || !state.Cards[0].Archived ||
+		state.Cards[1].PriorityID != "high" || state.Cards[2].PriorityID != "high" || len(state.Activity) != 1 {
+		t.Fatal("retired lane did not preserve archived unfinished eligibility and selection scope")
+	}
+}

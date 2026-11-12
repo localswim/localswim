@@ -60,6 +60,7 @@ type cliCommand struct {
 	ticketAttachment                   *cliTicketTarget
 	ticketComment                      *cliTicketTarget
 	force                              bool
+	priorityLane                       string
 	cardSelectors                      []string
 	cardTarget                         *cliTicketTarget
 	t07Action                          string

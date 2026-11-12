@@ -178,7 +178,7 @@ func TestWholeBoardCancellationDoesNotConnect(t *testing.T) {
 
 func TestPriorityBatchSelectorGrammar(t *testing.T) {
 	for _, selectors := range [][]string{nil, {"1"}, {t03Card}, {"1", "a162ddc4-dddc-4ebd-8a19-426ee18cae4f"}} {
-		got, body, err := parsePriorityBatch(t03Board, strings.ToUpper(t03Lane), selectors)
+		got, body, err := parsePriorityBatch(t03Board, strings.ToUpper(t03Lane), "", selectors)
 		if err != nil || len(got) != len(selectors) || !bytes.Contains(body, []byte(t03Lane)) || bytes.Contains(body, []byte("card_ids")) {
 			t.Fatalf("selectors %v got %v body %s error %v", selectors, got, body, err)
 		}
@@ -187,7 +187,7 @@ func TestPriorityBatchSelectorGrammar(t *testing.T) {
 		}
 	}
 	for _, selectors := range [][]string{{"1", "0001"}, {t03Card, strings.ToUpper(t03Card)}, {"0"}, {"9007199254740992"}, {"invalid"}} {
-		if _, _, err := parsePriorityBatch(t03Board, t03Lane, selectors); err == nil {
+		if _, _, err := parsePriorityBatch(t03Board, t03Lane, "", selectors); err == nil {
 			t.Fatalf("invalid selectors accepted: %v", selectors)
 		}
 	}
@@ -195,7 +195,7 @@ func TestPriorityBatchSelectorGrammar(t *testing.T) {
 	for i := range selectors {
 		selectors[i] = fmt.Sprint(i + 1)
 	}
-	if _, _, err := parsePriorityBatch(t03Board, t03Lane, selectors); err == nil {
+	if _, _, err := parsePriorityBatch(t03Board, t03Lane, "", selectors); err == nil {
 		t.Fatal("accepted more than 1000 selectors")
 	}
 }

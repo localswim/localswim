@@ -11,7 +11,7 @@ import (
 func confirmWholeBoardWrite(cmd cliCommand, input io.Reader, output io.Writer) (bool, error) {
 	var action string
 	switch {
-	case cmd.t06Action == "card set-priorities" && len(cmd.cardSelectors) == 0:
+	case cmd.t06Action == "card set-priorities" && len(cmd.cardSelectors) == 0 && cmd.priorityLane == "":
 		action = "update the priority of all unfinished cards, including archived unfinished cards"
 	case cmd.t07Action == "board restore" || cmd.t07Action == "restoration create":
 		action = "replace the board contents from a backup"

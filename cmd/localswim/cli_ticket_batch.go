@@ -9,9 +9,17 @@ import (
 	"github.com/localswim/localswim/internal/client"
 )
 
-func parsePriorityBatch(boardID, priority string, args []string) ([]string, json.RawMessage, error) {
+func parsePriorityBatch(boardID, priority, laneID string, args []string) ([]string, json.RawMessage, error) {
 	if !boardIDPattern.MatchString(priority) {
 		return nil, nil, errors.New("priority batch requires a UUIDv4 priority ID")
+	}
+	if laneID != "" {
+		if !boardIDPattern.MatchString(laneID) {
+			return nil, nil, errors.New("--lane requires a UUIDv4 lane ID")
+		}
+		if len(args) != 0 {
+			return nil, nil, errors.New("choose --lane or explicit card selectors")
+		}
 	}
 	if len(args) > 1000 {
 		return nil, nil, errors.New("priority batch accepts at most 1000 explicit card selectors")
@@ -34,7 +42,9 @@ func parsePriorityBatch(boardID, priority string, args []string) ([]string, json
 		selectors = append(selectors, arg)
 	}
 	request := map[string]any{"priority_id": strings.ToLower(priority)}
-	if len(selectors) == 0 {
+	if laneID != "" {
+		request["lane_id"] = strings.ToLower(laneID)
+	} else if len(selectors) == 0 {
 		request["all_unfinished"] = true
 	}
 	body, _ := json.Marshal(request)

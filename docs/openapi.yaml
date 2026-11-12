@@ -2108,8 +2108,9 @@ paths:
       x-milestones:
       - 11
       description: expected_board_etag is a body precondition on the board, not an If-Match tag for this
-        collection. Normalize UUIDs before duplicate checks. Exactly one of card_ids or all_unfinished
-        must be supplied. When all_unfinished is true, atomically select all unfinished cards, including
+        collection. Normalize UUIDs before duplicate checks. Exactly one of card_ids, lane_id, or all_unfinished
+        must be supplied. A lane_id atomically selects unfinished cards in that board's lane, including archived cards.
+        When all_unfinished is true, atomically select all unfinished cards, including
         archived cards; Completed cards remain immutable. An explicit card_ids list must be nonempty and
         contain at most 1000 entries. The all_unfinished selection has no separate cap beyond board
         bounds. An empty eligible set is a no-op. Evaluate all selected overrides together and apply
@@ -16541,6 +16542,8 @@ components:
         all_unfinished:
           type: boolean
           const: true
+        lane_id:
+          $ref: '#/components/schemas/UuidInput'
         priority_id:
           $ref: '#/components/schemas/UuidInput'
         actor: false
@@ -16570,6 +16573,7 @@ components:
       oneOf:
       - required: [card_ids]
       - required: [all_unfinished]
+      - required: [lane_id]
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
     ApprovalInput:

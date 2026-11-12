@@ -758,8 +758,8 @@ function editedDescription(saved, baseline, edited) {
   }
   const before = saved.slice(0, rawPrefix);
   const after = edited.slice(prefix, edited.length - suffix) + saved.slice(rawSuffix);
-  // A bare CR followed by a new LF would collapse two visible breaks into one.
-  if (before.endsWith("\r") && after.startsWith("\n")) return before.slice(0, -1) + "\n" + after;
+  // Complete the last bare CR as CRLF so it cannot absorb the following LF.
+  if (before.endsWith("\r") && after.startsWith("\n")) return before + "\n" + after;
   return before + after;
 }
 

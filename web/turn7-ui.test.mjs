@@ -2177,7 +2177,7 @@ test("card prose displays the shared search text in both drawer and recent comme
 test("saving edited prose keeps unchanged line endings and newly entered breaks", async () => {
   const {api} = boardApi();
   const patch = api.patchCard;
-  await patch(card, tag(card, 1), {description: "Café\r\n**Old**\rFollow-up\r\nDone"});
+  await patch(card, tag(card, 1), {description: "Café\r\n**Old**\rFollow-up\r\nDone\r\r"});
   const writes = [];
   api.patchCard = (id, etag, change) => {
     writes.push(change);
@@ -2189,22 +2189,28 @@ test("saving edited prose keeps unchanged line endings and newly entered breaks"
   ui.find(main, "button", "#1 Original").click();
   await until(() => ui.field(details, "Description"));
   const description = ui.field(details, "Description");
-  assert.equal(description.value, "Café\n**Old**\nFollow-up\nDone");
+  assert.equal(description.value, "Café\n**Old**\nFollow-up\nDone\n\n");
   ui.field(details, "Title").value = "Renamed";
   ui.submit(details, "Save text");
   await ui.settled();
   assert.deepEqual({...writes[0]}, {title: "Renamed"});
 
-  description.value = "Café\n**New 🚲**\nAdded\nFollow-up\nDone";
+  description.value = "Café\n**New 🚲**\nAdded\nFollow-up\nDone\n\n";
   ui.submit(details, "Save text");
   await ui.settled();
-  assert.equal(writes[1].description, "Café\r\n**New 🚲**\nAdded\rFollow-up\r\nDone");
+  assert.equal(writes[1].description, "Café\r\n**New 🚲**\nAdded\rFollow-up\r\nDone\r\r");
 
-  description.value = "Café\n**New 🚲**\nAdded\n\nFollow-up\nDone";
+  description.value = "Café\n**New 🚲**\nAdded\n\nFollow-up\nDone\n\n";
   ui.submit(details, "Save text");
   await ui.settled();
-  assert.equal(writes[2].description, "Café\r\n**New 🚲**\nAdded\n\nFollow-up\r\nDone");
-  assert.equal((await api.getCard()).data.description, writes[2].description);
+  assert.equal(writes[2].description, "Café\r\n**New 🚲**\nAdded\r\n\nFollow-up\r\nDone\r\r");
+
+  description.value += "\n";
+  ui.submit(details, "Save text");
+  await ui.settled();
+  const saved = (await api.getCard()).data.description;
+  assert.equal(saved, "Café\r\n**New 🚲**\nAdded\r\n\nFollow-up\r\nDone\r\r\n\n");
+  assert.equal(saved.replace(/\r\n?/g, "\n"), description.value);
 });
 
 test("board loading retries a changed revision and adopts current publishing status at a matching revision", async () => {

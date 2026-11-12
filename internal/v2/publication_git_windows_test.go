@@ -12,7 +12,26 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 )
+
+func TestM90WindowsPublicationEnvironmentBlockOrder(t *testing.T) {
+	entries := []string{"zeta=Z", `=D:=D:\two=extra`, "beta=B", `=C:=C:\some space`, "SystemRoot=C:\\Windows",
+		"ALPHA=obsolete", "Alpha-more=A-", "alpha= 雨=exact", "åVariable=Å"}
+	command := &exec.Cmd{Env: slices.Clone(entries)}
+	block, err := publicationWindowsEnvironment(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{`=C:=C:\some space`, `=D:=D:\two=extra`, "alpha= 雨=exact", "Alpha-more=A-", "beta=B",
+		"SystemRoot=C:\\Windows", "zeta=Z", "åVariable=Å"}
+	if string(utf16.Decode(block)) != strings.Join(want, "\x00")+"\x00\x00" {
+		t.Fatal("environment block changed entry order, values, or the double NUL")
+	}
+	if !slices.Equal(command.Env, entries) {
+		t.Fatal("environment block encoding changed the caller's entries")
+	}
+}
 
 func TestM92WindowsPublicationGitProcessFlags(t *testing.T) {
 	const createNoWindow, createSuspended = 0x08000000, 0x00000004

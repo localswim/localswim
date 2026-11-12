@@ -5,8 +5,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
+	"unicode/utf16"
 	"unsafe"
 )
 
@@ -14,6 +16,7 @@ var (
 	initPublicationAttributes   = kernel32.NewProc("InitializeProcThreadAttributeList")
 	updatePublicationAttributes = kernel32.NewProc("UpdateProcThreadAttribute")
 	deletePublicationAttributes = kernel32.NewProc("DeleteProcThreadAttributeList")
+	comparePublicationNames     = kernel32.NewProc("CompareStringOrdinal")
 )
 
 const (
@@ -98,9 +101,41 @@ func publicationWindowsEnvironment(command *exec.Cmd) ([]uint16, error) {
 			return nil, syscall.EINVAL
 		}
 	}
+	type environmentEntry struct {
+		text string
+		name []uint16
+	}
+	environment := command.Environ()
+	entries := make([]environmentEntry, 0, len(environment))
+	for _, entry := range environment {
+		name := entry
+		// A drive entry such as =C:=C:\work uses the second equals sign
+		// as the separator. Regular names have at least one character.
+		if len(entry) > 1 {
+			if separator := strings.IndexByte(entry[1:], '='); separator >= 0 {
+				name = entry[:separator+1]
+			}
+		}
+		entries = append(entries, environmentEntry{text: entry, name: utf16.Encode([]rune(name))})
+	}
+	var compareErr error
+	slices.SortStableFunc(entries, func(a, b environmentEntry) int {
+		// CompareStringOrdinal's ignore-case mode uses Windows Unicode
+		// order independently of the user's locale. The middle result is 2.
+		result, _, err := comparePublicationNames.Call(uintptr(unsafe.Pointer(unsafe.SliceData(a.name))), uintptr(len(a.name)),
+			uintptr(unsafe.Pointer(unsafe.SliceData(b.name))), uintptr(len(b.name)), 1)
+		if result == 0 {
+			compareErr = err
+			return 0
+		}
+		return int(result) - 2
+	})
+	if compareErr != nil {
+		return nil, compareErr
+	}
 	var block []uint16
-	for _, entry := range command.Environ() {
-		value, err := syscall.UTF16FromString(entry)
+	for _, entry := range entries {
+		value, err := syscall.UTF16FromString(entry.text)
 		if err != nil {
 			return nil, err
 		}

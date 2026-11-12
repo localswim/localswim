@@ -41,7 +41,7 @@ async function harness(api, pathname = "/boards/" + board, {
     }
     set scrollTop(top) { this._scrollTop = Math.min(top, scrollLimit(this)); }
     scrollLeft = 0;
-    constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; this.style = {}; }
+    constructor(tagName) { this.tagName = tagName; this.children = []; this.dataset = {}; this.attributes = {}; this.events = {}; this.value = ""; this.ownText = ""; this.disabled = false; this.hidden = false; this.style = {setProperty(key, value) { this[key] = value; }}; }
     set textContent(value) { this.ownText = value; this.children = []; }
     get textContent() { return this.ownText + this.children.map((node) => node.textContent).join(""); }
     get isConnected() { return this.root === true || Boolean(this.parent?.isConnected); }
@@ -79,8 +79,8 @@ async function harness(api, pathname = "/boards/" + board, {
     focus(options) { document.activeElement = this; this.focusOptions = options; }
     closest(selector) {
       if (selector === '[data-unavailable="true"]' && this.dataset.unavailable === "true") return this;
-      if (selector === "details[data-card-search]:not([open])" && this.tagName === "details"
-          && this.dataset.cardSearch && !this.open) return this;
+      if (selector === "[hidden]" && this.hidden) return this;
+      if (selector === "details:not([open])" && this.tagName === "details" && !this.open) return this;
       return this.parent?.closest(selector) ?? null;
     }
     contains(node) { return node === this || this.children.some((child) => child.contains(node)); }
@@ -91,6 +91,7 @@ async function harness(api, pathname = "/boards/" + board, {
       if (selector === "*") return descendants;
       if (selector === "form button[type=submit]") return descendants.filter((child) => child.tagName === "button" && child.type === "submit" && child.parent.tagName === "form");
       if (selector.startsWith("#")) return descendants.filter((child) => child.id === selector.slice(1));
+      if (selector === "button[data-card-id]") return descendants.filter((child) => child.tagName === "button" && child.dataset.cardId);
       if (selector.startsWith("button[data-card-id=")) return descendants.filter((child) => child.tagName === "button" && selector.includes(child.dataset.cardId));
       return descendants.filter((child) => child.tagName === selector);
     }
@@ -864,11 +865,17 @@ test("inline filter matches literal titles and tickets while keeping drawer draf
   const setFilter = (value) => { filter.value = value; filter.dispatch("input"); };
   const previewInput = () => main.querySelectorAll("input").find(({dataset}) => dataset.previewLane === lane);
   const approve = find("Approve all in lane");
+  assert.equal(approve.attributes["aria-label"], "Approve all in lane Ready");
+  assert.equal(find("Add card").attributes["aria-label"], "Add card in Ready");
+  assert.equal(find("Preview ticket order").attributes["aria-label"], "Preview ticket order in Ready");
   previewInput().value = "1, 12";
   find("Preview ticket order").click();
+  assert.equal(find("Preview ticket order").attributes["aria-disabled"], "true");
   await ui.settled();
   const apply = find("Apply ticket order");
   assert.ok(apply);
+  assert.equal(apply.attributes["aria-label"], "Apply ticket order in Ready");
+  assert.equal(find("Preview ticket order").attributes["aria-disabled"], undefined);
   assert.ok(approve);
   assert.equal(count(), "2 cards");
 
@@ -927,6 +934,84 @@ test("inline filter matches literal titles and tickets while keeping drawer draf
   assert.equal(total("Ready"), "2 of 2 cards");
   assert.ok(find("Approve all in lane"));
   assert.ok(ui.find(main, "summary", "Find cards"));
+});
+
+test("title composition defers saves and drawer close follows the current visible card", async () => {
+  const {api} = boardApi();
+  const writes = [];
+  const patch = api.patchCard;
+  api.patchCard = async (id, revision, draft) => {
+    writes.push([id, revision, {...draft}]);
+    return patch(id, revision, draft);
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details} = ui.nodes;
+  const filter = ui.field(main, "Filter by title or ticket");
+  const source = ui.find(main, "button", "#1 Original");
+  source.focus();
+  source.click();
+  await ui.settled();
+  assert.equal(ui.focused(), details.querySelector("h2"));
+  const title = ui.field(details, "Title");
+  title.focus();
+  title.dispatch("compositionstart");
+  title.value = "Candidate";
+  ui.submit(details, "Save text");
+  assert.deepEqual(writes, []);
+  assert.equal(ui.keydown(title, "Enter", {isComposing: true}), false);
+  title.dispatch("compositionend");
+  title.value = "確定";
+  ui.submit(details, "Save text");
+  assert.deepEqual(writes, []);
+  ui.keydown(title, "Enter");
+  ui.submit(details, "Save text");
+  await ui.settled();
+  assert.deepEqual(writes, [[card, tag(card, 1), {title: "確定"}]]);
+  assert.equal(ui.focused(), title);
+  ui.find(details, "button", "Close card").click();
+  const replacement = ui.find(main, "button", "#1 確定");
+  assert.notEqual(replacement, source);
+  assert.equal(ui.focused(), replacement);
+  replacement.click();
+  await ui.settled();
+  filter.value = "Hidden";
+  filter.dispatch("input");
+  ui.find(details, "button", "Close card").click();
+  assert.equal(ui.focused(), filter);
+});
+
+test("configured action colors and lane-action focus follow the current board paint", async () => {
+  const {api} = boardApi();
+  const getLanes = api.getBoardLanes;
+  let accent = "#777777";
+  api.getBoardLanes = async () => {
+    const reply = await getLanes();
+    reply.data.board.actor_presentation = {human: {accent}};
+    return reply;
+  };
+  const ui = await harness(api);
+  await ui.load();
+  const {main, details, refresh} = ui.nodes;
+  const columns = main.querySelectorAll("div").find(({className}) => className === "lanes");
+  for (const region of [columns, details]) {
+    assert.equal(region.style["--action-fill"], "#777777");
+    assert.equal(region.style["--action-ink"], "#000000");
+  }
+  const original = ui.find(main, "button", "Add card");
+  assert.equal(original.className, "board-action");
+  original.focus();
+  accent = "#767676";
+  refresh.click();
+  await ui.settled();
+  for (const region of [columns, details]) {
+    assert.equal(region.style["--action-fill"], "#767676");
+    assert.equal(region.style["--action-ink"], "#ffffff");
+  }
+  const replacement = ui.find(main, "button", "Add card");
+  assert.notEqual(replacement, original);
+  assert.equal(ui.focused(), replacement);
+  assert.equal(replacement.focusOptions?.preventScroll, true);
 });
 
 test("pending approval inspection still blocks recreated lane forms and a late ticket-order Apply", async () => {

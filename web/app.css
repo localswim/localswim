@@ -108,6 +108,18 @@ h2 { font-size: 1rem; }
 button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; padding: 0.35rem 0.55rem; }
 button:disabled { cursor: default; }
+.board-action {
+  min-block-size: 2.25rem;
+  background: var(--action-fill);
+  color: var(--action-ink);
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+}
+.board-action:is(:disabled, [aria-disabled=true]) {
+  background: #e5e9ef;
+  color: #455973;
+  cursor: default;
+}
 textarea { min-height: 5rem; resize: vertical; }
 :focus-visible { outline: 2px solid #1552a1; outline-offset: 2px; }
 .body-text { white-space: pre-wrap; overflow-wrap: anywhere; }

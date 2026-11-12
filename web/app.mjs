@@ -161,7 +161,7 @@ let activeBackupControls;
 const pendingInspections = new Map();
 /** @type {{scope: string, control: HTMLTextAreaElement}|undefined} */
 let activeComment;
-/** @type {{boardId: string, id: string, close: () => void,
+/** @type {{boardId: string, id: string, close: (onlyIfFocused?: boolean) => void,
  * refreshWorkflow: (canApply?: () => boolean, automatic?: boolean) => Promise<void>,
  * refreshPriority: (requested: string, effective: Labeled|undefined, replaced: boolean) => Promise<void>,
  * pasteAttachments: (event: ClipboardEvent) => void, showAttachmentUploads: (changed?: number) => void}|undefined} */
@@ -718,9 +718,10 @@ async function readWithSession(read, signal) {
   }
 }
 
-/** @param {HTMLInputElement|HTMLTextAreaElement} control @param {string} previous @param {string} saved */
-function adoptText(control, previous, saved) {
-  if (control.value === previous) {
+/** @param {HTMLInputElement|HTMLTextAreaElement} control @param {string} previous @param {string} saved
+ * @param {boolean} [preserve] */
+function adoptText(control, previous, saved, preserve = false) {
+  if (!preserve && control.value === previous) {
     control.value = saved;
     return control.value;
   }
@@ -1463,6 +1464,29 @@ function actorAttribution(users, presentation, id) {
   return label;
 }
 
+/** @param {string} color */
+function actionInk(color) {
+  const linear = [1, 3, 5].map((offset) => {
+    const channel = Number.parseInt(color.slice(offset, offset + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  return 1.05 / (luminance + 0.05) >= 4.5 ? "#ffffff" : "#000000";
+}
+
+/** @param {string} id @param {HTMLElement} opener */
+function restoreCardFocus(id, opener) {
+  /** @param {HTMLElement} control */
+  const visible = (control) => control.isConnected && !control.closest("[hidden]")
+    && !control.closest("details:not([open])");
+  const replacement = [...(main?.querySelectorAll("button[data-card-id]") ?? [])]
+    .find((control) => control instanceof HTMLButtonElement && control.dataset.cardId === id && visible(control));
+  const filter = main?.querySelector("#board-filter");
+  const target = opener.dataset.cardId === id && visible(opener) ? opener
+    : replacement ?? (filter instanceof HTMLInputElement ? filter : refresh);
+  if (target instanceof HTMLElement) target.focus();
+}
+
 /** @param {Lane} lane */
 function laneNotes(lane) {
   const note = element("p", lane.notes);
@@ -1488,11 +1512,11 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
   const cardView = ++activeCard;
   rememberCard(boardId, summary.id);
   const isSelected = () => cardView === activeCard && boardViewState(boardId).card?.id === summary.id;
-  const initialFocus = document.activeElement;
   let focusHeading = !restoring;
   view.hidden = false;
   delete view.dataset.unavailable;
   view.replaceChildren(element("p", "Loading card…"));
+  const initialFocus = document.activeElement;
   let invalidSelection = false;
   try {
     let reply;
@@ -1522,6 +1546,18 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     let savedCard = card;
     const title = element("input");
     title.value = card.title;
+    let composingTitle = false;
+    let compositionEnter = false;
+    title.addEventListener("compositionstart", () => { composingTitle = true; });
+    title.addEventListener("compositionend", () => { composingTitle = false; });
+    title.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        // Allow the IME to accept the candidate. Its Enter can also reach the
+        // form after compositionend, so guard that submission for this event.
+        compositionEnter = event.isComposing || composingTitle || event.keyCode === 229;
+        if (compositionEnter) setTimeout(() => { compositionEnter = false; }, 0);
+      }
+    });
     const description = element("textarea");
     description.value = card.description;
     let titleBaseline = title.value;
@@ -1599,8 +1635,10 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     }
     /** @param {string} id */
     const attribution = (id) => actorAttribution(users, presentation(), id);
-    function closeDrawer() {
+    /** @param {boolean} [onlyIfFocused] */
+    function closeDrawer(onlyIfFocused = false) {
       if (cardView !== activeCard) return;
+      const returnFocus = !onlyIfFocused || view.contains(document.activeElement);
       retainCardDraft?.();
       clearPreviews();
       releaseCardMedia = undefined;
@@ -1612,12 +1650,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       ++activeCard;
       view.hidden = true;
       view.replaceChildren();
-      const replacement = main?.querySelector(`button[data-card-id="${card.id}"]`);
-      const filter = main?.querySelector("#board-filter");
-      const fallback = filter instanceof HTMLInputElement ? filter : refresh;
-      const visibleOpener = opener.isConnected && !opener.closest("details[data-card-search]:not([open])");
-      const target = replacement instanceof HTMLButtonElement ? replacement : visibleOpener ? opener : fallback;
-      target?.focus();
+      if (returnFocus) restoreCardFocus(card.id, opener);
     }
     let workflowRead = 0;
     /** @param {() => boolean} [canApply] @param {boolean} [automatic] */
@@ -1669,13 +1702,17 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       control.dataset.cardRevisionWrite === "true" && uploadingToCard(boardId, card.id), recoverCardSubmission);
     cardInspection = inspection;
 
-    /** @param {string} label @param {HTMLElement[]} controls @param {(submit: HTMLButtonElement) => void} action */
-    function cardRevisionForm(label, controls, action) {
+    /** @param {string} label @param {HTMLElement[]} controls @param {(submit: HTMLButtonElement) => void} action
+     * @param {boolean} [accented] */
+    function cardRevisionForm(label, controls, action, accented = false) {
       const node = form(label, controls, (submit) => {
         if (isSelected() && !uploadingToCard(boardId, card.id)) action(submit);
       });
       const control = node.querySelector("button");
-      if (control) control.dataset.cardRevisionWrite = "true";
+      if (control) {
+        control.dataset.cardRevisionWrite = "true";
+        if (accented) control.className = "board-action";
+      }
       return node;
     }
 
@@ -1746,7 +1783,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
 
     /** @param {Card} saved */
     function adoptSaved(saved) {
-      titleBaseline = adoptText(title, titleBaseline, saved.title);
+      titleBaseline = adoptText(title, titleBaseline, saved.title, composingTitle);
       descriptionBaseline = adoptText(description, descriptionBaseline, saved.description);
       if (owner.value === savedCard.owner_id) owner.value = saved.owner_id;
       if (priority.value === savedCard.priority_id) priority.value = saved.priority_id;
@@ -2188,7 +2225,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         }
         return approved;
       }, "Reviewed and moved to Completed.", inspection);
-    });
+    }, true);
     approvalAction.append(approveForm);
 
     const priorityAction = element("div");
@@ -2271,21 +2308,23 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
 
     const inspect = button(inspection.label, inspection.inspect);
     showCurrent(card);
-    view.replaceChildren(close, inspect, inspection.recovery, heading, current, archiveAction, approvalAction, historyPanel,
-      cardRevisionForm("Save text", [field("Title", title), field("Description", description)], (submit) => {
-        /** @type {Record<string, string>} */
-        const draft = {};
-        if (title.value !== titleBaseline) {
-          if (!title.value) {
-            announce("error", "Enter a title.");
-            title.focus();
-            return;
-          }
-          draft.title = title.value;
+    const saveText = cardRevisionForm("Save text", [field("Title", title), field("Description", description)], (submit) => {
+      if (composingTitle || compositionEnter) return;
+      /** @type {Record<string, string>} */
+      const draft = {};
+      if (title.value !== titleBaseline) {
+        if (!title.value) {
+          announce("error", "Enter a title.");
+          title.focus();
+          return;
         }
-        if (description.value !== descriptionBaseline) draft.description = description.value;
-        if (Object.keys(draft).length) void save(draft, submit);
-      }),
+        draft.title = title.value;
+      }
+      if (description.value !== descriptionBaseline) draft.description = description.value;
+      if (Object.keys(draft).length) void save(draft, submit);
+    }, true);
+    view.replaceChildren(close, inspect, inspection.recovery, heading, current, archiveAction, approvalAction, historyPanel,
+      saveText,
       moveAction,
       cardRevisionForm("Assign owner", [field("Owner", owner)], (submit) => void save({ owner_id: owner.value }, submit)),
       priorityAction,
@@ -2303,7 +2342,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
           if (confirmed) clearSubmittedComment(scope, text);
           return confirmed;
         }, "Comment saved.", inspection);
-      }),
+      }, true),
       element("h3", "Attachments"), attachmentList,
       element("p", "Select files or paste a clipboard image into the card. Each file can be up to 10 MiB."),
       cardRevisionForm("Upload attachments", [field("Files", upload)], () => {
@@ -3526,6 +3565,17 @@ async function load(savedAvailability) {
     filterBar.className = "board-filter";
     filterBar.append(field("Filter by title or ticket", filter), filterCount);
 
+    function updateActionColors() {
+      const actor = users.find(({ id }) => id === workflow?.actor);
+      const configured = board.actor_presentation?.human?.accent ?? actor?.color;
+      const fill = configured && /^#[0-9a-f]{6}$/i.test(configured) ? configured : "#2463a0";
+      const ink = actionInk(fill);
+      for (const region of [columns, drawer]) {
+        region.style.setProperty("--action-fill", fill);
+        region.style.setProperty("--action-ink", ink);
+      }
+    }
+
     function applyFilter() {
       if (view !== activeView || !filter.isConnected) return;
       state.filter = filter.value;
@@ -3775,8 +3825,7 @@ async function load(savedAvailability) {
         ++activeCard;
         drawer.hidden = true;
         drawer.replaceChildren();
-        const replacement = columns.querySelector(`button[data-card-id="${card.id}"]`);
-        (replacement instanceof HTMLButtonElement ? replacement : opener.isConnected ? opener : refresh)?.focus();
+        restoreCardFocus(card.id, opener);
       });
       const body = element("p", card.description);
       body.className = "body-text";
@@ -3822,6 +3871,31 @@ async function load(savedAvailability) {
       return opener;
     }
 
+    /** @param {HTMLButtonElement} control @param {Lane} lane @param {string} action @param {string} name */
+    function nameLaneAction(control, lane, action, name) {
+      control.className = "board-action";
+      control.dataset.laneAction = lane.id + ":" + action;
+      control.setAttribute("aria-label", name + " " + lane.label);
+    }
+
+    /** @param {string} action */
+    function focusLaneAction(action) {
+      const actions = [...columns.querySelectorAll("button")].filter((control) => !control.disabled);
+      const replacement = actions.find((control) => control.dataset.laneAction === action)
+        ?? actions.find((control) => control.dataset.laneAction === action.replace(/:apply$/, ":preview"));
+      (replacement ?? filter).focus({ preventScroll: true });
+    }
+
+    /** @param {HTMLButtonElement} submit */
+    function restoreLaneActionAfterWrite(submit) {
+      const action = submit === document.activeElement ? submit.dataset.laneAction : undefined;
+      return () => {
+        const focused = document.activeElement;
+        if (action && view === activeView
+            && (!focused || !focused.isConnected || focused === document.body)) focusLaneAction(action);
+      };
+    }
+
     /** @param {Card[]} visibleCards @param {string} renderedTag */
     function renderCards(visibleCards, renderedTag) {
       clearDrag();
@@ -3829,7 +3903,7 @@ async function load(savedAvailability) {
       laneColumns.clear();
       const focused = document.activeElement;
       const focusedId = focused instanceof HTMLButtonElement && columns.contains(focused) ? focused.dataset.cardId : undefined;
-      const focusedAdd = focused instanceof HTMLButtonElement && columns.contains(focused) ? focused.dataset.createLane : undefined;
+      const focusedAction = focused instanceof HTMLButtonElement && columns.contains(focused) ? focused.dataset.laneAction : undefined;
       const focusedPreview = focused instanceof HTMLInputElement && columns.contains(focused) ? focused.dataset.previewLane : undefined;
       const previews = new Map([...columns.querySelectorAll("input")].map((input) => [input.dataset.previewLane, input.value]));
       clearCovers();
@@ -3870,7 +3944,7 @@ async function load(savedAvailability) {
             addTitle.focus();
           });
           add.dataset.createLane = lane.id;
-          add.setAttribute("aria-label", "Add card in " + lane.label);
+          nameLaneAction(add, lane, "add", "Add card in");
           column.append(add);
         }
         /** @type {(() => void)|undefined} */
@@ -3883,8 +3957,9 @@ async function load(savedAvailability) {
           selectedTickets.value = previews.get(lane.id) ?? "";
           selectedTickets.placeholder = "All active cards";
           selectedTickets.setAttribute("aria-label", "Tickets to preview in " + lane.label);
+          let previewing = false;
           const previewButton = button("Preview ticket order", () => {
-            if (!canPreview() || !preview.isConnected || view !== activeView) return;
+            if (previewing || !canPreview() || !preview.isConnected || view !== activeView) return;
             preview.replaceChildren();
             let ids;
             try {
@@ -3897,7 +3972,8 @@ async function load(savedAvailability) {
               preview.textContent = "Enter distinct active ticket numbers from this lane.";
               return;
             }
-            previewButton.disabled = true;
+            previewing = true;
+            previewButton.setAttribute("aria-disabled", "true");
             void readWithSession(() => api.previewTicketOrder(board.id, lane.id, ids)).then((reply) => {
               if (!preview.isConnected || view !== activeView) return;
               const originalTag = etag(reply);
@@ -3916,23 +3992,31 @@ async function load(savedAvailability) {
               if (result.changed) {
                 const renumbered = result.proposed.filter(({ card_id, ticket }) => currentTickets.get(card_id) !== ticket)
                   .map(({ card_id }) => card_id);
-                preview.append(form("Apply ticket order", [], (submit) => {
+                const apply = form("Apply ticket order", [], (submit) => {
                   if (!preview.isConnected || view !== activeView || hasUnresolvedInspection(inspection.scope)) return;
+                  const restoreFocus = restoreLaneActionAfterWrite(submit);
                   void writeResource(submit, async () => {
                     requireAttachmentUploadsSettled(board.id, renumbered);
                     await api.applyTicketOrder(board.id, lane.id, originalTag, result.proposed);
                   }, async () => {
                     await reloadBoard();
                     return result.proposed.every((entry) => currentCards.some((card) => card.id === entry.card_id && card.ticket === entry.ticket));
-                  }, "Ticket order applied.", inspection);
-                }));
+                  }, "Ticket order applied.", inspection).finally(restoreFocus);
+                });
+                const submit = apply.querySelector("button");
+                if (submit) nameLaneAction(submit, lane, "apply", "Apply ticket order in");
+                preview.append(apply);
                 if (hasUnresolvedInspection(inspection.scope)) inspection.sync();
               }
             }).catch(() => {
               if (preview.isConnected) preview.textContent = "Preview refused or unavailable. A selected dependency cycle cannot be reordered.";
-            }).finally(() => { previewButton.disabled = !canPreview(); });
+            }).finally(() => {
+              previewing = false;
+              previewButton.removeAttribute("aria-disabled");
+            });
           });
           previewButton.dataset.action = "preview-ticket-order";
+          nameLaneAction(previewButton, lane, "preview", "Preview ticket order in");
           updatePreview = () => {
             const disabled = !canPreview();
             previewButton.disabled = disabled;
@@ -3946,8 +4030,9 @@ async function load(savedAvailability) {
         if (canApprove && wholeLaneVisible()) {
           const versions = members.map(({ id, revision }) => ({ id, revision }));
           const cardIds = versions.map(({ id }) => id);
-          column.append(form("Approve all in lane", [], (submit) => {
+          const approval = form("Approve all in lane", [], (submit) => {
             if (view !== activeView || !column.isConnected) return;
+            const restoreFocus = restoreLaneActionAfterWrite(submit);
             const id = newOperationId();
             const drawer = activeDrawer;
             let approved = false;
@@ -3966,10 +4051,13 @@ async function load(savedAvailability) {
               }
               await reloadBoard();
               if (approved && drawer && activeDrawer === drawer && drawer.boardId === boardId
-                  && cardIds.includes(drawer.id)) drawer.close();
+                  && cardIds.includes(drawer.id)) drawer.close(true);
               return approved;
-            }, "Lane approved and moved to Completed.", inspection);
-          }));
+            }, "Lane approved and moved to Completed.", inspection).finally(restoreFocus);
+          });
+          const submit = approval.querySelector("button");
+          if (submit) nameLaneAction(submit, lane, "approve", "Approve all in lane");
+          column.append(approval);
         }
         if (!retained && matches.length < members.length && (canApprove || (lane.reorder_enabled && members.length >= 2))) {
           column.append(element("p", "Clear the filter to use lane-wide actions."));
@@ -4025,9 +4113,12 @@ async function load(savedAvailability) {
         const opener = [...columns.querySelectorAll("button")].find((control) => control.dataset.cardId === focusedId);
         (opener ?? filter).focus({ preventScroll: true });
       }
-      if (focusedAdd) findAddButton(focusedAdd)?.focus({ preventScroll: true });
-      if (focusedPreview) [...columns.querySelectorAll("input")].find((control) =>
-        control.dataset.previewLane === focusedPreview)?.focus({ preventScroll: true });
+      if (focusedAction) focusLaneAction(focusedAction);
+      if (focusedPreview) {
+        const input = [...columns.querySelectorAll("input")].find((control) =>
+          !control.disabled && control.dataset.previewLane === focusedPreview);
+        (input ?? filter).focus({ preventScroll: true });
+      }
     }
 
     async function reloadArchived() {
@@ -4265,6 +4356,7 @@ async function load(savedAvailability) {
       boardTag = latestTag;
       retained = false;
       boardStyle.replaceSync(updatedBoard.user_css ?? "");
+      updateActionColors();
       updateNewCardForm();
       laneEditor.showLanes(firstConfirmation);
       search.refreshBoard(boardChanged);
@@ -4316,6 +4408,7 @@ async function load(savedAvailability) {
         boardPublishing.retain();
       };
     }
+    updateActionColors();
     renderCards(cards, boardTag);
     main.replaceChildren(element("h1", board.name), updates.panel, search.panel, filterBar, columns);
     retainBoardView = () => {
@@ -4580,6 +4673,13 @@ function renderCardSearch(boardId, lanes, open, signal) {
   limit.required = true;
   const results = element("div");
   results.setAttribute("aria-live", "polite");
+  /** @param {...(Node|string)} children */
+  function paintResults(...children) {
+    const focused = document.activeElement;
+    const cardId = focused instanceof HTMLButtonElement && results.contains(focused) ? focused.dataset.cardId : undefined;
+    results.replaceChildren(...children);
+    if (cardId && focused instanceof HTMLButtonElement) restoreCardFocus(cardId, focused);
+  }
   let read = 0;
   let submitted = validFields(saved?.submitted) ? saved.submitted : undefined;
   /** @type {AbortController|undefined} */
@@ -4610,15 +4710,15 @@ function renderCardSearch(boardId, lanes, open, signal) {
       .then((reply) => {
         if (!current()) return;
         const cards = /** @type {Card[]} */ (items(reply, "cards"));
-        results.replaceChildren(...cards.map((card) => {
+        paintResults(...(cards.length ? cards.map((card) => {
           const opener = button("#" + card.ticket + " " + card.title, () => {
             if (current()) open(card, opener);
           });
+          opener.dataset.cardId = card.id;
           return opener;
-        }));
-        if (!cards.length) results.textContent = "No matching cards.";
+        }) : ["No matching cards."]));
       }).catch(() => {
-        if (current()) results.textContent = "Cards could not be read. Submit the search again.";
+        if (current()) paintResults("Cards could not be read. Submit the search again.");
       }).finally(() => {
         if (inFlight === request) inFlight = undefined;
         if (current()) submitButton.disabled = false;
@@ -4653,7 +4753,7 @@ function renderCardSearch(boardId, lanes, open, signal) {
       submitted = undefined;
       ++read;
       inFlight?.abort();
-      results.textContent = "Board changed. Run the search again for current results.";
+      paintResults("Board changed. Run the search again for current results.");
       submitButton.disabled = false;
       retain();
     },

@@ -9576,6 +9576,210 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
+  /recoveries/{board_id}:
+    parameters:
+    - name: board_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/UuidInput'
+    - name: mode
+      in: query
+      required: true
+      schema:
+        type: string
+        enum: [same_id, fresh]
+    post:
+      operationId: recoverFailedBoard
+      summary: Recover a startup-quarantined board explicitly
+      tags:
+      - Recovery
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/RequestId'
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '201':
+          description: Success.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              required: true
+              schema:
+                const: no-store
+              description: Cache policy for this response.
+            X-Content-Type-Options:
+              $ref: '#/components/headers/NoSniff'
+            Referrer-Policy:
+              $ref: '#/components/headers/ReferrerPolicy'
+            Cross-Origin-Resource-Policy:
+              $ref: '#/components/headers/ResourcePolicy'
+            Content-Security-Policy:
+              $ref: '#/components/headers/ApiCsp'
+            Vary:
+              $ref: '#/components/headers/Vary'
+            Access-Control-Allow-Origin:
+              $ref: '#/components/headers/CorsOrigin'
+            Access-Control-Expose-Headers:
+              $ref: '#/components/headers/CorsExpose'
+            X-Board-ETag:
+              $ref: '#/components/headers/BoardEtag'
+            ETag:
+              $ref: '#/components/headers/EntityTag'
+            Location:
+              $ref: '#/components/headers/Location'
+            Date:
+              $ref: '#/components/headers/Date'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Board'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed7'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
+      x-authorization:
+        scope: workspace
+        administrator: human
+      x-milestones:
+      - 84
+      description: Explicit recovery is available only for a startup-quarantined board and the
+        Human workspace administrator. Supply the exact ETag from its current live verification.
+        The token binds the writer, damaged snapshot and recovery reference. Wildcards refuse.
+        The source JSON or ZIP must validate completely and identify the addressed failed board.
+        JSON retains the inclusive 96 MiB limit; ZIP uses the bounded streaming archive limit
+        of snapshot admission, with each attachment verified before publication.
+        same_id requires a settled unchanged local reference, matching creation identity,
+        an eligible runtime restore actor and no healthy identity collision. The revision exceeds
+        source, trusted local and readable durable revisions. Unavailable continuity refuses.
+        fresh explicitly creates a new board UUID and new board-owned entity and audit UUIDs,
+        retains global user identities and exact prose, and leaves the failed source untouched.
+        Fresh recovery retains source_board_id in the recovery audit. Both modes disable publishing
+        and record publishing_reset in the recovery audit. Same-ID recovery retains its checkpoint.
+        Validate policy, complete audit and all active and detached attachments before replacing
+        state. The existing workspace writer reserves the source and destination during attachment
+        preparation and keeps other boards available. Refusals retain a repairable failure. Lost or unusable replies have unknown outcomes; inspect board list and verification
+        before issuing another recovery. A successful response identifies the restored board.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SnapshotInput'
+          application/zip:
+            schema:
+              type: string
+              format: binary
+            description: Native backup archive with its exact audited immutable attachment inventory.
+    options:
+      operationId: options_recoveries__boardId_
+      summary: Validate same-origin preflight
+      tags:
+      - Workspace
+      security: []
+      parameters:
+      - name: Origin
+        in: header
+        required: false
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 200
+      - name: Access-Control-Request-Method
+        in: header
+        required: false
+        schema:
+          type: string
+          pattern: ^(?:[pP][oO][sS][tT])$
+          description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
+      - name: Access-Control-Request-Headers
+        in: header
+        required: false
+        schema:
+          type: string
+          minLength: 0
+          maxLength: 1024
+      responses:
+        '204':
+          description: Allowed same-origin preflight. No credentials or resource content.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              required: true
+              schema:
+                const: no-store
+              description: Cache policy for this response.
+            X-Content-Type-Options:
+              $ref: '#/components/headers/NoSniff'
+            Referrer-Policy:
+              $ref: '#/components/headers/ReferrerPolicy'
+            Cross-Origin-Resource-Policy:
+              $ref: '#/components/headers/ResourcePolicy'
+            Content-Security-Policy:
+              $ref: '#/components/headers/ApiCsp'
+            Vary:
+              required: true
+              schema:
+                const: Origin, Access-Control-Request-Method, Access-Control-Request-Headers
+            Access-Control-Allow-Origin:
+              $ref: '#/components/headers/CorsOrigin'
+            Access-Control-Expose-Headers:
+              $ref: '#/components/headers/CorsExpose'
+            Access-Control-Allow-Methods:
+              required: true
+              schema:
+                const: POST, OPTIONS
+            Access-Control-Allow-Headers:
+              required: true
+              schema:
+                const: Authorization, Content-Type, If-Match, If-None-Match, X-Expected-Board-ETag, X-Request-ID
+            Access-Control-Max-Age:
+              required: true
+              schema:
+                const: '600'
+            Allow:
+              required: true
+              schema:
+                const: POST, OPTIONS
+            Date:
+              $ref: '#/components/headers/Date'
+        '400':
+          $ref: '#/components/responses/BadRequest2'
+        '403':
+          $ref: '#/components/responses/Forbidden2'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
+      description: Case-insensitive requested header names are tokenized and compared to the explicit
+        list. Unknown actual request headers may be ignored, but preflight never advertises unapproved
+        security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
+        access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
+        omit both.
   /snapshots/{board_id}:
     parameters:
     - name: board_id
@@ -9761,7 +9965,16 @@ paths:
         after an uncertain result.
         The normalized PUT response omits ETag; GET the target afterward for its new representation validator.
         Direct application/zip admission validates the exact captured native snapshot and audited attachment
-        inventory before publication. JSON and ZIP request entities have an inclusive 96 MiB ceiling.
+        inventory before publication. JSON requests have an inclusive 96 MiB ceiling. ZIP requests
+        stream to a private temporary file with an inclusive 4,690,487,017,647-byte ceiling derived
+        from the maximum native entry count, per-file size and ZIP framing bounds. Snapshot and
+        central directory retain separate 96 MiB ceilings. Each active or detached attachment
+        retains its 10 MiB decompressed ceiling and SHA-2-256 validation. All entries are verified
+        before any attachment or snapshot is admitted. Known-length ZIP uploads allow 30 seconds plus
+        one second per full 8 MiB up to two hours. Unknown-length uploads allow 30 seconds, and
+        each body read has at most 30 seconds inside its upload window. After staging, the response
+        deadline allows one minute plus one second per full MiB up to six hours for validation, repair,
+        and response transmission. A connection timeout does not cancel an admitted commit.
         Malformed or damaged candidates refuse without changing the accepted board.
         Global User configurations are preserved. Unknown or kind-conflicting user UUIDs refuse with 409
         before publication; snapshot display metadata never rolls back another board's shared user.
@@ -14533,7 +14746,9 @@ components:
     RecoveryPoint:
       description: Present on live verification of a startup-quarantined board. Reports continuity
         evidence for a future explicit recovery. The caller must still supply separately verified content
-        and meet the recovery authorization requirements.
+        and meet the recovery authorization requirements. The verification ETag binds a
+        POST to /recoveries/{board_id} to the current failure and writer. A same_id report
+        does not authorize a caller whose runtime identity lacks the saved restore grant.
       oneOf:
       - type: object
         additionalProperties: false

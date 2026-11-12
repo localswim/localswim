@@ -167,8 +167,8 @@ func (s *Service) eventState(actor string, ids []string) (eventState, error) {
 		}
 		rows = append(rows, row)
 	}
+	rows = boards.appendFailedBoardSummariesLocked(rows, actor)
 	boards.mu.RUnlock()
-	rows = boards.appendFailedBoardSummaries(rows, actor)
 	slices.SortFunc(rows, func(a, b boardSummary) int { return strings.Compare(a.ID, b.ID) })
 	data, err := marshalCanonical(rows)
 	if err != nil {

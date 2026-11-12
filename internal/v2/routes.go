@@ -79,6 +79,12 @@ func (x *request) dispatch() {
 		if !hasID {
 			methods = append(methods, "POST")
 		}
+	case "recoveries":
+		if !hasID {
+			x.fail(errMissing)
+			return
+		}
+		methods = []string{"POST"}
 	case "restorations":
 		if !hasID {
 			methods = []string{"POST"}
@@ -282,6 +288,8 @@ func (x *request) dispatch() {
 		} else {
 			x.recoveryResource(resource, id)
 		}
+	case "recoveries":
+		x.recoverFailedBoard(id)
 	case "restorations":
 		if hasID {
 			x.restorationResource(id)

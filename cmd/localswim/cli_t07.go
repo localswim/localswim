@@ -175,6 +175,9 @@ func parseT07(name string, args []string) (cliCommand, error) {
 }
 
 func executeT07(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.Writer) error {
+	if cmd.t07Action == "board restore" {
+		return executeBoardRestore(api, cmd, stdin, stdout)
+	}
 	body := []byte(cmd.body)
 	var err error
 	if cmd.inputPath != "" {
@@ -191,54 +194,28 @@ func executeT07(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 			return errors.New("input must fit within 96 MiB")
 		}
 	}
-	var ifMatch, contentType, operationID string
+	var operationID string
 	switch cmd.t07Action {
 	case "ticket-order apply":
 		body, err = ticketOrderApplyBody(body, strings.TrimPrefix(cmd.resource, "/ticket-orders/"))
 		if err != nil {
 			return err
 		}
-	case "board restore", "restoration create":
-		preflightResource := "/boards/" + cmd.boardID
-		if cmd.t07Action == "board restore" {
-			preflightResource = cmd.resource
-		}
-		board, readErr := api.Do(http.MethodGet, preflightResource, nil, "")
+	case "restoration create":
+		board, readErr := api.Do(http.MethodGet, "/boards/"+cmd.boardID, nil, "")
 		if readErr != nil {
 			return readErr
 		}
 		if board.ETag == "" {
 			return errors.New("service did not return a strong board ETag")
 		}
-		revisionJSON := board.JSON
-		if cmd.t07Action == "board restore" {
-			var snapshot struct {
-				Board json.RawMessage `json:"board"`
-			}
-			if json.Unmarshal(board.JSON, &snapshot) != nil || !client.IsJSONObject(snapshot.Board) {
-				return errors.New("service did not return a native snapshot board")
-			}
-			revisionJSON = snapshot.Board
-		}
-		if err := checkCLIRevision(cmd.revision, revisionJSON); err != nil {
+		if err := checkCLIRevision(cmd.revision, board.JSON); err != nil {
 			return err
 		}
-		if cmd.t07Action == "board restore" {
-			ifMatch = board.ETag
-			switch {
-			case client.IsJSONObject(body):
-				contentType = "application/json"
-			case bytes.HasPrefix(body, []byte{'P', 'K', 3, 4}):
-				contentType = "application/zip"
-			default:
-				return errors.New("restore input must be a native JSON snapshot or ZIP backup")
-			}
-		} else {
-			var fields map[string]json.RawMessage
-			_ = json.Unmarshal(body, &fields)
-			fields["expected_board_etag"], _ = json.Marshal(board.ETag)
-			body, _ = json.Marshal(fields)
-		}
+		var fields map[string]json.RawMessage
+		_ = json.Unmarshal(body, &fields)
+		fields["expected_board_etag"], _ = json.Marshal(board.ETag)
+		body, _ = json.Marshal(fields)
 	}
 	if cmd.method == http.MethodPost {
 		var identity struct {
@@ -247,7 +224,7 @@ func executeT07(api *client.Client, cmd cliCommand, stdin io.Reader, stdout io.W
 		_ = json.Unmarshal(body, &identity)
 		operationID = identity.ID
 	}
-	reply, err := api.DoWithContentType(cmd.method, cmd.resource, body, ifMatch, contentType)
+	reply, err := api.Do(cmd.method, cmd.resource, body, "")
 	if err != nil {
 		if operationID != "" && errors.Is(err, client.ErrMutationOutcomeUnknown) {
 			return fmt.Errorf("%w (operation ID %s)", err, operationID)

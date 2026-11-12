@@ -24,16 +24,41 @@ func (s *store) canSeeFailedBoard(id, actor string) bool {
 	return actor == humanID && s.isFailedBoard(id)
 }
 
-func (s *store) appendFailedBoardSummaries(rows []boardSummary, actor string) []boardSummary {
+// Capture both sets together so a same-ID recovery cannot move a board past
+// enumeration. Each row then checks its current classification and health.
+func (s *store) catalogBoardIDs(actor string) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	count := len(s.boards)
+	if actor == humanID {
+		count += len(s.failedBoards)
+	}
+	ids := make([]string, 0, count)
+	for id := range s.boards {
+		ids = append(ids, id)
+	}
+	if actor == humanID {
+		for id := range s.failedBoards {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+func (s *store) appendFailedBoardSummariesLocked(rows []boardSummary, actor string) []boardSummary {
 	// A failed snapshot cannot establish board membership. The diagnostic is
 	// visible to the Human workspace administrator.
 	if actor == humanID {
 		for id := range s.failedBoards {
-			code := durableStateUnavailable
-			rows = append(rows, boardSummary{ID: id, Availability: "unhealthy", ErrorCode: &code})
+			rows = append(rows, failedBoardSummary(id))
 		}
 	}
 	return rows
+}
+
+func failedBoardSummary(id string) boardSummary {
+	code := durableStateUnavailable
+	return boardSummary{ID: id, Availability: "unhealthy", ErrorCode: &code}
 }
 
 func deriveAttention(state snapshot) (attention, *time.Time) {
@@ -81,7 +106,13 @@ func (s *store) boardSummary(id, actor string) (boardSummary, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	current, ok := s.boards[id]
-	if !ok || !current.can(actor, "read") {
+	if !ok {
+		if actor == humanID && s.isFailedBoardLocked(id) {
+			return failedBoardSummary(id), true
+		}
+		return boardSummary{}, false
+	}
+	if !current.can(actor, "read") {
 		return boardSummary{}, false
 	}
 	return summarize(current, s.checkAcceptedDurableLocked(current)), true

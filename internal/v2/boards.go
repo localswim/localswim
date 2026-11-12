@@ -13,12 +13,11 @@ const maxBoardCSSLength = 1048576
 func (x *request) listBoards() {
 	store := x.service.store
 	rows := make([]boardSummary, 0)
-	for _, id := range store.boardIDs() {
+	for _, id := range store.catalogBoardIDs(x.actor) {
 		if row, visible := store.boardSummary(id, x.actor); visible {
 			rows = append(rows, row)
 		}
 	}
-	rows = store.appendFailedBoardSummaries(rows, x.actor)
 	sortSummaries(rows)
 	page(x, "boards", rows)
 }
@@ -341,9 +340,11 @@ func (x *request) policyResource(id string) {
 
 func (x *request) recoveryResource(resource, id string) {
 	store := x.service.store
-	if resource == "verifications" && store.canSeeFailedBoard(id, x.actor) {
-		x.respond(http.StatusOK, store.failedBoardVerification(id), "")
-		return
+	if resource == "verifications" && x.actor == humanID {
+		if report, tag, failed := store.failedBoardVerification(id); failed {
+			x.respond(http.StatusOK, report, tag)
+			return
+		}
 	}
 	s, ok := store.accepted(id)
 	if !ok || !slices.Contains(s.Board.UserIDs, x.actor) {

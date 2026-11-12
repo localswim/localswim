@@ -35,7 +35,12 @@ localswim card set-priorities $board $priority $card $otherCard
 The concise create uses the board's default owner and priority. Card creation
 and comment posting also accept a JSON file or `-` for standard input. Use them for fields
 such as an explicit card or comment ID for focused readback after a lost reply.
-Append `--help` to an action name for its argument forms and examples. Put
+Run `localswim` to discover command groups, then use `localswim board --help`,
+`localswim board create --help`, `localswim card inspect --help`, or
+`localswim attachment upload --help` for the selected argument forms and examples.
+`localswim help board create` is equivalent. Bare object groups also show help.
+Help requires no service configuration and exits 0. Invalid invocations print an
+error and scoped usage to stderr and exit 2. Execution failures exit 1. Put
 `--revision N` before the positional arguments to require the board revision for
 creation and priority batches, or the card revision for comment posting.
 
@@ -359,10 +364,51 @@ and the identity remains free of healthy-board collisions. It reports
 does not expose actor grants or change the snapshot or reference. These reports
 establish the recovery point for a separately authorized recovery operation.
 
+Use `board recover --mode same_id BOARD_ID FILE|-` for a startup-quarantined
+board with trusted continuity. The Human workspace administrator supplies a
+verified native JSON snapshot or ZIP backup for that board. The command reads
+the current recovery diagnostic and uses its exact ETag once. Same-ID recovery
+requires the unchanged, settled local reference, matching creation identity,
+an eligible runtime restore actor and collision-free identity. The committed
+revision exceeds the source, trusted local and readable durable revisions.
+
+Use `board recover --mode fresh BOARD_ID FILE|-` explicitly when continuity is
+unavailable. Recovery creates a new board UUID and new board-owned resource and
+audit UUIDs. Global user identities and exact user text are preserved. The
+original failed snapshot and diagnostic remain available. The recovery audit
+records `source_board_id` as provenance.
+
+Both modes start with publishing disabled and record `publishing_reset` in
+recovery audit. The existing same-ID publication checkpoint is preserved. Use
+the publishing settings command to enable delivery explicitly after recovery.
+Both modes validate the full policy, audit and active and detached attachment
+inventory before committing through the existing workspace writer. Healthy
+boards remain readable and writable while recovery prepares attachment bytes. A mismatched
+source refuses. Known refusals retain repairable state. After a lost or unusable
+response, inspect `board list` and `board verify BOARD_ID` before deciding whether
+to submit again. The response contains the actual restored board UUID and revision.
+
 Native recovery accepts JSON snapshots or application/zip backups at the existing board address.
-Both request entities have an inclusive 96 MiB limit. PUT uses the current durable snapshot
-representation validator when the snapshot is readable. When durable state is unavailable, a previously
-obtained tag for the last accepted snapshot can authorize admission. Stored backup restoration uses the
+JSON request entities have an inclusive 96 MiB limit. Downloaded ZIP backups
+use a disk-backed upload with a separate inclusive archive limit of 4,690,487,017,647
+bytes, derived from the maximum native entry count and per-file size and ZIP framing
+bounds. The snapshot and directory each retain their 96 MiB limits, and each attachment
+retains its 10 MiB decompressed size and SHA-2-256 integrity checks. The CLI stages
+file or raw stdin input privately and streams the ZIP without loading the archive
+into memory.
+
+ZIP uploads with a known length get 30 seconds plus one second per full 8 MiB,
+up to two hours. Unknown-length uploads get 30 seconds. A stalled body read has
+at most 30 seconds within that window. After staging, the service reserves one
+minute plus one second per full MiB for validation, repair, and the response,
+up to six hours. The CLI waits for both phases plus five seconds. This wait starts
+with the upload request after local staging and validator lookup. JSON and backup
+downloads retain their ordinary deadlines. These deadlines govern HTTP transport
+and waiting. An admitted commit can finish after a connection expires.
+
+PUT uses the current durable snapshot representation validator when the snapshot
+is readable. When durable state is unavailable, a previously obtained tag for the
+last accepted snapshot can authorize admission. Stored backup restoration uses the
 live board validator and returns an inspectable receipt.
 Validate policy, complete audit and every active or detached attachment before publishing. Recovery
 preserves the board UUID and shared global user configuration and allocates a revision above the live,

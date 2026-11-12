@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"mime"
 	"net/http"
 	"os"
@@ -26,6 +25,8 @@ type recoveryEvidence struct {
 	PreviousRevision uint64  `json:"previous_revision"`
 	BackupID         *string `json:"backup_id"`
 	ActorKind        string  `json:"actor_kind"`
+	SourceBoardID    *string `json:"source_board_id,omitempty"`
+	PublishingReset  bool    `json:"publishing_reset,omitempty"`
 }
 
 type restoration struct {
@@ -54,7 +55,9 @@ func validRecoveryAudit(event activity, boardID string, sourceRevision uint64, m
 		(member.ID == "" || member.Kind == evidence.ActorKind) &&
 		event.Revision == max(evidence.SourceRevision, evidence.PreviousRevision)+1 &&
 		*event.Before == strconv.FormatUint(evidence.PreviousRevision, 10) &&
-		(evidence.BackupID == nil || validSnapshotOperationID(*evidence.BackupID))
+		(evidence.BackupID == nil || validSnapshotOperationID(*evidence.BackupID)) &&
+		(!evidence.PublishingReset || evidence.BackupID == nil) &&
+		(evidence.SourceBoardID == nil || (evidence.PublishingReset && validSnapshotID(*evidence.SourceBoardID) && *evidence.SourceBoardID != boardID))
 }
 
 // Recovery replaces board-owned state while reusing the current global user
@@ -160,7 +163,7 @@ func (s *store) recoverSnapshot(boardID, actor, eventID string, matches func(sna
 	next.Board.UpdatedAt = now
 	restampRecoveryVersions(&next)
 	actorIndex := slices.IndexFunc(current.Users, func(member user) bool { return member.ID == actor })
-	evidence, err := marshalCanonical(recoveryEvidence{candidate.Board.Revision, previousRevision, backupID, current.Users[actorIndex].Kind})
+	evidence, err := marshalCanonical(recoveryEvidence{SourceRevision: candidate.Board.Revision, PreviousRevision: previousRevision, BackupID: backupID, ActorKind: current.Users[actorIndex].Kind})
 	if err != nil {
 		return snapshot{}, err
 	}
@@ -194,6 +197,14 @@ func (s *store) recoverSnapshot(boardID, actor, eventID string, matches func(sna
 			}
 		}
 	}
+	return s.publishRecoveredSnapshot(next, attachmentData, func() error {
+		return s.commit(next, false, nil)
+	})
+}
+
+// Callers validate the full candidate and hold exclusive access to its board
+// while publishing files. Uncertain commits retain newly published immutable bytes.
+func (s *store) publishRecoveredSnapshot(next snapshot, attachmentData func(attachment) ([]byte, error), commit func() error) (snapshot, error) {
 	published := []*publishedAttachment{}
 	committed := false
 	defer func() {
@@ -222,7 +233,7 @@ func (s *store) recoverSnapshot(boardID, actor, eventID string, matches func(sna
 			}
 		}
 	}
-	if err := s.commit(next, false, nil); err != nil {
+	if err := commit(); err != nil {
 		committed = errors.Is(err, errWriteUncertain)
 		return snapshot{}, err
 	}
@@ -320,26 +331,12 @@ func (x *request) admitSnapshot(id string) {
 	var candidate snapshot
 	var attachmentData func(attachment) ([]byte, error)
 	if mediaType == "application/zip" {
-		file, err := os.CreateTemp("", "localswim-recovery-*")
+		archive, err := x.readUploadedBackup(id)
 		if err != nil {
 			x.recoveryFailure(err)
 			return
 		}
-		defer func() { _ = file.Close(); _ = os.Remove(file.Name()) }()
-		if _, err := io.Copy(file, http.MaxBytesReader(x.w, x.r.Body, maxSnapshotBytes)); err != nil {
-			var tooBig *http.MaxBytesError
-			if errors.As(err, &tooBig) {
-				x.fail(errTooBig)
-			} else {
-				x.fail(invalid("body", "Unreadable recovery archive."))
-			}
-			return
-		}
-		archive, err := inspectBackupArchive(file, id)
-		if err != nil {
-			x.fail(invalid("body", "The native backup archive failed validation."))
-			return
-		}
+		defer archive.close()
 		candidate, attachmentData = archive.state, archive.attachmentData
 	} else {
 		obj, err := x.body()

@@ -19,6 +19,15 @@ const (
 	// its four UUIDs, SHA-2-256 digest, timestamps, and field names. There
 	// is one ZIP directory entry per record, plus the snapshot entry.
 	maxBackupZIPEntries = maxSnapshotBytes/256 + 1
+
+	// MaxBackupArchiveBytes bounds a transport containing every possible native
+	// attachment, the snapshot, and ZIP framing. Each compressed member has the
+	// reader's per-file expansion allowance, a maximal local extra field, and
+	// framing. Three snapshot allowances cover the compressed snapshot, bounded
+	// directory, and end records. The snapshot and directory each retain their
+	// independent 96 MiB limits.
+	maxBackupMemberFraming       = zipLocalHeaderSize + maxBackupEntryNameSize + 0xffff + 24
+	MaxBackupArchiveBytes  int64 = int64(maxBackupZIPEntries)*int64(maxAttachmentBytes+maxAttachmentBytes/8+(64<<10)+maxBackupMemberFraming) + 3*maxSnapshotBytes
 )
 
 // backupZIPDirectory keeps the verified ZIP index stable while archive/zip reads

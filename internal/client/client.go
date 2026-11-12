@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/localswim/localswim/internal/backuptransfer"
 )
 
 const apiPath = "/api/2026-11-10"
@@ -81,6 +83,33 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 	if expectedBoardTag != "" {
 		request.Header.Set("X-Expected-Board-ETag", expectedBoardTag)
 	}
+	return doRequest(c.http, request, resource, boardSettingsWrite)
+}
+
+// DoWithReader sends one bounded streaming request without installing a replay body.
+func (c *Client) DoWithReader(method, resource string, body io.Reader, size int64, ifMatch, contentType string) (Response, error) {
+	if body == nil || size <= 0 {
+		return Response{}, errors.New("expected a nonempty request body with a known size")
+	}
+	request, err := c.newRequest(method, resource, nil, ifMatch, contentType, "application/json")
+	if err != nil {
+		return Response{}, err
+	}
+	request.Body = io.NopCloser(io.LimitReader(body, size))
+	request.ContentLength = size
+	request.Header.Set("Content-Type", contentType)
+	transport := c.http
+	if contentType == "application/zip" {
+		// Share the transport while extending only this streamed recovery request.
+		backupClient := *c.http
+		backupClient.Timeout = backuptransfer.ClientBudget(size)
+		transport = &backupClient
+	}
+	return doRequest(transport, request, resource, false)
+}
+
+func doRequest(transport *http.Client, request *http.Request, resource string, boardSettingsWrite bool) (Response, error) {
+	method := request.Method
 	mutation := method != http.MethodGet && method != http.MethodHead
 	path := request.URL.Path[len(apiPath):]
 	notificationWrite := method == http.MethodPatch && strings.HasPrefix(path, "/notifications/")
@@ -88,7 +117,7 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 	activationRead := method == http.MethodGet && strings.HasPrefix(path, "/activations/")
 	lifecycleRead := method == http.MethodGet && path == "/service" || activationRead
 	verificationRead := method == http.MethodGet && strings.HasPrefix(path, "/verifications/")
-	reply, err := c.http.Do(request)
+	reply, err := transport.Do(request)
 	if err != nil {
 		return Response{}, responseError("could not reach the local service or read its response", mutation)
 	}

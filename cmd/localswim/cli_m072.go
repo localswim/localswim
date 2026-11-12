@@ -7,64 +7,6 @@ import (
 	"unicode/utf8"
 )
 
-const cardCreateHelp = `Usage:
-  localswim card create [--revision N] --title TITLE [--description TEXT] BOARD_ID LANE_ID
-  localswim card create [--revision N] <JSON_FILE|->
-
-The concise form uses the board's default owner and priority. Use a JSON file or
-- for standard input to supply additional fields. The document must include
-board_id and may include an explicit card ID for readback after a lost reply.
---revision checks the board revision.
-
-Examples:
-  localswim card create --title "Check pool hours" $board $lane
-  localswim card create --revision 12 card.json
-`
-
-const commentPostHelp = `Usage:
-  localswim comment post [--revision N] --text TEXT CARD_ID
-  localswim comment post [--revision N] CARD_ID <JSON_FILE|->
-
-Quote literal comment text. The document form requires a file path or - for
-standard input and reads a JSON object with text and an optional id.
---revision checks the card revision.
-
-Examples:
-  localswim comment post --text "Confirmed weekend hours." $card
-  localswim comment post --revision 13 $card comment.json
-`
-
-const priorityBatchHelp = `Usage:
-  localswim card set-priorities [--revision N] BOARD_ID PRIORITY_ID CARD_ID [CARD_ID ...]
-  localswim card set-priorities [--revision N] --tickets BOARD_ID PRIORITY_ID TICKET [TICKET ...]
-
-Supply 1 to 1000 distinct card UUIDs or, with --tickets, distinct ticket numbers.
-All selected cards must belong to the board. The batch checks the board revision
-and applies the effective blocking floor to all selections together.
-
-Examples:
-  localswim card set-priorities $board $priority $card1 $card2
-  localswim card set-priorities --tickets $board $priority 12 17
-  localswim card set-priorities --revision 14 $board $priority $card1
-`
-
-func writeCommandHelp(name string) string {
-	switch name {
-	case "board create":
-		return boardCreateHelp
-	case "policy grant":
-		return policyGrantHelp
-	case "card create":
-		return cardCreateHelp
-	case "comment post":
-		return commentPostHelp
-	case "card set-priorities":
-		return priorityBatchHelp
-	default:
-		return ""
-	}
-}
-
 func cardCreateInput(args []string, hasTitle, hasDescription bool, title, description string) (string, json.RawMessage, error) {
 	if !hasTitle && !hasDescription {
 		if len(args) != 1 || args[0] == "" {

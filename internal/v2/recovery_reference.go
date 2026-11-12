@@ -136,6 +136,10 @@ func (s *store) readRecoveryReference(id string) (recoveryReference, bool) {
 }
 
 func (s *store) writeRecoveryReference(ref recoveryReference) error {
+	return s.writeRecoveryReferenceChecked(ref, nil)
+}
+
+func (s *store) writeRecoveryReferenceChecked(ref recoveryReference, beforeReplace func() error) error {
 	id := ref.Committed.BoardID
 	payload, err := marshalCanonical(ref)
 	if err != nil {
@@ -150,7 +154,13 @@ func (s *store) writeRecoveryReference(ref recoveryReference) error {
 		return err
 	}
 	return writeAtomicChecked(s.recoveryReferencePath(id), data, func() error {
-		return s.checkBoardsDirectory(dir)
+		if err := s.checkBoardsDirectory(dir); err != nil {
+			return err
+		}
+		if beforeReplace != nil {
+			return beforeReplace()
+		}
+		return nil
 	})
 }
 
@@ -183,7 +193,7 @@ func (s *store) checkStartupRecoveryReferences(ids []string) (map[string]recover
 func (s *store) reserveMissingSnapshots(ids []string) bool {
 	trustedMissing := false
 	for _, id := range ids {
-		if _, loaded := s.boards[id]; loaded || s.isFailedBoard(id) {
+		if _, loaded := s.boards[id]; loaded || s.isFailedBoardLocked(id) {
 			continue
 		}
 		// The filename reserves the identity. Only a settled, noncolliding
@@ -216,7 +226,7 @@ func (s *store) finishStartupRecoveryReferences(backfill map[string]recoveryCont
 // captured at startup. A file added, removed, or modified later grants nothing.
 func (s *store) failedRecoveryContextLocked(id string) (recoveryContext, bool) {
 	startup, known := s.recoveryContexts[id]
-	if !s.isFailedBoard(id) || !known || startup.RevisionFloor == maxSnapshotInteger {
+	if !s.isFailedBoardLocked(id) || !known || startup.RevisionFloor == maxSnapshotInteger {
 		return recoveryContext{}, false
 	}
 	ref, valid := s.readRecoveryReference(id)
@@ -249,37 +259,64 @@ func (s *store) collidesWithHealthyBoardID(id string) bool {
 	return false
 }
 
-func (s *store) failedBoardVerification(id string) verification {
+func (s *store) failedBoardVerification(id string) (verification, string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	report := snapshotVerification(id, time.Now(), snapshot{}, s.failedBoards[id])
+	failure, exists := s.failedBoards[id]
+	if !exists {
+		return verification{}, "", false
+	}
+	tag, _ := s.failedRecoveryTagLocked(id)
+	report := snapshotVerification(id, time.Now(), snapshot{}, failure)
 	report.Recovery = &recoveryReport{Mode: "fresh_only"}
 	if context, ok := s.failedRecoveryContextLocked(id); ok {
 		report.Recovery = &recoveryReport{Mode: "same_id", RevisionFloor: &context.RevisionFloor}
 	}
-	return report
+	return report, tag, true
 }
 
-func (s *store) writeSnapshotWithRecoveryReference(value snapshot, data []byte, beforeReplace func() error) error {
+func (s *store) writeSnapshotWithRecoveryReference(value snapshot, data []byte, beforeReplace, beforePending func() error) error {
 	id := value.Board.ID
 	current := recoveryContextFor(value, data)
 	previous, exists := s.recoveryContexts[id]
+	var checkPending func() error
 	if exists {
-		if err := s.writeRecoveryReference(recoveryReference{Committed: previous, Pending: &current}); err != nil {
-			// The snapshot has not been touched. Either old reference outcome
-			// is safe and the normal write preconditions still apply on retry.
+		pending := recoveryReference{Committed: previous, Pending: &current}
+		if err := s.writeRecoveryReferenceChecked(pending, beforePending); err != nil {
+			if errors.Is(err, errStale) {
+				return err
+			}
+			// The snapshot has not been touched. A pending reference still
+			// fences unresolved state if publication itself was uncertain.
 			return errInvalidSnapshot
 		}
+		checkPending = func() error {
+			saved, valid := s.readRecoveryReference(id)
+			if !valid || !reflect.DeepEqual(saved, pending) {
+				return errStale
+			}
+			return nil
+		}
 	}
-	if err := writeAtomicChecked(s.snapshotPath(id), data, beforeReplace); err != nil {
+	if err := writeAtomicChecked(s.snapshotPath(id), data, func() error {
+		if beforeReplace != nil {
+			if err := beforeReplace(); err != nil {
+				return err
+			}
+		}
+		if checkPending != nil {
+			return checkPending()
+		}
+		return nil
+	}); err != nil {
 		if exists && !errors.Is(err, errWriteUncertain) {
-			// A known refusal preserves the last accepted commit. If this
-			// metadata write fails, the pending reference still fails closed.
-			_ = s.writeRecoveryReference(recoveryReference{Committed: previous})
+			// A known refusal rolls back only this writer's still-current pending
+			// proposal. Preserve independently changed evidence byte for byte.
+			_ = s.writeRecoveryReferenceChecked(recoveryReference{Committed: previous}, checkPending)
 		}
 		return err
 	}
-	if err := s.writeRecoveryReference(recoveryReference{Committed: current}); err != nil {
+	if err := s.writeRecoveryReferenceChecked(recoveryReference{Committed: current}, checkPending); err != nil {
 		return errors.Join(errWriteUncertain, err)
 	}
 	s.recoveryContexts[id] = current

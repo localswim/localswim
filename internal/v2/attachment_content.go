@@ -97,6 +97,10 @@ func (x *request) attachmentContent(id string) {
 // Read through checked directory handles and verify the exact bytes buffered for
 // delivery. A matching filename or file size alone cannot prove integrity.
 func readVerifiedAttachment(root string, item attachment) ([]byte, error) {
+	return readVerifiedAttachmentIdentity(root, item, nil)
+}
+
+func readVerifiedAttachmentIdentity(root string, item attachment, expected os.FileInfo) ([]byte, error) {
 	parent, err := os.OpenRoot(root)
 	if err != nil {
 		return nil, errAttachmentIntegrity
@@ -111,7 +115,8 @@ func readVerifiedAttachment(root string, item attachment) ([]byte, error) {
 		parent = child
 	}
 	named, err := parent.Lstat(item.ID)
-	if err != nil || !named.Mode().IsRegular() || named.Size() != item.Size || item.Size > maxAttachmentBytes {
+	if err != nil || !named.Mode().IsRegular() || named.Size() != item.Size || item.Size > maxAttachmentBytes ||
+		(expected != nil && !os.SameFile(expected, named)) {
 		return nil, errAttachmentIntegrity
 	}
 	// The platform helper uses a nonblocking open on Unix in case a FIFO

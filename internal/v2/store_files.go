@@ -44,6 +44,14 @@ func writeAtomic(path string, data []byte) error {
 }
 
 func writeAtomicChecked(path string, data []byte, beforeReplace func() error) error {
+	return writeAtomicUsing(path, data, beforeReplace, replaceAtomic)
+}
+
+func writeAtomicNew(path string, data []byte, beforePublish func() error) error {
+	return writeAtomicUsing(path, data, beforePublish, createAtomic)
+}
+
+func writeAtomicUsing(path string, data []byte, beforePublish func() error, publish func(string, string) error) error {
 	file, err := os.CreateTemp(filepath.Dir(path), ".pending-*.tmp")
 	if err != nil {
 		return fmt.Errorf("create pending snapshot: %w", err)
@@ -56,13 +64,13 @@ func writeAtomicChecked(path string, data []byte, beforeReplace func() error) er
 	if err = errors.Join(err, file.Close()); err != nil {
 		return fmt.Errorf("flush pending snapshot: %w", err)
 	}
-	if beforeReplace != nil {
-		if err := beforeReplace(); err != nil {
+	if beforePublish != nil {
+		if err := beforePublish(); err != nil {
 			return err
 		}
 	}
-	if err := replaceAtomic(temp, path); err != nil {
-		return fmt.Errorf("replace snapshot: %w", err)
+	if err := publish(temp, path); err != nil {
+		return fmt.Errorf("publish snapshot: %w", err)
 	}
 	return nil
 }

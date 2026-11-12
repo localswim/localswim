@@ -16,6 +16,7 @@ const commandUsage = `Usage:
   localswim board list [--limit N] [--cursor CURSOR]
   localswim board create [--preset terry] name NAME
   localswim board create json <JSON_FILE|->
+  localswim board import-v1 [--id UUID] DATA_DIRECTORY <JSON_FILE|-> [ATTACHMENTS_DIRECTORY]
   localswim board get [--view lanes] [--data DIRECTORY] BOARD_ID
   localswim board rename [--revision N] BOARD_ID NEW_NAME
   localswim board close [--revision N] BOARD_ID
@@ -301,6 +302,7 @@ func commandRevision(name string) string {
 
 var commandHelpNotes = map[string]string{
 	"board create":             "Choose name or json mode. Name mode creates a generic workflow, or use --preset terry for Terry's seven-lane workflow. Json mode reads a full custom workflow document.",
+	"board import-v1":          "Import a complete V1 board offline as a new V2 board. Stop the V2 writer for the absolute DATA_DIRECTORY before importing. --id accepts a UUIDv4. Omit it to generate a fresh ID. For a file input, the default attachment directory is attachments beside JSON_FILE. With stdin, supply ATTACHMENTS_DIRECTORY when the snapshot references active attachment bytes. The command prints a JSON mapping on success.",
 	"board get":                "The default returns board metadata. --view lanes returns active lanes and visible cards in lane order and requires the live service.",
 	"board verify":             "Print the full verification report. An invalid board exits 1. Verification does not change saved state.",
 	"board recover":            "Recover a board that failed startup from a verified native JSON snapshot or ZIP backup. Use same_id when trusted continuity is available or fresh to create a new board identity. Print the board-wide scope and ask Continue? [Y/n]. -f or --force skips the prompt and is required with stdin input. Recovery leaves publishing disabled. Inspect board list and the recovery diagnostic after an unknown result.",
@@ -351,6 +353,7 @@ var commandHelpNotes = map[string]string{
 var commandExamples = map[string]string{
 	"relationship remove": "  localswim relationship remove $board $relationship\n  localswim relationship remove $board 12 blocks 17",
 	"board create":        "  localswim board create --preset terry name \"Pool projects\"\n  localswim board create json workflow.json",
+	"board import-v1":     "  localswim board import-v1 $DATA_DIRECTORY board.json\n  localswim board import-v1 --id $BOARD_ID $DATA_DIRECTORY export.json $ATTACHMENTS_DIRECTORY",
 	"board recover":       "  localswim board recover $board same_id backup.zip\n  localswim board recover $board fresh snapshot.json",
 	"card create":         "  localswim card create $board $lane \"Check pool hours\"\n  localswim card create --revision 12 $board card.json",
 	"card inspect":        "  localswim card inspect --prose $board 12",

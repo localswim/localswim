@@ -15,7 +15,7 @@ func ticketAuditValue(value *string) (uint64, bool) {
 func validateTicketOrderAudit(value snapshot) error {
 	found := false
 	for _, event := range value.Activity {
-		found = found || event.Operation == ticketOrderOperation
+		found = found || event.Operation == ticketOrderOperation || event.Operation == v1ImportOperation
 	}
 	if !found {
 		return nil

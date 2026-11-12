@@ -43,10 +43,16 @@ func unlockWriter(file *os.File) error {
 }
 
 func replaceAtomic(source, destination string) error {
-	const (
-		replaceExisting = 1
-		writeThrough    = 8
-	)
+	const replaceExisting = 1
+	return moveAtomic(source, destination, replaceExisting)
+}
+
+func createAtomic(source, destination string) error {
+	return moveAtomic(source, destination, 0)
+}
+
+func moveAtomic(source, destination string, flags uintptr) error {
+	const writeThrough = 8
 	from, err := replacementPath(source)
 	if err != nil {
 		return err
@@ -56,7 +62,7 @@ func replaceAtomic(source, destination string) error {
 		return err
 	}
 	// No copy fallback: both names are on the same volume and replacement must be atomic.
-	result, _, err := moveFileEx.Call(uintptr(unsafe.Pointer(from)), uintptr(unsafe.Pointer(to)), replaceExisting|writeThrough)
+	result, _, err := moveFileEx.Call(uintptr(unsafe.Pointer(from)), uintptr(unsafe.Pointer(to)), flags|writeThrough)
 	if result != 0 {
 		return nil
 	}

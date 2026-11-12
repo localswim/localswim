@@ -73,6 +73,7 @@ type cliCommand struct {
 	serviceActivationID                string
 	recoveryMode                       string
 	backupVerifyPath                   string
+	v1Import                           *cliV1Import
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
@@ -120,6 +121,9 @@ func parseCLI(args []string) (cliCommand, error) {
 		return parseBoardRecovery(args[2:])
 	}
 	optionArgs := args[2:]
+	if name == "board import-v1" {
+		return parseV1Import(optionArgs)
+	}
 	if name == "backup verify" {
 		flags := flag.NewFlagSet(name, flag.ContinueOnError)
 		flags.SetOutput(io.Discard)
@@ -464,6 +468,9 @@ func boardNameBody(name, preset string) (json.RawMessage, error) {
 }
 
 func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, getenv func(string) string) error {
+	if command.v1Import != nil {
+		return executeV1Import(command.v1Import, stdin, stdout)
+	}
 	if command.backupVerifyPath != "" {
 		return verifyBackupFile(command.backupVerifyPath, stdin, stdout)
 	}

@@ -13,7 +13,7 @@ import (
 	"github.com/localswim/localswim/internal/v2"
 )
 
-func openRestoreInput(path string, stdin io.Reader) (io.Reader, func(), error) {
+func openCLIInput(path string, stdin io.Reader) (io.Reader, func(), error) {
 	if path == "-" {
 		return stdin, func() {}, nil
 	}
@@ -32,7 +32,7 @@ func openRestoreInput(path string, stdin io.Reader) (io.Reader, func(), error) {
 // Keep a private, bounded copy so neither file size nor content can change
 // between request construction and transmission. ZIP payloads remain on disk.
 func prepareRestoreInput(path string, stdin io.Reader) (*os.File, string, error) {
-	input, closeInput, err := openRestoreInput(path, stdin)
+	input, closeInput, err := openCLIInput(path, stdin)
 	if err != nil {
 		return nil, "", err
 	}

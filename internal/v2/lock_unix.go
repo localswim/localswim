@@ -22,13 +22,22 @@ func unlockWriter(file *os.File) error {
 }
 
 func replaceAtomic(source, destination string) error {
+	return publishAtomic(source, destination, os.Rename)
+}
+
+func createAtomic(source, destination string) error {
+	// A hard link publishes the flushed inode without ever replacing a name.
+	return publishAtomic(source, destination, os.Link)
+}
+
+func publishAtomic(source, destination string, publish func(string, string) error) error {
 	dir, err := os.Open(filepath.Dir(destination))
 	if err != nil {
 		return err
 	}
 	defer dir.Close()
-	if err := os.Rename(source, destination); err != nil {
-		// POSIX does not guarantee the destination stayed intact after EIO.
+	if err := publish(source, destination); err != nil {
+		// An I/O error may leave the destination publication outcome unknown.
 		if errors.Is(err, syscall.EIO) {
 			return errors.Join(errWriteUncertain, err)
 		}

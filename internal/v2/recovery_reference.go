@@ -140,6 +140,10 @@ func (s *store) writeRecoveryReference(ref recoveryReference) error {
 }
 
 func (s *store) writeRecoveryReferenceChecked(ref recoveryReference, beforeReplace func() error) error {
+	return s.publishRecoveryReference(ref, beforeReplace, writeAtomicChecked)
+}
+
+func (s *store) publishRecoveryReference(ref recoveryReference, beforePublish func() error, write func(string, []byte, func() error) error) error {
 	id := ref.Committed.BoardID
 	payload, err := marshalCanonical(ref)
 	if err != nil {
@@ -153,15 +157,40 @@ func (s *store) writeRecoveryReferenceChecked(ref recoveryReference, beforeRepla
 	if err := s.checkBoardsDirectory(dir); err != nil {
 		return err
 	}
-	return writeAtomicChecked(s.recoveryReferencePath(id), data, func() error {
+	return write(s.recoveryReferencePath(id), data, func() error {
 		if err := s.checkBoardsDirectory(dir); err != nil {
 			return err
 		}
-		if beforeReplace != nil {
-			return beforeReplace()
+		if beforePublish != nil {
+			return beforePublish()
 		}
 		return nil
 	})
+}
+
+func (s *store) writeNewSnapshotWithRecoveryReference(value snapshot, data []byte, beforePublish func() error) error {
+	id := value.Board.ID
+	if err := writeAtomicNew(s.snapshotPath(id), data, func() error {
+		if err := s.checkBoardsDirectory(s.boardsPath()); err != nil {
+			return err
+		}
+		return beforePublish()
+	}); err != nil {
+		return err
+	}
+	current := recoveryContextFor(value, data)
+	if err := s.publishRecoveryReference(recoveryReference{Committed: current}, func() error {
+		if s.beforeRecoverySettlement != nil {
+			return s.beforeRecoverySettlement(id)
+		}
+		return nil
+	}, writeAtomicNew); err != nil {
+		// The snapshot name has already been published. Keep its blobs and
+		// let the durable recovery path settle the outcome before retrying.
+		return errors.Join(errWriteUncertain, err)
+	}
+	s.recoveryContexts[id] = current
+	return nil
 }
 
 func (s *store) checkStartupRecoveryReferences(ids []string) (map[string]recoveryContext, error) {

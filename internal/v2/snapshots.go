@@ -110,6 +110,9 @@ func (s *store) recoverSnapshot(boardID, actor, eventID string, matches func(sna
 	if err := validateSnapshot(candidate, boardID); err != nil {
 		return snapshot{}, err
 	}
+	if !v1ReplayRecoveryCompatible(current, candidate) {
+		return snapshot{}, invalid("activity", "Restore must retain the accepted V1 import history.")
+	}
 	if candidate.Board.Availability != current.Board.Availability {
 		return snapshot{}, invalid("board.availability", "Use PATCH to change board availability.")
 	}

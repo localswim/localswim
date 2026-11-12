@@ -44,7 +44,7 @@ func (refs snapshotReferences) validateCardChildren(value snapshot) error {
 	return nil
 }
 
-func (refs snapshotReferences) validResourceCreation(event activity, cardCreations map[string]uint64, approvalComment bool) bool {
+func (refs snapshotReferences) validResourceCreation(event activity, cardCreations map[string]uint64, approvalComment, imported bool) bool {
 	if event.Revision < 2 || event.Field != nil || event.Before != nil || (event.ResourceType != "attachment" && event.After != nil) {
 		return false
 	}
@@ -53,7 +53,7 @@ func (refs snapshotReferences) validResourceCreation(event activity, cardCreatio
 	case "comment":
 		item := refs.comments[event.ResourceID]
 		return item.ID != "" && event.Operation == "comment" && (capabilities["comment"] || approvalComment) &&
-			item.AuthorID == event.ActorID && item.CreatedAt.Equal(event.At) &&
+			(imported || item.AuthorID == event.ActorID && item.CreatedAt.Equal(event.At)) &&
 			cardCreations[item.CardID] > 0 && cardCreations[item.CardID] < event.Revision
 	case "attachment":
 		item := refs.attachments[event.ResourceID]
@@ -62,7 +62,7 @@ func (refs snapshotReferences) validResourceCreation(event activity, cardCreatio
 		original.Revision = event.Revision
 		original.UpdatedAt = original.CreatedAt
 		return item.ID != "" && event.Operation == "attach" && capabilities["manage_attachments"] &&
-			item.AddedBy == event.ActorID && item.CreatedAt.Equal(event.At) &&
+			(imported || item.AddedBy == event.ActorID && item.CreatedAt.Equal(event.At)) &&
 			event.After != nil && *event.After == attachmentAuditValue(original) &&
 			cardCreations[item.CardID] > 0 && cardCreations[item.CardID] < event.Revision
 	case "lane":

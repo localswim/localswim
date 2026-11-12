@@ -383,7 +383,13 @@ func (s *store) readback(id string) (snapshot, error) {
 func (s *store) create(value snapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := value.Board.ID
+	if err := s.checkCreateLocked(value.Board.ID); err != nil {
+		return err
+	}
+	return s.commit(cloneSnapshot(value), true, nil)
+}
+
+func (s *store) checkCreateLocked(id string) error {
 	if err := s.writable(id); err != nil {
 		return err
 	}
@@ -409,7 +415,7 @@ func (s *store) create(value snapshot) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	return s.commit(cloneSnapshot(value), true, nil)
+	return nil
 }
 
 func (s *store) update(id string, expected uint64, change func(*snapshot) error) (snapshot, error) {
@@ -536,13 +542,17 @@ func (s *store) writeCommit(value snapshot, data []byte, accepted *snapshot) err
 }
 
 func (s *store) writeCommitChecked(value snapshot, data []byte, beforeReplace, beforePending func() error) error {
-	id := value.Board.ID
-	if err := s.writeSnapshotWithRecoveryReference(value, data, beforeReplace, beforePending); err != nil {
+	return s.finishCommit(value, data, s.writeSnapshotWithRecoveryReference(value, data, beforeReplace, beforePending))
+}
+
+func (s *store) finishCommit(value snapshot, data []byte, err error) error {
+	if err != nil {
 		if errors.Is(err, errWriteUncertain) {
 			s.fenceUncertainCommit(value, data)
 		}
 		return err
 	}
+	id := value.Board.ID
 	previous := s.boards[id]
 	s.boards[id] = value
 	delete(s.failedBoards, id)

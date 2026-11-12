@@ -20,6 +20,13 @@ import (
 const humanID = "3109cf0e-805f-4af2-b180-6cfed1c50ca1"
 const botID = "5bb4d8c2-2702-4c70-93e1-e98b5cd683f4"
 
+func workspacePrincipals(now time.Time) []user {
+	return []user{
+		{ID: humanID, Revision: 1, CreatedAt: now, Label: "Human", Kind: "human", Color: ""},
+		{ID: botID, Revision: 1, CreatedAt: now, Label: "Bot", Kind: "bot", Color: ""},
+	}
+}
+
 type Service struct {
 	events              *eventHub
 	store               *store
@@ -38,10 +45,7 @@ func Open(root, humanToken, botToken string) (*Service, error) {
 		return nil, errors.New("configure distinct Human and Bot runtime capabilities of at least 32 base64url bytes")
 	}
 	now := canonicalTime(time.Now())
-	principals := []user{
-		{ID: humanID, Revision: 1, CreatedAt: now, Label: "Human", Kind: "human", Color: ""},
-		{ID: botID, Revision: 1, CreatedAt: now, Label: "Bot", Kind: "bot", Color: ""},
-	}
+	principals := workspacePrincipals(now)
 	boards, err := openStore(root, principals...)
 	if err != nil {
 		return nil, err

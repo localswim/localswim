@@ -558,7 +558,7 @@ func (refs snapshotReferences) validRelationshipLink(link relationshipLink) bool
 		refs.cards[link.TargetCardID].ID != "" && validRelationshipKind(link.Kind)
 }
 
-func (refs snapshotReferences) validateRelationshipAudit(value snapshot, cardCreations map[string]uint64, recoveryRevision uint64) error {
+func (refs snapshotReferences) validateRelationshipAudit(value snapshot, cardCreations map[string]uint64, recoveryRevision, v1ImportEnd uint64) error {
 	active := make(map[string]relationship, len(value.Relationships))
 	for _, item := range value.Relationships {
 		active[item.ID] = item
@@ -566,10 +566,10 @@ func (refs snapshotReferences) validateRelationshipAudit(value snapshot, cardCre
 	replay := make(map[string]relationship, len(active))
 	keys := make(map[relationshipLink]bool, len(active))
 	revisions := make(map[string]uint64, len(active))
-	seenCards := make(map[string]bool, len(cardCreations))
+	creationOrder := make(map[string]int, len(cardCreations))
 	for _, event := range value.Activity {
 		if event.ResourceType == "card" && event.Operation == "create" {
-			seenCards[event.ResourceID] = true
+			creationOrder[event.ResourceID] = len(creationOrder) + 1
 		}
 		if event.ResourceType != "relationship" {
 			continue
@@ -605,9 +605,13 @@ func (refs snapshotReferences) validateRelationshipAudit(value snapshot, cardCre
 		}
 		switch event.Operation {
 		case "create":
-			if revisions[id] != 0 || event.Before != nil || !seenCards[link.SourceCardID] || !seenCards[link.TargetCardID] ||
+			sourceOrder, targetOrder := creationOrder[link.SourceCardID], creationOrder[link.TargetCardID]
+			if revisions[id] != 0 || event.Before != nil || sourceOrder == 0 || targetOrder == 0 ||
 				(cardCreations[link.SourceCardID] == event.Revision && cardCreations[link.TargetCardID] == event.Revision) {
 				return invalidSnapshot("activity", "Relationship creation audit is invalid.")
+			}
+			if event.Revision <= v1ImportEnd && link.Kind == "blocks" && sourceOrder >= targetOrder {
+				return invalidSnapshot("activity", "A V1 import blocker must have an earlier ticket allocation than its target.")
 			}
 			item = relationship{ID: id, Revision: event.Revision, CreatedAt: event.At, UpdatedAt: event.At,
 				BoardID: value.Board.ID, relationshipLink: link}

@@ -199,3 +199,23 @@ func TestM84RecoveryRefusesChangedReferenceOrSnapshot(t *testing.T) {
 		})
 	}
 }
+
+func TestM84FreshRecoveryWithNonregularReference(t *testing.T) {
+	initial, human := attachmentHTTPServer(t)
+	raw, _ := human.call("POST", "/boards", `{"name":"Bad reference"}`, "", 201)
+	b := turnOneDecode[board](t, raw)
+	source, _ := initial.store.accepted(b.ID)
+	app, human := restartFailedRecovery(t, initial, human, b.ID, true)
+	if err := os.Mkdir(app.store.recoveryReferencePath(b.ID), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	_, headers := human.call("GET", "/verifications/"+b.ID, "", "", 200)
+	raw, _ = failedRecoveryPost(t, human, b.ID, "fresh", headers.Get("ETag"), "application/json", mustSnapshotJSON(t, source), 201)
+	recovered := turnOneDecode[board](t, raw)
+	if recovered.ID == b.ID || !app.store.isFailedBoard(b.ID) {
+		t.Fatal("fresh recovery lost source isolation")
+	}
+	if info, err := os.Stat(app.store.recoveryReferencePath(b.ID)); err != nil || !info.IsDir() {
+		t.Fatal("fresh recovery replaced invalid reference")
+	}
+}

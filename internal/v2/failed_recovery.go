@@ -3,6 +3,7 @@ package v2
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"mime"
 	"net/http"
 	"os"
@@ -38,7 +39,13 @@ func recoveryFileFingerprint(path string) (string, error) {
 		return "missing", nil
 	}
 	if err != nil {
-		return "", errInvalidSnapshot
+		// Fresh recovery leaves inaccessible or nonregular source entries in
+		// place. Their metadata still binds the explicit failure observation.
+		info, statErr := os.Lstat(path)
+		if statErr != nil {
+			return "", errInvalidSnapshot
+		}
+		return fmt.Sprintf("unreadable:%d:%d:%d", info.Mode(), info.Size(), info.ModTime().UnixNano()), nil
 	}
 	if err := checkNamedSnapshot(path, file); err != nil {
 		return "", err
@@ -164,6 +171,9 @@ func (s *store) recoverFailed(id, mode, actor, expected string, source snapshot,
 		}
 		if !authorized {
 			return snapshot{}, errForbidden
+		}
+		if _, err := readSnapshotFile(s.snapshotPath(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return snapshot{}, errInvalidSnapshot
 		}
 		if source.Board.CreatedAt != context.CreatedAt {
 			return snapshot{}, errIdentityConflict

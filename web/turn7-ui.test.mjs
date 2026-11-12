@@ -2438,11 +2438,32 @@ test("streamed drawer refresh retains the focused occurrence of a saved prose li
   assert.equal(ui.focused(), details.querySelector("h2"));
 });
 
+async function textSaveBoard() {
+  const {api} = boardApi();
+  const getBoard = api.getBoardLanes;
+  const getAvailability = api.getBoardAvailability;
+  let saved = {...(await api.getCard(card)).data, description: "Original\r\nprose"};
+  api.getBoardLanes = async (...args) => {
+    const reply = await getBoard(...args);
+    return {data: {board: {...reply.data.board, revision: saved.revision}, cards: [saved]}, etag: tag(board, saved.revision)};
+  };
+  api.getCard = async (id) => {
+    assert.equal(id, card);
+    return {data: saved, etag: tag(card, saved.revision)};
+  };
+  api.getBoardAvailability = async (...args) => {
+    const reply = await getAvailability(...args);
+    return {data: {...reply.data, revision: saved.revision}, etag: tag(board, saved.revision)};
+  };
+  return {api, commit(change) {
+    saved = {...saved, ...change, revision: saved.revision + 1};
+    return {data: saved, etag: tag(card, saved.revision)};
+  }};
+}
+
 for (const [lostResponse, replaceDrawer] of [[false, false], [true, false], [false, true], [true, true]]) {
   test(`slow text save preserves a newer draft matching the old baseline (lost: ${lostResponse}, replace drawer: ${replaceDrawer})`, async () => {
-    const {api} = boardApi();
-    const patch = api.patchCard;
-    await patch(card, tag(card, 1), {description: "Original\r\nprose"});
+    const {api, commit} = await textSaveBoard();
     const sent = Promise.withResolvers();
     const release = Promise.withResolvers();
     const writes = [];
@@ -2450,7 +2471,7 @@ for (const [lostResponse, replaceDrawer] of [[false, false], [true, false], [fal
       writes.push([id, etag, {...change}]);
       sent.resolve();
       await release.promise;
-      const reply = await patch(id, etag, change);
+      const reply = commit(change);
       if (lostResponse) throw new ApiError("transport_failed", {outcomeUnknown: true});
       return reply;
     };
@@ -2490,17 +2511,7 @@ for (const [lostResponse, replaceDrawer] of [[false, false], [true, false], [fal
 
 for (const scenario of ["refused in replacement", "refused while away", "lost without commit", "lost before late commit"]) {
   test(`text reversion follows the settled write and subsequent revision after popstate (${scenario})`, async () => {
-    const {api} = boardApi();
-    const getBoard = api.getBoardLanes;
-    let saved = {...(await api.getCard(card)).data, description: "Original\r\nprose"};
-    api.getBoardLanes = async (...args) => {
-      const reply = await getBoard(...args);
-      return {data: {board: {...reply.data.board, revision: saved.revision}, cards: [saved]}, etag: tag(board, saved.revision)};
-    };
-    api.getCard = async (id) => {
-      assert.equal(id, card);
-      return {data: saved, etag: tag(card, saved.revision)};
-    };
+    const {api, commit} = await textSaveBoard();
     const writes = [];
     const release = Promise.withResolvers();
     const refused = scenario.startsWith("refused");
@@ -2546,12 +2557,69 @@ for (const scenario of ["refused in replacement", "refused while away", "lost wi
     replacement.focus();
 
     const later = lateCommit ? writes[0][2] : {title: "External title", description: "External\r\nprose"};
-    saved = {...saved, ...later, revision: 2};
+    commit(later);
     ui.nodes.refresh.click();
     await until(() => details.querySelector("h2")?.textContent === "#1 " + later.title);
     assert.equal(replacement.value, lateCommit ? "Original" : "External title");
     assert.equal(ui.field(details, "Description").value,
       offscreen ? "Keep exact\nnew prose" : lateCommit ? "Original\nprose" : "External\nprose");
+    assert.equal(ui.focused(), replacement);
+    assert.deepEqual(writes, [[card, tag(card, 1), {title: "Submitted title", description: "Submitted\r\nprose"}]]);
+  });
+}
+
+for (const refused of [true, false]) {
+  test(`a newer revision in a replacement drawer waits for the original PATCH outcome (refused: ${refused})`, async () => {
+    const {api, commit} = await textSaveBoard();
+    const sent = Promise.withResolvers();
+    const release = Promise.withResolvers();
+    const writes = [];
+    api.patchCard = async (id, etag, change) => {
+      writes.push([id, etag, {...change}]);
+      const committed = refused ? undefined : commit(change);
+      sent.resolve();
+      await release.promise;
+      if (!committed) throw new ApiError("http_error", {status: 412});
+      return committed;
+    };
+    const ui = await harness(api);
+    await ui.load();
+    const {main, details} = ui.nodes;
+    ui.find(main, "button", "#1 Original").click();
+    await until(() => ui.field(details, "Description"));
+    const title = ui.field(details, "Title");
+    const description = ui.field(details, "Description");
+    title.value = "Submitted title";
+    description.value = "Submitted\nprose";
+    ui.submit(details, "Save text");
+    await sent.promise;
+    title.value = "Original";
+    description.value = "Original\nprose";
+    title.dispatch("input");
+    description.dispatch("input");
+    await ui.popstate("/", false);
+    const remote = refused ? writes[0][2] : {title: "Remote title", description: "Remote\r\nprose"};
+    commit(remote);
+    let replacement;
+    try {
+      await ui.popstate("/boards/" + board, false);
+      await until(() => details.querySelector("h2")?.textContent === "#1 " + remote.title);
+      replacement = ui.field(details, "Title");
+      assert.notEqual(replacement, title);
+      assert.equal(replacement.value, "Original");
+      replacement.focus();
+      if (refused) {
+        const newerDescription = ui.field(details, "Description");
+        newerDescription.value = "Newer\nprose";
+        newerDescription.dispatch("input");
+      }
+    } finally {
+      release.resolve();
+      await ui.settled();
+    }
+    assert.equal(details.querySelector("h2").textContent, "#1 " + remote.title);
+    assert.equal(replacement.value, refused ? remote.title : "Original");
+    assert.equal(ui.field(details, "Description").value, refused ? "Newer\nprose" : "Original\nprose");
     assert.equal(ui.focused(), replacement);
     assert.deepEqual(writes, [[card, tag(card, 1), {title: "Submitted title", description: "Submitted\r\nprose"}]]);
   });

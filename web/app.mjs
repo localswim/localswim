@@ -47,7 +47,7 @@ import { appendCardProse } from "./card-prose.mjs";
 /** @typedef {keyof CardText} TextField */
 /** @typedef {Pick<Card, "title"|"description">} CardText */
 /** @typedef {{scope: string, revision: number, fields: Partial<CardText>, editor: CardText,
- * committed: boolean}} CardTextSubmission */
+ * outcome: "pending"|"confirmed"|"unknown"|"refused"}} CardTextSubmission */
 /** @typedef {Partial<Record<TextField, CardTextSubmission>>} TextReversions */
 /** @typedef {{title?: string, description?: string, lane?: string, owner?: string, priority?: string,
  * comment?: string, textReversions?: TextReversions}} CardDraft */
@@ -183,6 +183,7 @@ let activeComment;
 /** @type {{boardId: string, id: string, close: () => void,
  * refreshWorkflow: (canApply?: () => boolean, automatic?: boolean) => Promise<void>,
  * refreshPriority: (requested: string, effective: Labeled|undefined, replaced: boolean) => Promise<void>,
+ * settleText: (discarded?: Partial<CardText>) => void,
  * showPending: () => void, pasteAttachments: (event: ClipboardEvent) => void,
  * showAttachmentUploads: (changed?: number) => void}|undefined} */
 let activeDrawer;
@@ -448,46 +449,38 @@ function storeCardDraft(scope, draft) {
   storeTextDraft(scope, text);
 }
 
-/** @param {CardTextSubmission} submission */
-function discardRefusedTextReversions(submission) {
-  const draft = cardDrafts.get(submission.scope);
-  if (!draft?.textReversions) return;
-  for (const field of /** @type {const} */ (["title", "description"])) {
-    if (draft.textReversions[field] === submission) {
-      delete draft.textReversions[field];
-      delete draft[field];
-    }
-  }
-  storeCardDraft(submission.scope, draft);
-}
-
-/** @param {string} scope @param {Card} saved */
+/** @param {string} scope @param {Card} [saved] */
 function reconcileTextReversions(scope, saved) {
   const draft = cardDrafts.get(scope);
   const reversions = draft?.textReversions;
   /** @type {Partial<Record<TextField, true>>} */
   const preserve = {};
-  if (!draft || !reversions) return preserve;
+  /** @type {Partial<CardText>} */
+  const discarded = {};
+  if (!draft || !reversions) return { preserve, discarded };
   for (const field of /** @type {const} */ (["title", "description"])) {
     const submission = reversions[field];
     if (!submission) continue;
-    if (saved.revision <= submission.revision) {
+    const { outcome } = submission;
+    if (outcome === "pending" || (outcome !== "refused" && (!saved || saved.revision <= submission.revision))) {
       preserve[field] = true;
       continue;
     }
     delete reversions[field];
-    // A later revision ends the original validator's eligibility. Keep the
-    // reversion as an ordinary draft if the submitted text became saved.
+    // An advancing read can help compare an uncertain write after HTTP settles.
+    // While HTTP is pending the same text could come from a different writer.
     const { title, description } = submission.fields;
-    if (submission.committed || ((title === undefined || title === saved.title)
+    if (outcome === "confirmed" || (outcome === "unknown" && saved
+        && (title === undefined || title === saved.title)
         && (description === undefined || description === saved.description))) {
       preserve[field] = true;
     } else {
+      discarded[field] = draft[field];
       delete draft[field];
     }
   }
   storeCardDraft(scope, draft);
-  return preserve;
+  return { preserve, discarded };
 }
 
 /** @param {string} scope */
@@ -1902,22 +1895,23 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     function retainText(captureReversions = true) {
       /** @type {CardDraft} */
       const draft = {};
-      const submitted = captureReversions && submittedCardText?.scope === scope ? submittedCardText : undefined;
+      const submitted = captureReversions && submittedCardText?.scope === scope
+        && submittedCardText.outcome !== "refused" ? submittedCardText : undefined;
       const previous = cardDrafts.get(scope);
       const fields = /** @type {const} */ ([
         ["title", title.value, titleBaseline], ["description", description.value, descriptionBaseline],
       ]);
       for (const [field, value, baseline] of fields) {
-        if (value !== baseline) {
+        const carried = previous?.[field] === value ? previous.textReversions?.[field] : undefined;
+        const reverted = value === baseline && submitted?.revision === savedCard.revision
+          && submitted.fields[field] !== undefined && submitted.editor[field] !== value;
+        const reversion = carried ?? (reverted ? submitted : undefined);
+        if (reversion) {
+          // Keep provenance even when a replacement drawer has a newer baseline.
+          (draft.textReversions ??= {})[field] = reversion;
           draft[field] = value;
-        } else {
-          const reversion = submitted?.fields[field] !== undefined && submitted.editor[field] !== value
-            ? submitted : previous?.[field] === value ? previous.textReversions?.[field] : undefined;
-          if (reversion) {
-            // An edit back to the old baseline can still differ from the eventual saved text.
-            (draft.textReversions ??= {})[field] = reversion;
-            draft[field] = value;
-          }
+        } else if (value !== baseline) {
+          draft[field] = value;
         }
       }
       const selectedMove = lane.value || moveDraft;
@@ -1990,7 +1984,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       }
     }
     activeDrawer = { boardId, id: card.id, close: () => closeDrawer(view.contains(document.activeElement)),
-      refreshWorkflow, refreshPriority, showPending, pasteAttachments, showAttachmentUploads };
+      refreshWorkflow, refreshPriority, settleText, showPending, pasteAttachments, showAttachmentUploads };
     const close = button("Close card", () => { if (!writing) closeDrawer(); });
     const heading = element("h2", `#${card.ticket} ${card.title}`);
     heading.tabIndex = -1;
@@ -2098,9 +2092,29 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       }
     }
 
+    /** @param {Partial<CardText>} discarded */
+    function restoreBaselineText(discarded) {
+      if (!composingTitle && title.value === discarded.title && title.value !== titleBaseline) title.value = titleBaseline;
+      if (description.value === discarded.description && description.value !== descriptionBaseline) {
+        description.value = descriptionBaseline;
+      }
+    }
+
+    /** @param {Partial<CardText>} [discarded] */
+    function settleText(discarded = reconcileTextReversions(scope, savedCard).discarded) {
+      restoreBaselineText(discarded);
+      retainText(false);
+    }
+
+    /** @param {Partial<CardText>} [discarded] */
+    function settleDisplayedText(discarded) {
+      if (activeDrawer?.boardId === boardId && activeDrawer.id === card.id) activeDrawer.settleText(discarded);
+    }
+
     /** @param {Card} saved */
     function adoptSaved(saved) {
-      const preserve = reconcileTextReversions(scope, saved);
+      const { preserve, discarded } = reconcileTextReversions(scope, saved);
+      restoreBaselineText(discarded);
       titleBaseline = adoptText(title, titleBaseline, saved.title, composingTitle || preserve.title);
       descriptionBaseline = adoptText(description, descriptionBaseline, saved.description, preserve.description);
       if (owner.value === savedCard.owner_id) owner.value = saved.owner_id;
@@ -2168,7 +2182,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       const initiatingView = activeView;
       /** @type {CardTextSubmission} */
       const submission = { scope, revision: savedCard.revision, fields: draft,
-        editor: { title: title.value, description: description.value }, committed: false };
+        editor: { title: title.value, description: description.value }, outcome: "pending" };
       /** @type {PendingCard} */
       const projection = { kind: "patch", card: savedCard, fields: draft };
       startWriting();
@@ -2180,18 +2194,25 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         const result = await api.patchCard(card.id, cardTag, draft);
         const saved = /** @type {Card} */ (result.data);
         if (saved.board_id !== boardId) throw new ApiError("invalid_response", { outcomeUnknown: true });
-        submission.committed = true;
-        if (cardView !== activeCard) return;
-        cardTag = etag(result);
+        const nextTag = etag(result);
+        submission.outcome = "confirmed";
+        if (cardView !== activeCard) {
+          settleDisplayedText();
+          return;
+        }
+        cardTag = nextTag;
         retainText();
         adoptSaved(saved);
         announce("ready", "Card saved.");
       } catch (error) {
         showPendingCard(projection, false);
         const phase = writePhase(error);
-        if (phase !== "unknown") {
-          submittedCardText = undefined;
-          discardRefusedTextReversions(submission);
+        submission.outcome = phase === "unknown" ? "unknown" : "refused";
+        if (submission.outcome === "refused") {
+          settleDisplayedText(reconcileTextReversions(scope).discarded);
+        } else {
+          if (cardView === activeCard) retainText();
+          settleDisplayedText();
         }
         if (phase === "error") {
           if (cardView === activeCard) announce("error", "Card edit refused. Your draft is still here.");
@@ -2199,7 +2220,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
           await recoverTextSave(phase);
         }
       } finally {
-        if (submission.committed) {
+        if (submission.outcome === "confirmed") {
           if (initiatingView === activeView) await reloadBoard().catch(() => {});
           await refreshReplacementBoard(projection, initiatingView).catch(() => {});
         }

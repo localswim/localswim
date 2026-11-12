@@ -91,10 +91,14 @@ After an uncertain snapshot commit on an existing board, inspect the saved outco
 with `board export` or `board verify` before attempting another write. The service
 pauses writes, board capture, and pending owner notices for the affected board.
 If the failed operation could affect shared workspace state, the pause applies to
-all boards. After an uncertain creation, restart and inspect the original UUID
-in `board list` before retrying. Restart verifies the saved outcome against the
-recovery reference when present. If a board is quarantined after restart, follow
-the recovery mode shown by `board verify`.
+all boards. Restart verifies the saved outcome against the recovery reference when
+present. If a board is quarantined after restart, follow the recovery mode shown by
+`board verify`.
+
+After an uncertain creation, restart and inspect `board list`. If you supplied a
+UUID in the `id` field with `board create --json`, look for that exact UUID. If
+you omitted `id`, you may not know the UUID the service generated. Board names
+can repeat, so a name match alone cannot establish the outcome or justify a retry.
 
 Add `--data DIRECTORY` before the board ID on `card triage-order`, `card search`,
 `card inspect`, or `comment list` to use the same report against the saved

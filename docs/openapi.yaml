@@ -11226,6 +11226,9 @@ paths:
         them from Git configuration. The publisher records unresolved or
         ambiguous destinations before writing any Git objects or refs. A push
         failure can be recorded after the local source branch has advanced.
+        Inspect the original receipt before retrying a failed push with the same
+        backup and a new publication ID. Pending intent preserves the exact commit
+        and resolved destination. A retry to a different resolved destination fails.
         Serialize by repository and publish the selected immutable artifact.
         Reconcile exact captured paths under the worktree's Git index lock before
         pushing, preserving unrelated staging and later working-tree edits.
@@ -13554,6 +13557,7 @@ components:
             path. git_ignore_unavailable means Git could not verify the ignore rules. publication_index_busy
             means the worktree's index is locked. publication_index_overlap means staged changes intersect
             the capture. publication_index_uncertain means the local branch and index update require inspection.
+            publication_destination_changed means the resolved Git target differs from the pending target.
           anyOf:
           - type: string
             minLength: 0
@@ -13596,7 +13600,8 @@ components:
         - enabled
       - required:
         - repository
-      description: Closed opt-in settings for the enclosing Git worktree. Origin and null select its configured origin. Runtime status is read-only.
+      description: Closed opt-in settings for the enclosing Git worktree. Origin selects the configured origin
+        remote. Null uses the Git push defaults. Runtime status is read-only.
     ActorDecoration:
       type: object
       additionalProperties: false
@@ -14660,6 +14665,7 @@ components:
             path. git_ignore_unavailable means Git could not verify the ignore rules. publication_index_busy
             means the worktree's index is locked. publication_index_overlap means staged changes intersect
             the capture. publication_index_uncertain means the local branch and index update require inspection.
+            publication_destination_changed means the resolved Git target differs from the pending target.
           anyOf:
           - type: string
             minLength: 0
@@ -18846,9 +18852,10 @@ x-publishing-worker:
   synchronization: Serialize publishers with the persistent Git common-directory lock. Use the
     worktree's Git index lock to reconcile exact captured paths. Preserve unrelated staging and
     later working-tree edits.
-  retry: Retain the exact capture inventory and retry pending attempts with bounded backoff even without
-    another edit. Check scoped staging before advancing the local branch. Require proof of consistent
-    local index state before pushing an interrupted update.
+  retry: Retain the exact capture inventory, commit, source branch, and resolved remote and destination
+    ref. Retry with bounded backoff even without another edit. Refuse destination changes and resume
+    the original commit after the original target is restored. Check scoped staging before advancing
+    the local branch. Require proof of consistent local index state before pushing an interrupted update.
   status: Report pending, last_success_at, and a fixed error_code on the board summary or workspace.
     Publishing progress does not advance data revisions. While live status is visible, an exact matching
     revision tag still returns current status. After a disabled restart, durable publishing history is

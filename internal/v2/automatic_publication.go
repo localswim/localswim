@@ -64,6 +64,7 @@ type automaticPublisher struct {
 	started    bool
 	closed     bool
 	enabled    bool
+	repository string
 	generation uint64
 	dirty      bool
 	quietUntil time.Time
@@ -85,13 +86,14 @@ func (p *automaticPublisher) signal() {
 	}
 }
 
-func (p *automaticPublisher) schedule() {
+func (p *automaticPublisher) schedule(config publishing) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed {
 		return
 	}
 	p.enabled = true
+	p.repository = snapshotString(config.Repository)
 	p.generation++
 	p.dirty = true
 	p.quietUntil = time.Now().Add(automaticPublicationQuiet)
@@ -145,10 +147,10 @@ func (p *automaticPublisher) status(config publishing) publishing {
 	return config
 }
 
-func (p *automaticPublisher) allowed() bool {
+func (p *automaticPublisher) enabledSelection() (publicationSelection, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.enabled && !p.closed
+	return publicationSelection{remote: p.repository}, p.enabled && !p.closed
 }
 
 func (p *automaticPublisher) current(generation uint64) bool {
@@ -293,11 +295,12 @@ func (p *automaticPublisher) attempt(generation uint64, capture, flush bool) (pu
 	if err != nil {
 		return publicationCheckpoint{}, false, false, err
 	}
-	if !p.allowed() {
+	selection, enabled := p.enabledSelection()
+	if !enabled {
 		return checkpoint, true, false, nil
 	}
 	if checkpoint.Pending != nil {
-		checkpoint, err = repo.finishPending(p.ref, oid, checkpoint)
+		checkpoint, err = repo.finishPending(p.ref, oid, checkpoint, selection)
 		if err != nil || !flush || !capture {
 			return checkpoint, true, false, err
 		}
@@ -320,6 +323,6 @@ func (p *automaticPublisher) attempt(generation uint64, capture, flush bool) (pu
 	if !current() {
 		return checkpoint, true, false, nil
 	}
-	checkpoint, err = repo.acceptPublication(p.ref, oid, checkpoint, value, current)
+	checkpoint, err = repo.acceptPublication(p.ref, oid, checkpoint, value, selection, current)
 	return checkpoint, true, true, err
 }

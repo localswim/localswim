@@ -10,11 +10,11 @@ import (
 )
 
 type pendingPublication struct {
-	Commit string   `json:"commit"`
-	Parent string   `json:"parent"`
-	Branch string   `json:"branch"`
-	Remote string   `json:"remote"`
-	Names  []string `json:"-"`
+	Commit    string            `json:"commit"`
+	Parent    string            `json:"parent"`
+	SourceRef string            `json:"source_ref"`
+	Target    publicationTarget `json:"target"`
+	Names     []string          `json:"-"`
 }
 
 type publicationCheckpoint struct {
@@ -55,10 +55,13 @@ func (repo publicationRepository) checkpoint(ref string) (publicationCheckpoint,
 	}
 	if pending := checkpoint.Pending; pending != nil {
 		if !gitObjectID(pending.Commit) || !gitObjectID(pending.Parent) ||
-			!strings.HasPrefix(pending.Branch, "refs/heads/") ||
-			strings.ContainsAny(pending.Branch, " \r\n\t") ||
-			len(pending.Remote) != 64 || !validPublicationDigest(pending.Remote) ||
+			len(pending.Target.URLDigest) != 64 || !validPublicationDigest(pending.Target.URLDigest) ||
 			!strings.Contains(headers, "\nparent "+pending.Commit+"\n") {
+			return publicationCheckpoint{}, "", gitPublicationError("publication_state_unavailable")
+		}
+		_, sourceErr := repo.publicationBranchRef(pending.SourceRef)
+		_, targetErr := repo.publicationBranchRef(pending.Target.Ref)
+		if sourceErr != nil || targetErr != nil || !repo.validRemoteName(pending.Target.Remote) {
 			return publicationCheckpoint{}, "", gitPublicationError("publication_state_unavailable")
 		}
 		names, err := repo.checkpointInventory(oid)
@@ -162,52 +165,50 @@ func (repo publicationRepository) saveCheckpoint(ref, oid string, checkpoint pub
 	return next, nil
 }
 
-func (repo publicationRepository) pushTarget() (string, error) {
-	target, err := repo.resolvedPushURL("origin")
-	if err == gitPublicationError("publication_target_ambiguous") {
-		return "", gitPublicationError("remote_unavailable")
-	}
-	return target, err
-}
-
 func publicationRemoteDigest(url string) string {
 	digest := sha256.Sum256([]byte(url))
 	return hex.EncodeToString(digest[:])
 }
 
-func (repo publicationRepository) finishPending(ref, oid string, checkpoint publicationCheckpoint) (publicationCheckpoint, error) {
-	pending := checkpoint.Pending
+func (repo publicationRepository) pushPending(pending pendingPublication, selection publicationSelection) error {
 	if err := publicationGitSafety(repo.root, nil); err != nil {
-		return checkpoint, err
+		return err
 	}
-	target, err := repo.pushTarget()
+	destination, err := repo.resolveDestination(pending.SourceRef, selection)
 	if err != nil {
-		return checkpoint, err
+		return err
 	}
-	if publicationRemoteDigest(target) != pending.Remote {
-		return checkpoint, gitPublicationError("remote_changed")
+	if destination.target != pending.Target {
+		return gitPublicationError("publication_destination_changed")
 	}
-	tip, err := publicationGitText(repo.root, "rev-parse", "--verify", "--end-of-options", pending.Branch)
+	tip, err := publicationGitText(repo.root, "rev-parse", "--verify", "--end-of-options", pending.SourceRef)
 	if err != nil || !gitObjectID(tip) {
-		return checkpoint, gitPublicationError("publication_branch_changed")
+		return gitPublicationError("publication_branch_changed")
 	}
 	if tip == pending.Parent && pending.Commit != pending.Parent {
 		// The durable intent precedes this compare-and-swap. Recover an
 		// interruption here only while the branch still names its exact parent.
 		parent, err := publicationGitText(repo.root, "rev-parse", pending.Commit+"^")
 		if err != nil || parent != pending.Parent {
-			return checkpoint, gitPublicationError("publication_state_unavailable")
+			return gitPublicationError("publication_state_unavailable")
 		}
-		if err := repo.advancePublication(pending.Branch, pending.Parent, pending.Commit, pending.Names); err != nil {
-			return checkpoint, err
+		if err := repo.advancePublication(pending.SourceRef, pending.Parent, pending.Commit, pending.Names); err != nil {
+			return err
 		}
 	} else if !repo.containsCommit(pending.Commit, tip) {
-		return checkpoint, gitPublicationError("publication_branch_changed")
-	} else if err := repo.confirmPublicationIndex(*pending, tip); err != nil {
-		return checkpoint, err
+		return gitPublicationError("publication_branch_changed")
+	} else if err := repo.confirmPublicationIndex(pending, tip); err != nil {
+		return err
 	}
-	remote := pinnedPublicationRemote(target)
-	if err := repo.push(remote, pending.Commit, pending.Branch); err != nil && !repo.remoteContains(remote, *pending) {
+	remote := pinnedPublicationRemote(destination.url)
+	if err := repo.push(remote, pending.Commit, pending.Target.Ref); err != nil && !repo.remoteContains(remote, pending) {
+		return err
+	}
+	return nil
+}
+
+func (repo publicationRepository) finishPending(ref, oid string, checkpoint publicationCheckpoint, selection publicationSelection) (publicationCheckpoint, error) {
+	if err := repo.pushPending(*checkpoint.Pending, selection); err != nil {
 		return checkpoint, err
 	}
 	now := canonicalTime(time.Now())
@@ -230,42 +231,50 @@ func (repo publicationRepository) containsCommit(commit, tip string) bool {
 // pending. Confirm the known descendant without rewriting any remote ref.
 func (repo publicationRepository) remoteContains(remote publicationRemote, pending pendingPublication) bool {
 	result, err := publicationGitConfigured(repo.root, "", nil, remote.configuration,
-		"ls-remote", "--refs", "--exit-code", "--", remote.name, pending.Branch)
+		"ls-remote", "--refs", "--exit-code", "--", remote.name, pending.Target.Ref)
 	oid, ref, found := strings.Cut(strings.TrimRight(string(result), "\r\n"), "\t")
-	return err == nil && found && ref == pending.Branch && gitObjectID(oid) && repo.containsCommit(pending.Commit, oid)
+	return err == nil && found && ref == pending.Target.Ref && gitObjectID(oid) && repo.containsCommit(pending.Commit, oid)
 }
 
-func (repo publicationRepository) acceptPublication(stateRef, oid string, checkpoint publicationCheckpoint, capture publicationCapture, allowed func() bool) (publicationCheckpoint, error) {
+func (repo publicationRepository) preparePending(stateRef, oid string, checkpoint publicationCheckpoint, capture publicationCapture, selection publicationSelection, allowed func() bool) (publicationCheckpoint, string, error) {
 	if capture.revision == 0 || capture.revision > maxSnapshotInteger || len(capture.files) == 0 {
-		return checkpoint, gitPublicationError("capture_unavailable")
+		return checkpoint, oid, gitPublicationError("capture_unavailable")
 	}
 	if capture.revision <= checkpoint.Revision {
-		return checkpoint, nil
-	}
-	target, err := repo.pushTarget()
-	if err != nil {
-		return checkpoint, err
+		return checkpoint, oid, nil
 	}
 	ref, previous, err := repo.head()
 	if err != nil {
-		return checkpoint, err
+		return checkpoint, oid, err
+	}
+	destination, err := repo.resolveDestination(ref, selection)
+	if err != nil {
+		return checkpoint, oid, err
 	}
 	commit, names, err := repo.preparePublication(ref, previous, capture)
 	if err != nil {
-		return checkpoint, err
+		return checkpoint, oid, err
 	}
 	next := publicationCheckpoint{Revision: capture.revision, LastSuccessAt: checkpoint.LastSuccessAt}
 	if !allowed() {
-		return checkpoint, nil
+		return checkpoint, oid, nil
 	}
 	// Persist the exact commit before any ref update or push. If the capture
 	// already matches HEAD, the checkpoint still needs remote confirmation.
 	next.Pending = &pendingPublication{
-		Commit: commit, Parent: previous, Branch: ref, Remote: publicationRemoteDigest(target), Names: names,
+		Commit: commit, Parent: previous, SourceRef: ref, Target: destination.target, Names: names,
 	}
 	newOID, err := repo.saveCheckpoint(stateRef, oid, next)
 	if err != nil {
-		return checkpoint, err
+		return checkpoint, oid, err
 	}
-	return repo.finishPending(stateRef, newOID, next)
+	return next, newOID, nil
+}
+
+func (repo publicationRepository) acceptPublication(ref, oid string, checkpoint publicationCheckpoint, capture publicationCapture, selection publicationSelection, allowed func() bool) (publicationCheckpoint, error) {
+	next, newOID, err := repo.preparePending(ref, oid, checkpoint, capture, selection, allowed)
+	if err != nil || next.Pending == nil {
+		return next, err
+	}
+	return repo.finishPending(ref, newOID, next, selection)
 }

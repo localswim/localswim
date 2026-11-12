@@ -393,25 +393,37 @@ func publishVerifiedBackup(dataRoot string, item backup, selections ...publicati
 		return err
 	}
 	defer releasePublicationRepository(repo.lease)
-	files := []publicationFile{{path: "boards/" + archive.state.Board.ID + ".json", read: func() ([]byte, error) {
-		return archive.snapshotData, nil
-	}}}
-	for _, attachment := range archive.state.Attachments {
-		files = append(files, publicationFile{path: attachmentPath(attachment), read: func() ([]byte, error) {
-			return archive.attachmentData(attachment)
-		}})
-	}
-	ref, previous, err := repo.head()
+	// A retry has its own receipt ID but resumes the same verified backup.
+	ref := publicationCheckpointRef(dataRoot, "backup-"+item.ID)
+	checkpoint, oid, err := repo.checkpoint(ref)
 	if err != nil {
 		return err
 	}
-	destination, err := repo.manualDestination(ref, selection)
-	if err != nil {
+	if oid == "" {
+		files := []publicationFile{{path: "boards/" + archive.state.Board.ID + ".json", read: func() ([]byte, error) {
+			return archive.snapshotData, nil
+		}}}
+		for _, attachment := range archive.state.Attachments {
+			files = append(files, publicationFile{path: attachmentPath(attachment), read: func() ([]byte, error) {
+				return archive.attachmentData(attachment)
+			}})
+		}
+		capture := publicationCapture{revision: item.BoardRevision, message: "localswim backup " + item.ID, files: files}
+		checkpoint, oid, err = repo.preparePending(ref, oid, checkpoint, capture, selection, func() bool { return true })
+		if err != nil {
+			return err
+		}
+	}
+	if checkpoint.Pending == nil || checkpoint.Revision != item.BoardRevision {
+		return gitPublicationError("publication_state_unavailable")
+	}
+	if err := repo.pushPending(*checkpoint.Pending, selection); err != nil {
 		return err
 	}
-	commit, err := repo.publishCapture(ref, previous, publicationCapture{message: "localswim backup " + item.ID, files: files})
-	if err != nil {
-		return err
+	// Clear the confirmed intent so a later publication of the same backup
+	// can choose its own target. The operation receipt is stored separately.
+	if _, err := publicationGit(repo.root, "", nil, "update-ref", "-d", ref, oid); err != nil {
+		return gitPublicationError("git_ref_failed")
 	}
-	return repo.push(destination.remote, commit, destination.ref)
+	return nil
 }

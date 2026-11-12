@@ -396,16 +396,22 @@ descendant. `publication_index_busy` means Git's index lock is already held. If 
 and index installation cannot both be confirmed, `publication_index_uncertain` stops the push.
 Inspect the original publication UUID, current branch, and staged diff after an uncertain result.
 
+Before advancing the local branch, the publisher records the prepared commit, source branch,
+configured remote name, effective push URL digest, and destination branch. A retry with a different
+resolved destination fails with `publication_destination_changed` and retains the pending commit.
+Restore the original Git target before retrying. For manual publication, inspect the original
+receipt and retry a failed push with the same backup and a new publication UUID. The original
+`--remote` and `--branch` selections can recover the same destination when defaults changed.
+
 Enable automatic publication independently with
 `board publishing enable [--revision N] BOARD_ID` or
 `workspace publishing enable [--revision N]`. Both default to disabled and use
-the data directory's enclosing Git worktree, local branch, and origin remote.
+the data directory's enclosing Git worktree, local branch, and Git push defaults.
+The publishing setting `repository: "origin"` explicitly selects the origin remote.
 An enabled board publishes a coherent committed snapshot and its exact audited
 attachment paths after five seconds of quiet. Enabled workspace publishing
 captures only `localswim-workspace.json`, including saved pin order. Both use
-the manual publisher's Git safety checks and common-directory lock.
-Automatic attempts use the resolved origin push destination. Explicit origin
-transport overrides leave the attempt pending with `unsupported_remote_transport`.
+the manual publisher's destination resolution, Git safety checks and common-directory lock.
 
 Use the matching `status` command to inspect pending work, the last successful
 push time, and a fixed failure code. Failed automatic attempts remain pending and
@@ -415,6 +421,8 @@ options to stop new attempts. A disabled publisher keeps durable pending intent.
 Pending intent keeps the exact capture inventory. A retry checks staging before advancing the
 local branch. After an interrupted local update, a retry requires a consistent index and
 leaves any overlapping staging for inspection.
+After restoring the original Git target, an enabled publisher resumes the exact pending
+commit on its next retry.
 After a disabled restart, status history is loaded when the publisher is
 re-enabled. Inspect status after an uncertain settings write.
 A board restore requires matching publishing settings. Reconcile any difference

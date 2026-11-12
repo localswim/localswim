@@ -171,13 +171,14 @@ func TestM35PendingPublicationSettlesAfterAnotherPublisherPushesDescendant(t *te
 	if err != nil || commit == previous {
 		t.Fatal("failed to prepare first publication", err)
 	}
-	target, err := repo.pushTarget()
+	selection := publicationSelection{branch: "descendant"}
+	destination, err := repo.resolveDestination(ref, selection)
 	if err != nil {
 		t.Fatal(err)
 	}
 	firstRef := publicationCheckpointRef(root, "first")
 	intent := publicationCheckpoint{Revision: 1, Pending: &pendingPublication{
-		Commit: commit, Parent: previous, Branch: ref, Remote: publicationRemoteDigest(target), Names: names,
+		Commit: commit, Parent: previous, SourceRef: ref, Target: destination.target, Names: names,
 	}}
 	// Simulate an interruption after the journal was installed but before the branch CAS.
 	if _, err := repo.saveCheckpoint(firstRef, "", intent); err != nil {
@@ -192,29 +193,29 @@ func TestM35PendingPublicationSettlesAfterAnotherPublisherPushesDescendant(t *te
 	if err != nil || loaded.Pending == nil || loaded.Pending.Commit != commit {
 		t.Fatal("pending publication was not recoverable", err)
 	}
-	if _, err := repo.finishPending(firstRef, oid, loaded); err != publicationGitError("git_push_failed") {
+	if _, err := repo.finishPending(firstRef, oid, loaded, selection); err != publicationGitError("git_push_failed") {
 		t.Fatal("offline exact push did not fail as expected", err)
 	}
 	if err := os.Rename(offline, fixture.remote); err != nil {
 		t.Fatal(err)
 	}
 	secondRef := publicationCheckpointRef(root, "second")
-	second, err := repo.acceptPublication(secondRef, "", publicationCheckpoint{}, m35Capture("second"), func() bool { return true })
+	second, err := repo.acceptPublication(secondRef, "", publicationCheckpoint{}, m35Capture("second"), selection, func() bool { return true })
 	if err != nil || second.LastSuccessAt == nil || second.Pending != nil {
 		t.Fatal("second publisher could not push a descendant", err)
 	}
-	descendant := strings.TrimSpace(string(m34Git(t, fixture.remote, "rev-parse", ref)))
+	descendant := strings.TrimSpace(string(m34Git(t, fixture.remote, "rev-parse", destination.target.Ref)))
 	if descendant == commit || !repo.containsCommit(commit, descendant) {
 		t.Fatal("second publication did not push a descendant")
 	}
 	// The local branch can still name the pending commit even when the
 	// descendant object is present locally and already accepted by origin.
 	m34Git(t, fixture.repository, "update-ref", ref, commit, descendant)
-	settled, err := repo.finishPending(firstRef, oid, loaded)
+	settled, err := repo.finishPending(firstRef, oid, loaded, selection)
 	if err != nil || settled.LastSuccessAt == nil || settled.Pending != nil {
 		t.Fatal("first publisher failed to settle after the remote advanced", err)
 	}
-	if got := strings.TrimSpace(string(m34Git(t, fixture.remote, "rev-parse", ref))); got != descendant {
+	if got := strings.TrimSpace(string(m34Git(t, fixture.remote, "rev-parse", destination.target.Ref))); got != descendant {
 		t.Fatal("first publisher reverted the remote")
 	}
 	if got := strings.TrimSpace(string(m34Git(t, fixture.repository, "rev-parse", ref))); got != commit {
@@ -227,6 +228,18 @@ func m35Capture(name string) publicationCapture {
 		path: name + ".txt",
 		read: func() ([]byte, error) { return []byte(name), nil },
 	}}}
+}
+
+func commitPublicationFixture(t *testing.T, repo publicationRepository, ref, previous string, capture publicationCapture) string {
+	t.Helper()
+	commit, names, err := repo.preparePublication(ref, previous, capture)
+	if err != nil || commit == previous {
+		t.Fatal("failed to prepare fixture commit", err)
+	}
+	if err := repo.advancePublication(ref, previous, commit, names); err != nil {
+		t.Fatal("failed to advance fixture branch", err)
+	}
+	return commit
 }
 
 func TestM35PinnedTransportIgnoresRetargetAndSecondRewrite(t *testing.T) {
@@ -244,7 +257,7 @@ func TestM35PinnedTransportIgnoresRetargetAndSecondRewrite(t *testing.T) {
 	if err != nil || commit == previous {
 		t.Fatal("failed to prepare pinned publication", err)
 	}
-	target, err := repo.pushTarget()
+	target, err := repo.resolvedPushURL("origin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +279,7 @@ func TestM35PinnedTransportIgnoresRetargetAndSecondRewrite(t *testing.T) {
 	if got := strings.TrimSpace(string(m34Git(t, other, "rev-parse", ref))); got != previous {
 		t.Fatal("retargeted origin received captured data")
 	}
-	if !repo.remoteContains(remote, pendingPublication{Commit: commit, Branch: ref}) {
+	if !repo.remoteContains(remote, pendingPublication{Commit: commit, Target: publicationTarget{Ref: ref}}) {
 		t.Fatal("remote confirmation did not inspect the checked target")
 	}
 }
@@ -284,16 +297,13 @@ func TestM35NoDeltaCaptureConfirmsRemoteBeforeSuccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	capture := m35Capture("already-committed")
-	commit, err := repo.publishCapture(ref, previous, capture)
-	if err != nil || commit == previous {
-		t.Fatal("failed to prepare exact local commit", err)
-	}
+	commit := commitPublicationFixture(t, repo, ref, previous, capture)
 	offline := fixture.remote + "-offline"
 	if err := os.Rename(fixture.remote, offline); err != nil {
 		t.Fatal(err)
 	}
 	checkpointRef := publicationCheckpointRef(root, "no-delta")
-	pending, err := repo.acceptPublication(checkpointRef, "", publicationCheckpoint{}, capture, func() bool { return true })
+	pending, err := repo.acceptPublication(checkpointRef, "", publicationCheckpoint{}, capture, publicationSelection{}, func() bool { return true })
 	if err != publicationGitError("git_push_failed") || pending.LastSuccessAt != nil ||
 		pending.Pending == nil || pending.Pending.Commit != commit || pending.Pending.Parent != commit {
 		t.Fatal("no-delta capture settled without remote proof", err)
@@ -305,7 +315,7 @@ func TestM35NoDeltaCaptureConfirmsRemoteBeforeSuccess(t *testing.T) {
 	if err := os.Rename(offline, fixture.remote); err != nil {
 		t.Fatal(err)
 	}
-	finished, err := repo.finishPending(checkpointRef, oid, loaded)
+	finished, err := repo.finishPending(checkpointRef, oid, loaded, publicationSelection{})
 	if err != nil || finished.Pending != nil || finished.LastSuccessAt == nil {
 		t.Fatal("no-delta capture did not finish after origin recovered", err)
 	}
@@ -365,7 +375,7 @@ func TestM35RefusesExplicitOriginTransportBeforeCaptureAndRetry(t *testing.T) {
 
 	// An explicit empty proxy selects direct routing and must not be ignored.
 	m34Git(t, fixture.repository, "config", "remote.origin.proxy", "")
-	_, err = repo.acceptPublication(checkpointRef, "", publicationCheckpoint{}, capture, func() bool { return true })
+	_, err = repo.acceptPublication(checkpointRef, "", publicationCheckpoint{}, capture, publicationSelection{}, func() bool { return true })
 	if err != publicationGitError("unsupported_remote_transport") || readAttempted {
 		t.Fatal("explicit direct routing did not refuse before capture preparation", err)
 	}
@@ -383,7 +393,7 @@ func TestM35RefusesExplicitOriginTransportBeforeCaptureAndRetry(t *testing.T) {
 	if err := os.Rename(fixture.remote, offline); err != nil {
 		t.Fatal(err)
 	}
-	_, err = repo.acceptPublication(checkpointRef, "", publicationCheckpoint{}, capture, func() bool { return true })
+	_, err = repo.acceptPublication(checkpointRef, "", publicationCheckpoint{}, capture, publicationSelection{}, func() bool { return true })
 	if err != publicationGitError("git_push_failed") {
 		t.Fatal("expected an ordinary pending push before transport changed", err)
 	}
@@ -395,7 +405,7 @@ func TestM35RefusesExplicitOriginTransportBeforeCaptureAndRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	m34Git(t, fixture.repository, "config", "remote.origin.receivepack", "custom-receive-pack")
-	_, err = repo.finishPending(checkpointRef, oid, pending)
+	_, err = repo.finishPending(checkpointRef, oid, pending, publicationSelection{})
 	if err != publicationGitError("unsupported_remote_transport") {
 		t.Fatal("pending push ignored a configured receive-pack command", err)
 	}

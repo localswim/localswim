@@ -87,23 +87,20 @@ func TestM91PendingPublicationRechecksExactInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 	initial := m35Capture("unchanged-capture")
-	previous, err = repo.publishCapture(ref, previous, initial)
-	if err != nil {
-		t.Fatal(err)
-	}
+	previous = commitPublicationFixture(t, repo, ref, previous, initial)
 	capture := m35Capture("new-capture")
 	capture.files = append(capture.files, initial.files...)
 	commit, names, err := repo.preparePublication(ref, previous, capture)
 	if err != nil || commit == previous {
 		t.Fatal("failed to prepare pending capture", err)
 	}
-	target, err := repo.pushTarget()
+	destination, err := repo.resolveDestination(ref, publicationSelection{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	stateRef := publicationCheckpointRef(root, "index-recovery")
 	checkpoint := publicationCheckpoint{Revision: 2, Pending: &pendingPublication{
-		Commit: commit, Parent: previous, Branch: ref, Remote: publicationRemoteDigest(target), Names: names,
+		Commit: commit, Parent: previous, SourceRef: ref, Target: destination.target, Names: names,
 	}}
 	if _, err := repo.saveCheckpoint(stateRef, "", checkpoint); err != nil {
 		t.Fatal(err)
@@ -119,7 +116,7 @@ func TestM91PendingPublicationRechecksExactInventory(t *testing.T) {
 		t.Fatal("failed to reload pending checkpoint", err)
 	}
 	before := m34Git(t, fixture.repository, "diff", "--cached", "--binary")
-	if _, err := repo.finishPending(stateRef, oid, loaded); err != publicationGitError("publication_index_overlap") {
+	if _, err := repo.finishPending(stateRef, oid, loaded, publicationSelection{}); err != publicationGitError("publication_index_overlap") {
 		t.Fatal("interrupted publication overwrote staged overlap", err)
 	}
 	if got := strings.TrimSpace(string(m34Git(t, fixture.repository, "rev-parse", ref))); got != previous {
@@ -129,7 +126,7 @@ func TestM91PendingPublicationRechecksExactInventory(t *testing.T) {
 		t.Fatal("staged overlap changed the index")
 	}
 	m34Git(t, fixture.repository, "reset", "--quiet", "HEAD", "--", name)
-	settled, err := repo.finishPending(stateRef, oid, loaded)
+	settled, err := repo.finishPending(stateRef, oid, loaded, publicationSelection{})
 	if err != nil || settled.Pending != nil {
 		t.Fatal("publication could not resume after overlap was cleared", err)
 	}
@@ -158,13 +155,13 @@ func TestM91InterruptedIndexInstallLeavesInspectableFailure(t *testing.T) {
 	if err != nil || commit == previous {
 		t.Fatal("failed to prepare capture", err)
 	}
-	target, err := repo.pushTarget()
+	destination, err := repo.resolveDestination(ref, publicationSelection{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	stateRef := publicationCheckpointRef(root, "index-install-interrupted")
 	checkpoint := publicationCheckpoint{Revision: 1, Pending: &pendingPublication{
-		Commit: commit, Parent: previous, Branch: ref, Remote: publicationRemoteDigest(target), Names: names,
+		Commit: commit, Parent: previous, SourceRef: ref, Target: destination.target, Names: names,
 	}}
 	oid, err := repo.saveCheckpoint(stateRef, "", checkpoint)
 	if err != nil {
@@ -185,7 +182,7 @@ func TestM91InterruptedIndexInstallLeavesInspectableFailure(t *testing.T) {
 				m34Git(t, fixture.repository, checkout.args...)
 			}
 			staged := m34Git(t, fixture.repository, "diff", "--cached", "--binary")
-			if _, err := repo.finishPending(stateRef, oid, checkpoint); err != publicationGitError("publication_index_uncertain") {
+			if _, err := repo.finishPending(stateRef, oid, checkpoint, publicationSelection{}); err != publicationGitError("publication_index_uncertain") {
 				t.Fatal("interrupted index install had no explicit uncertainty", err)
 			}
 			if after := m34Git(t, fixture.repository, "diff", "--cached", "--binary"); !bytes.Equal(staged, after) {
@@ -200,7 +197,7 @@ func TestM91InterruptedIndexInstallLeavesInspectableFailure(t *testing.T) {
 		})
 	}
 	m34Git(t, fixture.repository, "switch", "--quiet", strings.TrimPrefix(ref, "refs/heads/"))
-	if settled, err := repo.finishPending(stateRef, oid, checkpoint); err != nil || settled.Pending != nil {
+	if settled, err := repo.finishPending(stateRef, oid, checkpoint, publicationSelection{}); err != nil || settled.Pending != nil {
 		t.Fatal("publication did not settle once the checked-out branch's index matched", err)
 	}
 	if got := strings.TrimSpace(string(m34Git(t, fixture.remote, "rev-parse", ref))); got != commit {

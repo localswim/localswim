@@ -189,9 +189,10 @@ func TestM94CommitRequiresDurableComparison(t *testing.T) {
 		if err := m01Rename(next); err != nil {
 			return err
 		}
-		// A zero-offset location is structurally valid. Native encoding
-		// normalizes it to UTC, which differs in the accepted-state comparison.
-		event := &next.Activity[len(next.Activity)-1]
+		// Use a historical event so the new board timestamp and recovery
+		// reference remain canonical. Native encoding normalizes the event's
+		// structurally valid zero-offset location before durable comparison.
+		event := &next.Activity[0]
 		event.At = event.At.In(time.FixedZone("named zero offset", 0))
 		return nil
 	})

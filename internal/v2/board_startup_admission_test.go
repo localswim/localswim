@@ -224,6 +224,9 @@ func TestM83MissingRecoveryActorsQuarantineOnlyDependents(t *testing.T) {
 	if err := os.Remove(providerPath); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Remove(initial.recoveryReferencePath(provider.Board.ID)); err != nil {
+		t.Fatal(err)
+	}
 	if reopened, err := openStore(root, principals...); !errors.Is(err, errIdentityConflict) {
 		if reopened != nil {
 			_ = reopened.close()

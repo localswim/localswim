@@ -29,6 +29,7 @@ type verification struct {
 	Valid    bool                `json:"valid"`
 	Revision *uint64             `json:"revision"`
 	Issues   []verificationIssue `json:"issues"`
+	Recovery *recoveryReport     `json:"recovery,omitempty"`
 }
 
 type snapshotError struct {

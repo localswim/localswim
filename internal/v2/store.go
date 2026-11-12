@@ -31,7 +31,8 @@ type store struct {
 	mu               sync.RWMutex
 	lease            *os.File
 	boards           map[string]snapshot
-	failedBoards     map[string]struct{} // filename identities only, fixed for the lifetime of the store
+	failedBoards     map[string]error // startup refusals, fixed for the lifetime of the store
+	recoveryContexts map[string]recoveryContext
 	principals       []user
 	writeUncertain   bool
 	uncertainBoardID string
@@ -66,12 +67,13 @@ func openStore(root string, principals ...user) (*store, error) {
 		return nil, fmt.Errorf("acquire workspace writer lease: %w", err)
 	}
 	s := &store{
-		root:         absolute,
-		lease:        lease,
-		boards:       make(map[string]snapshot),
-		failedBoards: make(map[string]struct{}),
-		admissions:   make(map[string]*boardAdmission),
-		principals:   slices.Clone(principals),
+		root:             absolute,
+		lease:            lease,
+		boards:           make(map[string]snapshot),
+		failedBoards:     make(map[string]error),
+		recoveryContexts: make(map[string]recoveryContext),
+		admissions:       make(map[string]*boardAdmission),
+		principals:       slices.Clone(principals),
 	}
 	if err := s.load(); err != nil {
 		return nil, errors.Join(err, s.close())
@@ -113,9 +115,14 @@ func (s *store) load() error {
 		return strings.Compare(a.Name(), b.Name())
 	})
 	loadedIDs := make([]string, 0, len(entries))
+	referenceIDs := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		id, isSnapshot := strings.CutSuffix(entry.Name(), ".json")
 		if !isSnapshot {
+			id, isReference := strings.CutSuffix(entry.Name(), recoveryReferenceSuffix)
+			if isReference && validSnapshotID(id) {
+				referenceIDs = append(referenceIDs, id)
+			}
 			continue
 		}
 		if canonical, ok := normalizeID(id); !ok || canonical != id {
@@ -126,22 +133,37 @@ func (s *store) load() error {
 		}
 		value, err := loadBoardSnapshot(s.snapshotPath(id), id)
 		if err != nil {
-			s.failedBoards[id] = struct{}{}
+			s.failedBoards[id] = err
 			continue
 		}
 		s.boards[id] = value
 		loadedIDs = append(loadedIDs, id)
 	}
+	for _, id := range referenceIDs {
+		if _, loaded := s.boards[id]; !loaded && !s.isFailedBoard(id) {
+			s.failedBoards[id] = os.ErrNotExist
+		}
+	}
 	// Detect workspace-wide conflicts before excluding any structurally valid
 	// snapshots, including boards that may later lose recovery actor evidence.
+	known := s.globalUsers(nil)
 	for _, id := range loadedIDs {
-		if err := s.checkIdentityConflicts(s.boards[id], false); err != nil {
+		value := s.boards[id]
+		if err := s.checkIdentityConflicts(value, false); err != nil {
 			return fmt.Errorf("load board %s: %w", id, err)
 		}
+		if _, err := s.checkRecoveryActors(value, known); err != nil {
+			return fmt.Errorf("load board %s: %w", id, err)
+		}
+	}
+	backfill, err := s.checkStartupRecoveryReferences(loadedIDs)
+	if err != nil {
+		return err
 	}
 	if err := s.checkStartupRecoveryActors(loadedIDs); err != nil {
 		return err
 	}
+	s.finishStartupRecoveryReferences(backfill)
 	return s.checkBoardsDirectory(dir)
 }
 
@@ -163,7 +185,7 @@ func (s *store) checkStartupRecoveryActors(ids []string) error {
 			}
 			if missing {
 				delete(s.boards, id)
-				s.failedBoards[id] = struct{}{}
+				s.failedBoards[id] = errInvalidSnapshot
 				removed = true
 			}
 		}
@@ -347,10 +369,12 @@ func (s *store) create(value snapshot) error {
 	if s.isFailedBoard(id) {
 		return errBoardExists
 	}
-	if _, err := os.Lstat(s.snapshotPath(id)); err == nil {
-		return errBoardExists
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
+	for _, path := range []string{s.snapshotPath(id), s.recoveryReferencePath(id)} {
+		if _, err := os.Lstat(path); err == nil {
+			return errBoardExists
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 	}
 	// An orphan route cannot opt a newly created board into delivery.
 	if _, err := os.Lstat(s.notificationRoutePath(id)); err == nil {
@@ -475,7 +499,7 @@ func (s *store) writeCommit(value snapshot, data []byte, accepted *snapshot) err
 			return s.checkAcceptedDurableLocked(*accepted)
 		}
 	}
-	if err := writeAtomicChecked(path, data, beforeReplace); err != nil {
+	if err := s.writeSnapshotWithRecoveryReference(value, data, beforeReplace); err != nil {
 		if errors.Is(err, errWriteUncertain) {
 			// Fence new commits until restart reloads the disk outcome. Durable
 			// inspection remains available for resolving the uncertain mutation.
@@ -529,7 +553,9 @@ func (s *store) checkIdentityConflicts(value snapshot, reuseUsers bool) error {
 		if id == value.Board.ID {
 			continue
 		}
-		if hasResourceID(other.Cards, cardIDs, func(c card) string { return c.ID }) ||
+		if snapshotContainsIdentity(other, map[string]bool{value.Board.ID: true}) ||
+			snapshotContainsIdentity(value, map[string]bool{id: true}) ||
+			hasResourceID(other.Cards, cardIDs, func(c card) string { return c.ID }) ||
 			hasResourceID(other.Lanes, laneIDs, func(l lane) string { return l.ID }) ||
 			hasResourceID(other.Comments, commentIDs, func(c comment) string { return c.ID }) ||
 			hasResourceID(other.Attachments, attachmentIDs, func(a attachment) string { return a.ID }) ||
@@ -539,6 +565,9 @@ func (s *store) checkIdentityConflicts(value snapshot, reuseUsers bool) error {
 		}
 	}
 	known := s.globalUsers(nil)
+	if _, exists := known[value.Board.ID]; exists {
+		return errIdentityConflict
+	}
 
 	for index, member := range value.Users {
 		previous, exists := known[member.ID]

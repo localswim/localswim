@@ -310,16 +310,41 @@ writable. Native snapshot verification reports the file's validity, while the
 catalog reports whether the file agrees with the running service. Use explicit
 snapshot admission or backup restoration to recover the affected board.
 
-At startup, a board with a canonical UUID filename whose saved snapshot fails
-validation appears to the Human workspace administrator as an unavailable board.
-The catalog identifies it by the filename UUID and `durable_state_unavailable`.
-The service reserves that UUID and serves other boards normally. An unavailable
-board has no accepted policy or revision. The service checks its snapshot again
-at the next startup. If a startup failure leaves another board without trusted
-evidence for a historical recovery actor, that board also receives a diagnostic.
-Workspace directory or filename namespace damage and conflicting cross-board
-identities still prevent startup. Bot workspace preferences omit diagnostic pins
-and preserve them when saving visible pin order.
+At startup, the Human workspace administrator sees a diagnostic for a board
+whose saved snapshot fails admission or whose local recovery reference remains
+after the snapshot goes missing. The catalog identifies the affected UUID by
+filename and reports `durable_state_unavailable`. The service reserves that UUID
+and serves other boards normally. The service checks the snapshot again at the
+next startup. A startup failure that leaves another board without trusted
+evidence for a historical recovery actor also produces a diagnostic. Workspace
+directory or snapshot namespace damage and conflicting identities among
+structurally valid boards still prevent startup. Bot workspace preferences omit
+diagnostic pins and preserve them when saving visible pin order.
+
+The service maintains `boards/<board UUID>.recovery` under the existing
+workspace writer lease. The reference contains the creation identity, committed
+revision, update timestamp, canonical snapshot digest, and restore actor IDs and
+kinds. It is local continuity evidence. Keep it with the workspace data. Backup
+and Git publication inventories continue to contain the snapshot and audited
+attachments.
+
+Before replacing an existing snapshot, the writer durably marks the prior
+reference pending and records the proposed commit. It settles the reference
+after the snapshot commits. At restart a pending reference settles only against
+the fully admitted previous or proposed snapshot. A valid snapshot that conflicts
+with a settled reference is quarantined. A healthy snapshot with a missing or
+invalid reference can establish a new reference at startup. A failure to settle
+after snapshot replacement returns an unknown outcome and fences new writes
+until restart.
+
+The Human workspace administrator can use `board verify BOARD_ID` to inspect a
+startup-quarantined board. The report still returns an invalid verdict. Its
+`recovery` object reports `same_id` and a trusted `revision_floor` when a settled
+reference establishes continuity, an eligible runtime restore actor exists,
+and the identity remains free of healthy-board collisions. It reports
+`fresh_only` with a null floor if that evidence is unavailable. Verification
+does not expose actor grants or change the snapshot or reference. These reports
+establish the recovery point for a separately authorized recovery operation.
 
 Native recovery accepts JSON snapshots or application/zip backups at the existing board address.
 Both request entities have an inclusive 96 MiB limit. PUT uses the current durable snapshot

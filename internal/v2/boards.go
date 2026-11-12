@@ -340,7 +340,12 @@ func (x *request) policyResource(id string) {
 }
 
 func (x *request) recoveryResource(resource, id string) {
-	s, ok := x.service.store.accepted(id)
+	store := x.service.store
+	if resource == "verifications" && store.canSeeFailedBoard(id, x.actor) {
+		x.respond(http.StatusOK, store.failedBoardVerification(id), "")
+		return
+	}
+	s, ok := store.accepted(id)
 	if !ok || !slices.Contains(s.Board.UserIDs, x.actor) {
 		x.fail(errMissing)
 		return

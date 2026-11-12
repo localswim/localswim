@@ -9379,11 +9379,13 @@ paths:
         scope: board
         requiresMembership: true
         capability: read
+        startupQuarantine: Human workspace administrator only
       x-milestones:
       - 28
-      description: A derived singleton view identified by its owning board UUID, not a new entity. A readable
-        report can return valid:false with HTTP 200; unavailable report generation returns 503. Separate
-        durable health from last accepted in-memory state.
+      - 95
+      description: A derived singleton view identified by its board UUID. An invalid snapshot can return
+        HTTP 200 with valid set to false. For a board quarantined at startup, only the Human workspace
+        administrator can inspect the report, which includes the recovery mode and any trusted revision floor.
     head:
       operationId: headVerifyBoard
       summary: Read headers without content
@@ -9470,11 +9472,13 @@ paths:
         scope: board
         requiresMembership: true
         capability: read
+        startupQuarantine: Human workspace administrator only
       x-milestones:
       - 28
-      description: A derived singleton view identified by its owning board UUID, not a new entity. A readable
-        report can return valid:false with HTTP 200; unavailable report generation returns 503. Separate
-        durable health from last accepted in-memory state.
+      - 95
+      description: A derived singleton view identified by its board UUID. An invalid snapshot can return
+        HTTP 200 with valid set to false. For a board quarantined at startup, only the Human workspace
+        administrator can inspect the report, which includes the recovery mode and any trusted revision floor.
     options:
       operationId: options_verifications__boardId_
       summary: Validate same-origin preflight
@@ -14505,6 +14509,32 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FieldError'
+        recovery:
+          $ref: '#/components/schemas/RecoveryPoint'
+    RecoveryPoint:
+      description: Present on live verification of a startup-quarantined board. Reports continuity
+        evidence for a future explicit recovery. The caller must still supply separately verified content
+        and meet the recovery authorization requirements.
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required: [mode, revision_floor]
+        properties:
+          mode:
+            const: same_id
+          revision_floor:
+            allOf:
+            - $ref: '#/components/schemas/Revision'
+            - maximum: 9007199254740990
+            description: Last trusted committed revision. A same-ID recovery must advance beyond it.
+      - type: object
+        additionalProperties: false
+        required: [mode, revision_floor]
+        properties:
+          mode:
+            const: fresh_only
+          revision_floor:
+            type: 'null'
     Snapshot:
       type: object
       additionalProperties: false
@@ -16796,7 +16826,7 @@ components:
     BoardSummary:
       type: object
       additionalProperties: false
-      description: A startup diagnostic contains the canonical board UUID from the snapshot filename,
+      description: A startup diagnostic contains the canonical board UUID from the snapshot or local recovery reference filename,
         unhealthy availability, and durable_state_unavailable. Name, revision, attention, and last card edit are null.
       required:
       - id

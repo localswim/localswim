@@ -79,6 +79,9 @@ Use `board verify BOARD_ID` to verify the durable board through the service or
 `board verify --data DIRECTORY BOARD_ID` to read the local snapshot offline.
 Both forms write the full JSON report to standard output. A valid report exits
 with status 0. An invalid report exits with status 1 and includes the issues.
+For a board quarantined at startup, the live report is available to the Human
+workspace administrator. Its `recovery` field gives `same_id` with a trusted
+`revision_floor` or `fresh_only` if same-ID continuity cannot be established.
 
 Add `--data DIRECTORY` before the board ID on `card triage-order`, `card search`,
 `card inspect`, or `comment list` to use the same report against the saved

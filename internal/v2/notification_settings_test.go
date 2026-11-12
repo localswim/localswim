@@ -272,9 +272,11 @@ func TestM80NotificationRouteSurvivesRestoreAndRestart(t *testing.T) {
 
 	assertPortable := func(data []byte) {
 		t.Helper()
-		if bytes.Contains(data, []byte("notifications")) || bytes.Contains(data, []byte("target_thread_id")) ||
-			bytes.Contains(data, []byte(ownerNoticeTestTarget)) || bytes.Contains(data, []byte(ownerNoticeNextTarget)) {
-			t.Fatal("operational notification data escaped to portable state")
+		// The portable workflow may contain the manage_notifications grant.
+		for _, marker := range []string{`"notifications"`, `"target_thread_id"`, ".notifications-", ownerNoticeTestTarget, ownerNoticeNextTarget} {
+			if bytes.Contains(data, []byte(marker)) {
+				t.Fatal("operational notification data escaped to portable state")
+			}
 		}
 	}
 	assertPortable(raw)

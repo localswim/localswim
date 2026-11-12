@@ -17,6 +17,8 @@ const backup = "f7e04b53-cfd9-417c-af8e-b6316af0a085";
 const tag = (id, revision) => JSON.stringify(id + "-" + revision);
 const page = (key, rows) => ({data: {[key]: rows, next_cursor: null}, etag: null});
 const createdCardReply = ({id, board_id}, revision = 2) => ({data: {id, board_id}, etag: tag(id, revision)});
+const createdAt = "2026-11-10 00:00:00+00:00";
+const savedUser = (id, label, kind) => ({id, label, kind, revision: 1, created_at: createdAt, color: "#2463a0"});
 
 // A small DOM surface executes app.mjs event handlers and asynchronous reads.
 // Browser rendering and platform behavior remain covered by the real-browser gate.
@@ -221,7 +223,7 @@ test("lost comment response survives navigation and reload and inspects only the
   let failRead = false;
   const writes = [];
   api.createComment = async (id, _etag, text, commentId) => {
-    writes.push({id: commentId, card_id: id, author_id: user, text, created_at: "2026-11-10 00:00:00+00:00"});
+    writes.push({id: commentId, board_id: board, card_id: id, author_id: user, text, created_at: createdAt});
     sent.resolve();
     await response.promise;
     throw new ApiError("transport_failed", {outcomeUnknown: true});
@@ -229,7 +231,7 @@ test("lost comment response survives navigation and reload and inspects only the
   api.listComments = async (scope) => {
     assert.deepEqual({...scope}, {board_id: board, card_id: card});
     if (failRead) throw new ApiError("transport_failed");
-    return page("comments", comments);
+    return page("comments", comments.map((entry) => ({...entry, ticket: 1})));
   };
 
   const original = await harness(api, undefined, {storage});
@@ -358,7 +360,8 @@ function boardApi() {
   let revision = 1;
   let saved = {id: card, board_id: board, title: "Original", description: "Original description", ticket: 1,
     lane_id: lane, owner_id: user, priority_id: priority, revision: 1, archived: false, cover_attachment_id: null};
-  let comments = [{id: backup, card_id: card, author_id: user, text: "Original comment", created_at: "2026-11-10 00:00:00+00:00"}];
+  let comments = [{id: backup, board_id: board, card_id: card, ticket: 1, author_id: user,
+    text: "Original comment", created_at: createdAt}];
   let attachments = [{id: priority, board_id: board, card_id: card, original_name: "Old file", size: 4, added_by: user, created_at: "2026-11-10 00:00:00+00:00", active: true, previewable: false}];
   const lanes = [{id: lane, label: "Ready", key: "ready", retired: false, position: 0, role: "ordinary", revision: 1}];
   let patched;
@@ -370,7 +373,7 @@ function boardApi() {
       create_grants: [{user_id: user, lane_id: lane}], move_grants: []}}),
     getBoardIfChanged: async () => ({data: null}), listLanes: async () => page("lanes", lanes),
     listPriorities: async () => page("priorities", [{id: priority, label: "Normal"}]),
-    listUsers: async () => page("users", [{id: user, label: "Human", kind: "human"}]),
+    listUsers: async () => page("users", [savedUser(user, "Human", "human")]),
     getCard: async () => { if (!saved) throw new ApiError("http_error", {status: 404}); return {data: saved, etag: tag(card, revision)}; },
     listComments: async () => page("comments", comments), listAttachments: async () => page("attachments", attachments),
     listRelationships: async () => page("relationships", []), listCards: async () => page("cards", []),
@@ -1784,8 +1787,8 @@ test("a warm board applies its authenticated publishing status and validator aft
 
 test("warm lane grant drafts survive until the confirmed user choices arrive", async () => {
   const {api} = boardApi();
-  let users = [{id: user, label: "Human", kind: "human"}, {id: backup, label: "Another", kind: "human"},
-    {id: priority, label: "Bot", kind: "bot"}];
+  let users = [savedUser(user, "Human", "human"), savedUser(backup, "Another", "human"),
+    savedUser(priority, "Bot", "bot")];
   api.listUsers = async () => page("users", users);
   const ui = await harness(api);
   const {main, refresh} = ui.nodes;
@@ -2106,9 +2109,10 @@ test("board lane notes and Human and Bot attribution preserve literal text", asy
     const reply = await listLanes();
     return page("lanes", reply.data.lanes.map((item) => ({...item, notes})));
   };
-  api.listUsers = async () => page("users", [...(await listUsers()).data.users, {id: bot, label: "Automation", kind: "bot"}]);
+  api.listUsers = async () => page("users", [...(await listUsers()).data.users, savedUser(bot, "Automation", "bot")]);
   api.listComments = async () => page("comments", [...(await listComments()).data.comments,
-    {id: "bot-comment", card_id: card, author_id: bot, text: "Bot comment", created_at: "2026-11-10 00:00:01+00:00"}]);
+    {id: priority, board_id: board, card_id: card, ticket: 1, author_id: bot,
+      text: "Bot comment", created_at: "2026-11-10 00:00:01+00:00"}]);
   const ui = await harness(api);
   await ui.load();
   assert.equal(ui.find(ui.nodes.main, "p", notes).className, "lane-note body-text");

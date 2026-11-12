@@ -10,8 +10,7 @@ const capability = "A".repeat(43);
 
 const savedComment = {
   id: resourceId, created_at: "2026-11-10 18:00:00+00:00",
-  updated_at: "2026-11-10 18:00:00+00:00", board_id: resourceId,
-  card_id: cardId, text: "Comment", author_id: resourceId,
+  board_id: resourceId, card_id: cardId, text: "Comment", author_id: resourceId,
 };
 
 const savedAttachment = {
@@ -95,13 +94,14 @@ test("comment and multipart upload carry caller IDs and original card ETags", as
 
 test("card comment reads keep the required board scope", async () => {
   let calls = 0;
+  const listed = {...savedComment, ticket: 1};
   const api = createBrowserApi({ getCapability: () => capability, fetchImpl: async (url) => {
     ++calls;
     assert.equal(url, "/api/2026-11-10/comments?board_id=" + resourceId + "&card_id=" + cardId);
-    return Response.json({ comments: [savedComment], next_cursor: null });
+    return Response.json({ comments: [listed], next_cursor: null });
   } });
   assert.deepEqual((await api.listComments({ board_id: resourceId, card_id: cardId })).data,
-    { comments: [savedComment], next_cursor: null });
+    { comments: [listed], next_cursor: null });
   assert.equal(calls, 1);
 });
 

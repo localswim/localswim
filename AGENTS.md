@@ -20,6 +20,8 @@
   fix findings at their source, and justify any narrowly scoped suppression.
 - Use `YYYY-MM-DD HH:MM:SS+00:00` for application timestamps, normalized to UTC
   and whole seconds. Preserve revision ordering for edits within the same second.
+- Immutable comments and user records store and expose only `created_at`. Keep `updated_at` on
+  mutable objects, including when it currently equals `created_at`.
 - Use UUIDv7 for backup, publication, restoration, build activation, audit event,
   approval receipt, and service instance IDs. Keep ordinary entities, comments,
   attachments, builds, and request correlation UUIDv4. Accept mixed-case input of

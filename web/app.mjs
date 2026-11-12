@@ -6,7 +6,7 @@ import {
 import { createBoardRefresh, waitForRetry, watchUpdates } from "./board-updates.mjs";
 
 /** @typedef {{id: string, label: string}} Labeled */
-/** @typedef {Labeled & {kind: "human"|"bot", color?: string}} User */
+/** @typedef {Labeled & {revision: number, created_at: string, kind: "human"|"bot", color: string}} User */
 /** @typedef {Partial<Record<User["kind"], {label?: string, accent?: string}>>} ActorPresentation */
 /** @typedef {import("./api.mjs").RelationshipKind} RelationshipKind */
 /** @typedef {{id: string, revision: number, board_id: string, source_card_id: string, target_card_id: string,
@@ -25,7 +25,8 @@ import { createBoardRefresh, waitForRetry, watchUpdates } from "./board-updates.
 /** @typedef {import("./board-updates.mjs").BoardWatch} BoardWatch */
 /** @typedef {Labeled & {revision: number, key: string, retired: boolean, position: number, role: string,
  * approval_enabled: boolean, reorder_enabled: boolean, bulk_approval_comment?: string, notes?: string}} Lane */
-/** @typedef {{id: string, text: string, created_at: string, author_id: string, card_id: string}} Comment */
+/** @typedef {{id: string, text: string, created_at: string, author_id: string, board_id: string,
+ * card_id: string, ticket: number}} CommentListEntry */
 /** @typedef {{id: string, card_id: string, original_name: string, created_at: string, added_by: string, size: number, board_id: string, active: boolean, previewable: boolean, revision: number, sha2_256: string}} Attachment */
 /** @typedef {{id: string, title: string, description: string, board_id: string, lane_id: string,
  * owner_id: string, priority_id: string, ticket: number, revision: number, comment_count: number, attachment_count: number,
@@ -940,7 +941,7 @@ async function findCardByTicket(boardId, ticket) {
   return matches.length === 1 && matches[0].board_id === boardId && matches[0].ticket === ticket ? matches[0] : undefined;
 }
 
-/** @param {HTMLElement} body @param {Comment} comment @param {string} boardId @param {User[]} users */
+/** @param {HTMLElement} body @param {CommentListEntry} comment @param {string} boardId @param {User[]} users */
 function renderCommentText(body, comment, boardId, users) {
   body.className = "body-text";
   if (!users.some((user) => user.id === comment.author_id && user.kind === "human")) {
@@ -1820,7 +1821,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     async function refreshLists() {
       const read = ++listRead;
       const [comments, attachments] = await Promise.all([
-        /** @type {Promise<Comment[]>} */ (collect((cursor) =>
+        /** @type {Promise<CommentListEntry[]>} */ (collect((cursor) =>
           api.listComments({ board_id: boardId, card_id: card.id }, undefined, cursor), "comments")),
         /** @type {Promise<Attachment[]>} */ (collect((cursor) => api.listAttachments(card.id, cursor), "attachments")),
       ]);
@@ -4137,7 +4138,7 @@ async function load(savedAvailability) {
     const recent = element("details");
     const recentList = element("div");
     recent.append(element("summary", "Newest comments"), recentList);
-    /** @type {Comment[]|undefined} */
+    /** @type {CommentListEntry[]|undefined} */
     let recentComments;
     function showRecentComments() {
       if (!recentComments) return;
@@ -4154,7 +4155,7 @@ async function load(savedAvailability) {
     recent.addEventListener("toggle", () => {
       if (!recent.open) return;
       void api.listComments({ board_id: board.id }, 2).then((reply) => {
-        recentComments = /** @type {Comment[]} */ (items(reply, "comments"));
+        recentComments = /** @type {CommentListEntry[]} */ (items(reply, "comments"));
         showRecentComments();
       }).catch(() => {
         recentComments = undefined;

@@ -66,8 +66,9 @@ saved state after edits.
 
 Card details also show attributed comments and attachments. New comments and
 uploads have client-assigned IDs. Immutable comment JSON contains identity, parent
-references, author, text, and timestamps. The comment validator is returned in the
-HTTP response header. Posting uses the parent card's current validator and advances
+references, author, text, and creation time. Lists also include the card's current
+ticket number. The comment validator is returned in the HTTP response header.
+Posting uses the parent card's current validator and advances
 its revision. Comment lists and focused attachment reads
 can identify the exact submission. The board offers its newest comments and lane
 insertion, rename, and retirement controls. Server-side policy determines

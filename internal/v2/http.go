@@ -39,8 +39,8 @@ func Open(root, humanToken, botToken string) (*Service, error) {
 	}
 	now := canonicalTime(time.Now())
 	principals := []user{
-		{entity: newEntity(humanID, now), Label: "Human", Kind: "human", Color: ""},
-		{entity: newEntity(botID, now), Label: "Bot", Kind: "bot", Color: ""},
+		{ID: humanID, Revision: 1, CreatedAt: now, Label: "Human", Kind: "human", Color: ""},
+		{ID: botID, Revision: 1, CreatedAt: now, Label: "Bot", Kind: "bot", Color: ""},
 	}
 	boards, err := openStore(root, principals...)
 	if err != nil {

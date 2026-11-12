@@ -178,10 +178,10 @@ func customWorkflow(raw json.RawMessage, boardID string, now time.Time) (workflo
 		input := readWorkflowFields(raw, path, true, "id", "label", "kind", "color")
 		id := input.id("id")
 		definition := user{
-			entity: newEntity(id, now),
-			Label:  input.string("label", 1, 256, true),
-			Kind:   input.enum("kind", "", "human", "bot"),
-			Color:  input.string("color", 0, 64, false),
+			ID: id, Revision: 1, CreatedAt: canonicalTime(now),
+			Label: input.string("label", 1, 256, true),
+			Kind:  input.enum("kind", "", "human", "bot"),
+			Color: input.string("color", 0, 64, false),
 		}
 		if ids[id] {
 			input.fail("id", "repeats an entity UUID")

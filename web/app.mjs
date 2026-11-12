@@ -44,7 +44,9 @@ import { appendCardProse } from "./card-prose.mjs";
 /** @typedef {() => Promise<void|boolean>} InspectionRead */
 /** @typedef {{scope: string, label: string, require: (read: InspectionRead) => void,
  * inspect: () => void, sync: () => void, recovery: HTMLElement}} Inspection */
-/** @typedef {{title?: string, description?: string, lane?: string, owner?: string, priority?: string, comment?: string}} CardDraft */
+/** @typedef {Partial<Record<"title"|"description", true>>} TextReversions */
+/** @typedef {{title?: string, description?: string, lane?: string, owner?: string, priority?: string,
+ * comment?: string, textReversions?: TextReversions}} CardDraft */
 /** @typedef {Pick<CardDraft, "title"|"description"|"lane"|"comment">} TextDraft */
 /** @typedef {{kind: "comment"|"approve-card"|"add-link", id: string}
  * | {kind: "create-card", id: string, fingerprint: string}} SubmissionIdentity */
@@ -123,6 +125,8 @@ let retainNewCardDraft;
 let retainBoardView;
 /** @type {Map<string, CardDraft>} */
 const cardDrafts = new Map();
+/** @type {({scope: string} & Pick<CardDraft, "title"|"description">)|undefined} */
+let submittedCardText;
 /** @type {Map<string, UploadBatch>} */
 const attachmentUploads = new Map();
 /** @type {Map<string, string[]>} */
@@ -1836,11 +1840,29 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     if (previous?.owner !== undefined && users.some(({ id }) => id === previous.owner)) owner.value = previous.owner;
     if (previous?.priority !== undefined && priorities.some(({ id }) => id === previous.priority)) priority.value = previous.priority;
     if (previous?.comment !== undefined) comment.value = previous.comment;
-    function retainText() {
+    /** @type {TextReversions} */
+    let textReversions = { ...previous?.textReversions };
+    if (title.value !== titleBaseline) delete textReversions.title;
+    if (description.value !== descriptionBaseline) delete textReversions.description;
+    /** @param {boolean} [captureReversions] */
+    function retainText(captureReversions = true) {
       /** @type {CardDraft} */
       const draft = {};
-      if (title.value !== titleBaseline) draft.title = title.value;
-      if (description.value !== descriptionBaseline) draft.description = description.value;
+      const submitted = captureReversions && submittedCardText?.scope === scope ? submittedCardText : undefined;
+      const fields = /** @type {const} */ ([
+        ["title", title.value, titleBaseline], ["description", description.value, descriptionBaseline],
+      ]);
+      for (const [field, value, baseline] of fields) {
+        if (value !== baseline) {
+          delete textReversions[field];
+          draft[field] = value;
+        } else if (textReversions[field] || (submitted?.[field] !== undefined && submitted[field] !== value)) {
+          // An edit back to the old baseline can still differ from the eventual saved text.
+          textReversions[field] = true;
+          (draft.textReversions ??= {})[field] = true;
+          draft[field] = value;
+        }
+      }
       const selectedMove = lane.value || moveDraft;
       if (selectedMove && selectedMove !== savedCard.lane_id) draft.lane = selectedMove;
       if (owner.value !== savedCard.owner_id) draft.owner = owner.value;
@@ -2024,14 +2046,15 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     /** @param {Card} saved @param {Pick<Card, "title"|"description">} [submitted] */
     function adoptSaved(saved, submitted) {
       titleBaseline = adoptText(title, titleBaseline, saved.title,
-        composingTitle || Boolean(submitted && title.value !== submitted.title));
+        composingTitle || textReversions.title || Boolean(submitted && title.value !== submitted.title));
       descriptionBaseline = adoptText(description, descriptionBaseline, saved.description,
-        Boolean(submitted && description.value !== submitted.description));
+        textReversions.description || Boolean(submitted && description.value !== submitted.description));
       if (owner.value === savedCard.owner_id) owner.value = saved.owner_id;
       if (priority.value === savedCard.priority_id) priority.value = saved.priority_id;
+      if (saved.revision !== savedCard.revision) textReversions = {};
       savedCard = saved;
       showCurrent(saved);
-      retainText();
+      retainText(false);
     }
 
     let savedRead = 0;
@@ -2095,6 +2118,10 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       /** @type {PendingCard} */
       const projection = { kind: "patch", card: savedCard, fields: draft };
       startWriting();
+      submittedCardText = {
+        scope, title: draft.title === undefined ? undefined : submitted.title,
+        description: draft.description === undefined ? undefined : submitted.description,
+      };
       submit.disabled = true;
       announce("writing", "Saving card…");
       let committed = false;
@@ -2122,6 +2149,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
           await refreshReplacementBoard(projection, initiatingView).catch(() => {});
         }
         showPendingCard(projection, false);
+        submittedCardText = undefined;
         finishWriting();
         syncInspection(scope);
       }

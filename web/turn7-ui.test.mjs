@@ -2438,8 +2438,8 @@ test("streamed drawer refresh retains the focused occurrence of a saved prose li
   assert.equal(ui.focused(), details.querySelector("h2"));
 });
 
-for (const lostResponse of [false, true]) {
-  test(`slow text save preserves a newer draft that matches the old baseline (lost response: ${lostResponse})`, async () => {
+for (const [lostResponse, replaceDrawer] of [[false, false], [true, false], [false, true], [true, true]]) {
+  test(`slow text save preserves a newer draft matching the old baseline (lost: ${lostResponse}, replace drawer: ${replaceDrawer})`, async () => {
     const {api} = boardApi();
     const patch = api.patchCard;
     await patch(card, tag(card, 1), {description: "Original\r\nprose"});
@@ -2447,7 +2447,7 @@ for (const lostResponse of [false, true]) {
     const release = Promise.withResolvers();
     const writes = [];
     api.patchCard = async (id, etag, change) => {
-      writes.push({...change});
+      writes.push([id, etag, {...change}]);
       sent.resolve();
       await release.promise;
       const reply = await patch(id, etag, change);
@@ -2469,13 +2469,22 @@ for (const lostResponse of [false, true]) {
     description.value = "Original\nprose";
     title.dispatch("input");
     description.dispatch("input");
+    if (replaceDrawer) {
+      await ui.navigate("/");
+      await ui.navigate("/boards/" + board);
+      await until(() => ui.field(details, "Description"));
+      assert.notEqual(ui.field(details, "Title"), title);
+    }
+    const activeTitle = ui.field(details, "Title");
+    activeTitle.focus();
     release.resolve();
     await ui.settled();
 
     assert.equal(details.querySelector("h2").textContent, "#1 Submitted title");
-    assert.equal(title.value, "Original");
-    assert.equal(description.value, "Original\nprose");
-    assert.deepEqual(writes, [{title: "Submitted title", description: "Submitted\r\nprose"}]);
+    assert.equal(activeTitle.value, "Original");
+    assert.equal(ui.focused(), activeTitle);
+    assert.equal(ui.field(details, "Description").value, "Original\nprose");
+    assert.deepEqual(writes, [[card, tag(card, 1), {title: "Submitted title", description: "Submitted\r\nprose"}]]);
   });
 }
 

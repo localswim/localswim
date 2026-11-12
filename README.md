@@ -36,11 +36,10 @@ Human or Bot token. `service status` reports the actual listening port.
 ```
 
 The name-only command creates a board with the generic five-lane workflow and P2
-Normal. To start a board with Terry's workflow, select the preset in the board
-definition.
+Normal. Add `--preset terry` to create a board with Terry's workflow.
 
 ```powershell
-'{"name":"Terry workflow","preset":"terry"}' | .\localswim.exe board create --json -
+$terry = .\localswim.exe board create --name "Terry workflow" --preset terry | ConvertFrom-Json
 ```
 
 The preset adds Blocked and Needs Terry, uses P0 through P5 with P3 Normal,
@@ -53,6 +52,26 @@ Use `board create --json definition.json` with a `workflow` object to define
 custom lanes, priorities, and grants. Lane ordering and triage use each
 priority's numeric `rank`. For the Terry preset the rank equals the P-number.
 Commands that read JSON require a file path or `-` for standard input.
+
+Use `policy grant` to add one creation or movement grant. Read the revision and
+user IDs with `board get` and the lane IDs with `board get --view lanes`.
+For example, to allow Bot to move cards directly from Backlog to In Progress on
+a Terry board, use the default owner's ID and those two lane UUIDs.
+
+```powershell
+$board = .\localswim.exe board get $terry.id | ConvertFrom-Json
+$lanes = (.\localswim.exe board get --view lanes $terry.id | ConvertFrom-Json).lanes
+$backlog = ($lanes | Where-Object key -eq backlog).id
+$inProgress = ($lanes | Where-Object key -eq in_progress).id
+.\localswim.exe policy grant --revision $board.revision --move $board.id $board.default_owner_id $backlog $inProgress
+```
+
+For a creation grant, use `--create BOARD_ID USER_ID LANE_ID` with `--revision`.
+A stale board revision refuses the edit. For multiple grants, use
+`policy grant BOARD_ID grants.json` with `create_grants` and/or `move_grants`
+arrays. The service checks both the board and policy validators on every grant
+and preserves the other grants and default priority.
+
 Export a board with `board export BOARD_ID FILE|-`. Use a new file path, or `-`
 for standard output. The default format is JSON.
 
@@ -65,5 +84,32 @@ Add `--data DIRECTORY` before the board ID on `card triage-order`, `card search`
 `card inspect`, or `comment list` to use the same report against the saved
 snapshot while the writer is stopped. Add `--prose` to include descriptions
 and comments in focused ticket inspection.
+
+Use `activity list --data DIRECTORY --from UTC --to UTC BOARD_ID` to inspect
+saved activity while the writer is stopped. Quote both inclusive UTC bounds in
+`YYYY-MM-DD HH:MM:SS+00:00` format. The report includes sanitized metadata,
+event-time tickets, the captured board revision, and the latest retained event
+time. Saved reports always mark live coverage as incomplete.
+
+### Verify a board-change notice
+
+After 15 seconds of quiet, an enabled owner notice lists the writer, UTC interval,
+and up to 128 card UUID and event-time ticket pairs. Its **Operations** line
+groups the retained tickets by committed Human edits. An approval and its receipt
+comment appear together under **Reviewed & approved**. Ordinary moves, comments,
+and archive or restore actions have their own groups.
+
+Use the notice's board UUID, writer UUID, and Start and End values to read
+sanitized activity, including each event's `operation_group`.
+
+```powershell
+.\localswim.exe activity list --writer-id $writer --from $start --to $end $board
+```
+
+Continue with `--cursor` and the same query until pagination is complete. Check
+`coverage.complete` before relying on the interval. For a focused follow-up,
+match the card UUID and its ticket at the event, which may differ from its
+current ticket. Treat operation groups as triage hints and follow the board's
+work and review gates.
 
 [Development and conventions](CONTRIBUTING.md) · [API](docs/openapi.yaml) · [Milestones](milestone-plan.md)

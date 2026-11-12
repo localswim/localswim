@@ -228,9 +228,6 @@ func validateSnapshot(value snapshot, boardID string) error {
 		(b.Availability != "open" && b.Availability != "closed") {
 		return invalidSnapshot("board", "Board metadata is invalid.")
 	}
-	if err := b.Notifications.validate(); err != nil {
-		return invalidSnapshot("board.notifications", "Notification settings are invalid.")
-	}
 	if (b.Publishing.Repository != nil && *b.Publishing.Repository != "origin") ||
 		b.Publishing.LastSuccessAt != nil || b.Publishing.Pending || b.Publishing.ErrorCode != nil {
 		return invalidSnapshot("board.publishing", "Publishing metadata is invalid.")
@@ -563,11 +560,9 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 	// Availability and opt-in settings must match replay from board creation.
 	disabled, open := "false", "open"
 	latest := map[snapshotAuditField]*string{
-		{"board", b.ID, "availability"}:                   &open,
-		{"board", b.ID, "notifications.enabled"}:          &disabled,
-		{"board", b.ID, "notifications.target_thread_id"}: nil,
-		{"board", b.ID, "publishing.enabled"}:             &disabled,
-		{"board", b.ID, "publishing.repository"}:          nil,
+		{"board", b.ID, "availability"}:          &open,
+		{"board", b.ID, "publishing.enabled"}:    &disabled,
+		{"board", b.ID, "publishing.repository"}: nil,
 	}
 	changed := make(map[snapshotAuditField]bool)
 	replayPolicy := initialAuditedPolicy(value)
@@ -950,11 +945,6 @@ func (refs snapshotReferences) validAuditField(boardID, actorID string, field sn
 			return capabilities["manage_board"] && value != nil && snapshotText(*value, 0, maxBoardCSSLength)
 		case "availability":
 			return capabilities["close_board"] && (snapshotString(value) == "open" || snapshotString(value) == "closed")
-		case "notifications.enabled":
-			return capabilities["manage_notifications"] &&
-				(snapshotString(value) == "true" || snapshotString(value) == "false")
-		case "notifications.target_thread_id":
-			return capabilities["manage_notifications"] && (value == nil || threadIDPattern.MatchString(*value))
 		case "publishing.enabled":
 			return capabilities["publish"] && (snapshotString(value) == "true" || snapshotString(value) == "false")
 		case "publishing.repository":
@@ -986,11 +976,6 @@ func (refs snapshotReferences) currentAuditField(b board, field snapshotAuditFie
 		return &b.UserCSS
 	case "availability":
 		return &b.Availability
-	case "notifications.enabled":
-		enabled := strconv.FormatBool(b.Notifications.Enabled)
-		return &enabled
-	case "notifications.target_thread_id":
-		return b.Notifications.TargetThreadID
 	case "publishing.enabled":
 		enabled := strconv.FormatBool(b.Publishing.Enabled)
 		return &enabled

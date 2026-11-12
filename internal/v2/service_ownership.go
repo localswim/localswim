@@ -55,6 +55,7 @@ func (s *Service) ResumeAfterActivationFailure(id string) error {
 		s.workspace = newWorkspace(s.store.root)
 		s.store.startBoardPublishers()
 		s.store.ownerNotices = newOwnerNoticeWorker(ownerNoticeQuietPeriod, s.store.ownerNoticeSettings, deliverOwnerNotice)
+		s.store.ownerNotices.writerID = s.store.activityWriterID
 	}
 	s.workspace.events = s.events
 	// A receipt write error is exposed in status. It must not stop the old

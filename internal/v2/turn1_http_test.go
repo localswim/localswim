@@ -177,26 +177,31 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 		t.Fatal("timestamp does not use UTC whole seconds")
 	}
 	c.call("PATCH", firstPath, `{"name":"Discarded","notifications":{"enabled":true}}`, h.Get("ETag"), 400)
-	raw, h = c.call("GET", firstPath, "", "", 200)
-	if got := turnOneDecode[board](t, raw); got.Name != first.Name || got.Revision != first.Revision || h.Get("ETag") != first.entityTag() ||
-		got.Notifications.Enabled || got.Notifications.TargetThreadID != nil {
-		t.Fatal("targetless enable changed the board")
+	noticePath := "/notifications/" + first.ID
+	raw, h = c.call("GET", noticePath, "", "", 200)
+	notice := turnOneDecode[notificationRoute](t, raw)
+	if notice.Enabled || notice.TargetThreadID != nil || notice.Revision != 1 || h.Get("ETag") == first.entityTag() {
+		t.Fatal("new board route is not independently disabled")
 	}
-	c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":"018E7F0A-BCDE-7ABC-8DEF-0123456789AB"}}`, "", 428)
-	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":"018E7F0A-BCDE-7ABC-8DEF-0123456789AB"}}`, h.Get("ETag"), 200)
-	notice := turnOneDecode[board](t, raw)
-	if notice.Notifications.Enabled || notice.Notifications.TargetThreadID == nil || *notice.Notifications.TargetThreadID != "018e7f0a-bcde-7abc-8def-0123456789ab" {
+	c.call("PATCH", noticePath, `{"enabled":true}`, h.Get("ETag"), 400)
+	targetPatch := `{"target_thread_id":"018E7F0A-BCDE-7ABC-8DEF-0123456789AB"}`
+	c.call("PATCH", noticePath, targetPatch, "", 428)
+	c.call("PATCH", noticePath, targetPatch, first.entityTag(), 412)
+	raw, h = c.call("PATCH", noticePath, targetPatch, h.Get("ETag"), 200)
+	notice = turnOneDecode[notificationRoute](t, raw)
+	if notice.Enabled || notice.TargetThreadID == nil || *notice.TargetThreadID != "018e7f0a-bcde-7abc-8def-0123456789ab" {
 		t.Fatal("target-only update did not preserve off and normalize target")
 	}
-	c.call("PATCH", firstPath, `{"name":"Stale"}`, first.entityTag(), 412)
-	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"enabled":true}}`, notice.entityTag(), 200)
-	notice = turnOneDecode[board](t, raw)
-	c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":null}}`, notice.entityTag(), 400)
-	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"target_thread_id":"018e7f0a-bcde-7abc-8def-0123456789ac"}}`, notice.entityTag(), 200)
-	notice = turnOneDecode[board](t, raw)
-	if !notice.Notifications.Enabled {
+	staleNoticeTag := h.Get("ETag")
+	raw, h = c.call("PATCH", noticePath, `{"enabled":true}`, staleNoticeTag, 200)
+	c.call("PATCH", noticePath, `{"enabled":false}`, staleNoticeTag, 412)
+	c.call("PATCH", noticePath, `{"target_thread_id":null}`, h.Get("ETag"), 400)
+	raw, h = c.call("PATCH", noticePath, `{"target_thread_id":"018e7f0a-bcde-7abc-8def-0123456789ac"}`, h.Get("ETag"), 200)
+	notice = turnOneDecode[notificationRoute](t, raw)
+	if !notice.Enabled {
 		t.Fatal("retarget disabled notifications")
 	}
+	noticeTag := h.Get("ETag")
 	raw, h = c.call("GET", "/workspace", "", "", 200)
 	originalWorkspaceTag := h.Get("ETag")
 	if fields := turnOneDecode[map[string]any](t, raw); len(fields) != 3 || fields["etag"] != nil {
@@ -220,12 +225,17 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	c, stop = start()
 	raw, _ = c.call("GET", firstPath, "", "", 200)
 	saved := turnOneDecode[board](t, raw)
-	if saved.ID != first.ID || saved.Name != first.Name || saved.entityTag() != notice.entityTag() || !saved.Notifications.Enabled {
-		t.Fatal("first board or settings did not survive restart")
+	if saved.ID != first.ID || saved.Name != first.Name || saved.entityTag() != first.entityTag() {
+		t.Fatal("notice settings modified the board")
 	}
-	raw, _ = c.call("GET", "/boards/"+second.ID, "", "", 200)
-	if got := turnOneDecode[board](t, raw); got.ID != second.ID || got.Name != second.Name || got.Notifications.TargetThreadID != nil {
-		t.Fatal("second board was not isolated")
+	raw, h = c.call("GET", noticePath, "", "", 200)
+	if got := turnOneDecode[notificationRoute](t, raw); !got.Enabled || h.Get("ETag") != noticeTag ||
+		!sameText(got.TargetThreadID, notice.TargetThreadID) {
+		t.Fatal("notice settings did not survive restart")
+	}
+	raw, _ = c.call("GET", "/notifications/"+second.ID, "", "", 200)
+	if got := turnOneDecode[notificationRoute](t, raw); got.BoardID != second.ID || got.TargetThreadID != nil || got.Enabled {
+		t.Fatal("second board did not have an isolated disabled route")
 	}
 	other := c
 	other.token = bot
@@ -234,20 +244,20 @@ func TestTurnOneLiveHTTP(t *testing.T) {
 	if result.Revision != 2 || h.Get("ETag") != pinsTag || len(result.PinnedBoardIDs) != 2 || result.PinnedBoardIDs[0] != second.ID {
 		t.Fatal("another client did not see persisted pin order")
 	}
-	raw, _ = c.call("PATCH", firstPath, `{"notifications":{"enabled":false}}`, saved.entityTag(), 200)
-	if got := turnOneDecode[board](t, raw); got.Notifications.Enabled || got.Notifications.TargetThreadID == nil {
+	raw, _ = c.call("PATCH", noticePath, `{"enabled":false}`, noticeTag, 200)
+	if got := turnOneDecode[notificationRoute](t, raw); got.Enabled || got.TargetThreadID == nil {
 		t.Fatal("disable discarded target")
 	}
 	stop()
 	stop = nil
 	c, stop = start()
-	raw, _ = c.call("GET", firstPath, "", "", 200)
-	if turnOneDecode[board](t, raw).Notifications.Enabled {
+	raw, _ = c.call("GET", noticePath, "", "", 200)
+	if turnOneDecode[notificationRoute](t, raw).Enabled {
 		t.Fatal("disabled state did not survive restart")
 	}
 	raw, _ = c.call("GET", "/snapshots/"+first.ID, "", "", 200)
 	snapshot := turnOneDecode[snapshot](t, raw)
-	if snapshot.Board.ID != first.ID || len(snapshot.Activity) < 4 {
+	if snapshot.Board.ID != first.ID || len(snapshot.Activity) != 1 {
 		t.Fatal("snapshot omitted identity or audit")
 	}
 	verifyPath := "/verifications/" + first.ID
@@ -346,7 +356,11 @@ func verifyTurnOneCustomWorkflow(t *testing.T, c turnOneClient, bot string) {
 	path := "/boards/" + created.ID
 	restricted := c
 	restricted.token = bot
-	restricted.call("PATCH", path, `{"notifications":{"enabled":true}}`, created.entityTag(), 403)
+	routePath := "/notifications/" + created.ID
+	c.call("GET", routePath, "", "", 403)
+	restricted.call("GET", routePath, "", "", 404)
+	restricted.call("PATCH", routePath, `{"enabled":true}`, etag("notifications-"+created.ID, 1), 404)
+	c.call("PATCH", routePath, `{"enabled":true}`, etag("notifications-"+created.ID, 1), 403)
 	raw, _ = c.call("PATCH", path, `{"name":"Renamed workspace project"}`, "W/"+created.entityTag()+", \"unrelated\", "+created.entityTag(), 200)
 	changed := turnOneDecode[board](t, raw)
 	if changed.ID != created.ID || changed.Name != "Renamed workspace project" || changed.entityTag() == created.entityTag() {

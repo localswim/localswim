@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -29,7 +30,8 @@ type activityTestPage[T any] struct {
 func TestActivityHTTP(t *testing.T) {
 	human := base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("h", 32)))
 	bot := base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("b", 32)))
-	app, err := Open(t.TempDir(), human, bot)
+	root := t.TempDir()
+	app, err := Open(root, human, bot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +139,9 @@ func TestActivityHTTP(t *testing.T) {
 	}
 	metadata := turnOneDecode[activityTestPage[activityMetadata]](t, raw)
 	if len(metadata.Values) != len(full.Values) ||
+		metadata.Values[0].OperationGroup != nil ||
 		metadata.Values[2].ActorID != humanID || metadata.Values[2].Operation != "patch" ||
+		snapshotString(metadata.Values[2].OperationGroup) != "Contents modified" ||
 		metadata.Values[2].Revision != edit.Revision || metadata.Values[3].Revision != description.Revision {
 		t.Fatalf("default activity lacks title and description edit metadata: %+v", metadata)
 	}
@@ -191,7 +195,7 @@ func TestActivityHTTP(t *testing.T) {
 		}
 		m := turnOneDecode[activityTestPage[activityMetadata]](t, raw)
 		for _, row := range turnOneDecode[activityTestPage[map[string]json.RawMessage]](t, raw).Values {
-			if len(row) != 9 || row["before"] != nil || row["after"] != nil || row["resource_id"] != nil || row["field"] != nil {
+			if len(row) != 10 || row["before"] != nil || row["after"] != nil || row["resource_id"] != nil || row["field"] != nil {
 				t.Fatal("monitor contains fields outside the metadata contract")
 			}
 		}
@@ -247,6 +251,10 @@ func TestActivityHTTP(t *testing.T) {
 	}
 
 	// Reverse the tickets after the original Human edit and Bot comment.
+	beforeOrder, err := OpenNativeBoard(root, board.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, headers = c.call("GET", "/boards/"+board.ID, "", "", 200)
 	_, headers = c.call("POST", "/relationships",
 		fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"source_card_id":%q,"target_card_id":%q,"kind":"blocks"}`,
@@ -263,10 +271,63 @@ func TestActivityHTTP(t *testing.T) {
 	raw, _ = c.call("GET", path+"&card_id="+first.ID+"&ticket=2", "", "", 200)
 	newTicket := turnOneDecode[activityTestPage[activityMetadata]](t, raw)
 	if len(newTicket.Values) != 1 || newTicket.Values[0].Operation != ticketOrderOperation ||
+		snapshotString(newTicket.Values[0].OperationGroup) != "Ticket numbers reordered" ||
 		!slices.Equal(newTicket.Values[0].Cards, []activityCard{{CardID: first.ID, Ticket: 2}}) {
 		t.Fatal("new ticket selected events before its commit or omitted the renumber")
 	}
 	c.call("GET", exact+filters+editCursor, "", "", 400)
+
+	// A saved report must use the same event-time ticket and sanitized rows.
+	historicalPath := path + "&card_id=" + first.ID + "&ticket=1&limit=1"
+	liveRaw, _ := c.call("GET", historicalPath, "", "", 200)
+	live := turnOneDecode[activityTestPage[activityMetadata]](t, liveRaw)
+	server.Close()
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := OpenNativeBoard(root, board.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, query, _ := strings.Cut(historicalPath, "?")
+	savedRaw, err := saved.ListActivitiesJSON(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	savedPage := turnOneDecode[activityTestPage[activityMetadata]](t, savedRaw)
+	if !reflect.DeepEqual(savedPage.Values, live.Values) || savedPage.BoardRevision != live.BoardRevision ||
+		savedPage.Coverage.Complete || savedPage.Coverage.Code != "beyond_saved_history" ||
+		savedPage.Coverage.LatestEventAt == nil || savedPage.NextCursor == nil || savedPage.PaginationComplete ||
+		savedPage.BotOnly {
+		t.Fatal("saved report did not preserve monitor evidence and report its capture boundary")
+	}
+	savedCursor := "&cursor=" + url.QueryEscape(*savedPage.NextCursor)
+	savedRaw, err = saved.ListActivitiesJSON(query + savedCursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := turnOneDecode[activityTestPage[activityMetadata]](t, savedRaw)
+	if next.BoardRevision != savedPage.BoardRevision || len(next.Values) != 1 || next.Values[0].ID != edit.ID ||
+		!slices.Equal(next.Values[0].Cards, []activityCard{{CardID: first.ID, Ticket: 1}}) {
+		t.Fatal("saved continuation omitted the historical ticket evidence")
+	}
+	if live.NextCursor == nil {
+		t.Fatal("expected live cursor")
+	}
+	if _, err := saved.ListActivitiesJSON(query + "&cursor=" + url.QueryEscape(*live.NextCursor)); err == nil {
+		t.Fatal("saved report accepted a live cursor")
+	}
+	priorRaw, err := beforeOrder.ListActivitiesJSON(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prior := turnOneDecode[activityTestPage[activityMetadata]](t, priorRaw)
+	if prior.BoardRevision >= savedPage.BoardRevision || prior.NextCursor == nil {
+		t.Fatal("saved reader did not retain its captured revision")
+	}
+	if _, err := saved.ListActivitiesJSON(query + "&cursor=" + url.QueryEscape(*prior.NextCursor)); err == nil {
+		t.Fatal("saved report accepted a cursor from a different captured revision")
+	}
 }
 
 func TestActivityCoverageHTTP(t *testing.T) {
@@ -398,5 +459,14 @@ func TestActivityRecoveryCoverage(t *testing.T) {
 	query.from, query.to = restoreAt.Add(time.Second), restoreAt.Add(time.Second)
 	if got := query.coverage(observation, "", since); !got.Complete {
 		t.Fatal("a fully elapsed second after recovery was not covered")
+	}
+
+	observation.state.Activity[0].Revision = 7
+	observation.state.Activity = append(observation.state.Activity,
+		activity{Revision: 8, At: restoreAt.Add(-time.Second)})
+	saved := query.savedCoverage(observation.state)
+	if saved.Complete || saved.Code != "beyond_saved_history" ||
+		saved.LatestRecoveryRevision != 7 || saved.LatestEventAt == nil || !saved.LatestEventAt.Equal(restoreAt) {
+		t.Fatal("saved coverage lost its recovery boundary or implied a continuous interval")
 	}
 }

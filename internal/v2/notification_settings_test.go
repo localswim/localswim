@@ -1,13 +1,17 @@
 package v2
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -35,7 +39,11 @@ func TestNotificationSettingsPatch(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := patchNotifications(test.current, json.RawMessage(test.patch))
+			fields, err := decodeObject([]byte(test.patch))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := patchNotifications(test.current, fields)
 			if err != nil || !reflect.DeepEqual(got, test.want) {
 				t.Fatalf("patch %s produced %+v, %v, want %+v", test.patch, got, err, test.want)
 			}
@@ -54,7 +62,11 @@ func TestNotificationSettingsRejectsInvalidPatch(t *testing.T) {
 		`{"target_thread_id":"abcdef01-2345-8678-cbcd-ef0123456789"}`,
 		`{"target_thread_id":null}`,
 	} {
-		got, err := patchNotifications(current, json.RawMessage(patch))
+		fields, err := decodeObject([]byte(patch))
+		if err != nil {
+			continue // Malformed or non-object requests never reach the patch.
+		}
+		got, err := patchNotifications(current, fields)
 		if err == nil || !reflect.DeepEqual(got, current) {
 			t.Errorf("patch %s produced %+v, %v, want unchanged settings and error", patch, got, err)
 		}
@@ -66,7 +78,11 @@ func TestNotificationSettingsRequiresTargetWhenEnabled(t *testing.T) {
 	for _, patch := range []string{
 		`{"enabled":true}`, `{"enabled":true,"target_thread_id":null}`,
 	} {
-		got, err := patchNotifications(current, json.RawMessage(patch))
+		fields, err := decodeObject([]byte(patch))
+		if err != nil {
+			continue // Malformed or non-object requests never reach the patch.
+		}
+		got, err := patchNotifications(current, fields)
 		if err == nil || got != current {
 			t.Errorf("patch %s produced %+v, %v, want unchanged settings and error", patch, got, err)
 		}
@@ -120,12 +136,15 @@ func TestNotificationSettingsControlHumanQuietBurst(t *testing.T) {
 		}
 		created := send(human, http.MethodPost, "/boards", `{"name":"Synthetic notice"}`, "", 201)
 		state := turnOneDecode[board](t, created.Body.Bytes())
-		tag, path := created.Header().Get("ETag"), "/boards/"+state.ID
+		tag, path := created.Header().Get("ETag"), "/notifications/"+state.ID
+		reply := send(human, http.MethodGet, path, "", "", 200)
+		route := turnOneDecode[notificationRoute](t, reply.Body.Bytes())
+		routeTag := reply.Header().Get("ETag")
 		applySettings := func(patch string) {
 			t.Helper()
-			reply := send(human, http.MethodPatch, path, `{"notifications":`+patch+`}`, tag, 200)
-			state = turnOneDecode[board](t, reply.Body.Bytes())
-			tag = reply.Header().Get("ETag")
+			reply := send(human, http.MethodPatch, path, patch, routeTag, 200)
+			route = turnOneDecode[notificationRoute](t, reply.Body.Bytes())
+			routeTag = reply.Header().Get("ETag")
 		}
 		edit := func(token string) {
 			t.Helper()
@@ -140,7 +159,7 @@ func TestNotificationSettingsControlHumanQuietBurst(t *testing.T) {
 		applySettings(`{"target_thread_id":"` + ownerNoticeNextTarget + `"}`)
 		time.Sleep(ownerNoticeQuietPeriod)
 		synctest.Wait()
-		if state.Notifications.Enabled || len(attempts) != 0 {
+		if route.Enabled || len(attempts) != 0 {
 			t.Fatal("setting or changing a disabled target activated delivery")
 		}
 
@@ -163,16 +182,180 @@ func TestNotificationSettingsControlHumanQuietBurst(t *testing.T) {
 		}
 
 		applySettings(`{"target_thread_id":"` + ownerNoticeTestTarget + `"}`)
-		if !state.Notifications.Enabled {
+		if !route.Enabled {
 			t.Fatal("retargeting disabled the active route")
 		}
 		edit(human)
 		applySettings(`{"enabled":false}`)
 		time.Sleep(ownerNoticeQuietPeriod)
 		synctest.Wait()
-		if len(attempts) != 1 || state.Notifications.Enabled ||
-			state.Notifications.TargetThreadID == nil || *state.Notifications.TargetThreadID != ownerNoticeTestTarget {
+		if len(attempts) != 1 || route.Enabled ||
+			route.TargetThreadID == nil || *route.TargetThreadID != ownerNoticeTestTarget {
 			t.Fatal("disabling did not discard the pending burst and retain the target")
 		}
+		// Restore discards pending edits even while the route stays enabled.
+		applySettings(`{"enabled":true}`)
+		backupID := newOperationID()
+		send(human, http.MethodPost, "/backups", fmt.Sprintf(
+			`{"id":%q,"board_id":%q,"expected_board_etag":%q}`, backupID, state.ID, tag), "", 201)
+		edit(human)
+		restored := send(human, http.MethodPost, "/restorations", fmt.Sprintf(
+			`{"board_id":%q,"backup_id":%q,"expected_board_etag":%q}`, state.ID, backupID, tag), "", 201)
+		tag = restored.Header().Get("X-Board-ETag")
+		time.Sleep(ownerNoticeQuietPeriod)
+		synctest.Wait()
+		if len(attempts) != 1 {
+			t.Fatal("restore delivered a burst from the previous board history")
+		}
+		saved := send(human, http.MethodGet, path, "", "", 200)
+		got := turnOneDecode[notificationRoute](t, saved.Body.Bytes())
+		if !got.Enabled || !sameText(got.TargetThreadID, route.TargetThreadID) ||
+			saved.Header().Get("ETag") != routeTag {
+			t.Fatal("restore changed the enabled notification route")
+		}
+		edit(human)
+		time.Sleep(ownerNoticeQuietPeriod)
+		synctest.Wait()
+		if len(attempts) != 2 || attempts[1].target != ownerNoticeTestTarget {
+			t.Fatal("the preserved route did not deliver a post-restore edit")
+		}
 	})
+}
+
+func TestM80NotificationRouteSurvivesRestoreAndRestart(t *testing.T) {
+	app, editor := attachmentHTTPServer(t)
+	raw, _ := editor.call("POST", "/boards", `{"name":"Portable board"}`, "", 201)
+	b := turnOneDecode[board](t, raw)
+	boardPath, routePath := "/boards/"+b.ID, "/notifications/"+b.ID
+	raw, _ = editor.call("PATCH", boardPath, `{"publishing":{"enabled":true,"repository":"origin"}}`, b.entityTag(), 200)
+	b = turnOneDecode[board](t, raw)
+
+	_, header := editor.call("GET", routePath, "", "", 200)
+	if header.Get("Cache-Control") != "no-store" {
+		t.Fatal("notification settings must be uncached")
+	}
+	_, header = editor.call("PATCH", routePath, fmt.Sprintf(`{"enabled":true,"target_thread_id":%q}`, ownerNoticeTestTarget),
+		header.Get("ETag"), 200)
+	backupID := newOperationID()
+	editor.call("POST", "/backups", fmt.Sprintf(`{"id":%q,"board_id":%q,"expected_board_etag":%q}`,
+		backupID, b.ID, b.entityTag()), "", 201)
+
+	_, header = editor.call("PATCH", routePath, fmt.Sprintf(`{"target_thread_id":%q}`, ownerNoticeNextTarget),
+		header.Get("ETag"), 200)
+	raw, header = editor.call("PATCH", routePath, `{"enabled":false}`, header.Get("ETag"), 200)
+	disabled := turnOneDecode[notificationRoute](t, raw)
+	routeTag := header.Get("ETag")
+	if disabled.Enabled || snapshotString(disabled.TargetThreadID) != ownerNoticeNextTarget {
+		t.Fatal("the route was not disabled with the new recipient retained")
+	}
+
+	// The backup must restore a real board change while the independent route stays current.
+	raw, _ = editor.call("PATCH", boardPath, `{"name":"Intervening edit"}`, b.entityTag(), 200)
+	edited := turnOneDecode[board](t, raw)
+	_, restored := editor.call("POST", "/restorations", fmt.Sprintf(`{"board_id":%q,"backup_id":%q,"expected_board_etag":%q}`,
+		b.ID, backupID, edited.entityTag()), "", 201)
+	raw, boardHeader := editor.call("GET", boardPath, "", "", 200)
+	if state := turnOneDecode[board](t, raw); state.Name != b.Name || state.Revision <= edited.Revision ||
+		boardHeader.Get("ETag") != restored.Get("X-Board-ETag") {
+		t.Fatal("restore did not replace board state")
+	}
+	checkRoute := func(c turnOneClient) {
+		t.Helper()
+		raw, headers := c.call("GET", routePath, "", "", 200)
+		got := turnOneDecode[notificationRoute](t, raw)
+		if got.BoardID != b.ID || got.Revision != disabled.Revision || got.Enabled ||
+			snapshotString(got.TargetThreadID) != ownerNoticeNextTarget || headers.Get("ETag") != routeTag {
+			t.Fatal("restore or restart changed saved notification routing")
+		}
+	}
+	checkRoute(editor)
+
+	assertPortable := func(data []byte) {
+		t.Helper()
+		// The portable workflow may contain the manage_notifications grant.
+		for _, marker := range []string{`"notifications"`, `"target_thread_id"`, ".notifications-", ownerNoticeTestTarget, ownerNoticeNextTarget} {
+			if bytes.Contains(data, []byte(marker)) {
+				t.Fatal("operational notification data escaped to portable state")
+			}
+		}
+	}
+	assertPortable(raw)
+	raw, _ = editor.call("GET", "/snapshots/"+b.ID, "", "", 200)
+	assertPortable(raw)
+	bounds := url.Values{
+		"board_id": {b.ID}, "view": {"full"},
+		"from": {b.CreatedAt.Format(timestampLayout)}, "to": {canonicalTime(time.Now()).Format(timestampLayout)},
+	}
+	raw, _ = editor.call("GET", "/activities?"+bounds.Encode(), "", "", 200)
+	assertPortable(raw)
+	if strings.Contains(string(raw), "Intervening edit") || !strings.Contains(string(raw), recoveryOperation) {
+		t.Fatal("full activity did not report restored lineage")
+	}
+	content, _ := backupHTTPContent(t, editor, backupID, http.MethodGet, "application/zip", 200)
+	archive, err := zip.NewReader(bytes.NewReader(content), int64(len(content)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range archive.File {
+		file, err := entry.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, readErr := io.ReadAll(file)
+		if closeErr := file.Close(); readErr != nil || closeErr != nil {
+			t.Fatalf("could not read backup entry: %v, %v", readErr, closeErr)
+		}
+		assertPortable([]byte(entry.Name))
+		assertPortable(data)
+	}
+	capture, err := app.store.captureBoardPublication(b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(capture.files) != 1 || capture.files[0].path != "boards/"+b.ID+".json" {
+		t.Fatal("board publication captured unexpected paths")
+	}
+	data, err := capture.files[0].read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertPortable(data)
+
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, restarted := restartBoardPublication(t, app.store.root, editor.token)
+	checkRoute(restarted)
+}
+
+func TestM80MalformedNotificationRouteFailsClosed(t *testing.T) {
+	app, editor := attachmentHTTPServer(t)
+	raw, _ := editor.call("POST", "/boards", `{"name":"Disposable board"}`, "", 201)
+	b := turnOneDecode[board](t, raw)
+	path := "/notifications/" + b.ID
+	_, header := editor.call("GET", path, "", "", 200)
+	etag := header.Get("ETag")
+	invalid := fmt.Sprintf(`{"board_id":%q,"revision":2,"enabled":null,"target_thread_id":%q}`,
+		b.ID, ownerNoticeTestTarget)
+	routeFile := app.store.notificationRoutePath(b.ID)
+	if err := os.WriteFile(routeFile, []byte(invalid), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, method := range []string{http.MethodGet, http.MethodPatch} {
+		raw, _ := editor.call(method, path, `{"enabled":false}`, etag, 503)
+		if bytes.Contains(raw, []byte(ownerNoticeTestTarget)) || bytes.Contains(raw, []byte(routeFile)) {
+			t.Fatal("route failure exposed private routing data")
+		}
+	}
+	if settings, ok := app.store.ownerNoticeSettings(b.ID); ok || ownerNoticeEnabled(settings) {
+		t.Fatal("malformed route remained eligible for delivery")
+	}
+	saved, err := os.ReadFile(routeFile)
+	if err != nil || string(saved) != invalid {
+		t.Fatal("settings patch overwrote the malformed route")
+	}
+	raw, header = editor.call("GET", "/boards/"+b.ID, "", "", 200)
+	if header.Get("ETag") != b.entityTag() || bytes.Contains(raw, []byte(ownerNoticeTestTarget)) {
+		t.Fatal("malformed route leaked into board reads")
+	}
 }

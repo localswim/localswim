@@ -48,8 +48,12 @@ Examples:
   localswim card set-priorities --revision 14 $board $priority $card1
 `
 
-func routineWriteHelp(name string) string {
+func writeCommandHelp(name string) string {
 	switch name {
+	case "board create":
+		return boardCreateHelp
+	case "policy grant":
+		return policyGrantHelp
 	case "card create":
 		return cardCreateHelp
 	case "comment post":

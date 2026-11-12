@@ -19,9 +19,9 @@ import (
 const ownerNoticeTestTarget = "f02f1e36-c5de-7e85-9e95-9159e83ae10a"
 const ownerNoticeNextTarget = "f02f1e36-c5de-7e85-9e95-9159e83ae10b"
 
-func ownerNoticeTestSnapshot(id string, settings notifications) snapshot {
+func ownerNoticeTestSnapshot(id string) snapshot {
 	return snapshot{
-		Board: board{entity: entity{ID: id, Revision: 1}, Name: "Synthetic\nboard", Notifications: settings},
+		Board: board{entity: entity{ID: id, Revision: 1}, Name: "Synthetic\nboard"},
 		Users: []user{{ID: humanID, Kind: "human"}, {ID: botID, Kind: "bot"}},
 		Cards: []card{
 			{ID: "one", Ticket: 1, Title: "private card title"},
@@ -45,7 +45,7 @@ func ownerNoticeTestEdit(previous snapshot, actor, resourceType, resourceID stri
 
 func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 	at := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
-	previous := ownerNoticeTestSnapshot("3b21b22e-3538-49ee-af0a-8fae47ca7ff7", notifications{})
+	previous := ownerNoticeTestSnapshot("3b21b22e-3538-49ee-af0a-8fae47ca7ff7")
 	previous.Activity = []activity{{Revision: 1, ActorID: humanID, ResourceType: "card", ResourceID: "four", At: at}}
 	next := ownerNoticeTestEdit(previous, humanID, "card", "one", at.Add(time.Second))
 	next.Comments = []comment{{ID: "comment", CardID: "two", Text: "private comment text"}}
@@ -69,7 +69,13 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 	next.Activity[1].After = &private
 
 	event := committedOwnerNotice(previous, next)
-	if !slices.Equal(event.cards, []activityCard{{"one", 1}, {"two", 2}, {"three", 3}, {"five", 5}}) {
+	wantCards := []ownerNoticeCard{
+		{activityCard{"one", 1}, activityContentsModified.bit()},
+		{activityCard{"two", 2}, activityCommentAdded.bit()},
+		{activityCard{"three", 3}, activityContentsModified.bit()},
+		{activityCard{"five", 5}, activityContentsModified.bit()},
+	}
+	if !slices.Equal(event.cards, wantCards) {
 		t.Fatalf("attributed cards = %v", event.cards)
 	}
 	message := event.message()
@@ -78,7 +84,7 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 			t.Errorf("notice omitted %q", want)
 		}
 	}
-	if strings.Count(message, "\n") != 7 || strings.Contains(message, "private") {
+	if strings.Count(message, "\n") != 8 || strings.Contains(message, "private") {
 		t.Error("notice contains content outside the bounded metadata lines")
 	}
 	if bot := ownerNoticeTestEdit(next, botID, "card", "four", at.Add(time.Minute)); len(committedOwnerNotice(next, bot).cards) != 0 {
@@ -89,7 +95,7 @@ func TestOwnerNoticeCommittedMetadata(t *testing.T) {
 func TestOwnerNoticeCardBound(t *testing.T) {
 	event := ownerNoticeEvent{}
 	for ticket := uint64(maxOwnerNoticeCards + 20); ticket > 0; ticket-- {
-		card := activityCard{CardID: fmt.Sprint(ticket), Ticket: ticket}
+		card := ownerNoticeCard{activityCard{CardID: fmt.Sprint(ticket), Ticket: ticket}, activityCreated.bit()}
 		event.addCard(card)
 		event.addCard(card)
 	}
@@ -111,8 +117,8 @@ func TestOwnerNoticeQuietBurstUsesCurrentDestination(t *testing.T) {
 		enabled := notifications{Enabled: true, TargetThreadID: &target}
 		retargeted := notifications{Enabled: true, TargetThreadID: &nextTarget}
 		current := enabled
-		state := ownerNoticeTestSnapshot("primary", notifications{})
-		other := ownerNoticeTestSnapshot("other", enabled)
+		state := ownerNoticeTestSnapshot("primary")
+		other := ownerNoticeTestSnapshot("other")
 		worker := newOwnerNoticeWorker(ownerNoticeQuietPeriod, func(id string) (notifications, bool) {
 			if id == other.Board.ID {
 				return enabled, true
@@ -125,29 +131,25 @@ func TestOwnerNoticeQuietBurstUsesCurrentDestination(t *testing.T) {
 		defer worker.close()
 
 		disabledEdit := ownerNoticeTestEdit(state, humanID, "card", "three", time.Now())
-		worker.submitCommitted(state, disabledEdit)
-		state = ownerNoticeTestEdit(disabledEdit, humanID, "board", state.Board.ID, time.Now())
-		state.Board.Notifications = enabled
-		worker.submitCommitted(disabledEdit, state)
+		worker.submitCommitted(state, disabledEdit, false)
+		state = disabledEdit
+		worker.settingsChanged(state.Board.ID, true)
 
 		first := ownerNoticeTestEdit(state, humanID, "card", "five", time.Now())
-		worker.submitCommitted(state, first)
+		worker.submitCommitted(state, first, true)
 		otherEdit := ownerNoticeTestEdit(other, humanID, "card", "one", time.Now())
-		worker.submitCommitted(other, otherEdit)
+		worker.submitCommitted(other, otherEdit, true)
 
 		time.Sleep(10 * time.Second)
 		second := ownerNoticeTestEdit(first, humanID, "card", "two", time.Now())
-		worker.submitCommitted(first, second)
+		worker.submitCommitted(first, second, true)
 
 		time.Sleep(4 * time.Second)
 		synctest.Wait()
 		current = retargeted
-		worker.submitCommitted(second, second)
+		worker.settingsChanged(state.Board.ID, true)
 		botEdit := ownerNoticeTestEdit(second, botID, "card", "four", time.Now())
-		worker.submitCommitted(second, botEdit)
-		retarget := ownerNoticeTestEdit(botEdit, humanID, "board", state.Board.ID, time.Now())
-		retarget.Board.Notifications = retargeted
-		worker.submitCommitted(botEdit, retarget)
+		worker.submitCommitted(second, botEdit, true)
 		synctest.Wait()
 		if len(attempts) != 0 {
 			t.Fatalf("queue attempts before first deadline = %d", len(attempts))
@@ -183,7 +185,7 @@ func TestOwnerNoticeDisableAndShutdown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		target := ownerNoticeTestTarget
 		enabled := notifications{Enabled: true, TargetThreadID: &target}
-		state := ownerNoticeTestSnapshot("board", enabled)
+		state := ownerNoticeTestSnapshot("board")
 		started := make(chan struct{}, 2)
 		stopped := make(chan struct{}, 2)
 		worker := newOwnerNoticeWorker(ownerNoticeQuietPeriod, func(string) (notifications, bool) {
@@ -197,29 +199,26 @@ func TestOwnerNoticeDisableAndShutdown(t *testing.T) {
 		defer worker.close()
 
 		first := ownerNoticeTestEdit(state, humanID, "card", "one", time.Now())
-		worker.submitCommitted(state, first)
-		disabled := ownerNoticeTestEdit(first, humanID, "board", state.Board.ID, time.Now())
-		disabled.Board.Notifications.Enabled = false
-		worker.submitCommitted(first, disabled)
-		worker.submitCommitted(disabled, ownerNoticeTestEdit(disabled, humanID, "card", "two", time.Now()))
+		worker.submitCommitted(state, first, true)
+		worker.settingsChanged(state.Board.ID, false)
+		disabled := ownerNoticeTestEdit(first, humanID, "card", "two", time.Now())
+		worker.submitCommitted(first, disabled, false)
 		time.Sleep(ownerNoticeQuietPeriod)
 		synctest.Wait()
 		if len(started) != 0 {
 			t.Fatal("disabling left a pending delivery")
 		}
 
-		enabledState := ownerNoticeTestEdit(disabled, humanID, "board", state.Board.ID, time.Now())
-		enabledState.Board.Notifications = enabled
-		worker.submitCommitted(disabled, enabledState)
-		second := ownerNoticeTestEdit(enabledState, humanID, "card", "one", time.Now())
-		worker.submitCommitted(enabledState, second)
+		worker.settingsChanged(state.Board.ID, true)
+		second := ownerNoticeTestEdit(disabled, humanID, "card", "one", time.Now())
+		worker.submitCommitted(disabled, second, true)
 		time.Sleep(ownerNoticeQuietPeriod)
 		synctest.Wait()
 		if len(started) != 1 {
 			t.Fatal("eligible delivery did not start")
 		}
 
-		worker.submitCommitted(second, ownerNoticeTestEdit(second, humanID, "card", "three", time.Now()))
+		worker.submitCommitted(second, ownerNoticeTestEdit(second, humanID, "card", "three", time.Now()), true)
 		worker.close()
 		time.Sleep(ownerNoticeQuietPeriod)
 		if len(started) != 1 || len(stopped) != 1 {
@@ -231,8 +230,7 @@ func TestOwnerNoticeDisableAndShutdown(t *testing.T) {
 func TestOwnerNoticeDeliveryRechecksEnabled(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		target := ownerNoticeTestTarget
-		enabled := notifications{Enabled: true, TargetThreadID: &target}
-		state := ownerNoticeTestSnapshot("board", enabled)
+		state := ownerNoticeTestSnapshot("board")
 		worker := newOwnerNoticeWorker(ownerNoticeQuietPeriod, func(string) (notifications, bool) {
 			return notifications{TargetThreadID: &target}, true
 		}, func(context.Context, string, string) bool {
@@ -240,7 +238,7 @@ func TestOwnerNoticeDeliveryRechecksEnabled(t *testing.T) {
 			return false
 		})
 		defer worker.close()
-		worker.submitCommitted(state, ownerNoticeTestEdit(state, humanID, "card", "one", time.Now()))
+		worker.submitCommitted(state, ownerNoticeTestEdit(state, humanID, "card", "one", time.Now()), true)
 		time.Sleep(ownerNoticeQuietPeriod)
 		synctest.Wait()
 	})
@@ -294,10 +292,10 @@ func TestOwnerNoticeFailurePreservesDurableEdit(t *testing.T) {
 	client := turnOneClient{t, server.URL, humanToken, server.Client()}
 	raw, _ := client.call("POST", "/boards", `{"name":"Synthetic notice"}`, "", 201)
 	b := turnOneDecode[board](t, raw)
-	raw, _ = client.call("PATCH", "/boards/"+b.ID,
-		fmt.Sprintf(`{"notifications":{"enabled":true,"target_thread_id":%q}}`, ownerNoticeTestTarget), b.entityTag(), 200)
-	b = turnOneDecode[board](t, raw)
-	raw, header := client.call("POST", "/cards", fmt.Sprintf(
+	path := "/notifications/" + b.ID
+	_, header := client.call("GET", path, "", "", 200)
+	client.call("PATCH", path, fmt.Sprintf(`{"enabled":true,"target_thread_id":%q}`, ownerNoticeTestTarget), header.Get("ETag"), 200)
+	raw, header = client.call("POST", "/cards", fmt.Sprintf(
 		`{"board_id":%q,"expected_board_etag":%q,"title":"Private synthetic title","lane_id":%q}`,
 		b.ID, b.entityTag(), b.LaneIDs[0]), "", 201)
 	created := turnOneDecode[card](t, raw)
@@ -351,7 +349,7 @@ func TestOwnerNoticeRevalidatesPendingAfterSettingsRead(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				type attempt struct{ target, message string }
 				var attempts []attempt
-				state := ownerNoticeTestSnapshot("board", enabled)
+				state := ownerNoticeTestSnapshot("board")
 				current := enabled
 				loadStarted := make(chan struct{})
 				releaseLoad := make(chan struct{})
@@ -377,7 +375,7 @@ func TestOwnerNoticeRevalidatesPendingAfterSettingsRead(t *testing.T) {
 					}
 				}()
 				first := ownerNoticeTestEdit(state, humanID, "card", "one", time.Now())
-				worker.submitCommitted(state, first)
+				worker.submitCommitted(state, first, true)
 				time.Sleep(ownerNoticeQuietPeriod)
 				synctest.Wait()
 				select {
@@ -389,14 +387,11 @@ func TestOwnerNoticeRevalidatesPendingAfterSettingsRead(t *testing.T) {
 				state = first
 				for _, change := range test.edits {
 					if change.settings != nil {
-						next := ownerNoticeTestEdit(state, humanID, "board", state.Board.ID, time.Now())
 						current = *change.settings
-						next.Board.Notifications = current
-						worker.submitCommitted(state, next)
-						state = next
+						worker.settingsChanged(state.Board.ID, ownerNoticeEnabled(current))
 					} else {
 						next := ownerNoticeTestEdit(state, humanID, "card", change.cardID, time.Now())
-						worker.submitCommitted(state, next)
+						worker.submitCommitted(state, next, ownerNoticeEnabled(current))
 						state = next
 					}
 				}
@@ -432,10 +427,10 @@ func TestOwnerNoticeProjectTimestampFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			event := ownerNoticeEvent{
 				boardID: "board", label: "Test", writerID: "writer", since: start, until: start.Add(tc.duration),
-				cards: []activityCard{{CardID: "card", Ticket: 1}},
 			}
+			event.addCard(ownerNoticeCard{activityCard{CardID: "card", Ticket: 1}, activityCreated.bit()})
 			want := "localswim board-change notice\n\n- Board: \"Test\" (`board`)\n- Writer: `writer`\n" +
-				tc.want + "- Cards: 0001 (`card`)\n- Tickets: 0001"
+				tc.want + "- Cards: 0001 (`card`)\n- Operations: Created (0001)\n- Tickets: 0001"
 			if got := event.message(); got != want {
 				t.Fatalf("notice timestamp format mismatch\ngot: %s\nwant: %s", got, want)
 			}

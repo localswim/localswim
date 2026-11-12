@@ -948,6 +948,7 @@ paths:
         Creation never imports V1 data. A custom workflow attaches its explicitly identified users to the new board.
         An existing global UUID must have the same immutable kind and compatible definition.
         The resolved workflow must satisfy x-workflow-validation after shorthand expansion.
+        The CLI board create --name form sends name and, when selected, preset to this operation.
       requestBody:
         required: true
         content:
@@ -1376,9 +1377,7 @@ paths:
         the catalog, shared events, and authorized activity, publication, verification and snapshot
         inspection remain available. Operational requests on a closed or draining board return 503.
         Reopening validates the saved snapshot at the same board address and uses the current validator.
-        Notification settings default off. Changing them requires manage_notifications. Target changes
-        preserve enabled state. The resulting settings must have a target when enabled. Updating
-        automatic publishing requires the board publish capability. Actor presentation requires manage_board.
+        Updating automatic publishing requires the board publish capability. Actor presentation requires manage_board.
         Membership is established by the board workflow.
       requestBody:
         required: true
@@ -1601,6 +1600,165 @@ paths:
         security-sensitive headers. Non-preflight OPTIONS returns Allow without granting cross-origin
         access. A preflight requires both Origin and Access-Control-Request-Method. Ordinary OPTIONS may
         omit both.
+  /notifications/{board_id}:
+    description: Service-local owner-notice routing keyed by board ID. Board restore and restart
+      preserve the current route. Route changes do not advance board revisions or write board activity.
+      Closed boards retain their routing controls.
+    parameters:
+    - name: board_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/UuidInput'
+    get:
+      operationId: readNotificationRoute
+      summary: Read the current saved notification route
+      tags:
+      - Boards
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/RequestId'
+      - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/NotificationRoute'
+        '304':
+          $ref: '#/components/responses/NotificationRouteHeaders'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed3'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-authorization:
+        scope: board
+        requiresMembership: true
+        capability: manage_notifications
+        requiresRead: true
+      x-milestones:
+      - 80
+    head:
+      operationId: headNotificationRoute
+      summary: Read notification route headers
+      tags:
+      - Boards
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/RequestId'
+      - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/NotificationRouteHeaders'
+        '304':
+          $ref: '#/components/responses/NotificationRouteHeaders'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed3'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-authorization:
+        scope: board
+        requiresMembership: true
+        capability: manage_notifications
+        requiresRead: true
+      x-milestones:
+      - 80
+    patch:
+      operationId: patchNotificationRoute
+      summary: Change the saved notification route
+      tags:
+      - Boards
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/RequestId'
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        description: A UTF-8 JSON entity of at most 4096 bytes. Use the route's current ETag.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationRoutePatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/NotificationRoute'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed3'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-authorization:
+        scope: board
+        requiresMembership: true
+        capability: manage_notifications
+        requiresRead: true
+      x-milestones:
+      - 80
+    options:
+      operationId: optionsNotificationRoute
+      summary: Check methods or same-origin preflight
+      tags:
+      - Boards
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/RequestId'
+      - name: Access-Control-Request-Method
+        in: header
+        schema:
+          type: string
+      - name: Access-Control-Request-Headers
+        in: header
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Supported methods or allowed same-origin preflight.
+          headers:
+            Allow:
+              required: true
+              schema:
+                const: GET, HEAD, PATCH, OPTIONS
+        '400':
+          $ref: '#/components/responses/BadRequest2'
+        '403':
+          $ref: '#/components/responses/Forbidden2'
   /cards:
     get:
       operationId: listCards
@@ -6567,6 +6725,8 @@ paths:
         priority, resource permissions, and existing lane grants, and submit additions to creation or
         transition grants. Validate all UUID references, historical compatibility, and x-workflow-validation
         before publishing the replacement. Expected board and policy tags are checked together.
+        The CLI policy grant --create and --move forms require an explicit board revision and
+        use this same operation for a single grant with board-specific UUIDs.
         The normalized PUT response omits ETag; GET the target afterward for its new representation validator.
       requestBody:
         required: true
@@ -13316,13 +13476,21 @@ components:
         ready_for_review:
           type: integer
           minimum: 0
-    Notifications:
+    NotificationRoute:
       type: object
       additionalProperties: false
       required:
+      - board_id
+      - revision
       - enabled
       - target_thread_id
       properties:
+        board_id:
+          $ref: '#/components/schemas/Uuid'
+        revision:
+          $ref: '#/components/schemas/Revision'
+          minimum: 1
+          description: Independent routing revision. An untouched route starts at revision 1.
         enabled:
           type: boolean
         target_thread_id:
@@ -13337,7 +13505,7 @@ components:
         properties:
           target_thread_id:
             $ref: '#/components/schemas/ThreadId'
-    NotificationsInput:
+    NotificationRoutePatch:
       type: object
       additionalProperties: false
       properties:
@@ -13347,28 +13515,6 @@ components:
           anyOf:
           - $ref: '#/components/schemas/ThreadIdInput'
           - type: 'null'
-        actor: false
-        actor_id: false
-        by: false
-        is_admin: false
-        credentials: false
-        token: false
-        created_at: false
-        updated_at: false
-        revision: false
-        etag: false
-        ticket: false
-        id: false
-        expected_board_etag: false
-        expected_card_etag: false
-        board_etag: false
-        card_etag: false
-        board_id: false
-        policy_id: false
-        role: false
-        kind: false
-        created_by: false
-        updated_by: false
       anyOf:
       - required:
         - enabled
@@ -13385,7 +13531,7 @@ components:
           target_thread_id:
             $ref: '#/components/schemas/ThreadIdInput'
       description: Omitted fields retain their current values. The service checks the complete
-        resulting settings in the board transaction. Enabling requires a target, and clearing a target
+        resulting settings in the route transaction. Enabling requires a target, and clearing a target
         requires the resulting state to be disabled. Both fields may be changed atomically.
     Publishing:
       type: object
@@ -13497,7 +13643,6 @@ components:
       - revision
       - attention
       - last_card_edit_at
-      - notifications
       - publishing
       - user_css
       properties:
@@ -13543,8 +13688,6 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
-        notifications:
-          $ref: '#/components/schemas/Notifications'
         publishing:
           $ref: '#/components/schemas/Publishing'
         user_css:
@@ -14074,6 +14217,7 @@ components:
       - actor_id
       - actor_kind
       - operation
+      - operation_group
       - cards
       - tickets
       properties:
@@ -14096,6 +14240,20 @@ components:
           type: string
           minLength: 1
           maxLength: 80
+        operation_group:
+          description: >
+            Fixed owner-notice category for this card event, or null for an event with no card
+            references. The two events of an atomic review approval have the same category.
+          enum:
+          - Created
+          - Contents modified
+          - Comment added
+          - Ticket numbers reordered
+          - Moved lanes
+          - Reviewed & approved
+          - Archived
+          - Restored
+          - null
         cards:
           type: array
           description: Card UUIDs and their ticket assignments as of this commit, ordered by ticket.
@@ -15763,8 +15921,7 @@ components:
           type: string
           pattern: ^(?:[oO][pP][eE][nN]|[cC][lL][oO][sS][eE][dD])$
           description: ASCII case-insensitive input. Responses use the documented lowercase spelling.
-        notifications:
-          $ref: '#/components/schemas/NotificationsInput'
+        notifications: false
         publishing:
           $ref: '#/components/schemas/PublishingInput'
         actor: false
@@ -15799,8 +15956,6 @@ components:
         - user_css
       - required:
         - availability
-      - required:
-        - notifications
       - required:
         - publishing
       - required:
@@ -16746,7 +16901,6 @@ components:
       - revision
       - attention
       - last_card_edit_at
-      - notifications
       - publishing
       - user_css
       properties:
@@ -16792,8 +16946,6 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
-        notifications:
-          $ref: '#/components/schemas/NotificationsSnapshotInput'
         publishing:
           $ref: '#/components/schemas/PublishingSnapshotInput'
         user_css:
@@ -16817,27 +16969,6 @@ components:
         ready_for_review:
           type: integer
           minimum: 0
-    NotificationsSnapshotInput:
-      type: object
-      additionalProperties: false
-      required:
-      - enabled
-      - target_thread_id
-      properties:
-        enabled:
-          type: boolean
-        target_thread_id:
-          anyOf:
-          - $ref: '#/components/schemas/ThreadIdInput'
-          - type: 'null'
-      if:
-        properties:
-          enabled:
-            const: true
-      then:
-        properties:
-          target_thread_id:
-            $ref: '#/components/schemas/ThreadIdInput'
     PublishingSnapshotInput:
       type: object
       additionalProperties: false
@@ -17580,6 +17711,64 @@ components:
         pattern: ^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), [0-9]{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)
           [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2} GMT$
   responses:
+    NotificationRoute:
+      description: Current saved route and its independent validator.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        Cache-Control:
+          required: true
+          schema:
+            const: no-store
+        X-Content-Type-Options:
+          $ref: '#/components/headers/NoSniff'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        Cross-Origin-Resource-Policy:
+          $ref: '#/components/headers/ResourcePolicy'
+        Content-Security-Policy:
+          $ref: '#/components/headers/ApiCsp'
+        Vary:
+          $ref: '#/components/headers/Vary'
+        Access-Control-Allow-Origin:
+          $ref: '#/components/headers/CorsOrigin'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/CorsExpose'
+        ETag:
+          $ref: '#/components/headers/EntityTag'
+        Date:
+          $ref: '#/components/headers/Date'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NotificationRoute'
+    NotificationRouteHeaders:
+      description: Current notification route validator without a response body.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        Cache-Control:
+          required: true
+          schema:
+            const: no-store
+        X-Content-Type-Options:
+          $ref: '#/components/headers/NoSniff'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        Cross-Origin-Resource-Policy:
+          $ref: '#/components/headers/ResourcePolicy'
+        Content-Security-Policy:
+          $ref: '#/components/headers/ApiCsp'
+        Vary:
+          $ref: '#/components/headers/Vary'
+        Access-Control-Allow-Origin:
+          $ref: '#/components/headers/CorsOrigin'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/CorsExpose'
+        ETag:
+          $ref: '#/components/headers/EntityTag'
+        Date:
+          $ref: '#/components/headers/Date'
     BadRequest:
       description: Invalid or ambiguous input.
       headers:
@@ -18551,7 +18740,6 @@ x-security-policy:
       default_owner_id: manage_board
       name: manage_board
       user_css: manage_board
-      notifications: manage_notifications
       publishing: publish
       availability: close_board
       actor_presentation: manage_board
@@ -18613,14 +18801,20 @@ x-runtime-requirements:
     workspace-admin user operation.
     Recovery preserves the accepted board availability. A mismatching snapshot is refused.
 x-notification-worker:
-  trigger: Only committed, actual Human card edits while the board setting is enabled.
+  routing: A private workspace-local route per board starts disabled and requires explicit activation.
+    Restart and restore preserve the current route and its revision. Board views, snapshots, exports,
+    activity, backup archives and publication captures exclude current and historical routes.
+  trigger: Only committed, actual Human card edits while the board's route is enabled.
   quietSeconds: 15
   payload: >
     Board identity and label, writer UUID, inclusive UTC interval, and at most 128 card UUID and
-    event-time ticket pairs with a truncation marker. Excludes card prose and credentials.
+    event-time ticket pairs with a truncation marker. The Operations line groups the retained
+    tickets by the fixed ActivityMetadata operation groups in schema order. The groups are triage
+    hints. Verify them with the writer and interval in the sanitized activity report. Excludes
+    card prose and credentials.
   destination: Read the current target at delivery. Target-only updates preserve enablement.
   delivery: One native codex queue attempt per quiet burst. No durable cursor, catch-up, or retries. A
-    pending burst can be lost at shutdown.
+    pending burst can be lost at shutdown. Restoring a board discards its pending burst.
   isolation: Queue failure never changes a committed product operation. Bot-only edits and no-ops create
     no owner notice.
 x-publishing-worker:

@@ -15,7 +15,7 @@ Status: Accepted for the owner-approved decisions below. The detailed OpenAPI do
 - Use `snake_case` for JSON member names, path parameter identifiers, and query parameter names across the V2 API. Standard HTTP header names keep their defined spelling. Preserve enum values and user text. Source-language identifiers follow Go and JavaScript conventions.
 - Keep execution timestamps and revision ordering explicit. Use 16-byte UUID storage where practical.
 - Publish closed response schemas with canonical values. Accept harmless input variation without weakening meaning or authority. Preserve user text exactly.
-- Name each collection response array for its plural resource, such as `boards`, `cards`, or `builds`. Both activity views use `activities`. Monitor entries contain only event identity, UTC time, board revision, actor identity and kind, operation, and ticket numbers. Workspace board summaries use `boards`. Empty collections return an empty array, and `next_cursor` retains its pagination meaning.
+- Name each collection response array for its plural resource, such as `boards`, `cards`, or `builds`. Both activity views use `activities`. Monitor entries contain event and board IDs, UTC time, board revision, actor ID and kind, operation and its nullable group, and card references with event-time ticket numbers. Workspace board summaries use `boards`. Empty collections return an empty array, and `next_cursor` retains its pagination meaning.
 
 During the reboot, use only the current API, CLI, and storage contracts. Use fresh test data when a contract changes.
 

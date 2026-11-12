@@ -9,7 +9,6 @@ func cloneSnapshot(value snapshot) snapshot {
 	value.Board.LaneIDs = slices.Clone(value.Board.LaneIDs)
 	value.Board.PriorityIDs = slices.Clone(value.Board.PriorityIDs)
 	value.Board.LastCardEditAt = cloneSnapshotPointer(value.Board.LastCardEditAt)
-	value.Board.Notifications.TargetThreadID = cloneSnapshotPointer(value.Board.Notifications.TargetThreadID)
 	value.Board.Publishing.Repository = cloneSnapshotPointer(value.Board.Publishing.Repository)
 	value.Board.Publishing.LastSuccessAt = cloneSnapshotPointer(value.Board.Publishing.LastSuccessAt)
 	value.Board.Publishing.ErrorCode = cloneSnapshotPointer(value.Board.Publishing.ErrorCode)

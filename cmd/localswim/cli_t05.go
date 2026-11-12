@@ -18,6 +18,7 @@ func parseActivityList(args []string) (cliCommand, error) {
 	var cmd cliCommand
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	dataDir := flags.String("data", "", "read saved activity from this data directory")
 	from := flags.String("from", "", "inclusive UTC start")
 	to := flags.String("to", "", "inclusive UTC end")
 	view := flags.String("view", "monitor", "full or monitor activity view")
@@ -65,6 +66,12 @@ func parseActivityList(args []string) (cliCommand, error) {
 	var optionErr error
 	flags.Visit(func(f *flag.Flag) {
 		switch f.Name {
+		case "data":
+			if *dataDir == "" {
+				optionErr = errors.New("--data requires a nonempty directory")
+			} else if mode == "full" {
+				optionErr = errors.New("--view full requires a live board")
+			}
 		case "ticket":
 			n, err := strconv.ParseUint(*ticket, 10, 53)
 			if err != nil || n == 0 {
@@ -107,7 +114,11 @@ func parseActivityList(args []string) (cliCommand, error) {
 	if optionErr != nil {
 		return cmd, optionErr
 	}
-	return cliCommand{method: http.MethodGet, resource: "/activities?" + query.Encode()}, nil
+	cmd = cliCommand{method: http.MethodGet, resource: "/activities?" + query.Encode()}
+	if *dataDir != "" {
+		cmd.boardID, cmd.dataDir, cmd.nativeRead = query.Get("board_id"), *dataDir, "activity"
+	}
+	return cmd, nil
 }
 
 func detachAttachment(api *client.Client, cmd cliCommand) error {

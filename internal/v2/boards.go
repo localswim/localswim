@@ -169,8 +169,12 @@ func (x *request) patchBoard(s snapshot) {
 		x.fail(err)
 		return
 	}
-	if err = rejectFields(obj, []string{"name", "notifications", "default_owner_id", "publishing", "availability", "actor_presentation", "user_css"}, false); err != nil {
+	if err = rejectFields(obj, []string{"name", "default_owner_id", "publishing", "availability", "actor_presentation", "user_css"}, false); err != nil {
 		x.fail(err)
+		return
+	}
+	if _, ok := obj["notifications"]; ok {
+		x.fail(invalid("notifications", "Use the focused notification route."))
 		return
 	}
 	if _, ok := obj["user_ids"]; ok {
@@ -179,20 +183,19 @@ func (x *request) patchBoard(s snapshot) {
 	}
 	name, hasName := obj["name"]
 	defaultOwner, hasDefaultOwner := obj["default_owner_id"]
-	raw, hasNotifications := obj["notifications"]
 	publishingInput, hasPublishing := obj["publishing"]
 	availabilityInput, hasAvailability := obj["availability"]
 	presentationInput, hasPresentation := obj["actor_presentation"]
 	cssInput, hasCSS := obj["user_css"]
 	managesBoard := hasName || hasDefaultOwner || hasPresentation || hasCSS
-	hasSettings := managesBoard || hasNotifications || hasPublishing
+	hasSettings := managesBoard || hasPublishing
 	if !hasSettings && !hasAvailability {
 		x.fail(invalid("body", "A supported change is required."))
 		return
 	}
 	authorized := func(s snapshot) bool {
 		return s.can(x.actor, "read") && (!managesBoard || s.can(x.actor, "manage_board")) &&
-			(!hasNotifications || s.can(x.actor, "manage_notifications")) && (!hasPublishing || s.can(x.actor, "publish")) &&
+			(!hasPublishing || s.can(x.actor, "publish")) &&
 			(!hasAvailability || s.can(x.actor, "close_board"))
 	}
 	if !authorized(s) {
@@ -269,21 +272,6 @@ func (x *request) patchBoard(s snapshot) {
 				appendChange("user_css", &before, &value)
 				s.Board.UserCSS = value
 			}
-		}
-		if hasNotifications {
-			current := s.Board.Notifications
-			updated, err := patchNotifications(current, raw)
-			if err != nil {
-				return err
-			}
-			if current.Enabled != updated.Enabled {
-				before, after := strconv.FormatBool(current.Enabled), strconv.FormatBool(updated.Enabled)
-				appendChange("notifications.enabled", &before, &after)
-			}
-			if !sameText(current.TargetThreadID, updated.TargetThreadID) {
-				appendChange("notifications.target_thread_id", current.TargetThreadID, updated.TargetThreadID)
-			}
-			s.Board.Notifications = updated
 		}
 		if hasPublishing {
 			current := s.Board.Publishing

@@ -27,7 +27,7 @@ const cliHelp = `Usage:
   localswim workspace publishing disable [--revision N]
   localswim workspace publishing status
   localswim board list [--limit N] [--cursor CURSOR]
-  localswim board create --name NAME
+  localswim board create --name NAME [--preset terry]
   localswim board create --json <JSON_FILE|->
   localswim board get [--view lanes] [--data DIRECTORY] BOARD_ID
   localswim board rename [--revision N] BOARD_ID NEW_NAME
@@ -77,7 +77,8 @@ const cliHelp = `Usage:
                          [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
   localswim comment post [--revision N] CARD_ID FILE|-
   localswim comment post [--revision N] --text TEXT CARD_ID
-  localswim activity list --from UTC --to UTC [--view full|monitor] [--ticket N] [--card-id CARD_ID]
+  localswim activity list [--data DIRECTORY] --from UTC --to UTC [--view full|monitor]
+                        [--ticket N] [--card-id CARD_ID]
                         [--writer-id WRITER_ID] [--actor-id UUID] [--operation OP] [--limit N]
                         [--cursor CURSOR] BOARD_ID
   localswim lane add [--revision N] BOARD_ID FILE|-
@@ -94,6 +95,8 @@ const cliHelp = `Usage:
   localswim attachment detach [--revision N] ATTACHMENT_ID
   localswim attachment detach [--revision N] BOARD_ID TICKET ATTACHMENT_ID
   localswim policy get BOARD_ID
+  localswim policy grant --revision N --create BOARD_ID USER_ID LANE_ID
+  localswim policy grant --revision N --move BOARD_ID USER_ID FROM_LANE_ID TO_LANE_ID
   localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
   localswim ticket-order preview LANE_ID [CARD_ID ...]
   localswim backup create [--revision N] [--id UUID] BOARD_ID
@@ -118,11 +121,11 @@ const cliHelp = `Usage:
   localswim service stop
 
 Live commands use LOCALSWIM_URL (http://127.0.0.1:<port>) and LOCALSWIM_TOKEN.
-Board creation requires exactly one of --name or --json.
+Board creation requires exactly one of --name or --json. Use --preset terry with --name.
 --json reads a new board definition from JSON_FILE or standard input.
 JSON_FILE is required. Use a file path or - to read standard input.
 Set --data to read saved board data offline for board get, board export, board verify,
-card inspect, card triage-order, card search, and comment list.
+card inspect, card triage-order, card search, comment list, and activity list.
 Offline board get returns board metadata. The lanes view requires a live service.
 Verification prints the full JSON report and exits 1 if the board is invalid.
 Board export writes JSON to a new FILE, or standard output when given -. The default --type is json.
@@ -132,10 +135,10 @@ Pin remove skips failed targets with WARNING messages and preserves the remainin
 Pin set validates the entire list and reports ERROR if any target fails.
 Publishing commands return the full board or workspace JSON, including publishing status.
 Board publishing uses the board revision. Workspace publishing uses the workspace revision.
-Board notifications commands return the board ID, revision, enabled state, and target chat UUID.
+Board notifications commands return the board ID, routing revision, enabled state, and target chat UUID.
 Target changes preserve the enabled state. Set a target before enabling. Disable retains the target.
-Notification status reads the service's accepted settings.
-After an uncertain notification write, inspect the saved board with board get --data DIRECTORY BOARD_ID.
+Notification --revision checks the routing revision. Use board notifications status BOARD_ID to
+inspect saved routing after an uncertain write.
 Board close and reopen use the board revision and return the full board JSON.
 Use board get BOARD_ID to inspect availability after an unknown close or reopen outcome.
 Omit --revision to use the current resource validator.
@@ -143,7 +146,8 @@ Supply --revision to require the version you previously inspected.
 For card create and policy grant, --revision refers to the board revision.
 Card create takes a title and optional description with a board and lane, or reads JSON.
 Its JSON must include board_id and can include an explicit ID for focused readback after a lost reply.
-Policy grant reads create_grants and/or move_grants and preserves existing permissions.
+Policy grant adds a single creation or movement grant with board-specific UUIDs, or reads JSON.
+The concise forms require --revision. All forms preserve existing permissions.
 Comment list excludes archived cards for a board and includes them when scoped to one card by default.
 Comment post takes --text or reads an object containing text and an optional ID.
 Lane add reads the lane definition. The CLI supplies its board ID and validator.
@@ -181,7 +185,8 @@ Backup download verifies its size and SHA-2-256 digest before writing a new file
 Backup verify checks ZIP bytes from FILE or standard input with -, without contacting a service.
 Standard input is copied to a private temporary file for verification and removed afterward.
 Activity intervals are inclusive. Quote both UTC bounds in YYYY-MM-DD HH:MM:SS+00:00.
-Activity lists sanitized edit metadata by default. Use --view full for the attributed audit.
+Activity lists sanitized edit metadata by default. Use --view full with a live service for the attributed audit.
+Saved activity reports its captured revision and latest retained event time.
 The CLI manages HTTP validators.
 For input FILE|-, pass a file path or use - to read standard input.
 For output FILE|-, pass a new file path or use - to write standard output.
@@ -280,7 +285,7 @@ func runCLIWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, g
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			help := cliHelp
-			if contextual := routineWriteHelp(args[0] + " " + args[1]); contextual != "" {
+			if contextual := writeCommandHelp(args[0] + " " + args[1]); contextual != "" {
 				help = contextual
 			}
 			if _, err := io.WriteString(stdout, help); err != nil {
@@ -361,8 +366,8 @@ func parseCLI(args []string) (cliCommand, error) {
 	needBoardID := false
 	rename := false
 	creating := false
-	var createName string
-	var jsonInput bool
+	var createName, createPreset string
+	var jsonInput, createGrant, moveGrant bool
 	var cardTitle, cardDescription string
 	var boardView string
 	paginated := false
@@ -390,7 +395,8 @@ func parseCLI(args []string) (cliCommand, error) {
 	case "board create":
 		command.method, command.resource = http.MethodPost, "/boards"
 		creating = true
-		flags.StringVar(&createName, "name", "", "new board name with the default workflow")
+		flags.StringVar(&createName, "name", "", "new board name")
+		flags.StringVar(&createPreset, "preset", "", "workflow preset (terry)")
 		flags.BoolVar(&jsonInput, "json", false, "read a new board definition from JSON_FILE or standard input with -")
 	case "board get":
 		command.method, command.resource, needBoardID = http.MethodGet, "/boards", true
@@ -441,6 +447,8 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.boardAction = name
 		if name == "policy grant" {
 			command.method = http.MethodPut
+			flags.BoolVar(&createGrant, "create", false, "allow one user to create cards in one lane")
+			flags.BoolVar(&moveGrant, "move", false, "allow one user to move cards between two lanes")
 		}
 	case "service status":
 		command.method, command.resource = http.MethodGet, "/service"
@@ -482,12 +490,15 @@ func parseCLI(args []string) (cliCommand, error) {
 	}
 	var optionErr error
 	var hasName, hasJSON, hasRevision, hasTitle, hasDescription bool
+	var hasCreateGrant, hasMoveGrant bool
 	flags.Visit(func(f *flag.Flag) {
 		hasName = hasName || f.Name == "name"
 		hasJSON = hasJSON || f.Name == "json"
 		hasRevision = hasRevision || f.Name == "revision"
 		hasTitle = hasTitle || f.Name == "title"
 		hasDescription = hasDescription || f.Name == "description"
+		hasCreateGrant = hasCreateGrant || f.Name == "create"
+		hasMoveGrant = hasMoveGrant || f.Name == "move"
 		if f.Name != "revision" && f.Name != "description" && f.Value.String() == "" {
 			optionErr = errors.New("command options require nonempty values")
 		}
@@ -499,9 +510,12 @@ func parseCLI(args []string) (cliCommand, error) {
 		if hasName == hasJSON || (hasJSON && !jsonInput) {
 			return command, errors.New("board create requires exactly one of --name NAME or --json")
 		}
+		if createPreset != "" && (createPreset != "terry" || !hasName) {
+			return command, errors.New("board create accepts only --preset terry with --name")
+		}
 		if hasName {
 			var err error
-			command.body, err = boardNameBody(createName)
+			command.body, err = boardNameBody(createName, createPreset)
 			if err != nil {
 				return command, err
 			}
@@ -558,6 +572,18 @@ func parseCLI(args []string) (cliCommand, error) {
 		default:
 			return command, errors.New("expected a UUIDv4 card ID or a UUIDv4 board ID followed by a ticket")
 		}
+	} else if name == "policy grant" && (hasCreateGrant || hasMoveGrant) {
+		if hasCreateGrant == hasMoveGrant || (!createGrant && !moveGrant) {
+			return command, errors.New("policy grant accepts exactly one of --create or --move")
+		}
+		if !hasRevision {
+			return command, errors.New("policy grant --create and --move require --revision")
+		}
+		var err error
+		command.boardID, command.body, err = scopedPolicyGrantInput(flags.Args(), createGrant)
+		if err != nil {
+			return command, err
+		}
 	} else if needBoardID {
 		count, expected := 1, "expected one UUIDv4 board ID"
 		if name == "board export" {
@@ -586,7 +612,7 @@ func parseCLI(args []string) (cliCommand, error) {
 		}
 		if rename {
 			var err error
-			command.body, err = boardNameBody(flags.Arg(1))
+			command.body, err = boardNameBody(flags.Arg(1), "")
 			if err != nil {
 				return command, err
 			}
@@ -613,14 +639,17 @@ func parseCLI(args []string) (cliCommand, error) {
 	return command, nil
 }
 
-func boardNameBody(name string) (json.RawMessage, error) {
+func boardNameBody(name, preset string) (json.RawMessage, error) {
 	if name == "" {
 		return nil, errors.New("board name must not be empty")
 	}
 	if !utf8.ValidString(name) {
 		return nil, errors.New("board name must be valid UTF-8")
 	}
-	return json.Marshal(map[string]string{"name": name})
+	return json.Marshal(struct {
+		Name   string `json:"name"`
+		Preset string `json:"preset,omitempty"`
+	}{Name: name, Preset: preset})
 }
 
 func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, getenv func(string) string) error {

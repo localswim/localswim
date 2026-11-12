@@ -78,7 +78,6 @@ type board struct {
 	Availability      string            `json:"availability"`
 	Attention         attention         `json:"attention"`
 	LastCardEditAt    *time.Time        `json:"last_card_edit_at"`
-	Notifications     notifications     `json:"notifications"`
 	Publishing        publishing        `json:"publishing"`
 	UserCSS           string            `json:"user_css"`
 	ActorPresentation actorPresentation `json:"actor_presentation,omitzero"`

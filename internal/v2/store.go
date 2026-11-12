@@ -223,16 +223,6 @@ func (s *store) isFailedBoard(id string) bool {
 	return failed
 }
 
-func (s *store) ownerNoticeSettings(id string) (notifications, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.writeUncertain && s.uncertainBoardID == id {
-		return notifications{}, false
-	}
-	value, ok := s.boards[id]
-	return value.Board.Notifications, ok
-}
-
 func (s *store) list() []snapshot {
 	s.mu.RLock()
 	values := make([]snapshot, 0, len(s.boards))
@@ -358,6 +348,12 @@ func (s *store) create(value snapshot) error {
 		return errBoardExists
 	}
 	if _, err := os.Lstat(s.snapshotPath(id)); err == nil {
+		return errBoardExists
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	// An orphan route cannot opt a newly created board into delivery.
+	if _, err := os.Lstat(s.notificationRoutePath(id)); err == nil {
 		return errBoardExists
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -498,7 +494,13 @@ func (s *store) writeCommit(value snapshot, data []byte, accepted *snapshot) err
 	s.boards[id] = value
 	s.boardPublishingCommitted(value.Board)
 	if s.ownerNotices != nil {
-		s.ownerNotices.submitCommitted(previous, value)
+		if value.Activity[len(value.Activity)-1].Operation == recoveryOperation {
+			// The restored audit may no longer contain cards from an old burst.
+			s.ownerNotices.settingsChanged(id, false)
+		} else if previous.Board.ID == id {
+			route, err := s.readNotificationRoute(id)
+			s.ownerNotices.submitCommitted(previous, value, err == nil && ownerNoticeEnabled(route.notifications))
+		}
 	}
 	if s.events != nil {
 		s.events.changed()

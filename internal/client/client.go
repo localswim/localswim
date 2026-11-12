@@ -83,6 +83,7 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 	}
 	mutation := method != http.MethodGet && method != http.MethodHead
 	path := request.URL.Path[len(apiPath):]
+	notificationWrite := method == http.MethodPatch && strings.HasPrefix(path, "/notifications/")
 	lifecycleWrite := method == http.MethodPatch && path == "/service" || method == http.MethodPost && path == "/activations"
 	activationRead := method == http.MethodGet && strings.HasPrefix(path, "/activations/")
 	lifecycleRead := method == http.MethodGet && path == "/service" || activationRead
@@ -94,7 +95,7 @@ func (c *Client) doWithContentType(method, resource string, body []byte, ifMatch
 	defer reply.Body.Close()
 	if reply.StatusCode < 200 || reply.StatusCode >= 300 {
 		uncertainStatus := reply.StatusCode < 400 || reply.StatusCode >= 500
-		if (boardSettingsWrite || lifecycleWrite) && isUnavailableRefusal(reply) {
+		if (boardSettingsWrite || lifecycleWrite || notificationWrite) && isUnavailableRefusal(reply) {
 			return Response{}, errors.New("service returned HTTP 503 (unavailable, not applied)")
 		}
 		return Response{}, responseError(fmt.Sprintf("service returned HTTP %d", reply.StatusCode),

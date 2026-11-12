@@ -32,7 +32,7 @@ func parseNotificationAction(args []string) (cliCommand, error) {
 	flags.SetOutput(io.Discard)
 	var revision string
 	if action != "status" {
-		flags.StringVar(&revision, "revision", "", "expected board revision")
+		flags.StringVar(&revision, "revision", "", "expected notification route revision")
 	}
 	if err := flags.Parse(args[1:]); err != nil {
 		return command, err
@@ -79,35 +79,31 @@ func (status cliNotificationStatus) sameSettings(other cliNotificationStatus) bo
 }
 
 func readNotificationStatus(reply client.Response, boardID string) (cliNotificationStatus, error) {
-	var board struct {
-		ID            string          `json:"id"`
-		Revision      uint64          `json:"revision"`
-		Notifications json.RawMessage `json:"notifications"`
-	}
-	if jsonv2.Unmarshal(reply.JSON, &board) != nil || board.ID != boardID ||
-		board.Revision == 0 || board.Revision > maxCLIRevision {
-		return cliNotificationStatus{}, errors.New("service did not return the addressed board and its revision")
-	}
-	if !reply.MatchesBoardRevision(board.ID, board.Revision) {
-		return cliNotificationStatus{}, errors.New("service board revision did not match its HTTP validator")
-	}
-	var settings struct {
+	var route struct {
+		BoardID        string          `json:"board_id"`
+		Revision       uint64          `json:"revision"`
 		Enabled        *bool           `json:"enabled"`
 		TargetThreadID json.RawMessage `json:"target_thread_id"`
 	}
+	if jsonv2.Unmarshal(reply.JSON, &route, jsonv2.RejectUnknownMembers(true)) != nil || route.BoardID != boardID ||
+		route.Revision == 0 || route.Revision > maxCLIRevision {
+		return cliNotificationStatus{}, errors.New("service did not return the addressed notification route and its revision")
+	}
+	if reply.ETag != fmt.Sprintf("\"notifications-%s-%d\"", boardID, route.Revision) {
+		return cliNotificationStatus{}, errors.New("service notification revision did not match its HTTP validator")
+	}
 	var target *string
-	if jsonv2.Unmarshal(board.Notifications, &settings, jsonv2.RejectUnknownMembers(true)) != nil ||
-		settings.Enabled == nil || jsonv2.Unmarshal(settings.TargetThreadID, &target) != nil ||
-		target == nil && *settings.Enabled || target != nil && !v2.ValidNotificationTarget(*target) {
+	if route.Enabled == nil || jsonv2.Unmarshal(route.TargetThreadID, &target) != nil ||
+		target == nil && *route.Enabled || target != nil && !v2.ValidNotificationTarget(*target) {
 		return cliNotificationStatus{}, errors.New("service did not return valid notification settings")
 	}
 	return cliNotificationStatus{
-		BoardID: board.ID, Revision: board.Revision, Enabled: *settings.Enabled, TargetThreadID: target,
+		BoardID: route.BoardID, Revision: route.Revision, Enabled: *route.Enabled, TargetThreadID: target,
 	}, nil
 }
 
 func executeNotificationAction(api *client.Client, command cliCommand, stdout io.Writer) error {
-	resource := "/boards/" + command.boardID
+	resource := "/notifications/" + command.boardID
 	reply, err := api.Do(http.MethodGet, resource, nil, "")
 	if err != nil {
 		return err
@@ -139,13 +135,13 @@ func executeNotificationAction(api *client.Client, command cliCommand, stdout io
 	if !current.sameSettings(expected) {
 		expected.Revision++
 	}
-	body, err := json.Marshal(map[string]any{"notifications": patch})
+	body, err := json.Marshal(patch)
 	if err != nil {
 		return err
 	}
 	inspect := "Inspect accepted settings with localswim board notifications status " + command.boardID +
-		". Inspect the saved board with localswim board get --data DIRECTORY " + command.boardID + " before retrying"
-	reply, err = api.PatchBoardSettings(resource, body, reply.ETag)
+		" before retrying"
+	reply, err = api.Do(http.MethodPatch, resource, body, reply.ETag)
 	if err != nil {
 		if errors.Is(err, client.ErrMutationOutcomeUnknown) {
 			return fmt.Errorf("%w. %s", err, inspect)

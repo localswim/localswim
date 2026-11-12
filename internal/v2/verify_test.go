@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -52,8 +53,8 @@ func TestNativeSnapshotClosedShape(t *testing.T) {
 		{"noncanonical member spelling", `"format_version":2`, `"formatVersion":2`},
 		{"duplicate root field", `"format_version":2`, `"format_version":2,"format_version":2`},
 		{"duplicate nested field", `"enabled":false`, `"enabled":false,"enabled":false`},
-		{"unknown nested field", `"target_thread_id":null`, `"target_thread_id":null,"privateField":true`},
-		{"case-variant member", `"target_thread_id":null`, `"TargetThreadId":null`},
+		{"unknown nested field", `"repository":null`, `"repository":null,"privateField":true`},
+		{"case-variant member", `"repository":null`, `"Repository":null`},
 		{"missing required nullable field", `"last_card_edit_at":null,`, ""},
 		{"null required array", `"cards":[]`, `"cards":null`},
 		{"null required boolean", `"enabled":false`, `"enabled":null`},
@@ -101,38 +102,28 @@ func TestNativeSnapshotReferencesAndAudit(t *testing.T) {
 	}
 }
 
-func TestNativeSnapshotNotificationAuditStartsAtCreationDefaults(t *testing.T) {
+func TestNativeSnapshotRefusesPortableNotificationRouting(t *testing.T) {
 	value := nativeVerificationFixture()
-	b := &value.Board
 	target := newID()
-	b.Notifications.TargetThreadID = &target
-	if _, err := parseSnapshot(marshalVerificationFixture(t, value), b.ID); !errors.Is(err, errInvalidSnapshot) {
-		t.Fatalf("unaudited target error = %v", err)
+	raw := marshalVerificationFixture(t, value)
+	injected := bytes.Replace(raw, []byte(`"board":{`), []byte(`"board":{"notifications":{"enabled":true,"target_thread_id":"`+target+`"},`), 1)
+	if bytes.Equal(raw, injected) {
+		t.Fatal("fixture did not contain the board object")
 	}
-	b.Notifications.Enabled = true
-	if _, err := parseSnapshot(marshalVerificationFixture(t, value), b.ID); !errors.Is(err, errInvalidSnapshot) {
-		t.Fatalf("unaudited enabled settings error = %v", err)
+	if _, err := parseSnapshot(injected, value.Board.ID); !errors.Is(err, errInvalidSnapshot) || strings.Contains(err.Error(), target) {
+		t.Fatal("native snapshot accepted or exposed embedded routing")
 	}
 
-	b.Revision++
-
-	enabledField, targetField := "notifications.enabled", "notifications.target_thread_id"
-	disabled, enabled := "false", "true"
-	value.Activity = append(value.Activity,
-		activity{ID: newOperationID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
-			Operation: "patch", ResourceType: "board", ResourceID: b.ID, Field: &enabledField, Before: &disabled, After: &enabled},
-		activity{ID: newOperationID(), BoardID: b.ID, Revision: b.Revision, At: b.CreatedAt, ActorID: humanID,
-			Operation: "patch", ResourceType: "board", ResourceID: b.ID, Field: &targetField, After: &target},
-	)
-	if err := validateSnapshot(value, b.ID); err != nil {
-		t.Fatalf("valid notification audit refused: %v", err)
-	}
-	assertMissingAuditCapability(t, value, "manage_notifications")
-
-	wrongTarget := newID()
-	value.Activity[2].Before = &wrongTarget
-	if err := validateSnapshot(value, b.ID); !errors.Is(err, errInvalidSnapshot) {
-		t.Fatalf("wrong initial notification target error = %v", err)
+	value.Board.Revision++
+	for _, field := range []string{"notifications.enabled", "notifications.target_thread_id"} {
+		value.Activity = append(value.Activity[:1], activity{
+			ID: newOperationID(), BoardID: value.Board.ID, Revision: value.Board.Revision,
+			At: value.Board.CreatedAt, ActorID: humanID, Operation: "patch", ResourceType: "board",
+			ResourceID: value.Board.ID, Field: &field, After: &target,
+		})
+		if err := validateSnapshot(value, value.Board.ID); !errors.Is(err, errInvalidSnapshot) || strings.Contains(err.Error(), target) {
+			t.Fatal("native snapshot accepted or exposed historical routing")
+		}
 	}
 }
 

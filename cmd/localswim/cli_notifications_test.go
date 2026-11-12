@@ -12,10 +12,10 @@ import (
 	"testing"
 )
 
-func TestCLINotificationsUseConditionalBoardSettings(t *testing.T) {
+func TestCLINotificationsUseConditionalRouteSettings(t *testing.T) {
 	const board = "01234567-89ab-4def-8123-0123456789ab"
-	const currentTag = `"` + board + `-4"`
-	const updatedTag = `"` + board + `-5"`
+	const currentTag = `"notifications-` + board + `-4"`
+	const updatedTag = `"notifications-` + board + `-5"`
 	const wrongBoardTag = `"01234567-89ab-4def-8123-0123456789ac-4"`
 	const disabled = `{"enabled":false,"target_thread_id":null}`
 	const configured = `{"enabled":false,"target_thread_id":"018e7f0a-bcde-7abc-8def-0123456789ab"}`
@@ -30,7 +30,7 @@ func TestCLINotificationsUseConditionalBoardSettings(t *testing.T) {
 		current, patch, updated, wantError     string
 		readTag, readExtras, replyTag, problem string
 		status, replyRevision                  int
-		missingBoardTag, unknown               bool
+		missingRouteTag, unknown               bool
 	}{
 		{name: "default status", action: "status", current: disabled},
 		{name: "status wrong board validator", action: "status", current: disabled, readTag: wrongBoardTag,
@@ -38,7 +38,7 @@ func TestCLINotificationsUseConditionalBoardSettings(t *testing.T) {
 		{name: "explicit revision with a different read validator", action: "enable", revision: "4", current: configured,
 			readTag: updatedTag, wantError: "revision did not match its HTTP validator"},
 		{name: "explicit revision cannot match an unrelated member", action: "enable", revision: "5", current: configured,
-			readExtras: `,"Revision":5`, wantError: "revision mismatch"},
+			readExtras: `,"Revision":5`, wantError: "did not return the addressed notification route"},
 		{name: "target preserves disabled", action: "target", target: target, revision: "4", current: disabled,
 			patch: `{"target_thread_id":"018e7f0a-bcde-7abc-8def-0123456789ab"}`, updated: configured, status: 200},
 		{name: "retargeting to the same target is a no-op", action: "target", target: target, current: configured,
@@ -66,8 +66,8 @@ func TestCLINotificationsUseConditionalBoardSettings(t *testing.T) {
 			patch:   `{"target_thread_id":"018e7f0a-bcde-7abc-8def-0123456789ac"}`,
 			updated: enabled, status: 200, wantError: "did not confirm", unknown: true},
 		{name: "unconfirmed validator", action: "enable", current: configured,
-			patch: `{"enabled":true}`, updated: enabled, status: 200, missingBoardTag: true,
-			wantError: "matching ETag and X-Board-ETag", unknown: true},
+			patch: `{"enabled":true}`, updated: enabled, status: 200, missingRouteTag: true,
+			wantError: "one canonical strong ETag", unknown: true},
 		{name: "revision and reply validators disagree", action: "enable", current: configured,
 			patch: `{"enabled":true}`, updated: enabled, status: 200, replyTag: currentTag,
 			wantError: "did not confirm", unknown: true},
@@ -95,21 +95,21 @@ func TestCLINotificationsUseConditionalBoardSettings(t *testing.T) {
 			}
 			replyTag := test.replyTag
 			if replyTag == "" {
-				replyTag = fmt.Sprintf(`"%s-%d"`, board, replyRevision)
+				replyTag = fmt.Sprintf(`"notifications-%s-%d"`, board, replyRevision)
 			}
 			var requests atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path != "/api/2026-11-10/boards/"+board || r.Header.Get("Authorization") != "Bearer test-token" {
+				if r.URL.Path != "/api/2026-11-10/notifications/"+board || r.Header.Get("Authorization") != "Bearer test-token" {
 					t.Error("command did not address the authenticated board")
 				}
 				switch requests.Add(1) {
 				case 1:
 					if r.Method != http.MethodGet || r.Header.Get("If-Match") != "" {
-						t.Error("first request was not an unconditional board read")
+						t.Error("first request was not an unconditional route read")
 					}
 					w.Header().Set("ETag", readTag)
-					fmt.Fprintf(w, `{"id":%q,"revision":4,"notifications":%s,"name":"fixture board"%s}`,
-						board, test.current, test.readExtras)
+					fmt.Fprintf(w, `{"board_id":%q,"revision":4,%s%s}`,
+						board, test.current[1:len(test.current)-1], test.readExtras)
 				case 2:
 					if test.patch == "" {
 						t.Error("command sent an unexpected write")
@@ -118,7 +118,7 @@ func TestCLINotificationsUseConditionalBoardSettings(t *testing.T) {
 					}
 					body, err := io.ReadAll(r.Body)
 					if err != nil || r.Method != http.MethodPatch || r.Header.Get("If-Match") != currentTag ||
-						string(body) != `{"notifications":`+test.patch+`}` {
+						string(body) != test.patch {
 						t.Errorf("invalid notification patch: method %s, body %s, err %v", r.Method, body, err)
 					}
 					if test.problem != "" {
@@ -127,14 +127,13 @@ func TestCLINotificationsUseConditionalBoardSettings(t *testing.T) {
 						fmt.Fprint(w, test.problem)
 						return
 					}
-					w.Header().Set("ETag", replyTag)
-					if !test.missingBoardTag {
-						w.Header().Set("X-Board-ETag", replyTag)
+					if !test.missingRouteTag {
+						w.Header().Set("ETag", replyTag)
 					}
 					w.WriteHeader(test.status)
 					if test.updated != "" {
-						fmt.Fprintf(w, `{"id":%q,"revision":%d,"notifications":%s,"name":"fixture board"}`,
-							board, replyRevision, test.updated)
+						fmt.Fprintf(w, `{"board_id":%q,"revision":%d,%s`,
+							board, replyRevision, test.updated[1:])
 					}
 				default:
 					t.Error("command made an extra request")
@@ -164,8 +163,7 @@ func TestCLINotificationsUseConditionalBoardSettings(t *testing.T) {
 			if test.wantError != "" {
 				if exit != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), test.wantError) ||
 					strings.Contains(stderr.String(), "Mutation outcome unknown") != test.unknown ||
-					strings.Contains(stderr.String(), "board notifications status "+board) != test.unknown ||
-					strings.Contains(stderr.String(), "board get --data DIRECTORY "+board) != test.unknown {
+					strings.Contains(stderr.String(), "board notifications status "+board) != test.unknown {
 					t.Fatalf("exit %d, stdout %q, stderr %q", exit, &stdout, &stderr)
 				}
 				return

@@ -946,6 +946,7 @@ paths:
         Creation never imports V1 data. A custom workflow attaches its explicitly identified users to the new board.
         An existing global UUID must have the same immutable kind and compatible definition.
         The resolved workflow must satisfy x-workflow-validation after shorthand expansion.
+        The CLI board create --name form sends name and, when selected, preset to this operation.
       requestBody:
         required: true
         content:
@@ -6561,6 +6562,8 @@ paths:
         priority, resource permissions, and existing lane grants, and submit additions to creation or
         transition grants. Validate all UUID references, historical compatibility, and x-workflow-validation
         before publishing the replacement. Expected board and policy tags are checked together.
+        The CLI policy grant --create and --move forms require an explicit board revision and
+        use this same operation for a single grant with board-specific UUIDs.
         The normalized PUT response omits ETag; GET the target afterward for its new representation validator.
       requestBody:
         required: true

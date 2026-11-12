@@ -36,11 +36,10 @@ Human or Bot token. `service status` reports the actual listening port.
 ```
 
 The name-only command creates a board with the generic five-lane workflow and P2
-Normal. To start a board with Terry's workflow, select the preset in the board
-definition.
+Normal. Add `--preset terry` to create a board with Terry's workflow.
 
 ```powershell
-'{"name":"Terry workflow","preset":"terry"}' | .\localswim.exe board create --json -
+$terry = .\localswim.exe board create --name "Terry workflow" --preset terry | ConvertFrom-Json
 ```
 
 The preset adds Blocked and Needs Terry, uses P0 through P5 with P3 Normal,
@@ -53,6 +52,26 @@ Use `board create --json definition.json` with a `workflow` object to define
 custom lanes, priorities, and grants. Lane ordering and triage use each
 priority's numeric `rank`. For the Terry preset the rank equals the P-number.
 Commands that read JSON require a file path or `-` for standard input.
+
+Use `policy grant` to add one creation or movement grant. Read the revision and
+user IDs with `board get` and the lane IDs with `board get --view lanes`.
+For example, to allow Bot to move cards directly from Backlog to In Progress on
+a Terry board, use the default owner's ID and those two lane UUIDs.
+
+```powershell
+$board = .\localswim.exe board get $terry.id | ConvertFrom-Json
+$lanes = (.\localswim.exe board get --view lanes $terry.id | ConvertFrom-Json).lanes
+$backlog = ($lanes | Where-Object key -eq backlog).id
+$inProgress = ($lanes | Where-Object key -eq in_progress).id
+.\localswim.exe policy grant --revision $board.revision --move $board.id $board.default_owner_id $backlog $inProgress
+```
+
+For a creation grant, use `--create BOARD_ID USER_ID LANE_ID` with `--revision`.
+A stale board revision refuses the edit. For multiple grants, use
+`policy grant BOARD_ID grants.json` with `create_grants` and/or `move_grants`
+arrays. The service checks both the board and policy validators on every grant
+and preserves the other grants and default priority.
+
 Export a board with `board export BOARD_ID FILE|-`. Use a new file path, or `-`
 for standard output. The default format is JSON.
 

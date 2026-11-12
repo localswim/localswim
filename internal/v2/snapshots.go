@@ -202,8 +202,8 @@ func (s *store) recoverSnapshot(boardID, actor, eventID string, matches func(sna
 	})
 }
 
-// All callers hold the writer lock and validate the full candidate before files
-// are published. Uncertain commits retain newly published immutable bytes.
+// Callers validate the full candidate and hold exclusive access to its board
+// while publishing files. Uncertain commits retain newly published immutable bytes.
 func (s *store) publishRecoveredSnapshot(next snapshot, attachmentData func(attachment) ([]byte, error), commit func() error) (snapshot, error) {
 	published := []*publishedAttachment{}
 	committed := false

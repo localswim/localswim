@@ -28,10 +28,12 @@ type store struct {
 	activityWriterID string
 	activitySince    time.Time
 
+	recoveryIO       sync.RWMutex // keep the writer lease through out-of-lock recovery I/O
 	mu               sync.RWMutex
 	lease            *os.File
 	boards           map[string]snapshot
 	failedBoards     map[string]error // protected by mu after startup
+	recovering       map[string]bool  // failed sources and fresh destinations reserved under mu
 	recoveryContexts map[string]recoveryContext
 	principals       []user
 	writeUncertain   bool
@@ -71,6 +73,7 @@ func openStore(root string, principals ...user) (*store, error) {
 		lease:            lease,
 		boards:           make(map[string]snapshot),
 		failedBoards:     make(map[string]error),
+		recovering:       make(map[string]bool),
 		recoveryContexts: make(map[string]recoveryContext),
 		admissions:       make(map[string]*boardAdmission),
 		principals:       slices.Clone(principals),
@@ -220,6 +223,8 @@ func (s *store) checkBoardsDirectory(dir string) error {
 }
 
 func (s *store) close() error {
+	s.recoveryIO.Lock()
+	defer s.recoveryIO.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.lease == nil {
@@ -369,7 +374,7 @@ func (s *store) create(value snapshot) error {
 	if _, exists := s.boards[id]; exists {
 		return errBoardExists
 	}
-	if s.isFailedBoardLocked(id) {
+	if s.isFailedBoardLocked(id) || s.recovering[id] {
 		return errBoardExists
 	}
 	for _, path := range []string{s.snapshotPath(id), s.recoveryReferencePath(id)} {
@@ -480,6 +485,10 @@ func (s *store) prepareCommit(value snapshot, reuseUsers bool) ([]byte, error) {
 	if err := s.checkIdentities(value, reuseUsers); err != nil {
 		return nil, err
 	}
+	return snapshotCommitBytes(value)
+}
+
+func snapshotCommitBytes(value snapshot) ([]byte, error) {
 	data, err := marshalCanonical(value)
 	if err != nil {
 		return nil, err
@@ -502,12 +511,12 @@ func (s *store) writeCommit(value snapshot, data []byte, accepted *snapshot) err
 			return s.checkAcceptedDurableLocked(*accepted)
 		}
 	}
-	return s.writeCommitChecked(value, data, beforeReplace)
+	return s.writeCommitChecked(value, data, beforeReplace, nil)
 }
 
-func (s *store) writeCommitChecked(value snapshot, data []byte, beforeReplace func() error) error {
+func (s *store) writeCommitChecked(value snapshot, data []byte, beforeReplace, beforePending func() error) error {
 	id := value.Board.ID
-	if err := s.writeSnapshotWithRecoveryReference(value, data, beforeReplace); err != nil {
+	if err := s.writeSnapshotWithRecoveryReference(value, data, beforeReplace, beforePending); err != nil {
 		if errors.Is(err, errWriteUncertain) {
 			// Fence new commits until restart reloads the disk outcome. Durable
 			// inspection remains available for resolving the uncertain mutation.

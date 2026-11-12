@@ -136,6 +136,10 @@ func (s *store) readRecoveryReference(id string) (recoveryReference, bool) {
 }
 
 func (s *store) writeRecoveryReference(ref recoveryReference) error {
+	return s.writeRecoveryReferenceChecked(ref, nil)
+}
+
+func (s *store) writeRecoveryReferenceChecked(ref recoveryReference, beforeReplace func() error) error {
 	id := ref.Committed.BoardID
 	payload, err := marshalCanonical(ref)
 	if err != nil {
@@ -150,7 +154,13 @@ func (s *store) writeRecoveryReference(ref recoveryReference) error {
 		return err
 	}
 	return writeAtomicChecked(s.recoveryReferencePath(id), data, func() error {
-		return s.checkBoardsDirectory(dir)
+		if err := s.checkBoardsDirectory(dir); err != nil {
+			return err
+		}
+		if beforeReplace != nil {
+			return beforeReplace()
+		}
+		return nil
 	})
 }
 
@@ -265,26 +275,48 @@ func (s *store) failedBoardVerification(id string) (verification, string, bool) 
 	return report, tag, true
 }
 
-func (s *store) writeSnapshotWithRecoveryReference(value snapshot, data []byte, beforeReplace func() error) error {
+func (s *store) writeSnapshotWithRecoveryReference(value snapshot, data []byte, beforeReplace, beforePending func() error) error {
 	id := value.Board.ID
 	current := recoveryContextFor(value, data)
 	previous, exists := s.recoveryContexts[id]
+	var checkPending func() error
 	if exists {
-		if err := s.writeRecoveryReference(recoveryReference{Committed: previous, Pending: &current}); err != nil {
-			// The snapshot has not been touched. Either old reference outcome
-			// is safe and the normal write preconditions still apply on retry.
+		pending := recoveryReference{Committed: previous, Pending: &current}
+		if err := s.writeRecoveryReferenceChecked(pending, beforePending); err != nil {
+			if errors.Is(err, errStale) {
+				return err
+			}
+			// The snapshot has not been touched. A pending reference still
+			// fences unresolved state if publication itself was uncertain.
 			return errInvalidSnapshot
 		}
+		checkPending = func() error {
+			saved, valid := s.readRecoveryReference(id)
+			if !valid || !reflect.DeepEqual(saved, pending) {
+				return errStale
+			}
+			return nil
+		}
 	}
-	if err := writeAtomicChecked(s.snapshotPath(id), data, beforeReplace); err != nil {
+	if err := writeAtomicChecked(s.snapshotPath(id), data, func() error {
+		if beforeReplace != nil {
+			if err := beforeReplace(); err != nil {
+				return err
+			}
+		}
+		if checkPending != nil {
+			return checkPending()
+		}
+		return nil
+	}); err != nil {
 		if exists && !errors.Is(err, errWriteUncertain) {
-			// A known refusal preserves the last accepted commit. If this
-			// metadata write fails, the pending reference still fails closed.
-			_ = s.writeRecoveryReference(recoveryReference{Committed: previous})
+			// A known refusal rolls back only this writer's still-current pending
+			// proposal. Preserve independently changed evidence byte for byte.
+			_ = s.writeRecoveryReferenceChecked(recoveryReference{Committed: previous}, checkPending)
 		}
 		return err
 	}
-	if err := s.writeRecoveryReference(recoveryReference{Committed: current}); err != nil {
+	if err := s.writeRecoveryReferenceChecked(recoveryReference{Committed: current}, checkPending); err != nil {
 		return errors.Join(errWriteUncertain, err)
 	}
 	s.recoveryContexts[id] = current

@@ -8,29 +8,46 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// The validator binds explicit recovery to one observed failure in this writer.
-// It includes the raw damaged content and reference, never the report time.
+type failedRecoveryObservation struct {
+	snapshot, reference string
+}
+
+// The validator binds explicit recovery to observed disk state in this writer.
+// It includes the damaged snapshot and reference fingerprints, never the report time.
 func (s *store) failedRecoveryTagLocked(id string) (string, error) {
 	if !s.isFailedBoardLocked(id) {
 		return "", errMissing
 	}
-	if err := s.checkBoardsDirectory(s.boardsPath()); err != nil {
+	observed, err := s.observeFailedRecovery(id)
+	if err != nil {
 		return "", err
 	}
-	parts := []string{s.activityWriterID, id}
-	for _, path := range []string{s.snapshotPath(id), s.recoveryReferencePath(id)} {
-		part, err := recoveryFileFingerprint(path)
-		if err != nil {
-			return "", err
-		}
-		parts = append(parts, part)
+	return observed.tag(s.activityWriterID, id), nil
+}
+
+func (s *store) observeFailedRecovery(id string) (failedRecoveryObservation, error) {
+	if err := s.checkBoardsDirectory(s.boardsPath()); err != nil {
+		return failedRecoveryObservation{}, err
 	}
-	return `"recovery-` + recoveryDigest([]byte(strings.Join(parts, "\n"))) + `"`, nil
+	snapshot, err := recoveryFileFingerprint(s.snapshotPath(id))
+	if err != nil {
+		return failedRecoveryObservation{}, err
+	}
+	reference, err := recoveryFileFingerprint(s.recoveryReferencePath(id))
+	if err != nil {
+		return failedRecoveryObservation{}, err
+	}
+	return failedRecoveryObservation{snapshot, reference}, nil
+}
+
+func (o failedRecoveryObservation) tag(writer, id string) string {
+	return `"recovery-` + recoveryDigest([]byte(strings.Join([]string{writer, id, o.snapshot, o.reference}, "\n"))) + `"`
 }
 
 func recoveryFileFingerprint(path string) (string, error) {
@@ -112,23 +129,35 @@ func (x *request) recoverFailedBoard(id string) {
 	x.respond(http.StatusCreated, result.Board, result.Board.entityTag())
 }
 
-func (s *store) recoverFailed(id, mode, actor, expected string, source snapshot, attachmentData func(attachment) ([]byte, error)) (snapshot, error) {
+// Reservation is scoped to this failed source and its optional new address. It
+// keeps other recoveries and ordinary creation out of these paths during I/O.
+func (s *store) reserveFailedRecovery(id, destination, actor string) (func(), error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.writable(); err != nil {
-		return snapshot{}, err
+		return nil, err
 	}
 	if actor != humanID || !s.isFailedBoardLocked(id) {
-		return snapshot{}, errMissing
+		return nil, errMissing
 	}
-	tag, err := s.failedRecoveryTagLocked(id)
-	if err != nil {
-		return snapshot{}, err
+	if s.recovering[id] || s.recovering[destination] {
+		return nil, errIdentityConflict
 	}
-	// Wildcards cannot stand in for inspecting this failure.
-	if expected != tag {
-		return snapshot{}, errStale
+	if destination != id {
+		if _, exists := s.boards[destination]; exists || s.isFailedBoardLocked(destination) {
+			return nil, errIdentityConflict
+		}
 	}
+	s.recovering[id], s.recovering[destination] = true, true
+	return func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		delete(s.recovering, id)
+		delete(s.recovering, destination)
+	}, nil
+}
+
+func (s *store) recoverFailed(id, mode, actor, expected string, source snapshot, attachmentData func(attachment) ([]byte, error)) (snapshot, error) {
 	if err := validateSnapshot(source, id); err != nil {
 		return snapshot{}, err
 	}
@@ -136,55 +165,8 @@ func (s *store) recoverFailed(id, mode, actor, expected string, source snapshot,
 		return snapshot{}, invalid("mode", "Choose same_id or fresh explicitly.")
 	}
 	next := cloneSnapshot(source)
-	previousRevision := source.Board.Revision
-	now := maxCardTime(canonicalTime(time.Now()), source.Board.UpdatedAt)
 	var sourceBoardID *string
-	var trustedContext recoveryContext
-	snapshotFingerprint, err := recoveryFileFingerprint(s.snapshotPath(id))
-	if err != nil {
-		return snapshot{}, err
-	}
-	if mode == "same_id" {
-		context, trusted := s.failedRecoveryContextLocked(id)
-		if !trusted {
-			return snapshot{}, errForbidden
-		}
-		authorized := false
-		for _, principal := range s.principals {
-			if principal.ID == actor {
-				for _, allowed := range context.RestoreActors {
-					authorized = authorized || allowed == (recoveryActor{actor, principal.Kind})
-				}
-			}
-		}
-		if !authorized {
-			return snapshot{}, errForbidden
-		}
-		if _, err := readSnapshotFile(s.snapshotPath(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return snapshot{}, errInvalidSnapshot
-		}
-		if source.Board.CreatedAt != context.CreatedAt {
-			return snapshot{}, errIdentityConflict
-		}
-		trustedContext = context
-		previousRevision = context.RevisionFloor
-		now = maxCardTime(now, context.UpdatedAt)
-		// Readable state can establish an additional revision and immutable-identity floor.
-		if durable, err := readSnapshot(s.snapshotPath(id), id); err == nil {
-			if durable.Board.CreatedAt != context.CreatedAt {
-				return snapshot{}, errIdentityConflict
-			}
-			previousRevision = max(previousRevision, durable.Board.Revision)
-			if err := recoveryCommentsCompatible(durable.Comments, next.Comments); err != nil {
-				return snapshot{}, err
-			}
-			for _, item := range next.Attachments {
-				if err := recoveryAttachmentCompatible(durable, item); err != nil {
-					return snapshot{}, err
-				}
-			}
-		}
-	} else {
+	if mode == "fresh" {
 		sourceBoardID = &id
 		var err error
 		next, err = freshRecoverySnapshot(source)
@@ -201,12 +183,73 @@ func (s *store) recoverFailed(id, mode, actor, expected string, source snapshot,
 		}
 		attachmentData = func(item attachment) ([]byte, error) { return readSource(originals[item.ID]) }
 	}
+
+	s.recoveryIO.RLock()
+	defer s.recoveryIO.RUnlock()
+	release, err := s.reserveFailedRecovery(id, next.Board.ID, actor)
+	if err != nil {
+		return snapshot{}, err
+	}
+	defer release()
+	observed, err := s.observeFailedRecovery(id)
+	if err != nil {
+		return snapshot{}, err
+	}
+	// Wildcards cannot stand in for inspecting this failure.
+	if expected != observed.tag(s.activityWriterID, id) {
+		return snapshot{}, errStale
+	}
+
+	previousRevision := source.Board.Revision
+	now := maxCardTime(canonicalTime(time.Now()), source.Board.UpdatedAt)
+	var trustedContext recoveryContext
+	if mode == "same_id" {
+		s.mu.RLock()
+		context, trusted := s.failedRecoveryContextLocked(id)
+		s.mu.RUnlock()
+		if !trusted || !slices.Contains(context.RestoreActors, recoveryActor{actor, "human"}) {
+			return snapshot{}, errForbidden
+		}
+		if source.Board.CreatedAt != context.CreatedAt {
+			return snapshot{}, errIdentityConflict
+		}
+		trustedContext = context
+		previousRevision = context.RevisionFloor
+		now = maxCardTime(now, context.UpdatedAt)
+		// Readable state can establish an additional revision and immutable-identity floor.
+		path := s.snapshotPath(id)
+		file, err := readSnapshotFile(path)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return snapshot{}, errInvalidSnapshot
+		}
+		if err == nil {
+			if err := checkNamedSnapshot(path, file); err != nil {
+				return snapshot{}, err
+			}
+			if durable, err := parseSnapshot(file.data, id); err == nil {
+				if durable.Board.CreatedAt != context.CreatedAt {
+					return snapshot{}, errIdentityConflict
+				}
+				previousRevision = max(previousRevision, durable.Board.Revision)
+				if err := recoveryCommentsCompatible(durable.Comments, next.Comments); err != nil {
+					return snapshot{}, err
+				}
+				for _, item := range next.Attachments {
+					if err := recoveryAttachmentCompatible(durable, item); err != nil {
+						return snapshot{}, err
+					}
+				}
+			}
+		}
+	}
 	// A quarantined board has no accepted publishing settings to authorize
 	// scheduling a worker from source history.
 	next.Board.Publishing = publishing{}
 	// Existing workspace users retain their canonical presentation. Verified
 	// source-only users are admitted with the recovered board.
+	s.mu.RLock()
 	known := s.globalUsers(nil)
+	s.mu.RUnlock()
 	for i, member := range next.Users {
 		if current, exists := known[member.ID]; exists {
 			if current.Kind != member.Kind {
@@ -231,11 +274,21 @@ func (s *store) recoverFailed(id, mode, actor, expected string, source snapshot,
 		Revision: next.Board.Revision, At: now, ActorID: actor, Operation: recoveryOperation,
 		ResourceType: "board", ResourceID: next.Board.ID, Field: &field, Before: &before, After: &after})
 	next.Board.Attention, next.Board.LastCardEditAt = deriveAttention(next)
-	data, err := s.prepareCommit(next, false)
+	if err := validateSnapshot(next, next.Board.ID); err != nil {
+		return snapshot{}, err
+	}
+	data, err := snapshotCommitBytes(next)
 	if err != nil {
 		return snapshot{}, err
 	}
-	// Check all bytes before publishing any attachment or snapshot.
+	s.mu.RLock()
+	err = s.checkIdentities(next, false)
+	s.mu.RUnlock()
+	if err != nil {
+		return snapshot{}, err
+	}
+	// Check all bytes before publishing any attachment or snapshot. The failed
+	// address remains reserved while healthy boards serve reads and writes.
 	for _, item := range next.Attachments {
 		var data []byte
 		var err error
@@ -249,11 +302,43 @@ func (s *store) recoverFailed(id, mode, actor, expected string, source snapshot,
 		}
 	}
 	return s.publishRecoveredSnapshot(next, attachmentData, func() error {
-		current, err := s.failedRecoveryTagLocked(id)
+		return s.commitFailedRecovery(id, next, data, observed, trustedContext)
+	})
+}
+
+func (s *store) commitFailedRecovery(id string, next snapshot, data []byte, observed failedRecoveryObservation, trustedContext recoveryContext) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// A previous unrelated uncertain write cannot make this recovery uncertain:
+	// its snapshot has not started publication, so its new bytes can be cleaned.
+	if err := s.writable(); err != nil {
+		return errInvalidSnapshot
+	}
+	if !s.isFailedBoardLocked(id) {
+		return errStale
+	}
+	known := s.globalUsers(nil)
+	for _, member := range next.Users {
+		if current, exists := known[member.ID]; exists && current != member {
+			return errIdentityConflict
+		}
+	}
+	if err := s.checkIdentities(next, false); err != nil {
+		return err
+	}
+
+	checkFailure := func() error {
+		current, err := s.observeFailedRecovery(id)
 		if err != nil {
 			return err
 		}
-		if current != tag {
+		if current != observed {
+			return errStale
+		}
+		return nil
+	}
+	if next.Board.ID == id {
+		if s.collidesWithHealthyBoardID(id) || !reflect.DeepEqual(s.recoveryContexts[id], trustedContext) {
 			return errStale
 		}
 		return s.writeCommitChecked(next, data, func() error {
@@ -261,33 +346,23 @@ func (s *store) recoverFailed(id, mode, actor, expected string, source snapshot,
 			if err != nil {
 				return err
 			}
-			if current != snapshotFingerprint {
+			if current != observed.snapshot {
 				return errStale
 			}
-			if mode == "same_id" {
-				ref, valid := s.readRecoveryReference(id)
-				proposed := recoveryContextFor(next, data)
-				if !valid || !reflect.DeepEqual(ref.Committed, trustedContext) ||
-					ref.Pending == nil || !reflect.DeepEqual(*ref.Pending, proposed) {
-					return errStale
-				}
-			} else {
-				current, err := s.failedRecoveryTagLocked(id)
-				if err != nil {
-					return err
-				}
-				if current != tag {
-					return errStale
-				}
-				for _, path := range []string{s.snapshotPath(next.Board.ID), s.recoveryReferencePath(next.Board.ID), s.notificationRoutePath(next.Board.ID)} {
-					if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
-						return errIdentityConflict
-					}
-				}
-			}
 			return nil
-		})
-	})
+		}, checkFailure)
+	}
+	return s.writeCommitChecked(next, data, func() error {
+		if err := checkFailure(); err != nil {
+			return err
+		}
+		for _, path := range []string{s.snapshotPath(next.Board.ID), s.recoveryReferencePath(next.Board.ID), s.notificationRoutePath(next.Board.ID)} {
+			if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+				return errIdentityConflict
+			}
+		}
+		return nil
+	}, nil)
 }
 
 // Fresh recovery replaces only typed identities. User text and historical
@@ -398,6 +473,9 @@ func remapRecoveryIDs(value any, ids map[string]string) {
 						if text, ok := raw.(string); ok && ids[text] != "" {
 							values[i] = ids[text]
 						}
+					}
+					if key == "child_ids" {
+						slices.SortFunc(values, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
 					}
 				}
 			}

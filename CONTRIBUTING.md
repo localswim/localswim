@@ -371,7 +371,8 @@ Both modes start with publishing disabled and record `publishing_reset` in
 recovery audit. The existing same-ID publication checkpoint is preserved. Use
 the publishing settings command to enable delivery explicitly after recovery.
 Both modes validate the full policy, audit and active and detached attachment
-inventory before committing through the existing workspace writer. A mismatched
+inventory before committing through the existing workspace writer. Healthy
+boards remain readable and writable while recovery prepares attachment bytes. A mismatched
 source refuses. Known refusals retain repairable state. After a lost or unusable
 response, inspect `board list` and `board verify BOARD_ID` before deciding whether
 to submit again. The response contains the actual restored board UUID and revision.

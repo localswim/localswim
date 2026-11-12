@@ -9680,8 +9680,8 @@ paths:
         Fresh recovery retains source_board_id in the recovery audit. Both modes disable publishing
         and record publishing_reset in the recovery audit. Same-ID recovery retains its checkpoint.
         Validate policy, complete audit and all active and detached attachments before replacing
-        state. The existing workspace writer owns the entire operation. Refusals retain a repairable
-        failure. Lost or unusable replies have unknown outcomes; inspect board list and verification
+        state. The existing workspace writer reserves the source and destination during attachment
+        preparation and keeps other boards available. Refusals retain a repairable failure. Lost or unusable replies have unknown outcomes; inspect board list and verification
         before issuing another recovery. A successful response identifies the restored board.
       requestBody:
         required: true

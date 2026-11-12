@@ -3,6 +3,7 @@ package v2
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -10,8 +11,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func restartFailedRecovery(t *testing.T, initial *Service, human turnOneClient, id string, removeReference bool) (*Service, turnOneClient) {
@@ -252,5 +255,166 @@ func TestM84QuarantinedRecoveryDisablesSourcePublishing(t *testing.T) {
 	evidence, ok := recoveryEventEvidence(durable.Activity[len(durable.Activity)-1])
 	if !ok || !evidence.PublishingReset {
 		t.Fatal("durable audit did not record the publishing reset")
+	}
+}
+
+func TestM84FreshRecoverySortsRemappedChildren(t *testing.T) {
+	originalFirst, originalSecond := "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"
+	newFirst, newSecond := "10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002"
+	card := map[string]any{"child_ids": []any{originalFirst, originalSecond}, "title": originalFirst}
+	remapRecoveryIDs(card, map[string]string{originalFirst: newSecond, originalSecond: newFirst})
+	if !reflect.DeepEqual(card["child_ids"], []any{newFirst, newSecond}) || card["title"] != originalFirst {
+		t.Fatal("fresh recovery did not sort remapped children while preserving card prose")
+	}
+}
+
+func TestM84RecoveryReferenceReplacementGuards(t *testing.T) {
+	for _, stage := range []string{"before pending", "after pending", "unchanged pending"} {
+		t.Run(stage, func(t *testing.T) {
+			app, human := attachmentHTTPServer(t)
+			raw, _ := human.call("POST", "/boards", `{"name":"Recovery reference guard"}`, "", 201)
+			b := turnOneDecode[board](t, raw)
+			s := app.store
+			source, _ := s.accepted(b.ID)
+			originalSnapshot, err := os.ReadFile(s.snapshotPath(b.ID))
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := s.recoveryReferencePath(b.ID)
+			originalReference, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			externalReference := []byte("external reference observation\n")
+			wanted := externalReference
+			if stage == "unchanged pending" {
+				wanted = originalReference
+			}
+			next := cloneSnapshot(source)
+			next.Board.Revision++
+			data := mustSnapshotJSON(t, next)
+			beforePending := func() error {
+				if stage == "before pending" {
+					if err := writeAtomic(path, externalReference); err != nil {
+						return err
+					}
+				}
+				current, err := os.ReadFile(path)
+				if err != nil {
+					return err
+				}
+				if !bytes.Equal(current, originalReference) {
+					return errStale
+				}
+				return nil
+			}
+			beforeSnapshot := func() error {
+				ref, valid := s.readRecoveryReference(b.ID)
+				if !valid || ref.Pending == nil {
+					return errors.New("fixture did not observe writer's pending proposal")
+				}
+				if stage == "after pending" {
+					return writeAtomic(path, externalReference)
+				}
+				return errStale
+			}
+			s.mu.Lock()
+			err = s.writeSnapshotWithRecoveryReference(next, data, beforeSnapshot, beforePending)
+			s.mu.Unlock()
+			if !errors.Is(err, errStale) {
+				t.Fatalf("expected stale refusal, got %v", err)
+			}
+			afterSnapshot, err := os.ReadFile(s.snapshotPath(b.ID))
+			if err != nil || !bytes.Equal(originalSnapshot, afterSnapshot) {
+				t.Fatal("refused write replaced snapshot")
+			}
+			afterReference, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(wanted, afterReference) {
+				t.Fatal("refusal replaced independently changed reference or failed to roll back its own proposal")
+			}
+		})
+	}
+}
+
+func TestM84RecoveryAttachmentIOLeavesNeighborWritable(t *testing.T) {
+	for _, drift := range []bool{false, true} {
+		t.Run(fmt.Sprint(drift), func(t *testing.T) {
+			initial, human, source, contents := backupCaptureFixture(t)
+			raw, healthyHeaders := human.call("POST", "/boards", `{"name":"Healthy during staging"}`, "", 201)
+			healthy := turnOneDecode[board](t, raw)
+			app, human := restartFailedRecovery(t, initial, human, source.Board.ID, false)
+			_, headers := human.call("GET", "/verifications/"+source.Board.ID, "", "", 200)
+			tag := headers.Get("ETag")
+			for _, item := range source.Attachments {
+				if err := os.Remove(filepath.Join(app.store.root, attachmentPath(item))); err != nil {
+					t.Fatal(err)
+				}
+			}
+			paused := make(chan struct{})
+			resume := make(chan struct{})
+			defer func() {
+				if resume != nil {
+					close(resume)
+				}
+			}()
+			// Verify every member first. Pause the first apply read, when the
+			// recovery owns the failed ID but has yet to write its new bytes.
+			reads := 0
+			result := make(chan error, 1)
+			continueApply := resume
+			go func() {
+				_, err := app.store.recoverFailed(source.Board.ID, "same_id", humanID, tag, source, func(item attachment) ([]byte, error) {
+					reads++
+					if reads == len(source.Attachments)+1 {
+						close(paused)
+						<-continueApply
+					}
+					return contents[filepath.ToSlash(attachmentPath(item))], nil
+				})
+				result <- err
+			}()
+			select {
+			case <-paused:
+			case err := <-result:
+				t.Fatalf("recovery failed before pausing: %v", err)
+			case <-time.After(3 * time.Second):
+				t.Fatal("recovery did not reach apply read")
+			}
+			neighbor := human
+			neighbor.client = &http.Client{Timeout: 3 * time.Second}
+			neighbor.call("GET", "/boards/"+healthy.ID, "", "", 200)
+			neighbor.call("PATCH", "/boards/"+healthy.ID, `{"name":"Neighbor edit committed"}`, healthyHeaders.Get("ETag"), 200)
+			if _, err := app.store.reserveFailedRecovery(source.Board.ID, source.Board.ID, humanID); !errors.Is(err, errIdentityConflict) {
+				t.Fatalf("concurrent recovery entered the same failed address: %v", err)
+			}
+			external := []byte("changed while attachments staged")
+			referencePath := app.store.recoveryReferencePath(source.Board.ID)
+			if drift {
+				if err := writeAtomic(referencePath, external); err != nil {
+					t.Fatal(err)
+				}
+			}
+			close(resume)
+			resume = nil
+			select {
+			case err := <-result:
+				if drift && !errors.Is(err, errStale) || !drift && err != nil {
+					t.Fatalf("unexpected recovery result: %v", err)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("recovery did not finish after resuming")
+			}
+			if drift {
+				saved, err := os.ReadFile(referencePath)
+				if err != nil || !bytes.Equal(saved, external) {
+					t.Fatal("stale recovery changed external reference")
+				}
+				for _, item := range source.Attachments {
+					if _, err := os.Stat(filepath.Join(app.store.root, attachmentPath(item))); !errors.Is(err, os.ErrNotExist) {
+						t.Fatal("stale recovery retained new attachment bytes")
+					}
+				}
+			}
+		})
 	}
 }

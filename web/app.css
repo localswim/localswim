@@ -96,6 +96,9 @@ main { flex: 1; min-width: 0; }
 .card[draggable="true"] { cursor: grab; }
 .card[data-dragging="true"] { opacity: 0.65; cursor: grabbing; }
 .card-priority { display: block; margin-top: 0.2rem; }
+.card[data-pending=true] { border: 1px dashed #647a95; background: #edf3fb; cursor: default; overflow-wrap: anywhere; }
+div.card[data-pending=true] { padding: 0.35rem 0.55rem; }
+.card-pending-label { display: block; color: #455973; font-weight: 650; margin-block-start: 0.2rem; }
 .lane form { margin-bottom: 0.5rem; }
 .editor { margin: 0.7rem 0; }
 .editor form, #details form { display: grid; gap: 0.45rem; margin: 0.7rem 0; }

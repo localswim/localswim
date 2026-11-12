@@ -238,7 +238,7 @@ function Assert-StaleCapability([string]$Token) {
 }
 
 function Assert-SavedCard($Expected, [string]$Token) {
-    $saved = Invoke-FixtureCli @('card', 'get', $Expected.id) $Token
+    $saved = Invoke-FixtureCli @('card', 'get', $Expected.board_id, $Expected.id) $Token
     if ($saved.id -cne $Expected.id -or $saved.board_id -cne $Expected.board_id -or
         $saved.ticket -ne $Expected.ticket -or $saved.title -cne $Expected.title -or $saved.revision -ne $Expected.revision) {
         throw 'Fixture card identity or durable revision changed.'
@@ -275,7 +275,7 @@ try {
     try {
         $initial = Invoke-FixtureCli @('service', 'status') $bot
         $initialBrowser = Get-BrowserCapability $initial.api_version
-        $board = Invoke-FixtureCli @('board', 'create', '--name', 'M93 disposable board', '--preset', 'terry') $human
+        $board = Invoke-FixtureCli @('board', 'create', '--preset', 'terry', 'name', 'M93 disposable board') $human
         $lane = (Invoke-FixtureCli @('board', 'get', '--view', 'lanes', $board.id) $bot).lanes |
             Where-Object key -CEQ 'backlog'
         $card = Invoke-FixtureCli @('card', 'create', $board.id, $lane.id, 'Durable before crash') $bot
@@ -300,7 +300,7 @@ try {
     Assert-StaleCapability $initialBrowser
     $recoveredBrowser = Get-BrowserCapability $recovered.api_version
     Assert-SavedCard $card $recoveredBrowser
-    $edit = Invoke-FixtureCli @('card', 'title', $card.id, 'Durable before activation') $bot
+    $edit = Invoke-FixtureCli @('card', 'title', $board.id, $card.id, 'Durable before activation') $bot
     Assert-CardWrite $edit $board.id 'Durable before activation' $card
 
     $phase = 'staged activation'
@@ -337,7 +337,7 @@ try {
     Assert-StaleCapability $recoveredBrowser
     $activatedBrowser = Get-BrowserCapability $activated.api_version
     Assert-SavedCard $edit $activatedBrowser
-    $last = Invoke-FixtureCli @('card', 'title', $card.id, 'Written after activation') $bot
+    $last = Invoke-FixtureCli @('card', 'title', $board.id, $card.id, 'Written after activation') $bot
     Assert-CardWrite $last $board.id 'Written after activation' $edit
     Assert-SavedCard $last $bot
 

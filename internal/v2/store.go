@@ -139,11 +139,7 @@ func (s *store) load() error {
 		s.boards[id] = value
 		loadedIDs = append(loadedIDs, id)
 	}
-	for _, id := range referenceIDs {
-		if _, loaded := s.boards[id]; !loaded && !s.isFailedBoard(id) {
-			s.failedBoards[id] = os.ErrNotExist
-		}
-	}
+
 	// Detect workspace-wide conflicts before excluding any structurally valid
 	// snapshots, including boards that may later lose recovery actor evidence.
 	known := s.globalUsers(nil)
@@ -160,17 +156,18 @@ func (s *store) load() error {
 	if err != nil {
 		return err
 	}
-	if err := s.checkStartupRecoveryActors(loadedIDs); err != nil {
+	hasFailedSnapshot := len(s.failedBoards) != 0
+	hasMissingSnapshot := s.reserveMissingSnapshots(referenceIDs)
+	if err := s.checkStartupRecoveryActors(loadedIDs, hasFailedSnapshot || hasMissingSnapshot); err != nil {
 		return err
 	}
 	s.finishStartupRecoveryReferences(backfill)
 	return s.checkBoardsDirectory(dir)
 }
 
-func (s *store) checkStartupRecoveryActors(ids []string) error {
+func (s *store) checkStartupRecoveryActors(ids []string, hasFailedSnapshot bool) error {
 	// An observed snapshot failure can explain missing evidence. A missing
 	// definition alone cannot establish that any saved board failed to load.
-	hasFailedSnapshot := len(s.failedBoards) != 0
 	for {
 		known := s.globalUsers(nil)
 		removed := false

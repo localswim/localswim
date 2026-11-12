@@ -180,6 +180,22 @@ func (s *store) checkStartupRecoveryReferences(ids []string) (map[string]recover
 	return backfill, nil
 }
 
+func (s *store) reserveMissingSnapshots(ids []string) bool {
+	trustedMissing := false
+	for _, id := range ids {
+		if _, loaded := s.boards[id]; loaded || s.isFailedBoard(id) {
+			continue
+		}
+		// The filename reserves the identity. Only a settled, noncolliding
+		// reference establishes that a committed snapshot went missing.
+		s.failedBoards[id] = os.ErrNotExist
+		if ref, valid := s.readRecoveryReference(id); valid && ref.Pending == nil && !s.collidesWithHealthyBoardID(id) {
+			trustedMissing = true
+		}
+	}
+	return trustedMissing
+}
+
 func (s *store) finishStartupRecoveryReferences(backfill map[string]recoveryContext) {
 	for id, current := range backfill {
 		if _, admitted := s.boards[id]; admitted {

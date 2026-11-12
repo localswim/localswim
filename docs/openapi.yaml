@@ -14525,7 +14525,8 @@ components:
           revision_floor:
             allOf:
             - $ref: '#/components/schemas/Revision'
-            - maximum: 9007199254740990
+            - minimum: 1
+              maximum: 9007199254740990
             description: Last trusted committed revision. A same-ID recovery must advance beyond it.
       - type: object
         additionalProperties: false

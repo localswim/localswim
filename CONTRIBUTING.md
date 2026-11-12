@@ -316,7 +316,9 @@ after the snapshot goes missing. The catalog identifies the affected UUID by
 filename and reports `durable_state_unavailable`. The service reserves that UUID
 and serves other boards normally. The service checks the snapshot again at the
 next startup. A startup failure that leaves another board without trusted
-evidence for a historical recovery actor also produces a diagnostic. Workspace
+evidence for a historical recovery actor also produces a diagnostic. An orphan
+reference can establish that a committed snapshot is missing only while the
+reference is intact, settled, and free of healthy identity collisions. Workspace
 directory or snapshot namespace damage and conflicting identities among
 structurally valid boards still prevent startup. Bot workspace preferences omit
 diagnostic pins and preserve them when saving visible pin order.

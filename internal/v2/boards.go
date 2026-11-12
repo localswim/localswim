@@ -342,7 +342,8 @@ func (x *request) policyResource(id string) {
 func (x *request) recoveryResource(resource, id string) {
 	store := x.service.store
 	if resource == "verifications" && store.canSeeFailedBoard(id, x.actor) {
-		x.respond(http.StatusOK, store.failedBoardVerification(id), "")
+		report, tag, _ := store.failedRecoveryVerification(id)
+		x.respond(http.StatusOK, report, tag)
 		return
 	}
 	s, ok := store.accepted(id)

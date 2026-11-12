@@ -25,6 +25,8 @@ func (s *store) canSeeFailedBoard(id, actor string) bool {
 }
 
 func (s *store) appendFailedBoardSummaries(rows []boardSummary, actor string) []boardSummary {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	// A failed snapshot cannot establish board membership. The diagnostic is
 	// visible to the Human workspace administrator.
 	if actor == humanID {

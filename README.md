@@ -82,6 +82,10 @@ with status 0. An invalid report exits with status 1 and includes the issues.
 For a board quarantined at startup, the live report is available to the Human
 workspace administrator. Its `recovery` field gives `same_id` with a trusted
 `revision_floor` or `fresh_only` if same-ID continuity cannot be established.
+Use `board recover --mode same_id BOARD_ID FILE|-` with a verified native snapshot
+or ZIP to preserve a trusted identity. Explicit `--mode fresh` creates a new board
+identity, keeps the original failure available, and starts publishing disabled.
+Inspect `board list` and verification after an uncertain reply before another attempt.
 
 Add `--data DIRECTORY` before the board ID on `card triage-order`, `card search`,
 `card inspect`, or `comment list` to use the same report against the saved

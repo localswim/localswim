@@ -353,6 +353,26 @@ and the identity remains free of healthy-board collisions. It reports
 does not expose actor grants or change the snapshot or reference. These reports
 establish the recovery point for a separately authorized recovery operation.
 
+Use `board recover --mode same_id BOARD_ID FILE|-` for a startup-quarantined
+board with trusted continuity. The Human workspace administrator supplies a
+verified native JSON snapshot or ZIP backup for that board. The command reads
+the current recovery diagnostic and uses its exact ETag once. Same-ID recovery
+requires the unchanged, settled local reference, matching creation identity,
+an eligible runtime restore actor and collision-free identity. The committed
+revision exceeds the source, trusted local and readable durable revisions.
+
+Use `board recover --mode fresh BOARD_ID FILE|-` explicitly when continuity is
+unavailable. Recovery creates a new board UUID and new board-owned resource and
+audit UUIDs. Global user identities and exact user text are preserved. Publishing
+starts disabled on the new board. The original failed snapshot and diagnostic
+remain available. The recovery audit records `source_board_id` as provenance.
+
+Both modes validate the full policy, audit and active and detached attachment
+inventory before committing through the existing workspace writer. A mismatched
+source refuses. Known refusals retain repairable state. After a lost or unusable
+response, inspect `board list` and `board verify BOARD_ID` before deciding whether
+to submit again. The response contains the actual restored board UUID and revision.
+
 Native recovery accepts JSON snapshots or application/zip backups at the existing board address.
 JSON request entities have an inclusive 96 MiB limit. Downloaded ZIP backups
 use a disk-backed upload with a separate inclusive archive limit of 4,690,487,017,647

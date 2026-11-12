@@ -25,6 +25,7 @@ type recoveryEvidence struct {
 	PreviousRevision uint64  `json:"previous_revision"`
 	BackupID         *string `json:"backup_id"`
 	ActorKind        string  `json:"actor_kind"`
+	SourceBoardID    *string `json:"source_board_id,omitempty"`
 }
 
 type restoration struct {
@@ -53,7 +54,8 @@ func validRecoveryAudit(event activity, boardID string, sourceRevision uint64, m
 		(member.ID == "" || member.Kind == evidence.ActorKind) &&
 		event.Revision == max(evidence.SourceRevision, evidence.PreviousRevision)+1 &&
 		*event.Before == strconv.FormatUint(evidence.PreviousRevision, 10) &&
-		(evidence.BackupID == nil || validSnapshotOperationID(*evidence.BackupID))
+		(evidence.BackupID == nil || validSnapshotOperationID(*evidence.BackupID)) &&
+		(evidence.SourceBoardID == nil || (validSnapshotID(*evidence.SourceBoardID) && *evidence.SourceBoardID != boardID))
 }
 
 // Recovery replaces board-owned state while reusing the current global user
@@ -159,7 +161,7 @@ func (s *store) recoverSnapshot(boardID, actor, eventID string, matches func(sna
 	next.Board.UpdatedAt = now
 	restampRecoveryVersions(&next)
 	actorIndex := slices.IndexFunc(current.Users, func(member user) bool { return member.ID == actor })
-	evidence, err := marshalCanonical(recoveryEvidence{candidate.Board.Revision, previousRevision, backupID, current.Users[actorIndex].Kind})
+	evidence, err := marshalCanonical(recoveryEvidence{SourceRevision: candidate.Board.Revision, PreviousRevision: previousRevision, BackupID: backupID, ActorKind: current.Users[actorIndex].Kind})
 	if err != nil {
 		return snapshot{}, err
 	}
@@ -193,6 +195,14 @@ func (s *store) recoverSnapshot(boardID, actor, eventID string, matches func(sna
 			}
 		}
 	}
+	return s.publishRecoveredSnapshot(next, attachmentData, func() error {
+		return s.commit(next, false, nil)
+	})
+}
+
+// All callers hold the writer lock and validate the full candidate before files
+// are published. Uncertain commits retain newly published immutable bytes.
+func (s *store) publishRecoveredSnapshot(next snapshot, attachmentData func(attachment) ([]byte, error), commit func() error) (snapshot, error) {
 	published := []*publishedAttachment{}
 	committed := false
 	defer func() {
@@ -221,7 +231,7 @@ func (s *store) recoverSnapshot(boardID, actor, eventID string, matches func(sna
 			}
 		}
 	}
-	if err := s.commit(next, false, nil); err != nil {
+	if err := commit(); err != nil {
 		committed = errors.Is(err, errWriteUncertain)
 		return snapshot{}, err
 	}

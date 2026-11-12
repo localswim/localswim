@@ -68,6 +68,7 @@ type cliCommand struct {
 	serviceAction                      string
 	serviceResourceID                  string
 	serviceActivationID                string
+	recoveryMode                       string
 	backupVerifyPath                   string
 }
 
@@ -112,6 +113,9 @@ func parseCLI(args []string) (cliCommand, error) {
 	}
 
 	name := args[0] + " " + args[1]
+	if name == "board recover" {
+		return parseBoardRecovery(args[2:])
+	}
 	optionArgs := args[2:]
 	if name == "backup verify" {
 		flags := flag.NewFlagSet(name, flag.ContinueOnError)
@@ -470,6 +474,9 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 	api, err := client.New(getenv("LOCALSWIM_URL"), getenv("LOCALSWIM_TOKEN"))
 	if err != nil {
 		return err
+	}
+	if command.recoveryMode != "" {
+		return executeBoardRecovery(api, command, stdin, stdout)
 	}
 	if command.ticketRelationship != nil {
 		return executeTicketRelationshipCommand(api, command, stdout)

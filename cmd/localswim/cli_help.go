@@ -28,6 +28,7 @@ const commandUsage = `Usage:
   localswim board notifications enable [--revision N] BOARD_ID
   localswim board notifications disable [--revision N] BOARD_ID
   localswim board notifications status BOARD_ID
+  localswim board recover --mode <same_id|fresh> BOARD_ID <FILE|->
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] [--data DIRECTORY] BOARD_ID <FILE|->
   localswim card create [--revision N] <JSON_FILE|->
@@ -310,6 +311,7 @@ var commandHelpNotes = map[string]string{
 	"board create":             "Choose exactly one of --name or --json. Use --name alone for a generic workflow or --preset terry for Terry's seven-lane workflow. --json reads a full custom workflow document.",
 	"board get":                "The default returns board metadata. --view lanes returns active lanes and visible cards in lane order and requires the live service.",
 	"board verify":             "Print the full verification report. An invalid board exits 1. Verification does not change saved state.",
+	"board recover":            "Recover a board that failed startup from a verified native JSON snapshot or ZIP backup. Use same_id when trusted continuity is available or fresh to create a new board identity. Recovery leaves publishing disabled. Inspect board list and the recovery diagnostic after an unknown result.",
 	"board export":             "--type accepts json and defaults to json. Export writes the validated native snapshot.",
 	"board restore":            "Read a native JSON snapshot or ZIP backup. ZIP input streams from private staging and can exceed 96 MiB. JSON retains its 96 MiB limit. Inspect the accepted board after an uncertain result.",
 	"board close":              "Drain admitted board operations and flush enabled publishing before closing. Inspect board get after an unknown outcome.",
@@ -356,6 +358,7 @@ var commandHelpNotes = map[string]string{
 
 var commandExamples = map[string]string{
 	"board create":        "  localswim board create --name \"Pool projects\" --preset terry\n  localswim board create --json workflow.json",
+	"board recover":       "  localswim board recover --mode same_id $board backup.zip\n  localswim board recover --mode fresh $board snapshot.json",
 	"card create":         "  localswim card create --title \"Check pool hours\" $board $lane\n  localswim card create --revision 12 card.json",
 	"card inspect":        "  localswim card inspect --prose $board 12",
 	"attachment upload":   "  localswim attachment upload --revision 12 $board 17 photo.png\n  localswim attachment upload --filename photo.png $card -",

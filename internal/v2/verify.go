@@ -639,6 +639,11 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		}
 		previousRevision, previousActor = event.Revision, event.ActorID
 		if recovery {
+			evidence, _ := recoveryEventEvidence(event)
+			if evidence.SourceBoardID != nil {
+				latest[snapshotAuditField{"board", b.ID, "publishing.enabled"}] = &disabled
+				latest[snapshotAuditField{"board", b.ID, "publishing.repository"}] = nil
+			}
 			recoveryRevision = event.Revision
 			if index+1 < len(value.Activity) && value.Activity[index+1].Revision == event.Revision {
 				return invalidSnapshot("activity", "Recovery must be the only event in its revision.")

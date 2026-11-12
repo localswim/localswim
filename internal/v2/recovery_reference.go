@@ -183,7 +183,7 @@ func (s *store) checkStartupRecoveryReferences(ids []string) (map[string]recover
 func (s *store) reserveMissingSnapshots(ids []string) bool {
 	trustedMissing := false
 	for _, id := range ids {
-		if _, loaded := s.boards[id]; loaded || s.isFailedBoard(id) {
+		if _, loaded := s.boards[id]; loaded || s.isFailedBoardLocked(id) {
 			continue
 		}
 		// The filename reserves the identity. Only a settled, noncolliding
@@ -216,7 +216,7 @@ func (s *store) finishStartupRecoveryReferences(backfill map[string]recoveryCont
 // captured at startup. A file added, removed, or modified later grants nothing.
 func (s *store) failedRecoveryContextLocked(id string) (recoveryContext, bool) {
 	startup, known := s.recoveryContexts[id]
-	if !s.isFailedBoard(id) || !known || startup.RevisionFloor == maxSnapshotInteger {
+	if !s.isFailedBoardLocked(id) || !known || startup.RevisionFloor == maxSnapshotInteger {
 		return recoveryContext{}, false
 	}
 	ref, valid := s.readRecoveryReference(id)

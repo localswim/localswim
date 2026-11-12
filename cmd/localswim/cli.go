@@ -84,7 +84,7 @@ const cliHelp = `Usage:
   localswim backup create [--revision N] [--id UUID] BOARD_ID
   localswim backup info BACKUP_ID
   localswim backup download BACKUP_ID FILE|-
-  localswim backup verify FILE
+  localswim backup verify <FILE|->
   localswim card search [--search TEXT] [--search-content] [--lane ID]...
                        [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card triage-order [--search TEXT] [--search-content] [--lane ID]...
@@ -157,7 +157,8 @@ Backup create generates an ID when --id is omitted and reports it on an unknown 
 Backup info reads metadata for the supplied backup ID.
 Use backup info with the original ID after an unknown capture outcome.
 Backup download verifies its size and SHA-2-256 digest before writing a new file or stdout.
-Backup verify checks a local ZIP and writes its verification report without contacting a service.
+Backup verify checks ZIP bytes from FILE or standard input with -, without contacting a service.
+Standard input is copied to a private temporary file for verification and removed afterward.
 Activity intervals are inclusive. Quote both UTC bounds in YYYY-MM-DD HH:MM:SS+00:00.
 Activity lists sanitized edit metadata by default. Use --view full for the attributed audit.
 The CLI manages HTTP validators.
@@ -167,7 +168,7 @@ Card description reads UTF-8 text verbatim, including trailing newlines.
 Card list excludes archived cards by default. Focused card get includes them.
 Card inspect returns ticket, lane, owner, priority, and relationship metadata. Use --prose for its description and comments.
 Use card cover CARD_ID none to clear the selected cover.
-Relationship create reads source_card_id, target_card_id, kind, and optional id.
+Relationship create takes source card ID, kind, and target card ID. Use --id to supply its ID.
 Relationship patch reads kind. The CLI supplies the required validators.
 For relationship create, --revision refers to the board revision.
 For relationship patch and remove, --revision refers to the relationship revision.
@@ -278,8 +279,8 @@ func parseCLI(args []string) (cliCommand, error) {
 		if err := flags.Parse(optionArgs); err != nil {
 			return command, err
 		}
-		if flags.NArg() != 1 || flags.Arg(0) == "" || flags.Arg(0) == "-" {
-			return command, errors.New("backup verify requires one local ZIP file path")
+		if flags.NArg() != 1 || flags.Arg(0) == "" {
+			return command, errors.New("backup verify requires one ZIP file path or - for standard input")
 		}
 		command.backupVerifyPath = flags.Arg(0)
 		return command, nil
@@ -352,7 +353,7 @@ func parseCLI(args []string) (cliCommand, error) {
 		command.method, command.resource = http.MethodPost, "/boards"
 		creating = true
 		flags.StringVar(&createName, "name", "", "new board name with the default workflow")
-		flags.BoolVar(&jsonInput, "json", false, "read a new board definition from standard input")
+		flags.BoolVar(&jsonInput, "json", false, "read a new board definition from JSON_FILE or standard input with -")
 	case "board get":
 		command.method, command.resource, needBoardID = http.MethodGet, "/boards", true
 		command.nativeRead = "metadata"
@@ -574,7 +575,7 @@ func boardNameBody(name string) (json.RawMessage, error) {
 
 func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, getenv func(string) string) error {
 	if command.backupVerifyPath != "" {
-		return verifyBackupFile(command.backupVerifyPath, stdout)
+		return verifyBackupFile(command.backupVerifyPath, stdin, stdout)
 	}
 	if command.exportPath != "" {
 		return executeBoardExport(command, stdout, getenv)

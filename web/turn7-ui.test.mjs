@@ -25,6 +25,7 @@ const savedUser = (id, label, kind) => ({id, label, kind, revision: 1, created_a
 async function harness(api, pathname = "/boards/" + board, {
   openSession = async () => "capability",
   pollTimer = setTimeout,
+  catalogTimer = (signal) => new Promise((resolve) => signal.addEventListener("abort", resolve, {once: true})),
   clock = Date,
   storage = tabStorage(),
   workspaceEvents = false,
@@ -159,7 +160,8 @@ async function harness(api, pathname = "/boards/" + board, {
     HTMLButtonElement: Button, HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
     MouseEvent: class {}, location: {pathname, search: ""}, history: {}, URL, URLSearchParams,
     Blob, TextEncoder, TextDecoder, setTimeout: pollTimer, Date: clock, AbortSignal, AbortController, crypto: globalThis.crypto, ApiError, validPublishing, MAX_ATTACHMENT_BYTES, newOperationId,
-    createBoardRefresh, waitForRetry,
+    createBoardRefresh,
+    waitForRetry: (signal, delay) => delay === 15_000 ? catalogTimer(signal, delay) : waitForRetry(signal, delay),
     watchUpdates: (options) => typeof api.streamEvents === "function" && (options.board || workspaceEvents)
       ? watchUpdates(options) : Promise.resolve(),
     DEFAULT_APPROVAL_COMMENT, MAX_BULK_APPROVAL_COMMENT_LENGTH, MAX_LANE_APPROVAL_CARDS,
@@ -1703,7 +1705,7 @@ test("a clamped cover scroll survives warm confirmation and superseded paints un
   assert.equal(laneColumn().scrollTop, 75);
 });
 
-for (const recovery of ["catalog hint", "Retry Attention"]) {
+for (const recovery of ["catalog hint", "Retry Attention", "scheduled catalog check"]) {
   test("a warm catalog startup failure recovers through " + recovery, async (t) => {
     const {api} = boardApi();
     const streams = boardStreams(api);
@@ -1725,7 +1727,13 @@ for (const recovery of ["catalog hint", "Retry Attention"]) {
       return page("boards", [{id: board, name: "Selected", availability: "open",
         attention: {blocked, needs_input: 0, ready_for_review: 0}, last_card_edit_at: null}]);
     };
-    const ui = await harness(api);
+    const waits = [];
+    const ui = await harness(api, undefined, {catalogTimer: (signal) => {
+      const tick = Promise.withResolvers();
+      waits.push({...tick, signal});
+      return tick.promise;
+    }});
+    const activeWaits = () => waits.filter(({signal}) => !signal.aborted);
     t.after(ui.abortView);
     await ui.load();
     await ui.navigate("/");
@@ -1742,8 +1750,14 @@ for (const recovery of ["catalog hint", "Retry Attention"]) {
     unavailable = false;
     blocked = 2;
     if (recovery === "catalog hint") streams.at(-1).sendCatalog("snapshot");
-    else retry.click();
+    else if (recovery === "Retry Attention") retry.click();
+    else {
+      assert.equal(activeWaits().length, 1);
+      activeWaits()[0].resolve();
+    }
     await until(() => ui.title() === "(2) localswim");
+    await ui.settled();
+    assert.equal(activeWaits().length, recovery === "scheduled catalog check" ? 2 : 1);
     assert.equal(boards.querySelector("a").attributes["aria-current"], "page");
     assert.equal(ui.find(boards, "button", "Retry Attention"), undefined);
     assert.equal(ui.find(main, "button", "#1 Original"), opener);
@@ -4097,6 +4111,114 @@ test("catalog hints refresh background Attention and the tab count without repai
   assert.equal(closed.children[3].textContent, "—");
   assert.equal(closed.title, "Board closed. Card edit history unavailable");
   assert.equal(ui.focused(), draft);
+});
+
+test("scheduled catalog checks show background damage and same-revision repair without a stream hint", async (t) => {
+  const {api} = boardApi();
+  const selected = {id: board, name: "Selected", revision: 1, availability: "open",
+    attention: {blocked: 0, needs_input: 0, ready_for_review: 0}, last_card_edit_at: null, error_code: null};
+  const background = {...selected, id: backup, name: "Background",
+    attention: {...selected.attention, ready_for_review: 2}};
+  let rows = [selected, background];
+  let requests = 0;
+  const pending = Promise.withResolvers();
+  const readStarted = Promise.withResolvers();
+  api.listBoards = async (_cursor, signal) => {
+    if (++requests === 3) {
+      readStarted.resolve(signal);
+      await pending.promise;
+    }
+    return page("boards", rows);
+  };
+  const waits = [];
+  const ui = await harness(api, "/boards/" + board, {catalogTimer: (signal, delay) => {
+    const tick = Promise.withResolvers();
+    waits.push({...tick, signal, delay});
+    return tick.promise;
+  }});
+  t.after(ui.abortView);
+  await ui.load();
+  const row = () => ui.nodes.boards.querySelectorAll("a").find((link) => link.dataset.boardId === backup);
+  const healthyRow = row();
+  assert.equal(healthyRow.children[3].textContent, "2");
+  assert.equal(ui.title(), "(2) localswim");
+
+  assert.equal(waits[0].delay, 15_000);
+  waits[0].resolve();
+  await until(() => waits.length === 2);
+  assert.equal(row(), healthyRow);
+
+  rows = [selected, {...background, availability: "unhealthy", attention: null,
+    error_code: "durable_state_unavailable"}];
+  waits[1].resolve();
+  const readSignal = await readStarted.promise;
+  assert.equal(waits.length, 2, "a pending catalog read must not schedule another poll");
+  assert.equal(readSignal.aborted, false);
+  pending.resolve();
+  await until(() => waits.length === 3);
+  assert.match(row().title, /Board unhealthy/);
+  assert.deepEqual(row().children.slice(1, 4).map((slot) => slot.textContent), ["—", "—", "—"]);
+  assert.equal(ui.title(), "localswim");
+  assert.equal(ui.nodes.main.querySelector("#board-durable-health").hidden, true);
+
+  rows = [selected, background];
+  waits[2].resolve();
+  await until(() => waits.length === 4);
+  assert.equal(row().children[3].textContent, "2");
+  assert.equal(ui.title(), "(2) localswim");
+  ui.abortView();
+  assert.equal(waits[3].signal.aborted, true);
+  waits[3].resolve();
+  await ui.settled();
+  assert.equal(requests, 4);
+});
+
+test("selected durable health uses the catalog and preserves the open drawer and recovery controls", async (t) => {
+  const {api} = boardApi();
+  const healthy = {id: board, name: "Board", revision: 1, availability: "open",
+    attention: {blocked: 0, needs_input: 0, ready_for_review: 0}, last_card_edit_at: null, error_code: null};
+  let selected = healthy;
+  api.listBoards = async () => page("boards", [selected]);
+  const waits = [];
+  const ui = await harness(api, "/boards/" + board, {catalogTimer: () => {
+    const tick = Promise.withResolvers();
+    waits.push(tick);
+    return tick.promise;
+  }});
+  t.after(ui.abortView);
+  await ui.load();
+  const {main, details} = ui.nodes;
+  const health = main.querySelector("#board-durable-health");
+  const restore = ui.find(main, "button", "Restore native backup");
+  assert.ok(restore);
+  assert.equal(health.hidden, true);
+  ui.find(main, "button", "#1 Original").click();
+  await until(() => ui.field(details, "Comment"));
+  const draft = ui.field(details, "Comment");
+  draft.value = "Draft during repair";
+  draft.focus();
+
+  selected = {...healthy, revision: 2, availability: "unhealthy", attention: null, error_code: "durable_state_changed"};
+  waits[0].resolve();
+  await until(() => !health.hidden);
+  assert.match(health.textContent, /differs from the last accepted state\. Showing previously loaded board data\./);
+  assert.equal(ui.find(main, "button", "Restore native backup"), restore);
+  assert.equal(ui.field(details, "Comment"), draft);
+  assert.equal(ui.focused(), draft);
+
+  await until(() => waits.length === 2);
+  selected = {...selected, error_code: "durable_state_unavailable"};
+  waits[1].resolve();
+  await until(() => health.textContent.includes("snapshot is unavailable"));
+  assert.equal(health.hidden, false);
+
+  await until(() => waits.length === 3);
+  selected = {...healthy, revision: 2};
+  waits[2].resolve();
+  await until(() => health.hidden);
+  assert.equal(draft.value, "Draft during repair");
+  assert.equal(ui.focused(), draft);
+  assert.equal(health.textContent, "");
 });
 
 test("live catalog repaints keep pointer capture until a pinned drag ends", async (t) => {

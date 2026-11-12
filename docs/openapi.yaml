@@ -11014,8 +11014,9 @@ paths:
       summary: Publish a captured board to one Git destination
       description: >-
         Select a configured remote and destination branch explicitly or resolve
-        them from Git configuration. Ambiguous or unavailable targets produce a
-        failed publication receipt before any Git objects or refs are written.
+        them from Git configuration. The publisher records unresolved or
+        ambiguous destinations before writing any Git objects or refs. A push
+        failure can be recorded after the local source branch has advanced.
         Serialize by repository and publish the selected immutable artifact.
         Reconcile exact captured paths under the worktree's Git index lock before
         pushing, preserving unrelated staging and later working-tree edits.

@@ -3,6 +3,8 @@ package v2
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -39,6 +41,10 @@ func TestM89PublishesOnlyToIntendedNonOriginBranch(t *testing.T) {
 			var fields string
 			switch mode {
 			case "upstream":
+				defaults := filepath.Join(t.TempDir(), "publishing.gitconfig")
+				m34Write(t, defaults, []byte("[push]\n\tdefault = simple\n[remote]\n\tpushDefault = origin\n"))
+				m34Git(t, repo, "config", "--add", "include.path", filepath.ToSlash(defaults))
+				m34Git(t, repo, "config", "remote.pushDefault", "publish")
 				m34Git(t, repo, "config", "branch.main.remote", "publish")
 				m34Git(t, repo, "config", "branch.main.merge", "refs/heads/delivery")
 				m34Git(t, repo, "config", "push.default", "upstream")
@@ -74,6 +80,31 @@ func TestM89PublishesOnlyToIntendedNonOriginBranch(t *testing.T) {
 	}
 }
 
+func TestM89UpstreamAutoSetupSelectsSameBranchWithoutChangingConfig(t *testing.T) {
+	fixture := m34PublicationFixture(t)
+	repo := fixture.repository
+	m34Git(t, repo, "config", "push.default", "upstream")
+	m34Git(t, repo, "config", "push.autoSetupRemote", "true")
+	config := filepath.Join(repo, ".git", "config")
+	before, err := os.ReadFile(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := m34Git(t, repo, "rev-parse", "HEAD")
+	_, receipt := m89Publish(t, fixture, "")
+	if receipt.State != "succeeded" || receipt.ErrorCode != nil {
+		t.Fatalf("publication failed: %s", snapshotString(receipt.ErrorCode))
+	}
+	head := m34Git(t, repo, "rev-parse", "HEAD")
+	if bytes.Equal(head, previous) || !bytes.Equal(head, m34Git(t, fixture.remote, "rev-parse", "refs/heads/main")) {
+		t.Fatal("auto-setup did not publish the captured commit to the same-named branch")
+	}
+	after, err := os.ReadFile(config)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("publication changed the repository's tracking configuration", err)
+	}
+}
+
 func TestM89RefusesUnresolvedTargetsBeforeGitWrites(t *testing.T) {
 	fixture := m34PublicationFixture(t)
 	repo := fixture.repository
@@ -94,6 +125,10 @@ func TestM89RefusesUnresolvedTargetsBeforeGitWrites(t *testing.T) {
 			config: [][2]string{{"push.default", "matching"}}},
 		{name: "simple with different upstream", fields: ",\"remote\":\"publish\"", code: "publication_destination_unavailable",
 			config: [][2]string{{"push.default", "simple"}, {"branch.main.remote", "publish"}, {"branch.main.merge", "refs/heads/different"}}},
+		{name: "multiple upstreams", fields: ",\"remote\":\"publish\"", code: "publication_target_ambiguous",
+			config: [][2]string{{"push.default", "upstream"}, {"branch.main.remote", "publish"}, {"branch.main.merge", "refs/heads/one"}, {"branch.main.merge", "refs/heads/two"}}},
+		{name: "auto-setup to different fetch remote", fields: ",\"remote\":\"publish\"", code: "publication_destination_unavailable",
+			config: [][2]string{{"push.default", "upstream"}, {"push.autoSetupRemote", "true"}}},
 		{name: "unsupported transport", fields: ",\"remote\":\"publish\",\"branch\":\"delivery\"", code: "unsupported_remote_transport",
 			config: [][2]string{{"remote.publish.proxyAuthMethod", ""}}},
 		{name: "nonbranch ref", fields: ",\"remote\":\"publish\",\"branch\":\"refs/tags/example\"", code: "publication_destination_unavailable"},

@@ -23,8 +23,11 @@ const (
 	// MaxBackupArchiveBytes bounds a transport containing every possible native
 	// attachment, the snapshot, and ZIP framing. Each compressed member has the
 	// reader's per-file expansion allowance, a maximal local extra field, and
-	// framing. The directory and snapshot are independently capped at 96 MiB.
-	MaxBackupArchiveBytes int64 = int64(maxBackupZIPEntries)*(maxAttachmentBytes+maxAttachmentBytes/8+(128<<10)) + 2*maxSnapshotBytes
+	// framing. Three snapshot allowances cover the compressed snapshot, bounded
+	// directory, and end records. The snapshot and directory each retain their
+	// independent 96 MiB limits.
+	maxBackupMemberFraming       = zipLocalHeaderSize + maxBackupEntryNameSize + 0xffff + 24
+	MaxBackupArchiveBytes  int64 = int64(maxBackupZIPEntries)*(maxAttachmentBytes+maxAttachmentBytes/8+(64<<10)+maxBackupMemberFraming) + 3*maxSnapshotBytes
 )
 
 // backupZIPDirectory keeps the verified ZIP index stable while archive/zip reads

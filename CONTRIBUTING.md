@@ -355,7 +355,7 @@ establish the recovery point for a separately authorized recovery operation.
 
 Native recovery accepts JSON snapshots or application/zip backups at the existing board address.
 JSON request entities have an inclusive 96 MiB limit. Downloaded ZIP backups
-use a disk-backed upload with a separate inclusive archive limit of 4,690,317,541,376
+use a disk-backed upload with a separate inclusive archive limit of 4,690,487,017,647
 bytes, derived from the maximum native entry count and per-file size and ZIP framing
 bounds. The snapshot and directory each retain their 96 MiB limits, and each attachment
 retains its 10 MiB decompressed size and SHA-2-256 integrity checks. The CLI stages

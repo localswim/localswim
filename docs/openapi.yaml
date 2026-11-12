@@ -9762,7 +9762,7 @@ paths:
         The normalized PUT response omits ETag; GET the target afterward for its new representation validator.
         Direct application/zip admission validates the exact captured native snapshot and audited attachment
         inventory before publication. JSON requests have an inclusive 96 MiB ceiling. ZIP requests
-        stream to a private temporary file with an inclusive 4,690,317,541,376-byte ceiling derived
+        stream to a private temporary file with an inclusive 4,690,487,017,647-byte ceiling derived
         from the maximum native entry count, per-file size and ZIP framing bounds. Snapshot and
         central directory retain separate 96 MiB ceilings. Each active or detached attachment
         retains its 10 MiB decompressed ceiling and SHA-2-256 validation. All entries are verified

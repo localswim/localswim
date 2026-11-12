@@ -56,9 +56,8 @@ const cliHelp = `Usage:
   localswim card assign [--revision N] BOARD_ID TICKET OWNER_ID
   localswim card title [--revision N] CARD_ID TITLE
   localswim card set-priority [--revision N] CARD_ID PRIORITY_ID
-  localswim card set-priorities [--revision N] BOARD_ID FILE|-
-  localswim card set-priorities [--revision N] --priority PRIORITY_ID BOARD_ID CARD_ID [CARD_ID ...]
-  localswim card set-priorities [--revision N] --priority PRIORITY_ID --tickets BOARD_ID TICKET [TICKET ...]
+  localswim card set-priorities [--revision N] BOARD_ID PRIORITY_ID CARD_ID [CARD_ID ...]
+  localswim card set-priorities [--revision N] --tickets BOARD_ID PRIORITY_ID TICKET [TICKET ...]
   localswim card description [--revision N] CARD_ID FILE|-
   localswim card archive [--revision N] CARD_ID
   localswim card archive [--revision N] BOARD_ID TICKET
@@ -152,9 +151,9 @@ Card edits, comment post, and attachment upload check the card revision.
 Ticket-based move, assign, archive, and unarchive also check the board version from the focused read.
 Lane add checks the board revision. Attachment detach checks the attachment revision.
 Lane rename, set-key, retire, and set-approval-button check the lane revision.
-Card set-priorities takes --priority and card IDs or reads card_ids and priority_id from JSON.
+Card set-priorities takes a board ID, priority ID, and one or more distinct card IDs.
 It checks the board revision.
-With --priority and --tickets, resolve distinct tickets from one board version before applying the batch.
+With --tickets, resolve distinct tickets from one board version before applying the batch.
 The batch evaluates all selected cards together and returns effective priorities and changes.
 Board get --view lanes returns visible cards in their swimlane order.
 Ticket-order preview defaults to all active lane cards. Optional card IDs select the ticket pool.
@@ -661,7 +660,7 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 		return executeT07(api, command, stdin, stdout)
 	}
 	if command.t06Action != "" {
-		return executeT06(api, command, stdin, stdout)
+		return executeT06(api, command, stdout)
 	}
 	if command.detachAttachment {
 		return detachAttachment(api, command)

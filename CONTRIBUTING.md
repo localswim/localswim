@@ -475,10 +475,12 @@ re-enabled. Inspect status after an uncertain settings write.
 A board restore requires matching publishing settings. Reconcile any difference
 through the explicit settings command before restoring.
 Each Git command has a 30-second deadline that includes inherited input and
-output pipes. Cleanup terminates its process group on Unix or its Job Object
-on Windows, with a two-second pipe-drain allowance. Windows starts Git suspended
-and assigns the job before its helpers can run. The repository lock remains held
-through command cleanup.
+output pipes. A Git exit starts a separate two-second pipe-drain allowance
+within that deadline, even when Git exits with an error. Cleanup verifies that
+no live members remain in the Unix process group or Windows Job Object. Unix
+checks the group with the system `ps` when the group still exists. Windows
+starts Git suspended, assigns its job before helpers can run, and prevents new
+members before joining the existing processes during cleanup.
 
 `git_push_timeout` means transport exceeded that deadline or left inherited
 pipes open after Git exited. The local commit and pending destination remain
@@ -486,6 +488,12 @@ pinned. The remote may already have accepted the commit. Inspect the original
 receipt and retry the same backup and destination with a new publication UUID.
 Automatic publishing retains pending intent for its next bounded retry. Both
 paths reuse the prepared commit.
+
+`git_cleanup_unconfirmed` means the service could not confirm that the process
+tree stopped within the cleanup allowance. The service retains the repository
+lock and the pending commit, if present. A later publication attempt checks
+the same process tree and proceeds only after cleanup is confirmed. This check
+does not replay the previous push.
 
 Use `board close [--revision N] BOARD_ID` and
 `board reopen [--revision N] BOARD_ID` to change availability at the existing

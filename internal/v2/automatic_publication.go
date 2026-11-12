@@ -285,12 +285,15 @@ func (p *automaticPublisher) recordAttempt(generation uint64, captured bool, err
 	p.retryAt = time.Now().Add(p.backoff)
 }
 
-func (p *automaticPublisher) attempt(generation uint64, capture, flush bool) (publicationCheckpoint, bool, bool, error) {
+func (p *automaticPublisher) attempt(generation uint64, capture, flush bool) (_ publicationCheckpoint, _, _ bool, resultErr error) {
 	repo, err := lockPublication(p.root)
 	if err != nil {
 		return publicationCheckpoint{}, false, false, err
 	}
-	defer releasePublicationRepository(repo.lease)
+	defer func() {
+		resultErr = repo.processError(resultErr)
+		repo.release()
+	}()
 	checkpoint, oid, err := repo.checkpoint(p.ref)
 	if err != nil {
 		return publicationCheckpoint{}, false, false, err

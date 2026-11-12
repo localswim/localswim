@@ -39,20 +39,24 @@ type publicationThreadEntry struct {
 }
 
 type publicationProcessTree struct {
-	job syscall.Handle
+	job       syscall.Handle
+	sealed    bool
+	processes []syscall.Handle
 }
+
+const publicationJobKillOnClose = 0x00002000
 
 func newPublicationProcessTree(command *exec.Cmd) (*publicationProcessTree, error) {
 	// Assign the suspended child before it can launch a transport. Descendants
 	// inherit the job, and closing it also kills them if setup or waiting fails.
-	const createNoWindow, createSuspended, killOnClose = 0x08000000, 0x00000004, 0x00002000
+	const createNoWindow, createSuspended = 0x08000000, 0x00000004
 	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNoWindow | createSuspended}
 	job, _, err := createPublicationJob.Call(0, 0)
 	if job == 0 {
 		return nil, err
 	}
 	tree := &publicationProcessTree{job: syscall.Handle(job)}
-	limits := publicationJobLimits{Flags: killOnClose}
+	limits := publicationJobLimits{Flags: publicationJobKillOnClose}
 	result, _, err := setPublicationJob.Call(job, 9, uintptr(unsafe.Pointer(&limits)), unsafe.Sizeof(limits))
 	if result == 0 {
 		tree.close()
@@ -103,31 +107,50 @@ func resumePublicationProcess(pid uint32) error {
 	return err
 }
 
-func (tree *publicationProcessTree) stop() error {
-	deadline := time.Now().Add(publicationGitCleanupTimeout)
+func (tree *publicationProcessTree) stop(deadline time.Time) error {
+	// Set the job's active-process limit to zero before sampling membership.
+	// Existing members can exit, but attempted new members are refused before
+	// running, including a child launched concurrently with this cleanup.
+	if !tree.sealed {
+		const activeProcessLimit = 0x00000008
+		limits := publicationJobLimits{Flags: publicationJobKillOnClose | activeProcessLimit}
+		result, _, err := setPublicationJob.Call(uintptr(tree.job), 9, uintptr(unsafe.Pointer(&limits)), unsafe.Sizeof(limits))
+		if result == 0 {
+			return err
+		}
+		tree.sealed = true
+	}
 	// Job termination can remove a member before Windows closes that
 	// process's handles. Capture waitable handles before terminating the job.
-	processes, inspectErr := tree.processHandles(deadline)
-	defer func() {
-		for _, process := range processes {
-			_ = syscall.CloseHandle(process)
+	if tree.processes == nil {
+		processes, err := tree.processHandles(deadline)
+		if err != nil {
+			for _, process := range processes {
+				_ = syscall.CloseHandle(process)
+			}
+			// Leave the sealed job inspectable before termination erases PIDs.
+			return err
 		}
-	}()
+		tree.processes = processes
+	}
 	result, _, err := terminatePublicationJob.Call(uintptr(tree.job), 1)
 	if result == 0 {
-		return errors.Join(inspectErr, err)
+		return err
 	}
-	for _, process := range processes {
+	for len(tree.processes) > 0 {
+		process := tree.processes[0]
 		remaining := max(0, time.Until(deadline)).Milliseconds()
 		status, err := syscall.WaitForSingleObject(process, uint32(remaining))
 		if err != nil {
-			return errors.Join(inspectErr, err)
+			return err
 		}
 		if status != syscall.WAIT_OBJECT_0 {
-			return errors.Join(inspectErr, errors.New("publication process cleanup timed out"))
+			return errPublicationCleanupDeadline
 		}
+		_ = syscall.CloseHandle(process)
+		tree.processes = tree.processes[1:]
 	}
-	return inspectErr
+	return nil
 }
 
 func (tree *publicationProcessTree) processHandles(deadline time.Time) ([]syscall.Handle, error) {
@@ -189,5 +212,8 @@ func (tree *publicationProcessTree) processIDs(deadline time.Time) ([]uintptr, e
 }
 
 func (tree *publicationProcessTree) close() {
+	for _, process := range tree.processes {
+		_ = syscall.CloseHandle(process)
+	}
 	_ = syscall.CloseHandle(tree.job)
 }

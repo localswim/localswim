@@ -55,7 +55,9 @@ func TestM90ProcessHelper(t *testing.T) {
 	}
 	child := exec.Command(executable, "-test.run=^TestM90ProcessHelper$")
 	child.Env = append(os.Environ(), "LOCALSWIM_M90_MODE=child")
-	child.Stdout, child.Stderr = os.Stdout, os.Stderr
+	if mode != "exit-closed" {
+		child.Stdout, child.Stderr = os.Stdout, os.Stderr
+	}
 	if child.Start() != nil {
 		os.Exit(2)
 	}
@@ -70,6 +72,9 @@ func TestM90ProcessHelper(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if mode == "exit" {
+		os.Exit(1)
+	}
+	if mode == "exit-closed" {
 		os.Exit(0)
 	}
 	for {
@@ -94,7 +99,7 @@ func m90CheckChildStopped(t *testing.T, root string) {
 }
 
 func TestM90CommandDeadlineContainsInheritedPipes(t *testing.T) {
-	for _, mode := range []string{"wait", "exit"} {
+	for _, mode := range []string{"wait", "exit", "exit-closed"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
 			executable, err := os.Executable()
@@ -108,8 +113,9 @@ func TestM90CommandDeadlineContainsInheritedPipes(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			command.Stdout, command.Stderr = &stdout, &stderr
 			started := time.Now()
-			if err := runPublicationCommand(ctx, command); !errors.Is(err, errPublicationGitTimeout) {
-				t.Fatalf("stalled command returned %v", err)
+			err = runPublicationCommand(ctx, command)
+			if mode == "exit-closed" && err != nil || mode != "exit-closed" && !errors.Is(err, errPublicationGitTimeout) {
+				t.Fatalf("helper command returned %v", err)
 			}
 			if elapsed := time.Since(started); elapsed > 8*time.Second {
 				t.Fatal("inherited pipes exceeded the command and cleanup deadlines", elapsed)
@@ -119,11 +125,18 @@ func TestM90CommandDeadlineContainsInheritedPipes(t *testing.T) {
 	}
 }
 
-type m90FailedProcessTermination struct{}
+type m90FailedProcessTermination struct{ confirmed bool }
 
-func (m90FailedProcessTermination) attach(*exec.Cmd) error { return nil }
+func (*m90FailedProcessTermination) attach(*exec.Cmd) error { return nil }
 
-func (m90FailedProcessTermination) stop() error { return errors.New("simulated termination failure") }
+func (tree *m90FailedProcessTermination) stop(time.Time) error {
+	if !tree.confirmed {
+		return errors.New("simulated termination failure")
+	}
+	return nil
+}
+
+func (*m90FailedProcessTermination) close() {}
 
 func TestM90FailedTreeCancellationStillBoundsRoot(t *testing.T) {
 	root := t.TempDir()
@@ -135,14 +148,64 @@ func TestM90FailedTreeCancellationStillBoundsRoot(t *testing.T) {
 	defer cancel()
 	command := exec.CommandContext(ctx, executable, "-test.run=^TestM90ProcessHelper$")
 	command.Env = append(os.Environ(), "LOCALSWIM_M90_MODE=child", "LOCALSWIM_M90_ROOT="+root)
-	var output bytes.Buffer
-	command.Stdout, command.Stderr = &output, &output
+	var stdout, stderr bytes.Buffer
+	command.Stdout, command.Stderr = &stdout, &stderr
 	started := time.Now()
-	err = runPublicationProcess(ctx, command, m90FailedProcessTermination{})
-	if !errors.Is(err, errPublicationGitTimeout) || time.Since(started) > 6*time.Second {
+	tree := &m90FailedProcessTermination{}
+	err = runPublicationProcess(ctx, command, tree)
+	var cleanup *publicationCleanup
+	if !errors.As(err, &cleanup) || time.Since(started) > 6*time.Second {
 		t.Fatal("failed tree termination did not fall back to bounded root cleanup", err)
 	}
+	tree.confirmed = true
+	if !cleanup.confirm() {
+		t.Fatal("direct child fallback did not finish")
+	}
 	m90CheckChildStopped(t, root)
+}
+
+func TestM90UnconfirmedCleanupRetainsRepositoryLease(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "localswim-autopush.lock")
+	lease, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lockWriter(lease); err != nil {
+		t.Fatal(err)
+	}
+	rootDone := make(chan struct{})
+	close(rootDone)
+	tree := &m90FailedProcessTermination{}
+	cleanup := &publicationCleanup{tree: tree, rootDone: rootDone}
+	repo := publicationRepository{root: root, lease: lease, execution: &publicationExecution{cleanup: cleanup}}
+	if _, err := repo.gitText("rev-parse", "HEAD"); err != cleanup {
+		t.Fatal("an unconfirmed repository permitted another Git command", err)
+	}
+	repo.release()
+	t.Cleanup(func() {
+		tree.confirmed = true
+		_ = confirmPublicationFence(path)
+	})
+	if err := confirmPublicationFence(path); err != gitPublicationError("git_cleanup_unconfirmed") {
+		t.Fatal("retry did not retain unconfirmed cleanup status", err)
+	}
+	other, err := os.OpenFile(path, os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	if err := lockWriter(other); !errors.Is(err, errStoreBusy) {
+		t.Fatal("another writer acquired the unconfirmed repository lease", err)
+	}
+	tree.confirmed = true
+	if err := confirmPublicationFence(path); err != nil {
+		t.Fatal("confirmed cleanup did not release the fence", err)
+	}
+	if err := lockWriter(other); err != nil {
+		t.Fatal("another writer could not reuse the confirmed repository lease", err)
+	}
+	_ = unlockWriter(other)
 }
 
 func TestM90StalledPublicationPreservesCommitAndRecovers(t *testing.T) {
@@ -180,6 +243,10 @@ func TestM90StalledPublicationPreservesCommitAndRecovers(t *testing.T) {
 			}
 			stateRef := publicationCheckpointRef(fixture.app.store.root, "backup-"+fixture.item.ID)
 			intent := m34Git(t, fixture.repository, "rev-parse", stateRef)
+			source := publicationSendRefPrefix + strings.TrimSpace(string(intent)) + "/commit"
+			if !bytes.Equal(pending, m34Git(t, fixture.repository, "show-ref", "--verify", "--hash", source)) {
+				t.Fatal("timeout did not preserve its exact retry source")
+			}
 			lease, err := acquirePublicationRepository(fixture.repository, 0)
 			if err != nil {
 				t.Fatal("publication retained its repository lock after cleanup", err)

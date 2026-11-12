@@ -9766,7 +9766,11 @@ paths:
         from the maximum native entry count, per-file size and ZIP framing bounds. Snapshot and
         central directory retain separate 96 MiB ceilings. Each active or detached attachment
         retains its 10 MiB decompressed ceiling and SHA-2-256 validation. All entries are verified
-        before any attachment or snapshot is admitted.
+        before any attachment or snapshot is admitted. Known-length ZIP uploads allow 30 seconds plus
+        one second per full 8 MiB up to two hours. Unknown-length uploads allow 30 seconds, and
+        each body read has at most 30 seconds inside its upload window. After staging, the response
+        deadline allows one minute plus one second per full MiB up to six hours for validation, repair,
+        and response transmission. A connection timeout does not cancel an admitted commit.
         Malformed or damaged candidates refuse without changing the accepted board.
         Global User configurations are preserved. Unknown or kind-conflicting user UUIDs refuse with 409
         before publication; snapshot display metadata never rolls back another board's shared user.

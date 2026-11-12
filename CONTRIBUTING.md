@@ -360,9 +360,20 @@ bytes, derived from the maximum native entry count and per-file size and ZIP fra
 bounds. The snapshot and directory each retain their 96 MiB limits, and each attachment
 retains its 10 MiB decompressed size and SHA-2-256 integrity checks. The CLI stages
 file or raw stdin input privately and streams the ZIP without loading the archive
-into memory. PUT uses the current durable snapshot
-representation validator when the snapshot is readable. When durable state is unavailable, a previously
-obtained tag for the last accepted snapshot can authorize admission. Stored backup restoration uses the
+into memory.
+
+ZIP uploads with a known length get 30 seconds plus one second per full 8 MiB,
+up to two hours. Unknown-length uploads get 30 seconds. A stalled body read has
+at most 30 seconds within that window. After staging, the service reserves one
+minute plus one second per full MiB for validation, repair, and the response,
+up to six hours. The CLI waits for both phases plus five seconds. This wait starts
+with the upload request after local staging and validator lookup. JSON and backup
+downloads retain their ordinary deadlines. These deadlines govern HTTP transport
+and waiting. An admitted commit can finish after a connection expires.
+
+PUT uses the current durable snapshot representation validator when the snapshot
+is readable. When durable state is unavailable, a previously obtained tag for the
+last accepted snapshot can authorize admission. Stored backup restoration uses the
 live board validator and returns an inspectable receipt.
 Validate policy, complete audit and every active or detached attachment before publishing. Recovery
 preserves the board UUID and shared global user configuration and allocates a revision above the live,

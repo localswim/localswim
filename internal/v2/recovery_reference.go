@@ -249,15 +249,20 @@ func (s *store) collidesWithHealthyBoardID(id string) bool {
 	return false
 }
 
-func (s *store) failedBoardVerification(id string) verification {
+func (s *store) failedBoardVerification(id string) (verification, string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	report := snapshotVerification(id, time.Now(), snapshot{}, s.failedBoards[id])
+	failure, exists := s.failedBoards[id]
+	if !exists {
+		return verification{}, "", false
+	}
+	tag, _ := s.failedRecoveryTagLocked(id)
+	report := snapshotVerification(id, time.Now(), snapshot{}, failure)
 	report.Recovery = &recoveryReport{Mode: "fresh_only"}
 	if context, ok := s.failedRecoveryContextLocked(id); ok {
 		report.Recovery = &recoveryReport{Mode: "same_id", RevisionFloor: &context.RevisionFloor}
 	}
-	return report
+	return report, tag, true
 }
 
 func (s *store) writeSnapshotWithRecoveryReference(value snapshot, data []byte, beforeReplace func() error) error {

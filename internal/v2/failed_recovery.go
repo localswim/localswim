@@ -53,18 +53,6 @@ func recoveryFileFingerprint(path string) (string, error) {
 	return recoveryDigest(file.data) + ":" + strconv.FormatInt(file.info.ModTime().UnixNano(), 10), nil
 }
 
-func (s *store) failedRecoveryVerification(id string) (verification, string, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	tag, err := s.failedRecoveryTagLocked(id)
-	report := snapshotVerification(id, time.Now(), snapshot{}, s.failedBoards[id])
-	report.Recovery = &recoveryReport{Mode: "fresh_only"}
-	if context, ok := s.failedRecoveryContextLocked(id); ok {
-		report.Recovery = &recoveryReport{Mode: "same_id", RevisionFloor: &context.RevisionFloor}
-	}
-	return report, tag, err
-}
-
 func (x *request) recoverFailedBoard(id string) {
 	if !x.service.store.canSeeFailedBoard(id, x.actor) {
 		x.fail(errMissing)

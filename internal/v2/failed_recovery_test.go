@@ -104,6 +104,11 @@ func TestM84RecoverFailedBoardFromBackup(t *testing.T) {
 	if app.store.isFailedBoard(restored.ID) {
 		t.Fatal("successful recovery retained the diagnostic")
 	}
+	verified, _ := human.call("GET", "/verifications/"+restored.ID, "", "", 200)
+	report := turnOneDecode[verification](t, verified)
+	if !report.Valid || report.Recovery != nil || report.Revision == nil || *report.Revision != restored.Revision {
+		t.Fatal("verification did not switch to the recovered board revision")
+	}
 	durable, err := app.store.durable(restored.ID)
 	if err != nil || validateSnapshot(durable, restored.ID) != nil {
 		t.Fatalf("recovered durable state is invalid: %v", err)

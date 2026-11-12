@@ -202,7 +202,7 @@ func TestM95InterruptedSnapshotAndReferencePair(t *testing.T) {
 				if healthy || !app.isFailedBoard(previous.Board.ID) {
 					t.Fatal("startup admitted a snapshot without a matching commit")
 				}
-				report := app.failedBoardVerification(previous.Board.ID)
+				report, _, _ := app.failedBoardVerification(previous.Board.ID)
 				if tc.wantFloor == 0 && report.Recovery.Mode != "fresh_only" ||
 					tc.wantFloor != 0 && (report.Recovery.RevisionFloor == nil || *report.Recovery.RevisionFloor != tc.wantFloor) {
 					t.Fatalf("unexpected continuity after refusal: %+v", report.Recovery)
@@ -245,7 +245,7 @@ func TestM95HealthyIdentityCollisionRefusesContinuity(t *testing.T) {
 	if !reopened.isFailedBoard(id) {
 		t.Fatal("colliding reference was not discoverable")
 	}
-	report := reopened.failedBoardVerification(id)
+	report, _, _ := reopened.failedBoardVerification(id)
 	if report.Recovery.Mode != "fresh_only" || report.Recovery.RevisionFloor != nil {
 		t.Fatal("colliding identity authorized same-ID recovery")
 	}
@@ -285,7 +285,7 @@ func TestM95MissingRestoreAuthorityRequiresFreshBoard(t *testing.T) {
 	if ref, valid := app.readRecoveryReference(value.Board.ID); !valid || len(ref.Committed.RestoreActors) != 0 {
 		t.Fatal("fixture must retain valid identity and revision evidence without restore grants")
 	}
-	report := app.failedBoardVerification(value.Board.ID)
+	report, _, _ := app.failedBoardVerification(value.Board.ID)
 	if report.Recovery.Mode != "fresh_only" || report.Recovery.RevisionFloor != nil {
 		t.Fatal("the board identity and revision alone implied restore authority")
 	}

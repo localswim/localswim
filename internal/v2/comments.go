@@ -233,7 +233,7 @@ func (in commentCreation) apply(state *snapshot, actor string) error {
 
 	now := maxCardTime(canonicalTime(time.Now()), state.Board.UpdatedAt)
 	revision := state.Board.Revision + 1
-	value := comment{ID: in.id, CreatedAt: now, UpdatedAt: now, BoardID: state.Board.ID,
+	value := comment{ID: in.id, CreatedAt: now, BoardID: state.Board.ID,
 		CardID: parent.ID, Text: in.text, AuthorID: actor}
 	state.Comments = append(state.Comments, value)
 	parent.CommentCount++

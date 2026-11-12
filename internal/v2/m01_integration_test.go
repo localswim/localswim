@@ -26,8 +26,8 @@ const (
 func m01Fixture() (snapshot, []user) {
 	now := time.Date(2026, time.November, 10, 0, 0, 0, 0, time.UTC)
 	principals := []user{
-		{entity: newEntity(m01HumanID, now), Label: "Human", Kind: "human", Color: "#225588"},
-		{entity: newEntity(m01BotID, now), Label: "Bot", Kind: "bot", Color: "#885522"},
+		{ID: m01HumanID, Revision: 1, CreatedAt: now, Label: "Human", Kind: "human", Color: "#225588"},
+		{ID: m01BotID, Revision: 1, CreatedAt: now, Label: "Bot", Kind: "bot", Color: "#885522"},
 	}
 	wf := defaultWorkflow(m01BoardID, now, principals)
 	value := freshSnapshot(m01BoardID, m01InitialName, wf, m01HumanID, now)

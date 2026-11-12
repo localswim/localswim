@@ -68,8 +68,11 @@ Hash names in API fields and documentation identify both the hash family and dig
 size. Attachment `sha2_256` contains the lowercase hexadecimal SHA-2-256 digest of
 the file bytes.
 
+User records have a creation timestamp and immutable identity metadata.
+Board-specific actor presentation provides editable labels and accents.
+
 Comments are immutable after creation. Their JSON and native snapshot records contain
-identity, parent references, attribution, text, and timestamps. Comment HTTP validators
+identity, parent references, attribution, text, and `created_at` as their sole timestamp. Comment HTTP validators
 are carried in response headers. Posting a comment still requires the parent card
 validator and advances that card's revision.
 

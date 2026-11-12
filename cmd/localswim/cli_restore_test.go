@@ -57,7 +57,7 @@ func TestM86RestoreStreamsLargeFileAndStdin(t *testing.T) {
 				argument = "-"
 			}
 			var stdout, stderr bytes.Buffer
-			code := runCLIWithInput([]string{"board", "restore", "--revision", "12", t03Board, argument}, input, &stdout, &stderr, t03Env(server.URL))
+			code := runCLIWithInput([]string{"board", "restore", "--force", "--revision", "12", t03Board, argument}, input, &stdout, &stderr, t03Env(server.URL))
 			if code != 0 || writes != 1 {
 				t.Fatalf("restore code=%d, writes=%d, stderr=%s", code, writes, &stderr)
 			}

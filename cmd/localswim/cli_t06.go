@@ -21,11 +21,11 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	flags := flag.NewFlagSet("localswim", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var revision, backupID string
-	var tickets bool
 	switch name {
 	case "card set-priorities":
 		flags.StringVar(&revision, "revision", "", "expected board revision")
-		flags.BoolVar(&tickets, "tickets", false, "select cards by ticket number")
+		flags.BoolVar(&cmd.force, "force", false, "confirm all unfinished cards without prompting")
+		flags.BoolVar(&cmd.force, "f", false, "confirm all unfinished cards without prompting")
 	case "backup create":
 		flags.StringVar(&revision, "revision", "", "expected board revision")
 	case "ticket-order preview", "backup info", "backup download":
@@ -46,9 +46,9 @@ func parseT06(name string, args []string) (cliCommand, error) {
 		count = 3
 	}
 	if name == "card set-priorities" {
-		count = 3
+		count = 2
 		if flags.NArg() < count {
-			return cmd, errors.New("card set-priorities requires BOARD_ID PRIORITY_ID and at least one card")
+			return cmd, errors.New("card set-priorities requires BOARD_ID PRIORITY_ID")
 		}
 	}
 	variadic := name == "ticket-order preview" || name == "card set-priorities"
@@ -84,11 +84,7 @@ func parseT06(name string, args []string) (cliCommand, error) {
 	case "card set-priorities":
 		cmd.method, cmd.resource, cmd.boardID = http.MethodPatch, "/cards", id
 		var err error
-		if tickets {
-			cmd.batchTickets, cmd.body, err = parseTicketPriorityBatch(flags.Arg(1), flags.Args()[2:])
-		} else {
-			cmd.body, err = priorityBatchBody(flags.Arg(1), flags.Args()[2:])
-		}
+		cmd.cardSelectors, cmd.body, err = parsePriorityBatch(cmd.boardID, flags.Arg(1), flags.Args()[2:])
 		if err != nil {
 			return cmd, err
 		}
@@ -234,8 +230,8 @@ func executeT06(api *client.Client, cmd cliCommand, stdout io.Writer) error {
 }
 
 func t06BoardValidator(api *client.Client, cmd cliCommand, fields map[string]json.RawMessage) (string, error) {
-	if len(cmd.batchTickets) != 0 {
-		ids, boardTag, err := resolvePriorityTickets(api, cmd)
+	if cmd.t06Action == "card set-priorities" && len(cmd.cardSelectors) != 0 {
+		ids, boardTag, err := resolvePriorityCards(api, cmd)
 		if err != nil {
 			return "", err
 		}

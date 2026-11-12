@@ -31,26 +31,3 @@ func cardCreateInput(args []string, hasTitle, hasDescription bool, title, descri
 	body, err := json.Marshal(fields)
 	return "", body, err
 }
-
-func priorityBatchBody(priority string, ids []string) (json.RawMessage, error) {
-	if !boardIDPattern.MatchString(priority) {
-		return nil, errors.New("priority batch requires a UUIDv4 priority ID")
-	}
-	if len(ids) < 1 || len(ids) > 1000 {
-		return nil, errors.New("priority batch requires 1 to 1000 UUIDv4 card IDs")
-	}
-	cards := make([]string, 0, len(ids))
-	seen := make(map[string]bool, len(ids))
-	for _, id := range ids {
-		id = strings.ToLower(id)
-		if !boardIDPattern.MatchString(id) || seen[id] {
-			return nil, errors.New("priority batch requires distinct UUIDv4 card IDs")
-		}
-		seen[id] = true
-		cards = append(cards, id)
-	}
-	return json.Marshal(struct {
-		CardIDs    []string `json:"card_ids"`
-		PriorityID string   `json:"priority_id"`
-	}{cards, strings.ToLower(priority)})
-}

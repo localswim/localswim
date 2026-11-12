@@ -9,36 +9,48 @@ import (
 	"github.com/localswim/localswim/internal/client"
 )
 
-func parseTicketPriorityBatch(priority string, args []string) ([]uint64, json.RawMessage, error) {
+func parsePriorityBatch(boardID, priority string, args []string) ([]string, json.RawMessage, error) {
 	if !boardIDPattern.MatchString(priority) {
 		return nil, nil, errors.New("priority batch requires a UUIDv4 priority ID")
 	}
-	if len(args) < 1 || len(args) > 1000 {
-		return nil, nil, errors.New("priority batch requires 1 to 1000 tickets")
+	if len(args) > 1000 {
+		return nil, nil, errors.New("priority batch accepts at most 1000 explicit card selectors")
 	}
-	tickets := make([]uint64, 0, len(args))
-	seen := make(map[uint64]bool, len(args))
+	selectors := make([]string, 0, len(args))
+	seen := make(map[string]bool, len(args))
 	for _, arg := range args {
-		ticket, err := parseCLITicket(arg)
+		target, err := parseCardTarget(boardID, arg)
 		if err != nil {
 			return nil, nil, err
 		}
-		if seen[ticket] {
-			return nil, nil, fmt.Errorf("duplicate ticket %d", ticket)
+		key := target.cardID
+		if key == "" {
+			key = fmt.Sprint(target.ticket)
 		}
-		seen[ticket] = true
-		tickets = append(tickets, ticket)
+		if seen[key] {
+			return nil, nil, errors.New("duplicate card selector")
+		}
+		seen[key] = true
+		selectors = append(selectors, arg)
 	}
-	body, _ := json.Marshal(map[string]string{"priority_id": strings.ToLower(priority)})
-	return tickets, body, nil
+	request := map[string]any{"priority_id": strings.ToLower(priority)}
+	if len(selectors) == 0 {
+		request["all_unfinished"] = true
+	}
+	body, _ := json.Marshal(request)
+	return selectors, body, nil
 }
 
-func resolvePriorityTickets(api *client.Client, cmd cliCommand) ([]string, string, error) {
+func resolvePriorityCards(api *client.Client, cmd cliCommand) ([]string, string, error) {
 	var first client.TicketTarget
-	ids := make([]string, 0, len(cmd.batchTickets))
-	seen := make(map[string]bool, len(cmd.batchTickets))
-	for i, ticket := range cmd.batchTickets {
-		target, err := api.ResolveTicket(cmd.boardID, ticket)
+	ids := make([]string, 0, len(cmd.cardSelectors))
+	seen := make(map[string]bool, len(cmd.cardSelectors))
+	for i, ref := range cmd.cardSelectors {
+		selector, err := parseCardTarget(cmd.boardID, ref)
+		if err != nil {
+			return nil, "", err
+		}
+		target, err := resolveCardTarget(api, selector)
 		if err != nil {
 			return nil, "", err
 		}
@@ -48,10 +60,10 @@ func resolvePriorityTickets(api *client.Client, cmd cliCommand) ([]string, strin
 				return nil, "", fmt.Errorf("revision mismatch (expected %d, current %d)", *cmd.revision, first.BoardRevision)
 			}
 		} else if target.BoardETag != first.BoardETag || target.BoardRevision != first.BoardRevision {
-			return nil, "", errors.New("board changed during ticket resolution; inspect the current ticket mapping before retrying")
+			return nil, "", errors.New("board changed during card selection; inspect the current mapping before retrying")
 		}
 		if seen[target.CardID] {
-			return nil, "", errors.New("multiple tickets resolved to the same card")
+			return nil, "", errors.New("multiple selectors resolved to the same card")
 		}
 		seen[target.CardID] = true
 		ids = append(ids, target.CardID)

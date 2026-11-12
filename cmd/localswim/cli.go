@@ -59,7 +59,7 @@ type cliCommand struct {
 	ticketRelationship                 *cliTicketRelationship
 	ticketAttachment                   *cliTicketTarget
 	ticketComment                      *cliTicketTarget
-	batchTickets                       []uint64
+	force                              bool
 	cardSelectors                      []string
 	cardTarget                         *cliTicketTarget
 	t07Action                          string
@@ -472,6 +472,10 @@ func executeCLI(command cliCommand, stdin io.Reader, stdout, stderr io.Writer, g
 
 	api, err := client.New(getenv("LOCALSWIM_URL"), getenv("LOCALSWIM_TOKEN"))
 	if err != nil {
+		return err
+	}
+	proceed, err := confirmWholeBoardWrite(command, stdin, stderr)
+	if err != nil || !proceed {
 		return err
 	}
 	if command.recoveryMode != "" {

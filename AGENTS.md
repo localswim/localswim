@@ -17,6 +17,13 @@
 - CLI operations on board-owned resources require `BOARD_ID` before the resource
   selector. Card selectors accept a UUID or ticket within that board. Each card
   ID belongs to exactly one board. Keep REST routes UUID-addressed.
+- Prefer clear short aliases alongside descriptive long options, such as
+  `-h`/`--help` and `-f`/`--force`.
+- Treat implicit whole-board and query-selected multi-card writes as candidates
+  for scope confirmation. Explicit `--lane UUID` selection needs no extra prompt.
+  Use judgment for each operation. Where appropriate,
+  explain the scope and ask `Continue? [Y/n]`, with `-f`/`--force` as the explicit
+  bypass. Explicit card UUID or ticket lists usually need only the normal guards.
 - “String” means UTF-8 unless explicitly stated otherwise. Preserve user-supplied
   text exactly without silent replacement, trimming, or normalization.
 - Run `.\check.ps1` before handoff. Keep the strict compiler and lint gates enabled,

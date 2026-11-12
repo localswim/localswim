@@ -94,10 +94,14 @@ with status 0. An invalid report exits with status 1 and includes the issues.
 For a board quarantined at startup, the live report is available to the Human
 workspace administrator. Its `recovery` field gives `same_id` with a trusted
 `revision_floor` or `fresh_only` if same-ID continuity cannot be established.
-Use `board recover --mode same_id BOARD_ID FILE|-` with a verified native snapshot
+Use `board recover --mode same_id [-f|--force] BOARD_ID FILE|-` with a verified native snapshot
 or ZIP to preserve a trusted identity. Explicit `--mode fresh` creates a new board
-identity and keeps the original failure available. Both modes leave publishing
-disabled until explicitly enabled. Inspect `board list` and verification after an uncertain reply before another attempt.
+identity and keeps the original failure available. Whole-board mutations print
+an INFO summary and prompt `Continue? [Y/n]`. Press Enter to confirm or use
+`-f`/`--force` to skip confirmation for automation. For `FILE` set to `-`,
+`--force` is required so the prompt cannot consume binary stdin. Both recovery
+modes leave publishing disabled until explicitly enabled. Inspect `board list` and
+verification after an uncertain reply before another attempt.
 
 After an uncertain snapshot commit on an existing board, inspect the saved outcome
 with `board export` or `board verify` before attempting another write. The service

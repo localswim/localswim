@@ -37,13 +37,17 @@ func TestM072RoutineWritesReuseValidators(t *testing.T) {
 			method: http.MethodPatch, writePath: "/cards",
 			response: `{"board_id":"` + t03Board + `","board_revision":13,"cards":[],"changes":[]}`,
 			args:     []string{t03Board, strings.ToUpper(t03Lane), strings.ToUpper(t03Card), otherCard},
-			body:     map[string]any{"board_id": t03Board, "card_ids": []any{t03Card, otherCard}, "priority_id": t03Lane, "expected_board_etag": t03BoardTag},
+			body:     map[string]any{"board_id": t03Board, "card_ids": []any{t03Card, otherCard}, "priority_id": t03Lane, "expected_board_etag": t505BoardTag},
 		},
 	} {
 		for _, revision := range []string{"12", "11"} {
 			t.Run(tc.name+"/"+revision, func(t *testing.T) {
 				var reads, writes atomic.Int32
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if tc.name == "batch" && t505ServeBatchResolution(w, r) {
+						reads.Add(1)
+						return
+					}
 					if tc.name == "comment" && t03ServeCardResolution(w, r) {
 						reads.Add(1)
 						return
@@ -81,6 +85,12 @@ func TestM072RoutineWritesReuseValidators(t *testing.T) {
 				wantReads := int32(1)
 				if tc.name == "comment" {
 					wantReads = 2
+				}
+				if tc.name == "batch" {
+					wantReads = 4
+					if revision == "11" {
+						wantReads = 2
+					}
 				}
 				if reads.Load() != wantReads {
 					t.Fatalf("preflight reads = %d, want %d", reads.Load(), wantReads)
@@ -136,8 +146,8 @@ func TestM072ContextualHelpAndInputErrors(t *testing.T) {
 		{[]string{"comment", "post", "--text", "\xff", t03Board, t03Card}, "nonempty valid UTF-8"},
 		{[]string{"comment", "post", "--text", "text", t03Board, t03Card, "-"}, "documented arguments"},
 		{[]string{"card", "set-priorities", t03Board, "", t03Card}, "UUIDv4 priority ID"},
-		{[]string{"card", "set-priorities", t03Board, t03Lane, "-"}, "distinct UUIDv4 card IDs"},
-		{[]string{"card", "set-priorities", t03Board, t03Lane, t03Card, strings.ToUpper(t03Card)}, "distinct UUIDv4 card IDs"},
+		{[]string{"card", "set-priorities", t03Board, t03Lane, "-"}, "ticket requires an integer"},
+		{[]string{"card", "set-priorities", t03Board, t03Lane, t03Card, strings.ToUpper(t03Card)}, "duplicate card selector"},
 	} {
 		var out, stderr bytes.Buffer
 		code := runCLIWithInput(tc.args, nil, &out, &stderr, noService)
@@ -152,7 +162,6 @@ func TestPriorityBatchUsesOnlyPositionalPriority(t *testing.T) {
 		{"card", "set-priorities", t03Board, "-"},
 		{"card", "set-priorities", t03Board, "priorities.json"},
 		{"card", "set-priorities", "--priority", t03Lane, t03Board, t03Card},
-		{"card", "set-priorities", t03Board, t03Lane},
 		{"card", "set-priorities", "--tickets", t03Board, t03Lane},
 	} {
 		var out, stderr bytes.Buffer

@@ -53,7 +53,7 @@ func TestCLIBoardRecoverUsesVerifiedFailureAndSingleWrite(t *testing.T) {
 			}))
 			defer server.Close()
 			var out, stderr bytes.Buffer
-			code := runCLIWithInput([]string{"board", "recover", "--mode", "same_id", t03Board, "-"}, strings.NewReader(`{}`), &out, &stderr, t03Env(server.URL))
+			code := runCLIWithInput([]string{"board", "recover", "--force", "--mode", "same_id", t03Board, "-"}, strings.NewReader(`{}`), &out, &stderr, t03Env(server.URL))
 			if reads != 1 || writes != 1 || (code == 0) != (status == 201) {
 				t.Fatalf("reads=%d writes=%d code=%d: %s", reads, writes, code, &stderr)
 			}

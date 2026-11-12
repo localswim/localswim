@@ -117,7 +117,7 @@ func TestBoardResourceCommandsRejectUnconfirmedScope(t *testing.T) {
 		{[]string{"backup", "download", t03Board, t06Operation, "-"}, "/backups/" + t06Operation, t06Operation, ""},
 		{[]string{"restoration", "get", t03Board, t06Operation}, "/restorations/" + t06Operation, t06Operation, ""},
 		{[]string{"publication", "get", t03Board, t06Operation}, "/publications/" + t06Operation, t06Operation, ""},
-		{[]string{"restoration", "create", t03Board, t06Operation}, "/backups/" + t06Operation, t06Operation, ""},
+		{[]string{"restoration", "create", "--force", t03Board, t06Operation}, "/backups/" + t06Operation, t06Operation, ""},
 		{[]string{"publication", "create", t03Board, t06Operation}, "/backups/" + t06Operation, t06Operation, ""},
 		{[]string{"card", "search", "--lane", t03Lane, t03Board}, "/lanes/" + t03Lane, t03Lane, ""},
 		{[]string{"card", "lookup", "--lane", t03Lane, t03Board}, "/lanes/" + t03Lane, t03Lane, ""},

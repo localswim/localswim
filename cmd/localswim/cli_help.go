@@ -28,7 +28,7 @@ const commandUsage = `Usage:
   localswim board notifications enable [--revision N] BOARD_ID
   localswim board notifications disable [--revision N] BOARD_ID
   localswim board notifications status BOARD_ID
-  localswim board recover --mode <same_id|fresh> BOARD_ID <FILE|->
+  localswim board recover [-f|--force] --mode <same_id|fresh> BOARD_ID <FILE|->
   localswim board verify [--data DIRECTORY] BOARD_ID
   localswim board export [--type json] [--data DIRECTORY] BOARD_ID <FILE|->
   localswim card create [--revision N] BOARD_ID <JSON_FILE|->
@@ -41,8 +41,7 @@ const commandUsage = `Usage:
   localswim card assign [--revision N] BOARD_ID <CARD_ID|TICKET> OWNER_ID
   localswim card title [--revision N] BOARD_ID <CARD_ID|TICKET> TITLE
   localswim card set-priority [--revision N] BOARD_ID <CARD_ID|TICKET> PRIORITY_ID
-  localswim card set-priorities [--revision N] BOARD_ID PRIORITY_ID CARD_ID [CARD_ID ...]
-  localswim card set-priorities [--revision N] --tickets BOARD_ID PRIORITY_ID TICKET [TICKET ...]
+  localswim card set-priorities [--revision N] [-f|--force] BOARD_ID PRIORITY_ID [CARD_ID ...]
   localswim card description [--revision N] BOARD_ID <CARD_ID|TICKET> FILE|-
   localswim card archive [--revision N] BOARD_ID <CARD_ID|TICKET>
   localswim card unarchive [--revision N] BOARD_ID <CARD_ID|TICKET>
@@ -90,8 +89,8 @@ const commandUsage = `Usage:
                              [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim card lookup [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
   localswim ticket-order apply BOARD_ID LANE_ID FILE|-
-  localswim board restore [--revision N] BOARD_ID FILE|-
-  localswim restoration create [--revision N] [--id UUID] BOARD_ID BACKUP_ID
+  localswim board restore [--revision N] [-f|--force] BOARD_ID FILE|-
+  localswim restoration create [--revision N] [-f|--force] [--id UUID] BOARD_ID BACKUP_ID
   localswim restoration get BOARD_ID RESTORATION_ID
   localswim publication create [--id UUID] [--remote NAME] [--branch BRANCH] BOARD_ID BACKUP_ID
   localswim publication get BOARD_ID PUBLICATION_ID
@@ -304,9 +303,9 @@ var commandHelpNotes = map[string]string{
 	"board create":             "Choose exactly one of --name or --json. Use --name alone for a generic workflow or --preset terry for Terry's seven-lane workflow. --json reads a full custom workflow document.",
 	"board get":                "The default returns board metadata. --view lanes returns active lanes and visible cards in lane order and requires the live service.",
 	"board verify":             "Print the full verification report. An invalid board exits 1. Verification does not change saved state.",
-	"board recover":            "Recover a board that failed startup from a verified native JSON snapshot or ZIP backup. Use same_id when trusted continuity is available or fresh to create a new board identity. Recovery leaves publishing disabled. Inspect board list and the recovery diagnostic after an unknown result.",
+	"board recover":            "Recover a board that failed startup from a verified native JSON snapshot or ZIP backup. Use same_id when trusted continuity is available or fresh to create a new board identity. Print the board-wide scope and ask Continue? [Y/n]. -f or --force skips the prompt and is required with stdin input. Recovery leaves publishing disabled. Inspect board list and the recovery diagnostic after an unknown result.",
 	"board export":             "--type accepts json and defaults to json. Export writes the validated native snapshot.",
-	"board restore":            "Read a native JSON snapshot or ZIP backup. ZIP input streams from private staging and can exceed 96 MiB. JSON retains its 96 MiB limit. Inspect the accepted board after an uncertain result.",
+	"board restore":            "Read a native JSON snapshot or ZIP backup. Print the board-wide scope and ask Continue? [Y/n]. -f or --force skips the prompt and is required with stdin input. ZIP input streams from private staging and can exceed 96 MiB. JSON retains its 96 MiB limit. Inspect the accepted board after an uncertain result.",
 	"board close":              "Drain admitted board operations and flush enabled publishing before closing. Inspect board get after an unknown outcome.",
 	"board reopen":             "Reopen the saved board at its existing address. Inspect board get after an unknown outcome.",
 	"board notifications":      "Set a verified owning-chat target before enabling. Target changes preserve the enabled state. Disable retains the target. Inspect status after an uncertain settings write.",
@@ -322,7 +321,7 @@ var commandHelpNotes = map[string]string{
 	"card unarchive":           "Supply BOARD_ID and a card UUID or ticket. The card and board versions are guarded. Retired lanes refuse unarchive.",
 	"card description":         "Read UTF-8 description text verbatim, including trailing newlines.",
 	"card cover":               "Use an active attachment UUID, or none to clear the cover.",
-	"card set-priorities":      "Supply 1 to 1000 distinct card UUIDs or, with --tickets, distinct positive ticket numbers. All selected cards must belong to the board. The batch applies effective blocking floors to all selections together.",
+	"card set-priorities":      "CARD_ID accepts a card UUID or positive ticket number, including mixed lists of up to 1000 explicit selectors. Omit the list to select every unfinished card, including archived unfinished cards. Completed cards are immutable. All-card selection prints INFO and asks Continue? [Y/n]. -f or --force skips the prompt. Explicit selections run directly. The batch applies effective blocking floors to all selections together.",
 	"card search":              "Match literal titles and tickets. --search-content includes readable descriptions and comments. Repeat --lane for multiple lanes. Results use whole-board triage ordering.",
 	"card triage-order":        "Return the highest-ranked unfinished card by default. --limit requests more. Repeat --lane for multiple lanes. --search-content includes readable descriptions and comments. This command makes no changes.",
 	"card lookup":              "Return matching cards in numeric ticket order. --search-content includes readable descriptions and comments.",
@@ -340,7 +339,7 @@ var commandHelpNotes = map[string]string{
 	"backup create":            "Capture the board and audited attachment bytes. --id accepts a UUIDv7; omission generates one. Inspect backup info with the original ID after an unknown outcome.",
 	"backup verify":            "Verify ZIP backup bytes locally without a service. Stdin is copied to a private temporary file for verification and removed afterward.",
 	"backup download":          "Verify backup size and SHA-2-256 before writing bytes.",
-	"restoration create":       "Restore a stored backup. --id accepts a UUIDv7; omission generates one. Inspect restoration get with the original ID after an unknown outcome.",
+	"restoration create":       "Restore a stored backup. Print the board-wide scope and ask Continue? [Y/n]. -f or --force skips the prompt. --id accepts a UUIDv7; omission generates one. Inspect restoration get with the original ID after an unknown outcome.",
 	"publication create":       "Publish a stored backup. --id accepts a UUIDv7; omission generates one. Optional --remote and --branch select the Git destination. Inspect publication get with the original ID after an unknown outcome.",
 	"service activate":         "Activate a staged build with the current service validator. --id accepts a UUIDv7; omission generates one. After an unknown outcome refresh the token as needed and inspect service activation with the original ID.",
 	"service stop":             "Gracefully drain the service and flush enabled publishing. After an unknown outcome, inspect service status.",
@@ -357,7 +356,7 @@ var commandExamples = map[string]string{
 	"card inspect":        "  localswim card inspect --prose $board 12",
 	"attachment upload":   "  localswim attachment upload --revision 12 $board 17 photo.png\n  localswim attachment upload --filename photo.png $board $card -",
 	"comment post":        "  localswim comment post --text \"Confirmed weekend hours.\" $board $card\n  localswim comment post --revision 13 $board $card comment.json",
-	"card set-priorities": "  localswim card set-priorities --tickets $board $priority 12 17\n  localswim card set-priorities --revision 14 $board $priority $card1 $card2",
+	"card set-priorities": "  localswim card set-priorities $board $priority 12 $card2\n  localswim card set-priorities --force --revision 14 $board $priority",
 	"policy grant":        "  localswim policy grant --revision 4 --create $board $user $lane\n  localswim policy grant --revision 5 --move $board $user $from $to",
 	"activity list":       "  localswim activity list --from \"2026-11-11 00:00:00+00:00\" --to \"2026-11-11 01:00:00+00:00\" $board",
 }

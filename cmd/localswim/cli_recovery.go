@@ -16,6 +16,8 @@ func parseBoardRecovery(args []string) (cliCommand, error) {
 	command := cliCommand{method: http.MethodPost}
 	flags := flag.NewFlagSet("board recover", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	flags.BoolVar(&command.force, "force", false, "confirm board recovery without prompting")
+	flags.BoolVar(&command.force, "f", false, "confirm board recovery without prompting")
 	flags.StringVar(&command.recoveryMode, "mode", "", "explicit recovery mode (same_id or fresh)")
 	if err := flags.Parse(args); err != nil {
 		return command, err

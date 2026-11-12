@@ -19,7 +19,7 @@ func TestT07ParseRequiredInputs(t *testing.T) {
 		{"card", "triage-order", "--lane", t03Lane, t03Board},
 		{"card", "lookup", t03Board},
 		{"ticket-order", "apply", t03Board, t03Lane, "-"},
-		{"board", "restore", "--revision", "12", t03Board, "-"},
+		{"board", "restore", "--force", "--revision", "12", t03Board, "-"},
 		{"restoration", "create", "--id", t06Operation, t03Board, t06Operation},
 		{"publication", "create", "--id", t06Operation, t03Board, t06Operation},
 		{"restoration", "get", t03Board, t06Operation},
@@ -143,7 +143,7 @@ func TestT07RestoreNativeBytesAndStaleRefusal(t *testing.T) {
 				io.WriteString(w, `{"revision":13}`)
 			}))
 			var out, errout bytes.Buffer
-			code := runCLIWithInput([]string{"board", "restore", "--revision", revision, t03Board, "-"}, strings.NewReader(input), &out, &errout, t03Env(server.URL))
+			code := runCLIWithInput([]string{"board", "restore", "--force", "--revision", revision, t03Board, "-"}, strings.NewReader(input), &out, &errout, t03Env(server.URL))
 			server.Close()
 			if revision == "12" && (code != 0 || writes != 1) {
 				t.Fatalf("restore failed %s", &errout)
@@ -172,7 +172,11 @@ func TestT07OperationUnknownKeepsOriginalID(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
 		var out, errout bytes.Buffer
-		code := runCLIWithInput([]string{group, "create", "--id", t06Operation, t03Board, t06Operation}, strings.NewReader(""), &out, &errout, t03Env(server.URL))
+		args := []string{group, "create", "--id", t06Operation, t03Board, t06Operation}
+		if group == "restoration" {
+			args = append([]string{group, "create", "--force"}, args[2:]...)
+		}
+		code := runCLIWithInput(args, strings.NewReader(""), &out, &errout, t03Env(server.URL))
 		server.Close()
 		if code == 0 || writes != 1 || !strings.Contains(errout.String(), t06Operation) || !strings.Contains(errout.String(), "Mutation outcome unknown") {
 			t.Fatalf("lost operation identity %s", &errout)

@@ -14,6 +14,7 @@ var errPriorityBatchCompleted = errors.New("Completed cards cannot be selected")
 type priorityBatchInput struct {
 	boardID, boardTag, priorityID string
 	cardIDs                       []string
+	allUnfinished                 bool
 }
 
 type priorityBatchResult struct {
@@ -25,7 +26,7 @@ type priorityBatchResult struct {
 
 func readPriorityBatchInput(fields map[string]json.RawMessage) (priorityBatchInput, error) {
 	var in priorityBatchInput
-	if err := rejectFields(fields, []string{"board_id", "expected_board_etag", "card_ids", "priority_id"}, false); err != nil {
+	if err := rejectFields(fields, []string{"board_id", "expected_board_etag", "card_ids", "all_unfinished", "priority_id"}, false); err != nil {
 		return in, err
 	}
 	var err error
@@ -40,6 +41,17 @@ func readPriorityBatchInput(fields map[string]json.RawMessage) (priorityBatchInp
 	in.priorityID, err = inputID(fields["priority_id"], "priority_id")
 	if err != nil {
 		return in, err
+	}
+	_, explicit := fields["card_ids"]
+	all, hasAll := fields["all_unfinished"]
+	if explicit == hasAll {
+		return in, invalid("card_ids", "Provide either card_ids or all_unfinished: true.")
+	}
+	if hasAll {
+		if json.Unmarshal(all, &in.allUnfinished) != nil || !in.allUnfinished {
+			return in, invalid("all_unfinished", "Expected true.")
+		}
+		return in, nil
 	}
 	var rawIDs []json.RawMessage
 	if json.Unmarshal(fields["card_ids"], &rawIDs) != nil || len(rawIDs) < 1 || len(rawIDs) > 1000 {
@@ -112,7 +124,7 @@ func (x *request) batchPriorities() {
 	x.respond(http.StatusOK, result, "")
 }
 
-func (in priorityBatchInput) apply(state *snapshot, actor string) error {
+func (in *priorityBatchInput) apply(state *snapshot, actor string) error {
 	if !slices.Contains(state.Board.UserIDs, actor) {
 		return errMissing
 	}
@@ -121,6 +133,14 @@ func (in priorityBatchInput) apply(state *snapshot, actor string) error {
 	}
 	if !slices.Contains(state.Board.PriorityIDs, in.priorityID) {
 		return invalid("priority_id", "Expected a priority on this board.")
+	}
+	if in.allUnfinished {
+		in.cardIDs = make([]string, 0, len(state.Cards))
+		for _, item := range state.Cards {
+			if item.CompletedAt == nil {
+				in.cardIDs = append(in.cardIDs, item.ID)
+			}
+		}
 	}
 	cards := relationshipCards(state)
 	overrides := make(map[string]string, len(in.cardIDs))

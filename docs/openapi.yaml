@@ -2108,8 +2108,12 @@ paths:
       x-milestones:
       - 11
       description: expected_board_etag is a body precondition on the board, not an If-Match tag for this
-        collection. Normalize UUIDs before duplicate checks. Evaluate all selected overrides together
-        and apply unfinished dependency floors. Reject Completed selections. Return all actual changes;
+        collection. Normalize UUIDs before duplicate checks. Exactly one of card_ids or all_unfinished
+        must be supplied. When all_unfinished is true, atomically select all unfinished cards, including
+        archived cards; Completed cards remain immutable. An explicit card_ids list must be nonempty and
+        contain at most 1000 entries. The all_unfinished selection has no separate cap beyond board
+        bounds. An empty eligible set is a no-op. Evaluate all selected overrides together and apply
+        unfinished dependency floors. Reject explicit Completed selections. Return all actual changes;
         no-op does not append audit.
       requestBody:
         required: true
@@ -16534,6 +16538,9 @@ components:
             $ref: '#/components/schemas/UuidInput'
           maxItems: 1000
           minItems: 1
+        all_unfinished:
+          type: boolean
+          const: true
         priority_id:
           $ref: '#/components/schemas/UuidInput'
         actor: false
@@ -16559,8 +16566,10 @@ components:
       required:
       - board_id
       - expected_board_etag
-      - card_ids
       - priority_id
+      oneOf:
+      - required: [card_ids]
+      - required: [all_unfinished]
       description: Unrecognized non-protected members are ignored and never persisted. Protected attribution,
         version, and identity fields are rejected.
     ApprovalInput:

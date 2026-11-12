@@ -223,19 +223,32 @@ blocking link and raising a priority can promote upstream cards in one audited
 revision. Archived unfinished cards participate, and Completed cards stop paths.
 Removing a link does not lower priorities.
 
-Batch priority changes send one `priority_id` and the selected `card_ids` to
-`PATCH /cards` under `expected_board_etag`. Evaluate every selection together
-before applying the blocking floor. The result includes effective selected cards,
-all actual audit changes, and `board_revision`. `X-Board-ETag` carries the committed
-validator. Duplicate IDs and Completed selections refuse the entire operation.
-An unchanged effective result preserves the revision and audit.
+Batch priority changes send one `priority_id` and exactly one of `card_ids` or
+`all_unfinished: true` to `PATCH /cards` under `expected_board_etag`. The CLI
+sends `all_unfinished: true` when no card selectors are given. This atomically
+selects every unfinished card, including archived cards. Completed cards remain
+immutable. An explicit `card_ids` list must be nonempty and contain at most 1000
+cards. The all-unfinished selection has no separate cap beyond board bounds.
+Omitting both selectors, or supplying `card_ids` as null or empty, is invalid.
+An empty eligible set is a no-op. Evaluate the full selection together
+before applying the blocking floor. The result includes effective selected
+cards, all actual audit changes, and `board_revision`. `X-Board-ETag` carries the
+committed validator. Duplicate IDs and Completed selections refuse the entire
+operation. An unchanged effective result preserves the revision and audit.
 
-Use `card set-priorities [--revision N] --tickets BOARD_ID PRIORITY_ID TICKET [TICKET ...]`
-to select cards by their tickets. Every focused lookup must agree on the same
-board validator. The CLI rejects duplicate tickets before lookup and sends one
-batch with the original board validator. `--revision` checks the board revision.
-After a stale response, inspect the current ticket mapping before issuing another
-command. After an uncertain response, inspect the affected cards before retrying.
+Use `card set-priorities [--revision N] [-f|--force] BOARD_ID PRIORITY_ID [CARD_ID ...]`.
+Each `CARD_ID` may be a UUID or ticket. With no selectors, the command prints an
+INFO summary and prompts `Continue? [Y/n]`. Pressing Enter confirms. Use
+`-f` or `--force` to skip the prompt for bots or noninteractive use. Explicit
+selectors do not prompt. `--revision` checks the board revision. After a stale response,
+inspect the current ticket mapping before issuing another command. After an
+uncertain response, inspect the affected cards before retrying.
+
+Consider the same confirmation convention for implicit whole-board or
+query-selected multi-card writes. Explicit `--lane UUID` selection needs no extra
+prompt. Assess each operation individually. Where useful,
+explain the scope before asking `Continue? [Y/n]` and support `-f` and `--force`.
+Explicit card UUID or ticket lists usually need only the normal guards.
 
 `GET /boards/{board_id}?view=lanes` returns `board`, active `lanes`, and visible
 `cards` in lane order. Within each lane, priority precedes same-rank blocking
@@ -391,7 +404,13 @@ and the identity remains free of healthy-board collisions. It reports
 does not expose actor grants or change the snapshot or reference. These reports
 establish the recovery point for a separately authorized recovery operation.
 
-Use `board recover --mode same_id BOARD_ID FILE|-` for a startup-quarantined
+Whole-board mutations, including `board restore` and `board recover`, print an INFO
+summary and prompt `Continue? [Y/n]` before applying changes. Press Enter to
+confirm, or pass `-f` or `--force` to skip confirmation for automation. If the
+input is `-` (binary standard input), `--force` is required so the confirmation
+prompt cannot consume payload bytes. File-path input may prompt normally.
+
+Use `board recover --mode same_id [-f|--force] BOARD_ID FILE|-` for a startup-quarantined
 board with trusted continuity. The Human workspace administrator supplies a
 verified native JSON snapshot or ZIP backup for that board. The command reads
 the current recovery diagnostic and uses its exact ETag once. Same-ID recovery
@@ -399,7 +418,7 @@ requires the unchanged, settled local reference, matching creation identity,
 an eligible runtime restore actor and collision-free identity. The committed
 revision exceeds the source, trusted local and readable durable revisions.
 
-Use `board recover --mode fresh BOARD_ID FILE|-` explicitly when continuity is
+Use `board recover --mode fresh [-f|--force] BOARD_ID FILE|-` explicitly when continuity is
 unavailable. Recovery creates a new board UUID and new board-owned resource and
 audit UUIDs. Global user identities and exact user text are preserved. The
 original failed snapshot and diagnostic remain available. The recovery audit

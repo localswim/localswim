@@ -55,6 +55,9 @@ func TestT06BatchAndBackupValidators(t *testing.T) {
 			t.Run(action+revision, func(t *testing.T) {
 				writes := 0
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if action == "batch" && t505ServeBatchResolution(w, r) {
+						return
+					}
 					if r.Method == http.MethodGet {
 						if r.URL.Path != t03Root+"/boards/"+t03Board {
 							t.Error("wrong board preflight")
@@ -68,7 +71,11 @@ func TestT06BatchAndBackupValidators(t *testing.T) {
 					if json.NewDecoder(r.Body).Decode(&body) != nil {
 						t.Fatal("invalid body")
 					}
-					if string(body["board_id"]) != fmt.Sprintf("%q", t03Board) || string(body["expected_board_etag"]) != fmt.Sprintf("%q", t03BoardTag) {
+					wantTag := t03BoardTag
+					if action == "batch" {
+						wantTag = t505BoardTag
+					}
+					if string(body["board_id"]) != fmt.Sprintf("%q", t03Board) || string(body["expected_board_etag"]) != fmt.Sprintf("%q", wantTag) {
 						t.Error("missing board conditions")
 					}
 					if action == "batch" {

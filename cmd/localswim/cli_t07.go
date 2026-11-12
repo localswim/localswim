@@ -49,6 +49,8 @@ func parseT07(name string, args []string) (cliCommand, error) {
 		flags.IntVar(&limit, "limit", limit, "page size")
 		flags.StringVar(&cursor, "cursor", "", "pagination cursor")
 	case "board restore", "restoration create":
+		flags.BoolVar(&cmd.force, "force", false, "confirm whole-board replacement without prompting")
+		flags.BoolVar(&cmd.force, "f", false, "confirm whole-board replacement without prompting")
 		flags.StringVar(&revision, "revision", "", "expected board revision")
 		count = 2
 		if name == "restoration create" {

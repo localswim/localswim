@@ -35,7 +35,12 @@ localswim card set-priorities $board $priority $card $otherCard
 The concise create uses the board's default owner and priority. Card creation
 and comment posting also accept a JSON file or `-` for standard input. Use them for fields
 such as an explicit card or comment ID for focused readback after a lost reply.
-Append `--help` to an action name for its argument forms and examples. Put
+Run `localswim` to discover command groups, then use `localswim board --help`,
+`localswim board create --help`, `localswim card inspect --help`, or
+`localswim attachment upload --help` for the selected argument forms and examples.
+`localswim help board create` is equivalent. Bare object groups also show help.
+Help requires no service configuration and exits 0. Invalid invocations print an
+error and scoped usage to stderr and exit 2. Execution failures exit 1. Put
 `--revision N` before the positional arguments to require the board revision for
 creation and priority batches, or the card revision for comment posting.
 

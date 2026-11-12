@@ -18,203 +18,6 @@ import (
 	"github.com/localswim/localswim/internal/client"
 )
 
-const cliHelp = `Usage:
-  localswim workspace info
-  localswim workspace pin set [--revision N] BOARD_ID [BOARD_ID ...]
-  localswim workspace pin add [--revision N] BOARD_ID [BOARD_ID ...]
-  localswim workspace pin remove [--revision N] BOARD_ID [BOARD_ID ...]
-  localswim workspace publishing enable [--revision N]
-  localswim workspace publishing disable [--revision N]
-  localswim workspace publishing status
-  localswim board list [--limit N] [--cursor CURSOR]
-  localswim board create --name NAME [--preset terry]
-  localswim board create --json <JSON_FILE|->
-  localswim board get [--view lanes] [--data DIRECTORY] BOARD_ID
-  localswim board rename [--revision N] BOARD_ID NEW_NAME
-  localswim board close [--revision N] BOARD_ID
-  localswim board reopen [--revision N] BOARD_ID
-  localswim board patch [--revision N] BOARD_ID <JSON_FILE|->
-  localswim board publishing enable [--revision N] BOARD_ID
-  localswim board publishing disable [--revision N] BOARD_ID
-  localswim board publishing status BOARD_ID
-  localswim board notifications target [--revision N] BOARD_ID THREAD_UUID
-  localswim board notifications enable [--revision N] BOARD_ID
-  localswim board notifications disable [--revision N] BOARD_ID
-  localswim board notifications status BOARD_ID
-  localswim board verify [--data DIRECTORY] BOARD_ID
-  localswim board export [--type json] [--data DIRECTORY] BOARD_ID <FILE|->
-  localswim card create [--revision N] <JSON_FILE|->
-  localswim card create [--revision N] --title TITLE [--description TEXT] BOARD_ID LANE_ID
-  localswim card list [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
-  localswim card get CARD_ID
-  localswim card get BOARD_ID TICKET
-  localswim card inspect [--prose] [--data DIRECTORY] BOARD_ID TICKET
-  localswim card patch [--revision N] CARD_ID FILE|-
-  localswim card move [--revision N] CARD_ID LANE_ID
-  localswim card move [--revision N] BOARD_ID TICKET LANE_ID
-  localswim card assign [--revision N] CARD_ID OWNER_ID
-  localswim card assign [--revision N] BOARD_ID TICKET OWNER_ID
-  localswim card title [--revision N] CARD_ID TITLE
-  localswim card set-priority [--revision N] CARD_ID PRIORITY_ID
-  localswim card set-priorities [--revision N] BOARD_ID PRIORITY_ID CARD_ID [CARD_ID ...]
-  localswim card set-priorities [--revision N] --tickets BOARD_ID PRIORITY_ID TICKET [TICKET ...]
-  localswim card description [--revision N] CARD_ID FILE|-
-  localswim card archive [--revision N] CARD_ID
-  localswim card archive [--revision N] BOARD_ID TICKET
-  localswim card unarchive [--revision N] CARD_ID
-  localswim card unarchive [--revision N] BOARD_ID TICKET
-  localswim card cover [--revision N] CARD_ID ATTACHMENT_ID|none
-  localswim card set-parent [--revision N] BOARD_ID TICKET PARENT_TICKET
-  localswim card clear-parent [--revision N] BOARD_ID TICKET
-  localswim relationship list [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
-  localswim relationship get RELATIONSHIP_ID
-  localswim relationship create [--revision N] [--id UUID] SOURCE_CARD_ID KIND TARGET_CARD_ID
-  localswim relationship create [--revision N] [--id UUID] BOARD_ID SOURCE_TICKET KIND TARGET_TICKET
-  localswim relationship patch [--revision N] RELATIONSHIP_ID FILE|-
-  localswim relationship remove [--revision N] RELATIONSHIP_ID
-  localswim relationship remove [--revision N] BOARD_ID SOURCE_TICKET KIND TARGET_TICKET
-  localswim comment list [--data DIRECTORY] [--archived exclude|include|only]
-                         [--limit N] [--cursor CURSOR] BOARD_ID [CARD_ID]
-  localswim comment post [--revision N] CARD_ID FILE|-
-  localswim comment post [--revision N] --text TEXT CARD_ID
-  localswim activity list [--data DIRECTORY] --from UTC --to UTC [--view full|monitor]
-                        [--ticket N] [--card-id CARD_ID]
-                        [--writer-id WRITER_ID] [--actor-id UUID] [--operation OP] [--limit N]
-                        [--cursor CURSOR] BOARD_ID
-  localswim lane add [--revision N] BOARD_ID FILE|-
-  localswim lane get LANE_ID
-  localswim lane rename [--revision N] LANE_ID LABEL
-  localswim lane set-key [--revision N] LANE_ID KEY
-  localswim lane retire [--revision N] LANE_ID
-  localswim lane set-approval-button [--revision N] LANE_ID enabled|disabled
-  localswim attachment list [--limit N] [--cursor CURSOR] CARD_ID
-  localswim attachment get ATTACHMENT_ID
-  localswim attachment download ATTACHMENT_ID FILE|-
-  localswim attachment upload [--revision N] [--id UUID] [--filename NAME] CARD_ID <FILE|->
-  localswim attachment upload [--revision N] [--id UUID] [--filename NAME] BOARD_ID TICKET <FILE|->
-  localswim attachment detach [--revision N] ATTACHMENT_ID
-  localswim attachment detach [--revision N] BOARD_ID TICKET ATTACHMENT_ID
-  localswim policy get BOARD_ID
-  localswim policy grant --revision N --create BOARD_ID USER_ID LANE_ID
-  localswim policy grant --revision N --move BOARD_ID USER_ID FROM_LANE_ID TO_LANE_ID
-  localswim policy grant [--revision N] BOARD_ID <JSON_FILE|->
-  localswim ticket-order preview LANE_ID [CARD_ID ...]
-  localswim backup create [--revision N] [--id UUID] BOARD_ID
-  localswim backup info BACKUP_ID
-  localswim backup download BACKUP_ID FILE|-
-  localswim backup verify <FILE|->
-  localswim card search [--data DIRECTORY] [--search TEXT] [--search-content] [--lane ID]...
-                       [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
-  localswim card triage-order [--data DIRECTORY] [--search TEXT] [--search-content] [--lane ID]...
-                             [--archived exclude|include|only] [--limit N] [--cursor CURSOR] BOARD_ID
-  localswim card lookup [--search TEXT] [--search-content] [--lane ID] [--limit N] [--cursor CURSOR] BOARD_ID
-  localswim ticket-order apply LANE_ID FILE|-
-  localswim board restore [--revision N] BOARD_ID FILE|-
-  localswim restoration create [--revision N] [--id UUID] BOARD_ID BACKUP_ID
-  localswim restoration get RESTORATION_ID
-  localswim publication create [--id UUID] [--remote NAME] [--branch BRANCH] BOARD_ID BACKUP_ID
-  localswim publication get PUBLICATION_ID
-  localswim service status
-  localswim service builds [--limit N] [--cursor CURSOR]
-  localswim service activate [--id UUID] BUILD_ID
-  localswim service activation ACTIVATION_ID
-  localswim service stop
-
-Live commands use LOCALSWIM_URL (http://127.0.0.1:<port>) and LOCALSWIM_TOKEN.
-Board creation requires exactly one of --name or --json. Use --preset terry with --name.
---json reads a new board definition from JSON_FILE or standard input.
-JSON_FILE is required. Use a file path or - to read standard input.
-Set --data to read saved board data offline for board get, board export, board verify,
-card inspect, card triage-order, card search, comment list, and activity list.
-Offline board get returns board metadata. The lanes view requires a live service.
-Verification prints the full JSON report and exits 1 if the board is invalid.
-Board export writes JSON to a new FILE, or standard output when given -. The default --type is json.
-All pin commands require at least one board ID. Pin set replaces the order.
-Pin add appends new boards in the supplied order.
-Pin remove skips failed targets with WARNING messages and preserves the remaining order.
-Pin set validates the entire list and reports ERROR if any target fails.
-Publishing commands return the full board or workspace JSON, including publishing status.
-Board publishing uses the board revision. Workspace publishing uses the workspace revision.
-Board notifications commands return the board ID, routing revision, enabled state, and target chat UUID.
-Target changes preserve the enabled state. Set a target before enabling. Disable retains the target.
-Notification --revision checks the routing revision. Use board notifications status BOARD_ID to
-inspect saved routing after an uncertain write.
-Board close and reopen use the board revision and return the full board JSON.
-Use board get BOARD_ID to inspect availability after an unknown close or reopen outcome.
-Omit --revision to use the current resource validator.
-Supply --revision to require the version you previously inspected.
-For card create and policy grant, --revision refers to the board revision.
-Card create takes a title and optional description with a board and lane, or reads JSON.
-Its JSON must include board_id and can include an explicit ID for focused readback after a lost reply.
-Policy grant adds a single creation or movement grant with board-specific UUIDs, or reads JSON.
-The concise forms require --revision. All forms preserve existing permissions.
-Comment list excludes archived cards for a board and includes them when scoped to one card by default.
-Comment post takes --text or reads an object containing text and an optional ID.
-Lane add reads the lane definition. The CLI supplies its board ID and validator.
-Card edits, comment post, and attachment upload check the card revision.
-Ticket-based move, assign, archive, and unarchive also check the board version from the focused read.
-Lane add checks the board revision. Attachment detach checks the attachment revision.
-Lane rename, set-key, retire, and set-approval-button check the lane revision.
-Card set-priorities takes a board ID, priority ID, and one or more distinct card IDs.
-It checks the board revision.
-With --tickets, resolve distinct tickets from one board version before applying the batch.
-The batch evaluates all selected cards together and returns effective priorities and changes.
-Board get --view lanes returns visible cards in their swimlane order.
-Ticket-order preview defaults to all active lane cards. Optional card IDs select the ticket pool.
-Preview is read-only and returns the board revision and proposed ticket numbers.
-Ticket-order apply reads that saved preview and uses its original validator. Stale previews refuse.
-Card search and triage-order use whole-board triage ordering. Lookup uses numeric ticket order.
-Card triage-order returns the highest-ranked unfinished card by default and makes no changes.
-Use --limit for more cards. Repeat --lane to select multiple lanes, including Completed.
---search matches literal titles and ticket numbers. --search-content includes readable descriptions and comments.
-Board restore requires a native JSON snapshot or ZIP backup file, or - for raw stdin.
-Direct restore reads the current durable snapshot validator before writing.
-Use restoration create with a stored backup if the durable snapshot cannot be read.
-Publication create publishes a stored backup.
-Operation creates generate an ID when --id is omitted. Inspect the original operation ID after an unknown outcome.
-Restoration get and publication get inspect that original operation without replaying it.
-Service activate and stop use the current service validator.
-Service activate generates an ID when --id is omitted.
-After an unknown activation outcome, refresh LOCALSWIM_TOKEN as needed and use service activation with that ID.
-After an unknown stop outcome, use service status to inspect availability.
-Backup create captures the current board and audited attachment bytes and checks the board revision.
-Backup create generates an ID when --id is omitted and reports it on an unknown outcome.
-Backup info reads metadata for the supplied backup ID.
-Use backup info with the original ID after an unknown capture outcome.
-Backup download verifies its size and SHA-2-256 digest before writing a new file or stdout.
-Backup verify checks ZIP bytes from FILE or standard input with -, without contacting a service.
-Standard input is copied to a private temporary file for verification and removed afterward.
-Activity intervals are inclusive. Quote both UTC bounds in YYYY-MM-DD HH:MM:SS+00:00.
-Activity lists sanitized edit metadata by default. Use --view full with a live service for the attributed audit.
-Saved activity reports its captured revision and latest retained event time.
-The CLI manages HTTP validators.
-For input FILE|-, pass a file path or use - to read standard input.
-For output FILE|-, pass a new file path or use - to write standard output.
-Card description reads UTF-8 text verbatim, including trailing newlines.
-Card list excludes archived cards by default. Focused card get includes them.
-Card inspect returns ticket, lane, owner, priority, and relationship metadata. Use --prose for its description and comments.
-Use card cover CARD_ID none to clear the selected cover.
-Use card set-parent or clear-parent with the board and child ticket. --revision checks the child card.
-Relationship create accepts source and target card UUIDs or tickets scoped to one board.
-Relationship kinds are blocks, duplicates, references, and relates_to.
-Relationship patch reads kind. The CLI supplies the required validators.
-For relationship create, --revision refers to the board revision.
-For relationship patch and remove, --revision refers to the relationship revision.
-Relationship remove exits silently on success.
-Attachment download verifies the active file before writing. Use a new file path
-or - for raw bytes on standard output. Inspect the destination after a local write failure.
-If a mutation outcome is unknown, inspect the resource before retrying.
-Attachment upload reads raw bytes from FILE or standard input with -.
---filename overrides the display filename for either input source.
-Ticket-based upload and detach use the board version from the focused read.
-Ticket-based detach also checks that the attachment belongs to the resolved card.
-Without --filename, FILE uses its basename and - uses the attachment UUID.
-Attachment upload generates an ID when --id is omitted and reports the ID
-on an unknown outcome. Use attachment get to inspect that exact ID.
-Attachment detach exits silently on success. Use attachment get to check active
-after an unknown detach outcome.
-`
-
 type exportFormat string
 
 const exportJSON exportFormat = "json"
@@ -273,8 +76,8 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 }
 
 func runCLIWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, getenv func(string) string) int {
-	if len(args) == 0 || (len(args) == 1 && (args[0] == "help" || args[0] == "--help" || args[0] == "-h")) {
-		_, err := io.WriteString(stdout, cliHelp)
+	if help, ok := requestedCLIHelp(args); ok {
+		_, err := io.WriteString(stdout, help)
 		if err != nil {
 			return 1
 		}
@@ -284,17 +87,14 @@ func runCLIWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer, g
 	command, err := parseCLI(args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			help := cliHelp
-			if contextual := writeCommandHelp(args[0] + " " + args[1]); contextual != "" {
-				help = contextual
-			}
+			help := contextualCLIHelp(args)
 			if _, err := io.WriteString(stdout, help); err != nil {
 				return 1
 			}
 			return 0
 		}
 		fmt.Fprintln(stderr, "ERROR", err)
-		fmt.Fprint(stderr, cliHelp)
+		fmt.Fprint(stderr, contextualCLIHelp(args))
 		return 2
 	}
 	if err := executeCLI(command, stdin, stdout, stderr, getenv); err != nil {

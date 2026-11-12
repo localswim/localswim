@@ -3146,12 +3146,17 @@ async function load(savedAvailability) {
   }
 
   /** @param {BoardSummary[]} rows */
-  function showStartupFailure(rows) {
-    if (!boardId || startupDiagnostic || signal.aborted || view !== activeView) return;
-    const failed = rows.find((row) => row.id === boardId && failedAtStartup(row));
-    if (!failed) return;
+  function applyStartupFailures(rows) {
+    if (signal.aborted || view !== activeView) return;
+    /** @type {BoardSummary|undefined} */
+    let failed;
+    for (const row of rows) {
+      if (!failedAtStartup(row)) continue;
+      forgetRecentBoard(row.id);
+      if (row.id === boardId) failed = row;
+    }
+    if (!failed || startupDiagnostic) return;
     startupDiagnostic = true;
-    forgetRecentBoard(failed.id);
     clearSelectedBoard();
     main?.replaceChildren(element("h1", boardSummaryName(failed)), element("p", startupBoardError),
       element("p", "Board ID " + failed.id), button("Retry board update", () => void load()));
@@ -3310,8 +3315,8 @@ async function load(savedAvailability) {
           if (signal.aborted) return;
           latestBoards = rows;
           attentionStatus.hidden = true;
+          applyStartupFailures(latestBoards);
           showBoards(latestBoards);
-          showStartupFailure(latestBoards);
         } catch (error) {
           if (signal.aborted) return;
           attentionStatus.hidden = false;
@@ -3321,9 +3326,9 @@ async function load(savedAvailability) {
       catalogTail = queuedCatalog.catch(() => {});
       return queuedCatalog;
     };
-    showBoards(latestBoards);
     navigationReady = true;
-    showStartupFailure(latestBoards);
+    applyStartupFailures(latestBoards);
+    showBoards(latestBoards);
     if (catalogHint) {
       catalogHint = false;
       invalidateCatalog();

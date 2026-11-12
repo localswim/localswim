@@ -2625,6 +2625,63 @@ test("a startup failure evicts a warm board and keeps only the catalog watch", a
   assert.equal(main.querySelector("form"), null);
 });
 
+test("a catalog-confirmed offscreen startup failure prevents the old board from painting on return", async (t) => {
+  const {api} = boardApi();
+  const streams = boardStreams(api);
+  const nextCatalog = Promise.withResolvers();
+  const nextAvailability = Promise.withResolvers();
+  const readingCatalog = Promise.withResolvers();
+  const getAvailability = api.getBoardAvailability;
+  let failed = false;
+  let returning = false;
+  let returnAvailabilityReads = 0;
+  api.listBoards = async () => {
+    if (returning) {
+      readingCatalog.resolve();
+      await nextCatalog.promise;
+    }
+    return page("boards", [failed
+      ? {id: board, name: null, revision: null, availability: "unhealthy", attention: null,
+        last_card_edit_at: null, error_code: "durable_state_unavailable"}
+      : {id: board, name: "Board", revision: 1, availability: "open",
+        attention: {blocked: 0, needs_input: 0, ready_for_review: 0}, last_card_edit_at: null, error_code: null}]);
+  };
+  api.getBoardAvailability = async (id) => {
+    if (returning) {
+      returnAvailabilityReads++;
+      await nextAvailability.promise;
+    }
+    return getAvailability(id);
+  };
+  const ui = await harness(api, undefined, {workspaceEvents: true});
+  t.after(() => {
+    nextCatalog.resolve();
+    nextAvailability.resolve();
+    ui.abortView();
+  });
+  await ui.load();
+  const {main, boards} = ui.nodes;
+  assert.ok(ui.find(main, "button", "#1 Original"));
+  await ui.navigate("/");
+  await until(() => streams.at(-1)?.boardId === undefined && streams.at(-1)?.signal.aborted === false);
+
+  failed = true;
+  streams.at(-1).sendCatalog("snapshot");
+  await until(() => ui.find(boards, "span", "Unavailable board (87b11b54)"));
+
+  returning = true;
+  const reopening = ui.navigate("/boards/" + board);
+  await readingCatalog.promise;
+  assert.equal(ui.find(main, "button", "#1 Original"), undefined);
+  assert.match(ui.nodes.status.textContent, /Loading/);
+
+  nextCatalog.resolve();
+  nextAvailability.resolve();
+  await reopening;
+  assert.equal(returnAvailabilityReads, 0);
+  assert.match(main.textContent, /saved snapshot at startup/);
+});
+
 test("refreshing an open board repaints Attention in catalog order and retains sidebar focus", async () => {
   const state = boardApi();
   const pinned = {id: user, name: "Pinned", attention: null, last_card_edit_at: null};

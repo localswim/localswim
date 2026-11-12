@@ -37,6 +37,69 @@ func TestOwnerNoticeGroupsShareCardBound(t *testing.T) {
 	}
 }
 
+func TestOwnerNoticeWriterSurvivesActivationFailure(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		human, bot := lifecycleTokens()
+		app, err := Open(t.TempDir(), human, bot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := app.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		service := app.builds.service()
+		id := newOperationID()
+		if _, err := app.lifecycle.begin(service, matchingServiceTag(service.entityTag()), id); err != nil {
+			t.Fatal(err)
+		}
+		if err := app.saveActivation(activationRecord{
+			activation: activation{ID: id, BuildID: newID(), State: "accepted"},
+			Origin:     service.ServiceInstanceID,
+			Version:    "v2-test",
+			Digest:     strings.Repeat("a", 64),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		releaseStartup, err := LockServiceStartup(app.DataRoot())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := releaseStartup(); err != nil {
+				t.Error(err)
+			}
+		}()
+		previous := app.store.ownerNotices
+		previous.submit(ownerNoticeEvent{boardID: newID()})
+		if pending, _ := previous.next(); pending == nil {
+			t.Fatal("fixture did not queue a burst before handoff")
+		}
+		if err := app.ReleaseForActivation(); err != nil {
+			t.Fatal(err)
+		}
+		if err := app.ResumeAfterActivationFailure(id); err != nil {
+			t.Fatal(err)
+		}
+		resumed := app.store.ownerNotices
+		pending, _ := resumed.next()
+		oldPending, _ := previous.next()
+		if resumed == previous || pending != nil || oldPending != nil || previous.ctx.Err() == nil {
+			t.Fatal("activation recovery did not start a fresh worker and discard the old burst")
+		}
+		response := lifecycleRequest(app, human, http.MethodGet, "/service", "")
+		status := turnOneDecode[serviceStatus](t, response.Body.Bytes())
+		if response.Code != 200 || status.State != "running" ||
+			status.ServiceInstanceID != service.ServiceInstanceID || snapshotString(status.RestartErrorCode) != "activation_handoff_failed" {
+			t.Fatal("failed handoff did not resume the original service")
+		}
+		if resumed.writerID != status.ServiceInstanceID || resumed.writerID != app.store.activityWriterID {
+			t.Fatal("resumed owner notices lost the activity writer identity")
+		}
+	})
+}
+
 func TestGroupedOwnerNoticeMatchesActivityInterval(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		humanToken := base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("h", 32)))

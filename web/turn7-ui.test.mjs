@@ -2397,6 +2397,88 @@ test("saving edited prose keeps unchanged line endings and newly entered breaks"
   assert.equal(saved.replace(/\r\n?/g, "\n"), description.value);
 });
 
+test("streamed drawer refresh retains the focused occurrence of a saved prose link", async (t) => {
+  const {api} = boardApi();
+  await api.patchCard(card, tag(card, 1), {description: "First #7 and second #7"});
+  const readLanes = api.getBoardLanes;
+  const readCard = api.getCard;
+  api.getBoardLanes = async () => {
+    const reply = await readLanes();
+    const revision = reply.data.cards[0].revision;
+    return {data: {...reply.data, board: {...reply.data.board, revision}}, etag: tag(board, revision)};
+  };
+  api.getCard = async () => {
+    const reply = await readCard();
+    return {...reply, etag: tag(card, reply.data.revision)};
+  };
+  const streams = boardStreams(api);
+  const ui = await harness(api);
+  t.after(ui.abortView);
+  await ui.load();
+  await until(() => streams.length === 1);
+  const {main, details} = ui.nodes;
+  streams[0].send("snapshot", 1);
+  await until(() => main.querySelector("#board-live-connection").textContent === "Live updates connected.");
+  ui.find(main, "button", "#1 Original").click();
+  const proseLinks = () => details.querySelectorAll("p").find(({className}) =>
+    className === "body-text")?.querySelectorAll("a") ?? [];
+  await until(() => proseLinks().length === 2);
+  const original = proseLinks()[1];
+  original.focus();
+  await api.patchCard(card, tag(card, 1), {title: "Externally renamed", revision: 2});
+  streams[0].send("change", 2);
+  await until(() => details.querySelector("h2").textContent === "#1 Externally renamed");
+  assert.notEqual(proseLinks()[1], original);
+  assert.equal(ui.focused(), proseLinks()[1]);
+  assert.equal(ui.focused().focusOptions.preventScroll, true);
+
+  await api.patchCard(card, tag(card, 2), {description: "No references remain.", revision: 3});
+  streams[0].send("change", 3);
+  await until(() => proseLinks().length === 0);
+  assert.equal(ui.focused(), details.querySelector("h2"));
+});
+
+for (const lostResponse of [false, true]) {
+  test(`slow text save preserves a newer draft that matches the old baseline (lost response: ${lostResponse})`, async () => {
+    const {api} = boardApi();
+    const patch = api.patchCard;
+    await patch(card, tag(card, 1), {description: "Original\r\nprose"});
+    const sent = Promise.withResolvers();
+    const release = Promise.withResolvers();
+    const writes = [];
+    api.patchCard = async (id, etag, change) => {
+      writes.push({...change});
+      sent.resolve();
+      await release.promise;
+      const reply = await patch(id, etag, change);
+      if (lostResponse) throw new ApiError("transport_failed", {outcomeUnknown: true});
+      return reply;
+    };
+    const ui = await harness(api);
+    await ui.load();
+    const {main, details} = ui.nodes;
+    ui.find(main, "button", "#1 Original").click();
+    await until(() => ui.field(details, "Description"));
+    const title = ui.field(details, "Title");
+    const description = ui.field(details, "Description");
+    title.value = "Submitted title";
+    description.value = "Submitted\nprose";
+    ui.submit(details, "Save text");
+    await sent.promise;
+    title.value = "Original";
+    description.value = "Original\nprose";
+    title.dispatch("input");
+    description.dispatch("input");
+    release.resolve();
+    await ui.settled();
+
+    assert.equal(details.querySelector("h2").textContent, "#1 Submitted title");
+    assert.equal(title.value, "Original");
+    assert.equal(description.value, "Original\nprose");
+    assert.deepEqual(writes, [{title: "Submitted title", description: "Submitted\r\nprose"}]);
+  });
+}
+
 test("board loading retries a changed revision and adopts current publishing status at a matching revision", async () => {
   const {api} = boardApi();
   const readLanes = api.getBoardLanes;

@@ -2005,6 +2005,8 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       showPending();
       updateActions(saved);
       void refreshHierarchy(saved);
+      const links = current.contains(document.activeElement) ? [...current.querySelectorAll("a")] : [];
+      const focusedLink = links.find((link) => link === document.activeElement);
       const body = cardProse(saved.description, boardId);
       const savedLane = lanes.find(({ id }) => id === saved.lane_id);
       current.replaceChildren(element("h3", "Saved card"), element("p", saved.title), body,
@@ -2012,12 +2014,19 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         element("p", "Priority: " + (priorities.find(({ id }) => id === saved.priority_id)?.label ?? "Unavailable")),
         ...(saved.archived ? [element("p", "Archived")] : []),
         element("p", "Owner: " + (users.find(({ id }) => id === saved.owner_id)?.label ?? "Unknown user")));
+      if (focusedLink) {
+        const index = links.filter(({ href }) => href === focusedLink.href).indexOf(focusedLink);
+        const matching = [...body.querySelectorAll("a")].filter(({ href }) => href === focusedLink.href);
+        (matching[index] ?? heading).focus({ preventScroll: true });
+      }
     }
 
-    /** @param {Card} saved */
-    function adoptSaved(saved) {
-      titleBaseline = adoptText(title, titleBaseline, saved.title, composingTitle);
-      descriptionBaseline = adoptText(description, descriptionBaseline, saved.description);
+    /** @param {Card} saved @param {Pick<Card, "title"|"description">} [submitted] */
+    function adoptSaved(saved, submitted) {
+      titleBaseline = adoptText(title, titleBaseline, saved.title,
+        composingTitle || Boolean(submitted && title.value !== submitted.title));
+      descriptionBaseline = adoptText(description, descriptionBaseline, saved.description,
+        Boolean(submitted && description.value !== submitted.description));
       if (owner.value === savedCard.owner_id) owner.value = saved.owner_id;
       if (priority.value === savedCard.priority_id) priority.value = saved.priority_id;
       savedCard = saved;
@@ -2026,8 +2035,8 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     }
 
     let savedRead = 0;
-    /** @param {() => boolean} [canApply] */
-    async function readSavedCard(canApply = () => true) {
+    /** @param {() => boolean} [canApply] @param {Pick<Card, "title"|"description">} [submitted] */
+    async function readSavedCard(canApply = () => true, submitted) {
       const read = ++savedRead;
       const { saved, tag } = await readCardVersion(boardId, card.id);
       if (cardView === activeCard && read === savedRead && canApply()) {
@@ -2036,23 +2045,24 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         setOptions(owner, users.some(({ id }) => id === ownerSelection)
           ? users : [...users, { id: ownerSelection, label: "Unavailable owner draft" }], ownerSelection);
         cardTag = tag;
-        adoptSaved(saved);
+        adoptSaved(saved, submitted);
       }
       return saved;
     }
 
-    /** @param {"conflict"|"unknown"} phase */
-    async function recoverTextSave(phase) {
+    /** @param {"conflict"|"unknown"} phase @param {Pick<Card, "title"|"description">} submitted */
+    async function recoverTextSave(phase, submitted) {
+      const readSubmitted = () => readSavedCard(undefined, submitted);
       const hadInspection = pendingInspections.has(scope);
       inspection.require(async () => {
-        await readSavedCard();
+        await readSubmitted();
         if (cardView === activeCard) await reloadBoard();
       });
       const pending = pendingInspections.get(scope);
       let failed = false;
       if (cardView === activeCard) {
         try {
-          await readWithSession(readSavedCard);
+          await readWithSession(readSubmitted);
         } catch {
           failed = true;
         }
@@ -2081,6 +2091,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     async function save(draft, submit) {
       if (cardView !== activeCard) return;
       const initiatingView = activeView;
+      const submitted = { title: title.value, description: description.value };
       /** @type {PendingCard} */
       const projection = { kind: "patch", card: savedCard, fields: draft };
       startWriting();
@@ -2095,7 +2106,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         committed = true;
         if (cardView !== activeCard) return;
         cardTag = etag(result);
-        adoptSaved(saved);
+        adoptSaved(saved, submitted);
         announce("ready", "Card saved.");
       } catch (error) {
         showPendingCard(projection, false);
@@ -2103,7 +2114,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         if (phase === "error") {
           if (cardView === activeCard) announce("error", "Card edit refused. Your draft is still here.");
         } else {
-          await recoverTextSave(phase);
+          await recoverTextSave(phase, submitted);
         }
       } finally {
         if (committed) {

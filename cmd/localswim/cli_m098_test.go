@@ -212,11 +212,21 @@ func TestM098TicketDetachBindsAttachmentValidatorToRevision(t *testing.T) {
 		{"different revision", attachmentTag(id, 7), "6", "matching attachment revision and validator"},
 		{"different identity", attachmentTag(t03Card, 6), "6", "matching attachment revision and validator"},
 		{"unbound strong validator", t03ResourceTag, "6", "matching attachment revision and validator"},
-		{"missing revision", attachmentTag(id, 6), "null", "matching attachment revision and validator"},
+		{"null revision", attachmentTag(id, 6), "null", "invalid attachment metadata"},
+		{"missing revision", attachmentTag(id, 6), "", "invalid attachment metadata"},
 		{"newer than focus", attachmentTag(id, 9), "9", "matching attachment revision and validator"},
 		{"requested revision differs", attachmentTag(id, 7), "7", "revision mismatch"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			var metadata map[string]json.RawMessage
+			if err := json.Unmarshal(attachmentFixture(id, nil), &metadata); err != nil {
+				t.Fatal(err)
+			}
+			if tc.revision == "" {
+				delete(metadata, "revision")
+			} else {
+				metadata["revision"] = json.RawMessage(tc.revision)
+			}
 			var reads, deletes atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch {
@@ -228,7 +238,7 @@ func TestM098TicketDetachBindsAttachmentValidatorToRevision(t *testing.T) {
 				case r.Method == http.MethodGet && r.URL.Path == t03Root+"/attachments/"+id:
 					reads.Add(1)
 					w.Header().Set("ETag", tc.tag)
-					_, _ = fmt.Fprintf(w, `{"id":%q,"board_id":%q,"card_id":%q,"active":true,"revision":%s}`, id, t03Board, t03Card, tc.revision)
+					_ = json.NewEncoder(w).Encode(metadata)
 				case r.Method == http.MethodDelete && r.URL.Path == t03Root+"/attachments/"+id:
 					deletes.Add(1)
 					if r.Header.Get("If-Match") != tc.tag || r.Header.Get("X-Expected-Board-ETag") != boardTag {

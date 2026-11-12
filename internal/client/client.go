@@ -123,12 +123,7 @@ func doRequest(transport *http.Client, request *http.Request, resource string, b
 	}
 	defer reply.Body.Close()
 	if reply.StatusCode < 200 || reply.StatusCode >= 300 {
-		uncertainStatus := reply.StatusCode < 400 || reply.StatusCode >= 500
-		if (boardSettingsWrite || lifecycleWrite || notificationWrite) && isUnavailableRefusal(reply) {
-			return Response{}, errors.New("service returned HTTP 503 (unavailable, not applied)")
-		}
-		return Response{}, responseError(fmt.Sprintf("service returned HTTP %d", reply.StatusCode),
-			mutation && uncertainStatus)
+		return Response{}, httpResponseError(reply, mutation, boardSettingsWrite || lifecycleWrite || notificationWrite)
 	}
 	if (lifecycleRead || verificationRead) && reply.StatusCode != http.StatusOK {
 		return Response{}, fmt.Errorf("service returned unexpected HTTP %d", reply.StatusCode)
@@ -260,4 +255,12 @@ func responseError(message string, unknown bool) error {
 		return fmt.Errorf("%s. %w. Inspect the resource before retrying", message, ErrMutationOutcomeUnknown)
 	}
 	return errors.New(message)
+}
+
+func httpResponseError(reply *http.Response, mutation, allowOtherUnavailable bool) error {
+	if mutation && isUnavailableRefusal(reply, allowOtherUnavailable) {
+		return errors.New("service returned HTTP 503 (unavailable, not applied)")
+	}
+	uncertainStatus := reply.StatusCode < 400 || reply.StatusCode >= 500
+	return responseError(fmt.Sprintf("service returned HTTP %d", reply.StatusCode), mutation && uncertainStatus)
 }

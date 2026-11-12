@@ -20,7 +20,7 @@ func (c *Client) PatchBoardSettings(resource string, body json.RawMessage, ifMat
 
 var canonicalUUID4 = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
-func isUnavailableRefusal(reply *http.Response) bool {
+func isUnavailableRefusal(reply *http.Response, allowOtherUnavailable bool) bool {
 	if reply.StatusCode != http.StatusServiceUnavailable {
 		return false
 	}
@@ -55,7 +55,8 @@ func isUnavailableRefusal(reply *http.Response) bool {
 			return false
 		}
 	}
-	return true
+	return allowOtherUnavailable || problem.Title == http.StatusText(http.StatusServiceUnavailable) &&
+		*problem.Detail == "Writes are paused after an uncertain commit. Inspect the saved state." && len(problem.Errors) == 0
 }
 
 type fieldError struct {

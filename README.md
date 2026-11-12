@@ -87,12 +87,14 @@ or ZIP to preserve a trusted identity. Explicit `--mode fresh` creates a new boa
 identity and keeps the original failure available. Both modes leave publishing
 disabled until explicitly enabled. Inspect `board list` and verification after an uncertain reply before another attempt.
 
-After an uncertain snapshot commit, inspect the saved outcome with `board export`
-or `board verify` before attempting another write. The service pauses writes,
-board capture, and pending owner notices for the affected board. If the failed
-operation could affect shared workspace state, the pause applies to all boards.
-Restart verifies the saved outcome against the recovery reference. If the board
-is quarantined after restart, follow the recovery mode shown by `board verify`.
+After an uncertain snapshot commit on an existing board, inspect the saved outcome
+with `board export` or `board verify` before attempting another write. The service
+pauses writes, board capture, and pending owner notices for the affected board.
+If the failed operation could affect shared workspace state, the pause applies to
+all boards. After an uncertain creation, restart and inspect the original UUID
+in `board list` before retrying. Restart verifies the saved outcome against the
+recovery reference when present. If a board is quarantined after restart, follow
+the recovery mode shown by `board verify`.
 
 Add `--data DIRECTORY` before the board ID on `card triage-order`, `card search`,
 `card inspect`, or `comment list` to use the same report against the saved

@@ -75,8 +75,7 @@ func (c *Client) deleteBoardResource(resource, ifMatch, boardTag string) error {
 	}
 	defer reply.Body.Close()
 	if reply.StatusCode != http.StatusNoContent {
-		uncertainStatus := reply.StatusCode < 400 || reply.StatusCode >= 500
-		return responseError(fmt.Sprintf("service returned HTTP %d", reply.StatusCode), uncertainStatus)
+		return httpResponseError(reply, true, false)
 	}
 	tags := reply.Header.Values("X-Board-ETag")
 	if len(tags) != 1 || !IsEntityTag(tags[0]) {

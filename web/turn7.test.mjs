@@ -192,3 +192,32 @@ test("only an exact unavailable lifecycle problem establishes a 503 refusal", as
     assert.equal(writes, 1);
   }
 });
+
+test("ordinary board mutations accept only an exact fence refusal without replay", async () => {
+  const problem = {type: "about:blank", title: "Service Unavailable", status: 503, code: "unavailable",
+    detail: "Writes are paused after an uncertain commit. Inspect the saved state.",
+    request_id: first, outcome: "not_applied", errors: []};
+  const valid = JSON.stringify(problem);
+  const cases = [
+    [valid + "\n", "application/problem+json", "unavailable", false],
+    [JSON.stringify({...problem, detail: "Another operation is unavailable."}), "application/problem+json", "http_error", true],
+    [JSON.stringify({...problem, outcome: "unknown"}), "application/problem+json", "http_error", true],
+    [valid.replace('"outcome":', '"outcome":"unknown","outcome":'), "application/problem+json", "http_error", true],
+    [valid, "application/json", "http_error", true],
+    [valid.slice(0, -1), "application/problem+json", "http_error", true],
+  ];
+  for (const method of ["PATCH", "DELETE"]) {
+    for (const [body, contentType, code, outcomeUnknown] of cases) {
+      let writes = 0;
+      const api = client(async (_url, request) => {
+        writes++;
+        assert.equal(request.method, method);
+        return new Response(body, {status: 503, headers: {"Content-Type": contentType}});
+      });
+      const result = method === "PATCH" ? api.patchCard(first, tag(first, 1), { title: "Changed" })
+        : api.detachAttachment(first, 1, tag(board, 1));
+      await assert.rejects(result, {code, status: 503, outcomeUnknown});
+      assert.equal(writes, 1);
+    }
+  }
+});

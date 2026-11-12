@@ -19038,7 +19038,9 @@ x-runtime-requirements:
     automatic publication capture for the affected board. Keep other boards writable when the durable
     snapshot matches a known outcome and workspace user definitions are unchanged. Fence workspace board
     writes when board creation or shared state is uncertain. Later fenced requests that did not begin
-    writing return 503 unavailable with outcome not_applied.
+    writing return 503 unavailable with outcome not_applied and the detail "Writes are paused after an
+    uncertain commit. Inspect the saved state." After uncertain creation, restart and inspect the original
+    UUID in the catalog before retrying.
   headers: Required Header Objects declare the published presence contract. Origin-dependent CORS fields
     are conditional. Content-Type is described by response content, not a duplicate ignored header. HTTP
     framing headers are server-owned.

@@ -604,32 +604,45 @@ func flushRecoveryAttachment(dir *os.Root, file *os.File) error {
 }
 
 func (x *request) restorationResource(id string) {
-	for _, accepted := range x.service.store.list() {
-		if !accepted.can(x.actor, "read") {
-			continue
+	s := x.service.store
+	var boardID string
+	for _, state := range s.list() {
+		if _, found := findRestoration(state, id); found && state.can(x.actor, "read") {
+			boardID = state.Board.ID
+			break
 		}
-		state, err := x.service.store.readback(accepted.Board.ID)
-		if err != nil {
-			x.recoveryFailure(err)
-			return
-		}
-		if !state.can(x.actor, "read") {
-			continue
-		}
-		for _, event := range state.Activity {
-			if event.ID != id || event.Operation != recoveryOperation || event.After == nil {
-				continue
-			}
-			evidence, ok := recoveryEventEvidence(event)
-			if !ok || evidence.BackupID == nil {
-				continue
-			}
-			x.respond(http.StatusOK, restoration{id, state.Board.ID, *evidence.BackupID,
-				event.At, event.Revision}, "")
+	}
+	if boardID == "" {
+		boardID = s.fencedBoardContaining(func(candidate snapshot) bool {
+			_, found := findRestoration(candidate, id)
+			return found
+		})
+		if accepted, ok := s.accepted(boardID); !ok || !accepted.can(x.actor, "read") {
+			x.fail(errMissing)
 			return
 		}
 	}
+	state, err := s.readback(boardID)
+	if err != nil {
+		x.recoveryFailure(err)
+		return
+	}
+	if value, found := findRestoration(state, id); found && state.can(x.actor, "read") {
+		x.respond(http.StatusOK, value, "")
+		return
+	}
 	x.fail(errMissing)
+}
+
+func findRestoration(state snapshot, id string) (restoration, bool) {
+	for _, event := range state.Activity {
+		if event.ID == id && event.Operation == recoveryOperation {
+			if evidence, ok := recoveryEventEvidence(event); ok && evidence.BackupID != nil {
+				return restoration{id, state.Board.ID, *evidence.BackupID, event.At, event.Revision}, true
+			}
+		}
+	}
+	return restoration{}, false
 }
 
 // Refresh mutation validators while retaining the source content timestamps.

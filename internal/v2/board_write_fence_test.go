@@ -16,7 +16,7 @@ func m85FailSettlement(s *store, ids ...string) {
 	s.beforeRecoverySettlement = func(id string) error {
 		for _, target := range ids {
 			if target == id {
-				return errors.New("injected recovery reference settlement failure")
+				return errStale // The replacement has already committed the snapshot.
 			}
 		}
 		return nil
@@ -160,6 +160,8 @@ func TestM85UncertainBoardCreationFencesWorkspace(t *testing.T) {
 	if durable, err := s.durable(id); err != nil || durable.Board.ID != id {
 		t.Fatal("creation did not reach the durable snapshot", err)
 	}
+	human.call("GET", "/snapshots/"+id, "", "", 404)
+	human.call("GET", "/verifications/"+id, "", "", 404)
 	raw, _ = human.call("PATCH", "/cards/"+item.ID, `{"title":"Fenced neighbor"}`, item.entityTag(), 503)
 	m85AssertProblem(t, raw, "unavailable", "not_applied")
 	if m85PendingNotice(worker, neighbor.ID) != nil {
@@ -173,6 +175,7 @@ func TestM85UncertainBoardCreationFencesWorkspace(t *testing.T) {
 	}
 	_, human = restartBoardPublication(t, s.root, human.token)
 	human.call("GET", "/boards/"+id, "", "", 200)
+	human.call("GET", "/snapshots/"+id, "", "", 200)
 	human.call("PATCH", "/cards/"+item.ID, `{"title":"Resumed neighbor"}`, item.entityTag(), 200)
 }
 
@@ -180,15 +183,43 @@ func TestM85UnresolvedPairUsesM84Recovery(t *testing.T) {
 	app, human := attachmentHTTPServer(t)
 	s := app.store
 	target, neighbor := m85Board(t, human, "Affected board"), m85Board(t, human, "Healthy board")
-	m85FailSettlement(s, target.ID)
+	damaged := []byte("damaged native snapshot")
+	captured := make(chan []byte, 1)
+	s.mu.Lock()
+	s.beforeRecoverySettlement = func(id string) error {
+		if id != target.ID {
+			return nil
+		}
+		path := s.snapshotPath(id)
+		file, err := s.readDurableFileLocked(path)
+		if err != nil {
+			return err
+		}
+		if err := writeAtomic(path, damaged); err != nil {
+			return err
+		}
+		captured <- file.data
+		return errStale
+	}
+	s.mu.Unlock()
 	raw, _ := human.call("PATCH", "/boards/"+target.ID, `{"name":"Candidate to recover"}`, target.entityTag(), 503)
 	m85AssertProblem(t, raw, "outcome_unknown", "unknown")
-	source, _ := human.call("GET", "/snapshots/"+target.ID, "", "", 200)
+	var source []byte
+	select {
+	case source = <-captured:
+	default:
+		t.Fatal("fixture did not capture the replaced snapshot before damaging it")
+	}
+	raw, _ = human.call("PATCH", "/boards/"+neighbor.ID, `{"name":"Unverified outcome blocks this edit"}`, neighbor.entityTag(), 503)
+	m85AssertProblem(t, raw, "unavailable", "not_applied")
 	reference, err := os.ReadFile(s.recoveryReferencePath(target.ID))
 	if err != nil {
 		t.Fatal(err)
 	}
-	app, human = restartFailedRecovery(t, app, human, target.ID, false)
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+	app, human = restartBoardPublication(t, s.root, human.token)
 	raw, headers := human.call("GET", "/verifications/"+target.ID, "", "", 200)
 	report := turnOneDecode[verification](t, raw)
 	if report.Valid || report.Recovery == nil || report.Recovery.Mode != "fresh_only" {
@@ -205,5 +236,43 @@ func TestM85UnresolvedPairUsesM84Recovery(t *testing.T) {
 	if err != nil || !bytes.Equal(current, reference) {
 		t.Fatal("recovery changed the unresolved source reference", err)
 	}
+	if current, err := os.ReadFile(s.snapshotPath(target.ID)); err != nil || !bytes.Equal(current, damaged) {
+		t.Fatal("recovery changed the unresolved source snapshot", err)
+	}
 	human.call("PATCH", "/boards/"+recovered.ID, `{"name":"Recovered and writable"}`, recovered.entityTag(), 200)
+}
+
+func TestM85RestorationReceiptSkipsUnrelatedDamagedFence(t *testing.T) {
+	app, human := attachmentHTTPServer(t)
+	s := app.store
+	raw, _ := human.call("POST", "/boards", `{"id":"00000000-0000-4000-8000-000000000001","name":"First board"}`, "", 201)
+	first := turnOneDecode[board](t, raw)
+	raw, _ = human.call("POST", "/boards", `{"id":"00000000-0000-4000-8000-000000000002","name":"Receipt board"}`, "", 201)
+	neighbor := turnOneDecode[board](t, raw)
+	state, _ := s.accepted(neighbor.ID)
+	item, _ := captureRecoveryBackup(t, app, state)
+	restore := func(id, expected string, status int) []byte {
+		body := fmt.Sprintf(`{"id":%q,"board_id":%q,"backup_id":%q,"expected_board_etag":%q}`, id, neighbor.ID, item.ID, expected)
+		raw, _ := human.call("POST", "/restorations", body, "", status)
+		return raw
+	}
+	knownID := newOperationID()
+	known := turnOneDecode[restoration](t, restore(knownID, neighbor.entityTag(), 201))
+	m85FailSettlement(s, first.ID)
+	raw, _ = human.call("PATCH", "/boards/"+first.ID, `{"name":"Locally fenced"}`, first.entityTag(), 503)
+	m85AssertProblem(t, raw, "outcome_unknown", "unknown")
+	if err := writeAtomic(s.snapshotPath(first.ID), []byte("invalid")); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = human.call("GET", "/restorations/"+knownID, "", "", 200)
+	if got := turnOneDecode[restoration](t, raw); got != known {
+		t.Fatal("the unrelated damaged board affected receipt lookup")
+	}
+	tentativeID := newOperationID()
+	m85FailSettlement(s, neighbor.ID)
+	m85AssertProblem(t, restore(tentativeID, etag(neighbor.ID, known.Revision), 503), "outcome_unknown", "unknown")
+	raw, _ = human.call("GET", "/restorations/"+tentativeID, "", "", 200)
+	if got := turnOneDecode[restoration](t, raw); got.ID != tentativeID || got.BoardID != neighbor.ID || got.Revision != known.Revision+1 {
+		t.Fatal("the affected board's durable receipt did not resolve by its original ID")
+	}
 }

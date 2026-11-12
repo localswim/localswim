@@ -246,6 +246,8 @@ func (x *request) ifMatch() (string, error) {
 func (x *request) fail(err error) {
 	var input invalidField
 	switch {
+	case errors.Is(err, errWriteUncertain):
+		x.problem(503, "outcome_unknown", "Inspect the saved state before attempting another write.", "unknown", nil)
 	case errors.As(err, &input):
 		x.problem(400, "invalid_request", input.Message, "", []fieldIssue{{Field: input.Field, Code: "invalid_value"}})
 	case errors.Is(err, errMediaType):
@@ -266,8 +268,6 @@ func (x *request) fail(err error) {
 		x.problem(409, "conflict", "The requested identity conflicts with existing state.", "", nil)
 	case errors.Is(err, errPolicyGrantConflict):
 		x.problem(409, "conflict", "The replacement must retain existing grants, resource permissions, and the default priority.", "", nil)
-	case errors.Is(err, errWriteUncertain):
-		x.problem(503, "outcome_unknown", "Inspect the saved state before attempting another write.", "unknown", nil)
 	case errors.Is(err, errWriteFenced):
 		x.problem(503, "unavailable", "Writes are paused after an uncertain commit. Inspect the saved state.", "", nil)
 	case errors.Is(err, errServiceDraining):

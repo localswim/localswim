@@ -386,10 +386,10 @@ async function responseObject(response, write) {
   throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: write });
 }
 
-/** @param {Response} response */
-async function unavailableRefusalCode(response) {
+/** @param {Response} response @param {boolean} allowOtherUnavailable */
+async function unavailableRefusalCode(response, allowOtherUnavailable) {
   if (response.status !== 503 || response.body === null || response.body.locked
-      || response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase() !== "application/problem+json") {
+      || !/^application\/problem\+json(?:\s*;\s*charset\s*=\s*(?:utf-8|"utf-8"))?$/i.test(response.headers.get("Content-Type") ?? "")) {
     return null;
   }
   const reader = response.body.getReader();
@@ -403,13 +403,20 @@ async function unavailableRefusalCode(response) {
       bytes.set(value, length);
       length += value.length;
     }
-    const problem = /** @type {unknown} */ (JSON.parse(new TextDecoder("utf-8", { fatal: true })
-      .decode(bytes.subarray(0, length))));
+    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length));
+    const problem = /** @type {unknown} */ (JSON.parse(text));
     if (!(isObject(problem) && Object.keys(problem).length === 8 && problem.type === "about:blank" && problem.status === 503
       && problem.code === "unavailable" && problem.outcome === "not_applied"
       && typeof problem.title === "string" && problem.title.length > 0 && problem.title.length <= 120
       && typeof problem.detail === "string" && problem.detail.length <= 512
-      && isId(problem.request_id) && Array.isArray(problem.errors) && problem.errors.length === 0)) return null;
+      && canonicalId(problem.request_id) && Array.isArray(problem.errors) && problem.errors.length === 0)) return null;
+    // A validated flat problem has exactly eight member separators outside strings.
+    // JSON.parse would otherwise silently accept duplicate members.
+    if (text.match(/"(?:[^"\\]|\\.)*"|:/gs)?.filter((token) => token === ":").length !== 8) return null;
+    if (!allowOtherUnavailable) {
+      return problem.title === "Service Unavailable"
+        && problem.detail === "Writes are paused after an uncertain commit. Inspect the saved state." ? "unavailable" : null;
+    }
     return problem.detail === "Final publication failed. The service remains running."
       ? "final_publication_failed" : "unavailable";
   } catch {
@@ -580,7 +587,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     }
 
     if (!response.ok && !(response.status === 304 && ifNoneMatch !== undefined)) {
-      const refusalCode = knownUnavailable ? await unavailableRefusalCode(response) : null;
+      const refusalCode = write ? await unavailableRefusalCode(response, knownUnavailable) : null;
       if (refusalCode) throw new ApiError(refusalCode, { status: 503 });
       await discardBody(response);
       throw new ApiError("http_error", {

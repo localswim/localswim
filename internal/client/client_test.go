@@ -1,6 +1,7 @@
 package client
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +16,55 @@ func TestIsJSONObjectRequiresValidOriginalBytes(t *testing.T) {
 	for _, input := range []string{"\u00a0{}", "{}\u00a0", "{\"text\":\"\xff\"}", "[]"} {
 		if IsJSONObject([]byte(input)) {
 			t.Errorf("accepted invalid object bytes %q", input)
+		}
+	}
+}
+
+func TestM85OrdinaryMutationsRequireExactFenceRefusal(t *testing.T) {
+	const problemType = "application/problem+json"
+	const problem = `{"type":"about:blank","title":"Service Unavailable","status":503,"code":"unavailable","detail":"Writes are paused after an uncertain commit. Inspect the saved state.","request_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","outcome":"not_applied","errors":[]}`
+	const tag = `"canonical-revision-1"`
+	for _, method := range []string{http.MethodPatch, http.MethodDelete} {
+		for _, tc := range []struct {
+			name, contentType, body string
+			unknown                 bool
+		}{
+			{"known fence", problemType, problem, false},
+			{"unrelated refusal", problemType, strings.Replace(problem, "Writes are paused", "Another operation is paused", 1), true},
+			{"unknown outcome", problemType, strings.Replace(problem, "not_applied", "unknown", 1), true},
+			{"duplicate outcome", problemType, strings.Replace(problem, `"outcome":`, `"outcome":"unknown","outcome":`, 1), true},
+			{"wrong media type", "application/json", problem, true},
+			{"invalid JSON", problemType, problem[:len(problem)-1], true},
+		} {
+			t.Run(method+"/"+tc.name, func(t *testing.T) {
+				var calls atomic.Int32
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls.Add(1)
+					if r.Method != method {
+						t.Error("unexpected request method")
+					}
+					w.Header().Set("Content-Type", tc.contentType)
+					w.WriteHeader(http.StatusServiceUnavailable)
+					w.Write([]byte(tc.body))
+				}))
+				defer server.Close()
+				api, err := New(server.URL, "test-token")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if method == http.MethodDelete {
+					err = api.DetachAttachment("/attachments/example", tag, tag)
+				} else {
+					_, err = api.Do(method, "/cards/example", []byte(`{"title":"Changed"}`), tag)
+				}
+				if err == nil || errors.Is(err, ErrMutationOutcomeUnknown) != tc.unknown ||
+					(!tc.unknown && !strings.Contains(err.Error(), "unavailable, not applied")) {
+					t.Fatalf("unexpected outcome classification: %v", err)
+				}
+				if calls.Load() != 1 {
+					t.Fatal("mutation request was not sent exactly once")
+				}
+			})
 		}
 	}
 }

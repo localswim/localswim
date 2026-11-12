@@ -92,6 +92,7 @@ async function harness(api, pathname = "/boards/" + board, {
       if (selector === "form button[type=submit]") return descendants.filter((child) => child.tagName === "button" && child.type === "submit" && child.parent.tagName === "form");
       if (selector.startsWith("#")) return descendants.filter((child) => child.id === selector.slice(1));
       if (selector === "button[data-card-id]") return descendants.filter((child) => child.tagName === "button" && child.dataset.cardId);
+      if (selector === "button[data-lane-write]") return descendants.filter((child) => child.tagName === "button" && child.dataset.laneWrite);
       if (selector.startsWith("button[data-card-id=")) return descendants.filter((child) => child.tagName === "button" && selector.includes(child.dataset.cardId));
       return descendants.filter((child) => child.tagName === selector);
     }
@@ -147,7 +148,9 @@ async function harness(api, pathname = "/boards/" + board, {
     constructor(notify) { sidebarObserver = notify; }
     observe() {}
   }
-  document = {getElementById: (id) => nodes[id], querySelector: (selector) => nodes[selector] ?? null,
+  const body = new Element("body");
+  body.root = true;
+  document = {body, getElementById: (id) => nodes[id], querySelector: (selector) => nodes[selector] ?? null,
     title: "localswim", adoptedStyleSheets: [],
     elementFromPoint: () => pointerHit ?? null,
     createElement: (tag) => new ({input: Input, textarea: Textarea, button: Button, select: Select}[tag] ?? Element)(tag)};
@@ -197,7 +200,7 @@ async function harness(api, pathname = "/boards/" + board, {
   }
   return {nodes, downloads, ...context.hooks, settled, find, field, submit, submitValidated, navigate, popstate,
     keydown, pointerHit: (node) => { pointerHit = node; },
-    pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement,
+    pagehide: () => windowEvents.pagehide(), focused: () => document.activeElement, focusBody: () => body.focus(),
     resizeLayout(width, direction = "row", detailsWidth = 416) {
       layout.clientWidth = width;
       layoutStyle.flexDirection = direction;
@@ -1012,6 +1015,73 @@ test("configured action colors and lane-action focus follow the current board pa
   assert.notEqual(replacement, original);
   assert.equal(ui.focused(), replacement);
   assert.equal(replacement.focusOptions?.preventScroll, true);
+});
+
+test("single-card approval preserves unrelated focus and restores lost submit focus", async (t) => {
+  for (const elsewhere of [true, false]) {
+    await t.test(elsewhere ? "filter focused" : "submit focus lost to body", async () => {
+      const {api} = boardApi();
+      const original = (await api.getCard()).data;
+      const second = {...original, id: backup, ticket: 2, title: "Second card"};
+      const ready = {...(await api.listLanes()).data.lanes[0], role: "ready_for_review",
+        approval_enabled: true, reorder_enabled: true};
+      const completed = {...ready, id: priority, role: "completed", label: "Completed", position: 1,
+        approval_enabled: false, reorder_enabled: false};
+      api.listLanes = async () => page("lanes", [ready, completed]);
+      const approval = Promise.withResolvers();
+      let saved = original;
+      api.approveCard = async () => {
+        await approval.promise;
+        saved = {...original, lane_id: completed.id, revision: 2};
+      };
+      api.getCard = async () => ({data: saved, etag: tag(card, saved.revision)});
+      const getLanes = api.getBoardLanes;
+      api.getBoardLanes = async () => {
+        const reply = await getLanes();
+        return {data: {board: {...reply.data.board, revision: saved.revision}, cards: [saved, second]},
+          etag: tag(board, saved.revision)};
+      };
+      api.previewTicketOrder = async () => ({
+        data: {board_revision: 1, changed: true, current: [{card_id: card, ticket: 1}, {card_id: backup, ticket: 2}],
+          proposed: [{card_id: backup, ticket: 1}, {card_id: card, ticket: 2}]}, etag: tag(board, 1),
+      });
+      const writes = [];
+      api.applyTicketOrder = async () => writes.push("apply");
+      api.approveLane = async () => writes.push("approve");
+      const ui = await harness(api);
+      await ui.load();
+      const {main, details} = ui.nodes;
+      const find = (label) => ui.find(main, "button", label);
+      const filter = ui.field(main, "Filter by title or ticket");
+      const opener = find("#1 Original");
+      opener.click();
+      await ui.settled();
+      ui.find(details, "button", "Reviewed & approved").focus();
+      ui.submit(details, "Reviewed & approved");
+
+      assert.equal(find("Add card").attributes["aria-disabled"], "true");
+      assert.equal(find("Approve all in lane").attributes["aria-disabled"], "true");
+      assert.equal(find("Preview ticket order").attributes["aria-disabled"], undefined);
+      find("Preview ticket order").click();
+      await until(() => find("Apply ticket order"));
+      assert.equal(find("Apply ticket order").attributes["aria-disabled"], "true");
+      ui.submit(main, "Apply ticket order");
+      ui.submit(main, "Approve all in lane");
+      assert.deepEqual(writes, []);
+
+      if (elsewhere) filter.focus();
+      else ui.focusBody();
+      approval.resolve();
+      await ui.settled();
+      assert.equal(details.hidden, true);
+      const replacement = find("#1 Original");
+      assert.notEqual(replacement, opener);
+      assert.equal(ui.focused(), elsewhere ? filter : replacement);
+      assert.equal(find("Add card").attributes["aria-disabled"], undefined);
+      assert.equal(find("Approve all in lane").attributes["aria-disabled"], undefined);
+      assert.equal(find("Preview ticket order").disabled, true);
+    });
+  }
 });
 
 test("pending approval inspection still blocks recreated lane forms and a late ticket-order Apply", async () => {

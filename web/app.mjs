@@ -161,7 +161,7 @@ let activeBackupControls;
 const pendingInspections = new Map();
 /** @type {{scope: string, control: HTMLTextAreaElement}|undefined} */
 let activeComment;
-/** @type {{boardId: string, id: string, close: (onlyIfFocused?: boolean) => void,
+/** @type {{boardId: string, id: string, close: () => void,
  * refreshWorkflow: (canApply?: () => boolean, automatic?: boolean) => Promise<void>,
  * refreshPriority: (requested: string, effective: Labeled|undefined, replaced: boolean) => Promise<void>,
  * pasteAttachments: (event: ClipboardEvent) => void, showAttachmentUploads: (changed?: number) => void}|undefined} */
@@ -461,13 +461,25 @@ function announce(phase, message) {
   status.textContent = message;
 }
 
+/** @param {Element} control */
+function syncLaneWriteControl(control) {
+  if (writing) control.setAttribute("aria-disabled", "true");
+  else control.removeAttribute("aria-disabled");
+}
+
+function syncLaneWriteControls() {
+  main?.querySelectorAll("button[data-lane-write]").forEach(syncLaneWriteControl);
+}
+
 function startWriting() {
   writing = true;
+  syncLaneWriteControls();
   activeNewCardFiles?.sync();
 }
 
 function finishWriting() {
   writing = false;
+  syncLaneWriteControls();
   activeNewCardFiles?.sync();
   activeBoardRefresh?.resume();
 }
@@ -1474,6 +1486,11 @@ function actionInk(color) {
   return 1.05 / (luminance + 0.05) >= 4.5 ? "#ffffff" : "#000000";
 }
 
+function focusWasLost() {
+  const focused = document.activeElement;
+  return !focused || focused === document.body || !focused.isConnected;
+}
+
 /** @param {string} id @param {HTMLElement} opener */
 function restoreCardFocus(id, opener) {
   /** @param {HTMLElement} control */
@@ -1635,10 +1652,9 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     }
     /** @param {string} id */
     const attribution = (id) => actorAttribution(users, presentation(), id);
-    /** @param {boolean} [onlyIfFocused] */
-    function closeDrawer(onlyIfFocused = false) {
+    /** @param {boolean} [returnFocus] */
+    function closeDrawer(returnFocus = true) {
       if (cardView !== activeCard) return;
-      const returnFocus = !onlyIfFocused || view.contains(document.activeElement);
       retainCardDraft?.();
       clearPreviews();
       releaseCardMedia = undefined;
@@ -1691,7 +1707,8 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         inspection.sync();
       }
     }
-    activeDrawer = { boardId, id: card.id, close: closeDrawer, refreshWorkflow, refreshPriority,
+    activeDrawer = { boardId, id: card.id, close: () => closeDrawer(view.contains(document.activeElement)),
+      refreshWorkflow, refreshPriority,
       pasteAttachments, showAttachmentUploads };
     const close = button("Close card", () => { if (!writing) closeDrawer(); });
     const heading = element("h2", `#${card.ticket} ${card.title}`);
@@ -2210,6 +2227,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
     archiveAction.append(archiveForm);
     const approveForm = cardRevisionForm("Reviewed & approved", [], (submit) => {
       const id = newOperationId();
+      const submitWasFocused = submit === document.activeElement;
       let approved = false;
       void writeResource(submit, async (record) => {
         record({ kind: "approve-card", id });
@@ -2219,7 +2237,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
         if (!approved) approved = await readSubmittedApproval(id);
         if (approved) {
           await reloadBoard().catch(() => {});
-          closeDrawer();
+          closeDrawer(view.contains(document.activeElement) || (submitWasFocused && focusWasLost()));
         } else {
           await readCurrent();
         }
@@ -3871,11 +3889,16 @@ async function load(savedAvailability) {
       return opener;
     }
 
-    /** @param {HTMLButtonElement} control @param {Lane} lane @param {string} action @param {string} name */
+    /** @param {HTMLButtonElement} control @param {Lane} lane @param {"add"|"preview"|"apply"|"approve"} action
+     * @param {string} name */
     function nameLaneAction(control, lane, action, name) {
       control.className = "board-action";
       control.dataset.laneAction = lane.id + ":" + action;
       control.setAttribute("aria-label", name + " " + lane.label);
+      if (action !== "preview") {
+        control.dataset.laneWrite = "true";
+        syncLaneWriteControl(control);
+      }
     }
 
     /** @param {string} action */
@@ -3890,9 +3913,7 @@ async function load(savedAvailability) {
     function restoreLaneActionAfterWrite(submit) {
       const action = submit === document.activeElement ? submit.dataset.laneAction : undefined;
       return () => {
-        const focused = document.activeElement;
-        if (action && view === activeView
-            && (!focused || !focused.isConnected || focused === document.body)) focusLaneAction(action);
+        if (action && view === activeView && focusWasLost()) focusLaneAction(action);
       };
     }
 
@@ -4051,7 +4072,7 @@ async function load(savedAvailability) {
               }
               await reloadBoard();
               if (approved && drawer && activeDrawer === drawer && drawer.boardId === boardId
-                  && cardIds.includes(drawer.id)) drawer.close(true);
+                  && cardIds.includes(drawer.id)) drawer.close();
               return approved;
             }, "Lane approved and moved to Completed.", inspection).finally(restoreFocus);
           });

@@ -248,8 +248,10 @@ the destination is an error. The same destination rule applies online and offlin
 
 Use `backup download BACKUP_ID FILE|-` to verify and save the ZIP.
 
-Run `localswim backup verify FILE` to check a downloaded Localswim ZIP offline.
-The command returns the board UUID, captured revision, and attachment count
+Run `localswim backup verify <FILE|->` to check a downloaded Localswim ZIP offline.
+Use a file path or `-` for binary standard input. Standard input is copied into
+a private temporary file, verified through the same file-backed path, and removed
+afterward. The command returns the board UUID, captured revision, and attachment count
 after checking the native snapshot, complete audit, exact archive inventory, and
 each active and detached attachment. It reads the ZIP in place, supports archives
 over 96 MiB, and leaves both the archive and service data untouched.

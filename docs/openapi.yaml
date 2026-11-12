@@ -756,8 +756,10 @@ paths:
     get:
       operationId: listBoards
       summary: List board attention and audited recency
-      description: The Human workspace administrator also receives a diagnostic row for each
-        canonically named snapshot that failed startup admission.
+      description: Each read checks the saved snapshots of the boards visible to the caller.
+        Availability and error_code can change at the same board revision when saved data is
+        damaged or repaired. The Human workspace administrator also receives a diagnostic row
+        for each canonically named snapshot that failed startup admission.
       tags:
       - Boards
       parameters:
@@ -11619,6 +11621,8 @@ paths:
     get:
       operationId: streamEvents
       summary: Stream workspace and selected/retained board metadata
+      description: External changes to saved snapshots can change catalog health without emitting an event.
+        Read the board catalog to check current durable health.
       tags:
       - Workspace
       parameters:

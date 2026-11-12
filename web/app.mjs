@@ -70,6 +70,8 @@ import { createBoardRefresh, waitForRetry, watchUpdates } from "./board-updates.
 
 const CARD_DRAG_TYPE = "application/x-localswim-card";
 const CATALOG_RETRY_MS = 250;
+const CATALOG_REVALIDATE_MS = 15_000;
+const CATALOG_READ_TIMEOUT_MS = 15_000;
 const status = /** @type {HTMLParagraphElement|null} */ (document.getElementById("status"));
 const identity = document.getElementById("identity");
 const navigation = document.getElementById("boards");
@@ -2999,6 +3001,10 @@ async function load(savedAvailability) {
   main.replaceChildren();
   boardStyle.replaceSync("");
   const boardId = boardAtLocation();
+  const durableHealth = element("p");
+  durableHealth.id = "board-durable-health";
+  durableHealth.setAttribute("role", "status");
+  durableHealth.hidden = true;
   let catalogHint = false;
   let navigationReady = false;
   let startupDiagnostic = false;
@@ -3040,6 +3046,7 @@ async function load(savedAvailability) {
   }
   /** @param {boolean} [refreshing] @param {AbortSignal} [readSignal] */
   async function readCatalog(refreshing = false, readSignal = signal) {
+    readSignal = AbortSignal.any([readSignal, AbortSignal.timeout(CATALOG_READ_TIMEOUT_MS)]);
     let continuation = false;
     const read = () => /** @type {Promise<BoardSummary[]>} */ (collect((cursor) => {
       continuation = cursor !== undefined;
@@ -3163,6 +3170,30 @@ async function load(savedAvailability) {
     announce("error", startupBoardError);
   }
 
+  /** @param {BoardSummary[]} rows */
+  function applyCatalogHealth(rows) {
+    applyStartupFailures(rows);
+    if (!boardId || startupDiagnostic) return;
+    const row = rows.find(({ id }) => id === boardId);
+    if (!row) return;
+    // Focused board reads still serve the accepted state and its recovery controls.
+    const message = row.availability !== "unhealthy" ? ""
+      : row.error_code === "durable_state_changed"
+        ? "The saved snapshot differs from the last accepted state. Showing the last accepted board."
+        : "The saved snapshot is unavailable. Showing the last accepted board.";
+    if (durableHealth.textContent !== message) durableHealth.textContent = message;
+    durableHealth.hidden = !message;
+  }
+
+  async function revalidateCatalog() {
+    // External snapshot changes do not wake the event stream. Wait after each
+    // read so a slow refresh cannot build up a backlog of scheduled requests.
+    while (!signal.aborted) {
+      await waitForRetry(signal, CATALOG_REVALIDATE_MS);
+      if (!signal.aborted) await refreshAttention().catch(() => {});
+    }
+  }
+
   /** @param {boolean} [retrying] */
   async function loadNavigation(retrying = false) {
     if (!identity || !navigation || !main) return;
@@ -3178,6 +3209,7 @@ async function load(savedAvailability) {
     /** @type {string[]} */
     let visiblePins = [];
     let latestBoards = boards;
+    let latestCatalog = JSON.stringify(boards);
     let catalogTail = Promise.resolve();
     /** @type {Promise<void>|undefined} */
     let queuedCatalog;
@@ -3313,9 +3345,12 @@ async function load(savedAvailability) {
         try {
           const rows = await readCatalog(true);
           if (signal.aborted) return;
-          latestBoards = rows;
           attentionStatus.hidden = true;
-          applyStartupFailures(latestBoards);
+          const catalog = JSON.stringify(rows);
+          if (catalog === latestCatalog) return;
+          latestCatalog = catalog;
+          latestBoards = rows;
+          applyCatalogHealth(latestBoards);
           showBoards(latestBoards);
         } catch (error) {
           if (signal.aborted) return;
@@ -3327,8 +3362,9 @@ async function load(savedAvailability) {
       return queuedCatalog;
     };
     navigationReady = true;
-    applyStartupFailures(latestBoards);
+    applyCatalogHealth(latestBoards);
     showBoards(latestBoards);
+    void revalidateCatalog();
     if (catalogHint) {
       catalogHint = false;
       invalidateCatalog();
@@ -3485,7 +3521,7 @@ async function load(savedAvailability) {
     const inspection = createInspection(main, () => view === activeView,
       updates.request, "board", "board:" + boardId);
     boardInspection = inspection;
-    main.replaceChildren(element("h1", metadata.data.name), element("p", message),
+    main.replaceChildren(element("h1", metadata.data.name), element("p", message), durableHealth,
       updates.panel, button(inspection.label, inspection.inspect));
     if (closedWorkflow?.canClose) {
       main.append(availabilityForm(boardId, "open", () => metadata.etag, async (latest) => {
@@ -4317,7 +4353,7 @@ async function load(savedAvailability) {
       };
     }
     renderCards(cards, boardTag);
-    main.replaceChildren(element("h1", board.name), updates.panel, search.panel, filterBar, columns);
+    main.replaceChildren(element("h1", board.name), durableHealth, updates.panel, search.panel, filterBar, columns);
     retainBoardView = () => {
       clearDrag();
       retainScroll();

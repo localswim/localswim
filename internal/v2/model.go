@@ -230,6 +230,19 @@ func freshSnapshot(id, name string, wf workflow, actorID string, now time.Time) 
 			s.Activity = append(s.Activity, activity{ID: newOperationID(), BoardID: id, Revision: 1, At: now,
 				ActorID: actorID, Operation: "create", ResourceType: "lane", ResourceID: item.ID})
 		}
+		// Record enabled actions so replay can distinguish their initial values from later edits.
+		for _, setting := range []struct {
+			field   string
+			enabled bool
+		}{{"approval_enabled", item.ApprovalEnabled}, {"reorder_enabled", item.ReorderEnabled}} {
+			if setting.enabled {
+				enabled := "true"
+				s.Activity = append(s.Activity, activity{
+					ID: newOperationID(), BoardID: id, Revision: 1, At: now, ActorID: actorID,
+					Operation: "create", ResourceType: "lane", ResourceID: item.ID, Field: &setting.field, After: &enabled,
+				})
+			}
+		}
 	}
 	return s
 }

@@ -654,9 +654,22 @@ func (refs snapshotReferences) validateAudit(value snapshot) error {
 		}
 		if event.Revision == 1 {
 			item := refs.lanes[event.ResourceID]
-			if item.ID == "" || initialLanes[item.ID] || event.ResourceType != "lane" || event.Operation != "create" ||
+			if item.ID == "" || event.ResourceType != "lane" || event.Operation != "create" ||
 				!item.CreatedAt.Equal(b.CreatedAt) || !event.At.Equal(b.CreatedAt) ||
-				event.Field != nil || event.Before != nil || event.After != nil {
+				event.Before != nil {
+				return invalidSnapshot("activity", "Initial lane creation audit is invalid.")
+			}
+			if event.Field != nil {
+				field := snapshotAuditField{"lane", item.ID, *event.Field}
+				isLaneOptIn := field.name == "reorder_enabled" || field.name == "approval_enabled" && item.Role == "ready_for_review"
+				if !initialLanes[item.ID] || !isLaneOptIn || changed[field] || snapshotString(event.After) != "true" ||
+					!refs.capabilities[event.ActorID]["manage_workflow"] {
+					return invalidSnapshot("activity", "Initial lane setting audit is invalid.")
+				}
+				latest[field], changed[field] = event.After, true
+				continue
+			}
+			if initialLanes[item.ID] || event.After != nil {
 				return invalidSnapshot("activity", "Initial lane creation audit is invalid.")
 			}
 			initialLanes[item.ID] = true

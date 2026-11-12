@@ -35,8 +35,24 @@ Human or Bot token. `service status` reports the actual listening port.
 .\localswim.exe --help
 ```
 
-Use `board create --json definition.json` for a custom workflow. Commands that read
-JSON require a file path or `-` for standard input.
+The name-only command creates a board with the generic five-lane workflow and P2
+Normal. To start a board with Terry's workflow, select the preset in the board
+definition.
+
+```powershell
+'{"name":"Terry workflow","preset":"terry"}' | .\localswim.exe board create --json -
+```
+
+The preset adds Blocked and Needs Terry, uses P0 through P5 with P3 Normal,
+and assigns new cards to Bot by default. It enables dependency reorder in Backlog
+and Human bulk approval in Ready For Review. Terry and Bot can create cards in
+Backlog, Ready For Work, Blocked, and Needs Terry. Terry alone can move a card
+from Ready For Review to Completed.
+
+Use `board create --json definition.json` with a `workflow` object to define
+custom lanes, priorities, and grants. Lane ordering and triage use each
+priority's numeric `rank`. For the Terry preset the rank equals the P-number.
+Commands that read JSON require a file path or `-` for standard input.
 Export a board with `board export BOARD_ID FILE|-`. Use a new file path, or `-`
 for standard output. The default format is JSON.
 

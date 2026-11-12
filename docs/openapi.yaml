@@ -932,11 +932,14 @@ paths:
       x-milestones:
       - 1
       - 16
-      description: Absent workflow uses the built-in default. Supplied custom workflow definitions are
-        validated together; UUIDs are normalized before checking references. Creation never imports V1
-        data. A custom workflow attaches its explicitly identified users to the new board. An existing
-        global UUID must have the same immutable kind and compatible definition; it is never silently
-        redefined. After shorthand expansion, the resolved workflow must satisfy x-workflow-validation.
+      - 66
+      description: Omitting both preset and workflow uses the built-in generic workflow. The terry preset
+        provisions the seven-lane workflow with P0 through P5, P3 Normal, Bot as the default owner,
+        V1-equivalent Human and Bot lane grants, Backlog dependency reorder, and Ready For Review bulk approval.
+        Supplied custom workflow definitions are validated together. UUIDs are normalized before checking references.
+        Creation never imports V1 data. A custom workflow attaches its explicitly identified users to the new board.
+        An existing global UUID must have the same immutable kind and compatible definition.
+        The resolved workflow must satisfy x-workflow-validation after shorthand expansion.
       requestBody:
         required: true
         content:
@@ -15511,6 +15514,8 @@ components:
     BoardInput:
       type: object
       additionalProperties: true
+      not:
+        required: [preset, workflow]
       properties:
         actor_presentation:
           $ref: '#/components/schemas/ActorPresentation'
@@ -15523,6 +15528,11 @@ components:
           type: string
           minLength: 1
           maxLength: 256
+        preset:
+          type: string
+          const: terry
+          description: Opts into Terry's workflow using the runtime Human and Bot identities. The board
+            displays the Human as Terry unless actor_presentation is supplied.
         user_css:
           type: string
           maxLength: 1048576
@@ -18362,8 +18372,10 @@ x-security-policy:
     capabilities, lane grants from the default workflow, and approve only for Human. Custom board creation
     must provide explicit resource_grants and lane grants.
 x-workflow-validation:
-  admission: Validate the resolved workflow after shorthand expansion during board creation and native
-    snapshot admission. Policy replacement must preserve these requirements.
+  admission: Validate the resolved workflow during board creation and native snapshot admission.
+    Expand custom shorthand before validation. Policy replacement must preserve these requirements.
+  initialLaneSettings: Preset lane action opt-ins are recorded as revision-1 lane create events
+    with the enabled field, null before, and a true string value after.
   creation: At least one active lane must have a create_grants entry for a board member whose resource
     grants include create_card.
   completion: Every active lane reachable from a creation lane must have a path through allowed

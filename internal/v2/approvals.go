@@ -304,7 +304,7 @@ func approveCard(state *snapshot, item *card, targetID, actor, text string, now 
 	movement.Operation = approvalOperation
 
 	// The approval grant authorizes the system comment as part of the move.
-	note := comment{ID: newID(), CreatedAt: now, UpdatedAt: now, BoardID: state.Board.ID,
+	note := comment{ID: newID(), CreatedAt: now, BoardID: state.Board.ID,
 		CardID: item.ID, Text: text, AuthorID: actor}
 	state.Comments = append(state.Comments, note)
 	item.CommentCount++

@@ -140,6 +140,11 @@ func TestSingleReviewApproval(t *testing.T) {
 		t.Fatal("expected one approval and its comment in one board revision")
 	}
 	note := committed.Comments[len(committed.Comments)-1]
+	noteJSON, err := marshalCanonical(note)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertImmutableCommentShape(t, noteJSON)
 	if note.Text != "Reviewed & approved, moving to Completed." ||
 		!validApprovalPair(result.Changes[0], result.Changes[1], note, reviewApprovalText) {
 		t.Fatal("durable approval comment text or attribution changed")
@@ -191,8 +196,8 @@ func TestSingleReviewApprovalPolicyRefusals(t *testing.T) {
 	now := canonicalTime(time.Now())
 	id := newID()
 	principals := []user{
-		{entity: newEntity(humanID, now), Kind: "human", Label: "Human"},
-		{entity: newEntity(botID, now), Kind: "bot", Label: "Bot"},
+		{ID: humanID, Revision: 1, CreatedAt: now, Kind: "human", Label: "Human"},
+		{ID: botID, Revision: 1, CreatedAt: now, Kind: "bot", Label: "Bot"},
 	}
 	state := freshSnapshot(id, "Synthetic", defaultWorkflow(id, now, principals), humanID, now)
 	item := card{ID: newID(), Revision: 1, CreatedAt: now, UpdatedAt: now, BoardID: id, LaneID: state.Lanes[3].ID, OwnerID: botID}

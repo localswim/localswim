@@ -10,8 +10,7 @@ const capability = "A".repeat(43);
 
 const savedComment = {
   id: resourceId, created_at: "2026-11-10 18:00:00+00:00",
-  updated_at: "2026-11-10 18:00:00+00:00", board_id: resourceId,
-  card_id: cardId, text: "Comment", author_id: resourceId,
+  board_id: resourceId, card_id: cardId, text: "Comment", author_id: resourceId,
 };
 
 const savedAttachment = {

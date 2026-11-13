@@ -88,6 +88,7 @@ function fixture() {
   const confirmations = [];
   const admission = [];
   const state = { revision: 20, admitted: true, createMode: "confirm", uploadStatus: null };
+  const cards = new Map();
   let saved;
   let links = [];
   let leased = false;
@@ -112,9 +113,10 @@ function fixture() {
         owner_id: owner,
         priority_id: priority,
         archived: false,
-        ticket: 7,
+        ticket: 7 + cards.size,
         revision: state.revision,
       };
+      cards.set(saved.id, saved);
       links = (payload.relationships ?? []).map(({ kind, target_card_id }) => ({
         id: uuid(9),
         kind,
@@ -128,12 +130,13 @@ function fixture() {
       return {
         data: saved,
         etag: tag(saved.id, saved.revision),
-        boardEtag: tag(board, state.revision),
+        boardEtag: tag(payload.board_id, state.revision),
       };
     },
     async getCard(cardId) {
-      assert.equal(cardId, saved.id);
-      return { data: saved, etag: tag(saved.id, saved.revision) };
+      const card = cards.get(cardId);
+      if (!card) throw new ApiError("http_error", { status: 404 });
+      return { data: card, etag: tag(card.id, card.revision) };
     },
     async getBoardAvailability() {
       return {
@@ -147,18 +150,20 @@ function fixture() {
     },
     async uploadAttachment(cardId, expected, selected, id) {
       assert.equal(leased, true);
-      assert.equal(cardId, saved.id);
-      assert.equal(expected, tag(cardId, saved.revision));
-      const journal = JSON.parse(storage.getItem(`localswim:v2:uploads:${board}:${cardId}`));
+      const card = cards.get(cardId);
+      assert.equal(expected, tag(cardId, card.revision));
+      const journal = JSON.parse(
+        storage.getItem(`localswim:v2:uploads:${card.board_id}:${cardId}`),
+      );
       assert.equal(journal.expected, expected);
       assert.equal(journal.remaining[0].id, id);
-      assert.equal(stagedFiles.has(board), false);
+      assert.equal(stagedFiles.has(card.board_id), false);
       uploads.push({ name: selected.name, id });
       if (selected.name === (state.refusedName ?? "remaining.txt") && state.uploadStatus)
         throw new ApiError("http_error", { status: state.uploadStatus });
       const data = {
         id,
-        board_id: board,
+        board_id: card.board_id,
         card_id: cardId,
         original_name: selected.name,
         size: selected.size,
@@ -168,7 +173,8 @@ function fixture() {
         active: true,
         revision: ++state.revision,
       };
-      saved = { ...saved, revision: data.revision };
+      cards.set(cardId, { ...card, revision: data.revision });
+      if (cardId === saved.id) saved = cards.get(cardId);
       return { data, etag: tag(id, data.revision) };
     },
   };
@@ -259,10 +265,10 @@ function fixture() {
     function rows() {
       return host.descendants().filter((node) => node.className === "create-card-attachment-row");
     }
-    function openSavedUploads() {
+    function openSavedUploads(card = saved) {
       uploader.show({
-        cardId: saved.id,
-        etag: tag(saved.id, saved.revision),
+        cardId: card.id,
+        etag: tag(card.id, card.revision),
         readable: true,
         editable: true,
       });
@@ -291,8 +297,8 @@ function fixture() {
       uploadButton,
     };
   }
-  function remaining() {
-    const raw = storage.getItem(`localswim:v2:uploads:${board}:${saved.id}`);
+  function remaining(card = saved) {
+    const raw = storage.getItem(`localswim:v2:uploads:${card.board_id}:${card.id}`);
     return raw === null ? null : JSON.parse(raw);
   }
   return {
@@ -306,11 +312,14 @@ function fixture() {
     uploads,
     handoffs: () => handoffs,
     releasedWrites: () => releasedWrites,
+    saved: () => saved,
     changeSaved: (changes) => {
       saved = { ...saved, ...changes };
+      cards.set(saved.id, saved);
     },
     addLink() {
       saved = { ...saved, revision: ++state.revision };
+      cards.set(saved.id, saved);
       links = [
         {
           id: uuid(9),
@@ -553,6 +562,37 @@ test("discard clears the clipboard-only remainder without sending it again", asy
   assert.equal(f.remaining(), null);
   assert.equal(view.uploadButton("Resume remaining uploads").hidden, true);
   assert.equal(f.uploads.length, 1);
+});
+
+test("new staged batches reclaim cached bytes without changing an older journal", async () => {
+  const f = fixture();
+  const view = f.mount();
+  view.open();
+  view.title("Old card");
+  view.paste(image);
+  view.pick(...Array.from({ length: 63 }, (_, i) => file(`file-${i}.txt`)));
+  f.state.refusedName = image.name;
+  f.state.uploadStatus = 422;
+  view.button("Add card").click();
+  await until(() => f.handoffs() === 1, "the full stopped batch to settle");
+  const oldCard = f.saved();
+  const oldJournal = f.remaining();
+  view.openSavedUploads();
+  assert.equal(view.uploadButton("Resume remaining uploads").disabled, false);
+
+  const other = f.mount(otherBoard);
+  other.open();
+  other.title("New card");
+  other.paste(image);
+  other.button("Add card").click();
+  await until(() => f.handoffs() === 2, "the new batch to settle");
+  assert.equal(f.uploads.length, 2);
+  assert.deepEqual(f.remaining(oldCard), oldJournal);
+  view.openSavedUploads(oldCard);
+  assert.equal(view.uploadButton("Resume remaining uploads").disabled, true);
+  assert.equal(view.uploadButton("Discard remaining uploads").hidden, false);
+  other.openSavedUploads();
+  assert.equal(other.uploadButton("Resume remaining uploads").disabled, false);
 });
 
 for (const issue of ["unexpected link", "unavailable relationship read"]) {

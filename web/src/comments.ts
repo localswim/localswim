@@ -41,6 +41,7 @@ type CommentOptions = Readonly<{
     | "createComment"
     | "listFocusedCardActivity"
     | "getBoardAvailability"
+    | "getCard"
   >;
   scope: CardScope;
   signal: AbortSignal;
@@ -178,6 +179,10 @@ export function mountCardComments(
   const inspect = doc.createElement("button");
   inspect.type = "button";
   inspect.textContent = "Inspect original comment";
+  const retry = doc.createElement("button");
+  retry.type = "button";
+  retry.textContent = "Retry original post";
+  retry.hidden = true;
   const dismiss = doc.createElement("button");
   dismiss.type = "button";
   dismiss.textContent = "Dismiss unresolved post";
@@ -185,7 +190,7 @@ export function mountCardComments(
   const status = doc.createElement("p");
   status.className = "card-comment-status";
   status.setAttribute("role", "status");
-  actions.append(post, inspect, dismiss);
+  actions.append(post, inspect, retry, dismiss);
   form.append(label, hint, actions, status);
   region.append(heading, preview, previewStatus, retryPreview, form);
   root.append(region);
@@ -242,7 +247,7 @@ export function mountCardComments(
   let previewItems: readonly Comment[] = [];
   let previewKey = "";
   let notice = "";
-  let missing: string | undefined;
+  let inspection: { raw: string; kind: "retry" | "dismiss" } | undefined;
   let change: InputChange | undefined;
   let pasted: string | undefined;
   let composition: { journal: Journal; previous: string; change?: InputChange } | undefined;
@@ -290,12 +295,12 @@ export function mountCardComments(
   }
 
   function focusInputIfHidden() {
-    if ([inspect, dismiss].some((node) => doc.activeElement === node && node.hidden)) {
+    if ([inspect, retry, dismiss].some((node) => doc.activeElement === node && node.hidden)) {
       (inspect.hidden ? input : inspect).focus({ preventScroll: true });
     }
   }
 
-  function canPost(current: CommentContext | null, entry: Journal | undefined) {
+  function canWrite(current: CommentContext | null, entry: Journal | undefined) {
     return Boolean(
       current?.writable &&
       versionMatches(current.cardEtag, cardId, current.revision) &&
@@ -305,10 +310,24 @@ export function mountCardComments(
       entry.key === journalKey(current.actorId, scope) &&
       !entry.error &&
       !operations.state(entry.key) &&
-      !entry.draft.id &&
       entry.draft.text &&
       entry.draft.text.isWellFormed() &&
       !composition,
+    );
+  }
+
+  function retryMatches(current: CommentContext | null, entry: Journal | undefined) {
+    const base = entry?.draft.base;
+    return Boolean(
+      current &&
+      base &&
+      entry?.draft.id &&
+      inspection?.kind === "retry" &&
+      inspection.raw === entry.raw &&
+      base.boardEtag === current.boardEtag &&
+      base.boardRevision === current.boardRevision &&
+      base.cardEtag === current.cardEtag &&
+      base.cardRevision === current.revision,
     );
   }
 
@@ -321,7 +340,7 @@ export function mountCardComments(
         detachJournal();
         journal = { key, raw: undefined, draft: emptyDraft, error: false, unsaved: false };
         notice = "";
-        missing = undefined;
+        inspection = undefined;
         composition = undefined;
         recent.clear();
         listeners.set(key, update);
@@ -335,10 +354,12 @@ export function mountCardComments(
     if (!composition) alignTextarea(input, textareaText(text));
     input.readOnly = !composition && (!entry || Boolean(pending || active));
     post.hidden = Boolean(pending);
-    post.setAttribute("aria-disabled", String(!canPost(current, entry)));
+    post.setAttribute("aria-disabled", String(!canWrite(current, entry) || Boolean(pending)));
     inspect.hidden = !pending;
     inspect.setAttribute("aria-disabled", String(Boolean(active)));
-    dismiss.hidden = !pending || pending !== missing;
+    retry.hidden = !retryMatches(current, entry);
+    retry.setAttribute("aria-disabled", String(!canWrite(current, entry)));
+    dismiss.hidden = !pending || inspection?.kind !== "dismiss" || inspection.raw !== entry?.raw;
     dismiss.setAttribute("aria-disabled", String(Boolean(active || entry?.error)));
     focusInputIfHidden();
     const message =
@@ -415,25 +436,31 @@ export function mountCardComments(
 
   function confirmed(entry: Journal, boardEtag: string | null) {
     persist(entry, emptyDraft);
-    missing = undefined;
+    inspection = undefined;
     notice = "Comment posted.";
     refreshComments();
     activityHistory.reset();
     onConfirmed(boardId, cardId, boardEtag);
   }
 
-  async function submit() {
+  async function submit(retrying = false) {
     update();
     const current = context();
     const entry = journal;
-    if (signal.aborted || !current || !entry || !canPost(current, entry)) return;
-    const base: SubmissionBase = {
-      boardEtag: current.boardEtag,
-      boardRevision: current.boardRevision,
-      cardEtag: current.cardEtag,
-      cardRevision: current.revision,
-    };
-    const draft = { text: entry.draft.text, id: crypto.randomUUID(), base };
+    if (signal.aborted || !current || !entry) return;
+    if (!canWrite(current, entry) || (retrying ? !retryMatches(current, entry) : entry.draft.id))
+      return;
+    const base = retrying
+      ? entry.draft.base
+      : {
+          boardEtag: current.boardEtag,
+          boardRevision: current.boardRevision,
+          cardEtag: current.cardEtag,
+          cardRevision: current.revision,
+        };
+    const id = retrying ? entry.draft.id : crypto.randomUUID();
+    if (!base || !id) return;
+    const draft = { text: entry.draft.text, id, base };
     const release = beginWrite(cardId);
     if (!release) return;
     try {
@@ -442,7 +469,7 @@ export function mountCardComments(
         "submitting",
         async () => {
           notice = "";
-          missing = undefined;
+          inspection = undefined;
           const result = await submitOperation(
             () => persist(entry, draft),
             async () => {
@@ -466,13 +493,19 @@ export function mountCardComments(
               confirmed(entry, result.result);
               break;
             case "stale":
-              persist(entry, { text: draft.text, id: null });
-              notice = "The card changed. Your comment draft is still available.";
-              onStale(boardId, cardId);
-              break;
             case "refused":
+              if (retrying) {
+                notice =
+                  "The retry did not confirm the original post. Inspect it again to check its outcome.";
+                onStale(boardId, cardId);
+                break;
+              }
               persist(entry, { text: draft.text, id: null });
-              notice = "The post was refused. Your comment draft is still available.";
+              notice =
+                result.kind === "stale"
+                  ? "The card changed. Your comment draft is still available."
+                  : "The post was refused. Your comment draft is still available.";
+              if (result.kind === "stale") onStale(boardId, cardId);
               break;
             case "unknown":
               onStale(boardId, cardId);
@@ -513,12 +546,14 @@ export function mountCardComments(
     const entry = journal;
     const actor = context()?.actorId;
     const draft = entry?.draft;
+    const raw = entry?.raw;
     if (
       signal.aborted ||
       !entry ||
       !actor ||
       entry.key !== journalKey(actor, scope) ||
-      !draft?.id
+      !draft?.id ||
+      typeof raw !== "string"
     ) {
       return;
     }
@@ -527,7 +562,7 @@ export function mountCardComments(
       entry.key,
       "inspecting",
       async () => {
-        missing = undefined;
+        inspection = undefined;
         publish(entry);
         const currentActor = () => !signal.aborted && context()?.actorId === actor;
         try {
@@ -536,7 +571,19 @@ export function mountCardComments(
           if (!reply && draft.base) {
             const board = await readBoardVersion();
             if (!currentActor()) return;
-            if (board.revision > draft.base.boardRevision) {
+            if (board.etag === draft.base.boardEtag) {
+              const card = await readWithSession(() => api.getCard(cardId, signal), signal);
+              if (!currentActor()) return;
+              if (
+                card.etag === draft.base.cardEtag &&
+                "id" in card.data &&
+                card.data.id === cardId &&
+                "board_id" in card.data &&
+                card.data.board_id === boardId
+              ) {
+                inspection = { raw, kind: "retry" };
+              }
+            } else if (board.revision > draft.base.boardRevision) {
               // The writer checks this board validator atomically with comment creation.
               // Read the original ID again after its original validator is fenced.
               reply = await findOriginal(id);
@@ -546,7 +593,7 @@ export function mountCardComments(
                 // board remained readable at the same version around the 404.
                 const after = await readBoardVersion();
                 if (!currentActor()) return;
-                if (after.etag === board.etag) missing = id;
+                if (after.etag === board.etag) inspection = { raw, kind: "dismiss" };
               }
             }
           }
@@ -554,9 +601,12 @@ export function mountCardComments(
             prove(reply, actor, draft);
             confirmed(entry, null);
           } else {
-            notice = missing
-              ? "The board changed and the original comment was not found. Dismiss the unresolved post to recover your draft."
-              : "The original comment has not been found. Its outcome is still unknown. Inspect again to check.";
+            notice =
+              inspection?.kind === "dismiss"
+                ? "The board changed and the original comment was not found. Dismiss the unresolved post to recover your draft."
+                : retryMatches(context(), entry)
+                  ? "The original comment was not found. You can retry the original post."
+                  : "The original comment has not been found. Its outcome is still unknown. Inspect again to check.";
           }
         } catch {
           if (!currentActor()) return;
@@ -598,6 +648,7 @@ export function mountCardComments(
     { signal },
   );
   inspect.addEventListener("click", () => run(inspectOriginal), { signal });
+  retry.addEventListener("click", () => run(() => submit(true)), { signal });
   dismiss.addEventListener(
     "click",
     () => {
@@ -608,14 +659,15 @@ export function mountCardComments(
         !actor ||
         !entry?.draft.id ||
         entry.key !== journalKey(actor, scope) ||
-        entry.draft.id !== missing ||
+        inspection?.kind !== "dismiss" ||
+        entry.raw !== inspection.raw ||
         operations.state(entry.key) ||
         entry.error
       ) {
         return;
       }
       if (persist(entry, { text: entry.draft.text, id: null })) {
-        missing = undefined;
+        inspection = undefined;
         notice = "Unresolved post dismissed. Your exact draft is still available.";
       }
       update();

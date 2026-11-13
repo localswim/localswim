@@ -68,6 +68,7 @@ function harness() {
   let cardRevision = 4;
   let afterMissing;
   let afterBoardRead;
+  let beforeRetry;
   const response = Promise.withResolvers();
 
   function commit(write) {
@@ -102,6 +103,10 @@ function harness() {
           afterBoardRead?.();
           return result;
         },
+        getCard: async (id) => {
+          reads.push(id);
+          return { data: { id, board_id: boardId }, etag: tag(id, cardRevision) };
+        },
         getComment: async (id) => {
           reads.push(id);
           if (!committed.has(id)) {
@@ -113,7 +118,9 @@ function harness() {
         createComment: async (_cardId, cardEtag, text, id, boardEtag) => {
           const write = { cardEtag, boardEtag, text, id };
           writes.push(write);
-          return writes.length === 1 ? response.promise : commit(write);
+          if (writes.length === 1) return response.promise;
+          beforeRetry?.();
+          return commit(write);
         },
       },
       storage: {
@@ -143,6 +150,7 @@ function harness() {
     return {
       close: () => lifetime.abort(),
       dismiss: find("Dismiss unresolved post"),
+      retry: find("Retry original post"),
       inspect: () => find("Inspect original comment").dispatchEvent(new Event("click")),
       input: root.descendants().find((node) => node.tag === "textarea"),
       submit: () =>
@@ -165,6 +173,9 @@ function harness() {
     },
     onBoardRead: (action) => {
       afterBoardRead = action;
+    },
+    onRetry: (action) => {
+      beforeRetry = action;
     },
     async restore(rewriteJournal) {
       const original = mount();
@@ -200,7 +211,7 @@ test("a missing original at the submission revision remains fenced across remoun
   });
   restored.inspect();
   await setImmediate();
-  assert.deepEqual(fixture.reads, [original, boardId]);
+  assert.deepEqual(fixture.reads, [original, boardId, cardId]);
   assert.equal(restored.dismiss.hidden, true);
   restored.dismiss.dispatchEvent(new Event("click"));
   fixture.commitOriginal();
@@ -212,6 +223,53 @@ test("a missing original at the submission revision remains fenced across remoun
   assert.equal(fixture.committed.size, 1);
   assert.equal(restored.input.value, "");
   restored.close();
+});
+
+test("explicit retry after inspection uses exactly the journaled CAS and UUID", async () => {
+  const fixture = harness();
+  const restored = await fixture.restore();
+  assert.equal(restored.retry.hidden, true);
+  restored.retry.dispatchEvent(new Event("click"));
+  assert.equal(fixture.writes.length, 1);
+  restored.inspect();
+  await setImmediate();
+  assert.equal(restored.retry.hidden, false);
+  assert.equal(fixture.writes.length, 1);
+  restored.retry.dispatchEvent(new Event("click"));
+  await setImmediate();
+  assert.equal(fixture.writes.length, 2);
+  assert.deepEqual(fixture.writes[0], fixture.writes[1]);
+  assert.throws(fixture.commitOriginal, { status: 412 });
+  assert.equal(fixture.journal.size, 0);
+  assert.equal(fixture.committed.size, 1);
+  restored.close();
+});
+
+test("a stale or refused retry keeps the original journal for reconciliation", async () => {
+  for (const status of [412, 403]) {
+    const fixture = harness();
+    const restored = await fixture.restore();
+    const before = [...fixture.journal.values()][0];
+    restored.inspect();
+    await setImmediate();
+    fixture.onRetry(() => {
+      throw new ApiError("http_error", { status });
+    });
+    restored.retry.dispatchEvent(new Event("click"));
+    await setImmediate();
+    assert.deepEqual(fixture.writes[0], fixture.writes[1]);
+    assert.equal([...fixture.journal.values()][0], before);
+    assert.equal(restored.retry.hidden, true);
+    assert.equal(restored.dismiss.hidden, true);
+    restored.submit();
+    assert.equal(fixture.writes.length, 2);
+    fixture.commitOriginal();
+    restored.inspect();
+    await setImmediate();
+    assert.equal(fixture.journal.size, 0);
+    assert.equal(fixture.committed.size, 1);
+    restored.close();
+  }
 });
 
 test("the post-fence original-ID read catches a commit after the initial 404", async () => {

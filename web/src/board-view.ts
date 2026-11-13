@@ -29,6 +29,8 @@ type BoardContents = Readonly<{
     id: string;
     name: string;
     revision: number;
+    policy_id: string;
+    default_owner_id: string;
     actor_presentation?: ActorPresentation;
     user_css: string;
   }>;
@@ -124,6 +126,8 @@ export async function getBoardView(context: AppContext, boardId: string): Promis
       if (
         etag === null ||
         typeof contents.board.name !== "string" ||
+        typeof contents.board.policy_id !== "string" ||
+        typeof contents.board.default_owner_id !== "string" ||
         typeof contents.board.user_css !== "string"
       ) {
         throw new ApiError("invalid_response");

@@ -36,6 +36,7 @@ type SavedCard = CardSummary &
     attachment_count: number;
     revision: number;
     etag: string;
+    cover_attachment_id: string | null;
   }>;
 
 export type DrawerTextContext = Readonly<{
@@ -45,6 +46,13 @@ export type DrawerTextContext = Readonly<{
   revision: number;
   etag: string;
   editable: boolean;
+  archived: boolean;
+  laneId: string;
+  ownerId: string;
+  priorityId: string;
+  commentCount: number;
+  attachmentCount: number;
+  coverAttachmentId: string | null;
 }>;
 
 type HierarchyEntry = Readonly<{ kind: "Parent" | "Child"; target: CardSummary | null }>;
@@ -124,11 +132,13 @@ export function mountCardView(
   const description = element("p", "card-drawer-prose");
   const hierarchy = element("ul", "card-drawer-links");
   const editor = element("div", "card-drawer-editor");
+  const tools = element("div", "card-drawer-tools");
   details.append(
     metadata,
     element("h3", "card-drawer-heading", "Description"),
     description,
     editor,
+    tools,
     element("h3", "card-drawer-heading", "Parent and children"),
     hierarchy,
   );
@@ -413,6 +423,13 @@ export function mountCardView(
         revision: card.revision,
         etag: card.etag,
         editable: !card.archived,
+        archived: card.archived,
+        laneId: card.lane_id,
+        ownerId: card.owner_id,
+        priorityId: card.priority_id,
+        commentCount: card.comment_count,
+        attachmentCount: card.attachment_count,
+        coverAttachmentId: card.cover_attachment_id,
       });
       onTextReadiness?.(true);
       setStatus("");
@@ -550,9 +567,11 @@ export function mountCardView(
     },
     dispose,
     editor,
+    tools,
     title,
     description,
     showConfirmedText,
+    ticketLink,
     get selected() {
       return selection?.reference ?? null;
     },

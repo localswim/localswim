@@ -27,6 +27,7 @@ type BoardStateOptions = AppContext &
     readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
     onChange: (view: BoardStateView) => void;
     onWatchRecovery?: () => void;
+    retained?: BoardViewData;
   }>;
 
 export function createBoardState({
@@ -36,12 +37,14 @@ export function createBoardState({
   readWithSession,
   onChange,
   onWatchRecovery,
+  retained,
 }: BoardStateOptions) {
   const lifetime = new AbortController();
   const signal = AbortSignal.any([ownerSignal, lifetime.signal]);
   let started = false;
-  let data: BoardViewData | null = null;
-  let name: string | null = null;
+  let data: BoardViewData | null = retained ?? null;
+  let showingRetained = retained !== undefined;
+  let name: string | null = retained?.board.name ?? null;
   let focusedAvailability: Availability = "unknown";
   let connection: Connection = "connecting";
   let readiness: Readiness = "loading";
@@ -67,6 +70,16 @@ export function createBoardState({
       (currentCatalog && catalogAvailability === "closed")
     ) {
       availability = catalogAvailability;
+    }
+    if (
+      showingRetained &&
+      (availability === "closed" ||
+        availability === "unhealthy" ||
+        availability === "missing" ||
+        availability === "unavailable")
+    ) {
+      data = null;
+      showingRetained = false;
     }
     onChange({
       data,
@@ -133,6 +146,7 @@ export function createBoardState({
           if (superseded()) return false;
           confirm(next.board.revision, next.etag, epoch);
           if (next.etag !== data?.etag) data = next;
+          showingRetained = false;
           name = next.board.name;
           focusedAvailability = "open";
           return true;

@@ -1467,25 +1467,61 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {AbortSignal} [signal] */
     getSession: (signal) => request("/session", { signal }),
     /** @param {{board_id: string, card_id?: string}} filter
-     * @param {number} [limit] @param {string} [cursor] */
-    listComments(filter, limit, cursor) {
+     * @param {number} [limit] @param {string} [cursor] @param {AbortSignal} [signal] */
+    listComments(filter, limit, cursor, signal) {
       /** @type {Record<string, string>} */
       const query = { board_id: resourceId(filter.board_id) };
       if (filter.card_id !== undefined) query.card_id = resourceId(filter.card_id);
       if (limit !== undefined) query.limit = String(limit);
-      return list("/comments", query, cursor);
+      return list("/comments", query, cursor, signal);
     },
-    /** @param {unknown} cardId @param {unknown} etag @param {string} text @param {unknown} id */
-    createComment(cardId, etag, text, id) {
-      const expectedId = resourceId(id);
-      return createWithId("/comments", expectedId, {
-        data: {
+    /** @param {unknown} id @param {AbortSignal} [signal] */
+    getComment: (id, signal) => request("/comments/" + resourceId(id), { signal }),
+    /** @param {string} boardId @param {string} cardId @param {string} [cursor]
+     * @param {AbortSignal} [signal] */
+    listFocusedCardActivity(boardId, cardId, cursor, signal) {
+      return list(
+        "/activities",
+        {
+          board_id: resourceId(boardId),
           card_id: resourceId(cardId),
-          expected_card_etag: strongTag(etag),
-          text,
-          id: expectedId,
+          from: "1970-01-01 00:00:00+00:00",
+          to: "9999-12-31 23:59:59+00:00",
+          view: "full",
+          limit: "20",
         },
+        cursor,
+        signal,
+      );
+    },
+    /** @param {unknown} cardId @param {unknown} etag @param {string} text
+     * @param {unknown} id @param {unknown} [boardEtag] */
+    async createComment(cardId, etag, text, id, boardEtag) {
+      const expectedId = resourceId(id);
+      const data = {
+        card_id: resourceId(cardId),
+        expected_card_etag: strongTag(etag),
+        text,
+        id: expectedId,
+      };
+      if (boardEtag === undefined) return createWithId("/comments", expectedId, { data });
+      const response = await send("/comments", {
+        method: "POST",
+        boardEtag: strongTag(boardEtag),
+        data,
       });
+      const item = /** @type {{id?: unknown}} */ (await responseObject(response, true));
+      const commentTag = response.headers.get("ETag");
+      const currentBoardTag = response.headers.get("X-Board-ETag");
+      if (
+        response.status !== 201 ||
+        item.id !== expectedId.toLowerCase() ||
+        !STRONG_ETAG.test(commentTag ?? "") ||
+        !STRONG_ETAG.test(currentBoardTag ?? "")
+      ) {
+        throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
+      }
+      return { data: item, etag: commentTag, boardEtag: currentBoardTag };
     },
     /** @param {unknown} cardId @param {string} [cursor] @param {AbortSignal} [signal] */
     async listAttachments(cardId, cursor, signal) {

@@ -43,6 +43,7 @@ type DraftBindings = Readonly<{
   context: () => CardTextContext;
   onChange: () => void;
   onConfirmed: (saved: ConfirmedCardText) => void;
+  beginWrite?: () => (() => void) | null;
 }>;
 
 type Draft = Readonly<{
@@ -465,59 +466,65 @@ export function createCardTextDrafts({
       const base = context().confirmed;
       const draft = entry.draft;
       if (!base || !draft || !snapshot().canSubmit) return;
-      cancelEdit();
-      const text = textPatch(
-        draft.text.title === base.title ? undefined : draft.text.title,
-        draft.text.description === base.description ? undefined : draft.text.description,
-      );
-      if (text.title === undefined && text.description === undefined) {
-        persist(key, entry, null);
-        publish(entry);
-        return;
+      const finishWrite = binding.beginWrite?.();
+      if (finishWrite === null) return;
+      try {
+        cancelEdit();
+        const text = textPatch(
+          draft.text.title === base.title ? undefined : draft.text.title,
+          draft.text.description === base.description ? undefined : draft.text.description,
+        );
+        if (text.title === undefined && text.description === undefined) {
+          persist(key, entry, null);
+          publish(entry);
+          return;
+        }
+        const submission: Draft = {
+          base: version(base),
+          text,
+          phase: "submitted",
+        };
+        entry.inspected = undefined;
+        entry.inspectionFailed = false;
+        await operations.run(
+          key,
+          "submitting",
+          async () => {
+            const result = await submitOperation(
+              () => persist(key, entry, submission),
+              async () => {
+                publish(entry);
+                const saved = confirmedReply(
+                  scope,
+                  await api.patchCard(cardId, submission.base.etag, text),
+                );
+                if (!matchesSubmission(saved, submission))
+                  throw new TypeError("The response did not confirm the submitted text.");
+                return saved;
+              },
+            );
+            switch (result.kind) {
+              case "confirmed":
+                if (reachesVersion(result.result, entry.confirmedWrite)) {
+                  entry.confirmedWrite = version(result.result);
+                }
+                persist(key, entry, null);
+                confirmed(result.result);
+                break;
+              case "refused":
+              case "stale":
+                persist(key, entry, { ...submission, phase: result.kind });
+                break;
+              case "unknown":
+              case "journal-failed":
+                break;
+            }
+          },
+          settled,
+        );
+      } finally {
+        finishWrite?.();
       }
-      const submission: Draft = {
-        base: version(base),
-        text,
-        phase: "submitted",
-      };
-      entry.inspected = undefined;
-      entry.inspectionFailed = false;
-      await operations.run(
-        key,
-        "submitting",
-        async () => {
-          const result = await submitOperation(
-            () => persist(key, entry, submission),
-            async () => {
-              publish(entry);
-              const saved = confirmedReply(
-                scope,
-                await api.patchCard(cardId, submission.base.etag, text),
-              );
-              if (!matchesSubmission(saved, submission))
-                throw new TypeError("The response did not confirm the submitted text.");
-              return saved;
-            },
-          );
-          switch (result.kind) {
-            case "confirmed":
-              if (reachesVersion(result.result, entry.confirmedWrite)) {
-                entry.confirmedWrite = version(result.result);
-              }
-              persist(key, entry, null);
-              confirmed(result.result);
-              break;
-            case "refused":
-            case "stale":
-              persist(key, entry, { ...submission, phase: result.kind });
-              break;
-            case "unknown":
-            case "journal-failed":
-              break;
-          }
-        },
-        settled,
-      );
     }
 
     async function inspect() {

@@ -22,6 +22,7 @@ export type WorkspaceView = Readonly<{
 
 type WorkspaceOptions = Readonly<{
   signal: AbortSignal;
+  afterWatch?: Promise<void>;
   board?: NonNullable<Parameters<typeof watchUpdates>[0]["board"]>;
   onChange: (view: WorkspaceView, periodic: boolean) => void;
   onWorkspaceChange?: () => void;
@@ -95,6 +96,7 @@ function parseBoard(value: unknown): WorkspaceBoard {
 
 export function createWorkspaceState({
   signal: ownerSignal,
+  afterWatch,
   board,
   onChange,
   onWorkspaceChange,
@@ -103,7 +105,7 @@ export function createWorkspaceState({
   const signal = AbortSignal.any([ownerSignal, lifetime.signal]);
   let capability: string | undefined;
   let openingSession: Promise<void> | undefined;
-  let watching: Promise<void> = Promise.resolve();
+  let watching = afterWatch ?? Promise.resolve();
   let stream = new AbortController();
   signal.addEventListener(
     "abort",
@@ -326,6 +328,9 @@ export function createWorkspaceState({
       catalogEpoch++;
     },
     restartWatch,
-    dispose: () => lifetime.abort(),
+    dispose() {
+      lifetime.abort();
+      return watching;
+    },
   };
 }

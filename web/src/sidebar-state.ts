@@ -34,6 +34,7 @@ type PinOptions = Readonly<{
   storage?: PinStorage;
   read(): Promise<WorkspaceReply>;
   write(ids: string[], etag: string): Promise<WorkspaceReply>;
+  beginWrite?: () => (() => void) | null;
   refreshCatalog(): Promise<void>;
   onChange(view: SidebarPinsView): void;
 }>;
@@ -135,6 +136,7 @@ export function createSidebarPins({
   storage,
   read,
   write,
+  beginWrite,
   refreshCatalog,
   onChange,
 }: PinOptions) {
@@ -340,7 +342,15 @@ export function createSidebarPins({
         const kept = new Set(requested);
         edit.submittedRemovals = latest.ids.filter((id) => !kept.has(id));
       }
-      if (!recordDispatch(edit)) return;
+      const release = beginWrite?.();
+      if (release === null) {
+        message = "Another workspace save is in progress. Retry the pin change when it finishes.";
+        return;
+      }
+      if (!recordDispatch(edit)) {
+        release?.();
+        return;
+      }
       try {
         const reply = await write(requested, latest.etag);
         operationSignal.throwIfAborted();
@@ -358,6 +368,8 @@ export function createSidebarPins({
           message = "The service refused the save. The pin change is pending.";
           return;
         }
+      } finally {
+        release?.();
       }
       if (attempt === 0) {
         try {

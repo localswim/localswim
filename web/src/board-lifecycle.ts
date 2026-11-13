@@ -69,10 +69,12 @@ export function mountBoardLifecycle(
   let journalProblem = false;
   let message = "";
 
-  function loadJournal() {
+  function refreshJournal(force = false): boolean {
     try {
-      raw = globalThis.sessionStorage.getItem(journalKey);
-      pending = raw === null ? undefined : parseIntent(JSON.parse(raw) as unknown, boardId);
+      const stored = globalThis.sessionStorage.getItem(journalKey);
+      if (!force && !journalProblem && stored === raw) return true;
+      pending = stored === null ? undefined : parseIntent(JSON.parse(stored) as unknown, boardId);
+      raw = stored;
       inspectedEtag = null;
       journalProblem = false;
       closeConfirmation = null;
@@ -81,9 +83,12 @@ export function mountBoardLifecycle(
       journalProblem = true;
       message = "The board availability record could not be read.";
     }
+    return false;
   }
 
   function update() {
+    // A detached controller can settle its attempt after this controller mounts.
+    if (!busy) refreshJournal();
     const { canChange, availability, etag } = context();
     if (closeConfirmation !== null && (closeConfirmation !== etag || availability !== "open")) {
       closeConfirmation = null;
@@ -113,19 +118,8 @@ export function mountBoardLifecycle(
     if (status.textContent !== message) status.textContent = message;
   }
 
-  function journalMatches(): boolean {
-    try {
-      if (globalThis.sessionStorage.getItem(journalKey) === raw) return true;
-      loadJournal();
-    } catch {
-      journalProblem = true;
-      message = "The board availability record could not be read.";
-    }
-    return false;
-  }
-
   function save(intent: Intent | undefined): boolean {
-    if (!journalMatches()) return false;
+    if (!refreshJournal()) return false;
     try {
       if (intent) {
         const next = JSON.stringify({ ...intent, attempt: crypto.randomUUID() });
@@ -228,12 +222,12 @@ export function mountBoardLifecycle(
     message = "Checking board availability…";
     update();
     try {
-      if (!journalMatches()) return;
+      if (!refreshJournal()) return;
       const { data, etag } = await readWithSession(
         () => api.getBoardAvailability(boardId, signal),
         signal,
       );
-      if (signal.aborted || !journalMatches()) return;
+      if (signal.aborted || !refreshJournal()) return;
       if (data.availability === intent.availability) {
         confirmed(data.availability);
       } else if (data.availability === "unhealthy") {
@@ -283,12 +277,11 @@ export function mountBoardLifecycle(
     "pageshow",
     (event) => {
       if (!event.persisted || busy) return;
-      loadJournal();
+      refreshJournal(true);
       update();
     },
     { signal },
   );
-  loadJournal();
   update();
   return {
     update,

@@ -26,7 +26,10 @@ type LaneAddition = Required<
 type Change =
   | { kind: "add"; value: LaneAddition }
   | { kind: "patch"; laneId: string; revision: number; value: LanePatch };
-type Intent = Change & { boardEtag: string; identityConflict?: true };
+type Intent = Change & {
+  boardEtag: string;
+  correction?: "identity-conflict" | "revised" | "refused";
+};
 type Context = {
   data: BoardViewData | null;
   actorId?: string;
@@ -106,7 +109,11 @@ function parseIntent(raw: string, boardId: string): Intent {
             kind: "add",
             boardEtag,
             value: { id, label, after_id, create_for, connect_for },
-            ...(entry.identityConflict === true ? { identityConflict: true } : {}),
+            ...(entry.correction === "identity-conflict" ||
+            entry.correction === "revised" ||
+            entry.correction === "refused"
+              ? { correction: entry.correction }
+              : {}),
           };
         }
       }
@@ -775,7 +782,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
           case "confirmed":
             if (result.result === "identity-conflict") {
               if (mode !== "new") {
-                if (remember({ ...intent, identityConflict: true })) {
+                if (remember({ ...intent, correction: "identity-conflict" })) {
                   notice =
                     "The server found a lane identity conflict. Inspect the original lane before editing the draft.";
                 }
@@ -804,7 +811,16 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
           case "refused":
             // An intervening original write can explain a refusal of an inspected retry.
             if (mode !== "new") {
-              notice = "The retry was refused. Inspect the original lane change again.";
+              if (
+                result.kind === "refused" &&
+                intent.kind === "add" &&
+                intent.correction === "revised"
+              ) {
+                if (remember({ ...intent, correction: "refused" })) {
+                  notice =
+                    "The revised lane draft was refused. Inspect the original lane change before editing again.";
+                }
+              } else notice = "The retry was refused. Inspect the original lane change again.";
               if (!signal.aborted) onChange();
               break;
             }
@@ -921,14 +937,19 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
         const advanced =
           first.data.revision > originalRevision && (intent.kind === "patch" || !lane);
         if (unchanged || advanced) {
-          const conflict = unchanged && intent.kind === "add" && intent.identityConflict;
+          const correction =
+            unchanged && intent.kind === "add" && intent.correction !== "revised"
+              ? intent.correction
+              : undefined;
           inspected = {
             raw: expected,
-            kind: conflict ? "correct" : unchanged ? "retry" : "dismiss",
+            kind: correction ? "correct" : unchanged ? "retry" : "dismiss",
           };
           notice = unchanged
-            ? conflict
-              ? "The original lane is absent. Edit the draft to resolve the lane identity conflict."
+            ? correction
+              ? correction === "identity-conflict"
+                ? "The original lane is absent. Edit the draft to resolve the lane identity conflict."
+                : "The original lane is absent. Edit the rejected draft before adding it."
               : "The original lane change is absent. You can retry against the same board version."
             : "The saved board differs from the pending change. Dismiss it and review the current settings.";
         } else notice = "The board and lane versions could not be reconciled. Inspect again.";
@@ -965,6 +986,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
         {
           kind: "add",
           boardEtag: data.etag,
+          ...(original ? { correction: "revised" as const } : {}),
           value: {
             id: original?.value.id ?? crypto.randomUUID(),
             label: newLabel.value,

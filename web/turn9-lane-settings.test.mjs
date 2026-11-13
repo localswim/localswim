@@ -423,7 +423,7 @@ test("an advancing board during inspection cannot authorize dismissal of an unce
   assert.match(status(host), /contains the new lane/);
 });
 
-test("a verified conflict after a lost create permits editing under the original UUID and validator", async () => {
+test("a verified conflict and a refused correction keep editing on the original UUID and validator", async () => {
   const attempts = [];
   const { mount, storage } = fixture((path, request) => {
     if (request.method === "POST") {
@@ -446,6 +446,8 @@ test("a verified conflict after a lost create permits editing under the original
           { status: 409, headers: { "Content-Type": "application/problem+json" } },
         );
       }
+      if (attempts.length === 3) throw new Error("lost revised refusal");
+      if (attempts.length === 4) return new Response(null, { status: 400 });
       return reply(lane(draft.id, draft.label, 3, "ordinary", { revision: 5 }), 201);
     }
     if (path === `${prefix}/boards/${boardId}`) return boardReply(4);
@@ -479,11 +481,31 @@ test("a verified conflict after a lost create permits editing under the original
   assert.equal(host.control("Insert after").value, reviewId);
   assert.equal(host.grant("Create rights", "Bot").checked, true);
   assert.equal(host.grant("Connect rights", "Human").checked, true);
-  host.control("New lane label").input("  Corrected label  ");
+  host.control("New lane label").input("!!!");
   host.button("Add lane").click();
   await flush();
   assert.equal(attempts.length, 3);
-  assert.deepEqual(attempts[2], { ...attempts[0], label: "  Corrected label  " });
+  assert.deepEqual(attempts[2], { ...attempts[0], label: "!!!" });
+  host.button("Inspect lane change").click();
+  await flush();
+  assert.equal(host.button("Edit lane draft").hidden, true);
+  host.button("Retry lane change").click();
+  await flush();
+  assert.deepEqual(attempts[3], attempts[2]);
+  assert.equal(host.button("Edit lane draft").hidden, true);
+  host.button("Inspect lane change").click();
+  await flush();
+  assert.equal(host.button("Retry lane change").hidden, true);
+  host.button("Edit lane draft").click();
+  assert.equal(host.control("New lane label").value, "!!!");
+  assert.equal(host.control("Insert after").value, reviewId);
+  assert.equal(host.grant("Create rights", "Bot").checked, true);
+  assert.equal(host.grant("Connect rights", "Human").checked, true);
+  host.control("New lane label").input("  Corrected label  ");
+  host.button("Add lane").click();
+  await flush();
+  assert.equal(attempts.length, 5);
+  assert.deepEqual(attempts[4], { ...attempts[0], label: "  Corrected label  " });
   assert.equal(storage.size, 0);
   assert.match(status(host), /Lane added/);
 });

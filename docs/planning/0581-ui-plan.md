@@ -5,8 +5,10 @@ are archived. The old UI Lead chat is archived. V1 is the observable specificati
 authors must not read or reuse its implementation. The fresh TypeScript UI uses
 the V2 API. This plan passed independent review of scope, dependencies and staffing.
 
-T1 is authorized. T2 requires Architect release after T1 review. T3 also requires
-Terry's direct visual confirmation of the integrated workspace and board at T2.
+T1 and T2 reached Ready for Review. The Architect squash-merged PR #1 into
+`ui/v1-clean-room` as `9f9ced3` and verified its tree against the reviewed
+`84d73ad` head. T3 awaits direct visual confirmation by Terry and release by
+the Architect.
 Later turn entry requires Architect approval and squash merge of all preceding-turn PRs into ui/v1-clean-room. Terry controls Completed, the final demo/project approval and UI-branch merge to main. See [PR workflow](0581-pr-workflow.md).
 
 ## Board mapping
@@ -37,11 +39,9 @@ Later turn entry requires Architect approval and squash merge of all preceding-t
 Detailed scope, dependencies and planned assignments follow. Ticket numbers are ascending by turn.
 
 
-Current assignment revision 3 is recorded in [the rolling roster](0581-rolling-assignments.md)
-and `current_rolling_assignments` in the JSON plan. T1 source and visual reviews are
-complete; parent verification and Architect release remain. The initial revision 2
-roster below is preserved as history. The prior #0514 UI effort is archived.
-Preserve its history and files. R01–R20 map to the live tickets in the table above.
+Current assignment revision 6 covers the next three turns, T3 through T5.
+Earlier rosters and the archived #0514 evidence remain available. R01–R20 map
+to the live tickets above. [Rolling roster](0581-rolling-assignments.md)
 
 ## Acceptance and provenance
 
@@ -97,7 +97,10 @@ R20 is a bounded qualification run. Failures produce separately scoped defect ca
 
 ## Current staffing
 
-Revision4 assigns multiple authors to independently owned modules where that reduces delivery time. See [staffing plan](0581-staffing-plan.md) for all turns and [rolling assignments](0581-rolling-assignments.md) for the next three remaining turns. Authors hand completed packets to fresh reviewers as slots become free. Actual T1 work is preserved.
+Revision 6 carries forward the approved coauthor scopes and records current
+prerequisite readiness for T3 through T5. Authors hand completed packets to
+fresh reviewers as slots become free. [Staffing plan](0581-staffing-plan.md)
+and [rolling assignments](0581-rolling-assignments.md)
 
 ## Sources
 

@@ -534,7 +534,8 @@ function versionTag(id, revision) {
 }
 
 /** @param {object} data @param {string} id @param {string} boardId @param {string} boardTag
- * @param {string} laneId @param {string} completedLaneId @param {string[]} cardIds @param {string} expectedComment */
+ * @param {string} laneId @param {string} completedLaneId @param {string[]} cardIds @param {string} expectedComment
+ * @param {string} [actorId] */
 function matchesLaneApproval(
   data,
   id,
@@ -544,6 +545,7 @@ function matchesLaneApproval(
   completedLaneId,
   cardIds,
   expectedComment,
+  actorId,
 ) {
   const receipt = /** @type {Record<string, unknown>} */ (data);
   const { board_revision: revision, changes } = receipt;
@@ -553,6 +555,7 @@ function matchesLaneApproval(
     receipt.id !== id ||
     receipt.board_id !== boardId ||
     !isId(receipt.actor_id) ||
+    (actorId !== undefined && receipt.actor_id !== actorId) ||
     !isTimestamp(receipt.at) ||
     !isInteger(revision) ||
     revision < 2 ||
@@ -1819,13 +1822,24 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
     },
     /** @param {string} id @param {string} boardId @param {string} boardEtag @param {string} laneId
-     * @param {string} completedLaneId @param {{id: string, revision: number}[]} cards @param {string} [bulkComment] */
-    async approveLane(id, boardId, boardEtag, laneId, completedLaneId, cards, bulkComment = "") {
+     * @param {string} completedLaneId @param {{id: string, revision: number}[]} cards
+     * @param {string} [bulkComment] @param {string} [actorId] */
+    async approveLane(
+      id,
+      boardId,
+      boardEtag,
+      laneId,
+      completedLaneId,
+      cards,
+      bulkComment = "",
+      actorId,
+    ) {
       const expectedId = operationId(id).toLowerCase();
       const board = resourceId(boardId).toLowerCase();
       const lane = resourceId(laneId).toLowerCase();
       const completed = resourceId(completedLaneId).toLowerCase();
       const expected = strongTag(boardEtag);
+      const actor = actorId === undefined ? undefined : resourceId(actorId).toLowerCase();
       const versions = cards.map((card) => ({
         card_id: resourceId(card.id).toLowerCase(),
         etag: versionTag(card.id, card.revision),
@@ -1836,6 +1850,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       const response = await send("/approvals", {
         method: "POST",
+        knownUnavailable: true,
         data: {
           id: expectedId,
           board_id: board,
@@ -1879,13 +1894,15 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
               completed,
               cardIds,
               bulkComment || DEFAULT_APPROVAL_COMMENT,
+              actor,
             ))
       ) {
         throw new ApiError("invalid_response", { status, outcomeUnknown: true });
       }
     },
     /** @param {string} id @param {string} boardId @param {string} boardEtag @param {string} laneId
-     * @param {string} completedLaneId @param {string[]} cardIds @param {string} [bulkComment] */
+     * @param {string} completedLaneId @param {string[]} cardIds @param {string} [bulkComment]
+     * @param {{actorId: string, signal?: AbortSignal}} [options] */
     async inspectLaneApproval(
       id,
       boardId,
@@ -1894,14 +1911,16 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       completedLaneId,
       cardIds,
       bulkComment = "",
+      options,
     ) {
       const expectedId = operationId(id).toLowerCase();
       const board = resourceId(boardId).toLowerCase();
       const expected = strongTag(boardEtag);
       const lane = resourceId(laneId).toLowerCase();
       const completed = resourceId(completedLaneId).toLowerCase();
+      const actor = options && resourceId(options.actorId).toLowerCase();
       const cards = cardIds.map((cardId) => resourceId(cardId).toLowerCase());
-      const response = await send("/approvals/" + expectedId);
+      const response = await send("/approvals/" + expectedId, { signal: options?.signal });
       if (response.status !== 200 || response.headers.get("ETag") !== '"' + expectedId + '-1"') {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status });
@@ -1917,6 +1936,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
           completed,
           cards,
           bulkComment || DEFAULT_APPROVAL_COMMENT,
+          actor,
         )
       ) {
         throw new ApiError("invalid_response", { status: response.status });

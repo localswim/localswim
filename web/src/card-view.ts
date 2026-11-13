@@ -1,0 +1,412 @@
+import { ApiError } from "../api.mjs";
+import { appendCardProse } from "../card-prose.mjs";
+import type { BoardViewData } from "./board-view.js";
+import type { AppContext } from "./model.js";
+
+export type CardReference = Readonly<{ id: string } | { ticket: number }>;
+
+type CardViewOptions = AppContext &
+  Readonly<{
+    boardId: string;
+    readWithSession: <T>(read: () => Promise<T>, signal?: AbortSignal) => Promise<T>;
+    getBoardData: () => BoardViewData | undefined;
+    focusFallback: (reference: CardReference, opener?: HTMLElement) => void;
+  }>;
+
+type CardSummary = Readonly<{ id: string; ticket: number; title: string; archived: boolean }>;
+
+type SavedCard = CardSummary &
+  Readonly<{
+    board_id: string;
+    description: string;
+    lane_id: string;
+    owner_id: string;
+    priority_id: string;
+    parent_id: string | null;
+    child_ids: readonly string[];
+    created_at: string;
+    updated_at: string;
+    completed_at: string | null;
+    comment_count: number;
+    attachment_count: number;
+  }>;
+
+type HierarchyEntry = Readonly<{ kind: "Parent" | "Child"; target: CardSummary | null }>;
+type Selection = {
+  reference: CardReference;
+  origin: CardReference;
+  opener: HTMLElement | undefined;
+  lifetime: AbortController;
+  loading: boolean;
+  refreshQueued: boolean;
+};
+
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const hierarchyBatchSize = 8;
+
+export function mountCardView(
+  root: HTMLElement,
+  {
+    api,
+    signal: ownerSignal,
+    boardId,
+    readWithSession,
+    getBoardData,
+    focusFallback,
+  }: CardViewOptions,
+) {
+  const doc = root.ownerDocument;
+  const lifetime = new AbortController();
+  const signal = AbortSignal.any([ownerSignal, lifetime.signal]);
+
+  function element<K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    className: string,
+    text?: string,
+  ): HTMLElementTagNameMap[K] {
+    const node = doc.createElement(tag);
+    node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  const panel = element("aside", "card-drawer");
+  panel.id = "card-drawer";
+  panel.setAttribute("aria-labelledby", "card-drawer-ticket card-drawer-title");
+  panel.hidden = true;
+
+  const bar = element("div", "card-drawer-bar");
+  const ticketLabel = element("span", "card-drawer-ticket");
+  ticketLabel.id = "card-drawer-ticket";
+  const closeButton = element("button", "card-drawer-close", "×");
+  closeButton.type = "button";
+  closeButton.setAttribute("aria-label", "Close card");
+  bar.append(ticketLabel, closeButton);
+
+  const body = element("div", "card-drawer-body");
+  body.tabIndex = 0;
+  body.setAttribute("role", "group");
+  body.setAttribute("aria-label", "Card details");
+  const title = element("h2", "card-drawer-title");
+  title.id = "card-drawer-title";
+  title.tabIndex = -1;
+  title.setAttribute("aria-live", "polite");
+  const status = element("p", "card-drawer-status");
+  status.setAttribute("role", "status");
+  const details = element("div", "card-drawer-details");
+  const metadata = element("dl", "card-drawer-metadata");
+  const description = element("p", "card-drawer-prose");
+  const hierarchy = element("ul", "card-drawer-links");
+  details.append(
+    metadata,
+    element("h3", "card-drawer-heading", "Description"),
+    description,
+    element("h3", "card-drawer-heading", "Parent and children"),
+    hierarchy,
+  );
+  body.append(title, status, details);
+  panel.append(bar, body);
+  root.append(panel);
+
+  let selection: Selection | undefined;
+  let displayedProse: string | undefined;
+  let displayedHierarchy: string | undefined;
+
+  function setStatus(message: string) {
+    status.textContent = message;
+  }
+
+  async function getCard(id: string, requestSignal: AbortSignal): Promise<SavedCard> {
+    const reply = await readWithSession(() => api.getCard(id), requestSignal);
+    requestSignal.throwIfAborted();
+    // The API adapter validates the card shape and requested UUID. Confirm board ownership here.
+    const card = reply.data as SavedCard;
+    if (card.board_id !== boardId) throw new ApiError("http_error", { status: 404 });
+    return card;
+  }
+
+  async function readCard(
+    reference: CardReference,
+    requestSignal: AbortSignal,
+  ): Promise<SavedCard> {
+    if ("id" in reference) return getCard(reference.id, requestSignal);
+
+    const { ticket } = reference;
+    const { data } = await readWithSession(
+      () => api.listCards(boardId, { ticket, archived: "include", limit: 2 }, requestSignal),
+      requestSignal,
+    );
+    requestSignal.throwIfAborted();
+    const { cards, next_cursor: nextCursor } = data as Record<string, unknown>;
+    if (!Array.isArray(cards) || nextCursor !== null) throw new ApiError("invalid_response");
+    if (cards.length === 0) throw new ApiError("http_error", { status: 404 });
+    const [match] = cards as unknown[];
+    if (
+      cards.length !== 1 ||
+      typeof match !== "object" ||
+      match === null ||
+      !("id" in match) ||
+      typeof match.id !== "string" ||
+      !uuid.test(match.id) ||
+      !("board_id" in match) ||
+      match.board_id !== boardId ||
+      !("ticket" in match) ||
+      match.ticket !== ticket
+    ) {
+      throw new ApiError("invalid_response");
+    }
+    const card = await getCard(match.id, requestSignal);
+    if (card.ticket !== ticket) throw new ApiError("http_error", { status: 404 });
+    return card;
+  }
+
+  async function readHierarchy(
+    card: SavedCard,
+    data: BoardViewData | undefined,
+    requestSignal: AbortSignal,
+  ): Promise<HierarchyEntry[]> {
+    const links = card.child_ids.map((id) => ({ kind: "Child" as const, id }));
+    const references = card.parent_id
+      ? [{ kind: "Parent" as const, id: card.parent_id }, ...links]
+      : links;
+    if (references.length === 0) return [];
+    const active = new Map(data?.cards.map((entry) => [entry.id, entry]));
+    const result: HierarchyEntry[] = [];
+    for (let offset = 0; offset < references.length; offset += hierarchyBatchSize) {
+      requestSignal.throwIfAborted();
+      const batch = references.slice(offset, offset + hierarchyBatchSize);
+      const loaded = await Promise.all(
+        batch.map(async ({ kind, id }) => {
+          const visible = active.get(id);
+          if (visible) {
+            return {
+              kind,
+              target: { id, ticket: visible.ticket, title: visible.title, archived: false },
+            };
+          }
+          const saved = await getCard(id, requestSignal).catch(() => null);
+          const target = saved && {
+            id,
+            ticket: saved.ticket,
+            title: saved.title,
+            archived: saved.archived,
+          };
+          return { kind, target };
+        }),
+      );
+      result.push(...loaded);
+    }
+    requestSignal.throwIfAborted();
+    return result;
+  }
+
+  function ticketLink(ticket: number, label: string, id?: string): HTMLAnchorElement {
+    const link = element("a", "card-drawer-link", label);
+    link.href = `/boards/${boardId}?ticket=${ticket}`;
+    link.dataset.target = id ?? String(ticket);
+    link.addEventListener("click", (event) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey
+      ) {
+        return;
+      }
+      event.preventDefault();
+      open(id === undefined ? { ticket } : { id });
+    });
+    return link;
+  }
+
+  function updateLinkedContent(container: HTMLElement, nodes: readonly Node[]) {
+    const focused = doc.activeElement;
+    const key = focused?.getAttribute("data-target");
+    const matchingLinks = () =>
+      [...container.querySelectorAll("a")].filter((link) => link.dataset.target === key);
+    const occurrence =
+      key && container.contains(focused)
+        ? matchingLinks().findIndex((link) => link === focused)
+        : -1;
+    container.replaceChildren(...nodes);
+    if (occurrence >= 0) {
+      const replacement = matchingLinks()[occurrence];
+      (replacement ?? body).focus({ preventScroll: true });
+    }
+  }
+
+  function renderCard(card: SavedCard, data: BoardViewData | undefined) {
+    const owner = data?.users.find(({ id }) => id === card.owner_id);
+    const presentation = owner ? data?.board.actor_presentation?.[owner.kind] : undefined;
+    const fields = new Map<string, string>([
+      ["Lane", data?.lanes.find(({ id }) => id === card.lane_id)?.label ?? "Unavailable"],
+      [
+        "Priority",
+        data?.priorities.find(({ id }) => id === card.priority_id)?.label ?? "Unavailable",
+      ],
+      ["Owner", presentation?.label ?? owner?.label ?? "Unavailable"],
+      ["Created", card.created_at],
+      ["Updated", card.updated_at],
+      ["Comments", String(card.comment_count)],
+      ["Attachments", String(card.attachment_count)],
+    ]);
+    if (card.completed_at) fields.set("Completed", card.completed_at);
+    if (card.archived) fields.set("State", "Archived");
+
+    ticketLabel.textContent = `#${card.ticket}`;
+    if (title.textContent !== card.title) title.textContent = card.title;
+    const rows = [...fields].map(([label, value]) => {
+      const row = element("div", "card-drawer-field");
+      row.append(element("dt", "", label), element("dd", "", value));
+      return row;
+    });
+    metadata.replaceChildren(...rows);
+
+    if (displayedProse !== card.description) {
+      displayedProse = card.description;
+      const prose = doc.createElement("p");
+      if (card.description === "") prose.textContent = "No description.";
+      else appendCardProse(prose, card.description, ticketLink);
+      description.classList.toggle("card-drawer-empty", card.description === "");
+      updateLinkedContent(description, [...prose.childNodes]);
+    }
+    details.hidden = false;
+  }
+
+  function renderHierarchy(entries: readonly HierarchyEntry[]) {
+    const signature = JSON.stringify(entries);
+    if (signature === displayedHierarchy) return;
+    displayedHierarchy = signature;
+    const rows = entries.map(({ kind, target }) => {
+      const row = element("li", "card-drawer-relation");
+      row.append(element("span", "card-drawer-relation-kind", kind));
+      if (target) {
+        const link = ticketLink(target.ticket, `#${target.ticket} ${target.title}`, target.id);
+        if (target.archived) link.append(element("span", "card-drawer-archive", " (Archived)"));
+        row.append(link);
+      } else {
+        row.append(element("span", "card-drawer-empty", "Card unavailable"));
+      }
+      return row;
+    });
+    if (rows.length === 0) rows.push(element("li", "card-drawer-empty", "No parent or children."));
+    updateLinkedContent(hierarchy, rows);
+  }
+
+  async function load(current: Selection): Promise<void> {
+    if (current.loading) {
+      current.refreshQueued = true;
+      return;
+    }
+    current.loading = true;
+    const requestSignal = AbortSignal.any([signal, current.lifetime.signal]);
+    try {
+      const card = await readCard(current.reference, requestSignal);
+      requestSignal.throwIfAborted();
+      const resolveOrigin = current.origin === current.reference;
+      current.reference = { id: card.id };
+      if (resolveOrigin) current.origin = current.reference;
+      const data = getBoardData();
+      setStatus("");
+      renderCard(card, data);
+      const relations = await readHierarchy(card, data, requestSignal);
+      requestSignal.throwIfAborted();
+      renderHierarchy(relations);
+    } catch (error) {
+      if (requestSignal.aborted) return;
+      const missing = error instanceof ApiError && error.status === 404;
+      if (missing || details.hidden) {
+        if (details.contains(doc.activeElement)) body.focus({ preventScroll: true });
+        title.textContent = "Card unavailable";
+        details.hidden = true;
+      }
+      setStatus(
+        missing
+          ? "Card not found on this board."
+          : details.hidden
+            ? "Could not load this card."
+            : "Could not refresh this card.",
+      );
+    } finally {
+      current.loading = false;
+      if (current.refreshQueued && !requestSignal.aborted) {
+        current.refreshQueued = false;
+        refresh();
+      }
+    }
+  }
+
+  function refresh() {
+    if (selection && !signal.aborted) void load(selection);
+  }
+
+  function open(reference: CardReference, opener?: HTMLElement) {
+    if (signal.aborted) return;
+    const previous = selection;
+    previous?.lifetime.abort();
+    selection = {
+      reference,
+      origin: opener ? reference : (previous?.origin ?? reference),
+      opener: opener ?? previous?.opener,
+      lifetime: new AbortController(),
+      loading: false,
+      refreshQueued: false,
+    };
+    panel.hidden = false;
+    ticketLabel.textContent = "ticket" in reference ? `#${reference.ticket}` : "";
+    title.textContent = "Loading card…";
+    setStatus("");
+    details.hidden = true;
+    hierarchy.replaceChildren();
+    displayedHierarchy = undefined;
+    body.scrollTop = 0;
+    title.focus({ preventScroll: true });
+    refresh();
+  }
+
+  function close() {
+    if (!selection) return;
+    const { origin, opener, lifetime: currentLifetime } = selection;
+    selection = undefined;
+    currentLifetime.abort();
+    panel.hidden = true;
+    if (opener?.isConnected) {
+      opener.focus();
+      const scope = opener.getRootNode();
+      if ("activeElement" in scope && scope.activeElement === opener) return;
+    }
+    focusFallback(origin, opener);
+  }
+
+  closeButton.addEventListener("click", close, { signal });
+  doc.addEventListener(
+    "keydown",
+    (event) => {
+      if (!selection || event.defaultPrevented || event.isComposing || event.key !== "Escape")
+        return;
+      event.preventDefault();
+      close();
+    },
+    { signal },
+  );
+  function dispose() {
+    lifetime.abort();
+    selection?.lifetime.abort();
+    selection = undefined;
+    panel.remove();
+  }
+
+  if (signal.aborted) dispose();
+  else ownerSignal.addEventListener("abort", dispose, { signal });
+  return {
+    open,
+    close,
+    refresh,
+    dispose,
+    get selected() {
+      return selection?.reference ?? null;
+    },
+  };
+}

@@ -12,6 +12,16 @@ The TypeScript entry point is `src/main.ts`. After editing TypeScript, run
 `npm --prefix web run check` checks types and compares the embedded output
 with a fresh compilation.
 
+The T1 candidate opens the workspace board list and direct board URLs. It
+displays loading and availability, offers a workspace link for a missing board,
+and lets the user retry a failed read. The isolated candidate gains the remaining
+workflows in T2–T9.
+
+## Current production UI reference
+
+The following controls describe the installed V2 UI used as the reference for
+replacement qualification.
+
 The selected board updates when another client commits an edit. Live connection
 status is separate from the loaded board, so an interruption leaves the last
 view and drafts available. A replacement connection checks the current board

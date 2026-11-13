@@ -17,6 +17,8 @@ export type BoardStateView = Readonly<{
   readiness: Readiness;
   confirmedRevision: number | null;
   confirmedEtag: string | null;
+  policyId: string | null;
+  lifecycleReady: boolean;
   writesFenced: boolean;
   retryAvailable: boolean;
 }>;
@@ -50,6 +52,7 @@ export function createBoardState({
   let readiness: Readiness = "loading";
   let confirmedRevision: number | null = null;
   let confirmedEtag: string | null = null;
+  let policyId: string | null = null;
   let hintedRevision = 0;
   let catalogAvailability: "open" | "closed" | "unhealthy" | "unknown" = "unknown";
   let catalogReady = false;
@@ -89,6 +92,13 @@ export function createBoardState({
       readiness,
       confirmedRevision,
       confirmedEtag,
+      policyId,
+      lifecycleReady:
+        catalogReady &&
+        readiness === "ready" &&
+        confirmedEpoch === confirmationEpoch &&
+        (confirmedRevision ?? 0) >= hintedRevision &&
+        ((availability === "open" && connection === "connected") || availability === "closed"),
       writesFenced:
         explicitWriteFence ||
         availability !== "open" ||
@@ -148,6 +158,7 @@ export function createBoardState({
           if (next.etag !== data?.etag) data = next;
           showingRetained = false;
           name = next.board.name;
+          policyId = next.board.policy_id;
           focusedAvailability = "open";
           return true;
         } catch (error) {
@@ -161,6 +172,7 @@ export function createBoardState({
       }
       confirm(metadata.data.revision, metadata.etag, epoch);
       name = metadata.data.name;
+      policyId = metadata.data.policy_id;
       focusedAvailability = metadata.data.availability;
       return true;
     } catch (error) {
@@ -172,7 +184,6 @@ export function createBoardState({
             return true;
           case 401:
           case 403:
-          case 503:
             focusedAvailability = "unavailable";
             break;
           case null:

@@ -4,12 +4,13 @@ import { submitOperation, type OperationStorage } from "./operations.js";
 
 type Scope = { kind: "workspace" } | { kind: "board"; boardId: string };
 type Reply = { data: Publishing; etag: string };
-type Draft = { enabled: boolean; inspect: boolean };
+type Draft = { enabled: boolean; inspect: boolean; etag?: string };
 type Options = AppContext & {
   scope: Scope;
   readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
   canPublish: () => boolean;
   beginWrite?: () => (() => void) | null;
+  beginInspection?: () => (() => void) | null;
   onSaved?: () => void;
   storage?: OperationStorage;
 };
@@ -47,6 +48,7 @@ export function mountPublishingSettings(
     readWithSession,
     canPublish,
     beginWrite,
+    beginInspection,
     onSaved,
     storage,
   }: Options,
@@ -117,8 +119,13 @@ export function mountPublishingSettings(
           draft = { enabled: journal.endsWith(":on"), inspect: journal.startsWith("inspect:") };
           break;
         default:
-          journal = undefined;
-          storageMessage = "The pending publishing settings in tab storage are unreadable.";
+          if (/^inspect:(on|off):"[A-Za-z0-9_-]{16,128}"$/u.test(journal)) {
+            const parts = journal.split(":");
+            draft = { enabled: parts[1] === "on", inspect: true, etag: parts[2] };
+          } else {
+            journal = undefined;
+            storageMessage = "The pending publishing settings in tab storage are unreadable.";
+          }
       }
     } catch {
       journal = undefined;
@@ -137,7 +144,7 @@ export function mountPublishingSettings(
         return false;
       }
       const value = next
-        ? `${next.inspect ? "inspect" : "draft"}:${next.enabled ? "on" : "off"}`
+        ? `${next.inspect ? "inspect" : "draft"}:${next.enabled ? "on" : "off"}${next.etag ? `:${next.etag}` : ""}`
         : null;
       if (value === null) tab.removeItem(key);
       else tab.setItem(key, value);
@@ -220,6 +227,11 @@ export function mountPublishingSettings(
 
   function refresh(inspecting = false): Promise<void> {
     return run(async (operationSignal) => {
+      const release = inspecting ? beginInspection?.() : undefined;
+      if (release === null) {
+        message = "A settings save is still in progress. Inspect again after it settles.";
+        return false;
+      }
       if (journalConflict) {
         restoreJournal();
         message = "";
@@ -234,13 +246,19 @@ export function mountPublishingSettings(
             finish(undefined, "The saved settings confirm the publishing change.");
             return true;
           }
-          finish(
-            { enabled: draft.enabled, inspect: false },
-            "Review the current setting before saving the pending change.",
-          );
+          if (draft.etag === reply.etag) {
+            message = "The original save is still unresolved. Inspect the saved settings again.";
+          } else {
+            finish(
+              { enabled: draft.enabled, inspect: false },
+              "Review the current setting before saving the pending change.",
+            );
+          }
         }
       } catch {
         if (!operationSignal.aborted) readFailed = true;
+      } finally {
+        release?.();
       }
       return false;
     });
@@ -256,7 +274,7 @@ export function mountPublishingSettings(
     const { enabled } = draft;
     const expected = saved.etag;
     try {
-      const pending: Draft = { enabled, inspect: true };
+      const pending: Draft = { enabled, inspect: true, etag: expected };
       const outcome = await submitOperation(
         () => {
           if (!remember(pending)) return false;

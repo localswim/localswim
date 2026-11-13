@@ -14,6 +14,7 @@ type CardViewOptions = AppContext &
     onSelectionChange?: (reference: CardReference | null, explicit: boolean) => void;
     onTextContext?: (context: DrawerTextContext | null) => void;
     onTextReadiness?: (confirmed: boolean) => void;
+    retainedCard?: (reference: CardReference) => { title: string; description: string } | undefined;
     acceptTextVersion?: (cardId: string, revision: number, etag: string) => boolean;
   }>;
 
@@ -83,6 +84,7 @@ export function mountCardView(
     onSelectionChange,
     onTextContext,
     onTextReadiness,
+    retainedCard,
     acceptTextVersion,
   }: CardViewOptions,
 ) {
@@ -473,7 +475,7 @@ export function mountCardView(
     if (selection && !signal.aborted) void load(selection);
   }
 
-  function open(reference: CardReference, opener?: HTMLElement, focus = true) {
+  function open(reference: CardReference, opener?: HTMLElement, focus = true, read = true) {
     if (signal.aborted) return;
     const previous = selection;
     previous?.lifetime.abort();
@@ -500,7 +502,7 @@ export function mountCardView(
     displayedHierarchy = undefined;
     body.scrollTop = 0;
     if (focus) title.focus({ preventScroll: true });
-    refresh();
+    if (read) refresh();
   }
 
   function close(focus = true, explicit = focus) {
@@ -555,6 +557,15 @@ export function mountCardView(
     open,
     close,
     refresh,
+    showRetained(reference: CardReference, opener?: HTMLElement) {
+      const retained = retainedCard?.(reference);
+      if (!retained) return;
+      open(reference, opener, true, false);
+      showConfirmedText(retained);
+      metadata.replaceChildren();
+      details.hidden = false;
+      setStatus("Showing previously loaded card text.");
+    },
     refreshRestored() {
       if (!selection) return;
       selection.restored = true;

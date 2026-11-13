@@ -212,6 +212,12 @@
   block-size: auto;
 }
 
+.board-view-cover-slot {
+  display: block;
+  block-size: 6rem;
+  overflow: hidden;
+}
+
 .board-view .board-view-card-meta {
   display: flex;
   flex-wrap: wrap;

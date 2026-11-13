@@ -36,6 +36,9 @@ type RouteRuntime = {
   workspace?: ReturnType<typeof createWorkspaceState>;
   streamClosed?: Promise<void>;
   writes: Set<string>;
+  cardVersions: Map<string, { revision: number; etag: string }>;
+  onWriteSettled?: () => void;
+  refreshBoard?: (boardId: string) => void;
   drafts: ReturnType<typeof createCardTextDrafts>;
 };
 
@@ -107,7 +110,6 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   let relationships: ReturnType<typeof mountRelationships> | undefined;
   let previewsAllowed = false;
   let policyRefreshFrame = 0;
-  const assignmentVersions = new Map<string, { revision: number; etag: string }>();
   let writesBlocked = true;
   let focusedTextConfirmed = false;
   let drawerNeedsConfirmation = false;
@@ -168,6 +170,13 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     onChange(catalog, periodic) {
       attention.update(catalog, selectedBoardId);
       sidebar.updateCatalog(catalog);
+      if (catalog.status === "ready") {
+        for (const entry of catalog.boards) {
+          if (entry.availability === "closed" || entry.availability === "unhealthy") {
+            runtime.cache.delete(entry.id);
+          }
+        }
+      }
       boardState?.observeCatalog(catalog, periodic);
       totalAttention = catalog.totalAttention;
       updateTitle();
@@ -202,6 +211,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       ...context,
       readWithSession,
       canCreate: () => principal?.workspaceAdmin === true,
+      beginWrite: () => beginWrite("workspace"),
+      beginInspection: () => beginWrite("workspace"),
       onCreated: (id) => runtime.navigate(`/boards/${id}`),
     });
     publishing = mountPublishingSettings(publishHost, {
@@ -210,6 +221,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       scope: { kind: "workspace" },
       canPublish: () => principal?.workspaceAdmin === true,
       beginWrite: () => beginWrite("workspace"),
+      beginInspection: () => beginWrite("workspace"),
       onSaved: () => {
         void sidebar.refresh();
       },
@@ -218,22 +230,26 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       ...context,
       readWithSession,
       canManage: () => principal?.workspaceAdmin === true,
+      onRefreshIdentity: refreshPrincipal,
     });
     void publishing.refresh();
   }
-  void workspace
-    .readWithSession(() => readBrowserPrincipal(context), signal)
-    .then(
-      (identity) => {
-        if (signal.aborted) return;
-        principal = identity;
-        workspaceCreate?.update();
-        publishing?.updatePermission();
-        serviceTools?.update();
-        refreshPolicy();
-      },
-      () => {},
-    );
+  function refreshPrincipal() {
+    void workspace
+      .readWithSession(() => readBrowserPrincipal(context), signal)
+      .then(
+        (identity) => {
+          if (signal.aborted) return;
+          principal = identity;
+          workspaceCreate?.update();
+          publishing?.updatePermission();
+          serviceTools?.update();
+          refreshPolicy();
+        },
+        () => {},
+      );
+  }
+  refreshPrincipal();
 
   function beginWrite(key: string, secondKey?: string): (() => void) | null {
     const keys = secondKey && secondKey !== key ? [key, secondKey] : [key];
@@ -241,14 +257,22 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     for (const id of keys) runtime.writes.add(id);
     return () => {
       for (const id of keys) runtime.writes.delete(id);
-      editor?.update();
-      assignment?.update();
-      updateArchive();
-      movementPanel?.update();
-      comments?.update();
-      updateDrawerTools();
+      runtime.onWriteSettled?.();
     };
   }
+
+  function updateWriteControls() {
+    editor?.update();
+    assignment?.update();
+    updateArchive();
+    movementPanel?.update();
+    comments?.update();
+    updateDrawerTools();
+  }
+  runtime.onWriteSettled = updateWriteControls;
+  runtime.refreshBoard = (boardId) => {
+    if (boardId === selectedBoardId) refreshBoardAndDrawer();
+  };
 
   function beginCardWrite(cardId: string, related?: string): (() => void) | null {
     if (
@@ -265,12 +289,11 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   function refreshPolicy() {
     const snapshot = boardSnapshot;
     const identity = principal;
-    const policyId = snapshot?.data?.board.policy_id;
+    const policyId = snapshot?.policyId;
     if (!selectedBoardId || !identity || !policyId || snapshot?.confirmedRevision === null) return;
     const version = `${policyId}:${snapshot?.confirmedRevision}`;
     if (version === policyVersion) return;
     policyVersion = version;
-    policy = null;
     void workspace
       .readWithSession(() => readBoardPolicy(context, identity, selectedBoardId, policyId), signal)
       .then(
@@ -283,6 +306,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
           lifecycle?.update();
           updateArchive();
           movementPanel?.update();
+          comments?.update();
           board?.refreshMovement();
           createCard?.update();
           view?.cancelAnimationFrame(policyRefreshFrame);
@@ -332,6 +356,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         boardData.lanes.map(({ id }) => id),
       ),
     });
+    search?.restore(currentView.deeperSearchState, currentView.deeperSearch);
   }
 
   function consumeCardLink() {
@@ -398,6 +423,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       confirmedText = null;
       editor = undefined;
       commentsBinding?.abort();
+      commentsHost?.replaceChildren();
       commentsBinding = undefined;
       comments = undefined;
       updateDrawerTools();
@@ -456,6 +482,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       description: drawer.description,
     });
     commentsBinding?.abort();
+    commentsHost?.replaceChildren();
     if (commentsHost) {
       commentsBinding = new AbortController();
       comments = mountCardComments(commentsHost, {
@@ -481,8 +508,13 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
               !lifecycle?.blocksWrites(),
           };
         },
-        authorName: (id) =>
-          boardData?.users.find((user) => user.id === id)?.label ?? "Unknown author",
+        authorName(id) {
+          const user = boardData?.users.find((entry) => entry.id === id);
+          return user
+            ? (boardData?.board.actor_presentation?.[user.kind]?.label ?? user.label)
+            : "Unknown author";
+        },
+        authorKind: (id) => boardData?.users.find((user) => user.id === id)?.kind,
         ticketLink: drawer.ticketLink,
         beginWrite: beginCardWrite,
         onConfirmed: refreshBoardAndDrawer,
@@ -496,14 +528,12 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     boardSnapshot = state;
     refreshPolicy();
     const { availability, connection, data, name, readiness, retryAvailable, writesFenced } = state;
+    if (!writesBlocked && writesFenced) search?.suspend();
     writesBlocked = writesFenced;
-    const previewReady =
-      state.availability === "open" &&
-      state.confirmedRevision !== null &&
-      state.connection === "connected" &&
-      state.readiness === "ready";
+    const previewReady = !writesFenced && !lifecycle?.blocksWrites();
     const previewChanged = previewsAllowed !== previewReady;
     previewsAllowed = previewReady;
+    if (previewChanged && !previewReady) board?.revokeCovers();
     editor?.update();
     assignment?.update();
     lifecycle?.update();
@@ -512,7 +542,6 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     board?.refreshMovement();
     createCard?.update();
     comments?.update();
-    updateDrawerTools();
     retry.hidden = !retryAvailable;
     root.dataset.boardWritesFenced = String(writesFenced);
     root.dataset.boardConnection = connection;
@@ -545,7 +574,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         runtime.cache.delete(selectedBoardId);
       }
     }
-    if (data === null && board && state.confirmedRevision === null) {
+    if (data === null && board) {
       board.dispose();
       board = undefined;
       boardData = undefined;
@@ -554,13 +583,18 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     if (data !== null && data !== boardData) {
       const previous = boardData;
       boardData = data;
-      search?.update(data.lanes, data.board.revision);
       if (board) {
         board.update(data);
       } else {
         boardHost.replaceChildren();
         board = mountBoardView(boardHost, data, {
-          onOpenCard: (card, opener) => drawer?.open({ id: card.id }, opener),
+          onOpenCard: (card, opener) => {
+            if (boardSnapshot?.confirmedRevision === null) {
+              drawer?.showRetained({ id: card.id }, opener);
+            } else {
+              drawer?.open({ id: card.id }, opener);
+            }
+          },
           onViewChange: queueBoardViewSave,
           movement,
           mountCover(host, card, coverSignal) {
@@ -583,6 +617,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
             const add = doc.createElement("button");
             add.type = "button";
             add.textContent = "New card";
+            add.setAttribute("aria-label", `New card in ${lane.label}`);
             add.disabled = writesBlocked;
             add.dataset.laneCreate = lane.id;
             add.addEventListener("click", () => createCard?.open(lane.id, add), { signal });
@@ -604,6 +639,10 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       .forEach((button) => {
         button.disabled = writesBlocked || lifecycle?.blocksWrites() === true;
       });
+    if (!writesFenced && data && state.confirmedEtag === data.etag) {
+      search?.update(data.lanes, data.board.revision);
+    }
+    updateDrawerTools();
     if (!writesFenced && drawerNeedsConfirmation) {
       drawerNeedsConfirmation = false;
       drawer?.refresh();
@@ -657,6 +696,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     archive?.update(
       card && {
         cardId: card.cardId,
+        revision: card.revision,
         laneId: card.laneId,
         archived: card.archived,
         etag: card.etag,
@@ -674,13 +714,19 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     const card = drawerText;
     const boardEtag = boardSnapshot?.confirmedEtag;
     const writable = !writesBlocked && focusedTextConfirmed && !lifecycle?.blocksWrites();
+    const admitted =
+      pageActive &&
+      boardSnapshot?.availability === "open" &&
+      boardSnapshot.confirmedRevision !== null &&
+      boardSnapshot.connection === "connected";
     attachments?.show(
-      card && previewsAllowed
+      card && admitted
         ? {
             cardId: card.cardId,
             etag: card.etag,
             attachmentCount: card.attachmentCount,
             coverAttachmentId: card.coverAttachmentId,
+            readable: previewsAllowed && focusedTextConfirmed,
             editable:
               writable && card.editable && policy?.capabilities.has("manage_attachments") === true,
           }
@@ -714,6 +760,11 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       signal,
       readWithSession: workspace.readWithSession,
       getBoardData: () => boardData,
+      retainedCard(reference) {
+        return boardData?.cards.find((card) =>
+          "id" in reference ? card.id === reference.id : card.ticket === reference.ticket,
+        );
+      },
       onSelectionChange: rememberSelection,
       onTextContext: updateDrawerEditor,
       onTextReadiness(confirmed) {
@@ -727,7 +778,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       },
       acceptTextVersion(cardId, revision, etag) {
         const saved = drafts.latestConfirmed({ boardId: selectedBoardId, cardId });
-        const assigned = assignmentVersions.get(cardId);
+        const assigned = runtime.cardVersions.get(cardId);
         const moved = movement?.latestConfirmed(cardId);
         if (
           moved &&
@@ -791,9 +842,10 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
             ? boardSnapshot.availability
             : null,
         etag: boardSnapshot?.confirmedEtag ?? null,
-        canChange: policy?.canClose === true && boardSnapshot?.readiness === "ready",
+        canChange: policy?.canClose === true && boardSnapshot?.lifecycleReady === true,
       }),
       beginWrite: () => beginWrite(selectedBoardId),
+      beginInspection: () => beginWrite(selectedBoardId),
       onChange() {
         boardState?.requireFreshConfirmation();
         void workspace.refresh().then(() => boardState?.retry());
@@ -806,6 +858,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       canPublish: () => policy?.capabilities.has("publish") === true,
       beginWrite: () =>
         !writesBlocked && !lifecycle?.blocksWrites() ? beginWrite(selectedBoardId) : null,
+      beginInspection: () => beginWrite(selectedBoardId),
       onSaved: refreshBoardAndDrawer,
     });
     boardTools.addEventListener(
@@ -835,6 +888,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       boardId: selectedBoardId,
       getBoardEtag: () => boardSnapshot?.confirmedEtag,
       beginWrite: beginCardWrite,
+      beginInspect: beginWrite,
       onChange: refreshBoardAndDrawer,
     });
     relationships = mountRelationships(relationshipsHost, {
@@ -843,6 +897,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       boardId: selectedBoardId,
       ticketLink: drawer.ticketLink,
       beginWrite: beginCardWrite,
+      beginInspection: beginWrite,
       refresh: refreshBoardAndDrawer,
     });
     movement = createCardMovement({
@@ -852,10 +907,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       getBoardData: () => boardData,
       getPolicy: () => policy,
       canWrite: () =>
-        !writesBlocked &&
-        !lifecycle?.blocksWrites() &&
-        policy?.capabilities.has("edit_card") === true &&
-        !runtime.writes.has(selectedBoardId),
+        !writesBlocked && !lifecycle?.blocksWrites() && !runtime.writes.has(selectedBoardId),
       beginWrite,
       onChange() {
         movementPanel?.update();
@@ -864,11 +916,19 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       },
       onRefresh: refreshBoardAndDrawer,
     });
-    movementPanel = mountCardMovement(movementHost, movement, () => drawerText);
+    movementPanel = mountCardMovement(
+      movementHost,
+      movement,
+      () => drawerText,
+      () => focusedTextConfirmed,
+    );
     createCard = mountCreateCard(shellElement("#card-create-root"), {
       ...context,
       readWithSession,
       boardId: selectedBoardId,
+      beginWrite: () =>
+        !writesBlocked && !lifecycle?.blocksWrites() ? beginWrite(selectedBoardId) : null,
+      beginInspection: () => beginWrite(selectedBoardId),
       context: () => {
         if (!boardData || !policy || !boardSnapshot?.confirmedEtag) return null;
         return {
@@ -895,6 +955,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       readWithSession,
       boardId: selectedBoardId,
       beginWrite: beginCardWrite,
+      beginInspect: beginWrite,
       onRefresh: refreshBoardAndDrawer,
     });
     assignment = mountCardAssignment(assignmentHost, {
@@ -905,18 +966,23 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       getContext: () =>
         drawerText && {
           ...drawerText,
-          writable:
-            !writesBlocked &&
-            focusedTextConfirmed &&
-            drawerText.editable &&
-            policy?.capabilities.has("edit_card") === true,
+          writable: !writesBlocked && focusedTextConfirmed && drawerText.editable,
+          canAssignOwner: policy?.capabilities.has("edit_card") === true,
+          canSetPriority: policy?.capabilities.has("set_priority") === true,
         },
       beginWrite: beginCardWrite,
+      beginInspection: beginWrite,
       onChange: () => editor?.update(),
       onConfirmed(saved) {
-        assignmentVersions.set(saved.cardId, saved);
-        boardState?.retry();
-        if (drawerText?.cardId === saved.cardId) drawer?.refresh();
+        const previous = runtime.cardVersions.get(saved.cardId);
+        if (!previous || saved.revision > previous.revision) {
+          runtime.cardVersions.set(saved.cardId, saved);
+          if (runtime.cardVersions.size > 64) {
+            const oldest = runtime.cardVersions.keys().next().value;
+            if (oldest) runtime.cardVersions.delete(oldest);
+          }
+        }
+        runtime.refreshBoard?.(selectedBoardId);
       },
     });
     boardState = createBoardState({
@@ -956,6 +1022,10 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     attention.dispose();
     runtime.streamClosed = workspace.dispose();
     if (runtime.workspace === workspace) runtime.workspace = undefined;
+    if (runtime.onWriteSettled === updateWriteControls) {
+      runtime.onWriteSettled = undefined;
+      runtime.refreshBoard = undefined;
+    }
     content.replaceChildren();
     shellElement("#attention").replaceChildren();
     workspaceTools.replaceChildren();
@@ -980,6 +1050,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     publishing?.suspend();
     attention.cancelReorder();
     board?.cancelMovement();
+    board?.revokeCovers();
+    attachments?.show(null);
     drawer?.suspendRead();
   }
 
@@ -1021,6 +1093,7 @@ export function mount(root: HTMLElement): () => void {
   const runtime: RouteRuntime = {
     cache: createRecentBoards(),
     writes: new Set(),
+    cardVersions: new Map(),
     navigate(url) {
       const target = new URL(url, view.location.href);
       if (target.href === view.location.href) return;
@@ -1063,7 +1136,14 @@ export function mount(root: HTMLElement): () => void {
       )
         return;
       const link = event.target.closest<HTMLAnchorElement>("#app-bar a, #route-content a");
-      if (!link || link.target || link.origin !== view.location.origin) return;
+      if (
+        !link ||
+        link.target ||
+        link.hasAttribute("download") ||
+        link.origin !== view.location.origin ||
+        link.protocol !== view.location.protocol
+      )
+        return;
       event.preventDefault();
       runtime.navigate(link.href);
     },

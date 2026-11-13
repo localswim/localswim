@@ -16,6 +16,7 @@ type BoardLane = Label &
 type BoardCard = Readonly<{
   id: string;
   title: string;
+  description: string;
   revision: number;
   ticket: number;
   lane_id: string;
@@ -253,6 +254,7 @@ export function mountBoardView(
   let showOlderCompleted = false;
   const { onOpenCard, renderLaneActions, onViewChange, movement } = options;
   let coverLifetime = new AbortController();
+  const coverMounts: Array<() => void> = [];
   const lifetime = new AbortController();
   const listenerOptions = { signal: lifetime.signal };
   type Drag = {
@@ -432,7 +434,8 @@ export function mountBoardView(
     if (options.mountCover && card.attachment_count > 0) {
       const cover = element("span", "board-view-cover-slot");
       opener.prepend(cover);
-      options.mountCover(cover, card, coverLifetime.signal);
+      const mount = options.mountCover;
+      coverMounts.push(() => mount(cover, card, coverLifetime.signal));
     }
     return { card, item, opener };
   }
@@ -613,6 +616,7 @@ export function mountBoardView(
     if (!sameBoard) cancelMovement();
     coverLifetime.abort();
     coverLifetime = new AbortController();
+    coverMounts.length = 0;
     const focused = shadow.activeElement;
     const focusLane = focused?.closest<HTMLElement>("[data-lane-id]")?.dataset.laneId;
     const focusCard = focused?.getAttribute("data-card-id");
@@ -643,6 +647,7 @@ export function mountBoardView(
     boardStyle.replaceSync(data.board.user_css);
     paintFilter();
     strip.replaceChildren(...lanes.map(({ section }) => section));
+    for (const mount of coverMounts) mount();
     strip.scrollLeft = scrollLeft;
     for (const { lane, scroll } of lanes) scroll.scrollTop = scrollTops.get(lane.id) ?? 0;
     if (focusLane) {
@@ -739,6 +744,9 @@ export function mountBoardView(
     update,
     refreshMovement,
     cancelMovement,
+    revokeCovers() {
+      coverLifetime.abort();
+    },
     captureViewport(): BoardViewport {
       return {
         filter: filter.value,

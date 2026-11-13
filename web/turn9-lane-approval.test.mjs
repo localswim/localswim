@@ -109,6 +109,22 @@ function boardReply(revision, availability = "open") {
   );
 }
 
+function unavailableRefusal() {
+  return Response.json(
+    {
+      type: "about:blank",
+      title: "Service Unavailable",
+      status: 503,
+      code: "unavailable",
+      detail: "This board is closed or draining.",
+      request_id: actor,
+      outcome: "not_applied",
+      errors: [],
+    },
+    { status: 503, headers: { "Content-Type": "application/problem+json" } },
+  );
+}
+
 function fixture() {
   const records = new Map();
   const storage = {
@@ -344,21 +360,7 @@ test("an otherwise valid receipt for another actor cannot confirm the operation"
 
 test("the service's canonical unavailable refusal leaves no uncertain approval", async () => {
   const f = fixture();
-  f.response(() =>
-    Response.json(
-      {
-        type: "about:blank",
-        title: "Service Unavailable",
-        status: 503,
-        code: "unavailable",
-        detail: "This board is closed or draining.",
-        request_id: actor,
-        outcome: "not_applied",
-        errors: [],
-      },
-      { status: 503, headers: { "Content-Type": "application/problem+json" } },
-    ),
-  );
+  f.response(unavailableRefusal);
   const view = f.mount();
   view.open();
   view.approve.click();
@@ -367,4 +369,83 @@ test("the service's canonical unavailable refusal leaves no uncertain approval",
   assert.equal(f.records.size, 0);
   assert.equal(view.inspect.hidden, true);
   assert.deepEqual(f.confirmations, []);
+});
+
+test("definitive refusal clears its record after route detach or a principal change", async () => {
+  for (const [detach, refusal] of [
+    [(view) => view.dispose(), () => new Response(null, { status: 401 })],
+    [(_view, f) => f.principal(otherActor), unavailableRefusal],
+  ]) {
+    const f = fixture();
+    const deferred = Promise.withResolvers();
+    f.response(() => deferred.promise);
+    const original = f.mount();
+    original.open();
+    original.approve.click();
+    await flush();
+    assert.equal(f.records.size, 1);
+    detach(original, f);
+    deferred.resolve(refusal());
+    await flush();
+    assert.equal(f.records.size, 0);
+    assert.equal(f.refreshes(), 0);
+    assert.deepEqual(f.confirmations, []);
+    assert.deepEqual(
+      f.requests.map(({ method }) => method),
+      ["POST"],
+    );
+
+    // The original validator is still current because the request was refused.
+    f.principal(actor);
+    const view = f.mount();
+    assert.equal(view.recovery.hidden, true);
+    view.open();
+    assert.equal(view.approve.disabled, false);
+  }
+});
+
+test("an older refusal cannot clear or report over a replacement attempt", async () => {
+  const f = fixture();
+  const deferred = Promise.withResolvers();
+  f.response(() => deferred.promise);
+  const view = f.mount();
+  view.open();
+  view.approve.click();
+  await flush();
+  const [[key, raw]] = f.records;
+  const next = JSON.stringify({ ...JSON.parse(raw), id: auditId(99) });
+  f.records.set(key, next);
+  deferred.resolve(unavailableRefusal());
+  await flush();
+  assert.equal(f.records.get(key), next);
+  assert.equal(f.refreshes(), 0);
+  assert.doesNotMatch(view.status.textContent, /was refused/);
+  assert.deepEqual(f.confirmations, []);
+});
+
+test("stale and uncertain outcomes retain the original record after route detach", async () => {
+  for (const settle of [
+    ({ resolve }) => resolve(new Response(null, { status: 412 })),
+    ({ reject }) => reject(new TypeError("Connection lost")),
+  ]) {
+    const f = fixture();
+    const deferred = Promise.withResolvers();
+    f.response(() => deferred.promise);
+    const original = f.mount();
+    original.open();
+    original.approve.click();
+    await flush();
+    const [[key, raw]] = f.records;
+    original.dispose();
+    settle(deferred);
+    await flush();
+    assert.equal(f.records.get(key), raw);
+    assert.equal(f.refreshes(), 0);
+    const view = f.mount();
+    assert.equal(view.recovery.hidden, false);
+    assert.deepEqual(
+      f.requests.map(({ method }) => method),
+      ["POST"],
+    );
+  }
 });

@@ -371,7 +371,28 @@ export function mountLaneApproval(host: HTMLElement, options: Options) {
           );
         },
       );
+      if (result.kind === "refused") {
+        // This attempt cannot commit. Clear its record even if its route or
+        // principal has changed, since the board revision may stay unchanged.
+        if (readJournal(actor)?.raw !== raw) return;
+        const cleared = writeJournal(actor, raw, null);
+        if (!canSettle(actor)) return;
+        setNotice(
+          actor,
+          cleared
+            ? "Lane approval was refused. Reopen approval to review the current cards."
+            : "Approval was refused. Its record could not be cleared from tab storage.",
+        );
+        onRefresh();
+        return;
+      }
       if (!canSettle(actor)) return;
+      if (result.kind === "journal-failed") {
+        if (!readJournal(actor))
+          setNotice(actor, "The lane approval record could not be saved in tab storage.");
+        return;
+      }
+      if (readJournal(actor)?.raw !== raw) return;
       switch (result.kind) {
         case "confirmed":
           confirmed(actor, intent, raw);
@@ -386,18 +407,6 @@ export function mountLaneApproval(host: HTMLElement, options: Options) {
             "The approval outcome is unknown. Inspect the original approval receipt.",
           );
           onRefresh();
-          break;
-        case "refused":
-          setNotice(
-            actor,
-            writeJournal(actor, raw, null)
-              ? "Lane approval was refused. Reopen approval to review the current cards."
-              : "Approval was refused. Its record could not be cleared from tab storage.",
-          );
-          onRefresh();
-          break;
-        case "journal-failed":
-          setNotice(actor, "The lane approval record could not be saved in tab storage.");
           break;
       }
     } finally {

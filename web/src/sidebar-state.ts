@@ -585,7 +585,7 @@ export function mountSidebarGeometry(
     const computedLimit = view.getComputedStyle(host).maxInlineSize;
     const drawerLimit = computedLimit.endsWith("px") ? Number.parseFloat(computedLimit) : Infinity;
     const maxAvailable = Math.min(available - (sideBySide ? 280 : 0), drawerLimit);
-    maxWidth = Math.max(minWidth, maxAvailable);
+    maxWidth = Math.max(minWidth, Math.floor(maxAvailable));
     paintWidth();
   }
 

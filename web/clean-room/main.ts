@@ -1136,6 +1136,13 @@ function start(host: HTMLElement): void {
       (guard) => requestAttachmentWrite(write, undefined, guard),
       () => inspectAttachmentWrite(write),
       () => {
+        const { card } = context.drawer;
+        if (action.kind === "detach" && isSelected(card.board_id)) {
+          const actor = context.board.view.board.actor_presentation?.human?.label ?? "Terry";
+          showSuccess(
+            `removed attachment ${action.attachment.original_name} from #${String(card.ticket).padStart(4, "0")} (by ${actor.toLowerCase()})`,
+          );
+        }
         const current = (drawerPresentation ?? last(drawerData))?.value;
         const revision = context.drawer.boardRevision + 1;
         if (

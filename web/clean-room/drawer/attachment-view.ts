@@ -23,14 +23,15 @@ export function displayedCover(
 export async function attachmentThumbnail(original: Blob, width: number, height: number) {
   const bitmap = await createImageBitmap(original);
   try {
-    const scale = Math.min(
+    const displayScale = Math.min(1, width / bitmap.width, height / bitmap.height);
+    const rasterScale = Math.min(
       1,
       (width * devicePixelRatio) / bitmap.width,
       (height * devicePixelRatio) / bitmap.height,
     );
     const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.width = Math.max(1, Math.round(bitmap.width * rasterScale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * rasterScale));
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Preview unavailable");
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
@@ -38,7 +39,11 @@ export async function attachmentThumbnail(original: Blob, width: number, height:
       canvas.toBlob(resolve, "image/webp", 0.88);
     });
     if (!bytes) throw new Error("Preview unavailable");
-    return { bytes, width: canvas.width, height: canvas.height };
+    return {
+      bytes,
+      width: Math.max(1, Math.round(bitmap.width * displayScale)),
+      height: Math.max(1, Math.round(bitmap.height * displayScale)),
+    };
   } finally {
     bitmap.close();
   }
@@ -82,6 +87,7 @@ function createRow(attachment: Attachment, getProps: () => AttachmentViewProps) 
   const actions = element("div", "actions");
   const cover = button("action", "Set cover");
   const detach = button("action", "Remove");
+  detach.setAttribute("aria-label", `Remove ${attachment.original_name}`);
   if (attachment.previewable) actions.append(cover);
   actions.append(detach);
   const previewError = element("p", "error", "Preview unavailable.");

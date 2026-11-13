@@ -3687,7 +3687,7 @@
             "R06"
           ],
           "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
-          "missing_input": "Matched editor states and stale or lost write qualification"
+          "missing_input": "Matched editor states and lost write qualification"
         },
         {
           "ticket": 595,
@@ -3733,7 +3733,7 @@
             "R06"
           ],
           "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
-          "missing_input": "Matched interaction evidence and browser recovery"
+          "missing_input": "Matched relationship interaction evidence"
         },
         {
           "ticket": 597,
@@ -3756,7 +3756,7 @@
             "R06"
           ],
           "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
-          "missing_input": "Stale refusal on the final build"
+          "missing_input": "Architect review"
         },
         {
           "ticket": 598,
@@ -3786,7 +3786,7 @@
             "R06"
           ],
           "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
-          "missing_input": "V1 detach interaction and lost-response evidence"
+          "missing_input": "Architect review"
         },
         {
           "ticket": 599,
@@ -3970,7 +3970,7 @@
       "wave_rule": "Qualification and two evidence packets under one compiler and browser owner. Fresh reviewer after integration."
     }
   ],
-  "assignment_revision_notes": "Revision 9 carries all six In Progress T4 stories into continued qualification and Architect review. T5 and T6 retain their entry gates.",
+  "assignment_revision_notes": "Revision 9 carries all six In Progress T4 stories. At the reboot checkpoint the UI Lead owns the outstanding create receipt actor and intent guard correction and integrated qualification. T5 and T6 retain their entry gates.",
   "coauthor_assignments": [
     {
       "turn": 1,

@@ -145,7 +145,7 @@ export function mount(root: HTMLElement): () => void {
   }
 
   function queueBoardViewSave() {
-    if (pendingViewSave) return;
+    if (!selectedBoardId || pendingViewSave) return;
     pendingViewSave = true;
     view?.requestAnimationFrame(() => {
       if (!signal.aborted && pendingViewSave) saveBoardView();

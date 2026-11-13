@@ -17,6 +17,7 @@ const phaseMessages = {
   inspecting: "Checking the saved text…",
   refused: "The save was refused. Your draft is still available.",
   "storage-error": "The draft could not be stored. Keep this page open to retain any changes.",
+  "storage-conflict": "Another page changed this tab’s draft. Use the tab’s draft to continue.",
 } satisfies Record<CardTextState["phase"], string>;
 
 function textareaText(text: string): string {
@@ -171,7 +172,12 @@ export function mountCardEditor(
     dismiss.hidden = !state.canDismiss;
     inspect.setAttribute("aria-disabled", String(Boolean(composition)));
     dismiss.setAttribute("aria-disabled", String(Boolean(composition)));
-    const dismissLabel = state.phase === "unknown" ? "Dismiss uncertain save" : "Dismiss draft";
+    const dismissLabel =
+      state.phase === "storage-conflict"
+        ? "Use tab’s draft"
+        : state.phase === "unknown"
+          ? "Dismiss uncertain save"
+          : "Dismiss draft";
     if (dismiss.textContent !== dismissLabel) dismiss.textContent = dismissLabel;
     actions.hidden = save.hidden && inspect.hidden && dismiss.hidden;
 
@@ -240,8 +246,7 @@ export function mountCardEditor(
     { signal },
   );
 
-  function editField(field: Field, text: CardText, previous: string, change?: InputChange) {
-    const value = applyInput(previous, controls[field].input.value, change);
+  function editField(field: Field, text: CardText, previous: string, value: string) {
     if (value !== previous) {
       actionError = false;
       controller.edit({ ...text, [field]: value }, field);
@@ -334,7 +339,17 @@ export function mountCardEditor(
             const end = start + textareaText(previous).length - input.value.length;
             change = { start, end, inserted: null };
           }
-          editField(field, text, previous, change);
+          const isHistory =
+            event instanceof InputEvent &&
+            (event.inputType === "historyUndo" || event.inputType === "historyRedo");
+          // Browser history holds the textarea's normalized value. A return to the
+          // saved view restores its exact line endings.
+          const saved = confirmed?.[field];
+          const value =
+            isHistory && saved !== undefined && input.value === textareaText(saved)
+              ? saved
+              : applyInput(previous, input.value, change);
+          editField(field, text, previous, value);
         }
         change = undefined;
       },
@@ -347,7 +362,12 @@ export function mountCardEditor(
         const previous = composition;
         composition = undefined;
         change = undefined;
-        editField(field, previous.text, previous.previous, previous.change);
+        editField(
+          field,
+          previous.text,
+          previous.previous,
+          applyInput(previous.previous, input.value, previous.change),
+        );
       },
       { signal },
     );

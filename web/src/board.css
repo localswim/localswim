@@ -108,13 +108,40 @@
 }
 
 .board-view .board-view-lane-note {
-  display: -webkit-box;
   flex: 0 0 2.375rem;
   box-sizing: border-box;
+  padding-block: 0;
+}
+
+.board-view .board-view-lane-note-toggle {
+  display: block;
+  inline-size: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.board-view .board-view-lane-note-preview {
+  display: -webkit-box;
+  block-size: 1.875rem;
   overflow: hidden;
   padding-block-end: 0;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-height: 0.9375rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.board-view .board-view-lane-note-full {
+  margin: 0 0 0.5rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: 0.75rem;
   line-height: 1.25;
 }
 
@@ -224,4 +251,8 @@
 .board-view .board-view-card-priority {
   display: inline;
   margin: 0;
+}
+
+.board-view .board-view-lane-note-toggle:focus-visible {
+  outline-offset: -2px;
 }

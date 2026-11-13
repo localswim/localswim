@@ -58,11 +58,13 @@ type Entry = {
   binding: DraftBindings | undefined;
   inspected: CardVersion | undefined;
   inspectionFailed: boolean;
+  confirmedWrite: CardVersion | undefined;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const STRONG_ETAG = /^"[A-Za-z0-9_-]{16,128}"(?![\s\S])/;
 const STORAGE_LIMIT = 4 * 1024 * 1024;
+const DETACHED_WRITE_LIMIT = 64;
 // Match Go strings.TrimSpace, including U+0085 and excluding U+FEFF.
 const titleHasText = /\P{White_Space}/u;
 
@@ -72,6 +74,14 @@ function version({ etag, revision }: CardVersion): CardVersion {
 
 function sameVersion(first: CardVersion, second: CardVersion): boolean {
   return first.etag === second.etag && first.revision === second.revision;
+}
+
+function reachesVersion(saved: CardVersion, floor: CardVersion | undefined): boolean {
+  return !floor || saved.revision > floor.revision || sameVersion(saved, floor);
+}
+
+function storageKey({ boardId, cardId }: CardTextScope): string {
+  return `localswim:v2:card-text:${boardId}:${cardId}`;
 }
 
 function sameText(first: TextPatch, second: TextPatch): boolean {
@@ -263,7 +273,7 @@ export function createCardTextDrafts({
     ) {
       throw new TypeError("Expected canonical card and board IDs.");
     }
-    const key = `localswim:v2:card-text:${boardId}:${cardId}`;
+    const key = storageKey(scope);
     const entry: Entry = entries.get(key) ?? {
       draft: null,
       raw: undefined,
@@ -271,6 +281,7 @@ export function createCardTextDrafts({
       binding: undefined,
       inspected: undefined,
       inspectionFailed: false,
+      confirmedWrite: undefined,
     };
     entries.set(key, entry);
     if (!operations.state(key)) load(key, entry);
@@ -280,12 +291,33 @@ export function createCardTextDrafts({
 
     function release() {
       if (
-        !entry.binding &&
-        !operations.state(key) &&
-        entry.storageProblem !== "unsaved" &&
-        entry.storageProblem !== "conflict"
+        entry.binding ||
+        operations.state(key) ||
+        entry.storageProblem === "unsaved" ||
+        entry.storageProblem === "conflict"
       )
-        entries.delete(key);
+        return;
+      entries.delete(key);
+      if (!entry.confirmedWrite) return;
+      // Keep the most recently detached write versions, without retaining card text.
+      entry.draft = null;
+      entry.raw = undefined;
+      entry.inspected = undefined;
+      entry.storageProblem = undefined;
+      entry.inspectionFailed = false;
+      entries.set(key, entry);
+      let count = 0;
+      for (const [oldKey, oldEntry] of [...entries].reverse()) {
+        if (
+          oldEntry.binding ||
+          operations.state(oldKey) ||
+          !oldEntry.confirmedWrite ||
+          oldEntry.storageProblem === "unsaved" ||
+          oldEntry.storageProblem === "conflict"
+        )
+          continue;
+        if (++count > DETACHED_WRITE_LIMIT) entries.delete(oldKey);
+      }
     }
 
     const unbind = () => {
@@ -299,7 +331,7 @@ export function createCardTextDrafts({
       const { confirmed, writable } = binding.context();
       return {
         confirmed: validVersion(confirmed) && validText(confirmed) ? confirmed : null,
-        writable,
+        writable: writable && confirmed !== null && reachesVersion(confirmed, entry.confirmedWrite),
       };
     }
 
@@ -411,7 +443,9 @@ export function createCardTextDrafts({
     function isLatest(saved: ConfirmedCardText, receiver: DraftBindings) {
       if (receiver.signal.aborted) return false;
       const previous = receiver.context().confirmed;
-      return !previous || saved.revision > previous.revision || sameVersion(previous, saved);
+      return (
+        reachesVersion(saved, previous ?? undefined) && reachesVersion(saved, entry.confirmedWrite)
+      );
     }
 
     function confirmed(saved: ConfirmedCardText, receiver = entry.binding) {
@@ -463,6 +497,9 @@ export function createCardTextDrafts({
           );
           switch (result.kind) {
             case "confirmed":
+              if (reachesVersion(result.result, entry.confirmedWrite)) {
+                entry.confirmedWrite = version(result.result);
+              }
               persist(key, entry, null);
               confirmed(result.result);
               break;
@@ -509,6 +546,7 @@ export function createCardTextDrafts({
           if (!load(key, entry) || entry.raw !== original) return;
           entry.inspected = version(saved);
           if (entry.draft?.phase === "submitted" && matchesSubmission(saved, entry.draft)) {
+            entry.confirmedWrite = version(saved);
             persist(key, entry, null);
           }
           confirmed(saved, binding);
@@ -533,6 +571,9 @@ export function createCardTextDrafts({
 
   return {
     bind,
+    latestConfirmed(scope: CardTextScope) {
+      return entries.get(storageKey(scope))?.confirmedWrite;
+    },
     refresh() {
       for (const [key, entry] of entries) {
         if (!operations.state(key)) load(key, entry);

@@ -5,21 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>localswim</title>
   <link rel="stylesheet" href="/assets/app.css">
-  <script type="module" src="/assets/app.mjs"></script>
+  <script type="module" src="/assets/src/main.js"></script>
 </head>
 <body>
-  <header><a href="/">localswim</a><span id="identity"></span></header>
-  <p id="status" role="status" aria-live="polite" data-phase="loading">Connecting…</p>
-  <button id="refresh" type="button">Refresh</button>
-  <div class="layout">
-    <div id="board-sidebar">
-      <button id="toggle-board-sidebar" type="button" aria-controls="boards" aria-expanded="true" hidden>Hide Attention</button>
-      <div id="resize-board-sidebar" role="separator" tabindex="0" aria-label="Attention width"
-           aria-orientation="vertical" aria-controls="boards" hidden></div>
-      <nav aria-label="Boards" id="boards"></nav>
-    </div>
-    <main id="main"></main>
-    <aside id="details" aria-label="Card details" hidden></aside>
+  <div data-app data-phase="loading">
+    <header id="app-bar">
+      <a href="/" aria-label="localswim home">localswim</a>
+      <h1 id="board-name" hidden></h1>
+    </header>
+    <main id="main">
+      <p id="status" role="status" data-phase="loading">Loading…</p>
+      <div id="route-content"></div>
+      <noscript>Enable JavaScript to open your boards.</noscript>
+    </main>
   </div>
 </body>
 </html>

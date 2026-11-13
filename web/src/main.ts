@@ -1066,6 +1066,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     const availabilityHost = doc.createElement("section");
     const publishHost = doc.createElement("section");
     const priorityHost = doc.createElement("section");
+    priorityHost.className = "batch-priority";
     const backupHost = doc.createElement("section");
     const recoveryHost = doc.createElement("section");
     const orderHost = doc.createElement("div");

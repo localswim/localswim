@@ -234,7 +234,10 @@ function readRecentBoard(boardId) {
   if (!bytes) return undefined;
   recentBoards.delete(boardId);
   recentBoards.set(boardId, bytes);
-  return JSON.parse(new TextDecoder().decode(bytes));
+  // The bytes come only from retainRecentBoard's serialization of BoardDisplay.
+  /** @type {unknown} */
+  const display = JSON.parse(new TextDecoder().decode(bytes));
+  return /** @type {BoardDisplay} */ (display);
 }
 
 function renderRecentBoardSettings() {
@@ -302,13 +305,15 @@ function loadTabEntries(key, budget, validate) {
   try {
     const raw = window.sessionStorage.getItem(key);
     if (raw === null || raw.length > budget) return entries;
+    /** @type {unknown} */
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length > maxTabScopes) return entries;
-    for (const entry of parsed) {
-      if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== "string"
-          || !(boardDraftScope.test(entry[0]) || cardDraftScope.test(entry[0]))) continue;
-      const value = validate(entry[0], entry[1]);
-      if (value !== undefined) entries.set(entry[0], value);
+    for (const entry of /** @type {unknown[]} */ (parsed)) {
+      if (!Array.isArray(entry) || entry.length !== 2) continue;
+      const [scope, saved] = /** @type {unknown[]} */ (entry);
+      if (typeof scope !== "string" || !(boardDraftScope.test(scope) || cardDraftScope.test(scope))) continue;
+      const value = validate(scope, saved);
+      if (value !== undefined) entries.set(scope, value);
     }
   } catch {
     // The current page retains its working state if tab storage is inaccessible.
@@ -376,25 +381,30 @@ function loadPendingUploads() {
   try {
     const raw = window.sessionStorage.getItem(pendingUploadKey) ?? "[]";
     if (raw.length > maxUploadUnits) return undefined;
+    /** @type {unknown} */
     const entries = JSON.parse(raw);
     if (!Array.isArray(entries) || entries.length > maxTabScopes) return undefined;
     /** @type {Map<string, PendingUpload[]>} */
     const batches = new Map();
-    for (const entry of entries) {
+    for (const entry of /** @type {unknown[]} */ (entries)) {
       if (!Array.isArray(entry) || entry.length !== 2) return undefined;
-      const [scope, files] = entry;
+      const [scope, files] = /** @type {unknown[]} */ (entry);
       if (typeof scope !== "string" || !cardDraftScope.test(scope) || batches.has(scope)
           || !Array.isArray(files) || !files.length) return undefined;
       const ids = new Set();
-      for (const [index, file] of files.entries()) {
-        if (!file || typeof file !== "object" || Object.keys(file).length !== 5
-            || typeof file.id !== "string" || !draftResourceId.test(file.id) || ids.has(file.id)
-            || typeof file.name !== "string" || typeof file.digest !== "string" || !/^[0-9a-f]{64}$/.test(file.digest)
-            || !Number.isSafeInteger(file.size) || file.size < 0 || file.size > MAX_ATTACHMENT_BYTES
-            || typeof file.attempted !== "boolean" || (file.attempted && index !== 0)) return undefined;
-        ids.add(file.id);
+      /** @type {PendingUpload[]} */
+      const uploads = [];
+      for (const [index, file] of /** @type {unknown[]} */ (files).entries()) {
+        if (!file || typeof file !== "object" || Object.keys(file).length !== 5) return undefined;
+        const { id, name, digest, size, attempted } = /** @type {Record<string, unknown>} */ (file);
+        if (typeof id !== "string" || !draftResourceId.test(id) || ids.has(id)
+            || typeof name !== "string" || typeof digest !== "string" || !/^[0-9a-f]{64}$/.test(digest)
+            || typeof size !== "number" || !Number.isSafeInteger(size) || size < 0 || size > MAX_ATTACHMENT_BYTES
+            || typeof attempted !== "boolean" || (attempted && index !== 0)) return undefined;
+        ids.add(id);
+        uploads.push({ id, name, digest, size, attempted });
       }
-      batches.set(scope, files);
+      batches.set(scope, uploads);
     }
     return batches;
   } catch {
@@ -538,8 +548,12 @@ function boardViewState(boardId) {
   let state = {};
   try {
     const stored = window.sessionStorage.getItem(viewStorageKey(boardId));
+    /** @type {unknown} */
     const parsed = stored === null ? null : JSON.parse(stored);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) state = parsed;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      // Each consumer validates the saved field it reads before using it.
+      state = /** @type {BoardView} */ (parsed);
+    }
   } catch {
     // Keep the in-page view available if tab storage is inaccessible.
   }
@@ -790,7 +804,7 @@ function form(title, controls, action) {
   return node;
 }
 
-/** @template T @param {Reply} reply @param {string} collection @returns {T[]} */
+/** @param {Reply} reply @param {string} collection @returns {unknown[]} */
 function items(reply, collection) {
   const value = /** @type {Record<string, unknown>} */ (reply.data)[collection];
   if (!Array.isArray(value)) throw new ApiError("invalid_response");
@@ -1145,7 +1159,8 @@ function ticketHref(boardId, ticket) {
 /** @param {string} boardId @param {number} ticket */
 async function findCardByTicket(boardId, ticket) {
   const matches = /** @type {Card[]} */ (items(await api.listCards(boardId, { ticket, archived: "include", limit: 2 }), "cards"));
-  return matches.length === 1 && matches[0].board_id === boardId && matches[0].ticket === ticket ? matches[0] : undefined;
+  const [match] = matches;
+  return matches.length === 1 && match?.board_id === boardId && match.ticket === ticket ? match : undefined;
 }
 
 /** @param {string} text @param {string} boardId @param {boolean} [linkTickets] */
@@ -1579,6 +1594,7 @@ async function uploadFiles(boardId, cardId, initialTag, files, resuming = false)
           name === fingerprint.name && size === fingerprint.size && digest === fingerprint.digest);
         if (match < 0) throw new ApiError("attachment_upload_selection");
         const [original] = originals.splice(match, 1);
+        if (!original) throw new ApiError("attachment_upload_selection");
         pending.push({ file, ...original });
       } else {
         pending.push({ file, index, upload: { ...fingerprint, id: crypto.randomUUID(), attempted: false } });
@@ -1593,6 +1609,7 @@ async function uploadFiles(boardId, cardId, initialTag, files, resuming = false)
 
     for (const { file, index, upload } of pending) {
       const result = batch.results[index];
+      if (!result) throw new ApiError("attachment_upload_selection");
       result.id = upload.id;
       if (resuming) {
         const item = await readWithSession(() => readSubmittedUpload(boardId, cardId, upload));
@@ -1714,11 +1731,12 @@ function actorAttribution(users, presentation, id) {
 
 /** @param {string} color */
 function actionInk(color) {
-  const linear = [1, 3, 5].map((offset) => {
+  /** @param {number} offset */
+  const linear = (offset) => {
     const channel = Number.parseInt(color.slice(offset, offset + 2), 16) / 255;
     return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-  });
-  const luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  };
+  const luminance = 0.2126 * linear(1) + 0.7152 * linear(3) + 0.0722 * linear(5);
   return 1.05 / (luminance + 0.05) >= 4.5 ? "#ffffff" : "#000000";
 }
 
@@ -2294,7 +2312,7 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
           await readCurrent();
           return approved;
         }
-        default:
+        case "create-card":
           return false;
       }
     }
@@ -2345,9 +2363,10 @@ async function openCard(boardId, summary, lanes, users, priorities, boardTag, re
       if (uploadProgress.textContent !== progress + batch.message) {
         uploadProgress.textContent = progress + batch.message;
       }
-      if (changed !== undefined && uploadResults.children[changed]) {
-        const result = batch.results[changed];
-        uploadResults.children[changed].textContent = result.name + " — " + result.outcome;
+      const row = changed === undefined ? undefined : uploadResults.children[changed];
+      const result = changed === undefined ? undefined : batch.results[changed];
+      if (row && result) {
+        row.textContent = result.name + " — " + result.outcome;
       } else {
         uploadResults.replaceChildren();
         for (const { name, outcome } of batch.results) {
@@ -3072,7 +3091,7 @@ function renderServiceControls(canManage, isCurrent) {
           : "Activation outcome is uncertain. Inspecting service status…";
         const signal = AbortSignal.timeout(8000);
         for (let attempt = 0; attempt < 8 && pendingLifecycle === operation; attempt++) {
-          if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 750));
+          if (attempt > 0) await new Promise((resolve) => { setTimeout(resolve, 750); });
           if (signal.aborted || !isCurrent()) break;
           await readOutcome(false, signal);
         }
@@ -3123,7 +3142,8 @@ async function readWorkflow(board, principalId, signal) {
     if (policy.id !== board.policy_id || policy.board_id !== board.id || !Array.isArray(policy.resource_grants)
         || !Array.isArray(policy.create_grants) || !Array.isArray(policy.move_grants)) return null;
     const granted = policy.resource_grants.find((grant) => grant?.user_id === principalId)?.capabilities;
-    const capabilities = Array.isArray(granted) ? granted : [];
+    const capabilities = Array.isArray(granted) ? /** @type {unknown[]} */ (granted) : [];
+    /** @type {Set<string>} */
     const create = new Set();
     if (capabilities.includes("create_card")) {
       for (const grant of policy.create_grants) {
@@ -3992,7 +4012,7 @@ async function load(savedAvailability) {
     }
     inspection.sync();
     announce(metadata.data.availability === "closed" ? "ready" : "error", message);
-    updates.start(subscribe);
+    void updates.start(subscribe);
   }
 
   /** @param {string} boardId @param {BoardDisplay} display
@@ -5527,9 +5547,13 @@ function setupSidebar(sidebar, boards, drawer, toggle, separator, layout) {
   let preferredWidth = 336;
   let collapsed = false;
   try {
+    /** @type {unknown} */
     const saved = JSON.parse(window.sessionStorage.getItem(storageKey) ?? "null");
-    if (Number.isSafeInteger(saved?.width) && saved.width > 0) preferredWidth = saved.width;
-    collapsed = saved?.collapsed === true;
+    if (saved && typeof saved === "object") {
+      const { width, collapsed: savedCollapsed } = /** @type {Record<string, unknown>} */ (saved);
+      if (typeof width === "number" && Number.isSafeInteger(width) && width > 0) preferredWidth = width;
+      collapsed = savedCollapsed === true;
+    }
   } catch {
     // Sidebar controls remain available if tab storage is inaccessible.
   }

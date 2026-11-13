@@ -27,7 +27,9 @@ const savedUser = (id, label, kind) => ({id, label, kind, revision: 1, created_a
 async function harness(api, pathname = "/boards/" + board, {
   openSession = async () => "capability",
   pollTimer = setTimeout,
-  catalogTimer = (signal) => new Promise((resolve) => signal.addEventListener("abort", resolve, {once: true})),
+  catalogTimer = (signal) => new Promise((resolve) => {
+    signal.addEventListener("abort", resolve, {once: true});
+  }),
   clock = Date,
   storage = tabStorage(),
   workspaceEvents = false,
@@ -179,7 +181,7 @@ async function harness(api, pathname = "/boards/" + board, {
   let source = await fs.readFile(new URL("./app.mjs", import.meta.url), "utf8");
   source = source.replace(/^import \{[^}]+\} from "[^"]+";\r?\n/gm, "").replace(/void load\(\);\s*$/, "");
   vm.runInContext(source + "\nglobalThis.hooks = {load, readWithSession, renderCardSearch, renderBoardActions, busy:()=>writing || Boolean(pinWrite), uploadingToCard, inspect:()=>cardInspection.inspect(), abortView:()=>activeBoardLoad?.abort()};", context);
-  async function settled() { for (let count = 0; count < 40; count++) { await new Promise((resolve) => setTimeout(resolve, 0)); if (!context.hooks.busy()) return; } throw Error("UI did not settle"); }
+  async function settled() { for (let count = 0; count < 40; count++) { await new Promise((resolve) => { setTimeout(resolve, 0); }); if (!context.hooks.busy()) return; } throw Error("UI did not settle"); }
   const find = (root, tagName, text) => root.querySelectorAll(tagName).find((node) => node.ownText === text);
   const field = (root, label) => find(root, "label", label)?.children[0];
   const submit = (root, label) => { const control = find(root, "button", label); assert.ok(control, label); if (!control.disabled) control.parent.dispatch("submit"); return control; };
@@ -4221,7 +4223,7 @@ test("workspace navigation reconnects after another tab replaces the service", a
 async function until(check) {
   for (let attempt = 0; attempt < 80; attempt++) {
     if (check()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
   }
   assert.fail("Workspace service state did not settle.");
 }
@@ -4270,7 +4272,7 @@ test("a detached activation read cannot clear a newer lifecycle operation", asyn
   assert.match(outcome(), /Shutdown outcome is uncertain/);
 
   settleDetached();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => { setTimeout(resolve, 0); });
   shutdown = false;
   ui.find(main, "button", "Refresh service status").click();
   await until(() => !stop().disabled);
@@ -4494,7 +4496,7 @@ for (const lostResponse of [false, true]) {
     await started.promise;
     try {
       await ui.load();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
       assert.match(details.textContent, /Priority: Normal/);
     } finally {
       finish.resolve();
@@ -4812,7 +4814,7 @@ test("Workspace coalesces catalog hints and catches up from a reconnect snapshot
 
   stream.close();
   review = 0;
-  await new Promise((resolve) => setTimeout(resolve, 550));
+  await new Promise((resolve) => { setTimeout(resolve, 550); });
   await until(() => streams.length === 2);
   assert.equal(streams[1].boardId, undefined);
   streams[1].sendCatalog("snapshot");
@@ -4874,7 +4876,7 @@ test("a refused selected-board reconnect keeps a single catalog stream and the o
 
   readable = false;
   selected.close();
-  await new Promise((resolve) => setTimeout(resolve, 550));
+  await new Promise((resolve) => { setTimeout(resolve, 550); });
   await until(() => streams.length === 2);
   assert.deepEqual(attempts.map(({boardId}) => boardId), [board, board, undefined]);
   assert.equal(selected.signal.aborted, true);
@@ -4945,7 +4947,7 @@ test("leaving the view cancels a scheduled catalog retry", async (t) => {
   await ui.settled();
   await ui.navigate("/");
   assert.equal(signal.aborted, true);
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
   assert.equal(signals.length, 3);
   assert.ok(ui.find(ui.nodes.boards, "span", "Current view"));
 });
@@ -5058,7 +5060,7 @@ test("live changes coalesce behind one selected-board read and preserve open dra
   streams[0].send("change", commit("Second move"));
   streams[0].send("change", commit("Latest move"));
   streams[0].send("change", 100, priority);
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => { setTimeout(resolve, 0); });
   assert.equal(reads, 2);
   release.resolve();
   await until(() => ui.find(main, "button", "#1 Latest move") && /Latest move/.test(details.textContent));
@@ -5529,7 +5531,7 @@ test("live board Retry and reconnect catch up without discarding the loaded boar
   assert.ok(ui.find(main, "button", "#1 After retry"));
   assert.equal(retry.hidden, false);
   const missed = commit("While disconnected");
-  await new Promise((resolve) => setTimeout(resolve, 550));
+  await new Promise((resolve) => { setTimeout(resolve, 550); });
   await until(() => streams.length === 2);
   streams[1].send("snapshot", missed);
   await until(() => retry.hidden && ui.find(main, "button", "#1 While disconnected"));
@@ -5569,7 +5571,7 @@ test("navigating away aborts the selected stream and discards its in-flight read
   await until(() => streams.length === 2);
   streams[1].send("snapshot", 3);
   release.resolve();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => { setTimeout(resolve, 0); });
   assert.ok(ui.find(ui.nodes.main, "button", "#1 Current"));
   assert.equal(ui.find(ui.nodes.main, "button", "#1 Obsolete"), undefined);
   assert.equal(reads, 3);
@@ -5677,7 +5679,7 @@ test("live invalidation deferred by a write survives until the write ends", asyn
     }});
   updates.invalidate(2, false);
   updates.invalidate(3, false);
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => { setTimeout(resolve, 0); });
   assert.equal(reads, 0);
   writing = false;
   updates.resume();

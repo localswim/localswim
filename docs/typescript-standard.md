@@ -87,3 +87,26 @@ establish the rejection path. [Promise rule behavior](https://oxc.rs/docs/guide/
 
 The UI Lead owns applying this standard to the UI candidate. The Architect checks
 its implementation and evidence as part of acceptance.
+
+## Git enforcement
+
+Keep project hooks under version control in `.githooks/`, with a project setup
+command that configures `core.hooksPath` for the checkout. Verify installation
+for the active integration checkout and its author worktrees.
+
+- Pre-commit checks the staged content for whitespace errors. It reports problems
+  without silently rewriting or staging the author's files.
+- Pre-push runs the shared static quality checks, including type checking,
+  linting, formatting and generated-release-asset verification. Validate the
+  content being pushed so unrelated working-tree edits cannot mask a failure.
+- Reuse the project's check commands so hooks and acceptance apply the same rules.
+  Keep the complete behavioral suite in the existing handoff verification.
+- Missing required tools and failed checks produce a nonzero exit with a clear
+  corrective command. Install dependencies through the normal setup step.
+- Qualify the hooks using a valid change and representative type, lint,
+  formatting and stale-generated-output failures. Include that evidence in the
+  T2 handoff before the Architect opens T3.
+
+Git provides local hooks with nonzero exits to stop commits and pushes. Their
+installation and behavior are part of this project's development setup.
+[Git hook documentation](https://git-scm.com/docs/githooks)

@@ -580,10 +580,12 @@ export function mountSidebarGeometry(
     if (!layout || !view) return;
     const available = layout.clientWidth;
     const sideBySide =
-      view.matchMedia("(min-width: 751px)").matches &&
-      host.closest('[data-route="board"]') !== null;
+      view.matchMedia("(width > 750px)").matches && host.closest('[data-route="board"]') !== null;
     minWidth = Math.min(224, available);
-    maxWidth = Math.max(minWidth, available - (sideBySide ? 280 : 0));
+    const computedLimit = view.getComputedStyle(host).maxInlineSize;
+    const drawerLimit = computedLimit.endsWith("px") ? Number.parseFloat(computedLimit) : Infinity;
+    const maxAvailable = Math.min(available - (sideBySide ? 280 : 0), drawerLimit);
+    maxWidth = Math.max(minWidth, maxAvailable);
     paintWidth();
   }
 
@@ -693,10 +695,26 @@ export function mountSidebarGeometry(
   measure();
   const observer = new ResizeObserver(measure);
   observer.observe(layout);
+  const drawerRoot = widthOwner.querySelector("#card-drawer-root");
+  const visibility = new MutationObserver((records) => {
+    if (
+      records.some(
+        ({ target }) =>
+          target === drawerRoot ||
+          (target instanceof HTMLElement && target.matches(".card-drawer")),
+      )
+    ) {
+      measure();
+    }
+  });
+  if (drawerRoot) {
+    visibility.observe(drawerRoot, { attributeFilter: ["hidden"], childList: true, subtree: true });
+  }
 
   return () => {
     listeners.abort();
     observer.disconnect();
+    visibility.disconnect();
     clearResize();
     widthOwner.style.removeProperty("--attention-width");
     delete host.dataset.attentionCollapsed;

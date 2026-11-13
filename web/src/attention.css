@@ -14,7 +14,7 @@
   padding-inline-end: 0;
 }
 
-@media (min-width: 751px) {
+@media (width > 750px) {
   [data-app][data-route="board"] #workspace-layout:has(> #attention) {
     grid-template-columns: var(--attention-width, 336px) minmax(0, 1fr);
   }

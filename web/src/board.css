@@ -107,6 +107,13 @@
   font-size: 0.75rem;
 }
 
+.board-view-lane-approval-feedback {
+  margin: 0.25rem 0;
+  color: var(--board-view-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
 .board-view .board-view-lane-note {
   flex: 0 0 2.375rem;
   box-sizing: border-box;

@@ -1,3 +1,4 @@
+import { MAX_LANE_APPROVAL_CARDS } from "../api.mjs";
 import { waitForRetry } from "../board-updates.mjs";
 import { mountAttention } from "./attention.js";
 import { mountCardArchive } from "./archive.js";
@@ -134,6 +135,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   let relationships: ReturnType<typeof mountRelationships> | undefined;
   let previewsAllowed = false;
   let policyRefreshFrame = 0;
+  let laneVisibilityFrame = 0;
   let publishingTag: string | null = null;
   let writesBlocked = true;
   let pinsView: Parameters<typeof attention.updatePins>[0] | undefined;
@@ -500,11 +502,36 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     });
     shadow?.querySelectorAll<HTMLButtonElement>("[data-lane-approval]").forEach((button) => {
       const laneId = button.dataset.laneApproval ?? "";
-      const complete = confirmedLaneMembership(laneId)?.complete === true;
-      button.disabled = !complete || !boardWritable() || !laneApprovalDestination(laneId);
-      button.title = complete ? "" : "Show the full unfiltered lane to approve all cards.";
+      const tooLarge =
+        (boardData?.cards.filter(({ lane_id }) => lane_id === laneId).length ?? 0) >
+        MAX_LANE_APPROVAL_CARDS;
+      const complete = !tooLarge && confirmedLaneMembership(laneId)?.complete === true;
+      const feedback = button.nextElementSibling;
+      const reason = tooLarge
+        ? `Lane approval supports up to ${MAX_LANE_APPROVAL_CARDS.toLocaleString("en-US")} cards.`
+        : complete
+          ? ""
+          : "Show the full unfiltered lane to approve all cards.";
+      button.disabled =
+        tooLarge || !complete || !boardWritable() || !laneApprovalDestination(laneId);
+      if (feedback instanceof HTMLElement) {
+        feedback.hidden = reason === "";
+        if (feedback.textContent !== reason) feedback.textContent = reason;
+      }
     });
   }
+
+  function onLaneVisibilityChange() {
+    if (laneVisibilityFrame !== 0) return;
+    laneVisibilityFrame =
+      view?.requestAnimationFrame(() => {
+        laneVisibilityFrame = 0;
+        if (signal.aborted) return;
+        laneApproval?.update();
+        updateLaneCreate();
+      }) ?? 0;
+  }
+  view.addEventListener("resize", onLaneVisibilityChange, { signal });
 
   function refreshPolicy() {
     const snapshot = boardSnapshot;
@@ -708,6 +735,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         signal: AbortSignal.any([signal, commentsBinding.signal]),
         readWithSession,
         scope: { boardId: selectedBoardId, cardId: next.cardId },
+        canInspectSaved: () => pageActive && !hasPendingBoardRestore(doc, selectedBoardId),
         context: () => {
           const card = drawerText;
           const actorId = principal?.principalId;
@@ -887,7 +915,12 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
               bulk.textContent = "Approve all in lane";
               bulk.setAttribute("aria-label", `Approve all in ${lane.label}`);
               bulk.addEventListener("click", () => laneApproval?.open(lane.id, bulk), { signal });
-              host.append(bulk);
+              const feedback = doc.createElement("p");
+              feedback.id = `lane-approval-feedback-${lane.id}`;
+              feedback.className = "board-view-lane-approval-feedback";
+              feedback.hidden = true;
+              bulk.setAttribute("aria-describedby", feedback.id);
+              host.append(bulk, feedback);
             }
           },
         });
@@ -1328,6 +1361,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
           ? beginWrite(selectedBoardId)
           : null,
       onStateChange: () => runtime.onWriteSettled?.(),
+      onReconciled: () => comments?.refreshSaved(),
       refresh: (boardId, revision) => runtime.refreshRestoredBoard?.(boardId, revision),
     });
     lifecycle = mountBoardLifecycle(availabilityHost, {
@@ -1616,6 +1650,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     saveBoardView();
     lifetime.abort();
     view?.cancelAnimationFrame(policyRefreshFrame);
+    view?.cancelAnimationFrame(laneVisibilityFrame);
     textBinding?.abort();
     commentsBinding?.abort();
     editor?.dispose();
@@ -1682,6 +1717,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     void publishing?.resume();
     backup?.update();
     drafts.refresh();
+    comments?.refreshSaved();
     if (selectedBoardId) {
       const latest = views.read(selectedBoardId);
       if (latest && JSON.stringify(latest) !== departureView) {

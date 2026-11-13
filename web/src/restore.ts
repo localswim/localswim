@@ -15,6 +15,7 @@ type Options = AppContext &
     beginWrite: () => (() => void) | null;
     refresh: (boardId: string, revision?: number) => void;
     onStateChange?: () => void;
+    onReconciled?: (revision: number) => void;
   }>;
 
 type Intent = Readonly<{ attempt: string; revision: number }>;
@@ -171,6 +172,7 @@ export function mountRestore(
     beginWrite,
     refresh,
     onStateChange,
+    onReconciled,
   }: Options,
 ) {
   const doc = host.ownerDocument;
@@ -265,6 +267,9 @@ export function mountRestore(
           ? `Native backup restored at revision ${journal.observedRevision}.`
           : `The live and saved board agree at revision ${journal.observedRevision}.`
         : "The tab’s restore record could not be cleared.";
+      if (saved && journal.observedRevision > journal.revision) {
+        onReconciled?.(journal.observedRevision);
+      }
     }
     if (selection && !selectedAt(context, selection)) {
       selection = undefined;

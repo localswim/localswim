@@ -393,9 +393,9 @@ requires saved-state inspection before another explicit submission.
 
 After **Create backup**, **Publish captured revision** publishes that exact backup.
 The service data root must already be inside a Git worktree with an initial
-commit, local branch, configured identity, and origin remote. The page displays
-the publication outcome, its captured revision, and any fixed error code on the
-originating board while card edits and navigation continue. It retains the
+commit, local branch, configured identity, and a usable configured Git
+destination. The page displays the outcome, captured revision and a safe
+failure message on the originating board while card edits and navigation continue. It retains the
 generated publication UUID for focused readback after an uncertain response.
 **Refresh publication status** stays available while the publication is queued
 or running, including after navigating away and returning. A new submission

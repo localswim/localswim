@@ -1,5 +1,5 @@
 {
-  "revision": "0514-staff-r4",
+  "revision": "0514-staff-r5",
   "epic": 514,
   "board_id": "39b278e7-d1ac-4e5a-88fb-8eabf141dd4d",
   "goal": "Fresh TypeScript UI with V1 look and workflows and current V2 browser capabilities.",
@@ -2154,9 +2154,20 @@
     "thread_id": "01a1c3a6-8477-7c33-88f6-e11ea8c6030a",
     "model": "gpt-6.1-sol",
     "reasoning_effort": "high",
-    "role": "Independent whole-turn review and entry-gate authority"
+    "role": "Acceptance, independent whole-turn review and entry-gate authority"
   },
   "ui_lead_thread_id": "01a1d28b-bb44-7652-9c19-8307cce9b336",
+  "cutover_policy": {
+    "execution_owner": "UI Lead",
+    "acceptance_owner": "Architect",
+    "approval_owner": "Terry",
+    "sequence": [
+      "All T1-T9 cards reach RFR after Architect acceptance.",
+      "Architect demos all V1 functionality in the replacement UI to Terry.",
+      "Terry explicitly approves production cutover."
+    ],
+    "candidate_policy": "Implementation and verification use isolated candidates until Terry approves production cutover."
+  },
   "turn_entry_policy": {
     "authority": "Architect",
     "next_turn_condition": "Architect independently reviews all prior-turn work and explicitly authorizes every prior-turn card to move to RFR.",

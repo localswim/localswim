@@ -8,6 +8,10 @@
 - The UI Lead sends the exact candidate commits, scoped changes, checks, technical
   review and Terra evidence for that review. Corrections remain in the current turn.
 - Terry retains control of Completed. Owner demos follow technical handoff.
+- The UI Lead owns execution, the Architect owns acceptance, and Terry owns
+  production cutover approval. After all T1-T9 cards reach RFR, the Architect
+  demos all V1 functionality in the replacement UI. Production cutover requires
+  Terry's explicit approval after those demos.
 
 ## Implementation conventions
 

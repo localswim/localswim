@@ -1,6 +1,6 @@
-# #0514 staffing plan r4
+# #0514 staffing plan r5
 
-Independent review passed. Revision 0514-staff-r4 supersedes r3. The 33 stories, T1-T9 order, four two-author splits and named independent technical reviewers are retained. Reviewer names are planned assignments; their processes begin only when review work is ready.
+The staffing allocation passed independent review. Revision 0514-staff-r5 supersedes r4 and records Terry's execution, acceptance and cutover ownership. The 33 stories, T1-T9 order, four two-author splits and named independent technical reviewers are retained. Reviewer names are planned assignments; their processes begin only when review work is ready.
 
 **Turn entry authority**
 
@@ -10,6 +10,8 @@ The Architect chat owns all T1-T9 entry gates. The UI Lead owns author dispatch,
 2. The Architect independently reviews all work from that turn and obtains any required corrections.
 3. The Architect explicitly authorizes every card in that turn to move to RFR.
 4. The Architect opens the next turn with an explicit release. Terry retains control of Completed, and owner demos follow technical handoff.
+
+The UI Lead owns execution. The Architect owns acceptance. Terry owns production cutover approval. Once all T1-T9 cards are in RFR, the Architect demos all V1 functionality in the replacement UI. Production cutover requires Terry's explicit approval after those demos. Implementation and verification use isolated candidates until that approval.
 
 **Dispatch on ready work**
 

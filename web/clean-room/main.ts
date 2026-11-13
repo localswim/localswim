@@ -94,6 +94,7 @@ function start(host: HTMLElement): void {
   let boardReadEpoch = 0;
   let workspaceReadEpoch = 0;
   let serviceReadEpoch = 0;
+  let identityReadEpoch = 0;
   let minimumWorkspaceRevision = 0;
   const minimumBoardRevisions = new Map<Uuid, number>();
   let searchRead: AbortController | undefined;
@@ -414,6 +415,7 @@ function start(host: HTMLElement): void {
       const data = await readDrawer(boardId, id, signal);
       if (signal.aborted || route.kind !== "board" || route.boardId !== boardId) return;
       const state = stateFor(boardId);
+      let refreshSearch = false;
       if (state.confirmed?.value.boardEtag !== data.boardEtag) {
         const current = await readBoard(boardId, signal);
         if (signal.aborted || route.kind !== "board" || route.boardId !== boardId) return;
@@ -427,10 +429,15 @@ function start(host: HTMLElement): void {
           render();
           return;
         }
+        refreshSearch = state.search !== "";
         state.confirmed = confirmed(current);
         board = { status: "ready", current: state.confirmed };
       }
       drawerData = { status: "ready", current: confirmed(data) };
+      if (refreshSearch) {
+        changeSearch(state.search);
+        return;
+      }
     } catch (error) {
       if (signal.aborted) return;
       drawerData = { status: "unavailable", previous, failure: readFailure(error) };
@@ -935,6 +942,7 @@ function start(host: HTMLElement): void {
     workspaceRead = attempt;
     const epoch = ++workspaceReadEpoch;
     const serviceEpoch = ++serviceReadEpoch;
+    const identityEpoch = ++identityReadEpoch;
     const previous = last(workspace);
     const previousService = last(service);
     workspace = { status: "loading", previous };
@@ -946,8 +954,32 @@ function start(host: HTMLElement): void {
       readWorkspace(attempt.signal),
       readService(attempt.signal),
     ]);
-    if (attempt.signal.aborted || epoch !== workspaceReadEpoch || serviceEpoch !== serviceReadEpoch)
+    if (attempt.signal.aborted) return;
+    workspaceRead = undefined;
+    const ownsIdentity = identityEpoch === identityReadEpoch;
+    const ownsService = serviceEpoch === serviceReadEpoch;
+    if (ownsIdentity) session = identity.status === "fulfilled" ? identity.value : null;
+    if (ownsService) {
+      service =
+        status.status === "fulfilled"
+          ? { status: "ready", current: confirmed(status.value) }
+          : {
+              status: "unavailable",
+              previous: previousService,
+              failure: readFailure(status.reason),
+            };
+    }
+    const setupFailed =
+      ownsIdentity && identity.status === "rejected"
+        ? readFailure(identity.reason)
+        : ownsService && status.status === "rejected"
+          ? readFailure(status.reason)
+          : null;
+    if (epoch !== workspaceReadEpoch) {
+      if (setupFailed !== null) live.retry();
+      render();
       return;
+    }
     if (
       catalog.status === "fulfilled" &&
       catalog.value.workspace.revision < minimumWorkspaceRevision
@@ -955,13 +987,6 @@ function start(host: HTMLElement): void {
       live.retry();
       return;
     }
-    session = identity.status === "fulfilled" ? identity.value : null;
-    const setupFailed =
-      identity.status === "rejected"
-        ? readFailure(identity.reason)
-        : status.status === "rejected"
-          ? readFailure(status.reason)
-          : null;
     workspace =
       catalog.status === "fulfilled" && setupFailed === null
         ? { status: "ready", current: confirmed(catalog.value) }
@@ -972,10 +997,6 @@ function start(host: HTMLElement): void {
               setupFailed ??
               (catalog.status === "rejected" ? readFailure(catalog.reason) : { kind: "transport" }),
           };
-    service =
-      status.status === "fulfilled"
-        ? { status: "ready", current: confirmed(status.value) }
-        : { status: "unavailable", previous: previousService, failure: readFailure(status.reason) };
     if (workspace.status === "ready") {
       applyLocation(true);
     } else {
@@ -989,8 +1010,9 @@ function start(host: HTMLElement): void {
     const selectedRequest = route.kind === "board" && request.boardId === route.boardId;
     const boardEpoch = selectedRequest ? ++boardReadEpoch : boardReadEpoch;
     const workspaceEpoch = request.workspace ? ++workspaceReadEpoch : workspaceReadEpoch;
-    const readIdentity = session === null || request.reason === "snapshot";
-    const serviceEpoch = request.service || readIdentity ? ++serviceReadEpoch : serviceReadEpoch;
+    const readIdentity = request.reason === "snapshot" || (session === null && !workspaceRead);
+    const serviceEpoch = request.service ? ++serviceReadEpoch : serviceReadEpoch;
+    const identityEpoch = readIdentity ? ++identityReadEpoch : identityReadEpoch;
     if (selectedRequest) {
       board = { status: "loading", previous: last(board) };
       render();
@@ -1022,7 +1044,7 @@ function start(host: HTMLElement): void {
       if (liveCatalog !== null) workspace = { status: "ready", current: confirmed(liveCatalog) };
       if (serviceEpoch === serviceReadEpoch && status !== null)
         service = { status: "ready", current: confirmed(status) };
-      if (serviceEpoch === serviceReadEpoch && identity !== null) session = identity;
+      if (identityEpoch === identityReadEpoch && identity !== null) session = identity;
       if (
         boardEpoch === boardReadEpoch &&
         route.kind === "board" &&

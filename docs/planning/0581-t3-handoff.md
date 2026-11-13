@@ -46,6 +46,12 @@ guides map the browser and CLI/Bot sequences separately.
   720. It captured keyboard pin order, empty search and scroll, filtered lane
   approval, and a changed order before and after Apply. Follow-up captures
   show the corrected V2 behavior.
+- The Architect found two integration races. Manual Retry now adopts the
+  workspace, service and identity responses under independent read ownership.
+  With the manual service response delayed, separate board-only and catalog
+  updates both settled and the browser could open New card again. When the
+  drawer read a newer board while live notifications were held, the prior search
+  result changed from one match to `no match` and the stale card left the list.
 - The first approval-loss run closed the connection before response headers.
   The browser transport sent an additional request that received HTTP 412.
   The truncated-body rerun sent one request and verified the original receipt.

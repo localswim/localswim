@@ -459,10 +459,10 @@ export function mountTicketOrder(host: HTMLElement, options: Options) {
             ...intent.proposed,
           ]);
           const { data } = reply;
+          // A changed order commits once against the captured board revision.
           if (
             data.changed !== true ||
-            !positiveInteger(data.board_revision) ||
-            data.board_revision <= intent.revision ||
+            data.board_revision !== intent.revision + 1 ||
             !assignments(data.current) ||
             !sameAssignments(data.current, intent.current) ||
             !assignments(data.proposed) ||

@@ -268,6 +268,44 @@ test("a stale Apply is refused without replay and refreshes the board", async ()
   assert.equal(panel.apply.hidden, true);
 });
 
+test("an impossible Apply revision requires explicit inspection even if saved assignments match", async () => {
+  const fixture = harness();
+  fixture.applyResponse(() => response(9));
+  fixture.readResponse(() => ({
+    etag: tag(9),
+    data: {
+      board: { revision: 9 },
+      cards: boardCards.map((card) => ({
+        ...card,
+        ticket: proposed.find(({ card_id }) => card_id === card.id).ticket,
+      })),
+    },
+  }));
+  const panel = fixture.mount();
+  panel.open(lane, new Element());
+  panel.preview.click();
+  await flush();
+  panel.apply.click();
+  await flush();
+  assert.deepEqual(
+    fixture.calls.map(({ method }) => method),
+    ["GET", "PUT"],
+  );
+  assert.match(panel.status.textContent, /Apply outcome is unknown/);
+  assert.equal(fixture.entries.size, 1);
+  assert.equal(panel.apply.hidden, true);
+  assert.equal(panel.inspect.hidden, false);
+
+  panel.inspect.click();
+  await flush();
+  assert.deepEqual(
+    fixture.calls.map(({ method }) => method),
+    ["GET", "PUT", "READBACK"],
+  );
+  assert.equal(panel.status.textContent, "Saved ticket assignments match the requested order.");
+  assert.equal(fixture.entries.size, 0);
+});
+
 test("an uncertain Apply survives remount and inspection reports saved UUID assignments", async () => {
   const fixture = harness();
   fixture.applyResponse(() => {

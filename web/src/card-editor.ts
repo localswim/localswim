@@ -7,6 +7,8 @@ type InputChange = Readonly<{ start: number; end: number; inserted: string | nul
 const fieldLabels = { title: "Title", description: "Description" } as const;
 const fields = ["title", "description"] as const;
 const titleHasText = /\P{White_Space}/u;
+const recentValueCount = 8;
+const recentValueMaxLength = 32_768;
 
 const phaseMessages = {
   idle: "",
@@ -22,6 +24,20 @@ const phaseMessages = {
 
 function textareaText(text: string): string {
   return text.replace(/\r\n?/g, "\n");
+}
+
+function rememberExact(recent: Map<string, string | null>, value: string) {
+  // A CRLF uses two raw code units for one textarea code unit.
+  if (value.length > 2 * recentValueMaxLength) return;
+  const normalized = textareaText(value);
+  if (normalized.length > recentValueMaxLength) return;
+  const previous = recent.get(normalized);
+  recent.delete(normalized);
+  recent.set(normalized, previous === undefined || previous === value ? value : null);
+  if (recent.size > recentValueCount) {
+    const oldest = recent.keys().next();
+    if (!oldest.done) recent.delete(oldest.value);
+  }
 }
 
 function rawOffset(text: string, offset: number): number {
@@ -104,6 +120,9 @@ export function mountCardEditor(
   status.setAttribute("role", "status");
   const saved = doc.createElement("div");
   saved.className = "card-editor-saved";
+  saved.tabIndex = 0;
+  saved.setAttribute("role", "region");
+  saved.setAttribute("aria-label", "Saved text for comparison");
   const actions = doc.createElement("div");
   actions.className = "card-editor-actions";
   const save = button("Save changes");
@@ -111,7 +130,7 @@ export function mountCardEditor(
   const inspect = button("Inspect saved");
   const dismiss = button("Dismiss draft");
   actions.append(save, inspect, dismiss);
-  form.append(status, saved, actions);
+  form.append(status, actions, saved);
   root.append(form);
 
   function makeField(field: Field) {
@@ -123,14 +142,19 @@ export function mountCardEditor(
     input.className = `card-editor-input card-editor-${field}`;
     input.rows = field === "title" ? 2 : 6;
     input.setAttribute("aria-label", label);
-    surface.after(edit, input);
+    if (field === "description") {
+      surface.before(edit);
+      surface.after(input);
+    } else {
+      surface.after(edit, input);
+    }
     const savedRow = doc.createElement("div");
     const savedLabel = doc.createElement("strong");
     savedLabel.textContent = `Saved ${label.toLowerCase()}`;
     const savedText = doc.createElement("p");
     savedRow.append(savedLabel, savedText);
     saved.append(savedRow);
-    return { surface, edit, input, savedRow, savedText };
+    return { surface, edit, input, savedRow, savedText, recent: new Map<string, string | null>() };
   }
 
   const controls = { title: makeField("title"), description: makeField("description") };
@@ -144,7 +168,7 @@ export function mountCardEditor(
     let showField = false;
     let showSaved = false;
     for (const field of fields) {
-      const { surface, edit, input, savedRow, savedText } = controls[field];
+      const { surface, edit, input, savedRow, savedText, recent } = controls[field];
       const changed = state.changedFields.includes(field);
       const editing = Boolean(text && (open.has(field) || changed || composition?.field === field));
       surface.hidden = editing;
@@ -153,7 +177,10 @@ export function mountCardEditor(
       input.readOnly = composition ? composition.field !== field : !state.canEdit;
       if (editing && text && composition?.field !== field) {
         const visible = textareaText((!changed && confirmed ? confirmed : text)[field]);
-        if (input.value !== visible) input.value = visible;
+        if (input.value !== visible) {
+          recent.clear();
+          input.value = visible;
+        }
       }
       const showSavedField = compare && changed;
       savedRow.hidden = !showSavedField;
@@ -239,6 +266,7 @@ export function mountCardEditor(
     () => {
       if (composition || !controller.snapshot().canDismiss) return;
       actionError = false;
+      for (const field of fields) controls[field].recent.clear();
       controller.dismiss();
       if (controller.snapshot().phase === "idle") open.clear();
       updateAfterAction(dismiss);
@@ -246,9 +274,20 @@ export function mountCardEditor(
     { signal },
   );
 
-  function editField(field: Field, text: CardText, previous: string, value: string) {
+  function editField(
+    field: Field,
+    text: CardText,
+    previous: string,
+    value: string,
+    history = false,
+  ) {
     if (value !== previous) {
       actionError = false;
+      if (!history) {
+        const { recent } = controls[field];
+        rememberExact(recent, previous);
+        rememberExact(recent, value);
+      }
       controller.edit({ ...text, [field]: value }, field);
     } else {
       controller.cancelEdit();
@@ -257,7 +296,7 @@ export function mountCardEditor(
   }
 
   for (const field of fields) {
-    const { edit, input } = controls[field];
+    const { edit, input, recent } = controls[field];
     let change: InputChange | undefined;
     let pasted: string | undefined;
     edit.addEventListener(
@@ -342,14 +381,20 @@ export function mountCardEditor(
           const isHistory =
             event instanceof InputEvent &&
             (event.inputType === "historyUndo" || event.inputType === "historyRedo");
-          // Browser history holds the textarea's normalized value. A return to the
-          // saved view restores its exact line endings.
-          const saved = confirmed?.[field];
-          const value =
-            isHistory && saved !== undefined && input.value === textareaText(saved)
-              ? saved
-              : applyInput(previous, input.value, change);
-          editField(field, text, previous, value);
+          let exact: string | undefined;
+          if (isHistory) {
+            // Native undo/redo supplies only normalized text. Reuse exact recent
+            // text when that view identifies a single line-ending variant.
+            const known = recent.get(input.value);
+            const saved = confirmed?.[field];
+            if (saved !== undefined && input.value === textareaText(saved)) {
+              if (known === undefined || known === saved) exact = saved;
+            } else if (known !== null) {
+              exact = known;
+            }
+          }
+          const value = exact ?? applyInput(previous, input.value, isHistory ? undefined : change);
+          editField(field, text, previous, value, isHistory);
         }
         change = undefined;
       },

@@ -425,6 +425,13 @@
     padding: 3px 0 0 4px;
   }
 }
+
+@container (max-width: 120px) {
+  .lsw-board-lane-title {
+    padding-right: 8px;
+  }
+}
+
 .lsw-board-replay-layer {
   position: fixed;
   z-index: 4;

@@ -262,6 +262,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   let storedDraftInvalid = false;
   let hasUnstoredChanges = false;
   let opener: HTMLButtonElement | undefined;
+  let dialogRead: AbortController | undefined;
   let absence: Readonly<{ id: string; kind: "retry" | "dismiss" }> | undefined;
   let message = "";
   let composing = false;
@@ -594,6 +595,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
 
   function close() {
     if (!dialog.open) return;
+    dialogRead?.abort();
     dialog.close();
     if (draft === initialDraft) draft = null;
     initialDraft = null;
@@ -688,7 +690,11 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     return result.kind;
   }
 
-  async function resolveSeeds(seeds: readonly SeedDraft[], current: CreateCardContext) {
+  async function resolveSeeds(
+    seeds: readonly SeedDraft[],
+    current: CreateCardContext,
+    lookupSignal: AbortSignal,
+  ) {
     const available = current.relationshipTargets ?? [];
     const targets = new Map(available.map((target) => [target.ticket, target]));
     const resolved: Seed[] = [];
@@ -703,7 +709,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           options.readWithSession,
           boardId,
           ticket,
-          signal,
+          lookupSignal,
         );
         if (!found) return null;
         target = found;
@@ -743,6 +749,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     const current = context();
     if (
       !dialog.open ||
+      !dialogRead ||
       !draft ||
       draft.submission ||
       composing ||
@@ -759,6 +766,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     }
     const previous = draft;
     const focused = doc.activeElement;
+    const lookupSignal = AbortSignal.any([signal, dialogRead.signal]);
     let release: (() => void) | null | undefined;
     await operations.run(
       key,
@@ -769,19 +777,22 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
         let savedPriorityId;
         if (seedDraft.length) update();
         try {
-          relationships = seedDraft.length ? await resolveSeeds(seedDraft, current) : undefined;
+          relationships = seedDraft.length
+            ? await resolveSeeds(seedDraft, current, lookupSignal)
+            : undefined;
           if (relationships)
             savedPriorityId = savedPriority(previous, current, relationships.blockers);
         } catch {
-          message = "Could not check the relationship targets. Your draft is still available.";
+          if (!lookupSignal.aborted)
+            message = "Could not check the relationship targets. Your draft is still available.";
           return;
         }
+        if (lookupSignal.aborted || !dialog.open || !pageActive()) return;
         if (seedDraft.length && !relationships) {
           message = "Choose a valid ticket on this board for every relationship.";
           return;
         }
         const latest = context();
-        if (!dialog.open || !pageActive()) return;
         if (!canCreate(previous, latest) || latest.etag !== current.etag) {
           message = "The board changed. Review the draft before trying again.";
           return;
@@ -1228,6 +1239,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     for (const reset of resetTextInputs) reset();
     composing = false;
     opener = trigger;
+    dialogRead = new AbortController();
     dialog.showModal();
     update();
     (initial.submission ? inspect : title).focus();

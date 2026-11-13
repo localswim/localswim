@@ -137,11 +137,11 @@ function fixture() {
       if (state.nextPost === "lost-after") throw new TypeError("Response lost");
       return { data: savedCard, boardEtag: tag() };
     },
-    async listCards(id, filters) {
+    async listCards(id, filters, signal) {
       assert.equal(id, boardId);
       assert.equal(filters.archived, "include");
       lookups.push(filters.ticket);
-      return { data: { cards: await state.lookup(filters.ticket), next_cursor: null } };
+      return { data: { cards: await state.lookup(filters.ticket, signal), next_cursor: null } };
     },
     async getCard(id) {
       assert.equal(id, posts[0].id);
@@ -391,4 +391,31 @@ test("a revision change during archived lookup prevents dispatch", async () => {
   assert.deepEqual(f.posts, []);
   assert.deepEqual(f.writes, []);
   assert.equal(f.journal.submission, undefined);
+});
+
+test("closing and reopening during archived lookup requires a new Add card action", async () => {
+  const f = fixture();
+  const pending = Promise.withResolvers();
+  let originalSignal;
+  f.state.lookup = (_, signal) => {
+    originalSignal = signal;
+    return pending.promise;
+  };
+  const view = await f.submit();
+  assert.deepEqual(f.lookups, [7]);
+  view.button("Cancel").click();
+  assert.equal(originalSignal.aborted, true);
+  view.start();
+  pending.resolve([archived]);
+  await idle();
+  assert.deepEqual(f.posts, []);
+  assert.deepEqual(f.writes, []);
+  assert.equal(f.journal.submission, undefined);
+  f.state.lookup = () => [archived];
+  view.button("Add card").click();
+  await idle();
+  assert.deepEqual(
+    f.posts.map(({ relationships }) => relationships),
+    [expectedSeeds],
+  );
 });

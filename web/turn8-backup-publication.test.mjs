@@ -219,6 +219,46 @@ test("a rejected write clears only definitive refusals and preserves a duplicate
   assert.match(page.status.textContent, /could not be confirmed/);
 });
 
+test("only known pre-reservation 503 refusals clear the publication journal", async () => {
+  const cases = [
+    [{ detail: "This board is closed or draining." }, false],
+    [{ detail: "The service is draining." }, false],
+    [{ detail: "Durable backup content is unavailable." }, false],
+    [{ detail: "Publication status is unavailable." }, true],
+    [
+      {
+        detail: "This board is closed or draining.",
+        code: "outcome_unknown",
+        outcome: "unknown",
+      },
+      true,
+    ],
+  ];
+  for (const [problem, uncertain] of cases) {
+    const { mount, pending } = fixture(() =>
+      Response.json(
+        {
+          type: "about:blank",
+          title: "Service Unavailable",
+          status: 503,
+          code: "unavailable",
+          request_id: boardId,
+          outcome: "not_applied",
+          errors: [],
+          ...problem,
+        },
+        { status: 503, headers: { "Content-Type": "application/problem+json" } },
+      ),
+    );
+    const page = mount();
+    page.publish.click();
+    await flush();
+    assert.equal(pending.has(journalKey), uncertain, problem.detail);
+    assert.equal(page.publish.hidden, uncertain, problem.detail);
+    assert.equal(page.inspect.hidden, !uncertain, problem.detail);
+  }
+});
+
 test("publication requires a same-board capture, write admission, and a saved journal", async () => {
   let calls = 0;
   const { mount, pending, tab } = fixture(() => {

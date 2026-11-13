@@ -631,7 +631,7 @@ async function responseObject(response, write) {
   throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: write });
 }
 
-/** @param {Response} response @param {boolean} allowOtherUnavailable */
+/** @param {Response} response @param {boolean | readonly string[]} allowOtherUnavailable */
 async function unavailableRefusalCode(response, allowOtherUnavailable) {
   if (
     response.status !== 503 ||
@@ -679,6 +679,12 @@ async function unavailableRefusalCode(response, allowOtherUnavailable) {
     // JSON.parse would otherwise silently accept duplicate members.
     if (text.match(/"(?:[^"\\]|\\.)*"|:/gs)?.filter((token) => token === ":").length !== 8)
       return null;
+    if (typeof allowOtherUnavailable !== "boolean") {
+      return problem.title === "Service Unavailable" &&
+        allowOtherUnavailable.includes(problem.detail)
+        ? "unavailable"
+        : null;
+    }
     if (!allowOtherUnavailable) {
       return problem.title === "Service Unavailable" &&
         problem.detail === "Writes are paused after an uncertain commit. Inspect the saved state."
@@ -816,7 +822,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /**
    * @param {string} path
-   * @param {{ method?: string, data?: unknown, raw?: Blob, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal, knownUnavailable?: boolean, timeoutMs?: number }} [options]
+   * @param {{ method?: string, data?: unknown, raw?: Blob, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal, knownUnavailable?: boolean | readonly string[], timeoutMs?: number }} [options]
    */
   async function send(
     path,
@@ -1313,6 +1319,12 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const backup = operationId(backupId).toLowerCase();
       const response = await send("/publications", {
         method: "POST",
+        // These refusals occur before the service reserves a publication ID.
+        knownUnavailable: [
+          "The service is draining.",
+          "This board is closed or draining.",
+          "Durable backup content is unavailable.",
+        ],
         data: {
           id: publication,
           board_id: board,

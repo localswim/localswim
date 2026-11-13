@@ -1,6 +1,7 @@
 @import "./src/tokens.css";
 @import "./src/board.css";
 @import "./src/attention.css";
+@import "./src/drawer.css";
 
 :root {
   color-scheme: light;

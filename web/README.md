@@ -14,8 +14,10 @@ support debugging. Run `npm --prefix web run check` for the compiler, lint,
 canonical formatting and release asset checks.
 
 The isolated candidate opens the workspace attention view and direct board URLs.
-It displays confirmed lanes and cards, supports inline filtering, and updates
-attention as boards change. The remaining workflows arrive in T3–T9.
+It displays confirmed lanes and cards with inline filtering, an inspection
+drawer, and live refresh. During an outage it retains the last loaded cards
+and offers a focused retry. Workspace pins share saved order across clients,
+and each tab remembers its sidebar width and collapsed state.
 
 ## Current production UI reference
 

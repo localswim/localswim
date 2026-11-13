@@ -22,12 +22,14 @@ export type WorkspaceView = Readonly<{
 
 type WorkspaceOptions = Readonly<{
   signal: AbortSignal;
-  selectedBoardId?: string;
+  board?: NonNullable<Parameters<typeof watchUpdates>[0]["board"]>;
   onChange: (view: WorkspaceView) => void;
+  onWorkspaceChange?: () => void;
 }>;
 
 const CATALOG_TIMEOUT_MS = 15_000;
 const CATALOG_RETRY_MS = 250;
+const CATALOG_POLL_MS = 15_000;
 const BOARD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\+00:00$/;
 
@@ -93,13 +95,16 @@ function parseBoard(value: unknown): WorkspaceBoard {
 
 export function createWorkspaceState({
   signal: ownerSignal,
-  selectedBoardId,
+  board,
   onChange,
+  onWorkspaceChange,
 }: WorkspaceOptions) {
   const lifetime = new AbortController();
   const signal = AbortSignal.any([ownerSignal, lifetime.signal]);
   let capability: string | undefined;
   let openingSession: Promise<void> | undefined;
+  let watching: Promise<void> = Promise.resolve();
+  let stream = new AbortController();
   signal.addEventListener(
     "abort",
     () => {
@@ -264,29 +269,45 @@ export function createWorkspaceState({
     return queued;
   }
 
+  function restartWatch() {
+    stream.abort();
+    stream = new AbortController();
+    const watchSignal = AbortSignal.any([signal, stream.signal]);
+    watching = watching
+      .then(() => {
+        if (watchSignal.aborted) return;
+        return watchUpdates({
+          board,
+          signal: watchSignal,
+          invalidateCatalog: () => {
+            void refresh();
+          },
+          invalidateWorkspace: onWorkspaceChange,
+          connect: (boardId, streamSignal, receive) =>
+            readWithSession(async () => {
+              for await (const event of api.streamEvents({ boardId, signal: streamSignal })) {
+                receive(event);
+              }
+            }, streamSignal),
+        });
+      })
+      .catch((error: unknown) => globalThis.reportError(error));
+  }
+
   queueMicrotask(() => {
     if (signal.aborted) return;
     onChange(view);
     void refresh();
-    void watchUpdates({
-      // Selected-board rendering has its own initial read. This watch keeps catalog hints on the same stream.
-      board:
-        selectedBoardId === undefined
-          ? undefined
-          : { id: selectedBoardId, report: () => {}, invalidate: () => {} },
-      signal,
-      invalidateCatalog: () => {
-        void refresh();
-      },
-      connect: (boardId, streamSignal, receive) =>
-        readWithSession(async () => {
-          for await (const event of api.streamEvents({ boardId, signal: streamSignal }))
-            receive(event);
-        }, streamSignal),
-    }).catch((error: unknown) => {
-      globalThis.reportError(error);
-    });
+    restartWatch();
+    void checkDurableHealth().catch((error: unknown) => globalThis.reportError(error));
   });
 
-  return { api, readWithSession, refresh, dispose: () => lifetime.abort() };
+  async function checkDurableHealth() {
+    while (!signal.aborted) {
+      await waitForRetry(signal, CATALOG_POLL_MS);
+      if (!signal.aborted) await refresh();
+    }
+  }
+
+  return { api, readWithSession, refresh, restartWatch, dispose: () => lifetime.abort() };
 }

@@ -516,6 +516,16 @@ export function mountBoardView(
   root.replaceChildren(boundary);
   return {
     update,
+    focusCard(id: string): boolean {
+      const card = lanes.flatMap(({ members }) => members).find(({ card }) => card.id === id);
+      if (!card || card.opener.disabled || !card.opener.isConnected) return false;
+      card.opener.focus({ preventScroll: true });
+      card.opener.scrollIntoView({ block: "nearest", inline: "nearest" });
+      return true;
+    },
+    focusFilter() {
+      filter.focus();
+    },
     dispose() {
       lifetime.abort();
       boundary.remove();

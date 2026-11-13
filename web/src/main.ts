@@ -1,7 +1,11 @@
-import { ApiError } from "../api.mjs";
 import { mountAttention } from "./attention.js";
-import { getBoardView, mountBoardView } from "./board-view.js";
+import { createBoardState } from "./board-state.js";
+import type { BoardStateView } from "./board-state.js";
+import { mountBoardView } from "./board-view.js";
+import type { BoardViewData } from "./board-view.js";
+import { mountCardView } from "./card-view.js";
 import { parseRoute } from "./model.js";
+import { createSidebarPins } from "./sidebar-state.js";
 import { createWorkspaceState } from "./workspace-state.js";
 
 export function mount(root: HTMLElement): () => void {
@@ -23,12 +27,23 @@ export function mount(root: HTMLElement): () => void {
   const lifetime = new AbortController();
   const { signal } = lifetime;
   const selectedBoardId = route.kind === "board" ? route.id : undefined;
+  const ticketQuery = new URLSearchParams(view.location.search).get("ticket") ?? "";
+  const linkedTicket = /^[1-9]\d*$/.test(ticketQuery) ? Number(ticketQuery) : 0;
   let title = "localswim";
   let totalAttention = 0;
   let board: ReturnType<typeof mountBoardView> | undefined;
+  let boardData: BoardViewData | undefined;
+  let boardState: ReturnType<typeof createBoardState> | undefined;
+  let drawer: ReturnType<typeof mountCardView> | undefined;
+  const boardHost = doc.createElement("div");
+  const missing = doc.createElement("a");
+  missing.href = "/";
+  missing.textContent = "Back to boards";
   const retry = doc.createElement("button");
   retry.type = "button";
-  retry.textContent = "Try again";
+  retry.textContent = "Retry board update";
+  retry.hidden = true;
+  content.append(retry, boardHost);
   root.dataset.route = route.kind;
   boardRegion.hidden = route.kind === "workspace";
 
@@ -37,20 +52,50 @@ export function mount(root: HTMLElement): () => void {
     retry: () => {
       void workspace.refresh();
     },
+    changePins: (change) => {
+      void sidebar.change(change);
+    },
+    inspectPins: () => {
+      void sidebar.inspect();
+    },
+    retryPins: () => {
+      void sidebar.retry();
+    },
+    cancelPins: () => {
+      sidebar.cancel();
+    },
   });
   const workspace = createWorkspaceState({
     signal,
-    selectedBoardId,
+    board: selectedBoardId
+      ? {
+          id: selectedBoardId,
+          report: (state) => boardState?.watch.report(state),
+          invalidate: (revision, catchUp) => boardState?.watch.invalidate(revision, catchUp),
+        }
+      : undefined,
     onChange(catalog) {
       attention.update(catalog, selectedBoardId);
+      sidebar.updateCatalog(catalog);
+      boardState?.observeCatalog(catalog);
       totalAttention = catalog.totalAttention;
       updateTitle();
       if (route.kind === "workspace") {
         setPhase(catalog.status);
       }
     },
+    onWorkspaceChange() {
+      void sidebar.refresh();
+    },
   });
-  const context = { api: workspace.api, signal };
+  const sidebar = createSidebarPins({
+    signal,
+    read: () => workspace.readWithSession(() => workspace.api.getWorkspace()),
+    write: (ids, etag) => workspace.api.setPinnedBoards(ids, etag),
+    refreshCatalog: workspace.refresh,
+    onChange: attention.updatePins,
+  });
+  void sidebar.refresh();
 
   function updateTitle() {
     doc.title = totalAttention > 0 ? `(${totalAttention}) ${title}` : title;
@@ -59,81 +104,122 @@ export function mount(root: HTMLElement): () => void {
   function setPhase(phase: "loading" | "ready" | "missing" | "error", message = "") {
     root.dataset.phase = phase;
     status.dataset.phase = phase;
-    status.textContent = message;
+    if (status.textContent !== message) status.textContent = message;
   }
 
   function showMissing() {
-    const back = doc.createElement("a");
-    back.href = "/";
-    back.textContent = "Back to boards";
-    content.replaceChildren(back);
+    if (!missing.isConnected) boardHost.replaceChildren(missing);
     setPhase("missing", "Board not found.");
   }
 
-  async function loadBoard() {
-    if (signal.aborted || retry.disabled || route.kind === "workspace") return;
-    if (route.kind === "missing") {
-      showMissing();
-      return;
+  function renderBoard(state: BoardStateView) {
+    const { availability, connection, data, name, readiness, retryAvailable, writesFenced } = state;
+    retry.hidden = !retryAvailable;
+    root.dataset.boardWritesFenced = String(writesFenced);
+    root.dataset.boardConnection = connection;
+    if (state.confirmedRevision !== null) {
+      boardRegion.dataset.revision = String(state.confirmedRevision);
     }
-    retry.disabled = true;
-    setPhase("loading", "Loading board…");
-    try {
-      const reply = await workspace
-        .readWithSession(() => context.api.getBoardAvailability(route.id, signal), signal)
-        .catch((error: unknown) => {
-          if (error instanceof ApiError && error.status === 404) return null;
-          throw error;
-        });
-      if (signal.aborted) return;
-      if (reply === null) {
-        showMissing();
-        return;
-      }
-      const { availability } = reply.data;
-      let name = reply.data.name;
-      if (availability === "open") {
-        const confirmed = await workspace.readWithSession(
-          () => getBoardView(context, route.id),
-          signal,
-        );
-        if (signal.aborted) return;
-        name = confirmed.board.name;
-        const host = doc.createElement("div");
-        content.replaceChildren(host);
-        board = mountBoardView(host, confirmed);
-      } else {
-        content.replaceChildren();
-      }
+    if (name !== null) {
       boardName.textContent = name;
       boardName.hidden = false;
       title = `${name} · localswim`;
       updateTitle();
-      const message =
-        availability === "closed"
-          ? "This board is closed."
-          : availability === "unhealthy"
-            ? "This board is unavailable."
-            : "";
-      setPhase("ready", message);
-    } catch {
-      if (signal.aborted) return;
-      setPhase("error", "Could not load this board.");
-      content.replaceChildren(retry);
-    } finally {
-      retry.disabled = false;
     }
+    if (data !== null && data !== boardData) {
+      const previous = boardData;
+      boardData = data;
+      if (board) {
+        board.update(data);
+      } else {
+        boardHost.replaceChildren();
+        board = mountBoardView(boardHost, data, {
+          onOpenCard: (card, opener) => drawer?.open({ id: card.id }, opener),
+        });
+        if (Number.isSafeInteger(linkedTicket) && linkedTicket > 0) {
+          drawer?.open({ ticket: linkedTicket });
+        }
+      }
+      if (previous && previous.board.revision !== data.board.revision) drawer?.refresh();
+    }
+    if (availability === "missing") {
+      showMissing();
+      return;
+    }
+    if (availability === "closed") {
+      setPhase("ready", "This board is closed.");
+      return;
+    }
+    const retained = data !== null ? " Showing previously loaded cards." : "";
+    if (availability === "unhealthy" || availability === "unavailable") {
+      setPhase("error", `This board is unavailable.${retained}`);
+      return;
+    }
+    if (readiness === "error") {
+      setPhase("error", `Could not update this board.${retained}`);
+      return;
+    }
+    if (data === null) {
+      setPhase("loading", "Loading board…");
+      return;
+    }
+    if (connection === "disconnected" || connection === "unavailable") {
+      setPhase("ready", `Live updates disconnected.${retained}`);
+      return;
+    }
+    const message =
+      readiness === "refreshing"
+        ? "Updating board…"
+        : connection === "connected"
+          ? writesFenced
+            ? "Confirming the current board…"
+            : "Live updates connected"
+          : "Connecting live updates…";
+    setPhase("ready", message);
   }
 
+  if (selectedBoardId) {
+    drawer = mountCardView(shellElement("#card-drawer-root"), {
+      boardId: selectedBoardId,
+      api: workspace.api,
+      signal,
+      readWithSession: workspace.readWithSession,
+      getBoardData: () => boardData,
+      focusFallback(reference) {
+        const id =
+          "id" in reference
+            ? reference.id
+            : boardData?.cards.find((card) => card.ticket === reference.ticket)?.id;
+        if (id && board?.focusCard(id)) return;
+        if (board) {
+          board.focusFilter();
+        } else {
+          root.querySelector<HTMLElement>("#attention [aria-current=page], #app-bar a")?.focus();
+        }
+      },
+    });
+    boardState = createBoardState({
+      boardId: selectedBoardId,
+      signal,
+      api: workspace.api,
+      readWithSession: workspace.readWithSession,
+      onChange: renderBoard,
+      onWatchRecovery: workspace.restartWatch,
+    });
+    boardState.start();
+  } else if (route.kind === "missing") {
+    showMissing();
+  }
   const retryLoad = () => {
-    void loadBoard();
+    void workspace.refresh().then(() => boardState?.retry());
   };
   retry.addEventListener("click", retryLoad);
-  void loadBoard();
 
   function dispose() {
     if (signal.aborted) return;
     lifetime.abort();
+    drawer?.dispose();
+    boardState?.dispose();
     board?.dispose();
     attention.dispose();
     workspace.dispose();

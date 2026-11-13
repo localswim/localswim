@@ -112,9 +112,16 @@ export function waitForRetry(signal, delay) {
  * The catalog snapshot closes the gap between the initial read and subscription.
  * A replacement connection also catches up the selected board at an equal revision.
  * @param {{board?: BoardWatch, signal: AbortSignal, invalidateCatalog: () => void,
+ * invalidateWorkspace?: () => void,
  * connect: (boardId: string|undefined, signal: AbortSignal, receive: (event: StreamEvent) => void) => Promise<void>}} options
  */
-export async function watchUpdates({ board, signal, connect, invalidateCatalog }) {
+export async function watchUpdates({
+  board,
+  signal,
+  connect,
+  invalidateCatalog,
+  invalidateWorkspace,
+}) {
   let watchedBoard = board;
   let retryDelay = INITIAL_RETRY_MS;
   let reconnecting = false;
@@ -141,6 +148,10 @@ export async function watchUpdates({ board, signal, connect, invalidateCatalog }
           catalogReady = true;
           if (!watchedBoard && !connected) markConnected();
           invalidateCatalog();
+          return;
+        }
+        if (event.resource === "workspace") {
+          invalidateWorkspace?.();
           return;
         }
         if (!watchedBoard || event.resource !== "board" || event.board_id !== watchedBoard.id)

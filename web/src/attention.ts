@@ -23,7 +23,9 @@ let nextAttentionID = 0;
 function recency(board: WorkspaceBoard, observedAt: WorkspaceView["observedAt"]): string {
   if (board.lastCardEditAt !== null && observedAt !== null) {
     const minutes = Math.max(0, Math.floor((observedAt - board.lastCardEditAt) / 60_000));
-    return `Last card edit ${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+    const elapsed =
+      minutes === 0 ? "less than a minute" : `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+    return `Last card edit ${elapsed} before the last catalog refresh`;
   }
   if (board.lastCardEditAt === null && board.attention !== null) return "No recorded card edits";
   return "Card edit history unavailable";

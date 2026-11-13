@@ -913,11 +913,20 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
   /**
    * @param {string} path
    * @param {{ method?: string, data?: unknown, raw?: Blob, etag?: string, successStatus?: number,
-   * signal?: AbortSignal, knownUnavailable?: boolean }} [options]
+   * signal?: AbortSignal, knownUnavailable?: boolean, includeBoardEtag?: boolean }} [options]
    */
   async function request(
     path,
-    { method = "GET", data, raw, etag, successStatus = 200, signal, knownUnavailable } = {},
+    {
+      method = "GET",
+      data,
+      raw,
+      etag,
+      successStatus = 200,
+      signal,
+      knownUnavailable,
+      includeBoardEtag,
+    } = {},
   ) {
     const response = await send(path, { method, data, raw, etag, signal, knownUnavailable });
     const write = method !== "GET";
@@ -926,7 +935,11 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       await discardBody(response);
       throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
     }
-    return { data: await responseObject(response, write), etag: responseEtag };
+    return {
+      data: await responseObject(response, write),
+      etag: responseEtag,
+      ...(includeBoardEtag ? { boardEtag: response.headers.get("X-Board-ETag") } : {}),
+    };
   }
 
   /** @param {Response} response @param {number} status @param {boolean} write */
@@ -2004,6 +2017,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         etag: versionTag(id, revision),
         data: { board_etag: strongTag(boardEtag), ...change },
         knownUnavailable: true,
+        includeBoardEtag: true,
       });
       const saved = /** @type {Record<string, unknown>} */ (result.data);
       if (
@@ -2017,7 +2031,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       ) {
         throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
       }
-      return { data: saved, etag: result.etag };
+      return { ...result, data: saved };
     },
     /** @param {unknown} boardId @param {unknown} boardEtag
      * @param {{id?: string, label: string, after_id: string, create_for: string[], connect_for: string[], notes?: string}} lane */
@@ -2030,6 +2044,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         successStatus: 201,
         data,
         knownUnavailable: true,
+        includeBoardEtag: true,
       });
       const saved = result.data;
       if (
@@ -2044,7 +2059,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       ) {
         throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
       }
-      return { data: saved, etag: result.etag };
+      return { ...result, data: saved };
     },
     /** @param {unknown} laneId @param {unknown} revision @param {unknown} boardEtag @param {string} label */
     async renameLane(laneId, revision, boardEtag, label) {

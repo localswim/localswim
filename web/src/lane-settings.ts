@@ -37,6 +37,7 @@ type Options = AppContext & {
   boardId: string;
   readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
   getContext: () => Context;
+  canInspectSaved?: () => boolean;
   beginWrite: () => (() => void) | null;
   beginInspection: () => (() => void) | null;
   onChange: () => void;
@@ -76,16 +77,19 @@ function readIds(value: unknown): string[] | undefined {
   return ids;
 }
 
+function revisionOf(boardId: string, tag: string) {
+  const revision = Number(tag.slice(boardId.length + 2, -1));
+  return Number.isSafeInteger(revision) && revision > 0 && tag === `"${boardId}-${revision}"`
+    ? revision
+    : 0;
+}
+
 function parseIntent(raw: string, boardId: string): Intent {
   const entry: unknown = JSON.parse(raw);
   if (isRecord(entry) && typeof entry.boardEtag === "string" && isRecord(entry.value)) {
     const { boardEtag, value, revision, laneId } = entry;
-    const boardRevision = Number(boardEtag.slice(boardId.length + 2, -1));
-    if (
-      Number.isSafeInteger(boardRevision) &&
-      boardRevision > 0 &&
-      boardEtag === `"${boardId}-${boardRevision}"`
-    ) {
+    const boardRevision = revisionOf(boardId, boardEtag);
+    if (boardRevision) {
       if (entry.kind === "add") {
         const { id, label, after_id } = value;
         const create_for = readIds(value.create_for);
@@ -151,6 +155,48 @@ function intentMatches(
               ? (lane[field] ?? "")
               : lane[field]) === value,
         );
+}
+
+function matchesAddedGrants(
+  policy: object,
+  boardId: string,
+  policyId: string,
+  addition: LaneAddition,
+  peers: readonly { id: string }[],
+) {
+  if (
+    !isRecord(policy) ||
+    policy.board_id !== boardId ||
+    policy.id !== policyId ||
+    !Array.isArray(policy.create_grants) ||
+    !Array.isArray(policy.move_grants)
+  )
+    return false;
+  const { id, create_for, connect_for } = addition;
+  const creates = new Set(create_for);
+  for (const grant of policy.create_grants as unknown[]) {
+    if (!isRecord(grant)) return false;
+    if (grant.lane_id === id && (!isId(grant.user_id) || !creates.delete(grant.user_id)))
+      return false;
+  }
+  const moves = new Set(
+    connect_for.flatMap((user) =>
+      peers.flatMap((peer) => [`${user}:${id}:${peer.id}`, `${user}:${peer.id}:${id}`]),
+    ),
+  );
+  for (const grant of policy.move_grants as unknown[]) {
+    if (!isRecord(grant)) return false;
+    const { user_id, from_lane_id, to_lane_id } = grant;
+    if (from_lane_id !== id && to_lane_id !== id) continue;
+    if (
+      !isId(user_id) ||
+      !isId(from_lane_id) ||
+      !isId(to_lane_id) ||
+      !moves.delete(`${user_id}:${from_lane_id}:${to_lane_id}`)
+    )
+      return false;
+  }
+  return creates.size === 0 && moves.size === 0;
 }
 
 function exactField(doc: Document, signal: AbortSignal, changed: () => void, rows: number) {
@@ -245,6 +291,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
     boardId,
     readWithSession,
     getContext,
+    canInspectSaved = () => true,
     beginWrite,
     beginInspection,
     onChange,
@@ -254,6 +301,9 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
   panel.className = "lane-settings";
   const summary = doc.createElement("summary");
   summary.textContent = "Manage lanes";
+  const retiredLanes = doc.createElement("ul");
+  retiredLanes.setAttribute("aria-label", "Retired lanes");
+  retiredLanes.hidden = true;
   const feedback = doc.createElement("p");
   feedback.setAttribute("role", "status");
   const retirementStatus = doc.createElement("p");
@@ -317,11 +367,12 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
   );
   addForm.append(addFields);
   editForm.append(editFields);
-  panel.append(summary, addForm, editForm, recovery, feedback);
+  panel.append(summary, addForm, editForm, retiredLanes, recovery, feedback);
   host.append(panel);
 
   let displayed: BoardViewData | null = null;
   let baseline: Lane | undefined;
+  let recoveredLaneId: string | undefined;
   let retirementTag: string | undefined;
   let awaitingTag: string | undefined;
   let notice = "";
@@ -331,6 +382,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
   let pending: Intent | undefined;
   let journalError = false;
   let inspected: { raw: string | null; kind: "retry" | "dismiss" } | undefined;
+  let retiredTag: string | undefined;
 
   function button(text: string, type: "button" | "submit" = "button") {
     const node = doc.createElement("button");
@@ -457,6 +509,13 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
     });
     select.replaceChildren(...opts);
     if (lanes.some(({ id }) => id === selected)) select.value = selected;
+    else if (select === after && displayed) {
+      const prompt = doc.createElement("option");
+      prompt.value = "";
+      prompt.textContent = "Choose a lane";
+      select.replaceChildren(prompt, ...opts);
+      select.value = "";
+    }
   }
 
   function editProblem() {
@@ -479,12 +538,69 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
     update();
   }
 
+  async function showRetired(tag: string) {
+    try {
+      const rows: { id: string; label: string; key: string }[] = [];
+      const cursors = new Set<string>();
+      let cursor: string | undefined;
+      do {
+        const { data } = await readWithSession(
+          () => api.listLanes(boardId, cursor, signal),
+          signal,
+        );
+        if (signal.aborted || tag !== retiredTag) return;
+        const page = data as {
+          lanes: { id: string; label: string; key: string; retired: boolean }[];
+          next_cursor: unknown;
+        };
+        const next = page.next_cursor;
+        if (next !== null && (typeof next !== "string" || !next || cursors.has(next))) return;
+        rows.push(...page.lanes.filter(({ retired }) => retired));
+        cursor = next ?? undefined;
+        if (cursor) cursors.add(cursor);
+      } while (cursor);
+      const check = await readWithSession(
+        () => api.getBoardIfChanged(boardId, tag, signal),
+        signal,
+      );
+      const context = getContext();
+      if (
+        signal.aborted ||
+        !context.allowed ||
+        context.data?.etag !== tag ||
+        tag !== retiredTag ||
+        check.etag !== tag
+      )
+        return;
+      retiredLanes.replaceChildren(
+        ...rows.map(({ label, key }) => {
+          const item = doc.createElement("li");
+          item.textContent = `${label} [${key}] (retired)`;
+          return item;
+        }),
+      );
+      retiredLanes.hidden = rows.length === 0;
+    } catch {
+      if (!signal.aborted && tag === retiredTag) retiredLanes.hidden = true;
+    }
+  }
+
   function update() {
     if (signal.aborted) return;
     const { data, actorId, allowed, writable } = getContext();
     if (!busy && actorId) readJournal(actorId);
     panel.hidden = !allowed || !actorId;
-    if (panel.hidden) return;
+    if (panel.hidden) {
+      retiredTag = undefined;
+      retiredLanes.hidden = true;
+      return;
+    }
+    const listTag = panel.open ? data?.etag : undefined;
+    if (listTag !== retiredTag) {
+      retiredTag = listTag;
+      retiredLanes.hidden = true;
+      if (listTag) void showRetired(listTag);
+    }
     if (data && data !== displayed) {
       const lanesChanged =
         data.lanes.length !== displayed?.lanes.length ||
@@ -499,6 +615,10 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
       createGrants.update(data.users);
       connectGrants.update(data.users);
       displayed = data;
+    }
+    if (data && recoveredLaneId && data.lanes.some(({ id }) => id === recoveredLaneId)) {
+      target.value = recoveredLaneId;
+      recoveredLaneId = undefined;
     }
     const current = data?.lanes.find(({ id }) => id === target.value);
     const dirty = Object.keys(patch()).length > 0;
@@ -516,7 +636,12 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
       !!current && data?.cards.some(({ lane_id }) => lane_id === current.id) === true;
     const canRetire = !!current && current.role !== "completed";
     const confirm =
-      retirementTag !== undefined && retirementTag === data?.etag && !occupied && !dirty;
+      retirementTag !== undefined &&
+      retirementTag === data?.etag &&
+      canRetire &&
+      !stale &&
+      !occupied &&
+      !dirty;
     if (!confirm) retirementTag = undefined;
     if (awaitingTag && data && awaitingTag !== data.etag) awaitingTag = undefined;
     const unavailable =
@@ -537,11 +662,11 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
     retirementStatus.textContent =
       canRetire && occupied ? "Move or archive the active cards before retiring this lane." : "";
     inspect.hidden = !pending;
-    inspect.disabled = busy || journalError;
+    inspect.disabled = busy || journalError || !canInspectSaved();
     retry.hidden = !pending || inspected?.kind !== "retry";
     retry.disabled = busy || !writable || data?.etag !== pending?.boardEtag || journalError;
     dismiss.hidden = !pending || inspected?.kind !== "dismiss";
-    dismiss.disabled = busy || journalError;
+    dismiss.disabled = busy || journalError || !canInspectSaved();
     const text = journalError
       ? "The pending lane change could not be read or saved in this tab."
       : notice ||
@@ -590,7 +715,8 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
                   );
             if (
               reply.etag !== `"${reply.data.id}-${reply.data.revision}"` ||
-              reply.data.revision !== data.board.revision + 1
+              reply.data.revision !== data.board.revision + 1 ||
+              reply.boardEtag !== `"${boardId}-${reply.data.revision}"`
             ) {
               throw new ApiError("invalid_response", { outcomeUnknown: true });
             }
@@ -647,7 +773,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
 
   function inspectOriginal() {
     const { actorId, allowed } = getContext();
-    if (!actorId || !allowed || busy) return;
+    if (!actorId || !allowed || busy || !canInspectSaved()) return;
     readJournal(actorId);
     const intent = pending;
     if (!intent || journalError) return;
@@ -658,44 +784,93 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
         const expected = raw;
         inspected = undefined;
         const laneId = intent.kind === "add" ? intent.value.id : intent.laneId;
-        const lane = await readWithSession(
-          () => api.getLaneSettings(boardId, laneId, signal),
-          signal,
-        ).catch((error: unknown) => {
-          if (error instanceof ApiError && error.status === 404 && intent.kind === "add")
-            return undefined;
-          throw error;
-        });
-        if (signal.aborted) return;
-        if (lane && intentMatches(intent, lane)) {
+        const readLane = () =>
+          readWithSession(() => api.getLaneSettings(boardId, laneId, signal), signal).catch(
+            (error: unknown) => {
+              if (error instanceof ApiError && error.status === 404) return undefined;
+              throw error;
+            },
+          );
+        const readBoard = () =>
+          readWithSession(() => api.getBoardAvailability(boardId, signal), signal);
+        const current = () =>
+          !signal.aborted &&
+          expected === raw &&
+          canInspectSaved() &&
+          getContext().allowed &&
+          getContext().actorId === actorId &&
+          tab().getItem(journalKey ?? "") === expected;
+        const first = await readBoard();
+        if (!current()) return;
+        if (first.data.availability !== "open") {
+          notice = "Reopen and confirm the board before inspecting the lane.";
+          return;
+        }
+        // Read the exact lane only after observing the board fence, then confirm
+        // the board remained stable through the inspection.
+        const originalRevision = revisionOf(boardId, intent.boardEtag);
+        const lane = await readLane();
+        if (!current()) return;
+        const validVersion =
+          !!lane && lane.revision > originalRevision && lane.revision <= first.data.revision;
+        let matched = validVersion && intentMatches(intent, lane);
+        const foundOriginal = validVersion && intent.kind === "add";
+        if (matched && intent.kind === "add") {
+          const view = await readWithSession(() => api.getBoardLanes(boardId, signal), signal);
+          const lanes = (view.data as Pick<BoardViewData, "lanes">).lanes;
+          const index = lanes.findIndex(({ id }) => id === laneId);
+          const policy = await readWithSession(
+            () => api.getPolicy(first.data.policy_id, signal),
+            signal,
+          );
+          matched =
+            view.etag === first.etag &&
+            index > 0 &&
+            lanes[index - 1]?.id === intent.value.after_id &&
+            matchesAddedGrants(
+              policy.data,
+              boardId,
+              first.data.policy_id,
+              intent.value,
+              lanes.filter(({ id }) => id !== laneId),
+            );
+        }
+        const last = await readBoard();
+        if (!current()) return;
+        if (first.etag !== last.etag || last.data.availability !== "open") {
+          notice = "The board changed during inspection. Inspect the lane again.";
+          return;
+        }
+        if (lane && (matched || foundOriginal)) {
           if (remember(undefined, expected)) {
             notice =
               intent.kind === "add"
-                ? "The saved board contains the new lane."
+                ? matched
+                  ? "The saved board contains the new lane."
+                  : `The original lane was found as “${lane.label}”${lane.retired ? " (retired)" : ""}. Its current settings, position, or grants differ from the pending request.`
                 : "The saved lane matches the pending change.";
             if (intent.kind === "add") {
               newLabel.set("");
               createGrants.clear();
               connectGrants.clear();
+              if (!lane.retired) recoveredLaneId = lane.id;
             } else if (target.value === laneId) load(undefined);
             if (getContext().data?.etag === intent.boardEtag) awaitingTag = intent.boardEtag;
             onChange();
           }
           return;
         }
-        const board = await readWithSession(
-          () => api.getBoardIfChanged(boardId, intent.boardEtag, signal),
-          signal,
-        );
-        if (signal.aborted || expected !== raw || tab().getItem(journalKey ?? "") !== expected)
-          return;
         const unchanged =
-          board.etag === intent.boardEtag &&
+          first.etag === intent.boardEtag &&
           (intent.kind === "add" ? !lane : lane?.revision === intent.revision);
-        inspected = { raw: expected, kind: unchanged ? "retry" : "dismiss" };
-        notice = unchanged
-          ? "The original lane change is absent. You can retry against the same board version."
-          : "The saved board differs from the pending change. Dismiss it and review the current settings.";
+        const advanced =
+          first.data.revision > originalRevision && (intent.kind === "patch" || !lane);
+        if (unchanged || advanced) {
+          inspected = { raw: expected, kind: unchanged ? "retry" : "dismiss" };
+          notice = unchanged
+            ? "The original lane change is absent. You can retry against the same board version."
+            : "The saved board differs from the pending change. Dismiss it and review the current settings.";
+        } else notice = "The board and lane versions could not be reconciled. Inspect again.";
         onChange();
       } finally {
         release();
@@ -755,11 +930,13 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
   target.addEventListener(
     "change",
     () => {
+      recoveredLaneId = undefined;
       load(getContext().data?.lanes.find(({ id }) => id === target.value));
       edited();
     },
     { signal },
   );
+  after.addEventListener("change", update, { signal });
   approval.addEventListener("change", edited, { signal });
   reload.addEventListener(
     "click",
@@ -810,6 +987,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
     { signal },
   );
   inspect.addEventListener("click", inspectOriginal, { signal });
+  panel.addEventListener("toggle", update, { signal });
   retry.addEventListener(
     "click",
     () => {
@@ -821,7 +999,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
     "click",
     () => {
       const { actorId, allowed } = getContext();
-      if (!actorId || !allowed || busy) return;
+      if (!actorId || !allowed || busy || !canInspectSaved()) return;
       readJournal(actorId);
       if (inspected?.kind !== "dismiss" || !remember(undefined, inspected.raw)) return;
       notice = "Pending lane change dismissed. Review the current settings before saving.";

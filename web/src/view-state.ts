@@ -1,16 +1,28 @@
 export type CardSelection = Readonly<{ id: string; ticket?: number } | { ticket: number }>;
 
+export type DeeperSearchState = Readonly<{
+  open: boolean;
+  query: string;
+  content: boolean;
+  order: "triage" | "ticket";
+  laneId: string;
+  limit: string;
+  archive: "active" | "include" | "only";
+  submitted: boolean;
+}>;
+
 export type BoardViewState = Readonly<{
   filter: string;
   selection: CardSelection | null;
   horizontalScroll: number;
   laneScroll: Readonly<Record<string, number>>;
   deeperSearch: string;
+  deeperSearchState?: DeeperSearchState;
 }>;
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const storagePrefix = "localswim:ui:board-view:";
-const maxDeeperSearchLength = 2048;
+export const maxDeeperSearchLength = 2048;
 
 function fields(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -39,8 +51,29 @@ function selection(value: unknown): CardSelection | null {
   return number === undefined ? null : { ticket: number };
 }
 
+function deeperSearchState(value: unknown): DeeperSearchState | undefined {
+  const { open, query, content, order, laneId, limit, archive, submitted } = fields(value);
+  if (
+    typeof open !== "boolean" ||
+    typeof query !== "string" ||
+    query.length > maxDeeperSearchLength ||
+    typeof content !== "boolean" ||
+    (order !== "triage" && order !== "ticket") ||
+    typeof laneId !== "string" ||
+    (laneId !== "" && !uuid.test(laneId)) ||
+    typeof limit !== "string" ||
+    limit.length > 32 ||
+    (archive !== "active" && archive !== "include" && archive !== "only") ||
+    typeof submitted !== "boolean"
+  ) {
+    return undefined;
+  }
+  return { open, query, content, order, laneId: laneId.toLowerCase(), limit, archive, submitted };
+}
+
 function decode(value: unknown): BoardViewState {
   const saved = fields(value);
+  const search = deeperSearchState(saved.deeperSearchState);
   const laneScroll: Record<string, number> = {};
   for (const [id, value] of Object.entries(fields(saved.laneScroll))) {
     const offset = scrollOffset(value);
@@ -55,6 +88,7 @@ function decode(value: unknown): BoardViewState {
       typeof saved.deeperSearch === "string" && saved.deeperSearch.length <= maxDeeperSearchLength
         ? saved.deeperSearch
         : "",
+    ...(search ? { deeperSearchState: search } : {}),
   };
 }
 

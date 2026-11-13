@@ -1,4 +1,4 @@
-import { ApiError, type RelationshipKind } from "../api.mjs";
+import { ApiError, MAX_ATTACHMENT_BYTES, type RelationshipKind } from "../api.mjs";
 import type { AppContext } from "./model.js";
 import { createScopedOperations, submitOperation, type OperationStorage } from "./operations.js";
 import {
@@ -16,10 +16,20 @@ import {
   textareaText,
   type InputChange,
 } from "./text-input.js";
+import { MAX_UPLOAD_FILES, revisionTag, validUploadName } from "./upload-recovery.js";
+import { pastedRasterFiles, type CreatedCardFiles } from "./uploads.js";
 
 type Choice = Readonly<{ id: string; label: string }>;
 type SeedDraft = Readonly<{ ticket: string; kind: RelationshipKind }>;
 type Seed = Readonly<{ target_card_id: string; kind: RelationshipKind }>;
+type ConfirmedCard = Readonly<{ cardId: string; ticket: number }>;
+export type CreateCardFileDraft = {
+  files: File[];
+  journal: string | null;
+  target?: ConfirmedCard;
+  reviewed?: boolean;
+  busy?: boolean;
+};
 
 export type CreateCardContext = Readonly<{
   etag: string;
@@ -44,6 +54,11 @@ type CreateCardOptions = AppContext &
     beginWrite?: (relatedCardIds?: readonly string[]) => (() => void) | null;
     beginInspection?: () => (() => void) | null;
     storage?: OperationStorage;
+    stagedFiles?: Map<string, CreateCardFileDraft>;
+    attachments?: Readonly<{
+      canStage: () => boolean;
+      upload: (files: CreatedCardFiles) => Promise<boolean>;
+    }>;
   }>;
 
 type Draft = Readonly<{
@@ -247,8 +262,28 @@ function seedTargetIds(seeds: readonly Seed[] | undefined) {
     : undefined;
 }
 
+function uploadValidator(
+  cardId: string,
+  minimumRevision: number,
+  data: object,
+  tag: string | null,
+) {
+  if (
+    record(data) &&
+    data.archived === false &&
+    typeof data.revision === "number" &&
+    Number.isSafeInteger(data.revision) &&
+    data.revision >= minimumRevision &&
+    tag === revisionTag(cardId, data.revision)
+  ) {
+    return tag;
+  }
+  return null;
+}
+
 export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
-  const { api, boardId, context } = options;
+  const { api, boardId, context, attachments } = options;
+  const stagedFiles = options.stagedFiles ?? new Map<string, CreateCardFileDraft>();
   const doc = host.ownerDocument;
   const lifetime = new AbortController();
   const signal = AbortSignal.any([lifetime.signal, options.signal]);
@@ -267,6 +302,8 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   let message = "";
   let composing = false;
   let superseded = false;
+  let fileNotice = "";
+  let readyFiles: { staged: CreateCardFileDraft; tag: string } | undefined;
   const resetTextInputs: (() => void)[] = [];
   function loadStoredDraft() {
     if (operations.state(key) || hasUnstoredChanges) return;
@@ -357,16 +394,42 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   relationships.append(relationshipLegend, seedRows, addSeed, tickets);
   const seedControls: ReturnType<typeof createSeedRow>[] = [];
   let previousTargets: CreateCardContext["relationshipTargets"];
+  const fileFields = doc.createElement("fieldset");
+  fileFields.className = "create-card-attachments";
+  const fileLegend = doc.createElement("legend");
+  fileLegend.textContent = "Attachments";
+  const picker = doc.createElement("input");
+  picker.type = "file";
+  picker.multiple = true;
+  const fileLabel = field("Files to stage", picker);
+  const fileList = doc.createElement("ul");
+  fileList.className = "create-card-attachment-list";
+  const fileStatus = doc.createElement("p");
+  fileStatus.className = "create-card-attachment-status";
+  fileStatus.setAttribute("role", "status");
+  fileFields.append(fileLegend, fileLabel, fileList, fileStatus);
+  const fileHandoff = doc.createElement("div");
+  fileHandoff.className = "create-card-file-handoff";
+  const reviewOriginal = button("Review created card");
+  const uploadRemaining = button("Attach staged files");
+  const discardStaged = button("Discard staged files");
+  const handoffStatus = doc.createElement("p");
+  handoffStatus.className = "create-card-attachment-status";
+  handoffStatus.setAttribute("role", "status");
+  fileHandoff.append(handoffStatus, reviewOriginal, uploadRemaining, discardStaged);
+  let renderedFiles: readonly File[] | undefined;
+  let removeFiles: HTMLButtonElement[] = [];
   form.append(
     field("Title", title),
     field("Description", description),
     choices,
     relationships,
+    fileFields,
     status,
     actions,
   );
   dialog.append(heading, form);
-  host.append(dialog, recovery, recoveryStatus);
+  host.append(dialog, recovery, recoveryStatus, fileHandoff);
 
   function button(label: string) {
     const element = doc.createElement("button");
@@ -379,6 +442,100 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     const element = doc.createElement("label");
     element.append(label, input);
     return element;
+  }
+
+  function draftFiles() {
+    const staged = stagedFiles.get(boardId);
+    return staged?.journal === raw && !staged.target ? staged : undefined;
+  }
+
+  function canStageFiles() {
+    return (
+      pageActive() &&
+      dialog.open &&
+      Boolean(draft) &&
+      !draft?.submission &&
+      !operations.state(key) &&
+      (!stagedFiles.has(boardId) || draftFiles() !== undefined) &&
+      attachments?.canStage() === true
+    );
+  }
+
+  function stageFiles(files: readonly File[]) {
+    if (!canStageFiles() || !files.length) return;
+    const staged = draftFiles() ?? { files: [], journal: null };
+    if (files.length + staged.files.length > MAX_UPLOAD_FILES) {
+      fileNotice = `Stage at most ${MAX_UPLOAD_FILES} files.`;
+    } else if (
+      files.some((file) => file.size > MAX_ATTACHMENT_BYTES || !validUploadName(file.name))
+    ) {
+      fileNotice = "Files are limited to 10 MiB and names must contain 1 to 1024 characters.";
+    } else if (draft && persist(draft)) {
+      initialDraft = null;
+      staged.journal = raw;
+      staged.files = [...staged.files, ...files];
+      stagedFiles.set(boardId, staged);
+      fileNotice = "";
+    } else {
+      fileNotice = "Store the card draft before staging files.";
+    }
+    update();
+  }
+
+  function renderFiles(locked: boolean) {
+    const files = draftFiles()?.files;
+    const mayStage = canStageFiles();
+    fileFields.hidden = !mayStage && !files?.length;
+    fileLabel.hidden = !mayStage;
+    picker.disabled = !mayStage;
+    if (files !== renderedFiles) {
+      renderedFiles = files;
+      const rows = (files ?? []).map(({ name }, index) => {
+        const row = doc.createElement("li");
+        row.className = "create-card-attachment-row";
+        const filename = doc.createElement("span");
+        filename.textContent = name;
+        const remove = button("Remove");
+        remove.setAttribute("aria-label", `Remove staged file ${index + 1}: ${name}`);
+        remove.addEventListener(
+          "click",
+          () => {
+            const staged = draftFiles();
+            if (!staged || staged.files !== files || draft?.submission || operations.state(key))
+              return;
+            staged.files = staged.files.filter((_, i) => i !== index);
+            if (!staged.files.length) stagedFiles.delete(boardId);
+            fileNotice = "";
+            update();
+            (removeFiles[index] ?? removeFiles.at(-1) ?? (mayStage ? picker : title)).focus();
+          },
+          { signal },
+        );
+        row.append(filename, remove);
+        return { row, remove };
+      });
+      removeFiles = rows.map(({ remove }) => remove);
+      fileList.replaceChildren(...rows.map(({ row }) => row));
+    }
+    for (const remove of removeFiles) remove.disabled = locked;
+    fileStatus.textContent = fileNotice;
+  }
+
+  function renderFileHandoff() {
+    const staged = stagedFiles.get(boardId);
+    const target = staged?.target;
+    const orphaned = staged !== undefined && draftFiles() === undefined && !target;
+    fileHandoff.hidden = dialog.open || (!target && !orphaned);
+    if (fileHandoff.hidden || !staged) return;
+    handoffStatus.textContent = target
+      ? fileNotice || `${staged.files.length} staged files for card #${target.ticket}.`
+      : "The original creation journal changed. The staged files are still available to discard.";
+    reviewOriginal.hidden = !target;
+    reviewOriginal.textContent = target ? `Review card #${target.ticket}` : "Review created card";
+    reviewOriginal.disabled = staged.busy === true;
+    uploadRemaining.hidden = !target || !staged.reviewed;
+    uploadRemaining.disabled = staged.busy === true || attachments?.canStage() !== true;
+    discardStaged.disabled = staged.busy === true;
   }
 
   function createSeedRow(index: number) {
@@ -536,6 +693,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       return;
     }
     recovery.hidden = dialog.open || !draft?.submission;
+    renderFileHandoff();
     if (!dialog.open || !draft) return;
     const current = context();
     const active = operations.state(key);
@@ -551,8 +709,10 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     );
     lane.disabled = owner.disabled = priority.disabled = locked;
     renderSeeds(draft.seeds ?? [], current, locked);
+    renderFiles(locked);
     add.hidden = Boolean(draft.submission);
-    add.disabled = composing || !canCreate(draft, current);
+    const filesBlocked = Boolean(draftFiles()?.files.length && !attachments?.canStage());
+    add.disabled = composing || !canCreate(draft, current) || filesBlocked;
     cancel.disabled = composing;
     inspect.hidden = !draft.submission;
     inspect.disabled = Boolean(active);
@@ -572,10 +732,12 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           : message ||
             (draft.submission
               ? "The creation outcome is unknown. Inspect the original card to continue."
-              : canCreate(draft, current)
-                ? ""
-                : seedIssue(draft, current) ||
-                  "Creation is unavailable for the current selection.");
+              : filesBlocked
+                ? "Attachment access is unavailable. Remove the staged files to create the card now."
+                : canCreate(draft, current)
+                  ? ""
+                  : seedIssue(draft, current) ||
+                    "Creation is unavailable for the current selection.");
     if (status.textContent !== nextStatus) status.textContent = nextStatus;
   }
 
@@ -585,8 +747,10 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     >,
   ) {
     if (!dialog.open || !draft || draft.submission || operations.state(key)) return;
+    const staged = draftFiles();
     draft = { ...draft, ...fields };
     hasUnstoredChanges = !persist(draft);
+    if (staged) staged.journal = raw;
     message = hasUnstoredChanges
       ? "The draft could not be stored. Keep this page open to retain it."
       : "";
@@ -610,16 +774,20 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
 
   function finishOperation(release: (() => void) | undefined) {
     release?.();
+    const ready = readyFiles;
+    readyFiles = undefined;
     if (superseded) {
       superseded = false;
       if (!signal.aborted) close();
     }
     update();
+    if (ready) void handOffFiles(ready.staged, ready.tag).catch(reportActionError);
   }
 
   function resolveCreation(
     card: NonNullable<ReturnType<typeof identifyCard>>,
     matchesRelationships = true,
+    uploadTag: string | null = null,
   ) {
     const { id, ticket, matchesDraft } = card;
     const wasOpen = dialog.open;
@@ -630,10 +798,18 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
         ? "Its saved relationships differ from the submitted relationships."
         : "");
     const matches = matchesDraft && matchesRelationships;
+    const staged = draftFiles();
     absence = undefined;
     const expected = raw;
     const cleared = persist(null);
     if (cleared) {
+      if (staged) {
+        staged.target = { cardId: id, ticket };
+        fileNotice = "";
+        if (matches && uploadTag && wasOpen && pageActive()) {
+          readyFiles = { staged, tag: uploadTag };
+        }
+      }
       draft = null;
       if (!signal.aborted) {
         close();
@@ -649,6 +825,59 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
         : `${difference.trimEnd()} The stored draft could not be cleared.`;
     }
     if (pageActive()) options.onConfirmed(id, ticket, wasOpen && cleared);
+  }
+
+  async function handOffFiles(staged: CreateCardFileDraft, tag?: string) {
+    const target = staged.target;
+    if (
+      !attachments ||
+      !target ||
+      !pageActive() ||
+      staged.busy ||
+      stagedFiles.get(boardId) !== staged
+    )
+      return;
+    const { cardId, ticket } = target;
+    staged.busy = true;
+    fileNotice = `Preparing attachments for card #${ticket}…`;
+    update();
+    try {
+      if (tag === undefined) {
+        const { data, etag } = await options.readWithSession(
+          () => api.getCard(cardId, signal),
+          signal,
+        );
+        if (
+          !record(data) ||
+          data.id !== cardId ||
+          data.board_id !== boardId ||
+          data.ticket !== ticket
+        )
+          throw new TypeError("The read did not identify the original card.");
+        tag = uploadValidator(cardId, 1, data, etag) ?? undefined;
+      }
+      if (!pageActive()) return;
+      const transferred =
+        tag &&
+        (await attachments.upload({
+          cardId,
+          etag: tag,
+          files: staged.files,
+          signal,
+          onTransfer() {
+            if (stagedFiles.get(boardId) === staged) stagedFiles.delete(boardId);
+            fileNotice = "";
+            update();
+          },
+        }));
+      if (!transferred)
+        fileNotice = `Attachments are still staged for card #${ticket}. Review the card to continue.`;
+    } catch {
+      fileNotice = `Could not verify card #${ticket}. Its files are still staged.`;
+    } finally {
+      staged.busy = false;
+      update();
+    }
   }
 
   function createOriginal({ title, description, laneId, submission }: SubmittedDraft) {
@@ -680,9 +909,17 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       return "superseded";
     }
     if (result.kind === "confirmed") {
-      const card = identifyCard(boardId, submitted, result.result.data);
+      const { data, etag, boardEtag } = result.result;
+      const card = identifyCard(boardId, submitted, data);
       if (card?.matchesDraft) {
-        resolveCreation(card);
+        const base = boardRevision(boardId, submitted.submission.etag);
+        const tag =
+          base !== null &&
+          boardEtag === revisionTag(boardId, base + 1) &&
+          etag === revisionTag(card.id, base + 1)
+            ? uploadValidator(card.id, base + 1, data, etag)
+            : null;
+        resolveCreation(card, true, tag);
         return "created";
       }
       return "unknown";
@@ -754,6 +991,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       draft.submission ||
       composing ||
       operations.state(key) ||
+      (!!draftFiles()?.files.length && !attachments?.canStage()) ||
       !canCreate(draft, current)
     )
       return;
@@ -820,7 +1058,9 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
         }
         const submitted = { ...previous, submission };
         const result = await submitOriginal(submitted, () => {
+          const staged = draftFiles();
           if (!persist(submitted)) return false;
+          if (staged) staged.journal = raw;
           draft = submitted;
           update();
           return true;
@@ -834,7 +1074,9 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
             staleEtag: result === "stale" ? submission.etag : previous.staleEtag,
           };
           const dispatched = raw;
+          const staged = draftFiles();
           if (persist(retained)) {
+            if (staged) staged.journal = raw;
             draft = retained;
             message =
               result === "stale"
@@ -908,7 +1150,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           const found = await readCard();
           if (!stillOwnsInspection()) return;
           if (found) {
-            await recoverCard(submitted, found.data, stillOwnsInspection);
+            await recoverCard(submitted, found, stillOwnsInspection);
             return;
           }
 
@@ -930,7 +1172,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           const absentAtVersion = await readCard();
           if (!stillOwnsInspection()) return;
           if (absentAtVersion) {
-            await recoverCard(submitted, absentAtVersion.data, stillOwnsInspection);
+            await recoverCard(submitted, absentAtVersion, stillOwnsInspection);
             return;
           }
           const after = await readBoard();
@@ -955,7 +1197,11 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     );
   }
 
-  async function recoverCard(submitted: Draft, data: object, stillOwnsInspection: () => boolean) {
+  async function recoverCard(
+    submitted: Draft,
+    { data, etag }: Awaited<ReturnType<AppContext["api"]["getCard"]>>,
+    stillOwnsInspection: () => boolean,
+  ) {
     const card = identifyCard(boardId, submitted, data);
     // A focused read identifies the original even after another actor changes its fields.
     if (!card) {
@@ -963,15 +1209,20 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       return;
     }
     const seeds = submitted.submission?.seeds ?? [];
+    const base = boardRevision(boardId, submitted.submission?.etag ?? "");
     if (!seeds.length) {
-      resolveCreation(card);
+      resolveCreation(
+        card,
+        true,
+        base === null ? null : uploadValidator(card.id, base + 1, data, etag),
+      );
       return;
     }
     const readBoard = () =>
       options.readWithSession(() => api.getBoardAvailability(boardId, signal), signal);
     const before = await readBoard();
     if (!stillOwnsInspection()) return;
-    const { data: current } = await options.readWithSession(
+    const { data: current, etag: currentTag } = await options.readWithSession(
       () => api.getCard(card.id, signal),
       signal,
     );
@@ -988,7 +1239,6 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     if (!stillOwnsInspection()) return;
     const checked = identifyCard(boardId, submitted, current);
     const revision = record(current) ? current.revision : undefined;
-    const base = boardRevision(boardId, submitted.submission?.etag ?? "");
     if (
       !checked ||
       typeof revision !== "number" ||
@@ -1012,7 +1262,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
         if (source_card_id === card.id) return expected.delete(seedKey(target_card_id, kind));
         return kind === "relates_to" && expected.delete(seedKey(source_card_id, kind));
       });
-    resolveCreation(checked, matches);
+    resolveCreation(checked, matches, uploadValidator(card.id, base + 1, current, currentTag));
   }
 
   async function retryCreation() {
@@ -1048,7 +1298,9 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       async () => {
         update();
         const result = await submitOriginal(submitted, () => {
+          const staged = draftFiles();
           if (!persist(submitted)) return false;
+          if (staged) staged.journal = raw;
           draft = submitted;
           return true;
         });
@@ -1081,7 +1333,9 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       return;
     const retained = { ...draft, submission: undefined };
     const inspected = raw;
+    const staged = draftFiles();
     if (persist(retained)) {
+      if (staged) staged.journal = raw;
       draft = retained;
       absence = undefined;
       message = "Unresolved creation dismissed. Your draft is still available.";
@@ -1096,6 +1350,56 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   }
 
   form.addEventListener("submit", (event) => event.preventDefault(), { signal });
+  picker.addEventListener(
+    "change",
+    () => {
+      stageFiles([...(picker.files ?? [])]);
+      picker.value = "";
+    },
+    { signal },
+  );
+  dialog.addEventListener(
+    "paste",
+    (event) => {
+      if (!canStageFiles()) return;
+      const files = pastedRasterFiles(event);
+      if (!files.length) return;
+      event.preventDefault();
+      stageFiles(files);
+    },
+    { signal },
+  );
+  reviewOriginal.addEventListener(
+    "click",
+    () => {
+      const staged = stagedFiles.get(boardId);
+      if (!pageActive() || !staged?.target || staged.busy) return;
+      staged.reviewed = true;
+      fileNotice = "";
+      options.onConfirmed(staged.target.cardId, staged.target.ticket, true);
+      update();
+    },
+    { signal },
+  );
+  uploadRemaining.addEventListener(
+    "click",
+    () => {
+      const staged = stagedFiles.get(boardId);
+      if (staged?.reviewed) void handOffFiles(staged).catch(reportActionError);
+    },
+    { signal },
+  );
+  discardStaged.addEventListener(
+    "click",
+    () => {
+      const staged = stagedFiles.get(boardId);
+      if (!staged || staged.busy || draftFiles() !== undefined) return;
+      stagedFiles.delete(boardId);
+      fileNotice = "";
+      update();
+    },
+    { signal },
+  );
   add.addEventListener("click", () => void submit().catch(reportActionError), { signal });
   inspect.addEventListener("click", () => void inspectCreation().catch(reportActionError), {
     signal,
@@ -1271,6 +1575,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       dialog.remove();
       recovery.remove();
       recoveryStatus.remove();
+      fileHandoff.remove();
     },
   };
 }

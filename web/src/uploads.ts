@@ -24,6 +24,14 @@ type UploadContext = Readonly<{
   editable: boolean;
 }>;
 
+export type CreatedCardFiles = Readonly<{
+  cardId: string;
+  etag: string;
+  files: readonly File[];
+  signal: AbortSignal;
+  onTransfer: () => void;
+}>;
+
 type UploadOptions = AppContext &
   Readonly<{
     boardId: string;
@@ -49,6 +57,20 @@ const waiting = "Waiting.";
 const inspectNotice = "Inspect the saved upload before changing this card.";
 const resumeNotice =
   "Reselect the remaining files to resume this batch, or discard the remaining uploads.";
+
+export function pastedRasterFiles(event: ClipboardEvent) {
+  const clipboard = event.clipboardData;
+  if (
+    !clipboard ||
+    event.defaultPrevented ||
+    (clipboard.types.includes("text/plain") &&
+      event.target instanceof Element &&
+      event.target.closest("input, textarea, [contenteditable]"))
+  ) {
+    return [];
+  }
+  return [...clipboard.files].filter((file) => rasterTypes.has(file.type.toLowerCase()));
+}
 
 function proveAttachment(
   reply: { data: object; etag: string | null },
@@ -171,7 +193,12 @@ export function mountUploads(
     );
   }
 
-  async function readCardTag(cardId: string, revision: number, readSignal: AbortSignal) {
+  async function readCardTag(
+    cardId: string,
+    revision: number,
+    readSignal: AbortSignal,
+    requireActive = false,
+  ) {
     const reply = await readWithSession(() => api.getCard(cardId, readSignal), readSignal);
     readSignal.throwIfAborted();
     const { data, etag } = reply;
@@ -182,6 +209,7 @@ export function mountUploads(
       data.id !== cardId ||
       data.board_id !== boardId ||
       data.revision !== revision ||
+      (requireActive && data.archived !== false) ||
       etag !== revisionTag(cardId, revision)
     ) {
       throw new TypeError("The saved card changed during upload.");
@@ -191,8 +219,10 @@ export function mountUploads(
 
   async function submit(
     context: UploadContext,
-    files: File[],
+    files: readonly File[],
     saved?: { raw: string; journal: UploadJournal },
+    onCreatedTransfer?: () => void,
+    batchSignal = signal,
   ) {
     const { cardId } = context;
     if (!writable(context) || batches.get(cardId)?.busy) return;
@@ -239,7 +269,7 @@ export function mountUploads(
         }
       } else {
         for (const file of files) {
-          signal.throwIfAborted();
+          batchSignal.throwIfAborted();
           const result: Batch["results"][number] = { name: file.name, outcome: waiting };
           batch.results.push(result);
           if (file.size > MAX_ATTACHMENT_BYTES) {
@@ -254,15 +284,18 @@ export function mountUploads(
         }
       }
       let remaining = pending.map(({ original }) => original);
-      if (!saved && remaining.length)
+      batchSignal.throwIfAborted();
+      if (!saved && remaining.length) {
         raw = recovery.save(cardId, null, { remaining, expected: null });
+        onCreatedTransfer?.();
+      }
       batch.notice = "";
       for (const [index, { file, result, original }] of pending.entries()) {
-        signal.throwIfAborted();
+        batchSignal.throwIfAborted();
         const firstResume = saved && index === 0;
-        const readSignal = firstResume ? resumeSignal : signal;
+        const readSignal = firstResume ? resumeSignal : batchSignal;
         if (firstResume || index > 0) {
-          expected = await readCardTag(cardId, revision, readSignal);
+          expected = await readCardTag(cardId, revision, readSignal, !!onCreatedTransfer);
           if (awaitUploadAdmission && !(await awaitUploadAdmission(readSignal, revision))) {
             batch.notice = "Upload stopped because write access could not be confirmed.";
             break;
@@ -289,7 +322,7 @@ export function mountUploads(
             break;
           }
           result.outcome = error.status === 412 ? "Refused. The card changed." : "Upload refused.";
-          if (![400, 413, 415, 422].includes(error.status ?? 0)) {
+          if (onCreatedTransfer || ![400, 413, 415, 422].includes(error.status ?? 0)) {
             raw = recovery.save(cardId, raw, { remaining, expected: null });
             keepAttempt = false;
             batch.notice = "Review the saved card before resuming the remaining uploads.";
@@ -315,6 +348,44 @@ export function mountUploads(
       if (refresh) onChange();
       render();
     }
+  }
+
+  async function submitCreated(created: CreatedCardFiles) {
+    if (
+      !awaitUploadAdmission ||
+      !created.files.length ||
+      created.files.length > MAX_UPLOAD_FILES ||
+      created.files.some((file) => file.size > MAX_ATTACHMENT_BYTES || !validUploadName(file.name))
+    ) {
+      return false;
+    }
+    const { cardId, etag, files } = created;
+    const batchSignal = AbortSignal.any([signal, created.signal]);
+    let transferred = false;
+    try {
+      const revision = revisionOf(cardId, etag);
+      if (
+        !(await awaitUploadAdmission(batchSignal, revision)) ||
+        batchSignal.aborted ||
+        !canUpload()
+      )
+        return false;
+      await readCardTag(cardId, revision, batchSignal, true);
+      if (recovery.read(cardId) !== null) return false;
+      await submit(
+        { cardId, etag, readable: true, editable: true },
+        files,
+        undefined,
+        () => {
+          transferred = true;
+          created.onTransfer();
+        },
+        batchSignal,
+      );
+    } catch {
+      return transferred;
+    }
+    return transferred;
   }
 
   async function inspectOriginal(context: UploadContext) {
@@ -449,24 +520,15 @@ export function mountUploads(
   pasteTarget.addEventListener(
     "paste",
     (event) => {
-      const clipboard = event.clipboardData;
       if (
         !current ||
         !writable(current) ||
         recovery.read(current.cardId) !== null ||
-        !clipboard ||
-        event.defaultPrevented
+        batches.get(current.cardId)?.busy
       )
         return;
-      if (
-        event.target instanceof Element &&
-        event.target.closest("input, textarea, [contenteditable]") &&
-        clipboard.types.includes("text/plain")
-      ) {
-        return;
-      }
-      const files = [...clipboard.files].filter((file) => rasterTypes.has(file.type.toLowerCase()));
-      if (!files.length || batches.get(current.cardId)?.busy) return;
+      const files = pastedRasterFiles(event);
+      if (!files.length) return;
       event.preventDefault();
       run(submit(current, files));
     },
@@ -487,6 +549,7 @@ export function mountUploads(
       render();
     },
     blocksCard,
+    submitCreated,
     dispose() {
       lifetime.abort();
     },

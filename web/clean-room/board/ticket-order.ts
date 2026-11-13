@@ -401,7 +401,7 @@ export function openTicketOrder(
       busy = false;
       if (!signal.aborted) {
         update();
-        if (document.activeElement === refresh) refresh.scrollIntoView({ block: "nearest" });
+        if (document.activeElement === refresh) dialog.scrollTop = dialog.scrollHeight;
       }
     }
   }

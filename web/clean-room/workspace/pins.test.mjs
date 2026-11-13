@@ -100,7 +100,7 @@ class FakeElement extends EventTarget {
   }
 }
 
-/** @param {import("node:test").TestContext} context @param {"refused" | "committed" | "unknown" | "superseded" | "live-before-read" | "live-during-read"} disposition */
+/** @param {import("node:test").TestContext} context @param {"success" | "refused" | "committed" | "unknown" | "superseded" | "live-before-read" | "live-during-read"} disposition */
 async function runSave(context, disposition) {
   const { mountPins } = await adapter(disposition);
   const pin = Object.assign(new FakeElement(), { dataset: { pinAction: second } });
@@ -151,9 +151,12 @@ async function runSave(context, disposition) {
     assert.equal(options.headers.get("If-Match"), originalTag);
     assert.ok(typeof options.body === "string");
     patch = JSON.parse(options.body);
-    if (disposition !== "refused") throw new Error("response lost");
     const requestId = options.headers.get("X-Request-ID");
     assert.ok(requestId);
+    if (disposition === "success") {
+      return Response.json(saved, { headers: { ETag: nextTag, "X-Request-ID": requestId } });
+    }
+    if (disposition !== "refused") throw new Error("response lost");
     return Response.json(
       {
         type: "about:blank",
@@ -208,14 +211,18 @@ async function runSave(context, disposition) {
   clickPin();
   assert.deepEqual(
     rows.filter(({ pinned }) => pinned).map(({ summary }) => summary.id),
-    [first, second],
+    [first],
   );
+  assert.equal(status.children[0]?.textContent, "Saving pinned boards…");
   await new Promise((resolve) => {
     setImmediate(resolve);
   });
   assert.deepEqual(patch, { pinned_board_ids: [first, second] });
-  assert.deepEqual(calls, disposition === "live-before-read" ? ["PATCH"] : ["PATCH", "GET"]);
-  const matched = disposition === "committed" || didPublish;
+  assert.deepEqual(
+    calls,
+    disposition === "success" || disposition === "live-before-read" ? ["PATCH"] : ["PATCH", "GET"],
+  );
+  const matched = disposition === "success" || disposition === "committed" || didPublish;
   assert.deepEqual(
     rows.filter(({ pinned }) => pinned).map(({ summary }) => summary.id),
     matched ? [first, second] : disposition === "superseded" ? [third] : [first],
@@ -229,10 +236,14 @@ async function runSave(context, disposition) {
     assert.deepEqual(calls, ["PATCH", "GET"]);
   }
   const feedback = status.children[0]?.textContent;
-  if (matched) assert.equal(feedback, "Current pinned order matches the requested order.");
+  if (disposition === "success") assert.equal(feedback, "Pinned boards saved.");
+  else if (matched) assert.equal(feedback, "Current pinned order matches the requested order.");
   else assert.match(feedback ?? "", /Requested change: Second board pinned at position 2\./u);
   component.dispose();
 }
+
+void test("pins keep the confirmed order until the successful write response", (context) =>
+  runSave(context, "success"));
 
 for (const disposition of /** @type {const} */ ([
   "refused",

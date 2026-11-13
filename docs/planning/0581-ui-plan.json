@@ -271,7 +271,7 @@
       "dependencies": [
         "R06"
       ],
-      "scope_and_acceptance": "Match V1 Human approval control and its keyboard/focus/feedback states. Verify Completed lane, fixed approval comment, Human attribution and receipt. Inject one lost approval response and prove one commit by receipt/state inspection before retry.",
+      "scope_and_acceptance": "Begin closing the tray on click. Keep the card in its original lane until the atomic approval succeeds, then animate it into Completed. Verify keyboard focus, refusal feedback, fixed approval comment, Human attribution and receipt. Inject one lost approval response and prove one commit by receipt inspection before retry.",
       "author_model": "gpt-6.1-sol",
       "author_reasoning": "medium",
       "technical_reviewer_model": "gpt-6.1-sol",
@@ -2861,7 +2861,7 @@
             "R02"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Candidate review after paired pin and live recovery verification"
+          "missing_input": "Candidate review after paired pin, recovery and delayed confirmation verification"
         },
         {
           "ticket": 586,
@@ -2967,7 +2967,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Matched pointer drag refusal/focus and live stale refusal evidence"
+          "missing_input": "Matched forbidden pointer drop and focus/scroll evidence"
         },
         {
           "ticket": 590,
@@ -2990,7 +2990,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Candidate review after paired partial-filter approval verification"
+          "missing_input": "Candidate review after paired partial-filter approval and delayed confirmation verification"
         },
         {
           "ticket": 591,
@@ -3013,7 +3013,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Ticket-order stale refusal and Completed scope evidence"
+          "missing_input": "Ticket-order Completed scope evidence if enabled"
         },
         {
           "ticket": 592,
@@ -3067,7 +3067,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Matched V1 reconnect and actor cues plus candidate review"
+          "missing_input": "Paired Human cue, visual recheck and candidate review after confirmed Bot move replay"
         }
       ],
       "visual_reviewer": {

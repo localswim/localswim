@@ -118,6 +118,7 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
   let configuredCss = "";
   let stylesLoaded = false;
   const lanes = new Map<Uuid, LaneElements>();
+  const moveReplays = new Set<Animation>();
   const focusTargets = new WeakMap<HTMLElement, FocusTarget>();
   const lifetime = new AbortController();
   const listeners = { signal: lifetime.signal };
@@ -142,8 +143,11 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
   unavailable.append(unavailableTitle, unavailableText, retry);
   const viewport = element("div", "lsw-board-viewport");
   const track = element("div", "lsw-board-lanes");
+  const replayLayer = element("div", "lsw-board-replay-layer");
+  replayLayer.setAttribute("aria-hidden", "true");
+  replayLayer.inert = true;
   viewport.append(track);
-  root.append(loading, unavailable, viewport);
+  root.append(loading, unavailable, viewport, replayLayer);
   shadow.append(baseline, root);
   const movement = bindBoardMoves(root, {
     data: null,
@@ -334,6 +338,10 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
       nodes.create.title = `Add card to ${lane.label}`;
       nodes.create.setAttribute("aria-label", nodes.create.title);
       nodes.reorder.hidden = !canReorder || !lane.reorder_enabled;
+      nodes.reorder.classList.toggle(
+        "lsw-board-reorder-filtered",
+        props.route.search.trim() !== "",
+      );
       const reorderButton = nodes.reorder.querySelector("button");
       reorderButton?.setAttribute(
         "aria-disabled",
@@ -372,6 +380,7 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
   }
 
   function reportScroll(): void {
+    stopMoveReplays();
     if (viewport.hidden || !stylesLoaded) return;
     const scroll: BoardScroll = {
       board: position(viewport),
@@ -470,6 +479,65 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     shadow.adoptedStyleSheets = css === "" ? [] : [boardStyles];
   }
 
+  function stopMoveReplays(): void {
+    for (const animation of moveReplays) animation.cancel();
+    moveReplays.clear();
+    replayLayer.replaceChildren();
+  }
+
+  function visibleCardBounds(card: CardDto): DOMRect | null {
+    const lane = lanes.get(card.lane_id);
+    const node = lane?.cards.get(card.id)?.button;
+    if (!node || !lane) return null;
+    const bounds = node.getBoundingClientRect();
+    const clip = lane.list.getBoundingClientRect();
+    const frame = viewport.getBoundingClientRect();
+    return bounds.right > Math.max(clip.left, frame.left) &&
+      bounds.left < Math.min(clip.right, frame.right) &&
+      bounds.bottom > Math.max(clip.top, frame.top) &&
+      bounds.top < Math.min(clip.bottom, frame.bottom)
+      ? bounds
+      : null;
+  }
+
+  function replayMove(card: CardDto, from: DOMRect): void {
+    const destination = lanes.get(card.lane_id)?.cards.get(card.id)?.button;
+    const to = visibleCardBounds(card);
+    if (
+      !destination ||
+      shadow.activeElement === destination ||
+      !to ||
+      Math.hypot(to.left - from.left, to.top - from.top) < 1
+    )
+      return;
+    const ghost = destination.cloneNode(true);
+    if (!(ghost instanceof HTMLButtonElement)) return;
+    ghost.removeAttribute("data-card-id");
+    ghost.classList.add("lsw-board-replay-card");
+    const frame = replayLayer.getBoundingClientRect();
+    ghost.style.left = `${from.left - frame.left}px`;
+    ghost.style.top = `${from.top - frame.top}px`;
+    ghost.style.width = `${from.width}px`;
+    replayLayer.append(ghost);
+    const movement = ghost.animate(
+      [
+        { transform: "translate(0, 0)" },
+        { transform: `translate(${to.left - from.left}px, ${to.top - from.top}px)` },
+      ],
+      { duration: 430, easing: "cubic-bezier(.25, .75, .28, 1)" },
+    );
+    const hideDestination = destination.animate([{ opacity: 0 }, { opacity: 0 }], 430);
+    moveReplays.add(movement);
+    moveReplays.add(hideDestination);
+    const finish = () => {
+      moveReplays.delete(movement);
+      moveReplays.delete(hideDestination);
+      hideDestination.cancel();
+      ghost.remove();
+    };
+    void movement.finished.then(finish, finish);
+  }
+
   function update(next: BoardProps): void {
     const active = shadow.activeElement;
     const ownedFocus = active instanceof HTMLElement ? focusTargets.get(active) : undefined;
@@ -480,6 +548,33 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     }
     const previousScroll = props.scroll;
     const previouslyVisible = !viewport.hidden;
+    const previous = retainedData(props);
+    const incoming = next.data.status === "ready" ? next.data.current.value : null;
+    const moved: { card: CardDto; from: DOMRect }[] = [];
+    if (
+      props.route.search !== next.route.search ||
+      props.route.showCompleted !== next.route.showCompleted
+    )
+      stopMoveReplays();
+    if (incoming !== null && incoming.view.board.revision !== previous?.view.board.revision)
+      stopMoveReplays();
+    if (
+      stylesLoaded &&
+      previouslyVisible &&
+      previous !== null &&
+      incoming !== null &&
+      incoming.view.board.revision === next.liveMoveRevision &&
+      incoming.view.board.revision > previous.view.board.revision &&
+      !matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      const before = new Map(previous.view.cards.map((card) => [card.id, card]));
+      for (const card of incoming.view.cards) {
+        const original = before.get(card.id);
+        if (original === undefined || original.lane_id === card.lane_id) continue;
+        const from = visibleCardBounds(original);
+        if (from !== null) moved.push({ card, from });
+      }
+    }
     props = next;
     const data = retainedData(next);
     if (stylesLoaded) applyBoardStyles();
@@ -517,9 +612,13 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
       pendingFocus = ownedFocus;
     }
     restoreFocus();
+    for (const { card, from } of moved) replayMove(card, from);
   }
 
   viewport.hidden = true;
+  shadow.addEventListener("focusin", stopMoveReplays, listeners);
+  const replayResize = new ResizeObserver(stopMoveReplays);
+  replayResize.observe(viewport);
   host.append(surface);
   update(initialProps);
   return {
@@ -527,6 +626,8 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     dispose() {
       lifetime.abort();
       movement.dispose();
+      replayResize.disconnect();
+      stopMoveReplays();
       shadow.adoptedStyleSheets = [];
       surface.remove();
     },

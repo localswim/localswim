@@ -324,7 +324,13 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
     if (retainedFocus?.isConnected && document.activeElement !== retainedFocus) {
       retainedFocus.focus({ preventScroll: true });
     }
-    statusPresenter.update({ connection, buildId: service?.build_id ?? null, lastCardEdit, title });
+    statusPresenter.update({
+      connection,
+      refreshing: props.refreshing ?? false,
+      buildId: service?.build_id ?? null,
+      lastCardEdit,
+      title,
+    });
     const actor =
       selectedView?.last_card_edit_at === lastCardEdit &&
       props.lastActorAt === lastCardEdit &&

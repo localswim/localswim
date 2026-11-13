@@ -430,7 +430,7 @@ export const mountDrawer: MountComponent<DrawerProps> = (host, initialProps) => 
     owner.style.color = ownerDisplay.color;
     descriptionText.replaceChildren();
     if (card.description === "") descriptionText.append(element("p", "empty", "No description."));
-    else renderProse(descriptionText, card.description);
+    else descriptionText.textContent = card.description;
     attachmentEmpty.textContent =
       card.attachment_count === 0
         ? "No attachments."

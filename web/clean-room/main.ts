@@ -89,6 +89,8 @@ function start(host: HTMLElement): void {
   let boardRead: AbortController | undefined;
   let mounted: ReturnType<typeof mountWorkspace> | undefined;
   let connection: LiveConnection = "connecting";
+  let liveRefreshSignal: AbortSignal | null = null;
+  let liveMoveRevision: number | undefined;
   let lastActor: ActorKind | null = null;
   let lastActorAt: string | null = null;
   let boardReadEpoch = 0;
@@ -97,6 +99,7 @@ function start(host: HTMLElement): void {
   let identityReadEpoch = 0;
   let minimumWorkspaceRevision = 0;
   const minimumBoardRevisions = new Map<Uuid, number>();
+  const approvedRevisions = new Map<Uuid, number>();
   let searchRead: AbortController | undefined;
   let drawerRead: AbortController | undefined;
   let drawerData: ReadState<DrawerData> = { status: "loading", previous: null };
@@ -149,11 +152,18 @@ function start(host: HTMLElement): void {
     },
   });
   const approval = createLaneApproval(overlay, {
+    selectedBoard: () => (route.kind === "board" ? route.boardId : null),
     current: () => {
       const data = currentBoard();
       return data !== null && session !== null ? { data, session } : null;
     },
-    refresh: refreshSelected,
+    refresh: (id, approvedRevision) => {
+      if (!isSelected(id)) return;
+      if (approvedRevision !== undefined) {
+        approvedRevisions.set(id, Math.max(approvedRevision, approvedRevisions.get(id) ?? 0));
+      }
+      void refreshBoard(id);
+    },
     onStateChange: render,
   });
 
@@ -230,6 +240,7 @@ function start(host: HTMLElement): void {
           : undefined;
       if (state.searchConfirmed) searchFound = projection?.found;
       selectedBoard = {
+        liveMoveRevision,
         boardName: last(workspace)?.value.boards.find((item) => item.id === id)?.name ?? undefined,
         data: board,
         session,
@@ -266,6 +277,9 @@ function start(host: HTMLElement): void {
       route,
       selectedBoard,
       connection,
+      refreshing:
+        liveRefreshSignal?.aborted === false ||
+        (board.status === "loading" && last(board) !== null),
       lastActor,
       lastActorAt,
       searchFound,
@@ -423,6 +437,7 @@ function start(host: HTMLElement): void {
           current.boardEtag !== data.boardEtag ||
           epoch !== boardReadEpoch ||
           board.status !== "ready" ||
+          approval.awaitsConfirmation(boardId) ||
           (state.confirmed?.value.view.board.revision ?? 0) > current.view.board.revision
         ) {
           drawerData = { status: "unavailable", previous, failure: { kind: "invalid_response" } };
@@ -430,6 +445,8 @@ function start(host: HTMLElement): void {
           return;
         }
         refreshSearch = state.search !== "";
+        lastActor = null;
+        lastActorAt = null;
         state.confirmed = confirmed(current);
         board = { status: "ready", current: state.confirmed };
       }
@@ -780,6 +797,18 @@ function start(host: HTMLElement): void {
   checkCreate.addEventListener("click", () => {
     void inspectCreate();
   });
+  function applyApprovalReplay(id: Uuid, value: BoardData): void {
+    const approved = approvedRevisions.get(id);
+    const { revision, last_card_edit_at: at } = value.view.board;
+    if (approved === undefined || revision < approved) return;
+    approvedRevisions.delete(id);
+    liveMoveRevision = revision;
+    if (revision === approved) {
+      lastActor = "human";
+      lastActorAt = at;
+    }
+  }
+
   async function refreshBoard(id: Uuid): Promise<void> {
     boardRead?.abort();
     const attempt = new AbortController();
@@ -791,6 +820,7 @@ function start(host: HTMLElement): void {
     try {
       const value = await readBoard(id, attempt.signal);
       if (attempt.signal.aborted || epoch !== boardReadEpoch) return;
+      if (approval.awaitsConfirmation(id)) return;
       if (value.view.board.revision < (minimumBoardRevisions.get(id) ?? 0)) {
         live.retry();
         return;
@@ -800,8 +830,13 @@ function start(host: HTMLElement): void {
         render();
         return;
       }
+      if (state.confirmed?.value.view.board.revision !== value.view.board.revision) {
+        lastActor = null;
+        lastActorAt = null;
+      }
       state.confirmed = confirmed(value);
       board = { status: "ready", current: state.confirmed };
+      applyApprovalReplay(id, value);
       if (route.kind === "board" && route.boardId === id && state.search !== "") {
         changeSearch(state.search);
       }
@@ -843,6 +878,8 @@ function start(host: HTMLElement): void {
     const was = route.kind === "board" ? route.boardId : null;
     const nextId = next.kind === "board" ? next.boardId : null;
     if (was !== nextId) {
+      if (was !== null) approvedRevisions.delete(was);
+      liveMoveRevision = undefined;
       notice.textContent = "";
       clearTimeout(orderNoticeTimer);
       orderNotice.textContent = "";
@@ -864,6 +901,7 @@ function start(host: HTMLElement): void {
       ordering = undefined;
     }
     route = next;
+    approval.updateSelection();
     if (route.kind === "board" && workspace.status === "unavailable") {
       boardRead?.abort();
       board = {
@@ -1007,6 +1045,7 @@ function start(host: HTMLElement): void {
 
   async function refreshLive(request: LiveRefresh, signal: AbortSignal): Promise<boolean> {
     if (signal.aborted) return false;
+    liveRefreshSignal = signal;
     const selectedRequest = route.kind === "board" && request.boardId === route.boardId;
     const boardEpoch = selectedRequest ? ++boardReadEpoch : boardReadEpoch;
     const workspaceEpoch = request.workspace ? ++workspaceReadEpoch : workspaceReadEpoch;
@@ -1015,8 +1054,8 @@ function start(host: HTMLElement): void {
     const identityEpoch = readIdentity ? ++identityReadEpoch : identityReadEpoch;
     if (selectedRequest) {
       board = { status: "loading", previous: last(board) };
-      render();
     }
+    render();
     try {
       const [catalog, status, value, identity] = await Promise.all([
         request.workspace ? readWorkspace(signal) : Promise.resolve(null),
@@ -1056,10 +1095,14 @@ function start(host: HTMLElement): void {
           if (value.view.board.revision < (minimumBoardRevisions.get(route.boardId) ?? 0))
             return false;
           const previous = state.confirmed?.value;
-          if (!previous || value.view.board.revision >= previous.view.board.revision) {
+          if (
+            (!previous || value.view.board.revision >= previous.view.board.revision) &&
+            !approval.awaitsConfirmation(route.boardId)
+          ) {
             state.confirmed = confirmed(value);
             board = { status: "ready", current: state.confirmed };
             if (previous && previous.view.board.revision < value.view.board.revision) {
+              liveMoveRevision = value.view.board.revision;
               lastActor = null;
               lastActorAt = null;
               const writer = last(service)?.value.service_instance_id;
@@ -1082,6 +1125,7 @@ function start(host: HTMLElement): void {
                 );
               }
             }
+            applyApprovalReplay(route.boardId, value);
             if (
               drawerKey !== null &&
               last(drawerData)?.value.boardRevision !== value.view.board.revision
@@ -1125,10 +1169,14 @@ function start(host: HTMLElement): void {
           }
         }
       }
-      render();
       return true;
     } catch {
       return false;
+    } finally {
+      if (liveRefreshSignal === signal) {
+        liveRefreshSignal = null;
+        if (!signal.aborted) render();
+      }
     }
   }
 

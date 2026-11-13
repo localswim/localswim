@@ -103,7 +103,6 @@ export function mountPins({ search, list, status, render }: PinsOptions) {
   let ready = false;
   let saving = false;
   let needsCheck = false;
-  let optimistic: PinChange | null = null;
   let recovery: PinRecovery | null = null;
   let dragged: Uuid | null = null;
   let dropRow: HTMLElement | null = null;
@@ -187,8 +186,7 @@ export function mountPins({ search, list, status, render }: PinsOptions) {
     const change: PinChange = { base: confirmed, order, message };
     saving = true;
     recovery = null;
-    optimistic = change;
-    announcement.textContent = message;
+    announcement.textContent = "";
     show("Saving pinned boards…", false);
     function renderWithFocus(): void {
       const active = document.activeElement;
@@ -199,7 +197,6 @@ export function mountPins({ search, list, status, render }: PinsOptions) {
       renderWithFocus();
       const result = await commitPins(change, signal);
       if (signal.aborted) return;
-      optimistic = null;
       switch (result.outcome) {
         case "committed":
           receive(result.value);
@@ -208,6 +205,7 @@ export function mountPins({ search, list, status, render }: PinsOptions) {
             review(recovery, "Board pins changed. Review the current order and choose again.");
           } else {
             show("Pinned boards saved.", false);
+            announcement.textContent = message;
           }
           break;
         case "not_applied":
@@ -220,7 +218,6 @@ export function mountPins({ search, list, status, render }: PinsOptions) {
         }
       }
     } finally {
-      optimistic = null;
       if (!signal.aborted) {
         saving = false;
         renderWithFocus();
@@ -406,9 +403,7 @@ export function mountPins({ search, list, status, render }: PinsOptions) {
       search.disabled = value === undefined;
       displayed = projectPinBoards(
         value?.boards ?? [],
-        optimistic && confirmed?.workspaceEtag === optimistic.base.workspaceEtag
-          ? optimistic.order
-          : (confirmed?.workspace.pinned_board_ids ?? []),
+        confirmed?.workspace.pinned_board_ids ?? [],
         search.value,
         ready && !saving && !needsCheck,
       );

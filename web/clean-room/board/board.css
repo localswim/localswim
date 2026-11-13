@@ -180,7 +180,8 @@
   background: #898a8a;
 }
 
-.lsw-board-lane-reorder[aria-disabled="true"] {
+.lsw-board-lane-action:not(.lsw-board-reorder-filtered)
+  .lsw-board-lane-reorder[aria-disabled="true"] {
   opacity: 0.45;
 }
 
@@ -419,4 +420,17 @@
   .lsw-board-lane-action {
     padding: 3px 0 0 4px;
   }
+}
+.lsw-board-replay-layer {
+  position: fixed;
+  z-index: 4;
+  inset: 0;
+  overflow: clip;
+  pointer-events: none;
+}
+
+.lsw-board-replay-card {
+  position: absolute;
+  margin: 0;
+  box-shadow: 0 5px 15px rgb(24 36 54 / 25%);
 }

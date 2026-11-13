@@ -41,6 +41,7 @@ await test("lane approval checks exact active membership and recovers a lost res
   let writes = 0;
   let inspections = 0;
   let refreshes = 0;
+  let selected = data.view.board.id;
   /** @type {{ id: string; card_ids: string[] } | undefined} */
   let receipt;
   const status = { dataset: {}, textContent: "", setAttribute() {}, remove() {} };
@@ -155,6 +156,7 @@ await test("lane approval checks exact active membership and recovers a lost res
     /** @type {HTMLElement} */ (/** @type {unknown} */ ({ append() {} })),
     {
       current: () => ({ data: { ...data, view }, session }),
+      selectedBoard: () => selected,
       refresh: () => {
         refreshes += 1;
       },
@@ -169,19 +171,26 @@ await test("lane approval checks exact active membership and recovers a lost res
   controller.open(review.id);
   controller.open(review.id);
   assert.equal(controller.busy(review.id), true);
+  assert.equal(controller.awaitsConfirmation(data.view.board.id), true);
+  assert.equal(status.textContent, "Approving review cards…");
+  selected = "58300000-0000-4000-8000-000000000001";
+  controller.updateSelection();
+  assert.equal(status.textContent, "");
   await setImmediate();
   assert.equal(inspections, 1);
   assert.equal(controller.recoverable(review.id), true);
+  assert.equal(status.textContent, "");
+  selected = data.view.board.id;
   controller.open(review.id);
   await setImmediate();
   assert.equal(inspections, 2);
   assert.equal(controller.recoverable(review.id), true);
-  assert.equal(refreshes, 0);
+  assert.equal(refreshes, 1);
   controller.open(review.id);
   await setImmediate();
   assert.equal(inspections, 3);
   assert.equal(writes, 1);
-  assert.equal(refreshes, 1);
+  assert.equal(refreshes, 2);
   assert.equal(status.textContent, "Approved 2 review card(s), moving to Completed.");
 });
 
@@ -218,7 +227,12 @@ await test("lane approval skips dispatch when the confirmed board changes during
   t.mock.method(globalThis, "fetch", fetchMock);
   const controller = createLaneApproval(
     /** @type {HTMLElement} */ (/** @type {unknown} */ ({ append() {} })),
-    { current: () => current, refresh() {}, onStateChange() {} },
+    {
+      current: () => current,
+      selectedBoard: () => data.view.board.id,
+      refresh() {},
+      onStateChange() {},
+    },
   );
   t.after(() => {
     controller.dispose();

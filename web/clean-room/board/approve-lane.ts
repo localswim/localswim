@@ -32,7 +32,8 @@ interface ApprovalWork {
 
 interface ApprovalCallbacks {
   readonly current: () => ApprovalContext | null;
-  readonly refresh: () => void;
+  readonly selectedBoard: () => Uuid | null;
+  readonly refresh: (boardId: Uuid, approvedRevision?: number) => void;
   readonly onStateChange: () => void;
 }
 
@@ -287,7 +288,7 @@ function setStatus(work: ApprovalWork, status: ApprovalStatus, message = ""): vo
 }
 
 async function checkWork(work: ApprovalWork, intent: ApprovalIntent): Promise<void> {
-  setStatus(work, "checking");
+  setStatus(work, "checking", "Checking approval status…");
   if (await inspectApproval(intent)) {
     setStatus(work, "committed");
   } else {
@@ -361,25 +362,27 @@ export function createLaneApproval(host: HTMLElement | ShadowRoot, callbacks: Ap
   status.className = "lsw-approve-lane-status";
   status.setAttribute("role", "status");
   host.append(status);
-  let active: ApprovalWork | null = null;
+  let noticeBoard: Uuid | null = null;
   let hideStatus = 0;
   let disposed = false;
 
   function onChange(work: ApprovalWork): void {
-    if (active !== work && callbacks.current()?.data.view.board.id !== work.scope.lane.board_id)
-      return;
+    const id = work.scope.lane.board_id;
+    if (callbacks.selectedBoard() !== id) return;
     clearTimeout(hideStatus);
+    noticeBoard = id;
     status.dataset.outcome = work.status;
     status.textContent =
       work.status === "committed"
         ? `Approved ${work.scope.cards.length} review card(s), moving to Completed.`
         : work.message;
+    if (work.status === "committed" || work.status === "failed" || work.status === "unknown") {
+      callbacks.refresh(id, work.status === "committed" ? work.scope.boardRevision + 1 : undefined);
+    }
     if (work.status === "committed" || work.status === "failed") {
-      callbacks.refresh();
       hideStatus = window.setTimeout(() => {
         status.textContent = "";
       }, 5000);
-      active = null;
     }
     callbacks.onStateChange();
   }
@@ -397,7 +400,6 @@ export function createLaneApproval(host: HTMLElement | ShadowRoot, callbacks: Ap
           outstanding.scope.lane.board_id === current.data.view.board.id &&
           outstanding.scope.actorId === current.session.principal_id
         ) {
-          active = outstanding;
           void checkWork(outstanding, outstanding.intent);
         }
         return;
@@ -405,14 +407,25 @@ export function createLaneApproval(host: HTMLElement | ShadowRoot, callbacks: Ap
       const scope = approvalScope(current, laneId);
       if (scope === null) return;
       const work: ApprovalWork = { scope, status: "pending", intent: null, message: "" };
-      active = work;
       workByLane.set(laneId, work);
-      setStatus(work, "pending");
+      setStatus(work, "pending", "Approving review cards…");
       void runApproval(work, () => (disposed ? null : callbacks.current()));
     },
     busy(laneId: Uuid): boolean {
       const state = workByLane.get(laneId)?.status;
       return state === "pending" || state === "checking";
+    },
+    updateSelection(): void {
+      if (noticeBoard === callbacks.selectedBoard()) return;
+      clearTimeout(hideStatus);
+      noticeBoard = null;
+      status.textContent = "";
+    },
+    awaitsConfirmation(boardId: Uuid): boolean {
+      return Array.from(workByLane.values()).some(
+        ({ scope, status }) =>
+          scope.lane.board_id === boardId && (status === "pending" || status === "checking"),
+      );
     },
     recoverable(laneId: Uuid): boolean {
       return workByLane.get(laneId)?.status === "unknown";

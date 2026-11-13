@@ -35,14 +35,24 @@ void test("connection status honors the grace period, reconnect and disposal", (
     /** @type {Parameters<typeof mountWorkspaceStatus>[1]} */ (/** @type {unknown} */ (elements)),
   );
   /** @param {import("./controller.ts").LiveConnection} connection */
-  function update(connection) {
-    presenter.update({ connection, buildId: null, lastCardEdit: null, title: "Parity Alpha" });
+  function update(connection, refreshing = false) {
+    presenter.update({
+      connection,
+      refreshing,
+      buildId: null,
+      lastCardEdit: null,
+      title: "Parity Alpha",
+    });
   }
 
   update("connecting");
   assert.equal(indicator.connected, false);
   update("connected");
   assert.equal(indicator.connected, true);
+  update("connected", true);
+  assert.equal(elements.status.textContent, "REFRESHING");
+  update("connected");
+  assert.equal(elements.status.textContent, "CONNECTED");
   update("disconnected");
   context.mock.timers.tick(9_999);
   update("disconnected");
@@ -50,6 +60,7 @@ void test("connection status honors the grace period, reconnect and disposal", (
   context.mock.timers.tick(1);
   assert.equal(indicator.connected, false);
   assert.equal(root.dataset.connection, "disconnected");
+  assert.equal(elements.status.textContent, "REFRESHING");
 
   update("connected");
   update("disconnected");
@@ -57,6 +68,7 @@ void test("connection status honors the grace period, reconnect and disposal", (
   update("connected");
   context.mock.timers.tick(10_000);
   assert.equal(indicator.connected, true);
+  assert.equal(elements.status.textContent, "CONNECTED");
 
   update("disconnected");
   presenter.dispose();

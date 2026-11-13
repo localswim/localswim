@@ -137,6 +137,7 @@ export interface MountedComponent<Props> {
 export type MountComponent<Props> = (host: HTMLElement, props: Props) => MountedComponent<Props>;
 
 export interface BoardProps {
+  readonly liveMoveRevision?: number;
   readonly boardName?: string;
   readonly data: ReadState<BoardData>;
   readonly session: SessionDto | null;
@@ -160,6 +161,7 @@ export interface WorkspaceSlots {
 }
 
 export interface WorkspaceProps {
+  readonly refreshing?: boolean;
   readonly boardPath?: (id: Uuid) => string;
   readonly unavailableBoardKey?: string;
   readonly data: ReadState<WorkspaceData>;

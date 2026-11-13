@@ -13,6 +13,7 @@ interface StatusElements {
 
 interface WorkspaceStatus {
   readonly connection: LiveConnection;
+  readonly refreshing: boolean;
   readonly buildId: Uuid | null;
   readonly lastCardEdit: Timestamp | null;
   readonly title: string;
@@ -53,13 +54,15 @@ export function mountWorkspaceStatus(root: HTMLElement, elements: StatusElements
   let lastCardEdit: Timestamp | null = null;
   let visibleConnection: LiveConnection = "connecting";
   let latestConnection: LiveConnection = visibleConnection;
+  let refreshing = false;
   let disconnectTimer: number | undefined;
 
   function showConnection(connection: LiveConnection): void {
     visibleConnection = connection;
-    root.classList.toggle("lsw-workspace-connected", connection === "connected");
+    const connected = connection === "connected" && !refreshing;
+    root.classList.toggle("lsw-workspace-connected", connected);
     root.dataset.connection = connection;
-    const label = connection.toUpperCase();
+    const label = connected ? "CONNECTED" : "REFRESHING";
     if (elements.status.textContent !== label) elements.status.textContent = label;
   }
 
@@ -86,7 +89,14 @@ export function mountWorkspaceStatus(root: HTMLElement, elements: StatusElements
 
   const clockTimer = window.setInterval(updateClock, 1000);
   return {
-    update({ connection, buildId, lastCardEdit: nextLastCardEdit, title }: WorkspaceStatus) {
+    update({
+      connection,
+      refreshing: nextRefreshing,
+      buildId,
+      lastCardEdit: nextLastCardEdit,
+      title,
+    }: WorkspaceStatus) {
+      refreshing = nextRefreshing;
       updateConnection(connection);
       elements.build.textContent = buildId === null ? "" : `Build ${buildId.slice(0, 7)}`;
       if (document.title !== title) document.title = title;

@@ -5,6 +5,12 @@ maps user workflows to requests. All API paths below start with
 `/api/2026-11-10`. Braced values are resource IDs. Reads listed together may run
 concurrently; follow-up validation reads verify that assembled data is coherent.
 
+The browser shows a requested change after the service confirms it. While a
+write is pending, the browser keeps the last confirmed state and can show
+progress. A successful response confirms the change without a separate readback.
+When the response is missing or unusable, inspect the original operation before
+retrying it.
+
 ## Available and in-progress workflows
 
 T2 was accepted into `ui/v1-clean-room` and passed Terry's visual checkpoint.
@@ -22,10 +28,10 @@ not a production deployment or completed acceptance.
 | Filter cards and reveal older Completed cards | T3, #0586 | For a nonempty search, read all pages of `GET /cards?board_id={board_id}&q={query}&search_content=true&limit=200`, following `next_cursor`. Apply the matching IDs and Completed visibility setting to the local projection of confirmed board data. Clearing the search removes the matching-ID filter. Visibility changes do not mutate cards. |
 | Open a card drawer and follow its context | T3, #0587 | Read `GET /cards/{card_id}`, relevant `GET /cards`, `GET /relationships`, `GET /comments` and `GET /activities` with board/card filters; confirm board/card identity and revision before displaying the assembled context. |
 | Create a card with relationships | T3, #0588 | Read allowed board/lane/owner/priority choices, then `POST /cards` with the chosen card ID, board precondition and relationship seeds. Read the original card and relationship collection when the outcome needs inspection. |
-| Drag a card to a lane | T3, #0589 | Read the focused card and use the rendered board precondition; `PATCH /cards/{card_id}` with `lane_id` and card/board preconditions. Inspect card/activity after uncertainty before another submission. |
+| Drag a card to a lane | T3, #0589 | Read the focused card and use the rendered board precondition; `PATCH /cards/{card_id}` with `lane_id` and card/board preconditions. Terry can drag a card to Completed when the policy grants that move. The Reviewed & Approved action is a separate workflow. Inspect card/activity after uncertainty before another submission. |
 | Approve a full reviewed lane | T3, #0590 | Obtain the complete current membership and card validators; `POST /approvals` with operation ID, board ID, board validator, lane ID and cards. The server reads the configured comment from the lane. `GET /approvals/{approval_id}` inspects the original operation. |
 | Preview/apply dependency ticket order | T3, #0591 | `GET /ticket-orders/{lane_id}?preview=true` with the chosen scope; `PUT /ticket-orders/{lane_id}` submits the reviewed scope and saved board precondition. Reread after uncertainty. |
-| Observe live updates | T3, #0593 | Authenticated `GET /events` stream triggers authorized workspace/board refreshes. `GET /activities` supplies scoped activity when needed. Reconnect obtains fresh state. |
+| Observe live updates | T3, #0593 | Authenticated `GET /events` stream triggers authorized workspace/board refreshes. `GET /activities` supplies scoped activity when needed. During reconnect, the draft remains editable and submission waits for the board and session to be confirmed again. |
 
 The browser movement workflow follows V1 drag/drop. Batch priority is provided
 through the CLI/API workflow rather than a new browser control. See the

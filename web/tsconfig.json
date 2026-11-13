@@ -21,6 +21,6 @@
     "noEmit": true,
     "types": []
   },
-  "include": ["**/*.js", "**/*.mjs", "**/*.ts"],
+  "include": ["**/*.js", "**/*.mjs", "**/*.cjs", "**/*.ts"],
   "exclude": ["build.mjs", "**/*.test.*", "generated", "dist", "tooling", "node_modules"]
 }

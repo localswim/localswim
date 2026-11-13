@@ -14,6 +14,7 @@ type Options = AppContext &
     readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
     context: () => Context;
     onChange: () => void;
+    onBusyChange?: () => void;
     beginWrite: () => (() => void) | null;
     beginInspection: () => (() => void) | null;
   }>;
@@ -43,6 +44,7 @@ export function mountBoardLifecycle(
     readWithSession,
     context,
     onChange,
+    onBusyChange,
     beginWrite,
     beginInspection,
   }: Options,
@@ -176,6 +178,7 @@ export function mountBoardLifecycle(
     const intent: Intent = { availability: availability === "open" ? "closed" : "open", etag };
     closeConfirmation = null;
     busy = true;
+    onBusyChange?.();
     inspectedEtag = null;
     message = availability === "open" ? "Closing board…" : "Reopening board…";
     update();
@@ -204,6 +207,7 @@ export function mountBoardLifecycle(
       if (!signal.aborted && result.kind !== "journal-failed") onChange();
     } finally {
       busy = false;
+      onBusyChange?.();
       release();
       if (!signal.aborted) update();
     }
@@ -219,6 +223,7 @@ export function mountBoardLifecycle(
       return;
     }
     busy = true;
+    onBusyChange?.();
     inspectedEtag = null;
     message = "Checking board availability…";
     update();
@@ -243,11 +248,13 @@ export function mountBoardLifecycle(
     } catch {
       message = "Could not inspect board availability. Try inspecting it again.";
     } finally {
-      busy = false;
-      release();
-      if (!signal.aborted) {
-        onChange();
-        update();
+      try {
+        if (!signal.aborted) onChange();
+      } finally {
+        busy = false;
+        release();
+        onBusyChange?.();
+        if (!signal.aborted) update();
       }
     }
   }

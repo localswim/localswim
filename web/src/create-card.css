@@ -1,0 +1,107 @@
+.create-card {
+  inline-size: min(36rem, calc(100% - 2rem));
+  max-block-size: calc(100% - 2rem);
+  padding: clamp(1rem, 4vw, 1.5rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--board-view-lane-border);
+  border-radius: 0.65rem;
+  background: var(--board-view-card-fill);
+  color: var(--board-view-ink);
+  box-shadow: 0 1rem 3rem rgb(9 30 66 / 25%);
+}
+
+.create-card::backdrop {
+  background: rgb(13 29 51 / 55%);
+}
+
+.create-card h2 {
+  margin: 0 0 1rem;
+  font-size: 1.25rem;
+}
+
+.create-card form,
+.create-card-choices {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.create-card-choices {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.create-card label {
+  display: grid;
+  gap: 0.3rem;
+  min-inline-size: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.create-card :is(textarea, select, button) {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--board-view-lane-border);
+  border-radius: 0.35rem;
+  background: var(--board-view-card-fill);
+  color: var(--board-view-ink);
+  font: inherit;
+}
+
+.create-card :is(textarea, select) {
+  inline-size: 100%;
+  font-size: 0.9375rem;
+  font-weight: 400;
+}
+
+.create-card textarea {
+  resize: vertical;
+  min-block-size: 2.4rem;
+  line-height: 1.4;
+}
+
+.create-card :focus-visible {
+  outline: 2px solid var(--board-view-focus);
+  outline-offset: 2px;
+}
+
+.create-card-status {
+  margin: 0;
+  color: var(--board-view-muted);
+  font-size: 0.875rem;
+}
+
+.create-card-status:empty {
+  display: none;
+}
+
+.create-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-block-start: 0.25rem;
+}
+
+.create-card button {
+  min-block-size: 2.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.create-card .create-card-submit {
+  border-color: var(--board-view-focus);
+  background: var(--board-view-focus);
+  color: var(--board-view-card-fill);
+}
+
+.create-card button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (width <= 36rem) {
+  .create-card-choices {
+    grid-template-columns: 1fr;
+  }
+}

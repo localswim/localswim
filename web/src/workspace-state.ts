@@ -109,9 +109,18 @@ export function createWorkspaceState({
   );
   const api = createBrowserApi({ getCapability: () => capability });
 
-  async function ensureCapability(readSignal: AbortSignal): Promise<void> {
+  async function ensureCapability(
+    readSignal: AbortSignal,
+    rejectedCapability?: string,
+  ): Promise<void> {
     readSignal.throwIfAborted();
-    if (capability !== undefined) return;
+    if (
+      openingSession === undefined &&
+      capability !== undefined &&
+      capability !== rejectedCapability
+    ) {
+      return;
+    }
     // Reads and the stream share one session open. Each caller can stop waiting independently.
     openingSession ??= openBrowserSession((input, options) =>
       fetch(input, {
@@ -152,9 +161,9 @@ export function createWorkspaceState({
     } catch (error) {
       readSignal.throwIfAborted();
       if (!(error instanceof ApiError) || error.status !== 401) throw error;
-      if (capability === original) capability = undefined;
     }
-    await ensureCapability(readSignal);
+    // In-flight reads can still send the old capability while its replacement opens.
+    await ensureCapability(readSignal, original);
     readSignal.throwIfAborted();
     return read();
   }

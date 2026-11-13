@@ -101,14 +101,16 @@ function confirmedRows(
   boardId: string,
   intent: Intent,
   inventory: ReadonlyMap<string, CardPriority>,
-  labels: ReadonlyMap<string, string>,
+  priorities: ReadonlyMap<string, BoardViewData["priorities"][number]>,
 ): string[] {
   const base = revision(boardId, intent.etag);
   const { data, etag } = reply;
   const { cards, changes, board_revision: saved } = data;
+  const requested = priorities.get(intent.priorityId);
   // The adapter validates identities and response shape. Bind its result to this
   // attempt's exact revision and the selected cards' previous saved values.
   if (
+    !requested ||
     data.board_id !== boardId ||
     !positiveInteger(saved) ||
     etag !== `"${boardId}-${saved}"` ||
@@ -137,16 +139,17 @@ function confirmedRows(
     const { resource_id: cardId, before, after, operation } = change;
     const card = inventory.get(cardId);
     const selected = effective.has(cardId);
-    const beforeLabel = card && labels.get(card.priority_id);
-    const afterLabel = labels.get(after);
+    const beforePriority = card && priorities.get(card.priority_id);
+    const afterPriority = priorities.get(after);
     if (
       card?.completed_at !== null ||
       card.revision > base ||
       changed.has(cardId) ||
       before !== card.priority_id ||
       before === after ||
-      beforeLabel === undefined ||
-      afterLabel === undefined ||
+      !beforePriority ||
+      !afterPriority ||
+      (!selected && afterPriority.rank >= beforePriority.rank) ||
       operation !== (selected ? "patch" : "promote")
     ) {
       throw new TypeError("Invalid priority change.");
@@ -154,7 +157,7 @@ function confirmedRows(
     changed.set(cardId, after);
     selectedChanged ||= selected;
     details.push(
-      `#${card.ticket}${selected ? "" : " upstream promotion"} · ${beforeLabel} → ${afterLabel}`,
+      `#${card.ticket}${selected ? "" : " upstream promotion"} · ${beforePriority.label} → ${afterPriority.label}`,
     );
   }
   if (changes.length > 0 && !selectedChanged) {
@@ -164,18 +167,19 @@ function confirmedRows(
     const card = effective.get(id);
     const previous = inventory.get(id);
     const after = changed.get(id);
-    const label = card && labels.get(card.priority_id);
+    const effectivePriority = card && priorities.get(card.priority_id);
     if (
       card?.ticket !== ticket ||
       !previous ||
       previous.revision > base ||
       card.revision !== (after === undefined ? previous.revision : saved) ||
       card.priority_id !== (after ?? previous.priority_id) ||
-      label === undefined
+      !effectivePriority ||
+      effectivePriority.rank > requested.rank
     ) {
       throw new TypeError("Invalid effective card priority.");
     }
-    rows.push(`#${ticket} effective priority · ${label}`);
+    rows.push(`#${ticket} effective priority · ${effectivePriority.label}`);
   }
   return [...rows, ...details];
 }
@@ -400,7 +404,7 @@ export function mountBatchPriority(
       update();
       return;
     }
-    const labels = new Map(board.priorities.map(({ id, label }) => [id, label]));
+    const priorities = new Map(board.priorities.map((priority) => [priority.id, priority]));
     busy = true;
     showRows([]);
     message = "Checking selected tickets…";
@@ -442,7 +446,7 @@ export function mountBatchPriority(
         async () => {
           const reply = await api.setPriorities(boardId, tag, ids, requested);
           return {
-            rows: confirmedRows(reply, boardId, intent, inventory, labels),
+            rows: confirmedRows(reply, boardId, intent, inventory, priorities),
             etag: reply.etag,
           };
         },

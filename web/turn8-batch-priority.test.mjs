@@ -30,6 +30,7 @@ const boardId = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
 const regular = "163b1fa0-2a32-424b-8489-6bbd7761201c";
 const urgent = "163b1fa0-2a32-424b-8489-6bbd7761201d";
 const unknownPriority = "163b1fa0-2a32-424b-8489-6bbd7761201e";
+const low = "163b1fa0-2a32-424b-8489-6bbd7761201f";
 const lane = "ceab10a8-1492-4c90-aa07-13b83138919a";
 const owner = "84b4ae21-e224-4f5a-9fca-9abf8e0c86bc";
 const at = "2026-11-10 12:00:00+00:00";
@@ -84,8 +85,9 @@ function fixture() {
     card(4, { completed_at: at }),
   ];
   const priorities = [
-    { id: regular, label: "P3" },
-    { id: urgent, label: "P1" },
+    { id: regular, label: "P3", rank: 2 },
+    { id: urgent, label: "P1", rank: 0 },
+    { id: low, label: "P4", rank: 3 },
   ];
   const state = {
     revision: 4,
@@ -153,6 +155,7 @@ function fixture() {
           { headers: { "X-Board-ETag": tag(state.revision) } },
         );
       }
+      const previous = state.cards;
       state.revision++;
       const promoted = state.cards.slice(0, 3).map((row) => ({
         ...row,
@@ -172,14 +175,19 @@ function fixture() {
         field: "priority_id",
         operation: index === 2 ? "promote" : "patch",
         before: state.outcome === "misbound" && index === 2 ? urgent : regular,
-        after: state.outcome === "unknown-priority" && index === 2 ? unknownPriority : urgent,
+        after:
+          state.outcome === "unknown-priority" && index === 2
+            ? unknownPriority
+            : state.outcome === "upstream-demotion" && index === 2
+              ? low
+              : urgent,
       }));
       const selected = promoted.slice(0, 2);
       if (state.outcome === "stale-card") selected[0] = { ...selected[0], revision: 4 };
       if (state.outcome === "promote-only") selected.splice(0, 2, ...before.slice(0, 2));
       if (state.outcome === "unchanged-wrong-revision")
         selected[1] = { ...before[1], revision: state.revision };
-      if (state.outcome === "mixed") selected[1] = before[1];
+      if (state.outcome === "mixed") selected[1] = previous[1];
       return Response.json(
         {
           board_id: boardId,
@@ -397,12 +405,25 @@ test("a lost response survives remount and authoritative readback never replays 
 test("an unchanged service floor is a confirmed no-op and displays effective priority", async () => {
   const { changes, storage, state, mount } = fixture();
   state.outcome = "no-op";
+  state.cards = [card(1, { priority_id: urgent }), ...state.cards.slice(1)];
   const view = mount();
-  view.edit("1");
+  view.edit("1", regular);
   await view.save();
   assert.equal(changes.length, 1);
   assert.equal(storage.size, 0);
-  assert.deepEqual(view.rows(), ["0 priority changes committed.", "#1 effective priority · P3"]);
+  assert.deepEqual(view.rows(), ["0 priority changes committed.", "#1 effective priority · P1"]);
+});
+
+test("an unchanged weaker effective priority cannot confirm a batch", async () => {
+  const { changes, storage, state, mount } = fixture();
+  state.outcome = "no-op";
+  const view = mount();
+  view.edit("1", urgent);
+  await view.save();
+  assert.equal(changes.length, 1);
+  assert.equal(storage.size, 1);
+  assert.deepEqual(view.rows(), []);
+  assert.match(view.status.textContent, /outcome is unknown/);
 });
 
 test("a receipt inconsistent with the original inventory requires readback", async () => {
@@ -410,6 +431,7 @@ test("a receipt inconsistent with the original inventory requires readback", asy
     "misbound",
     "stale-card",
     "unknown-priority",
+    "upstream-demotion",
     "promote-only",
     "unchanged-wrong-revision",
   ]) {
@@ -428,6 +450,11 @@ test("a receipt inconsistent with the original inventory requires readback", asy
 test("a partial effective change preserves the unchanged card's own revision", async () => {
   const { changes, storage, state, mount } = fixture();
   state.outcome = "mixed";
+  state.cards = [
+    state.cards[0],
+    card(2, { priority_id: urgent, archived: true }),
+    ...state.cards.slice(2),
+  ];
   const view = mount();
   view.edit("1, 2");
   await view.save();
@@ -436,7 +463,7 @@ test("a partial effective change preserves the unchanged card's own revision", a
   assert.deepEqual(view.rows().slice(0, 3), [
     "2 priority changes committed.",
     "#1 effective priority · P1",
-    "#2 effective priority · P3",
+    "#2 effective priority · P1",
   ]);
 });
 

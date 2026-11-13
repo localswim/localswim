@@ -4,7 +4,8 @@ import type { AppContext } from "./model.js";
 import { submitOperation, type OperationStorage } from "./operations.js";
 
 type Selection = Readonly<{ id: string; ticket: number }>;
-type CardPriority = Selection & Readonly<{ priority_id: string; completed_at: string | null }>;
+type CardPriority = Selection &
+  Readonly<{ priority_id: string; completed_at: string | null; revision: number }>;
 type Intent = Readonly<{
   etag: string;
   priorityId: string;
@@ -86,6 +87,7 @@ function cardPriority(value: unknown, boardId: string): value is CardPriority {
     record(value) &&
     value.board_id === boardId &&
     id(value.priority_id) &&
+    positiveInteger(value.revision) &&
     (value.completed_at === null || typeof value.completed_at === "string") &&
     selection(value)
   );
@@ -96,7 +98,7 @@ function confirmedRows(
   boardId: string,
   intent: Intent,
   inventory: ReadonlyMap<string, CardPriority>,
-  label: (id: string) => string,
+  labels: ReadonlyMap<string, string>,
 ): string[] {
   const base = revision(boardId, intent.etag);
   const { data, etag } = reply;
@@ -122,6 +124,7 @@ function confirmedRows(
     effective.set(card.id, card);
   }
   const changed = new Map<string, string>();
+  let selectedChanged = false;
   const rows = [`${changes.length} priority changes committed.`];
   const details: string[] = [];
   for (const change of changes as unknown[]) {
@@ -131,29 +134,45 @@ function confirmedRows(
     const { resource_id: cardId, before, after, operation } = change;
     const card = inventory.get(cardId);
     const selected = effective.has(cardId);
+    const beforeLabel = card && labels.get(card.priority_id);
+    const afterLabel = labels.get(after);
     if (
       card?.completed_at !== null ||
+      card.revision > base ||
       changed.has(cardId) ||
       before !== card.priority_id ||
       before === after ||
+      beforeLabel === undefined ||
+      afterLabel === undefined ||
       operation !== (selected ? "patch" : "promote")
     ) {
       throw new TypeError("Invalid priority change.");
     }
     changed.set(cardId, after);
+    selectedChanged ||= selected;
     details.push(
-      `#${card.ticket}${selected ? "" : " upstream promotion"} · ${label(before)} → ${label(after)}`,
+      `#${card.ticket}${selected ? "" : " upstream promotion"} · ${beforeLabel} → ${afterLabel}`,
     );
+  }
+  if (changes.length > 0 && !selectedChanged) {
+    throw new TypeError("Priority promotions require a selected priority change.");
   }
   for (const { id, ticket } of intent.selected) {
     const card = effective.get(id);
+    const previous = inventory.get(id);
+    const after = changed.get(id);
+    const label = card && labels.get(card.priority_id);
     if (
       card?.ticket !== ticket ||
-      card.priority_id !== (changed.get(id) ?? inventory.get(id)?.priority_id)
+      !previous ||
+      previous.revision > base ||
+      card.revision !== (after === undefined ? previous.revision : saved) ||
+      card.priority_id !== (after ?? previous.priority_id) ||
+      label === undefined
     ) {
       throw new TypeError("Invalid effective card priority.");
     }
-    rows.push(`#${ticket} effective priority · ${label(card.priority_id)}`);
+    rows.push(`#${ticket} effective priority · ${label}`);
   }
   return [...rows, ...details];
 }
@@ -378,7 +397,7 @@ export function mountBatchPriority(
       update();
       return;
     }
-    const label = (id: string) => board.priorities.find((entry) => entry.id === id)?.label ?? id;
+    const labels = new Map(board.priorities.map(({ id, label }) => [id, label]));
     busy = true;
     showRows([]);
     message = "Checking selected tickets…";
@@ -416,7 +435,7 @@ export function mountBatchPriority(
         async () => {
           const reply = await api.setPriorities(boardId, tag, ids, requested);
           return {
-            rows: confirmedRows(reply, boardId, intent, inventory, label),
+            rows: confirmedRows(reply, boardId, intent, inventory, labels),
             etag: reply.etag,
           };
         },
@@ -424,6 +443,8 @@ export function mountBatchPriority(
       switch (outcome.kind) {
         case "confirmed":
           minRevision = revision(boardId, outcome.result.etag ?? "");
+          // A remounted view can inspect the original selection from the journal.
+          if (signal.aborted) break;
           if (writeJournal(null)) {
             reset();
             showRows(outcome.result.rows);
@@ -449,7 +470,7 @@ export function mountBatchPriority(
           message = "Could not save the batch record in this tab.";
           break;
       }
-      if (!signal.aborted && outcome.kind !== "journal-failed") onRefresh();
+      if (outcome.kind !== "journal-failed") onRefresh();
     } catch (error) {
       if (!signal.aborted) {
         const stale = error instanceof ApiError && error.status === 412;

@@ -29,6 +29,7 @@ const { mountBatchPriority } = await import(
 const boardId = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
 const regular = "163b1fa0-2a32-424b-8489-6bbd7761201c";
 const urgent = "163b1fa0-2a32-424b-8489-6bbd7761201d";
+const unknownPriority = "163b1fa0-2a32-424b-8489-6bbd7761201e";
 const lane = "ceab10a8-1492-4c90-aa07-13b83138919a";
 const owner = "84b4ae21-e224-4f5a-9fca-9abf8e0c86bc";
 const at = "2026-11-10 12:00:00+00:00";
@@ -165,14 +166,25 @@ function fixture() {
         field: "priority_id",
         operation: index === 2 ? "promote" : "patch",
         before: state.outcome === "misbound" && index === 2 ? urgent : regular,
-        after: urgent,
+        after: state.outcome === "unknown-priority" && index === 2 ? unknownPriority : urgent,
       }));
+      const selected = promoted.slice(0, 2);
+      if (state.outcome === "stale-card") selected[0] = { ...selected[0], revision: 4 };
+      if (state.outcome === "promote-only") selected.splice(0, 2, ...before.slice(0, 2));
+      if (state.outcome === "unchanged-wrong-revision")
+        selected[1] = { ...before[1], revision: state.revision };
+      if (state.outcome === "mixed") selected[1] = before[1];
       return Response.json(
         {
           board_id: boardId,
           board_revision: state.revision,
-          cards: promoted.slice(0, 2),
-          changes: audit,
+          cards: selected,
+          changes:
+            state.outcome === "promote-only"
+              ? audit.slice(2)
+              : ["unchanged-wrong-revision", "mixed"].includes(state.outcome)
+                ? [audit[0], audit[2]]
+                : audit,
         },
         { headers: { "X-Board-ETag": tag(state.revision) } },
       );
@@ -379,15 +391,64 @@ test("an unchanged service floor is a confirmed no-op and displays effective pri
 });
 
 test("a receipt inconsistent with the original inventory requires readback", async () => {
+  for (const outcome of [
+    "misbound",
+    "stale-card",
+    "unknown-priority",
+    "promote-only",
+    "unchanged-wrong-revision",
+  ]) {
+    const { changes, storage, state, mount } = fixture();
+    state.outcome = outcome;
+    const view = mount();
+    view.edit("1, 2");
+    await view.save();
+    assert.equal(changes.length, 1, outcome);
+    assert.equal(storage.size, 1, outcome);
+    assert.deepEqual(view.rows(), [], outcome);
+    assert.match(view.status.textContent, /outcome is unknown/, outcome);
+  }
+});
+
+test("a partial effective change preserves the unchanged card's own revision", async () => {
   const { changes, storage, state, mount } = fixture();
-  state.outcome = "misbound";
+  state.outcome = "mixed";
   const view = mount();
   view.edit("1, 2");
   await view.save();
   assert.equal(changes.length, 1);
+  assert.equal(storage.size, 0);
+  assert.deepEqual(view.rows().slice(0, 3), [
+    "2 priority changes committed.",
+    "#1 effective priority · P1",
+    "#2 effective priority · P3",
+  ]);
+});
+
+test("a confirmed response after navigation preserves the original attempt for inspection", async () => {
+  const { changes, storage, state, mount } = fixture();
+  const response = Promise.withResolvers();
+  state.dispatch = response.promise;
+  const original = mount();
+  original.edit("1, 2");
+  await original.save();
+  original.life.abort();
+
+  const current = mount();
+  response.resolve();
+  await flush();
+  assert.equal(state.refreshes, 1);
   assert.equal(storage.size, 1);
-  assert.deepEqual(view.rows(), []);
-  assert.match(view.status.textContent, /outcome is unknown/);
+  current.update();
+  assert.equal(current.inspect.hidden, false);
+  current.inspect.click();
+  await flush();
+  assert.deepEqual(current.rows(), [
+    "Requested priority · P1",
+    "#1 saved priority · P1",
+    "#2 saved priority · P1",
+  ]);
+  assert.equal(changes.length, 1);
 });
 
 test("late settlement preserves a newer record owned by a different mount", async () => {

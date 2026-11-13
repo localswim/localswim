@@ -479,6 +479,7 @@ export function mountCardAssignment(
       const current = getContext();
       if (current?.cardId !== cardId) return;
       if (
+        !reachesVersion(saved, draft.base) ||
         !reachesVersion(saved, context) ||
         !reachesVersion(saved, current) ||
         !reachesVersion(saved, entry.confirmed) ||

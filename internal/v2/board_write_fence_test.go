@@ -87,6 +87,11 @@ func TestM85PostReplacementSettlementFailureIsBoardLocal(t *testing.T) {
 	if current, _ := s.accepted(target.ID); current.Board.Revision != previous.Board.Revision || current.Cards[0].Title != targetCard.Title {
 		t.Fatal("the failed commit advanced accepted state")
 	}
+	raw, headers := human.call("GET", "/cards/"+targetCard.ID, "", "", 200)
+	readCard := turnOneDecode[card](t, raw)
+	if readCard.Title != title || readCard.Revision != durable.Board.Revision || headers.Get("ETag") != readCard.entityTag() {
+		t.Fatal("focused card read did not return the durable revision")
+	}
 	if m85PendingNotice(worker, target.ID) != nil || m85PendingNotice(worker, neighbor.ID) != neighborBurst {
 		t.Fatal("pending notices were not canceled only for the affected board")
 	}
@@ -104,7 +109,7 @@ func TestM85PostReplacementSettlementFailureIsBoardLocal(t *testing.T) {
 	}
 	raw, _ = human.call("PATCH", "/cards/"+targetCard.ID, `{"title":"Refused repeat"}`, targetCard.entityTag(), 503)
 	m85AssertProblem(t, raw, "unavailable", "not_applied")
-	_, headers := human.call("GET", "/notifications/"+target.ID, "", "", 200)
+	_, headers = human.call("GET", "/notifications/"+target.ID, "", "", 200)
 	raw, _ = human.call("PATCH", "/notifications/"+target.ID, `{"enabled":false}`, headers.Get("ETag"), 503)
 	m85AssertProblem(t, raw, "unavailable", "not_applied")
 	if _, err := s.captureBackupSnapshot(target.ID, humanID, previous.Board.Revision); !errors.Is(err, errWriteFenced) {
@@ -137,6 +142,16 @@ func TestM85IndependentFencesReserveTentativeIdentity(t *testing.T) {
 	}
 	m85FailSettlement(app.store, first.ID, second.ID)
 	m85AssertProblem(t, create(first, id, 503), "outcome_unknown", "unknown")
+	if accepted, _ := app.store.accepted(first.ID); len(accepted.Cards) != 0 {
+		t.Fatal("the fenced creation advanced accepted state")
+	}
+	raw, headers := human.call("GET", "/cards/"+id, "", "", 200)
+	created := turnOneDecode[card](t, raw)
+	if created.ID != id || created.BoardID != first.ID || created.Revision != first.Revision+1 ||
+		created.Title != "New card" || headers.Get("ETag") != created.entityTag() {
+		t.Fatal("focused readback did not find the fenced creation")
+	}
+	human.call("GET", "/cards/"+newID(), "", "", 404)
 	create(healthy, id, 409)
 	m85AssertProblem(t, create(second, newID(), 503), "outcome_unknown", "unknown")
 	m85AssertProblem(t, create(first, newID(), 503), "unavailable", "not_applied")

@@ -1,0 +1,24 @@
+.lsw-approve-lane-status,
+.lsw-board-success-status {
+  position: fixed;
+  z-index: 40;
+  bottom: 16px;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 6px;
+  color: #fff;
+  background: #172b4d;
+  font:
+    400 13px/1.35 Inter,
+    sans-serif;
+  transform: translateX(-50%);
+}
+
+.lsw-approve-lane-status:empty,
+.lsw-board-success-status:empty {
+  display: none;
+}

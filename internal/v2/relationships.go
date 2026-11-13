@@ -26,7 +26,7 @@ type relationship struct {
 }
 
 type relationshipSeed struct {
-	targetID, kind string
+	sourceID, targetID, kind string
 }
 
 func validRelationshipKind(kind string) bool {
@@ -65,14 +65,14 @@ func (link relationshipLink) key() relationshipLink {
 	return link
 }
 
-func readRelationshipSeeds(raw json.RawMessage) ([]relationshipSeed, error) {
+func readRelationshipSeeds(raw json.RawMessage, cardID string) ([]relationshipSeed, error) {
 	var objects []json.RawMessage
 	if json.Unmarshal(raw, &objects) != nil || objects == nil || len(objects) > 1000 {
 		return nil, invalid("relationships", "Expected an array of at most 1000 relationships.")
 	}
 	seeds := make([]relationshipSeed, 0, len(objects))
 	for i, object := range objects {
-		seed, err := readRelationshipSeed(object)
+		seed, err := readRelationshipSeed(object, cardID)
 		if err != nil {
 			var input invalidField
 			if !errors.As(err, &input) {
@@ -85,14 +85,23 @@ func readRelationshipSeeds(raw json.RawMessage) ([]relationshipSeed, error) {
 	return seeds, nil
 }
 
-func readRelationshipSeed(raw json.RawMessage) (relationshipSeed, error) {
+func readRelationshipSeed(raw json.RawMessage, cardID string) (relationshipSeed, error) {
 	var seed relationshipSeed
 	fields, err := decodeObject(raw)
 	if err != nil {
 		return seed, err
 	}
-	if err := rejectFields(fields, []string{"target_card_id", "kind"}, false); err != nil {
+	if err := rejectFields(fields, []string{"source_card_id", "target_card_id", "kind"}, false); err != nil {
 		return seed, err
+	}
+	if source, explicit := fields["source_card_id"]; explicit {
+		if cardID == "" {
+			return seed, invalid("source_card_id", "Explicit endpoints require a client-supplied card id.")
+		}
+		seed.sourceID, err = inputID(source, "source_card_id")
+		if err != nil {
+			return seed, err
+		}
 	}
 	seed.targetID, err = inputID(fields["target_card_id"], "target_card_id")
 	if err != nil {
@@ -112,7 +121,7 @@ func relationshipCards(state *snapshot) map[string]*card {
 
 // applyRelationshipSeeds adds links to the isolated card-creation candidate.
 // All seed endpoints and duplicate keys are checked before any link is applied.
-func applyRelationshipSeeds(state *snapshot, sourceID string, seeds []relationshipSeed, actor string, now time.Time) error {
+func applyRelationshipSeeds(state *snapshot, cardID string, seeds []relationshipSeed, actor string, now time.Time) error {
 	if len(seeds) == 0 {
 		return nil
 	}
@@ -123,8 +132,18 @@ func applyRelationshipSeeds(state *snapshot, sourceID string, seeds []relationsh
 	keys := make(map[relationshipLink]bool, len(seeds))
 	links := make([]relationshipLink, 0, len(seeds))
 	for i, seed := range seeds {
-		if cards[seed.targetID] == nil || sourceID == seed.targetID {
-			return invalid(fmt.Sprintf("relationships[%d].target_card_id", i), "Expected a different card on this board.")
+		sourceID := seed.sourceID
+		if sourceID == "" {
+			sourceID = cardID
+		}
+		if (sourceID == cardID) == (seed.targetID == cardID) {
+			return invalid(fmt.Sprintf("relationships[%d]", i), "Expected exactly one endpoint to be the new card.")
+		}
+		if cards[sourceID] == nil {
+			return invalid(fmt.Sprintf("relationships[%d].source_card_id", i), "Expected a card on this board.")
+		}
+		if cards[seed.targetID] == nil {
+			return invalid(fmt.Sprintf("relationships[%d].target_card_id", i), "Expected a card on this board.")
 		}
 		link := relationshipFromInput(sourceID, seed.targetID, seed.kind)
 		key := link.key()

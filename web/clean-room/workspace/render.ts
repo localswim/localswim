@@ -1,4 +1,7 @@
 import type { AttentionDto, BoardSummaryDto, Uuid } from "../api-types.js";
+import { mountPins } from "./pins.js";
+import { mountSidebar } from "./sidebar.js";
+import { mountWorkspaceStatus, workspaceTabTitle } from "../live/status.js";
 import type {
   BoardProps,
   MountComponent,
@@ -30,36 +33,6 @@ const attentionTypes = [
   { key: "ready_for_review", text: "Review" },
 ] as const satisfies readonly { key: keyof AttentionDto; text: string }[];
 
-const localTime = new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
-  minute: "2-digit",
-  second: "2-digit",
-  hour12: true,
-});
-const relativeTime = new Intl.RelativeTimeFormat("en-US");
-
-function cardAge(timestamp: string | null): string {
-  if (timestamp === null) {
-    return "";
-  }
-  const elapsed = Date.now() - Date.parse(timestamp.replace(" ", "T"));
-  if (!Number.isFinite(elapsed)) {
-    return "";
-  }
-  const seconds = Math.max(0, Math.floor(elapsed / 1000));
-  if (seconds < 60) {
-    return relativeTime.format(-seconds, "second");
-  }
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) {
-    return relativeTime.format(-minutes, "minute");
-  }
-  const hours = Math.floor(minutes / 60);
-  return hours < 24
-    ? relativeTime.format(-hours, "hour")
-    : relativeTime.format(-Math.floor(hours / 24), "day");
-}
-
 function searchInput(className: string, placeholder: string): HTMLInputElement {
   const input = element("input", className);
   input.type = "search";
@@ -84,7 +57,12 @@ function makeHeader() {
   const searchField = searchInput("lsw-workspace-card-query", "Find in cards");
   const shortcut = element("kbd", "lsw-workspace-search-shortcut", "/");
   shortcut.setAttribute("aria-hidden", "true");
-  search.append(searchField, shortcut);
+  const clear = element("button", "lsw-workspace-card-clear", "×");
+  clear.type = "button";
+  clear.setAttribute("aria-label", "Clear search");
+  const found = element("span", "lsw-workspace-card-found");
+  found.setAttribute("role", "status");
+  search.append(searchField, shortcut, clear, found);
 
   const build = element("span", "lsw-workspace-build");
   const latest = element("span", "lsw-workspace-latest");
@@ -92,7 +70,7 @@ function makeHeader() {
   const status = element("span", "lsw-workspace-connection");
   status.setAttribute("role", "status");
   header.append(indicator, brand, title, search, build, latest, clock, status);
-  return { header, title, searchField, build, latest, clock, status };
+  return { header, title, searchField, shortcut, clear, found, build, latest, clock, status };
 }
 
 function makeSidebar() {
@@ -124,7 +102,9 @@ function makeSidebar() {
   const grip = element("span", "lsw-workspace-sidebar-grip");
   grip.setAttribute("aria-hidden", "true");
   sidebar.append(heading, search, legend, list, footer, grip);
-  return { sidebar, list, empty, external };
+  const pinStatus = element("div", "lsw-workspace-pin-status");
+  sidebar.insertBefore(pinStatus, footer);
+  return { sidebar, list, empty, external, title, toggle, grip, search, pinStatus };
 }
 
 interface BoardRow {
@@ -133,6 +113,7 @@ interface BoardRow {
   readonly title: HTMLSpanElement;
   readonly counts: readonly HTMLSpanElement[];
   readonly pin: HTMLButtonElement;
+  readonly reorder: HTMLButtonElement;
 }
 
 function makeRow(id: Uuid): BoardRow {
@@ -149,18 +130,32 @@ function makeRow(id: Uuid): BoardRow {
   select.append(title, attention);
   const pin = element("button", "lsw-workspace-pin");
   pin.type = "button";
-  pin.disabled = true;
+  pin.dataset.pinAction = id;
   const mark = element("span", "lsw-workspace-pin-mark");
   mark.setAttribute("aria-hidden", "true");
   pin.append(mark);
-  container.append(select, pin);
-  return { container, select, title, counts, pin };
+  container.dataset.pinBoardId = id;
+  const reorder = element("button", "lsw-workspace-pin-reorder");
+  reorder.type = "button";
+  reorder.dataset.pinReorder = id;
+  container.append(select, reorder, pin);
+  return { container, select, title, counts, pin, reorder };
 }
 
 function updateRow(row: BoardRow, board: BoardSummaryDto, active: boolean, pinned: boolean): void {
   const name = board.name ?? board.id;
   row.title.textContent = name;
-  row.select.setAttribute("aria-label", name);
+  const attention = board.attention;
+  const countText =
+    attention === null
+      ? "Attention unavailable"
+      : `Blocked: ${attention.blocked} Needs Terry: ${attention.needs_input} Ready for Review: ${attention.ready_for_review}`;
+  row.select.setAttribute("aria-label", `${name} ${countText}`);
+  const edit =
+    board.last_card_edit_at === null
+      ? "unknown"
+      : `${Math.max(0, Math.floor((Date.now() - Date.parse(board.last_card_edit_at.replace(" ", "T"))) / 60_000))} minutes ago`;
+  row.select.title = `${name} · ${board.id} · Last card edit: ${edit}`;
   if (active) {
     row.select.setAttribute("aria-current", "page");
   } else {
@@ -175,29 +170,14 @@ function updateRow(row: BoardRow, board: BoardSummaryDto, active: boolean, pinne
       continue;
     }
     const value = board.attention?.[key];
-    badge.hidden = !value;
-    badge.textContent = value === undefined ? "" : String(value);
-    badge.setAttribute("aria-label", `${text} ${value ?? 0}`);
+    badge.hidden = value === 0;
+    badge.textContent = value === undefined ? "—" : value > 99 ? "99+" : String(value);
+    badge.setAttribute("aria-label", `${text} ${value ?? "unavailable"}`);
   }
 }
 
 function defaultBoardPath(id: Uuid): string {
   return `/board/${encodeURIComponent(id)}`;
-}
-
-function pageTitle(
-  workspaceStatus: ReadState<unknown>["status"],
-  boardProps: BoardProps | null,
-  boardName: string,
-  needsTerry: number,
-): string {
-  if (boardProps?.data.status === "loading") {
-    return `${boardName} · Loading`;
-  }
-  if (boardProps?.data.status === "ready") {
-    return needsTerry > 0 ? `(${needsTerry}) ${boardName}` : boardName;
-  }
-  return workspaceStatus === "loading" ? "localswim" : "Board unavailable · localswim";
 }
 
 export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) => {
@@ -221,8 +201,26 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
   main.append(boardHost, message);
   body.append(sidebar.sidebar, main);
   root.append(header.header, body);
-  const previousTitle = document.title;
   host.append(root);
+  const statusPresenter = mountWorkspaceStatus(root, header);
+  const sidebarControls = mountSidebar({
+    root,
+    body,
+    sidebar: sidebar.sidebar,
+    title: sidebar.title,
+    toggle: sidebar.toggle,
+    grip: sidebar.grip,
+  });
+  sidebar.search.disabled = false;
+  const pins = mountPins({
+    search: sidebar.search,
+    list: sidebar.list,
+    status: sidebar.pinStatus,
+    render,
+  });
+  const pinnedHeading = element("h2", "lsw-workspace-pin-group", "Pinned");
+  const otherHeading = element("h2", "lsw-workspace-pin-group", "Other boards");
+  otherHeading.dataset.pinGroup = "other";
 
   let board: { id: Uuid; component: MountedComponent<BoardProps> } | null = null;
   let lastCardEdit: string | null = null;
@@ -238,12 +236,6 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
     });
   }
 
-  function updateClock(): void {
-    header.clock.textContent = localTime.format().replace(/\s/g, "").toLowerCase();
-    const age = cardAge(lastCardEdit);
-    header.latest.textContent = age ? `· Last card update: ${age}` : "";
-  }
-
   function render(): void {
     const workspace = displayValue(props.data);
     const selectedId = props.route.kind === "board" ? props.route.boardId : null;
@@ -254,44 +246,114 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
       boardProps === null ? undefined : displayValue(boardProps.data)?.view.board;
     const selectedName = selectedView?.name ?? selected?.name ?? props.unavailableBoardKey;
     header.title.textContent = selectedName ?? "Workspace";
-    document.title = pageTitle(
+    const title = workspaceTabTitle(
       props.data.status,
-      boardProps,
+      boardProps?.data.status,
       selectedName ?? "Workspace",
       selectedView?.attention.needs_input ?? selected?.attention?.needs_input ?? 0,
     );
-    header.searchField.value = props.route.kind === "board" ? props.route.search : "";
+    const query = props.route.kind === "board" ? props.route.search : "";
+    if (header.searchField.value !== query) header.searchField.value = query;
+    header.searchField.disabled = props.route.kind !== "board";
+    header.shortcut.hidden = query !== "";
+    header.clear.hidden = query === "";
+    header.found.hidden = query.trim() === "" || props.searchFound === undefined;
+    header.found.textContent = header.found.hidden
+      ? ""
+      : props.searchFound === 0
+        ? "no match"
+        : `${props.searchFound} found`;
     const service = displayValue(props.service);
-    header.build.textContent = service === undefined ? "" : `Build ${service.build_id.slice(0, 7)}`;
-    const connected = props.service.status === "ready" && service?.state === "running";
-    root.classList.toggle("lsw-workspace-connected", connected);
-    header.status.textContent = connected ? "CONNECTED" : "DISCONNECTED";
+    const connection =
+      props.connection ??
+      (props.service.status === "ready" && service?.state === "running"
+        ? "connected"
+        : "disconnected");
+    const connected = connection === "connected";
     const pathForBoard = props.boardPath ?? defaultBoardPath;
-    const pinned = new Set(workspace?.workspace.pinned_board_ids);
     const ids = new Set<Uuid>();
     lastCardEdit = selectedView?.last_card_edit_at ?? null;
-    let nextRow = sidebar.list.firstElementChild;
     for (const summary of workspace?.boards ?? []) {
-      ids.add(summary.id);
       if (
         selectedId !== null &&
+        summary.id !== selectedId &&
         summary.last_card_edit_at !== null &&
         (lastCardEdit === null || summary.last_card_edit_at > lastCardEdit)
       ) {
         lastCardEdit = summary.last_card_edit_at;
+      }
+    }
+    const visible = pins.update(props.data, connected && props.session !== null);
+    const hasPinned = pins.hasPins();
+    const grouped = visible.some((item) => item.pinned);
+    const ordered: HTMLElement[] = [];
+    if (grouped) ordered.push(pinnedHeading);
+    let otherShown = false;
+    for (const item of visible) {
+      const { summary, pinned, canToggle, canReorder } = item;
+      ids.add(summary.id);
+      if (hasPinned && !pinned && !otherShown) {
+        ordered.push(otherHeading);
+        otherShown = true;
       }
       let row = rows.get(summary.id);
       if (row === undefined) {
         row = makeRow(summary.id);
         rows.set(summary.id, row);
       }
-      updateRow(row, summary, summary.id === selectedId, pinned.has(summary.id));
-      if (nextRow !== row.container) {
-        sidebar.list.insertBefore(row.container, nextRow);
-      }
-      nextRow = row.container.nextElementSibling;
+      const displaySummary =
+        summary.id === selectedId && selectedView
+          ? {
+              ...summary,
+              attention: selectedView.attention,
+              last_card_edit_at: selectedView.last_card_edit_at,
+            }
+          : summary;
+      updateRow(row, displaySummary, summary.id === selectedId, pinned);
+      row.pin.setAttribute("aria-disabled", String(!canToggle));
+      row.reorder.hidden = !pinned;
+      row.reorder.setAttribute("aria-disabled", String(!canReorder));
+      row.reorder.draggable = canReorder;
+      row.reorder.setAttribute(
+        "aria-label",
+        `Reorder ${summary.name ?? summary.id}. Use Up and Down arrows, Home or End.`,
+      );
+      ordered.push(row.container);
     }
-    updateClock();
+    const focused = document.activeElement;
+    const retainedFocus =
+      focused instanceof HTMLElement && sidebar.list.contains(focused) ? focused : null;
+    const nodes = new Set(ordered);
+    for (const child of [...sidebar.list.children])
+      if (!nodes.has(child as HTMLElement)) child.remove();
+    ordered.forEach((item, index) => {
+      const before = sidebar.list.children.item(index);
+      if (before !== item) sidebar.list.insertBefore(item, before);
+    });
+    if (retainedFocus?.isConnected && document.activeElement !== retainedFocus) {
+      retainedFocus.focus({ preventScroll: true });
+    }
+    statusPresenter.update({
+      connection,
+      refreshing: props.refreshing ?? false,
+      buildId: service?.build_id ?? null,
+      lastCardEdit,
+      title,
+    });
+    const actor =
+      selectedView?.last_card_edit_at === lastCardEdit &&
+      props.lastActorAt === lastCardEdit &&
+      !workspace?.boards.some(
+        (item) => item.id !== selectedId && item.last_card_edit_at === lastCardEdit,
+      )
+        ? props.lastActor
+        : null;
+    header.latest.title =
+      actor === "bot"
+        ? "Last card edit by Bot"
+        : actor === "human"
+          ? "Last card edit by Human"
+          : "";
     for (const [id, row] of rows) {
       if (!ids.has(id)) {
         row.container.remove();
@@ -299,7 +361,9 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
       }
     }
     sidebar.empty.textContent =
-      props.data.status === "ready" && ids.size === 0 ? "No boards found in this folder." : "";
+      props.data.status === "ready" && workspace?.boards.length === 0
+        ? "No boards found in this folder."
+        : "";
     if (selectedId === null) {
       if (props.unavailableBoardKey === undefined) sidebar.external.removeAttribute("href");
       else sidebar.external.href = location.pathname;
@@ -347,6 +411,46 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
     sidebar.list.scrollTo(props.scroll.left, props.scroll.top);
   }
 
+  header.searchField.maxLength = 1024;
+  header.searchField.setAttribute(
+    "aria-label",
+    "Search titles, descriptions and comments. Press / to focus, Escape to clear.",
+  );
+  header.searchField.addEventListener("input", () => props.onSearch?.(header.searchField.value), {
+    signal,
+  });
+  header.clear.addEventListener(
+    "click",
+    () => {
+      props.onSearch?.("");
+      header.searchField.focus();
+    },
+    { signal },
+  );
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.defaultPrevented || props.overlayOpen || props.route.kind !== "board") return;
+      if (event.key === "Escape" && document.activeElement === header.searchField) {
+        event.preventDefault();
+        props.onSearch?.("");
+      } else if (
+        event.key === "/" &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.metaKey &&
+        !(
+          event.target instanceof HTMLElement &&
+          (event.target.isContentEditable || event.target.matches("input, textarea, select"))
+        )
+      ) {
+        event.preventDefault();
+        header.searchField.focus();
+      }
+    },
+    { signal },
+  );
+
   sidebar.list.addEventListener(
     "click",
     (event) => {
@@ -367,7 +471,6 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
   );
   render();
   restoreScroll();
-  const clockTimer = window.setInterval(updateClock, 1000);
   return {
     update(next) {
       const restore =
@@ -382,10 +485,11 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
     },
     dispose() {
       listeners.abort();
-      window.clearInterval(clockTimer);
+      sidebarControls.dispose();
+      pins.dispose();
+      statusPresenter.dispose();
       board?.component.dispose();
       root.remove();
-      document.title = previousTitle;
     },
   };
 };

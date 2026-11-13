@@ -1,0 +1,52 @@
+.lsw-workspace-body {
+  grid-template-columns: var(--lsw-workspace-sidebar-width, 312px) minmax(0, 1fr);
+}
+
+.lsw-workspace-body:has(> .lsw-workspace-sidebar-collapsed) {
+  grid-template-columns: 44px minmax(0, 1fr);
+}
+
+.lsw-workspace-sidebar-toggle {
+  cursor: pointer;
+}
+
+.lsw-workspace-sidebar-collapsed > :not(.lsw-workspace-sidebar-heading) {
+  display: none;
+}
+
+.lsw-workspace-sidebar-collapsed > .lsw-workspace-sidebar-heading {
+  justify-content: flex-start;
+  padding: 0;
+}
+
+.lsw-workspace-sidebar-collapsed .lsw-workspace-sidebar-toggle {
+  margin-left: -3px;
+}
+
+.lsw-workspace-sidebar-grip {
+  right: 0;
+  z-index: 1;
+  width: 6px;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.lsw-workspace-sidebar-grip::after {
+  position: absolute;
+  inset: 0 2px;
+  border-radius: 2px;
+  background: #abb2bc;
+  content: "";
+}
+
+.lsw-workspace-sidebar-grip:focus-visible {
+  outline: 2px solid #426dcc;
+  outline-offset: -2px;
+}
+
+.lsw-workspace-sidebar-resizing,
+.lsw-workspace-sidebar-resizing * {
+  cursor: col-resize;
+  user-select: none;
+}

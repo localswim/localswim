@@ -11,7 +11,7 @@
     "lint:prior-tests": "oxlint --disable-nested-config --config .oxlint-prior-tests.json api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn6.test.mjs turn7.test.mjs turn7-ui.test.mjs",
     "format": "prettier --write \"**/*.{ts,js,mjs,cjs,css,html,json}\"",
     "format:check": "prettier --check \"**/*.{ts,js,mjs,cjs,css,html,json}\"",
-    "test": "node --test api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn6.test.mjs turn7.test.mjs turn7-ui.test.mjs clean-room/workspace/read.test.mjs clean-room/board/read.test.mjs"
+    "test": "node --test api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn6.test.mjs turn7.test.mjs turn7-ui.test.mjs clean-room/workspace/read.test.mjs clean-room/workspace/pins.test.mjs clean-room/board/read.test.mjs clean-room/board/filter.test.mjs clean-room/board/move.test.mjs clean-room/board/approve-lane.test.mjs clean-room/drawer/read.test.mjs clean-room/create/write.test.mjs clean-room/live/controller.test.mjs clean-room/live/status.test.mjs"
   },
   "devDependencies": {
     "@types/node": "26.6.6",

@@ -1,4 +1,7 @@
 import type { CardDto, LaneDto, PriorityDto, Uuid } from "../api-types.js";
+import { bindBoardMoves } from "./move.js";
+import { projectCards } from "./filter.js";
+import { laneApprovalAvailability } from "./approve-lane.js";
 import type {
   BoardData,
   BoardProps,
@@ -27,6 +30,9 @@ interface LaneElements {
   readonly caption: HTMLParagraphElement;
   readonly list: HTMLDivElement;
   readonly cards: Map<Uuid, CardElements>;
+  readonly older: HTMLInputElement;
+  readonly olderLabel: HTMLLabelElement;
+  readonly olderText: HTMLSpanElement;
 }
 
 function element<Tag extends keyof HTMLElementTagNameMap>(tag: Tag, className: string) {
@@ -70,7 +76,7 @@ function permissions(data: BoardData, laneId: Uuid): string {
       users
         .filter((user) => ids.has(user.id))
         .map((user) => data.view.board.actor_presentation?.[user.kind]?.label ?? user.label)
-        .join(" + ") || "—"
+        .join(" + ") || "nobody"
     );
   }
   return `IN: ${labels(incoming)} · OUT: ${labels(outgoing)}`;
@@ -107,13 +113,12 @@ function sameFocus(left: FocusTarget | null, right: FocusTarget | null): boolean
 
 export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
   let props = initialProps;
-  let renderedData: BoardData | null = null;
-  let renderedSession: BoardProps["session"] = null;
   let lastFocus = initialProps.focus;
   let pendingFocus = initialProps.focus;
   let configuredCss = "";
   let stylesLoaded = false;
   const lanes = new Map<Uuid, LaneElements>();
+  const moveReplays = new Set<Animation>();
   const focusTargets = new WeakMap<HTMLElement, FocusTarget>();
   const lifetime = new AbortController();
   const listeners = { signal: lifetime.signal };
@@ -138,9 +143,18 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
   unavailable.append(unavailableTitle, unavailableText, retry);
   const viewport = element("div", "lsw-board-viewport");
   const track = element("div", "lsw-board-lanes");
+  const replayLayer = element("div", "lsw-board-replay-layer");
+  replayLayer.setAttribute("aria-hidden", "true");
+  replayLayer.inert = true;
   viewport.append(track);
-  root.append(loading, unavailable, viewport);
+  root.append(loading, unavailable, viewport, replayLayer);
   shadow.append(baseline, root);
+  const movement = bindBoardMoves(root, {
+    data: null,
+    actorId: null,
+    enabled: false,
+    onMove: () => {},
+  });
 
   function trackFocus(control: HTMLElement, action: string, resourceId: Uuid | null): void {
     focusTargets.set(control, { control: action, resourceId });
@@ -178,8 +192,71 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     header.append(heading);
     const caption = element("p", "lsw-board-lane-permissions");
     const list = element("div", "lsw-board-card-list");
-    section.append(header, caption, list);
-    return { section, title, count, create, reorder, approve, caption, list, cards: new Map() };
+    const older = element("input", "lsw-board-completed-checkbox");
+    older.type = "checkbox";
+    const olderLabel = element("label", "lsw-board-completed-toggle");
+    const olderText = element("span", "");
+    olderLabel.title =
+      "Cards finished more than 24 hours ago are hidden. Tick to bring them back for this visit.";
+    olderLabel.hidden = true;
+    olderLabel.append(older, olderText);
+    older.addEventListener(
+      "change",
+      () => {
+        props.onNavigate({
+          route: { ...props.route, showCompleted: older.checked },
+          history: "replace",
+        });
+      },
+      listeners,
+    );
+    const permissionsBlock = element("div", "lsw-board-lane-context");
+    permissionsBlock.append(caption, olderLabel);
+    create.addEventListener(
+      "click",
+      () => {
+        if (props.writable && create.getAttribute("aria-disabled") !== "true")
+          props.onLaneAction?.("create", lane.id);
+      },
+      listeners,
+    );
+    reorder.addEventListener(
+      "click",
+      () => {
+        if (
+          props.writable &&
+          reorder.querySelector("button")?.getAttribute("aria-disabled") !== "true"
+        )
+          props.onLaneAction?.("order", lane.id);
+      },
+      listeners,
+    );
+    approve.addEventListener(
+      "click",
+      () => {
+        if (
+          props.writable &&
+          approve.querySelector("button")?.getAttribute("aria-disabled") !== "true"
+        )
+          props.onLaneAction?.("approve", lane.id);
+      },
+      listeners,
+    );
+    section.append(header, permissionsBlock, list);
+    return {
+      section,
+      title,
+      count,
+      create,
+      reorder,
+      approve,
+      caption,
+      list,
+      older,
+      olderLabel,
+      olderText,
+      cards: new Map(),
+    };
   }
 
   function createCard(cardId: Uuid): CardElements {
@@ -231,12 +308,10 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     );
     const canCreate = capabilities?.includes("create_card") ?? false;
     const canReorder = capabilities?.includes("reorder_tickets") ?? false;
-    const canApprove = session?.kind === "human" && (capabilities?.includes("approve") ?? false);
     const priorities = new Map(data.priorities.map((priority) => [priority.id, priority]));
-    const cardsByLane = Map.groupBy(
-      data.view.cards.filter((card) => !card.archived),
-      (card) => card.lane_id,
-    );
+    const projection =
+      props.projection ?? projectCards(data.view, props.route.showCompleted, null, Date.now());
+    const cardsByLane = projection.cardsByLane;
     const visible = data.view.lanes
       .filter((lane) => !lane.retired)
       .toSorted((left, right) => left.position - right.position);
@@ -259,10 +334,45 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
         `${cards.length} ${cards.length === 1 ? "card" : "cards"}`,
       );
       nodes.create.hidden = !canCreate || !createLanes.has(lane.id);
+      nodes.create.setAttribute("aria-disabled", String(!props.writable));
       nodes.create.title = `Add card to ${lane.label}`;
       nodes.create.setAttribute("aria-label", nodes.create.title);
       nodes.reorder.hidden = !canReorder || !lane.reorder_enabled;
-      nodes.approve.hidden = !canApprove || !lane.approval_enabled;
+      nodes.reorder.classList.toggle(
+        "lsw-board-reorder-filtered",
+        props.route.search.trim() !== "",
+      );
+      const reorderButton = nodes.reorder.querySelector("button");
+      reorderButton?.setAttribute(
+        "aria-disabled",
+        String(!props.writable || cards.length < 2 || props.route.search.trim() !== ""),
+      );
+      const approval = props.approvalState?.(lane.id);
+      const availability = laneApprovalAvailability(data, session, lane.id);
+      nodes.approve.hidden = !availability.visible && approval !== "unknown";
+      const emptyVisibleLane = cards.length === 0;
+      const approveButton = nodes.approve.querySelector("button");
+      const approvalLabel =
+        approval === "unknown"
+          ? "Check approval status"
+          : emptyVisibleLane
+            ? "Disabled; no cards in swimlane"
+            : `Approve all ${availability.count} cards in ${lane.label} and move to Completed`;
+      if (approveButton) {
+        approveButton.title = approvalLabel;
+        approveButton.setAttribute("aria-label", approvalLabel);
+        approveButton.setAttribute(
+          "aria-disabled",
+          String(
+            !props.writable ||
+              approval === "busy" ||
+              (approval !== "unknown" && (!availability.enabled || emptyVisibleLane)),
+          ),
+        );
+      }
+      nodes.olderLabel.hidden = lane.role !== "completed" || projection.olderCompleted === 0;
+      nodes.older.checked = props.route.showCompleted;
+      setText(nodes.olderText, `Unhide old (${projection.olderCompleted})`);
       setText(nodes.caption, permissions(data, lane.id));
       renderCards(nodes, cards, priorities);
       place(track, nodes.section, index);
@@ -270,6 +380,7 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
   }
 
   function reportScroll(): void {
+    stopMoveReplays();
     if (viewport.hidden || !stylesLoaded) return;
     const scroll: BoardScroll = {
       board: position(viewport),
@@ -368,6 +479,65 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     shadow.adoptedStyleSheets = css === "" ? [] : [boardStyles];
   }
 
+  function stopMoveReplays(): void {
+    for (const animation of moveReplays) animation.cancel();
+    moveReplays.clear();
+    replayLayer.replaceChildren();
+  }
+
+  function visibleCardBounds(card: CardDto): DOMRect | null {
+    const lane = lanes.get(card.lane_id);
+    const node = lane?.cards.get(card.id)?.button;
+    if (!node || !lane) return null;
+    const bounds = node.getBoundingClientRect();
+    const clip = lane.list.getBoundingClientRect();
+    const frame = viewport.getBoundingClientRect();
+    return bounds.right > Math.max(clip.left, frame.left) &&
+      bounds.left < Math.min(clip.right, frame.right) &&
+      bounds.bottom > Math.max(clip.top, frame.top) &&
+      bounds.top < Math.min(clip.bottom, frame.bottom)
+      ? bounds
+      : null;
+  }
+
+  function replayMove(card: CardDto, from: DOMRect): void {
+    const destination = lanes.get(card.lane_id)?.cards.get(card.id)?.button;
+    const to = visibleCardBounds(card);
+    if (
+      !destination ||
+      shadow.activeElement === destination ||
+      !to ||
+      Math.hypot(to.left - from.left, to.top - from.top) < 1
+    )
+      return;
+    const ghost = destination.cloneNode(true);
+    if (!(ghost instanceof HTMLButtonElement)) return;
+    ghost.removeAttribute("data-card-id");
+    ghost.classList.add("lsw-board-replay-card");
+    const frame = replayLayer.getBoundingClientRect();
+    ghost.style.left = `${from.left - frame.left}px`;
+    ghost.style.top = `${from.top - frame.top}px`;
+    ghost.style.width = `${from.width}px`;
+    replayLayer.append(ghost);
+    const movement = ghost.animate(
+      [
+        { transform: "translate(0, 0)" },
+        { transform: `translate(${to.left - from.left}px, ${to.top - from.top}px)` },
+      ],
+      { duration: 430, easing: "cubic-bezier(.25, .75, .28, 1)" },
+    );
+    const hideDestination = destination.animate([{ opacity: 0 }, { opacity: 0 }], 430);
+    moveReplays.add(movement);
+    moveReplays.add(hideDestination);
+    const finish = () => {
+      moveReplays.delete(movement);
+      moveReplays.delete(hideDestination);
+      hideDestination.cancel();
+      ghost.remove();
+    };
+    void movement.finished.then(finish, finish);
+  }
+
   function update(next: BoardProps): void {
     const active = shadow.activeElement;
     const ownedFocus = active instanceof HTMLElement ? focusTargets.get(active) : undefined;
@@ -378,6 +548,33 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
     }
     const previousScroll = props.scroll;
     const previouslyVisible = !viewport.hidden;
+    const previous = retainedData(props);
+    const incoming = next.data.status === "ready" ? next.data.current.value : null;
+    const moved: { card: CardDto; from: DOMRect }[] = [];
+    if (
+      props.route.search !== next.route.search ||
+      props.route.showCompleted !== next.route.showCompleted
+    )
+      stopMoveReplays();
+    if (incoming !== null && incoming.view.board.revision !== previous?.view.board.revision)
+      stopMoveReplays();
+    if (
+      stylesLoaded &&
+      previouslyVisible &&
+      previous !== null &&
+      incoming !== null &&
+      incoming.view.board.revision === next.liveMoveRevision &&
+      incoming.view.board.revision > previous.view.board.revision &&
+      !matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      const before = new Map(previous.view.cards.map((card) => [card.id, card]));
+      for (const card of incoming.view.cards) {
+        const original = before.get(card.id);
+        if (original === undefined || original.lane_id === card.lane_id) continue;
+        const from = visibleCardBounds(original);
+        if (from !== null) moved.push({ card, from });
+      }
+    }
     props = next;
     const data = retainedData(next);
     if (stylesLoaded) applyBoardStyles();
@@ -395,11 +592,15 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
           : "Showing the last confirmed board.",
       );
     }
-    if (data !== null && (data !== renderedData || next.session !== renderedSession)) {
-      renderedData = data;
-      renderedSession = next.session;
+    if (data !== null) {
       renderLanes(data);
     }
+    movement.update({
+      data,
+      actorId: next.session?.principal_id ?? null,
+      enabled: next.writable === true && next.moveEnabled === true,
+      onMove: (intent) => props.onMove?.(intent),
+    });
     if (stylesLoaded && data !== null && (!previouslyVisible || next.scroll !== previousScroll))
       restoreScroll(next.scroll);
     if (
@@ -411,15 +612,22 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
       pendingFocus = ownedFocus;
     }
     restoreFocus();
+    for (const { card, from } of moved) replayMove(card, from);
   }
 
   viewport.hidden = true;
+  shadow.addEventListener("focusin", stopMoveReplays, listeners);
+  const replayResize = new ResizeObserver(stopMoveReplays);
+  replayResize.observe(viewport);
   host.append(surface);
   update(initialProps);
   return {
     update,
     dispose() {
       lifetime.abort();
+      movement.dispose();
+      replayResize.disconnect();
+      stopMoveReplays();
       shadow.adoptedStyleSheets = [];
       surface.remove();
     },

@@ -20,7 +20,8 @@
 
 .lsw-attachment-image {
   display: block;
-  max-width: 100%;
+  max-width: min(100%, 400px);
+  height: auto;
   max-height: 200px;
   border-radius: 4px;
 }

@@ -1450,10 +1450,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       return request("/cards?" + query, { signal });
     },
-    /** @param {unknown} cardId */
-    async getCard(cardId) {
+    /** @param {unknown} cardId @param {AbortSignal} [signal] */
+    async getCard(cardId, signal) {
       const id = resourceId(cardId);
-      const reply = await request("/cards/" + id);
+      const reply = await request("/cards/" + id, { signal });
       const card = /** @type {{ board_id?: unknown }} */ (reply.data);
       if (
         !STRONG_ETAG.test(reply.etag ?? "") ||

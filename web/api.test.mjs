@@ -491,6 +491,23 @@ test("creates and finds cards using the distinct board and card tags", async () 
   );
 });
 
+test("aborts a focused card transport when its caller closes the read", async () => {
+  const controller = new AbortController();
+  let requests = 0;
+  const api = client((_url, { signal }) => {
+    requests++;
+    assert.ok(signal);
+    return new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    });
+  });
+  const read = api.getCard(BOARD, controller.signal);
+  await Promise.resolve();
+  assert.equal(requests, 1);
+  controller.abort();
+  await assert.rejects(read, { name: "ApiError", code: "transport_failed" });
+});
+
 test("does not repeat a stale card creation or a reply missing the board tag", async () => {
   for (const [response, code, status, outcomeUnknown] of [
     [new Response(null, { status: 412 }), "http_error", 412, false],

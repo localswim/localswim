@@ -123,7 +123,7 @@ export function mountCardView(
   }
 
   async function getCard(id: string, requestSignal: AbortSignal): Promise<SavedCard> {
-    const reply = await readWithSession(() => api.getCard(id), requestSignal);
+    const reply = await readWithSession(() => api.getCard(id, requestSignal), requestSignal);
     requestSignal.throwIfAborted();
     // The API adapter validates the card shape and requested UUID. Confirm board ownership here.
     const card = reply.data as SavedCard;

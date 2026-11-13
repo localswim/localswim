@@ -172,8 +172,10 @@ function validActivation(value, id, buildId) {
     Object.keys(value).length === 4 &&
     value.id === id &&
     value.build_id === buildId &&
-    ["accepted", "activated", "failed"].some((state) => state === value.state) &&
-    validErrorCode(value.error_code)
+    (value.state === "failed"
+      ? value.error_code === "activation_handoff_failed" ||
+        value.error_code === "activation_interrupted"
+      : (value.state === "accepted" || value.state === "activated") && value.error_code === null)
   );
 }
 

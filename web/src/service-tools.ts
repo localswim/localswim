@@ -14,10 +14,13 @@ type Service = ServiceReply["data"];
 type StopIntent = Readonly<{ instanceId: string; etag: string; acknowledged: boolean }>;
 type ActivationIntent = Readonly<{
   id: string;
+  attempt: string;
   buildId: string;
+  runningBuildId: string;
   instanceId: string;
   etag: string;
   port: number;
+  acknowledged: boolean;
 }>;
 type StopSettlement =
   | { kind: "confirmed"; service: Service }
@@ -69,9 +72,15 @@ function readActivationIntent(storage: Storage): ActivationIntent | null {
     !("id" in value) ||
     typeof value.id !== "string" ||
     !instanceIdPattern.test(value.id) ||
+    !("attempt" in value) ||
+    typeof value.attempt !== "string" ||
+    !buildIdPattern.test(value.attempt) ||
     !("buildId" in value) ||
     typeof value.buildId !== "string" ||
     !buildIdPattern.test(value.buildId) ||
+    !("runningBuildId" in value) ||
+    typeof value.runningBuildId !== "string" ||
+    !buildIdPattern.test(value.runningBuildId) ||
     !("instanceId" in value) ||
     typeof value.instanceId !== "string" ||
     !instanceIdPattern.test(value.instanceId) ||
@@ -82,12 +91,26 @@ function readActivationIntent(storage: Storage): ActivationIntent | null {
     typeof value.port !== "number" ||
     !Number.isInteger(value.port) ||
     value.port < 1 ||
-    value.port > 65535
+    value.port > 65535 ||
+    !("acknowledged" in value) ||
+    typeof value.acknowledged !== "boolean"
   ) {
     throw new Error("Invalid service activation record.");
   }
-  const { id, buildId, instanceId, etag, port } = value;
-  return { id, buildId, instanceId, etag, port };
+  const { id, attempt, buildId, runningBuildId, instanceId, etag, port, acknowledged } = value;
+  return { id, attempt, buildId, runningBuildId, instanceId, etag, port, acknowledged };
+}
+
+function matchesOriginalService(intent: ActivationIntent, reply: ServiceReply) {
+  const { data, etag } = reply;
+  return (
+    etag === intent.etag &&
+    data.service_instance_id === intent.instanceId &&
+    data.build_id === intent.runningBuildId &&
+    data.port === intent.port &&
+    data.state === "running" &&
+    data.restart_error_code === null
+  );
 }
 
 function lifecycleFor(doc: Document): Lifecycle {
@@ -156,6 +179,7 @@ export function mountServiceTools(
   const choiceLabel = doc.createElement("label");
   const choice = doc.createElement("select");
   const activationOutcome = doc.createElement("p");
+  const retryActivation = doc.createElement("button");
   heading.textContent = "Service";
   health.textContent = "Reading service status…";
   health.setAttribute("role", "status");
@@ -170,6 +194,8 @@ export function mountServiceTools(
   activate.textContent = "Activate staged build";
   activationOutcome.id = "service-activation-status";
   activationOutcome.setAttribute("role", "status");
+  retryActivation.type = "button";
+  retryActivation.textContent = "Retry original activation";
   section.id = "service-controls";
   section.append(
     heading,
@@ -182,6 +208,7 @@ export function mountServiceTools(
     stop,
     outcome,
     activationOutcome,
+    retryActivation,
   );
   host.append(section);
 
@@ -198,7 +225,8 @@ export function mountServiceTools(
   let sawActivation = false;
   let pendingReported = false;
   let checkingActivation = false;
-  let autoInspectedId: string | undefined;
+  let autoInspectedAttempt: string | undefined;
+  let retryableAttempt: string | undefined;
   let reconnectedInstance: string | undefined;
   let buildChoices: Awaited<ReturnType<Api["listBuilds"]>>["data"]["builds"] = [];
   let selectedBuild = "";
@@ -240,9 +268,10 @@ export function mountServiceTools(
     for (const observer of lifecycle.observers) observer();
   }
 
-  function saveActivation(next: ActivationIntent | null) {
+  function saveActivation(expectedAttempt: string | undefined, next: ActivationIntent | null) {
     if (!storage) return false;
     try {
+      if (readActivationIntent(storage)?.attempt !== expectedAttempt) return false;
       if (next) storage.setItem(activationKey, JSON.stringify(next));
       else storage.removeItem(activationKey);
       activation = next;
@@ -286,6 +315,8 @@ export function mountServiceTools(
     activate.hidden = !showControls;
     choiceLabel.hidden = !showControls;
     activationOutcome.hidden = !managed || activationOutcome.textContent === "";
+    retryActivation.hidden = !managed || !activation || activation.attempt !== retryableAttempt;
+    retryActivation.disabled = activating || checkingActivation || inspecting;
     refresh.disabled = inspecting || activating || checkingActivation;
     const cannotChangeService =
       inspecting ||
@@ -361,7 +392,7 @@ export function mountServiceTools(
       readSignal.throwIfAborted();
       service = latest;
       health.textContent = serviceLabel(latest.data);
-      return latest.data;
+      return latest;
     } catch (error) {
       if (!signal.aborted) {
         service = undefined;
@@ -371,7 +402,11 @@ export function mountServiceTools(
     }
   }
 
-  async function inspectActivation(poll: boolean) {
+  function ownsActivation(intent: ActivationIntent) {
+    return readActivationIntentIfAvailable()?.attempt === intent.attempt;
+  }
+
+  async function inspectActivation(mode: "poll" | "inspect" | "retry") {
     if (
       checkingActivation ||
       inspecting ||
@@ -382,19 +417,18 @@ export function mountServiceTools(
     )
       return;
     const original = activation;
+    if (mode === "retry" && retryableAttempt !== original.attempt) return;
+    retryableAttempt = undefined;
     checkingActivation = true;
-    autoInspectedId = original.id;
+    autoInspectedAttempt = original.attempt;
     activationOutcome.textContent = `Checking activation receipt ${original.id} and service status…`;
     sync();
     const readSignal = AbortSignal.any([signal, AbortSignal.timeout(activationCheckMs)]);
     try {
       while (!readSignal.aborted && canManage()) {
         try {
-          const {
-            service_instance_id: instance,
-            port,
-            state,
-          } = await readActivationService(readSignal);
+          const first = await readActivationService(readSignal);
+          const { service_instance_id: instance, port, state } = first.data;
           if (!canManage()) return;
           const replaced =
             state === "running" && port === original.port && instance !== original.instanceId;
@@ -407,24 +441,47 @@ export function mountServiceTools(
           const receipt = await readWithSession(() => {
             if (!canManage()) throw new Error("Workspace administrator access is required.");
             return api.getActivation(original.id, original.buildId, readSignal);
-          }, readSignal);
+          }, readSignal).catch((error: unknown) => {
+            if (error instanceof ApiError && error.status === 404) return null;
+            throw error;
+          });
           readSignal.throwIfAborted();
-          if (!canManage()) return;
-          let activated = false;
-          if (receipt.state === "activated" && replaced && instance === reconnectedInstance) {
+          if (!canManage() || !ownsActivation(original)) return;
+          if (
+            !receipt &&
+            mode !== "poll" &&
+            !original.acknowledged &&
+            matchesOriginalService(original, first)
+          ) {
+            // Both service reads must match the captured validator. The conditional
+            // write handles admission of the original request after this proof.
             const confirmed = await readActivationService(readSignal);
+            if (!canManage() || !ownsActivation(original)) return;
+            if (matchesOriginalService(original, confirmed)) {
+              if (mode === "retry") {
+                await submitActivation({ ...original, attempt: crypto.randomUUID() }, original);
+              } else {
+                retryableAttempt = original.attempt;
+                lifecycle.activationMessage = `Receipt ${original.id} is missing and the original service is unchanged. You can retry the original activation.`;
+              }
+              return;
+            }
+          }
+          let activated = false;
+          if (receipt?.state === "activated" && replaced && instance === reconnectedInstance) {
+            const { data: confirmed } = await readActivationService(readSignal);
             activated =
               confirmed.service_instance_id === instance &&
               confirmed.port === original.port &&
               confirmed.state === "running" &&
               confirmed.build_id === original.buildId;
           }
-          if (!canManage() || readActivationIntentIfAvailable()?.id !== original.id) return;
-          if (activated || receipt.state === "failed") {
+          if (!canManage() || !ownsActivation(original)) return;
+          if (activated || receipt?.state === "failed") {
             const message = activated
               ? `Build activated. Reconnected on the same port. Receipt ${original.id}.`
-              : `Build activation failed${receipt.error_code ? ` (${receipt.error_code})` : ""}. Receipt ${original.id}.`;
-            if (saveActivation(null)) {
+              : `Build activation failed (${receipt?.error_code}). Receipt ${original.id}.`;
+            if (saveActivation(original.attempt, null)) {
               lifecycle.activationMessage = message;
             } else {
               lifecycle.activationMessage = `${message} This tab could not clear the activation record.`;
@@ -432,12 +489,12 @@ export function mountServiceTools(
             return;
           }
         } catch {
-          // A missing receipt or an unavailable service can be temporary during handoff.
+          // Service or receipt reads can fail temporarily during handoff.
         }
-        if (!poll) break;
+        if (mode !== "poll") break;
         await waitForRetry(readSignal, activationRetryMs);
       }
-      if (!signal.aborted) {
+      if (!signal.aborted && ownsActivation(original)) {
         lifecycle.activationMessage = `Activation outcome is unconfirmed. Refresh service status to inspect receipt ${original.id}.`;
       }
     } finally {
@@ -445,6 +502,7 @@ export function mountServiceTools(
       if (!signal.aborted) {
         notifyLifecycle();
         void readBuilds();
+        resumeActivation();
       }
     }
   }
@@ -460,12 +518,13 @@ export function mountServiceTools(
   function resumeActivation() {
     if (
       activation &&
-      activation.id !== autoInspectedId &&
+      activation.attempt !== autoInspectedAttempt &&
       canManage() &&
       !inspecting &&
+      !checkingActivation &&
       lifecycle.operations.state(activationKey) !== "submitting"
     ) {
-      void inspectActivation(true);
+      void inspectActivation("poll");
     }
   }
 
@@ -482,33 +541,47 @@ export function mountServiceTools(
     const prior = service;
     const buildId = choice.value;
     if (!buildChoices.some((build) => build.id === buildId && build.validation === "valid")) return;
+    await submitActivation({
+      id: newOperationId(),
+      attempt: crypto.randomUUID(),
+      buildId,
+      runningBuildId: prior.data.build_id,
+      instanceId: prior.data.service_instance_id,
+      etag: prior.etag,
+      port: prior.data.port,
+      acknowledged: false,
+    });
+  }
+
+  async function submitActivation(intent: ActivationIntent, original?: ActivationIntent) {
+    if (signal.aborted || !canManage()) return;
     await lifecycle.operations.run(
       activationKey,
       "submitting",
       async () => {
         storageReady = loadIntent();
         activationReady = loadActivation();
-        if (!storageReady || pending || !activationReady || activation) {
+        if (
+          !storageReady ||
+          pending ||
+          !activationReady ||
+          activation?.attempt !== original?.attempt
+        ) {
           reportActivation();
           return;
         }
-        const intent = {
-          id: newOperationId(),
-          buildId,
-          instanceId: prior.data.service_instance_id,
-          etag: prior.etag,
-          port: prior.data.port,
-        };
         lifecycle.activationMessage = `Requesting build activation. Receipt ${intent.id}.`;
         const result = await submitOperation(
-          () => saveActivation(intent),
+          () => saveActivation(original?.attempt, intent),
           () => {
             notifyLifecycle();
             return api.activateBuild(intent.id, intent.buildId, intent.etag);
           },
         );
+        if (result.kind !== "journal-failed" && !ownsActivation(intent)) return;
         switch (result.kind) {
           case "confirmed":
+            saveActivation(intent.attempt, { ...intent, acknowledged: true });
             lifecycle.activationMessage = `Activation accepted. Reconnecting to inspect receipt ${intent.id}…`;
             break;
           case "unknown":
@@ -516,13 +589,18 @@ export function mountServiceTools(
             break;
           case "stale":
           case "refused":
+            if (original) {
+              autoInspectedAttempt = intent.attempt;
+              lifecycle.activationMessage = `The service refused the retry. Refresh service status to inspect original receipt ${intent.id}.`;
+              break;
+            }
             lifecycle.activationRefusal++;
             lifecycle.activationRefreshRequired = true;
             lifecycle.activationMessage =
               result.kind === "stale"
                 ? "Service status changed. Refresh it before requesting activation."
                 : "The service refused build activation. Refresh service status before trying again.";
-            if (!saveActivation(null))
+            if (!saveActivation(intent.attempt, null))
               lifecycle.activationMessage += " This tab could not clear the activation record.";
             break;
           case "journal-failed":
@@ -732,7 +810,7 @@ export function mountServiceTools(
     "click",
     () => {
       if (activation && canManage()) {
-        void inspectActivation(false);
+        void inspectActivation("inspect");
       } else {
         const refusal = lifecycle.activationRefusal;
         void Promise.resolve(onRefreshIdentity?.()).then(() => {
@@ -752,6 +830,7 @@ export function mountServiceTools(
     { signal },
   );
   activate.addEventListener("click", () => void requestActivation(), { signal });
+  retryActivation.addEventListener("click", () => void inspectActivation("retry"), { signal });
   let lastStopSettlement = lifecycle.settlement;
   let lastActivationRefusal = lifecycle.activationRefusal;
   const onSettlement = () => {

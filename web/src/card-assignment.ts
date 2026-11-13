@@ -405,7 +405,7 @@ export function mountCardAssignment(
     const change =
       name === "ownerId" ? { owner_id: draft.requested } : { priority_id: draft.requested };
     let settleProjection: SettleBoardPending | undefined;
-    let projectionConfirmed = false;
+    let confirmedPriority: { priorityId: string } | undefined;
     try {
       const outcome = await submitOperation(
         () => persist(cardId, entry, submission),
@@ -445,7 +445,9 @@ export function mountCardAssignment(
       switch (outcome.kind) {
         case "confirmed": {
           const saved = outcome.result;
-          projectionConfirmed = name === "priorityId" && saved.priorityId === draft.requested;
+          if (name === "priorityId" && saved.revision > context.revision) {
+            confirmedPriority = { priorityId: saved.priorityId };
+          }
           entry.confirmed = saved;
           entry.result = { field: name, requested: draft.requested, effective: saved[name] };
           persist(cardId, entry, null);
@@ -462,7 +464,7 @@ export function mountCardAssignment(
       }
     } finally {
       entry.active = undefined;
-      settleProjection?.(projectionConfirmed ? "confirmed" : undefined);
+      settleProjection?.(confirmedPriority);
       release();
       publish();
     }

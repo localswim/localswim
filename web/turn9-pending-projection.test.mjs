@@ -76,8 +76,8 @@ class Element extends EventTarget {
 }
 
 const uuid = (value) => `ac2e106d-7e81-477a-a5ad-${String(value).padStart(12, "0")}`;
-const [boardId, otherBoard, sourceLane, targetLane, ownerId, p1, p3, first, second, created] =
-  Array.from({ length: 10 }, (_, index) => uuid(index + 1));
+const [boardId, otherBoard, sourceLane, targetLane, ownerId, p1, p2, p3, first, second, created] =
+  Array.from({ length: 11 }, (_, index) => uuid(index + 1));
 const tag = (id, revision) => `"${id}-${revision}"`;
 const data = {
   board: { id: boardId, revision: 7, user_css: "" },
@@ -93,6 +93,7 @@ const data = {
   users: [{ id: ownerId, label: "Human", kind: "human" }],
   priorities: [
     { id: p1, label: "Urgent", rank: 1 },
+    { id: p2, label: "High", rank: 2 },
     { id: p3, label: "Normal", rank: 3 },
   ],
 };
@@ -402,14 +403,15 @@ test("a refused move clears its projection before readback and retains a failed 
   assert.equal(writes, 1);
 });
 
-test("individual priority projects the requested rank and settles to the confirmed floor", async () => {
-  const { doc } = boardFixture();
+function priorityFixture() {
+  const { board, card, doc, project } = boardFixture();
   const storage = tabStorage();
   const root = doc.createElement("div");
   const response = Promise.withResolvers();
   const current = { cardId: first, revision: 6, etag: tag(first, 6), ownerId, priorityId: p1 };
   const confirmed = [];
-  let projected;
+  const settlements = [];
+  const laneRead = Promise.withResolvers();
   mountCardAssignment(root, {
     boardId,
     signal: new AbortController().signal,
@@ -420,9 +422,18 @@ test("individual priority projects the requested rank and settles to the confirm
     beginInspection: () => assert.fail("No inspection was requested"),
     onConfirmed: (saved) => confirmed.push(saved),
     projectPending(change) {
-      projected = change;
-      return () => {
-        projected = undefined;
+      project(change);
+      return (settlement) => {
+        settlements.push(settlement);
+        if (!settlement) {
+          project();
+          return;
+        }
+        project({ ...change, priorityId: settlement.priorityId });
+        void laneRead.promise.then((updated) => {
+          board.update(updated);
+          project();
+        });
       };
     },
     api: {
@@ -436,23 +447,61 @@ test("individual priority projects the requested rank and settles to the confirm
   });
   const select = root.descendants().filter(({ tag }) => tag === "select")[1];
   const save = root.descendants().find(({ textContent }) => textContent === "Set priority");
+  const face = card(first);
+  return { board, card, confirmed, current, face, laneRead, response, save, select, settlements };
+}
+
+test("individual priority clears a requested projection when the floor leaves the card unchanged", async () => {
+  const { confirmed, current, face, response, save, select, settlements } = priorityFixture();
   select.value = p3;
   select.dispatchEvent(new Event("change"));
-  assert.equal(projected, undefined);
+  assert.equal(face.dataset.pending, undefined);
   save.dispatchEvent(new Event("click"));
-  assert.deepEqual(projected, {
-    kind: "priority",
-    boardId,
-    cardId: first,
-    revision: 6,
-    priorityId: p3,
-  });
+  assert.equal(face.dataset.pending, "priority");
+  assert.match(face.attributes.get("aria-description"), /Priority Normal/);
   response.resolve({
     data: { id: first, board_id: boardId, revision: 6, owner_id: ownerId, priority_id: p1 },
     etag: current.etag,
   });
   await flush();
-  assert.equal(projected, undefined);
+  assert.deepEqual(settlements, [undefined]);
+  assert.equal(face.dataset.pending, undefined);
+  assert.match(face.attributes.get("aria-description"), /Priority Urgent/);
   assert.deepEqual(confirmed, [current]);
   assert.equal(select.value, p1);
+});
+
+test("individual priority shows the acknowledged dependency floor while lane readback is held", async () => {
+  const { board, card, confirmed, current, face, laneRead, response, save, select, settlements } =
+    priorityFixture();
+  select.value = p3;
+  select.dispatchEvent(new Event("change"));
+  save.dispatchEvent(new Event("click"));
+  assert.match(face.attributes.get("aria-description"), /Priority Normal/);
+
+  const saved = { ...current, revision: 8, etag: tag(first, 8), priorityId: p2 };
+  response.resolve({
+    data: { id: first, board_id: boardId, revision: 8, owner_id: ownerId, priority_id: p2 },
+    etag: saved.etag,
+  });
+  await flush();
+  assert.deepEqual(confirmed, [saved]);
+  assert.deepEqual(settlements, [{ priorityId: p2 }]);
+  assert.equal(select.value, p2);
+  assert.equal(card(first), face);
+  assert.equal(face.dataset.pending, "priority");
+  assert.match(face.attributes.get("aria-description"), /Priority High/);
+  assert.equal(board.laneMembership(sourceLane).cards[0].priority_id, p1);
+
+  const savedCard = { ...data.cards[0], priority_id: p2, revision: 8 };
+  laneRead.resolve({
+    ...data,
+    board: { ...data.board, revision: 8 },
+    etag: tag(boardId, 8),
+    cards: [savedCard, data.cards[1]],
+  });
+  await flush();
+  assert.equal(card(first).dataset.pending, undefined);
+  assert.match(card(first).attributes.get("aria-description"), /Priority High/);
+  assert.equal(board.laneMembership(sourceLane).cards[0].priority_id, p2);
 });

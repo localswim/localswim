@@ -28,6 +28,7 @@ export type AttachmentContext = Readonly<{
   attachmentCount: number;
   coverAttachmentId: string | null;
   editable: boolean;
+  readable: boolean;
 }>;
 
 type AttachmentOptions = AttachmentAccess &
@@ -102,6 +103,7 @@ type Selection = {
   lifetime: AbortController;
   signal: AbortSignal;
   entries: Attachment[] | undefined;
+  inventoryEtag: string | undefined;
   reading: boolean;
   awaitingRefresh: boolean;
   message: string;
@@ -411,6 +413,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       !writing.has(current.context.cardId) &&
       !current.awaitingRefresh &&
       !current.reading &&
+      current.context.readable &&
       pending(current.context.cardId) === null
     );
   }
@@ -424,14 +427,32 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     status.textContent = message;
     status.hidden = !message;
     inspect.hidden = !uncertain;
-    inspect.disabled = current.reading;
+    inspect.disabled = current.reading || !current.context.readable;
     retry.hidden = current.reading || current.entries !== undefined || uncertain;
+    retry.disabled = !current.context.readable;
+    for (const button of list.querySelectorAll<HTMLButtonElement>("button[data-attachment-read]")) {
+      button.setAttribute(
+        "aria-disabled",
+        String(
+          button.getAttribute("aria-expanded") !== "true" &&
+            (!current.context.readable || current.reading),
+        ),
+      );
+    }
     const editable = writable(current);
     for (const button of list.querySelectorAll<HTMLButtonElement>(
       "button[data-attachment-write]",
     )) {
       button.hidden = !current.context.editable;
       button.disabled = !editable;
+    }
+    for (const button of list.querySelectorAll<HTMLButtonElement>(
+      "button[data-attachment-cover]",
+    )) {
+      const selected = button.dataset.attachmentCover === current.context.coverAttachmentId;
+      const label = selected ? "Clear cover" : "Set cover";
+      button.textContent = label;
+      button.setAttribute("aria-label", `${label} ${button.dataset.attachmentName ?? ""}`);
     }
   }
 
@@ -445,6 +466,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     if (!active(current)) return;
     clearRows();
     current.entries = undefined;
+    current.inventoryEtag = undefined;
     current.message = "Attachments are unavailable.";
     onChange();
   }
@@ -505,7 +527,8 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       disposition: "attachment" | "inline",
       use: (blob: Blob) => void | Promise<void>,
     ) {
-      if (control.disabled || rowSignal.aborted) return;
+      if (control.disabled || rowSignal.aborted || !current.context.readable || current.reading)
+        return;
       control.disabled = true;
       note.textContent = "";
       try {
@@ -540,6 +563,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
         }
       });
     });
+    download.dataset.attachmentRead = "";
     if (entry.previewable) {
       const image = doc.createElement("img");
       image.className = "card-attachment-preview";
@@ -555,6 +579,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
           preview.textContent = "Preview";
           preview.setAttribute("aria-label", `Preview ${entry.original_name}`);
           preview.setAttribute("aria-expanded", "false");
+          update(current);
           return;
         }
         void useFile(preview, "inline", async (blob) => {
@@ -576,14 +601,17 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
         });
       });
       preview.setAttribute("aria-expanded", "false");
-      const selected = current.context.coverAttachmentId === entry.id;
-      button(
-        selected ? "Clear cover" : "Set cover",
+      preview.dataset.attachmentRead = "";
+      const cover = button(
+        "Set cover",
         () => {
+          const selected = current.context.coverAttachmentId === entry.id;
           void mutate(current, entry, { kind: "cover", cover: selected ? null : entry.id });
         },
         true,
       );
+      cover.dataset.attachmentCover = entry.id;
+      cover.dataset.attachmentName = entry.original_name;
       row.append(image);
     }
     button(
@@ -605,8 +633,8 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
   }
 
   async function load(current: Selection, inspectSaved = false) {
-    const { cardId } = current.context;
-    if (!active(current) || current.reading || writing.has(cardId)) return;
+    const { cardId, etag, readable } = current.context;
+    if (!active(current) || !readable || current.reading || writing.has(cardId)) return;
     const finish = inspectSaved ? beginInspect(cardId) : undefined;
     if (finish === null) {
       current.message = "A card change is still in progress. Inspect again after it settles.";
@@ -614,7 +642,8 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       return;
     }
     current.reading = true;
-    current.message = inspectSaved ? "Inspecting attachments…" : "Reading attachments…";
+    if (inspectSaved) current.message = "Inspecting attachments…";
+    else if (!current.entries) current.message = "Reading attachments…";
     update(current);
     const raw = inspectSaved ? pending(cardId) : null;
     try {
@@ -655,8 +684,11 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       }
       const entries = await readEntries(current);
       if (!active(current)) return;
+      if (!inspectSaved && current.context.etag !== etag) return;
+      const previous = current.entries;
       current.entries = entries;
-      current.message = "";
+      current.inventoryEtag = etag;
+      if (!previous) current.message = "";
       if (inspectSaved) {
         const matches =
           intent?.kind === "detach"
@@ -673,7 +705,16 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
         current.awaitingRefresh = true;
         onChange();
       }
-      render(current);
+      if (
+        !previous ||
+        previous.length !== entries.length ||
+        previous.some((item, index) => {
+          const next = entries[index];
+          return next?.id !== item.id || next.revision !== item.revision;
+        })
+      ) {
+        render(current);
+      }
     } catch (error) {
       if (!active(current)) return;
       if (unavailable(error)) revoke(current);
@@ -688,6 +729,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       current.reading = false;
       finish?.();
       update(current);
+      if (active(current) && current.context.etag !== etag) void load(current);
     }
   }
 
@@ -721,12 +763,21 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
           if (intent.kind === "detach" && boardEtag) {
             await api.detachAttachment(entry.id, entry.revision, boardEtag);
           } else if (intent.kind === "cover") {
-            const { data } = await api.patchCard(cardId, etag, {
+            const { data, etag: savedEtag } = await api.patchCard(cardId, etag, {
               cover_attachment_id: intent.cover,
             });
+            const submitted = tagRevision(etag, cardId);
+            const saved = tagRevision(savedEtag, cardId);
             if (
+              !("id" in data) ||
+              data.id !== cardId ||
               !("board_id" in data) ||
               data.board_id !== boardId ||
+              !("revision" in data) ||
+              submitted === undefined ||
+              saved === undefined ||
+              saved <= submitted ||
+              data.revision !== saved ||
               !("cover_attachment_id" in data) ||
               data.cover_attachment_id !== intent.cover
             ) {
@@ -786,17 +837,11 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
   function show(context: AttachmentContext | null) {
     if (signal.aborted) return;
     const previous = selection;
-    if (
-      previous &&
-      context &&
-      previous.context.cardId === context.cardId &&
-      previous.context.etag === context.etag &&
-      previous.context.attachmentCount === context.attachmentCount &&
-      previous.context.coverAttachmentId === context.coverAttachmentId
-    ) {
+    if (previous && context && previous.context.cardId === context.cardId) {
       previous.context = context;
-      previous.awaitingRefresh = false;
+      if (context.readable) previous.awaitingRefresh = false;
       update(previous);
+      if (context.readable && previous.inventoryEtag !== context.etag) void load(previous);
       return;
     }
     previous?.lifetime.abort();
@@ -810,6 +855,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       lifetime: selectedLifetime,
       signal: AbortSignal.any([signal, selectedLifetime.signal]),
       entries: undefined,
+      inventoryEtag: undefined,
       reading: false,
       awaitingRefresh: false,
       message: "",
@@ -817,6 +863,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     selection = current;
     if (context.attachmentCount === 0) {
       current.entries = [];
+      current.inventoryEtag = context.etag;
       render(current);
     } else void load(current);
   }

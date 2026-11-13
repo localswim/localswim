@@ -1547,15 +1547,19 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {string} id @param {number} revision @param {string} boardEtag */
     async detachAttachment(id, revision, boardEtag) {
+      const tag = strongTag(boardEtag);
+      const board = tag.slice(1, 37);
+      const boardRevision = Number(tag.slice(38, -1));
+      if (!UUID_V4.test(board) || versionTag(board, boardRevision) !== tag) {
+        throw new TypeError("Expected a canonical board validator.");
+      }
+      const expectedTag = versionTag(board, boardRevision + 1);
       const response = await send("/attachments/" + resourceId(id), {
         method: "DELETE",
         etag: versionTag(id, revision),
-        boardEtag: strongTag(boardEtag),
+        boardEtag: tag,
       });
-      if (
-        response.status !== 204 ||
-        !STRONG_ETAG.test(response.headers.get("X-Board-ETag") ?? "")
-      ) {
+      if (response.status !== 204 || response.headers.get("X-Board-ETag") !== expectedTag) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }

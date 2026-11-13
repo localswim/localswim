@@ -48,6 +48,7 @@ export function mount(root: HTMLElement): () => void {
   let textBinding: AbortController | undefined;
   let editor: ReturnType<typeof mountCardEditor> | undefined;
   let writesBlocked = true;
+  let focusedTextConfirmed = false;
   let drawerNeedsConfirmation = false;
   const boardHost = doc.createElement("div");
   const missing = doc.createElement("a");
@@ -134,6 +135,30 @@ export function mount(root: HTMLElement): () => void {
     views.save(selectedBoardId, restored);
   }
 
+  function restoreBoardView() {
+    if (!board || !boardData || !restored) return;
+    const currentView = restored;
+    const current = drawer?.selected ?? null;
+    const matches =
+      selection !== null &&
+      current !== null &&
+      ("id" in selection
+        ? "id" in current && selection.id === current.id
+        : "ticket" in current && selection.ticket === current.ticket);
+    if (selection && !matches) {
+      drawer?.open(selection, undefined, false);
+    } else if (!selection && current) {
+      drawer?.close(false);
+    }
+    board.restoreViewport({
+      ...currentView,
+      laneScroll: retainActiveLaneScroll(
+        currentView.laneScroll,
+        boardData.lanes.map(({ id }) => id),
+      ),
+    });
+  }
+
   function consumeCardLink() {
     if (!linkSelection || !view) return;
     const current = new URL(view.location.href);
@@ -202,7 +227,7 @@ export function mount(root: HTMLElement): () => void {
         signal: AbortSignal.any([signal, textBinding.signal]),
         context: () => ({
           confirmed: confirmedText,
-          writable: !writesBlocked && drawerText?.editable === true,
+          writable: !writesBlocked && focusedTextConfirmed && drawerText?.editable === true,
         }),
         onChange: () => editor?.update(),
         onConfirmed(saved) {
@@ -250,17 +275,7 @@ export function mount(root: HTMLElement): () => void {
           onOpenCard: (card, opener) => drawer?.open({ id: card.id }, opener),
           onViewChange: queueBoardViewSave,
         });
-        if (restored) {
-          board.restoreViewport({
-            ...restored,
-            laneScroll: retainActiveLaneScroll(
-              restored.laneScroll,
-              data.lanes.map(({ id }) => id),
-            ),
-          });
-        }
-        if (selection) drawer?.open(selection, undefined, false);
-        queueBoardViewSave();
+        restoreBoardView();
       }
       if (previous && previous.board.revision !== data.board.revision) {
         drawer?.refresh();
@@ -320,6 +335,10 @@ export function mount(root: HTMLElement): () => void {
       getBoardData: () => boardData,
       onSelectionChange: rememberSelection,
       onTextContext: updateDrawerEditor,
+      onTextReadiness(confirmed) {
+        focusedTextConfirmed = confirmed;
+        editor?.update();
+      },
       focusFallback(reference) {
         const id =
           "id" in reference
@@ -380,6 +399,11 @@ export function mount(root: HTMLElement): () => void {
     if (!event.persisted) return;
     void sidebar.resume();
     drafts.refresh();
+    if (selectedBoardId) {
+      restored = views.load(selectedBoardId);
+      selection = linkedCard(view?.location.search ?? "") ?? restored.selection;
+      restoreBoardView();
+    }
     drawerNeedsConfirmation = true;
     void workspace.refresh().then(() => boardState?.retry());
   }

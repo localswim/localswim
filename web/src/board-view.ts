@@ -478,6 +478,15 @@ export function mountBoardView(
 
   const lifetime = new AbortController();
   const listenerOptions = { signal: lifetime.signal };
+  let restore = new AbortController();
+  let restoreFrame = 0;
+  function cancelViewportRestore() {
+    restore.abort();
+    view?.cancelAnimationFrame(restoreFrame);
+  }
+  for (const event of ["pointerdown", "keydown", "wheel"]) {
+    shadow.addEventListener(event, cancelViewportRestore, listenerOptions);
+  }
   filter.addEventListener(
     "input",
     () => {
@@ -546,10 +555,28 @@ export function mountBoardView(
       };
     },
     restoreViewport({ filter: query, horizontalScroll, laneScroll }: BoardViewport) {
+      cancelViewportRestore();
+      restore = new AbortController();
+      const restoreSignal = AbortSignal.any([lifetime.signal, restore.signal]);
       filter.value = query;
       paintFilter();
-      strip.scrollLeft = horizontalScroll;
-      for (const { lane, scroll } of lanes) scroll.scrollTop = laneScroll[lane.id] ?? 0;
+      const restoreScroll = () => {
+        if (restoreSignal.aborted) return;
+        strip.scrollLeft = horizontalScroll;
+        for (const { lane, scroll } of lanes) scroll.scrollTop = laneScroll[lane.id] ?? 0;
+        onViewChange?.();
+      };
+      if (stylesheet.sheet) {
+        restoreScroll();
+        return;
+      }
+      stylesheet.addEventListener(
+        "load",
+        () => {
+          restoreFrame = view.requestAnimationFrame(restoreScroll);
+        },
+        { signal: restoreSignal, once: true },
+      );
     },
     focusCard(id: string): boolean {
       const card = lanes.flatMap(({ members }) => members).find(({ card }) => card.id === id);
@@ -563,6 +590,7 @@ export function mountBoardView(
     },
     dispose() {
       lifetime.abort();
+      cancelViewportRestore();
       boundary.remove();
     },
   };

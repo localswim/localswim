@@ -13,6 +13,7 @@ type CardViewOptions = AppContext &
     focusFallback: (reference: CardReference, opener?: HTMLElement) => void;
     onSelectionChange?: (reference: CardReference | null, explicit: boolean) => void;
     onTextContext?: (context: DrawerTextContext | null) => void;
+    onTextReadiness?: (confirmed: boolean) => void;
   }>;
 
 type CardSummary = Readonly<{ id: string; ticket: number; title: string; archived: boolean }>;
@@ -53,6 +54,7 @@ type Selection = {
   lifetime: AbortController;
   loading: boolean;
   refreshQueued: boolean;
+  restored: boolean;
 };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -69,6 +71,7 @@ export function mountCardView(
     focusFallback,
     onSelectionChange,
     onTextContext,
+    onTextReadiness,
   }: CardViewOptions,
 ) {
   const doc = root.ownerDocument;
@@ -365,6 +368,7 @@ export function mountCardView(
       return;
     }
     current.loading = true;
+    onTextReadiness?.(false);
     retryButton.setAttribute("aria-disabled", "true");
     const attempt = new AbortController();
     const selectionSignal = AbortSignal.any([signal, current.lifetime.signal]);
@@ -394,10 +398,16 @@ export function mountCardView(
         etag: card.etag,
         editable: !card.archived,
       });
+      onTextReadiness?.(true);
       setStatus("");
     } catch (error) {
       if (requestSignal.aborted) return;
       const missing = !cardConfirmed && cardUnavailable(error);
+      if (missing && current.restored) {
+        onSelectionChange?.(null, true);
+        close(false);
+        return;
+      }
       if (missing) onSelectionChange?.(null, true);
       if (missing || details.hidden) {
         if (details.contains(doc.activeElement)) body.focus({ preventScroll: true });
@@ -441,8 +451,10 @@ export function mountCardView(
       lifetime: new AbortController(),
       loading: false,
       refreshQueued: false,
+      restored: !focus,
     };
     onSelectionChange?.(reference, focus);
+    onTextReadiness?.(false);
     onTextContext?.(null);
     panel.hidden = false;
     ticketLabel.textContent = "ticket" in reference ? `#${reference.ticket}` : "";
@@ -456,14 +468,16 @@ export function mountCardView(
     refresh();
   }
 
-  function close() {
+  function close(focus = true) {
     if (!selection) return;
     const { origin, opener, lifetime: currentLifetime } = selection;
     selection = undefined;
     currentLifetime.abort();
     panel.hidden = true;
-    onSelectionChange?.(null, true);
+    onSelectionChange?.(null, focus);
+    onTextReadiness?.(false);
     onTextContext?.(null);
+    if (!focus) return;
     if (opener?.isConnected) {
       opener.focus();
       const scope = opener.getRootNode();
@@ -472,7 +486,7 @@ export function mountCardView(
     focusFallback(origin, opener);
   }
 
-  closeButton.addEventListener("click", close, { signal });
+  closeButton.addEventListener("click", () => close(), { signal });
   retryButton.addEventListener(
     "click",
     () => {

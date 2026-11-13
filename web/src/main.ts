@@ -90,6 +90,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   let policy: BoardPolicyContext | null = null;
   let policyVersion = "";
   let confirmedPolicyVersion = "";
+  let policyReadFailed = false;
   let drawer: ReturnType<typeof mountCardView> | undefined;
   let drawerText: DrawerTextContext | null = null;
   let confirmedText: ConfirmedCardText | null = null;
@@ -309,6 +310,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     const version = `${policyId}:${snapshot?.confirmedRevision}`;
     if (version === policyVersion) return;
     policyVersion = version;
+    policyReadFailed = false;
     void workspace
       .readWithSession(() => readBoardPolicy(context, identity, selectedBoardId, policyId), signal)
       .then(
@@ -316,6 +318,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
           if (signal.aborted || policyVersion !== version) return;
           policy = next;
           confirmedPolicyVersion = version;
+          policyReadFailed = false;
+          retry.hidden = !boardSnapshot?.retryAvailable;
           editor?.update();
           assignment?.update();
           publishing?.updatePermission();
@@ -333,7 +337,10 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
           updateDrawerTools();
         },
         () => {
-          if (policyVersion === version) policyVersion = "";
+          if (signal.aborted || policyVersion !== version) return;
+          policyVersion = "";
+          policyReadFailed = true;
+          retry.hidden = false;
         },
       );
   }
@@ -566,7 +573,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     board?.refreshMovement();
     createCard?.update();
     comments?.update();
-    retry.hidden = !retryAvailable;
+    retry.hidden = !retryAvailable && !policyReadFailed;
     root.dataset.boardWritesFenced = String(writesFenced);
     root.dataset.boardConnection = connection;
     if (connection === "disconnected" || connection === "unavailable") {
@@ -675,7 +682,8 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     updateDrawerTools();
     if (!writesFenced && drawerNeedsConfirmation) {
       drawerNeedsConfirmation = false;
-      drawer?.refresh();
+      if (selection && drawer?.selected === null) drawer.open(selection, undefined, false);
+      else drawer?.refresh();
     }
     if (availability === "missing") {
       showMissing();
@@ -1043,6 +1051,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   const retryLoad = () => {
     drawerNeedsConfirmation = true;
     void refreshPrincipal();
+    refreshPolicy();
     void workspace.refresh().then(() => boardState?.retry());
   };
   retry.addEventListener("click", retryLoad);

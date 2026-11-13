@@ -27,7 +27,7 @@ const user = "84b4ae21-e224-4f5a-9fca-9abf8e0c86bc";
 const otherUser = "889906a2-1870-47b8-8317-b5043a2d2556";
 const priority = "163b1fa0-2a32-424b-8489-6bbd7761201c";
 const otherPriority = "88aa7d55-c894-4833-b6e2-484f34721b0a";
-const etag = '"abcdefghijklmnop"';
+const tag = (revision) => `"${board}-${revision}"`;
 
 class Element extends EventTarget {
   constructor(tag, ownerDocument) {
@@ -76,8 +76,18 @@ function fixture() {
   const journals = new Map();
   const posts = [];
   const reads = [];
+  const inspection = [];
   const confirmed = [];
-  const state = { responseLost: true, readCard: (card) => card };
+  const state = {
+    responseLost: true,
+    readCard: (card) => card,
+    revision: 10,
+    readBoard: () => ({
+      data: { revision: state.revision, availability: "open" },
+      etag: tag(state.revision),
+    }),
+    write: () => {},
+  };
   let saved;
   const doc = { createElement: (tag) => new Element(tag, doc) };
   const storage = {
@@ -89,13 +99,20 @@ function fixture() {
     async createCard(payload) {
       posts.push(payload);
       saved = { owner_id: user, priority_id: priority, ...payload, ticket: 42 };
+      state.write();
       if (state.responseLost) throw new TypeError("Response was lost");
-      return { data: state.readCard(saved), etag };
+      return { data: state.readCard(saved), etag: tag(state.revision) };
     },
     async getCard(id) {
       reads.push(id);
+      inspection.push("card");
       assert.equal(id, saved.id);
-      return { data: state.readCard(saved), etag };
+      return { data: state.readCard(saved), etag: tag(state.revision) };
+    },
+    async getBoardAvailability(id) {
+      assert.equal(id, board);
+      inspection.push("board");
+      return state.readBoard();
     },
   };
 
@@ -111,7 +128,7 @@ function fixture() {
       onStale() {},
       focusFallback() {},
       context: () => ({
-        etag,
+        etag: tag(state.revision),
         writable: true,
         lanes: [{ id: lane, label: "Ready" }],
         users: [
@@ -164,7 +181,11 @@ function fixture() {
     return reloaded;
   }
 
-  return { journals, posts, reads, confirmed, state, submit, inspectAfterReload };
+  return { journals, posts, reads, inspection, confirmed, state, submit, inspectAfterReload };
+}
+
+function absent() {
+  throw new ApiError("http_error", { status: 404 });
 }
 
 test("recovers the original card after a lost create response and later field changes", async () => {
@@ -215,12 +236,13 @@ test("a divergent create acknowledgement still needs a trustworthy focused read"
 test("an absent original can be explicitly dismissed with the draft retained", async () => {
   const f = fixture();
   const first = await f.submit();
-  f.state.readCard = () => {
-    throw new ApiError("http_error", { status: 404 });
-  };
+  f.state.revision++;
+  f.state.readCard = absent;
   const reloaded = await f.inspectAfterReload(first);
   assert.equal(reloaded.ui.hasUncertainSubmission(), true);
   assert.equal(reloaded.button("Dismiss unresolved creation").hidden, false);
+  assert.equal(reloaded.button("Retry original creation").hidden, true);
+  assert.deepEqual(f.inspection, ["card", "board", "card", "board"]);
   reloaded.button("Dismiss unresolved creation").click();
   assert.equal(reloaded.ui.hasUncertainSubmission(), false);
   assert.deepEqual(f.confirmed, []);
@@ -230,4 +252,71 @@ test("an absent original can be explicitly dismissed with the draft retained", a
   assert.equal(title, "  Original title  ");
   assert.equal(description, "Original description");
   assert.equal(submission, undefined);
+});
+
+test("a same-base 404 permits only an explicit exact retry of the original create", async () => {
+  const f = fixture();
+  const first = await f.submit();
+  const [original] = f.posts;
+  f.state.readCard = absent;
+  const reloaded = await f.inspectAfterReload(first);
+  assert.equal(reloaded.ui.hasUncertainSubmission(), true);
+  assert.equal(reloaded.button("Dismiss unresolved creation").hidden, true);
+  assert.equal(reloaded.button("Add card").hidden, true);
+  assert.equal(reloaded.button("Retry original creation").hidden, false);
+  assert.equal(f.posts.length, 1);
+  f.state.write = () => {
+    // The delayed first POST won after inspection. The retry cannot create again.
+    f.state.revision++;
+    throw new ApiError("http_error", { status: 412 });
+  };
+  reloaded.button("Retry original creation").click();
+  await idle();
+  assert.deepEqual(f.posts, [original, original]);
+  assert.equal(reloaded.ui.hasUncertainSubmission(), true);
+  assert.equal(reloaded.button("Retry original creation").hidden, true);
+  assert.deepEqual(f.confirmed, []);
+  f.state.readCard = (card) => card;
+  reloaded.button("Inspect creation").click();
+  await idle();
+  assert.deepEqual(f.confirmed, [[original.id, 42, true]]);
+  assert.equal(f.journals.size, 0);
+});
+
+test("an exact retry can complete a create lost before commit without a board edit", async () => {
+  const f = fixture();
+  const first = await f.submit();
+  const [original] = f.posts;
+  f.state.readCard = absent;
+  const reloaded = await f.inspectAfterReload(first);
+  f.state.responseLost = false;
+  f.state.readCard = (card) => card;
+  reloaded.button("Retry original creation").click();
+  await idle();
+  assert.deepEqual(f.posts, [original, original]);
+  assert.deepEqual(f.confirmed, [[original.id, 42, true]]);
+  assert.equal(f.journals.size, 0);
+});
+
+test("a board change or loss of read access during inspection keeps absence unresolved", async () => {
+  const f = fixture();
+  const first = await f.submit();
+  f.state.revision++;
+  f.state.readCard = absent;
+  const readBoard = f.state.readBoard;
+  let boardReads = 0;
+  f.state.readBoard = () => {
+    boardReads++;
+    if (boardReads === 2) throw new ApiError("http_error", { status: 404 });
+    if (boardReads === 4) f.state.revision++;
+    return readBoard();
+  };
+  const reloaded = await f.inspectAfterReload(first);
+  assert.equal(reloaded.button("Dismiss unresolved creation").hidden, true);
+  reloaded.button("Inspect creation").click();
+  await idle();
+  assert.equal(reloaded.button("Dismiss unresolved creation").hidden, true);
+  assert.equal(reloaded.button("Retry original creation").hidden, true);
+  assert.equal(reloaded.ui.hasUncertainSubmission(), true);
+  assert.equal(f.posts.length, 1);
 });

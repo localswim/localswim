@@ -48,6 +48,7 @@ type Draft = Readonly<{
     priorityId: string;
   }>;
 }>;
+type SubmittedDraft = Draft & Required<Pick<Draft, "submission">>;
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const strongEtag = /^"[A-Za-z0-9_-]{16,128}"(?![\s\S])/;
@@ -67,6 +68,13 @@ function optionalChoice(value: unknown): value is string {
 
 function etag(value: unknown): value is string {
   return typeof value === "string" && strongEtag.test(value);
+}
+
+function boardRevision(boardId: string, tag: string): number | null {
+  const revision = Number(tag.slice(boardId.length + 2, -1));
+  return Number.isSafeInteger(revision) && revision > 0 && tag === `"${boardId}-${revision}"`
+    ? revision
+    : null;
 }
 
 function parseDraft(raw: string): Draft {
@@ -147,7 +155,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   let storedDraftInvalid = false;
   let hasUnstoredChanges = false;
   let opener: HTMLButtonElement | undefined;
-  let dismissibleSubmission: string | undefined;
+  let absence: Readonly<{ id: string; kind: "retry" | "dismiss" }> | undefined;
   let message = "";
   let composing = false;
   const resetTextInputs: (() => void)[] = [];
@@ -158,7 +166,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       if (stored === undefined || stored === raw) return;
       raw = stored;
       draft = null;
-      dismissibleSubmission = undefined;
+      absence = undefined;
       draft = stored === null ? null : parseDraft(stored);
       storedDraftInvalid = false;
       message = "";
@@ -208,6 +216,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   const add = button("Add card");
   add.className = "create-card-submit";
   const inspect = button("Inspect creation");
+  const retry = button("Retry original creation");
   const dismiss = button("Dismiss unresolved creation");
   const cancel = button("Cancel");
   const recovery = button("Inspect pending creation");
@@ -215,7 +224,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   const recoveryStatus = doc.createElement("p");
   recoveryStatus.className = "create-card-status";
   recoveryStatus.setAttribute("role", "status");
-  actions.append(cancel, dismiss, inspect, add);
+  actions.append(cancel, dismiss, inspect, retry, add);
   const choices = doc.createElement("div");
   choices.className = "create-card-choices";
   choices.append(field("Destination", lane), field("Owner", owner), field("Priority", priority));
@@ -309,7 +318,12 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     cancel.disabled = composing;
     inspect.hidden = !draft.submission;
     inspect.disabled = Boolean(active);
-    dismiss.hidden = !draft.submission || draft.submission.id !== dismissibleSubmission;
+    const checked =
+      draft.submission && draft.submission.id === absence?.id ? absence.kind : undefined;
+    retry.hidden = checked !== "retry";
+    retry.disabled =
+      Boolean(active) || draft.submission?.etag !== current?.etag || !canCreate(draft, current);
+    dismiss.hidden = checked !== "dismiss";
     dismiss.disabled = Boolean(active);
     cancel.textContent = draft.submission ? "Close" : "Cancel";
     const nextStatus =
@@ -354,7 +368,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     const { id, ticket, matchesDraft } = card;
     const wasOpen = dialog.open;
     const difference = `Found the original card #${ticket}. Its saved details differ from the submitted draft.`;
-    dismissibleSubmission = undefined;
+    absence = undefined;
     const cleared = persist(null);
     if (cleared) {
       draft = null;
@@ -368,6 +382,32 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
         : `${difference} The stored draft could not be cleared.`;
     }
     if (!signal.aborted) options.onConfirmed(id, ticket, wasOpen && cleared);
+  }
+
+  function createOriginal({ title, description, laneId, submission }: SubmittedDraft) {
+    return api.createCard({
+      id: submission.id,
+      board_id: boardId,
+      expected_board_etag: submission.etag,
+      title,
+      description,
+      lane_id: laneId,
+      ...(submission.ownerId ? { owner_id: submission.ownerId } : {}),
+      ...(submission.priorityId ? { priority_id: submission.priorityId } : {}),
+    });
+  }
+
+  async function submitOriginal(submitted: SubmittedDraft, journal: () => boolean) {
+    const result = await submitOperation(journal, () => createOriginal(submitted));
+    if (result.kind === "confirmed") {
+      const card = identifyCard(boardId, submitted, result.result.data);
+      if (card?.matchesDraft) {
+        resolveCreation(card);
+        return "created";
+      }
+      return "unknown";
+    }
+    return result.kind;
   }
 
   async function submit() {
@@ -407,49 +447,30 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           priorityId: previous.priorityId === current.defaultPriorityId ? "" : previous.priorityId,
         };
         const submitted = { ...previous, submission };
-        const payload = {
-          id: submission.id,
-          board_id: boardId,
-          expected_board_etag: submission.etag,
-          title: previous.title,
-          description: previous.description,
-          lane_id: previous.laneId,
-          ...(submission.ownerId ? { owner_id: submission.ownerId } : {}),
-          ...(submission.priorityId ? { priority_id: submission.priorityId } : {}),
-        };
-        const result = await submitOperation(
-          () => {
-            if (!persist(submitted)) return false;
-            draft = submitted;
-            update();
-            return true;
-          },
-          () => api.createCard(payload),
-        );
-        if (result.kind === "confirmed") {
-          const card = identifyCard(boardId, submitted, result.result.data);
-          if (card?.matchesDraft) {
-            resolveCreation(card);
-            return;
-          }
-        }
-        if (result.kind === "journal-failed") {
+        const result = await submitOriginal(submitted, () => {
+          if (!persist(submitted)) return false;
+          draft = submitted;
+          update();
+          return true;
+        });
+        if (result === "created") return;
+        if (result === "journal-failed") {
           message = "The draft could not be stored. Creation requires a stored draft.";
-        } else if (result.kind === "stale" || result.kind === "refused") {
+        } else if (result === "stale" || result === "refused") {
           const retained = {
             ...previous,
-            staleEtag: result.kind === "stale" ? submission.etag : previous.staleEtag,
+            staleEtag: result === "stale" ? submission.etag : previous.staleEtag,
           };
           if (persist(retained)) {
             draft = retained;
             message =
-              result.kind === "stale"
+              result === "stale"
                 ? "The board changed. Review the draft before trying again."
                 : "Creation was refused. Your draft is still available.";
           } else {
             message = "Creation was refused. The stored submission could not be cleared.";
           }
-          if (result.kind === "stale" && !signal.aborted) options.onStale();
+          if (result === "stale" && !signal.aborted) options.onStale();
         } else {
           message = "The creation outcome is unknown. Inspect the original card to continue.";
         }
@@ -485,36 +506,125 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       return;
     }
     const submitted = draft;
-    const { id } = draft.submission;
-    dismissibleSubmission = undefined;
+    const { id, etag: expected } = draft.submission;
+    absence = undefined;
     await operations.run(
       key,
       "inspecting",
       async () => {
         update();
         try {
-          const { data } = await options.readWithSession(() => api.getCard(id, signal), signal);
+          const readCard = () =>
+            options
+              .readWithSession(() => api.getCard(id, signal), signal)
+              .catch((error: unknown) => {
+                if (error instanceof ApiError && error.status === 404) return null;
+                throw error;
+              });
+          const readBoard = () =>
+            options.readWithSession(() => api.getBoardAvailability(boardId, signal), signal);
+          const found = await readCard();
           if (signal.aborted) return;
-          const card = identifyCard(boardId, submitted, data);
-          // A focused read can establish the original's identity after another actor changes its fields.
-          if (card) resolveCreation(card);
-          else
-            message =
-              "The read did not identify the original card. Inspect again to retry the read.";
-        } catch (error) {
-          if (signal.aborted) return;
-          if (error instanceof ApiError && error.status === 404) {
-            dismissibleSubmission = id;
-            message =
-              "The original card was not found. You can inspect again or dismiss the unresolved creation and keep the draft.";
-          } else {
-            message = "The original card could not be checked. Inspect again to retry the read.";
+          if (found) {
+            recoverCard(submitted, found.data);
+            return;
           }
+
+          const baseRevision = boardRevision(boardId, expected);
+          const before = await readBoard();
+          if (
+            baseRevision === null ||
+            before.data.availability !== "open" ||
+            before.data.revision < baseRevision
+          ) {
+            message =
+              "The original card is not visible yet. The creation outcome is still unknown.";
+            return;
+          }
+
+          // Read absence between two views of the same readable board version.
+          // A newer version expires the original POST's precondition.
+          const absentAtVersion = await readCard();
+          if (signal.aborted) return;
+          if (absentAtVersion) {
+            recoverCard(submitted, absentAtVersion.data);
+            return;
+          }
+          const after = await readBoard();
+          if (signal.aborted) return;
+          if (after.data.availability !== "open" || after.etag !== before.etag) {
+            message =
+              "The board changed during inspection. Inspect again to check the original card.";
+            return;
+          }
+          const kind = before.etag === expected ? "retry" : "dismiss";
+          absence = { id, kind };
+          message =
+            kind === "retry"
+              ? "The original card is not visible yet. You can inspect again or retry the same creation."
+              : "The original card was not found. You can inspect again or dismiss the unresolved creation and keep the draft.";
+        } catch {
+          if (signal.aborted) return;
+          message = "The original card could not be checked. Inspect again to retry the read.";
         }
       },
       () => {
         release?.();
         update();
+      },
+    );
+  }
+
+  function recoverCard(submitted: Draft, data: object) {
+    const card = identifyCard(boardId, submitted, data);
+    // A focused read identifies the original even after another actor changes its fields.
+    if (card) resolveCreation(card);
+    else message = "The read did not identify the original card. Inspect again to retry the read.";
+  }
+
+  async function retryCreation() {
+    const current = context();
+    if (
+      !dialog.open ||
+      !draft?.submission ||
+      operations.state(key) ||
+      absence?.kind !== "retry" ||
+      draft.submission.id !== absence.id ||
+      draft.submission.etag !== current?.etag ||
+      !canCreate(draft, current)
+    )
+      return;
+    const original = draft.submission.id;
+    loadStoredDraft();
+    const submission = draft?.submission;
+    if (!draft || !submission || submission.id !== original || absence?.id !== original) {
+      close();
+      return;
+    }
+    const submitted = { ...draft, submission };
+    const release = options.beginWrite?.();
+    if (release === null) {
+      message = "Another board operation is active. Try again when it finishes.";
+      update();
+      return;
+    }
+    absence = undefined;
+    await operations.run(
+      key,
+      "submitting",
+      async () => {
+        update();
+        const result = await submitOriginal(submitted, () => persist(submitted));
+        if (result === "created") return;
+        message = "The original creation remains unresolved. Inspect the original card again.";
+        if (result === "stale" && !signal.aborted) options.onStale();
+      },
+      () => {
+        release?.();
+        update();
+        if (!signal.aborted && dialog.open && !inspect.hidden && doc.activeElement === doc.body) {
+          inspect.focus();
+        }
       },
     );
   }
@@ -529,13 +639,14 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       !dialog.open ||
       !draft?.submission ||
       operations.state(key) ||
-      draft.submission.id !== dismissibleSubmission
+      absence?.kind !== "dismiss" ||
+      draft.submission.id !== absence.id
     )
       return;
     const retained = { ...draft, submission: undefined };
     if (persist(retained)) {
       draft = retained;
-      dismissibleSubmission = undefined;
+      absence = undefined;
       message = "Unresolved creation dismissed. Your draft is still available.";
       title.focus();
     } else {
@@ -549,6 +660,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   inspect.addEventListener("click", () => void inspectCreation().catch(reportActionError), {
     signal,
   });
+  retry.addEventListener("click", () => void retryCreation().catch(reportActionError), { signal });
   dismiss.addEventListener("click", dismissCreation, { signal });
   recovery.addEventListener(
     "click",

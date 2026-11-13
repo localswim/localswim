@@ -1319,6 +1319,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const board = resourceId(boardId).toLowerCase();
       const response = await send("/backups", {
         method: "POST",
+        knownUnavailable: true,
         data: {
           id: backup,
           board_id: board,
@@ -1738,6 +1739,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
           : { actorId: resourceId(actorId).toLowerCase(), boardEtag };
       const response = await send("/approvals", {
         method: "POST",
+        knownUnavailable: true,
         data: {
           id: expectedId,
           board_id: board,
@@ -1987,7 +1989,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const id = card.id === undefined ? undefined : resourceId(card.id);
       resourceId(card.lane_id);
       strongTag(card.expected_board_etag);
-      const response = await send("/cards", { method: "POST", data: card });
+      const response = await send("/cards", { method: "POST", data: card, knownUnavailable: true });
       const etag = response.headers.get("ETag");
       const boardEtag = response.headers.get("X-Board-ETag");
       if (

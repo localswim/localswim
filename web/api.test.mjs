@@ -28,6 +28,65 @@ function client(fetchImpl, getCapability = () => "fixture-capability") {
   return createBrowserApi({ fetchImpl, getCapability });
 }
 
+test("single approval, backup capture and both card create modes distinguish final 503 refusals", async () => {
+  const card = {
+    id: BOARD,
+    board_id: BOARD,
+    expected_board_etag: TAG,
+    title: "Draft card",
+    lane_id: BOARD,
+  };
+  const writes = [
+    ["/approvals", (api) => api.approveCard(OPERATION, BOARD, TAG, BOARD, TAG, BOARD)],
+    ["/backups", (api) => api.createBackup(OPERATION, BOARD, TAG)],
+    ["/cards", (api) => api.createCard(card)],
+    [
+      "/cards",
+      (api) =>
+        api.createCard({
+          ...card,
+          relationships: [
+            { target_card_id: "f167d27b-9566-4982-be99-4dc6f497598c", kind: "blocks" },
+          ],
+        }),
+    ],
+  ];
+  const problem = {
+    type: "about:blank",
+    title: "Service Unavailable",
+    status: 503,
+    code: "unavailable",
+    detail: "This board is closed or draining.",
+    request_id: BOARD,
+    outcome: "not_applied",
+    errors: [],
+  };
+  const media = "application/problem+json";
+  const cases = [
+    [JSON.stringify(problem), media, "unavailable", false],
+    [
+      JSON.stringify({ ...problem, code: "outcome_unknown", outcome: "unknown" }),
+      media,
+      "http_error",
+      true,
+    ],
+    [JSON.stringify(problem), "application/json", "http_error", true],
+    ['{"outcome":"not_applied",' + JSON.stringify(problem).slice(1), media, "http_error", true],
+    ["{", media, "http_error", true],
+  ];
+  for (const [path, write] of writes) {
+    for (const [body, contentType, code, outcomeUnknown] of cases) {
+      const calls = [];
+      const api = client(async (url, options) => {
+        calls.push([url, options.method]);
+        return new Response(body, { status: 503, headers: { "Content-Type": contentType } });
+      });
+      await assert.rejects(write(api), { code, status: 503, outcomeUnknown });
+      assert.deepEqual(calls, [["/api/2026-11-10" + path, "POST"]]);
+    }
+  }
+});
+
 test("reads the workspace and catalog as independent same-origin resources", async () => {
   const calls = [];
   let capabilityRequests = 0;

@@ -320,7 +320,21 @@ test("a receipt miss leaves the approval unresolved while original validators ma
 });
 
 test("a definitive refusal leaves the drawer open and preserves a separate comment draft", async () => {
-  const f = fixture(() => Response.json({}, { status: 403 }));
+  const f = fixture(() =>
+    Response.json(
+      {
+        type: "about:blank",
+        title: "Service Unavailable",
+        status: 503,
+        code: "unavailable",
+        detail: "This board is closed or draining.",
+        request_id: actorId,
+        outcome: "not_applied",
+        errors: [],
+      },
+      { status: 503, headers: { "Content-Type": "application/problem+json" } },
+    ),
+  );
   const draftKey = "comment-draft";
   f.saved.set(draftKey, "An unsent comment.");
   const view = f.mount();
@@ -328,6 +342,8 @@ test("a definitive refusal leaves the drawer open and preserves a separate comme
   await flush();
   assert.match(view.status.textContent, /Approval was refused/);
   assert.deepEqual(f.confirmations, []);
+  assert.equal(view.inspect.hidden, true);
+  assert.equal(view.blocksCard(cardId), false);
   assert.equal(f.refreshes(), 1);
   assert.deepEqual([...f.saved], [[draftKey, "An unsent comment."]]);
 });

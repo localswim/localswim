@@ -1,8 +1,6 @@
 package v2
 
 import (
-	"errors"
-	"io/fs"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,25 +18,20 @@ func (x *request) serveBrowser() bool {
 	switch x.r.URL.Path {
 	case "/":
 		file, media = "index.html", "text/html; charset=utf-8"
-	case "/assets/operation-id.mjs", "/assets/api.mjs", "/assets/board-updates.mjs", "/assets/card-prose.mjs":
-		file, media = strings.TrimPrefix(x.r.URL.Path, "/assets/"), "text/javascript; charset=utf-8"
+	case "/assets/app.js":
+		file, media = "app.js", "text/javascript; charset=utf-8"
 	case "/assets/app.css":
 		file, media = "app.css", "text/css; charset=utf-8"
+	case "/assets/app.js.map", "/assets/app.css.map":
+		file, media = strings.TrimPrefix(x.r.URL.Path, "/assets/"), "application/json"
 	default:
-		if source, ok := strings.CutPrefix(x.r.URL.Path, "/assets/src/"); ok && fs.ValidPath(source) && strings.HasSuffix(source, ".js") {
-			file, media = "generated/src/"+source, "text/javascript; charset=utf-8"
-		} else {
-			id, ok := strings.CutPrefix(x.r.URL.Path, "/boards/")
-			if _, valid := normalizeID(id); !ok || !valid {
-				return false
-			}
-			file, media = "index.html", "text/html; charset=utf-8"
+		id, ok := strings.CutPrefix(x.r.URL.Path, "/boards/")
+		if _, valid := normalizeID(id); !ok || !valid {
+			return false
 		}
+		file, media = "index.html", "text/html; charset=utf-8"
 	}
-	data, err := web.Assets.ReadFile(file)
-	if errors.Is(err, fs.ErrNotExist) {
-		return false
-	}
+	data, err := web.Assets.ReadFile("dist/" + file)
 	if err != nil {
 		x.fail(err)
 		return true

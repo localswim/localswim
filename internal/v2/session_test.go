@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"bytes"
 	"encoding/base64"
 	"io"
 	"net"
@@ -9,6 +10,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/localswim/localswim/web"
 )
 
 func TestM04BrowserBootstrapAndSession(t *testing.T) {
@@ -126,40 +129,53 @@ func TestM04BrowserCapabilityExpiresOnServiceReplacement(t *testing.T) {
 
 func TestM04BrowserShellHeaders(t *testing.T) {
 	_, c := eventHTTPServer(t)
-	for _, tc := range []struct{ path, media string }{
-		{"/", "text/html"},
-		{"/boards/" + newID(), "text/html"},
-		{"/assets/src/main.js", "text/javascript"},
-		{"/assets/src/model.js", "text/javascript"},
-		{"/assets/api.mjs", "text/javascript"},
-		{"/assets/board-updates.mjs", "text/javascript"},
-		{"/assets/card-prose.mjs", "text/javascript"},
-		{"/assets/operation-id.mjs", "text/javascript"},
-		{"/assets/app.css", "text/css"},
+	for _, tc := range []struct{ path, file, media string }{
+		{"/", "index.html", "text/html"},
+		{"/boards/" + newID(), "index.html", "text/html"},
+		{"/assets/app.js", "app.js", "text/javascript"},
+		{"/assets/app.js.map", "app.js.map", "application/json"},
+		{"/assets/app.css", "app.css", "text/css"},
+		{"/assets/app.css.map", "app.css.map", "application/json"},
 	} {
+		want, err := web.Assets.ReadFile("dist/" + tc.file)
+		if err != nil {
+			t.Fatal(err)
+		}
 		res, err := c.client.Get(c.url + tc.path)
 		if err != nil {
 			t.Fatal(err)
 		}
-		body, readErr := io.ReadAll(io.LimitReader(res.Body, 64<<10))
+		body, readErr := io.ReadAll(io.LimitReader(res.Body, int64(len(want))+1))
 		_ = res.Body.Close()
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
-		if tc.path == "/assets/operation-id.mjs" && !strings.Contains(string(body), "export function newOperationId()") {
-			t.Fatal("operation ID module was not served")
+		if !bytes.Equal(body, want) {
+			t.Fatalf("UI resource %s differs from the embedded release", tc.path)
 		}
-		if tc.media == "text/html" && !strings.Contains(string(body), `src="/assets/src/main.js"`) {
-			t.Fatalf("UI route %s did not reference the compiled shell", tc.path)
+		if tc.media == "text/html" &&
+			(!bytes.Contains(body, []byte(`src="/assets/app.js"`)) ||
+				!bytes.Contains(body, []byte(`href="/assets/app.css"`))) {
+			t.Fatalf("UI route %s did not reference the optimized assets", tc.path)
 		}
 		if res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), tc.media) ||
 			res.Header.Get("Content-Security-Policy") != browserCSP || res.Header.Get("Cache-Control") != "no-store" ||
 			res.Header.Get("Cross-Origin-Opener-Policy") != "same-origin" ||
 			res.Header.Get("Cross-Origin-Resource-Policy") != "same-origin" ||
-			res.Header.Get("X-Content-Type-Options") != "nosniff" ||
-			res.Header.Get("Referrer-Policy") != "no-referrer" ||
+			res.Header.Get("X-Content-Type-Options") != "nosniff" || res.Header.Get("Referrer-Policy") != "no-referrer" ||
 			res.Header.Get("Permissions-Policy") != "camera=(), microphone=(), geolocation=()" {
 			t.Fatalf("UI resource %s is unavailable or missing isolation headers", tc.path)
+		}
+	}
+
+	for _, path := range []string{"/assets/src/main.js", "/assets/api.mjs", "/assets/board-updates.mjs", "/assets/%61pp.js"} {
+		res, err := c.client.Get(c.url + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusNotFound {
+			t.Errorf("non-release route %s returned %d, want 404", path, res.StatusCode)
 		}
 	}
 }

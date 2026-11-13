@@ -9,6 +9,7 @@ type Options = AppContext & {
   scope: Scope;
   readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
   canPublish: () => boolean;
+  writeUnavailable?: () => string | undefined;
   beginWrite?: () => (() => void) | null;
   beginInspection?: () => (() => void) | null;
   onSaved?: () => void;
@@ -47,6 +48,7 @@ export function mountPublishingSettings(
     scope,
     readWithSession,
     canPublish,
+    writeUnavailable,
     beginWrite,
     beginInspection,
     onSaved,
@@ -61,6 +63,7 @@ export function mountPublishingSettings(
   const scopeName = scope.kind === "workspace" ? "Workspace" : "Board";
   let saved: Reply | undefined;
   let draft: Draft | undefined;
+  let retryEtag: string | undefined;
   let journal: string | null | undefined;
   let journalConflict = false;
   let storageMessage = "";
@@ -105,6 +108,7 @@ export function mountPublishingSettings(
   }
 
   function restoreJournal() {
+    retryEtag = undefined;
     try {
       journal = tabStorage().getItem(key);
       journalConflict = false;
@@ -163,10 +167,21 @@ export function mountPublishingSettings(
     if (signal.aborted) return;
     const allowed = canPublish();
     const needsInspection = draft?.inspect === true;
+    const unavailable = allowed ? writeUnavailable?.() : undefined;
     form.hidden = !allowed;
     checkbox.checked = draft?.enabled ?? saved?.data.enabled ?? false;
     checkbox.disabled = !allowed || !saved || busy || needsInspection;
-    save.disabled = checkbox.disabled || !draft || readFailed;
+    save.textContent = retryEtag
+      ? `Retry ${scope.kind} publishing save`
+      : `Save ${scope.kind} publishing`;
+    save.disabled =
+      !allowed ||
+      !saved ||
+      busy ||
+      !draft ||
+      readFailed ||
+      !!unavailable ||
+      (needsInspection && retryEtag === undefined);
     discard.hidden = !draft || needsInspection;
     discard.disabled = busy;
     inspect.hidden = !needsInspection;
@@ -180,6 +195,7 @@ export function mountPublishingSettings(
     feedback.textContent =
       storageMessage ||
       (readFailed ? "Publishing status could not be read. Try refreshing again." : "") ||
+      (draft && (!needsInspection || retryEtag) ? unavailable : undefined) ||
       message ||
       (needsInspection ? "Inspect the saved settings before retrying the change." : "");
   }
@@ -250,13 +266,19 @@ export function mountPublishingSettings(
         if (operationSignal.aborted) return false;
         saved = reply;
         readFailed = false;
+        if (retryEtag !== undefined && retryEtag !== reply.etag) {
+          retryEtag = undefined;
+          message = "The saved settings changed. Inspect the current setting before retrying.";
+        }
         if (inspecting && draft?.inspect) {
           if (draft.enabled === reply.data.enabled) {
             finish(undefined, "The saved settings confirm the publishing change.");
             return true;
           }
           if (draft.etag === reply.etag) {
-            message = "The original save is still unresolved. Inspect the saved settings again.";
+            // A late original write and an explicit retry must compete for the same validator.
+            retryEtag = reply.etag;
+            message = "The saved setting is unchanged. You can retry the pending change.";
           } else {
             finish(
               { enabled: draft.enabled, inspect: false },
@@ -265,7 +287,10 @@ export function mountPublishingSettings(
           }
         }
       } catch {
-        if (!operationSignal.aborted) readFailed = true;
+        if (!operationSignal.aborted) {
+          retryEtag = undefined;
+          readFailed = true;
+        }
       } finally {
         release?.();
       }
@@ -274,16 +299,19 @@ export function mountPublishingSettings(
   }
 
   async function submit(operationSignal: AbortSignal): Promise<boolean> {
-    if (!saved || !draft || draft.inspect || readFailed || !canPublish()) return false;
+    if (!saved || !draft || readFailed || !canPublish() || writeUnavailable?.()) return false;
+    const retrying = draft.inspect;
+    const expected = retrying ? retryEtag : saved.etag;
+    if (expected === undefined || expected !== saved.etag) return false;
     const release = beginWrite?.();
     if (release === null) {
       message = "Another settings change is in progress. Try saving again when it finishes.";
       return false;
     }
     const { enabled } = draft;
-    const expected = saved.etag;
     try {
       const pending: Draft = { enabled, inspect: true, etag: expected };
+      retryEtag = undefined;
       const outcome = await submitOperation(
         () => {
           if (!remember(pending)) return false;
@@ -304,10 +332,14 @@ export function mountPublishingSettings(
           message = "The saved settings changed. Inspect the current setting before retrying.";
           break;
         case "refused":
-          finish(
-            { enabled, inspect: false },
-            "The service refused the save. Your change is pending.",
-          );
+          if (retrying) {
+            message = "The service refused the retry. Inspect the saved settings again.";
+          } else {
+            finish(
+              { enabled, inspect: false },
+              "The service refused the save. Your change is pending.",
+            );
+          }
           break;
         case "unknown":
           message = "The save outcome is unknown. Inspect the saved settings before retrying.";

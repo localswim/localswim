@@ -15,7 +15,7 @@ type UploadOptions = AppContext &
     pasteTarget: HTMLElement;
     readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
     canUpload: () => boolean;
-    awaitUploadAdmission?: (signal: AbortSignal) => Promise<boolean>;
+    awaitUploadAdmission?: (signal: AbortSignal, confirmedCardRevision: number) => Promise<boolean>;
     beginWrite: (cardId: string) => (() => void) | null;
     beginInspect: (cardId: string) => (() => void) | null;
     onChange: () => void;
@@ -315,7 +315,7 @@ export function mountUploads(
     render();
     try {
       let expected = context.etag;
-      revisionOf(cardId, expected);
+      let revision = revisionOf(cardId, expected);
       const pending = [];
       for (const entry of accepted) {
         pending.push({ ...entry, original: await fingerprint(entry.file) });
@@ -328,16 +328,14 @@ export function mountUploads(
       }
       let remaining = pending.map(({ original }) => original);
       raw = save(cardId, previous, { remaining, expected: null });
-      let revision: number | undefined;
       for (const [index, { file, result, original }] of pending.entries()) {
         signal.throwIfAborted();
-        if (revision !== undefined) {
+        if (index > 0) {
           expected = await readCardTag(cardId, revision);
-          revision = undefined;
-        }
-        if (index > 0 && awaitUploadAdmission && !(await awaitUploadAdmission(signal))) {
-          batch.notice = "Upload stopped because write access could not be confirmed.";
-          break;
+          if (awaitUploadAdmission && !(await awaitUploadAdmission(signal, revision))) {
+            batch.notice = "Upload stopped because write access could not be confirmed.";
+            break;
+          }
         }
         if (signal.aborted || !canUpload()) {
           batch.notice = "Upload stopped because write access could not be confirmed.";

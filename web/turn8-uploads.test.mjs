@@ -355,7 +355,9 @@ test("a failed fresh admission stops subsequent dispatches", async () => {
       },
     },
     stored,
-    () => {
+    (signal, confirmedCardRevision) => {
+      assert.equal(signal.aborted, false);
+      assert.equal(confirmedCardRevision, 4);
       events.push("awaiting write access");
       return permission.promise;
     },

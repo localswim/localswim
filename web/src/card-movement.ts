@@ -333,11 +333,20 @@ export function createCardMovement({
     },
     async inspect() {
       if (signal.aborted || busy || !pending) return;
+      const release = beginWrite(pending.cardId);
+      if (!release) {
+        announce(
+          pending.cardId,
+          "A card change is still in progress. Inspect the saved card again after it settles.",
+        );
+        return;
+      }
       busy = true;
       try {
         await inspectPending(pending, "Inspecting the pending move.");
       } finally {
         busy = false;
+        release();
         if (!signal.aborted) onChange();
       }
     },

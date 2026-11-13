@@ -1,7 +1,8 @@
 const API_PREFIX = "/api/2026-11-10";
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const NOTICE_TARGET_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const NOTICE_TARGET_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const STRONG_ETAG = /^"[A-Za-z0-9_-]{16,128}"$/;
 const CAPABILITY = /^[A-Za-z0-9_-]{43,128}$/;
 const REQUEST_TIMEOUT_MS = 15000;
@@ -57,9 +58,15 @@ export async function openBrowserSession(fetchImpl = globalThis.fetch.bind(globa
     throw new ApiError("http_error", { status: response.status });
   }
   const session = /** @type {Record<string, unknown>} */ (await responseObject(response, false));
-  if (session.kind !== "human" || !isId(session.principal_id) || session.api_version !== "2026-11-10"
-      || typeof session.workspace_admin !== "boolean" || session.expires_on_service_replacement !== true
-      || typeof session.access_token !== "string" || !CAPABILITY.test(session.access_token)) {
+  if (
+    session.kind !== "human" ||
+    !isId(session.principal_id) ||
+    session.api_version !== "2026-11-10" ||
+    typeof session.workspace_admin !== "boolean" ||
+    session.expires_on_service_replacement !== true ||
+    typeof session.access_token !== "string" ||
+    !CAPABILITY.test(session.access_token)
+  ) {
     throw new ApiError("invalid_response", { status: response.status });
   }
   return session.access_token;
@@ -75,7 +82,10 @@ function resourceId(id) {
 
 /** @param {unknown} id */
 function operationId(id) {
-  if (typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+  if (
+    typeof id !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+  ) {
     throw new TypeError("Expected a UUIDv7 operation ID.");
   }
   return id.toLowerCase();
@@ -127,47 +137,74 @@ function validErrorCode(value) {
 /** @param {unknown} value @returns {value is Service} */
 function validService(value) {
   if (!isObject(value)) return false;
-  return Object.keys(value).length === 6
-    && isInteger(value.port) && value.port >= 1 && value.port <= 65535
-    && typeof value.service_instance_id === "string" && UUID_V7.test(value.service_instance_id)
-    && canonicalId(value.build_id) && (value.state === "running" || value.state === "draining")
-    && value.api_version === "2026-11-10" && validErrorCode(value.restart_error_code);
+  return (
+    Object.keys(value).length === 6 &&
+    isInteger(value.port) &&
+    value.port >= 1 &&
+    value.port <= 65535 &&
+    typeof value.service_instance_id === "string" &&
+    UUID_V7.test(value.service_instance_id) &&
+    canonicalId(value.build_id) &&
+    (value.state === "running" || value.state === "draining") &&
+    value.api_version === "2026-11-10" &&
+    validErrorCode(value.restart_error_code)
+  );
 }
 
 /** @param {unknown} value @returns {value is Build} */
 function validBuild(value) {
   if (!isObject(value)) return false;
-  return Object.keys(value).length === 4 && canonicalId(value.id) && typeof value.version === "string" && value.version.length > 0
-    && value.version.length <= 128 && ["pending", "valid", "invalid"].some((state) => state === value.validation)
-    && validErrorCode(value.error_code);
+  return (
+    Object.keys(value).length === 4 &&
+    canonicalId(value.id) &&
+    typeof value.version === "string" &&
+    value.version.length > 0 &&
+    value.version.length <= 128 &&
+    ["pending", "valid", "invalid"].some((state) => state === value.validation) &&
+    validErrorCode(value.error_code)
+  );
 }
 
 /** @param {unknown} value @param {string} id @param {string} buildId @returns {value is Activation} */
 function validActivation(value, id, buildId) {
-  return isObject(value) && Object.keys(value).length === 4 && value.id === id && value.build_id === buildId
-    && ["accepted", "activated", "failed"].some((state) => state === value.state)
-    && validErrorCode(value.error_code);
+  return (
+    isObject(value) &&
+    Object.keys(value).length === 4 &&
+    value.id === id &&
+    value.build_id === buildId &&
+    ["accepted", "activated", "failed"].some((state) => state === value.state) &&
+    validErrorCode(value.error_code)
+  );
 }
 
 /** @param {unknown} value @returns {value is Publishing} */
 export function validPublishing(value) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const state = /** @type {Record<string, unknown>} */ (value);
-  return Object.keys(state).length === 5 && typeof state.enabled === "boolean"
-    && (state.repository === null || (typeof state.repository === "string" && state.repository.length <= 2048))
-    && (state.last_success_at === null || isTimestamp(state.last_success_at))
-    && typeof state.pending === "boolean"
-    && (state.error_code === null || (typeof state.error_code === "string" && state.error_code.length <= 80));
+  return (
+    Object.keys(state).length === 5 &&
+    typeof state.enabled === "boolean" &&
+    (state.repository === null ||
+      (typeof state.repository === "string" && state.repository.length <= 2048)) &&
+    (state.last_success_at === null || isTimestamp(state.last_success_at)) &&
+    typeof state.pending === "boolean" &&
+    (state.error_code === null ||
+      (typeof state.error_code === "string" && state.error_code.length <= 80))
+  );
 }
 
 /** @param {object} value @returns {value is Workspace} */
 function validWorkspace(value) {
   const workspace = /** @type {Record<string, unknown>} */ (value);
-  return Object.keys(workspace).length === 3 && isInteger(workspace.revision) && workspace.revision > 0
-    && Array.isArray(workspace.pinned_board_ids)
-    && workspace.pinned_board_ids.every((id) => isId(id) && id === id.toLowerCase())
-    && new Set(workspace.pinned_board_ids).size === workspace.pinned_board_ids.length
-    && validPublishing(workspace.publishing);
+  return (
+    Object.keys(workspace).length === 3 &&
+    isInteger(workspace.revision) &&
+    workspace.revision > 0 &&
+    Array.isArray(workspace.pinned_board_ids) &&
+    workspace.pinned_board_ids.every((id) => isId(id) && id === id.toLowerCase()) &&
+    new Set(workspace.pinned_board_ids).size === workspace.pinned_board_ids.length &&
+    validPublishing(workspace.publishing)
+  );
 }
 
 /** @param {unknown} enabled */
@@ -180,38 +217,65 @@ function publishingChange(enabled) {
 function validBackup(value, boardId, id) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const backup = /** @type {Record<string, unknown>} */ (value);
-  return Object.keys(backup).length === 6 && backup.id === id && backup.board_id === boardId
-    && isInteger(backup.board_revision) && backup.board_revision > 0
-    && isInteger(backup.size) && backup.size >= 0
-    && typeof backup.sha2_256 === "string" && /^[0-9a-f]{64}$/.test(backup.sha2_256)
-    && Array.isArray(backup.attachment_ids) && backup.attachment_ids.every(isId)
-    && new Set(backup.attachment_ids).size === backup.attachment_ids.length;
+  return (
+    Object.keys(backup).length === 6 &&
+    backup.id === id &&
+    backup.board_id === boardId &&
+    isInteger(backup.board_revision) &&
+    backup.board_revision > 0 &&
+    isInteger(backup.size) &&
+    backup.size >= 0 &&
+    typeof backup.sha2_256 === "string" &&
+    /^[0-9a-f]{64}$/.test(backup.sha2_256) &&
+    Array.isArray(backup.attachment_ids) &&
+    backup.attachment_ids.every(isId) &&
+    new Set(backup.attachment_ids).size === backup.attachment_ids.length
+  );
 }
 
 /** @param {object} value @param {string} id @param {string} boardId @param {string} backupId */
 function validPublication(value, id, boardId, backupId) {
   const item = /** @type {Record<string, unknown>} */ (value);
-  return Object.keys(item).length === 7 && item.id === id && item.board_id === boardId
-    && item.backup_id === backupId && item.workspace === false
-    && ["queued", "running", "succeeded", "failed"].includes(String(item.state))
-    && (item.finished_at === null || isTimestamp(item.finished_at))
-    && (item.error_code === null || (typeof item.error_code === "string" && /^[a-z0-9_]{1,80}$/.test(item.error_code)));
+  return (
+    Object.keys(item).length === 7 &&
+    item.id === id &&
+    item.board_id === boardId &&
+    item.backup_id === backupId &&
+    item.workspace === false &&
+    ["queued", "running", "succeeded", "failed"].includes(String(item.state)) &&
+    (item.finished_at === null || isTimestamp(item.finished_at)) &&
+    (item.error_code === null ||
+      (typeof item.error_code === "string" && /^[a-z0-9_]{1,80}$/.test(item.error_code)))
+  );
 }
 
 /** @param {unknown} value @param {number} limit */
 function validDisplayText(value, limit) {
-  return typeof value === "string" && value.length > 0 && value.length <= limit * 2
-    && value.isWellFormed() && [...value].length <= limit;
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= limit * 2 &&
+    value.isWellFormed() &&
+    [...value].length <= limit
+  );
 }
 
 /** @param {unknown} value */
 function validActorPresentation(value) {
   if (!isObject(value)) return false;
-  return Object.entries(value).every(([kind, decoration]) =>
-    (kind === "human" || kind === "bot") && isObject(decoration)
-      && Object.entries(decoration).every(([key, field]) =>
-        (key === "label" && validDisplayText(field, 256))
-        || (key === "accent" && typeof field === "string" && field.length === 7 && /^#[0-9a-f]{6}$/i.test(field))));
+  return Object.entries(value).every(
+    ([kind, decoration]) =>
+      (kind === "human" || kind === "bot") &&
+      isObject(decoration) &&
+      Object.entries(decoration).every(
+        ([key, field]) =>
+          (key === "label" && validDisplayText(field, 256)) ||
+          (key === "accent" &&
+            typeof field === "string" &&
+            field.length === 7 &&
+            /^#[0-9a-f]{6}$/i.test(field)),
+      ),
+  );
 }
 
 /** @param {unknown} lane @param {string} [id] @param {string} [boardId]
@@ -220,25 +284,43 @@ function validLane(lane, id, boardId) {
   if (!isObject(lane)) return false;
   const hasBulkComment = Object.hasOwn(lane, "bulk_approval_comment");
   const hasNotes = Object.hasOwn(lane, "notes");
-  return Object.keys(lane).length === 12 + Number(hasBulkComment) + Number(hasNotes)
-    && (!hasNotes || validDisplayText(lane.notes, MAX_LANE_NOTES_LENGTH))
-    && (!hasBulkComment || (lane.role === "ready_for_review" && typeof lane.bulk_approval_comment === "string"
-      && [...lane.bulk_approval_comment].length > 0
-      && [...lane.bulk_approval_comment].length <= MAX_BULK_APPROVAL_COMMENT_LENGTH))
-    && isId(lane.id) && (id === undefined || lane.id.toLowerCase() === id.toLowerCase())
-    && isId(lane.board_id) && (boardId === undefined || lane.board_id.toLowerCase() === boardId.toLowerCase())
-    && isInteger(lane.revision) && lane.revision > 0
-    && isTimestamp(lane.created_at) && isTimestamp(lane.updated_at)
-    && typeof lane.key === "string" && typeof lane.label === "string" && lane.label.length > 0
-    && isInteger(lane.position) && lane.position >= 0
-    && typeof lane.role === "string" && typeof lane.retired === "boolean"
-    && typeof lane.approval_enabled === "boolean" && typeof lane.reorder_enabled === "boolean";
+  return (
+    Object.keys(lane).length === 12 + Number(hasBulkComment) + Number(hasNotes) &&
+    (!hasNotes || validDisplayText(lane.notes, MAX_LANE_NOTES_LENGTH)) &&
+    (!hasBulkComment ||
+      (lane.role === "ready_for_review" &&
+        typeof lane.bulk_approval_comment === "string" &&
+        [...lane.bulk_approval_comment].length > 0 &&
+        [...lane.bulk_approval_comment].length <= MAX_BULK_APPROVAL_COMMENT_LENGTH)) &&
+    isId(lane.id) &&
+    (id === undefined || lane.id.toLowerCase() === id.toLowerCase()) &&
+    isId(lane.board_id) &&
+    (boardId === undefined || lane.board_id.toLowerCase() === boardId.toLowerCase()) &&
+    isInteger(lane.revision) &&
+    lane.revision > 0 &&
+    isTimestamp(lane.created_at) &&
+    isTimestamp(lane.updated_at) &&
+    typeof lane.key === "string" &&
+    typeof lane.label === "string" &&
+    lane.label.length > 0 &&
+    isInteger(lane.position) &&
+    lane.position >= 0 &&
+    typeof lane.role === "string" &&
+    typeof lane.retired === "boolean" &&
+    typeof lane.approval_enabled === "boolean" &&
+    typeof lane.reorder_enabled === "boolean"
+  );
 }
 
 /** @param {string} kind @returns {RelationshipKind} */
 function relationshipKind(kind) {
   const normalized = typeof kind === "string" ? kind.toLowerCase() : "";
-  if (normalized !== "blocks" && normalized !== "duplicates" && normalized !== "references" && normalized !== "relates_to") {
+  if (
+    normalized !== "blocks" &&
+    normalized !== "duplicates" &&
+    normalized !== "references" &&
+    normalized !== "relates_to"
+  ) {
     throw new TypeError("Invalid relationship kind.");
   }
   return normalized;
@@ -248,82 +330,150 @@ function relationshipKind(kind) {
  * @returns {link is Record<string, unknown> & {board_id: string, revision: number, source_card_id: string, target_card_id: string}} */
 function validRelationship(link, id, boardId) {
   if (!isObject(link)) return false;
-  return Object.keys(link).length === 8 && !Object.hasOwn(link, "etag")
-    && isId(link.id) && (id === undefined || link.id.toLowerCase() === id.toLowerCase())
-    && isId(link.board_id) && (boardId === undefined || link.board_id.toLowerCase() === boardId.toLowerCase())
-    && isInteger(link.revision) && link.revision > 0
-    && isTimestamp(link.created_at) && isTimestamp(link.updated_at)
-    && isId(link.source_card_id) && isId(link.target_card_id)
-    && typeof link.kind === "string"
-    && ["blocks", "duplicates", "references", "relates_to"].includes(link.kind);
+  return (
+    Object.keys(link).length === 8 &&
+    !Object.hasOwn(link, "etag") &&
+    isId(link.id) &&
+    (id === undefined || link.id.toLowerCase() === id.toLowerCase()) &&
+    isId(link.board_id) &&
+    (boardId === undefined || link.board_id.toLowerCase() === boardId.toLowerCase()) &&
+    isInteger(link.revision) &&
+    link.revision > 0 &&
+    isTimestamp(link.created_at) &&
+    isTimestamp(link.updated_at) &&
+    isId(link.source_card_id) &&
+    isId(link.target_card_id) &&
+    typeof link.kind === "string" &&
+    ["blocks", "duplicates", "references", "relates_to"].includes(link.kind)
+  );
 }
 
 /** @param {unknown} item @param {string} [id] @param {string} [cardId] */
 function validAttachment(item, id, cardId) {
   if (!isObject(item)) return false;
-  return Object.keys(item).length === 13 && !Object.hasOwn(item, "etag")
-    && isId(item.id) && (id === undefined || item.id.toLowerCase() === id.toLowerCase())
-    && isId(item.card_id) && (cardId === undefined || item.card_id.toLowerCase() === cardId.toLowerCase())
-    && isId(item.board_id) && isId(item.added_by)
-    && isInteger(item.revision) && item.revision > 0
-    && isTimestamp(item.created_at) && isTimestamp(item.updated_at)
-    && typeof item.original_name === "string" && item.original_name.length > 0
-    && isInteger(item.size) && item.size >= 0 && item.size <= MAX_ATTACHMENT_BYTES
-    && typeof item.sha2_256 === "string" && /^[0-9a-f]{64}$/.test(item.sha2_256)
-    && typeof item.media_type === "string" && item.media_type.includes("/")
-    && typeof item.active === "boolean" && typeof item.previewable === "boolean"
-    && item.previewable === RASTER_MEDIA_TYPES.has(item.media_type.split(";", 1)[0]?.trim().toLowerCase() ?? "");
+  return (
+    Object.keys(item).length === 13 &&
+    !Object.hasOwn(item, "etag") &&
+    isId(item.id) &&
+    (id === undefined || item.id.toLowerCase() === id.toLowerCase()) &&
+    isId(item.card_id) &&
+    (cardId === undefined || item.card_id.toLowerCase() === cardId.toLowerCase()) &&
+    isId(item.board_id) &&
+    isId(item.added_by) &&
+    isInteger(item.revision) &&
+    item.revision > 0 &&
+    isTimestamp(item.created_at) &&
+    isTimestamp(item.updated_at) &&
+    typeof item.original_name === "string" &&
+    item.original_name.length > 0 &&
+    isInteger(item.size) &&
+    item.size >= 0 &&
+    item.size <= MAX_ATTACHMENT_BYTES &&
+    typeof item.sha2_256 === "string" &&
+    /^[0-9a-f]{64}$/.test(item.sha2_256) &&
+    typeof item.media_type === "string" &&
+    item.media_type.includes("/") &&
+    typeof item.active === "boolean" &&
+    typeof item.previewable === "boolean" &&
+    item.previewable ===
+      RASTER_MEDIA_TYPES.has(item.media_type.split(";", 1)[0]?.trim().toLowerCase() ?? "")
+  );
 }
 
 /** @param {unknown} card @param {string} boardId @param {string | undefined} id
  * @returns {card is Record<string, unknown> & {id: string, lane_id: string, archived: boolean}} */
 function validCard(card, boardId, id) {
   if (!isObject(card)) return false;
-  return Object.keys(card).length === 21
-    && isId(card.id) && (id === undefined || card.id.toLowerCase() === id.toLowerCase())
-    && isId(card.board_id) && card.board_id.toLowerCase() === boardId.toLowerCase()
-    && isInteger(card.revision) && card.revision > 0
-    && isInteger(card.ticket) && card.ticket > 0
-    && isTimestamp(card.created_at) && isTimestamp(card.updated_at)
-    && typeof card.title === "string" && card.title.length > 0
-    && typeof card.description === "string"
-    && isId(card.lane_id) && isId(card.priority_id)
-    && isId(card.owner_id)
-    && (card.parent_id === null || isId(card.parent_id))
-    && Array.isArray(card.child_ids) && card.child_ids.every(isId)
-    && typeof card.archived === "boolean"
-    && (card.cover_attachment_id === null || isId(card.cover_attachment_id))
-    && isInteger(card.comment_count) && card.comment_count >= 0
-    && isInteger(card.attachment_count) && card.attachment_count >= 0
-    && isInteger(card.blocking_depth) && card.blocking_depth >= 0
-    && isInteger(card.blocked_card_count) && card.blocked_card_count >= 0
-    && isInteger(card.triage_score)
-    && (card.completed_at === null || isTimestamp(card.completed_at));
+  return (
+    Object.keys(card).length === 21 &&
+    isId(card.id) &&
+    (id === undefined || card.id.toLowerCase() === id.toLowerCase()) &&
+    isId(card.board_id) &&
+    card.board_id.toLowerCase() === boardId.toLowerCase() &&
+    isInteger(card.revision) &&
+    card.revision > 0 &&
+    isInteger(card.ticket) &&
+    card.ticket > 0 &&
+    isTimestamp(card.created_at) &&
+    isTimestamp(card.updated_at) &&
+    typeof card.title === "string" &&
+    card.title.length > 0 &&
+    typeof card.description === "string" &&
+    isId(card.lane_id) &&
+    isId(card.priority_id) &&
+    isId(card.owner_id) &&
+    (card.parent_id === null || isId(card.parent_id)) &&
+    Array.isArray(card.child_ids) &&
+    card.child_ids.every(isId) &&
+    typeof card.archived === "boolean" &&
+    (card.cover_attachment_id === null || isId(card.cover_attachment_id)) &&
+    isInteger(card.comment_count) &&
+    card.comment_count >= 0 &&
+    isInteger(card.attachment_count) &&
+    card.attachment_count >= 0 &&
+    isInteger(card.blocking_depth) &&
+    card.blocking_depth >= 0 &&
+    isInteger(card.blocked_card_count) &&
+    card.blocked_card_count >= 0 &&
+    isInteger(card.triage_score) &&
+    (card.completed_at === null || isTimestamp(card.completed_at))
+  );
 }
 
 /** @param {object} data @param {string} id @param {string} boardId @param {string} cardId */
 function matchesApproval(data, id, boardId, cardId) {
   const approval = /** @type {Record<string, unknown>} */ (data);
-  if (Object.keys(approval).length !== 7 || approval.id !== id || approval.board_id !== boardId
-      || !isId(approval.actor_id) || !isTimestamp(approval.at)
-      || !isInteger(approval.board_revision) || approval.board_revision < 1
-      || !Array.isArray(approval.card_ids) || approval.card_ids.length !== 1 || approval.card_ids[0] !== cardId
-      || !Array.isArray(approval.changes) || approval.changes.length !== 2) return false;
+  if (
+    Object.keys(approval).length !== 7 ||
+    approval.id !== id ||
+    approval.board_id !== boardId ||
+    !isId(approval.actor_id) ||
+    !isTimestamp(approval.at) ||
+    !isInteger(approval.board_revision) ||
+    approval.board_revision < 1 ||
+    !Array.isArray(approval.card_ids) ||
+    approval.card_ids.length !== 1 ||
+    approval.card_ids[0] !== cardId ||
+    !Array.isArray(approval.changes) ||
+    approval.changes.length !== 2
+  )
+    return false;
   /** @param {unknown} raw @returns {raw is Record<string, unknown>} */
   const matchesChange = (raw) => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
     const change = /** @type {Record<string, unknown>} */ (raw);
-    return Object.keys(change).length === 11 && isOperationId(change.id) && isId(change.resource_id)
-      && change.board_id === boardId && change.actor_id === approval.actor_id && change.at === approval.at
-      && isInteger(change.revision) && change.revision > 1
-      && change.revision === approval.board_revision;
+    return (
+      Object.keys(change).length === 11 &&
+      isOperationId(change.id) &&
+      isId(change.resource_id) &&
+      change.board_id === boardId &&
+      change.actor_id === approval.actor_id &&
+      change.at === approval.at &&
+      isInteger(change.revision) &&
+      change.revision > 1 &&
+      change.revision === approval.board_revision
+    );
   };
   const [move, note] = /** @type {unknown[]} */ (approval.changes);
-  return matchesChange(move) && matchesChange(note) && move.id === id && note.id !== id
-    && move.revision === note.revision && move.operation === "approve" && move.resource_type === "card"
-    && move.resource_id === cardId && move.field === "lane_id" && isId(move.before) && isId(move.after)
-    && move.before !== move.after && note.operation === "comment" && note.resource_type === "comment"
-    && note.field === null && note.before === null && note.after === null;
+  return (
+    matchesChange(move) &&
+    matchesChange(note) &&
+    move.id === id &&
+    note.id !== id &&
+    move.revision === note.revision &&
+    move.operation === "approve" &&
+    move.resource_type === "card" &&
+    move.resource_id === cardId &&
+    move.field === "lane_id" &&
+    isId(move.before) &&
+    isId(move.after) &&
+    move.before !== move.after &&
+    note.operation === "comment" &&
+    note.resource_type === "comment" &&
+    note.field === null &&
+    note.before === null &&
+    note.after === null
+  );
 }
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
@@ -339,49 +489,98 @@ function isArray(value) {
 
 /** @param {unknown} value @returns {value is {card_id: string, ticket: number}} */
 function validTicketAssignment(value) {
-  return isObject(value) && typeof value.card_id === "string" && isInteger(value.ticket) && value.ticket > 0;
+  return (
+    isObject(value) &&
+    typeof value.card_id === "string" &&
+    isInteger(value.ticket) &&
+    value.ticket > 0
+  );
 }
 
 /** @param {string} id @param {unknown} revision */
 function versionTag(id, revision) {
-  if (!isInteger(revision) || revision < 1) throw new TypeError("Expected a positive safe integer revision.");
+  if (!isInteger(revision) || revision < 1)
+    throw new TypeError("Expected a positive safe integer revision.");
   return '"' + resourceId(id).toLowerCase() + "-" + revision + '"';
 }
 
 /** @param {object} data @param {string} id @param {string} boardId @param {string} boardTag
  * @param {string} laneId @param {string} completedLaneId @param {string[]} cardIds @param {string} expectedComment */
-function matchesLaneApproval(data, id, boardId, boardTag, laneId, completedLaneId, cardIds, expectedComment) {
+function matchesLaneApproval(
+  data,
+  id,
+  boardId,
+  boardTag,
+  laneId,
+  completedLaneId,
+  cardIds,
+  expectedComment,
+) {
   const receipt = /** @type {Record<string, unknown>} */ (data);
   const { board_revision: revision, changes } = receipt;
   const ids = receipt.card_ids;
-  if (Object.keys(receipt).length !== 7 || receipt.id !== id || receipt.board_id !== boardId
-      || !isId(receipt.actor_id) || !isTimestamp(receipt.at) || !isInteger(revision) || revision < 2
-      || versionTag(boardId, revision - 1) !== boardTag
-      || !Array.isArray(ids) || ids.length !== cardIds.length || !cardIds.every((cardId, index) => ids[index] === cardId)
-      || !Array.isArray(changes) || changes.length !== cardIds.length * 2) return false;
+  if (
+    Object.keys(receipt).length !== 7 ||
+    receipt.id !== id ||
+    receipt.board_id !== boardId ||
+    !isId(receipt.actor_id) ||
+    !isTimestamp(receipt.at) ||
+    !isInteger(revision) ||
+    revision < 2 ||
+    versionTag(boardId, revision - 1) !== boardTag ||
+    !Array.isArray(ids) ||
+    ids.length !== cardIds.length ||
+    !cardIds.every((cardId, index) => ids[index] === cardId) ||
+    !Array.isArray(changes) ||
+    changes.length !== cardIds.length * 2
+  )
+    return false;
   const auditIds = new Set();
   /** @param {unknown} value @param {boolean} firstMove @returns {value is Record<string, unknown>} */
   function matchesChange(value, firstMove) {
     if (!isObject(value)) return false;
     const hasBulkComment = Object.hasOwn(value, "bulk_approval_comment");
     if (hasBulkComment && !firstMove) return false;
-    if (firstMove && (hasBulkComment ? value.bulk_approval_comment : DEFAULT_APPROVAL_COMMENT) !== expectedComment) {
+    if (
+      firstMove &&
+      (hasBulkComment ? value.bulk_approval_comment : DEFAULT_APPROVAL_COMMENT) !== expectedComment
+    ) {
       return false;
     }
-    if (Object.keys(value).length !== (hasBulkComment ? 12 : 11) || !isOperationId(value.id) || auditIds.has(value.id)
-        || value.board_id !== boardId || value.actor_id !== receipt.actor_id
-        || value.at !== receipt.at || value.revision !== revision) return false;
+    if (
+      Object.keys(value).length !== (hasBulkComment ? 12 : 11) ||
+      !isOperationId(value.id) ||
+      auditIds.has(value.id) ||
+      value.board_id !== boardId ||
+      value.actor_id !== receipt.actor_id ||
+      value.at !== receipt.at ||
+      value.revision !== revision
+    )
+      return false;
     auditIds.add(value.id);
     return true;
   }
   return cardIds.every((cardId, index) => {
     const move = /** @type {unknown} */ (changes[index * 2]);
     const note = /** @type {unknown} */ (changes[index * 2 + 1]);
-    if (!matchesChange(move, index === 0) || !matchesChange(note, false) || (index === 0 && move.id !== id)
-        || move.operation !== "approve" || move.resource_type !== "card" || move.resource_id !== cardId
-        || move.field !== "lane_id" || move.before !== laneId || move.after !== completedLaneId
-        || note.operation !== "comment" || note.resource_type !== "comment" || !isId(note.resource_id)
-        || note.field !== null || note.before !== null || note.after !== null) return false;
+    if (
+      !matchesChange(move, index === 0) ||
+      !matchesChange(note, false) ||
+      (index === 0 && move.id !== id) ||
+      move.operation !== "approve" ||
+      move.resource_type !== "card" ||
+      move.resource_id !== cardId ||
+      move.field !== "lane_id" ||
+      move.before !== laneId ||
+      move.after !== completedLaneId ||
+      note.operation !== "comment" ||
+      note.resource_type !== "comment" ||
+      !isId(note.resource_id) ||
+      note.field !== null ||
+      note.before !== null ||
+      note.after !== null
+    )
+      return false;
     return true;
   });
 }
@@ -402,8 +601,14 @@ async function responseObject(response, write) {
 
 /** @param {Response} response @param {boolean} allowOtherUnavailable */
 async function unavailableRefusalCode(response, allowOtherUnavailable) {
-  if (response.status !== 503 || response.body === null || response.body.locked
-      || !/^application\/problem\+json(?:\s*;\s*charset\s*=\s*(?:utf-8|"utf-8"))?$/i.test(response.headers.get("Content-Type") ?? "")) {
+  if (
+    response.status !== 503 ||
+    response.body === null ||
+    response.body.locked ||
+    !/^application\/problem\+json(?:\s*;\s*charset\s*=\s*(?:utf-8|"utf-8"))?$/i.test(
+      response.headers.get("Content-Type") ?? "",
+    )
+  ) {
     return null;
   }
   const reader = response.body.getReader();
@@ -417,22 +622,40 @@ async function unavailableRefusalCode(response, allowOtherUnavailable) {
       bytes.set(value, length);
       length += value.length;
     }
-    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length));
+    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      bytes.subarray(0, length),
+    );
     const problem = /** @type {unknown} */ (JSON.parse(text));
-    if (!(isObject(problem) && Object.keys(problem).length === 8 && problem.type === "about:blank" && problem.status === 503
-      && problem.code === "unavailable" && problem.outcome === "not_applied"
-      && typeof problem.title === "string" && problem.title.length > 0 && problem.title.length <= 120
-      && typeof problem.detail === "string" && problem.detail.length <= 512
-      && canonicalId(problem.request_id) && Array.isArray(problem.errors) && problem.errors.length === 0)) return null;
+    if (!(
+      isObject(problem) &&
+      Object.keys(problem).length === 8 &&
+      problem.type === "about:blank" &&
+      problem.status === 503 &&
+      problem.code === "unavailable" &&
+      problem.outcome === "not_applied" &&
+      typeof problem.title === "string" &&
+      problem.title.length > 0 &&
+      problem.title.length <= 120 &&
+      typeof problem.detail === "string" &&
+      problem.detail.length <= 512 &&
+      canonicalId(problem.request_id) &&
+      Array.isArray(problem.errors) &&
+      problem.errors.length === 0
+    ))
+      return null;
     // A validated flat problem has exactly eight member separators outside strings.
     // JSON.parse would otherwise silently accept duplicate members.
-    if (text.match(/"(?:[^"\\]|\\.)*"|:/gs)?.filter((token) => token === ":").length !== 8) return null;
+    if (text.match(/"(?:[^"\\]|\\.)*"|:/gs)?.filter((token) => token === ":").length !== 8)
+      return null;
     if (!allowOtherUnavailable) {
-      return problem.title === "Service Unavailable"
-        && problem.detail === "Writes are paused after an uncertain commit. Inspect the saved state." ? "unavailable" : null;
+      return problem.title === "Service Unavailable" &&
+        problem.detail === "Writes are paused after an uncertain commit. Inspect the saved state."
+        ? "unavailable"
+        : null;
     }
     return problem.detail === "Final publication failed. The service remains running."
-      ? "final_publication_failed" : "unavailable";
+      ? "final_publication_failed"
+      : "unavailable";
   } catch {
     return null;
   } finally {
@@ -451,7 +674,8 @@ const MAX_EVENT_CHARS = 64 * 1024;
 
 /** @param {string} frame */
 function parseEvent(frame) {
-  const dataLines = frame.split(/\r?\n/)
+  const dataLines = frame
+    .split(/\r?\n/)
     .filter((line) => line === "data" || line.startsWith("data:"))
     .map((line) => line.slice(5).replace(/^ /, ""));
   if (dataLines.length === 0) {
@@ -470,12 +694,21 @@ function parseEvent(frame) {
   }
   const count = Object.keys(value).length;
   if (resource === "board") {
-    if (count !== 4 || typeof board_id !== "string" || !UUID_V4.test(board_id)
-        || !Number.isSafeInteger(board_revision) || Number(board_revision) < 1) {
+    if (
+      count !== 4 ||
+      typeof board_id !== "string" ||
+      !UUID_V4.test(board_id) ||
+      !Number.isSafeInteger(board_revision) ||
+      Number(board_revision) < 1
+    ) {
       throw new Error();
     }
   } else if (resource === "workspace") {
-    if (count !== 3 || !Number.isSafeInteger(workspace_revision) || Number(workspace_revision) < 1) {
+    if (
+      count !== 3 ||
+      !Number.isSafeInteger(workspace_revision) ||
+      Number(workspace_revision) < 1
+    ) {
       throw new Error();
     }
   } else if (resource !== "catalog" || count !== 2) {
@@ -553,7 +786,21 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
    * @param {string} path
    * @param {{ method?: string, data?: unknown, form?: FormData, raw?: Blob, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal, knownUnavailable?: boolean }} [options]
    */
-  async function send(path, { method = "GET", data, form, raw, etag, ifNoneMatch, boardEtag, accept = "application/json", signal, knownUnavailable = false } = {}) {
+  async function send(
+    path,
+    {
+      method = "GET",
+      data,
+      form,
+      raw,
+      etag,
+      ifNoneMatch,
+      boardEtag,
+      accept = "application/json",
+      signal,
+      knownUnavailable = false,
+    } = {},
+  ) {
     const body = raw ?? (data === undefined ? form : JSON.stringify(data));
     let headers;
     try {
@@ -618,7 +865,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
    * @param {{ method?: string, data?: unknown, form?: FormData, etag?: string, successStatus?: number,
    * signal?: AbortSignal, knownUnavailable?: boolean }} [options]
    */
-  async function request(path, { method = "GET", data, form, etag, successStatus = 200, signal, knownUnavailable } = {}) {
+  async function request(
+    path,
+    { method = "GET", data, form, etag, successStatus = 200, signal, knownUnavailable } = {},
+  ) {
     const response = await send(path, { method, data, form, etag, signal, knownUnavailable });
     const write = method !== "GET";
     const responseEtag = response.headers.get("ETag");
@@ -643,11 +893,19 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     await requireJSONResponse(response, 200, write);
     const etag = response.headers.get("ETag");
     const data = await responseObject(response, write);
-    if (!isObject(data) || Object.keys(data).length !== 4 || data.board_id !== boardId
-        || !isInteger(data.revision) || data.revision < 1 || typeof data.enabled !== "boolean"
-        || (data.target_thread_id === null ? data.enabled
-          : typeof data.target_thread_id !== "string" || !NOTICE_TARGET_ID.test(data.target_thread_id))
-        || etag !== '"notifications-' + boardId + "-" + data.revision + '"') {
+    if (
+      !isObject(data) ||
+      Object.keys(data).length !== 4 ||
+      data.board_id !== boardId ||
+      !isInteger(data.revision) ||
+      data.revision < 1 ||
+      typeof data.enabled !== "boolean" ||
+      (data.target_thread_id === null
+        ? data.enabled
+        : typeof data.target_thread_id !== "string" ||
+          !NOTICE_TARGET_ID.test(data.target_thread_id)) ||
+      etag !== '"notifications-' + boardId + "-" + data.revision + '"'
+    ) {
       throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: write });
     }
     return { data: /** @type {NotificationRoute} */ (data), etag };
@@ -675,9 +933,16 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /** @param {{data: object, etag: string|null}} reply @param {string} id @param {boolean} write */
   function boardPublishingReply(reply, id, write) {
-    const board = /** @type {{id?: unknown, revision?: unknown, publishing?: unknown}} */ (reply.data);
-    if (board.id !== id || !isInteger(board.revision) || board.revision < 1
-        || reply.etag !== versionTag(id, board.revision) || !validPublishing(board.publishing)) {
+    const board = /** @type {{id?: unknown, revision?: unknown, publishing?: unknown}} */ (
+      reply.data
+    );
+    if (
+      board.id !== id ||
+      !isInteger(board.revision) ||
+      board.revision < 1 ||
+      reply.etag !== versionTag(id, board.revision) ||
+      !validPublishing(board.publishing)
+    ) {
       throw new ApiError("invalid_response", { status: 200, outcomeUnknown: write });
     }
     return { data: board.publishing, etag: strongTag(reply.etag) };
@@ -687,11 +952,21 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
    * @param {AvailabilityChange} [requested] */
   function boardAvailabilityReply(reply, id, requested) {
     const data = /** @type {Record<string, unknown>} */ (reply.data);
-    if (data.id !== id || !isInteger(data.revision) || data.revision < 1
-        || reply.etag !== versionTag(id, data.revision) || typeof data.name !== "string" || !data.name.length
-        || !isId(data.policy_id) || !["open", "closed", "unhealthy"].some((state) => state === data.availability)
-        || (requested !== undefined && data.availability !== requested)) {
-      throw new ApiError("invalid_response", { status: 200, outcomeUnknown: requested !== undefined });
+    if (
+      data.id !== id ||
+      !isInteger(data.revision) ||
+      data.revision < 1 ||
+      reply.etag !== versionTag(id, data.revision) ||
+      typeof data.name !== "string" ||
+      !data.name.length ||
+      !isId(data.policy_id) ||
+      !["open", "closed", "unhealthy"].some((state) => state === data.availability) ||
+      (requested !== undefined && data.availability !== requested)
+    ) {
+      throw new ApiError("invalid_response", {
+        status: 200,
+        outcomeUnknown: requested !== undefined,
+      });
     }
     return { data: /** @type {BoardAvailability} */ (reply.data), etag: strongTag(reply.etag) };
   }
@@ -740,19 +1015,32 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     async getBoardLanes(boardId, signal) {
       const board = resourceId(boardId).toLowerCase();
       const reply = await request("/boards/" + board + "?view=lanes", { signal });
-      const data = /** @type {{board?: {id?: unknown, revision?: unknown, actor_presentation?: unknown}, lanes?: unknown, cards?: unknown}} */ (reply.data);
-      if (data.board?.id !== board || !isInteger(data.board.revision) || data.board.revision < 1
-          || reply.etag !== versionTag(board, data.board.revision) || !isArray(data.lanes)
-          || !isArray(data.cards) || (Object.hasOwn(data.board, "actor_presentation")
-            && !validActorPresentation(data.board.actor_presentation))) {
+      const data =
+        /** @type {{board?: {id?: unknown, revision?: unknown, actor_presentation?: unknown}, lanes?: unknown, cards?: unknown}} */ (
+          reply.data
+        );
+      if (
+        data.board?.id !== board ||
+        !isInteger(data.board.revision) ||
+        data.board.revision < 1 ||
+        reply.etag !== versionTag(board, data.board.revision) ||
+        !isArray(data.lanes) ||
+        !isArray(data.cards) ||
+        (Object.hasOwn(data.board, "actor_presentation") &&
+          !validActorPresentation(data.board.actor_presentation))
+      ) {
         throw new ApiError("invalid_response", { status: 200 });
       }
       /** @type {Set<string>} */
       const ids = new Set();
       let position = -1;
       for (const lane of data.lanes) {
-        if (!validLane(lane, undefined, board)
-            || lane.retired || lane.position <= position || ids.has(lane.id)) {
+        if (
+          !validLane(lane, undefined, board) ||
+          lane.retired ||
+          lane.position <= position ||
+          ids.has(lane.id)
+        ) {
           throw new ApiError("invalid_response", { status: 200 });
         }
         ids.add(lane.id);
@@ -761,7 +1049,12 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       /** @type {Set<string>} */
       const cardIds = new Set();
       for (const card of data.cards) {
-        if (!validCard(card, board, undefined) || !ids.has(card.lane_id) || card.archived || cardIds.has(card.id)) {
+        if (
+          !validCard(card, board, undefined) ||
+          !ids.has(card.lane_id) ||
+          card.archived ||
+          cardIds.has(card.id)
+        ) {
           throw new ApiError("invalid_response", { status: 200 });
         }
         cardIds.add(card.id);
@@ -775,23 +1068,47 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       if (!ids.length || ids.length > 1000 || new Set(ids).size !== ids.length) {
         throw new TypeError("Choose between 1 and 1000 distinct cards.");
       }
-      const response = await send("/cards", { method: "PATCH", data: {
-        board_id: board, expected_board_etag: strongTag(boardEtag), card_ids: ids,
-        priority_id: resourceId(priorityId),
-      } });
-      const data = /** @type {{board_id?: unknown, board_revision?: unknown, cards?: unknown, changes?: unknown}} */ (await responseObject(response, true));
+      const response = await send("/cards", {
+        method: "PATCH",
+        data: {
+          board_id: board,
+          expected_board_etag: strongTag(boardEtag),
+          card_ids: ids,
+          priority_id: resourceId(priorityId),
+        },
+      });
+      const data =
+        /** @type {{board_id?: unknown, board_revision?: unknown, cards?: unknown, changes?: unknown}} */ (
+          await responseObject(response, true)
+        );
       const tag = response.headers.get("X-Board-ETag");
-      if (response.status !== 200 || data.board_id !== board || !isInteger(data.board_revision)
-          || data.board_revision < 1 || tag !== versionTag(board, data.board_revision)
-          || !isArray(data.cards) || data.cards.length !== ids.length
-          || !data.cards.every((card) => validCard(card, board, undefined))
-          || new Set(data.cards.map((card) => card.id)).size !== ids.length
-          || !data.cards.every((card) => ids.includes(card.id))
-          || !isArray(data.changes) || !data.changes.every((change) => isObject(change)
-            && change.board_id === board && change.revision === data.board_revision
-            && isOperationId(change.id) && isId(change.resource_id) && isId(change.actor_id)
-            && isTimestamp(change.at) && change.resource_type === "card" && change.field === "priority_id"
-            && isId(change.before) && isId(change.after))) {
+      if (
+        response.status !== 200 ||
+        data.board_id !== board ||
+        !isInteger(data.board_revision) ||
+        data.board_revision < 1 ||
+        tag !== versionTag(board, data.board_revision) ||
+        !isArray(data.cards) ||
+        data.cards.length !== ids.length ||
+        !data.cards.every((card) => validCard(card, board, undefined)) ||
+        new Set(data.cards.map((card) => card.id)).size !== ids.length ||
+        !data.cards.every((card) => ids.includes(card.id)) ||
+        !isArray(data.changes) ||
+        !data.changes.every(
+          (change) =>
+            isObject(change) &&
+            change.board_id === board &&
+            change.revision === data.board_revision &&
+            isOperationId(change.id) &&
+            isId(change.resource_id) &&
+            isId(change.actor_id) &&
+            isTimestamp(change.at) &&
+            change.resource_type === "card" &&
+            change.field === "priority_id" &&
+            isId(change.before) &&
+            isId(change.after),
+        )
+      ) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       return { data, etag: tag };
@@ -809,32 +1126,57 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         for (const id of ids) query.append("card_id", id);
       }
       const response = await send("/ticket-orders/" + lane + "?" + query);
-      const data = /** @type {{board_id?: unknown, lane_id?: unknown, board_revision?: unknown, selected_card_ids?: unknown, current?: unknown, proposed?: unknown, changed?: unknown}} */ (await responseObject(response, false));
+      const data =
+        /** @type {{board_id?: unknown, lane_id?: unknown, board_revision?: unknown, selected_card_ids?: unknown, current?: unknown, proposed?: unknown, changed?: unknown}} */ (
+          await responseObject(response, false)
+        );
       const tag = response.headers.get("X-Board-ETag");
-      if (response.status !== 200 || data.board_id !== board || data.lane_id !== lane
-          || !isInteger(data.board_revision) || data.board_revision < 1
-          || tag !== versionTag(board, data.board_revision) || typeof data.changed !== "boolean"
-          || !isArray(data.selected_card_ids) || !data.selected_card_ids.every(isId)
-          || new Set(data.selected_card_ids).size !== data.selected_card_ids.length
-          || !isArray(data.current) || !data.current.every(validTicketAssignment)
-          || !isArray(data.proposed) || !data.proposed.every(validTicketAssignment)) {
+      if (
+        response.status !== 200 ||
+        data.board_id !== board ||
+        data.lane_id !== lane ||
+        !isInteger(data.board_revision) ||
+        data.board_revision < 1 ||
+        tag !== versionTag(board, data.board_revision) ||
+        typeof data.changed !== "boolean" ||
+        !isArray(data.selected_card_ids) ||
+        !data.selected_card_ids.every(isId) ||
+        new Set(data.selected_card_ids).size !== data.selected_card_ids.length ||
+        !isArray(data.current) ||
+        !data.current.every(validTicketAssignment) ||
+        !isArray(data.proposed) ||
+        !data.proposed.every(validTicketAssignment)
+      ) {
         throw new ApiError("invalid_response", { status: 200 });
       }
       const selected = data.selected_card_ids;
       for (const assignments of [data.current, data.proposed]) {
-        if (assignments.length !== selected.length || new Set(assignments.map((item) => item.card_id)).size !== selected.length
-            || new Set(assignments.map((item) => item.ticket)).size !== selected.length
-            || !assignments.every((item) => selected.includes(item.card_id))) {
+        if (
+          assignments.length !== selected.length ||
+          new Set(assignments.map((item) => item.card_id)).size !== selected.length ||
+          new Set(assignments.map((item) => item.ticket)).size !== selected.length ||
+          !assignments.every((item) => selected.includes(item.card_id))
+        ) {
           throw new ApiError("invalid_response", { status: 200 });
         }
       }
       const current = data.current;
       const proposed = data.proposed;
-      if (current.some((entry) => !proposed.some((item) => item.ticket === entry.ticket))
-          || data.changed !== current.some((entry) => proposed.find((item) => item.card_id === entry.card_id)?.ticket !== entry.ticket)) {
+      if (
+        current.some((entry) => !proposed.some((item) => item.ticket === entry.ticket)) ||
+        data.changed !==
+          current.some(
+            (entry) =>
+              proposed.find((item) => item.card_id === entry.card_id)?.ticket !== entry.ticket,
+          )
+      ) {
         throw new ApiError("invalid_response", { status: 200 });
       }
-      if (cardIds && (cardIds.length !== selected.length || !cardIds.every((id) => selected.includes(id.toLowerCase())))) {
+      if (
+        cardIds &&
+        (cardIds.length !== selected.length ||
+          !cardIds.every((id) => selected.includes(id.toLowerCase())))
+      ) {
         throw new ApiError("invalid_response", { status: 200 });
       }
       return { data, etag: tag };
@@ -845,29 +1187,63 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const board = resourceId(boardId).toLowerCase();
       const lane = resourceId(laneId).toLowerCase();
       const ids = proposed.map(({ card_id }) => resourceId(card_id).toLowerCase());
-      if (ids.length > 1000 || new Set(ids).size !== ids.length
-          || proposed.some(({ ticket }) => !isInteger(ticket) || ticket < 1)
-          || new Set(proposed.map(({ ticket }) => ticket)).size !== ids.length) throw new TypeError("Invalid ticket preview.");
-      const response = await send("/ticket-orders/" + lane, { method: "PUT", data: {
-        board_id: board, expected_board_etag: strongTag(boardEtag), card_ids: ids,
-      } });
+      if (
+        ids.length > 1000 ||
+        new Set(ids).size !== ids.length ||
+        proposed.some(({ ticket }) => !isInteger(ticket) || ticket < 1) ||
+        new Set(proposed.map(({ ticket }) => ticket)).size !== ids.length
+      )
+        throw new TypeError("Invalid ticket preview.");
+      const response = await send("/ticket-orders/" + lane, {
+        method: "PUT",
+        data: {
+          board_id: board,
+          expected_board_etag: strongTag(boardEtag),
+          card_ids: ids,
+        },
+      });
       const data = /** @type {Record<string, unknown>} */ (await responseObject(response, true));
-      if (response.status !== 200 || data.board_id !== board || data.lane_id !== lane
-          || !isInteger(data.board_revision) || data.board_revision < 1
-          || response.headers.get("X-Board-ETag") !== versionTag(board, data.board_revision)
-          || typeof data.changed !== "boolean" || !isArray(data.selected_card_ids)
-          || data.selected_card_ids.length !== ids.length || new Set(data.selected_card_ids).size !== ids.length
-          || !data.selected_card_ids.every((id) => typeof id === "string" && ids.includes(id))
-          || !isArray(data.current) || data.current.length !== ids.length || !data.current.every(validTicketAssignment)
-          || new Set(data.current.map((entry) => entry.card_id)).size !== ids.length
-          || new Set(data.current.map((entry) => entry.ticket)).size !== ids.length
-          || !data.current.every((entry) => ids.includes(entry.card_id) && proposed.some((item) => item.ticket === entry.ticket))
-          || !isArray(data.proposed) || data.proposed.length !== ids.length || !data.proposed.every(validTicketAssignment)
-          || new Set(data.proposed.map((entry) => entry.card_id)).size !== ids.length
-          || !data.proposed.every((entry) => proposed.some((item) => item.card_id.toLowerCase() === entry.card_id && item.ticket === entry.ticket))) {
+      if (
+        response.status !== 200 ||
+        data.board_id !== board ||
+        data.lane_id !== lane ||
+        !isInteger(data.board_revision) ||
+        data.board_revision < 1 ||
+        response.headers.get("X-Board-ETag") !== versionTag(board, data.board_revision) ||
+        typeof data.changed !== "boolean" ||
+        !isArray(data.selected_card_ids) ||
+        data.selected_card_ids.length !== ids.length ||
+        new Set(data.selected_card_ids).size !== ids.length ||
+        !data.selected_card_ids.every((id) => typeof id === "string" && ids.includes(id)) ||
+        !isArray(data.current) ||
+        data.current.length !== ids.length ||
+        !data.current.every(validTicketAssignment) ||
+        new Set(data.current.map((entry) => entry.card_id)).size !== ids.length ||
+        new Set(data.current.map((entry) => entry.ticket)).size !== ids.length ||
+        !data.current.every(
+          (entry) =>
+            ids.includes(entry.card_id) && proposed.some((item) => item.ticket === entry.ticket),
+        ) ||
+        !isArray(data.proposed) ||
+        data.proposed.length !== ids.length ||
+        !data.proposed.every(validTicketAssignment) ||
+        new Set(data.proposed.map((entry) => entry.card_id)).size !== ids.length ||
+        !data.proposed.every((entry) =>
+          proposed.some(
+            (item) => item.card_id.toLowerCase() === entry.card_id && item.ticket === entry.ticket,
+          ),
+        )
+      ) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
-      if (data.changed !== data.current.some((entry) => proposed.find((item) => item.card_id.toLowerCase() === entry.card_id)?.ticket !== entry.ticket)) {
+      if (
+        data.changed !==
+        data.current.some(
+          (entry) =>
+            proposed.find((item) => item.card_id.toLowerCase() === entry.card_id)?.ticket !==
+            entry.ticket,
+        )
+      ) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       return { data, etag: response.headers.get("X-Board-ETag") };
@@ -875,10 +1251,19 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {string} boardId @param {string} snapshotEtag @param {Blob} file */
     async restoreSnapshot(boardId, snapshotEtag, file) {
       const board = resourceId(boardId).toLowerCase();
-      const response = await send("/snapshots/" + board, { method: "PUT", etag: strongTag(snapshotEtag), raw: file });
+      const response = await send("/snapshots/" + board, {
+        method: "PUT",
+        etag: strongTag(snapshotEtag),
+        raw: file,
+      });
       const data = /** @type {Record<string, unknown>} */ (await responseObject(response, true));
-      if (response.status !== 200 || data.id !== board || !isInteger(data.revision) || data.revision < 1
-          || response.headers.get("X-Board-ETag") !== versionTag(board, data.revision)) {
+      if (
+        response.status !== 200 ||
+        data.id !== board ||
+        !isInteger(data.revision) ||
+        data.revision < 1 ||
+        response.headers.get("X-Board-ETag") !== versionTag(board, data.revision)
+      ) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       return { data, etag: null };
@@ -888,12 +1273,20 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const publication = operationId(id).toLowerCase();
       const board = resourceId(boardId).toLowerCase();
       const backup = operationId(backupId).toLowerCase();
-      const response = await send("/publications", { method: "POST", data: {
-        id: publication, board_id: board, backup_id: backup,
-      } });
+      const response = await send("/publications", {
+        method: "POST",
+        data: {
+          id: publication,
+          board_id: board,
+          backup_id: backup,
+        },
+      });
       const data = await responseObject(response, true);
-      if (response.status !== 202 || response.headers.get("Location") !== API_PREFIX + "/publications/" + publication
-          || !validPublication(data, publication, board, backup)) {
+      if (
+        response.status !== 202 ||
+        response.headers.get("Location") !== API_PREFIX + "/publications/" + publication ||
+        !validPublication(data, publication, board, backup)
+      ) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       return { data, etag: response.headers.get("ETag") };
@@ -901,7 +1294,15 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {string} id @param {string} boardId @param {string} backupId */
     async getPublication(id, boardId, backupId) {
       const reply = await request("/publications/" + operationId(id));
-      if (!STRONG_ETAG.test(reply.etag ?? "") || !validPublication(reply.data, operationId(id), resourceId(boardId).toLowerCase(), operationId(backupId))) {
+      if (
+        !STRONG_ETAG.test(reply.etag ?? "") ||
+        !validPublication(
+          reply.data,
+          operationId(id),
+          resourceId(boardId).toLowerCase(),
+          operationId(backupId),
+        )
+      ) {
         throw new ApiError("invalid_response", { status: 200 });
       }
       return reply;
@@ -910,10 +1311,18 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     async createBackup(id, boardId, boardEtag) {
       const backup = operationId(id).toLowerCase();
       const board = resourceId(boardId).toLowerCase();
-      const response = await send("/backups", { method: "POST", data: {
-        id: backup, board_id: board, expected_board_etag: strongTag(boardEtag),
-      } });
-      if (response.status !== 201 || response.headers.get("Location") !== API_PREFIX + "/backups/" + backup) {
+      const response = await send("/backups", {
+        method: "POST",
+        data: {
+          id: backup,
+          board_id: board,
+          expected_board_etag: strongTag(boardEtag),
+        },
+      });
+      if (
+        response.status !== 201 ||
+        response.headers.get("Location") !== API_PREFIX + "/backups/" + backup
+      ) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
@@ -927,17 +1336,26 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     async getBackup(id, boardId) {
       const backup = operationId(id).toLowerCase();
       const reply = await request("/backups/" + backup);
-      if (!STRONG_ETAG.test(reply.etag ?? "") || !validBackup(reply.data, resourceId(boardId).toLowerCase(), backup)) {
+      if (
+        !STRONG_ETAG.test(reply.etag ?? "") ||
+        !validBackup(reply.data, resourceId(boardId).toLowerCase(), backup)
+      ) {
         throw new ApiError("invalid_response", { status: 200 });
       }
       return reply;
     },
     /** @param {string} id @param {number} size @param {string} digest */
     async getBackupContent(id, size, digest) {
-      if (!isInteger(size) || size < 0 || !/^[0-9a-f]{64}$/.test(digest)) throw new TypeError("Invalid backup metadata.");
-      const response = await send("/backups/" + operationId(id) + "/content", { accept: "application/zip" });
-      if (response.status !== 200 || !response.body
-          || response.headers.get("Content-Type")?.split(";", 1)[0]?.trim() !== "application/zip") {
+      if (!isInteger(size) || size < 0 || !/^[0-9a-f]{64}$/.test(digest))
+        throw new TypeError("Invalid backup metadata.");
+      const response = await send("/backups/" + operationId(id) + "/content", {
+        accept: "application/zip",
+      });
+      if (
+        response.status !== 200 ||
+        !response.body ||
+        response.headers.get("Content-Type")?.split(";", 1)[0]?.trim() !== "application/zip"
+      ) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status });
       }
@@ -964,7 +1382,8 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const blob = new Blob(chunks, { type: "application/zip" });
       const bytes = await blob.arrayBuffer();
       const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
-        .map((byte) => byte.toString(16).padStart(2, "0")).join("");
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
       if (hash !== digest) throw new ApiError("invalid_response", { status: 200 });
       return blob;
     },
@@ -980,8 +1399,11 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const response = await send("/boards/" + id, { ifNoneMatch: originalTag, signal });
       const responseTag = response.headers.get("ETag");
       const unchanged = response.status === 304;
-      if (responseTag === null || !STRONG_ETAG.test(responseTag)
-          || (unchanged ? responseTag !== originalTag : response.status !== 200)) {
+      if (
+        responseTag === null ||
+        !STRONG_ETAG.test(responseTag) ||
+        (unchanged ? responseTag !== originalTag : response.status !== 200)
+      ) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status });
       }
@@ -997,7 +1419,11 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
      * @param {{ ticket?: number, limit?: number, cursor?: string, archived?: "include"|"only", q?: string, searchContent?: boolean, sort?: "ticket"|"triage", laneId?: string }} [filters]
      * @param {AbortSignal} [signal]
      */
-    listCards(boardId, { ticket, limit, cursor, archived, q, searchContent, sort, laneId } = {}, signal) {
+    listCards(
+      boardId,
+      { ticket, limit, cursor, archived, q, searchContent, sort, laneId } = {},
+      signal,
+    ) {
       const query = new URLSearchParams({ board_id: resourceId(boardId) });
       if (ticket !== undefined) {
         if (!Number.isSafeInteger(ticket) || ticket < 1) {
@@ -1006,13 +1432,15 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         query.set("ticket", String(ticket));
       }
       if (limit !== undefined) {
-        if (!isInteger(limit) || limit < 1 || limit > 200) throw new TypeError("Expected a limit from 1 to 200.");
+        if (!isInteger(limit) || limit < 1 || limit > 200)
+          throw new TypeError("Expected a limit from 1 to 200.");
         query.set("limit", String(limit));
       }
       if (q !== undefined) query.set("q", q);
       if (searchContent !== undefined) query.set("search_content", String(searchContent));
       if (sort !== undefined) {
-        if (!["ticket", "triage"].includes(sort)) throw new TypeError("Expected a supported card order.");
+        if (!["ticket", "triage"].includes(sort))
+          throw new TypeError("Expected a supported card order.");
         query.set("sort", sort);
       }
       if (laneId !== undefined) query.set("lane_id", resourceId(laneId));
@@ -1027,8 +1455,11 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const id = resourceId(cardId);
       const reply = await request("/cards/" + id);
       const card = /** @type {{ board_id?: unknown }} */ (reply.data);
-      if (!STRONG_ETAG.test(reply.etag ?? "") || !isId(card.board_id)
-          || !validCard(reply.data, card.board_id, id)) {
+      if (
+        !STRONG_ETAG.test(reply.etag ?? "") ||
+        !isId(card.board_id) ||
+        !validCard(reply.data, card.board_id, id)
+      ) {
         throw new ApiError("invalid_response", { status: 200 });
       }
       return reply;
@@ -1048,7 +1479,12 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     createComment(cardId, etag, text, id) {
       const expectedId = resourceId(id);
       return createWithId("/comments", expectedId, {
-        data: { card_id: resourceId(cardId), expected_card_etag: strongTag(etag), text, id: expectedId },
+        data: {
+          card_id: resourceId(cardId),
+          expected_card_etag: strongTag(etag),
+          text,
+          id: expectedId,
+        },
       });
     },
     /** @param {unknown} cardId @param {string} [cursor] @param {AbortSignal} [signal] */
@@ -1056,7 +1492,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const card = resourceId(cardId);
       const reply = await list("/attachments", { card_id: card }, cursor, signal);
       const page = /** @type {{attachments?: unknown}} */ (reply.data);
-      if (!isArray(page.attachments) || !page.attachments.every((item) => validAttachment(item, undefined, card))) {
+      if (
+        !isArray(page.attachments) ||
+        !page.attachments.every((item) => validAttachment(item, undefined, card))
+      ) {
         throw new ApiError("invalid_response", { status: 200 });
       }
       return reply;
@@ -1073,9 +1512,14 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {string} id @param {number} revision @param {string} boardEtag */
     async detachAttachment(id, revision, boardEtag) {
       const response = await send("/attachments/" + resourceId(id), {
-        method: "DELETE", etag: versionTag(id, revision), boardEtag: strongTag(boardEtag),
+        method: "DELETE",
+        etag: versionTag(id, revision),
+        boardEtag: strongTag(boardEtag),
       });
-      if (response.status !== 204 || !STRONG_ETAG.test(response.headers.get("X-Board-ETag") ?? "")) {
+      if (
+        response.status !== 204 ||
+        !STRONG_ETAG.test(response.headers.get("X-Board-ETag") ?? "")
+      ) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
@@ -1083,16 +1527,34 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {unknown} attachmentId @param {"attachment"|"inline"} disposition @param {number} size
      * @param {string} digest @param {AbortSignal} [signal] */
     async getAttachmentContent(attachmentId, disposition, size, digest, signal) {
-      if (!Number.isSafeInteger(size) || size < 0 || size > MAX_ATTACHMENT_BYTES
-          || typeof digest !== "string" || !/^[0-9a-f]{64}$/.test(digest)) {
+      if (
+        !Number.isSafeInteger(size) ||
+        size < 0 ||
+        size > MAX_ATTACHMENT_BYTES ||
+        typeof digest !== "string" ||
+        !/^[0-9a-f]{64}$/.test(digest)
+      ) {
         throw new ApiError("invalid_response");
       }
-      const response = await send("/attachments/" + resourceId(attachmentId) + "/content?"
-        + new URLSearchParams({ disposition }), { accept: "*/*", signal });
-      const media = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
-      const servedDisposition = response.headers.get("Content-Disposition")?.split(";", 1)[0]?.trim().toLowerCase();
-      if (response.status !== 200 || servedDisposition !== disposition
-          || (disposition === "inline" && !RASTER_MEDIA_TYPES.has(media))) {
+      const response = await send(
+        "/attachments/" +
+          resourceId(attachmentId) +
+          "/content?" +
+          new URLSearchParams({ disposition }),
+        { accept: "*/*", signal },
+      );
+      const media =
+        response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+      const servedDisposition = response.headers
+        .get("Content-Disposition")
+        ?.split(";", 1)[0]
+        ?.trim()
+        .toLowerCase();
+      if (
+        response.status !== 200 ||
+        servedDisposition !== disposition ||
+        (disposition === "inline" && !RASTER_MEDIA_TYPES.has(media))
+      ) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status });
       }
@@ -1115,9 +1577,13 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         await reader?.cancel().catch(() => {});
         reader?.releaseLock();
       }
-      const blob = new Blob(chunks, { type: disposition === "inline" ? media : "application/octet-stream" });
+      const blob = new Blob(chunks, {
+        type: disposition === "inline" ? media : "application/octet-stream",
+      });
       try {
-        const hash = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", await blob.arrayBuffer()));
+        const hash = new Uint8Array(
+          await globalThis.crypto.subtle.digest("SHA-256", await blob.arrayBuffer()),
+        );
         if (Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("") !== digest) {
           throw new Error();
         }
@@ -1134,7 +1600,10 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       form.set("expected_card_etag", strongTag(etag));
       form.set("id", expectedId);
       form.set("file", file);
-      const reply = await createWithId("/attachments", expectedId, { form, knownUnavailable: true });
+      const reply = await createWithId("/attachments", expectedId, {
+        form,
+        knownUnavailable: true,
+      });
       if (!validAttachment(reply.data, expectedId, resourceId(cardId))) {
         throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
       }
@@ -1146,9 +1615,14 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const card = resourceId(cardId);
       const reply = await list("/relationships", { board_id: board, card_id: card }, cursor);
       const page = /** @type {{relationships?: unknown}} */ (reply.data);
-      if (!isArray(page.relationships) || !page.relationships.every((link) =>
-        validRelationship(link, undefined, board)
-        && (link.source_card_id === card || link.target_card_id === card))) {
+      if (
+        !isArray(page.relationships) ||
+        !page.relationships.every(
+          (link) =>
+            validRelationship(link, undefined, board) &&
+            (link.source_card_id === card || link.target_card_id === card),
+        )
+      ) {
         throw new ApiError("invalid_response", { status: 200 });
       }
       return reply;
@@ -1159,10 +1633,16 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       kind = relationshipKind(kind);
       const expectedId = resourceId(id);
       const board = resourceId(boardId);
-      const reply = await createWithId("/relationships", expectedId, { data: {
-        id: expectedId, board_id: board, expected_board_etag: strongTag(boardEtag),
-        source_card_id: resourceId(source), target_card_id: resourceId(target), kind,
-      } });
+      const reply = await createWithId("/relationships", expectedId, {
+        data: {
+          id: expectedId,
+          board_id: board,
+          expected_board_etag: strongTag(boardEtag),
+          source_card_id: resourceId(source),
+          target_card_id: resourceId(target),
+          kind,
+        },
+      });
       if (!validRelationship(reply.data, expectedId, board)) {
         throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
       }
@@ -1174,7 +1654,9 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const boardTag = strongTag(boardEtag);
       const current = await currentRelationship(id, revision);
       const reply = await request("/relationships/" + resourceId(id), {
-        method: "PATCH", etag: current.etag, data: { expected_board_etag: boardTag, kind },
+        method: "PATCH",
+        etag: current.etag,
+        data: { expected_board_etag: boardTag, kind },
       });
       if (!validRelationship(reply.data, id, current.data.board_id)) {
         throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
@@ -1186,9 +1668,14 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const boardTag = strongTag(boardEtag);
       const current = await currentRelationship(id, revision);
       const response = await send("/relationships/" + resourceId(id), {
-        method: "DELETE", etag: current.etag, boardEtag: boardTag,
+        method: "DELETE",
+        etag: current.etag,
+        boardEtag: boardTag,
       });
-      if (response.status !== 204 || !STRONG_ETAG.test(response.headers.get("X-Board-ETag") ?? "")) {
+      if (
+        response.status !== 204 ||
+        !STRONG_ETAG.test(response.headers.get("X-Board-ETag") ?? "")
+      ) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
@@ -1199,25 +1686,43 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const expectedId = operationId(id);
       const board = resourceId(boardId);
       const card = resourceId(cardId);
-      const response = await send("/approvals", { method: "POST", data: {
-        id: expectedId, board_id: board, expected_board_etag: strongTag(boardEtag),
-        cards: [{ card_id: card, etag: strongTag(cardEtag) }],
-      } });
-      if (response.status !== 201 || response.headers.get("Location") !== API_PREFIX + "/approvals/" + expectedId) {
+      const response = await send("/approvals", {
+        method: "POST",
+        data: {
+          id: expectedId,
+          board_id: board,
+          expected_board_etag: strongTag(boardEtag),
+          cards: [{ card_id: card, etag: strongTag(cardEtag) }],
+        },
+      });
+      if (
+        response.status !== 201 ||
+        response.headers.get("Location") !== API_PREFIX + "/approvals/" + expectedId
+      ) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       const data = await responseObject(response, true);
       const tag = response.headers.get("X-Board-ETag");
-      if (!matchesApproval(data, expectedId, board, card)
-          || tag !== `"${board}-${/** @type {{board_revision: number}} */ (data).board_revision}"`) {
+      if (
+        !matchesApproval(data, expectedId, board, card) ||
+        tag !== `"${board}-${/** @type {{board_revision: number}} */ (data).board_revision}"`
+      ) {
         throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
       }
     },
     /** @param {string} id @param {string} boardId @param {string} cardId */
     async inspectApproval(id, boardId, cardId) {
       const reply = await request("/approvals/" + operationId(id));
-      if (!STRONG_ETAG.test(reply.etag ?? "") || !matchesApproval(reply.data, operationId(id), resourceId(boardId).toLowerCase(), resourceId(cardId).toLowerCase())) {
+      if (
+        !STRONG_ETAG.test(reply.etag ?? "") ||
+        !matchesApproval(
+          reply.data,
+          operationId(id),
+          resourceId(boardId).toLowerCase(),
+          resourceId(cardId).toLowerCase(),
+        )
+      ) {
         throw new ApiError("invalid_response");
       }
     },
@@ -1230,37 +1735,74 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const completed = resourceId(completedLaneId).toLowerCase();
       const expected = strongTag(boardEtag);
       const versions = cards.map((card) => ({
-        card_id: resourceId(card.id).toLowerCase(), etag: versionTag(card.id, card.revision),
+        card_id: resourceId(card.id).toLowerCase(),
+        etag: versionTag(card.id, card.revision),
       }));
       const cardIds = versions.map(({ card_id }) => card_id);
       if (versions.length > MAX_LANE_APPROVAL_CARDS || new Set(cardIds).size !== cardIds.length) {
         throw new TypeError(`Expected up to ${MAX_LANE_APPROVAL_CARDS} distinct cards.`);
       }
-      const response = await send("/approvals", { method: "POST", data: {
-        id: expectedId, board_id: board, lane_id: lane, expected_board_etag: expected, cards: versions,
-      } });
+      const response = await send("/approvals", {
+        method: "POST",
+        data: {
+          id: expectedId,
+          board_id: board,
+          lane_id: lane,
+          expected_board_etag: expected,
+          cards: versions,
+        },
+      });
       const location = response.headers.get("Location");
       const tag = response.headers.get("X-Board-ETag");
       const empty = cardIds.length === 0;
       const status = empty ? 200 : 201;
-      if (response.status !== status || !STRONG_ETAG.test(tag ?? "")
-          || (empty ? location !== null || tag !== expected : location !== API_PREFIX + "/approvals/" + expectedId)) {
+      if (
+        response.status !== status ||
+        !STRONG_ETAG.test(tag ?? "") ||
+        (empty
+          ? location !== null || tag !== expected
+          : location !== API_PREFIX + "/approvals/" + expectedId)
+      ) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       const data = /** @type {Record<string, unknown>} */ (await responseObject(response, true));
       const revision = data.board_revision;
-      if (!isInteger(revision) || revision < 1 || tag !== versionTag(board, revision)
-          || (empty ? Object.keys(data).length !== 4 || data.board_id !== board || data.changed !== false
-            || !Array.isArray(data.card_ids) || data.card_ids.length !== 0
-            : !matchesLaneApproval(data, expectedId, board, expected, lane, completed, cardIds,
-              bulkComment || DEFAULT_APPROVAL_COMMENT))) {
+      if (
+        !isInteger(revision) ||
+        revision < 1 ||
+        tag !== versionTag(board, revision) ||
+        (empty
+          ? Object.keys(data).length !== 4 ||
+            data.board_id !== board ||
+            data.changed !== false ||
+            !Array.isArray(data.card_ids) ||
+            data.card_ids.length !== 0
+          : !matchesLaneApproval(
+              data,
+              expectedId,
+              board,
+              expected,
+              lane,
+              completed,
+              cardIds,
+              bulkComment || DEFAULT_APPROVAL_COMMENT,
+            ))
+      ) {
         throw new ApiError("invalid_response", { status, outcomeUnknown: true });
       }
     },
     /** @param {string} id @param {string} boardId @param {string} boardEtag @param {string} laneId
      * @param {string} completedLaneId @param {string[]} cardIds @param {string} [bulkComment] */
-    async inspectLaneApproval(id, boardId, boardEtag, laneId, completedLaneId, cardIds, bulkComment = "") {
+    async inspectLaneApproval(
+      id,
+      boardId,
+      boardEtag,
+      laneId,
+      completedLaneId,
+      cardIds,
+      bulkComment = "",
+    ) {
       const expectedId = operationId(id).toLowerCase();
       const board = resourceId(boardId).toLowerCase();
       const expected = strongTag(boardEtag);
@@ -1273,7 +1815,18 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         throw new ApiError("invalid_response", { status: response.status });
       }
       const data = await responseObject(response, false);
-      if (!matchesLaneApproval(data, expectedId, board, expected, lane, completed, cards, bulkComment || DEFAULT_APPROVAL_COMMENT)) {
+      if (
+        !matchesLaneApproval(
+          data,
+          expectedId,
+          board,
+          expected,
+          lane,
+          completed,
+          cards,
+          bulkComment || DEFAULT_APPROVAL_COMMENT,
+        )
+      ) {
         throw new ApiError("invalid_response", { status: response.status });
       }
     },
@@ -1283,11 +1836,20 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const id = resourceId(laneId);
       const board = resourceId(boardId);
       const result = await request("/lanes/" + id, {
-        method: "PATCH", etag: versionTag(id, revision), data: { board_etag: strongTag(boardEtag), ...change },
+        method: "PATCH",
+        etag: versionTag(id, revision),
+        data: { board_etag: strongTag(boardEtag), ...change },
       });
       const saved = /** @type {Record<string, unknown>} */ (result.data);
-      if (!validLane(saved, id, board) || !Object.entries(change).every(([key, value]) =>
-        (key === "bulk_approval_comment" || key === "notes" ? saved[key] ?? "" : saved[key]) === value)) {
+      if (
+        !validLane(saved, id, board) ||
+        !Object.entries(change).every(
+          ([key, value]) =>
+            (key === "bulk_approval_comment" || key === "notes"
+              ? (saved[key] ?? "")
+              : saved[key]) === value,
+        )
+      ) {
         throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
       }
       return result;
@@ -1298,10 +1860,15 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const id = resourceId(boardId);
       const data = { ...lane, board_id: id, board_etag: strongTag(boardEtag) };
       const result = await request("/lanes", {
-        method: "POST", successStatus: 201, data,
+        method: "POST",
+        successStatus: 201,
+        data,
       });
       const saved = /** @type {{notes?: unknown}} */ (result.data);
-      if (!validLane(saved, undefined, id) || (data.notes !== undefined && (saved.notes ?? "") !== data.notes)) {
+      if (
+        !validLane(saved, undefined, id) ||
+        (data.notes !== undefined && (saved.notes ?? "") !== data.notes)
+      ) {
         throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
       }
       return result;
@@ -1327,7 +1894,9 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
         throw new ApiError("http_error", { status: 412 });
       }
       const result = await request("/lanes/" + id, {
-        method: "PATCH", etag: strongTag(currentTag), data: { board_etag: boardTag, label },
+        method: "PATCH",
+        etag: strongTag(currentTag),
+        data: { board_etag: boardTag, label },
       });
       if (!validLane(result.data, id, current.board_id)) {
         throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
@@ -1340,10 +1909,17 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       if (data !== null && typeof data === "object" && "owner_id" in data) {
         resourceId(data.owner_id);
       }
-      const response = await request("/cards/" + id, { method: "PATCH", etag: strongTag(etag), data });
+      const response = await request("/cards/" + id, {
+        method: "PATCH",
+        etag: strongTag(etag),
+        data,
+      });
       const card = /** @type {{ board_id?: unknown }} */ (response.data);
-      if (response.etag === null || !isId(card.board_id)
-          || !validCard(response.data, card.board_id, id)) {
+      if (
+        response.etag === null ||
+        !isId(card.board_id) ||
+        !validCard(response.data, card.board_id, id)
+      ) {
         throw new ApiError("invalid_response", { status: 200, outcomeUnknown: true });
       }
       return response;
@@ -1361,8 +1937,13 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const response = await send("/cards", { method: "POST", data: card });
       const etag = response.headers.get("ETag");
       const boardEtag = response.headers.get("X-Board-ETag");
-      if (response.status !== 201 || etag === null || !STRONG_ETAG.test(etag)
-          || boardEtag === null || !STRONG_ETAG.test(boardEtag)) {
+      if (
+        response.status !== 201 ||
+        etag === null ||
+        !STRONG_ETAG.test(etag) ||
+        boardEtag === null ||
+        !STRONG_ETAG.test(boardEtag)
+      ) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
@@ -1388,9 +1969,14 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
 
       const response = await send(query.size ? "/events?" + query : "/events", {
-        accept: "text/event-stream", signal,
+        accept: "text/event-stream",
+        signal,
       });
-      const mediaType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+      const mediaType = response.headers
+        .get("Content-Type")
+        ?.split(";", 1)[0]
+        ?.trim()
+        .toLowerCase();
       if (response.status !== 200 || mediaType !== "text/event-stream" || response.body === null) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status });
@@ -1412,17 +1998,28 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {unknown} boardId @param {AvailabilityChange} availability @param {unknown} etag */
     async setBoardAvailability(boardId, availability, etag) {
       const id = resourceId(boardId).toLowerCase();
-      if (availability !== "open" && availability !== "closed") throw new TypeError("Expected open or closed.");
+      if (availability !== "open" && availability !== "closed")
+        throw new TypeError("Expected open or closed.");
       const response = await send("/boards/" + id, {
-        method: "PATCH", data: { availability }, etag: strongTag(etag), knownUnavailable: true,
+        method: "PATCH",
+        data: { availability },
+        etag: strongTag(etag),
+        knownUnavailable: true,
       });
       const responseTag = response.headers.get("ETag");
-      if (response.status !== 200 || !STRONG_ETAG.test(responseTag ?? "")
-          || response.headers.get("X-Board-ETag") !== responseTag) {
+      if (
+        response.status !== 200 ||
+        !STRONG_ETAG.test(responseTag ?? "") ||
+        response.headers.get("X-Board-ETag") !== responseTag
+      ) {
         await discardBody(response);
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
-      return boardAvailabilityReply({ data: await responseObject(response, true), etag: responseTag }, id, availability);
+      return boardAvailabilityReply(
+        { data: await responseObject(response, true), etag: responseTag },
+        id,
+        availability,
+      );
     },
     /** @param {unknown} data */
     createBoard: (data) => request("/boards", { method: "POST", data, successStatus: 201 }),
@@ -1439,9 +2036,14 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {unknown} enabled @param {unknown} etag */
     async configureWorkspacePublishing(enabled, etag) {
-      return workspaceReply(await request("/workspace", {
-        method: "PATCH", data: publishingChange(enabled), etag: strongTag(etag),
-      }), true);
+      return workspaceReply(
+        await request("/workspace", {
+          method: "PATCH",
+          data: publishingChange(enabled),
+          etag: strongTag(etag),
+        }),
+        true,
+      );
     },
     /** @param {unknown} boardId */
     async getBoardPublishing(boardId) {
@@ -1451,9 +2053,15 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {unknown} boardId @param {unknown} enabled @param {unknown} etag */
     async configureBoardPublishing(boardId, enabled, etag) {
       const id = resourceId(boardId).toLowerCase();
-      return boardPublishingReply(await request("/boards/" + id, {
-        method: "PATCH", data: publishingChange(enabled), etag: strongTag(etag),
-      }), id, true);
+      return boardPublishingReply(
+        await request("/boards/" + id, {
+          method: "PATCH",
+          data: publishingChange(enabled),
+          etag: strongTag(etag),
+        }),
+        id,
+        true,
+      );
     },
     /** @param {unknown} boardId @param {string} [cursor] @param {AbortSignal} [signal] */
     async listLanes(boardId, cursor, signal) {
@@ -1466,16 +2074,28 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       return result;
     },
     /** @param {unknown} boardId @param {string} [cursor] @param {AbortSignal} [signal] */
-    listPriorities: (boardId, cursor, signal) => list("/priorities", { board_id: resourceId(boardId) }, cursor, signal),
+    listPriorities: (boardId, cursor, signal) =>
+      list("/priorities", { board_id: resourceId(boardId) }, cursor, signal),
     /** @param {string} boardId @param {string} from @param {string} to @param {number} ticket @param {string} [cursor] */
     listCardActivity(boardId, from, to, ticket, cursor) {
-      if (!isTimestamp(from) || !isTimestamp(to) || from > to || !Number.isSafeInteger(ticket) || ticket < 1) {
+      if (
+        !isTimestamp(from) ||
+        !isTimestamp(to) ||
+        from > to ||
+        !Number.isSafeInteger(ticket) ||
+        ticket < 1
+      ) {
         throw new TypeError("Expected an ordered UTC interval and a positive safe integer ticket.");
       }
-      return list("/activities", { board_id: resourceId(boardId), from, to, view: "full", ticket: String(ticket) }, cursor);
+      return list(
+        "/activities",
+        { board_id: resourceId(boardId), from, to, view: "full", ticket: String(ticket) },
+        cursor,
+      );
     },
     /** @param {unknown} boardId @param {string} [cursor] @param {AbortSignal} [signal] */
-    listUsers: (boardId, cursor, signal) => list("/users", { board_id: resourceId(boardId) }, cursor, signal),
+    listUsers: (boardId, cursor, signal) =>
+      list("/users", { board_id: resourceId(boardId) }, cursor, signal),
     /** @param {unknown} policyId @param {AbortSignal} [signal] */
     getPolicy: (policyId, signal) => request(`/policies/${resourceId(policyId)}`, { signal }),
     /** @param {unknown} boardId */
@@ -1494,18 +2114,27 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
      */
     async configureOwnerNotices(boardId, { enabled, target_thread_id: targetThreadId }, etag) {
       const id = resourceId(boardId).toLowerCase();
-      const target = typeof targetThreadId === "string" ? targetThreadId.toLowerCase() : targetThreadId;
-      if ((enabled !== undefined && typeof enabled !== "boolean")
-          || (target != null && (typeof target !== "string" || !NOTICE_TARGET_ID.test(target)))
-          || (enabled === undefined && target === undefined) || (enabled === true && target === null)) {
+      const target =
+        typeof targetThreadId === "string" ? targetThreadId.toLowerCase() : targetThreadId;
+      if (
+        (enabled !== undefined && typeof enabled !== "boolean") ||
+        (target != null && (typeof target !== "string" || !NOTICE_TARGET_ID.test(target))) ||
+        (enabled === undefined && target === undefined) ||
+        (enabled === true && target === null)
+      ) {
         throw new TypeError("Invalid notification route change.");
       }
       const response = await send("/notifications/" + id, {
-        method: "PATCH", data: { enabled, target_thread_id: target }, etag: strongTag(etag), knownUnavailable: true,
+        method: "PATCH",
+        data: { enabled, target_thread_id: target },
+        etag: strongTag(etag),
+        knownUnavailable: true,
       });
       const reply = await notificationRouteReply(response, id, true);
-      if ((enabled !== undefined && reply.data.enabled !== enabled)
-          || (target !== undefined && reply.data.target_thread_id !== target)) {
+      if (
+        (enabled !== undefined && reply.data.enabled !== enabled) ||
+        (target !== undefined && reply.data.target_thread_id !== target)
+      ) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       return reply;
@@ -1522,24 +2151,41 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const reply = await readLifecycle("/builds");
       const page = /** @type {{builds?: unknown, next_cursor?: unknown}} */ (reply.data);
       const { builds, next_cursor: cursor } = page;
-      if (Object.keys(page).length !== 2 || !Array.isArray(builds) || builds.length > 200
-          || !builds.every(validBuild)
-          || (cursor !== null && (typeof cursor !== "string" || cursor.length === 0 || cursor.length > 2048))) {
+      if (
+        Object.keys(page).length !== 2 ||
+        !Array.isArray(builds) ||
+        builds.length > 200 ||
+        !builds.every(validBuild) ||
+        (cursor !== null &&
+          (typeof cursor !== "string" || cursor.length === 0 || cursor.length > 2048))
+      ) {
         throw new ApiError("invalid_response", { status: 200 });
       }
-      return { data: { builds: /** @type {Build[]} */ (builds), next_cursor: cursor }, etag: reply.etag };
+      return {
+        data: { builds: /** @type {Build[]} */ (builds), next_cursor: cursor },
+        etag: reply.etag,
+      };
     },
     /** @param {string} id @param {string} buildId @param {string} serviceEtag */
     async activateBuild(id, buildId, serviceEtag) {
       const activation = operationId(id).toLowerCase();
       const build = resourceId(buildId).toLowerCase();
-      const response = await send("/activations", { method: "POST", knownUnavailable: true, data: {
-        id: activation, build_id: build, expected_service_etag: strongTag(serviceEtag),
-      } });
+      const response = await send("/activations", {
+        method: "POST",
+        knownUnavailable: true,
+        data: {
+          id: activation,
+          build_id: build,
+          expected_service_etag: strongTag(serviceEtag),
+        },
+      });
       await requireJSONResponse(response, 202, true);
       const data = await responseObject(response, true);
-      if (response.headers.get("Location") !== API_PREFIX + "/activations/" + activation
-          || !validActivation(data, activation, build) || data.state !== "accepted") {
+      if (
+        response.headers.get("Location") !== API_PREFIX + "/activations/" + activation ||
+        !validActivation(data, activation, build) ||
+        data.state !== "accepted"
+      ) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       return data;
@@ -1556,14 +2202,22 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     },
     /** @param {Service} service @param {string} serviceEtag */
     async stopService(service, serviceEtag) {
-      const response = await send("/service", { method: "PATCH", etag: strongTag(serviceEtag),
-        data: { state: "stopped" }, knownUnavailable: true });
+      const response = await send("/service", {
+        method: "PATCH",
+        etag: strongTag(serviceEtag),
+        data: { state: "stopped" },
+        knownUnavailable: true,
+      });
       await requireJSONResponse(response, 202, true);
       const data = await responseObject(response, true);
-      if (!STRONG_ETAG.test(response.headers.get("ETag") ?? "")
-          || !validService(data) || data.state !== "draining"
-          || data.service_instance_id !== service.service_instance_id || data.port !== service.port
-          || data.build_id !== service.build_id) {
+      if (
+        !STRONG_ETAG.test(response.headers.get("ETag") ?? "") ||
+        !validService(data) ||
+        data.state !== "draining" ||
+        data.service_instance_id !== service.service_instance_id ||
+        data.port !== service.port ||
+        data.build_id !== service.build_id
+      ) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
       return data;

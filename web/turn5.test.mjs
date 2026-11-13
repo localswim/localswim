@@ -15,20 +15,48 @@ const tag = (id, version) => '"' + id + "-" + version + '"';
 const boardTag = tag(boardId, 8);
 const committedTag = tag(boardId, 9);
 const cards = cardIds.map((id, index) => ({ id, revision: index + 4 }));
-const auditIds = [approvalId, "84236db3-7230-79fd-a1d6-94b50282e1ef",
-  "df8eb525-06d2-785a-8535-af1919969b0e", "c28dd74e-b5c1-7b9a-bb3f-c90349455853"];
+const auditIds = [
+  approvalId,
+  "84236db3-7230-79fd-a1d6-94b50282e1ef",
+  "df8eb525-06d2-785a-8535-af1919969b0e",
+  "c28dd74e-b5c1-7b9a-bb3f-c90349455853",
+];
 const commentIds = ["f9fb5025-5111-4f5f-9ee5-2b0b9e8f1574", "71a8c2c7-2107-493c-a13c-c5d16e8cc175"];
 const revision = { board_id: boardId, at, actor_id: actor, revision: 9 };
 const changes = cardIds.flatMap((cardId, index) => [
-  { ...revision, id: auditIds[index * 2], operation: "approve", resource_type: "card", resource_id: cardId,
-    field: "lane_id", before: reviewLane, after: completedLane },
-  { ...revision, id: auditIds[index * 2 + 1], operation: "comment", resource_type: "comment",
-    resource_id: commentIds[index], field: null, before: null, after: null },
+  {
+    ...revision,
+    id: auditIds[index * 2],
+    operation: "approve",
+    resource_type: "card",
+    resource_id: cardId,
+    field: "lane_id",
+    before: reviewLane,
+    after: completedLane,
+  },
+  {
+    ...revision,
+    id: auditIds[index * 2 + 1],
+    operation: "comment",
+    resource_type: "comment",
+    resource_id: commentIds[index],
+    field: null,
+    before: null,
+    after: null,
+  },
 ]);
-const receipt = { id: approvalId, board_id: boardId, card_ids: cardIds, actor_id: actor,
-  at, board_revision: 9, changes };
+const receipt = {
+  id: approvalId,
+  board_id: boardId,
+  card_ids: cardIds,
+  actor_id: actor,
+  at,
+  board_revision: 9,
+  changes,
+};
 const approvalPath = prefix + "/approvals";
-const client = (fetchImpl) => createBrowserApi({ getCapability: () => "test-capability", fetchImpl });
+const client = (fetchImpl) =>
+  createBrowserApi({ getCapability: () => "test-capability", fetchImpl });
 
 test("lane approval submits every original card version without a preflight read", async () => {
   let requests = 0;
@@ -40,10 +68,17 @@ test("lane approval submits every original card version without a preflight read
     }
     assert.equal(path, approvalPath);
     assert.equal(request.method, "POST");
-    assert.deepEqual(JSON.parse(request.body), { id: approvalId, board_id: boardId, lane_id: reviewLane,
-      expected_board_etag: boardTag, cards: cards.map(({ id, revision }) => ({ card_id: id, etag: tag(id, revision) })) });
-    return Response.json(receipt, { status: 201,
-      headers: { Location: approvalPath + "/" + approvalId, "X-Board-ETag": committedTag } });
+    assert.deepEqual(JSON.parse(request.body), {
+      id: approvalId,
+      board_id: boardId,
+      lane_id: reviewLane,
+      expected_board_etag: boardTag,
+      cards: cards.map(({ id, revision }) => ({ card_id: id, etag: tag(id, revision) })),
+    });
+    return Response.json(receipt, {
+      status: 201,
+      headers: { Location: approvalPath + "/" + approvalId, "X-Board-ETag": committedTag },
+    });
   });
   await api.approveLane(approvalId, boardId, boardTag, reviewLane, completedLane, cards);
   assert.equal(requests, 1);
@@ -54,25 +89,49 @@ test("lane approval submits every original card version without a preflight read
 test("lane approval refuses stale guards and flags invalid successful receipts without replay", async () => {
   for (const response of [
     new Response(null, { status: 412 }),
-    Response.json({ ...receipt, card_ids: [...cardIds].reverse() }, { status: 201,
-      headers: { Location: approvalPath + "/" + approvalId, "X-Board-ETag": committedTag } }),
-    Response.json({ ...receipt, changes: [...changes.slice(0, 3), { ...changes[3], revision: 8 }] },
-      { status: 201, headers: { Location: approvalPath + "/" + approvalId, "X-Board-ETag": committedTag } }),
+    Response.json(
+      { ...receipt, card_ids: [...cardIds].reverse() },
+      {
+        status: 201,
+        headers: { Location: approvalPath + "/" + approvalId, "X-Board-ETag": committedTag },
+      },
+    ),
+    Response.json(
+      { ...receipt, changes: [...changes.slice(0, 3), { ...changes[3], revision: 8 }] },
+      {
+        status: 201,
+        headers: { Location: approvalPath + "/" + approvalId, "X-Board-ETag": committedTag },
+      },
+    ),
   ]) {
     let calls = 0;
-    const api = client(async () => { calls++; return response; });
-    await assert.rejects(api.approveLane(approvalId, boardId, boardTag, reviewLane, completedLane, cards),
-      (error) => error instanceof ApiError && error.status === response.status
-        && error.outcomeUnknown === (response.status === 201));
+    const api = client(async () => {
+      calls++;
+      return response;
+    });
+    await assert.rejects(
+      api.approveLane(approvalId, boardId, boardTag, reviewLane, completedLane, cards),
+      (error) =>
+        error instanceof ApiError &&
+        error.status === response.status &&
+        error.outcomeUnknown === (response.status === 201),
+    );
     assert.equal(calls, 1);
   }
 });
 
 test("lane approval receipts bind the original revision, Completed lane, and focused validator", async () => {
-  const wrongLane = { ...receipt, changes: changes.map((change) =>
-    change.operation === "approve" ? { ...change, after: attachmentId } : change) };
-  const wrongRevision = { ...receipt, board_revision: 10, changes: changes.map((change) =>
-    ({ ...change, revision: 10 })) };
+  const wrongLane = {
+    ...receipt,
+    changes: changes.map((change) =>
+      change.operation === "approve" ? { ...change, after: attachmentId } : change,
+    ),
+  };
+  const wrongRevision = {
+    ...receipt,
+    board_revision: 10,
+    changes: changes.map((change) => ({ ...change, revision: 10 })),
+  };
   for (const [body, etag, boardEtag] of [
     [wrongLane, tag(approvalId, 1), committedTag],
     [wrongRevision, tag(approvalId, 1), tag(boardId, 10)],
@@ -86,16 +145,22 @@ test("lane approval receipts bind the original revision, Completed lane, and foc
         return Response.json(body, { headers: { ETag: etag } });
       }
       assert.equal(request.method, "POST");
-      return Response.json(body, { status: 201,
-        headers: { Location: approvalPath + "/" + approvalId, "X-Board-ETag": boardEtag } });
+      return Response.json(body, {
+        status: 201,
+        headers: { Location: approvalPath + "/" + approvalId, "X-Board-ETag": boardEtag },
+      });
     });
     if (body !== receipt) {
-      await assert.rejects(api.approveLane(approvalId, boardId, boardTag, reviewLane, completedLane, cards),
-        (error) => error instanceof ApiError && error.outcomeUnknown);
+      await assert.rejects(
+        api.approveLane(approvalId, boardId, boardTag, reviewLane, completedLane, cards),
+        (error) => error instanceof ApiError && error.outcomeUnknown,
+      );
       assert.equal(calls, 1);
     }
-    await assert.rejects(api.inspectLaneApproval(approvalId, boardId, boardTag, reviewLane, completedLane, cardIds),
-      (error) => error instanceof ApiError && !error.outcomeUnknown);
+    await assert.rejects(
+      api.inspectLaneApproval(approvalId, boardId, boardTag, reviewLane, completedLane, cardIds),
+      (error) => error instanceof ApiError && !error.outcomeUnknown,
+    );
     assert.equal(calls, body === receipt ? 1 : 2);
   }
 });
@@ -105,8 +170,10 @@ test("empty approval accepts the unchanged no-op response", async () => {
     assert.equal(path, approvalPath);
     assert.equal(request.method, "POST");
     assert.deepEqual(JSON.parse(request.body).cards, []);
-    return Response.json({ board_id: boardId, board_revision: 8, card_ids: [], changed: false },
-      { headers: { "X-Board-ETag": boardTag } });
+    return Response.json(
+      { board_id: boardId, board_revision: 8, card_ids: [], changed: false },
+      { headers: { "X-Board-ETag": boardTag } },
+    );
   });
   await api.approveLane(approvalId, boardId, boardTag, reviewLane, completedLane, []);
 });
@@ -114,12 +181,19 @@ test("empty approval accepts the unchanged no-op response", async () => {
 test("lane approval preserves custom text and sends every original version above 1000 cards", async () => {
   const uuid = (group, number, version = 4) =>
     "00000000-0000-" + version + "000-" + group + "-" + number.toString(16).padStart(12, "0");
-  const largeCards = Array.from({ length: 1001 }, (_, index) => ({ id: uuid("8000", index), revision: 8 }));
+  const largeCards = Array.from({ length: 1001 }, (_, index) => ({
+    id: uuid("8000", index),
+    revision: 8,
+  }));
   const ids = largeCards.map(({ id }) => id);
   const custom = "  Approved ✅\r\nReady to ship.  ";
   const audit = ids.flatMap((id, index) => [
-    { ...changes[0], id: index === 0 ? approvalId : uuid("8100", index, 7), resource_id: id,
-      ...(index === 0 ? { bulk_approval_comment: custom } : {}) },
+    {
+      ...changes[0],
+      id: index === 0 ? approvalId : uuid("8100", index, 7),
+      resource_id: id,
+      ...(index === 0 ? { bulk_approval_comment: custom } : {}),
+    },
     { ...changes[1], id: uuid("8200", index, 7), resource_id: uuid("8300", index) },
   ]);
   const largeReceipt = { ...receipt, card_ids: ids, changes: audit };
@@ -130,37 +204,96 @@ test("lane approval preserves custom text and sends every original version above
     }
     assert.equal(path, approvalPath);
     assert.equal(request.method, "POST");
-    assert.deepEqual(JSON.parse(request.body), { id: approvalId, board_id: boardId, lane_id: reviewLane,
-      expected_board_etag: boardTag, cards: largeCards.map(({ id, revision }) => ({ card_id: id, etag: tag(id, revision) })) });
-    return Response.json(largeReceipt, { status: 201,
-      headers: { Location: approvalPath + "/" + approvalId, "X-Board-ETag": committedTag } });
+    assert.deepEqual(JSON.parse(request.body), {
+      id: approvalId,
+      board_id: boardId,
+      lane_id: reviewLane,
+      expected_board_etag: boardTag,
+      cards: largeCards.map(({ id, revision }) => ({ card_id: id, etag: tag(id, revision) })),
+    });
+    return Response.json(largeReceipt, {
+      status: 201,
+      headers: { Location: approvalPath + "/" + approvalId, "X-Board-ETag": committedTag },
+    });
   });
-  await api.approveLane(approvalId, boardId, boardTag, reviewLane, completedLane, largeCards, custom);
-  await api.inspectLaneApproval(approvalId, boardId, boardTag, reviewLane, completedLane, ids, custom);
-  await assert.rejects(api.inspectLaneApproval(approvalId, boardId, boardTag, reviewLane, completedLane, ids, "Different"),
-    (error) => error instanceof ApiError && error.code === "invalid_response");
+  await api.approveLane(
+    approvalId,
+    boardId,
+    boardTag,
+    reviewLane,
+    completedLane,
+    largeCards,
+    custom,
+  );
+  await api.inspectLaneApproval(
+    approvalId,
+    boardId,
+    boardTag,
+    reviewLane,
+    completedLane,
+    ids,
+    custom,
+  );
+  await assert.rejects(
+    api.inspectLaneApproval(
+      approvalId,
+      boardId,
+      boardTag,
+      reviewLane,
+      completedLane,
+      ids,
+      "Different",
+    ),
+    (error) => error instanceof ApiError && error.code === "invalid_response",
+  );
 });
 
 test("lane settings persist and reset an exact bulk approval comment", async () => {
-  const lane = { id: reviewLane, board_id: boardId, revision: 9, created_at: at, updated_at: at,
-    key: "ready_for_review", label: "Ready for Review", position: 3, role: "ready_for_review",
-    retired: false, approval_enabled: false, reorder_enabled: false };
+  const lane = {
+    id: reviewLane,
+    board_id: boardId,
+    revision: 9,
+    created_at: at,
+    updated_at: at,
+    key: "ready_for_review",
+    label: "Ready for Review",
+    position: 3,
+    role: "ready_for_review",
+    retired: false,
+    approval_enabled: false,
+    reorder_enabled: false,
+  };
   for (const text of ["  Custom ✅\r\nApproval.  ", ""]) {
     const api = client(async (path, request) => {
       assert.equal(path, prefix + "/lanes/" + reviewLane);
       assert.equal(request.headers.get("If-Match"), tag(reviewLane, 3));
-      assert.deepEqual(JSON.parse(request.body), { board_etag: boardTag, bulk_approval_comment: text });
-      return Response.json(text ? { ...lane, bulk_approval_comment: text } : lane,
-        { headers: { ETag: tag(reviewLane, 9), "X-Board-ETag": committedTag } });
+      assert.deepEqual(JSON.parse(request.body), {
+        board_etag: boardTag,
+        bulk_approval_comment: text,
+      });
+      return Response.json(text ? { ...lane, bulk_approval_comment: text } : lane, {
+        headers: { ETag: tag(reviewLane, 9), "X-Board-ETag": committedTag },
+      });
     });
     await api.updateLaneSettings(boardId, reviewLane, 3, boardTag, { bulk_approval_comment: text });
   }
 });
 
 test("lane settings and detach preserve original board and resource validators", async () => {
-  const lane = { id: reviewLane, board_id: boardId, revision: 9, created_at: at, updated_at: at,
-    key: "ready_for_review", label: "Ready for Review", position: 3, role: "ready_for_review",
-    retired: true, approval_enabled: false, reorder_enabled: false };
+  const lane = {
+    id: reviewLane,
+    board_id: boardId,
+    revision: 9,
+    created_at: at,
+    updated_at: at,
+    key: "ready_for_review",
+    label: "Ready for Review",
+    position: 3,
+    role: "ready_for_review",
+    retired: true,
+    approval_enabled: false,
+    reorder_enabled: false,
+  };
   let calls = 0;
   const api = client(async (path, request) => {
     calls++;
@@ -190,7 +323,12 @@ test("focused history sends a full-activity ticket read with both UTC bounds", a
     assert.equal(request.method, "GET");
     assert.equal(url.pathname, prefix + "/activities");
     assert.deepEqual(Object.fromEntries(url.searchParams), {
-      board_id: boardId, from: before, to: after, view: "full", ticket: "42", cursor: "next",
+      board_id: boardId,
+      from: before,
+      to: after,
+      view: "full",
+      ticket: "42",
+      cursor: "next",
     });
     return Response.json({ activities: [], next_cursor: null });
   });

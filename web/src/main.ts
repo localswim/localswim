@@ -34,7 +34,9 @@ export function mount(root: HTMLElement): () => void {
 
   const attention = mountAttention(shellElement("#attention"), {
     selectBoard: (id) => view.location.assign(`/boards/${id}`),
-    retry: () => { void workspace.refresh(); },
+    retry: () => {
+      void workspace.refresh();
+    },
   });
   const workspace = createWorkspaceState({
     signal,
@@ -77,13 +79,12 @@ export function mount(root: HTMLElement): () => void {
     retry.disabled = true;
     setPhase("loading", "Loading board…");
     try {
-      const reply = await workspace.readWithSession(
-        () => context.api.getBoardAvailability(route.id, signal),
-        signal,
-      ).catch((error: unknown) => {
-        if (error instanceof ApiError && error.status === 404) return null;
-        throw error;
-      });
+      const reply = await workspace
+        .readWithSession(() => context.api.getBoardAvailability(route.id, signal), signal)
+        .catch((error: unknown) => {
+          if (error instanceof ApiError && error.status === 404) return null;
+          throw error;
+        });
       if (signal.aborted) return;
       if (reply === null) {
         showMissing();
@@ -95,7 +96,10 @@ export function mount(root: HTMLElement): () => void {
       title = `${name} · localswim`;
       updateTitle();
       if (availability === "open") {
-        const confirmed = await workspace.readWithSession(() => getBoardView(context, route.id), signal);
+        const confirmed = await workspace.readWithSession(
+          () => getBoardView(context, route.id),
+          signal,
+        );
         if (signal.aborted) return;
         const host = doc.createElement("div");
         content.replaceChildren(host);
@@ -103,8 +107,12 @@ export function mount(root: HTMLElement): () => void {
       } else {
         content.replaceChildren();
       }
-      const message = availability === "closed" ? "This board is closed."
-        : availability === "unhealthy" ? "This board is unavailable." : "";
+      const message =
+        availability === "closed"
+          ? "This board is closed."
+          : availability === "unhealthy"
+            ? "This board is unavailable."
+            : "";
       setPhase("ready", message);
     } catch {
       if (signal.aborted) return;
@@ -115,7 +123,9 @@ export function mount(root: HTMLElement): () => void {
     }
   }
 
-  const retryLoad = () => { void loadBoard(); };
+  const retryLoad = () => {
+    void loadBoard();
+  };
   retry.addEventListener("click", retryLoad);
   void loadBoard();
 

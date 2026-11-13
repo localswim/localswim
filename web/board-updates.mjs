@@ -32,35 +32,44 @@ export function createBoardRefresh({ signal, read, revision, canReadAutomaticall
       queued.manual ||= manual;
       return queued.result;
     }
-    const job = { manual, result: tail.catch(() => {}).then(async () => {
-      queued = undefined;
-      if (signal.aborted) return;
-      if (!job.manual && (!canReadAutomatically() || (!catchUp && hintedRevision <= revision()))) return;
-      const target = hintedRevision;
-      const reconnect = catchUp;
-      hintedRevision = 0;
-      catchUp = false;
-      report("refreshing");
-      try {
-        const applied = await read(!job.manual);
-        if (signal.aborted) return;
-        if (applied) {
-          settledState = "ready";
-          report(settledState);
-        } else {
-          // A write started during the read. Its own readback may cover this hint.
-          hintedRevision = Math.max(hintedRevision, target);
-          catchUp ||= reconnect;
-          report(settledState);
-          resume();
-        }
-      } catch (error) {
-        if (signal.aborted) return;
-        settledState = "error";
-        report(settledState);
-        if (job.manual) throw error;
-      }
-    }) };
+    const job = {
+      manual,
+      result: tail
+        .catch(() => {})
+        .then(async () => {
+          queued = undefined;
+          if (signal.aborted) return;
+          if (
+            !job.manual &&
+            (!canReadAutomatically() || (!catchUp && hintedRevision <= revision()))
+          )
+            return;
+          const target = hintedRevision;
+          const reconnect = catchUp;
+          hintedRevision = 0;
+          catchUp = false;
+          report("refreshing");
+          try {
+            const applied = await read(!job.manual);
+            if (signal.aborted) return;
+            if (applied) {
+              settledState = "ready";
+              report(settledState);
+            } else {
+              // A write started during the read. Its own readback may cover this hint.
+              hintedRevision = Math.max(hintedRevision, target);
+              catchUp ||= reconnect;
+              report(settledState);
+              resume();
+            }
+          } catch (error) {
+            if (signal.aborted) return;
+            settledState = "error";
+            report(settledState);
+            if (job.manual) throw error;
+          }
+        }),
+    };
     queued = job;
     tail = job.result;
     return job.result;
@@ -134,7 +143,8 @@ export async function watchUpdates({ board, signal, connect, invalidateCatalog }
           invalidateCatalog();
           return;
         }
-        if (!watchedBoard || event.resource !== "board" || event.board_id !== watchedBoard.id) return;
+        if (!watchedBoard || event.resource !== "board" || event.board_id !== watchedBoard.id)
+          return;
         const first = !connected;
         if (first) {
           if (event.type !== "snapshot") return;
@@ -143,8 +153,14 @@ export async function watchUpdates({ board, signal, connect, invalidateCatalog }
         watchedBoard.invalidate(event.board_revision, first && reconnecting);
       });
     } catch (error) {
-      if (watchedBoard && !connected && !attemptSignal.aborted && error instanceof ApiError
-          && error.code === "http_error" && (error.status === 403 || error.status === 404)) {
+      if (
+        watchedBoard &&
+        !connected &&
+        !attemptSignal.aborted &&
+        error instanceof ApiError &&
+        error.code === "http_error" &&
+        (error.status === 403 || error.status === 404)
+      ) {
         // The service refuses the entire connection if the selected board cannot be watched.
         watchedBoard.report("unavailable");
         watchedBoard = undefined;

@@ -171,8 +171,7 @@
 }
 
 .board-view-card-actor {
-  border-inline-start: 0.2rem solid
-    var(--board-view-actor-accent, var(--board-view-muted));
+  border-inline-start: 0.2rem solid var(--board-view-actor-accent, var(--board-view-muted));
   padding-inline-start: 0.35rem;
   white-space: pre-wrap;
 }

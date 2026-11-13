@@ -12,8 +12,10 @@
 function spans(text, delimiters, maxWidth, code = []) {
   /** @type {Span[]} */
   const result = [];
-  let start = -1, width = 0, codeIndex = 0;
-  for (const {0: run, index} of text.matchAll(delimiters)) {
+  let start = -1,
+    width = 0,
+    codeIndex = 0;
+  for (const { 0: run, index } of text.matchAll(delimiters)) {
     let span = code[codeIndex];
     while (span && span.end <= index) span = code[++codeIndex];
     if (span && span.start < index) continue;

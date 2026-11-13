@@ -7,15 +7,10 @@ export type AppContext = Readonly<{
   signal: AbortSignal;
 }>;
 
-export type Route =
-  | { kind: "workspace" }
-  | { kind: "board"; id: string }
-  | { kind: "missing" };
-
+export type Route = { kind: "workspace" } | { kind: "board"; id: string } | { kind: "missing" };
 
 export function parseRoute(pathname: string): Route {
   if (pathname === "/") return { kind: "workspace" };
   const id = /^\/boards\/([^/]+)$/.exec(pathname)?.[1];
   return id && boardID.test(id) ? { kind: "board", id: id.toLowerCase() } : { kind: "missing" };
 }
-

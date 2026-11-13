@@ -5,11 +5,7 @@
     "moduleResolution": "bundler",
     "rootDir": ".",
     "newLine": "lf",
-    "lib": [
-      "ES2024",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "allowJs": true,
     "checkJs": true,
     "strict": true,
@@ -25,17 +21,6 @@
     "noEmit": true,
     "types": []
   },
-  "include": [
-    "**/*.js",
-    "**/*.mjs",
-    "**/*.ts"
-  ],
-  "exclude": [
-    "build.mjs",
-    "**/*.test.*",
-    "generated",
-    "dist",
-    "tooling",
-    "node_modules"
-  ]
+  "include": ["**/*.js", "**/*.mjs", "**/*.ts"],
+  "exclude": ["build.mjs", "**/*.test.*", "generated", "dist", "tooling", "node_modules"]
 }

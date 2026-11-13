@@ -7,6 +7,7 @@ export type ArchiveCardContext = Readonly<{
   laneId: string;
   archived: boolean;
   etag: string;
+  revision: number;
   writable: boolean;
   laneActive: boolean;
 }>;
@@ -21,32 +22,40 @@ type ArchiveOptions = AppContext &
     onRefresh: () => void;
   }>;
 
-type Intent = Readonly<{ archived: boolean; etag: string; laneId: string }>;
+type Intent = Readonly<{ archived: boolean; etag: string; laneId: string; revision: number }>;
 type CardReply = Readonly<{ data: object; etag: string | null }>;
 type Journal = Readonly<{ raw: string; intent: Intent | null }>;
 type Feedback = Readonly<{ message: string; waitFor?: string; inspectedJournal?: string }>;
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const strongTag = /^"[A-Za-z0-9_-]{16,128}"(?![\s\S])/;
+
+function validVersion(cardId: string, etag: unknown, revision: unknown): revision is number {
+  return (
+    typeof revision === "number" &&
+    Number.isSafeInteger(revision) &&
+    revision > 0 &&
+    etag === `"${cardId}-${revision}"`
+  );
+}
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseIntent(raw: string): Intent | null {
+function parseIntent(cardId: string, raw: string): Intent | null {
   if (raw.length > 256) return null;
   try {
     const value: unknown = JSON.parse(raw);
     if (!record(value)) return null;
-    const { archived, etag, laneId } = value;
+    const { archived, etag, laneId, revision } = value;
     if (
       typeof archived === "boolean" &&
       typeof etag === "string" &&
-      strongTag.test(etag) &&
+      validVersion(cardId, etag, revision) &&
       typeof laneId === "string" &&
       uuid.test(laneId)
     ) {
-      return { archived, etag, laneId };
+      return { archived, etag, laneId, revision };
     }
     return null;
   } catch {
@@ -63,18 +72,18 @@ function readVersion(boardId: string, cardId: string, { data, etag }: CardReply)
     typeof card.lane_id !== "string" ||
     !uuid.test(card.lane_id) ||
     etag === null ||
-    !strongTag.test(etag)
+    !validVersion(cardId, etag, card.revision)
   ) {
     throw new ApiError("invalid_response", { outcomeUnknown: true });
   }
-  return { archived: card.archived, etag, laneId: card.lane_id };
+  return { archived: card.archived, etag, laneId: card.lane_id, revision: card.revision };
 }
 
 function reached(saved: Intent, target: Intent) {
   return (
     saved.archived === target.archived &&
     saved.laneId === target.laneId &&
-    saved.etag !== target.etag
+    saved.revision > target.revision
   );
 }
 
@@ -120,7 +129,7 @@ export function mountCardArchive(
   function load(cardId: string): Journal | null | undefined {
     try {
       const raw = tabStorage()?.getItem(key(cardId));
-      return typeof raw === "string" ? { raw, intent: parseIntent(raw) } : raw;
+      return typeof raw === "string" ? { raw, intent: parseIntent(cardId, raw) } : raw;
     } catch {
       return undefined;
     }
@@ -151,6 +160,7 @@ export function mountCardArchive(
   function canSubmit(current: ArchiveCardContext) {
     return (
       current.writable &&
+      validVersion(current.cardId, current.etag, current.revision) &&
       (!current.archived || current.laneActive) &&
       !operations.state(current.cardId) &&
       load(current.cardId) === null &&
@@ -204,10 +214,10 @@ export function mountCardArchive(
   async function submit() {
     const current = context;
     if (signal.aborted || !current || !canSubmit(current)) return;
-    const { cardId, etag, laneId } = current;
+    const { cardId, etag, laneId, revision } = current;
     const release = beginWrite(cardId);
     if (!release) return;
-    const intent: Intent = { archived: !current.archived, etag, laneId };
+    const intent: Intent = { archived: !current.archived, etag, laneId, revision };
     const raw = JSON.stringify(intent);
     feedback.delete(cardId);
     try {
@@ -297,6 +307,12 @@ export function mountCardArchive(
             const reply = await readWithSession(() => api.getCard(cardId, readSignal), readSignal);
             readSignal.throwIfAborted();
             const saved = readVersion(boardId, cardId, reply);
+            if (saved.revision < Math.max(context?.revision ?? 0, journal.intent?.revision ?? 0)) {
+              feedback.set(cardId, {
+                message: "The read returned an older card version. Inspect again.",
+              });
+              return;
+            }
             if (load(cardId)?.raw !== journal.raw) {
               feedback.set(cardId, { message: "The pending change was updated. Inspect again." });
               return;

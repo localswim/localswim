@@ -67,8 +67,6 @@ export function applyInput(previous: string, value: string, change?: InputChange
   // Only the changed span comes from the textarea. Its value normalizes existing CR/CRLF.
   const prefix = previous.slice(0, rawOffset(previous, start));
   const suffix = previous.slice(rawOffset(previous, end));
-  // A join between a bare CR and LF would otherwise collapse two visible line breaks.
-  if (inserted.endsWith("\r") && suffix.startsWith("\n")) inserted += "\r";
-  if (prefix.endsWith("\r") && (inserted || suffix).startsWith("\n")) inserted = "\r" + inserted;
+  // Newly adjacent CR and LF normalize as one line break in the textarea.
   return prefix + inserted + suffix;
 }

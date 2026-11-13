@@ -8,6 +8,7 @@ import {
   renderActivity,
   renderComment,
   uuid,
+  type AuthorKind,
   type AuthorName,
   type CardScope,
   type TicketLink,
@@ -34,6 +35,7 @@ type CommentOptions = Readonly<{
   signal: AbortSignal;
   context: () => CommentContext | null;
   authorName: AuthorName;
+  authorKind?: AuthorKind;
   ticketLink: TicketLink;
   readWithSession: <T>(read: () => Promise<T>, signal?: AbortSignal) => Promise<T>;
   beginWrite: (cardId: string) => (() => void) | null;
@@ -87,6 +89,7 @@ export function mountCardComments(
     signal,
     context,
     authorName,
+    authorKind,
     ticketLink,
     readWithSession,
     beginWrite,
@@ -132,10 +135,14 @@ export function mountCardComments(
   const inspect = doc.createElement("button");
   inspect.type = "button";
   inspect.textContent = "Inspect original comment";
+  const dismiss = doc.createElement("button");
+  dismiss.type = "button";
+  dismiss.textContent = "Dismiss unresolved post";
+  dismiss.hidden = true;
   const status = doc.createElement("p");
   status.className = "card-comment-status";
   status.setAttribute("role", "status");
-  actions.append(post, inspect);
+  actions.append(post, inspect, dismiss);
   form.append(label, hint, actions, status);
   region.append(heading, preview, previewStatus, retryPreview, form);
   root.append(region);
@@ -151,12 +158,24 @@ export function mountCardComments(
     );
     return readCommentPage(reply.data, scope, limit);
   };
+  type Comment = ReturnType<typeof readComment>;
+  const renderEntry = (entry: Comment) =>
+    renderComment(
+      doc,
+      entry,
+      authorName,
+      authorKind?.(entry.actor) === "human" ? ticketLink : undefined,
+    );
+  const attributionKey = (actor: string) => authorName(actor) ?? actor;
+  const commentKey = (entry: Comment) =>
+    JSON.stringify([attributionKey(entry.actor), authorKind?.(entry.actor)]);
   const commentHistory = mountHistory(
     region,
     signal,
     "All comments",
     (cursor, readSignal) => readComments(historyPageSize, cursor, readSignal),
-    (entry) => renderComment(doc, entry, authorName, ticketLink),
+    renderEntry,
+    commentKey,
   );
   const activityHistory = mountHistory(
     region,
@@ -170,13 +189,17 @@ export function mountCardComments(
       return readActivityPage(reply.data, scope);
     },
     (entry) => renderActivity(doc, entry, authorName),
+    (entry) => attributionKey(entry.actor),
   );
 
   let journal: Journal | undefined;
   let revision: number | undefined;
   let commentCount: number | undefined;
   let previewRead: AbortController | undefined;
+  let previewItems: readonly Comment[] = [];
+  let previewKey = "";
   let notice = "";
+  let missing: string | undefined;
   let change: InputChange | undefined;
   let pasted: string | undefined;
   let composition: { journal: Journal; previous: string; change?: InputChange } | undefined;
@@ -224,7 +247,9 @@ export function mountCardComments(
   }
 
   function focusInputIfHidden() {
-    if (doc.activeElement === inspect && inspect.hidden) input.focus({ preventScroll: true });
+    if ([inspect, dismiss].some((node) => doc.activeElement === node && node.hidden)) {
+      (inspect.hidden ? input : inspect).focus({ preventScroll: true });
+    }
   }
 
   function canPost(current: CommentContext | null, entry: Journal | undefined) {
@@ -252,6 +277,7 @@ export function mountCardComments(
         detachJournal();
         journal = { key, raw: undefined, draft: emptyDraft, error: false, unsaved: false };
         notice = "";
+        missing = undefined;
         composition = undefined;
         recent.clear();
         listeners.set(key, update);
@@ -268,6 +294,8 @@ export function mountCardComments(
     post.setAttribute("aria-disabled", String(!canPost(current, entry)));
     inspect.hidden = !pending;
     inspect.setAttribute("aria-disabled", String(Boolean(active)));
+    dismiss.hidden = !pending || pending !== missing;
+    dismiss.setAttribute("aria-disabled", String(Boolean(active || entry?.error)));
     focusInputIfHidden();
     const message =
       active === "submitting"
@@ -289,6 +317,18 @@ export function mountCardComments(
       commentCount = current.commentCount;
       refreshComments();
     }
+    renderPreview();
+    commentHistory.refreshRows();
+    activityHistory.refreshRows();
+  }
+
+  function renderPreview() {
+    const key = JSON.stringify(previewItems.map((entry) => [entry.id, commentKey(entry)]));
+    if (key === previewKey) return;
+    const focused = preview.contains(doc.activeElement);
+    preview.replaceChildren(...previewItems.map(renderEntry));
+    previewKey = key;
+    if (focused) input.focus({ preventScroll: true });
   }
 
   async function refreshPreview() {
@@ -301,11 +341,9 @@ export function mountCardComments(
     try {
       const page = await readComments(previewSize, undefined, readSignal);
       if (readSignal.aborted) return;
-      const focused = preview.contains(doc.activeElement);
-      preview.replaceChildren(
-        ...page.items.map((item) => renderComment(doc, item, authorName, ticketLink)),
-      );
-      if (focused) input.focus({ preventScroll: true });
+      previewItems = page.items;
+      previewKey = "";
+      renderPreview();
       previewStatus.textContent = page.items.length ? "" : "No comments.";
     } catch {
       if (readSignal.aborted) return;
@@ -333,6 +371,7 @@ export function mountCardComments(
 
   function confirmed(entry: Journal, boardEtag: string | null) {
     persist(entry, emptyDraft);
+    missing = undefined;
     notice = "Comment posted.";
     refreshComments();
     activityHistory.reset();
@@ -353,6 +392,7 @@ export function mountCardComments(
         "submitting",
         async () => {
           notice = "";
+          missing = undefined;
           const result = await submitOperation(
             () => persist(entry, draft),
             async () => {
@@ -417,6 +457,7 @@ export function mountCardComments(
       entry.key,
       "inspecting",
       async () => {
+        missing = undefined;
         publish(entry);
         try {
           const reply = await readWithSession(() => api.getComment(id, signal), signal);
@@ -424,11 +465,15 @@ export function mountCardComments(
           prove(reply, actor, draft);
           confirmed(entry, null);
         } catch (error) {
-          if (signal.aborted) return;
-          notice =
-            error instanceof ApiError && error.status === 404
-              ? "The original comment is not visible yet. Inspect it again to check the outcome."
-              : "The original comment could not be verified. Inspect it again to check the outcome.";
+          if (signal.aborted || context()?.actorId !== actor) return;
+          if (error instanceof ApiError && error.status === 404) {
+            missing = id;
+            notice =
+              "The original comment was not found. Inspect again or dismiss the unresolved post to recover your draft.";
+          } else {
+            notice =
+              "The original comment could not be verified. Inspect it again to check the outcome.";
+          }
         }
       },
       () => publish(entry),
@@ -465,6 +510,30 @@ export function mountCardComments(
     { signal },
   );
   inspect.addEventListener("click", () => run(inspectOriginal), { signal });
+  dismiss.addEventListener(
+    "click",
+    () => {
+      update();
+      const entry = journal;
+      const actor = context()?.actorId;
+      if (
+        !actor ||
+        !entry?.draft.id ||
+        entry.key !== journalKey(actor, scope) ||
+        entry.draft.id !== missing ||
+        operations.state(entry.key) ||
+        entry.error
+      ) {
+        return;
+      }
+      if (persist(entry, { text: entry.draft.text, id: null })) {
+        missing = undefined;
+        notice = "Unresolved post dismissed. Your exact draft is still available.";
+      }
+      update();
+    },
+    { signal },
+  );
   input.addEventListener(
     "paste",
     (event) => {

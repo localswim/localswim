@@ -7,6 +7,7 @@ export const historyPageSize = 20;
 
 export type CardScope = Readonly<{ boardId: string; cardId: string }>;
 export type AuthorName = (id: string) => string | undefined;
+export type AuthorKind = (id: string) => "human" | "bot" | undefined;
 export type TicketLink = (ticket: number, label: string) => HTMLAnchorElement;
 type Byline = Readonly<{ actor: string; at: string }>;
 type Comment = Byline & Readonly<{ id: string; text: string }>;
@@ -135,7 +136,7 @@ export function renderComment(
   doc: Document,
   entry: Comment,
   authorName: AuthorName,
-  ticketLink: TicketLink,
+  ticketLink?: TicketLink,
 ) {
   const row = doc.createElement("li");
   row.className = "card-comment";
@@ -191,6 +192,7 @@ export function mountHistory<T extends { id: string }>(
   label: string,
   load: (cursor: string | undefined, signal: AbortSignal) => Promise<Page<T>>,
   render: (item: T) => HTMLElement,
+  renderKey: (item: T) => string,
 ) {
   const doc = root.ownerDocument;
   const details = doc.createElement("details");
@@ -212,6 +214,7 @@ export function mountHistory<T extends { id: string }>(
   let next: string | null | undefined;
   const seenIds = new Set<string>();
   const seenCursors = new Set<string>();
+  const rendered: { item: T; node: HTMLElement; key: string }[] = [];
 
   async function fetchPage() {
     if (signal.aborted || !details.open || read || next === null) return;
@@ -229,8 +232,9 @@ export function mountHistory<T extends { id: string }>(
       ) {
         throw new TypeError("Overlapping history page.");
       }
-      const rows = page.items.map(render);
-      list.append(...rows);
+      const rows = page.items.map((item) => ({ item, node: render(item), key: renderKey(item) }));
+      list.append(...rows.map(({ node }) => node));
+      rendered.push(...rows);
       for (const { id } of page.items) seenIds.add(id);
       if (page.next) seenCursors.add(page.next);
       next = page.next;
@@ -257,6 +261,7 @@ export function mountHistory<T extends { id: string }>(
     next = undefined;
     seenIds.clear();
     seenCursors.clear();
+    rendered.length = 0;
     list.replaceChildren();
     status.textContent = "";
     if (doc.activeElement === more) summary.focus({ preventScroll: true });
@@ -275,5 +280,19 @@ export function mountHistory<T extends { id: string }>(
     },
     { signal },
   );
-  return { reset };
+  return {
+    reset,
+    refreshRows() {
+      for (const row of rendered) {
+        const key = renderKey(row.item);
+        if (key === row.key) continue;
+        const focused = row.node.contains(doc.activeElement);
+        const node = render(row.item);
+        row.node.replaceWith(node);
+        row.node = node;
+        row.key = key;
+        if (focused) summary.focus({ preventScroll: true });
+      }
+    },
+  };
 }

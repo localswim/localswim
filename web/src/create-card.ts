@@ -786,7 +786,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
 
   function resolveCreation(
     card: NonNullable<ReturnType<typeof identifyCard>>,
-    matchesRelationships = true,
+    matchesRelationships: boolean | null = true,
     uploadTag: string | null = null,
   ) {
     const { id, ticket, matchesDraft } = card;
@@ -794,10 +794,12 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     const difference =
       `Found the original card #${ticket}. ` +
       (!matchesDraft ? "Its saved details differ from the submitted draft. " : "") +
-      (!matchesRelationships
-        ? "Its saved relationships differ from the submitted relationships."
-        : "");
-    const matches = matchesDraft && matchesRelationships;
+      (matchesRelationships === null
+        ? "Its saved relationships could not be verified."
+        : matchesRelationships
+          ? ""
+          : "Its saved relationships differ from the submitted relationships.");
+    const matches = matchesDraft && matchesRelationships === true;
     const staged = draftFiles();
     absence = undefined;
     const expected = raw;
@@ -1150,7 +1152,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           const found = await readCard();
           if (!stillOwnsInspection()) return;
           if (found) {
-            await recoverCard(submitted, found, stillOwnsInspection);
+            await recoverCard(submitted, found.data, stillOwnsInspection);
             return;
           }
 
@@ -1172,7 +1174,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           const absentAtVersion = await readCard();
           if (!stillOwnsInspection()) return;
           if (absentAtVersion) {
-            await recoverCard(submitted, absentAtVersion, stillOwnsInspection);
+            await recoverCard(submitted, absentAtVersion.data, stillOwnsInspection);
             return;
           }
           const after = await readBoard();
@@ -1197,27 +1199,36 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     );
   }
 
-  async function recoverCard(
-    submitted: Draft,
-    { data, etag }: Awaited<ReturnType<AppContext["api"]["getCard"]>>,
-    stillOwnsInspection: () => boolean,
-  ) {
+  async function recoverCard(submitted: Draft, data: object, stillOwnsInspection: () => boolean) {
     const card = identifyCard(boardId, submitted, data);
     // A focused read identifies the original even after another actor changes its fields.
     if (!card) {
       message = "The read did not identify the original card. Inspect again to retry the read.";
       return;
     }
+    const staged = Boolean(draftFiles()?.files.length);
     const seeds = submitted.submission?.seeds ?? [];
     const base = boardRevision(boardId, submitted.submission?.etag ?? "");
-    if (!seeds.length) {
-      resolveCreation(
-        card,
-        true,
-        base === null ? null : uploadValidator(card.id, base + 1, data, etag),
-      );
+    if (!seeds.length && !staged) {
+      resolveCreation(card);
       return;
     }
+    try {
+      await verifyRecoveredRelationships(submitted, seeds, base, card, stillOwnsInspection, staged);
+    } catch (error) {
+      if (!staged) throw error;
+      if (stillOwnsInspection()) resolveCreation(card, null);
+    }
+  }
+
+  async function verifyRecoveredRelationships(
+    submitted: Draft,
+    seeds: readonly Seed[],
+    base: number | null,
+    card: NonNullable<ReturnType<typeof identifyCard>>,
+    stillOwnsInspection: () => boolean,
+    staged: boolean,
+  ) {
     const readBoard = () =>
       options.readWithSession(() => api.getBoardAvailability(boardId, signal), signal);
     const before = await readBoard();
@@ -1249,6 +1260,10 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       before.etag !== after.etag ||
       after.data.availability !== "open"
     ) {
+      if (staged && checked) {
+        resolveCreation(checked, null);
+        return;
+      }
       message =
         "The board changed during inspection. Inspect again to check the original card and relationships.";
       return;

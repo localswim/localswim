@@ -139,6 +139,7 @@ function fixture() {
       };
     },
     async listRelationships() {
+      if (state.linksUnavailable) throw new ApiError("http_error", { status: 503 });
       return { data: { relationships: links, next_cursor: null } };
     },
     async uploadAttachment(cardId, expected, selected, id) {
@@ -279,6 +280,18 @@ function fixture() {
     changeSaved: (changes) => {
       saved = { ...saved, ...changes };
     },
+    addLink() {
+      saved = { ...saved, revision: ++state.revision };
+      links = [
+        {
+          id: uuid(9),
+          kind: "relates_to",
+          source_card_id: saved.id,
+          target_card_id: relationship.id,
+          revision: saved.revision,
+        },
+      ];
+    },
     removeLinks: () => {
       links = [];
     },
@@ -414,3 +427,30 @@ test("a revision change before upload preserves files without dispatch", async (
   assert.deepEqual(f.uploads, []);
   assert.equal(f.stagedFiles.get(board).files[0], image);
 });
+
+for (const issue of ["unexpected link", "unavailable relationship read"]) {
+  test(`inspection with no submitted seeds requires a verified empty link set (${issue})`, async () => {
+    const f = fixture();
+    const view = f.mount();
+    view.open();
+    view.title("Exact card");
+    view.pick(image);
+    f.state.createMode = "lost";
+    view.button("Add card").click();
+    await settle();
+    if (issue === "unexpected link") f.addLink();
+    else f.state.linksUnavailable = true;
+    view.button("Inspect creation").click();
+    await settle();
+    assert.deepEqual(f.confirmations, [[f.posts[0].id, 7, true]]);
+    assert.deepEqual(f.admission, []);
+    assert.deepEqual(f.uploads, []);
+    assert.equal(f.stagedFiles.get(board).files[0], image);
+    assert.equal(view.button("Attach staged files").hidden, true);
+    view.button("Review card #7").click();
+    view.button("Attach staged files").click();
+    await settle();
+    assert.equal(f.posts.length, 1);
+    assert.equal(f.uploads.length, 1);
+  });
+}

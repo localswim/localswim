@@ -43,9 +43,9 @@
 
 .board-view .board-view-lane {
   display: flex;
-  flex: 1 0 118px;
+  flex: 1 0 160px;
   flex-direction: column;
-  min-inline-size: 118px;
+  min-inline-size: 160px;
   min-block-size: 0;
   overflow: hidden;
   max-block-size: none;
@@ -58,6 +58,8 @@
 
 .board-view .board-view-lane-heading {
   display: flex;
+  flex: 0 0 4.35rem;
+  box-sizing: border-box;
   align-items: flex-start;
   justify-content: normal;
   flex-wrap: nowrap;
@@ -103,6 +105,16 @@
   overflow-wrap: anywhere;
   color: var(--board-view-muted);
   font-size: 0.75rem;
+}
+
+.board-view .board-view-lane-note {
+  display: -webkit-box;
+  flex: 0 0 2.375rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.25;
 }
 
 .board-view .board-view-lane-scroll {

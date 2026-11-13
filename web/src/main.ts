@@ -152,7 +152,11 @@ export function mount(root: HTMLElement): () => void {
     }
     const retained = data !== null ? " Showing previously loaded cards." : "";
     if (availability === "unhealthy" || availability === "unavailable") {
-      setPhase("error", `This board is unavailable.${retained}`);
+      const message =
+        availability === "unhealthy"
+          ? "This board’s saved state is unhealthy."
+          : "This board is unavailable.";
+      setPhase("error", `${message}${retained}`);
       return;
     }
     if (readiness === "error") {

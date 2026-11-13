@@ -14,6 +14,7 @@ type CardViewOptions = AppContext &
   }>;
 
 type CardSummary = Readonly<{ id: string; ticket: number; title: string; archived: boolean }>;
+type LaneDetails = Readonly<{ id: string; label: string; retired: boolean }>;
 
 type SavedCard = CardSummary &
   Readonly<{
@@ -78,10 +79,13 @@ export function mountCardView(
   const bar = element("div", "card-drawer-bar");
   const ticketLabel = element("span", "card-drawer-ticket");
   ticketLabel.id = "card-drawer-ticket";
+  const retryButton = element("button", "", "Retry card read");
+  retryButton.type = "button";
+  retryButton.hidden = true;
   const closeButton = element("button", "card-drawer-close", "×");
   closeButton.type = "button";
   closeButton.setAttribute("aria-label", "Close card");
-  bar.append(ticketLabel, closeButton);
+  bar.append(ticketLabel, retryButton, closeButton);
 
   const body = element("div", "card-drawer-body");
   body.tabIndex = 0;
@@ -112,8 +116,10 @@ export function mountCardView(
   let displayedProse: string | undefined;
   let displayedHierarchy: string | undefined;
 
-  function setStatus(message: string) {
-    status.textContent = message;
+  function setStatus(message: string, retry = false) {
+    if (status.textContent !== message) status.textContent = message;
+    if (!retry && doc.activeElement === retryButton) closeButton.focus({ preventScroll: true });
+    retryButton.hidden = !retry;
   }
 
   async function getCard(id: string, requestSignal: AbortSignal): Promise<SavedCard> {
@@ -184,7 +190,10 @@ export function mountCardView(
               target: { id, ticket: visible.ticket, title: visible.title, archived: false },
             };
           }
-          const saved = await getCard(id, requestSignal).catch(() => null);
+          const saved = await getCard(id, requestSignal).catch((error: unknown) => {
+            if (cardUnavailable(error)) return null;
+            throw error;
+          });
           const target = saved && {
             id,
             ticket: saved.ticket,
@@ -198,6 +207,43 @@ export function mountCardView(
     }
     requestSignal.throwIfAborted();
     return result;
+  }
+
+  function cardUnavailable(error: unknown): boolean {
+    return error instanceof ApiError && (error.status === 403 || error.status === 404);
+  }
+
+  async function readLaneLabel(
+    laneId: string,
+    data: BoardViewData | undefined,
+    requestSignal: AbortSignal,
+  ): Promise<string> {
+    const active = data?.lanes.find(({ id }) => id === laneId);
+    if (active) return active.label;
+
+    const seen = new Set<string>();
+    let cursor: string | undefined;
+    do {
+      const reply = await readWithSession(
+        () => api.listLanes(boardId, cursor, requestSignal),
+        requestSignal,
+      );
+      requestSignal.throwIfAborted();
+      // The adapter validates each lane, including its board identity and retired flag.
+      const { lanes, next_cursor: next } = reply.data as {
+        lanes: readonly LaneDetails[];
+        next_cursor: unknown;
+      };
+      const match = lanes.find(({ id }) => id === laneId);
+      if (match) return match.retired ? `${match.label} (Retired)` : match.label;
+      if (next === null) break;
+      if (typeof next !== "string" || next.length === 0 || next.length > 2048 || seen.has(next)) {
+        throw new ApiError("invalid_response");
+      }
+      seen.add(next);
+      cursor = next;
+    } while (cursor !== undefined);
+    throw new ApiError("invalid_response");
   }
 
   function ticketLink(ticket: number, label: string, id?: string): HTMLAnchorElement {
@@ -237,11 +283,11 @@ export function mountCardView(
     }
   }
 
-  function renderCard(card: SavedCard, data: BoardViewData | undefined) {
+  function renderCard(card: SavedCard, laneLabel: string, data: BoardViewData | undefined) {
     const owner = data?.users.find(({ id }) => id === card.owner_id);
     const presentation = owner ? data?.board.actor_presentation?.[owner.kind] : undefined;
     const fields = new Map<string, string>([
-      ["Lane", data?.lanes.find(({ id }) => id === card.lane_id)?.label ?? "Unavailable"],
+      ["Lane", laneLabel],
       [
         "Priority",
         data?.priorities.find(({ id }) => id === card.priority_id)?.label ?? "Unavailable",
@@ -301,22 +347,30 @@ export function mountCardView(
       return;
     }
     current.loading = true;
-    const requestSignal = AbortSignal.any([signal, current.lifetime.signal]);
+    retryButton.setAttribute("aria-disabled", "true");
+    const attempt = new AbortController();
+    const selectionSignal = AbortSignal.any([signal, current.lifetime.signal]);
+    const requestSignal = AbortSignal.any([selectionSignal, attempt.signal]);
+    let cardConfirmed = false;
     try {
       const card = await readCard(current.reference, requestSignal);
       requestSignal.throwIfAborted();
+      cardConfirmed = true;
       const resolveOrigin = current.origin === current.reference;
       current.reference = { id: card.id };
       if (resolveOrigin) current.origin = current.reference;
       const data = getBoardData();
-      setStatus("");
-      renderCard(card, data);
-      const relations = await readHierarchy(card, data, requestSignal);
+      const [laneLabel, relations] = await Promise.all([
+        readLaneLabel(card.lane_id, data, requestSignal),
+        readHierarchy(card, data, requestSignal),
+      ]);
       requestSignal.throwIfAborted();
+      renderCard(card, laneLabel, data);
       renderHierarchy(relations);
+      setStatus("");
     } catch (error) {
       if (requestSignal.aborted) return;
-      const missing = error instanceof ApiError && error.status === 404;
+      const missing = !cardConfirmed && cardUnavailable(error);
       if (missing || details.hidden) {
         if (details.contains(doc.activeElement)) body.focus({ preventScroll: true });
         title.textContent = "Card unavailable";
@@ -328,12 +382,17 @@ export function mountCardView(
           : details.hidden
             ? "Could not load this card."
             : "Could not refresh this card.",
+        !missing,
       );
     } finally {
+      attempt.abort();
       current.loading = false;
-      if (current.refreshQueued && !requestSignal.aborted) {
-        current.refreshQueued = false;
-        refresh();
+      if (!selectionSignal.aborted) {
+        retryButton.removeAttribute("aria-disabled");
+        if (current.refreshQueued) {
+          current.refreshQueued = false;
+          refresh();
+        }
       }
     }
   }
@@ -381,6 +440,15 @@ export function mountCardView(
   }
 
   closeButton.addEventListener("click", close, { signal });
+  retryButton.addEventListener(
+    "click",
+    () => {
+      if (!selection || selection.loading) return;
+      setStatus("Retrying card read…", true);
+      refresh();
+    },
+    { signal },
+  );
   doc.addEventListener(
     "keydown",
     (event) => {

@@ -46,6 +46,8 @@
   text exactly without silent replacement, trimming, or normalization.
 - Run `.\check.ps1` before handoff. Keep the strict compiler and lint gates enabled,
   fix findings at their source, and justify any narrowly scoped suppression.
+- Follow the approved [TypeScript quality standard](docs/typescript-standard.md)
+  for compiler options, Oxlint rules, formatting and qualification evidence.
 - Use `YYYY-MM-DD HH:MM:SS+00:00` for application timestamps, normalized to UTC
   and whole seconds. Preserve revision ordering for edits within the same second.
 - Immutable comments and user records store and expose only `created_at`. Keep `updated_at` on

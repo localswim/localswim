@@ -45,7 +45,6 @@ export function createBoardState({
   const signal = AbortSignal.any([ownerSignal, lifetime.signal]);
   let started = false;
   let data: BoardViewData | null = retained ?? null;
-  let showingRetained = retained !== undefined;
   let name: string | null = retained?.board.name ?? null;
   let focusedAvailability: Availability = "unknown";
   let connection: Connection = "connecting";
@@ -75,14 +74,12 @@ export function createBoardState({
       availability = catalogAvailability;
     }
     if (
-      showingRetained &&
-      (availability === "closed" ||
-        availability === "unhealthy" ||
-        availability === "missing" ||
-        availability === "unavailable")
+      availability === "closed" ||
+      availability === "unhealthy" ||
+      availability === "missing" ||
+      availability === "unavailable"
     ) {
       data = null;
-      showingRetained = false;
     }
     onChange({
       data,
@@ -98,7 +95,8 @@ export function createBoardState({
         readiness === "ready" &&
         confirmedEpoch === confirmationEpoch &&
         (confirmedRevision ?? 0) >= hintedRevision &&
-        ((availability === "open" && connection === "connected") || availability === "closed"),
+        (availability === "open" || availability === "closed") &&
+        connection === "connected",
       writesFenced:
         explicitWriteFence ||
         availability !== "open" ||
@@ -156,7 +154,6 @@ export function createBoardState({
           if (superseded()) return false;
           confirm(next.board.revision, next.etag, epoch);
           if (next.etag !== data?.etag) data = next;
-          showingRetained = false;
           name = next.board.name;
           policyId = next.board.policy_id;
           focusedAvailability = "open";

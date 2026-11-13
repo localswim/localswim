@@ -70,3 +70,17 @@ export function applyInput(previous: string, value: string, change?: InputChange
   // Newly adjacent CR and LF normalize as one line break in the textarea.
   return prefix + inserted + suffix;
 }
+export function alignTextarea(control: HTMLTextAreaElement, visible: string): void {
+  const native = control.value;
+  if (native === visible) return;
+  const { selectionStart, selectionEnd, selectionDirection } = control;
+  let start = 0;
+  let end = 0;
+  for (let offset = 0; offset < selectionEnd; offset++) {
+    if (native[offset] !== visible[end]) continue;
+    end++;
+    if (offset < selectionStart) start++;
+  }
+  control.value = visible;
+  control.setSelectionRange(start, end, selectionDirection);
+}

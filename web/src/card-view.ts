@@ -560,10 +560,10 @@ export function mountCardView(
     open,
     close,
     refresh,
-    showRetained(reference: CardReference, opener?: HTMLElement) {
+    showRetained(reference: CardReference, opener?: HTMLElement, focus = true) {
       const retained = retainedCard?.(reference);
       if (!retained) return;
-      open(reference, opener, true, false);
+      open(reference, opener, focus, false);
       showConfirmedText(retained);
       metadata.replaceChildren();
       details.hidden = false;

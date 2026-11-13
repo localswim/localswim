@@ -159,9 +159,11 @@ export async function watchUpdates({
         const first = !connected;
         if (first) {
           if (event.type !== "snapshot") return;
+          watchedBoard.invalidate(event.board_revision, reconnecting);
           markConnected();
+          return;
         }
-        watchedBoard.invalidate(event.board_revision, first && reconnecting);
+        watchedBoard.invalidate(event.board_revision, false);
       });
     } catch (error) {
       if (

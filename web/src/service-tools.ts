@@ -21,7 +21,7 @@ type Options = Readonly<{
   readWithSession: ReturnType<typeof createWorkspaceState>["readWithSession"];
   signal: AbortSignal;
   canManage: () => boolean;
-  onRefreshIdentity?: () => void;
+  onRefreshIdentity?: () => Promise<void> | void;
 }>;
 
 const stopKey = "localswim.service-stop.v1";
@@ -361,8 +361,7 @@ export function mountServiceTools(
   refresh.addEventListener(
     "click",
     () => {
-      onRefreshIdentity?.();
-      void inspect(true);
+      void Promise.resolve(onRefreshIdentity?.()).then(() => inspect(true));
     },
     { signal },
   );

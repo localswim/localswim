@@ -15,7 +15,13 @@ import {
 } from "./history.js";
 import type { AppContext } from "./model.js";
 import { createScopedOperations, submitOperation, type OperationStorage } from "./operations.js";
-import { applyInput, rememberExact, textareaText, type InputChange } from "./text-input.js";
+import {
+  alignTextarea,
+  applyInput,
+  rememberExact,
+  textareaText,
+  type InputChange,
+} from "./text-input.js";
 
 type CommentContext = Readonly<{
   actorId: string;
@@ -288,7 +294,7 @@ export function mountCardComments(
     const active = entry && operations.state(entry.key);
     const pending = entry?.draft.id;
     const text = entry?.draft.text ?? "";
-    if (!composition && input.value !== textareaText(text)) input.value = textareaText(text);
+    if (!composition) alignTextarea(input, textareaText(text));
     input.readOnly = !composition && (!entry || Boolean(pending || active));
     post.hidden = Boolean(pending);
     post.setAttribute("aria-disabled", String(!canPost(current, entry)));

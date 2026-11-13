@@ -66,6 +66,7 @@ export function mountPublishingSettings(
   let storageMessage = "";
   let message = "";
   let busy = false;
+  let refreshQueued = false;
   let readFailed = false;
 
   const panel = doc.createElement("section");
@@ -221,11 +222,19 @@ export function mountPublishingSettings(
       if (!operationSignal.aborted) {
         busy = false;
         updatePermission();
+        if (refreshQueued) {
+          refreshQueued = false;
+          void refresh();
+        }
       }
     }
   }
 
   function refresh(inspecting = false): Promise<void> {
+    if (busy && !inspecting) {
+      refreshQueued = true;
+      return Promise.resolve();
+    }
     return run(async (operationSignal) => {
       const release = inspecting ? beginInspection?.() : undefined;
       if (release === null) {

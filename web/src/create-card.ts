@@ -1,7 +1,13 @@
 import { ApiError } from "../api.mjs";
 import type { AppContext } from "./model.js";
 import { createScopedOperations, submitOperation, type OperationStorage } from "./operations.js";
-import { applyInput, rememberExact, textareaText, type InputChange } from "./text-input.js";
+import {
+  alignTextarea,
+  applyInput,
+  rememberExact,
+  textareaText,
+  type InputChange,
+} from "./text-input.js";
 
 type Choice = Readonly<{ id: string; label: string }>;
 
@@ -570,22 +576,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     });
     function storeText(value: string, history = false) {
       const previous = draft?.[field] ?? "";
-      const visible = textareaText(value);
-      const native = control.value;
-      if (visible !== native) {
-        // Joining a CR and an LF removes a visible line break. Map the native
-        // selection over the remaining characters before replacing the value.
-        const { selectionStart, selectionEnd, selectionDirection } = control;
-        let start = 0;
-        let end = 0;
-        for (let offset = 0; offset < selectionEnd; offset++) {
-          if (native[offset] !== visible[end]) continue;
-          end++;
-          if (offset < selectionStart) start++;
-        }
-        control.value = visible;
-        control.setSelectionRange(start, end, selectionDirection);
-      }
+      alignTextarea(control, textareaText(value));
       if (previous === value) return;
       if (!history) {
         rememberExact(recent, previous);

@@ -533,6 +533,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       note.textContent = "";
       try {
         const blob = await readContent(options, entry, disposition, rowSignal);
+        if (rowSignal.aborted || !active(current) || !current.context.readable) return;
         await use(blob);
       } catch (error) {
         if (rowSignal.aborted) return;
@@ -588,6 +589,11 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
           try {
             await showThumbnail(row, image, blob, 200, previewSignal);
             previewSignal.throwIfAborted();
+            if (!active(current) || !current.context.readable) {
+              attempt.abort();
+              image.removeAttribute("src");
+              return;
+            }
             previewScope = attempt;
             image.hidden = false;
             preview.textContent = "Hide preview";

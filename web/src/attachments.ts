@@ -102,11 +102,13 @@ type Selection = {
   context: AttachmentContext;
   lifetime: AbortController;
   signal: AbortSignal;
+  admission: AbortController;
   entries: Attachment[] | undefined;
   inventoryEtag: string | undefined;
   reading: boolean;
   awaitingRefresh: boolean;
   message: string;
+  recoverable: string | undefined;
 };
 
 function scoped(item: Attachment, boardId: string, cardId: string): boolean {
@@ -353,9 +355,12 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
   const inspect = doc.createElement("button");
   inspect.type = "button";
   inspect.textContent = "Inspect attachments";
+  const retryWrite = doc.createElement("button");
+  retryWrite.type = "button";
+  retryWrite.textContent = "Retry saved change";
   const list = doc.createElement("ul");
   list.className = "card-attachment-list";
-  section.append(heading, status, retry, inspect, list);
+  section.append(heading, status, retry, inspect, retryWrite, list);
   section.hidden = true;
   root.append(section);
   let selection: Selection | undefined;
@@ -406,16 +411,19 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     return selection === current && !current.signal.aborted;
   }
 
-  function writable(current: Selection) {
+  function canWrite(current: Selection) {
     return (
       active(current) &&
       current.context.editable &&
       !writing.has(current.context.cardId) &&
       !current.awaitingRefresh &&
       !current.reading &&
-      current.context.readable &&
-      pending(current.context.cardId) === null
+      current.context.readable
     );
+  }
+
+  function writable(current: Selection) {
+    return canWrite(current) && pending(current.context.cardId) === null;
   }
 
   function update(current: Selection) {
@@ -428,6 +436,8 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     status.hidden = !message;
     inspect.hidden = !uncertain;
     inspect.disabled = current.reading || !current.context.readable;
+    retryWrite.hidden = !uncertain || !current.recoverable || !current.context.editable;
+    retryWrite.disabled = !canWrite(current);
     retry.hidden = current.reading || current.entries !== undefined || uncertain;
     retry.disabled = !current.context.readable;
     for (const button of list.querySelectorAll<HTMLButtonElement>("button[data-attachment-read]")) {
@@ -525,18 +535,19 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     async function useFile(
       control: HTMLButtonElement,
       disposition: "attachment" | "inline",
-      use: (blob: Blob) => void | Promise<void>,
+      use: (blob: Blob, readSignal: AbortSignal) => void | Promise<void>,
     ) {
       if (control.disabled || rowSignal.aborted || !current.context.readable || current.reading)
         return;
       control.disabled = true;
       note.textContent = "";
+      const readSignal = AbortSignal.any([rowSignal, current.admission.signal]);
       try {
-        const blob = await readContent(options, entry, disposition, rowSignal);
-        if (rowSignal.aborted || !active(current) || !current.context.readable) return;
-        await use(blob);
+        const blob = await readContent(options, entry, disposition, readSignal);
+        readSignal.throwIfAborted();
+        await use(blob, readSignal);
       } catch (error) {
-        if (rowSignal.aborted) return;
+        if (readSignal.aborted) return;
         if (unavailable(error)) revoke(current);
         else
           note.textContent =
@@ -583,17 +594,14 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
           update(current);
           return;
         }
-        void useFile(preview, "inline", async (blob) => {
+        void useFile(preview, "inline", async (blob, readSignal) => {
           const attempt = new AbortController();
           const previewSignal = AbortSignal.any([rowSignal, attempt.signal]);
+          const cancel = () => attempt.abort();
+          readSignal.addEventListener("abort", cancel, { once: true });
           try {
             await showThumbnail(row, image, blob, 200, previewSignal);
-            previewSignal.throwIfAborted();
-            if (!active(current) || !current.context.readable) {
-              attempt.abort();
-              image.removeAttribute("src");
-              return;
-            }
+            readSignal.throwIfAborted();
             previewScope = attempt;
             image.hidden = false;
             preview.textContent = "Hide preview";
@@ -603,6 +611,8 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
             attempt.abort();
             image.removeAttribute("src");
             throw error;
+          } finally {
+            readSignal.removeEventListener("abort", cancel);
           }
         });
       });
@@ -630,9 +640,9 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     return row;
   }
 
-  async function readEntries(current: Selection) {
+  async function readEntries(cardId: string, readSignal: AbortSignal) {
     const entries: Attachment[] = [];
-    for await (const page of attachmentPages(options, current.context.cardId, current.signal)) {
+    for await (const page of attachmentPages(options, cardId, readSignal)) {
       entries.push(...page);
     }
     return entries;
@@ -641,6 +651,8 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
   async function load(current: Selection, inspectSaved = false) {
     const { cardId, etag, readable } = current.context;
     if (!active(current) || !readable || current.reading || writing.has(cardId)) return;
+    const readSignal = AbortSignal.any([current.signal, current.admission.signal]);
+    const priorMessage = current.message;
     const finish = inspectSaved ? beginInspect(cardId) : undefined;
     if (finish === null) {
       current.message = "A card change is still in progress. Inspect again after it settles.";
@@ -648,13 +660,16 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       return;
     }
     current.reading = true;
-    if (inspectSaved) current.message = "Inspecting attachments…";
-    else if (!current.entries) current.message = "Reading attachments…";
+    if (inspectSaved) {
+      current.recoverable = undefined;
+      current.message = "Inspecting attachments…";
+    } else if (!current.entries) current.message = "Reading attachments…";
     update(current);
     const raw = inspectSaved ? pending(cardId) : null;
     try {
       let savedCover: unknown;
       let advanced = false;
+      let original = false;
       const intent = raw ? readMutation(raw, cardId, boardId) : undefined;
       if (inspectSaved) {
         if (!intent || JSON.stringify(intent) !== raw) {
@@ -663,15 +678,18 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
         }
         if (intent.kind === "detach") {
           const board = await readWithSession(
-            () => api.getBoardAvailability(boardId, current.signal),
-            current.signal,
+            () => api.getBoardAvailability(boardId, readSignal),
+            readSignal,
           );
+          readSignal.throwIfAborted();
+          original = board.etag === intent.boardEtag;
           advanced = board.data.revision > (tagRevision(intent.boardEtag, boardId) ?? Infinity);
         }
         const { data, etag } = await readWithSession(
-          () => api.getCard(cardId, current.signal),
-          current.signal,
+          () => api.getCard(cardId, readSignal),
+          readSignal,
         );
+        readSignal.throwIfAborted();
         if (
           !("board_id" in data) ||
           data.board_id !== boardId ||
@@ -681,6 +699,7 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
         }
         savedCover = data.cover_attachment_id;
         if (intent.kind === "cover") {
+          original = etag === intent.cardEtag;
           const revision = tagRevision(etag, cardId);
           if (revision === undefined || !("revision" in data) || data.revision !== revision) {
             throw new ApiError("invalid_response");
@@ -688,8 +707,8 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
           advanced = revision > (tagRevision(intent.cardEtag, cardId) ?? Infinity);
         }
       }
-      const entries = await readEntries(current);
-      if (!active(current)) return;
+      const entries = await readEntries(cardId, readSignal);
+      readSignal.throwIfAborted();
       if (!inspectSaved && current.context.etag !== etag) return;
       const previous = current.entries;
       current.entries = entries;
@@ -700,16 +719,33 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
           intent?.kind === "detach"
             ? entries.every(({ id }) => id !== intent.id) && savedCover !== intent.id
             : intent?.kind === "cover" && savedCover === intent.cover;
+        const retryable =
+          raw &&
+          original &&
+          !matches &&
+          (intent?.kind === "detach"
+            ? entries.some(({ id, revision }) => id === intent.id && revision === intent.revision)
+            : intent?.kind === "cover" &&
+              (intent.cover === null ||
+                entries.some(({ id, previewable }) => id === intent.cover && previewable)));
+        if (retryable && raw === pending(cardId)) {
+          current.recoverable = raw;
+          current.awaitingRefresh = false;
+        }
         // A read at the original validator can race a write whose response was lost.
         current.message = !advanced
-          ? "The original version is still current. The attachment change could still arrive."
+          ? current.recoverable
+            ? "The change is still pending. Retry it with its original version."
+            : "The attachment change is still unresolved."
           : raw && clearPending(cardId, raw)
             ? matches
               ? "Saved attachments reflect the requested change."
               : "Saved attachments refreshed. Review them before making another change."
             : "The previous attachment change still needs inspection.";
-        current.awaitingRefresh = true;
-        onChange();
+        if (advanced) {
+          current.awaitingRefresh = true;
+          onChange();
+        }
       }
       if (
         !previous ||
@@ -723,6 +759,10 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       }
     } catch (error) {
       if (!active(current)) return;
+      if (readSignal.aborted) {
+        current.message = priorMessage;
+        return;
+      }
       if (unavailable(error)) revoke(current);
       else {
         clearRows();
@@ -735,19 +775,47 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       current.reading = false;
       finish?.();
       update(current);
-      if (active(current) && current.context.etag !== etag) void load(current);
+      if (
+        active(current) &&
+        (readSignal.aborted || current.context.etag !== etag) &&
+        current.inventoryEtag !== current.context.etag
+      )
+        void load(current);
     }
   }
 
   async function mutate(current: Selection, entry: Attachment, intent: Mutation) {
     if (!writable(current)) return;
-    const { cardId, etag } = current.context;
-    const boardEtag = intent.kind === "detach" ? getBoardEtag() : undefined;
-    if (intent.kind === "detach" && !boardEtag) {
+    if (intent.kind === "cover") {
+      const saved = { ...intent, cardEtag: current.context.etag };
+      await submit(current, saved, JSON.stringify(saved));
+      return;
+    }
+    const boardEtag = getBoardEtag();
+    if (!boardEtag) {
       current.message = "Refresh the board before detaching this attachment.";
       update(current);
       return;
     }
+    const saved = { ...intent, revision: entry.revision, boardEtag };
+    await submit(current, saved, JSON.stringify(saved));
+  }
+
+  async function retryMutation(current: Selection) {
+    const raw = current.recoverable;
+    const { cardId } = current.context;
+    if (!raw || !canWrite(current) || raw !== pending(cardId)) return;
+    const intent = readMutation(raw, cardId, boardId);
+    if (intent) await submit(current, intent, raw, true);
+  }
+
+  async function submit(
+    current: Selection,
+    intent: SavedMutation,
+    raw: string,
+    recovering = false,
+  ) {
+    const { cardId } = current.context;
     const finish = beginWrite(cardId);
     if (!finish) {
       current.message = "Another card change is in progress.";
@@ -755,24 +823,20 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       return;
     }
     writing.add(cardId);
+    current.recoverable = undefined;
     current.message = "Saving attachment change…";
     update(current);
-    const raw = JSON.stringify(
-      intent.kind === "detach"
-        ? { ...intent, revision: entry.revision, boardEtag }
-        : { ...intent, cardEtag: etag },
-    );
     try {
       const result = await submitOperation(
-        () => journal(cardId, raw),
+        () => (recovering ? pending(cardId) === raw : journal(cardId, raw)),
         async () => {
-          if (intent.kind === "detach" && boardEtag) {
-            await api.detachAttachment(entry.id, entry.revision, boardEtag);
-          } else if (intent.kind === "cover") {
-            const { data, etag: savedEtag } = await api.patchCard(cardId, etag, {
+          if (intent.kind === "detach") {
+            await api.detachAttachment(intent.id, intent.revision, intent.boardEtag);
+          } else {
+            const { data, etag: savedEtag } = await api.patchCard(cardId, intent.cardEtag, {
               cover_attachment_id: intent.cover,
             });
-            const submitted = tagRevision(etag, cardId);
+            const submitted = tagRevision(intent.cardEtag, cardId);
             const saved = tagRevision(savedEtag, cardId);
             if (
               !("id" in data) ||
@@ -792,7 +856,10 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
           }
         },
       );
-      if (result.kind === "confirmed" || result.kind === "stale" || result.kind === "refused") {
+      if (
+        result.kind === "confirmed" ||
+        (!recovering && (result.kind === "stale" || result.kind === "refused"))
+      ) {
         clearPending(cardId, raw);
       }
       const selected = selection;
@@ -809,21 +876,25 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
                 ? "Cover set."
                 : "Cover cleared.";
           if (intent.kind === "detach") {
-            selected.entries = selected.entries?.filter(({ id }) => id !== entry.id);
+            selected.entries = selected.entries?.filter(({ id }) => id !== intent.id);
             render(selected);
           }
           break;
         case "stale":
-          selected.message = "The card or board changed. Review the refreshed attachments.";
+          selected.message = recovering
+            ? "The card or board changed. Inspect the saved attachments again."
+            : "The card or board changed. Review the refreshed attachments.";
           break;
         case "refused":
-          selected.message = "The attachment change was refused.";
+          selected.message = recovering
+            ? "The retry was refused. Inspect the saved attachments again."
+            : "The attachment change was refused.";
           break;
         case "unknown":
           selected.message =
             "The attachment change could not be confirmed. Inspect the saved attachments.";
           if (intent.kind === "detach") {
-            selected.entries = selected.entries?.filter(({ id }) => id !== entry.id);
+            selected.entries = selected.entries?.filter(({ id }) => id !== intent.id);
             render(selected);
           }
           break;
@@ -844,6 +915,12 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     if (signal.aborted) return;
     const previous = selection;
     if (previous && context && previous.context.cardId === context.cardId) {
+      if (previous.context.readable && !context.readable) {
+        previous.admission.abort();
+        previous.recoverable = undefined;
+      } else if (!previous.context.readable && context.readable) {
+        previous.admission = new AbortController();
+      }
       previous.context = context;
       if (context.readable) previous.awaitingRefresh = false;
       update(previous);
@@ -860,11 +937,13 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
       context,
       lifetime: selectedLifetime,
       signal: AbortSignal.any([signal, selectedLifetime.signal]),
+      admission: new AbortController(),
       entries: undefined,
       inventoryEtag: undefined,
       reading: false,
       awaitingRefresh: false,
       message: "",
+      recoverable: undefined,
     };
     selection = current;
     if (context.attachmentCount === 0) {
@@ -885,6 +964,13 @@ export function mountAttachments(root: HTMLElement, options: AttachmentOptions) 
     "click",
     () => {
       if (selection) void load(selection, true);
+    },
+    { signal },
+  );
+  retryWrite.addEventListener(
+    "click",
+    () => {
+      if (selection) void retryMutation(selection);
     },
     { signal },
   );

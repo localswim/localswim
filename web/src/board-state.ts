@@ -55,7 +55,7 @@ export function createBoardState({
   let confirmationEpoch = 0;
   let confirmedEpoch = -1;
   let hadOutage = false;
-  let watchRecoveryRequested = false;
+  let watchRecovery: "idle" | "requested" | "deferred" = "idle";
   let explicitWriteFence = false;
 
   function publish() {
@@ -181,15 +181,16 @@ export function createBoardState({
       if (
         state === "ready" &&
         connection === "unavailable" &&
-        !watchRecoveryRequested &&
+        onWatchRecovery &&
+        watchRecovery === "idle" &&
         catalogReady &&
         catalogAvailability === "open" &&
         focusedAvailability === "open" &&
         confirmedEpoch === confirmationEpoch &&
         !signal.aborted
       ) {
-        watchRecoveryRequested = true;
-        onWatchRecovery?.();
+        watchRecovery = "requested";
+        onWatchRecovery();
       }
     },
   });
@@ -201,12 +202,18 @@ export function createBoardState({
       connection = state;
       if (state === "disconnected" || state === "unavailable") {
         hadOutage = true;
-        if (state === "unavailable" && !watchRecoveryRequested) {
+        if (state === "unavailable") {
           confirmationEpoch++;
-          updates.invalidate(hintedRevision, true);
+          if (watchRecovery === "requested") {
+            // A replacement watch also refused access. Its catalog-only snapshot can
+            // arrive immediately, so wait for a periodic or manual read before restarting.
+            watchRecovery = "deferred";
+          } else if (watchRecovery === "idle") {
+            updates.invalidate(hintedRevision, true);
+          }
         }
       } else if (state === "connected") {
-        watchRecoveryRequested = false;
+        watchRecovery = "idle";
         if (hadOutage) {
           hadOutage = false;
           confirmationEpoch++;
@@ -225,7 +232,7 @@ export function createBoardState({
     },
   };
 
-  function observeCatalog(view: WorkspaceView) {
+  function observeCatalog(view: WorkspaceView, periodic = false) {
     if (signal.aborted || view.status === "loading") return;
     const row = view.boards.find(({ id }) => id === boardId);
     const revision = row?.revision ?? null;
@@ -255,9 +262,16 @@ export function createBoardState({
       confirmedEpoch < 0;
     const needsConfirmation =
       catalogReady && !firstOpenObservation && (availabilityChanged || readinessChanged);
-    if (needsConfirmation) {
-      confirmationEpoch++;
-      if (catalogReady && catalogAvailability !== "open") watchRecoveryRequested = false;
+    if (needsConfirmation) confirmationEpoch++;
+
+    let retryConfirmation = false;
+    if (periodic && catalogReady && catalogAvailability === "open") {
+      const retryWatch = connection === "unavailable" && watchRecovery === "deferred";
+      if (retryWatch) watchRecovery = "idle";
+      retryConfirmation =
+        retryWatch ||
+        readiness === "error" ||
+        (readiness === "ready" && confirmedEpoch !== confirmationEpoch);
     }
     if (
       availabilityChanged ||
@@ -267,12 +281,12 @@ export function createBoardState({
     ) {
       publish();
     }
-    if (view.status === "ready") updates.invalidate(hintedRevision, needsConfirmation);
+    if (catalogReady) updates.invalidate(hintedRevision, needsConfirmation || retryConfirmation);
   }
 
   function retry() {
     if (!started || signal.aborted) return;
-    if (connection === "unavailable") watchRecoveryRequested = false;
+    if (connection === "unavailable" && watchRecovery === "deferred") watchRecovery = "idle";
     void updates.request().catch(() => {
       // The refresh controller reports the failed read and preserves the last confirmed view.
     });

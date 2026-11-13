@@ -1,5 +1,5 @@
 {
-  "revision": "0514-staff-r2",
+  "revision": "0514-staff-r3",
   "epic": 514,
   "board_id": "39b278e7-d1ac-4e5a-88fb-8eabf141dd4d",
   "goal": "Fresh TypeScript UI with V1 look and workflows and current V2 browser capabilities.",
@@ -11,7 +11,7 @@
   "limits": {
     "max_direct_agents": 16,
     "depth": 1,
-    "planned_peak_direct": 13,
+    "planned_peak_direct": 12,
     "compiler_lease_owner": "primary",
     "concurrent_go_commands": 1,
     "concurrent_node_checks": 2
@@ -23,19 +23,21 @@
         548
       ],
       "authors": 2,
-      "planned_direct_peak": 4,
+      "planned_direct_peak": 2,
       "largest_author_estimate_hours": 2.5,
       "visual_reviewer": {
         "name": "terra_medium_t01_visual",
         "model": "gpt-6.1-terra",
         "reasoning_effort": "medium"
       },
-      "check_runner": {
-        "name": "luna_light_t01_checks",
-        "model": "gpt-6-luna",
-        "reasoning_effort": "low"
-      },
-      "author_count": 2
+      "check_runner": null,
+      "author_count": 2,
+      "reviewers_at_turn_start": 0,
+      "reserved_reviewer_slots": 0,
+      "visual_dispatch": "Start the named Terra reviewer only after the rendered turn candidate is ready.",
+      "checks_owner": "primary; optional just-in-time Luna worker for a ready parallel verification packet",
+      "technical_reviewers": 1,
+      "planned_total_agents": 4
     },
     {
       "turn": 2,
@@ -44,19 +46,21 @@
         550
       ],
       "authors": 4,
-      "planned_direct_peak": 6,
+      "planned_direct_peak": 4,
       "largest_author_estimate_hours": 2.25,
       "visual_reviewer": {
         "name": "terra_medium_t02_visual",
         "model": "gpt-6.1-terra",
         "reasoning_effort": "medium"
       },
-      "check_runner": {
-        "name": "luna_light_t02_checks",
-        "model": "gpt-6-luna",
-        "reasoning_effort": "low"
-      },
-      "author_count": 4
+      "check_runner": null,
+      "author_count": 4,
+      "reviewers_at_turn_start": 0,
+      "reserved_reviewer_slots": 0,
+      "visual_dispatch": "Start the named Terra reviewer only after the rendered turn candidate is ready.",
+      "checks_owner": "primary; optional just-in-time Luna worker for a ready parallel verification packet",
+      "technical_reviewers": 2,
+      "planned_total_agents": 7
     },
     {
       "turn": 3,
@@ -66,19 +70,21 @@
         553
       ],
       "authors": 3,
-      "planned_direct_peak": 5,
+      "planned_direct_peak": 4,
       "largest_author_estimate_hours": 2.25,
       "visual_reviewer": {
         "name": "terra_medium_t03_visual",
         "model": "gpt-6.1-terra",
         "reasoning_effort": "medium"
       },
-      "check_runner": {
-        "name": "luna_light_t03_checks",
-        "model": "gpt-6-luna",
-        "reasoning_effort": "low"
-      },
-      "author_count": 3
+      "check_runner": null,
+      "author_count": 3,
+      "reviewers_at_turn_start": 0,
+      "reserved_reviewer_slots": 0,
+      "visual_dispatch": "Start the named Terra reviewer only after the rendered turn candidate is ready.",
+      "checks_owner": "primary; optional just-in-time Luna worker for a ready parallel verification packet",
+      "technical_reviewers": 3,
+      "planned_total_agents": 7
     },
     {
       "turn": 4,
@@ -87,19 +93,21 @@
         555
       ],
       "authors": 3,
-      "planned_direct_peak": 5,
+      "planned_direct_peak": 3,
       "largest_author_estimate_hours": 2.5,
       "visual_reviewer": {
         "name": "terra_medium_t04_visual",
         "model": "gpt-6.1-terra",
         "reasoning_effort": "medium"
       },
-      "check_runner": {
-        "name": "luna_light_t04_checks",
-        "model": "gpt-6-luna",
-        "reasoning_effort": "low"
-      },
-      "author_count": 3
+      "check_runner": null,
+      "author_count": 3,
+      "reviewers_at_turn_start": 0,
+      "reserved_reviewer_slots": 0,
+      "visual_dispatch": "Start the named Terra reviewer only after the rendered turn candidate is ready.",
+      "checks_owner": "primary; optional just-in-time Luna worker for a ready parallel verification packet",
+      "technical_reviewers": 2,
+      "planned_total_agents": 6
     },
     {
       "turn": 5,
@@ -117,19 +125,21 @@
         566
       ],
       "authors": 11,
-      "planned_direct_peak": 13,
+      "planned_direct_peak": 12,
       "largest_author_estimate_hours": 2.5,
       "visual_reviewer": {
         "name": "terra_medium_t05_visual",
         "model": "gpt-6.1-terra",
         "reasoning_effort": "medium"
       },
-      "check_runner": {
-        "name": "luna_light_t05_checks",
-        "model": "gpt-6-luna",
-        "reasoning_effort": "low"
-      },
-      "author_count": 11
+      "check_runner": null,
+      "author_count": 11,
+      "reviewers_at_turn_start": 0,
+      "reserved_reviewer_slots": 0,
+      "visual_dispatch": "Start the named Terra reviewer only after the rendered turn candidate is ready.",
+      "checks_owner": "primary; optional just-in-time Luna worker for a ready parallel verification packet",
+      "technical_reviewers": 11,
+      "planned_total_agents": 23
     },
     {
       "turn": 6,
@@ -143,19 +153,21 @@
         573
       ],
       "authors": 7,
-      "planned_direct_peak": 9,
+      "planned_direct_peak": 8,
       "largest_author_estimate_hours": 2.5,
       "visual_reviewer": {
         "name": "terra_medium_t06_visual",
         "model": "gpt-6.1-terra",
         "reasoning_effort": "medium"
       },
-      "check_runner": {
-        "name": "luna_light_t06_checks",
-        "model": "gpt-6-luna",
-        "reasoning_effort": "low"
-      },
-      "author_count": 7
+      "check_runner": null,
+      "author_count": 7,
+      "reviewers_at_turn_start": 0,
+      "reserved_reviewer_slots": 0,
+      "visual_dispatch": "Start the named Terra reviewer only after the rendered turn candidate is ready.",
+      "checks_owner": "primary; optional just-in-time Luna worker for a ready parallel verification packet",
+      "technical_reviewers": 7,
+      "planned_total_agents": 15
     },
     {
       "turn": 7,
@@ -166,19 +178,21 @@
         577
       ],
       "authors": 4,
-      "planned_direct_peak": 6,
+      "planned_direct_peak": 5,
       "largest_author_estimate_hours": 2.25,
       "visual_reviewer": {
         "name": "terra_medium_t07_visual",
         "model": "gpt-6.1-terra",
         "reasoning_effort": "medium"
       },
-      "check_runner": {
-        "name": "luna_light_t07_checks",
-        "model": "gpt-6-luna",
-        "reasoning_effort": "low"
-      },
-      "author_count": 4
+      "check_runner": null,
+      "author_count": 4,
+      "reviewers_at_turn_start": 0,
+      "reserved_reviewer_slots": 0,
+      "visual_dispatch": "Start the named Terra reviewer only after the rendered turn candidate is ready.",
+      "checks_owner": "primary; optional just-in-time Luna worker for a ready parallel verification packet",
+      "technical_reviewers": 4,
+      "planned_total_agents": 9
     },
     {
       "turn": 8,
@@ -187,19 +201,21 @@
         579
       ],
       "authors": 2,
-      "planned_direct_peak": 4,
+      "planned_direct_peak": 3,
       "largest_author_estimate_hours": 2.25,
       "visual_reviewer": {
         "name": "terra_medium_t08_visual",
         "model": "gpt-6.1-terra",
         "reasoning_effort": "medium"
       },
-      "check_runner": {
-        "name": "luna_light_t08_checks",
-        "model": "gpt-6-luna",
-        "reasoning_effort": "low"
-      },
-      "author_count": 2
+      "check_runner": null,
+      "author_count": 2,
+      "reviewers_at_turn_start": 0,
+      "reserved_reviewer_slots": 0,
+      "visual_dispatch": "Start the named Terra reviewer only after the rendered turn candidate is ready.",
+      "checks_owner": "primary; optional just-in-time Luna worker for a ready parallel verification packet",
+      "technical_reviewers": 2,
+      "planned_total_agents": 5
     },
     {
       "turn": 9,
@@ -207,19 +223,21 @@
         580
       ],
       "authors": 1,
-      "planned_direct_peak": 3,
+      "planned_direct_peak": 2,
       "largest_author_estimate_hours": 2.5,
       "visual_reviewer": {
         "name": "terra_medium_t09_visual",
         "model": "gpt-6.1-terra",
         "reasoning_effort": "medium"
       },
-      "check_runner": {
-        "name": "luna_light_t09_checks",
-        "model": "gpt-6-luna",
-        "reasoning_effort": "low"
-      },
-      "author_count": 1
+      "check_runner": null,
+      "author_count": 1,
+      "reviewers_at_turn_start": 0,
+      "reserved_reviewer_slots": 0,
+      "visual_dispatch": "Start the named Terra reviewer only after the rendered turn candidate is ready.",
+      "checks_owner": "primary; optional just-in-time Luna worker for a ready parallel verification packet",
+      "technical_reviewers": 1,
+      "planned_total_agents": 3
     }
   ],
   "assignments": [
@@ -300,7 +318,8 @@
       "parallel_contract": "Agree entry module, generated output paths, exported mount shape, HTML anchors, asset URLs and CSP before parallel edits. Shell lead owns index.html; assets author supplies a bounded integration patch.",
       "integration_owner": "sol_medium_0548_shell",
       "integration_branch": "codex/0514-0548",
-      "parallel_fixture": "Lead publishes entry/output paths, exported mount signature and minimal typed entry fixture; assets author can verify embedding with the fixture before final shell merge."
+      "parallel_fixture": "Lead publishes entry/output paths, exported mount signature and minimal typed entry fixture; assets author can verify embedding with the fixture before final shell merge.",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 2,
@@ -371,7 +390,8 @@
       "parallel_contract": "Agree class/attribute names, card slots, scroll ownership, focus states and supported widths. CSS cannot filter or reorder records. Final visual reviewer is a different Terra agent.",
       "integration_owner": "sol_medium_0549_board",
       "integration_branch": "codex/0514-0549",
-      "parallel_fixture": "Lead publishes structural lane/card DOM fixture and class contract with long/empty/dense examples; CSS author works against that fixture."
+      "parallel_fixture": "Lead publishes structural lane/card DOM fixture and class contract with long/empty/dense examples; CSS author works against that fixture.",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 2,
@@ -442,7 +462,8 @@
       "parallel_contract": "Agree immutable catalog/view snapshot, explicit observation time, callback intents and disposal shape. State lead alone owns subscriptions, timers, capabilities and retry decisions.",
       "integration_owner": "sol_medium_0550_attention",
       "integration_branch": "codex/0514-0550",
-      "parallel_fixture": "Lead publishes immutable catalog/view-model type plus zero/active/unavailable fixtures and navigation intent callbacks; render author uses a test stub."
+      "parallel_fixture": "Lead publishes immutable catalog/view-model type plus zero/active/unavailable fixtures and navigation intent callbacks; render author uses a test stub.",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 3,
@@ -491,7 +512,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0551_drawer",
-      "integration_branch": "codex/0514-0551"
+      "integration_branch": "codex/0514-0551",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 3,
@@ -539,7 +561,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0552_live_state",
-      "integration_branch": "codex/0514-0552"
+      "integration_branch": "codex/0514-0552",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 3,
@@ -596,7 +619,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0553_pins",
-      "integration_branch": "codex/0514-0553"
+      "integration_branch": "codex/0514-0553",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 4,
@@ -644,7 +668,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0554_navigation",
-      "integration_branch": "codex/0514-0554"
+      "integration_branch": "codex/0514-0554",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 4,
@@ -716,7 +741,8 @@
       "parallel_contract": "Agree resource keys, exact submitted text, operation-state union and submit/inspect/dismiss callbacks. Core is the sole persistence and recovery authority; editor never implements a second retry path.",
       "integration_owner": "sol_medium_0555_text_drafts",
       "integration_branch": "codex/0514-0555",
-      "parallel_fixture": "Lead publishes operation-state union, submit/inspect/dismiss interface and exact-text vectors; editor author uses a test-only fake operation controller."
+      "parallel_fixture": "Lead publishes operation-state union, submit/inspect/dismiss interface and exact-text vectors; editor author uses a test-only fake operation controller.",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 5,
@@ -766,7 +792,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0556_cache",
-      "integration_branch": "codex/0514-0556"
+      "integration_branch": "codex/0514-0556",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 5,
@@ -816,7 +843,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0557_create",
-      "integration_branch": "codex/0514-0557"
+      "integration_branch": "codex/0514-0557",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 5,
@@ -865,7 +893,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0558_move",
-      "integration_branch": "codex/0514-0558"
+      "integration_branch": "codex/0514-0558",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 5,
@@ -912,7 +941,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0559_assignment",
-      "integration_branch": "codex/0514-0559"
+      "integration_branch": "codex/0514-0559",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 5,
@@ -961,7 +991,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0560_comments",
-      "integration_branch": "codex/0514-0560"
+      "integration_branch": "codex/0514-0560",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 5,
@@ -1009,7 +1040,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0561_relationships",
-      "integration_branch": "codex/0514-0561"
+      "integration_branch": "codex/0514-0561",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 5,
@@ -1062,7 +1094,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0562_search_archive",
-      "integration_branch": "codex/0514-0562"
+      "integration_branch": "codex/0514-0562",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 5,
@@ -1110,7 +1143,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0563_attachment_read",
-      "integration_branch": "codex/0514-0563"
+      "integration_branch": "codex/0514-0563",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 5,
@@ -1159,7 +1193,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0564_publishing",
-      "integration_branch": "codex/0514-0564"
+      "integration_branch": "codex/0514-0564",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 5,
@@ -1209,7 +1244,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0565_board_lifecycle",
-      "integration_branch": "codex/0514-0565"
+      "integration_branch": "codex/0514-0565",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 5,
@@ -1257,7 +1293,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0566_service_status",
-      "integration_branch": "codex/0514-0566"
+      "integration_branch": "codex/0514-0566",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 6,
@@ -1307,7 +1344,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0567_seed_links",
-      "integration_branch": "codex/0514-0567"
+      "integration_branch": "codex/0514-0567",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 6,
@@ -1356,7 +1394,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0568_approve",
-      "integration_branch": "codex/0514-0568"
+      "integration_branch": "codex/0514-0568",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 6,
@@ -1404,7 +1443,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0569_upload",
-      "integration_branch": "codex/0514-0569"
+      "integration_branch": "codex/0514-0569",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 6,
@@ -1453,7 +1493,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0570_batch_priority",
-      "integration_branch": "codex/0514-0570"
+      "integration_branch": "codex/0514-0570",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 6,
@@ -1501,7 +1542,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0571_ticket_order",
-      "integration_branch": "codex/0514-0571"
+      "integration_branch": "codex/0514-0571",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 6,
@@ -1549,7 +1591,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0572_backup_capture",
-      "integration_branch": "codex/0514-0572"
+      "integration_branch": "codex/0514-0572",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 6,
@@ -1598,7 +1641,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0573_activation",
-      "integration_branch": "codex/0514-0573"
+      "integration_branch": "codex/0514-0573",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 7,
@@ -1645,7 +1689,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0574_bulk_approve",
-      "integration_branch": "codex/0514-0574"
+      "integration_branch": "codex/0514-0574",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 7,
@@ -1694,7 +1739,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0575_upload_recovery",
-      "integration_branch": "codex/0514-0575"
+      "integration_branch": "codex/0514-0575",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 7,
@@ -1741,7 +1787,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0576_restore",
-      "integration_branch": "codex/0514-0576"
+      "integration_branch": "codex/0514-0576",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 7,
@@ -1789,7 +1836,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0577_publish_backup",
-      "integration_branch": "codex/0514-0577"
+      "integration_branch": "codex/0514-0577",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 8,
@@ -1840,7 +1888,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0578_create_files",
-      "integration_branch": "codex/0514-0578"
+      "integration_branch": "codex/0514-0578",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 8,
@@ -1888,7 +1937,8 @@
         }
       ],
       "accountable_lead": "sol_medium_0579_lane_settings",
-      "integration_branch": "codex/0514-0579"
+      "integration_branch": "codex/0514-0579",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     },
     {
       "turn": 9,
@@ -1955,7 +2005,8 @@
         }
       ],
       "accountable_lead": "sol_high_0580_qualification",
-      "integration_branch": "codex/0514-0580"
+      "integration_branch": "codex/0514-0580",
+      "review_spawn_condition": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result."
     }
   ],
   "rolling_window_turns": [
@@ -1985,15 +2036,18 @@
     "rule": "Feature authors use isolated worktrees. Primary integrates shared-file edits serially and validates the combined candidate."
   },
   "execution_rules": [
+    "Before any story work, verify prerequisite acceptance and move the story into In Progress.",
+    "Independent source review, required combined checks, browser verification and primary verification precede RFR.",
     "Use Standard speed, at most 16 direct active subagents and depth one.",
-    "Activate assignments only for authorized work. Move each story In Progress before work; verify prerequisite acceptance first.",
-    "Launch eligible authors first. Start each fresh independent reviewer as author work becomes ready; both roles count against the same ceiling.",
-    "Primary owns the Go compiler queue and grants one compiler/test lease at a time. Limit independent Node/TypeScript checks to two concurrent jobs.",
-    "Use one browser operator at a time. Terra reviews the integrated visible state while the prescribed check runner validates the same candidate.",
-    "Independent source review, required combined checks, browser verification and parent verification precede RFR. Owner demos run at turn end after technical handoff. Terry owns Completed.",
-    "Record actual first-author start through last development/review finish; record owner waiting separately.",
-    "Refresh the remaining first three execution turns before each handoff. Keep unfinished work and actual readiness visible.",
-    "Multi-author stories retain one accountable lead and one fresh reviewer. Review the combined result and integration diff; coauthors never review their own story."
+    "Launch ready author packets at turn opening; defer contract-dependent coauthors until their fixture is ready. Launch zero reviewers at turn opening.",
+    "Authors submit their packets and exit on completion. Primary assembles a reviewable result from the saved worktrees.",
+    "Start the named fresh technical reviewer only when the story authors have exited and the result is ready.",
+    "Start the named Terra visual reviewer when a rendered turn candidate is ready. Keep all nine planned Terra passes because all current leads are Sol.",
+    "Primary runs prescribed checks by default and can dispatch a Luna worker only to a ready packet that enables useful parallel work.",
+    "One Go build/vet/test lease and one browser operator remain in force; at most two independent Node/TypeScript checks run concurrently.",
+    "Completed technical work reaches RFR after required verification. Owner demos run at turn end; Terry controls Completed.",
+    "Reviewers with findings exit; correction authors and re-reviewers start when actual work is ready.",
+    "Refresh remaining first-three-turn staffing and readiness at each handoff."
   ],
   "estimated_hours": 69.5,
   "largest_story_hours": 2.5,
@@ -2002,9 +2056,9 @@
     "status": "passed",
     "model": "gpt-6.1-sol",
     "reasoning_effort": "high",
-    "scope": "Parallel packet boundaries, distinct worktrees, fixtures, saving arithmetic and resource caps."
+    "scope": "On-demand dispatch, sub-turn lifespan, preserved verification gates, Terra coverage and capacity math."
   },
-  "supersedes": "0514-staff-r1",
+  "supersedes": "0514-staff-r2",
   "objective": "Reduce cumulative T1-T9 elapsed time through substantive parallel authoring with explicit net coordination costs.",
   "parallel_authoring": {
     "stories": [
@@ -2061,8 +2115,38 @@
       "T3 has three tied maxima; accelerating one leaves the turn unchanged.",
       "T5 and T6 single-story splits are capped at 15 minutes by the next-longest job and add coupling or slot pressure.",
       "T7 has tied recovery jobs; T8 has one coupled lane-settings authority and only a limited off-critical-path opportunity.",
-      "T9 already has Terra visual review, Luna prescribed checks and primary integration. No new savings are assigned to relabeling those existing duties."
+      "T9 already has Terra visual review, primary-owned prescribed checks and primary integration. No new savings are assigned to relabeling those existing duties."
     ],
     "runtime_policy": "The primary can assign additional useful author packets within the approved scope and current cap when a concrete independent product materially shortens remaining elapsed time. Otherwise keep one accountable author."
-  }
+  },
+  "subagent_lifecycle": {
+    "lifetime": "One ready bounded packet, normally shorter than the turn.",
+    "author_start": "Dispatch only when story prerequisites and the packet interface/fixture are ready.",
+    "finish": "Save the result and exit promptly after the assigned packet finishes.",
+    "followup": "Start or resume a worker for a concrete join, correction, verification or review packet when it becomes ready.",
+    "join": "Primary joins completed author packets; it may resume the designated lead for a bounded integration task.",
+    "visual": "Terra performs a ready bounded visual pass and exits; dispatch another pass when later rendered work is ready."
+  },
+  "review_dispatch": {
+    "reserved_reviewer_slots": 0,
+    "reviewers_started_at_turn_open": 0,
+    "technical_review_start": "By default, all assigned story authors have finished and exited and the primary has assembled a reviewable result.",
+    "early_review_exception": "Launch early only for a completed stable packet whose bounded review unblocks current work. Retire the reviewer when that ready task finishes; reserve no slot in advance.",
+    "visual_review_start": "A rendered candidate covering the turn is ready for a bounded inspection.",
+    "visual_policy": "Keep a Terra visual pass every turn. A Terra-led visual task can absorb routine visual inspection; independent non-author logic review still applies.",
+    "current_terra_lead_turns": [],
+    "corrections": "Reviewers report findings and exit. Start or resume authors when a concrete correction is ready; obtain a fresh re-review after material changes.",
+    "idle_policy": "No worker starts just to wait for authors, a build, browser control or a future review packet."
+  },
+  "check_dispatch": {
+    "default_owner": "primary",
+    "default_check_subagents": 0,
+    "optional_worker": {
+      "model": "gpt-6-luna",
+      "reasoning_effort": "low"
+    },
+    "optional_condition": "A ready, prescribed verification packet can run while the primary performs other useful work.",
+    "compiler_lease": "Primary retains the one-at-a-time Go build/vet/test lease."
+  },
+  "planned_total_agents": 79
 }

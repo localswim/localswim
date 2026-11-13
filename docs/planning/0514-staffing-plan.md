@@ -1,35 +1,39 @@
-# #0514 staffing plan r2
+# #0514 staffing plan r3
 
-Independent review passed. Revision 0514-staff-r2 supersedes r1. It covers all 33 stories #0548-#0580 across their unchanged earliest T1-T9 dependency turns. The objective is cumulative elapsed-time reduction.
+Independent review passed. Revision 0514-staff-r3 supersedes r2. The 33 stories, T1-T9 order, four two-author splits and named independent technical reviewers are retained. Reviewer names are planned assignments; their processes begin only when review work is ready.
 
-**Useful parallel authoring**
+**Dispatch on ready work**
 
-Four stories use two authors. Each retains one accountable lead, exclusive author files and one fresh independent reviewer. The work begins with a short lead-owned interface agreement, then independent author packets run together. The lead combines the packets before final review and the primary integrates the accepted story.
+Each turn starts its ready author packets and zero reviewers. Coauthors dispatch when their agreed interface and fixture are ready. Authors finish their packets, save the handoff and exit. The primary assembles a reviewable result, then launches its fresh technical reviewer in released capacity. A reviewer reports findings and exits; correction and re-review workers are started when their work is ready.
 
-| Story | Lead packet | Second author packet | Contract |
-|---|---|---|---|
-| #548 | Sol Medium 0548 Shell<br>Fresh typed shell, route states and in-memory session/bootstrap integration. | Sol Medium 0548 Assets<br>Deterministic TypeScript build, generated asset layout and Go embedding/routes. | Agree entry module, generated output paths, exported mount shape, HTML anchors, asset URLs and CSP before parallel edits. Shell lead owns index.html; assets author supplies a bounded integration patch. |
-| #549 | Sol Medium 0549 Board<br>Confirmed lane/card data, rendering structure, filter behavior and Completed membership. | Terra Medium 0549 Style<br>V1 density, lane/card dimensions, independent scrolling and accepted contrast styling against structural fixtures. | Agree class/attribute names, card slots, scroll ownership, focus states and supported widths. CSS cannot filter or reorder records. Final visual reviewer is a different Terra agent. |
-| #550 | Sol Medium 0550 Attention<br>One workspace stream, catalog reads, cancellation, retry and authoritative state. | Sol Medium 0550 Render<br>Pure attention rendering, fixed count columns, selected/unavailable states and navigation intents. | Agree immutable catalog/view snapshot, explicit observation time, callback intents and disposal shape. State lead alone owns subscriptions, timers, capabilities and retry decisions. |
-| #555 | Sol Medium 0555 Text Drafts<br>Captured identity/validator, one-write state machine, draft persistence, readback matching and uncertainty fences. | Sol Medium 0555 Editor<br>Title/description controls, composition, exact-text adapter, pending visuals and focus using the agreed operation interface. | Agree resource keys, exact submitted text, operation-state union and submit/inspect/dismiss callbacks. Core is the sole persistence and recovery authority; editor never implements a second retry path. |
+Keep Terra as the visual reviewer in every turn. Each Terra pass starts once a rendered candidate is ready, with browser control explicitly handed over. No current turn has a Terra lead, so all nine passes are scheduled. A Terra-led visual task may cover routine visual inspection while retaining independent non-author logic review.
 
-**Expected effect on T1-T9**
+The primary runs standard checks by default. A Luna / Light worker is optional when a ready prescribed check packet can usefully run in parallel with primary work. There is no automatic check-runner assignment.
 
-| Turn | Baseline largest story | Estimated net turn saving |
-|---|---:|---:|
-| T1 | 2.5 h | 15-30 min |
-| T2 | 2.25 h | 20-35 min combined |
-| T4 | 2.5 h | 10-20 min |
+**Sub-turn worker lifespan**
 
-The provisional cumulative saving is 45-85 minutes, after estimated additional contract, integration and review coordination. The 21.5-hour author-only barrier baseline becomes approximately 20.08-20.75 hours on that sizing model. Common verification, review and owner waiting remain outside that baseline. Nine turns remains the dependency minimum.
+Every subagent owns one ready bounded packet and exits when it finishes. A named lead is an accountability assignment, not a reason to remain active while another packet runs. The primary joins completed packets or resumes the lead for a concrete integration step. Review findings trigger a correction packet and later re-review. Terra performs each ready visual pass and exits; later rendered changes can trigger another pass.
 
-T2 is a paired optimization. Its elapsed branch is the slower of #0549 and #0550, followed by their shared join. With a 15-minute joint overhead, that slower completed story must take 85-100 minutes for the modeled gain. Count the turn saving once.
+**Per-turn staffing**
 
-The estimates are unmeasured. Record interface time, author start/end, integration, reviewer corrections and resource waiting. Extra coupling or a review cycle can reduce the gain to zero. Keep the first two-author runs as evidence for subsequent allocation decisions.
+| Turn | Author packets | Technical reviewers, later | Terra passes, later | Automatic check workers | Total planned | Planned peak active |
+|---|---:|---:|---:|---:|---:|---:|
+| T1 | 2 | 1 | 1 | 0 | 4 | 2 |
+| T2 | 4 | 2 | 1 | 0 | 7 | 4 |
+| T3 | 3 | 3 | 1 | 0 | 7 | 4 |
+| T4 | 3 | 2 | 1 | 0 | 6 | 3 |
+| T5 | 11 | 11 | 1 | 0 | 23 | 12 |
+| T6 | 7 | 7 | 1 | 0 | 15 | 8 |
+| T7 | 4 | 4 | 1 | 0 | 9 | 5 |
+| T8 | 2 | 2 | 1 | 0 | 5 | 3 |
+| T9 | 1 | 1 | 1 | 0 | 3 | 2 |
+| Total | 37 | 33 | 9 | 0 | 79 | 12 maximum |
 
-**Full roster**
+All counts exclude the primary. Reviewers replace finished authors, so the total assigned through a turn is larger than concurrent staffing. The peak allows useful overlap between technical review and a ready Terra pass. Optional verification or correction work consumes actual free capacity under the 16-direct-worker ceiling. No capacity is reserved for idle workers.
 
-| Turn | Story | Accountable lead | Coauthor | Independent reviewer | Prerequisites |
+**Full technical roster**
+
+| Turn | Story | Lead author | Coauthor | Fresh technical reviewer | Prerequisites |
 |---|---|---|---|---|---|
 | T1 | #548 Open the compiled TypeScript shell | Sol Medium 0548 Shell | Sol Medium 0548 Assets | Sol High 0548 Review | Epic kickoff |
 | T2 | #549 Scan the familiar board | Sol Medium 0549 Board | Terra Medium 0549 Style | Sol Medium 0549 Review | #548 |
@@ -65,36 +69,33 @@ The estimates are unmeasured. Record interface time, author start/end, integrati
 | T8 | #579 Maintain lane configuration | Sol Medium 0579 Lane Settings |  | Sol High 0579 Review | #555, #574 |
 | T9 | #580 Qualify the complete candidate for handoff | Sol High 0580 Qualification |  | Sol High 0580 Review | #556, #578, #579, #570, #571, #576, #577, #565, #573; #0512 completed |
 
-**Turn capacity**
+**Visual roster**
 
-| Turn | Stories | Authors | Planned direct peak including support |
-|---|---|---:|---:|
-| T1 | #548 | 2 | 4 |
-| T2 | #549, #550 | 4 | 6 |
-| T3 | #551, #552, #553 | 3 | 5 |
-| T4 | #554, #555 | 3 | 5 |
-| T5 | #556, #557, #558, #559, #560, #561, #562, #563, #564, #565, #566 | 11 | 13 |
-| T6 | #567, #568, #569, #570, #571, #572, #573 | 7 | 9 |
-| T7 | #574, #575, #576, #577 | 4 | 6 |
-| T8 | #578, #579 | 2 | 4 |
-| T9 | #580 | 1 | 3 |
+| Turn | Terra reviewer | Starts when |
+|---|---|---|
+| T1 | Terra Medium T01 Visual | Rendered candidate ready; browser control available |
+| T2 | Terra Medium T02 Visual | Rendered candidate ready; browser control available |
+| T3 | Terra Medium T03 Visual | Rendered candidate ready; browser control available |
+| T4 | Terra Medium T04 Visual | Rendered candidate ready; browser control available |
+| T5 | Terra Medium T05 Visual | Rendered candidate ready; browser control available |
+| T6 | Terra Medium T06 Visual | Rendered candidate ready; browser control available |
+| T7 | Terra Medium T07 Visual | Rendered candidate ready; browser control available |
+| T8 | Terra Medium T08 Visual | Rendered candidate ready; browser control available |
+| T9 | Terra Medium T09 Visual | Rendered candidate ready; browser control available |
 
-Peak remains 13 direct workers plus the primary in T5. The ceiling is 16 direct workers at depth one, leaving three slots for correction or ready review. Reviewers replace finished authors as inputs become ready; their slots count toward the same ceiling. Support workers join when useful work exists.
+**Ownership and verification**
 
-**Shared resources and review**
+- The primary is Sol / High and owns shared integration, the compiler queue and final verification.
+- Author packets retain their separate worktree branches and exclusive files listed below. Shared entrypoint, types, asset and package changes are integrated serially by the primary.
+- One Go build/vet/test job runs at a time. Independent Node checks may use two slots. One operator controls the browser.
+- Before story work starts, verify that its prerequisites meet the owner execution gate and move the story to In Progress.
+- Independent source review, required combined checks, browser verification and primary verification precede RFR. Technical reviewers assess the combined result. Sol / High remains assigned to authentication, concurrency and recovery review. The Terra author on #0549 is separate from its final visual reviewer.
+- Cards enter RFR when technical work and review finish. Owner demos run at the turn boundary.
+- An early reviewer may start for a stable completed packet when that bounded review unblocks current work. The reviewer exits after that task; no slot is reserved ahead of time.
 
-- The primary is Sol / High and owns the integration worktree, shared entrypoint/types, package locks, asset integration and final evidence.
-- All author packets have distinct worktree branches in the roster. The lead supplies the agreed fixtures or stubs before parallel implementation begins. The listed file owner is the only author editing that file within the story; shared integration patches pass through the primary.
-- One Go build/vet/test lease is granted at a time. At most two independent Node/TypeScript checks run concurrently.
-- One browser operator acts at a time. A distinct Terra / Medium worker reviews the integrated visual state. The Terra CSS author on #0549 is separate from that reviewer.
-- A Luna / Light worker runs prescribed combined checks. This existing support role is not counted as a new author saving.
-- Fresh reviewers inspect every author packet and the combined result. Recovery, concurrency and authentication review uses Sol / High.
-- Technically complete stories move to RFR after required verification. Owner demos run at turn end; Terry controls Completed.
-- Additional author packets are permitted when they have an independent product and a material effect on remaining elapsed time. The lead can collapse a split when coordination consumes its value.
+**Author packet boundaries**
 
-**File ownership**
-
-| Story | Worker | Worktree branch | Exclusive author files |
+| Story | Worker | Worktree | Files |
 |---|---|---|---|
 | #548 | Sol Medium 0548 Shell | codex/0514-0548-shell | web/src/main.ts; web/src/model.ts; web/index.html |
 | #548 | Sol Medium 0548 Assets | codex/0514-0548-assets | web/package.json; package lock if required; web/tsconfig.json; web/assets.go; internal/v2/browser.go |
@@ -134,29 +135,37 @@ Peak remains 13 direct workers plus the primary in T5. The ceiling is 16 direct 
 | #579 | Sol Medium 0579 Lane Settings | codex/0514-0579-lane-settings | web/src/lane-settings.ts |
 | #580 | Sol High 0580 Qualification | codex/0514-0580-qualification | web tests and candidate verification report; web/assets.go; web/index.html; replacement capability ledger |
 
-**Parallel-start fixtures**
+**Four useful two-author splits**
 
-- #548: Lead publishes entry/output paths, exported mount signature and minimal typed entry fixture; assets author can verify embedding with the fixture before final shell merge.
-- #549: Lead publishes structural lane/card DOM fixture and class contract with long/empty/dense examples; CSS author works against that fixture.
-- #550: Lead publishes immutable catalog/view-model type plus zero/active/unavailable fixtures and navigation intent callbacks; render author uses a test stub.
-- #555: Lead publishes operation-state union, submit/inspect/dismiss interface and exact-text vectors; editor author uses a test-only fake operation controller.
+**#548**
+Agree entry module, generated output paths, exported mount shape, HTML anchors, asset URLs and CSP before parallel edits. Shell lead owns index.html; assets author supplies a bounded integration patch.
+Lead publishes entry/output paths, exported mount signature and minimal typed entry fixture; assets author can verify embedding with the fixture before final shell merge.
+
+**#549**
+Agree class/attribute names, card slots, scroll ownership, focus states and supported widths. CSS cannot filter or reorder records. Final visual reviewer is a different Terra agent.
+Lead publishes structural lane/card DOM fixture and class contract with long/empty/dense examples; CSS author works against that fixture.
+
+**#550**
+Agree immutable catalog/view snapshot, explicit observation time, callback intents and disposal shape. State lead alone owns subscriptions, timers, capabilities and retry decisions.
+Lead publishes immutable catalog/view-model type plus zero/active/unavailable fixtures and navigation intent callbacks; render author uses a test stub.
+
+**#555**
+Agree resource keys, exact submitted text, operation-state union and submit/inspect/dismiss callbacks. Core is the sole persistence and recovery authority; editor never implements a second retry path.
+Lead publishes operation-state union, submit/inspect/dismiss interface and exact-text vectors; editor author uses a test-only fake operation controller.
 
 **Current rolling three-turn window**
 
-- T1: #0548 has shell and asset authors plus Sol High 0548 Review; it is dependency-ready after epic kickoff.
-- T2: #0549 has renderer and CSS authors, #0550 has state and renderer authors; start after #0548 acceptance. Reviewers remain separate and named above.
-- T3: #0551 follows #0549; #0552 follows #0549/#0550; #0553 follows #0550 and the completed #0512 contrast work. Each remains a single-author story.
-- Refresh the remaining first three turns at every execution handoff, preserving carryover, actual acceptance and updated worker allocation.
+- T1 starts both #0548 authors. Once both exit and the candidate is assembled, start Sol High 0548 Review and the ready Terra visual pass.
+- T2 starts the two #0549 authors and two #0550 authors after #0548 acceptance. Launch each story reviewer after its author packets finish; launch Terra after the rendered combined candidate is ready.
+- T3 starts the three single authors when their linked prerequisites are accepted. #0553 also uses the already-Completed #0512 contrast requirement. Spawn reviewers only for finished stories, then the ready Terra visual pass.
+- Rebase this window after each execution handoff, retaining unfinished work and actual prerequisite status.
 
-**Why other stories remain single-author**
+**Savings model and consultation**
 
-- T3 has three tied maxima; accelerating one leaves the turn unchanged.
-- T5 and T6 single-story splits are capped at 15 minutes by the next-longest job and add coupling or slot pressure.
-- T7 has tied recovery jobs; T8 has one coupled lane-settings authority and only a limited off-critical-path opportunity.
-- T9 already has Terra visual review, Luna prescribed checks and primary integration. No new savings are assigned to relabeling those existing duties.
+The four two-author splits retain the r2 provisional target of 45-85 minutes saved across T1-T9 after estimated extra coordination. T2 savings are counted once across both stories. The model remains unmeasured and includes a zero-gain sensitivity case.
 
-**Scope and evidence**
+Original story sizing totals 69.5 hours. The original author-only turn barrier was 21.5 hours, while the weighted dependency path was 20.5 hours. The nine-turn graph depth is a minimum, not a promised elapsed duration. Actual author, merge, review, resource-wait and owner-wait times are recorded separately.
 
-Story sizes remain 1.5-2.5 hours and total 69.5 hours of original implementation/focused-check sizing. Parallel authoring changes staffing and predicted elapsed time, not the story scope, numbering, dependency graph or approval gates.
+This dispatch revision removes nine automatic check-runner assignments, reducing total planned agents from 88 to 79. It preserves all nine Terra passes and all 33 technical reviews. No runtime saving is claimed merely from reducing that headcount.
 
-FGA PM’s r67 plan and T04 parallel-work precedent remain advisory input. The two independent local analyses informed this revision. Implementation has not started.
+FGA PM’s r67 plan remains advisory input. The current roster retains rolling review, isolated worktrees and one integration owner; local execution decisions remain with Terry and this primary.

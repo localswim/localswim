@@ -255,8 +255,10 @@ export function mount(root: HTMLElement): () => void {
             confirmedText = saved;
             drawer?.showConfirmedText(saved);
           }
-          boardState?.retry();
-          drawer?.refresh();
+          if (pageActive) {
+            boardState?.retry();
+            drawer?.refresh();
+          }
         },
       },
     );

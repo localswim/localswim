@@ -541,6 +541,7 @@ export function mountCardView(
     refreshRestored() {
       if (!selection) return;
       selection.restored = true;
+      selection.read?.abort();
       refresh();
     },
     suspendRead() {

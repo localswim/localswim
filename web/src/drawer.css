@@ -170,10 +170,19 @@
 }
 
 @media (max-width: 750px) {
+  :root:has(.card-drawer:not([hidden])) {
+    --card-drawer-height: 64dvh;
+    scroll-padding-block-end: calc(var(--card-drawer-height) + 0.75rem);
+  }
+
+  #main:has(.card-drawer:not([hidden])) #workspace-layout {
+    padding-block-end: var(--card-drawer-height);
+  }
+
   .card-drawer {
     inset-block-start: auto;
     inline-size: min(35rem, 100%);
-    block-size: 64dvh;
+    block-size: var(--card-drawer-height);
     border-block-start: 1px solid var(--board-view-lane-border);
   }
 }

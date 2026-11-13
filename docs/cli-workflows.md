@@ -15,10 +15,11 @@ API paths below omit the common prefix. Commands are command families; append
 | --- | --- |
 | `board list`, `workspace info` | `GET /boards` and `GET /workspace` respectively; follow collection cursors as required. |
 | `board get` | `GET /boards/{id}`, with `view=lanes` for the lane/card view. |
-| `card list`, `card search`, `card triage-order` | `GET /cards?board_id={id}` with the selected filters and ordering. |
+| `card list` | `GET /cards?board_id={id}` with the selected filters. |
+| `card search`, `card triage-order` | If a lane is supplied, first `GET /lanes/{lane_id}` to validate its board membership. Then `GET /cards?board_id={id}` with the selected search filters and ordering. |
 | `card get` | Resolve a ticket through `GET /boards/{id}?view=ticket&ticket=N` when needed, then `GET /cards/{card_id}`. |
 | `card inspect` | `GET /boards/{id}?view=ticket&ticket=N`, optionally with `include_prose=true`. A UUID selector is resolved to its ticket first. The response contains the focused card, relationships and hierarchy; activity is a separate workflow. |
-| `card lookup` | `GET /cards?board_id={id}&sort=ticket` with the requested selectors. |
+| `card lookup` | Accepts search filters, not a list of card selectors. If a lane is supplied, first `GET /lanes/{lane_id}` to validate its board membership. Then `GET /cards?board_id={id}&sort=ticket` with the requested search, content, lane, limit and cursor filters. |
 | `card create` | Read board choices/current validator, then `POST /cards`; the CLI supplies `board_id` and `expected_board_etag`. JSON mode can include atomic relationship seeds. |
 | `card title`, `description`, `assign`, `set-priority`, `move`, `archive`, `unarchive` | Resolve/read the card and required board state; conditional `PATCH /cards/{id}` updates the selected fields. |
 | `card set-priorities` | Resolve explicit selectors when supplied and obtain the current board validator; `PATCH /cards` with `board_id`, `expected_board_etag`, priority and one selection form: `card_ids`, `lane_id`, or `all_unfinished: true`. Read returned effective priorities and affected state. |

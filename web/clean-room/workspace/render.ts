@@ -258,7 +258,11 @@ export const mountWorkspace: MountComponent<WorkspaceProps> = (host, initial) =>
     header.shortcut.hidden = query !== "";
     header.clear.hidden = query === "";
     header.found.hidden = query.trim() === "" || props.searchFound === undefined;
-    header.found.textContent = header.found.hidden ? "" : `${props.searchFound ?? 0} found`;
+    header.found.textContent = header.found.hidden
+      ? ""
+      : props.searchFound === 0
+        ? "no match"
+        : `${props.searchFound} found`;
     const service = displayValue(props.service);
     const connection =
       props.connection ??

@@ -2861,7 +2861,7 @@
             "R02"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Two-pin keyboard reorder and live response-loss evidence"
+          "missing_input": "Candidate review after paired pin and live recovery verification"
         },
         {
           "ticket": 586,
@@ -2884,7 +2884,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Matched search, zero-result and scrolled clear evidence"
+          "missing_input": "Candidate review after paired search and scroll verification"
         },
         {
           "ticket": 587,
@@ -2967,7 +2967,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Matched pointer drag refusal/focus and live stale/loss evidence"
+          "missing_input": "Matched pointer drag refusal/focus and live stale refusal evidence"
         },
         {
           "ticket": 590,
@@ -2990,7 +2990,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Matched partial-filter approval behavior"
+          "missing_input": "Candidate review after paired partial-filter approval verification"
         },
         {
           "ticket": 591,
@@ -3013,7 +3013,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Changed ticket mapping, stale/loss and Completed scope evidence"
+          "missing_input": "Ticket-order stale refusal and Completed scope evidence"
         },
         {
           "ticket": 592,

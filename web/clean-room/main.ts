@@ -121,6 +121,10 @@ function start(host: HTMLElement): void {
   const notice = document.createElement("div");
   notice.className = "lsw-operation-notice";
   notice.setAttribute("role", "status");
+  const orderNotice = document.createElement("p");
+  orderNotice.className = "lsw-ticket-order-status";
+  orderNotice.setAttribute("role", "status");
+  let orderNoticeTimer = 0;
   const checkMove = document.createElement("button");
   checkMove.type = "button";
   checkMove.textContent = "Check move status";
@@ -133,7 +137,7 @@ function start(host: HTMLElement): void {
   const recovery = document.createElement("div");
   recovery.className = "lsw-operation-recovery";
   recovery.append(checkMove, checkCreate);
-  overlay.append(notice, recovery);
+  overlay.append(notice, orderNotice, recovery);
   host.append(overlay);
   const live = startLive({
     refresh: refreshLive,
@@ -331,7 +335,7 @@ function start(host: HTMLElement): void {
     searchRead?.abort();
     const query = cardSearchQuery(value);
     if (query === "") {
-      if (wasFiltered) state.scroll = { ...state.scroll };
+      if (wasFiltered) state.scroll = { ...state.scroll, lanes: [] };
       state.matching = null;
       state.searchConfirmed = true;
       if (notice.textContent === "Card search could not be refreshed.") notice.textContent = "";
@@ -684,7 +688,14 @@ function start(host: HTMLElement): void {
         ordering = undefined;
         render();
       },
-      onApplied: refreshSelected,
+      onApplied: (count) => {
+        clearTimeout(orderNoticeTimer);
+        orderNotice.textContent = `Reordered ${count} ticket ${count === 1 ? "number" : "numbers"}`;
+        orderNoticeTimer = window.setTimeout(() => {
+          orderNotice.textContent = "";
+        }, 5000);
+        refreshSelected();
+      },
       onRefresh: refreshSelected,
     });
     render();
@@ -826,6 +837,8 @@ function start(host: HTMLElement): void {
     const nextId = next.kind === "board" ? next.boardId : null;
     if (was !== nextId) {
       notice.textContent = "";
+      clearTimeout(orderNoticeTimer);
+      orderNotice.textContent = "";
       for (const button of orderChecks.values()) button.remove();
       orderChecks.clear();
       lastActor = null;

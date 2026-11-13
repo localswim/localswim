@@ -166,7 +166,7 @@ interface TicketOrderCallbacks {
   readonly getBoard: () => BoardData | null;
   readonly getSession: () => SessionDto | null;
   readonly onClose: () => void;
-  readonly onApplied: () => void;
+  readonly onApplied: (changedCount: number) => void;
   readonly onRefresh: () => void;
 }
 
@@ -325,9 +325,12 @@ export function openTicketOrder(
     summary.hidden = plan === null;
   }
 
-  function finish(): void {
+  function finish(order: TicketOrder): void {
+    const changedCount = order.proposed.filter(
+      (entry, index) => entry.card_id !== order.current[index]?.card_id,
+    ).length;
     dispose();
-    callbacks.onApplied();
+    callbacks.onApplied(changedCount);
     callbacks.onClose();
   }
 
@@ -412,7 +415,7 @@ export function openTicketOrder(
     busy = false;
     if (result === "committed") {
       clearPending(original);
-      finish();
+      finish(original);
       return;
     }
     if (result === "superseded") {
@@ -482,7 +485,7 @@ export function openTicketOrder(
       return;
     }
     if (result.outcome === "committed") {
-      finish();
+      finish(original);
       return;
     }
     if (result.outcome === "unknown") {

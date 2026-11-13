@@ -342,16 +342,14 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
       const approval = props.approvalState?.(lane.id);
       const availability = laneApprovalAvailability(data, session, lane.id);
       nodes.approve.hidden = !availability.visible && approval !== "unknown";
-      const filteredApproval = cards.length !== availability.count;
+      const emptyVisibleLane = cards.length === 0;
       const approveButton = nodes.approve.querySelector("button");
       const approvalLabel =
         approval === "unknown"
           ? "Check approval status"
-          : availability.count === 0
+          : emptyVisibleLane
             ? "Disabled; no cards in swimlane"
-            : filteredApproval
-              ? "Clear the card search to approve the full lane"
-              : `Approve all ${availability.count} cards in ${lane.label} and move to Completed`;
+            : `Approve all ${availability.count} cards in ${lane.label} and move to Completed`;
       if (approveButton) {
         approveButton.title = approvalLabel;
         approveButton.setAttribute("aria-label", approvalLabel);
@@ -360,7 +358,7 @@ export const mountBoard: MountComponent<BoardProps> = (host, initialProps) => {
           String(
             !props.writable ||
               approval === "busy" ||
-              (approval !== "unknown" && (!availability.enabled || filteredApproval)),
+              (approval !== "unknown" && (!availability.enabled || emptyVisibleLane)),
           ),
         );
       }

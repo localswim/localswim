@@ -37,7 +37,11 @@ Later turn entry follows Architect review. Terry controls Completed and cutover.
 Detailed scope, dependencies and planned assignments follow. Ticket numbers are ascending by turn.
 
 
-Assignment revision 2. The prior #0514 UI effort is archived. Preserve its history and files. R01–R20 map to the live tickets in the table above.
+Current assignment revision 3 is recorded in [the rolling roster](0581-rolling-assignments.md)
+and `current_rolling_assignments` in the JSON plan. T1 source and visual reviews are
+complete; parent verification and Architect release remain. The initial revision 2
+roster below is preserved as history. The prior #0514 UI effort is archived.
+Preserve its history and files. R01–R20 map to the live tickets in the table above.
 
 ## Acceptance and provenance
 
@@ -91,24 +95,12 @@ Each story includes focused automated checks, matched-state V1 visual/behavior e
 
 R20 is a bounded qualification run. Failures produce separately scoped defect cards and a revised plan<br>its estimate includes no unlimited close-all commitment. Focused recovery qualification belongs to each feature and is complete before integrated qualification.
 
-## Initial rolling assignments
+## Current staffing
 
-All authors use `gpt-6.1-sol` / `medium`. Ordinary reviewers use `gpt-6.1-sol` / `medium`<br>recovery/concurrency/atomic reviewers use `gpt-6.1-sol` / `high`. Visual reviewers use `gpt-6.1-terra` / `medium`. Leads and Architect use `gpt-6.1-sol` / `high`.
-
-| Turn | Authors | Fresh technical reviewers | Visual and primary work |
-| --- | --- | --- | --- |
-| 1 | Sol High R01 Observed contract and shared interfaces | Sol High R01 Review | Terra Medium T1 Visual<br>Fresh UI Lead integrates and owns leases<br>Architect independently gates |
-| 2 | Sol Medium R02 Fresh workspace entry<br>Sol Medium R03 Fresh selected-board composition | Sol Medium R02 Review<br>Sol Medium R03 Review | Terra Medium T2 Visual<br>Fresh UI Lead integrates and owns leases<br>Architect independently gates |
-| 3 | Sol Medium R04 Workspace navigation controls<br>Sol Medium R05 Board filtering and completed visibility<br>Sol Medium R06 Read-only card drawer<br>Sol Medium R09 Create card dialog<br>Sol Medium R11 Card movement<br>Sol Medium R13 Lane approval<br>Sol Medium R14 Dependency ordering<br>Sol Medium R15 Batch priority<br>Sol Medium R18 Live status and reconnect | Sol High R04 Review<br>Sol Medium R05 Review<br>Sol Medium R06 Review<br>Sol High R09 Review<br>Sol High R11 Review<br>Sol High R13 Review<br>Sol High R14 Review<br>Sol High R15 Review<br>Sol High R18 Review | Terra Medium T3 Visual<br>Fresh UI Lead integrates and owns leases<br>Architect independently gates |
-
-Every assignment is scoped to epic #0581 and its listed story. Prerequisites are the table’s dependency IDs<br>no work begins before they are reviewed and the preceding turn is authorized. Turn 3 also requires Terry’s T2 checkpoint acceptance. These are future assignments, not running agents or reserved slots. With nine independently ready T3 slices, use rolling author/review waves within actual available capacity.
-
-After every turn, reconcile unfinished work, owner findings and scoped defects, then rebase the next three remaining turns from 1 and refresh both plans. Preserve superseded rosters. Revision 1’s planning-only roster remains in the JSON evidence<br>revision 2 replaces its story mapping before ticket creation.
+Revision4 assigns multiple authors to independently owned modules where that reduces delivery time. See [staffing plan](0581-staffing-plan.md) for all turns and [rolling assignments](0581-rolling-assignments.md) for the next three remaining turns. Authors hand completed packets to fresh reviewers as slots become free. Actual T1 work is preserved.
 
 ## Sources
 
 - `docs/planning/0514-v1-drop-in-remit.md` preserves the owner’s exact visible-parity remit<br>epic #0581 replaces the prior execution path.
 - `C:/Users/TDO-XPS15-2024/.codex/visualizations/2026/11/10/01a1c3a6-8477-7c33-88f6-e11ea8c6030a/output/0514-v1-ux-inventory.md` supplies historical visible observations.
 - `C:/Users/TDO-XPS15-2024/.codex/visualizations/2026/11/10/01a1c3a6-8477-7c33-88f6-e11ea8c6030a/output/0501-web-audit.md` supplies the historical mixed-surface inventory. Its source links were not followed and do not belong in the author packet.
-
-

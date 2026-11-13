@@ -179,7 +179,9 @@ export function mountBoardView(
     return node;
   }
 
+  const boundary = element("div", "board-view-boundary");
   const host = element("div", "board-view-host");
+  boundary.append(host);
   const shadow = host.attachShadow({ mode: "open" });
   const boardStyle = new view.CSSStyleSheet();
   shadow.adoptedStyleSheets = [boardStyle];
@@ -350,6 +352,7 @@ export function mountBoardView(
     const heading = element("div", "board-view-lane-heading lane-heading");
     const title = doc.createElement("h2");
     title.id = `board-lane-${lane.id}`;
+    title.title = lane.label;
     title.textContent = lane.label;
     const count = element("span", "board-view-lane-count lane-total");
     heading.append(title, count);
@@ -474,12 +477,12 @@ export function mountBoardView(
   );
 
   update(initialData);
-  root.replaceChildren(host);
+  root.replaceChildren(boundary);
   return {
     update,
     dispose() {
       lifetime.abort();
-      host.remove();
+      boundary.remove();
     },
   };
 }

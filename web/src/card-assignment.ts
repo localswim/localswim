@@ -5,7 +5,8 @@ import { submitOperation, type OperationStorage } from "./operations.js";
 type Field = "ownerId" | "priorityId";
 type Version = Readonly<{ revision: number; etag: string }>;
 type SavedAssignment = Version & Readonly<{ cardId: string; ownerId: string; priorityId: string }>;
-type AssignmentContext = SavedAssignment & Readonly<{ writable: boolean }>;
+type AssignmentContext = SavedAssignment &
+  Readonly<{ writable: boolean; canAssignOwner?: boolean; canSetPriority?: boolean }>;
 type Draft = Readonly<{
   field: Field;
   requested: string;
@@ -54,6 +55,10 @@ function sameVersion(first: Version, second: Version): boolean {
 
 function reachesVersion(saved: Version, floor: Version | undefined): boolean {
   return !floor || saved.revision > floor.revision || sameVersion(saved, floor);
+}
+
+function hasGrant(context: AssignmentContext, field: Field): boolean {
+  return (field === "ownerId" ? context.canAssignOwner : context.canSetPriority) === true;
 }
 
 function parseDraft(raw: string): Draft | null {
@@ -219,6 +224,7 @@ export function mountCardAssignment(
       !active &&
       reachesVersion(context, entry.confirmed) &&
       draft !== null &&
+      hasGrant(context, draft.field) &&
       (draft.phase === "dirty" || draft.phase === "refused") &&
       !isStale(draft, context) &&
       context[draft.field] !== draft.requested &&
@@ -268,8 +274,11 @@ export function mountCardAssignment(
           ? draft.requested
           : saved[name];
       if (control.select.value !== selected) control.select.value = selected;
-      control.row.hidden = !catalog.some(({ id }) => id === selected);
-      control.select.disabled = !canEdit || (draft !== null && draft.field !== name);
+      const granted = hasGrant(context, name);
+      control.row.hidden =
+        (!granted && draft?.field !== name) || !catalog.some(({ id }) => id === selected);
+      control.select.disabled = !canEdit || !granted || (draft !== null && draft.field !== name);
+      control.save.hidden = !granted;
       control.save.setAttribute(
         "aria-disabled",
         String(draft?.field !== name || !canSave(context, entry, catalog)),
@@ -300,6 +309,8 @@ export function mountCardAssignment(
           ? "Assignment save outcome is unknown. Inspect the saved assignment before editing again."
           : "The card changed. Inspect the saved assignment before editing again.";
       }
+    } else if (draft && !hasGrant(context, draft.field)) {
+      message = "You can review or discard this assignment draft.";
     } else if (draft && !choices[draft.field].some(({ id }) => id === draft.requested)) {
       message = "That selection is no longer available. Choose another or discard the draft.";
     } else if (draft?.phase === "refused") message = "The service refused the assignment change.";
@@ -324,7 +335,7 @@ export function mountCardAssignment(
 
   function edit(name: Field) {
     const context = getContext();
-    if (!context?.writable || controls[name].select.disabled) return;
+    if (!context?.writable || !hasGrant(context, name) || controls[name].select.disabled) return;
     const entry = entryFor(context.cardId);
     const requested = controls[name].select.value;
     if (!options()[name].some(({ id }) => id === requested)) return;

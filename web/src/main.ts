@@ -35,6 +35,7 @@ export function mount(root: HTMLElement): () => void {
   let boardData: BoardViewData | undefined;
   let boardState: ReturnType<typeof createBoardState> | undefined;
   let drawer: ReturnType<typeof mountCardView> | undefined;
+  let drawerNeedsConfirmation = false;
   const boardHost = doc.createElement("div");
   const missing = doc.createElement("a");
   missing.href = "/";
@@ -64,6 +65,8 @@ export function mount(root: HTMLElement): () => void {
     cancelPins: () => {
       sidebar.cancel();
     },
+    beginReorder: () => sidebar.beginReorder(),
+    endReorder: () => sidebar.endReorder(),
   });
   const workspace = createWorkspaceState({
     signal,
@@ -74,10 +77,10 @@ export function mount(root: HTMLElement): () => void {
           invalidate: (revision, catchUp) => boardState?.watch.invalidate(revision, catchUp),
         }
       : undefined,
-    onChange(catalog) {
+    onChange(catalog, periodic) {
       attention.update(catalog, selectedBoardId);
       sidebar.updateCatalog(catalog);
-      boardState?.observeCatalog(catalog);
+      boardState?.observeCatalog(catalog, periodic);
       totalAttention = catalog.totalAttention;
       updateTitle();
       if (route.kind === "workspace") {
@@ -117,6 +120,9 @@ export function mount(root: HTMLElement): () => void {
     retry.hidden = !retryAvailable;
     root.dataset.boardWritesFenced = String(writesFenced);
     root.dataset.boardConnection = connection;
+    if (connection === "disconnected" || connection === "unavailable") {
+      drawerNeedsConfirmation = true;
+    }
     if (state.confirmedRevision !== null) {
       boardRegion.dataset.revision = String(state.confirmedRevision);
     }
@@ -140,7 +146,14 @@ export function mount(root: HTMLElement): () => void {
           drawer?.open({ ticket: linkedTicket });
         }
       }
-      if (previous && previous.board.revision !== data.board.revision) drawer?.refresh();
+      if (previous && previous.board.revision !== data.board.revision) {
+        drawer?.refresh();
+        drawerNeedsConfirmation = false;
+      }
+    }
+    if (!writesFenced && drawerNeedsConfirmation) {
+      drawerNeedsConfirmation = false;
+      drawer?.refresh();
     }
     if (availability === "missing") {
       showMissing();
@@ -215,6 +228,7 @@ export function mount(root: HTMLElement): () => void {
     showMissing();
   }
   const retryLoad = () => {
+    drawerNeedsConfirmation = true;
     void workspace.refresh().then(() => boardState?.retry());
   };
   retry.addEventListener("click", retryLoad);
@@ -229,13 +243,26 @@ export function mount(root: HTMLElement): () => void {
     workspace.dispose();
     retry.removeEventListener("click", retryLoad);
     view?.removeEventListener("pagehide", disposeOnExit);
+    view?.removeEventListener("pageshow", resumeOnReturn);
   }
 
   function disposeOnExit(event: PageTransitionEvent) {
-    if (!event.persisted) dispose();
+    if (!event.persisted) {
+      dispose();
+      return;
+    }
+    sidebar.suspend();
+    attention.cancelReorder();
+  }
+
+  function resumeOnReturn(event: PageTransitionEvent) {
+    if (!event.persisted) return;
+    void sidebar.resume();
+    void workspace.refresh();
   }
 
   view.addEventListener("pagehide", disposeOnExit);
+  view.addEventListener("pageshow", resumeOnReturn);
   return dispose;
 }
 

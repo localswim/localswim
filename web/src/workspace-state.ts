@@ -23,7 +23,7 @@ export type WorkspaceView = Readonly<{
 type WorkspaceOptions = Readonly<{
   signal: AbortSignal;
   board?: NonNullable<Parameters<typeof watchUpdates>[0]["board"]>;
-  onChange: (view: WorkspaceView) => void;
+  onChange: (view: WorkspaceView, periodic: boolean) => void;
   onWorkspaceChange?: () => void;
 }>;
 
@@ -181,6 +181,7 @@ export function createWorkspaceState({
   });
   let tail = Promise.resolve();
   let queued: Promise<void> | undefined;
+  let queuedPeriodic = false;
 
   async function readCatalog(): Promise<WorkspaceView> {
     const timeout = new AbortController();
@@ -248,19 +249,22 @@ export function createWorkspaceState({
     }
   }
 
-  function refresh(): Promise<void> {
+  function refresh(periodic = false): Promise<void> {
     if (signal.aborted) return Promise.resolve();
+    queuedPeriodic ||= periodic;
     // A hint during a paginated read queues one follow-up after the current read settles.
     queued ??= tail
       .then(async () => {
         queued = undefined;
+        const checkRecovery = queuedPeriodic;
+        queuedPeriodic = false;
         if (signal.aborted) return;
         try {
           view = await readCatalog();
         } catch {
           view = Object.freeze({ ...view, status: "error" });
         }
-        if (!signal.aborted) onChange(view);
+        if (!signal.aborted) onChange(view, checkRecovery);
       })
       .catch((error: unknown) => {
         globalThis.reportError(error);
@@ -296,7 +300,7 @@ export function createWorkspaceState({
 
   queueMicrotask(() => {
     if (signal.aborted) return;
-    onChange(view);
+    onChange(view, false);
     void refresh();
     restartWatch();
     void checkDurableHealth().catch((error: unknown) => globalThis.reportError(error));
@@ -305,7 +309,7 @@ export function createWorkspaceState({
   async function checkDurableHealth() {
     while (!signal.aborted) {
       await waitForRetry(signal, CATALOG_POLL_MS);
-      if (!signal.aborted) await refresh();
+      if (!signal.aborted) await refresh(true);
     }
   }
 

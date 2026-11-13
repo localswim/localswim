@@ -5,9 +5,10 @@ the service's loopback URL or a board link at `/boards/{board_id}`. The page ope
 a same-origin Human session and keeps the capability in memory. The HTML and
 local assets are independent of the capability.
 
-The TypeScript entry point is `src/main.ts`. After editing TypeScript, run
-`npm --prefix web ci` if dependencies are missing, then
-`npm --prefix web run build`. Commit the corresponding files in `dist/`.
+From the repository root, run `node web/tooling/git-hooks/setup.mjs` to install
+the pinned web tools and configure Git hooks. The TypeScript entry point is
+`src/main.ts`. After editing browser sources, run `npm --prefix web run build`
+and commit the corresponding files in `dist/`.
 The Go build embeds the optimized HTML, JavaScript and CSS. Matching maps
 support debugging. Run `npm --prefix web run check` for the compiler, lint,
 canonical formatting and release asset checks.

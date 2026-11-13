@@ -8,6 +8,8 @@ export type AttentionIntents = Readonly<{
   inspectPins?(): void;
   retryPins?(): void;
   cancelPins?(): void;
+  beginReorder?(): boolean;
+  endReorder?(): void;
 }>;
 
 const columns = [
@@ -296,9 +298,11 @@ export function mountAttention(root: HTMLElement, intents: AttentionIntents) {
     });
     grip.addEventListener("pointerdown", (event) => {
       if (drag || !pins?.canChange || !event.isPrimary || event.button !== 0) return;
+      if (intents.beginReorder?.() === false) return;
       try {
         grip.setPointerCapture(event.pointerId);
       } catch {
+        intents.endReorder?.();
         return;
       }
       drag = { row, pointer: event.pointerId };
@@ -328,11 +332,13 @@ export function mountAttention(root: HTMLElement, intents: AttentionIntents) {
       const target = drag.target?.link.dataset.boardId;
       clearDrag();
       if (target) move(row, target);
+      intents.endReorder?.();
       paint();
     });
     function cancelDrag(event: PointerEvent) {
       if (drag?.pointer !== event.pointerId) return;
       clearDrag();
+      intents.endReorder?.();
       paint();
     }
     grip.addEventListener("pointercancel", cancelDrag);
@@ -423,9 +429,18 @@ export function mountAttention(root: HTMLElement, intents: AttentionIntents) {
       pins = state;
       paint();
     },
+    cancelReorder() {
+      if (!drag) return;
+      clearDrag();
+      intents.endReorder?.();
+      paint();
+    },
     dispose() {
       disposed = true;
-      clearDrag();
+      if (drag) {
+        clearDrag();
+        intents.endReorder?.();
+      }
       unmountGeometry();
       for (const row of rows.values()) row.dispose();
       rows.clear();

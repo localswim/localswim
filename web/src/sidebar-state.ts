@@ -26,14 +26,66 @@ type PendingChange = {
   outcome: "retryable" | "unknown";
   submittedRemovals: readonly string[];
 };
+type PinStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 type PinOptions = Readonly<{
   signal: AbortSignal;
+  storage?: PinStorage;
   read(): Promise<WorkspaceReply>;
   write(ids: string[], etag: string): Promise<WorkspaceReply>;
   refreshCatalog(): Promise<void>;
   onChange(view: SidebarPinsView): void;
 }>;
+
+const PIN_JOURNAL_KEY = "localswim:pending-pin-change";
+const BOARD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+function isBoardId(value: unknown): value is string {
+  return typeof value === "string" && BOARD_ID.test(value);
+}
+
+function isPinList(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= 1000 &&
+    value.every(isBoardId) &&
+    new Set(value).size === value.length
+  );
+}
+
+function readPending(storage: PinStorage | undefined): PendingChange | undefined {
+  try {
+    const raw = (storage ?? globalThis.sessionStorage).getItem(PIN_JOURNAL_KEY);
+    if (!raw || raw.length > 80_000) return undefined;
+    const value: unknown = JSON.parse(raw);
+    if (typeof value !== "object" || value === null) return undefined;
+    const { action, id, anchor, unavailable, submittedRemovals } = value as Record<string, unknown>;
+    if (action === "remove-unavailable" && isPinList(unavailable) && isPinList(submittedRemovals)) {
+      if (
+        submittedRemovals.length > 0 &&
+        submittedRemovals.every((candidate) => unavailable.includes(candidate))
+      ) {
+        return { change: { action }, unavailable, submittedRemovals, outcome: "unknown" };
+      }
+      return undefined;
+    }
+    if (!isBoardId(id)) return undefined;
+    if (action === "pin" || action === "unpin") {
+      return { change: { action, id }, unavailable: [], submittedRemovals: [], outcome: "unknown" };
+    }
+    if ((action === "before" || action === "after") && isBoardId(anchor) && id !== anchor) {
+      return {
+        change: { action, id, anchor },
+        unavailable: [],
+        submittedRemovals: [],
+        outcome: "unknown",
+      };
+    }
+  } catch {
+    // A malformed or inaccessible journal supplies no usable pin intent.
+  }
+  return undefined;
+}
 
 function sameOrder(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((id, index) => id === right[index]);
@@ -67,23 +119,34 @@ function pinOrder(
   }
 }
 
-export function createSidebarPins({ signal, read, write, refreshCatalog, onChange }: PinOptions) {
+export function createSidebarPins({
+  signal,
+  storage,
+  read,
+  write,
+  refreshCatalog,
+  onChange,
+}: PinOptions) {
   const noPins: readonly string[] = Object.freeze([]);
   let saved: SavedPins | undefined;
   let present = new Set<string>();
   let catalogComplete = false;
-  let pending: PendingChange | undefined;
+  let pending = readPending(storage);
+  let journaled = pending !== undefined;
   let busy = false;
+  let reordering = false;
   let refreshRequested = false;
   let readFailed = false;
-  let message = "";
+  let message = pending ? "A pin save needs inspection. Inspect the saved pin order." : "";
+  let page = new AbortController();
+  let activeSignal = AbortSignal.any([signal, page.signal]);
 
   function unavailablePins(ids: readonly string[]): string[] {
     return catalogComplete ? ids.filter((id) => !present.has(id)) : [];
   }
 
   function publish() {
-    if (signal.aborted) return;
+    if (activeSignal.aborted) return;
     const ids = saved?.ids ?? noPins;
     const unavailableCount = unavailablePins(ids).length;
     const idle = !busy && !pending && saved !== undefined && catalogComplete && !readFailed;
@@ -122,64 +185,104 @@ export function createSidebarPins({ signal, read, write, refreshCatalog, onChang
     return saved;
   }
 
-  async function readSaved(): Promise<SavedPins> {
+  async function readSaved(operationSignal: AbortSignal): Promise<SavedPins> {
     try {
       const reply = await read();
-      signal.throwIfAborted();
+      operationSignal.throwIfAborted();
       return accept(reply);
     } catch (error) {
-      readFailed = true;
+      if (!operationSignal.aborted) readFailed = true;
       throw error;
     }
   }
 
-  async function run(operation: () => Promise<void>) {
+  async function run(operation: (operationSignal: AbortSignal) => Promise<void>) {
+    const operationSignal = activeSignal;
     busy = true;
     publish();
     try {
-      await operation();
+      await operation(operationSignal);
     } finally {
-      busy = false;
-      publish();
-      if (refreshRequested && !signal.aborted) {
-        refreshRequested = false;
-        await refresh();
+      if (!operationSignal.aborted) {
+        busy = false;
+        publish();
+        if (refreshRequested && !reordering) {
+          refreshRequested = false;
+          await refresh();
+        }
       }
     }
   }
 
   function refresh(): Promise<void> {
-    if (signal.aborted) return Promise.resolve();
-    if (busy) {
+    if (activeSignal.aborted) return Promise.resolve();
+    if (busy || reordering) {
       refreshRequested = true;
       return Promise.resolve();
     }
-    return run(async () => {
+    return run(async (operationSignal) => {
       try {
-        await readSaved();
+        await readSaved(operationSignal);
       } catch {
         // Keep the last confirmed order visible and expose the read failure through publish.
       }
     });
   }
 
-  async function freshBase(edit: PendingChange): Promise<SavedPins> {
-    const latest = await readSaved();
+  async function freshBase(edit: PendingChange, operationSignal: AbortSignal): Promise<SavedPins> {
+    const latest = await readSaved(operationSignal);
     if (edit.change.action === "remove-unavailable") await refreshCatalog();
-    signal.throwIfAborted();
+    operationSignal.throwIfAborted();
     return latest;
   }
 
-  async function save(edit: PendingChange, initial?: SavedPins) {
+  function recordDispatch(edit: PendingChange): boolean {
+    // Navigation can interrupt response handling after the service accepts the write.
+    try {
+      (storage ?? globalThis.sessionStorage).setItem(
+        PIN_JOURNAL_KEY,
+        JSON.stringify({
+          ...edit.change,
+          unavailable: edit.unavailable,
+          submittedRemovals: edit.submittedRemovals,
+        }),
+      );
+      journaled = true;
+      return true;
+    } catch {
+      message = "Tab storage is unavailable. The pin change is pending.";
+      return false;
+    }
+  }
+
+  function finish(messageOnSuccess: string) {
+    if (journaled) {
+      try {
+        (storage ?? globalThis.sessionStorage).removeItem(PIN_JOURNAL_KEY);
+      } catch {
+        message =
+          "Could not clear the pending pin change from tab storage. Inspect the saved order.";
+        if (pending) pending.outcome = "unknown";
+        return;
+      }
+    }
+    pending = undefined;
+    journaled = false;
+    message = messageOnSuccess;
+  }
+
+  async function save(edit: PendingChange, operationSignal: AbortSignal, initial?: SavedPins) {
     let latest: SavedPins;
     try {
-      latest = initial ?? (await freshBase(edit));
+      latest = initial ?? (await freshBase(edit, operationSignal));
     } catch {
-      message = "Could not refresh the saved pin order. The pin change is pending.";
+      if (!operationSignal.aborted) {
+        message = "Could not refresh the saved pin order. The pin change is pending.";
+      }
       return;
     }
     for (let attempt = 0; attempt < 2; attempt++) {
-      if (signal.aborted) return;
+      if (operationSignal.aborted) return;
       if (!catalogComplete) {
         message = "The pin change requires a complete board catalog. Refresh boards and retry.";
         return;
@@ -190,8 +293,7 @@ export function createSidebarPins({ signal, read, write, refreshCatalog, onChang
         return;
       }
       if (sameOrder(latest.ids, requested)) {
-        pending = undefined;
-        message = "Pin order is current.";
+        finish("Pin order is current.");
         return;
       }
       if (unavailablePins(requested).length > 0) {
@@ -202,15 +304,15 @@ export function createSidebarPins({ signal, read, write, refreshCatalog, onChang
         const kept = new Set(requested);
         edit.submittedRemovals = latest.ids.filter((id) => !kept.has(id));
       }
+      if (!recordDispatch(edit)) return;
       try {
         const reply = await write(requested, latest.etag);
-        signal.throwIfAborted();
+        operationSignal.throwIfAborted();
         accept(reply, requested);
-        pending = undefined;
-        message = "Pin order saved.";
+        finish("Pin order saved.");
         return;
       } catch (error) {
-        if (signal.aborted) return;
+        if (operationSignal.aborted) return;
         if (!(error instanceof ApiError) || error.outcomeUnknown) {
           edit.outcome = "unknown";
           message = "The save outcome is unknown. Inspect the saved pin order.";
@@ -223,9 +325,11 @@ export function createSidebarPins({ signal, read, write, refreshCatalog, onChang
       }
       if (attempt === 0) {
         try {
-          latest = await freshBase(edit);
+          latest = await freshBase(edit, operationSignal);
         } catch {
-          message = "Could not read the concurrent pin order. The pin change is pending.";
+          if (!operationSignal.aborted) {
+            message = "Could not read the concurrent pin order. The pin change is pending.";
+          }
           return;
         }
       }
@@ -234,7 +338,7 @@ export function createSidebarPins({ signal, read, write, refreshCatalog, onChang
   }
 
   function change(request: PinChange): Promise<void> {
-    if (signal.aborted || busy || pending || !saved || !catalogComplete || readFailed) {
+    if (activeSignal.aborted || busy || pending || !saved || !catalogComplete || readFailed) {
       return Promise.resolve();
     }
     const unavailable = unavailablePins(saved.ids);
@@ -249,17 +353,17 @@ export function createSidebarPins({ signal, read, write, refreshCatalog, onChang
     pending = edit;
     message = "Saving pin order…";
     const initial = removing ? undefined : saved;
-    return run(() => save(edit, initial));
+    return run((operationSignal) => save(edit, operationSignal, initial));
   }
 
   function inspect(): Promise<void> {
-    if (signal.aborted || busy) return Promise.resolve();
+    if (activeSignal.aborted || busy) return Promise.resolve();
     const edit = pending;
     if (edit?.outcome !== "unknown") return edit ? Promise.resolve() : refresh();
     message = "Reading saved pin order…";
-    return run(async () => {
+    return run(async (operationSignal) => {
       try {
-        const { ids } = await readSaved();
+        const { ids } = await readSaved(operationSignal);
         let confirmed: boolean;
         switch (edit.change.action) {
           case "pin":
@@ -277,33 +381,77 @@ export function createSidebarPins({ signal, read, write, refreshCatalog, onChang
           }
         }
         if (confirmed) {
-          pending = undefined;
-          message = "The saved pin order confirms the change.";
+          finish("The saved pin order confirms the change.");
         } else {
           edit.outcome = "retryable";
           message = "The saved order could not confirm the change. Review it before retrying.";
         }
       } catch {
-        message = "Could not inspect the saved pin order. The save outcome is unknown.";
+        if (!operationSignal.aborted) {
+          message = "Could not inspect the saved pin order. The save outcome is unknown.";
+        }
       }
     });
   }
 
   function retry(): Promise<void> {
     const edit = pending;
-    if (signal.aborted || busy || edit?.outcome !== "retryable") return Promise.resolve();
+    if (activeSignal.aborted || busy || edit?.outcome !== "retryable") return Promise.resolve();
     message = "Saving pin order…";
-    return run(() => save(edit));
+    return run((operationSignal) => save(edit, operationSignal));
   }
 
   function cancel() {
-    if (signal.aborted || busy || pending?.outcome !== "retryable") return;
-    pending = undefined;
-    message = "";
+    if (activeSignal.aborted || busy || pending?.outcome !== "retryable") return;
+    finish("");
     publish();
   }
 
-  return { refresh, updateCatalog, change, inspect, retry, cancel };
+  function suspend() {
+    // A page restored from the back-forward cache may share the journal with a newer page.
+    page.abort();
+  }
+
+  function resume(): Promise<void> {
+    if (!page.signal.aborted || signal.aborted) return Promise.resolve();
+    page = new AbortController();
+    activeSignal = AbortSignal.any([signal, page.signal]);
+    pending = readPending(storage);
+    journaled = pending !== undefined;
+    message = pending ? "A pin save needs inspection. Inspect the saved pin order." : "";
+    refreshRequested = false;
+    busy = false;
+    reordering = false;
+    return refresh();
+  }
+
+  function beginReorder(): boolean {
+    if (activeSignal.aborted || busy || reordering || pending) return false;
+    reordering = true;
+    return true;
+  }
+
+  function endReorder(): void {
+    if (!reordering) return;
+    reordering = false;
+    if (!busy && refreshRequested && !activeSignal.aborted) {
+      refreshRequested = false;
+      void refresh().catch((error: unknown) => globalThis.reportError(error));
+    }
+  }
+
+  return {
+    refresh,
+    updateCatalog,
+    change,
+    inspect,
+    retry,
+    cancel,
+    suspend,
+    resume,
+    beginReorder,
+    endReorder,
+  };
 }
 
 export function mountSidebarGeometry(

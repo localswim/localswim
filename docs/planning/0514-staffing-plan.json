@@ -1,5 +1,5 @@
 {
-  "revision": "0514-staff-r1",
+  "revision": "0514-staff-r2",
   "epic": 514,
   "board_id": "39b278e7-d1ac-4e5a-88fb-8eabf141dd4d",
   "goal": "Fresh TypeScript UI with V1 look and workflows and current V2 browser capabilities.",
@@ -22,8 +22,8 @@
       "stories": [
         548
       ],
-      "authors": 1,
-      "planned_direct_peak": 3,
+      "authors": 2,
+      "planned_direct_peak": 4,
       "largest_author_estimate_hours": 2.5,
       "visual_reviewer": {
         "name": "terra_medium_t01_visual",
@@ -34,7 +34,8 @@
         "name": "luna_light_t01_checks",
         "model": "gpt-6-luna",
         "reasoning_effort": "low"
-      }
+      },
+      "author_count": 2
     },
     {
       "turn": 2,
@@ -42,8 +43,8 @@
         549,
         550
       ],
-      "authors": 2,
-      "planned_direct_peak": 4,
+      "authors": 4,
+      "planned_direct_peak": 6,
       "largest_author_estimate_hours": 2.25,
       "visual_reviewer": {
         "name": "terra_medium_t02_visual",
@@ -54,7 +55,8 @@
         "name": "luna_light_t02_checks",
         "model": "gpt-6-luna",
         "reasoning_effort": "low"
-      }
+      },
+      "author_count": 4
     },
     {
       "turn": 3,
@@ -75,7 +77,8 @@
         "name": "luna_light_t03_checks",
         "model": "gpt-6-luna",
         "reasoning_effort": "low"
-      }
+      },
+      "author_count": 3
     },
     {
       "turn": 4,
@@ -83,8 +86,8 @@
         554,
         555
       ],
-      "authors": 2,
-      "planned_direct_peak": 4,
+      "authors": 3,
+      "planned_direct_peak": 5,
       "largest_author_estimate_hours": 2.5,
       "visual_reviewer": {
         "name": "terra_medium_t04_visual",
@@ -95,7 +98,8 @@
         "name": "luna_light_t04_checks",
         "model": "gpt-6-luna",
         "reasoning_effort": "low"
-      }
+      },
+      "author_count": 3
     },
     {
       "turn": 5,
@@ -124,7 +128,8 @@
         "name": "luna_light_t05_checks",
         "model": "gpt-6-luna",
         "reasoning_effort": "low"
-      }
+      },
+      "author_count": 11
     },
     {
       "turn": 6,
@@ -149,7 +154,8 @@
         "name": "luna_light_t06_checks",
         "model": "gpt-6-luna",
         "reasoning_effort": "low"
-      }
+      },
+      "author_count": 7
     },
     {
       "turn": 7,
@@ -171,7 +177,8 @@
         "name": "luna_light_t07_checks",
         "model": "gpt-6-luna",
         "reasoning_effort": "low"
-      }
+      },
+      "author_count": 4
     },
     {
       "turn": 8,
@@ -191,7 +198,8 @@
         "name": "luna_light_t08_checks",
         "model": "gpt-6-luna",
         "reasoning_effort": "low"
-      }
+      },
+      "author_count": 2
     },
     {
       "turn": 9,
@@ -210,7 +218,8 @@
         "name": "luna_light_t09_checks",
         "model": "gpt-6-luna",
         "reasoning_effort": "low"
-      }
+      },
+      "author_count": 1
     }
   ],
   "assignments": [
@@ -237,6 +246,7 @@
         "web/src/model.ts",
         "web/index.html",
         "web/package.json",
+        "package lock if required",
         "web/tsconfig.json",
         "web/assets.go",
         "internal/v2/browser.go"
@@ -245,9 +255,52 @@
       "demo": "Launch an isolated Go candidate with a seeded board. Open /, follow its board link and reload /boards/{board_id}; show the real board name and a recoverable missing-board state.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #548 under epic #0514",
-      "worktree": "codex/0514-0548",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [
+        {
+          "name": "sol_medium_0548_assets",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "medium"
+        }
+      ],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0548_shell",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/main.ts",
+            "web/src/model.ts",
+            "web/index.html"
+          ],
+          "scope": "Fresh typed shell, route states and in-memory session/bootstrap integration.",
+          "worktree": "codex/0514-0548-shell"
+        },
+        {
+          "worker": {
+            "name": "sol_medium_0548_assets",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/package.json",
+            "package lock if required",
+            "web/tsconfig.json",
+            "web/assets.go",
+            "internal/v2/browser.go"
+          ],
+          "scope": "Deterministic TypeScript build, generated asset layout and Go embedding/routes.",
+          "worktree": "codex/0514-0548-assets"
+        }
+      ],
+      "accountable_lead": "sol_medium_0548_shell",
+      "parallel_contract": "Agree entry module, generated output paths, exported mount shape, HTML anchors, asset URLs and CSP before parallel edits. Shell lead owns index.html; assets author supplies a bounded integration patch.",
+      "integration_owner": "sol_medium_0548_shell",
+      "integration_branch": "codex/0514-0548",
+      "parallel_fixture": "Lead publishes entry/output paths, exported mount signature and minimal typed entry fixture; assets author can verify embedding with the fixture before final shell merge."
     },
     {
       "turn": 2,
@@ -278,9 +331,47 @@
       "demo": "Open a dense seeded board through its ordinary URL, filter by ticket, clear with Escape, reveal older Completed cards and scroll two lanes independently.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #549 under epic #0514",
-      "worktree": "codex/0514-0549",
       "review_model_rationale": "Bounded presentation or feature behavior over accepted shared contracts.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [
+        {
+          "name": "terra_medium_0549_style",
+          "model": "gpt-6.1-terra",
+          "reasoning_effort": "medium"
+        }
+      ],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0549_board",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/board-view.ts"
+          ],
+          "scope": "Confirmed lane/card data, rendering structure, filter behavior and Completed membership.",
+          "worktree": "codex/0514-0549-board"
+        },
+        {
+          "worker": {
+            "name": "terra_medium_0549_style",
+            "model": "gpt-6.1-terra",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/board.css",
+            "web/src/tokens.css"
+          ],
+          "scope": "V1 density, lane/card dimensions, independent scrolling and accepted contrast styling against structural fixtures.",
+          "worktree": "codex/0514-0549-style"
+        }
+      ],
+      "accountable_lead": "sol_medium_0549_board",
+      "parallel_contract": "Agree class/attribute names, card slots, scroll ownership, focus states and supported widths. CSS cannot filter or reorder records. Final visual reviewer is a different Terra agent.",
+      "integration_owner": "sol_medium_0549_board",
+      "integration_branch": "codex/0514-0549",
+      "parallel_fixture": "Lead publishes structural lane/card DOM fixture and class contract with long/empty/dense examples; CSS author works against that fixture."
     },
     {
       "turn": 2,
@@ -303,17 +394,55 @@
         "reasoning_effort": "high"
       },
       "owned_files": [
+        "web/src/workspace-state.ts",
         "web/src/attention.ts",
-        "web/src/attention.css",
-        "web/src/workspace-state.ts"
+        "web/src/attention.css"
       ],
       "integration_touchpoints": "Owns catalog state and event subscription wiring; reuses board-updates.mjs and workspace/catalog APIs.",
       "demo": "Open the candidate workspace and one board. Change another board through Bot CLI, observe attention and tab changes, then interrupt and restore the connection.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #550 under epic #0514",
-      "worktree": "codex/0514-0550",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [
+        {
+          "name": "sol_medium_0550_render",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "medium"
+        }
+      ],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0550_attention",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/workspace-state.ts"
+          ],
+          "scope": "One workspace stream, catalog reads, cancellation, retry and authoritative state.",
+          "worktree": "codex/0514-0550-attention"
+        },
+        {
+          "worker": {
+            "name": "sol_medium_0550_render",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/attention.ts",
+            "web/src/attention.css"
+          ],
+          "scope": "Pure attention rendering, fixed count columns, selected/unavailable states and navigation intents.",
+          "worktree": "codex/0514-0550-render"
+        }
+      ],
+      "accountable_lead": "sol_medium_0550_attention",
+      "parallel_contract": "Agree immutable catalog/view snapshot, explicit observation time, callback intents and disposal shape. State lead alone owns subscriptions, timers, capabilities and retry decisions.",
+      "integration_owner": "sol_medium_0550_attention",
+      "integration_branch": "codex/0514-0550",
+      "parallel_fixture": "Lead publishes immutable catalog/view-model type plus zero/active/unavailable fixtures and navigation intent callbacks; render author uses a test stub."
     },
     {
       "turn": 3,
@@ -343,9 +472,26 @@
       "demo": "Open a card by keyboard, follow its archived child and a prose ticket link, read long content, switch boards with the drawer open and close back to a valid focus target.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #551 under epic #0514",
-      "worktree": "codex/0514-0551",
       "review_model_rationale": "Bounded presentation or feature behavior over accepted shared contracts.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0551_drawer",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/card-view.ts",
+            "web/src/drawer.css"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0551-drawer"
+        }
+      ],
+      "accountable_lead": "sol_medium_0551_drawer",
+      "integration_branch": "codex/0514-0551"
     },
     {
       "turn": 3,
@@ -375,9 +521,25 @@
       "demo": "Delay a board read, navigate to another board and release the old response. Disconnect, perform a Bot edit, reconnect and use Retry board update while checking the correct board remains displayed.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #552 under epic #0514",
-      "worktree": "codex/0514-0552",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0552_live_state",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/board-state.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0552-live-state"
+        }
+      ],
+      "accountable_lead": "sol_medium_0552_live_state",
+      "integration_branch": "codex/0514-0552"
     },
     {
       "turn": 3,
@@ -408,7 +570,6 @@
       "demo": "Pin two boards, reorder with both keyboard and pointer, introduce a concurrent pin edit, resolve it, then resize, collapse, reload and reopen the sidebar.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #553 under epic #0514",
-      "worktree": "codex/0514-0553",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
       "external_prerequisites": [
         {
@@ -416,7 +577,26 @@
           "status": "completed",
           "scope": "Accepted AAA navigation contrast"
         }
-      ]
+      ],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0553_pins",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/attention.ts",
+            "web/src/sidebar-state.ts",
+            "web/src/attention.css"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0553-pins"
+        }
+      ],
+      "accountable_lead": "sol_medium_0553_pins",
+      "integration_branch": "codex/0514-0553"
     },
     {
       "turn": 4,
@@ -446,9 +626,25 @@
       "demo": "Filter and scroll two boards differently, open a drawer, navigate through Back/Forward and reload; verify the correct per-board state and missing-card fallback.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #554 under epic #0514",
-      "worktree": "codex/0514-0554",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0554_navigation",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/view-state.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0554-navigation"
+        }
+      ],
+      "accountable_lead": "sol_medium_0554_navigation",
+      "integration_branch": "codex/0514-0554"
     },
     {
       "turn": 4,
@@ -472,17 +668,55 @@
         "reasoning_effort": "high"
       },
       "owned_files": [
-        "web/src/card-editor.ts",
+        "web/src/operations.ts",
         "web/src/drafts.ts",
-        "web/src/operations.ts"
+        "web/src/card-editor.ts"
       ],
       "integration_touchpoints": "Owns reusable scoped submission/draft primitives and text-specific matching. Uses api.mjs; numeric revisions and HTTP ETags stay distinct.",
       "demo": "Edit Unicode multiline text, cause a concurrent stale refusal, inspect saved state, then lose a write response and reload to inspect the original submission while preserving the draft.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #555 under epic #0514",
-      "worktree": "codex/0514-0555",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [
+        {
+          "name": "sol_medium_0555_editor",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "medium"
+        }
+      ],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0555_text_drafts",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/operations.ts",
+            "web/src/drafts.ts"
+          ],
+          "scope": "Captured identity/validator, one-write state machine, draft persistence, readback matching and uncertainty fences.",
+          "worktree": "codex/0514-0555-text-drafts"
+        },
+        {
+          "worker": {
+            "name": "sol_medium_0555_editor",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/card-editor.ts"
+          ],
+          "scope": "Title/description controls, composition, exact-text adapter, pending visuals and focus using the agreed operation interface.",
+          "worktree": "codex/0514-0555-editor"
+        }
+      ],
+      "accountable_lead": "sol_medium_0555_text_drafts",
+      "parallel_contract": "Agree resource keys, exact submitted text, operation-state union and submit/inspect/dismiss callbacks. Core is the sole persistence and recovery authority; editor never implements a second retry path.",
+      "integration_owner": "sol_medium_0555_text_drafts",
+      "integration_branch": "codex/0514-0555",
+      "parallel_fixture": "Lead publishes operation-state union, submit/inspect/dismiss interface and exact-text vectors; editor author uses a test-only fake operation controller."
     },
     {
       "turn": 5,
@@ -513,9 +747,26 @@
       "demo": "Set a small budget on Workspace, visit several boards to cause eviction, revisit a retained board offline, retry online and set budget to zero.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #556 under epic #0514",
-      "worktree": "codex/0514-0556",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0556_cache",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/recent-boards.ts",
+            "web/src/workspace-settings.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0556-cache"
+        }
+      ],
+      "accountable_lead": "sol_medium_0556_cache",
+      "integration_branch": "codex/0514-0556"
     },
     {
       "turn": 5,
@@ -546,9 +797,26 @@
       "demo": "Open New card from a permitted lane, select a nondefault owner and priority, enter a multiline description, and submit using Add card. Verify those fields in saved state, recover the selections after cancel/reopen, and inspect an uncertain creation without creating a duplicate.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #557 under epic #0514",
-      "worktree": "codex/0514-0557",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0557_create",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/create-card.ts",
+            "web/src/create-card.css"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0557-create"
+        }
+      ],
+      "accountable_lead": "sol_medium_0557_create",
+      "integration_branch": "codex/0514-0557"
     },
     {
       "turn": 5,
@@ -578,9 +846,26 @@
       "demo": "Move with keyboard and drag, attempt a forbidden drop, then race a Bot move and inspect the saved destination.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #558 under epic #0514",
-      "worktree": "codex/0514-0558",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0558_move",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/card-movement.ts",
+            "web/src/board-view.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0558-move"
+        }
+      ],
+      "accountable_lead": "sol_medium_0558_move",
+      "integration_branch": "codex/0514-0558"
     },
     {
       "turn": 5,
@@ -609,9 +894,25 @@
       "demo": "Assign another member, raise priority, attempt a dependency-blocked demotion and verify exact saved owner/priority after a stale edit.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #559 under epic #0514",
-      "worktree": "codex/0514-0559",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0559_assignment",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/card-assignment.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0559-assignment"
+        }
+      ],
+      "accountable_lead": "sol_medium_0559_assignment",
+      "integration_branch": "codex/0514-0559"
     },
     {
       "turn": 5,
@@ -641,9 +942,26 @@
       "demo": "Enter a multiline comment using Shift+Enter, post with Enter, then simulate a lost response and reload to inspect the original comment without duplication. Verify composition does not submit, then open recent comments and history.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #560 under epic #0514",
-      "worktree": "codex/0514-0560",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0560_comments",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/comments.ts",
+            "web/src/history.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0560-comments"
+        }
+      ],
+      "accountable_lead": "sol_medium_0560_comments",
+      "integration_branch": "codex/0514-0560"
     },
     {
       "turn": 5,
@@ -673,9 +991,25 @@
       "demo": "Add a blocking link, change a reference kind, follow an archived target, remove a link and inspect an addition whose response was lost.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #561 under epic #0514",
-      "worktree": "codex/0514-0561",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0561_relationships",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/relationships.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0561-relationships"
+        }
+      ],
+      "accountable_lead": "sol_medium_0561_relationships",
+      "integration_branch": "codex/0514-0561"
     },
     {
       "turn": 5,
@@ -708,9 +1042,27 @@
       "demo": "Search comment content in triage order, open an archived hit, restore it, archive another card and return through Back/Forward with the query intact.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #562 under epic #0514",
-      "worktree": "codex/0514-0562",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0562_search_archive",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/search.ts",
+            "web/src/archive.ts",
+            "web/src/view-state.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0562-search-archive"
+        }
+      ],
+      "accountable_lead": "sol_medium_0562_search_archive",
+      "integration_branch": "codex/0514-0562"
     },
     {
       "turn": 5,
@@ -740,9 +1092,25 @@
       "demo": "Download a binary and compare bytes, preview two images, set/clear a cover, then detach the selected image and observe the remaining fallback.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #563 under epic #0514",
-      "worktree": "codex/0514-0563",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0563_attachment_read",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/attachments.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0563-attachment-read"
+        }
+      ],
+      "accountable_lead": "sol_medium_0563_attachment_read",
+      "integration_branch": "codex/0514-0563"
     },
     {
       "turn": 5,
@@ -773,9 +1141,25 @@
       "demo": "Use a disposable Git-backed fixture, toggle board/workspace publishing, make an edit, observe publication and introduce a failed destination while preserving concurrent pins.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #564 under epic #0514",
-      "worktree": "codex/0514-0564",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0564_publishing",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/publishing-settings.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0564-publishing"
+        }
+      ],
+      "accountable_lead": "sol_medium_0564_publishing",
+      "integration_branch": "codex/0514-0564"
     },
     {
       "turn": 5,
@@ -806,9 +1190,26 @@
       "demo": "Create a generic board from Workspace, add a draft, close it, use another board, then reopen the same URL and recover the draft; inspect a lost availability response.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #565 under epic #0514",
-      "worktree": "codex/0514-0565",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0565_board_lifecycle",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/board-lifecycle.ts",
+            "web/src/workspace-create.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0565-board-lifecycle"
+        }
+      ],
+      "accountable_lead": "sol_medium_0565_board_lifecycle",
+      "integration_branch": "codex/0514-0565"
     },
     {
       "turn": 5,
@@ -838,9 +1239,25 @@
       "demo": "On an isolated candidate, inspect service/build status, cause a controlled flush refusal, resolve the fixture, save a final edit and request graceful stop; verify durable saved state.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #566 under epic #0514",
-      "worktree": "codex/0514-0566",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0566_service_status",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/service-tools.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0566-service-status"
+        }
+      ],
+      "accountable_lead": "sol_medium_0566_service_status",
+      "integration_branch": "codex/0514-0566"
     },
     {
       "turn": 6,
@@ -871,9 +1288,26 @@
       "demo": "Create a card with two typed links, try an invalid seed and verify no card was created, then inspect a lost successful response.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #567 under epic #0514",
-      "worktree": "codex/0514-0567",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0567_seed_links",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/create-card.ts",
+            "web/src/relationships.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0567-seed-links"
+        }
+      ],
+      "accountable_lead": "sol_medium_0567_seed_links",
+      "integration_branch": "codex/0514-0567"
     },
     {
       "turn": 6,
@@ -904,9 +1338,25 @@
       "demo": "Approve one Ready for Review card, verify its comment/move receipt, then lose another approval response and inspect it after reload.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #568 under epic #0514",
-      "worktree": "codex/0514-0568",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0568_approve",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/card-approval.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0568-approve"
+        }
+      ],
+      "accountable_lead": "sol_medium_0568_approve",
+      "integration_branch": "codex/0514-0568"
     },
     {
       "turn": 6,
@@ -936,9 +1386,25 @@
       "demo": "Paste an image and pick a binary, reject an oversize item, switch cards while upload finishes, then inspect an original upload with a lost response.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #569 under epic #0514",
-      "worktree": "codex/0514-0569",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0569_upload",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/uploads.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0569-upload"
+        }
+      ],
+      "accountable_lead": "sol_medium_0569_upload",
+      "integration_branch": "codex/0514-0569"
     },
     {
       "turn": 6,
@@ -969,9 +1435,25 @@
       "demo": "Select two ticket numbers, change priority, verify upstream effects, then submit an invalid/stale selection and confirm no partial change.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #570 under epic #0514",
-      "worktree": "codex/0514-0570",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0570_batch_priority",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/batch-priority.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0570-batch-priority"
+        }
+      ],
+      "accountable_lead": "sol_medium_0570_batch_priority",
+      "integration_branch": "codex/0514-0570"
     },
     {
       "turn": 6,
@@ -1001,9 +1483,25 @@
       "demo": "Preview a dependent lane, inspect proposed tickets, apply and verify stable card IDs; generate another preview, change a card and observe stale refusal.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #571 under epic #0514",
-      "worktree": "codex/0514-0571",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0571_ticket_order",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/ticket-order.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0571-ticket-order"
+        }
+      ],
+      "accountable_lead": "sol_medium_0571_ticket_order",
+      "integration_branch": "codex/0514-0571"
     },
     {
       "turn": 6,
@@ -1033,9 +1531,25 @@
       "demo": "Capture a board, edit another card while it runs, navigate away and return, then download and verify the older captured revision and file bytes.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #572 under epic #0514",
-      "worktree": "codex/0514-0572",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0572_backup_capture",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/backup.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0572-backup-capture"
+        }
+      ],
+      "accountable_lead": "sol_medium_0572_backup_capture",
+      "integration_branch": "codex/0514-0572"
     },
     {
       "turn": 6,
@@ -1065,9 +1579,26 @@
       "demo": "Stage an isolated candidate build, activate through its ordinary Workspace controls, reconnect at the same board URL, inspect the original receipt and save a final card edit.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #573 under epic #0514",
-      "worktree": "codex/0514-0573",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0573_activation",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/service-tools.ts",
+            "web/src/session.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0573-activation"
+        }
+      ],
+      "accountable_lead": "sol_medium_0573_activation",
+      "integration_branch": "codex/0514-0573"
     },
     {
       "turn": 7,
@@ -1096,9 +1627,25 @@
       "demo": "Approve a complete lane, verify every affected card and comment, then change membership between render and submit and observe refusal.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #574 under epic #0514",
-      "worktree": "codex/0514-0574",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0574_bulk_approve",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/lane-approval.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0574-bulk-approve"
+        }
+      ],
+      "accountable_lead": "sol_medium_0574_bulk_approve",
+      "integration_branch": "codex/0514-0574"
     },
     {
       "turn": 7,
@@ -1128,9 +1675,26 @@
       "demo": "Reload a partially successful batch, inspect pending IDs, reject a changed original, reselect the exact files and finish with one copy of each.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #575 under epic #0514",
-      "worktree": "codex/0514-0575",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0575_upload_recovery",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/uploads.ts",
+            "web/src/upload-recovery.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0575-upload-recovery"
+        }
+      ],
+      "accountable_lead": "sol_medium_0575_upload_recovery",
+      "integration_branch": "codex/0514-0575"
     },
     {
       "turn": 7,
@@ -1159,9 +1723,25 @@
       "demo": "Capture then edit a board, restore the earlier ZIP, verify attachments and retained draft, restore a version missing the open card and reject a damaged ZIP.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #576 under epic #0514",
-      "worktree": "codex/0514-0576",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0576_restore",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/restore.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0576-restore"
+        }
+      ],
+      "accountable_lead": "sol_medium_0576_restore",
+      "integration_branch": "codex/0514-0576"
     },
     {
       "turn": 7,
@@ -1191,9 +1771,25 @@
       "demo": "Publish a captured backup, edit the live board meanwhile, navigate away/back, refresh the original job and verify the destination commit contains the captured bytes.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #577 under epic #0514",
-      "worktree": "codex/0514-0577",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0577_publish_backup",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/backup-publication.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0577-publish-backup"
+        }
+      ],
+      "accountable_lead": "sol_medium_0577_publish_backup",
+      "integration_branch": "codex/0514-0577"
     },
     {
       "turn": 8,
@@ -1225,9 +1821,26 @@
       "demo": "Create a card with two links and staged image/binary files, force the later upload to fail, reopen that saved card and resume the remaining file.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #578 under epic #0514",
-      "worktree": "codex/0514-0578",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0578_create_files",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/create-card.ts",
+            "web/src/uploads.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0578-create-files"
+        }
+      ],
+      "accountable_lead": "sol_medium_0578_create_files",
+      "integration_branch": "codex/0514-0578"
     },
     {
       "turn": 8,
@@ -1257,9 +1870,25 @@
       "demo": "Open Board settings, add and rename a lane, change its key, save custom approval text, reject nonempty retirement and retire it once empty.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #579 under epic #0514",
-      "worktree": "codex/0514-0579",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
-      "external_prerequisites": []
+      "external_prerequisites": [],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_medium_0579_lane_settings",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "medium"
+          },
+          "files": [
+            "web/src/lane-settings.ts"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0579-lane-settings"
+        }
+      ],
+      "accountable_lead": "sol_medium_0579_lane_settings",
+      "integration_branch": "codex/0514-0579"
     },
     {
       "turn": 9,
@@ -1299,7 +1928,6 @@
       "demo": "Launch the complete isolated Go candidate, execute a seeded create/edit/link/upload/approve/archive/restore chain and operations checks, then compare V1 and new screenshots at matching supported viewports.",
       "current_lane": "ready_for_work",
       "scope_reference": "Dev #580 under epic #0514",
-      "worktree": "codex/0514-0580",
       "review_model_rationale": "Shared contract, concurrency, recovery, authorization or integrated qualification.",
       "external_prerequisites": [
         {
@@ -1307,7 +1935,27 @@
           "status": "completed",
           "scope": "Accepted AAA navigation contrast"
         }
-      ]
+      ],
+      "coauthors": [],
+      "author_packets": [
+        {
+          "worker": {
+            "name": "sol_high_0580_qualification",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high"
+          },
+          "files": [
+            "web tests and candidate verification report",
+            "web/assets.go",
+            "web/index.html",
+            "replacement capability ledger"
+          ],
+          "scope": "Complete the assigned story scope and focused verification.",
+          "worktree": "codex/0514-0580-qualification"
+        }
+      ],
+      "accountable_lead": "sol_high_0580_qualification",
+      "integration_branch": "codex/0514-0580"
     }
   ],
   "rolling_window_turns": [
@@ -1344,7 +1992,8 @@
     "Use one browser operator at a time. Terra reviews the integrated visible state while the prescribed check runner validates the same candidate.",
     "Independent source review, required combined checks, browser verification and parent verification precede RFR. Owner demos run at turn end after technical handoff. Terry owns Completed.",
     "Record actual first-author start through last development/review finish; record owner waiting separately.",
-    "Refresh the remaining first three execution turns before each handoff. Keep unfinished work and actual readiness visible."
+    "Refresh the remaining first three execution turns before each handoff. Keep unfinished work and actual readiness visible.",
+    "Multi-author stories retain one accountable lead and one fresh reviewer. Review the combined result and integration diff; coauthors never review their own story."
   ],
   "estimated_hours": 69.5,
   "largest_story_hours": 2.5,
@@ -1353,6 +2002,67 @@
     "status": "passed",
     "model": "gpt-6.1-sol",
     "reasoning_effort": "high",
-    "scope": "Staffing, ownership, gates, resources, dependencies and current ticket mapping."
+    "scope": "Parallel packet boundaries, distinct worktrees, fixtures, saving arithmetic and resource caps."
+  },
+  "supersedes": "0514-staff-r1",
+  "objective": "Reduce cumulative T1-T9 elapsed time through substantive parallel authoring with explicit net coordination costs.",
+  "parallel_authoring": {
+    "stories": [
+      548,
+      549,
+      550,
+      555
+    ],
+    "additional_authors": 4,
+    "net_turn_savings_minutes": [
+      {
+        "turn": 1,
+        "stories": [
+          548
+        ],
+        "min": 15,
+        "max": 30
+      },
+      {
+        "turn": 2,
+        "stories": [
+          549,
+          550
+        ],
+        "min": 20,
+        "max": 35
+      },
+      {
+        "turn": 4,
+        "stories": [
+          555
+        ],
+        "min": 10,
+        "max": 20
+      }
+    ],
+    "net_total_savings_minutes": {
+      "min": 45,
+      "max": 85
+    },
+    "baseline_turn_author_hours": 21.5,
+    "revised_turn_proxy_hours": {
+      "min": 20.083333333333332,
+      "max": 20.75
+    },
+    "assumptions": [
+      "Savings include estimated extra interface agreement, integration and review coordination; unchanged baseline checks, review and owner waiting are outside the original author-only baseline.",
+      "T2 saving is counted once using max(549,550), not the sum of both branch gains.",
+      "With 15 minutes of joint T2 overhead, the slower completed T2 story must finish in 85-100 minutes to reach the 20-35-minute turn saving.",
+      "These are provisional sizing scenarios, not measured agent runtimes. Additional coupling or review cycles can erase the gain.",
+      "Keep a zero-saving sensitivity case and record actual contract, author, merge, review and resource-wait time before expanding splits."
+    ],
+    "not_split": [
+      "T3 has three tied maxima; accelerating one leaves the turn unchanged.",
+      "T5 and T6 single-story splits are capped at 15 minutes by the next-longest job and add coupling or slot pressure.",
+      "T7 has tied recovery jobs; T8 has one coupled lane-settings authority and only a limited off-critical-path opportunity.",
+      "T9 already has Terra visual review, Luna prescribed checks and primary integration. No new savings are assigned to relabeling those existing duties."
+    ],
+    "runtime_policy": "The primary can assign additional useful author packets within the approved scope and current cap when a concrete independent product materially shortens remaining elapsed time. Otherwise keep one accountable author."
   }
 }

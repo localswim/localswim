@@ -86,6 +86,7 @@ function fixture() {
   const posts = [];
   const uploads = [];
   const confirmations = [];
+  const projections = new Map();
   const admission = [];
   const state = { revision: 20, admitted: true, createMode: "confirm", uploadStatus: null };
   const cards = new Map();
@@ -106,6 +107,7 @@ function fixture() {
     async createCard(payload) {
       assert.equal(leased, true);
       posts.push(payload);
+      await state.holdCreate;
       if (state.createMode === "refuse") throw new ApiError("http_error", { status: 403 });
       state.revision++;
       saved = {
@@ -232,6 +234,14 @@ function fixture() {
       }),
       beginWrite: write,
       beginInspection: write,
+      projectPending(change) {
+        const key = `localswim:v2:create-card:${boardId}`;
+        const { submission } = JSON.parse(storage.getItem(key));
+        assert.equal(change.cardId, submission.id);
+        assert.equal(change.boardEtag, submission.etag);
+        projections.set(boardId, change);
+        return () => projections.delete(boardId);
+      },
       onConfirmed: (...args) => confirmations.push(args),
       onStale() {},
       focusFallback() {},
@@ -307,6 +317,7 @@ function fixture() {
     confirmations,
     mount,
     posts,
+    projections,
     remaining,
     stagedFiles,
     state,
@@ -344,6 +355,38 @@ async function until(condition, description) {
     await delay(5);
   }
 }
+
+test("a lost creation clears the original unnumbered projection without replay after navigation", async () => {
+  const f = fixture();
+  const response = Promise.withResolvers();
+  f.state.holdCreate = response.promise;
+  f.state.createMode = "lost";
+  const original = f.mount();
+  original.open();
+  original.title("  Pending ☕");
+  original.button("Add card").click();
+  await until(() => f.posts.length === 1, "the original create dispatch");
+  const [{ id, expected_board_etag }] = f.posts;
+  assert.deepEqual(f.projections.get(board), {
+    kind: "create",
+    boardId: board,
+    cardId: id,
+    boardEtag: expected_board_etag,
+    laneId: lane,
+    ownerId: owner,
+    priorityId: priority,
+    title: "  Pending ☕",
+  });
+  original.life.abort();
+  const reopened = f.mount();
+  response.resolve();
+  await until(() => !f.projections.has(board), "the original projection to settle");
+  reopened.button("Inspect pending creation").click();
+  reopened.button("Inspect creation").click();
+  await until(() => f.confirmations.length === 1, "inspection of the saved original");
+  assert.equal(f.confirmations[0][0], id);
+  assert.equal(f.posts.length, 1);
+});
 
 test("picker and raster paste stay scoped to the draft across board navigation", () => {
   const f = fixture();

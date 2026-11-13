@@ -305,9 +305,13 @@ export function mountCardSearch(
             ? `Showing the first ${matches.length} matching cards.`
             : "",
       );
-    } catch {
+    } catch (error) {
       if (readSignal.aborted) return;
       if (cursor !== undefined) {
+        if (error instanceof ApiError && error.status === 400) {
+          markStale();
+          return;
+        }
         loadMore.textContent = "Retry loading more";
         setStatus("More archived cards could not be read. Retry loading more or search again.");
       } else {

@@ -3,15 +3,19 @@ import test from "node:test";
 import { setImmediate as flush } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { ApiError } from "./api.mjs";
 
 const compiled = await build({
   entryPoints: [fileURLToPath(new URL("./src/search.ts", import.meta.url))],
   bundle: true,
   write: false,
   format: "esm",
+  external: ["../api.mjs"],
 });
+const apiUrl = new URL("./api.mjs", import.meta.url).href;
+const source = compiled.outputFiles[0].text.replaceAll('"../api.mjs"', JSON.stringify(apiUrl));
 const { mountCardSearch } = await import(
-  "data:text/javascript;base64," + Buffer.from(compiled.outputFiles[0].text).toString("base64")
+  "data:text/javascript;base64," + Buffer.from(source).toString("base64")
 );
 
 const board = "87b11b54-e045-4ff0-912e-a429e2ef4a66";
@@ -212,7 +216,7 @@ test("a failed or overlapping page keeps existing rows and retries the same curs
 
   h.more.focus();
   h.loadMore();
-  h.calls[1].reject(new Error("Unavailable"));
+  h.calls[1].reject(new ApiError("http_error", { status: 503 }));
   await flush();
   assert.equal(h.doc.activeElement, h.more);
   assert.equal(h.more.textContent, "Retry loading more");
@@ -271,6 +275,34 @@ test("query and board revision changes discard late pages and reset the cursor",
   assert.deepEqual(
     h.rows().map((row) => row.dataset.cardId),
     [card(3).id],
+  );
+});
+
+test("a rejected continuation requires a fresh search", async () => {
+  const h = harness();
+  h.search();
+  h.calls[0].resolve(page([card(1)], "stale-page"));
+  await flush();
+  const [opener] = h.rows();
+
+  h.more.focus();
+  h.loadMore();
+  h.calls[1].reject(new ApiError("http_error", { status: 400 }));
+  await flush();
+  assert.equal(h.more.hidden, true);
+  assert.equal(h.doc.activeElement, h.submit);
+  assert.match(h.status.textContent, /out of date. Search again/);
+  assert.deepEqual(h.rows(), [opener]);
+  h.loadMore();
+  assert.equal(h.calls.length, 2);
+
+  h.search();
+  assert.equal(h.calls[2].options.cursor, undefined);
+  h.calls[2].resolve(page([card(2)]));
+  await flush();
+  assert.deepEqual(
+    h.rows().map((row) => row.dataset.cardId),
+    [card(2).id],
   );
 });
 

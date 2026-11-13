@@ -107,7 +107,7 @@ function createRow(attachment: Attachment, getProps: () => AttachmentViewProps) 
     try {
       const blob = await readAttachmentContent(attachment, "inline", signal);
       if (signal.aborted) return;
-      const thumbnail = await attachmentThumbnail(blob, 500, 240);
+      const thumbnail = await attachmentThumbnail(blob, 400, 200);
       if (signal.aborted) return;
       url = URL.createObjectURL(blob);
       thumbnailUrl = URL.createObjectURL(thumbnail.bytes);

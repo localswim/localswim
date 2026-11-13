@@ -26,7 +26,7 @@ type LaneAddition = Required<
 type Change =
   | { kind: "add"; value: LaneAddition }
   | { kind: "patch"; laneId: string; revision: number; value: LanePatch };
-type Intent = Change & { boardEtag: string };
+type Intent = Change & { boardEtag: string; identityConflict?: true };
 type Context = {
   data: BoardViewData | null;
   actorId?: string;
@@ -106,6 +106,7 @@ function parseIntent(raw: string, boardId: string): Intent {
             kind: "add",
             boardEtag,
             value: { id, label, after_id, create_for, connect_for },
+            ...(entry.identityConflict === true ? { identityConflict: true } : {}),
           };
         }
       }
@@ -334,6 +335,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
   const cancelRetirement = button("Cancel retirement");
   const inspect = button("Inspect lane change");
   const retry = button("Retry lane change");
+  const correct = button("Edit lane draft");
   const dismiss = button("Dismiss pending change");
   const actions = doc.createElement("div");
   actions.className = "lane-settings-actions";
@@ -346,7 +348,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
     field("Bulk approval comment", comment.node),
   );
   actions.append(save, reload, retire, confirmRetirement, cancelRetirement);
-  recovery.append(inspect, retry, dismiss);
+  recovery.append(inspect, retry, correct, dismiss);
   addFields.append(
     legend("Add lane"),
     field("New lane label", newLabel.node),
@@ -381,7 +383,8 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
   let raw: string | null = null;
   let pending: Intent | undefined;
   let journalError = false;
-  let inspected: { raw: string | null; kind: "retry" | "dismiss" } | undefined;
+  let inspected: { raw: string | null; kind: "retry" | "dismiss" | "correct" } | undefined;
+  let correcting: string | null | undefined;
   let retiredTag: string | undefined;
 
   function button(text: string, type: "button" | "submit" = "button") {
@@ -409,9 +412,14 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
     let users: BoardViewData["users"] = [];
     let choices: HTMLInputElement[] = [];
     const selected = () => choices.filter((choice) => choice.checked).map(({ value }) => value);
+    function select(ids: readonly string[]) {
+      const included = new Set(ids);
+      for (const choice of choices) choice.checked = included.has(choice.value);
+    }
     return {
       node,
       selected,
+      select,
       update(next: BoardViewData["users"]) {
         if (
           next.length === users.length &&
@@ -453,10 +461,12 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
       pending = value === null ? undefined : parseIntent(value, boardId);
       journalError = false;
       inspected = undefined;
+      correcting = undefined;
       if (pending) notice = "Inspect the saved lane before retrying this change.";
     } catch {
       journalError = true;
       inspected = undefined;
+      correcting = undefined;
     }
   }
 
@@ -469,6 +479,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
       raw = value;
       pending = next;
       inspected = undefined;
+      correcting = undefined;
       return true;
     } catch {
       journalError = true;
@@ -644,20 +655,25 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
       !dirty;
     if (!confirm) retirementTag = undefined;
     if (awaitingTag && data && awaitingTag !== data.etag) awaitingTag = undefined;
-    const unavailable =
-      !data || !writable || busy || !!pending || journalError || awaitingTag !== undefined;
+    const readyToCorrect =
+      correcting !== undefined &&
+      correcting === raw &&
+      pending?.kind === "add" &&
+      data?.etag === pending.boardEtag;
+    const unavailable = !data || !writable || busy || journalError || awaitingTag !== undefined;
     const problem = dirty && !stale ? editProblem() : "";
-    addFields.disabled = unavailable;
-    editFields.disabled = unavailable;
+    addFields.disabled = unavailable || (!!pending && !readyToCorrect);
+    editFields.disabled = unavailable || !!pending;
     label.node.disabled = notes.node.disabled = !current || stale;
     key.node.disabled = !current || stale || current.role === "completed";
     approvalFields.hidden = current?.role !== "ready_for_review";
     approvalFields.disabled = approvalFields.hidden || stale;
-    add.disabled = unavailable || !after.value || !validText(newLabel.value, limits.label, true);
-    save.disabled = unavailable || !current || stale || !dirty || !!problem;
+    add.disabled =
+      addFields.disabled || !after.value || !validText(newLabel.value, limits.label, true);
+    save.disabled = editFields.disabled || !current || stale || !dirty || !!problem;
     reload.hidden = !stale;
     retire.hidden = !canRetire || confirm;
-    retire.disabled = unavailable || stale || dirty || occupied;
+    retire.disabled = editFields.disabled || stale || dirty || occupied;
     confirmRetirement.hidden = cancelRetirement.hidden = !confirm;
     retirementStatus.textContent =
       canRetire && occupied ? "Move or archive the active cards before retiring this lane." : "";
@@ -665,6 +681,9 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
     inspect.disabled = busy || journalError || !canInspectSaved();
     retry.hidden = !pending || inspected?.kind !== "retry";
     retry.disabled = busy || !writable || data?.etag !== pending?.boardEtag || journalError;
+    correct.hidden = !pending || inspected?.kind !== "correct" || readyToCorrect;
+    correct.disabled =
+      busy || journalError || !canInspectSaved() || !writable || data?.etag !== pending?.boardEtag;
     dismiss.hidden = !pending || inspected?.kind !== "dismiss";
     dismiss.disabled = busy || journalError || !canInspectSaved();
     const text = journalError
@@ -689,12 +708,24 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
       });
   }
 
-  function submit(intent: Intent, repeating = false) {
+  function submit(intent: Intent, mode: "new" | "retry" | "correction" = "new") {
     const { data, actorId, allowed, writable } = getContext();
     if (!actorId || !allowed || !writable || data?.etag !== intent.boardEtag || awaitingTag || busy)
       return;
     readJournal(actorId);
-    if (journalError || (repeating ? inspected?.kind !== "retry" || pending !== intent : !!pending))
+    if (journalError) return;
+    if (mode === "retry" && (inspected?.kind !== "retry" || pending !== intent)) return;
+    if (mode === "new" && pending) return;
+    if (
+      mode === "correction" &&
+      (correcting === undefined ||
+        correcting !== raw ||
+        !canInspectSaved() ||
+        intent.kind !== "add" ||
+        pending?.kind !== "add" ||
+        pending.boardEtag !== intent.boardEtag ||
+        pending.value.id !== intent.value.id)
+    )
       return;
     const release = beginWrite();
     if (!release) return;
@@ -703,16 +734,28 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
         const result = await submitOperation(
           () => remember(intent),
           async () => {
-            const reply =
-              intent.kind === "add"
-                ? await api.createLane(boardId, intent.boardEtag, intent.value)
-                : await api.updateLaneSettings(
-                    boardId,
-                    intent.laneId,
-                    intent.revision,
-                    intent.boardEtag,
-                    intent.value,
-                  );
+            let reply;
+            try {
+              reply =
+                intent.kind === "add"
+                  ? await api.createLane(boardId, intent.boardEtag, intent.value)
+                  : await api.updateLaneSettings(
+                      boardId,
+                      intent.laneId,
+                      intent.revision,
+                      intent.boardEtag,
+                      intent.value,
+                    );
+            } catch (error) {
+              if (
+                intent.kind === "add" &&
+                error instanceof ApiError &&
+                error.code === "lane_identity_conflict"
+              ) {
+                return "identity-conflict" as const;
+              }
+              throw error;
+            }
             if (
               reply.etag !== `"${reply.data.id}-${reply.data.revision}"` ||
               reply.data.revision !== data.board.revision + 1 ||
@@ -720,6 +763,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
             ) {
               throw new ApiError("invalid_response", { outcomeUnknown: true });
             }
+            return "saved" as const;
           },
         );
         switch (result.kind) {
@@ -729,6 +773,17 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
           case "journal-failed":
             break;
           case "confirmed":
+            if (result.result === "identity-conflict") {
+              if (mode !== "new") {
+                if (remember({ ...intent, identityConflict: true })) {
+                  notice =
+                    "The server found a lane identity conflict. Inspect the original lane before editing the draft.";
+                }
+              } else if (remember(undefined))
+                notice = "The lane label or identity conflicts with existing state.";
+              if (!signal.aborted) onChange();
+              break;
+            }
             if (remember(undefined) && !signal.aborted) {
               notice =
                 intent.kind === "add"
@@ -748,7 +803,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
           case "stale":
           case "refused":
             // An intervening original write can explain a refusal of an inspected retry.
-            if (repeating) {
+            if (mode !== "new") {
               notice = "The retry was refused. Inspect the original lane change again.";
               if (!signal.aborted) onChange();
               break;
@@ -866,9 +921,15 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
         const advanced =
           first.data.revision > originalRevision && (intent.kind === "patch" || !lane);
         if (unchanged || advanced) {
-          inspected = { raw: expected, kind: unchanged ? "retry" : "dismiss" };
+          const conflict = unchanged && intent.kind === "add" && intent.identityConflict;
+          inspected = {
+            raw: expected,
+            kind: conflict ? "correct" : unchanged ? "retry" : "dismiss",
+          };
           notice = unchanged
-            ? "The original lane change is absent. You can retry against the same board version."
+            ? conflict
+              ? "The original lane is absent. Edit the draft to resolve the lane identity conflict."
+              : "The original lane change is absent. You can retry against the same board version."
             : "The saved board differs from the pending change. Dismiss it and review the current settings.";
         } else notice = "The board and lane versions could not be reconciled. Inspect again.";
         onChange();
@@ -896,17 +957,24 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
         !validText(newLabel.value, limits.label, true)
       )
         return;
-      submit({
-        kind: "add",
-        boardEtag: data.etag,
-        value: {
-          id: crypto.randomUUID(),
-          label: newLabel.value,
-          after_id: after.value,
-          create_for: createGrants.selected(),
-          connect_for: connectGrants.selected(),
+      const original =
+        correcting !== undefined && correcting === raw && pending?.kind === "add"
+          ? pending
+          : undefined;
+      submit(
+        {
+          kind: "add",
+          boardEtag: data.etag,
+          value: {
+            id: original?.value.id ?? crypto.randomUUID(),
+            label: newLabel.value,
+            after_id: after.value,
+            create_for: createGrants.selected(),
+            connect_for: connectGrants.selected(),
+          },
         },
-      });
+        original ? "correction" : "new",
+      );
     },
     { signal },
   );
@@ -991,7 +1059,34 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
   retry.addEventListener(
     "click",
     () => {
-      if (pending) submit(pending, true);
+      if (pending) submit(pending, "retry");
+    },
+    { signal },
+  );
+  correct.addEventListener(
+    "click",
+    () => {
+      const { actorId, allowed, data, writable } = getContext();
+      if (!actorId || !allowed || !writable || busy || !canInspectSaved()) return;
+      readJournal(actorId);
+      if (
+        journalError ||
+        inspected?.kind !== "correct" ||
+        inspected.raw !== raw ||
+        pending?.kind !== "add" ||
+        pending.boardEtag !== data?.etag
+      )
+        return;
+      correcting = raw;
+      const draft = pending.value;
+      newLabel.set(draft.label);
+      after.value = draft.after_id;
+      createGrants.select(draft.create_for);
+      connectGrants.select(draft.connect_for);
+      notice =
+        "Lane draft restored. Change the lane label or review its position and grants before adding it.";
+      update();
+      newLabel.node.focus();
     },
     { signal },
   );

@@ -643,10 +643,10 @@ async function responseObject(response, write) {
   throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: write });
 }
 
-/** @param {Response} response @param {boolean | readonly string[]} allowOtherUnavailable */
-async function unavailableRefusalCode(response, allowOtherUnavailable) {
+/** @param {Response} response @param {number} status @param {string} code */
+async function readWriteRefusal(response, status, code) {
   if (
-    response.status !== 503 ||
+    response.status !== status ||
     response.body === null ||
     response.body.locked ||
     !/^application\/problem\+json(?:\s*;\s*charset\s*=\s*(?:utf-8|"utf-8"))?$/i.test(
@@ -674,8 +674,8 @@ async function unavailableRefusalCode(response, allowOtherUnavailable) {
       isObject(problem) &&
       Object.keys(problem).length === 8 &&
       problem.type === "about:blank" &&
-      problem.status === 503 &&
-      problem.code === "unavailable" &&
+      problem.status === status &&
+      problem.code === code &&
       problem.outcome === "not_applied" &&
       typeof problem.title === "string" &&
       problem.title.length > 0 &&
@@ -691,27 +691,33 @@ async function unavailableRefusalCode(response, allowOtherUnavailable) {
     // JSON.parse would otherwise silently accept duplicate members.
     if (text.match(/"(?:[^"\\]|\\.)*"|:/gs)?.filter((token) => token === ":").length !== 8)
       return null;
-    if (typeof allowOtherUnavailable !== "boolean") {
-      return problem.title === "Service Unavailable" &&
-        allowOtherUnavailable.includes(problem.detail)
-        ? "unavailable"
-        : null;
-    }
-    if (!allowOtherUnavailable) {
-      return problem.title === "Service Unavailable" &&
-        problem.detail === "Writes are paused after an uncertain commit. Inspect the saved state."
-        ? "unavailable"
-        : null;
-    }
-    return problem.detail === "Final publication failed. The service remains running."
-      ? "final_publication_failed"
-      : "unavailable";
+    return { title: problem.title, detail: problem.detail };
   } catch {
     return null;
   } finally {
     await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
+}
+
+/** @param {Response} response @param {boolean | readonly string[]} allowOtherUnavailable */
+async function unavailableRefusalCode(response, allowOtherUnavailable) {
+  const problem = await readWriteRefusal(response, 503, "unavailable");
+  if (!problem) return null;
+  if (typeof allowOtherUnavailable !== "boolean") {
+    return problem.title === "Service Unavailable" && allowOtherUnavailable.includes(problem.detail)
+      ? "unavailable"
+      : null;
+  }
+  if (!allowOtherUnavailable) {
+    return problem.title === "Service Unavailable" &&
+      problem.detail === "Writes are paused after an uncertain commit. Inspect the saved state."
+      ? "unavailable"
+      : null;
+  }
+  return problem.detail === "Final publication failed. The service remains running."
+    ? "final_publication_failed"
+    : "unavailable";
 }
 
 const EVENT_TYPES = new Set(["snapshot", "change"]);
@@ -898,6 +904,15 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     }
 
     if (!response.ok && !(response.status === 304 && ifNoneMatch !== undefined)) {
+      if (path === "/lanes" && method === "POST" && response.status === 409) {
+        const refusal = await readWriteRefusal(response, 409, "conflict");
+        if (
+          refusal?.title === "Conflict" &&
+          refusal.detail === "The requested identity conflicts with existing state."
+        ) {
+          throw new ApiError("lane_identity_conflict", { status: 409 });
+        }
+      }
       const refusalCode = write ? await unavailableRefusalCode(response, knownUnavailable) : null;
       if (refusalCode) throw new ApiError(refusalCode, { status: 503 });
       await discardBody(response);

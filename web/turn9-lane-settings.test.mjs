@@ -77,6 +77,7 @@ class Element extends EventTarget {
     this.tag = tag;
   }
   setAttribute() {}
+  focus() {}
   setSelectionRange(start, end) {
     this.selectionStart = start;
     this.selectionEnd = end;
@@ -420,4 +421,69 @@ test("an advancing board during inspection cannot authorize dismissal of an unce
   assert.equal(posts, 1);
   assert.equal(storage.size, 0);
   assert.match(status(host), /contains the new lane/);
+});
+
+test("a verified conflict after a lost create permits editing under the original UUID and validator", async () => {
+  const attempts = [];
+  const { mount, storage } = fixture((path, request) => {
+    if (request.method === "POST") {
+      assert.equal(path, `${prefix}/lanes`);
+      const draft = body(request);
+      attempts.push(draft);
+      if (attempts.length === 1) throw new Error("lost original conflict");
+      if (attempts.length === 2) {
+        return new Response(
+          JSON.stringify({
+            type: "about:blank",
+            title: "Conflict",
+            status: 409,
+            code: "conflict",
+            detail: "The requested identity conflicts with existing state.",
+            request_id: actorId,
+            outcome: "not_applied",
+            errors: [],
+          }),
+          { status: 409, headers: { "Content-Type": "application/problem+json" } },
+        );
+      }
+      return reply(lane(draft.id, draft.label, 3, "ordinary", { revision: 5 }), 201);
+    }
+    if (path === `${prefix}/boards/${boardId}`) return boardReply(4);
+    assert.equal(path, `${prefix}/lanes/${attempts[0].id}`);
+    return new Response(null, { status: 404 });
+  });
+  const first = mount();
+  first.host.control("New lane label").input("  Duplicate label  ");
+  first.host.control("Insert after").select(reviewId);
+  first.host.grant("Create rights", "Bot").checked = true;
+  first.host.grant("Connect rights", "Human").checked = true;
+  first.host.button("Add lane").click();
+  await flush();
+  first.host.button("Inspect lane change").click();
+  await flush();
+  assert.equal(first.host.button("Edit lane draft").hidden, true);
+  first.host.button("Retry lane change").click();
+  await flush();
+  assert.deepEqual(attempts[1], attempts[0]);
+  assert.equal(first.host.button("Edit lane draft").hidden, true);
+  first.life.abort();
+  const { host } = mount();
+  host.button("Inspect lane change").click();
+  await flush();
+  assert.equal(host.button("Retry lane change").hidden, true);
+  assert.equal(host.button("Dismiss pending change").hidden, true);
+  host.button("Edit lane draft").click();
+  assert.match(status(host), /Lane draft restored/);
+  assert.equal(storage.size, 1);
+  assert.equal(host.control("New lane label").value, "  Duplicate label  ");
+  assert.equal(host.control("Insert after").value, reviewId);
+  assert.equal(host.grant("Create rights", "Bot").checked, true);
+  assert.equal(host.grant("Connect rights", "Human").checked, true);
+  host.control("New lane label").input("  Corrected label  ");
+  host.button("Add lane").click();
+  await flush();
+  assert.equal(attempts.length, 3);
+  assert.deepEqual(attempts[2], { ...attempts[0], label: "  Corrected label  " });
+  assert.equal(storage.size, 0);
+  assert.match(status(host), /Lane added/);
 });

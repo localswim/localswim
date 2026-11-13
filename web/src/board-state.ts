@@ -185,19 +185,32 @@ export function createBoardState({
     const inspection = new AbortController();
     verification = inspection;
     const readSignal = AbortSignal.any([signal, inspection.signal]);
+    const superseded = () =>
+      readSignal.aborted || verification !== inspection || epoch !== confirmationEpoch;
     try {
       const { data: report } = await readWithSession(
         () => api.getVerification(boardId, readSignal),
         readSignal,
       );
-      if (readSignal.aborted || epoch !== confirmationEpoch) return;
+      if (superseded()) return;
       const message = verificationDiagnostic(report, boardId);
       if (message !== verificationMessage) {
         verificationMessage = message;
         publish();
       }
-    } catch {
-      // Catalog and focused availability already provide the safe fallback diagnostic.
+    } catch (error) {
+      if (
+        !superseded() &&
+        error instanceof ApiError &&
+        error.code === "http_error" &&
+        (error.status === 403 || error.status === 404)
+      ) {
+        // Discard focused reads that started before this refusal.
+        confirmationEpoch++;
+        clearVerification();
+        focusedAvailability = "unavailable";
+        publish();
+      }
     } finally {
       if (verification === inspection) verification = undefined;
     }

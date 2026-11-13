@@ -194,6 +194,103 @@ test("focused unhealthy metadata fences retained data before catalog catches up"
   assert.equal(app.view.availability, "unavailable");
 });
 
+for (const status of [403, 404]) {
+  test(`a current verification ${status} purges retained board state until a fresh read`, async (t) => {
+    const verification = Promise.withResolvers();
+    const app = setup(t, {
+      retained,
+      api: { getVerification: () => verification.promise },
+    });
+    app.metadata("unhealthy");
+    app.catalog(healthy);
+    app.state.start();
+    await app.state.retry();
+    assert.equal(app.view.data, retained);
+    assert.equal(app.view.name, board.name);
+
+    verification.reject(new ApiError("http_error", { status }));
+    await flush();
+    assert.equal(app.view.availability, "unavailable");
+    assert.equal(app.view.data, null);
+    assert.equal(app.view.name, null);
+    assert.equal(app.view.confirmedRevision, null);
+    assert.equal(app.view.confirmedEtag, null);
+    assert.equal(app.view.policyId, null);
+    assert.equal(app.view.healthDiagnostic, null);
+    assert.equal(app.view.lifecycleReady, false);
+    assert.equal(app.view.writesFenced, true);
+
+    app.metadata("open");
+    assert.equal(await app.state.retry(), true);
+    assert.equal(app.fullReads, 1);
+    assert.equal(app.view.availability, "open");
+    assert.ok(app.view.data);
+    assert.equal(app.view.writesFenced, false);
+  });
+}
+
+test("verification refusal invalidates a focused read already in flight", async (t) => {
+  const verification = Promise.withResolvers();
+  const focusedRead = Promise.withResolvers();
+  const focusedReadStarted = Promise.withResolvers();
+  let delayed = false;
+  const app = setup(t, {
+    retained,
+    api: {
+      getVerification: () => verification.promise,
+      async getBoardAvailability() {
+        if (delayed) {
+          focusedReadStarted.resolve();
+          return focusedRead.promise;
+        }
+        return { data: { ...board, availability: "unhealthy" }, etag: tag(1) };
+      },
+    },
+  });
+  app.catalog(healthy);
+  app.state.start();
+  await app.state.retry();
+
+  delayed = true;
+  const retry = app.state.retry();
+  await focusedReadStarted.promise;
+  verification.reject(new ApiError("http_error", { status: 403 }));
+  await flush();
+  assert.equal(app.view.availability, "unavailable");
+
+  focusedRead.resolve({ data: { ...board, availability: "open" }, etag: tag(1) });
+  assert.equal(await retry, false);
+  assert.equal(app.view.availability, "unavailable");
+  assert.equal(app.view.data, null);
+  assert.equal(app.view.name, null);
+  assert.equal(app.fullReads, 0);
+});
+
+test("a late verification refusal cannot undo a healthy focused read", async (t) => {
+  const verification = Promise.withResolvers();
+  const app = setup(t, {
+    retained,
+    api: { getVerification: () => verification.promise },
+  });
+  app.metadata("unhealthy");
+  app.catalog(healthy);
+  app.state.start();
+  await app.state.retry();
+  assert.equal(app.view.availability, "unhealthy");
+
+  app.metadata("open");
+  assert.equal(await app.state.retry(), true);
+  const confirmed = app.view.data;
+  assert.ok(confirmed);
+  assert.equal(app.view.availability, "open");
+
+  verification.reject(new ApiError("http_error", { status: 404 }));
+  await flush();
+  assert.equal(app.view.availability, "open");
+  assert.equal(app.view.data, confirmed);
+  assert.equal(app.view.writesFenced, false);
+});
+
 test("an unhealthy closed board reports damage without revealing retained cards", async (t) => {
   const app = setup(t, { retained });
   app.metadata("closed");

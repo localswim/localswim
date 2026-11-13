@@ -1,4 +1,5 @@
 import { ApiError } from "../api.mjs";
+import type { CardMovement } from "./card-movement.js";
 import type { AppContext } from "./model.js";
 
 type ActorKind = "human" | "bot";
@@ -15,6 +16,7 @@ type BoardLane = Label &
 type BoardCard = Readonly<{
   id: string;
   title: string;
+  revision: number;
   ticket: number;
   lane_id: string;
   priority_id: string;
@@ -49,6 +51,7 @@ export type BoardViewOptions = Readonly<{
   onOpenCard?: (card: BoardCard, opener: HTMLButtonElement) => void;
   renderLaneActions?: (lane: BoardLane, container: HTMLElement) => void;
   onViewChange?: () => void;
+  movement?: CardMovement;
 }>;
 
 type BoardViewport = Readonly<{
@@ -59,6 +62,11 @@ type BoardViewport = Readonly<{
 
 const completionAge = 24 * 60 * 60 * 1000;
 const colorHex = /^#[0-9a-f]{6}$/i;
+const cardDragType = "application/vnd.localswim.card-move";
+
+function moveSource(card: BoardCard) {
+  return { cardId: card.id, laneId: card.lane_id, revision: card.revision };
+}
 
 function isLabel(value: unknown): value is Label {
   return (
@@ -178,6 +186,7 @@ export function mountBoardView(
   const doc = root.ownerDocument;
   const view = doc.defaultView;
   if (!view) throw new Error("The board view requires a window.");
+  const NodeType = view.Node;
 
   function element<K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -214,8 +223,15 @@ export function mountBoardView(
   const filterCount = element("span", "board-view-filter-count");
   filterCount.setAttribute("role", "status");
   filterBar.append(filterLabel, filterCount);
+  const moveFeedback = element("div", "board-view-movement");
+  const moveStatus = element("p", "board-view-move-status");
+  moveStatus.setAttribute("role", "status");
+  const inspectMove = element("button", "", "Inspect saved card");
+  inspectMove.type = "button";
+  moveFeedback.append(moveStatus, inspectMove);
   const strip = element("div", "board-view-lanes lanes");
   board.append(filterBar, strip);
+  if (options.movement) filterBar.after(moveFeedback);
   shadow.append(stylesheet, board);
 
   type CardFace = { card: BoardCard; item: HTMLLIElement; opener: HTMLButtonElement };
@@ -233,7 +249,82 @@ export function mountBoardView(
   let currentBoard = initialData.board.id;
   let lanes: LaneFace[] = [];
   let showOlderCompleted = false;
-  const { onOpenCard, renderLaneActions, onViewChange } = options;
+  const { onOpenCard, renderLaneActions, onViewChange, movement } = options;
+  const lifetime = new AbortController();
+  const listenerOptions = { signal: lifetime.signal };
+  type Drag = {
+    opener: HTMLButtonElement;
+    source: ReturnType<typeof moveSource>;
+    payload: string;
+    request: AbortController;
+    original: ReturnType<CardMovement["prepareDrag"]>;
+  };
+  let drag: Drag | undefined;
+  let dropping: AbortController | undefined;
+  let dropTarget: HTMLElement | undefined;
+  let deferredData: BoardViewData | undefined;
+
+  function markDropTarget(target?: HTMLElement) {
+    if (dropTarget === target) return;
+    dropTarget?.removeAttribute("data-drop-target");
+    dropTarget = target;
+    if (target) target.dataset.dropTarget = "true";
+  }
+
+  function finishDrag(): Drag | undefined {
+    const current = drag;
+    drag = undefined;
+    current?.opener.removeAttribute("data-dragging");
+    markDropTarget();
+    const deferred = deferredData;
+    deferredData = undefined;
+    if (deferred) update(deferred);
+    return current;
+  }
+
+  function cancelMovement() {
+    dropping?.abort();
+    finishDrag()?.request.abort();
+  }
+
+  function refreshMovement() {
+    if (!movement) return;
+    const feedback = movement.status();
+    moveFeedback.hidden = !feedback.message;
+    if (moveStatus.textContent !== feedback.message) moveStatus.textContent = feedback.message;
+    if (inspectMove === shadow.activeElement && !feedback.canInspect) {
+      moveStatus.tabIndex = -1;
+      moveStatus.focus({ preventScroll: true });
+    }
+    inspectMove.hidden = !feedback.canInspect;
+    const enabled = new Map<string, boolean>();
+    for (const { members } of lanes) {
+      for (const { card, opener } of members) {
+        const source = moveSource(card);
+        let granted = enabled.get(source.laneId);
+        if (granted === undefined) {
+          granted = movement.destinations(source).length > 0;
+          enabled.set(source.laneId, granted);
+        }
+        if (opener !== drag?.opener) {
+          opener.draggable = !opener.disabled && granted && movement.available(source);
+        }
+      }
+    }
+    if (drag && dropTarget && !canDrop(drag, dropTarget.dataset.laneId ?? "")) {
+      markDropTarget();
+    }
+  }
+
+  function canDrop(current: Drag, laneId: string) {
+    return (
+      current.opener.isConnected &&
+      movement?.available(current.source) === true &&
+      movement.destinations(current.source).some(({ id }) => id === laneId)
+    );
+  }
+
+  inspectMove.addEventListener("click", () => void movement?.inspect(), listenerOptions);
 
   function cardFace(
     card: BoardCard,
@@ -301,6 +392,39 @@ export function mountBoardView(
       opener.append(counts);
     }
     if (description.length > 0) opener.setAttribute("aria-description", description.join(", "));
+    if (movement) {
+      opener.addEventListener("dragstart", (event) => {
+        const transfer = event.dataTransfer;
+        const source = moveSource(card);
+        if (
+          drag ||
+          dropping ||
+          !transfer ||
+          !opener.draggable ||
+          !opener.isConnected ||
+          !movement.available(source) ||
+          movement.destinations(source).length === 0
+        ) {
+          event.preventDefault();
+          return;
+        }
+        const request = new AbortController();
+        const payload = JSON.stringify({ boardId: currentBoard, ...source });
+        transfer.setData(cardDragType, payload);
+        transfer.effectAllowed = "move";
+        opener.dataset.dragging = "true";
+        drag = {
+          opener,
+          source,
+          payload,
+          request,
+          original: movement.prepareDrag(source, request.signal),
+        };
+      });
+      opener.addEventListener("dragend", () => {
+        if (drag?.opener === opener) finishDrag()?.request.abort();
+      });
+    }
     item.append(opener);
     return { card, item, opener };
   }
@@ -362,6 +486,46 @@ export function mountBoardView(
     const section = element("section", "board-view-lane lane");
     section.dataset.laneId = lane.id;
     section.dataset.laneRole = lane.role;
+    if (movement) {
+      section.addEventListener("dragover", (event) => {
+        const transfer = event.dataTransfer;
+        if (!drag || !transfer?.types.includes(cardDragType) || !canDrop(drag, lane.id)) {
+          markDropTarget();
+          return;
+        }
+        event.preventDefault();
+        transfer.dropEffect = "move";
+        markDropTarget(section);
+      });
+      section.addEventListener("dragleave", (event) => {
+        if (
+          dropTarget === section &&
+          !(event.relatedTarget instanceof NodeType && section.contains(event.relatedTarget))
+        ) {
+          markDropTarget();
+        }
+      });
+      section.addEventListener("drop", (event) => {
+        const current = drag;
+        const transfer = event.dataTransfer;
+        if (!current || !transfer?.types.includes(cardDragType)) return;
+        event.preventDefault();
+        const allowed =
+          transfer.getData(cardDragType) === current.payload && canDrop(current, lane.id);
+        finishDrag();
+        if (!allowed) {
+          current.request.abort();
+          return;
+        }
+        dropping = current.request;
+        void movement
+          .drop(current.source, lane.id, current.original, current.request.signal)
+          .finally(() => {
+            if (dropping === current.request) dropping = undefined;
+            current.request.abort();
+          });
+      });
+    }
     const heading = element("div", "board-view-lane-heading lane-heading");
     const title = doc.createElement("h2");
     title.id = `board-lane-${lane.id}`;
@@ -425,6 +589,7 @@ export function mountBoardView(
       members: [],
     };
     reveal.addEventListener("click", () => {
+      cancelMovement();
       showOlderCompleted = true;
       paintFilter(face);
     });
@@ -433,6 +598,11 @@ export function mountBoardView(
 
   function update(data: BoardViewData) {
     const sameBoard = data.board.id === currentBoard;
+    if (drag && sameBoard) {
+      deferredData = data;
+      return;
+    }
+    if (!sameBoard) cancelMovement();
     const focused = shadow.activeElement;
     const focusLane = focused?.closest<HTMLElement>("[data-lane-id]")?.dataset.laneId;
     const focusCard = focused?.getAttribute("data-card-id");
@@ -477,11 +647,10 @@ export function mountBoardView(
           : (previousLane?.scroll ?? filter);
       target.focus({ preventScroll: true });
     }
+    refreshMovement();
     onViewChange?.();
   }
 
-  const lifetime = new AbortController();
-  const listenerOptions = { signal: lifetime.signal };
   let restore = new AbortController();
   let restoreFrame = 0;
   let pendingScroll: Pick<BoardViewport, "horizontalScroll" | "laneScroll"> | undefined;
@@ -496,6 +665,7 @@ export function mountBoardView(
   filter.addEventListener(
     "input",
     () => {
+      cancelMovement();
       paintFilter();
       onViewChange?.();
     },
@@ -512,6 +682,7 @@ export function mountBoardView(
         return;
       }
       event.preventDefault();
+      cancelMovement();
       filter.value = "";
       paintFilter();
       onViewChange?.();
@@ -521,6 +692,11 @@ export function mountBoardView(
   doc.addEventListener(
     "keydown",
     (event) => {
+      if (drag && event.key === "Escape" && !event.defaultPrevented && !event.isComposing) {
+        event.preventDefault();
+        cancelMovement();
+        return;
+      }
       if (
         !host.isConnected ||
         event.defaultPrevented ||
@@ -551,6 +727,8 @@ export function mountBoardView(
   root.replaceChildren(boundary);
   return {
     update,
+    refreshMovement,
+    cancelMovement,
     captureViewport(): BoardViewport {
       return {
         filter: filter.value,
@@ -561,6 +739,7 @@ export function mountBoardView(
       };
     },
     restoreViewport({ filter: query, horizontalScroll, laneScroll }: BoardViewport) {
+      cancelMovement();
       cancelViewportRestore();
       restore = new AbortController();
       const restoreSignal = AbortSignal.any([lifetime.signal, restore.signal]);
@@ -597,6 +776,7 @@ export function mountBoardView(
       filter.focus();
     },
     dispose() {
+      cancelMovement();
       lifetime.abort();
       cancelViewportRestore();
       boundary.remove();

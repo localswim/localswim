@@ -1,0 +1,37 @@
+.board-view .board-view-lane[data-drop-target="true"] {
+  outline: 2px solid var(--board-view-focus);
+  outline-offset: -2px;
+}
+
+.board-view .board-view-card[data-dragging="true"] {
+  opacity: 0.65;
+}
+
+.board-view-movement {
+  margin-block: 0.5rem;
+}
+
+.board-view-move-status,
+.card-movement-status {
+  margin-block: 0.35rem;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.card-movement-form:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}
+
+.card-movement-form label {
+  display: grid;
+  gap: 0.25rem;
+  min-inline-size: 0;
+}
+
+.card-movement-form select {
+  max-inline-size: 100%;
+}

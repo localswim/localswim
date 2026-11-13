@@ -591,6 +591,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
           onOpenCard: (card, opener) => {
             if (boardSnapshot?.confirmedRevision === null) {
               drawer?.showRetained({ id: card.id }, opener);
+              drawerNeedsConfirmation = true;
             } else {
               drawer?.open({ id: card.id }, opener);
             }

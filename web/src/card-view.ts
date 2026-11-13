@@ -498,6 +498,9 @@ export function mountCardView(
     title.textContent = "Loading card…";
     setStatus("");
     details.hidden = true;
+    displayedProse = undefined;
+    description.replaceChildren();
+    metadata.replaceChildren();
     hierarchy.replaceChildren();
     displayedHierarchy = undefined;
     body.scrollTop = 0;

@@ -508,13 +508,13 @@ export function mountCardView(
     if (read) refresh();
   }
 
-  function close(focus = true, explicit = focus) {
+  function close(focus = true, explicit = focus, preserveSelection = false) {
     if (!selection) return;
     const { origin, opener, lifetime: currentLifetime } = selection;
     selection = undefined;
     currentLifetime.abort();
     panel.hidden = true;
-    onSelectionChange?.(null, explicit);
+    if (!preserveSelection) onSelectionChange?.(null, explicit);
     onTextReadiness?.(false);
     onTextContext?.(null);
     if (!focus) return;
@@ -540,7 +540,13 @@ export function mountCardView(
   doc.addEventListener(
     "keydown",
     (event) => {
-      if (!selection || event.defaultPrevented || event.isComposing || event.key !== "Escape")
+      if (
+        !selection ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.key !== "Escape" ||
+        doc.querySelector("dialog:modal")
+      )
         return;
       event.preventDefault();
       close();
@@ -559,6 +565,7 @@ export function mountCardView(
   return {
     open,
     close,
+    hideForBoardClose: () => close(false, false, true),
     refresh,
     showRetained(reference: CardReference, opener?: HTMLElement, focus = true) {
       const retained = retainedCard?.(reference);

@@ -218,6 +218,10 @@
   overflow: hidden;
 }
 
+.board-view-cover-slot:empty {
+  display: none;
+}
+
 .board-view .board-view-card-meta {
   display: flex;
   flex-wrap: wrap;

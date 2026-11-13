@@ -61,13 +61,16 @@ IDs. The new-card draft also remembers its destination. Reload restores text
 exactly within the tab's storage budget. The newest drafts take precedence when
 the budget fills. Larger drafts remain available while the page stays open.
 
-An unresolved comment, new card, single-card approval, or new link can be
-inspected after reload. Open the originating board or card and
-choose **Inspect saved board** or **Inspect saved card**. The page reads the
-original submission using the current session. If it still cannot confirm the
-outcome, inspect again or choose **Dismiss unresolved action** to release the
-editor and keep the draft. Recovery records expire after 24 hours. They contain
-only scoped identifiers and matching metadata. Session capabilities and file
+After a lost create response, open **Inspect pending creation** on the
+originating board and choose **Inspect creation**. The page opens the original
+card when it finds it and reports any differences from the submitted draft.
+For a comment, open its card and choose **Inspect original comment**.
+
+If inspection finds the original ID absent and the original validators still
+current, an explicit retry uses the same ID, text, and validators. A stable
+newer board revision and a confirmed absence allow dismissal and release the
+draft for editing. Inspection that cannot verify the saved state keeps the
+original attempt available for another read. Session capabilities and file
 contents stay in memory.
 
 **Add card** appears in each active lane where the current actor can start a
@@ -219,15 +222,14 @@ and returns to the saved width when space is available.
 ### Board availability
 
 Members with the board's `close_board` grant can select **Close board** under
-**Board actions**. A closed board stays at the same address and offers **Reopen
+**Board settings**. A closed board stays at the same address and offers **Reopen
 board** to those members. Other boards and the Workspace remain available. The
-browser keeps the selected card and unsaved card, add-card, lane, and publishing
-drafts in memory for reopening in the same tab.
+tab restores the selected card and its saved draft when the board reopens.
 
 Each action sends one availability PATCH with the board's current HTTP ETag.
 The browser reads the saved board after success, a stale validator, or an
-uncertain response. If readback fails, use **Inspect saved board** or **Refresh**
-before submitting another change. The browser never replays the PATCH.
+uncertain response. Use **Inspect board availability** to reconcile a pending
+change before choosing an explicit retry.
 
 ### Service lifecycle
 

@@ -172,11 +172,11 @@ export function mountBoardLifecycle(
     const intent: Intent = { availability: availability === "open" ? "closed" : "open", etag };
     closeConfirmation = null;
     busy = true;
-    onBusyChange?.();
     inspectedEtag = null;
     message = availability === "open" ? "Closing board…" : "Reopening board…";
-    update();
     try {
+      onBusyChange?.();
+      update();
       const result = await submitOperation(
         () => save(intent),
         () => api.setBoardAvailability(boardId, intent.availability, intent.etag),
@@ -201,8 +201,8 @@ export function mountBoardLifecycle(
       if (!signal.aborted && result.kind !== "journal-failed") onChange();
     } finally {
       busy = false;
-      onBusyChange?.();
       release();
+      onBusyChange?.();
       if (!signal.aborted) update();
     }
   }
@@ -217,11 +217,11 @@ export function mountBoardLifecycle(
       return;
     }
     busy = true;
-    onBusyChange?.();
     inspectedEtag = null;
     message = "Checking board availability…";
-    update();
     try {
+      onBusyChange?.();
+      update();
       if (!refreshJournal()) return;
       const { data, etag } = await readWithSession(
         () => api.getBoardAvailability(boardId, signal),

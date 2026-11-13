@@ -10,7 +10,7 @@
     "lint": "oxlint --no-ignore --config .oxlintrc.json .",
     "format": "prettier --write \"**/*.{ts,js,mjs,cjs,css,html,json}\"",
     "format:check": "prettier --check \"**/*.{ts,js,mjs,cjs,css,html,json}\"",
-    "test": "node --test api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn6.test.mjs turn7.test.mjs turn7-ui.test.mjs turn7-relationships.test.mjs"
+    "test": "node --test api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn5-attachments.test.mjs turn6.test.mjs turn7.test.mjs turn7-ui.test.mjs turn7-relationships.test.mjs turn7-create-card.test.mjs turn7-comments.test.mjs turn7-publishing.test.mjs turn7-board-lifecycle.test.mjs"
   },
   "devDependencies": {
     "@types/node": "26.6.6",

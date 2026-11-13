@@ -87,9 +87,11 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   let boardSnapshot: BoardStateView | undefined;
   let principal: BrowserPrincipal | null = null;
   let principalRead: Promise<void> | undefined;
+  let principalReadFailed = false;
   let policy: BoardPolicyContext | null = null;
   let policyVersion = "";
   let confirmedPolicyVersion = "";
+  let policyGeneration = 0;
   let policyReadFailed = false;
   let drawer: ReturnType<typeof mountCardView> | undefined;
   let drawerText: DrawerTextContext | null = null;
@@ -130,7 +132,17 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   retry.type = "button";
   retry.textContent = "Retry board update";
   retry.hidden = true;
+  const access = doc.createElement("div");
+  const accessStatus = doc.createElement("p");
+  const retryAccess = doc.createElement("button");
+  accessStatus.setAttribute("role", "status");
+  retryAccess.type = "button";
+  retryAccess.textContent = "Retry access check";
+  access.hidden = true;
+  access.append(accessStatus, retryAccess);
   content.append(retry, boardTools, searchHost, boardHost);
+  if (route.kind === "workspace") workspaceTools.append(access);
+  else content.prepend(access);
   root.dataset.route = route.kind;
   boardRegion.hidden = route.kind === "workspace";
   workspaceTools.hidden = route.kind !== "workspace";
@@ -242,24 +254,39 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   function refreshPrincipal(): Promise<void> {
     if (principalRead) return principalRead;
     if (signal.aborted) return Promise.resolve();
+    if (principal !== null) {
+      principal = null;
+      resetPolicy();
+      updateAccessControls();
+    }
+    retryAccess.disabled = true;
     principalRead = workspace
       .readWithSession(() => readBrowserPrincipal(context), signal)
       .then(
         (identity) => {
           if (signal.aborted) return;
+          principalReadFailed = false;
+          access.hidden = true;
+          accessStatus.textContent = "";
           principal = identity;
-          workspaceCreate?.update();
-          publishing?.updatePermission();
-          serviceTools?.update();
+          updateAccessControls();
           refreshPolicy();
         },
-        () => {},
+        () => {
+          if (signal.aborted) return;
+          principalReadFailed = true;
+          access.hidden = false;
+          accessStatus.textContent = "Could not verify your access.";
+          updateAccessControls();
+        },
       )
       .finally(() => {
         principalRead = undefined;
+        retryAccess.disabled = false;
       });
     return principalRead;
   }
+  retryAccess.addEventListener("click", () => void refreshPrincipal(), { signal });
   void refreshPrincipal();
 
   function beginWrite(key: string, secondKey?: string): (() => void) | null {
@@ -273,11 +300,15 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   }
 
   function updateWriteControls() {
+    lifecycle?.update();
+    const previewChanged = updatePreviewAdmission();
+    if (previewChanged && previewsAllowed && boardData) board?.update(boardData);
     editor?.update();
     assignment?.update();
     updateArchive();
     movementPanel?.update();
     comments?.update();
+    publishing?.updatePermission();
     updateDrawerTools();
   }
   runtime.onWriteSettled = updateWriteControls;
@@ -299,7 +330,37 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
   }
 
   function policyReady() {
-    return policy !== null && policyVersion === confirmedPolicyVersion;
+    return principal !== null && policy !== null && policyVersion === confirmedPolicyVersion;
+  }
+
+  function resetPolicy() {
+    policy = null;
+    policyVersion = confirmedPolicyVersion = "";
+    policyReadFailed = false;
+    policyGeneration++;
+  }
+
+  function updateAccessControls() {
+    workspaceCreate?.update();
+    serviceTools?.update();
+    updateWriteControls();
+    board?.refreshMovement();
+    createCard?.update();
+    updateLaneCreate();
+    view?.cancelAnimationFrame(policyRefreshFrame);
+    policyRefreshFrame =
+      view?.requestAnimationFrame(() => {
+        if (!signal.aborted && board && boardData) board.update(boardData);
+      }) ?? 0;
+  }
+
+  function updateLaneCreate() {
+    boardHost
+      .querySelector(".board-view-host")
+      ?.shadowRoot?.querySelectorAll<HTMLButtonElement>("[data-lane-create]")
+      .forEach((button) => {
+        button.disabled = writesBlocked || !policyReady() || lifecycle?.blocksWrites() === true;
+      });
   }
 
   function refreshPolicy() {
@@ -311,33 +372,20 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     if (version === policyVersion) return;
     policyVersion = version;
     policyReadFailed = false;
+    const generation = ++policyGeneration;
     void workspace
       .readWithSession(() => readBoardPolicy(context, identity, selectedBoardId, policyId), signal)
       .then(
         (next) => {
-          if (signal.aborted || policyVersion !== version) return;
+          if (signal.aborted || generation !== policyGeneration) return;
           policy = next;
           confirmedPolicyVersion = version;
           policyReadFailed = false;
           retry.hidden = !boardSnapshot?.retryAvailable;
-          editor?.update();
-          assignment?.update();
-          publishing?.updatePermission();
-          lifecycle?.update();
-          updateArchive();
-          movementPanel?.update();
-          comments?.update();
-          board?.refreshMovement();
-          createCard?.update();
-          view?.cancelAnimationFrame(policyRefreshFrame);
-          policyRefreshFrame =
-            view?.requestAnimationFrame(() => {
-              if (!signal.aborted && board && boardData) board.update(boardData);
-            }) ?? 0;
-          updateDrawerTools();
+          updateAccessControls();
         },
         () => {
-          if (signal.aborted || policyVersion !== version) return;
+          if (signal.aborted || generation !== policyGeneration) return;
           policyVersion = "";
           policyReadFailed = true;
           retry.hidden = false;
@@ -522,11 +570,21 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         context: () => {
           const card = drawerText;
           const actorId = principal?.principalId;
-          const boardEtag = boardSnapshot?.confirmedEtag;
-          if (!card || card.cardId !== next.cardId || !actorId || !boardEtag) return null;
+          const boardEtag = boardSnapshot?.confirmedEtag ?? null;
+          const boardRevision = boardSnapshot?.confirmedRevision ?? null;
+          if (
+            !card ||
+            card.cardId !== next.cardId ||
+            !actorId ||
+            !boardEtag ||
+            boardRevision === null
+          ) {
+            return null;
+          }
           return {
             actorId,
             boardEtag,
+            boardRevision,
             cardEtag: card.etag,
             revision: card.revision,
             commentCount: card.commentCount,
@@ -556,18 +614,18 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
 
   function renderBoard(state: BoardStateView) {
     boardSnapshot = state;
-    if (principal === null && state.connection === "connected") void refreshPrincipal();
+    if (principal === null && !principalReadFailed && state.connection === "connected") {
+      void refreshPrincipal();
+    }
     refreshPolicy();
     const { availability, connection, data, name, readiness, retryAvailable, writesFenced } = state;
     if (!writesBlocked && writesFenced) search?.suspend();
     writesBlocked = writesFenced;
-    const previewReady = !writesFenced && !lifecycle?.blocksWrites();
-    const previewChanged = previewsAllowed !== previewReady;
-    previewsAllowed = previewReady;
-    if (previewChanged && !previewReady) board?.revokeCovers();
+    lifecycle?.update();
+    const previewChanged = updatePreviewAdmission();
     editor?.update();
     assignment?.update();
-    lifecycle?.update();
+    publishing?.updatePermission();
     updateArchive();
     movementPanel?.update();
     board?.refreshMovement();
@@ -607,10 +665,16 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       }
     }
     if (data === null && board) {
+      if (availability === "closed") {
+        saveBoardView();
+        drawerNeedsConfirmation = true;
+        drawer?.hideForBoardClose();
+      } else {
+        drawer?.close(false);
+      }
       board.dispose();
       board = undefined;
       boardData = undefined;
-      drawer?.close(false);
     }
     if (data !== null && data !== boardData) {
       const previous = boardData;
@@ -666,12 +730,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     } else if (previewChanged && board && boardData) {
       board.update(boardData);
     }
-    boardHost
-      .querySelector(".board-view-host")
-      ?.shadowRoot?.querySelectorAll<HTMLButtonElement>("[data-lane-create]")
-      .forEach((button) => {
-        button.disabled = writesBlocked || !policyReady() || lifecycle?.blocksWrites() === true;
-      });
+    updateLaneCreate();
     if (!writesFenced && data && state.confirmedEtag === data.etag) {
       search?.update(data.lanes, data.board.revision);
       if (boardTools.open && publishingTag !== state.confirmedEtag) {
@@ -729,6 +788,14 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
     setPhase("ready", message);
   }
 
+  function updatePreviewAdmission() {
+    const next = pageActive && !writesBlocked && !lifecycle?.blocksWrites();
+    if (previewsAllowed === next) return false;
+    previewsAllowed = next;
+    if (!next) board?.revokeCovers();
+    return true;
+  }
+
   function updateArchive() {
     const card = drawerText;
     archive?.update(
@@ -768,8 +835,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
             attachmentCount: card.attachmentCount,
             coverAttachmentId: card.coverAttachmentId,
             readable: previewsAllowed && focusedTextConfirmed,
-            editable:
-              writable && card.editable && policy?.capabilities.has("manage_attachments") === true,
+            editable: writable && policy?.capabilities.has("manage_attachments") === true,
           }
         : null,
     );
@@ -888,6 +954,9 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       }),
       beginWrite: () => beginWrite(selectedBoardId),
       beginInspection: () => beginWrite(selectedBoardId),
+      onBusyChange() {
+        if (!signal.aborted) updateAccessControls();
+      },
       onChange() {
         boardState?.requireFreshConfirmation();
         void workspace.refresh().then(() => boardState?.retry());
@@ -898,6 +967,16 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       readWithSession,
       scope: { kind: "board", boardId: selectedBoardId },
       canPublish: () => policyReady() && policy?.capabilities.has("publish") === true,
+      writeUnavailable: () => {
+        if (boardSnapshot?.availability === "closed") {
+          return "Reopen the board before saving publishing settings.";
+        }
+        if (lifecycle?.blocksWrites())
+          return "Resolve the board availability change before saving.";
+        if (writesBlocked)
+          return "Reconnect and confirm the board before saving publishing settings.";
+        return undefined;
+      },
       beginWrite: () =>
         !writesBlocked && !lifecycle?.blocksWrites() ? beginWrite(selectedBoardId) : null,
       beginInspection: () => beginWrite(selectedBoardId),
@@ -974,6 +1053,7 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
       ...context,
       readWithSession,
       boardId: selectedBoardId,
+      isPageActive: () => pageActive,
       beginWrite: () =>
         !writesBlocked && policyReady() && !lifecycle?.blocksWrites()
           ? beginWrite(selectedBoardId)
@@ -994,8 +1074,9 @@ function mountRoute(root: HTMLElement, runtime: RouteRuntime): () => void {
         };
       },
       onConfirmed(cardId, _ticket, showCreatedCard) {
+        if (!pageActive || signal.aborted) return;
         refreshBoardAndDrawer();
-        if (showCreatedCard && !signal.aborted) drawer?.open({ id: cardId });
+        if (showCreatedCard) drawer?.open({ id: cardId });
       },
       onStale: refreshBoardAndDrawer,
       focusFallback: () => board?.focusFilter(),

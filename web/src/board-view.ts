@@ -212,6 +212,7 @@ export function mountBoardView(
     lane: BoardLane;
     section: HTMLElement;
     count: HTMLSpanElement;
+    countDescription: HTMLSpanElement;
     scroll: HTMLDivElement;
     reveal: HTMLButtonElement;
     list: HTMLUListElement;
@@ -300,7 +301,7 @@ export function mountBoardView(
     let matching = 0;
     let revealTarget: CardFace | undefined;
     for (const laneFace of lanes) {
-      const { lane, count, reveal, scroll, list, members } = laneFace;
+      const { lane, count, countDescription, reveal, list, members } = laneFace;
       const matches = query
         ? members.filter(
             ({ card }) =>
@@ -314,7 +315,7 @@ export function mountBoardView(
         : countLabel(members.length, "card");
       count.textContent = query ? `${matches.length}/${members.length}` : String(members.length);
       count.title = laneSummary;
-      scroll.setAttribute("aria-description", laneSummary);
+      countDescription.textContent = laneSummary;
 
       if (revealingLane && revealingLane !== laneFace) continue;
       let hiddenCount = 0;
@@ -356,18 +357,40 @@ export function mountBoardView(
     title.title = lane.label;
     title.textContent = lane.label;
     const count = element("span", "board-view-lane-count lane-total");
-    heading.append(title, count);
+    const countDescription = doc.createElement("span");
+    countDescription.hidden = true;
+    countDescription.id = `board-lane-count-${lane.id}`;
+    heading.append(title, count, countDescription);
     section.append(heading);
     const scroll = element("div", "board-view-lane-scroll");
     scroll.tabIndex = 0;
     scroll.setAttribute("role", "group");
     scroll.setAttribute("aria-labelledby", title.id);
-    const note = element("p", "board-view-lane-note lane-note body-text", lane.notes);
+    const note = element("div", "board-view-lane-note lane-note");
+    const descriptions = [countDescription.id];
     if (lane.notes) {
-      note.id = `board-lane-note-${lane.id}`;
-      note.title = lane.notes;
-      scroll.setAttribute("aria-describedby", note.id);
+      const toggle = element("button", "board-view-lane-note-toggle");
+      toggle.type = "button";
+      toggle.title = lane.notes;
+      toggle.setAttribute("aria-label", `Lane note for ${lane.label}`);
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.append(element("span", "board-view-lane-note-preview", lane.notes));
+
+      const full = element("p", "board-view-lane-note-full body-text", lane.notes);
+      full.id = `board-lane-note-${lane.id}`;
+      full.hidden = true;
+      toggle.setAttribute("aria-controls", full.id);
+      toggle.addEventListener("click", () => {
+        const expanded = full.hidden;
+        full.hidden = !expanded;
+        toggle.setAttribute("aria-expanded", String(expanded));
+        if (expanded) scroll.scrollTop = 0;
+      });
+      note.append(toggle);
+      scroll.append(full);
+      descriptions.push(full.id);
     }
+    scroll.setAttribute("aria-describedby", descriptions.join(" "));
     if (renderLaneActions) {
       const actions = element("div", "board-view-lane-actions");
       renderLaneActions(lane, actions);
@@ -380,7 +403,16 @@ export function mountBoardView(
     reveal.setAttribute("aria-controls", list.id);
     scroll.append(reveal, list);
     section.append(note, scroll);
-    const face: LaneFace = { lane, section, count, scroll, reveal, list, members: [] };
+    const face: LaneFace = {
+      lane,
+      section,
+      count,
+      countDescription,
+      scroll,
+      reveal,
+      list,
+      members: [],
+    };
     reveal.addEventListener("click", () => {
       showOlderCompleted = true;
       paintFilter(face);

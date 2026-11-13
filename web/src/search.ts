@@ -13,6 +13,7 @@ type SearchOptions = AppContext &
   }>;
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const maxPageSize = 200;
 // Match the service's query whitespace handling, including ASCII information separators.
 const searchText = /[^\p{White_Space}\u001c-\u001f]/u;
 
@@ -63,7 +64,7 @@ function readResults(
     matches.push(card);
     ids.add(card.id);
   }
-  return { matches, more: next !== null };
+  return { matches, next };
 }
 
 export function mountCardSearch(
@@ -86,9 +87,11 @@ export function mountCardSearch(
   const order = doc.createElement("select");
   const lane = doc.createElement("select");
   const limit = doc.createElement("input");
+  const limitLabel = doc.createElement("span");
+  limitLabel.textContent = "Maximum results";
   limit.type = "number";
   limit.min = "1";
-  limit.max = "200";
+  limit.max = String(maxPageSize);
   limit.required = true;
   limit.value = "20";
   const archive = doc.createElement("select");
@@ -100,6 +103,10 @@ export function mountCardSearch(
   status.hidden = true;
   const results = doc.createElement("ul");
   results.hidden = true;
+  const loadMore = doc.createElement("button");
+  loadMore.type = "button";
+  loadMore.textContent = "Load more";
+  loadMore.hidden = true;
 
   function option(select: HTMLSelectElement, value: string, label: string) {
     const node = doc.createElement("option");
@@ -108,7 +115,7 @@ export function mountCardSearch(
     select.append(node);
   }
 
-  function field(label: string, control: HTMLElement) {
+  function field(label: string | HTMLElement, control: HTMLElement) {
     const wrapper = doc.createElement("label");
     wrapper.append(label, control);
     return wrapper;
@@ -126,15 +133,18 @@ export function mountCardSearch(
     field("Result order", order),
     field("Search lane", lane),
     field("Card visibility", archive),
-    field("Maximum results", limit),
+    field(limitLabel, limit),
     submit,
   );
-  panel.append(heading, form, status, results);
+  panel.append(heading, form, status, results, loadMore);
   host.append(panel);
 
   let lanes: readonly SearchLane[] = [];
   let revision: number | undefined;
   let request: AbortController | undefined;
+  let continuation: { fields: DeeperSearchState; cursor: string } | undefined;
+  const seenIds = new Set<string>();
+  const seenCursors = new Set<string>();
   let submitted = false;
   let restorePending = false;
   let rememberedOpen = false;
@@ -176,14 +186,28 @@ export function mountCardSearch(
     }
   }
 
-  function markStale() {
+  function resetSearch() {
     request?.abort();
     request = undefined;
+    continuation = undefined;
+    seenIds.clear();
+    seenCursors.clear();
+    if (doc.activeElement === loadMore) submit.focus({ preventScroll: true });
+    loadMore.hidden = true;
+    loadMore.removeAttribute("aria-disabled");
+  }
+
+  function markStale() {
+    resetSearch();
     if (submitted || !results.hidden)
       setStatus("Search results are out of date. Search again.", true);
   }
 
-  function paintResults(matches: SearchResult[]) {
+  function updateLimitLabel() {
+    limitLabel.textContent = archive.value === "only" ? "Results per page" : "Maximum results";
+  }
+
+  function paintResults(matches: SearchResult[], append = false) {
     const focused = doc.activeElement;
     const items = matches.map(({ id, ticket, title, archived }) => {
       const item = doc.createElement("li");
@@ -194,6 +218,11 @@ export function mountCardSearch(
       item.append(opener);
       return item;
     });
+    if (append) {
+      results.append(...items);
+      if (focused === loadMore) items[0]?.querySelector("button")?.focus();
+      return;
+    }
     const focusedId =
       focused && results.contains(focused) ? focused.getAttribute("data-card-id") : null;
     results.replaceChildren(...items);
@@ -206,8 +235,7 @@ export function mountCardSearch(
     }
   }
 
-  async function search() {
-    const fields = readControls();
+  async function search(fields = readControls(), cursor?: string) {
     const count = Number(fields.limit);
     if (
       !fields.query.isWellFormed() ||
@@ -216,18 +244,23 @@ export function mountCardSearch(
       setStatus("Enter up to 1,024 characters to search.", submitted);
       return;
     }
-    if (!Number.isSafeInteger(count) || count < 1 || count > 200) return;
+    if (!Number.isSafeInteger(count) || count < 1 || count > maxPageSize) return;
     if (fields.laneId && !lanes.some(({ id }) => id === fields.laneId)) {
       setStatus("Choose an active lane or All lanes.", submitted);
       return;
     }
-    request?.abort();
+    if (cursor === undefined) resetSearch();
     request = new AbortController();
     const current = request;
     const readSignal = AbortSignal.any([signal, current.signal]);
-    submitted = true;
-    retain();
-    setStatus("Searching cards…", !results.hidden);
+    if (cursor === undefined) {
+      submitted = true;
+      retain();
+      setStatus("Searching cards…", !results.hidden);
+    } else {
+      loadMore.setAttribute("aria-disabled", "true");
+      setStatus("Loading more archived cards…");
+    }
     try {
       const { data } = await readWithSession(
         () =>
@@ -239,6 +272,7 @@ export function mountCardSearch(
               sort: fields.order,
               laneId: fields.laneId || undefined,
               limit: count,
+              cursor,
               archived: fields.archive === "active" ? undefined : fields.archive,
             },
             readSignal,
@@ -246,19 +280,44 @@ export function mountCardSearch(
         readSignal,
       );
       if (readSignal.aborted) return;
-      const { matches, more } = readResults(data, boardId, count, fields.archive);
+      const { matches, next } = readResults(data, boardId, count, fields.archive);
+      if (fields.archive === "only" && matches.length > 0) {
+        if ((next && seenCursors.has(next)) || matches.some(({ id }) => seenIds.has(id))) {
+          throw new ApiError("invalid_response");
+        }
+        paintResults(matches, cursor !== undefined);
+        for (const { id } of matches) seenIds.add(id);
+        if (next) seenCursors.add(next);
+        continuation = next ? { fields, cursor: next } : undefined;
+        loadMore.textContent = "Load more";
+        loadMore.hidden = next === null;
+        setStatus(`Showing ${next ? "" : "all "}${seenIds.size} matching archived cards.`);
+        return;
+      }
+      if (fields.archive === "only" && (cursor !== undefined || next !== null)) {
+        throw new ApiError("invalid_response");
+      }
       paintResults(matches);
       setStatus(
         matches.length === 0
           ? "No matching cards."
-          : more
+          : next !== null
             ? `Showing the first ${matches.length} matching cards.`
             : "",
       );
     } catch {
-      if (!readSignal.aborted) setStatus("Cards could not be read. Search again.", !results.hidden);
+      if (readSignal.aborted) return;
+      if (cursor !== undefined) {
+        loadMore.textContent = "Retry loading more";
+        setStatus("More archived cards could not be read. Retry loading more or search again.");
+      } else {
+        setStatus("Cards could not be read. Search again.", !results.hidden);
+      }
     } finally {
-      if (request === current) request = undefined;
+      if (request === current) {
+        request = undefined;
+        loadMore.removeAttribute("aria-disabled");
+      }
     }
   }
 
@@ -276,6 +335,7 @@ export function mountCardSearch(
     () => {
       restorePending = false;
       markStale();
+      updateLimitLabel();
       submitted = false;
       retain();
     },
@@ -287,6 +347,13 @@ export function mountCardSearch(
       if (panel.open === rememberedOpen) return;
       rememberedOpen = panel.open;
       retain();
+    },
+    { signal },
+  );
+  loadMore.addEventListener(
+    "click",
+    () => {
+      if (!request && continuation) void search(continuation.fields, continuation.cursor);
     },
     { signal },
   );
@@ -315,8 +382,7 @@ export function mountCardSearch(
       }
     },
     restore(saved: DeeperSearchState | undefined, queryFallback = "") {
-      request?.abort();
-      request = undefined;
+      resetSearch();
       paintResults([]);
       submitted = saved?.submitted ?? false;
       restorePending = submitted;
@@ -328,6 +394,7 @@ export function mountCardSearch(
       setLanes(saved?.laneId ?? "", true);
       limit.value = saved?.limit ?? "20";
       archive.value = saved?.archive ?? "active";
+      updateLimitLabel();
       if (submitted) markStale();
       else setStatus("");
     },

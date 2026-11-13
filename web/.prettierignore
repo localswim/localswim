@@ -1,0 +1,13 @@
+dist/
+generated/
+node_modules/
+package-lock.json
+testdata/
+/api.mjs
+/app.mjs
+/board-updates.mjs
+/card-prose.mjs
+/operation-id.mjs
+/app.css
+/index.html
+/*.test.mjs

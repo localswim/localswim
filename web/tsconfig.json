@@ -3,11 +3,7 @@
     "target": "ES2024",
     "module": "ES2022",
     "moduleResolution": "bundler",
-    "lib": [
-      "ES2024",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "allowJs": true,
     "checkJs": true,
     "strict": true,
@@ -17,13 +13,6 @@
     "noEmit": true,
     "types": []
   },
-  "include": [
-    "**/*.js",
-    "**/*.mjs",
-    "**/*.ts"
-  ],
-  "exclude": [
-    "**/*.test.*",
-    "node_modules"
-  ]
+  "include": ["**/*.js", "**/*.mjs", "**/*.ts"],
+  "exclude": ["**/*.test.*", "node_modules", "generated", "dist", "build.mjs", "tooling"]
 }

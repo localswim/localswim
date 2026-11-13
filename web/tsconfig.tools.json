@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["build.mjs", "tooling/**/*.mjs", "clean-room/**/*.test.mjs"],
+  "exclude": []
+}

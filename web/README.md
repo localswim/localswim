@@ -1,5 +1,23 @@
 # Browser application
 
+The clean-room workspace and selected-board foundation lives in `clean-room/`.
+Its review build serves `/board/{board_id}` and embeds the optimized release
+under `generated/`. Browser reads use the native V2 API and keep the Human
+capability in memory. The current foundation covers board selection, empty and
+unavailable states, and board scrolling. Later interaction stories are tracked
+in the [epic plan](../docs/planning/0581-ui-plan.md).
+
+Build with `npm --prefix web run build` after running the setup command in
+[CONTRIBUTING.md](../CONTRIBUTING.md). The build retains source maps in the local
+`dist/` directory. The font is unmodified Inter Variable 4.1, independently
+obtained from its official release, with the SIL Open Font License in
+`clean-room/fonts/OFL.txt`. [Inter upstream](https://github.com/rsms/inter/releases/tag/v4.1)
+
+The sections below describe the prior browser implementation, whose regression
+tests continue to exercise its retained source. The fresh build inputs are
+`clean-room/main.ts`, `clean-room/entry.css`, `clean-room/board/board.css`, the
+HTML entry, and the font files.
+
 The browser page and its local assets are embedded in the V2 executable. Open
 the service's loopback URL or a board link at `/boards/{board_id}`. The page opens
 a same-origin Human session and keeps the capability in memory. The HTML and

@@ -921,18 +921,28 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     if (!response.ok && !(response.status === 304 && ifNoneMatch !== undefined)) {
       if (path === "/lanes" && method === "POST" && response.status === 400) {
         const refusal = await readWriteRefusal(response, 400, "invalid_request", true);
-        if (
-          refusal?.title === "Bad Request" &&
-          refusal.detail === "is required when the label does not yield a key" &&
-          isObject(refusal.issue) &&
-          refusal.issue.field === "lane.key"
-        ) {
-          throw new ApiError("lane_key_required", { status: 400 });
+        if (refusal?.title === "Bad Request" && refusal.detail.length && isObject(refusal.issue)) {
+          const field = refusal.issue.field;
+          if (
+            field === "lane.key" &&
+            refusal.detail === "is required when the label does not yield a key"
+          ) {
+            throw new ApiError("lane_key_required", { status: 400 });
+          }
+          if (
+            field === "lane.label" ||
+            field === "lane.key" ||
+            field === "create_for" ||
+            field === "connect_for" ||
+            field === "policy.create_grants" ||
+            field === "policy.move_grants" ||
+            (typeof field === "string" &&
+              /^lane\.(?:create_for|connect_for)(?:\[(?:0|[1-9][0-9]{0,3})\])?$/.test(field))
+          ) {
+            throw new ApiError("lane_draft_invalid", { status: 400 });
+          }
         }
-        throw new ApiError("http_error", {
-          status: 400,
-          outcomeUnknown: refusal?.title !== "Bad Request",
-        });
+        throw new ApiError("http_error", { status: 400, outcomeUnknown: true });
       }
       if (path === "/lanes" && method === "POST" && response.status === 409) {
         const refusal = await readWriteRefusal(response, 409, "conflict");

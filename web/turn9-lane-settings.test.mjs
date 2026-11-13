@@ -523,46 +523,59 @@ test("a verified conflict and a refused correction keep editing on the original 
   assert.match(status(host), /Lane added/);
 });
 
-test("a lost missing-key refusal permits correction after canonical retry and remounted inspection", async () => {
-  const attempts = [];
-  const { mount, storage } = fixture((path, request) => {
-    if (request.method === "POST") {
-      const draft = body(request);
-      attempts.push(draft);
-      if (attempts.length === 1) throw new Error("lost native 400");
-      if (attempts.length === 2) return validationReply();
-      return reply(lane(draft.id, draft.label, 2, "ordinary", { revision: 5 }), 201);
-    }
-    if (path === `${prefix}/boards/${boardId}`) return boardReply(4);
-    assert.equal(path, `${prefix}/lanes/${attempts[0].id}`);
-    return new Response(null, { status: 404 });
-  });
-  const first = mount();
-  first.host.control("New lane label").input("!!!");
-  first.host.button("Add lane").click();
-  await flush();
-  first.host.button("Inspect lane change").click();
-  await flush();
-  first.host.button("Retry lane change").click();
-  await flush();
-  assert.deepEqual(attempts[1], attempts[0]);
-  assert.equal(first.host.button("Edit lane draft").hidden, true);
-  first.life.abort();
+for (const { label, detail, guidance } of [
+  {
+    label: "!!!",
+    detail: validationProblem.detail,
+    guidance: /Edit the lane label so it can yield a key/,
+  },
+  {
+    label: "Completed",
+    detail: "the completed key is reserved",
+    guidance: /Edit the rejected draft before adding it/,
+  },
+]) {
+  test(`a lost validation refusal for ${label} permits guarded correction after remount`, async () => {
+    const attempts = [];
+    const { mount, storage } = fixture((path, request) => {
+      if (request.method === "POST") {
+        const draft = body(request);
+        attempts.push(draft);
+        if (attempts.length === 1) throw new Error("lost native 400");
+        if (attempts.length === 2) return validationReply({ ...validationProblem, detail });
+        return reply(lane(draft.id, draft.label, 2, "ordinary", { revision: 5 }), 201);
+      }
+      if (path === `${prefix}/boards/${boardId}`) return boardReply(4);
+      assert.equal(path, `${prefix}/lanes/${attempts[0].id}`);
+      return new Response(null, { status: 404 });
+    });
+    const first = mount();
+    first.host.control("New lane label").input(label);
+    first.host.button("Add lane").click();
+    await flush();
+    first.host.button("Inspect lane change").click();
+    await flush();
+    first.host.button("Retry lane change").click();
+    await flush();
+    assert.deepEqual(attempts[1], attempts[0]);
+    assert.equal(first.host.button("Edit lane draft").hidden, true);
+    first.life.abort();
 
-  const { host } = mount();
-  host.button("Inspect lane change").click();
-  await flush();
-  assert.match(status(host), /Edit the lane label so it can yield a key/);
-  assert.equal(host.button("Retry lane change").hidden, true);
-  host.button("Edit lane draft").click();
-  assert.equal(host.control("New lane label").value, "!!!");
-  host.control("New lane label").input("Valid lane");
-  host.button("Add lane").click();
-  await flush();
-  assert.deepEqual(attempts[2], { ...attempts[0], label: "Valid lane" });
-  assert.equal(storage.size, 0);
-  assert.match(status(host), /Lane added/);
-});
+    const { host } = mount();
+    host.button("Inspect lane change").click();
+    await flush();
+    assert.match(status(host), guidance);
+    assert.equal(host.button("Retry lane change").hidden, true);
+    host.button("Edit lane draft").click();
+    assert.equal(host.control("New lane label").value, label);
+    host.control("New lane label").input("Valid lane");
+    host.button("Add lane").click();
+    await flush();
+    assert.deepEqual(attempts[2], { ...attempts[0], label: "Valid lane" });
+    assert.equal(storage.size, 0);
+    assert.match(status(host), /Lane added/);
+  });
+}
 
 test("a malformed missing-key retry cannot unlock or clear the uncertain draft", async () => {
   let posts = 0;

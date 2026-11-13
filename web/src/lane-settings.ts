@@ -758,6 +758,7 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
               if (intent.kind === "add" && error instanceof ApiError) {
                 if (error.code === "lane_identity_conflict") return "identity-conflict" as const;
                 if (error.code === "lane_key_required") return "key-required" as const;
+                if (error.code === "lane_draft_invalid") return "refused" as const;
               }
               throw error;
             }
@@ -779,17 +780,23 @@ export function mountLaneSettings(host: HTMLElement, options: Options) {
             break;
           case "confirmed":
             if (result.result !== "saved") {
-              const conflict = result.result === "identity-conflict";
+              const reason = result.result;
               if (mode !== "new") {
-                if (remember({ ...intent, correction: result.result })) {
-                  notice = conflict
-                    ? "The server found a lane identity conflict. Inspect the original lane before editing the draft."
-                    : "The lane label did not yield a key. Inspect the original lane before editing the draft.";
+                if (remember({ ...intent, correction: reason })) {
+                  notice =
+                    reason === "identity-conflict"
+                      ? "The server found a lane identity conflict. Inspect the original lane before editing the draft."
+                      : reason === "key-required"
+                        ? "The lane label did not yield a key. Inspect the original lane before editing the draft."
+                        : "The server rejected the lane draft. Inspect the original lane before editing it.";
                 }
               } else if (remember(undefined)) {
-                notice = conflict
-                  ? "The lane label or identity conflicts with existing state."
-                  : "Use a lane label with at least one letter or number.";
+                notice =
+                  reason === "identity-conflict"
+                    ? "The lane label or identity conflicts with existing state."
+                    : reason === "key-required"
+                      ? "Use a lane label with at least one letter or number."
+                      : "The server rejected the lane draft. Review its label and grants.";
               }
               if (!signal.aborted) onChange();
               break;

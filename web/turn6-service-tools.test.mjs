@@ -220,6 +220,51 @@ test("a refused activation refreshes only on request and never replays the origi
   assert.equal(writes, 1);
 });
 
+for (const cachedBeforeRefusal of [true, false]) {
+  test(`a detached activation refusal fences a remounted service read (${cachedBeforeRefusal ? "cached" : "in flight"})`, async (t) => {
+    const { storage, mount } = fixture(t);
+    const write = Promise.withResolvers();
+    const stale = Promise.withResolvers();
+    const freshTag = '"fresh-service-validator"';
+    const calls = [];
+    const workspace = mount({ activateBuild: () => write.promise });
+    await until(() => workspace.select.children.length === 3 && !workspace.stop.disabled);
+    selectBuild(workspace);
+    workspace.activate.click();
+    workspace.dispose();
+    let reads = 0;
+    const active = mount({
+      getService: () => {
+        reads++;
+        return reads === 1 ? stale.promise : Promise.resolve({ ...initialService, etag: freshTag });
+      },
+      activateBuild: async (id, buildId, etag) => {
+        calls.push([id, buildId, etag]);
+        throw new BrowserApiError("http_error", { status: 412 });
+      },
+    });
+    await until(() => reads === 1);
+    if (cachedBeforeRefusal) {
+      stale.resolve(initialService);
+      await flush();
+    }
+    write.reject(new BrowserApiError("http_error", { status: 412 }));
+    await until(() => /Service status changed/.test(active.status.textContent));
+    if (!cachedBeforeRefusal) stale.resolve(initialService);
+    await until(() => !active.refresh.disabled);
+    selectBuild(active);
+    assert.equal(hasPendingServiceActivation(storage), false);
+    assert.equal(active.activate.disabled, true);
+    assert.equal(active.stop.disabled, true);
+    assert.equal(reads, 1);
+    active.refresh.click();
+    await until(() => !active.activate.disabled);
+    active.activate.click();
+    await until(() => calls.length === 1);
+    assert.deepEqual(calls[0].slice(1), [candidate, freshTag]);
+  });
+}
+
 test("a missing receipt on the original service keeps the operation fenced for explicit inspection", async (t) => {
   const { storage, mount } = fixture(t);
   const failure = new BrowserApiError("http_error", { status: 404 });

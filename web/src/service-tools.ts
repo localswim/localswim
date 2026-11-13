@@ -27,6 +27,8 @@ type Lifecycle = {
   operations: ReturnType<typeof createScopedOperations>;
   settlement?: StopSettlement;
   activationMessage?: string;
+  activationRefusal: number;
+  activationRefreshRequired: boolean;
   observers: Set<() => void>;
 };
 type Options = Readonly<{
@@ -91,7 +93,12 @@ function readActivationIntent(storage: Storage): ActivationIntent | null {
 function lifecycleFor(doc: Document): Lifecycle {
   const existing = lifecycles.get(doc);
   if (existing) return existing;
-  const lifecycle = { operations: createScopedOperations(), observers: new Set<() => void>() };
+  const lifecycle = {
+    operations: createScopedOperations(),
+    observers: new Set<() => void>(),
+    activationRefusal: 0,
+    activationRefreshRequired: false,
+  };
   lifecycles.set(doc, lifecycle);
   return lifecycle;
 }
@@ -281,7 +288,12 @@ export function mountServiceTools(
     activationOutcome.hidden = !managed || activationOutcome.textContent === "";
     refresh.disabled = inspecting || activating || checkingActivation;
     const cannotChangeService =
-      inspecting || activating || checkingActivation || activation !== null || !activationReady;
+      inspecting ||
+      activating ||
+      checkingActivation ||
+      activation !== null ||
+      !activationReady ||
+      lifecycle.activationRefreshRequired;
     stop.disabled =
       cannotChangeService ||
       submitting ||
@@ -500,7 +512,8 @@ export function mountServiceTools(
             break;
           case "stale":
           case "refused":
-            service = undefined;
+            lifecycle.activationRefusal++;
+            lifecycle.activationRefreshRequired = true;
             lifecycle.activationMessage =
               result.kind === "stale"
                 ? "Service status changed. Refresh it before requesting activation."
@@ -554,16 +567,22 @@ export function mountServiceTools(
     }
     inspecting = true;
     const previousSettlement = lifecycle.settlement;
+    const previousRefusal = lifecycle.activationRefusal;
+    const stillCurrent = () =>
+      !signal.aborted &&
+      lifecycle.settlement === previousSettlement &&
+      lifecycle.activationRefusal === previousRefusal;
     sync();
     try {
       const latest = await readWithSession(() => api.getService(signal), signal);
-      if (!signal.aborted && lifecycle.settlement === previousSettlement) {
+      if (stillCurrent()) {
         service = latest;
+        if (explicit) lifecycle.activationRefreshRequired = false;
         updateBuildChoices();
         health.textContent = serviceLabel(latest.data);
       }
     } catch {
-      if (!signal.aborted && lifecycle.settlement === previousSettlement) {
+      if (stillCurrent()) {
         service = undefined;
         health.textContent = "Service status is unavailable.";
       }
@@ -711,7 +730,10 @@ export function mountServiceTools(
       if (activation && canManage()) {
         void inspectActivation(false);
       } else {
-        void Promise.resolve(onRefreshIdentity?.()).then(() => inspect(true));
+        const refusal = lifecycle.activationRefusal;
+        void Promise.resolve(onRefreshIdentity?.()).then(() => {
+          if (refusal === lifecycle.activationRefusal) void inspect(true);
+        });
       }
     },
     { signal },
@@ -727,7 +749,13 @@ export function mountServiceTools(
   );
   activate.addEventListener("click", () => void requestActivation(), { signal });
   let lastStopSettlement = lifecycle.settlement;
+  let lastActivationRefusal = lifecycle.activationRefusal;
   const onSettlement = () => {
+    if (lastActivationRefusal !== lifecycle.activationRefusal) {
+      lastActivationRefusal = lifecycle.activationRefusal;
+      service = undefined;
+      health.textContent = "Refresh service status to check the current instance.";
+    }
     if (lastStopSettlement !== lifecycle.settlement) {
       lastStopSettlement = lifecycle.settlement;
       showSettlement();

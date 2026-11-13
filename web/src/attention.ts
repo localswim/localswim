@@ -359,10 +359,13 @@ export function mountAttention(root: HTMLElement, intents: AttentionIntents) {
     const pinMessage = pins?.message ?? "";
     if (pinStatus.textContent !== pinMessage) pinStatus.textContent = pinMessage;
     feedback.hidden = pinMessage === "";
+    cancel.textContent = pins?.canDiscardJournal
+      ? "Discard unreadable pin record"
+      : "Cancel pending change";
     const pinControls = [
       [inspect, pins?.canInspect],
       [retryPins, pins?.canRetry],
-      [cancel, pins?.canCancel],
+      [cancel, pins?.canCancel || pins?.canDiscardJournal],
       [remove, pins?.canRemoveUnavailable],
     ] as const;
     for (const [control, enabled] of pinControls) {

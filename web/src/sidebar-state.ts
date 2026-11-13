@@ -15,6 +15,7 @@ export type SidebarPinsView = Readonly<{
   canInspect: boolean;
   canRetry: boolean;
   canCancel: boolean;
+  canDiscardJournal: boolean;
   message: string;
 }>;
 
@@ -53,10 +54,9 @@ function isPinList(value: unknown): value is string[] {
   );
 }
 
-function readPending(storage: PinStorage | undefined): PendingChange | undefined {
+function parsePending(raw: string): PendingChange | undefined {
   try {
-    const raw = (storage ?? globalThis.sessionStorage).getItem(PIN_JOURNAL_KEY);
-    if (!raw || raw.length > 80_000) return undefined;
+    if (raw.length > 80_000) return undefined;
     const value: unknown = JSON.parse(raw);
     if (typeof value !== "object" || value === null) return undefined;
     const { action, id, anchor, unavailable, submittedRemovals } = value as Record<string, unknown>;
@@ -82,9 +82,20 @@ function readPending(storage: PinStorage | undefined): PendingChange | undefined
       };
     }
   } catch {
-    // A malformed or inaccessible journal supplies no usable pin intent.
+    // Malformed JSON supplies no usable pin intent.
   }
   return undefined;
+}
+
+function readPending(
+  storage: PinStorage | undefined,
+): PendingChange | "unavailable" | "invalid" | undefined {
+  try {
+    const raw = (storage ?? globalThis.sessionStorage).getItem(PIN_JOURNAL_KEY);
+    return raw === null ? undefined : (parsePending(raw) ?? "invalid");
+  } catch {
+    return "unavailable";
+  }
 }
 
 function sameOrder(left: readonly string[], right: readonly string[]): boolean {
@@ -131,15 +142,28 @@ export function createSidebarPins({
   let saved: SavedPins | undefined;
   let present = new Set<string>();
   let catalogComplete = false;
-  let pending = readPending(storage);
-  let journaled = pending !== undefined;
+  let pending: PendingChange | undefined;
+  let journalProblem: "unavailable" | "invalid" | undefined;
+  let journaled = false;
+  let canDiscardJournal = false;
   let busy = false;
   let reordering = false;
   let refreshRequested = false;
   let readFailed = false;
-  let message = pending ? "A pin save needs inspection. Inspect the saved pin order." : "";
+  let message = "";
   let page = new AbortController();
   let activeSignal = AbortSignal.any([signal, page.signal]);
+
+  function loadJournal() {
+    const stored = readPending(storage);
+    pending = typeof stored === "object" ? stored : undefined;
+    journaled = pending !== undefined;
+    journalProblem = typeof stored === "string" ? stored : undefined;
+    canDiscardJournal = false;
+    message = pending ? "A pin save needs inspection. Inspect the saved pin order." : "";
+  }
+
+  loadJournal();
 
   function unavailablePins(ids: readonly string[]): string[] {
     return catalogComplete ? ids.filter((id) => !present.has(id)) : [];
@@ -149,17 +173,29 @@ export function createSidebarPins({
     if (activeSignal.aborted) return;
     const ids = saved?.ids ?? noPins;
     const unavailableCount = unavailablePins(ids).length;
-    const idle = !busy && !pending && saved !== undefined && catalogComplete && !readFailed;
+    const idle =
+      !busy && !pending && !journalProblem && saved !== undefined && catalogComplete && !readFailed;
     onChange({
       ids,
       canChange: idle && unavailableCount === 0,
       unavailableCount,
       canRemoveUnavailable: idle && unavailableCount > 0,
       busy,
-      canInspect: !busy && (pending?.outcome === "unknown" || (!pending && readFailed)),
+      canInspect:
+        !busy &&
+        Boolean(journalProblem || pending?.outcome === "unknown" || (readFailed && !pending)),
       canRetry: !busy && pending?.outcome === "retryable",
       canCancel: !busy && pending !== undefined && pending.outcome !== "unknown",
+      canDiscardJournal: !busy && canDiscardJournal,
       message:
+        (journalProblem === "unavailable"
+          ? "Could not read pending pins from tab storage. Inspect saved pins to try again."
+          : "") ||
+        (journalProblem === "invalid"
+          ? canDiscardJournal
+            ? "Saved pins were refreshed. The unreadable pending record can be discarded."
+            : "The pending pin record is unreadable. Inspect saved pins before discarding it."
+          : "") ||
         (busy || pending ? message : "") ||
         (readFailed ? "Could not read the saved pin order." : "") ||
         (unavailableCount
@@ -338,7 +374,18 @@ export function createSidebarPins({
   }
 
   function change(request: PinChange): Promise<void> {
-    if (activeSignal.aborted || busy || pending || !saved || !catalogComplete || readFailed) {
+    if (
+      activeSignal.aborted ||
+      busy ||
+      pending ||
+      journalProblem ||
+      !saved ||
+      !catalogComplete ||
+      readFailed
+    ) {
+      return Promise.resolve();
+    }
+    if (reordering && request.action !== "before" && request.action !== "after") {
       return Promise.resolve();
     }
     const unavailable = unavailablePins(saved.ids);
@@ -358,12 +405,19 @@ export function createSidebarPins({
 
   function inspect(): Promise<void> {
     if (activeSignal.aborted || busy) return Promise.resolve();
-    const edit = pending;
-    if (edit?.outcome !== "unknown") return edit ? Promise.resolve() : refresh();
+    if (!journalProblem && pending?.outcome !== "unknown") {
+      return pending ? Promise.resolve() : refresh();
+    }
     message = "Reading saved pin order…";
     return run(async (operationSignal) => {
       try {
+        if (journalProblem) loadJournal();
+        const edit = pending;
         const { ids } = await readSaved(operationSignal);
+        if (!edit) {
+          canDiscardJournal = journalProblem === "invalid";
+          return;
+        }
         let confirmed: boolean;
         switch (edit.change.action) {
           case "pin":
@@ -402,7 +456,22 @@ export function createSidebarPins({
   }
 
   function cancel() {
-    if (activeSignal.aborted || busy || pending?.outcome !== "retryable") return;
+    if (activeSignal.aborted || busy) return;
+    if (canDiscardJournal) {
+      loadJournal();
+      if (journalProblem === "invalid") {
+        try {
+          (storage ?? globalThis.sessionStorage).removeItem(PIN_JOURNAL_KEY);
+          journalProblem = undefined;
+          message = "Unreadable pending pin record discarded.";
+        } catch {
+          journalProblem = "unavailable";
+        }
+      }
+      publish();
+      return;
+    }
+    if (pending?.outcome !== "retryable") return;
     finish("");
     publish();
   }
@@ -416,9 +485,7 @@ export function createSidebarPins({
     if (!page.signal.aborted || signal.aborted) return Promise.resolve();
     page = new AbortController();
     activeSignal = AbortSignal.any([signal, page.signal]);
-    pending = readPending(storage);
-    journaled = pending !== undefined;
-    message = pending ? "A pin save needs inspection. Inspect the saved pin order." : "";
+    loadJournal();
     refreshRequested = false;
     busy = false;
     reordering = false;
@@ -426,7 +493,7 @@ export function createSidebarPins({
   }
 
   function beginReorder(): boolean {
-    if (activeSignal.aborted || busy || reordering || pending) return false;
+    if (activeSignal.aborted || busy || reordering || pending || journalProblem) return false;
     reordering = true;
     return true;
   }

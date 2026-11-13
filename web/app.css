@@ -128,10 +128,24 @@ header a {
 }
 
 .lane-settings-form,
+.lane-settings-form > fieldset,
 .lane-settings-grants {
   display: grid;
   gap: 0.5rem 0.75rem;
   min-inline-size: 0;
+}
+
+.lane-settings-form > fieldset > label,
+.lane-settings-form fieldset:not(.lane-settings-grants) > label {
+  display: grid;
+  gap: 0.25rem;
+  min-inline-size: 0;
+}
+
+.lane-settings-form fieldset:not(.lane-settings-grants) > label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .lane-settings-actions {

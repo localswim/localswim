@@ -420,8 +420,11 @@ function validCard(card, boardId, id) {
   );
 }
 
-/** @param {object} data @param {string} id @param {string} boardId @param {string} cardId */
-function matchesApproval(data, id, boardId, cardId) {
+/** @typedef {{ actorId: string, boardEtag: string }} ApprovalOrigin */
+
+/** @param {object} data @param {string} id @param {string} boardId @param {string} cardId
+ * @param {ApprovalOrigin} [origin] */
+function matchesApproval(data, id, boardId, cardId, origin) {
   const approval = /** @type {Record<string, unknown>} */ (data);
   if (
     Object.keys(approval).length !== 7 ||
@@ -430,7 +433,10 @@ function matchesApproval(data, id, boardId, cardId) {
     !isId(approval.actor_id) ||
     !isTimestamp(approval.at) ||
     !isInteger(approval.board_revision) ||
-    approval.board_revision < 1 ||
+    approval.board_revision < 2 ||
+    (origin !== undefined &&
+      (approval.actor_id !== origin.actorId ||
+        versionTag(boardId, approval.board_revision - 1) !== origin.boardEtag)) ||
     !Array.isArray(approval.card_ids) ||
     approval.card_ids.length !== 1 ||
     approval.card_ids[0] !== cardId ||
@@ -1721,11 +1727,15 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
     },
     /** @param {string} id @param {string} boardId @param {string} boardEtag
-     * @param {string} cardId @param {string} cardEtag */
-    async approveCard(id, boardId, boardEtag, cardId, cardEtag) {
+     * @param {string} cardId @param {string} cardEtag @param {string} [actorId] */
+    async approveCard(id, boardId, boardEtag, cardId, cardEtag, actorId) {
       const expectedId = operationId(id);
       const board = resourceId(boardId);
       const card = resourceId(cardId);
+      const origin =
+        actorId === undefined
+          ? undefined
+          : { actorId: resourceId(actorId).toLowerCase(), boardEtag };
       const response = await send("/approvals", {
         method: "POST",
         data: {
@@ -1745,23 +1755,26 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       const data = await responseObject(response, true);
       const tag = response.headers.get("X-Board-ETag");
       if (
-        !matchesApproval(data, expectedId, board, card) ||
+        !matchesApproval(data, expectedId, board, card, origin) ||
         tag !== `"${board}-${/** @type {{board_revision: number}} */ (data).board_revision}"`
       ) {
         throw new ApiError("invalid_response", { status: 201, outcomeUnknown: true });
       }
     },
-    /** @param {string} id @param {string} boardId @param {string} cardId */
-    async inspectApproval(id, boardId, cardId) {
-      const reply = await request("/approvals/" + operationId(id));
+    /** @param {string} id @param {string} boardId @param {string} cardId
+     * @param {ApprovalOrigin & {signal?: AbortSignal}} [options] */
+    async inspectApproval(id, boardId, cardId, options) {
+      const receiptId = operationId(id);
+      const board = resourceId(boardId).toLowerCase();
+      const card = resourceId(cardId).toLowerCase();
+      const origin = options && {
+        actorId: resourceId(options.actorId).toLowerCase(),
+        boardEtag: strongTag(options.boardEtag),
+      };
+      const reply = await request("/approvals/" + receiptId, { signal: options?.signal });
       if (
         !STRONG_ETAG.test(reply.etag ?? "") ||
-        !matchesApproval(
-          reply.data,
-          operationId(id),
-          resourceId(boardId).toLowerCase(),
-          resourceId(cardId).toLowerCase(),
-        )
+        !matchesApproval(reply.data, receiptId, board, card, origin)
       ) {
         throw new ApiError("invalid_response");
       }

@@ -234,7 +234,7 @@ export function mountCardApproval(
             return false;
           }
         },
-        () => api.approveCard(intent.id, boardId, intent.boardEtag, cardId, intent.cardEtag),
+        () => api.approveCard(intent.id, boardId, intent.boardEtag, cardId, intent.cardEtag, actor),
       );
       if (!canSettle(actor)) return;
       switch (result.kind) {
@@ -276,9 +276,17 @@ export function mountCardApproval(
     }
   }
 
-  async function findReceipt(id: string, cardId: string) {
+  async function findReceipt(intent: Intent, cardId: string, actor: string) {
     try {
-      await readWithSession(() => api.inspectApproval(id, boardId, cardId), signal);
+      await readWithSession(
+        () =>
+          api.inspectApproval(intent.id, boardId, cardId, {
+            actorId: actor,
+            boardEtag: intent.boardEtag,
+            signal,
+          }),
+        signal,
+      );
       return true;
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) return false;
@@ -322,7 +330,7 @@ export function mountCardApproval(
     const current = () => canSettle(actor) && owns(key, raw);
     try {
       update();
-      if (await findReceipt(intent.id, cardId)) {
+      if (await findReceipt(intent, cardId, actor)) {
         if (current()) confirmed(key, cardId, intent, raw);
         return;
       }
@@ -339,7 +347,7 @@ export function mountCardApproval(
       if (validatorExpired) {
         // The original POST cannot commit past a stale validator. Check the same
         // receipt again, with readable board observations on both sides of the miss.
-        if (await findReceipt(intent.id, cardId)) {
+        if (await findReceipt(intent, cardId, actor)) {
           if (current()) confirmed(key, cardId, intent, raw);
           return;
         }

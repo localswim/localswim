@@ -48,16 +48,16 @@ class Element extends EventTarget {
   }
 }
 
-function approvalReply(id, approvedCardId, status = 201) {
+function approvalReply(id, approvedCardId, status = 201, { actor = actorId, revision = 6 } = {}) {
   const at = "2026-11-13 12:34:56+00:00";
-  const base = { board_id: boardId, revision: 6, actor_id: actorId, at };
+  const base = { board_id: boardId, revision, actor_id: actor, at };
   return Response.json(
     {
       id,
       board_id: boardId,
-      actor_id: actorId,
+      actor_id: actor,
       at,
-      board_revision: 6,
+      board_revision: revision,
       card_ids: [approvedCardId],
       changes: [
         {
@@ -87,7 +87,7 @@ function approvalReply(id, approvedCardId, status = 201) {
       headers: {
         ETag: tag(id, 1),
         Location: "/api/2026-11-10/approvals/" + id,
-        "X-Board-ETag": tag(boardId, 6),
+        "X-Board-ETag": tag(boardId, revision),
       },
     },
   );
@@ -351,4 +351,43 @@ test("settlement of an older approval attempt cannot clear a replacement journal
   assert.equal(f.saved.get(key), replacement);
   assert.equal(view.blocksCard(cardId), true);
   assert.deepEqual(f.confirmations, []);
+});
+
+test("a coherent receipt for another actor or commit revision cannot settle the original approval", async () => {
+  for (const mismatch of [{ actor: otherActorId }, { revision: 7 }]) {
+    let receiptId;
+    let correction = false;
+    const f = fixture((method, path, body) => {
+      if (method === "POST") receiptId = body.id;
+      else assert.equal(path, "/api/2026-11-10/approvals/" + receiptId);
+      return approvalReply(
+        receiptId,
+        cardId,
+        method === "POST" ? 201 : 200,
+        correction ? {} : mismatch,
+      );
+    });
+    const view = f.mount();
+    view.approve.click();
+    await flush();
+    assert.equal(view.blocksCard(cardId), true);
+    assert.match(view.status.textContent, /outcome is unknown/);
+    assert.deepEqual(f.confirmations, []);
+
+    view.inspect.click();
+    await flush();
+    assert.equal(view.blocksCard(cardId), true);
+    assert.match(view.status.textContent, /could not be verified/);
+    assert.deepEqual(f.confirmations, []);
+
+    correction = true;
+    view.inspect.click();
+    await flush();
+    assert.deepEqual(f.confirmations, [cardId]);
+    assert.equal(view.blocksCard(cardId), false);
+    assert.deepEqual(
+      f.requests.map(({ method }) => method),
+      ["POST", "GET", "GET"],
+    );
+  }
 });

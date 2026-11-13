@@ -29,6 +29,7 @@ type CreateCardOptions = AppContext &
     onConfirmed: (cardId: string, ticket: number, showCreatedCard: boolean) => void;
     onStale: () => void;
     focusFallback: () => void;
+    isPageActive?: () => boolean;
     beginWrite?: () => (() => void) | null;
     beginInspection?: () => (() => void) | null;
     storage?: OperationStorage;
@@ -43,9 +44,12 @@ type Draft = Readonly<{
   staleEtag?: string;
   submission?: Readonly<{
     id: string;
+    dispatchId?: string;
     etag: string;
     ownerId: string;
     priorityId: string;
+    effectiveOwnerId?: string;
+    effectivePriorityId?: string;
   }>;
 }>;
 type SubmittedDraft = Draft & Required<Pick<Draft, "submission">>;
@@ -96,9 +100,18 @@ function parseDraft(raw: string): Draft {
   if (
     !record(submission) ||
     !id(submission.id) ||
+    (submission.dispatchId !== undefined && !id(submission.dispatchId)) ||
     !etag(submission.etag) ||
     !optionalChoice(submission.ownerId) ||
     !optionalChoice(submission.priorityId) ||
+    (submission.effectiveOwnerId !== undefined && !id(submission.effectiveOwnerId)) ||
+    (submission.effectivePriorityId !== undefined && !id(submission.effectivePriorityId)) ||
+    (ownerId !== "" &&
+      submission.effectiveOwnerId !== undefined &&
+      submission.effectiveOwnerId !== ownerId) ||
+    (priorityId !== "" &&
+      submission.effectivePriorityId !== undefined &&
+      submission.effectivePriorityId !== priorityId) ||
     (submission.ownerId !== "" && submission.ownerId !== ownerId) ||
     (submission.priorityId !== "" && submission.priorityId !== priorityId) ||
     !titleHasText.test(title) ||
@@ -111,16 +124,21 @@ function parseDraft(raw: string): Draft {
     ...draft,
     submission: {
       id: submission.id,
+      dispatchId: submission.dispatchId,
       etag: submission.etag,
       ownerId: submission.ownerId,
       priorityId: submission.priorityId,
+      effectiveOwnerId: submission.effectiveOwnerId,
+      effectivePriorityId: submission.effectivePriorityId,
     },
   };
 }
 
 function identifyCard(boardId: string, draft: Draft, data: object) {
   if (!draft.submission || !record(data)) return null;
-  const { id, ownerId, priorityId } = draft.submission;
+  const { id } = draft.submission;
+  const ownerId = draft.submission.effectiveOwnerId ?? draft.submission.ownerId;
+  const priorityId = draft.submission.effectivePriorityId ?? draft.submission.priorityId;
   if (
     data.id !== id ||
     data.board_id !== boardId ||
@@ -149,6 +167,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   const operations = createScopedOperations();
   const key = `localswim:v2:create-card:${boardId}`;
   const storage = () => options.storage ?? doc.defaultView?.sessionStorage;
+  const pageActive = () => !signal.aborted && (options.isPageActive?.() ?? true);
   let draft: Draft | null = null;
   let initialDraft: Draft | null = null;
   let raw: string | null = null;
@@ -158,6 +177,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   let absence: Readonly<{ id: string; kind: "retry" | "dismiss" }> | undefined;
   let message = "";
   let composing = false;
+  let superseded = false;
   const resetTextInputs: (() => void)[] = [];
   function loadStoredDraft() {
     if (operations.state(key) || hasUnstoredChanges) return;
@@ -175,6 +195,14 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     }
   }
   loadStoredDraft();
+
+  function ownsJournal(expected: string | null) {
+    try {
+      return storage()?.getItem(key) === expected;
+    } catch {
+      return false;
+    }
+  }
 
   function persist(next: Draft | null): boolean {
     try {
@@ -297,7 +325,12 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
 
   function update() {
     if (signal.aborted) return;
-    if (!dialog.open) loadStoredDraft();
+    const previous = raw;
+    loadStoredDraft();
+    if (dialog.open && raw !== previous) {
+      close();
+      return;
+    }
     recovery.hidden = dialog.open || !draft?.submission;
     if (!dialog.open || !draft) return;
     const current = context();
@@ -358,10 +391,21 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     if (draft === initialDraft) draft = null;
     initialDraft = null;
     update();
-    if (opener?.isConnected && !opener.disabled && !opener.hidden)
-      opener.focus({ preventScroll: true });
-    else options.focusFallback();
+    if (pageActive()) {
+      if (opener?.isConnected && !opener.disabled && !opener.hidden)
+        opener.focus({ preventScroll: true });
+      else options.focusFallback();
+    }
     opener = undefined;
+  }
+
+  function finishOperation(release: (() => void) | undefined) {
+    release?.();
+    if (superseded) {
+      superseded = false;
+      if (!signal.aborted) close();
+    }
+    update();
   }
 
   function resolveCreation(card: NonNullable<ReturnType<typeof identifyCard>>) {
@@ -369,6 +413,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     const wasOpen = dialog.open;
     const difference = `Found the original card #${ticket}. Its saved details differ from the submitted draft.`;
     absence = undefined;
+    const expected = raw;
     const cleared = persist(null);
     if (cleared) {
       draft = null;
@@ -377,11 +422,15 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
         if (!matchesDraft) recoveryStatus.textContent = difference;
       }
     } else {
+      if (!ownsJournal(expected)) {
+        superseded = true;
+        return;
+      }
       message = matchesDraft
         ? `Found the original card #${ticket}. The stored draft could not be cleared.`
         : `${difference} The stored draft could not be cleared.`;
     }
-    if (!signal.aborted) options.onConfirmed(id, ticket, wasOpen && cleared);
+    if (pageActive()) options.onConfirmed(id, ticket, wasOpen && cleared);
   }
 
   function createOriginal({ title, description, laneId, submission }: SubmittedDraft) {
@@ -398,7 +447,19 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   }
 
   async function submitOriginal(submitted: SubmittedDraft, journal: () => boolean) {
-    const result = await submitOperation(journal, () => createOriginal(submitted));
+    let dispatched: string | null = null;
+    const result = await submitOperation(
+      () => {
+        if (!journal()) return false;
+        dispatched = raw;
+        return true;
+      },
+      () => createOriginal(submitted),
+    );
+    if (dispatched !== null && !ownsJournal(dispatched)) {
+      superseded = true;
+      return "superseded";
+    }
     if (result.kind === "confirmed") {
       const card = identifyCard(boardId, submitted, result.result.data);
       if (card?.matchesDraft) {
@@ -442,9 +503,12 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       async () => {
         const submission = {
           id: crypto.randomUUID(),
+          dispatchId: crypto.randomUUID(),
           etag: current.etag,
           ownerId: previous.ownerId === current.defaultOwnerId ? "" : previous.ownerId,
           priorityId: previous.priorityId === current.defaultPriorityId ? "" : previous.priorityId,
+          effectiveOwnerId: previous.ownerId || current.defaultOwnerId,
+          effectivePriorityId: previous.priorityId || current.defaultPriorityId,
         };
         const submitted = { ...previous, submission };
         const result = await submitOriginal(submitted, () => {
@@ -453,7 +517,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           update();
           return true;
         });
-        if (result === "created") return;
+        if (result === "created" || result === "superseded") return;
         if (result === "journal-failed") {
           message = "The draft could not be stored. Creation requires a stored draft.";
         } else if (result === "stale" || result === "refused") {
@@ -461,25 +525,28 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
             ...previous,
             staleEtag: result === "stale" ? submission.etag : previous.staleEtag,
           };
+          const dispatched = raw;
           if (persist(retained)) {
             draft = retained;
             message =
               result === "stale"
                 ? "The board changed. Review the draft before trying again."
                 : "Creation was refused. Your draft is still available.";
+          } else if (!ownsJournal(dispatched)) {
+            superseded = true;
+            return;
           } else {
             message = "Creation was refused. The stored submission could not be cleared.";
           }
-          if (result === "stale" && !signal.aborted) options.onStale();
+          if (result === "stale" && pageActive()) options.onStale();
         } else {
           message = "The creation outcome is unknown. Inspect the original card to continue.";
         }
       },
       () => {
-        release?.();
-        update();
+        finishOperation(release ?? undefined);
         if (
-          !signal.aborted &&
+          pageActive() &&
           dialog.open &&
           !inspect.hidden &&
           (doc.activeElement === focused || doc.activeElement === doc.body)
@@ -507,6 +574,13 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     }
     const submitted = draft;
     const { id, etag: expected } = draft.submission;
+    const inspected = raw;
+    function stillOwnsInspection() {
+      if (signal.aborted) return false;
+      if (ownsJournal(inspected)) return true;
+      superseded = true;
+      return false;
+    }
     absence = undefined;
     await operations.run(
       key,
@@ -524,7 +598,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           const readBoard = () =>
             options.readWithSession(() => api.getBoardAvailability(boardId, signal), signal);
           const found = await readCard();
-          if (signal.aborted) return;
+          if (!stillOwnsInspection()) return;
           if (found) {
             recoverCard(submitted, found.data);
             return;
@@ -532,6 +606,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
 
           const baseRevision = boardRevision(boardId, expected);
           const before = await readBoard();
+          if (!stillOwnsInspection()) return;
           if (
             baseRevision === null ||
             before.data.availability !== "open" ||
@@ -545,13 +620,13 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           // Read absence between two views of the same readable board version.
           // A newer version expires the original POST's precondition.
           const absentAtVersion = await readCard();
-          if (signal.aborted) return;
+          if (!stillOwnsInspection()) return;
           if (absentAtVersion) {
             recoverCard(submitted, absentAtVersion.data);
             return;
           }
           const after = await readBoard();
-          if (signal.aborted) return;
+          if (!stillOwnsInspection()) return;
           if (after.data.availability !== "open" || after.etag !== before.etag) {
             message =
               "The board changed during inspection. Inspect again to check the original card.";
@@ -564,14 +639,11 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
               ? "The original card is not visible yet. You can inspect again or retry the same creation."
               : "The original card was not found. You can inspect again or dismiss the unresolved creation and keep the draft.";
         } catch {
-          if (signal.aborted) return;
+          if (!stillOwnsInspection()) return;
           message = "The original card could not be checked. Inspect again to retry the read.";
         }
       },
-      () => {
-        release?.();
-        update();
-      },
+      () => finishOperation(release ?? undefined),
     );
   }
 
@@ -601,7 +673,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       close();
       return;
     }
-    const submitted = { ...draft, submission };
+    const submitted = { ...draft, submission: { ...submission, dispatchId: crypto.randomUUID() } };
     const release = options.beginWrite?.();
     if (release === null) {
       message = "Another board operation is active. Try again when it finishes.";
@@ -614,15 +686,18 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       "submitting",
       async () => {
         update();
-        const result = await submitOriginal(submitted, () => persist(submitted));
-        if (result === "created") return;
+        const result = await submitOriginal(submitted, () => {
+          if (!persist(submitted)) return false;
+          draft = submitted;
+          return true;
+        });
+        if (result === "created" || result === "superseded") return;
         message = "The original creation remains unresolved. Inspect the original card again.";
-        if (result === "stale" && !signal.aborted) options.onStale();
+        if (result === "stale" && pageActive()) options.onStale();
       },
       () => {
-        release?.();
-        update();
-        if (!signal.aborted && dialog.open && !inspect.hidden && doc.activeElement === doc.body) {
+        finishOperation(release ?? undefined);
+        if (pageActive() && dialog.open && !inspect.hidden && doc.activeElement === doc.body) {
           inspect.focus();
         }
       },
@@ -644,11 +719,15 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     )
       return;
     const retained = { ...draft, submission: undefined };
+    const inspected = raw;
     if (persist(retained)) {
       draft = retained;
       absence = undefined;
       message = "Unresolved creation dismissed. Your draft is still available.";
       title.focus();
+    } else if (!ownsJournal(inspected)) {
+      close();
+      return;
     } else {
       message = "The stored submission could not be cleared. Your draft is still available.";
     }

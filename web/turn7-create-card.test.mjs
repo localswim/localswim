@@ -55,6 +55,7 @@ class Element extends EventTarget {
   }
   focus() {
     this.ownerDocument.activeElement = this;
+    this.ownerDocument.focused.push(this.tag);
   }
   remove() {
     this.isConnected = false;
@@ -78,8 +79,10 @@ function fixture() {
   const reads = [];
   const inspection = [];
   const confirmed = [];
+  const focused = [];
   const state = {
     responseLost: true,
+    pageActive: true,
     readCard: (card) => card,
     revision: 10,
     readBoard: () => ({
@@ -89,7 +92,7 @@ function fixture() {
     write: () => {},
   };
   let saved;
-  const doc = { createElement: (tag) => new Element(tag, doc) };
+  const doc = { focused, createElement: (tag) => new Element(tag, doc) };
   const storage = {
     getItem: (key) => journals.get(key) ?? null,
     setItem: (key, value) => journals.set(key, value),
@@ -99,7 +102,7 @@ function fixture() {
     async createCard(payload) {
       posts.push(payload);
       saved = { owner_id: user, priority_id: priority, ...payload, ticket: 42 };
-      state.write();
+      await state.write();
       if (state.responseLost) throw new TypeError("Response was lost");
       return { data: state.readCard(saved), etag: tag(state.revision) };
     },
@@ -126,7 +129,8 @@ function fixture() {
       readWithSession: (read) => read(),
       onConfirmed: (...args) => confirmed.push(args),
       onStale() {},
-      focusFallback() {},
+      focusFallback: () => focused.push("fallback"),
+      isPageActive: () => state.pageActive,
       context: () => ({
         etag: tag(state.revision),
         writable: true,
@@ -149,7 +153,7 @@ function fixture() {
     return { host, ui, button };
   }
 
-  async function submit() {
+  async function submit({ useDefaults = false } = {}) {
     const view = mount();
     view.ui.open(lane, doc.createElement("button"));
     const controls = view.host.descendants();
@@ -158,8 +162,8 @@ function fixture() {
     for (const [control, value, event] of [
       [title, "  Original title  ", "input"],
       [description, "Original description", "input"],
-      [owner, otherUser, "change"],
-      [priorityChoice, otherPriority, "change"],
+      [owner, useDefaults ? "" : otherUser, "change"],
+      [priorityChoice, useDefaults ? "" : otherPriority, "change"],
     ]) {
       control.value = value;
       control.dispatchEvent(new Event(event));
@@ -167,13 +171,13 @@ function fixture() {
     view.button("Add card").click();
     await idle();
     assert.equal(posts.length, 1);
-    assert.equal(posts[0].owner_id, otherUser);
-    assert.equal(posts[0].priority_id, otherPriority);
+    assert.equal(posts[0].owner_id, useDefaults ? undefined : otherUser);
+    assert.equal(posts[0].priority_id, useDefaults ? undefined : otherPriority);
     return view;
   }
 
   async function inspectAfterReload(view) {
-    view.ui.dispose();
+    view?.ui.dispose();
     const reloaded = mount();
     reloaded.button("Inspect pending creation").click();
     reloaded.button("Inspect creation").click();
@@ -181,7 +185,17 @@ function fixture() {
     return reloaded;
   }
 
-  return { journals, posts, reads, inspection, confirmed, state, submit, inspectAfterReload };
+  return {
+    journals,
+    posts,
+    reads,
+    inspection,
+    confirmed,
+    focused,
+    state,
+    submit,
+    inspectAfterReload,
+  };
 }
 
 function absent() {
@@ -229,6 +243,33 @@ test("a divergent create acknowledgement still needs a trustworthy focused read"
   f.state.readCard = (card) => card;
   reloaded.button("Inspect creation").click();
   await idle();
+  assert.deepEqual(f.confirmed, [[f.posts[0].id, 42, true]]);
+  assert.equal(f.journals.size, 0);
+});
+
+test("omitted defaults are captured locally and compared during recovery", async () => {
+  const f = fixture();
+  const first = await f.submit({ useDefaults: true });
+  const [raw] = f.journals.values();
+  const { submission } = JSON.parse(raw);
+  assert.equal(submission.effectiveOwnerId, user);
+  assert.equal(submission.effectivePriorityId, priority);
+  f.state.readCard = (card) => ({ ...card, owner_id: otherUser, priority_id: otherPriority });
+  const reloaded = await f.inspectAfterReload(first);
+  assert.deepEqual(f.confirmed, [[f.posts[0].id, 42, true]]);
+  assert.match(reloaded.host.children[2].textContent, /original card #42.*details differ/);
+});
+
+test("journals from earlier dispatches remain inspectable", async () => {
+  const f = fixture();
+  const first = await f.submit({ useDefaults: true });
+  const [[key, raw]] = f.journals.entries();
+  const draft = JSON.parse(raw);
+  delete draft.submission.dispatchId;
+  delete draft.submission.effectiveOwnerId;
+  delete draft.submission.effectivePriorityId;
+  f.journals.set(key, JSON.stringify(draft));
+  await f.inspectAfterReload(first);
   assert.deepEqual(f.confirmed, [[f.posts[0].id, 42, true]]);
   assert.equal(f.journals.size, 0);
 });
@@ -298,6 +339,56 @@ test("an exact retry can complete a create lost before commit without a board ed
   assert.equal(f.journals.size, 0);
 });
 
+test("a late first refusal cannot clear the newer dispatch journal", async () => {
+  const f = fixture();
+  const firstPost = Promise.withResolvers();
+  f.state.write = () => firstPost.promise;
+  await f.submit();
+  const [initialJournal] = f.journals.values();
+  f.state.readCard = absent;
+  const retrying = await f.inspectAfterReload();
+  assert.equal(retrying.button("Retry original creation").hidden, false);
+  f.state.write = () => {
+    f.state.revision++;
+    f.state.readCard = (card) => card;
+  };
+  retrying.button("Retry original creation").click();
+  await idle();
+  const [retryJournal] = f.journals.values();
+  assert.notEqual(
+    JSON.parse(retryJournal).submission.dispatchId,
+    JSON.parse(initialJournal).submission.dispatchId,
+  );
+  assert.deepEqual(f.posts, [f.posts[0], f.posts[0]]);
+  assert.equal("dispatchId" in f.posts[1], false);
+
+  firstPost.reject(new ApiError("http_error", { status: 412 }));
+  await idle();
+  assert.deepEqual([...f.journals.values()], [retryJournal]);
+  const reloaded = await f.inspectAfterReload(retrying);
+  assert.deepEqual(f.confirmed, [[f.posts[0].id, 42, true]]);
+  assert.equal(reloaded.ui.hasUncertainSubmission(), false);
+  assert.equal(f.posts.length, 2);
+  assert.equal(f.journals.size, 0);
+});
+
+test("settlement while the page is suspended clears the journal without focusing the board", async () => {
+  const f = fixture();
+  const post = Promise.withResolvers();
+  f.state.write = () => post.promise;
+  f.state.responseLost = false;
+  const view = await f.submit();
+  assert.equal(view.host.children[0].open, true);
+  const previousFocus = f.focused.slice();
+  f.state.pageActive = false;
+  post.resolve();
+  await idle();
+  assert.equal(f.journals.size, 0);
+  assert.deepEqual(f.confirmed, []);
+  assert.deepEqual(f.focused, previousFocus);
+  assert.equal(view.host.children[0].open, false);
+});
+
 test("a board change or loss of read access during inspection keeps absence unresolved", async () => {
   const f = fixture();
   const first = await f.submit();
@@ -308,10 +399,14 @@ test("a board change or loss of read access during inspection keeps absence unre
   f.state.readBoard = () => {
     boardReads++;
     if (boardReads === 2) throw new ApiError("http_error", { status: 404 });
-    if (boardReads === 4) f.state.revision++;
+    if (boardReads === 4) throw new ApiError("http_error", { status: 403 });
+    if (boardReads === 6) f.state.revision++;
     return readBoard();
   };
   const reloaded = await f.inspectAfterReload(first);
+  assert.equal(reloaded.button("Dismiss unresolved creation").hidden, true);
+  reloaded.button("Inspect creation").click();
+  await idle();
   assert.equal(reloaded.button("Dismiss unresolved creation").hidden, true);
   reloaded.button("Inspect creation").click();
   await idle();

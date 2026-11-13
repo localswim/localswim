@@ -1,6 +1,21 @@
 import { ApiError, MAX_ATTACHMENT_BYTES } from "../api.mjs";
 import type { AppContext } from "./model.js";
 import type { OperationStorage } from "./operations.js";
+import {
+  createUploadRecovery,
+  hasPendingUpload,
+  identifyUpload,
+  matchUploads,
+  MAX_UPLOAD_FILES,
+  record,
+  revisionOf,
+  revisionTag,
+  validUploadName,
+  type Original,
+  type UploadJournal,
+} from "./upload-recovery.js";
+
+export { hasPendingUpload, hasPendingBoardUploads } from "./upload-recovery.js";
 
 type UploadContext = Readonly<{
   cardId: string;
@@ -22,123 +37,18 @@ type UploadOptions = AppContext &
     storage?: OperationStorage;
   }>;
 
-type Original = Readonly<{ id: string; name: string; size: number; digest: string }>;
-type Journal = Readonly<{ remaining: readonly Original[]; expected: string | null }>;
 type Batch = {
   results: { name: string; outcome: string; id?: string }[];
   notice: string;
   busy: boolean;
 };
+type PendingFile = { file: File; result: Batch["results"][number]; original: Original };
 
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const sha256 = /^[0-9a-f]{64}$/;
 const rasterTypes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const waiting = "Waiting.";
-
-function key(boardId: string, cardId: string): string {
-  return `localswim:v2:uploads:${boardId}:${cardId}`;
-}
-
-function record(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function revisionTag(id: string, revision: number): string {
-  return `"${id}-${revision}"`;
-}
-
-function revisionOf(id: string, etag: string): number {
-  const revision = Number(etag.slice(id.length + 2, -1));
-  if (!Number.isSafeInteger(revision) || revision < 1 || revisionTag(id, revision) !== etag) {
-    throw new TypeError("Invalid upload validator.");
-  }
-  return revision;
-}
-
-function parseJournal(raw: string, cardId: string): Journal {
-  const value: unknown = JSON.parse(raw);
-  if (
-    !record(value) ||
-    !Array.isArray(value.remaining) ||
-    value.remaining.length === 0 ||
-    (value.expected !== null && typeof value.expected !== "string")
-  ) {
-    throw new TypeError("Invalid upload journal.");
-  }
-  if (value.expected !== null) revisionOf(cardId, value.expected);
-  const ids = new Set<string>();
-  const remaining = (value.remaining as unknown[]).map((item) => {
-    if (!record(item)) throw new TypeError("Invalid upload original.");
-    const { id, name, size, digest } = item;
-    if (
-      typeof id !== "string" ||
-      !uuid.test(id) ||
-      ids.has(id) ||
-      typeof name !== "string" ||
-      typeof size !== "number" ||
-      !Number.isSafeInteger(size) ||
-      size < 0 ||
-      size > MAX_ATTACHMENT_BYTES ||
-      typeof digest !== "string" ||
-      !sha256.test(digest)
-    ) {
-      throw new TypeError("Invalid upload original.");
-    }
-    ids.add(id);
-    return { id, name, size, digest };
-  });
-  return { remaining, expected: value.expected };
-}
-
-export function hasPendingUpload(
-  boardId: string,
-  cardId: string,
-  storage?: Pick<OperationStorage, "getItem">,
-): boolean {
-  let raw: string | null;
-  try {
-    raw = (storage ?? globalThis.sessionStorage).getItem(key(boardId, cardId));
-  } catch {
-    return false;
-  }
-  if (raw === null) return false;
-  try {
-    return parseJournal(raw, cardId).expected !== null;
-  } catch {
-    return true;
-  }
-}
-
-export function hasPendingBoardUploads(
-  boardId: string,
-  storage?: Pick<Storage, "getItem" | "key" | "length">,
-): boolean {
-  const prefix = key(boardId, "");
-  try {
-    const store = storage ?? globalThis.sessionStorage;
-    const count = store.length;
-    for (let index = 0; index < count; index++) {
-      const entry = store.key(index);
-      if (!entry?.startsWith(prefix)) continue;
-      const cardId = entry.slice(prefix.length);
-      if (cardId.length !== 36 || !uuid.test(cardId) || hasPendingUpload(boardId, cardId, store)) {
-        return true;
-      }
-    }
-  } catch {
-    return false;
-  }
-  return false;
-}
-
-async function fingerprint(file: File): Promise<Original> {
-  const id = globalThis.crypto.randomUUID();
-  const hash = await globalThis.crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-  const digest = Array.from(new Uint8Array(hash), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-  return { id, name: file.name, size: file.size, digest };
-}
+const inspectNotice = "Inspect the saved upload before changing this card.";
+const resumeNotice =
+  "Reselect the remaining files to resume this batch, or discard the remaining uploads.";
 
 function proveAttachment(
   reply: { data: object; etag: string | null },
@@ -188,7 +98,7 @@ export function mountUploads(
   const doc = host.ownerDocument;
   const lifetime = new AbortController();
   const signal = AbortSignal.any([appSignal, lifetime.signal]);
-  const journal = () => storage ?? globalThis.sessionStorage;
+  const recovery = createUploadRecovery(boardId, storage);
   const batches = new Map<string, Batch>();
   let current: UploadContext | null = null;
   let selection = new AbortController();
@@ -197,6 +107,8 @@ export function mountUploads(
   const picker = doc.createElement("input");
   const upload = doc.createElement("button");
   const inspect = doc.createElement("button");
+  const resume = doc.createElement("button");
+  const discard = doc.createElement("button");
   const status = doc.createElement("p");
   const outcomes = doc.createElement("ul");
   label.textContent = "Files to attach ";
@@ -207,34 +119,51 @@ export function mountUploads(
   upload.textContent = "Upload attachments";
   inspect.type = "button";
   inspect.textContent = "Inspect saved upload";
+  resume.type = "button";
+  resume.textContent = "Resume remaining uploads";
+  discard.type = "button";
+  discard.textContent = "Discard remaining uploads";
   status.setAttribute("role", "status");
-  host.replaceChildren(label, upload, inspect, status, outcomes);
+  host.replaceChildren(label, upload, inspect, status, outcomes, resume, discard);
 
   function blocksCard(cardId: string): boolean {
     return hasPendingUpload(boardId, cardId, storage);
   }
 
-  function eligible(context: UploadContext): boolean {
-    return !signal.aborted && context.editable && canUpload() && !blocksCard(context.cardId);
+  function writable(context: UploadContext): boolean {
+    return !signal.aborted && context.readable && context.editable && canUpload();
   }
 
   function render() {
     if (signal.aborted) return;
     const readable = current?.readable === true;
-    const busy = current ? batches.get(current.cardId)?.busy === true : false;
-    const fenced = current ? blocksCard(current.cardId) : false;
-    const writable = current !== null && eligible(current);
     const batch = current && readable ? batches.get(current.cardId) : undefined;
-    host.hidden = !readable || (!writable && !fenced && !batch);
-    label.hidden = upload.hidden = !writable;
-    picker.disabled = busy || !writable;
+    const busy = batch?.busy === true;
+    const saved = current && readable ? recovery.read(current.cardId) : null;
+    const fenced = saved !== null && saved.journal?.expected !== null;
+    const resumable = saved !== null && !fenced;
+    const mayWrite = current !== null && writable(current);
+    host.hidden = !readable || (!mayWrite && !saved && !batch);
+    label.hidden = !mayWrite || fenced;
+    upload.hidden = !mayWrite || saved !== null;
+    picker.disabled = busy || label.hidden;
     upload.disabled = picker.disabled || pickerFiles.length === 0;
-    inspect.hidden = !readable || !fenced;
+    inspect.hidden = !fenced;
     inspect.disabled = busy;
-    status.textContent =
-      batch?.notice || (fenced ? "Inspect the saved upload before changing this card." : "");
+    resume.hidden = !resumable;
+    resume.disabled = picker.disabled || pickerFiles.length === 0;
+    discard.hidden = !resumable;
+    discard.disabled = busy;
+    status.textContent = batch?.notice || (fenced ? inspectNotice : resumable ? resumeNotice : "");
+    const results = batch?.results ?? [];
+    const listed = new Set(results.map(({ id }) => id));
+    const savedResults = (saved?.journal?.remaining ?? []).flatMap(({ id, name }, index) =>
+      listed.has(id)
+        ? []
+        : [{ name, outcome: fenced && index === 0 ? "Outcome uncertain." : "Remaining." }],
+    );
     outcomes.replaceChildren(
-      ...(batch?.results ?? []).map(({ name, outcome }) => {
+      ...[...results, ...savedResults].map(({ name, outcome }) => {
         const row = doc.createElement("li");
         row.textContent = `${name} — ${outcome}`;
         return row;
@@ -242,22 +171,9 @@ export function mountUploads(
     );
   }
 
-  function save(cardId: string, previous: string | null, next: Journal | null): string | null {
-    const store = journal();
-    const itemKey = key(boardId, cardId);
-    if (store.getItem(itemKey) !== previous) throw new TypeError("Upload journal changed.");
-    if (!next?.remaining.length) {
-      store.removeItem(itemKey);
-      return null;
-    }
-    const raw = JSON.stringify(next);
-    store.setItem(itemKey, raw);
-    return raw;
-  }
-
-  async function readCardTag(cardId: string, revision: number): Promise<string> {
-    const reply = await readWithSession(() => api.getCard(cardId, signal), signal);
-    signal.throwIfAborted();
+  async function readCardTag(cardId: string, revision: number, readSignal: AbortSignal) {
+    const reply = await readWithSession(() => api.getCard(cardId, readSignal), readSignal);
+    readSignal.throwIfAborted();
     const { data, etag } = reply;
     // An upload advances its attachment and card to the same revision.
     // A newer card revision belongs to another write, so stop this batch.
@@ -273,67 +189,91 @@ export function mountUploads(
     return etag;
   }
 
-  async function submit(context: UploadContext, files: File[]) {
+  async function submit(
+    context: UploadContext,
+    files: File[],
+    saved?: { raw: string; journal: UploadJournal },
+  ) {
     const { cardId } = context;
-    if (!eligible(context) || batches.get(cardId)?.busy) return;
-    const results: Batch["results"] = files.map((file) => ({
-      name: file.name,
-      outcome: file.size > MAX_ATTACHMENT_BYTES ? "Refused. Files are limited to 10 MiB." : waiting,
-    }));
-    const batch: Batch = { results, notice: "", busy: false };
+    if (!writable(context) || batches.get(cardId)?.busy) return;
+    const batch: Batch = (saved && batches.get(cardId)) ?? { results: [], notice: "", busy: false };
     batches.set(cardId, batch);
-    const accepted = files.flatMap((file, index) => {
-      const result = results[index];
-      return result?.outcome === waiting ? [{ file, result }] : [];
-    });
-    if (!accepted.length) {
+    if (files.length > MAX_UPLOAD_FILES) {
+      batch.notice = `Select at most ${MAX_UPLOAD_FILES} files per batch.`;
       render();
       return;
     }
     const release = beginWrite(cardId);
     if (!release) {
-      for (const { result } of accepted) result.outcome = "Upload did not start.";
       batch.notice = "The card is busy or unavailable. Try again when it is ready.";
       render();
       return;
     }
+    const resumeSignal = AbortSignal.any([signal, selection.signal]);
     let refresh = false;
-    let raw: string | null = null;
+    let raw = saved?.raw ?? null;
     let keepAttempt = false;
     batch.busy = true;
-    batch.notice = "Preparing files…";
+    batch.notice = saved ? "Checking the selected files…" : "Preparing files…";
     render();
     try {
       let expected = context.etag;
       let revision = revisionOf(cardId, expected);
-      const pending = [];
-      for (const entry of accepted) {
-        pending.push({ ...entry, original: await fingerprint(entry.file) });
-      }
-      signal.throwIfAborted();
-      const previous = journal().getItem(key(boardId, cardId));
-      if (previous !== null && parseJournal(previous, cardId).expected !== null) {
-        batch.notice = "Inspect the saved upload before changing this card.";
-        return;
+      const pending: PendingFile[] = [];
+      if (saved) {
+        const matched = await matchUploads(files, saved.journal.remaining, resumeSignal);
+        resumeSignal.throwIfAborted();
+        if (!matched) {
+          batch.notice =
+            "Reselect all remaining files with their recorded names, sizes and contents.";
+          return;
+        }
+        for (const [index, original] of saved.journal.remaining.entries()) {
+          const file = matched[index];
+          if (!file) throw new TypeError("Missing matched upload.");
+          const previous = batch.results.find(({ id }) => id === original.id);
+          const result = previous ?? { id: original.id, name: original.name, outcome: waiting };
+          result.outcome = waiting;
+          if (!previous) batch.results.push(result);
+          pending.push({ file, result, original });
+        }
+      } else {
+        for (const file of files) {
+          signal.throwIfAborted();
+          const result: Batch["results"][number] = { name: file.name, outcome: waiting };
+          batch.results.push(result);
+          if (file.size > MAX_ATTACHMENT_BYTES) {
+            result.outcome = "Refused. Files are limited to 10 MiB.";
+          } else if (!validUploadName(file.name)) {
+            result.outcome = "Refused. File names must contain 1 to 1024 characters.";
+          } else {
+            const original = await identifyUpload(file);
+            result.id = original.id;
+            pending.push({ file, result, original });
+          }
+        }
       }
       let remaining = pending.map(({ original }) => original);
-      raw = save(cardId, previous, { remaining, expected: null });
+      if (!saved && remaining.length)
+        raw = recovery.save(cardId, null, { remaining, expected: null });
+      batch.notice = "";
       for (const [index, { file, result, original }] of pending.entries()) {
         signal.throwIfAborted();
-        if (index > 0) {
-          expected = await readCardTag(cardId, revision);
-          if (awaitUploadAdmission && !(await awaitUploadAdmission(signal, revision))) {
+        const firstResume = saved && index === 0;
+        const readSignal = firstResume ? resumeSignal : signal;
+        if (firstResume || index > 0) {
+          expected = await readCardTag(cardId, revision, readSignal);
+          if (awaitUploadAdmission && !(await awaitUploadAdmission(readSignal, revision))) {
             batch.notice = "Upload stopped because write access could not be confirmed.";
             break;
           }
         }
-        if (signal.aborted || !canUpload()) {
+        if (readSignal.aborted || !canUpload()) {
           batch.notice = "Upload stopped because write access could not be confirmed.";
           break;
         }
-        raw = save(cardId, raw, { remaining, expected });
+        raw = recovery.save(cardId, raw, { remaining, expected });
         keepAttempt = true;
-        result.id = original.id;
         result.outcome = "Uploading…";
         batch.notice = `Uploading file ${index + 1} of ${pending.length}…`;
         render();
@@ -345,36 +285,29 @@ export function mountUploads(
         } catch (error) {
           if (!(error instanceof ApiError) || error.outcomeUnknown || error.status === 409) {
             result.outcome = "Outcome uncertain.";
-            batch.notice = "Inspect the saved upload before changing this card.";
+            batch.notice = inspectNotice;
             break;
           }
           result.outcome = error.status === 412 ? "Refused. The card changed." : "Upload refused.";
           if (![400, 413, 415, 422].includes(error.status ?? 0)) {
-            batch.notice = "Review the saved card before selecting files again.";
-            refresh = true;
+            raw = recovery.save(cardId, raw, { remaining, expected: null });
             keepAttempt = false;
+            batch.notice = "Review the saved card before resuming the remaining uploads.";
+            refresh = true;
             break;
           }
         }
         remaining = remaining.slice(1);
-        raw = save(cardId, raw, { remaining, expected: null });
+        raw = recovery.save(cardId, raw, { remaining, expected: null });
         keepAttempt = false;
         batch.notice = "";
       }
     } catch {
       batch.notice = keepAttempt
-        ? "Inspect the saved upload before changing this card."
+        ? inspectNotice
         : "The selected files, saved card, or upload recovery details could not be verified.";
     } finally {
-      // A known refusal is settled, while an ambiguous dispatch must retain its original ID.
-      if (raw !== null && !keepAttempt) {
-        try {
-          save(cardId, raw, null);
-        } catch {
-          batch.notice = "Could not clear the saved upload details. Inspect the saved upload.";
-        }
-      }
-      for (const result of results) {
+      for (const result of batch.results) {
         if (result.outcome === waiting) result.outcome = "Upload stopped before this file.";
       }
       batch.busy = false;
@@ -398,12 +331,12 @@ export function mountUploads(
     const readSignal = AbortSignal.any([signal, selection.signal]);
     render();
     try {
-      const raw = journal().getItem(key(boardId, cardId));
-      if (raw === null) return;
+      const saved = recovery.read(cardId);
+      if (!saved?.journal) throw new TypeError("Invalid saved upload.");
       const {
         expected,
-        remaining: [original],
-      } = parseJournal(raw, cardId);
+        remaining: [original, ...rest],
+      } = saved.journal;
       if (!original || expected === null) return;
       const reply = await readWithSession(
         () => api.getAttachment(original.id, readSignal),
@@ -411,14 +344,16 @@ export function mountUploads(
       );
       readSignal.throwIfAborted();
       const proof = proveAttachment(reply, original, boardId, cardId, expected, false);
-      save(cardId, raw, null);
+      recovery.save(cardId, saved.raw, { remaining: rest, expected: null });
       const outcome = proof.active
         ? "Uploaded. Confirmed by inspection."
         : "Uploaded, then detached.";
       const result = batch.results.find(({ id }) => id === original.id);
       if (result) result.outcome = outcome;
-      else batch.results.push({ name: original.name, outcome });
-      batch.notice = "Saved upload verified.";
+      else batch.results.push({ id: original.id, name: original.name, outcome });
+      batch.notice = rest.length
+        ? `Saved upload verified. ${resumeNotice}`
+        : "Saved upload verified.";
       onChange();
     } catch (error) {
       // A missing original can race a write still in flight. Keep the fence.
@@ -437,6 +372,13 @@ export function mountUploads(
     void action.catch((error: unknown) => globalThis.reportError(error));
   }
 
+  function takeFiles() {
+    const files = pickerFiles;
+    pickerFiles = [];
+    picker.value = "";
+    return files;
+  }
+
   picker.addEventListener(
     "change",
     () => {
@@ -448,11 +390,9 @@ export function mountUploads(
   upload.addEventListener(
     "click",
     () => {
-      if (!current || !pickerFiles.length || !eligible(current)) return;
-      const files = pickerFiles;
-      pickerFiles = [];
-      picker.value = "";
-      run(submit(current, files));
+      if (!current || !pickerFiles.length || recovery.read(current.cardId) !== null) return;
+      if (writable(current) && !batches.get(current.cardId)?.busy)
+        run(submit(current, takeFiles()));
     },
     { signal },
   );
@@ -463,11 +403,61 @@ export function mountUploads(
     },
     { signal },
   );
+  resume.addEventListener(
+    "click",
+    () => {
+      if (
+        !current ||
+        !pickerFiles.length ||
+        !writable(current) ||
+        batches.get(current.cardId)?.busy
+      )
+        return;
+      const saved = recovery.read(current.cardId);
+      if (saved?.journal?.expected === null) {
+        run(submit(current, takeFiles(), { raw: saved.raw, journal: saved.journal }));
+      }
+    },
+    { signal },
+  );
+  discard.addEventListener(
+    "click",
+    () => {
+      if (signal.aborted || !current?.readable) return;
+      const { cardId } = current;
+      const saved = recovery.read(cardId);
+      if (saved?.journal?.expected !== null || batches.get(cardId)?.busy) return;
+      const release = beginInspect(cardId);
+      if (!release) return;
+      const batch = batches.get(cardId) ?? { results: [], notice: "", busy: false };
+      batches.set(cardId, batch);
+      try {
+        recovery.save(cardId, saved.raw, null);
+        takeFiles();
+        const ids = new Set(saved.journal.remaining.map(({ id }) => id));
+        batch.results = batch.results.filter(({ id }) => id === undefined || !ids.has(id));
+        batch.notice = "Remaining uploads discarded.";
+      } catch {
+        batch.notice = "Could not discard the remaining uploads. Try again.";
+      } finally {
+        release();
+        render();
+      }
+    },
+    { signal },
+  );
   pasteTarget.addEventListener(
     "paste",
     (event) => {
       const clipboard = event.clipboardData;
-      if (!current || !eligible(current) || !clipboard || event.defaultPrevented) return;
+      if (
+        !current ||
+        !writable(current) ||
+        recovery.read(current.cardId) !== null ||
+        !clipboard ||
+        event.defaultPrevented
+      )
+        return;
       if (
         event.target instanceof Element &&
         event.target.closest("input, textarea, [contenteditable]") &&

@@ -101,8 +101,12 @@ function harness(api, values = new Map(), awaitUploadAdmission) {
     onChange: () => changes++,
     storage,
   });
-  const [label, upload, inspect, status, outcomes] = host.children;
+  const [label, upload, inspect, status, outcomes, resume, discard] = host.children;
   const [picker] = label.children;
+  function selectFiles(files) {
+    picker.files = files;
+    picker.dispatchEvent(new Event("change"));
+  }
   return {
     ...controller,
     leased,
@@ -110,6 +114,10 @@ function harness(api, values = new Map(), awaitUploadAdmission) {
     inspect,
     status,
     outcomes,
+    picker,
+    resume,
+    discard,
+    upload,
     changes: () => changes,
     select(cardId, revision = 3) {
       controller.show({
@@ -120,9 +128,12 @@ function harness(api, values = new Map(), awaitUploadAdmission) {
       });
     },
     pick(...files) {
-      picker.files = files;
-      picker.dispatchEvent(new Event("change"));
+      selectFiles(files);
       upload.click();
+    },
+    reselect(...files) {
+      selectFiles(files);
+      resume.click();
     },
     paste(...files) {
       const event = new Event("paste", { cancelable: true });
@@ -431,4 +442,156 @@ test("upload settlement distinguishes a literal percent sequence from an escaped
   await until(() => !ui.leased.size);
   assert.equal(ui.blocksCard(first), false);
   assert.match(ui.outcomes.children[0].textContent, /Confirmed by inspection/);
+});
+
+test("reload recovers a partially completed batch using the remaining original IDs in order", async () => {
+  const stored = new Map();
+  const sent = [];
+  const reads = [];
+  const admitted = [];
+  const committed = new Map();
+  let revision = 3;
+  let revealPending = false;
+  const api = {
+    uploadAttachment(cardId, expected, file, id) {
+      const saved = journal(stored);
+      const [item] = saved.remaining;
+      assert.equal(item.id, id);
+      assert.equal(item.name, file.name);
+      assert.equal(saved.expected, revisionTag(first, revision));
+      assert.equal(expected, saved.expected);
+      sent.push(id);
+      if (sent.length === 2) {
+        return Promise.reject(new ApiError("transport_failed", { outcomeUnknown: true }));
+      }
+      const reply = attachment(cardId, item, ++revision);
+      committed.set(id, reply);
+      return Promise.resolve(reply);
+    },
+    getAttachment(id) {
+      reads.push(id);
+      if (!revealPending) return Promise.reject(new ApiError("http_error", { status: 404 }));
+      return Promise.resolve(committed.get(id));
+    },
+    getCard() {
+      return Promise.resolve({
+        data: { id: first, board_id: board, revision },
+        etag: revisionTag(first, revision),
+      });
+    },
+  };
+  const admission = (_signal, current) => {
+    admitted.push(current);
+    return Promise.resolve(true);
+  };
+  const initial = harness(api, stored, admission);
+  const third = new File(["one"], "same.txt");
+  const fourth = new File(["two"], "same.txt");
+  initial.select(first);
+  initial.pick(
+    new File(["complete"], "complete.txt"),
+    new File(["pending"], "pending.txt"),
+    third,
+    fourth,
+  );
+  await until(() => !initial.leased.size);
+  const [uncertain, ...remaining] = journal(stored).remaining;
+  assert.equal(uncertain.id, sent[1]);
+  assert.equal(committed.has(sent[0]), true);
+  assert.equal(stored.size, 1);
+  initial.dispose();
+
+  const reopened = harness(api, stored, admission);
+  reopened.select(first, revision);
+  assert.equal(reopened.picker.disabled, true);
+  assert.equal(reopened.resume.hidden, true);
+  assert.equal(reopened.discard.hidden, true);
+  reopened.inspect.click();
+  await until(() => !reopened.leased.size);
+  assert.match(reopened.status.textContent, /still uncertain/);
+  assert.deepEqual(journal(stored).remaining, [uncertain, ...remaining]);
+  assert.deepEqual(reads, [uncertain.id]);
+  assert.equal(sent.length, 2);
+  assert.equal(reopened.blocksCard(first), true);
+  reopened.select(second);
+  assert.equal(reopened.upload.hidden, false);
+  assert.equal(reopened.blocksCard(second), false);
+
+  revealPending = true;
+  committed.set(uncertain.id, attachment(first, uncertain, ++revision));
+  reopened.select(first, revision);
+  reopened.inspect.click();
+  await until(() => !reopened.leased.size);
+  assert.deepEqual(reads, [uncertain.id, uncertain.id]);
+  assert.deepEqual(journal(stored), { remaining, expected: null });
+  assert.equal(reopened.blocksCard(first), false);
+  assert.equal(reopened.discard.hidden, false);
+  assert.equal(reopened.resume.hidden, false);
+  assert.equal(reopened.upload.hidden, true);
+
+  reopened.reselect(third, new File(["bad"], fourth.name));
+  await until(() => !reopened.leased.size);
+  assert.match(reopened.status.textContent, /recorded names, sizes and contents/);
+  assert.deepEqual(journal(stored), { remaining, expected: null });
+  assert.equal(sent.length, 2);
+
+  reopened.reselect(fourth, third);
+  await until(() => !reopened.leased.size);
+  assert.deepEqual(
+    sent.slice(2),
+    remaining.map(({ id }) => id),
+  );
+  assert.deepEqual(admitted, [4, 5, 6]);
+  assert.equal(new Set(sent).size, 4);
+  assert.equal(committed.size, 4);
+  assert.equal(stored.size, 0);
+  assert.equal(reopened.resume.hidden, true);
+  assert.equal(reopened.discard.hidden, true);
+  assert.equal(reopened.upload.hidden, false);
+});
+
+test("discard after inspection clears only the remaining recovery details", async () => {
+  const stored = new Map();
+  const accepted = new Map();
+  const api = {
+    uploadAttachment(cardId) {
+      const [item] = journal(stored).remaining;
+      accepted.set(item.id, attachment(cardId, item));
+      return Promise.reject(new ApiError("transport_failed", { outcomeUnknown: true }));
+    },
+    getAttachment(id) {
+      return Promise.resolve(accepted.get(id));
+    },
+  };
+  const initial = harness(api, stored);
+  initial.select(first);
+  initial.pick(new File(["one"], "one.bin"), new File(["two"], "two.bin"));
+  await until(() => !initial.leased.size);
+  initial.dispose();
+
+  const reopened = harness(api, stored);
+  reopened.select(first, 4);
+  reopened.discard.dispatchEvent(new Event("click"));
+  assert.equal(stored.size, 1);
+  reopened.inspect.click();
+  await until(() => !reopened.leased.size);
+  reopened.discard.click();
+  assert.equal(stored.size, 0);
+  assert.equal(accepted.size, 1);
+  assert.equal(reopened.changes(), 1);
+  assert.match(reopened.status.textContent, /discarded/);
+  assert.deepEqual(
+    reopened.outcomes.children.map(({ textContent }) => textContent),
+    ["one.bin — Uploaded. Confirmed by inspection."],
+  );
+});
+
+test("an oversized batch stops before hashing or dispatch", () => {
+  const stored = new Map();
+  const ui = harness({}, stored);
+  ui.select(first);
+  ui.pick(...Array.from({ length: 65 }, () => ({ name: "one.bin", size: 3 })));
+  assert.equal(ui.leased.size, 0);
+  assert.equal(stored.size, 0);
+  assert.match(ui.status.textContent, /at most 64 files/);
 });

@@ -201,7 +201,7 @@ A failed push can recover automatically without another edit. If a settings
 save has an uncertain outcome, the browser reads the saved setting before
 another submission and keeps the draft available for comparison.
 
-## Attention sidebar
+### Attention sidebar
 
 Drag the separator beside **Attention** to resize the sidebar. With the
 separator focused, use Left and Right Arrow or Home and End to resize it.
@@ -210,7 +210,7 @@ Use **Hide Attention** or Enter on the separator to collapse the sidebar, and
 visibility across reloads. On a smaller viewport the width adjusts to fit
 and returns to the saved width when space is available.
 
-## Board availability
+### Board availability
 
 Members with the board's `close_board` grant can select **Close board** under
 **Board actions**. A closed board stays at the same address and offers **Reopen
@@ -223,7 +223,7 @@ The browser reads the saved board after success, a stale validator, or an
 uncertain response. If readback fails, use **Inspect saved board** or **Refresh**
 before submitting another change. The browser never replays the PATCH.
 
-## Service lifecycle
+### Service lifecycle
 
 Service JSON contains runtime state without an ETag field. `getService()` retains
 the HTTP validator separately as `reply.etag`. Lifecycle controls capture that
@@ -241,7 +241,7 @@ Each action makes one write attempt. After an uncertain response, use
 **Refresh service status** to check the service and the original activation
 receipt before submitting another action.
 
-## Browser API client
+### Browser API client
 
 `api.mjs` is a dependency-free ES module for the same-origin V2 API. It calls
 the supplied `getCapability` callback for each authenticated request.
@@ -275,7 +275,7 @@ reads use ETags retained from HTTP response headers.
 
 When `outcomeUnknown` is true, inspect authoritative state before another write.
 
-## Card and live board reads
+### Card and live board reads
 
 Create a card with `createCard(card)` using the board's current
 `expected_board_etag` in the request body. On success, `etag` identifies the card
@@ -315,7 +315,7 @@ visible until a fresh read succeeds.
 
 Run the focused checks with `npm --prefix web run check` and `npm --prefix web test`.
 
-## Turn 6 board actions
+### Turn 6 board actions
 
 The board uses `GET /boards/{board_id}?view=lanes` for the server's visible
 priority and dependency order. Archived cards remain in the separate archived
@@ -344,7 +344,7 @@ lost response, **Refresh backup status** checks the original backup UUID. If
 the backup is still unavailable, the capture remains pending and the next
 refresh checks that same UUID.
 
-## Turn 7 find, renumber, restore, and publish
+### Turn 7 find, renumber, restore, and publish
 
 Expand **Find cards** to search a literal title or ticket. **Search descriptions
 and comments** opts into matching their displayed text. Formatting delimiters
@@ -389,7 +389,7 @@ Publication does not require a board ETag because its selected backup is immutab
 
 Backup, publication, restoration, build activation, audit event, and approval receipt IDs use UUIDv7. Client-supplied operation IDs accept mixed case and are serialized in lowercase. Backup and publication creation time is encoded in the ID. Completion time remains in `finished_at`, and audit, approval, and restoration `at` records execution time. Other resource IDs remain UUIDv4.
 
-## Recent boards
+### Recent boards
 
 Returning to a recent board in the same tab shows the last confirmed lanes
 and cards immediately. You can open a retained card to read its title and

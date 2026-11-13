@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { setImmediate as flush } from "node:timers/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -91,11 +91,14 @@ function fixture() {
   let saved;
   let links = [];
   let leased = false;
+  let releasedWrites = 0;
+  let handoffs = 0;
   const write = () => {
     assert.equal(leased, false);
     leased = true;
     return () => {
       leased = false;
+      releasedWrites++;
     };
   };
   const api = {
@@ -186,7 +189,7 @@ function fixture() {
       async awaitUploadAdmission(requestSignal, revision) {
         if (admission.length === 0) assert.equal(leased, false);
         admission.push(revision);
-        await flush();
+        await state.admissionGate;
         return state.admitted && !requestSignal.aborted;
       },
       beginWrite: write,
@@ -198,7 +201,16 @@ function fixture() {
       boardId,
       signal,
       stagedFiles,
-      attachments: { canStage: () => true, upload: uploader.submitCreated },
+      attachments: {
+        canStage: () => true,
+        async upload(files) {
+          try {
+            return await uploader.submitCreated(files);
+          } finally {
+            handoffs++;
+          }
+        },
+      },
       storage,
       readWithSession,
       context: () => ({
@@ -277,6 +289,8 @@ function fixture() {
     stagedFiles,
     state,
     uploads,
+    handoffs: () => handoffs,
+    releasedWrites: () => releasedWrites,
     changeSaved: (changes) => {
       saved = { ...saved, ...changes };
     },
@@ -298,8 +312,12 @@ function fixture() {
   };
 }
 
-async function settle() {
-  for (let i = 0; i < 20; i++) await flush();
+async function until(condition, description) {
+  const deadline = Date.now() + 3000;
+  while (!condition()) {
+    assert.ok(Date.now() < deadline, `Timed out waiting for ${description}.`);
+    await delay(5);
+  }
 }
 
 test("picker and raster paste stay scoped to the draft across board navigation", () => {
@@ -336,7 +354,7 @@ test("creates the card and seeds once and resumes the same remaining upload iden
   view.pick(file("remaining.txt"));
   f.state.uploadStatus = 403;
   view.button("Add card").click();
-  await settle();
+  await until(() => f.handoffs() === 1, "the initial upload batch to settle");
   assert.equal(f.posts.length, 1);
   assert.deepEqual(f.posts[0].relationships, [
     { kind: "relates_to", target_card_id: relationship.id },
@@ -352,10 +370,10 @@ test("creates the card and seeds once and resumes the same remaining upload iden
   assert.equal(original.id, f.uploads[1].id);
   f.state.uploadStatus = null;
   view.resume(file("remaining.txt", "wrong contents"));
-  await settle();
+  await until(() => f.releasedWrites() === 3, "the mismatched resume to settle");
   assert.equal(f.uploads.length, 2);
   view.resume(file("remaining.txt"));
-  await settle();
+  await until(() => f.releasedWrites() === 4, "the exact resume to settle");
   assert.deepEqual(f.uploads[2], f.uploads[1]);
   assert.equal(f.remaining(), null);
   assert.equal(f.posts.length, 1);
@@ -369,14 +387,14 @@ test("a lost response needs explicit inspection and admission, then keeps files 
   first.pick(image);
   f.state.createMode = "lost";
   first.button("Add card").click();
-  await settle();
+  await until(() => f.releasedWrites() === 1, "the lost creation to settle");
   assert.deepEqual(f.admission, []);
   first.life.abort();
   const view = f.mount();
   f.state.admitted = false;
   view.button("Inspect pending creation").click();
   view.button("Inspect creation").click();
-  await settle();
+  await until(() => f.handoffs() === 1, "the denied handoff to settle");
   assert.deepEqual(f.admission, [21]);
   assert.deepEqual(f.uploads, []);
   assert.equal(f.stagedFiles.get(board).files[0], image);
@@ -384,7 +402,7 @@ test("a lost response needs explicit inspection and admission, then keeps files 
   view.button("Review card #7").click();
   f.state.admitted = true;
   view.button("Attach staged files").click();
-  await settle();
+  await until(() => f.handoffs() === 2, "the explicit handoff to settle");
   assert.equal(f.posts.length, 1);
   assert.equal(f.uploads.length, 1);
 });
@@ -398,15 +416,15 @@ test("refusal, mismatched acknowledgement, and diverging inspected links never s
   view.pick(image);
   f.state.createMode = "refuse";
   view.button("Add card").click();
-  await settle();
+  await until(() => f.releasedWrites() === 1, "the refused creation to settle");
   assert.equal(view.rows().length, 1);
   f.state.createMode = "changed";
   view.button("Add card").click();
-  await settle();
+  await until(() => f.releasedWrites() === 2, "the mismatched creation to settle");
   assert.deepEqual(f.confirmations, []);
   f.removeLinks();
   view.button("Inspect creation").click();
-  await settle();
+  await until(() => f.releasedWrites() === 3, "the divergent inspection to settle");
   assert.deepEqual(f.confirmations, [[f.posts[1].id, 7, true]]);
   assert.deepEqual(f.admission, []);
   assert.deepEqual(f.uploads, []);
@@ -419,10 +437,13 @@ test("a revision change before upload preserves files without dispatch", async (
   view.open();
   view.title("Exact card");
   view.pick(image);
+  const admission = Promise.withResolvers();
+  f.state.admissionGate = admission.promise;
   view.button("Add card").click();
-  await flush();
+  await until(() => f.admission.length === 1, "admission to start");
   f.changeSaved({ revision: 22 });
-  await settle();
+  admission.resolve();
+  await until(() => f.handoffs() === 1, "the stale handoff to settle");
   assert.deepEqual(f.admission, [21]);
   assert.deepEqual(f.uploads, []);
   assert.equal(f.stagedFiles.get(board).files[0], image);
@@ -437,11 +458,11 @@ for (const issue of ["unexpected link", "unavailable relationship read"]) {
     view.pick(image);
     f.state.createMode = "lost";
     view.button("Add card").click();
-    await settle();
+    await until(() => f.releasedWrites() === 1, "the lost creation to settle");
     if (issue === "unexpected link") f.addLink();
     else f.state.linksUnavailable = true;
     view.button("Inspect creation").click();
-    await settle();
+    await until(() => f.releasedWrites() === 2, "the relationship inspection to settle");
     assert.deepEqual(f.confirmations, [[f.posts[0].id, 7, true]]);
     assert.deepEqual(f.admission, []);
     assert.deepEqual(f.uploads, []);
@@ -449,7 +470,7 @@ for (const issue of ["unexpected link", "unavailable relationship read"]) {
     assert.equal(view.button("Attach staged files").hidden, true);
     view.button("Review card #7").click();
     view.button("Attach staged files").click();
-    await settle();
+    await until(() => f.handoffs() === 1, "the explicit handoff to settle");
     assert.equal(f.posts.length, 1);
     assert.equal(f.uploads.length, 1);
   });

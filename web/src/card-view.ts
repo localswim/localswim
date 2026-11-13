@@ -14,6 +14,7 @@ type CardViewOptions = AppContext &
     onSelectionChange?: (reference: CardReference | null, explicit: boolean) => void;
     onTextContext?: (context: DrawerTextContext | null) => void;
     onTextReadiness?: (confirmed: boolean) => void;
+    acceptTextVersion?: (cardId: string, revision: number, etag: string) => boolean;
   }>;
 
 type CardSummary = Readonly<{ id: string; ticket: number; title: string; archived: boolean }>;
@@ -72,6 +73,7 @@ export function mountCardView(
     onSelectionChange,
     onTextContext,
     onTextReadiness,
+    acceptTextVersion,
   }: CardViewOptions,
 ) {
   const doc = root.ownerDocument;
@@ -388,6 +390,9 @@ export function mountCardView(
         readHierarchy(card, data, requestSignal),
       ]);
       requestSignal.throwIfAborted();
+      if (acceptTextVersion?.(card.id, card.revision, card.etag) === false) {
+        throw new ApiError("invalid_response");
+      }
       renderCard(card, laneLabel, data);
       renderHierarchy(relations);
       onTextContext?.({

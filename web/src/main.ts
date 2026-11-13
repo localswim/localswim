@@ -359,6 +359,14 @@ export function mount(root: HTMLElement): () => void {
         focusedTextConfirmed = confirmed;
         editor?.update();
       },
+      acceptTextVersion(cardId, revision, etag) {
+        return (
+          drawerText?.cardId !== cardId ||
+          confirmedText === null ||
+          revision > confirmedText.revision ||
+          (revision === confirmedText.revision && etag === confirmedText.etag)
+        );
+      },
       focusFallback(reference) {
         const id =
           "id" in reference

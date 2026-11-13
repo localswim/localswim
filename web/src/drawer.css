@@ -216,6 +216,8 @@
 }
 
 .card-editor-saved {
+  max-block-size: 12rem;
+  overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

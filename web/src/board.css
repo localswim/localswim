@@ -1,3 +1,8 @@
+.board-view-boundary {
+  contain: paint;
+  padding: 3px;
+}
+
 .board-view {
   min-inline-size: 0;
   color: var(--board-view-ink);
@@ -59,10 +64,14 @@
 }
 
 .board-view-lane-heading h2 {
+  display: -webkit-box;
   flex: 1;
   min-inline-size: 0;
   margin: 0;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
   font-size: 0.9375rem;
   font-weight: 700;
   line-height: 1.2;

@@ -16,7 +16,10 @@ type Options = AppContext &
     boardId: string;
     getContext: () => { board: BoardViewData | null; etag: string | null; writable: boolean };
     readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
-    beginWrite: (cardIds: readonly string[]) => (() => void) | null;
+    beginWrite: (
+      cardIds: readonly string[],
+      affectedCardIds?: readonly string[],
+    ) => (() => void) | null;
     beginInspection: () => (() => void) | null;
     onRefresh: () => void;
     storage?: OperationStorage;
@@ -422,9 +425,13 @@ export function mountBatchPriority(
         return;
       }
       const ids = selected.map(({ id }) => id);
-      release = beginWrite(ids);
+      // The server may promote any unfinished blocker reachable from the selection.
+      const affectedIds = [...inventory.values()]
+        .filter((card) => card.completed_at === null)
+        .map(({ id }) => id);
+      release = beginWrite(ids, affectedIds);
       if (!release) {
-        message = "A selected card or the board has another operation in progress.";
+        message = "The board or a card affected by this batch has another operation in progress.";
         return;
       }
       const intent: Intent = { etag: tag, priorityId: requested, selected };

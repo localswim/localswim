@@ -77,7 +77,12 @@ class Element extends EventTarget {
 function fixture() {
   const changes = [];
   const storage = new Map();
-  const before = [card(1), card(2, { archived: true }), card(3), card(4, { completed_at: at })];
+  const before = [
+    card(1),
+    card(2, { archived: true }),
+    card(3, { archived: true }),
+    card(4, { completed_at: at }),
+  ];
   const priorities = [
     { id: regular, label: "P3" },
     { id: urgent, label: "P1" },
@@ -93,6 +98,7 @@ function fixture() {
     boardReads: 0,
     inventoryReads: 0,
     dispatch: null,
+    writeScope: null,
   };
   let leased = false;
   const api = createBrowserApi({
@@ -190,8 +196,9 @@ function fixture() {
       );
     },
   });
-  const begin = (ids = []) => {
-    if (leased || ids.includes(state.blockCard)) return null;
+  const begin = (ids = [], affectedIds) => {
+    if (affectedIds) state.writeScope = { ids, affectedIds };
+    if (leased || (affectedIds ?? ids).includes(state.blockCard)) return null;
     leased = true;
     return () => {
       leased = false;
@@ -268,6 +275,10 @@ test("submits distinct explicit unfinished tickets once, including archived, and
       priority_id: urgent,
     },
   ]);
+  assert.deepEqual(state.writeScope, {
+    ids: [before[1].id, before[0].id],
+    affectedIds: before.slice(0, 3).map(({ id }) => id),
+  });
   assert.deepEqual(view.rows(), [
     "3 priority changes committed.",
     "#2 effective priority · P1",
@@ -308,7 +319,7 @@ test("invalid, completed, foreign and stale selections never send a partial writ
   assert.equal(changes.length, 0);
 });
 
-test("local revision changes and selected card write fences preserve the original intent", async () => {
+test("local revision changes and unfinished card write fences preserve the original intent", async () => {
   const { changes, state, mount, before } = fixture();
   const view = mount();
   view.edit("1 2");
@@ -326,6 +337,10 @@ test("local revision changes and selected card write fences preserve the origina
   assert.match(view.status.textContent, /operation in progress/);
   assert.equal(changes.length, 0);
   state.blockCard = before[2].id;
+  await view.save();
+  assert.match(view.status.textContent, /operation in progress/);
+  assert.equal(changes.length, 0);
+  state.blockCard = before[3].id;
   await view.save();
   assert.equal(changes.length, 1);
   assert.equal(changes[0].expected_board_etag, tag(5));

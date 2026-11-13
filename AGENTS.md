@@ -8,6 +8,11 @@
   known final requirements to reduce technical debt. Preserve V1 layout, styling,
   density, control placement, navigation, drawers, dialogs, keyboard behavior,
   interaction feedback and workflows.
+- Terry explicitly prohibited reuse of any V1 code on 2026-11-13. Do not copy,
+  translate or port V1 source, templates, HTML, CSS or scripts into the replacement.
+  UI authors work from observed behavior, screenshots and written requirements,
+  rather than V1 implementation source. Implement the presentation afresh.
+  Reused API/domain operations must have independently authored V2 provenance.
 - Functional parity, broad visual similarity, passing tests and documented
   differences do not establish acceptance of a changed UI or interaction.
   Any deliberate user-visible departure requires Terry's explicit approval.
@@ -15,7 +20,12 @@
   Include workspace and board entry, ordinary work and failure/recovery states.
   Terry's hands-on review and explicit cutover approval remain required.
 
-## Epic #0514 turn gates
+## UI turn gates
+
+Epic #0581 supersedes archived #0514. Apply the following execution and acceptance
+ownership to the new plan's turns. Historical T1-T9 acceptance does not accept
+the restarted UI. The first integrated workspace/board comparison requires
+Terry's visual confirmation before implementation expands to remaining workflows.
 
 - The Architect chat owns entry gates for T1-T9. The UI Lead owns execution and integration.
 - Before opening turn N+1, the Architect independently reviews all work from turn N

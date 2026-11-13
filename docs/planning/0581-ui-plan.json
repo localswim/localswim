@@ -1,0 +1,747 @@
+{
+  "title": "Epic #0581 clean-room V1-identical TypeScript UI",
+  "status": "Independently reviewed plan; T1 authorized, T2 awaits Architect release, T3 additionally requires Terry visual checkpoint",
+  "assignment_revision": 2,
+  "story_references_are_ticket_numbers": false,
+  "source_policy": {
+    "target": "Exact visible V1 appearance and behavior through fresh TypeScript presentation and V2 API",
+    "v1_code_reading": false,
+    "v1_code_reuse": false,
+    "v1_assets_or_styles_reuse": false,
+    "author_inputs": [
+      "behavioral specifications",
+      "screenshots",
+      "recorded interactions",
+      "V2 API contracts"
+    ],
+    "prior_presentation_reuse": false,
+    "v2_nonpresentation_reuse": "Only with documented V2 provenance, otherwise freshly implement. do not read V1 source to establish provenance",
+    "evidence_sources": [
+      "docs/planning/0514-v1-drop-in-remit.md",
+      "C:/Users/TDO-XPS15-2024/.codex/visualizations/2026/11/10/01a1c3a6-8477-7c33-88f6-e11ea8c6030a/output/0514-v1-ux-inventory.md",
+      "C:/Users/TDO-XPS15-2024/.codex/visualizations/2026/11/10/01a1c3a6-8477-7c33-88f6-e11ea8c6030a/output/0501-web-audit.md"
+    ],
+    "inventories_are_historical": true,
+    "author_provenance_record_required": true
+  },
+  "retained_capabilities": "Preserve V2 API/CLI capabilities. intentionally review browser placement while maintaining exact V1 entry surfaces. No general new owner-decision gate.",
+  "preservation": "Prior #0514 UI effort has been archived. retain its history/files. No deletion or production cutover.",
+  "acceptance": [
+    "Equivalent disposable data, same viewport, zoom and interaction state on running V1 and V2",
+    "Exact layout, density, placement, controls, keyboard, focus, feedback and recovery",
+    "Focused automated checks and real-browser evidence with shared queue plus authoritative readback",
+    "Fresh technical review and Terra visual/interaction evidence",
+    "Every deliberate visible departure explicitly approved by Terry"
+  ],
+  "ownership": {
+    "ui_lead": "Fresh chat. execution, integration, leases, evidence and handoff",
+    "architect": "Independent turn review, explicit RFR authority and next-turn gate",
+    "terry": "Early foundation acceptance, visible exceptions, Completed and production cutover"
+  },
+  "staffing": {
+    "authors": "On-demand gpt-6.1-sol / medium with disjoint file ownership",
+    "ordinary_reviewers": "Fresh nonauthor gpt-6.1-sol / medium",
+    "recovery_and_safety_reviewers": "Fresh nonauthor gpt-6.1-sol / high",
+    "visual_reviewers": "gpt-6.1-terra / medium each turn",
+    "parent_leads": "gpt-6.1-sol / high",
+    "compiler_integration_lease": 1,
+    "browser_operator_lease": 1,
+    "idle_reviewers": false,
+    "shared_entry_file_owner": "UI Lead",
+    "waves": "Use available slots for disjoint ready authors. Fill freed slots with fresh nonauthor review. no fixed idle pairs. Serialize shared files, compiler/integration and browser. No staffing minimum or manufactured dependency.",
+    "recovery_rule": "Each mutation story owns its focused stale/lost-response acceptance. Sol High reviews recovery, concurrency and atomic operations."
+  },
+  "gates": [
+    "Eligible ticket In Progress before any work or delegation",
+    "Fresh independent technical and Terra review",
+    "Required check.ps1 and strict TypeScript/UI release standards",
+    "Exact candidate scope, commits and checks submitted to Architect",
+    "Architect explicitly authorizes RFR before the next turn",
+    "Terry explicit approval after demos before production cutover",
+    "Integrated T2 owner checkpoint accepted before broad feature implementation",
+    "Bounded qualification defects are separately scoped and independently resolved before epic handoff"
+  ],
+  "estimates": "Engineering hours below three per story, including focused checks and correction allowance. Review/owner waiting excluded. Qualification is a bounded run. discovered defects receive scoped cards.",
+  "rolling_refresh": "After every turn reconcile unfinished work and owner outcomes, rebase remaining turns from 1, refresh authors and fresh reviewers for the next three turns in human-readable and JSON plans, retain superseded revisions",
+  "epic": "0581",
+  "stories": [
+    {
+      "reference": "R01",
+      "title": "Observed contract and shared interfaces",
+      "engineering_hours": 2.5,
+      "dependencies": [],
+      "scope_and_acceptance": "Observe V1 workspace and board entry, then map the historical browser inventory to a fresh screenshot/state ledger. Record matching fixture recipes and remaining feature-specific observations. Freeze minimal shared TS interfaces, typed fixture stubs, component slots, route/state ownership, operation outcome semantics and module ownership so R02/R03 compile independently. Architect validates this boundary. Identify reusable V2 operations with documented V2 provenance. No V1 source inspection.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "high",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 1,
+      "ticket": 582,
+      "card_id": "68e003bb-841d-4f69-bb1d-1245c9481336"
+    },
+    {
+      "reference": "R02",
+      "title": "Fresh workspace entry",
+      "engineering_hours": 2.5,
+      "dependencies": [
+        "R01"
+      ],
+      "scope_and_acceptance": "Implement fresh TS root/workspace shell, board discovery/selection and read-only workspace status against the frozen interfaces. Match V1 populated, empty, loading and unavailable workspace appearance and behavior. Own workspace files only. integrate the separate board slot through its contract.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "medium",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 2,
+      "ticket": 583,
+      "card_id": "4f0d345c-38d0-4d2a-9cbb-7a9801aa93db"
+    },
+    {
+      "reference": "R03",
+      "title": "Fresh selected-board composition",
+      "engineering_hours": 2.5,
+      "dependencies": [
+        "R01"
+      ],
+      "scope_and_acceptance": "Implement the independent board component against R01 fixture stubs and slots. Match V1 header, selected-board presentation, lane order/width, permission captions, card density, priority/ticket/title/comment indicators, scrolling and empty board. The Lead composes it with R02 for the T2 checkpoint.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "medium",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 2,
+      "ticket": 584,
+      "card_id": "3b6392f4-b3d7-49fd-875a-913dbf625458"
+    },
+    {
+      "reference": "R04",
+      "title": "Workspace navigation controls",
+      "engineering_hours": 2.5,
+      "dependencies": [
+        "R02"
+      ],
+      "scope_and_acceptance": "Match V1 pin/unpin and pointer/keyboard pin order, board search, sidebar resize/collapse and current attention/recency. Verify persistence, exact placement, focus and feedback. Exercise a failed pin save with safe readback and preserved last-confirmed order.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 3,
+      "ticket": 585,
+      "card_id": "c85840b6-eff9-4f93-82e8-ec30a0f71e90"
+    },
+    {
+      "reference": "R05",
+      "title": "Board filtering and completed visibility",
+      "engineering_hours": 2.0,
+      "dependencies": [
+        "R03"
+      ],
+      "scope_and_acceptance": "Match V1 in-place title/ticket/content search, result counts and recent/older Completed toggle. Compare exact visible membership, empty results, clearing, focus and scrolling with matching data.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "medium",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 3,
+      "ticket": 586,
+      "card_id": "ac545067-facb-44bf-beaf-031e71f447ee"
+    },
+    {
+      "reference": "R06",
+      "title": "Read-only card drawer",
+      "engineering_hours": 2.5,
+      "dependencies": [
+        "R03"
+      ],
+      "scope_and_acceptance": "Match V1 drawer opening/closing, sizing, focus return, identity/priority/approval/owner/prose, hierarchy navigation, comment preview and audit presentation. Demonstrate formatted prose, ticket links, archived linked work and long-content scrolling. Supply fixed slots for independent edit/comment/relationship/attachment modules.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "medium",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 3,
+      "ticket": 587,
+      "card_id": "770f2f72-5342-4e45-9910-a0c68398df7f"
+    },
+    {
+      "reference": "R07",
+      "title": "Drawer field and lifecycle actions",
+      "engineering_hours": 2.5,
+      "dependencies": [
+        "R06"
+      ],
+      "scope_and_acceptance": "Match V1 title/description, owner and individual priority editing plus archive/restore entry points. Verify exact text, allowed actions, cancellation, validation, audit and unchanged identity. Exercise stale/lost edit response using the R01 operation contract, preserved draft and authoritative inspection before any retry.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 4,
+      "ticket": 594,
+      "card_id": "15fb1b13-761e-4285-ab26-46652fc8e207"
+    },
+    {
+      "reference": "R08",
+      "title": "Comment composition",
+      "engineering_hours": 1.5,
+      "dependencies": [
+        "R06"
+      ],
+      "scope_and_acceptance": "Match V1 comment placement, Enter submission, Shift+Enter newline, attribution and history update. Verify exact text and one committed comment. Exercise a lost response, retained unsent/submitted draft and inspection before retry using the fixed operation contract.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 4,
+      "ticket": 595,
+      "card_id": "a4431df9-230d-46ca-b1fd-a0ef501765ae"
+    },
+    {
+      "reference": "R09",
+      "title": "Create card dialog",
+      "engineering_hours": 2.5,
+      "dependencies": [
+        "R03"
+      ],
+      "scope_and_acceptance": "Match V1 allowed-lane entry and create dialog fields, typed relationship rows, description Enter, validation, cancellation/focus and success navigation. Verify one card with exact fields/links after a lost create response. Reserve the specified attachment slot for R17. implement against R01 contracts without depending on R07.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 3,
+      "ticket": 588,
+      "card_id": "c0ba3c26-39bb-4aa1-ac3c-46fa4910e65f"
+    },
+    {
+      "reference": "R10",
+      "title": "Relationship editing",
+      "engineering_hours": 2.0,
+      "dependencies": [
+        "R06"
+      ],
+      "scope_and_acceptance": "Match V1 add/change/remove/follow relationship controls, direction, hierarchy context and invalid choices. Verify endpoint/type/history, preserved drawer placement and safe stale/lost-response inspection. Use R01 operation interfaces independently of field editing.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 4,
+      "ticket": 596,
+      "card_id": "b701564d-b304-4b29-a6a8-cd6f34a077eb"
+    },
+    {
+      "reference": "R11",
+      "title": "Card movement",
+      "engineering_hours": 2.5,
+      "dependencies": [
+        "R03"
+      ],
+      "scope_and_acceptance": "Match V1 dropdown, keyboard and drag/drop movement with destination permissions and disabled/refused feedback. Verify lane/revision/audit, focus and scrolling. Exercise stale refusal and lost-response readback without replaying a committed move.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 3,
+      "ticket": 589,
+      "card_id": "2a5e7ae8-7d61-461d-9a86-baab81a3cb2d"
+    },
+    {
+      "reference": "R12",
+      "title": "Single-card approval",
+      "engineering_hours": 1.5,
+      "dependencies": [
+        "R06"
+      ],
+      "scope_and_acceptance": "Match V1 Human approval control and its keyboard/focus/feedback states. Verify Completed lane, fixed approval comment, Human attribution and receipt. Inject one lost approval response and prove one commit by receipt/state inspection before retry.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 4,
+      "ticket": 597,
+      "card_id": "bb1ea6ef-ec3e-46f1-b405-758eb02fb59f"
+    },
+    {
+      "reference": "R13",
+      "title": "Lane approval",
+      "engineering_hours": 2.0,
+      "dependencies": [
+        "R03"
+      ],
+      "scope_and_acceptance": "Match V1 lane approval control, configured text, confirmation and disabled/pending states. Verify exact membership and atomic approval, custom historical text, Human attribution and safe stale-membership/lost-response handling. Use the existing V2 atomic operation with established provenance.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 3,
+      "ticket": 590,
+      "card_id": "fa4cc74d-3f01-498f-a41c-826753019a2c"
+    },
+    {
+      "reference": "R14",
+      "title": "Dependency ordering",
+      "engineering_hours": 1.5,
+      "dependencies": [
+        "R03"
+      ],
+      "scope_and_acceptance": "Match V1 dependency-order control, opt-in/disabled state, preview and apply interaction. Verify affected membership, resulting ticket order and stable card identities. Demonstrate stale preview refusal and inspection of a lost apply response.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 3,
+      "ticket": 591,
+      "card_id": "ebeda607-d00a-4875-83c2-e521f5e44c8c"
+    },
+    {
+      "reference": "R15",
+      "title": "Batch priority",
+      "engineering_hours": 1.5,
+      "dependencies": [
+        "R03"
+      ],
+      "scope_and_acceptance": "Match V1 batch priority entry, selected scope, priority choices and feedback. Verify exact affected cards, dependency floor and one batch revision. Demonstrate validation, stale refusal and safe lost-response readback.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 3,
+      "ticket": 592,
+      "card_id": "c2231eda-7868-4f08-9282-8f51b77f8828"
+    },
+    {
+      "reference": "R16",
+      "title": "Existing attachments",
+      "engineering_hours": 2.5,
+      "dependencies": [
+        "R06"
+      ],
+      "scope_and_acceptance": "Match V1 attachment list, preview/download, cover select/clear, first-image fallback and detach. Verify bytes, identity, cover and detached history. include broken/unsupported preview. For a lost cover/detach response inspect state before retry.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 4,
+      "ticket": 598,
+      "card_id": "1909dd41-60a6-4900-abbf-22b208d65937"
+    },
+    {
+      "reference": "R17",
+      "title": "Attachment ingestion and recovery",
+      "engineering_hours": 2.75,
+      "dependencies": [
+        "R09",
+        "R16"
+      ],
+      "scope_and_acceptance": "Match V1 selection/paste/staging in existing-card and create flows, upload-after-create messaging, cancellation and per-file partial outcomes. Verify stored bytes and one attachment per committed upload. Demonstrate reload recovery, original-file reselection and ambiguous-commit inspection for one partial batch using existing V2 operations.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 5,
+      "ticket": 600,
+      "card_id": "f8f59e13-b7a4-44df-8c73-fea9cf466f59"
+    },
+    {
+      "reference": "R18",
+      "title": "Live status and reconnect",
+      "engineering_hours": 2.5,
+      "dependencies": [
+        "R02",
+        "R03"
+      ],
+      "scope_and_acceptance": "Match V1 connection/build/last-update indicators, Bot/Human attention/tab cues, background-board changes and reconnect feedback using the R01 state boundary. Demonstrate an external change while a contract-backed draft is open. preserve the draft and last-confirmed state. Verify authoritative state and successful reconnect.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 3,
+      "ticket": 593,
+      "card_id": "bbff4282-5bd8-440f-a65f-a75676f19047"
+    },
+    {
+      "reference": "R19",
+      "title": "History navigation and cached reads",
+      "engineering_hours": 2.5,
+      "dependencies": [
+        "R02",
+        "R03",
+        "R06"
+      ],
+      "scope_and_acceptance": "Match V1 Back/Forward/reload restoration of board/search/drawer/scroll, last-confirmed cache, observed cache-budget/eviction controls and failed-refresh feedback. Use R01 shared state interfaces independently of R18 implementation. Demonstrate retained draft, stale read-only view and correct return to live state.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 4,
+      "ticket": 599,
+      "card_id": "47966a47-4f04-4e14-8685-8a70d28a4000"
+    },
+    {
+      "reference": "R20",
+      "title": "Bounded integrated qualification",
+      "engineering_hours": 2.5,
+      "dependencies": [
+        "R04",
+        "R05",
+        "R07",
+        "R08",
+        "R09",
+        "R10",
+        "R11",
+        "R12",
+        "R13",
+        "R14",
+        "R15",
+        "R17",
+        "R18",
+        "R19"
+      ],
+      "scope_and_acceptance": "Run the prepared cross-feature parity matrix once on the integrated candidate with equivalent V1/V2 fixtures and viewports. Check workspace entry, one full mutable journey, cross-feature draft/reconnect recovery, keyboard/focus, observed responsive states, strict gates and optimized release assets. Reuse reviewed per-feature evidence and verify V2 API/CLI retention. Record the result and exact candidate. Create separately scoped defect cards for failures. do not include unlimited fixes in this estimate. Epic handoff remains closed until those defects are independently resolved.",
+      "author_model": "gpt-6.1-sol",
+      "author_reasoning": "medium",
+      "technical_reviewer_model": "gpt-6.1-sol",
+      "technical_reviewer_reasoning": "high",
+      "visual_reviewer_model": "gpt-6.1-terra",
+      "visual_reviewer_reasoning": "medium",
+      "earliest_turn": 6,
+      "ticket": 601,
+      "card_id": "01834fdf-439a-40db-b886-ebb07b79b231"
+    }
+  ],
+  "earliest_turn_rule": "1 + maximum dependency earliest turn. root stories are turn 1. Turn gates can postpone these earliest opportunities.",
+  "integrated_owner_checkpoint": {
+    "after_turn": 2,
+    "prerequisites": [
+      "R02",
+      "R03"
+    ],
+    "owner": "Terry",
+    "standalone_ticket": false,
+    "condition": "Side-by-side workspace and selected-board entry, navigation and scrolling accepted before broad feature work. Corrections remain in T2 under scoped tickets."
+  },
+  "final_owner_demo_gate": {
+    "after": "R20 and all blocking defect cards resolved",
+    "owner": "Architect demonstrates to Terry",
+    "standalone_ticket": false,
+    "condition": "Demonstrate every inventoried V1 browser workflow at exact candidate. Terry retains Completed and explicit production cutover approval."
+  },
+  "shared_interfaces": "R01 freezes compile-ready type/fixture contracts and ownership before independent UI authors start. Each feature supplies its own operation adapter against those contracts. no field-edit dependency is implied. UI Lead alone edits composition/shared entry points.",
+  "initial_rolling_assignments": [
+    {
+      "turn": 1,
+      "authors": [
+        {
+          "name": "Sol High R01 Observed contract and shared interfaces",
+          "story": "R01",
+          "model": "gpt-6.1-sol",
+          "reasoning": "high",
+          "scope": "Epic #0581 / R01",
+          "prerequisites": []
+        }
+      ],
+      "reviewers": [
+        {
+          "name": "Sol High R01 Review",
+          "story": "R01",
+          "model": "gpt-6.1-sol",
+          "reasoning": "high"
+        }
+      ],
+      "visual_reviewer": {
+        "name": "Terra Medium T1 Visual",
+        "model": "gpt-6.1-terra",
+        "reasoning": "medium"
+      },
+      "primary": "Fresh UI Lead integrates and owns leases. Architect independently gates",
+      "readiness": "All listed dependencies must be reviewed and the previous turn explicitly authorized. T3 additionally requires the integrated T2 owner checkpoint."
+    },
+    {
+      "turn": 2,
+      "authors": [
+        {
+          "name": "Sol Medium R02 Fresh workspace entry",
+          "story": "R02",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium",
+          "scope": "Epic #0581 / R02",
+          "prerequisites": [
+            "R01"
+          ]
+        },
+        {
+          "name": "Sol Medium R03 Fresh selected-board composition",
+          "story": "R03",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium",
+          "scope": "Epic #0581 / R03",
+          "prerequisites": [
+            "R01"
+          ]
+        }
+      ],
+      "reviewers": [
+        {
+          "name": "Sol Medium R02 Review",
+          "story": "R02",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium"
+        },
+        {
+          "name": "Sol Medium R03 Review",
+          "story": "R03",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium"
+        }
+      ],
+      "visual_reviewer": {
+        "name": "Terra Medium T2 Visual",
+        "model": "gpt-6.1-terra",
+        "reasoning": "medium"
+      },
+      "primary": "Fresh UI Lead integrates and owns leases. Architect independently gates",
+      "readiness": "All listed dependencies must be reviewed and the previous turn explicitly authorized. T3 additionally requires the integrated T2 owner checkpoint."
+    },
+    {
+      "turn": 3,
+      "authors": [
+        {
+          "name": "Sol Medium R04 Workspace navigation controls",
+          "story": "R04",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium",
+          "scope": "Epic #0581 / R04",
+          "prerequisites": [
+            "R02"
+          ]
+        },
+        {
+          "name": "Sol Medium R05 Board filtering and completed visibility",
+          "story": "R05",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium",
+          "scope": "Epic #0581 / R05",
+          "prerequisites": [
+            "R03"
+          ]
+        },
+        {
+          "name": "Sol Medium R06 Read-only card drawer",
+          "story": "R06",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium",
+          "scope": "Epic #0581 / R06",
+          "prerequisites": [
+            "R03"
+          ]
+        },
+        {
+          "name": "Sol Medium R09 Create card dialog",
+          "story": "R09",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium",
+          "scope": "Epic #0581 / R09",
+          "prerequisites": [
+            "R03"
+          ]
+        },
+        {
+          "name": "Sol Medium R11 Card movement",
+          "story": "R11",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium",
+          "scope": "Epic #0581 / R11",
+          "prerequisites": [
+            "R03"
+          ]
+        },
+        {
+          "name": "Sol Medium R13 Lane approval",
+          "story": "R13",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium",
+          "scope": "Epic #0581 / R13",
+          "prerequisites": [
+            "R03"
+          ]
+        },
+        {
+          "name": "Sol Medium R14 Dependency ordering",
+          "story": "R14",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium",
+          "scope": "Epic #0581 / R14",
+          "prerequisites": [
+            "R03"
+          ]
+        },
+        {
+          "name": "Sol Medium R15 Batch priority",
+          "story": "R15",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium",
+          "scope": "Epic #0581 / R15",
+          "prerequisites": [
+            "R03"
+          ]
+        },
+        {
+          "name": "Sol Medium R18 Live status and reconnect",
+          "story": "R18",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium",
+          "scope": "Epic #0581 / R18",
+          "prerequisites": [
+            "R02",
+            "R03"
+          ]
+        }
+      ],
+      "reviewers": [
+        {
+          "name": "Sol High R04 Review",
+          "story": "R04",
+          "model": "gpt-6.1-sol",
+          "reasoning": "high"
+        },
+        {
+          "name": "Sol Medium R05 Review",
+          "story": "R05",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium"
+        },
+        {
+          "name": "Sol Medium R06 Review",
+          "story": "R06",
+          "model": "gpt-6.1-sol",
+          "reasoning": "medium"
+        },
+        {
+          "name": "Sol High R09 Review",
+          "story": "R09",
+          "model": "gpt-6.1-sol",
+          "reasoning": "high"
+        },
+        {
+          "name": "Sol High R11 Review",
+          "story": "R11",
+          "model": "gpt-6.1-sol",
+          "reasoning": "high"
+        },
+        {
+          "name": "Sol High R13 Review",
+          "story": "R13",
+          "model": "gpt-6.1-sol",
+          "reasoning": "high"
+        },
+        {
+          "name": "Sol High R14 Review",
+          "story": "R14",
+          "model": "gpt-6.1-sol",
+          "reasoning": "high"
+        },
+        {
+          "name": "Sol High R15 Review",
+          "story": "R15",
+          "model": "gpt-6.1-sol",
+          "reasoning": "high"
+        },
+        {
+          "name": "Sol High R18 Review",
+          "story": "R18",
+          "model": "gpt-6.1-sol",
+          "reasoning": "high"
+        }
+      ],
+      "visual_reviewer": {
+        "name": "Terra Medium T3 Visual",
+        "model": "gpt-6.1-terra",
+        "reasoning": "medium"
+      },
+      "primary": "Fresh UI Lead integrates and owns leases. Architect independently gates",
+      "readiness": "All listed dependencies must be reviewed and the previous turn explicitly authorized. T3 additionally requires the integrated T2 owner checkpoint."
+    }
+  ],
+  "superseded_assignment_sets": [
+    {
+      "revision": 1,
+      "status": "Superseded planning-only references before ticket creation",
+      "assignments": [
+        {
+          "turn": 1,
+          "authors": [
+            "Sol Medium R01 Observe"
+          ],
+          "reviewers": [
+            "Terra Medium R01 Evidence",
+            "Sol High R01 Contract"
+          ],
+          "primary": "Fresh UI Lead integrates",
+          "readiness": "Authorized restart scope. In Progress entry required"
+        },
+        {
+          "turn": 2,
+          "authors": [
+            "Sol Medium R02 Workspace",
+            "Sol Medium R03 Board"
+          ],
+          "reviewers": [
+            "Sol Medium R02 Review",
+            "Sol Medium R03 Review",
+            "Terra Medium T2 Visual"
+          ],
+          "primary": "UI Lead R04 Checkpoint",
+          "readiness": "R01 reviewed. R02 then R03 then R04. Terry foundation acceptance required before turn 3"
+        },
+        {
+          "turn": 3,
+          "authors": [
+            "Sol Medium R05 Navigation",
+            "Sol Medium R06 Filter",
+            "Sol Medium R07 Drawer"
+          ],
+          "reviewers": [
+            "Sol Medium R05 Review",
+            "Sol Medium R06 Review",
+            "Sol Medium R07 Review",
+            "Terra Medium T3 Visual"
+          ],
+          "primary": "UI Lead integrates and Architect gates",
+          "readiness": "R04 accepted and turn 2 independently authorized"
+        }
+      ]
+    }
+  ]
+}

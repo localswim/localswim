@@ -12,9 +12,16 @@ styling, spacing, density, control placement, navigation, drawers, dialogs,
 keyboard interactions, feedback and workflows in the new TypeScript frontend.
 Use the V2 service and its existing API contracts.
 
+Terry explicitly prohibited reuse of any V1 code on 2026-11-13. Authors must not
+copy, translate or port V1 source, templates, HTML, CSS or scripts. They receive
+observed behavior, screenshots and written requirements rather than V1 source.
+The replacement presentation is freshly implemented. Independently authored V2
+API/domain operations may be reused with known V2 provenance.
+
 The previous candidate passed technical and functional checks but failed Terry's
-UI/UX review. Its RFR handoff did not establish visual acceptance. Epic #0514 is
-back In Progress for correction. Prior technical evidence remains evidence only
+UI/UX review. Its RFR handoff did not establish visual acceptance. Epic #0514 and
+its associated stories are archived. New epic #0581 owns the restart.
+Prior technical evidence remains evidence only
 for the behavior and candidate it actually exercised.
 
 Compare the running implementations at matching data, viewport and interaction

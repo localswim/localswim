@@ -76,7 +76,7 @@ function permissions(data: BoardData, laneId: Uuid): string {
       users
         .filter((user) => ids.has(user.id))
         .map((user) => data.view.board.actor_presentation?.[user.kind]?.label ?? user.label)
-        .join(" + ") || "—"
+        .join(" + ") || "nobody"
     );
   }
   return `IN: ${labels(incoming)} · OUT: ${labels(outgoing)}`;

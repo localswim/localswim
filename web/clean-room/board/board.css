@@ -352,8 +352,8 @@
 .lsw-board-card-title {
   position: relative;
   top: 1.5px;
+  min-width: 0;
   font-weight: 500;
-  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 

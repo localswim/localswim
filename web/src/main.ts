@@ -3,9 +3,14 @@ import { createBoardState } from "./board-state.js";
 import type { BoardStateView } from "./board-state.js";
 import { mountBoardView } from "./board-view.js";
 import type { BoardViewData } from "./board-view.js";
+import { mountCardEditor } from "./card-editor.js";
 import { mountCardView } from "./card-view.js";
+import type { DrawerTextContext } from "./card-view.js";
+import { createCardTextDrafts } from "./drafts.js";
+import type { ConfirmedCardText } from "./drafts.js";
 import { parseRoute } from "./model.js";
 import { createSidebarPins } from "./sidebar-state.js";
+import { createViewState, linkedCard, retainActiveLaneScroll } from "./view-state.js";
 import { createWorkspaceState } from "./workspace-state.js";
 
 export function mount(root: HTMLElement): () => void {
@@ -27,14 +32,22 @@ export function mount(root: HTMLElement): () => void {
   const lifetime = new AbortController();
   const { signal } = lifetime;
   const selectedBoardId = route.kind === "board" ? route.id : undefined;
-  const ticketQuery = new URLSearchParams(view.location.search).get("ticket") ?? "";
-  const linkedTicket = /^[1-9]\d*$/.test(ticketQuery) ? Number(ticketQuery) : 0;
+  const views = createViewState(view);
+  let restored = selectedBoardId ? views.load(selectedBoardId) : undefined;
+  const linkSelection = linkedCard(view.location.search);
+  let selection = linkSelection ?? restored?.selection ?? null;
+  let pendingViewSave = false;
   let title = "localswim";
   let totalAttention = 0;
   let board: ReturnType<typeof mountBoardView> | undefined;
   let boardData: BoardViewData | undefined;
   let boardState: ReturnType<typeof createBoardState> | undefined;
   let drawer: ReturnType<typeof mountCardView> | undefined;
+  let drawerText: DrawerTextContext | null = null;
+  let confirmedText: ConfirmedCardText | null = null;
+  let textBinding: AbortController | undefined;
+  let editor: ReturnType<typeof mountCardEditor> | undefined;
+  let writesBlocked = true;
   let drawerNeedsConfirmation = false;
   const boardHost = doc.createElement("div");
   const missing = doc.createElement("a");
@@ -49,7 +62,10 @@ export function mount(root: HTMLElement): () => void {
   boardRegion.hidden = route.kind === "workspace";
 
   const attention = mountAttention(shellElement("#attention"), {
-    selectBoard: (id) => view.location.assign(`/boards/${id}`),
+    selectBoard: (id) => {
+      saveBoardView();
+      view.location.assign(`/boards/${id}`);
+    },
     retry: () => {
       void workspace.refresh();
     },
@@ -98,10 +114,41 @@ export function mount(root: HTMLElement): () => void {
     refreshCatalog: workspace.refresh,
     onChange: attention.updatePins,
   });
+  const drafts = createCardTextDrafts({
+    api: {
+      getCard: (id, readSignal) =>
+        workspace.readWithSession(() => workspace.api.getCard(id, readSignal), readSignal),
+      patchCard: (id, etag, text) => workspace.api.patchCard(id, etag, text),
+    },
+  });
   void sidebar.refresh();
 
   function updateTitle() {
     doc.title = totalAttention > 0 ? `(${totalAttention}) ${title}` : title;
+  }
+
+  function saveBoardView() {
+    pendingViewSave = false;
+    if (!selectedBoardId || !board || !restored) return;
+    restored = { ...restored, ...board.captureViewport(), selection };
+    views.save(selectedBoardId, restored);
+  }
+
+  function consumeCardLink() {
+    if (!linkSelection || !view) return;
+    const current = new URL(view.location.href);
+    if (!current.searchParams.has("ticket") && !current.searchParams.has("card")) return;
+    current.searchParams.delete("ticket");
+    current.searchParams.delete("card");
+    view.history.replaceState(view.history.state, "", current);
+  }
+
+  function queueBoardViewSave() {
+    if (pendingViewSave) return;
+    pendingViewSave = true;
+    view?.requestAnimationFrame(() => {
+      if (!signal.aborted && pendingViewSave) saveBoardView();
+    });
   }
 
   function setPhase(phase: "loading" | "ready" | "missing" | "error", message = "") {
@@ -110,13 +157,71 @@ export function mount(root: HTMLElement): () => void {
     if (status.textContent !== message) status.textContent = message;
   }
 
+  function rememberSelection(reference: typeof selection, explicit: boolean) {
+    selection = reference;
+    if (explicit) consumeCardLink();
+    saveBoardView();
+  }
+
   function showMissing() {
     if (!missing.isConnected) boardHost.replaceChildren(missing);
     setPhase("missing", "Board not found.");
   }
 
+  function updateDrawerEditor(next: DrawerTextContext | null) {
+    if (!next || !drawer || !selectedBoardId) {
+      textBinding?.abort();
+      editor?.dispose();
+      drawerText = null;
+      confirmedText = null;
+      editor = undefined;
+      return;
+    }
+    const sameCard = drawerText?.cardId === next.cardId;
+    drawerText = next;
+    if (!sameCard || confirmedText === null || next.revision >= confirmedText.revision) {
+      confirmedText = {
+        title: next.title,
+        description: next.description,
+        etag: next.etag,
+        revision: next.revision,
+      };
+    }
+    if (sameCard) {
+      editor?.update();
+      return;
+    }
+    textBinding?.abort();
+    editor?.dispose();
+    textBinding = new AbortController();
+    const controller = drafts.bind(
+      { boardId: selectedBoardId, cardId: next.cardId },
+      {
+        signal: AbortSignal.any([signal, textBinding.signal]),
+        context: () => ({
+          confirmed: confirmedText,
+          writable: !writesBlocked && drawerText?.editable === true,
+        }),
+        onChange: () => editor?.update(),
+        onConfirmed(saved) {
+          if (confirmedText === null || saved.revision >= confirmedText.revision) {
+            confirmedText = saved;
+          }
+          boardState?.retry();
+          drawer?.refresh();
+        },
+      },
+    );
+    editor = mountCardEditor(drawer.editor, controller, () => confirmedText, {
+      title: drawer.title,
+      description: drawer.description,
+    });
+  }
+
   function renderBoard(state: BoardStateView) {
     const { availability, connection, data, name, readiness, retryAvailable, writesFenced } = state;
+    writesBlocked = writesFenced;
+    editor?.update();
     retry.hidden = !retryAvailable;
     root.dataset.boardWritesFenced = String(writesFenced);
     root.dataset.boardConnection = connection;
@@ -141,10 +246,19 @@ export function mount(root: HTMLElement): () => void {
         boardHost.replaceChildren();
         board = mountBoardView(boardHost, data, {
           onOpenCard: (card, opener) => drawer?.open({ id: card.id }, opener),
+          onViewChange: queueBoardViewSave,
         });
-        if (Number.isSafeInteger(linkedTicket) && linkedTicket > 0) {
-          drawer?.open({ ticket: linkedTicket });
+        if (restored) {
+          board.restoreViewport({
+            ...restored,
+            laneScroll: retainActiveLaneScroll(
+              restored.laneScroll,
+              data.lanes.map(({ id }) => id),
+            ),
+          });
         }
+        if (selection) drawer?.open(selection, undefined, false);
+        queueBoardViewSave();
       }
       if (previous && previous.board.revision !== data.board.revision) {
         drawer?.refresh();
@@ -202,6 +316,8 @@ export function mount(root: HTMLElement): () => void {
       signal,
       readWithSession: workspace.readWithSession,
       getBoardData: () => boardData,
+      onSelectionChange: rememberSelection,
+      onTextContext: updateDrawerEditor,
       focusFallback(reference) {
         const id =
           "id" in reference
@@ -236,6 +352,8 @@ export function mount(root: HTMLElement): () => void {
   function dispose() {
     if (signal.aborted) return;
     lifetime.abort();
+    textBinding?.abort();
+    editor?.dispose();
     drawer?.dispose();
     boardState?.dispose();
     board?.dispose();
@@ -247,6 +365,7 @@ export function mount(root: HTMLElement): () => void {
   }
 
   function disposeOnExit(event: PageTransitionEvent) {
+    saveBoardView();
     if (!event.persisted) {
       dispose();
       return;
@@ -258,7 +377,9 @@ export function mount(root: HTMLElement): () => void {
   function resumeOnReturn(event: PageTransitionEvent) {
     if (!event.persisted) return;
     void sidebar.resume();
-    void workspace.refresh();
+    drafts.refresh();
+    drawerNeedsConfirmation = true;
+    void workspace.refresh().then(() => boardState?.retry());
   }
 
   view.addEventListener("pagehide", disposeOnExit);

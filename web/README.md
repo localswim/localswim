@@ -19,6 +19,10 @@ drawer, and live refresh. During an outage it retains the last loaded cards
 and offers a focused retry. Workspace pins share saved order across clients,
 and each tab remembers its sidebar width and collapsed state.
 
+The tab also remembers each board's filter, lane scroll positions and selected
+card. The card editor keeps exact title and description drafts in the current
+tab. Inspect the saved card after an uncertain submission before retrying.
+
 ## Current production UI reference
 
 The following controls describe the installed V2 UI used as the reference for

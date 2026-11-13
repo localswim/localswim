@@ -11,6 +11,8 @@ type CardViewOptions = AppContext &
     readWithSession: <T>(read: () => Promise<T>, signal?: AbortSignal) => Promise<T>;
     getBoardData: () => BoardViewData | undefined;
     focusFallback: (reference: CardReference, opener?: HTMLElement) => void;
+    onSelectionChange?: (reference: CardReference | null, explicit: boolean) => void;
+    onTextContext?: (context: DrawerTextContext | null) => void;
   }>;
 
 type CardSummary = Readonly<{ id: string; ticket: number; title: string; archived: boolean }>;
@@ -30,7 +32,18 @@ type SavedCard = CardSummary &
     completed_at: string | null;
     comment_count: number;
     attachment_count: number;
+    revision: number;
+    etag: string;
   }>;
+
+export type DrawerTextContext = Readonly<{
+  cardId: string;
+  title: string;
+  description: string;
+  revision: number;
+  etag: string;
+  editable: boolean;
+}>;
 
 type HierarchyEntry = Readonly<{ kind: "Parent" | "Child"; target: CardSummary | null }>;
 type Selection = {
@@ -54,6 +67,8 @@ export function mountCardView(
     readWithSession,
     getBoardData,
     focusFallback,
+    onSelectionChange,
+    onTextContext,
   }: CardViewOptions,
 ) {
   const doc = root.ownerDocument;
@@ -101,10 +116,12 @@ export function mountCardView(
   const metadata = element("dl", "card-drawer-metadata");
   const description = element("p", "card-drawer-prose");
   const hierarchy = element("ul", "card-drawer-links");
+  const editor = element("div", "card-drawer-editor");
   details.append(
     metadata,
     element("h3", "card-drawer-heading", "Description"),
     description,
+    editor,
     element("h3", "card-drawer-heading", "Parent and children"),
     hierarchy,
   );
@@ -126,9 +143,10 @@ export function mountCardView(
     const reply = await readWithSession(() => api.getCard(id, requestSignal), requestSignal);
     requestSignal.throwIfAborted();
     // The API adapter validates the card shape and requested UUID. Confirm board ownership here.
-    const card = reply.data as SavedCard;
+    const card = reply.data as Omit<SavedCard, "etag">;
     if (card.board_id !== boardId) throw new ApiError("http_error", { status: 404 });
-    return card;
+    if (!reply.etag) throw new ApiError("invalid_response");
+    return { ...card, etag: reply.etag };
   }
 
   async function readCard(
@@ -359,6 +377,7 @@ export function mountCardView(
       const resolveOrigin = current.origin === current.reference;
       current.reference = { id: card.id };
       if (resolveOrigin) current.origin = current.reference;
+      onSelectionChange?.(current.reference, false);
       const data = getBoardData();
       const [laneLabel, relations] = await Promise.all([
         readLaneLabel(card.lane_id, data, requestSignal),
@@ -367,14 +386,24 @@ export function mountCardView(
       requestSignal.throwIfAborted();
       renderCard(card, laneLabel, data);
       renderHierarchy(relations);
+      onTextContext?.({
+        cardId: card.id,
+        title: card.title,
+        description: card.description,
+        revision: card.revision,
+        etag: card.etag,
+        editable: !card.archived,
+      });
       setStatus("");
     } catch (error) {
       if (requestSignal.aborted) return;
       const missing = !cardConfirmed && cardUnavailable(error);
+      if (missing) onSelectionChange?.(null, true);
       if (missing || details.hidden) {
         if (details.contains(doc.activeElement)) body.focus({ preventScroll: true });
         title.textContent = "Card unavailable";
         details.hidden = true;
+        onTextContext?.(null);
       }
       setStatus(
         missing
@@ -401,7 +430,7 @@ export function mountCardView(
     if (selection && !signal.aborted) void load(selection);
   }
 
-  function open(reference: CardReference, opener?: HTMLElement) {
+  function open(reference: CardReference, opener?: HTMLElement, focus = true) {
     if (signal.aborted) return;
     const previous = selection;
     previous?.lifetime.abort();
@@ -413,6 +442,8 @@ export function mountCardView(
       loading: false,
       refreshQueued: false,
     };
+    onSelectionChange?.(reference, focus);
+    onTextContext?.(null);
     panel.hidden = false;
     ticketLabel.textContent = "ticket" in reference ? `#${reference.ticket}` : "";
     title.textContent = "Loading card…";
@@ -421,7 +452,7 @@ export function mountCardView(
     hierarchy.replaceChildren();
     displayedHierarchy = undefined;
     body.scrollTop = 0;
-    title.focus({ preventScroll: true });
+    if (focus) title.focus({ preventScroll: true });
     refresh();
   }
 
@@ -431,6 +462,8 @@ export function mountCardView(
     selection = undefined;
     currentLifetime.abort();
     panel.hidden = true;
+    onSelectionChange?.(null, true);
+    onTextContext?.(null);
     if (opener?.isConnected) {
       opener.focus();
       const scope = opener.getRootNode();
@@ -473,6 +506,9 @@ export function mountCardView(
     close,
     refresh,
     dispose,
+    editor,
+    title,
+    description,
     get selected() {
       return selection?.reference ?? null;
     },

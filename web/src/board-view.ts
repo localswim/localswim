@@ -46,6 +46,13 @@ export type BoardViewData = BoardContents &
 export type BoardViewOptions = Readonly<{
   onOpenCard?: (card: BoardCard, opener: HTMLButtonElement) => void;
   renderLaneActions?: (lane: BoardLane, container: HTMLElement) => void;
+  onViewChange?: () => void;
+}>;
+
+type BoardViewport = Readonly<{
+  filter: string;
+  horizontalScroll: number;
+  laneScroll: Readonly<Record<string, number>>;
 }>;
 
 const completionAge = 24 * 60 * 60 * 1000;
@@ -222,7 +229,7 @@ export function mountBoardView(
   let currentBoard = initialData.board.id;
   let lanes: LaneFace[] = [];
   let showOlderCompleted = false;
-  const { onOpenCard, renderLaneActions } = options;
+  const { onOpenCard, renderLaneActions, onViewChange } = options;
 
   function cardFace(
     card: BoardCard,
@@ -466,11 +473,23 @@ export function mountBoardView(
           : (previousLane?.scroll ?? filter);
       target.focus({ preventScroll: true });
     }
+    onViewChange?.();
   }
 
   const lifetime = new AbortController();
   const listenerOptions = { signal: lifetime.signal };
-  filter.addEventListener("input", () => paintFilter(), listenerOptions);
+  filter.addEventListener(
+    "input",
+    () => {
+      paintFilter();
+      onViewChange?.();
+    },
+    listenerOptions,
+  );
+  strip.addEventListener("scroll", () => onViewChange?.(), {
+    ...listenerOptions,
+    capture: true,
+  });
   filter.addEventListener(
     "keydown",
     (event) => {
@@ -480,6 +499,7 @@ export function mountBoardView(
       event.preventDefault();
       filter.value = "";
       paintFilter();
+      onViewChange?.();
     },
     listenerOptions,
   );
@@ -516,6 +536,21 @@ export function mountBoardView(
   root.replaceChildren(boundary);
   return {
     update,
+    captureViewport(): BoardViewport {
+      return {
+        filter: filter.value,
+        horizontalScroll: strip.scrollLeft,
+        laneScroll: Object.fromEntries(
+          lanes.map(({ lane, scroll }) => [lane.id, scroll.scrollTop]),
+        ),
+      };
+    },
+    restoreViewport({ filter: query, horizontalScroll, laneScroll }: BoardViewport) {
+      filter.value = query;
+      paintFilter();
+      strip.scrollLeft = horizontalScroll;
+      for (const { lane, scroll } of lanes) scroll.scrollTop = laneScroll[lane.id] ?? 0;
+    },
     focusCard(id: string): boolean {
       const card = lanes.flatMap(({ members }) => members).find(({ card }) => card.id === id);
       if (!card || card.opener.disabled || !card.opener.isConnected) return false;

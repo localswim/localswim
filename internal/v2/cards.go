@@ -28,14 +28,42 @@ func (x *request) cardsCollection() {
 }
 
 func (x *request) cardResource(id string) {
-	state, value, found := x.findCard(id)
-	if !found || !state.can(x.actor, "read") {
+	known, _, found := x.findCard(id)
+	if found {
+		if !known.can(x.actor, "read") {
+			x.fail(errMissing)
+			return
+		}
+		x.readCard(known.Board.ID, id)
+		return
+	}
+	// An uncertain creation can exist only in the fenced board's durable snapshot.
+	boardID := x.service.store.fencedBoardContaining(func(candidate snapshot) bool {
+		return slices.ContainsFunc(candidate.Cards, func(item card) bool { return item.ID == id })
+	})
+	known, found = x.service.store.accepted(boardID)
+	if !found || !known.can(x.actor, "read") {
 		x.fail(errMissing)
 		return
 	}
-	if !x.useBoard(state.Board.ID) {
+	x.readCard(boardID, id)
+}
+
+func (x *request) readCard(boardID, id string) {
+	state, err := x.service.store.readback(boardID)
+	if err != nil {
+		x.fail(err)
 		return
 	}
+	i := slices.IndexFunc(state.Cards, func(item card) bool { return item.ID == id })
+	if !state.can(x.actor, "read") || i < 0 {
+		x.fail(errMissing)
+		return
+	}
+	if !x.useBoard(boardID) {
+		return
+	}
+	value := state.Cards[i]
 	x.respond(http.StatusOK, value, value.entityTag())
 }
 
@@ -140,7 +168,7 @@ func readCardCreation(fields map[string]json.RawMessage) (cardCreation, error) {
 		}
 	}
 	if raw, ok := fields["relationships"]; ok {
-		in.relationships, err = readRelationshipSeeds(raw)
+		in.relationships, err = readRelationshipSeeds(raw, in.id)
 		if err != nil {
 			return in, err
 		}

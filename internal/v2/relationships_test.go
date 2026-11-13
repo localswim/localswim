@@ -14,6 +14,63 @@ import (
 	"time"
 )
 
+func TestCardCreationOrderedRelationshipSeeds(t *testing.T) {
+	app, client, _ := approvalTestClients(t)
+	raw, _ := client.call("POST", "/boards", `{"name":"Ordered seed endpoints"}`, "", 201)
+	b := turnOneDecode[board](t, raw)
+	strong, weak := b.PriorityIDs[0], b.PriorityIDs[len(b.PriorityIDs)-1]
+	firstBody := fmt.Sprintf(`{"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"priority_id":%q,"title":"First"}`,
+		b.ID, b.entityTag(), b.LaneIDs[0], weak)
+	raw, headers := client.call("POST", "/cards", firstBody, "", 201)
+	first := turnOneDecode[card](t, raw)
+	boardTag, secondID := headers.Get("X-Board-ETag"), newID()
+	seed := func(source, target, kind string) string {
+		return fmt.Sprintf(`{"source_card_id":%q,"target_card_id":%q,"kind":%q}`, source, target, kind)
+	}
+	secondBody := func(id string, seeds ...string) string {
+		identity := ""
+		if id != "" {
+			identity = fmt.Sprintf(`"id":%q,`, id)
+		}
+		return fmt.Sprintf(`{%s"board_id":%q,"expected_board_etag":%q,"lane_id":%q,"priority_id":%q,"title":"Second","relationships":[%s]}`,
+			identity, b.ID, boardTag, b.LaneIDs[0], strong, strings.Join(seeds, ","))
+	}
+	incoming := seed(first.ID, strings.ToUpper(secondID), "BLOCKS")
+	outgoing := seed(secondID, first.ID, "blocks")
+	client.call("POST", "/cards", secondBody("", incoming), "", 400)
+	client.call("POST", "/cards", secondBody(secondID, outgoing, seed(first.ID, newID(), "references")), "", 400)
+	client.call("POST", "/cards", secondBody(secondID, outgoing, seed(secondID, secondID, "references")), "", 400)
+	client.call("POST", "/cards", secondBody(secondID, outgoing, seed(newID(), secondID, "references")), "", 400)
+	client.call("POST", "/cards", secondBody(secondID, seed(first.ID, secondID, "relates_to"), seed(secondID, first.ID, "relates_to")), "", 400)
+	refused, err := app.store.durable(b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refused.Board.entityTag() != boardTag || len(refused.Cards) != 1 || len(refused.Relationships) != 0 ||
+		refused.Cards[0].Revision != first.Revision || refused.Cards[0].PriorityID != weak {
+		t.Fatal("invalid seed changed card or board state")
+	}
+
+	raw, _ = client.call("POST", "/cards", secondBody(secondID, outgoing, incoming), "", 201)
+	second := turnOneDecode[card](t, raw)
+	saved, err := app.store.durable(b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ID != secondID || second.Ticket != first.Ticket+1 || saved.Board.Revision != first.Revision+1 ||
+		second.Revision != saved.Board.Revision || len(saved.Relationships) != 2 ||
+		saved.Cards[0].PriorityID != strong || saved.Cards[0].Revision != saved.Board.Revision {
+		t.Fatal("ordered blocking seeds and priority promotion did not commit together")
+	}
+	for i, endpoints := range [][2]string{{second.ID, first.ID}, {first.ID, second.ID}} {
+		link := saved.Relationships[i]
+		if link.SourceCardID != endpoints[0] || link.TargetCardID != endpoints[1] ||
+			link.Kind != "blocks" || link.Revision != second.Revision {
+			t.Fatalf("unexpected seeded relationship at index %d: %+v", i, link)
+		}
+	}
+}
+
 func TestM09RelationshipLifecycle(t *testing.T) {
 	human := base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("h", 32)))
 	bot := base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("b", 32)))

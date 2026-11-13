@@ -1,0 +1,81 @@
+.lsw-ticket-order {
+  box-sizing: border-box;
+  width: min(740px, calc(100% - 32px));
+  max-height: 85vh;
+  padding: 20px;
+  border: 1px solid #dfe3ea;
+  border-radius: 8px;
+  overflow: auto;
+  background: #fff;
+  color: #19243a;
+  font:
+    14px/1.5 Inter,
+    "Segoe UI",
+    system-ui,
+    sans-serif;
+}
+
+.lsw-ticket-order::backdrop {
+  background: rgb(0 0 0 / 48%);
+}
+
+.lsw-ticket-order h2 {
+  margin: 0 0 12px;
+  font-size: 21px;
+  line-height: 1.5;
+}
+
+.lsw-ticket-order p {
+  margin: 0 0 12px;
+}
+
+.lsw-ticket-order-preview table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.lsw-ticket-order-preview th,
+.lsw-ticket-order-preview td {
+  padding: 5px 4px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.lsw-ticket-order-preview th:first-child {
+  width: 90px;
+}
+
+.lsw-ticket-order-preview th:nth-child(2) {
+  width: 80px;
+}
+
+.lsw-ticket-order-pager,
+.lsw-ticket-order footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lsw-ticket-order-pager {
+  margin: 5px 0 0;
+}
+
+.lsw-ticket-order footer {
+  margin-top: 20px;
+}
+
+.lsw-ticket-order [hidden] {
+  display: none;
+}
+
+.lsw-ticket-order button {
+  padding: 7px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.lsw-ticket-order button:disabled {
+  cursor: default;
+}

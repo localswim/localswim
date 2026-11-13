@@ -1,4 +1,5 @@
 import type {
+  ActorKind,
   BoardSummaryDto,
   BoardViewDto,
   EntityTag,
@@ -12,6 +13,9 @@ import type {
   Uuid,
   WorkspaceDto,
 } from "./api-types.js";
+import type { BoardCardProjection } from "./board/filter.js";
+import type { MoveIntent } from "./board/move.js";
+import type { LiveConnection } from "./live/controller.js";
 
 // Confirmed data survives a failed refresh without implying it is still writable.
 export interface Confirmed<T> {
@@ -143,6 +147,12 @@ export interface BoardProps {
   readonly onScrollChange: (scroll: BoardScroll) => void;
   readonly onFocusChange: (focus: FocusTarget | null) => void;
   readonly onRefresh: () => void;
+  readonly projection?: BoardCardProjection;
+  readonly writable?: boolean;
+  readonly onLaneAction?: (action: "create" | "order" | "approve", laneId: Uuid) => void;
+  readonly approvalState?: (laneId: Uuid) => "busy" | "unknown" | null;
+  readonly onMove?: (intent: MoveIntent) => void;
+  readonly moveEnabled?: boolean;
 }
 
 export interface WorkspaceSlots {
@@ -162,4 +172,10 @@ export interface WorkspaceProps {
   readonly onNavigate: (request: NavigationRequest) => void;
   readonly onScrollChange: (scroll: ScrollPosition) => void;
   readonly onRefresh: () => void;
+  readonly connection?: LiveConnection;
+  readonly lastActor?: ActorKind | null;
+  readonly lastActorAt?: Timestamp | null;
+  readonly searchFound?: number;
+  readonly onSearch?: (value: string) => void;
+  readonly overlayOpen?: boolean;
 }

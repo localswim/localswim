@@ -1,4 +1,45 @@
 @import "./workspace/workspace.css";
+@import "./workspace/sidebar.css";
+@import "./workspace/pins.css";
+@import "./board/filter.css";
+@import "./drawer/drawer.css";
+@import "./create/create.css";
+@import "./board/ticket-order.css";
+@import "./board/approve-lane.css";
+
+.lsw-operation-notice:not(:empty) {
+  position: fixed;
+  z-index: 40;
+  right: 16px;
+  bottom: 16px;
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #172338;
+  color: white;
+  font:
+    13px / 1.4 Inter,
+    sans-serif;
+}
+
+.lsw-operation-recovery {
+  position: fixed;
+  z-index: 40;
+  right: 16px;
+  bottom: 64px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+}
+
+.lsw-operation-recovery button {
+  padding: 8px 12px;
+  border: 1px solid #55647b;
+  border-radius: 6px;
+  background: #172338;
+  color: white;
+}
 
 @font-face {
   font-family: Inter;

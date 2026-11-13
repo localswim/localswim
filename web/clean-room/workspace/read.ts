@@ -156,13 +156,22 @@ async function readCatalog(signal?: AbortSignal): Promise<readonly BoardSummaryD
   return invalidResponse();
 }
 
+export type WorkspacePins = Pick<WorkspaceData, "workspace" | "workspaceEtag">;
+
+export function workspacePins(data: unknown, headers: Headers): WorkspacePins {
+  return { workspace: workspaceDto(data), workspaceEtag: entityTag(headers) };
+}
+
+export async function readWorkspacePins(signal?: AbortSignal): Promise<WorkspacePins> {
+  const { data, headers } = await readJson("/workspace", signal);
+  return workspacePins(data, headers);
+}
+
 export async function readWorkspace(signal?: AbortSignal): Promise<WorkspaceData> {
   const deadline = readDeadline(signal);
-  const { data, headers } = await readJson("/workspace", deadline);
-  const workspace = workspaceDto(data);
-  const workspaceEtag = entityTag(headers);
+  const pins = await readWorkspacePins(deadline);
   const boards = await readCatalog(deadline);
-  return { workspace, workspaceEtag, boards };
+  return { ...pins, boards };
 }
 
 export async function readService(signal?: AbortSignal): Promise<ServiceDto> {

@@ -1,0 +1,8 @@
+.lsw-board-card.lsw-move-source {
+  opacity: 0.5;
+}
+
+.lsw-board-lane.lsw-move-target {
+  outline: 2px solid var(--lsw-board-lane-accent);
+  outline-offset: -2px;
+}

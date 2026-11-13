@@ -7,8 +7,8 @@ the V2 API. This plan passed independent review of scope, dependencies and staff
 
 T1 and T2 reached Ready for Review. The Architect squash-merged PR #1 into
 `ui/v1-clean-room` as `9f9ced3` and verified its tree against the reviewed
-`84d73ad` head. T3 awaits direct visual confirmation by Terry and release by
-the Architect.
+`84d73ad` head. Terry confirmed the integrated comparison and the Architect
+opened T3. All nine T3 stories remain In Progress during qualification.
 Later turn entry requires Architect approval and squash merge of all preceding-turn PRs into ui/v1-clean-room. Terry controls Completed, the final demo/project approval and UI-branch merge to main. See [PR workflow](0581-pr-workflow.md).
 
 ## Board mapping
@@ -39,7 +39,7 @@ Later turn entry requires Architect approval and squash merge of all preceding-t
 Detailed scope, dependencies and planned assignments follow. Ticket numbers are ascending by turn.
 
 
-Current assignment revision 6 covers the next three turns, T3 through T5.
+Current assignment revision 7 covers the next three turns, T3 through T5.
 Earlier rosters and the archived #0514 evidence remain available. R01–R20 map
 to the live tickets above. [Rolling roster](0581-rolling-assignments.md)
 

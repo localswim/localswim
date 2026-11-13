@@ -127,7 +127,7 @@ function isLane(value: unknown): value is LaneDto {
   );
 }
 
-function isCard(value: unknown): value is CardDto {
+export function isCard(value: unknown): value is CardDto {
   return (
     isEntity(value) &&
     isUuid(value.board_id) &&
@@ -369,6 +369,12 @@ async function readPolicy(
   }
 }
 
+export async function readBoardSummary(boardId: Uuid, signal?: AbortSignal) {
+  const { data, headers } = await readJson(`/boards/${boardId}`, signal);
+  if (!isBoard(data) || data.id !== boardId) return invalidResponse();
+  return { board: data, etag: entityTag(headers) };
+}
+
 async function readBoardAttempt(boardId: Uuid, signal?: AbortSignal): Promise<BoardData | null> {
   const path = `/boards/${boardId}`;
   const response = await readJson(`${path}?view=lanes`, signal);
@@ -388,12 +394,10 @@ async function readBoardAttempt(boardId: Uuid, signal?: AbortSignal): Promise<Bo
     readPolicy(board, signal),
   ]);
   // The resource reads have independent validators. Recheck the board revision after all of them.
-  const latest = await readJson(path, signal);
-  if (!isBoard(latest.data) || latest.data.id !== boardId) return invalidResponse();
-  if (entityTag(latest.headers) !== boardEtag || latest.data.revision !== board.revision)
-    return null;
+  const latest = await readBoardSummary(boardId, signal);
+  if (latest.etag !== boardEtag || latest.board.revision !== board.revision) return null;
   if ("error" in policyResponse) throw policyResponse.error;
-  if (latest.data.availability !== board.availability || users === null || priorities === null) {
+  if (latest.board.availability !== board.availability || users === null || priorities === null) {
     return invalidResponse();
   }
   const result = { view, boardEtag, users, priorities, policy: policyResponse.policy };

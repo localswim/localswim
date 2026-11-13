@@ -1,8 +1,8 @@
-import type { EntityTag, ProblemDto, SessionDto } from "./api-types.js";
-import type { ReadFailure } from "./contracts.js";
+import type { EntityTag, ProblemDto, SessionDto, Uuid } from "./api-types.js";
+import type { MutationResult, ReadFailure } from "./contracts.js";
 
 const apiVersion = "2026-11-10";
-const apiPrefix = `/api/${apiVersion}`;
+export const apiPrefix = `/api/${apiVersion}`;
 const readTimeoutMs = 15_000;
 const maxJsonBytes = 96 * 1024 * 1024;
 const problemStatuses = {
@@ -151,6 +151,10 @@ function isProblem(data: unknown, status: number, method: "GET" | "POST"): data 
     data.errors.length <= 64 &&
     data.errors.every(isFieldIssue)
   );
+}
+
+function resourcePath(path: string): boolean {
+  return /^\/[a-z][a-z0-9-]*(\/[a-zA-Z0-9-]+)*(\?[^#]*)?$/u.test(path);
 }
 
 function decodeJsonChunk(decoder: TextDecoder, bytes?: Uint8Array): string {
@@ -350,11 +354,143 @@ async function authenticatedRead(
 }
 
 export async function readJson(path: string, signal?: AbortSignal): Promise<JsonRead> {
-  if (!/^\/[a-z][a-z0-9-]*(\/[a-zA-Z0-9-]+)*(\?[^#]*)?$/u.test(path)) {
+  if (!resourcePath(path)) {
     return invalidResponse();
   }
   const { data, headers } = await authenticatedRead(path, readDeadline(signal));
   return { data, headers };
+}
+
+export interface MutationOptions<T> {
+  readonly method: "POST" | "PATCH" | "PUT" | "DELETE";
+  readonly etag?: EntityTag;
+  readonly boardEtag?: EntityTag;
+  readonly body: unknown;
+  readonly validate: (data: unknown, headers: Headers) => T;
+  readonly successStatus?: 200 | 201;
+  readonly requestId?: Uuid;
+  readonly signal?: AbortSignal;
+  readonly beforeDispatch?: (session: SessionDto) => void;
+}
+
+export async function mutateJson<T>(
+  path: string,
+  options: MutationOptions<T>,
+): Promise<MutationResult<T>> {
+  const requestId = options.requestId ?? crypto.randomUUID();
+  if (!resourcePath(path) || path === "/browser-session" || !isUuid(requestId)) {
+    return invalidResponse();
+  }
+  const signal = readDeadline(options.signal);
+  const unknown = (problem: ProblemDto | null): MutationResult<T> => ({
+    outcome: "unknown",
+    requestId,
+    problem,
+  });
+  try {
+    const pending = (browserCapability ??= bootstrapBrowser().catch((error: unknown) => {
+      browserCapability = undefined;
+      throw error;
+    }));
+    const { token, session } = await awaitCapability(pending, signal);
+    if (signal.aborted) return unknown(null);
+    const headers = new Headers({
+      Accept: "application/json, application/problem+json",
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-Request-ID": requestId,
+    });
+    if (options.etag !== undefined) headers.set("If-Match", options.etag);
+    if (options.boardEtag !== undefined) headers.set("X-Expected-Board-ETag", options.boardEtag);
+    options.beforeDispatch?.(session);
+    const response = await fetch(apiPrefix + path, {
+      method: options.method,
+      headers,
+      body: JSON.stringify(options.body),
+      signal,
+      mode: "same-origin",
+      credentials: "omit",
+      redirect: "error",
+      cache: "no-store",
+    });
+    const success = response.status === (options.successStatus ?? 200);
+    const media = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+    if (
+      response.headers.get("X-Request-ID") !== requestId ||
+      media !== (success ? "application/json" : "application/problem+json")
+    ) {
+      void response.body?.cancel().catch(() => {});
+      return unknown(null);
+    }
+    const data = await readJsonBody(response, signal);
+    if (success) return { outcome: "committed", value: options.validate(data, response.headers) };
+    if (isProblem(data, response.status, "POST") && data.request_id === requestId) {
+      if (data.code === "unauthorized" && browserCapability === pending) {
+        browserCapability = undefined;
+      }
+      if (data.outcome === "not_applied") {
+        return { outcome: "not_applied", problem: { ...data, outcome: data.outcome } };
+      }
+    }
+    if (
+      isRecord(data) &&
+      data.outcome === "unknown" &&
+      data.code === "outcome_unknown" &&
+      data.request_id === requestId &&
+      isProblem({ ...data, outcome: "not_applied" }, response.status, "POST")
+    ) {
+      const valid = { ...data, outcome: "not_applied" };
+      if (isProblem(valid, response.status, "POST"))
+        return unknown({ ...valid, outcome: "unknown" });
+    }
+    return unknown(null);
+  } catch {
+    // A dispatched write has one attempt. Its caller owns authoritative inspection.
+    return unknown(null);
+  }
+}
+
+export async function openEventStream(
+  boardId: Uuid | null,
+  signal: AbortSignal,
+): Promise<Response> {
+  if (boardId !== null && !isUuid(boardId)) return invalidResponse();
+  const path = boardId === null ? "/events" : `/events?board_id=${boardId}`;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (signal.aborted) return abortRead();
+    const pending = (browserCapability ??= bootstrapBrowser().catch((error: unknown) => {
+      browserCapability = undefined;
+      throw error;
+    }));
+    const { token } = await awaitCapability(pending, readDeadline(signal));
+    const response = await fetch(apiPrefix + path, {
+      method: "GET",
+      headers: { Accept: "text/event-stream", Authorization: `Bearer ${token}` },
+      signal,
+      mode: "same-origin",
+      credentials: "omit",
+      redirect: "error",
+      cache: "no-store",
+    });
+    const media = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+    if (response.status === 200 && media === "text/event-stream" && response.body) return response;
+    if (media === "application/problem+json") {
+      const data = await readJsonBody(response, readDeadline(signal));
+      if (
+        isProblem(data, response.status, "GET") &&
+        data.request_id === response.headers.get("X-Request-ID")
+      ) {
+        if (data.code === "unauthorized") {
+          if (browserCapability === pending) browserCapability = undefined;
+          if (attempt === 0) continue;
+        }
+        throw new ReadError({ kind: "http", problem: data });
+      }
+    }
+    void response.body?.cancel().catch(() => {});
+    return invalidResponse();
+  }
+  return abortRead();
 }
 
 export async function readSession(signal?: AbortSignal): Promise<SessionDto> {

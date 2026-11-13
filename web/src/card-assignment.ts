@@ -20,6 +20,8 @@ type Entry = {
   inspection?: SavedAssignment;
   result?: Readonly<{ field: Field; requested: string; effective: string }>;
   active?: "submitting" | "inspecting";
+  unsaved?: boolean;
+  storedSubmission?: boolean;
   storageError?: boolean;
   inspectionFailed?: boolean;
 };
@@ -106,6 +108,7 @@ export function mountCardAssignment(
     getBoardData,
     getContext,
     beginWrite,
+    beginInspection,
     onConfirmed,
     onChange,
   }: AppContext &
@@ -116,6 +119,7 @@ export function mountCardAssignment(
       getBoardData: () => BoardViewData | null | undefined;
       getContext: () => AssignmentContext | null;
       beginWrite: (cardId: string) => (() => void) | null;
+      beginInspection: (cardId: string) => (() => void) | null;
       onConfirmed: (saved: SavedAssignment) => void;
       onChange?: () => void;
     }>,
@@ -165,18 +169,30 @@ export function mountCardAssignment(
   }
 
   function entryFor(cardId: string): Entry {
-    const previous = entries.get(cardId);
-    if (previous) return previous;
-    const entry: Entry = { draft: null, raw: undefined };
+    let entry = entries.get(cardId);
+    if (!entry) {
+      entry = { draft: null, raw: undefined };
+      entries.set(cardId, entry);
+    }
+    if (entry.active) return entry;
     try {
       const raw = tabStorage().getItem(key(cardId));
-      entry.raw = raw;
-      entry.draft = raw === null ? null : parseDraft(raw);
-      entry.storageError = raw !== null && entry.draft === null;
+      if (raw !== entry.raw) {
+        const stored = raw === null ? null : parseDraft(raw);
+        entry.storedSubmission = stored?.phase === "submitted";
+        if (entry.unsaved) {
+          entry.storageError = true;
+          return entry;
+        }
+        entry.raw = raw;
+        entry.draft = stored;
+        entry.inspection = undefined;
+        entry.inspectionFailed = false;
+      }
+      entry.storageError = Boolean(entry.unsaved || (raw !== null && entry.draft === null));
     } catch {
       entry.storageError = true;
     }
-    entries.set(cardId, entry);
     return entry;
   }
 
@@ -193,6 +209,8 @@ export function mountCardAssignment(
       else store.setItem(storageKey, next);
       entry.raw = next;
       entry.draft = draft;
+      entry.storedSubmission = draft?.phase === "submitted";
+      entry.unsaved = false;
       entry.storageError = false;
       return true;
     } catch {
@@ -217,11 +235,27 @@ export function mountCardAssignment(
     return draft.phase === "stale" || !sameVersion(draft.base, saved);
   }
 
+  function latestAssignment(context: AssignmentContext, entry: Entry) {
+    return entry.confirmed && reachesVersion(entry.confirmed, context) ? entry.confirmed : context;
+  }
+
+  function canDiscard(entry: Entry, saved: Version): boolean {
+    if (entry.active) return false;
+    const draft = entry.draft;
+    if (entry.unsaved) return true;
+    if (!draft) return entry.storageError === true;
+    return (
+      (draft.phase !== "submitted" && !isStale(draft, saved)) ||
+      (entry.inspection !== undefined && sameVersion(entry.inspection, saved))
+    );
+  }
+
   function canSave(context: AssignmentContext, entry: Entry, choices: readonly Choice[]) {
     const { draft, active } = entry;
     return (
       context.writable &&
       !active &&
+      !entry.storedSubmission &&
       reachesVersion(context, entry.confirmed) &&
       draft !== null &&
       hasGrant(context, draft.field) &&
@@ -243,7 +277,7 @@ export function mountCardAssignment(
     if (!context) return;
     const entry = entryFor(context.cardId);
     const { draft, active, confirmed, inspection, result } = entry;
-    const saved = confirmed && reachesVersion(confirmed, context) ? confirmed : context;
+    const saved = latestAssignment(context, entry);
     const choices = options();
     const stale = draft !== null && isStale(draft, saved);
     const uncertain = draft?.phase === "submitted";
@@ -288,10 +322,7 @@ export function mountCardAssignment(
     inspect.hidden = !canInspect && active !== "inspecting";
     inspect.setAttribute("aria-disabled", String(!canInspect));
     discard.hidden = !draft && !entry.storageError;
-    discard.setAttribute(
-      "aria-disabled",
-      String(Boolean(active) || ((uncertain || stale) && !inspectedCurrent)),
-    );
+    discard.setAttribute("aria-disabled", String(!canDiscard(entry, saved)));
     actions.hidden = inspect.hidden && discard.hidden;
 
     let message = "";
@@ -349,7 +380,10 @@ export function mountCardAssignment(
             phase: "dirty",
           };
     entry.result = undefined;
-    if (!persist(context.cardId, entry, draft)) entry.draft = draft;
+    if (!persist(context.cardId, entry, draft)) {
+      entry.draft = draft;
+      entry.unsaved = true;
+    }
     publish();
   }
 
@@ -425,16 +459,20 @@ export function mountCardAssignment(
     const { cardId } = context;
     const entry = entryFor(cardId);
     const draft = entry.draft;
-    const latest =
-      entry.confirmed && reachesVersion(entry.confirmed, context) ? entry.confirmed : context;
+    const latest = latestAssignment(context, entry);
     if (entry.active || !draft || (draft.phase !== "submitted" && !isStale(draft, latest))) return;
+    const release = beginInspection(cardId);
+    if (!release) {
+      update();
+      return;
+    }
     const request = new AbortController();
     inspectionRequest = request;
     const readSignal = AbortSignal.any([signal, request.signal]);
     entry.active = "inspecting";
     entry.inspectionFailed = false;
-    publish();
     try {
+      publish();
       const reply = await readWithSession(() => api.getCard(cardId, readSignal), readSignal);
       readSignal.throwIfAborted();
       const saved = readReply(reply, boardId, cardId);
@@ -456,6 +494,7 @@ export function mountCardAssignment(
     } finally {
       if (inspectionRequest === request) inspectionRequest = undefined;
       entry.active = undefined;
+      release();
       publish();
     }
   }
@@ -464,7 +503,24 @@ export function mountCardAssignment(
     const context = getContext();
     if (!context) return;
     const entry = entryFor(context.cardId);
-    if (discard.getAttribute("aria-disabled") === "true" || entry.active) return;
+    if (!canDiscard(entry, latestAssignment(context, entry))) {
+      update();
+      return;
+    }
+    if (entry.unsaved) {
+      try {
+        tabStorage().getItem(key(context.cardId));
+      } catch {
+        entry.storageError = true;
+        publish();
+        return;
+      }
+      entry.unsaved = false;
+      entry.raw = undefined;
+      entryFor(context.cardId);
+      publish();
+      return;
+    }
     if (persist(context.cardId, entry, null)) {
       entry.inspection = undefined;
       entry.inspectionFailed = false;
@@ -488,7 +544,9 @@ export function mountCardAssignment(
   return {
     update,
     hasUncertainSubmission(cardId = focusedCard) {
-      return cardId !== undefined && entryFor(cardId).draft?.phase === "submitted";
+      if (cardId === undefined) return false;
+      const entry = entryFor(cardId);
+      return entry.storedSubmission === true || entry.draft?.phase === "submitted";
     },
   };
 }

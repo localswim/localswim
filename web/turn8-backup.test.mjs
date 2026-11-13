@@ -157,6 +157,9 @@ test("an unknown capture survives reload and only its original ID and revision c
   first.life.abort();
 
   const restored = mount(boardId, newDocument());
+  restored.context.etag = tag(boardId, 4);
+  restored.context.revision = 4;
+  restored.update();
   assert.equal(restored.create.disabled, true);
   assert.equal(restored.inspect.hidden, false);
   restored.create.click();
@@ -171,6 +174,58 @@ test("an unknown capture survives reload and only its original ID and revision c
   assert.equal(restored.capturedBackup().id, id);
   assert.equal(pending.has(journalKey), false);
   assert.deepEqual(calls, [[prefix, "POST"], ...Array(3).fill([`${prefix}/${id}`, "GET"])]);
+});
+
+test("another document's capture survives a stale capture control and a late inspection", async () => {
+  const started = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  const posts = [];
+  let inspections = 0;
+  const { mount, newDocument, pending } = fixture((path, request) => {
+    if (request.method === "POST") {
+      posts.push(JSON.parse(request.body).id);
+      throw new TypeError("response lost");
+    }
+    const id = path.split("/").at(-1);
+    const reply = Response.json(metadata(id, 3), { headers: { ETag: tag(boardId, 3) } });
+    if (++inspections === 1) {
+      started.resolve(id);
+      return release.promise.then(() => reply);
+    }
+    return reply;
+  });
+  const first = mount();
+  const second = mount(boardId, newDocument());
+  first.create.click();
+  await flush();
+  assert.equal(second.create.disabled, false);
+  second.create.click();
+  await flush();
+  assert.equal(posts.length, 1);
+  assert.equal(second.create.disabled, true);
+
+  first.inspect.click();
+  assert.equal(await started.promise, posts[0]);
+  second.inspect.click();
+  await flush();
+  assert.equal(second.capturedBackup().id, posts[0]);
+  assert.equal(pending.has(journalKey), false);
+  second.create.click();
+  await flush();
+  assert.equal(posts.length, 2);
+  assert.equal(JSON.parse(pending.get(journalKey)).id, posts[1]);
+
+  release.resolve();
+  await flush();
+  assert.equal(JSON.parse(pending.get(journalKey)).id, posts[1]);
+  assert.equal(first.capturedBackup(), undefined);
+  assert.equal(first.create.disabled, true);
+  second.inspect.click();
+  await flush();
+  first.update();
+  assert.equal(first.create.disabled, false);
+  assert.equal(first.inspect.hidden, true);
+  assert.equal(second.capturedBackup().id, posts[1]);
 });
 
 test("download verifies size and digest before publishing only the captured revision", async () => {

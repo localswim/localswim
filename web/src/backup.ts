@@ -33,6 +33,7 @@ type Options = AppContext &
 const operationId = /^[\da-f]{8}-[\da-f]{4}-7[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/;
 const digest = /^[\da-f]{64}$/;
 const states = new WeakMap<Document, Map<string, BackupState>>();
+const uncertain = "Backup capture could not be confirmed. Refresh backup status to inspect it.";
 
 export function formatOperationTime(id: string): string {
   const timestamp = Number.parseInt(id.slice(0, 8) + id.slice(9, 13), 16);
@@ -88,7 +89,7 @@ function captureMetadata(value: unknown, boardId: string, intent: CaptureIntent)
   });
 }
 
-function boardState(doc: Document, boardId: string, key: string): BackupState {
+function boardState(doc: Document, boardId: string): BackupState {
   const boards = states.get(doc) ?? new Map<string, BackupState>();
   states.set(doc, boards);
   const existing = boards.get(boardId);
@@ -100,18 +101,6 @@ function boardState(doc: Document, boardId: string, key: string): BackupState {
     message: "",
     observers: new Set(),
   };
-  try {
-    const storage = doc.defaultView?.sessionStorage;
-    if (!storage) throw new Error("Tab storage is unavailable.");
-    const raw = storage.getItem(key);
-    if (raw !== null) {
-      state.pending = readIntent(JSON.parse(raw) as unknown);
-      state.message = "Backup capture could not be confirmed. Refresh backup status to inspect it.";
-    }
-  } catch {
-    state.journalProblem = true;
-    state.message = "The tab’s backup capture record could not be read.";
-  }
   boards.set(boardId, state);
   return state;
 }
@@ -122,7 +111,7 @@ export function mountBackup(
 ) {
   const doc = host.ownerDocument;
   const key = `localswim:pending-backup-capture:${boardId}`;
-  const state = boardState(doc, boardId, key);
+  const state = boardState(doc, boardId);
   const heading = doc.createElement("h2");
   const create = doc.createElement("button");
   const inspect = doc.createElement("button");
@@ -138,15 +127,58 @@ export function mountBackup(
   summary.setAttribute("aria-live", "polite");
   host.replaceChildren(heading, create, inspect, download, summary, status);
 
+  function journalStorage(): Storage {
+    const storage = doc.defaultView?.sessionStorage;
+    if (!storage) throw new Error("Tab storage is unavailable.");
+    return storage;
+  }
+
+  function refreshJournal(): boolean {
+    try {
+      const raw = journalStorage().getItem(key);
+      const pending = raw === null ? undefined : readIntent(JSON.parse(raw) as unknown);
+      if (
+        state.journalProblem ||
+        pending?.id !== state.pending?.id ||
+        pending?.revision !== state.pending?.revision
+      ) {
+        state.pending = pending;
+        state.message = pending ? uncertain : "";
+      }
+      state.journalProblem = false;
+      return true;
+    } catch {
+      state.journalProblem = true;
+      state.message = "The tab’s backup capture record could not be read.";
+      return false;
+    }
+  }
+
+  function ownsIntent(intent: CaptureIntent): boolean {
+    return (
+      refreshJournal() &&
+      state.pending?.id === intent.id &&
+      state.pending.revision === intent.revision
+    );
+  }
+
+  function visibleBackup(): CapturedBackup | undefined {
+    return !signal.aborted && canRead() && !state.busy && !state.journalProblem && !state.pending
+      ? state.backup
+      : undefined;
+  }
+
   function capturedBackup(): CapturedBackup | undefined {
-    return !signal.aborted && canRead() && !state.busy && !state.pending ? state.backup : undefined;
+    if (!signal.aborted && !state.busy) refreshJournal();
+    return visibleBackup();
   }
 
   function update() {
     if (signal.aborted) return;
+    if (!state.busy && !state.downloading) refreshJournal();
     const readable = canRead();
     const capture = captureContext();
-    const backup = capturedBackup();
+    const backup = visibleBackup();
     host.hidden = !readable || (!capture.allowed && !state.pending && !backup);
     create.disabled =
       !readable ||
@@ -158,7 +190,7 @@ export function mountBackup(
       state.downloading ||
       state.pending !== undefined;
     inspect.hidden = state.pending === undefined;
-    inspect.disabled = !readable || state.busy;
+    inspect.disabled = !readable || state.busy || state.downloading || state.journalProblem;
     download.hidden = backup === undefined;
     download.disabled = state.busy || state.downloading;
     const description = backup
@@ -172,12 +204,10 @@ export function mountBackup(
     for (const observer of state.observers) observer();
   }
 
-  function save(intent?: CaptureIntent): boolean {
+  function save(intent: CaptureIntent): boolean {
+    if (!refreshJournal() || state.pending) return false;
     try {
-      const storage = doc.defaultView?.sessionStorage;
-      if (!storage) return false;
-      if (intent) storage.setItem(key, JSON.stringify(intent));
-      else storage.removeItem(key);
+      journalStorage().setItem(key, JSON.stringify(intent));
       state.pending = intent;
       return true;
     } catch {
@@ -185,10 +215,16 @@ export function mountBackup(
     }
   }
 
-  function settle(message: string) {
-    state.message = save(undefined)
-      ? message
-      : "The capture was resolved. Refresh backup status to clear its tab record.";
+  function settle(intent: CaptureIntent, message: string, backup?: CapturedBackup) {
+    if (!ownsIntent(intent)) return;
+    if (backup) state.backup = backup;
+    try {
+      journalStorage().removeItem(key);
+      state.pending = undefined;
+      state.message = message;
+    } catch {
+      state.message = "The capture was resolved. Refresh backup status to clear its tab record.";
+    }
   }
 
   async function createBackup() {
@@ -202,8 +238,6 @@ export function mountBackup(
       !Number.isSafeInteger(revision) ||
       revision <= 0 ||
       etag !== `"${boardId}-${revision}"` ||
-      state.journalProblem ||
-      state.pending ||
       state.busy ||
       state.downloading
     )
@@ -223,21 +257,24 @@ export function mountBackup(
       );
       switch (result.kind) {
         case "confirmed":
-          state.backup = result.result;
-          settle("");
+          settle(intent, "", result.result);
           break;
         case "unknown":
-          state.message =
-            "Backup capture could not be confirmed. Refresh backup status to inspect it.";
+          if (ownsIntent(intent)) state.message = uncertain;
           break;
         case "stale":
-          settle("The board changed before capture. Refresh the board before creating a backup.");
+          settle(
+            intent,
+            "The board changed before capture. Refresh the board before creating a backup.",
+          );
           break;
         case "refused":
-          settle("The service refused the backup capture.");
+          settle(intent, "The service refused the backup capture.");
           break;
         case "journal-failed":
-          state.message = "The tab’s backup capture record could not be saved.";
+          if (!state.pending && !state.journalProblem) {
+            state.message = "The tab’s backup capture record could not be saved.";
+          }
           break;
       }
     } finally {
@@ -247,22 +284,27 @@ export function mountBackup(
   }
 
   async function inspectBackup() {
+    if (signal.aborted || !canRead() || state.busy || state.downloading) return;
+    update();
     const intent = state.pending;
-    if (signal.aborted || !canRead() || !intent || state.busy) return;
+    if (state.journalProblem || !intent) return;
     state.busy = true;
     state.message = "Checking backup status…";
     try {
       notify();
-      const { data } = await readWithSession(() => api.getBackup(intent.id, boardId), signal);
+      const reply = await readWithSession(
+        () => (ownsIntent(intent) ? api.getBackup(intent.id, boardId) : Promise.resolve(undefined)),
+        signal,
+      );
+      if (!reply) return;
       if (!signal.aborted && canRead()) {
-        state.backup = captureMetadata(data, boardId, intent);
-        settle("");
-      } else {
-        state.message = "Refresh backup status to inspect the original capture.";
+        settle(intent, "", captureMetadata(reply.data, boardId, intent));
+      } else if (ownsIntent(intent)) {
+        state.message = uncertain;
       }
     } catch {
       // A missing backup may still be in flight. Keep the original capture ID.
-      state.message = "Backup capture could not be confirmed. Refresh backup status to inspect it.";
+      if (ownsIntent(intent)) state.message = uncertain;
     } finally {
       state.busy = false;
       notify();
@@ -281,7 +323,7 @@ export function mountBackup(
         () => api.getBackupContent(backup.id, backup.size, backup.sha2_256),
         signal,
       );
-      if (!signal.aborted && canRead()) {
+      if (capturedBackup() === backup) {
         const anchor = doc.createElement("a");
         const url = URL.createObjectURL(blob);
         anchor.href = url;
@@ -292,9 +334,11 @@ export function mountBackup(
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
       }
-      state.message = "";
+      if (!state.pending && !state.journalProblem) state.message = "";
     } catch {
-      state.message = signal.aborted ? "" : "Backup download could not be verified. Try again.";
+      if (refreshJournal() && !state.pending) {
+        state.message = signal.aborted ? "" : "Backup download could not be verified. Try again.";
+      }
     } finally {
       state.downloading = false;
       notify();

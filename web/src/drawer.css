@@ -5,7 +5,7 @@
   inset-inline-end: 0;
   display: flex;
   flex-direction: column;
-  inline-size: min(35rem, 60vw);
+  inline-size: min(35rem, calc(100vw - var(--attention-width, 336px) - 1.25rem));
   border-inline-start: 1px solid var(--board-view-lane-border);
   background: var(--board-view-card-fill);
   color: var(--board-view-ink);
@@ -15,6 +15,10 @@
 
 .card-drawer[hidden] {
   display: none;
+}
+
+#main:has(#attention[data-attention-collapsed="true"]) .card-drawer {
+  --attention-width: 10rem;
 }
 
 .card-drawer-bar {

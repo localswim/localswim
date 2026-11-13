@@ -33,6 +33,7 @@ class Element extends EventTarget {
     this.selectionEnd = 0;
   }
   append(...values) {
+    this.textContent += values.filter((value) => typeof value === "string").join("");
     this.children.push(...values.filter((value) => value instanceof Element));
   }
   replaceChildren(...values) {
@@ -70,6 +71,9 @@ function harness() {
   let afterMissing;
   let afterBoardRead;
   let beforeRetry;
+  let readOriginalComment;
+  let readSavedComments = async () => ({ data: { comments: [], next_cursor: null } });
+  let readSavedActivity = async () => ({ data: { activities: [], next_cursor: null } });
   const response = Promise.withResolvers();
 
   function commit(write) {
@@ -97,7 +101,8 @@ function harness() {
     const root = doc.createElement("main");
     const view = controller.mountCardComments(root, {
       api: {
-        listComments: async () => ({ data: { comments: [], next_cursor: null } }),
+        listComments: (...args) => readSavedComments(...args),
+        listFocusedCardActivity: (...args) => readSavedActivity(...args),
         getBoardAvailability: async (id) => {
           reads.push(id);
           const result = { data: { id, revision: boardRevision }, etag: tag(id, boardRevision) };
@@ -110,6 +115,7 @@ function harness() {
         },
         getComment: async (id) => {
           reads.push(id);
+          if (readOriginalComment) return readOriginalComment(id);
           if (!committed.has(id)) {
             afterMissing?.();
             throw new controller.ApiError("http_error", { status: 404 });
@@ -151,6 +157,10 @@ function harness() {
     return {
       close: () => lifetime.abort(),
       update: view.update,
+      refreshSaved: view.refreshSaved,
+      preview: root.descendants().find((node) => node.tag === "ol"),
+      reloadPreview: find("Reload recent comments"),
+      histories: root.descendants().filter((node) => node.tag === "details"),
       dismiss: find("Dismiss unresolved post"),
       retry: find("Retry original post"),
       inspect: () => find("Inspect original comment").dispatchEvent(new Event("click")),
@@ -169,6 +179,15 @@ function harness() {
     writes,
     committed,
     advanceBoard: () => ++boardRevision,
+    onSavedComments: (read) => {
+      readSavedComments = read;
+    },
+    onSavedActivity: (read) => {
+      readSavedActivity = read;
+    },
+    onReadOriginal: (read) => {
+      readOriginalComment = read;
+    },
     commitOriginal: () => commit(writes[0]),
     commitRetry: () => commit(writes[1]),
     mount,
@@ -373,4 +392,125 @@ test("dismissal requires original absence within one newer board version", async
   assert.notEqual(fixture.writes[1].id, original);
   assert.equal(fixture.committed.size, 1);
   restored.close();
+});
+
+test("restore refresh replaces same-count saved comments and open history without changing a draft", async () => {
+  const fixture = harness();
+  const earlier = "26fae956-9008-4da4-b2b6-5bddf94fe746";
+  const later = "35d46372-34e8-4c63-b5c1-8fb772ab3ab4";
+  const timestamp = "2026-11-13 15:00:00+00:00";
+  function comment(id, prose) {
+    return {
+      id,
+      board_id: boardId,
+      card_id: cardId,
+      author_id: actorId,
+      created_at: timestamp,
+      text: prose,
+    };
+  }
+  function activity(revision, prose) {
+    return {
+      id: `01994576-cb24-7981-b2b6-5bddf94fe74${revision}`,
+      board_id: boardId,
+      resource_id: cardId,
+      resource_type: "card",
+      actor_id: actorId,
+      revision,
+      at: timestamp,
+      operation: "patch",
+      field: "description",
+      before: null,
+      after: prose,
+    };
+  }
+  const before = comment(later, "Later saved comment");
+  const after = comment(earlier, "Earlier saved comment");
+  fixture.committed.set(later, before);
+  const oldHistory = Promise.withResolvers();
+  const oldActivity = Promise.withResolvers();
+  const oldPreview = Promise.withResolvers();
+  let oldHistorySignal;
+  let oldActivitySignal;
+  let oldPreviewSignal;
+  let reloadPreview = false;
+  let restored = false;
+  fixture.onSavedComments(async (_filter, limit, _cursor, signal) => {
+    if (!restored && limit !== 2) {
+      oldHistorySignal = signal;
+      return oldHistory.promise;
+    }
+    if (!restored && reloadPreview) {
+      oldPreviewSignal = signal;
+      return oldPreview.promise;
+    }
+    return { data: { comments: [restored ? after : before], next_cursor: null } };
+  });
+  fixture.onSavedActivity(async (_board, _card, _cursor, signal) => {
+    if (!restored) {
+      oldActivitySignal = signal;
+      return oldActivity.promise;
+    }
+    return { data: { activities: [activity(3, "Earlier saved activity")], next_cursor: null } };
+  });
+  const current = fixture.mount();
+  const [commentsHistory, activityHistory] = current.histories;
+  for (const history of current.histories) {
+    history.open = true;
+    history.dispatchEvent(new Event("toggle"));
+  }
+  current.input.value = text;
+  current.input.dispatchEvent(new Event("input"));
+  const originalJournal = [...fixture.journal];
+  await setImmediate();
+  const prose = (list) => list.descendants().map((node) => node.textContent);
+  assert.ok(prose(current.preview).includes("Later saved comment"));
+  assert.ok(oldHistorySignal);
+  assert.ok(oldActivitySignal);
+  reloadPreview = true;
+  current.reloadPreview.dispatchEvent(new Event("click"));
+  assert.ok(oldPreviewSignal);
+
+  restored = true;
+  fixture.committed.delete(later);
+  fixture.committed.set(earlier, after);
+  current.refreshSaved();
+  assert.deepEqual(current.preview.children, []);
+  assert.equal(oldPreviewSignal.aborted, true);
+  assert.equal(oldHistorySignal.aborted, true);
+  assert.equal(oldActivitySignal.aborted, true);
+  oldPreview.resolve({ data: { comments: [before], next_cursor: null } });
+  oldHistory.resolve({ data: { comments: [before], next_cursor: null } });
+  oldActivity.resolve({
+    data: { activities: [activity(4, "Later saved activity")], next_cursor: null },
+  });
+  await setImmediate();
+
+  assert.ok(prose(current.preview).includes("Earlier saved comment"));
+  assert.ok(prose(commentsHistory).includes("Earlier saved comment"));
+  assert.ok(prose(activityHistory).includes("Earlier saved activity"));
+  assert.ok(!prose(current.preview).includes("Later saved comment"));
+  assert.ok(!prose(commentsHistory).includes("Later saved comment"));
+  assert.ok(!prose(activityHistory).includes("Later saved activity"));
+  assert.deepEqual([...fixture.journal], originalJournal);
+  assert.equal(current.input.value, text);
+  current.close();
+});
+
+test("a pre-restore original comment read cannot clear an unresolved draft", async () => {
+  const fixture = harness();
+  const current = await fixture.restore();
+  const preRestore = Promise.withResolvers();
+  fixture.onReadOriginal(() => preRestore.promise);
+  current.inspect();
+  const oldReply = fixture.commitOriginal();
+  const journal = [...fixture.journal];
+  fixture.committed.clear();
+  current.refreshSaved();
+  preRestore.resolve(oldReply);
+  await setImmediate();
+  assert.deepEqual([...fixture.journal], journal);
+  assert.equal(current.input.value, text);
+  assert.equal(fixture.writes.length, 1);
+  current.close();
 });

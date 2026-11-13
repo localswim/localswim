@@ -260,6 +260,7 @@ export function mountCardComments(
   let previewKey = "";
   let notice = "";
   let inspection: { raw: string; kind: "retry" | "dismiss" } | undefined;
+  let savedGeneration = 0;
   let change: InputChange | undefined;
   let pasted: string | undefined;
   let composition: { journal: Journal; previous: string; change?: InputChange } | undefined;
@@ -440,6 +441,21 @@ export function mountCardComments(
     commentHistory.reset();
   }
 
+  function refreshSaved() {
+    if (signal.aborted) return;
+    savedGeneration++;
+    inspection = undefined;
+    notice = "";
+    const current = context();
+    revision = current?.revision;
+    commentCount = current?.commentCount;
+    previewItems = [];
+    renderPreview();
+    refreshComments();
+    activityHistory.reset();
+    update();
+  }
+
   function publish(entry: Journal) {
     listeners.get(entry.key)?.();
   }
@@ -579,13 +595,15 @@ export function mountCardComments(
       return;
     }
     const id = draft.id;
+    const generation = savedGeneration;
     await operations.run(
       entry.key,
       "inspecting",
       async () => {
         inspection = undefined;
         publish(entry);
-        const currentActor = () => !signal.aborted && context()?.actorId === actor;
+        const currentActor = () =>
+          !signal.aborted && generation === savedGeneration && context()?.actorId === actor;
         try {
           let reply = await findOriginal(id);
           if (!currentActor()) return;
@@ -791,5 +809,5 @@ export function mountCardComments(
   );
   signal.addEventListener("abort", detachJournal, { once: true });
   update();
-  return { update };
+  return { update, refreshSaved };
 }

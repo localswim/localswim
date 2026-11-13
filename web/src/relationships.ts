@@ -14,6 +14,7 @@ type Link = Readonly<{
 type Row = Readonly<{ link: Link; target: Target | null }>;
 type Intent = Pick<Link, "id" | "source_card_id" | "target_card_id" | "kind"> &
   Readonly<{ action: "add" | "change" | "remove" }>;
+type Journal = Intent & Readonly<{ baseRevision: number }>;
 
 export type RelationshipContext = Readonly<{
   cardId: string;
@@ -29,6 +30,7 @@ type Options = AppContext &
     readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
     ticketLink: (ticket: number, label: string, id: string) => HTMLAnchorElement;
     beginWrite: (cardId: string, relatedCardId?: string) => (() => void) | null;
+    beginInspection: (sourceCardId: string, targetCardId: string) => (() => void) | null;
     refresh: () => void;
   }>;
 
@@ -45,9 +47,10 @@ function isKind(value: unknown): value is RelationshipKind {
   return typeof value === "string" && Object.hasOwn(labels, value);
 }
 
-function isIntent(value: unknown): value is Intent {
+function isJournal(value: unknown): value is Journal {
   if (value === null || typeof value !== "object") return false;
-  const { id, source_card_id, target_card_id, kind, action } = value as Partial<Intent>;
+  const { id, source_card_id, target_card_id, kind, action, baseRevision } =
+    value as Partial<Journal>;
   return (
     typeof id === "string" &&
     uuid.test(id) &&
@@ -57,13 +60,25 @@ function isIntent(value: unknown): value is Intent {
     uuid.test(target_card_id) &&
     source_card_id !== target_card_id &&
     isKind(kind) &&
-    (action === "add" || action === "change" || action === "remove")
+    (action === "add" || action === "change" || action === "remove") &&
+    typeof baseRevision === "number" &&
+    Number.isSafeInteger(baseRevision) &&
+    baseRevision > 0
   );
 }
 
 export function mountRelationships(
   root: HTMLElement,
-  { api, signal: ownerSignal, boardId, readWithSession, ticketLink, beginWrite, refresh }: Options,
+  {
+    api,
+    signal: ownerSignal,
+    boardId,
+    readWithSession,
+    ticketLink,
+    beginWrite,
+    beginInspection,
+    refresh,
+  }: Options,
 ) {
   const doc = root.ownerDocument;
   const lifetime = new AbortController();
@@ -77,7 +92,7 @@ export function mountRelationships(
   let loadFailed = false;
   let read: AbortController | undefined;
   let lookup: AbortController | undefined;
-  let pending: Intent | null = null;
+  let pending: Journal | null = null;
   let storageFailed = false;
   let notice = "";
 
@@ -142,25 +157,44 @@ export function mountRelationships(
     }
   }
 
+  function journalStorage() {
+    const storage = doc.defaultView?.sessionStorage;
+    if (!storage) throw new TypeError("Session storage unavailable.");
+    return storage;
+  }
+
   function readJournal() {
     try {
-      const raw = doc.defaultView?.sessionStorage.getItem(journalKey);
-      const parsed: unknown = raw ? JSON.parse(raw) : null;
-      if (parsed !== null && !isIntent(parsed))
+      const raw = journalStorage().getItem(journalKey);
+      const parsed: unknown = raw === null ? null : JSON.parse(raw);
+      if (parsed !== null && !isJournal(parsed))
         throw new TypeError("Invalid relationship journal.");
       pending = parsed;
+      return raw;
     } catch {
       storageFailed = true;
+      return undefined;
     }
   }
 
-  function saveJournal(intent: Intent | null): boolean {
+  function writeJournal(intent: Journal) {
+    if (readJournal() !== null) return null;
     try {
-      const storage = doc.defaultView?.sessionStorage;
-      if (!storage) throw new TypeError("Session storage unavailable.");
-      if (intent) storage.setItem(journalKey, JSON.stringify(intent));
-      else storage.removeItem(journalKey);
+      const raw = JSON.stringify(intent);
+      journalStorage().setItem(journalKey, raw);
       pending = intent;
+      return raw;
+    } catch {
+      storageFailed = true;
+      return null;
+    }
+  }
+
+  function clearJournal(original: string) {
+    if (readJournal() !== original) return false;
+    try {
+      journalStorage().removeItem(journalKey);
+      pending = null;
       return true;
     } catch {
       storageFailed = true;
@@ -415,6 +449,13 @@ export function mountRelationships(
     if (!context || context.cardId !== cardId || context.boardEtag !== expectedEtag || !canWrite())
       return;
     const etag = context.boardEtag;
+    const baseRevision = Number(etag.slice(boardId.length + 2, -1));
+    if (
+      !Number.isSafeInteger(baseRevision) ||
+      baseRevision < 1 ||
+      etag !== `"${boardId}-${baseRevision}"`
+    )
+      return;
     const release = beginWrite(cardId, targetId(intent, cardId));
     if (!release) return;
     notice = "";
@@ -424,8 +465,12 @@ export function mountRelationships(
         "submitting",
         async () => {
           renderControls();
+          let journal: string | null = null;
           const result = await submitOperation(
-            () => saveJournal(intent),
+            () => {
+              journal = writeJournal({ ...intent, baseRevision });
+              return journal !== null;
+            },
             async () => {
               if (intent.action === "remove") {
                 await api.removeRelationship(intent.id, revision, etag);
@@ -448,16 +493,16 @@ export function mountRelationships(
           );
           switch (result.kind) {
             case "confirmed":
-              saveJournal(null);
+              if (journal) clearJournal(journal);
               notice = intent.action === "remove" ? "Relationship removed." : "Relationship saved.";
               if (intent.action === "add" && context?.cardId === cardId) target.value = "";
               break;
             case "stale":
-              saveJournal(null);
+              if (journal) clearJournal(journal);
               notice = "The board or relationship changed. Review the latest relationships.";
               break;
             case "refused":
-              saveJournal(null);
+              if (journal) clearJournal(journal);
               notice = "The relationship change was refused.";
               break;
             case "unknown":
@@ -536,38 +581,59 @@ export function mountRelationships(
   }
 
   async function inspectRelationship() {
+    if (signal.aborted || operations.state(boardId)) return;
+    const original = readJournal();
     const intent = pending;
-    if (!intent || signal.aborted) return;
-    await operations.run(
-      boardId,
-      "inspecting",
-      async () => {
-        notice = "";
-        renderControls();
-        try {
-          const { etag } = await readWithSession(
-            () => api.getBoardAvailability(boardId, signal),
-            signal,
-          );
-          if (!etag) throw new ApiError("invalid_response");
-          const links = await readLinks(intent.source_card_id, signal);
-          await checkBoard(etag, signal);
-          const found = links.find(({ id }) => id === intent.id);
-          saveJournal(null);
-          notice =
-            intent.action === "remove" && !found
-              ? "The inspected relationship is absent."
-              : intent.action !== "remove" && sameLink(found, intent)
-                ? "The inspected relationship matches the submitted change."
-                : "The inspected relationship does not match the submitted change.";
-          refreshAfterWrite();
-        } catch {
-          if (!signal.aborted)
-            notice = "Could not inspect the saved relationship. Try inspection again.";
-        }
-      },
-      renderControls,
-    );
+    if (!original || !intent) {
+      notice = "";
+      renderControls();
+      return;
+    }
+    const release = beginInspection(intent.source_card_id, intent.target_card_id);
+    if (!release) {
+      notice =
+        "A card operation is still running. Inspect the saved relationship again when it finishes.";
+      renderControls();
+      return;
+    }
+    try {
+      await operations.run(
+        boardId,
+        "inspecting",
+        async () => {
+          notice = "";
+          renderControls();
+          try {
+            const { etag, data } = await readWithSession(
+              () => api.getBoardAvailability(boardId, signal),
+              signal,
+            );
+            const links = await readLinks(intent.source_card_id, signal);
+            await checkBoard(etag, signal);
+            const found = links.find(({ id }) => id === intent.id);
+            const matches = intent.action === "remove" ? !found : sameLink(found, intent);
+            // An outstanding request still has a usable board precondition at its base revision.
+            if (data.revision <= intent.baseRevision) {
+              notice = "The relationship change is not visible yet. The outcome is still unknown.";
+              return;
+            }
+            if (!clearJournal(original)) return;
+            notice = matches
+              ? intent.action === "remove"
+                ? "The inspected relationship is absent."
+                : "The inspected relationship matches the submitted change."
+              : "The inspected relationship does not match the submitted change.";
+            refreshAfterWrite();
+          } catch {
+            if (!signal.aborted)
+              notice = "Could not inspect the saved relationship. Try inspection again.";
+          }
+        },
+        renderControls,
+      );
+    } finally {
+      release();
+    }
   }
 
   retry.addEventListener(
@@ -595,6 +661,7 @@ export function mountRelationships(
   return {
     update(next: RelationshipContext | null, writable: boolean) {
       if (signal.aborted) return;
+      if (!operations.state(boardId)) readJournal();
       const previous = context;
       context = next;
       ready = writable;

@@ -4,10 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node node_modules/typescript/lib/tsc.js --project tsconfig.json --noEmit",
-    "test": "node --test api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn6.test.mjs turn7.test.mjs turn7-ui.test.mjs"
+    "build": "node build.mjs",
+    "check": "npm run typecheck && npm run lint && npm run lint:prior-tests && npm run format:check && node build.mjs --check",
+    "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project clean-room/tsconfig.json --noEmit && tsc --project tsconfig.tools.json --noEmit",
+    "lint": "oxlint --no-ignore --config .oxlintrc.json clean-room build.mjs tooling",
+    "lint:prior-tests": "oxlint --disable-nested-config --config .oxlint-prior-tests.json api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn6.test.mjs turn7.test.mjs turn7-ui.test.mjs",
+    "format": "prettier --write \"**/*.{ts,js,mjs,cjs,css,html,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,mjs,cjs,css,html,json}\"",
+    "test": "node --test api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn6.test.mjs turn7.test.mjs turn7-ui.test.mjs clean-room/workspace/read.test.mjs clean-room/board/read.test.mjs"
   },
   "devDependencies": {
+    "@types/node": "26.6.6",
+    "esbuild": "0.28.2",
+    "oxlint": "1.90.0",
+    "oxlint-tsgolint": "7.0.2005",
+    "prettier": "3.9.10",
     "typescript": "7.0.2"
   }
 }

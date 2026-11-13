@@ -2,7 +2,7 @@ package web
 
 import "embed"
 
-// Assets contains the production browser entry point and its local dependencies.
+// Assets contains the optimized clean-room browser release.
 //
-//go:embed index.html app.mjs api.mjs board-updates.mjs operation-id.mjs card-prose.mjs app.css
+//go:embed generated/index.html generated/app.mjs generated/app.css generated/board.css generated/inter-variable.woff2 generated/OFL.txt
 var Assets embed.FS

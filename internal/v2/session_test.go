@@ -128,13 +128,14 @@ func TestM04BrowserShellHeaders(t *testing.T) {
 	_, c := eventHTTPServer(t)
 	for _, tc := range []struct{ path, media string }{
 		{"/", "text/html"},
+		{"/board/" + newID(), "text/html"},
+		{"/board/missing-fixture", "text/html"},
 		{"/boards/" + newID(), "text/html"},
 		{"/assets/app.mjs", "text/javascript"},
-		{"/assets/api.mjs", "text/javascript"},
-		{"/assets/board-updates.mjs", "text/javascript"},
-		{"/assets/card-prose.mjs", "text/javascript"},
-		{"/assets/operation-id.mjs", "text/javascript"},
 		{"/assets/app.css", "text/css"},
+		{"/assets/board.css", "text/css"},
+		{"/assets/inter-variable.woff2", "font/woff2"},
+		{"/assets/OFL.txt", "text/plain"},
 	} {
 		res, err := c.client.Get(c.url + tc.path)
 		if err != nil {
@@ -145,8 +146,8 @@ func TestM04BrowserShellHeaders(t *testing.T) {
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
-		if tc.path == "/assets/operation-id.mjs" && !strings.Contains(string(body), "export function newOperationId()") {
-			t.Fatal("operation ID module was not served")
+		if strings.HasPrefix(tc.media, "text/html") && !strings.Contains(string(body), "/assets/app.mjs") {
+			t.Fatal("optimized browser entry was not served")
 		}
 		if res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), tc.media) ||
 			res.Header.Get("Content-Security-Policy") != browserCSP || res.Header.Get("Cache-Control") != "no-store" ||

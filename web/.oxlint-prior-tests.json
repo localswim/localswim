@@ -1,0 +1,19 @@
+{
+  "categories": { "correctness": "off" },
+  "env": { "node": true },
+  "rules": {
+    "no-async-promise-executor": "error",
+    "array-callback-return": "error",
+    "no-dupe-keys": "error",
+    "no-dupe-else-if": "error",
+    "no-duplicate-case": "error",
+    "no-self-assign": "error",
+    "no-self-compare": "error",
+    "use-isnan": "error",
+    "valid-typeof": "error",
+    "no-unsafe-finally": "error",
+    "no-unreachable": "error",
+    "no-debugger": "error",
+    "no-eval": "error"
+  }
+}

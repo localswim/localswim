@@ -1,7 +1,7 @@
 {
   "title": "Epic #0581 clean-room V1-identical TypeScript UI",
-  "status": "T1 source and visual reviews complete; required checks in progress. T2 closed pending Architect release.",
-  "assignment_revision": 4,
+  "status": "T1 accepted into RFR. T2 implementation and corrected paired evidence complete for PR review; T3 awaits Architect squash merge/release and Terry visual confirmation.",
+  "assignment_revision": 5,
   "story_references_are_ticket_numbers": false,
   "source_policy": {
     "target": "Exact visible V1 appearance and behavior through fresh TypeScript presentation and V2 API",
@@ -1377,60 +1377,416 @@
           }
         }
       ]
+    },
+    {
+      "status": "Roster before T1 acceptance and T2 execution",
+      "revision": 4,
+      "assignments": [
+        {
+          "primary": {
+            "reasoning": "high",
+            "name": "Clean Room UI Lead",
+            "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
+            "model": "gpt-6.1-sol"
+          },
+          "remaining_turn": 1,
+          "acceptance": {
+            "reasoning": "high",
+            "name": "Architect",
+            "scope": "Independent turn review, RFR authority and next-turn release",
+            "model": "gpt-6.1-sol"
+          },
+          "original_turn": 1,
+          "cards": [
+            {
+              "missing_input": "Architect review/release after verification packet",
+              "reviewer": {
+                "reasoning": "high",
+                "name": "Sol High 0582 Review",
+                "independent": true,
+                "model": "gpt-6.1-sol"
+              },
+              "scope": "Epic #0581 / #0582 / R01",
+              "author": {
+                "reasoning": "high",
+                "name": "Sol High 0582 Contracts",
+                "model": "gpt-6.1-sol"
+              },
+              "readiness": "Author/source review/Terra complete; parent verification and Architect handoff remain. Card In Progress.",
+              "ticket": 582,
+              "story": "R01",
+              "prerequisites": []
+            }
+          ],
+          "wave_rule": "Start ready authors, replace finished authors with fresh reviewers; do not reserve idle pairs; max16 direct workers; depth1; one compiler/browser operator",
+          "visual_reviewer": {
+            "reasoning": "medium",
+            "name": "Terra Medium T1 Visual Review",
+            "model": "gpt-6.1-terra"
+          }
+        },
+        {
+          "primary": {
+            "reasoning": "high",
+            "name": "Clean Room UI Lead",
+            "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
+            "model": "gpt-6.1-sol"
+          },
+          "remaining_turn": 2,
+          "acceptance": {
+            "reasoning": "high",
+            "name": "Architect",
+            "scope": "Independent turn review, RFR authority and next-turn release",
+            "model": "gpt-6.1-sol"
+          },
+          "original_turn": 2,
+          "cards": [
+            {
+              "missing_input": "Architect T1 review and explicit T2 release",
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0583 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "scope": "Epic #0581 / #0583 / R02",
+              "author": {
+                "name": "Sol Medium 0583 Workspace",
+                "scope": "workspace renderer, selection and scroll intents",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "readiness": "#0582 source review complete; awaits Architect acceptance and T2 release. Do not start.",
+              "ticket": 583,
+              "story": "R02",
+              "prerequisites": [
+                "R01"
+              ],
+              "coauthors": [
+                {
+                  "name": "Sol High 0583 Session",
+                  "scope": "session/bootstrap and validated workspace adapter",
+                  "reasoning": "high",
+                  "model": "gpt-6.1-sol"
+                }
+              ]
+            },
+            {
+              "missing_input": "Architect T1 review and explicit T2 release",
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol Medium 0584 Review",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "scope": "Epic #0581 / #0584 / R03",
+              "author": {
+                "name": "Sol Medium 0584 Render",
+                "scope": "board renderer and scoped CSS",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "readiness": "#0582 source review complete; awaits Architect acceptance and T2 release. Do not start.",
+              "ticket": 584,
+              "story": "R03",
+              "prerequisites": [
+                "R01"
+              ],
+              "coauthors": [
+                {
+                  "name": "Sol Medium 0584 Data",
+                  "scope": "validated board read/projection adapter",
+                  "reasoning": "medium",
+                  "model": "gpt-6.1-sol"
+                }
+              ]
+            }
+          ],
+          "wave_rule": "Start ready authors, replace finished authors with fresh reviewers; do not reserve idle pairs; max16 direct workers; depth1; one compiler/browser operator",
+          "visual_reviewer": {
+            "reasoning": "medium",
+            "name": "Terra Medium T2 Visual Review",
+            "model": "gpt-6.1-terra"
+          }
+        },
+        {
+          "primary": {
+            "reasoning": "high",
+            "name": "Clean Room UI Lead",
+            "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
+            "model": "gpt-6.1-sol"
+          },
+          "remaining_turn": 3,
+          "acceptance": {
+            "reasoning": "high",
+            "name": "Architect",
+            "scope": "Independent turn review, RFR authority and next-turn release",
+            "model": "gpt-6.1-sol"
+          },
+          "original_turn": 3,
+          "cards": [
+            {
+              "missing_input": "Preceding turn release and Terry visual confirmation",
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0585 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "scope": "Epic #0581 / #0585 / R04",
+              "author": {
+                "name": "Sol Medium 0585 Pins",
+                "scope": "pin ordering/search and persistence",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
+              "ticket": 585,
+              "story": "R04",
+              "prerequisites": [
+                "R02"
+              ],
+              "coauthors": [
+                {
+                  "name": "Sol Medium 0585 Sidebar",
+                  "scope": "resize/collapse geometry and preferences",
+                  "reasoning": "medium",
+                  "model": "gpt-6.1-sol"
+                }
+              ]
+            },
+            {
+              "missing_input": "Preceding turn release and Terry visual confirmation",
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol Medium 0586 Review",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "scope": "Epic #0581 / #0586 / R05",
+              "author": {
+                "name": "Sol Medium 0586 Author",
+                "scope": "Board filtering and completed visibility",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
+              "ticket": 586,
+              "story": "R05",
+              "prerequisites": [
+                "R03"
+              ],
+              "coauthors": []
+            },
+            {
+              "missing_input": "Preceding turn release and Terry visual confirmation",
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol Medium 0587 Review",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "scope": "Epic #0581 / #0587 / R06",
+              "author": {
+                "name": "Sol Medium 0587 Render",
+                "scope": "drawer renderer/focus/feature slots",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
+              "ticket": 587,
+              "story": "R06",
+              "prerequisites": [
+                "R03"
+              ],
+              "coauthors": [
+                {
+                  "name": "Sol Medium 0587 Data",
+                  "scope": "validated drawer read projection",
+                  "reasoning": "medium",
+                  "model": "gpt-6.1-sol"
+                }
+              ]
+            },
+            {
+              "missing_input": "Preceding turn release and Terry visual confirmation",
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0588 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "scope": "Epic #0581 / #0588 / R09",
+              "author": {
+                "name": "Sol Medium 0588 Form",
+                "scope": "creation form and exact draft inputs",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
+              "ticket": 588,
+              "story": "R09",
+              "prerequisites": [
+                "R03"
+              ],
+              "coauthors": [
+                {
+                  "name": "Sol Medium 0588 Transaction",
+                  "scope": "create/link original-intent transaction adapter",
+                  "reasoning": "medium",
+                  "model": "gpt-6.1-sol"
+                }
+              ]
+            },
+            {
+              "missing_input": "Preceding turn release and Terry visual confirmation",
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0589 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "scope": "Epic #0581 / #0589 / R11",
+              "author": {
+                "name": "Sol Medium 0589 Author",
+                "scope": "Card movement",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
+              "ticket": 589,
+              "story": "R11",
+              "prerequisites": [
+                "R03"
+              ],
+              "coauthors": []
+            },
+            {
+              "missing_input": "Preceding turn release and Terry visual confirmation",
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0590 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "scope": "Epic #0581 / #0590 / R13",
+              "author": {
+                "name": "Sol Medium 0590 Author",
+                "scope": "Lane approval",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
+              "ticket": 590,
+              "story": "R13",
+              "prerequisites": [
+                "R03"
+              ],
+              "coauthors": []
+            },
+            {
+              "missing_input": "Preceding turn release and Terry visual confirmation",
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0591 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "scope": "Epic #0581 / #0591 / R14",
+              "author": {
+                "name": "Sol Medium 0591 Author",
+                "scope": "Dependency ordering",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
+              "ticket": 591,
+              "story": "R14",
+              "prerequisites": [
+                "R03"
+              ],
+              "coauthors": []
+            },
+            {
+              "missing_input": "Preceding turn release and Terry visual confirmation",
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0592 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "scope": "Epic #0581 / #0592 / R15",
+              "author": {
+                "name": "Sol Medium 0592 Author",
+                "scope": "Batch priority",
+                "reasoning": "medium",
+                "model": "gpt-6.1-sol"
+              },
+              "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
+              "ticket": 592,
+              "story": "R15",
+              "prerequisites": [
+                "R03"
+              ],
+              "coauthors": []
+            },
+            {
+              "missing_input": "Preceding turn release and Terry visual confirmation",
+              "reviewer": {
+                "independent_of_all_authors": true,
+                "name": "Sol High 0593 Review",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "scope": "Epic #0581 / #0593 / R18",
+              "author": {
+                "name": "Sol High 0593 Live",
+                "scope": "live/reconnect state controller",
+                "reasoning": "high",
+                "model": "gpt-6.1-sol"
+              },
+              "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
+              "ticket": 593,
+              "story": "R18",
+              "prerequisites": [
+                "R02",
+                "R03"
+              ],
+              "coauthors": [
+                {
+                  "name": "Sol Medium 0593 Status",
+                  "scope": "status/attention presentation",
+                  "reasoning": "medium",
+                  "model": "gpt-6.1-sol"
+                }
+              ]
+            }
+          ],
+          "wave_rule": "Start ready authors, replace finished authors with fresh reviewers; do not reserve idle pairs; max16 direct workers; depth1; one compiler/browser operator",
+          "visual_reviewer": {
+            "reasoning": "medium",
+            "name": "Terra Medium T3 Visual Review",
+            "model": "gpt-6.1-terra"
+          }
+        }
+      ]
     }
   ],
   "current_rolling_assignments": [
     {
-      "primary": {
-        "reasoning": "high",
-        "name": "Clean Room UI Lead",
-        "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
-        "model": "gpt-6.1-sol"
-      },
       "remaining_turn": 1,
-      "acceptance": {
-        "reasoning": "high",
-        "name": "Architect",
-        "scope": "Independent turn review, RFR authority and next-turn release",
-        "model": "gpt-6.1-sol"
-      },
-      "original_turn": 1,
-      "cards": [
-        {
-          "missing_input": "Architect review/release after verification packet",
-          "reviewer": {
-            "reasoning": "high",
-            "name": "Sol High 0582 Review",
-            "independent": true,
-            "model": "gpt-6.1-sol"
-          },
-          "scope": "Epic #0581 / #0582 / R01",
-          "author": {
-            "reasoning": "high",
-            "name": "Sol High 0582 Contracts",
-            "model": "gpt-6.1-sol"
-          },
-          "readiness": "Author/source review/Terra complete; parent verification and Architect handoff remain. Card In Progress.",
-          "ticket": 582,
-          "story": "R01",
-          "prerequisites": []
-        }
-      ],
       "wave_rule": "Start ready authors, replace finished authors with fresh reviewers; do not reserve idle pairs; max16 direct workers; depth1; one compiler/browser operator",
       "visual_reviewer": {
-        "reasoning": "medium",
-        "name": "Terra Medium T1 Visual Review",
-        "model": "gpt-6.1-terra"
-      }
-    },
-    {
+        "model": "gpt-6.1-terra",
+        "name": "Terra Medium 0584 Visual Review",
+        "reasoning": "medium"
+      },
       "primary": {
         "reasoning": "high",
         "name": "Clean Room UI Lead",
         "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
         "model": "gpt-6.1-sol"
       },
-      "remaining_turn": 2,
       "acceptance": {
         "reasoning": "high",
         "name": "Architect",
@@ -1440,26 +1796,26 @@
       "original_turn": 2,
       "cards": [
         {
-          "missing_input": "Architect T1 review and explicit T2 release",
+          "prerequisites": [
+            "R01"
+          ],
           "reviewer": {
             "independent_of_all_authors": true,
             "name": "Sol High 0583 Review",
             "reasoning": "high",
             "model": "gpt-6.1-sol"
           },
-          "scope": "Epic #0581 / #0583 / R02",
+          "readiness": "T1 accepted. T2 correction/source/visual review complete; awaiting Architect PR review.",
+          "ticket": 583,
+          "scope": "Epic0581/R02",
           "author": {
             "name": "Sol Medium 0583 Workspace",
             "scope": "workspace renderer, selection and scroll intents",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "#0582 source review complete; awaits Architect acceptance and T2 release. Do not start.",
-          "ticket": 583,
+          "missing_input": "Architect PR review and squash merge; Terry visual checkpoint for T3.",
           "story": "R02",
-          "prerequisites": [
-            "R01"
-          ],
           "coauthors": [
             {
               "name": "Sol High 0583 Session",
@@ -1470,26 +1826,26 @@
           ]
         },
         {
-          "missing_input": "Architect T1 review and explicit T2 release",
+          "prerequisites": [
+            "R01"
+          ],
           "reviewer": {
             "independent_of_all_authors": true,
             "name": "Sol Medium 0584 Review",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "scope": "Epic #0581 / #0584 / R03",
+          "readiness": "T1 accepted. T2 correction/source/visual review complete; awaiting Architect PR review.",
+          "ticket": 584,
+          "scope": "Epic0581/R03",
           "author": {
             "name": "Sol Medium 0584 Render",
             "scope": "board renderer and scoped CSS",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "#0582 source review complete; awaits Architect acceptance and T2 release. Do not start.",
-          "ticket": 584,
+          "missing_input": "Architect PR review and squash merge; Terry visual checkpoint for T3.",
           "story": "R03",
-          "prerequisites": [
-            "R01"
-          ],
           "coauthors": [
             {
               "name": "Sol Medium 0584 Data",
@@ -1499,22 +1855,22 @@
             }
           ]
         }
-      ],
-      "wave_rule": "Start ready authors, replace finished authors with fresh reviewers; do not reserve idle pairs; max16 direct workers; depth1; one compiler/browser operator",
-      "visual_reviewer": {
-        "reasoning": "medium",
-        "name": "Terra Medium T2 Visual Review",
-        "model": "gpt-6.1-terra"
-      }
+      ]
     },
     {
+      "remaining_turn": 2,
+      "wave_rule": "Start ready authors, replace finished authors with fresh reviewers; do not reserve idle pairs; max16 direct workers; depth1; one compiler/browser operator",
+      "visual_reviewer": {
+        "model": "gpt-6.1-terra",
+        "name": "Terra Medium T3 Visual Review",
+        "reasoning": "medium"
+      },
       "primary": {
         "reasoning": "high",
         "name": "Clean Room UI Lead",
         "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
         "model": "gpt-6.1-sol"
       },
-      "remaining_turn": 3,
       "acceptance": {
         "reasoning": "high",
         "name": "Architect",
@@ -1524,26 +1880,26 @@
       "original_turn": 3,
       "cards": [
         {
-          "missing_input": "Preceding turn release and Terry visual confirmation",
+          "prerequisites": [
+            "R02"
+          ],
           "reviewer": {
             "independent_of_all_authors": true,
             "name": "Sol High 0585 Review",
             "reasoning": "high",
             "model": "gpt-6.1-sol"
           },
-          "scope": "Epic #0581 / #0585 / R04",
+          "readiness": "Awaiting T2 squash merge, Architect release and Terry visual confirmation.",
+          "ticket": 585,
+          "scope": "Epic0581/R04",
           "author": {
             "name": "Sol Medium 0585 Pins",
             "scope": "pin ordering/search and persistence",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
-          "ticket": 585,
+          "missing_input": "Architect release and Terry T2 checkpoint.",
           "story": "R04",
-          "prerequisites": [
-            "R02"
-          ],
           "coauthors": [
             {
               "name": "Sol Medium 0585 Sidebar",
@@ -1554,49 +1910,49 @@
           ]
         },
         {
-          "missing_input": "Preceding turn release and Terry visual confirmation",
+          "prerequisites": [
+            "R03"
+          ],
           "reviewer": {
             "independent_of_all_authors": true,
             "name": "Sol Medium 0586 Review",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "scope": "Epic #0581 / #0586 / R05",
+          "readiness": "Awaiting T2 squash merge, Architect release and Terry visual confirmation.",
+          "ticket": 586,
+          "scope": "Epic0581/R05",
           "author": {
             "name": "Sol Medium 0586 Author",
             "scope": "Board filtering and completed visibility",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
-          "ticket": 586,
+          "missing_input": "Architect release and Terry T2 checkpoint.",
           "story": "R05",
-          "prerequisites": [
-            "R03"
-          ],
           "coauthors": []
         },
         {
-          "missing_input": "Preceding turn release and Terry visual confirmation",
+          "prerequisites": [
+            "R03"
+          ],
           "reviewer": {
             "independent_of_all_authors": true,
             "name": "Sol Medium 0587 Review",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "scope": "Epic #0581 / #0587 / R06",
+          "readiness": "Awaiting T2 squash merge, Architect release and Terry visual confirmation.",
+          "ticket": 587,
+          "scope": "Epic0581/R06",
           "author": {
             "name": "Sol Medium 0587 Render",
             "scope": "drawer renderer/focus/feature slots",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
-          "ticket": 587,
+          "missing_input": "Architect release and Terry T2 checkpoint.",
           "story": "R06",
-          "prerequisites": [
-            "R03"
-          ],
           "coauthors": [
             {
               "name": "Sol Medium 0587 Data",
@@ -1607,26 +1963,26 @@
           ]
         },
         {
-          "missing_input": "Preceding turn release and Terry visual confirmation",
+          "prerequisites": [
+            "R03"
+          ],
           "reviewer": {
             "independent_of_all_authors": true,
             "name": "Sol High 0588 Review",
             "reasoning": "high",
             "model": "gpt-6.1-sol"
           },
-          "scope": "Epic #0581 / #0588 / R09",
+          "readiness": "Awaiting T2 squash merge, Architect release and Terry visual confirmation.",
+          "ticket": 588,
+          "scope": "Epic0581/R09",
           "author": {
             "name": "Sol Medium 0588 Form",
             "scope": "creation form and exact draft inputs",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
-          "ticket": 588,
+          "missing_input": "Architect release and Terry T2 checkpoint.",
           "story": "R09",
-          "prerequisites": [
-            "R03"
-          ],
           "coauthors": [
             {
               "name": "Sol Medium 0588 Transaction",
@@ -1637,119 +1993,119 @@
           ]
         },
         {
-          "missing_input": "Preceding turn release and Terry visual confirmation",
+          "prerequisites": [
+            "R03"
+          ],
           "reviewer": {
             "independent_of_all_authors": true,
             "name": "Sol High 0589 Review",
             "reasoning": "high",
             "model": "gpt-6.1-sol"
           },
-          "scope": "Epic #0581 / #0589 / R11",
+          "readiness": "Awaiting T2 squash merge, Architect release and Terry visual confirmation.",
+          "ticket": 589,
+          "scope": "Epic0581/R11",
           "author": {
             "name": "Sol Medium 0589 Author",
             "scope": "Card movement",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
-          "ticket": 589,
+          "missing_input": "Architect release and Terry T2 checkpoint.",
           "story": "R11",
-          "prerequisites": [
-            "R03"
-          ],
           "coauthors": []
         },
         {
-          "missing_input": "Preceding turn release and Terry visual confirmation",
+          "prerequisites": [
+            "R03"
+          ],
           "reviewer": {
             "independent_of_all_authors": true,
             "name": "Sol High 0590 Review",
             "reasoning": "high",
             "model": "gpt-6.1-sol"
           },
-          "scope": "Epic #0581 / #0590 / R13",
+          "readiness": "Awaiting T2 squash merge, Architect release and Terry visual confirmation.",
+          "ticket": 590,
+          "scope": "Epic0581/R13",
           "author": {
             "name": "Sol Medium 0590 Author",
             "scope": "Lane approval",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
-          "ticket": 590,
+          "missing_input": "Architect release and Terry T2 checkpoint.",
           "story": "R13",
-          "prerequisites": [
-            "R03"
-          ],
           "coauthors": []
         },
         {
-          "missing_input": "Preceding turn release and Terry visual confirmation",
+          "prerequisites": [
+            "R03"
+          ],
           "reviewer": {
             "independent_of_all_authors": true,
             "name": "Sol High 0591 Review",
             "reasoning": "high",
             "model": "gpt-6.1-sol"
           },
-          "scope": "Epic #0581 / #0591 / R14",
+          "readiness": "Awaiting T2 squash merge, Architect release and Terry visual confirmation.",
+          "ticket": 591,
+          "scope": "Epic0581/R14",
           "author": {
             "name": "Sol Medium 0591 Author",
             "scope": "Dependency ordering",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
-          "ticket": 591,
+          "missing_input": "Architect release and Terry T2 checkpoint.",
           "story": "R14",
-          "prerequisites": [
-            "R03"
-          ],
           "coauthors": []
         },
         {
-          "missing_input": "Preceding turn release and Terry visual confirmation",
+          "prerequisites": [
+            "R03"
+          ],
           "reviewer": {
             "independent_of_all_authors": true,
             "name": "Sol High 0592 Review",
             "reasoning": "high",
             "model": "gpt-6.1-sol"
           },
-          "scope": "Epic #0581 / #0592 / R15",
+          "readiness": "Awaiting T2 squash merge, Architect release and Terry visual confirmation.",
+          "ticket": 592,
+          "scope": "Epic0581/R15",
           "author": {
             "name": "Sol Medium 0592 Author",
             "scope": "Batch priority",
             "reasoning": "medium",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
-          "ticket": 592,
+          "missing_input": "Architect release and Terry T2 checkpoint.",
           "story": "R15",
-          "prerequisites": [
-            "R03"
-          ],
           "coauthors": []
         },
         {
-          "missing_input": "Preceding turn release and Terry visual confirmation",
+          "prerequisites": [
+            "R02",
+            "R03"
+          ],
           "reviewer": {
             "independent_of_all_authors": true,
             "name": "Sol High 0593 Review",
             "reasoning": "high",
             "model": "gpt-6.1-sol"
           },
-          "scope": "Epic #0581 / #0593 / R18",
+          "readiness": "Awaiting T2 squash merge, Architect release and Terry visual confirmation.",
+          "ticket": 593,
+          "scope": "Epic0581/R18",
           "author": {
             "name": "Sol High 0593 Live",
             "scope": "live/reconnect state controller",
             "reasoning": "high",
             "model": "gpt-6.1-sol"
           },
-          "readiness": "T2 not entered; prerequisites and Architect release outstanding; Terry integrated T2 visual confirmation required. Do not start.",
-          "ticket": 593,
+          "missing_input": "Architect release and Terry T2 checkpoint.",
           "story": "R18",
-          "prerequisites": [
-            "R02",
-            "R03"
-          ],
           "coauthors": [
             {
               "name": "Sol Medium 0593 Status",
@@ -1759,16 +2115,195 @@
             }
           ]
         }
-      ],
+      ]
+    },
+    {
+      "remaining_turn": 3,
       "wave_rule": "Start ready authors, replace finished authors with fresh reviewers; do not reserve idle pairs; max16 direct workers; depth1; one compiler/browser operator",
       "visual_reviewer": {
-        "reasoning": "medium",
-        "name": "Terra Medium T3 Visual Review",
-        "model": "gpt-6.1-terra"
-      }
+        "model": "gpt-6.1-terra",
+        "name": "Terra Medium T4 Visual Review",
+        "reasoning": "medium"
+      },
+      "primary": {
+        "reasoning": "high",
+        "name": "Clean Room UI Lead",
+        "scope": "Observations, compiler/browser leases, integration, checks, commits and handoff",
+        "model": "gpt-6.1-sol"
+      },
+      "acceptance": {
+        "reasoning": "high",
+        "name": "Architect",
+        "scope": "Independent turn review, RFR authority and next-turn release",
+        "model": "gpt-6.1-sol"
+      },
+      "original_turn": 4,
+      "cards": [
+        {
+          "prerequisites": [
+            "R06"
+          ],
+          "reviewer": {
+            "independent_of_all_authors": true,
+            "name": "Sol High 0594 Review",
+            "reasoning": "high",
+            "model": "gpt-6.1-sol"
+          },
+          "readiness": "Awaiting accepted prerequisites and Architect release after T3.",
+          "ticket": 594,
+          "scope": "Epic0581/R07",
+          "author": {
+            "name": "Sol Medium 0594 Text",
+            "scope": "title/description editor and adapter",
+            "reasoning": "medium",
+            "model": "gpt-6.1-sol"
+          },
+          "missing_input": "Prerequisite acceptance and Architect release.",
+          "story": "R07",
+          "coauthors": [
+            {
+              "name": "Sol Medium 0594 Actions",
+              "scope": "owner/priority/archive adapters",
+              "reasoning": "medium",
+              "model": "gpt-6.1-sol"
+            }
+          ]
+        },
+        {
+          "prerequisites": [
+            "R06"
+          ],
+          "reviewer": {
+            "independent_of_all_authors": true,
+            "name": "Sol High 0595 Review",
+            "reasoning": "high",
+            "model": "gpt-6.1-sol"
+          },
+          "readiness": "Awaiting accepted prerequisites and Architect release after T3.",
+          "ticket": 595,
+          "scope": "Epic0581/R08",
+          "author": {
+            "name": "Sol Medium 0595 Author",
+            "scope": "Comment composition",
+            "reasoning": "medium",
+            "model": "gpt-6.1-sol"
+          },
+          "missing_input": "Prerequisite acceptance and Architect release.",
+          "story": "R08",
+          "coauthors": []
+        },
+        {
+          "prerequisites": [
+            "R06"
+          ],
+          "reviewer": {
+            "independent_of_all_authors": true,
+            "name": "Sol High 0596 Review",
+            "reasoning": "high",
+            "model": "gpt-6.1-sol"
+          },
+          "readiness": "Awaiting accepted prerequisites and Architect release after T3.",
+          "ticket": 596,
+          "scope": "Epic0581/R10",
+          "author": {
+            "name": "Sol Medium 0596 Author",
+            "scope": "Relationship editing",
+            "reasoning": "medium",
+            "model": "gpt-6.1-sol"
+          },
+          "missing_input": "Prerequisite acceptance and Architect release.",
+          "story": "R10",
+          "coauthors": []
+        },
+        {
+          "prerequisites": [
+            "R06"
+          ],
+          "reviewer": {
+            "independent_of_all_authors": true,
+            "name": "Sol High 0597 Review",
+            "reasoning": "high",
+            "model": "gpt-6.1-sol"
+          },
+          "readiness": "Awaiting accepted prerequisites and Architect release after T3.",
+          "ticket": 597,
+          "scope": "Epic0581/R12",
+          "author": {
+            "name": "Sol Medium 0597 Author",
+            "scope": "Single-card approval",
+            "reasoning": "medium",
+            "model": "gpt-6.1-sol"
+          },
+          "missing_input": "Prerequisite acceptance and Architect release.",
+          "story": "R12",
+          "coauthors": []
+        },
+        {
+          "prerequisites": [
+            "R06"
+          ],
+          "reviewer": {
+            "independent_of_all_authors": true,
+            "name": "Sol High 0598 Review",
+            "reasoning": "high",
+            "model": "gpt-6.1-sol"
+          },
+          "readiness": "Awaiting accepted prerequisites and Architect release after T3.",
+          "ticket": 598,
+          "scope": "Epic0581/R16",
+          "author": {
+            "name": "Sol Medium 0598 Render",
+            "scope": "attachment preview/download/cover presentation",
+            "reasoning": "medium",
+            "model": "gpt-6.1-sol"
+          },
+          "missing_input": "Prerequisite acceptance and Architect release.",
+          "story": "R16",
+          "coauthors": [
+            {
+              "name": "Sol Medium 0598 Data",
+              "scope": "attachment read/mutation/inspection adapters",
+              "reasoning": "medium",
+              "model": "gpt-6.1-sol"
+            }
+          ]
+        },
+        {
+          "prerequisites": [
+            "R02",
+            "R03",
+            "R06"
+          ],
+          "reviewer": {
+            "independent_of_all_authors": true,
+            "name": "Sol High 0599 Review",
+            "reasoning": "high",
+            "model": "gpt-6.1-sol"
+          },
+          "readiness": "Awaiting accepted prerequisites and Architect release after T3.",
+          "ticket": 599,
+          "scope": "Epic0581/R19",
+          "author": {
+            "name": "Sol Medium 0599 History",
+            "scope": "route/history restoration intents",
+            "reasoning": "medium",
+            "model": "gpt-6.1-sol"
+          },
+          "missing_input": "Prerequisite acceptance and Architect release.",
+          "story": "R19",
+          "coauthors": [
+            {
+              "name": "Sol High 0599 Cache",
+              "scope": "retained-view/cache authority",
+              "reasoning": "high",
+              "model": "gpt-6.1-sol"
+            }
+          ]
+        }
+      ]
     }
   ],
-  "assignment_revision_notes": "Revision4 adds useful coauthors after independent staffing review. Actual T1 preserved. Current rolling roster shows next3 remaining turns. Shared runtime module ownership explicitly delegated; Lead retains composition.",
+  "assignment_revision_notes": "Revision 5 rebases remaining turns to original T2–T4. T1 actual roster and accepted evidence remain preserved. T2 cards remain In Progress for Architect review.",
   "coauthor_assignments": [
     {
       "turn": 1,

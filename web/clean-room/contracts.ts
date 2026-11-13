@@ -133,6 +133,7 @@ export interface MountedComponent<Props> {
 export type MountComponent<Props> = (host: HTMLElement, props: Props) => MountedComponent<Props>;
 
 export interface BoardProps {
+  readonly boardName?: string;
   readonly data: ReadState<BoardData>;
   readonly session: SessionDto | null;
   readonly route: Extract<RouteState, { readonly kind: "board" }>;
@@ -149,6 +150,8 @@ export interface WorkspaceSlots {
 }
 
 export interface WorkspaceProps {
+  readonly boardPath?: (id: Uuid) => string;
+  readonly unavailableBoardKey?: string;
   readonly data: ReadState<WorkspaceData>;
   readonly service: ReadState<ServiceDto>;
   readonly session: SessionDto | null;

@@ -1,0 +1,6 @@
+#!/bin/sh
+if ! command -v node >/dev/null 2>&1; then
+  echo 'Pre-commit requires Node.js. Install it, then run node web/tooling/git-hooks/setup.mjs.' >&2
+  exit 1
+fi
+exec node web/tooling/git-hooks/format-staged.mjs

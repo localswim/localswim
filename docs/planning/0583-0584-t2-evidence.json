@@ -1,0 +1,80 @@
+{
+  "ticket_numbers": [
+    583,
+    584
+  ],
+  "private_output": "C:/Users/TDO-XPS15-2024/.codex/visualizations/2026/11/13/01a1d4d6-5f2d-7d83-bacb-8b91564f53f8/output",
+  "exact_v2_executable_sha256": "0aa6c0f53b9fffb421750f34125ed056a7a55ab523a1511f6ed101fc2cb6351d",
+  "images": [
+    {
+      "file": "t2-final-v1-1366-alpha.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "4e050e9f92a9c11967f92b88de8acf1bf8960411716aea1e6a7b787ff250c5a9"
+    },
+    {
+      "file": "t2-final-v1-1366-beta.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "83da8a2417ae753652d54d158109e4bd2f5231ef1ae5512d0ed1f5aaf382a95f"
+    },
+    {
+      "file": "t2-final-v1-1366-empty.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "115be3344d14c6a227a24da6571bc50d8f8c78cdc1a4b31cc882395088fefa6d"
+    },
+    {
+      "file": "t2-final-v1-1366-unavailable.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "7c2274f293aa002680b5bdf41cb029d1b8a0f4f758f312912f50d4537de4ea11"
+    },
+    {
+      "file": "t2-final-v1-390-alpha.jpg",
+      "width": 390,
+      "height": 844,
+      "format": "Jpeg",
+      "sha256": "5fcac9213976c939827d3e6a9f64d9f1cc08d6b80ab6fbb21b47b99f32c1414e"
+    },
+    {
+      "file": "t2-final-v1-390-beta.jpg",
+      "width": 390,
+      "height": 844,
+      "format": "Jpeg",
+      "sha256": "737849eb29772f8dbaaa786571fec3b50857516672e5a925e3827777e2f91966"
+    },
+    {
+      "file": "t2-pr-v2-1366-alpha.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "450d04ff277ff692e6c3bd9bc4a551499c6eb2ef0f399b98b747d8b337346161"
+    },
+    {
+      "file": "t2-pr-v2-1366-empty.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "b8cca9470be1adf6e5b994541e000217677fd3f2d408a799e268e9c98e425f3c"
+    },
+    {
+      "file": "t2-pr-v2-390-alpha.jpg",
+      "width": 390,
+      "height": 844,
+      "format": "Jpeg",
+      "sha256": "9ba5d3500d6bac6961d1479953d5394b7ead85644ae73c6ec11c0382146cba57"
+    },
+    {
+      "file": "t2-v1-1366-beta-first.jpg",
+      "width": 1366,
+      "height": 900,
+      "format": "Jpeg",
+      "sha256": "aad93a7d0555ebe876608c06002298c20932f28ffa253c6cce5dbf703672eae2"
+    }
+  ]
+}

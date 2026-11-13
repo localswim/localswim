@@ -634,10 +634,11 @@ and uses the same content security policy throughout.
 
 ## Checks
 
-Install the pinned development compiler.
+Install the pinned web tools and configure this checkout's Git hooks.
 
 ```powershell
-npm --prefix web ci --ignore-scripts
+node web/tooling/git-hooks/setup.mjs
+npm --prefix web run build
 ```
 
 Run the complete quality gate before handoff.
@@ -646,9 +647,12 @@ Run the complete quality gate before handoff.
 .\check.ps1
 ```
 
-It requires clean Go formatting, go vet, Go tests, strict TypeScript checking of
-the browser source, browser-client tests, and clean Git whitespace. Fix findings
-at their source and justify any narrow suppression.
+The gate runs Go formatting, vet and tests, strict TypeScript and checked
+JavaScript, type-aware lint for the fresh browser and build tooling, canonical
+formatting, a fresh release comparison, browser-client tests, and Git whitespace
+checks. Pre-commit formats staged source while preserving unstaged bytes.
+Pre-push checks the proposed Git object in a temporary checkout. The historical
+browser tests still run and receive their own syntax lint checks.
 
 ## Data and build staging
 

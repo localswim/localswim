@@ -132,6 +132,27 @@ function selectBuild(panel) {
   panel.select.dispatchEvent(new Event("change"));
 }
 
+test("the activation fence reads the current tab storage by default", (t) => {
+  const { storage } = fixture(t);
+  const original = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+  t.after(() => {
+    if (original) Object.defineProperty(globalThis, "sessionStorage", original);
+    else Reflect.deleteProperty(globalThis, "sessionStorage");
+  });
+  Object.defineProperty(globalThis, "sessionStorage", { configurable: true, value: storage });
+  assert.equal(hasPendingServiceActivation(), false);
+  storage.setItem("localswim.service-activation.v1", "{}");
+  assert.equal(hasPendingServiceActivation(), true);
+  Object.defineProperty(globalThis, "sessionStorage", {
+    configurable: true,
+    get() {
+      throw new Error("Storage access denied");
+    },
+  });
+  assert.equal(hasPendingServiceActivation(), false);
+  assert.equal(hasPendingServiceActivation(storage), true);
+});
+
 test("activation persists its captured validator and inspects the original receipt from a remounted route", async (t) => {
   const { records, storage, mount } = fixture(t);
   const write = Promise.withResolvers();

@@ -53,7 +53,7 @@ const activationRetryMs = 750;
 
 export function hasPendingServiceActivation(storage?: Pick<Storage, "getItem">) {
   try {
-    return (storage?.getItem(activationKey) ?? null) !== null;
+    return ((storage ?? globalThis.sessionStorage)?.getItem(activationKey) ?? null) !== null;
   } catch {
     return false;
   }

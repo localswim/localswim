@@ -54,7 +54,8 @@ type Draft = Readonly<{
 type Entry = {
   draft: Draft | null;
   raw: string | null | undefined;
-  storageProblem: "invalid" | "unavailable" | "unsaved" | "conflict" | undefined;
+  storageProblem: "invalid" | "unavailable" | "conflict" | undefined;
+  unsaved: boolean;
   binding: DraftBindings | undefined;
   inspected: CardVersion | undefined;
   inspectionFailed: boolean;
@@ -199,15 +200,12 @@ export function createCardTextDrafts({
       const raw = tabStorage().getItem(key);
       if (!useStored && raw === entry.raw) {
         if (entry.storageProblem === "unavailable") {
-          entry.storageProblem = raw !== null && !entry.draft ? "invalid" : undefined;
+          entry.storageProblem =
+            raw !== null && !entry.unsaved && !entry.draft ? "invalid" : undefined;
         }
         return true;
       }
-      if (
-        !useStored &&
-        entry.raw !== undefined &&
-        (entry.draft || entry.storageProblem === "unsaved")
-      ) {
+      if (!useStored && entry.raw !== undefined && (entry.draft || entry.unsaved)) {
         markConflict(entry);
         return false;
       }
@@ -216,6 +214,7 @@ export function createCardTextDrafts({
       entry.draft = raw === null ? null : parseDraft(raw);
       entry.raw = raw;
       entry.storageProblem = raw !== null && !entry.draft ? "invalid" : undefined;
+      entry.unsaved = false;
       return true;
     } catch {
       entry.inspected = undefined;
@@ -233,7 +232,10 @@ export function createCardTextDrafts({
     try {
       const current = tabStorage().getItem(key);
       if (current !== entry.raw) {
-        if (retainOnFailure) entry.draft = next;
+        if (retainOnFailure) {
+          entry.draft = next;
+          entry.unsaved = true;
+        }
         markConflict(entry);
         return false;
       }
@@ -247,11 +249,12 @@ export function createCardTextDrafts({
       entry.raw = raw;
       entry.draft = next;
       entry.storageProblem = undefined;
+      entry.unsaved = false;
       return true;
     } catch {
       if (retainOnFailure) {
         entry.draft = next;
-        entry.storageProblem = "unsaved";
+        entry.unsaved = true;
       } else {
         entry.storageProblem ??= "unavailable";
       }
@@ -278,6 +281,7 @@ export function createCardTextDrafts({
       draft: null,
       raw: undefined,
       storageProblem: undefined,
+      unsaved: false,
       binding: undefined,
       inspected: undefined,
       inspectionFailed: false,
@@ -293,7 +297,7 @@ export function createCardTextDrafts({
       if (
         entry.binding ||
         operations.state(key) ||
-        entry.storageProblem === "unsaved" ||
+        entry.unsaved ||
         entry.storageProblem === "conflict"
       )
         return;
@@ -312,7 +316,7 @@ export function createCardTextDrafts({
           oldEntry.binding ||
           operations.state(oldKey) ||
           !oldEntry.confirmedWrite ||
-          oldEntry.storageProblem === "unsaved" ||
+          oldEntry.unsaved ||
           oldEntry.storageProblem === "conflict"
         )
           continue;
@@ -348,7 +352,7 @@ export function createCardTextDrafts({
 
     function snapshot(): CardTextState {
       const { confirmed, writable } = context();
-      const { draft, inspected, storageProblem, inspectionFailed } = entry;
+      const { draft, inspected, storageProblem, unsaved, inspectionFailed } = entry;
       const active = operations.state(key);
       const unknown = draft?.phase === "submitted";
       const stale =
@@ -360,7 +364,7 @@ export function createCardTextDrafts({
           ? "storage-conflict"
           : unknown
             ? "unknown"
-            : storageProblem
+            : storageProblem || unsaved
               ? "storage-error"
               : stale
                 ? "stale"
@@ -390,7 +394,7 @@ export function createCardTextDrafts({
         canInspect:
           available &&
           storageProblem !== "conflict" &&
-          (unknown || stale || Boolean(storageProblem) || draft?.phase === "refused"),
+          (unknown || stale || unsaved || Boolean(storageProblem) || draft?.phase === "refused"),
         canDismiss:
           available &&
           (draft !== null ||

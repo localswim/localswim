@@ -371,6 +371,10 @@
     padding-right: 12px;
   }
 
+  .lsw-board-lanes:not(:has(.lsw-board-lane-action:not([hidden]))) .lsw-board-lane-heading {
+    padding-bottom: 2.833px;
+  }
+
   .lsw-board-lane-title,
   .lsw-board-lane-action {
     flex-basis: 100%;

@@ -34,3 +34,8 @@ Source inspection used the fresh TypeScript and CSS, native V2 implementation an
 - The pushpin and cache disclosure use local CSS geometry. The correction packet records that both shapes were drawn from V1 render crops. The pin graphic is decorative. Generated CSS and JavaScript contain the reviewed changes, and the Go web package embeds those assets. See [glyph styling](../../web/clean-room/workspace/workspace.css#L367), [pin markup](../../web/clean-room/workspace/render.ts#L150), [correction evidence](0583-0584-t2-correction.md), and [embedded assets](../../web/assets.go#L7).
 
 The correction passed independent source review after the focus, narrow recovery, and stylesheet ordering fixes. Browser comparison and the forced delayed-stylesheet check belong to the exact-candidate verification.
+The independent caption successor review checked the narrow header rule and
+generated board stylesheet. The rule adds space only when the lane is at most
+170 px wide and the board has no visible reorder or approval controls. It
+preserves shared alignment on boards with lane actions. No source finding
+remained in that change. The Lead verified the live caption and card geometry.

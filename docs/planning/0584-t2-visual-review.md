@@ -46,3 +46,9 @@ Matching stills do not establish keyboard behavior, loading duration, recovery a
 Rechecked the overwritten final V2 captures against V1. Narrow Alpha now has a complete rounded blue outline, resolving the missing top edge noted above. The V2 focused Alpha and Beta outlines extend slightly farther left and show an additional dark vertical stroke compared with the V1 captures; this remains a small visible difference. The current narrow update line displays the complete `1 hour ago` value, while V1 displays `2 hours ago`; the earlier truncation observation applied to a longer value and is not evidence of a persistent visibility mismatch.
 
 Desktop Beta loading retains the matching message and placement. The additional V2 Alpha loading image also shows a loading message; no corresponding V1 Alpha loading frame was supplied for a paired assessment. These observations do not establish pixel identity, interactions or Terry's acceptance.
+The UI Lead replaced the mislabeled desktop Alpha image with a settled frame
+and inspected the saved JPEG. The caption successor adds the measured compact
+header spacing on boards without visible lane actions. The Lead recorded Beta
+caption glyph positions within 0.011 CSS px of V1 at both widths and confirmed
+Alpha's last backlog card position and height stayed the same. The updated
+manifest identifies the successor executable and its complete V2 capture set.

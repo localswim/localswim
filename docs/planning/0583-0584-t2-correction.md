@@ -6,7 +6,7 @@ route behavior, and Git hook qualification remain recorded in the original
 handoff and independent reports.
 
 The corrected executable SHA-256 is
-`daab22293fb03a43428f456fbcbd8747289df3f016ef1c663d744f4cfdcd7bb3`.
+`5de2362b87feae84f9f123c661ff801200afc9d30807f4c6104b9180ab364e2a`.
 V1 remains at http://127.0.0.1:8831/ and V2 at http://127.0.0.1:8838/.
 The empty workspaces remain available on ports 8842 and 8841 respectively.
 
@@ -33,6 +33,11 @@ The empty workspaces remain available on ports 8842 and 8841 respectively.
 - Desktop backlog measurements match the 127 px first card and 122.5 px
   wrapped cards. The seven measured rows from #0001 through #0023 have
   top positions within 0.011 CSS px of V1. The gap is 7 px.
+- Beta's caption text started 2.833 CSS px higher than V1 at both widths.
+  Compact lanes on boards without visible lane actions now reserve that
+  header space. V1 and V2 caption tops are 161.833 and 161.823 at desktop
+  width and 198.333 and 198.323 at narrow width. Alpha #0023 retained its
+  exact V2 position and height after the change.
 - Both settled populated and empty selected boards show the update label
   in the header. Empty workspace and unknown bookmark suppress it.
   At 390 px, the Beta text starts at x=106.90, y=78.83 in V1 and
@@ -48,6 +53,8 @@ disposable loopback proxies that delay only the selected board's read by two
 seconds. They forward the installed UI and native API unchanged. The proxies
 allow the actual loading states to paint before capture.
 The additional V2-only frame records loading while the stylesheet is delayed.
+All ten V2 images were recaptured with the caption-corrected executable. The
+saved 1366 px Alpha JPEG was inspected and shows the populated board.
 
 Keyboard Enter selected Beta in both runtimes and left focus on the Beta row.
 The unknown-bookmark link targets the current missing path. The empty workspace
@@ -62,9 +69,10 @@ record manual browser observations.
   asset verification passed. All 273 browser tests passed on the corrected
   source. The full repository check reran all Go packages without the test
   result cache and returned success. The final focus and stylesheet assets
-  were also verified by the exact pushed-snapshot check.
+  passed the pushed-snapshot check. The caption-only successor passed the
+  focused Go browser-shell test and the strict web release checks.
 - Release sizes in bytes, raw / gzip: HTML 381 / 242, JavaScript 32881 /
-  11690, workspace CSS 8178 / 2497 and board CSS 5565 / 1693. The upstream
+  11690, workspace CSS 8178 / 2497 and board CSS 5677 / 1711. The upstream
   Inter WOFF2 and OFL are byte-identical to the original candidate.
 - Independent tooling and correction review results are recorded alongside
   the earlier workspace, board, and visual reviews. The Architect owns the

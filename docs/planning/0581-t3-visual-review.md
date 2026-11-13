@@ -41,3 +41,6 @@ The final grant and wrapping pair shows `IN: nobody · OUT: nobody` in both
 versions. V2 keeps “demonstration” on one line. The V1 and V2 fixture card
 titles and lane membership differ after their earlier test edits. The evidence
 manifest identifies the executable and served assets behind the V2 capture.
+
+The final build wraps In Progress onto two lines at the same narrow lane width
+as V1. The browser measured a 35 px title box with a 17 px line height.

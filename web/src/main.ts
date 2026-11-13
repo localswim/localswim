@@ -33,9 +33,19 @@ export function mount(root: HTMLElement): () => void {
   const { signal } = lifetime;
   const selectedBoardId = route.kind === "board" ? route.id : undefined;
   const views = createViewState(view);
-  let restored = selectedBoardId ? views.load(selectedBoardId) : undefined;
+  const initialSavedView = selectedBoardId ? views.read(selectedBoardId) : null;
+  let restored = initialSavedView ?? (selectedBoardId ? views.load(selectedBoardId) : undefined);
   const linkSelection = linkedCard(view.location.search);
-  let selection = linkSelection ?? restored?.selection ?? null;
+  const entryState: unknown = view.history.state;
+  const linkAlreadyResolved =
+    typeof entryState === "object" &&
+    entryState !== null &&
+    "localswimCardLink" in entryState &&
+    entryState.localswimCardLink === view.location.search;
+  let selection =
+    linkAlreadyResolved && initialSavedView
+      ? initialSavedView.selection
+      : (linkSelection ?? restored?.selection ?? null);
   let pendingViewSave = false;
   let pageActive = true;
   let departureView = "";
@@ -172,6 +182,11 @@ export function mount(root: HTMLElement): () => void {
     view.history.replaceState(historyState, "", current);
   }
 
+  if (linkAlreadyResolved && initialSavedView && linkSelection && selection !== linkSelection) {
+    const linkId = "id" in linkSelection ? linkSelection.id : undefined;
+    if (!selection || !("id" in selection) || selection.id !== linkId) consumeCardLink();
+  }
+
   function queueBoardViewSave() {
     if (!selectedBoardId || pendingViewSave) return;
     pendingViewSave = true;
@@ -191,19 +206,17 @@ export function mount(root: HTMLElement): () => void {
     selection = reference;
     if (explicit) {
       consumeCardLink();
-    } else if (
-      reference &&
-      "id" in reference &&
-      linkSelection &&
-      "ticket" in linkSelection &&
-      view
-    ) {
+    } else if (reference && "id" in reference && linkSelection && view) {
       const current = new URL(view.location.href);
       if (current.searchParams.has("ticket")) {
         current.searchParams.delete("ticket");
         current.searchParams.set("card", reference.id);
+      }
+      if (current.searchParams.has("card")) {
         const historyState: unknown = view.history.state;
-        view.history.replaceState(historyState, "", current);
+        const previous =
+          typeof historyState === "object" && historyState !== null ? historyState : {};
+        view.history.replaceState({ ...previous, localswimCardLink: current.search }, "", current);
       }
     }
     saveBoardView();
@@ -439,6 +452,7 @@ export function mount(root: HTMLElement): () => void {
   function resumeOnReturn(event: PageTransitionEvent) {
     if (!event.persisted) return;
     pageActive = true;
+    boardState?.requireFreshConfirmation();
     focusedTextConfirmed = false;
     editor?.update();
     void sidebar.resume();

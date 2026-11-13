@@ -302,6 +302,11 @@ export function createBoardState({
     },
     retry,
     observeCatalog,
+    requireFreshConfirmation() {
+      catalogReady = false;
+      confirmationEpoch++;
+      publish();
+    },
     fenceWrites() {
       if (explicitWriteFence) return;
       explicitWriteFence = true;

@@ -16,6 +16,12 @@ type Intent = Pick<Link, "id" | "source_card_id" | "target_card_id" | "kind"> &
   Readonly<{ action: "add" | "change" | "remove" }>;
 type Journal = Intent & Readonly<{ baseRevision: number }>;
 
+export type RelationshipTarget = CardSummary &
+  Readonly<{ priority_id: string; completed_at: string | null }>;
+
+type RelationshipReads = Pick<AppContext["api"], "listRelationships" | "listCards">;
+type ReadWithSession = Options["readWithSession"];
+
 export type RelationshipContext = Readonly<{
   cardId: string;
   archived: boolean;
@@ -43,8 +49,105 @@ const labels = {
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-function isKind(value: unknown): value is RelationshipKind {
+export function isRelationshipKind(value: unknown): value is RelationshipKind {
   return typeof value === "string" && Object.hasOwn(labels, value);
+}
+
+export function relationshipKindSelect(
+  doc: Document,
+  selected: RelationshipKind,
+  direction: 0 | 1 = 0,
+) {
+  const select = doc.createElement("select");
+  for (const kind of Object.keys(labels)) {
+    if (!isRelationshipKind(kind)) continue;
+    const option = doc.createElement("option");
+    option.value = kind;
+    option.textContent = labels[kind][direction];
+    select.append(option);
+  }
+  select.value = selected;
+  return select;
+}
+
+export function relationshipTicket(value: string) {
+  if (!/^#?[0-9]+$/.test(value)) return null;
+  const ticket = Number(value.replace(/^#/, ""));
+  return Number.isSafeInteger(ticket) && ticket > 0 ? ticket : null;
+}
+
+export async function readCardRelationships(
+  api: RelationshipReads,
+  readWithSession: ReadWithSession,
+  boardId: string,
+  cardId: string,
+  signal: AbortSignal,
+): Promise<Link[]> {
+  const links = new Map<string, Link>();
+  const cursors = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    const reply = await readWithSession(
+      () => api.listRelationships(boardId, cardId, cursor),
+      signal,
+    );
+    signal.throwIfAborted();
+    // The adapter verifies identity, membership, revision and kind for each entry.
+    const page = reply.data as { relationships: readonly Link[]; next_cursor: unknown };
+    for (const link of page.relationships) {
+      if (links.has(link.id) || link.source_card_id === link.target_card_id)
+        throw new ApiError("invalid_response");
+      links.set(link.id, link);
+    }
+    const next = page.next_cursor;
+    if (next === null) break;
+    if (typeof next !== "string" || next.length === 0 || next.length > 2048 || cursors.has(next))
+      throw new ApiError("invalid_response");
+    cursors.add(next);
+    cursor = next;
+  } while (cursor !== undefined);
+  return [...links.values()];
+}
+
+export async function readRelationshipTarget(
+  api: RelationshipReads,
+  readWithSession: ReadWithSession,
+  boardId: string,
+  ticket: number,
+  signal: AbortSignal,
+): Promise<RelationshipTarget | null> {
+  const { data } = await readWithSession(
+    () => api.listCards(boardId, { ticket, archived: "include", limit: 2 }, signal),
+    signal,
+  );
+  signal.throwIfAborted();
+  const page = data as { cards?: unknown; next_cursor?: unknown };
+  if (!Array.isArray(page.cards) || page.next_cursor !== null)
+    throw new ApiError("invalid_response");
+  if (page.cards.length === 0) return null;
+  const [match] = page.cards as readonly unknown[];
+  if (!match || typeof match !== "object") throw new ApiError("invalid_response");
+  const card = match as Record<string, unknown>;
+  if (
+    page.cards.length !== 1 ||
+    typeof card.id !== "string" ||
+    !uuid.test(card.id) ||
+    card.board_id !== boardId ||
+    card.ticket !== ticket ||
+    typeof card.title !== "string" ||
+    typeof card.priority_id !== "string" ||
+    !uuid.test(card.priority_id) ||
+    (card.completed_at !== null && typeof card.completed_at !== "string")
+  ) {
+    throw new ApiError("invalid_response");
+  }
+  return {
+    id: card.id,
+    ticket,
+    title: card.title,
+    priority_id: card.priority_id,
+    completed_at: card.completed_at,
+  };
 }
 
 function isJournal(value: unknown): value is Journal {
@@ -59,7 +162,7 @@ function isJournal(value: unknown): value is Journal {
     typeof target_card_id === "string" &&
     uuid.test(target_card_id) &&
     source_card_id !== target_card_id &&
-    isKind(kind) &&
+    isRelationshipKind(kind) &&
     (action === "add" || action === "change" || action === "remove") &&
     typeof baseRevision === "number" &&
     Number.isSafeInteger(baseRevision) &&
@@ -112,14 +215,8 @@ export function mountRelationships(
     node.value = value;
     return node;
   };
-  const kindSelect = (current: RelationshipKind, direction: 0 | 1 = 0) => {
-    const node = element("select");
-    for (const kind of Object.keys(labels)) {
-      if (isKind(kind)) node.append(option(kind, labels[kind][direction]));
-    }
-    node.value = current;
-    return node;
-  };
+  const kindSelect = (current: RelationshipKind, direction: 0 | 1 = 0) =>
+    relationshipKindSelect(doc, current, direction);
   const status = element("p", "card-editor-status");
   status.setAttribute("role", "status");
   const heading = element("h3", "card-drawer-heading", "Relationships");
@@ -153,7 +250,8 @@ export function mountRelationships(
   function updateDirectionLabels() {
     const inbound = direction.value === "incoming";
     for (const choice of kind.options) {
-      if (isKind(choice.value)) choice.textContent = labels[choice.value][inbound ? 1 : 0];
+      if (isRelationshipKind(choice.value))
+        choice.textContent = labels[choice.value][inbound ? 1 : 0];
     }
   }
 
@@ -283,7 +381,7 @@ export function mountRelationships(
       change.dataset.relationFocus = `${link.id}-change`;
       change.setAttribute("aria-label", `Change kind for ${description}`);
       change.addEventListener("click", () => {
-        if (!isKind(replacement.value) || replacement.value === link.kind) return;
+        if (!isRelationshipKind(replacement.value) || replacement.value === link.kind) return;
         void submit(cardId, { ...link, kind: replacement.value, action: "change" }, link.revision);
       });
       const remove = button("Remove");
@@ -309,32 +407,8 @@ export function mountRelationships(
     }
   }
 
-  async function readLinks(cardId: string, requestSignal: AbortSignal): Promise<Link[]> {
-    const links = new Map<string, Link>();
-    const cursors = new Set<string>();
-    let cursor: string | undefined;
-    do {
-      const reply = await readWithSession(
-        () => api.listRelationships(boardId, cardId, cursor),
-        requestSignal,
-      );
-      requestSignal.throwIfAborted();
-      // The adapter verifies identity, membership, revision and kind for each entry.
-      const page = reply.data as { relationships: readonly Link[]; next_cursor: unknown };
-      for (const link of page.relationships) {
-        if (links.has(link.id) || link.source_card_id === link.target_card_id)
-          throw new ApiError("invalid_response");
-        links.set(link.id, link);
-      }
-      const next = page.next_cursor;
-      if (next === null) break;
-      if (typeof next !== "string" || next.length === 0 || next.length > 2048 || cursors.has(next))
-        throw new ApiError("invalid_response");
-      cursors.add(next);
-      cursor = next;
-    } while (cursor !== undefined);
-    return [...links.values()];
-  }
+  const readLinks = (cardId: string, requestSignal: AbortSignal) =>
+    readCardRelationships(api, readWithSession, boardId, cardId, requestSignal);
 
   async function readTarget(id: string, requestSignal: AbortSignal): Promise<Target | null> {
     try {
@@ -404,31 +478,14 @@ export function mountRelationships(
   ) {
     const known = current.cards.find((card) => card.ticket === ticket);
     if (known) return known.id;
-    const { data } = await readWithSession(
-      () => api.listCards(boardId, { ticket, archived: "include", limit: 2 }, requestSignal),
+    const target = await readRelationshipTarget(
+      api,
+      readWithSession,
+      boardId,
+      ticket,
       requestSignal,
     );
-    requestSignal.throwIfAborted();
-    const page = data as { cards?: unknown; next_cursor?: unknown };
-    if (!Array.isArray(page.cards) || page.next_cursor !== null)
-      throw new ApiError("invalid_response");
-    if (page.cards.length === 0) return null;
-    const [match] = page.cards as readonly unknown[];
-    if (
-      page.cards.length !== 1 ||
-      !match ||
-      typeof match !== "object" ||
-      !("id" in match) ||
-      typeof match.id !== "string" ||
-      !uuid.test(match.id) ||
-      !("board_id" in match) ||
-      match.board_id !== boardId ||
-      !("ticket" in match) ||
-      match.ticket !== ticket
-    ) {
-      throw new ApiError("invalid_response");
-    }
-    return match.id;
+    return target?.id ?? null;
   }
 
   function sameLink(link: Link | undefined, intent: Intent) {
@@ -529,9 +586,9 @@ export function mountRelationships(
 
   async function addRelationship() {
     const current = context;
-    if (!current || !canWrite() || lookup || !isKind(kind.value)) return;
-    const ticket = Number(target.value.replace(/^#/, ""));
-    if (!Number.isSafeInteger(ticket) || ticket < 1) {
+    if (!current || !canWrite() || lookup || !isRelationshipKind(kind.value)) return;
+    const ticket = relationshipTicket(target.value);
+    if (ticket === null) {
       notice = "Enter a valid ticket number.";
       renderControls();
       return;

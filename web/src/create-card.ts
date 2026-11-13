@@ -1,6 +1,14 @@
-import { ApiError } from "../api.mjs";
+import { ApiError, type RelationshipKind } from "../api.mjs";
 import type { AppContext } from "./model.js";
 import { createScopedOperations, submitOperation, type OperationStorage } from "./operations.js";
+import {
+  isRelationshipKind,
+  readCardRelationships,
+  readRelationshipTarget,
+  relationshipKindSelect,
+  relationshipTicket,
+  type RelationshipTarget,
+} from "./relationships.js";
 import {
   alignTextarea,
   applyInput,
@@ -10,15 +18,18 @@ import {
 } from "./text-input.js";
 
 type Choice = Readonly<{ id: string; label: string }>;
+type SeedDraft = Readonly<{ ticket: string; kind: RelationshipKind }>;
+type Seed = Readonly<{ target_card_id: string; kind: RelationshipKind }>;
 
 export type CreateCardContext = Readonly<{
   etag: string;
   writable: boolean;
-  lanes: readonly Choice[];
+  lanes: readonly (Choice & { readonly role?: string })[];
   users: readonly Choice[];
-  priorities: readonly Choice[];
+  priorities: readonly (Choice & { readonly rank?: number })[];
   defaultOwnerId: string;
   defaultPriorityId: string;
+  relationshipTargets?: readonly RelationshipTarget[];
 }>;
 
 type CreateCardOptions = AppContext &
@@ -30,7 +41,7 @@ type CreateCardOptions = AppContext &
     onStale: () => void;
     focusFallback: () => void;
     isPageActive?: () => boolean;
-    beginWrite?: () => (() => void) | null;
+    beginWrite?: (relatedCardIds?: readonly string[]) => (() => void) | null;
     beginInspection?: () => (() => void) | null;
     storage?: OperationStorage;
   }>;
@@ -41,6 +52,7 @@ type Draft = Readonly<{
   laneId: string;
   ownerId: string;
   priorityId: string;
+  seeds?: readonly SeedDraft[];
   staleEtag?: string;
   submission?: Readonly<{
     id: string;
@@ -50,6 +62,8 @@ type Draft = Readonly<{
     priorityId: string;
     effectiveOwnerId?: string;
     effectivePriorityId?: string;
+    savedPriorityId?: string;
+    seeds?: readonly Seed[];
   }>;
 }>;
 type SubmittedDraft = Draft & Required<Pick<Draft, "submission">>;
@@ -57,6 +71,7 @@ type SubmittedDraft = Draft & Required<Pick<Draft, "submission">>;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const strongEtag = /^"[A-Za-z0-9_-]{16,128}"(?![\s\S])/;
 const titleHasText = /\P{White_Space}/u;
+const maxSeeds = 1000;
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -81,6 +96,61 @@ function boardRevision(boardId: string, tag: string): number | null {
     : null;
 }
 
+function parseSeedDraft(value: unknown): SeedDraft[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > maxSeeds)
+    throw new TypeError("Invalid create relationship draft.");
+  return (value as unknown[]).map((row) => {
+    if (!record(row) || typeof row.ticket !== "string" || !isRelationshipKind(row.kind))
+      throw new TypeError("Invalid create relationship draft row.");
+    return { ticket: row.ticket, kind: row.kind };
+  });
+}
+
+function seedKey(target: string | number, kind: RelationshipKind) {
+  return `${target}/${kind}`;
+}
+
+function validSeedDraft(seeds: readonly SeedDraft[]) {
+  const keys = new Set<string>();
+  for (const { ticket, kind } of seeds) {
+    const number = relationshipTicket(ticket);
+    if (number === null) return false;
+    const key = seedKey(number, kind);
+    if (keys.has(key)) return false;
+    keys.add(key);
+  }
+  return true;
+}
+
+function parseSubmittedSeeds(value: unknown, seeds: readonly SeedDraft[], cardId: string): Seed[] {
+  if (!Array.isArray(value) || value.length !== seeds.length || !validSeedDraft(seeds)) {
+    throw new TypeError("Invalid submitted relationships.");
+  }
+  const keys = new Set<string>();
+  const targets = new Map<number, string>();
+  return (value as unknown[]).map((seed, index) => {
+    const draftSeed = seeds[index];
+    if (
+      !draftSeed ||
+      !record(seed) ||
+      !id(seed.target_card_id) ||
+      seed.target_card_id === cardId ||
+      seed.kind !== draftSeed.kind
+    ) {
+      throw new TypeError("Invalid submitted relationship row.");
+    }
+    const ticket = Number(draftSeed.ticket.replace(/^#/, ""));
+    const key = seedKey(seed.target_card_id, draftSeed.kind);
+    const previous = targets.get(ticket);
+    if (keys.has(key) || (previous !== undefined && previous !== seed.target_card_id))
+      throw new TypeError("Conflicting submitted relationship rows.");
+    keys.add(key);
+    targets.set(ticket, seed.target_card_id);
+    return { target_card_id: seed.target_card_id, kind: draftSeed.kind };
+  });
+}
+
 function parseDraft(raw: string): Draft {
   const value: unknown = JSON.parse(raw);
   if (!record(value)) throw new TypeError("Invalid create draft.");
@@ -95,7 +165,8 @@ function parseDraft(raw: string): Draft {
   ) {
     throw new TypeError("Invalid create draft fields.");
   }
-  const draft = { title, description, laneId, ownerId, priorityId, staleEtag };
+  const seeds = parseSeedDraft(value.seeds);
+  const draft = { title, description, laneId, ownerId, priorityId, staleEtag, seeds };
   if (submission === undefined) return draft;
   if (
     !record(submission) ||
@@ -106,6 +177,8 @@ function parseDraft(raw: string): Draft {
     !optionalChoice(submission.priorityId) ||
     (submission.effectiveOwnerId !== undefined && !id(submission.effectiveOwnerId)) ||
     (submission.effectivePriorityId !== undefined && !id(submission.effectivePriorityId)) ||
+    (submission.savedPriorityId !== undefined &&
+      (!id(submission.savedPriorityId) || !seeds.some(({ kind }) => kind === "blocks"))) ||
     (ownerId !== "" &&
       submission.effectiveOwnerId !== undefined &&
       submission.effectiveOwnerId !== ownerId) ||
@@ -130,6 +203,12 @@ function parseDraft(raw: string): Draft {
       priorityId: submission.priorityId,
       effectiveOwnerId: submission.effectiveOwnerId,
       effectivePriorityId: submission.effectivePriorityId,
+      savedPriorityId: submission.savedPriorityId,
+      seeds: parseSubmittedSeeds(
+        submission.seeds === undefined ? [] : submission.seeds,
+        seeds,
+        submission.id,
+      ),
     },
   };
 }
@@ -138,7 +217,10 @@ function identifyCard(boardId: string, draft: Draft, data: object) {
   if (!draft.submission || !record(data)) return null;
   const { id } = draft.submission;
   const ownerId = draft.submission.effectiveOwnerId ?? draft.submission.ownerId;
-  const priorityId = draft.submission.effectivePriorityId ?? draft.submission.priorityId;
+  const priorityId =
+    draft.submission.savedPriorityId ??
+    draft.submission.effectivePriorityId ??
+    draft.submission.priorityId;
   if (
     data.id !== id ||
     data.board_id !== boardId ||
@@ -157,6 +239,12 @@ function identifyCard(boardId: string, draft: Draft, data: object) {
       (ownerId === "" || data.owner_id === ownerId) &&
       (priorityId === "" || data.priority_id === priorityId),
   };
+}
+
+function seedTargetIds(seeds: readonly Seed[] | undefined) {
+  return seeds?.length
+    ? [...new Set(seeds.map(({ target_card_id }) => target_card_id))]
+    : undefined;
 }
 
 export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
@@ -256,7 +344,26 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
   const choices = doc.createElement("div");
   choices.className = "create-card-choices";
   choices.append(field("Destination", lane), field("Owner", owner), field("Priority", priority));
-  form.append(field("Title", title), field("Description", description), choices, status, actions);
+  const relationships = doc.createElement("fieldset");
+  relationships.className = "create-card-relationships";
+  const relationshipLegend = doc.createElement("legend");
+  relationshipLegend.textContent = "Relationships";
+  const seedRows = doc.createElement("div");
+  seedRows.className = "create-card-relationship-rows";
+  const addSeed = button("Add relationship");
+  const tickets = doc.createElement("datalist");
+  tickets.id = "create-card-relationship-tickets";
+  relationships.append(relationshipLegend, seedRows, addSeed, tickets);
+  const seedControls: ReturnType<typeof createSeedRow>[] = [];
+  let previousTargets: CreateCardContext["relationshipTargets"];
+  form.append(
+    field("Title", title),
+    field("Description", description),
+    choices,
+    relationships,
+    status,
+    actions,
+  );
   dialog.append(heading, form);
   host.append(dialog, recovery, recoveryStatus);
 
@@ -271,6 +378,91 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     const element = doc.createElement("label");
     element.append(label, input);
     return element;
+  }
+
+  function createSeedRow(index: number) {
+    const row = doc.createElement("fieldset");
+    row.className = "create-card-relationship-row";
+    row.setAttribute("aria-label", `Relationship ${index + 1}`);
+    const target = doc.createElement("input");
+    target.type = "text";
+    target.inputMode = "numeric";
+    target.setAttribute("list", tickets.id);
+    const kind = relationshipKindSelect(doc, "relates_to");
+    const remove = button("Remove");
+    remove.setAttribute("aria-label", `Remove relationship ${index + 1}`);
+    row.append(field("Target ticket", target), field("Relationship kind", kind), remove);
+    target.addEventListener("input", () => editSeed(index, { ticket: target.value }), { signal });
+    kind.addEventListener(
+      "change",
+      () => {
+        if (isRelationshipKind(kind.value)) editSeed(index, { kind: kind.value });
+      },
+      { signal },
+    );
+    remove.addEventListener(
+      "click",
+      () => {
+        edit({ seeds: draft?.seeds?.filter((_, i) => i !== index) });
+        const next = seedControls[index] ?? seedControls[index - 1];
+        if (next) (next.target.disabled ? next.remove : next.target).focus();
+        else (addSeed.hidden ? title : addSeed).focus();
+      },
+      { signal },
+    );
+    return { row, target, kind, remove };
+  }
+
+  function editSeed(index: number, fields: Partial<SeedDraft>) {
+    if (context()?.relationshipTargets === undefined) return;
+    edit({ seeds: draft?.seeds?.map((seed, i) => (i === index ? { ...seed, ...fields } : seed)) });
+  }
+
+  addSeed.addEventListener(
+    "click",
+    () => {
+      if (!draft || context()?.relationshipTargets === undefined) return;
+      const seeds = draft.seeds ?? [];
+      if (seeds.length >= maxSeeds) return;
+      edit({ seeds: [...seeds, { ticket: "", kind: "relates_to" }] });
+      seedControls.at(-1)?.target.focus();
+    },
+    { signal },
+  );
+
+  function renderSeeds(
+    seeds: readonly SeedDraft[],
+    current: CreateCardContext | null,
+    locked: boolean,
+  ) {
+    const targets = current?.relationshipTargets;
+    relationships.hidden = targets === undefined && seeds.length === 0;
+    addSeed.hidden = targets === undefined || locked;
+    addSeed.disabled = seeds.length >= maxSeeds;
+    if (targets !== previousTargets) {
+      tickets.replaceChildren(
+        ...(targets ?? []).map(({ ticket, title }) => {
+          const option = doc.createElement("option");
+          option.value = String(ticket);
+          option.textContent = title;
+          return option;
+        }),
+      );
+      previousTargets = targets;
+    }
+    while (seedControls.length > seeds.length) seedControls.pop()?.row.remove();
+    seeds.forEach(({ ticket, kind }, index) => {
+      let controls = seedControls[index];
+      if (!controls) {
+        controls = createSeedRow(index);
+        seedControls.push(controls);
+        seedRows.append(controls.row);
+      }
+      if (controls.target.value !== ticket) controls.target.value = ticket;
+      controls.kind.value = kind;
+      controls.target.disabled = controls.kind.disabled = locked || targets === undefined;
+      controls.remove.disabled = locked;
+    });
   }
 
   function setChoices(
@@ -312,6 +504,16 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     if (select.value !== selected) select.value = selected;
   }
 
+  function seedIssue(next: Draft, current: CreateCardContext | null) {
+    const seeds = next.seeds ?? [];
+    if (!seeds.length) return "";
+    if (current?.relationshipTargets === undefined)
+      return "Remove the relationship rows to create a card without relationship permission.";
+    if (!validSeedDraft(seeds))
+      return "Enter a ticket for each relationship and remove repeated relationships.";
+    return "";
+  }
+
   function canCreate(next: Draft, current: CreateCardContext | null): current is CreateCardContext {
     return Boolean(
       current?.writable &&
@@ -319,7 +521,8 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       current.etag !== next.staleEtag &&
       current.lanes.some(({ id }) => id === next.laneId) &&
       current.users.some(({ id }) => id === (next.ownerId || current.defaultOwnerId)) &&
-      current.priorities.some(({ id }) => id === (next.priorityId || current.defaultPriorityId)),
+      current.priorities.some(({ id }) => id === (next.priorityId || current.defaultPriorityId)) &&
+      !seedIssue(next, current),
     );
   }
 
@@ -346,6 +549,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       current?.defaultPriorityId ?? "",
     );
     lane.disabled = owner.disabled = priority.disabled = locked;
+    renderSeeds(draft.seeds ?? [], current, locked);
     add.hidden = Boolean(draft.submission);
     add.disabled = composing || !canCreate(draft, current);
     cancel.disabled = composing;
@@ -369,12 +573,15 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
               ? "The creation outcome is unknown. Inspect the original card to continue."
               : canCreate(draft, current)
                 ? ""
-                : "Creation is unavailable for the current selection.");
+                : seedIssue(draft, current) ||
+                  "Creation is unavailable for the current selection.");
     if (status.textContent !== nextStatus) status.textContent = nextStatus;
   }
 
   function edit(
-    fields: Partial<Pick<Draft, "title" | "description" | "laneId" | "ownerId" | "priorityId">>,
+    fields: Partial<
+      Pick<Draft, "title" | "description" | "laneId" | "ownerId" | "priorityId" | "seeds">
+    >,
   ) {
     if (!dialog.open || !draft || draft.submission || operations.state(key)) return;
     draft = { ...draft, ...fields };
@@ -408,10 +615,19 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     update();
   }
 
-  function resolveCreation(card: NonNullable<ReturnType<typeof identifyCard>>) {
+  function resolveCreation(
+    card: NonNullable<ReturnType<typeof identifyCard>>,
+    matchesRelationships = true,
+  ) {
     const { id, ticket, matchesDraft } = card;
     const wasOpen = dialog.open;
-    const difference = `Found the original card #${ticket}. Its saved details differ from the submitted draft.`;
+    const difference =
+      `Found the original card #${ticket}. ` +
+      (!matchesDraft ? "Its saved details differ from the submitted draft. " : "") +
+      (!matchesRelationships
+        ? "Its saved relationships differ from the submitted relationships."
+        : "");
+    const matches = matchesDraft && matchesRelationships;
     absence = undefined;
     const expected = raw;
     const cleared = persist(null);
@@ -419,16 +635,16 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       draft = null;
       if (!signal.aborted) {
         close();
-        if (!matchesDraft) recoveryStatus.textContent = difference;
+        if (!matches) recoveryStatus.textContent = difference.trimEnd();
       }
     } else {
       if (!ownsJournal(expected)) {
         superseded = true;
         return;
       }
-      message = matchesDraft
+      message = matches
         ? `Found the original card #${ticket}. The stored draft could not be cleared.`
-        : `${difference} The stored draft could not be cleared.`;
+        : `${difference.trimEnd()} The stored draft could not be cleared.`;
     }
     if (pageActive()) options.onConfirmed(id, ticket, wasOpen && cleared);
   }
@@ -443,6 +659,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       lane_id: laneId,
       ...(submission.ownerId ? { owner_id: submission.ownerId } : {}),
       ...(submission.priorityId ? { priority_id: submission.priorityId } : {}),
+      ...(submission.seeds?.length ? { relationships: [...submission.seeds] } : {}),
     });
   }
 
@@ -471,6 +688,57 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     return result.kind;
   }
 
+  async function resolveSeeds(seeds: readonly SeedDraft[], current: CreateCardContext) {
+    const available = current.relationshipTargets ?? [];
+    const targets = new Map(available.map((target) => [target.ticket, target]));
+    const resolved: Seed[] = [];
+    const blockers: RelationshipTarget[] = [];
+    for (const row of seeds) {
+      const ticket = relationshipTicket(row.ticket);
+      if (ticket === null) return null;
+      let target = targets.get(ticket);
+      if (!target) {
+        const found = await readRelationshipTarget(
+          api,
+          options.readWithSession,
+          boardId,
+          ticket,
+          signal,
+        );
+        if (!found) return null;
+        target = found;
+        targets.set(ticket, target);
+      }
+      resolved.push({ target_card_id: target.id, kind: row.kind });
+      if (row.kind === "blocks" && target.completed_at === null) blockers.push(target);
+    }
+    return { seeds: resolved, blockers };
+  }
+
+  // A new card has no incoming links. Each unfinished target already has its
+  // effective priority, so only its existing rank can promote the new blocker.
+  function savedPriority(
+    previous: Draft,
+    current: CreateCardContext,
+    blockers: readonly RelationshipTarget[],
+  ) {
+    const selected = previous.priorityId || current.defaultPriorityId;
+    if (
+      !blockers.length ||
+      current.lanes.find(({ id }) => id === previous.laneId)?.role === "completed"
+    )
+      return undefined;
+    const ranks = new Map(current.priorities.map(({ id, rank }) => [id, rank]));
+    let strongest = selected;
+    for (const { priority_id } of blockers) {
+      const rank = ranks.get(priority_id);
+      const previousRank = ranks.get(strongest);
+      if (rank === undefined || previousRank === undefined) throw new ApiError("invalid_response");
+      if (rank < previousRank) strongest = priority_id;
+    }
+    return strongest === selected ? undefined : strongest;
+  }
+
   async function submit() {
     const current = context();
     if (
@@ -491,16 +759,33 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     }
     const previous = draft;
     const focused = doc.activeElement;
-    const release = options.beginWrite?.();
-    if (release === null) {
-      message = "Another board operation is active. Try adding the card again when it finishes.";
-      update();
-      return;
-    }
+    let release: (() => void) | null | undefined;
     await operations.run(
       key,
       "submitting",
       async () => {
+        const seedDraft = previous.seeds ?? [];
+        let relationships;
+        let savedPriorityId;
+        if (seedDraft.length) update();
+        try {
+          relationships = seedDraft.length ? await resolveSeeds(seedDraft, current) : undefined;
+          if (relationships)
+            savedPriorityId = savedPriority(previous, current, relationships.blockers);
+        } catch {
+          message = "Could not check the relationship targets. Your draft is still available.";
+          return;
+        }
+        if (seedDraft.length && !relationships) {
+          message = "Choose a valid ticket on this board for every relationship.";
+          return;
+        }
+        const latest = context();
+        if (!dialog.open || !pageActive()) return;
+        if (!canCreate(previous, latest) || latest.etag !== current.etag) {
+          message = "The board changed. Review the draft before trying again.";
+          return;
+        }
         const submission = {
           id: crypto.randomUUID(),
           dispatchId: crypto.randomUUID(),
@@ -509,7 +794,19 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           priorityId: previous.priorityId === current.defaultPriorityId ? "" : previous.priorityId,
           effectiveOwnerId: previous.ownerId || current.defaultOwnerId,
           effectivePriorityId: previous.priorityId || current.defaultPriorityId,
+          savedPriorityId,
+          seeds: relationships?.seeds,
         };
+        if (submission.seeds?.some(({ target_card_id }) => target_card_id === submission.id)) {
+          message = "Choose another target. The card cannot be related to itself.";
+          return;
+        }
+        release = options.beginWrite?.(seedTargetIds(submission.seeds));
+        if (release === null) {
+          message =
+            "Another board operation is active. Try adding the card again when it finishes.";
+          return;
+        }
         const submitted = { ...previous, submission };
         const result = await submitOriginal(submitted, () => {
           if (!persist(submitted)) return false;
@@ -600,7 +897,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           const found = await readCard();
           if (!stillOwnsInspection()) return;
           if (found) {
-            recoverCard(submitted, found.data);
+            await recoverCard(submitted, found.data, stillOwnsInspection);
             return;
           }
 
@@ -622,7 +919,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           const absentAtVersion = await readCard();
           if (!stillOwnsInspection()) return;
           if (absentAtVersion) {
-            recoverCard(submitted, absentAtVersion.data);
+            await recoverCard(submitted, absentAtVersion.data, stillOwnsInspection);
             return;
           }
           const after = await readBoard();
@@ -647,11 +944,64 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
     );
   }
 
-  function recoverCard(submitted: Draft, data: object) {
+  async function recoverCard(submitted: Draft, data: object, stillOwnsInspection: () => boolean) {
     const card = identifyCard(boardId, submitted, data);
     // A focused read identifies the original even after another actor changes its fields.
-    if (card) resolveCreation(card);
-    else message = "The read did not identify the original card. Inspect again to retry the read.";
+    if (!card) {
+      message = "The read did not identify the original card. Inspect again to retry the read.";
+      return;
+    }
+    const seeds = submitted.submission?.seeds ?? [];
+    if (!seeds.length) {
+      resolveCreation(card);
+      return;
+    }
+    const readBoard = () =>
+      options.readWithSession(() => api.getBoardAvailability(boardId, signal), signal);
+    const before = await readBoard();
+    if (!stillOwnsInspection()) return;
+    const { data: current } = await options.readWithSession(
+      () => api.getCard(card.id, signal),
+      signal,
+    );
+    if (!stillOwnsInspection()) return;
+    const links = await readCardRelationships(
+      api,
+      options.readWithSession,
+      boardId,
+      card.id,
+      signal,
+    );
+    if (!stillOwnsInspection()) return;
+    const after = await readBoard();
+    if (!stillOwnsInspection()) return;
+    const checked = identifyCard(boardId, submitted, current);
+    const revision = record(current) ? current.revision : undefined;
+    const base = boardRevision(boardId, submitted.submission?.etag ?? "");
+    if (
+      !checked ||
+      typeof revision !== "number" ||
+      base === null ||
+      revision <= base ||
+      revision > after.data.revision ||
+      links.some((link) => link.revision > revision) ||
+      before.etag !== after.etag ||
+      after.data.availability !== "open"
+    ) {
+      message =
+        "The board changed during inspection. Inspect again to check the original card and relationships.";
+      return;
+    }
+    const expected = new Set(
+      seeds.map(({ target_card_id, kind }) => seedKey(target_card_id, kind)),
+    );
+    const matches =
+      links.length === expected.size &&
+      links.every(({ source_card_id, target_card_id, kind }) => {
+        if (source_card_id === card.id) return expected.delete(seedKey(target_card_id, kind));
+        return kind === "relates_to" && expected.delete(seedKey(source_card_id, kind));
+      });
+    resolveCreation(checked, matches);
   }
 
   async function retryCreation() {
@@ -674,7 +1024,7 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       return;
     }
     const submitted = { ...draft, submission: { ...submission, dispatchId: crypto.randomUUID() } };
-    const release = options.beginWrite?.();
+    const release = options.beginWrite?.(seedTargetIds(submission.seeds));
     if (release === null) {
       message = "Another board operation is active. Try again when it finishes.";
       update();

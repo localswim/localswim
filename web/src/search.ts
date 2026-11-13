@@ -136,6 +136,7 @@ export function mountCardSearch(
   let revision: number | undefined;
   let request: AbortController | undefined;
   let submitted = false;
+  let restorePending = false;
   let rememberedOpen = false;
 
   function setStatus(message: string, stale = false) {
@@ -161,20 +162,25 @@ export function mountCardSearch(
     if (!signal.aborted) onViewChange(readControls());
   }
 
-  function setLanes(selected: string) {
+  function setLanes(selected: string, awaitingBoard = false) {
     lane.replaceChildren();
     option(lane, "", "All lanes");
     for (const { id, label } of lanes) option(lane, id, label);
-    if (selected && !lanes.some(({ id }) => id === selected)) {
-      option(lane, selected, "Unavailable lane");
+    if (!selected || lanes.some(({ id }) => id === selected)) {
+      lane.value = selected;
+    } else if (awaitingBoard) {
+      option(lane, selected, "Saved lane");
+      lane.value = selected;
+    } else {
+      lane.value = "";
     }
-    lane.value = selected;
   }
 
   function markStale() {
     request?.abort();
     request = undefined;
-    if (submitted) setStatus("Search results are out of date. Search again.", true);
+    if (submitted || !results.hidden)
+      setStatus("Search results are out of date. Search again.", true);
   }
 
   function paintResults(matches: SearchResult[]) {
@@ -260,6 +266,7 @@ export function mountCardSearch(
     "submit",
     (event) => {
       event.preventDefault();
+      restorePending = false;
       void search();
     },
     { signal },
@@ -267,7 +274,9 @@ export function mountCardSearch(
   form.addEventListener(
     "input",
     () => {
+      restorePending = false;
       markStale();
+      submitted = false;
       retain();
     },
     { signal },
@@ -294,9 +303,15 @@ export function mountCardSearch(
     update(nextLanes: readonly SearchLane[], nextRevision: number) {
       if (revision !== undefined && revision !== nextRevision) markStale();
       revision = nextRevision;
-      if (lanes !== nextLanes) {
+      if (lanes !== nextLanes || (lane.value && !nextLanes.some(({ id }) => id === lane.value))) {
+        const selected = lane.value;
         lanes = nextLanes;
-        setLanes(lane.value);
+        setLanes(selected);
+        if (lane.value !== selected) retain();
+      }
+      if (restorePending) {
+        restorePending = false;
+        if (!signal.aborted) void search();
       }
     },
     restore(saved: DeeperSearchState | undefined, queryFallback = "") {
@@ -304,12 +319,13 @@ export function mountCardSearch(
       request = undefined;
       paintResults([]);
       submitted = saved?.submitted ?? false;
+      restorePending = submitted;
       rememberedOpen = saved?.open ?? queryFallback !== "";
       panel.open = rememberedOpen;
       query.value = saved?.query ?? queryFallback;
       content.checked = saved?.content ?? false;
       order.value = saved?.order ?? "triage";
-      setLanes(saved?.laneId ?? "");
+      setLanes(saved?.laneId ?? "", true);
       limit.value = saved?.limit ?? "20";
       archive.value = saved?.archive ?? "active";
       if (submitted) markStale();

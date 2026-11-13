@@ -17,13 +17,14 @@ type ArchiveOptions = AppContext &
     storage?: OperationStorage;
     readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
     beginWrite: (cardId: string) => (() => void) | null;
+    beginInspect: (cardId: string) => (() => void) | null;
     onRefresh: () => void;
   }>;
 
 type Intent = Readonly<{ archived: boolean; etag: string; laneId: string }>;
 type CardReply = Readonly<{ data: object; etag: string | null }>;
 type Journal = Readonly<{ raw: string; intent: Intent | null }>;
-type Feedback = Readonly<{ message: string; waitFor?: string }>;
+type Feedback = Readonly<{ message: string; waitFor?: string; inspectedJournal?: string }>;
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const strongTag = /^"[A-Za-z0-9_-]{16,128}"(?![\s\S])/;
@@ -86,6 +87,7 @@ export function mountCardArchive(
     storage,
     readWithSession,
     beginWrite,
+    beginInspect,
     onRefresh,
   }: ArchiveOptions,
 ) {
@@ -100,9 +102,12 @@ export function mountCardArchive(
   const inspection = doc.createElement("button");
   inspection.type = "button";
   inspection.textContent = "Inspect card";
+  const dismiss = doc.createElement("button");
+  dismiss.type = "button";
+  dismiss.textContent = "Dismiss unresolved change";
   const status = doc.createElement("p");
   status.setAttribute("role", "status");
-  controls.append(action, inspection, status);
+  controls.append(action, inspection, dismiss, status);
   host.append(controls);
 
   const operations = createScopedOperations();
@@ -160,20 +165,27 @@ export function mountCardArchive(
     const { cardId, archived, laneActive } = context;
     const pending = load(cardId);
     const operation = operations.state(cardId);
+    const notice = feedback.get(cardId);
     const label = archived ? "Restore card" : "Archive card";
     if (action.textContent !== label) action.textContent = label;
     action.disabled = !canSubmit(context);
-    if (!pending && doc.activeElement === inspection && !action.disabled) {
+    if (
+      !pending &&
+      (doc.activeElement === inspection || doc.activeElement === dismiss) &&
+      !action.disabled
+    ) {
       action.focus({ preventScroll: true });
     }
     inspection.hidden = !pending;
     inspection.disabled = Boolean(operation);
+    dismiss.hidden = !pending || notice?.inspectedJournal !== pending.raw;
+    dismiss.disabled = Boolean(operation);
     const message =
       operation === "submitting"
         ? "Saving card…"
         : operation === "inspecting"
           ? "Reading current card…"
-          : (feedback.get(cardId)?.message ??
+          : (notice?.message ??
             (pending
               ? "Archive or restore outcome is unknown. Inspect the current card."
               : pending === undefined
@@ -260,45 +272,89 @@ export function mountCardArchive(
   async function inspect() {
     const cardId = context?.cardId;
     if (signal.aborted || !cardId || operations.state(cardId)) return;
-    const journal = load(cardId);
-    if (!journal) return;
-    const request = new AbortController();
-    read = request;
-    const readSignal = AbortSignal.any([signal, request.signal]);
-    await operations.run(
-      cardId,
-      "inspecting",
-      async () => {
-        render();
-        try {
-          const reply = await readWithSession(() => api.getCard(cardId, readSignal), readSignal);
-          readSignal.throwIfAborted();
-          const saved = readVersion(boardId, cardId, reply);
-          const matched = journal.intent !== null && reached(saved, journal.intent);
-          const message = !clear(cardId, journal.raw)
-            ? "The card was read, but the saved outcome still needs inspection."
-            : matched
-              ? `The card is ${saved.archived ? "archived" : "active"} in its original lane.`
-              : `The card is currently ${saved.archived ? "archived" : "active"}. The submitted change could not be confirmed.`;
-          feedback.set(cardId, {
-            message,
-            waitFor: saved.etag === context?.etag ? undefined : context?.etag,
-          });
-          refresh();
-        } catch {
-          if (!readSignal.aborted) {
-            feedback.set(cardId, { message: "The current card could not be read. Inspect again." });
+    if (!load(cardId)) return;
+    const release = beginInspect(cardId);
+    if (!release) {
+      feedback.set(cardId, {
+        message: "A card operation is still in progress. Inspect again after it finishes.",
+      });
+      render();
+      return;
+    }
+    try {
+      const journal = load(cardId);
+      if (!journal) return;
+      const request = new AbortController();
+      read = request;
+      const readSignal = AbortSignal.any([signal, request.signal]);
+      await operations.run(
+        cardId,
+        "inspecting",
+        async () => {
+          feedback.delete(cardId);
+          render();
+          try {
+            const reply = await readWithSession(() => api.getCard(cardId, readSignal), readSignal);
+            readSignal.throwIfAborted();
+            const saved = readVersion(boardId, cardId, reply);
+            if (load(cardId)?.raw !== journal.raw) {
+              feedback.set(cardId, { message: "The pending change was updated. Inspect again." });
+              return;
+            }
+            const matched = journal.intent !== null && reached(saved, journal.intent);
+            const state = saved.archived ? "archived" : "active";
+            const message = matched
+              ? clear(cardId, journal.raw)
+                ? `The card is ${state} in its original lane.`
+                : "The card was read, but the saved outcome still needs inspection."
+              : `The card is currently ${state}. The submitted change could not be confirmed.`;
+            feedback.set(cardId, {
+              message,
+              waitFor: saved.etag === context?.etag ? undefined : context?.etag,
+              inspectedJournal: matched ? undefined : journal.raw,
+            });
+            refresh();
+          } catch {
+            if (!readSignal.aborted) {
+              feedback.set(cardId, {
+                message: "The current card could not be read. Inspect again.",
+              });
+            }
+          } finally {
+            if (read === request) read = undefined;
           }
-        } finally {
-          if (read === request) read = undefined;
-        }
-      },
-      render,
-    );
+        },
+        render,
+      );
+    } finally {
+      release();
+    }
+  }
+
+  function dismissUnresolved() {
+    const cardId = context?.cardId;
+    if (signal.aborted || !cardId || operations.state(cardId)) return;
+    const notice = feedback.get(cardId);
+    if (notice?.inspectedJournal === undefined) return;
+    const release = beginInspect(cardId);
+    if (!release) return;
+    try {
+      if (clear(cardId, notice.inspectedJournal)) {
+        feedback.set(cardId, { message: "Unresolved change dismissed.", waitFor: notice.waitFor });
+      } else {
+        feedback.set(cardId, {
+          message: "The pending change could not be cleared. Inspect again.",
+        });
+      }
+    } finally {
+      release();
+      render();
+    }
   }
 
   action.addEventListener("click", () => void submit(), { signal });
   inspection.addEventListener("click", () => void inspect(), { signal });
+  dismiss.addEventListener("click", dismissUnresolved, { signal });
 
   return {
     update(next: ArchiveCardContext | null) {

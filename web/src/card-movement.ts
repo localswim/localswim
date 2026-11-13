@@ -166,9 +166,12 @@ export function createCardMovement({
   function clearPending(intent: MoveIntent) {
     try {
       const raw = journal().getItem(key);
-      if (raw !== null && raw !== JSON.stringify(intent)) {
-        pending = parseMove(raw);
-        return false;
+      if (raw !== null) {
+        const stored = parseMove(raw);
+        if (JSON.stringify(stored) !== JSON.stringify(intent)) {
+          pending = stored;
+          return false;
+        }
       }
       journal().removeItem(key);
       pending = undefined;

@@ -2914,7 +2914,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Matched archived hierarchy and long-prose drawer evidence"
+          "missing_input": "Candidate review after archived hierarchy and long-prose drawer verification"
         },
         {
           "ticket": 588,
@@ -2944,7 +2944,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Matched create-dialog states and candidate review"
+          "missing_input": "Candidate review of paired create-dialog captures and visual differences"
         },
         {
           "ticket": 589,
@@ -3036,7 +3036,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Architect review of native CLI/API qualification"
+          "missing_input": "Architect review of native CLI/API qualification with live floor and stale-refusal readback"
         },
         {
           "ticket": 593,
@@ -3067,7 +3067,7 @@
             "R03"
           ],
           "readiness": "In Progress. T2 prerequisites accepted and merged. Author and independent review packets delivered.",
-          "missing_input": "Paired Human cue, visual recheck and candidate review after confirmed Bot move replay"
+          "missing_input": "Candidate review of confirmed Bot move replay, paired reconnect and remaining cue/layout differences"
         }
       ],
       "visual_reviewer": {

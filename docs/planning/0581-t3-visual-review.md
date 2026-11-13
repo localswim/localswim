@@ -24,3 +24,10 @@ Reviewed the supplied `output/t3-v1` screenshots against `0582-observed-contract
 - The changed-order preview pair has 19 rows in each runtime and confirms the earlier clipping observation: V2's bottom action buttons touch and are clipped by the dialog boundary, while V1's are fully visible. The board histories in the background differ.
 - In the pin-keyboard pair, V1 uses filled blue pin icons for the two pinned boards; V2 shows outlined gray pins. Focus surrounds the reorder handle in both captures. Screenshots alone do not establish keyboard ordering or saved state.
 - The partial-filter approval captures show one visible review card in each before action and an `Approved 2 review card(s)` toast afterward. The V1 committed frame is transient (`REFRESHING`) and its card animation overlaps; it is not a settled visual comparison. The corrected zero-search and cleared-search captures show the same result text and restored first cards, subject to the shared layout differences noted above.
+
+## Final pass on `d326d01fb425`
+
+- The final V2 captures show filled blue pins, a dark reorder control while filtered, the full reorder footer, and literal description lines with a plain ticket number. The browser measured about 20 px below the footer controls in the scroll position shown.
+- The paired empty create forms align closely. The relationship draft captures have different card labels from earlier fixture edits. V2 still shows the disabled attachment control pending #0600.
+- The paired reconnect captures preserve the draft. Terry approved waiting for fresh state before enabling V2 submission. The original V2 outage capture predates the `REFRESHING` label correction.
+- Human creation captures both show updated ages and the same tab title. V1 shows a creation toast in its frame. V2 has no corresponding toast in the captured state. Fixture histories and timing differ. The Needs Terry heading still wraps differently, and the header has a small vertical offset at this viewport.

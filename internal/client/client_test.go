@@ -71,13 +71,26 @@ func TestM85OrdinaryMutationsRequireExactFenceRefusal(t *testing.T) {
 
 func TestNewRejectsNonlocalOrAmbiguousOrigins(t *testing.T) {
 	for _, origin := range []string{
-		"http://localhost:8080", "https://127.0.0.1:8080", "http://127.0.0.1",
+		"http://localhost.example:8080", "http://localhost.:8080", "https://127.0.0.1:8080", "http://127.0.0.1",
+		"http://localhost", "http://user@localhost:8080", "http://localhost:8080/",
 		"http://user@127.0.0.1:8080", "http://127.0.0.1:8080/",
 		"http://127.0.0.1:8080?", "http://127.0.0.1:8080#",
 		"http://127.0.0.1:0", "http://127.0.0.1:65536",
 	} {
 		if _, err := New(origin, "test-token"); err == nil {
 			t.Errorf("accepted invalid origin %q", origin)
+		}
+	}
+}
+
+func TestNewAcceptsLoopbackHostAliases(t *testing.T) {
+	for _, host := range []string{"127.0.0.1", "localhost", "LOCALHOST"} {
+		api, err := New("http://"+host+":8080", "test-token")
+		if err != nil {
+			t.Fatalf("host %s: %v", host, err)
+		}
+		if api.origin != "http://127.0.0.1:8080" {
+			t.Fatalf("host %s did not use numeric loopback transport", host)
 		}
 	}
 }

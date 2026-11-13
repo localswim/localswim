@@ -40,8 +40,10 @@ header a { color: inherit; font-size: 1.3rem; font-weight: 700; }
 .attention-group { display: grid; gap: 0.35rem; }
 .attention-group h3 { color: #455973; font-size: 0.8rem; font-weight: 650; }
 .attention-entry { min-width: 0; border: 1px solid #ccd6e3; border-radius: 0.45rem; background: white; }
-.attention-entry:has(> a[aria-current=page]) { background: #dae7fd; }
+.attention-entry:has(> a[aria-current=page]) { background: #243b5a; border-color: #243b5a; }
 #boards .attention-entry > a { border: 0; background: transparent; }
+#boards .attention-entry > a[aria-current=page] { color: white; }
+#boards .attention-entry > a[aria-current=page]:focus-visible { outline-color: white; outline-offset: -3px; }
 .attention-entry[data-pin-drop] { box-shadow: inset 0 0 0 2px #1552a1; }
 .attention-pin-actions { display: flex; gap: 0.35rem; padding: 0 0.7rem 0.45rem; }
 .attention-pin-actions button { font-size: 0.8rem; padding: 0.15rem 0.4rem; }

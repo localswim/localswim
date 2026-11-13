@@ -41,11 +41,11 @@ type Response struct {
 
 func New(origin, token string) (*Client, error) {
 	parsed, err := url.Parse(origin)
-	if err != nil || parsed.Scheme != "http" || parsed.Hostname() != "127.0.0.1" ||
+	if err != nil || parsed.Scheme != "http" || (parsed.Hostname() != "127.0.0.1" && !strings.EqualFold(parsed.Hostname(), "localhost")) ||
 		parsed.User != nil || parsed.Path != "" || parsed.RawPath != "" ||
 		parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" ||
 		parsed.Opaque != "" || origin != "http://"+parsed.Host {
-		return nil, errors.New("LOCALSWIM_URL must be http://127.0.0.1:<port>")
+		return nil, errors.New("LOCALSWIM_URL must be http://127.0.0.1:<port> or http://localhost:<port>")
 	}
 	port, err := strconv.ParseUint(parsed.Port(), 10, 16)
 	if err != nil || port == 0 {
@@ -55,7 +55,7 @@ func New(origin, token string) (*Client, error) {
 		return nil, errors.New("LOCALSWIM_TOKEN must contain a valid bearer credential")
 	}
 	return &Client{
-		origin: origin,
+		origin: "http://127.0.0.1:" + strconv.FormatUint(port, 10),
 		token:  token,
 		http: &http.Client{
 			Transport: &http.Transport{DisableKeepAlives: true, DisableCompression: true},

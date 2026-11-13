@@ -27,6 +27,10 @@ Supply positional `PORT` to select a port, or use `0` (the default) to choose an
 available port automatically. The service prints its local URL. In your CLI
 terminal, set `LOCALSWIM_URL` to that URL and `LOCALSWIM_TOKEN` to the chosen
 Human or Bot token. `service status` reports the actual listening port.
+The server listens on IPv4 `127.0.0.1`. The UI and API accept either
+`localhost:<port>` or `127.0.0.1:<port>`. An `Origin` header, when supplied, must
+match the requested `Host`. The CLI accepts either
+loopback address in `LOCALSWIM_URL` and connects to numeric loopback internally.
 
 ```powershell
 .\localswim.exe board create name "Personal"

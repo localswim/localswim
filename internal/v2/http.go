@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -106,7 +107,7 @@ type request struct {
 
 func (s *Service) Handler(address *net.TCPAddr) http.Handler {
 	authority, port := address.String(), address.Port
-	origin := "http://" + authority
+	localhost := net.JoinHostPort("localhost", strconv.Itoa(port))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		x := &request{w: w, r: r, service: s, id: newID(), port: port}
 		h := w.Header()
@@ -117,10 +118,11 @@ func (s *Service) Handler(address *net.TCPAddr) http.Handler {
 		h.Set("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; sandbox")
 		h.Set("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers")
 		h.Set("X-Request-ID", x.id)
-		if r.Host != authority || r.URL.IsAbs() {
+		if (r.Host != authority && !strings.EqualFold(r.Host, localhost)) || r.URL.IsAbs() {
 			x.problem(403, "forbidden", "Request authority is not accepted.", "", nil)
 			return
 		}
+		origin := "http://" + r.Host
 		origins := r.Header.Values("Origin")
 		if len(origins) > 1 {
 			x.problem(400, "invalid_request", "Repeated request header.", "", nil)

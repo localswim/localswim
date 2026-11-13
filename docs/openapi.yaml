@@ -19,7 +19,10 @@ info:
     remain writable, and explicit snapshot admission and backup restoration retain their recovery rules.
 servers:
 - url: /api/2026-11-10
-  description: Same origin as the local UI. The service binds only to 127.0.0.1 at its configured port.
+  description: The server listens on IPv4 127.0.0.1 at its configured port. The UI and API accept
+    localhost:<port> or 127.0.0.1:<port> authorities. An Origin header, when supplied, must match the
+    requested Host. CLI LOCALSWIM_URL accepts either loopback address and connects to
+    numeric loopback internally.
 security:
 - localBearer: []
 tags:
@@ -18988,10 +18991,12 @@ x-input-policy:
   queries: Ignore unknown non-security query keys. Reject repeated scalar selectors and conflicting parameters.
     Normalize UUID array elements before duplicate checks.
 x-security-policy:
-  binding: 127.0.0.1 only; exact configured HTTP Host/authority on every request, including UI and bootstrap;
-    ignore forwarded-host authority.
-  origin: Reject foreign and null Origin before authentication or work. Originless native clients must
-    authenticate. Only the exact configured origin is advertised by CORS.
+  binding: Listen on IPv4 127.0.0.1 only. Accept localhost:<port> or 127.0.0.1:<port> HTTP
+    Host/authorities on every request, including UI and bootstrap. The localhost name is case-insensitive
+    and the port must match the bound port. Ignore forwarded-host authority.
+  origin: Require Origin, when supplied, to match the requested Host authority. Reject foreign hosts, foreign and null
+    Origin before authentication or work. Originless native clients must authenticate. Only the exact
+    accepted request origin is advertised by CORS.
   bootstrap: POST /browser-session alone is same-origin-only and unauthenticated, requires Origin plus
     Sec-Fetch-Site:same-origin, and returns a separate, process-scoped Human capability. No actor selector. Treat
     same-user local processes as trusted; this is not remote-user authentication.

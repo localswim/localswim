@@ -207,7 +207,7 @@ func writeCommandHelp(name string) string {
 	output.WriteString("\nAppend --help to an object or action for scoped help. Use help OBJECT ACTION as an alternative.\n")
 	output.WriteString("Options precede positional arguments. Uppercase arguments are required; brackets mark optional inputs.\n")
 	if name == "" {
-		output.WriteString("Live commands use LOCALSWIM_URL (http://127.0.0.1:<port>) and LOCALSWIM_TOKEN.\n")
+		output.WriteString("Live commands use LOCALSWIM_URL (http://127.0.0.1:<port> or http://localhost:<port>) and LOCALSWIM_TOKEN.\n")
 		output.WriteString("Help and usage errors do not contact the service. Help exits 0, usage errors 2, execution failures 1.\n")
 		return output.String()
 	}

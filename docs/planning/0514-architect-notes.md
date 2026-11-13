@@ -1,5 +1,10 @@
 # Epic #0514 architect notes
 
+The [2026-11-13 drop-in UI clarification](0514-v1-drop-in-remit.md) supersedes
+the visual acceptance assumptions below. Terry rejected the demo's UI/UX.
+Epic #0514 is back In Progress. Functional qualification does not establish
+acceptance of the required V1-identical browser experience.
+
 Status snapshot: 2026-11-13. These notes preserve the in-flight assessment;
 they are not new implementation authorization or production cutover approval.
 

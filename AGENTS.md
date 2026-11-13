@@ -1,5 +1,20 @@
 # V2 development rules
 
+## V1 drop-in browser replacement
+
+- Terry clarified on 2026-11-13 that the V2 web UI must look and work exactly
+  like the fully functional V1 site. V1's observable UI and UX are the specification.
+- Build a freshly designed TypeScript frontend against the V2 backend, using the
+  known final requirements to reduce technical debt. Preserve V1 layout, styling,
+  density, control placement, navigation, drawers, dialogs, keyboard behavior,
+  interaction feedback and workflows.
+- Functional parity, broad visual similarity, passing tests and documented
+  differences do not establish acceptance of a changed UI or interaction.
+  Any deliberate user-visible departure requires Terry's explicit approval.
+- Verify matching states with the same data and viewport against running V1.
+  Include workspace and board entry, ordinary work and failure/recovery states.
+  Terry's hands-on review and explicit cutover approval remain required.
+
 ## Epic #0514 turn gates
 
 - The Architect chat owns entry gates for T1-T9. The UI Lead owns execution and integration.

@@ -7,17 +7,35 @@ type Api = Pick<ReturnType<typeof createBrowserApi>, "getService" | "listBuilds"
 type ServiceReply = Awaited<ReturnType<Api["getService"]>>;
 type Service = ServiceReply["data"];
 type StopIntent = Readonly<{ instanceId: string; etag: string; acknowledged: boolean }>;
+type StopSettlement =
+  | { kind: "confirmed"; service: Service }
+  | { kind: "refused"; message: string; refresh: boolean }
+  | { kind: "unknown" | "journal-failed" };
+type Lifecycle = {
+  operations: ReturnType<typeof createScopedOperations>;
+  settlement?: StopSettlement;
+  observers: Set<() => void>;
+};
 type Options = Readonly<{
   api: Api;
   readWithSession: ReturnType<typeof createWorkspaceState>["readWithSession"];
   signal: AbortSignal;
   canManage: () => boolean;
+  onRefreshIdentity?: () => void;
 }>;
 
 const stopKey = "localswim.service-stop.v1";
-const lifecycleOperations = createScopedOperations();
+const lifecycles = new WeakMap<Document, Lifecycle>();
 const instanceIdPattern = /^[\da-f]{8}-[\da-f]{4}-7[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/;
 const serviceTagPattern = /^"[A-Za-z0-9_-]{16,128}"$/;
+
+function lifecycleFor(doc: Document): Lifecycle {
+  const existing = lifecycles.get(doc);
+  if (existing) return existing;
+  const lifecycle = { operations: createScopedOperations(), observers: new Set<() => void>() };
+  lifecycles.set(doc, lifecycle);
+  return lifecycle;
+}
 
 function readStopIntent(storage: Storage): StopIntent | null {
   const raw = storage.getItem(stopKey);
@@ -47,9 +65,10 @@ function serviceLabel(service: Service) {
 
 export function mountServiceTools(
   host: HTMLElement,
-  { api, readWithSession, signal, canManage }: Options,
+  { api, readWithSession, signal, canManage, onRefreshIdentity }: Options,
 ) {
   const doc = host.ownerDocument;
+  const lifecycle = lifecycleFor(doc);
   const section = doc.createElement("section");
   const heading = doc.createElement("h2");
   const health = doc.createElement("p");
@@ -76,6 +95,7 @@ export function mountServiceTools(
   let storageReady = false;
   let service: ServiceReply | undefined;
   let inspecting = false;
+  let refreshAfterInspection = false;
   let managed = false;
   let buildRead: AbortController | undefined;
 
@@ -104,7 +124,7 @@ export function mountServiceTools(
 
   function sync() {
     if (signal.aborted) return;
-    const submitting = lifecycleOperations.state(stopKey) === "submitting";
+    const submitting = lifecycle.operations.state(stopKey) === "submitting";
     stop.hidden = !managed;
     outcome.hidden = !managed;
     buildStatus.hidden = !managed;
@@ -113,6 +133,7 @@ export function mountServiceTools(
     stop.disabled =
       inspecting ||
       submitting ||
+      lifecycle.settlement?.kind === "unknown" ||
       pending !== null ||
       !storageReady ||
       service?.data.state !== "running";
@@ -157,7 +178,8 @@ export function mountServiceTools(
   function reconcile(latest: ServiceReply | undefined) {
     if (!pending) return;
     if (!latest || latest.data.state === "draining") {
-      outcome.textContent = pending.acknowledged
+      const accepted = pending.acknowledged || lifecycle.settlement?.kind === "confirmed";
+      outcome.textContent = accepted
         ? `Shutdown accepted. ${latest ? "The service is draining." : "The service is unreachable."}`
         : latest
           ? "The service is draining. The original shutdown outcome is uncertain."
@@ -175,27 +197,38 @@ export function mountServiceTools(
     if (!saveIntent(null)) {
       storageReady = false;
       reportPending();
+    } else {
+      lifecycle.settlement = undefined;
     }
   }
 
   async function inspect(explicit: boolean) {
     if (inspecting || signal.aborted) return;
-    if (explicit && lifecycleOperations.state(stopKey) === "submitting") {
+    if (explicit && lifecycle.operations.state(stopKey) === "submitting") {
       outcome.textContent =
         "A shutdown request is still in progress. Refresh service status after it settles.";
       return;
     }
     inspecting = true;
+    const previousSettlement = lifecycle.settlement;
     sync();
     try {
-      service = await readWithSession(() => api.getService(signal), signal);
-      if (!signal.aborted) health.textContent = serviceLabel(service.data);
+      const latest = await readWithSession(() => api.getService(signal), signal);
+      if (!signal.aborted && lifecycle.settlement === previousSettlement) {
+        service = latest;
+        health.textContent = serviceLabel(latest.data);
+      }
     } catch {
-      service = undefined;
-      if (!signal.aborted) health.textContent = "Service status is unavailable.";
+      if (!signal.aborted && lifecycle.settlement === previousSettlement) {
+        service = undefined;
+        health.textContent = "Service status is unavailable.";
+      }
     } finally {
       inspecting = false;
-      if (!signal.aborted && explicit) {
+      if (refreshAfterInspection) {
+        refreshAfterInspection = false;
+        void inspect(false);
+      } else if (!signal.aborted && explicit) {
         if (canManage()) {
           storageReady = loadIntent();
           if (storageReady && pending) reconcile(service);
@@ -207,10 +240,51 @@ export function mountServiceTools(
     }
   }
 
+  function showSettlement(refresh = true) {
+    if (signal.aborted) return;
+    storageReady = loadIntent();
+    const settlement = lifecycle.settlement;
+    switch (settlement?.kind) {
+      case "confirmed":
+        service = undefined;
+        health.textContent = serviceLabel(settlement.service);
+        outcome.textContent = "Shutdown accepted. The service is draining.";
+        break;
+      case "refused":
+        service = undefined;
+        outcome.textContent = settlement.message;
+        if (refresh && settlement.refresh) {
+          if (inspecting) refreshAfterInspection = true;
+          else void inspect(false);
+        }
+        break;
+      case "unknown":
+        service = undefined;
+        health.textContent = "Refresh service status to check the current instance.";
+        reportPending();
+        break;
+      case "journal-failed":
+        storageReady = false;
+        reportPending();
+        break;
+      case undefined:
+        reportPending();
+        break;
+    }
+    sync();
+  }
+
   async function requestStop() {
-    if (signal.aborted || !canManage() || inspecting || service?.data.state !== "running") return;
+    if (
+      signal.aborted ||
+      !canManage() ||
+      inspecting ||
+      lifecycle.settlement?.kind === "unknown" ||
+      service?.data.state !== "running"
+    )
+      return;
     const prior = service;
-    await lifecycleOperations.run(
+    await lifecycle.operations.run(
       stopKey,
       "submitting",
       async () => {
@@ -225,6 +299,7 @@ export function mountServiceTools(
           acknowledged: false,
         };
         outcome.textContent = "Requesting graceful shutdown…";
+        lifecycle.settlement = undefined;
         let flushRefused = false;
         const result = await submitOperation(
           () => saveIntent(intent),
@@ -244,32 +319,32 @@ export function mountServiceTools(
         switch (result.kind) {
           case "confirmed":
             saveIntent({ ...intent, acknowledged: true });
-            service = undefined;
-            health.textContent = serviceLabel(result.result);
-            outcome.textContent = "Shutdown accepted. The service is draining.";
+            lifecycle.settlement = { kind: "confirmed", service: result.result };
             break;
           case "unknown":
-            service = undefined;
-            health.textContent = "Refresh service status to check the current instance.";
-            reportPending();
+            lifecycle.settlement = { kind: "unknown" };
             break;
           case "stale":
           case "refused":
-            storageReady = saveIntent(null);
-            service = undefined;
-            outcome.textContent = flushRefused
-              ? "Final publication failed. The service remains running."
-              : result.kind === "stale"
-                ? "Service status changed. Refresh it before requesting shutdown."
-                : "The service refused shutdown. Refresh service status before trying again.";
+            saveIntent(null);
+            lifecycle.settlement = {
+              kind: "refused",
+              refresh: flushRefused,
+              message: flushRefused
+                ? "Final publication failed. The service remains running."
+                : result.kind === "stale"
+                  ? "Service status changed. Refresh it before requesting shutdown."
+                  : "The service refused shutdown. Refresh service status before trying again.",
+            };
             break;
           case "journal-failed":
-            storageReady = false;
-            reportPending();
+            lifecycle.settlement = { kind: "journal-failed" };
             break;
         }
       },
-      sync,
+      () => {
+        for (const observer of lifecycle.observers) observer();
+      },
     );
   }
 
@@ -283,10 +358,25 @@ export function mountServiceTools(
     sync();
   }
 
-  refresh.addEventListener("click", () => void inspect(true), { signal });
+  refresh.addEventListener(
+    "click",
+    () => {
+      onRefreshIdentity?.();
+      void inspect(true);
+    },
+    { signal },
+  );
   stop.addEventListener("click", () => void requestStop(), { signal });
-  storageReady = loadIntent();
-  reportPending();
+  const onSettlement = () => showSettlement();
+  if (!signal.aborted) lifecycle.observers.add(onSettlement);
+  signal.addEventListener(
+    "abort",
+    () => {
+      lifecycle.observers.delete(onSettlement);
+    },
+    { once: true },
+  );
+  showSettlement(false);
   update();
   void inspect(false);
   return { update };

@@ -15,6 +15,12 @@
     "strict": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitOverride": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
     "noEmitOnError": true,
     "noEmit": true,
     "types": []
@@ -28,6 +34,8 @@
     "build.mjs",
     "**/*.test.*",
     "generated",
+    "dist",
+    "tooling",
     "node_modules"
   ]
 }

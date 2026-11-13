@@ -1,0 +1,61 @@
+{
+  "categories": {
+    "correctness": "off"
+  },
+  "env": {
+    "browser": true
+  },
+  "ignorePatterns": ["dist/**", "generated/**", "node_modules/**", "testdata/**"],
+  "options": {
+    "typeAware": true
+  },
+  "plugins": ["typescript"],
+  "rules": {
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/await-thenable": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/switch-exhaustiveness-check": "error",
+    "no-async-promise-executor": "error",
+    "no-promise-executor-return": "error",
+    "array-callback-return": "error",
+    "no-dupe-keys": "error",
+    "no-dupe-else-if": "error",
+    "no-duplicate-case": "error",
+    "no-self-assign": "error",
+    "no-self-compare": "error",
+    "use-isnan": "error",
+    "valid-typeof": "error",
+    "no-unsafe-finally": "error",
+    "no-unreachable": "error",
+    "no-debugger": "error",
+    "no-eval": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.mjs", "build.mjs", "tooling/**/*.mjs"],
+      "env": {
+        "browser": false,
+        "node": true
+      }
+    },
+    {
+      "files": ["api.test.mjs", "turn*.test.mjs"],
+      "rules": {
+        "typescript/no-floating-promises": "off",
+        "typescript/no-misused-promises": "off",
+        "typescript/await-thenable": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-return": "off",
+        "typescript/switch-exhaustiveness-check": "off"
+      }
+    }
+  ]
+}

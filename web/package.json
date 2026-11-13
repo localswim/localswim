@@ -5,10 +5,19 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "check": "node build.mjs --check",
+    "check": "npm run typecheck && npm run lint && npm run format:check && node build.mjs --check",
+    "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.tools.json --noEmit",
+    "lint": "oxlint --no-ignore --config .oxlintrc.json .",
+    "format": "prettier --write \"**/*.{ts,js,mjs,cjs,css,html,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,mjs,cjs,css,html,json}\"",
     "test": "node --test api.test.mjs turn3.test.mjs turn4.test.mjs turn5.test.mjs turn6.test.mjs turn7.test.mjs turn7-ui.test.mjs"
   },
   "devDependencies": {
+    "@types/node": "26.6.6",
+    "esbuild": "0.28.2",
+    "oxlint": "1.90.0",
+    "oxlint-tsgolint": "7.0.2005",
+    "prettier": "3.9.10",
     "typescript": "7.0.2"
   }
 }

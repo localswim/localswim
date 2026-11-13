@@ -7,15 +7,14 @@ local assets are independent of the capability.
 
 The TypeScript entry point is `src/main.ts`. After editing TypeScript, run
 `npm --prefix web ci` if dependencies are missing, then
-`npm --prefix web run build`. Commit the corresponding files in
-`generated/src/`. The Go build embeds that output, and
-`npm --prefix web run check` checks types and compares the embedded output
-with a fresh compilation.
+`npm --prefix web run build`. Commit the corresponding files in `dist/`.
+The Go build embeds the optimized HTML, JavaScript and CSS. Matching maps
+support debugging. Run `npm --prefix web run check` for the compiler, lint,
+canonical formatting and release asset checks.
 
-The T1 candidate opens the workspace board list and direct board URLs. It
-displays loading and availability, offers a workspace link for a missing board,
-and lets the user retry a failed read. The isolated candidate gains the remaining
-workflows in T2–T9.
+The isolated candidate opens the workspace attention view and direct board URLs.
+It displays confirmed lanes and cards, supports inline filtering, and updates
+attention as boards change. The remaining workflows arrive in T3–T9.
 
 ## Current production UI reference
 

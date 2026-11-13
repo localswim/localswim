@@ -1,3 +1,7 @@
+@import "./src/tokens.css";
+@import "./src/board.css";
+@import "./src/attention.css";
+
 :root { color-scheme: light; font: 16px system-ui, sans-serif; color: #17253a; background: #f2f5f9; }
 * { box-sizing: border-box; }
 body { margin: 0; }
@@ -8,7 +12,14 @@ header a { color: inherit; font-size: 1.3rem; font-weight: 700; }
 #app-bar a { color: #85b8ff; }
 #app-bar h1 { overflow-wrap: anywhere; }
 #app-bar a:focus-visible { outline-color: white; }
-[data-app] #main { padding: 1rem; }
+[data-app] #main { padding: 0.75rem; }
+#workspace-layout { display: grid; gap: 0.75rem; align-items: start; }
+[data-app][data-route="workspace"] #workspace-layout { max-width: 34rem; }
+[data-app][data-route="board"] #workspace-layout { grid-template-columns: minmax(14rem, 19rem) minmax(0, 1fr); }
+#attention, #board-region { min-width: 0; }
+@media (max-width: 750px) {
+  [data-app][data-route="board"] #workspace-layout { grid-template-columns: minmax(0, 1fr); }
+}
 [data-app] #status { display: block; margin: 0 0 0.75rem; }
 [data-app] #status:empty { margin: 0; }
 [data-app] #route-content > h1 { margin-block-start: 0; }

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>localswim</title>
   <link rel="stylesheet" href="/assets/app.css">
-  <script type="module" src="/assets/src/main.js"></script>
+  <script type="module" src="/assets/app.js"></script>
 </head>
 <body>
   <div data-app data-phase="loading">
@@ -14,8 +14,13 @@
       <h1 id="board-name" hidden></h1>
     </header>
     <main id="main">
-      <p id="status" role="status" data-phase="loading">Loading…</p>
-      <div id="route-content"></div>
+      <div id="workspace-layout">
+        <div id="attention"></div>
+        <div id="board-region" hidden>
+          <p id="status" role="status" data-phase="loading">Loading…</p>
+          <div id="route-content"></div>
+        </div>
+      </div>
       <noscript>Enable JavaScript to open your boards.</noscript>
     </main>
   </div>

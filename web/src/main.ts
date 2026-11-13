@@ -1,23 +1,8 @@
-import { ApiError, createBrowserApi, openBrowserSession } from "../api.mjs";
-import { parseBoardPage, parseRoute } from "./model.js";
-import type { AppContext, BoardLink } from "./model.js";
-
-async function readBoards({ api, signal }: AppContext): Promise<BoardLink[]> {
-  const boards: BoardLink[] = [];
-  const seenCursors = new Set<string>();
-  let cursor: string | null = null;
-  do {
-    const { data } = await api.listBoards(cursor ?? undefined, signal);
-    const page = parseBoardPage(data);
-    for (const board of page.boards) boards.push(board);
-    cursor = page.nextCursor;
-    if (cursor !== null) {
-      if (seenCursors.has(cursor)) throw new TypeError("Repeated board catalog cursor.");
-      seenCursors.add(cursor);
-    }
-  } while (cursor !== null);
-  return boards;
-}
+import { ApiError } from "../api.mjs";
+import { mountAttention } from "./attention.js";
+import { getBoardView, mountBoardView } from "./board-view.js";
+import { parseRoute } from "./model.js";
+import { createWorkspaceState } from "./workspace-state.js";
 
 export function mount(root: HTMLElement): () => void {
   const doc = root.ownerDocument;
@@ -32,15 +17,42 @@ export function mount(root: HTMLElement): () => void {
 
   const status = shellElement("#status");
   const boardName = shellElement("#board-name");
+  const boardRegion = shellElement("#board-region");
   const content = shellElement("#route-content");
   const route = parseRoute(view.location.pathname);
   const lifetime = new AbortController();
-  let capability: string | undefined;
-  const api = createBrowserApi({ getCapability: () => capability });
-  const context: AppContext = { api, signal: lifetime.signal };
+  const { signal } = lifetime;
+  const selectedBoardId = route.kind === "board" ? route.id : undefined;
+  let title = "localswim";
+  let totalAttention = 0;
+  let board: ReturnType<typeof mountBoardView> | undefined;
   const retry = doc.createElement("button");
   retry.type = "button";
   retry.textContent = "Try again";
+  root.dataset.route = route.kind;
+  boardRegion.hidden = route.kind === "workspace";
+
+  const attention = mountAttention(shellElement("#attention"), {
+    selectBoard: (id) => view.location.assign(`/boards/${id}`),
+    retry: () => { void workspace.refresh(); },
+  });
+  const workspace = createWorkspaceState({
+    signal,
+    selectedBoardId,
+    onChange(catalog) {
+      attention.update(catalog, selectedBoardId);
+      totalAttention = catalog.totalAttention;
+      updateTitle();
+      if (route.kind === "workspace") {
+        setPhase(catalog.status);
+      }
+    },
+  });
+  const context = { api: workspace.api, signal };
+
+  function updateTitle() {
+    doc.title = totalAttention > 0 ? `(${totalAttention}) ${title}` : title;
+  }
 
   function setPhase(phase: "loading" | "ready" | "missing" | "error", message = "") {
     root.dataset.phase = phase;
@@ -56,57 +68,23 @@ export function mount(root: HTMLElement): () => void {
     setPhase("missing", "Board not found.");
   }
 
-  function showWorkspace(boards: readonly BoardLink[]) {
-    const heading = doc.createElement("h1");
-    heading.textContent = "Boards";
-    if (boards.length === 0) {
-      const empty = doc.createElement("p");
-      empty.textContent = "No boards are available.";
-      content.replaceChildren(heading, empty);
-      return;
-    }
-    const nav = doc.createElement("nav");
-    nav.setAttribute("aria-label", "Boards");
-    const list = doc.createElement("ul");
-    for (const board of boards) {
-      const item = doc.createElement("li");
-      const link = doc.createElement("a");
-      link.href = `/boards/${board.id}`;
-      link.textContent = board.name ?? `Unavailable board (${board.id})`;
-      item.append(link);
-      list.append(item);
-    }
-    nav.append(list);
-    content.replaceChildren(heading, nav);
-  }
-
-  async function load() {
-    if (context.signal.aborted) return;
+  async function loadBoard() {
+    if (signal.aborted || retry.disabled || route.kind === "workspace") return;
     if (route.kind === "missing") {
       showMissing();
       return;
     }
     retry.disabled = true;
-    setPhase("loading", route.kind === "workspace" ? "Loading boards…" : "Loading board…");
+    setPhase("loading", "Loading board…");
     try {
-      if (!capability) {
-        const token = await openBrowserSession();
-        if (context.signal.aborted) return;
-        capability = token;
-      }
-      if (route.kind === "workspace") {
-        const boards = await readBoards(context);
-        if (context.signal.aborted) return;
-        showWorkspace(boards);
-        setPhase("ready");
-        return;
-      }
-
-      const reply = await context.api.getBoardAvailability(route.id, context.signal).catch((error: unknown) => {
+      const reply = await workspace.readWithSession(
+        () => context.api.getBoardAvailability(route.id, signal),
+        signal,
+      ).catch((error: unknown) => {
         if (error instanceof ApiError && error.status === 404) return null;
         throw error;
       });
-      if (context.signal.aborted) return;
+      if (signal.aborted) return;
       if (reply === null) {
         showMissing();
         return;
@@ -114,30 +92,49 @@ export function mount(root: HTMLElement): () => void {
       const { name, availability } = reply.data;
       boardName.textContent = name;
       boardName.hidden = false;
-      doc.title = `${name} · localswim`;
-      content.replaceChildren();
+      title = `${name} · localswim`;
+      updateTitle();
+      if (availability === "open") {
+        const confirmed = await workspace.readWithSession(() => getBoardView(context, route.id), signal);
+        if (signal.aborted) return;
+        const host = doc.createElement("div");
+        content.replaceChildren(host);
+        board = mountBoardView(host, confirmed);
+      } else {
+        content.replaceChildren();
+      }
       const message = availability === "closed" ? "This board is closed."
-        : availability === "unhealthy" ? "This board is unavailable." : "Board loaded.";
+        : availability === "unhealthy" ? "This board is unavailable." : "";
       setPhase("ready", message);
-    } catch (error) {
-      if (context.signal.aborted) return;
-      if (error instanceof ApiError && error.status === 401) capability = undefined;
-      setPhase("error", route.kind === "workspace" ? "Could not load boards." : "Could not load this board.");
+    } catch {
+      if (signal.aborted) return;
+      setPhase("error", "Could not load this board.");
       content.replaceChildren(retry);
     } finally {
       retry.disabled = false;
     }
   }
 
-  const retryLoad = () => { void load(); };
+  const retryLoad = () => { void loadBoard(); };
   retry.addEventListener("click", retryLoad);
-  void load();
+  void loadBoard();
 
-  return () => {
+  function dispose() {
+    if (signal.aborted) return;
     lifetime.abort();
-    capability = undefined;
+    board?.dispose();
+    attention.dispose();
+    workspace.dispose();
     retry.removeEventListener("click", retryLoad);
-  };
+    view?.removeEventListener("pagehide", disposeOnExit);
+  }
+
+  function disposeOnExit(event: PageTransitionEvent) {
+    if (!event.persisted) dispose();
+  }
+
+  view.addEventListener("pagehide", disposeOnExit);
+  return dispose;
 }
 
 const root = document.querySelector<HTMLElement>("[data-app]");

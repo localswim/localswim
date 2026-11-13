@@ -101,17 +101,37 @@ function readActivationIntent(storage: Storage): ActivationIntent | null {
   return { id, attempt, buildId, runningBuildId, instanceId, etag, port, acknowledged };
 }
 
-function matchesOriginalService(intent: ActivationIntent, reply: ServiceReply) {
-  const { data, etag } = reply;
+function isOriginalRunningService(intent: ActivationIntent, data: Service) {
   return (
-    etag === intent.etag &&
     data.service_instance_id === intent.instanceId &&
     data.build_id === intent.runningBuildId &&
     data.port === intent.port &&
-    data.state === "running" &&
-    data.restart_error_code === null
+    data.state === "running"
   );
 }
+
+function serviceRevision(instanceId: string, etag: string) {
+  const prefix = `"${instanceId}-`;
+  if (!etag.startsWith(prefix) || !etag.endsWith('"')) return undefined;
+  const digits = etag.slice(prefix.length, -1);
+  if (!/^[1-9]\d{0,19}$/.test(digits)) return undefined;
+  const revision = BigInt(digits);
+  return revision <= 0xffff_ffff_ffff_ffffn ? revision : undefined;
+}
+
+function recoveryAction(intent: ActivationIntent, etag: string) {
+  if (etag === intent.etag) return "retry";
+  const original = serviceRevision(intent.instanceId, intent.etag);
+  const current = serviceRevision(intent.instanceId, etag);
+  if (original !== undefined && current !== undefined && current > original) return "dismiss";
+  return undefined;
+}
+
+type ActivationRecovery = Readonly<{
+  attempt: string;
+  action: "retry" | "dismiss";
+  etag: string;
+}>;
 
 function lifecycleFor(doc: Document): Lifecycle {
   const existing = lifecycles.get(doc);
@@ -180,6 +200,7 @@ export function mountServiceTools(
   const choice = doc.createElement("select");
   const activationOutcome = doc.createElement("p");
   const retryActivation = doc.createElement("button");
+  const dismissActivation = doc.createElement("button");
   heading.textContent = "Service";
   health.textContent = "Reading service status…";
   health.setAttribute("role", "status");
@@ -196,6 +217,8 @@ export function mountServiceTools(
   activationOutcome.setAttribute("role", "status");
   retryActivation.type = "button";
   retryActivation.textContent = "Retry original activation";
+  dismissActivation.type = "button";
+  dismissActivation.textContent = "Dismiss original activation";
   section.id = "service-controls";
   section.append(
     heading,
@@ -209,6 +232,7 @@ export function mountServiceTools(
     outcome,
     activationOutcome,
     retryActivation,
+    dismissActivation,
   );
   host.append(section);
 
@@ -226,7 +250,7 @@ export function mountServiceTools(
   let pendingReported = false;
   let checkingActivation = false;
   let autoInspectedAttempt: string | undefined;
-  let retryableAttempt: string | undefined;
+  let activationRecovery: ActivationRecovery | undefined;
   let reconnectedInstance: string | undefined;
   let buildChoices: Awaited<ReturnType<Api["listBuilds"]>>["data"]["builds"] = [];
   let selectedBuild = "";
@@ -315,8 +339,12 @@ export function mountServiceTools(
     activate.hidden = !showControls;
     choiceLabel.hidden = !showControls;
     activationOutcome.hidden = !managed || activationOutcome.textContent === "";
-    retryActivation.hidden = !managed || !activation || activation.attempt !== retryableAttempt;
-    retryActivation.disabled = activating || checkingActivation || inspecting;
+    const recoveryAvailable =
+      managed && activation && activation.attempt === activationRecovery?.attempt;
+    retryActivation.hidden = !recoveryAvailable || activationRecovery?.action !== "retry";
+    dismissActivation.hidden = !recoveryAvailable || activationRecovery?.action !== "dismiss";
+    retryActivation.disabled = dismissActivation.disabled =
+      activating || checkingActivation || inspecting;
     refresh.disabled = inspecting || activating || checkingActivation;
     const cannotChangeService =
       inspecting ||
@@ -406,7 +434,7 @@ export function mountServiceTools(
     return readActivationIntentIfAvailable()?.attempt === intent.attempt;
   }
 
-  async function inspectActivation(mode: "poll" | "inspect" | "retry") {
+  async function inspectActivation(mode: "poll" | "inspect" | "retry" | "dismiss") {
     if (
       checkingActivation ||
       inspecting ||
@@ -417,8 +445,13 @@ export function mountServiceTools(
     )
       return;
     const original = activation;
-    if (mode === "retry" && retryableAttempt !== original.attempt) return;
-    retryableAttempt = undefined;
+    const priorProof = activationRecovery;
+    if (
+      (mode === "retry" || mode === "dismiss") &&
+      (priorProof?.action !== mode || priorProof.attempt !== original.attempt)
+    )
+      return;
+    activationRecovery = undefined;
     checkingActivation = true;
     autoInspectedAttempt = original.attempt;
     activationOutcome.textContent = `Checking activation receipt ${original.id} and service status…`;
@@ -451,20 +484,36 @@ export function mountServiceTools(
             !receipt &&
             mode !== "poll" &&
             !original.acknowledged &&
-            matchesOriginalService(original, first)
+            isOriginalRunningService(original, first.data)
           ) {
-            // Both service reads must match the captured validator. The conditional
-            // write handles admission of the original request after this proof.
+            // The original instance advances its validator on admission. With a
+            // stable advanced validator and no receipt, the old CAS cannot enter.
             const confirmed = await readActivationService(readSignal);
             if (!canManage() || !ownsActivation(original)) return;
-            if (matchesOriginalService(original, confirmed)) {
-              if (mode === "retry") {
-                await submitActivation({ ...original, attempt: crypto.randomUUID() }, original);
-              } else {
-                retryableAttempt = original.attempt;
-                lifecycle.activationMessage = `Receipt ${original.id} is missing and the original service is unchanged. You can retry the original activation.`;
+            const action = recoveryAction(original, confirmed.etag);
+            if (
+              action &&
+              first.etag === confirmed.etag &&
+              isOriginalRunningService(original, confirmed.data)
+            ) {
+              if (mode === "inspect") {
+                activationRecovery = { attempt: original.attempt, action, etag: confirmed.etag };
+                lifecycle.activationMessage =
+                  action === "retry"
+                    ? `Receipt ${original.id} is missing and the original service is unchanged. You can retry the original activation.`
+                    : `Receipt ${original.id} is missing and the original service validator has advanced. You can dismiss the original activation.`;
+                return;
               }
-              return;
+              if (mode === "retry" && action === mode && priorProof?.etag === confirmed.etag) {
+                await submitActivation({ ...original, attempt: crypto.randomUUID() }, original);
+                return;
+              }
+              if (mode === "dismiss" && action === mode && priorProof?.etag === confirmed.etag) {
+                lifecycle.activationMessage = saveActivation(original.attempt, null)
+                  ? `Dismissed original activation ${original.id}. You can start a new activation.`
+                  : "This tab could not clear the activation record.";
+                return;
+              }
             }
           }
           let activated = false;
@@ -831,6 +880,7 @@ export function mountServiceTools(
   );
   activate.addEventListener("click", () => void requestActivation(), { signal });
   retryActivation.addEventListener("click", () => void inspectActivation("retry"), { signal });
+  dismissActivation.addEventListener("click", () => void inspectActivation("dismiss"), { signal });
   let lastStopSettlement = lifecycle.settlement;
   let lastActivationRefusal = lifecycle.activationRefusal;
   const onSettlement = () => {

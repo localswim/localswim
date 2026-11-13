@@ -29,7 +29,7 @@ const candidate = "5ea7b117-ea76-4c57-9cc8-73be303c687b";
 const alternative = "3929f28d-6d26-4675-a877-b9ff3b9db5d0";
 const instanceId = "019aa833-7650-746b-a3f0-e2f7af0b9e3f";
 const replacementId = "019aa833-7651-746b-a3f0-e2f7af0b9e3f";
-const serviceEtag = '"captured-service-validator"';
+const serviceEtag = `"${instanceId}-2"`;
 const activationKey = "localswim.service-activation.v1";
 const originalIntent = {
   id: "019aa833-7652-746b-a3f0-e2f7af0b9e3f",
@@ -114,7 +114,7 @@ function fixture(t) {
       ...extra,
     });
     const [section] = host.children;
-    const [, , , , label, activate, refresh, stop, shutdownStatus, status, retry] =
+    const [, , , , label, activate, refresh, stop, shutdownStatus, status, retry, dismiss] =
       section.children;
     const [, select] = label.children;
     return {
@@ -124,6 +124,7 @@ function fixture(t) {
       activate,
       refresh,
       retry,
+      dismiss,
       stop,
       shutdownStatus,
       status,
@@ -374,6 +375,10 @@ test("explicit retry preserves the original activation CAS and retains a refused
   let managed = true;
   const panel = mount(
     {
+      getService: async () => ({
+        ...initialService,
+        data: { ...initialService.data, restart_error_code: "git_push_failed" },
+      }),
       getActivation: async (receiptId, buildId) => {
         receipts.push([receiptId, buildId]);
         throw failure;
@@ -461,6 +466,89 @@ test("the retry click rereads the original service validator after checking rece
   assert.equal(writes, 0);
   assert.equal(panel.retry.hidden, true);
   assert.deepEqual(JSON.parse(storage.getItem(activationKey)), originalIntent);
+});
+
+test("stable advanced validator and missing receipt allow explicit dismissal after retry publication refusal", async (t) => {
+  const { storage, mount } = fixture(t);
+  const advancedTag = `"${instanceId}-4"`;
+  const newerTag = `"${instanceId}-6"`;
+  const calls = [];
+  let service = initialService;
+  let changeOnReceipt = false;
+  let canManage = true;
+  let receiptReads = 0;
+  storage.setItem(activationKey, JSON.stringify(originalIntent));
+  const panel = mount(
+    {
+      getService: async () => service,
+      getActivation: async (id, buildId) => {
+        assert.deepEqual([id, buildId], [originalIntent.id, candidate]);
+        receiptReads++;
+        if (changeOnReceipt) service = { ...service, etag: newerTag };
+        throw new BrowserApiError("http_error", { status: 404 });
+      },
+      activateBuild: async (id, buildId, etag) => {
+        calls.push([id, buildId, etag]);
+        if (calls.length === 1) {
+          service = {
+            data: { ...service.data, restart_error_code: "git_push_failed" },
+            etag: advancedTag,
+          };
+          throw new BrowserApiError("final_publication_failed", { status: 503 });
+        }
+        throw new BrowserApiError("http_error", { status: 412 });
+      },
+    },
+    { canManage: () => canManage },
+  );
+  await until(() => receiptReads === 1);
+  canManage = false;
+  await delay(800);
+  canManage = true;
+  panel.update();
+  panel.refresh.click();
+  await until(() => !panel.retry.hidden);
+  panel.retry.click();
+  await until(() => /refused the retry/.test(panel.status.textContent));
+  assert.equal(panel.dismiss.hidden, true);
+  assert.equal(hasPendingServiceActivation(storage), true);
+  for (const etag of [
+    `"${instanceId}-1"`,
+    `"${replacementId}-4"`,
+    '"unbound-advanced-service-validator"',
+  ]) {
+    service = { ...service, etag };
+    panel.refresh.click();
+    await until(() => /Activation outcome is unconfirmed/.test(panel.status.textContent));
+    assert.equal(panel.dismiss.hidden, true);
+    assert.equal(panel.retry.hidden, true);
+  }
+  service = { ...service, etag: advancedTag };
+  panel.refresh.click();
+  await until(() => !panel.dismiss.hidden);
+  assert.equal(panel.retry.hidden, true);
+  assert.equal(hasPendingServiceActivation(storage), true);
+
+  changeOnReceipt = true;
+  panel.dismiss.click();
+  await until(() => /Activation outcome is unconfirmed/.test(panel.status.textContent));
+  assert.equal(hasPendingServiceActivation(storage), true);
+  assert.equal(panel.dismiss.hidden, true);
+  assert.equal(calls.length, 1);
+
+  changeOnReceipt = false;
+  panel.refresh.click();
+  await until(() => !panel.dismiss.hidden);
+  panel.dismiss.click();
+  await until(() => !hasPendingServiceActivation(storage));
+  assert.match(panel.status.textContent, /Dismissed original activation/);
+  assert.deepEqual(calls, [[originalIntent.id, candidate, serviceEtag]]);
+  selectBuild(panel);
+  await until(() => !panel.activate.disabled);
+  panel.activate.click();
+  await until(() => calls.length === 2);
+  assert.notEqual(calls[1][0], originalIntent.id);
+  assert.deepEqual(calls[1].slice(1), [candidate, newerTag]);
 });
 
 test("shutdown keeps its captured validator and leaves activation unavailable during drain", async (t) => {

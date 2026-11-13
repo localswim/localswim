@@ -11,9 +11,9 @@ Each assignment uses its named epic #0581 story. Sol Medium is GPT-6.1 Sol at me
 | #0594 / R07 | Sol Medium 0594 Text<br>Sol Medium 0594 Actions | Sol High 0594 Review | R06 | In Progress. Matched editor states and stale or lost write qualification remain. |
 | #0595 / R08 | Sol Medium 0595 Author | Sol High 0595 Review | R06 | In Progress. Reload recovery verified. Check unsent drafts across boards and archived-card posting. |
 | #0596 / R10 | Sol Medium 0596 Author | Sol High 0596 Review | R06 | In Progress. Matched interaction evidence and browser recovery remain. |
-| #0597 / R12 | Sol Medium 0597 Author | Sol High 0597 Review | R06 | In Progress. Final-build motion, focus, and stale refusal remain. |
-| #0598 / R16 | Sol Medium 0598 Render<br>Sol Medium 0598 Data | Sol High 0598 Review | R06 | In Progress. Download, detach audit, and lost-response evidence remain. |
-| #0599 / R19 | Sol Medium 0599 History<br>Sol High 0599 Cache | Sol High 0599 Review | R02, R03, R06 | In Progress. Browser refresh failure and cache preference behavior remain. |
+| #0597 / R12 | Sol Medium 0597 Author | Sol High 0597 Review | R06 | In Progress. Motion and keyboard focus verified on the review build. Final-build stale refusal remains. |
+| #0598 / R16 | Sol Medium 0598 Render<br>Sol Medium 0598 Data | Sol High 0598 Review | R06 | In Progress. Download and detach audit verified. V1 detach interaction and lost-response evidence remain. |
+| #0599 / R19 | Sol Medium 0599 History<br>Sol High 0599 Cache | Sol High 0599 Review | R02, R03, R06 | In Progress. Access denial verified. Check retained read-only content on transport failure and cache preference behavior. |
 
 T4 opened after the Architect squash-merged T3 as e17790b.
 Visual reviewer Terra Medium T4 Visual Review compared earlier disposable captures. The UI Lead owns the remaining integrated checks. The Architect owns independent review of the candidate.

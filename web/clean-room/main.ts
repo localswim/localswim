@@ -47,8 +47,11 @@ import {
 import {
   postComment,
   inspectComment,
+  readCommentDraft,
   readPendingComments,
+  writeCommentDraft,
   writePendingComment,
+  type CommentDraft,
   type CommentPostInput,
   type CommentReceipt,
 } from "./drawer/post-comment.js";
@@ -148,6 +151,7 @@ function start(host: HTMLElement): void {
     readonly inspect: () => Promise<InspectionResult<unknown>>;
     readonly accepted: (value: unknown) => void;
     readonly comment: boolean;
+    readonly holdRevision?: number;
     phase: "pending" | "unknown" | "checking";
     requestId?: Uuid;
     refused?: () => void;
@@ -157,7 +161,7 @@ function start(host: HTMLElement): void {
   const commentMessageCards = new Set<Uuid>();
   const relationshipOperations = new Map<Uuid, Uuid>();
   let drawerPresentation: Confirmed<DrawerData> | null = null;
-  const commentDrafts = new Map<Uuid, { readonly text: string }>();
+  const commentDrafts = new Map<Uuid, CommentDraft>();
   const committedRelationships = new Map<Uuid, RelationshipIntent>();
   const committedText = new Map<
     Uuid,
@@ -315,36 +319,58 @@ function start(host: HTMLElement): void {
     historyTimer = window.setTimeout(() => persistHistory(), 250);
   }
 
+  function clearPrincipalState(): void {
+    boardReadEpoch += 1;
+    boardRead?.abort();
+    searchRead?.abort();
+    ticketRead?.abort();
+    drawerRead?.abort();
+    memory.clear();
+    minimumBoardRevisions.clear();
+    board = { status: "loading", previous: null };
+    confirmedPresentation = null;
+    confirmedCreation = undefined;
+    createOpen = false;
+    creating?.dispose();
+    creating = undefined;
+    draft = undefined;
+    createIntent = undefined;
+    createPhase = "editing";
+    createError = null;
+    ordering?.dispose();
+    ordering = undefined;
+    drawerPresentation = null;
+    drawerData = { status: "loading", previous: null };
+    drawer?.dispose();
+    drawer = undefined;
+    drawerKey = null;
+    commentDrafts.clear();
+    drawerMessages.clear();
+    commentMessageCards.clear();
+    relationshipOperations.clear();
+    committedRelationships.clear();
+    committedText.clear();
+    drawerOperations.clear();
+    recoverableApprovals.clear();
+    pendingMoves.clear();
+    inspectingMoves.clear();
+    liveMoveRevision = undefined;
+    lastActor = null;
+    lastActorAt = null;
+  }
+
   function setSession(next: SessionDto | null): void {
     session = next;
     if (!next || next.principal_id === cacheActor) return;
+    if (cacheActor !== null) clearPrincipalState();
     cache.setPrincipal(next.principal_id);
-    if (cacheActor !== null) {
-      boardReadEpoch += 1;
-      boardRead?.abort();
-      searchRead?.abort();
-      ticketRead?.abort();
-      for (const state of memory.values()) state.confirmed = null;
-      board = { status: "loading", previous: null };
-      confirmedPresentation = null;
-      drawerRead?.abort();
-      drawerPresentation = null;
-      drawerData = { status: "loading", previous: null };
-      drawer?.dispose();
-      drawer = undefined;
-      commentDrafts.clear();
-      drawerMessages.clear();
-      commentMessageCards.clear();
-      relationshipOperations.clear();
-      committedRelationships.clear();
-      committedText.clear();
-      drawerOperations.clear();
-      recoverableApprovals.clear();
-    }
     cacheActor = next.principal_id;
     for (const input of readPendingComments(next.principal_id)) {
       if (drawerOperations.has(input.cardId)) continue;
-      const draft = { text: input.text };
+      const draft = readCommentDraft(next.principal_id, input.cardId) ?? {
+        id: input.draftId,
+        text: input.text,
+      };
       commentDrafts.set(input.cardId, draft);
       drawerOperations.set(input.cardId, {
         boardId: input.boardId,
@@ -353,7 +379,7 @@ function start(host: HTMLElement): void {
         phase: "unknown",
         comment: true,
         inspect: () => inspectComment(input),
-        accepted: (value) => acceptDrawerComment(input, draft, value as CommentReceipt),
+        accepted: (value) => acceptDrawerComment(input, value as CommentReceipt),
       });
       drawerMessages.set(input.cardId, "Check the original comment before posting again.");
     }
@@ -367,6 +393,8 @@ function start(host: HTMLElement): void {
     cache.evict(id);
     stateFor(id).confirmed = null;
     if (!isSelected(id)) return;
+    boardReadEpoch += 1;
+    boardRead?.abort();
     confirmedPresentation = null;
     drawerPresentation = null;
     drawerRead?.abort();
@@ -375,6 +403,8 @@ function start(host: HTMLElement): void {
     drawerData = { status: "loading", previous: null };
     drawer?.dispose();
     drawer = undefined;
+    drawerKey = null;
+    if (route.kind === "board") route = { ...route, cardId: null };
   }
 
   function reconcileRetained(catalog: WorkspaceData): void {
@@ -384,12 +414,32 @@ function start(host: HTMLElement): void {
   }
 
   function redactWorkspace(failure: ReadFailure): void {
+    workspaceReadEpoch += 1;
+    identityReadEpoch += 1;
+    serviceReadEpoch += 1;
+    workspaceRead?.abort();
+    workspaceRead = undefined;
+    clearPrincipalState();
     cache.setPrincipal(null);
     cacheActor = null;
     session = null;
-    for (const [id] of memory) redactBoard(id);
     workspace = { status: "unavailable", previous: null, failure };
     board = { status: "unavailable", previous: null, failure };
+    render();
+  }
+
+  function waitsForDrawerReceipt(boardId: Uuid, revision = Infinity): boolean {
+    for (const work of drawerOperations.values()) {
+      if (
+        work.boardId === boardId &&
+        work.actorId === cacheActor &&
+        work.holdRevision !== undefined &&
+        revision > work.holdRevision
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   function invalidateLive(event: LiveEvent): void {
@@ -583,7 +633,8 @@ function start(host: HTMLElement): void {
           attempt.signal.aborted ||
           route.kind !== "board" ||
           route.boardId !== id ||
-          state.search !== value
+          state.search !== value ||
+          waitsForDrawerReceipt(id)
         )
           return;
         state.matching = matches;
@@ -649,6 +700,7 @@ function start(host: HTMLElement): void {
     try {
       const data = await readDrawer(boardId, id, signal);
       if (signal.aborted || route.kind !== "board" || route.boardId !== boardId) return;
+      if (waitsForDrawerReceipt(boardId, data.boardRevision)) return;
       const state = stateFor(boardId);
       let refreshSearch = false;
       if (state.confirmed?.value.boardEtag !== data.boardEtag) {
@@ -661,7 +713,8 @@ function start(host: HTMLElement): void {
           approval.awaitsConfirmation(boardId) ||
           singleApproval.awaitsConfirmation(boardId) ||
           ticketOrderInFlight(boardId) ||
-          (state.confirmed?.value.view.board.revision ?? 0) > current.view.board.revision
+          (state.confirmed?.value.view.board.revision ?? 0) > current.view.board.revision ||
+          waitsForDrawerReceipt(boardId, current.view.board.revision)
         ) {
           drawerData = { status: "unavailable", previous, failure: { kind: "invalid_response" } };
           render();
@@ -703,6 +756,11 @@ function start(host: HTMLElement): void {
       context !== null &&
       work === undefined &&
       !singleApproval.awaitsConfirmation(context.board.view.board.id);
+    const actor = session?.principal_id ?? cacheActor;
+    if (actor !== null && !commentDrafts.has(id)) {
+      const saved = readCommentDraft(actor, id);
+      if (saved) commentDrafts.set(id, saved);
+    }
     const comment = commentDrafts.get(id)?.text ?? "";
     const displayedDrawer = drawerPresentation ?? last(drawerData);
     const displayedBoard = (confirmedPresentation ?? last(board))?.value ?? null;
@@ -715,9 +773,7 @@ function start(host: HTMLElement): void {
     const canComment =
       displayedDrawer !== null &&
       displayedBoard?.policy.resource_grants.some(
-        (grant) =>
-          grant.user_id === (session?.principal_id ?? cacheActor) &&
-          grant.capabilities.includes("comment"),
+        (grant) => grant.user_id === actor && grant.capabilities.includes("comment"),
       ) === true;
     const operationMessage = drawerMessages.get(id) ?? "";
     const commentMessage = work?.comment || commentMessageCards.has(id);
@@ -746,8 +802,10 @@ function start(host: HTMLElement): void {
         status: commentMessage ? operationMessage : "",
       },
       onCommentDraft: (text: string) => {
-        if (text === "") commentDrafts.delete(id);
-        else commentDrafts.set(id, { text });
+        if (actor === null || actor !== cacheActor) return;
+        const next = { id: crypto.randomUUID(), text };
+        commentDrafts.set(id, next);
+        writeCommentDraft(actor, id, next);
         renderDrawer();
       },
       onCommentSubmit: () => void submitDrawerComment(),
@@ -812,6 +870,7 @@ function start(host: HTMLElement): void {
     const work: DrawerOperation = {
       boardId: context.drawer.card.board_id,
       actorId: context.session.principal_id,
+      holdRevision: context.drawer.boardRevision,
       phase: "pending",
       inspect,
       accepted: (value) => accepted(value as T),
@@ -969,8 +1028,7 @@ function start(host: HTMLElement): void {
     if (!context) return;
     const { card, cardEtag, boardEtag } = context.drawer;
     const draft = commentDrafts.get(card.id);
-    const text = draft?.text ?? "";
-    if (!text) return;
+    if (!draft?.text) return;
     const input = {
       commentId: crypto.randomUUID(),
       requestId: crypto.randomUUID(),
@@ -979,7 +1037,8 @@ function start(host: HTMLElement): void {
       cardEtag,
       boardEtag,
       authorId: context.session.principal_id,
-      text,
+      draftId: draft.id,
+      text: draft.text,
     };
     await runDrawerOperation<CommentReceipt>(
       context,
@@ -994,19 +1053,18 @@ function start(host: HTMLElement): void {
           }
         }),
       () => inspectComment(input),
-      (value) => acceptDrawerComment(input, draft, value),
+      (value) => acceptDrawerComment(input, value),
       true,
       () => writePendingComment(input, true),
     );
   }
 
-  function acceptDrawerComment(
-    input: CommentPostInput,
-    draft: { readonly text: string } | undefined,
-    value: CommentReceipt,
-  ): void {
+  function acceptDrawerComment(input: CommentPostInput, value: CommentReceipt): void {
     writePendingComment(input, true);
-    if (commentDrafts.get(input.cardId) === draft) commentDrafts.delete(input.cardId);
+    if (commentDrafts.get(input.cardId)?.id === input.draftId) {
+      commentDrafts.delete(input.cardId);
+      writeCommentDraft(input.authorId, input.cardId);
+    }
     const current = (drawerPresentation ?? last(drawerData))?.value;
     const receipt = value.comment;
     if (
@@ -1060,7 +1118,13 @@ function start(host: HTMLElement): void {
         }
       },
     );
-    if (!drawerOperations.has(card.id)) relationshipOperations.delete(linkId);
+    if (
+      cacheActor === context.session.principal_id &&
+      relationshipOperations.get(linkId) === card.id &&
+      !drawerOperations.has(card.id)
+    ) {
+      relationshipOperations.delete(linkId);
+    }
   }
 
   async function changeDrawerAttachment(action: AttachmentWrite["action"]): Promise<void> {
@@ -1362,6 +1426,7 @@ function start(host: HTMLElement): void {
         }
         dispatched = true;
       });
+      if (actor !== cacheActor) return;
       if (result.outcome === "unknown") {
         if (dispatched) {
           pendingMoves.set(data.view.board.id, { prepared, requestId: result.requestId });
@@ -1374,7 +1439,7 @@ function start(host: HTMLElement): void {
         refreshSelected();
       }
     } catch {
-      if (isSelected(data.view.board.id))
+      if (actor === cacheActor && isSelected(data.view.board.id))
         notice.textContent = "The card could not be prepared for movement.";
     } finally {
       moveBusy = false;
@@ -1437,11 +1502,12 @@ function start(host: HTMLElement): void {
     render();
     try {
       const value = await readBoard(id, attempt.signal);
-      if (attempt.signal.aborted || epoch !== boardReadEpoch) return;
+      if (attempt.signal.aborted || epoch !== boardReadEpoch || cacheActor === null) return;
       if (
         approval.awaitsConfirmation(id) ||
         singleApproval.awaitsConfirmation(id) ||
-        ticketOrderInFlight(id)
+        ticketOrderInFlight(id) ||
+        waitsForDrawerReceipt(id, value.view.board.revision)
       )
         return;
       if (value.view.board.revision < (minimumBoardRevisions.get(id) ?? 0)) {
@@ -1666,6 +1732,11 @@ function start(host: HTMLElement): void {
         : ownsService && status.status === "rejected"
           ? readFailure(status.reason)
           : null;
+    if (setupFailed !== null && hidesRetained(setupFailed)) {
+      redactWorkspace(setupFailed);
+      live.update(null);
+      return;
+    }
     if (epoch !== workspaceReadEpoch) {
       if (setupFailed !== null) live.retry();
       render();
@@ -1741,9 +1812,17 @@ function start(host: HTMLElement): void {
       }
       if (serviceEpoch === serviceReadEpoch && status !== null)
         service = { status: "ready", current: confirmed(status) };
-      if (identityEpoch === identityReadEpoch && identity !== null) setSession(identity);
+      if (identityEpoch === identityReadEpoch && identity !== null) {
+        const principalChanged = cacheActor !== null && cacheActor !== identity.principal_id;
+        setSession(identity);
+        if (principalChanged) {
+          void refreshWorkspace();
+          return true;
+        }
+      }
       if (
         boardEpoch === boardReadEpoch &&
+        cacheActor !== null &&
         route.kind === "board" &&
         request.boardId === route.boardId &&
         value !== null
@@ -1758,7 +1837,8 @@ function start(host: HTMLElement): void {
             (!previous || value.view.board.revision >= previous.view.board.revision) &&
             !approval.awaitsConfirmation(route.boardId) &&
             !singleApproval.awaitsConfirmation(route.boardId) &&
-            !ticketOrderInFlight(route.boardId)
+            !ticketOrderInFlight(route.boardId) &&
+            !waitsForDrawerReceipt(route.boardId, value.view.board.revision)
           ) {
             state.confirmed = confirmed(value);
             cache.retain(state.confirmed);
@@ -1855,8 +1935,14 @@ function start(host: HTMLElement): void {
       return true;
     } catch (error) {
       const failure = readFailure(error);
-      if (hidesRetained(failure)) redactWorkspace(failure);
-      else if (
+      if (signal.aborted) return false;
+      if (
+        hidesRetained(failure) &&
+        workspaceEpoch === workspaceReadEpoch &&
+        identityEpoch === identityReadEpoch
+      ) {
+        redactWorkspace(failure);
+      } else if (
         !signal.aborted &&
         selectedRequest &&
         boardEpoch === boardReadEpoch &&

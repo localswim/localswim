@@ -163,3 +163,122 @@ void test("single approval closes immediately and settles only on the exact rece
   });
   assert.equal(writes, 1);
 });
+
+void test("a late refusal for one actor preserves the other actor's pending approval", async (context) => {
+  const { board, session: actorA } = createEntryFixture();
+  assert.equal(board.status, "ready");
+  const data = board.current.value;
+  const actorB = { ...actorA, principal_id: "58700000-0000-4000-8000-000000000006" };
+  const review = data.view.lanes.find(({ role }) => role === "ready_for_review");
+  const card = data.view.cards.find(({ lane_id }) => lane_id === review?.id);
+  assert.ok(card);
+  const otherBoard = {
+    ...data,
+    view: {
+      ...data.view,
+      board: { ...data.view.board, user_ids: [...data.view.board.user_ids, actorB.principal_id] },
+    },
+    policy: {
+      ...data.policy,
+      resource_grants: data.policy.resource_grants.map((grant) => ({
+        ...grant,
+        user_id: actorB.principal_id,
+      })),
+      move_grants: data.policy.move_grants.map((grant) => ({
+        ...grant,
+        user_id: actorB.principal_id,
+      })),
+    },
+  };
+  const drawer = {
+    card,
+    cardEtag: '"opaque_card_entity_tag"',
+    boardRevision: data.view.board.revision,
+    boardEtag: data.boardEtag,
+    parent: null,
+    children: [],
+    relationships: [],
+    comments: [],
+    activity: [],
+  };
+  let actor = actorA;
+  let writes = 0;
+  /** @type {Array<() => void>} */
+  const release = [];
+  context.mock.method(
+    globalThis,
+    "fetch",
+    async (/** @type {string} */ path, /** @type {RequestInit} */ options) => {
+      if (path.endsWith("/browser-session")) {
+        return Response.json({
+          ...actor,
+          access_token: Buffer.alloc(32, 5).toString("base64url"),
+          expires_on_service_replacement: true,
+        });
+      }
+      const requestId =
+        new Headers(options.headers).get("X-Request-ID") ?? "58700000-0000-4000-8000-000000000007";
+      if (options.method === "POST") {
+        writes++;
+        const ordinal = writes;
+        await new Promise((resolve) => {
+          release.push(() => resolve(undefined));
+        });
+        return problem(ordinal === 1 ? 409 : 412, requestId);
+      }
+      return problem(401, requestId);
+    },
+  );
+  /** @param {401 | 409 | 412} status @param {string | null} requestId */
+  function problem(status, requestId) {
+    const title = { 401: "Unauthorized", 409: "Conflict", 412: "Precondition Failed" }[status];
+    const code = { 401: "unauthorized", 409: "conflict", 412: "precondition_failed" }[status];
+    return Response.json(
+      {
+        type: "about:blank",
+        title,
+        status,
+        code,
+        detail: title,
+        request_id: requestId,
+        outcome: status === 401 ? "not_applicable" : "not_applied",
+        errors: [],
+      },
+      {
+        status,
+        headers: { "Content-Type": "application/problem+json", "X-Request-ID": requestId ?? "" },
+      },
+    );
+  }
+  /** @type {string[]} */
+  const phases = [];
+  const controller = createCardApproval({
+    current: () => ({ board: actor === actorA ? data : otherBoard, session: actor, drawer }),
+    currentBoard: () => ({ board: actor === actorA ? data : otherBoard, session: actor }),
+    currentActor: () => actor.principal_id,
+    onStart() {},
+    onStateChange(_boardId, state) {
+      phases.push(`${state.actorId}/${state.status}`);
+    },
+  });
+  context.after(() => controller.dispose());
+  controller.approve();
+  await setImmediate();
+  assert.equal(writes, 1);
+  actor = actorB;
+  const { readJson } = await import("../http.ts");
+  await assert.rejects(readJson("/workspace"));
+  controller.approve();
+  await setImmediate();
+  assert.equal(writes, 2);
+  release[0]?.();
+  await setImmediate();
+  assert.ok(phases.includes(`${actorA.principal_id}/failed`));
+  assert.equal(controller.awaitsConfirmation(data.view.board.id), true);
+  controller.approve();
+  assert.equal(writes, 2);
+  release[1]?.();
+  await setImmediate();
+  assert.ok(phases.includes(`${actorB.principal_id}/failed`));
+  assert.equal(controller.awaitsConfirmation(data.view.board.id), false);
+});

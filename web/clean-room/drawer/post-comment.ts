@@ -23,14 +23,47 @@ export interface CommentPostInput {
   readonly cardEtag: EntityTag;
   readonly boardEtag: EntityTag;
   readonly authorId: Uuid;
+  readonly draftId: Uuid;
   readonly text: string;
 }
 
-const journalKey = "localswimPendingComments";
+export interface CommentDraft {
+  readonly id: Uuid;
+  readonly text: string;
+}
+
+function commentDraftKey(actor: Uuid, card: Uuid): string {
+  return `localswimCommentDraft:${actor}:${card}`;
+}
+
+export function readCommentDraft(actor: Uuid, card: Uuid): CommentDraft | undefined {
+  try {
+    const saved: unknown = JSON.parse(
+      sessionStorage.getItem(commentDraftKey(actor, card)) ?? "null",
+    );
+    if (isRecord(saved) && isUuid(saved.id) && isBoundedText(saved.text, 0, maxCommentLength))
+      return { id: saved.id, text: saved.text };
+  } catch {
+    // The in-memory draft remains available if session storage is unavailable.
+  }
+  return undefined;
+}
+
+export function writeCommentDraft(actor: Uuid, card: Uuid, draft?: CommentDraft): void {
+  try {
+    const key = commentDraftKey(actor, card);
+    if (draft) sessionStorage.setItem(key, JSON.stringify(draft));
+    else sessionStorage.removeItem(key);
+  } catch {
+    // The in-memory draft remains available if session storage is unavailable.
+  }
+}
 
 export function readPendingComments(actor: Uuid): CommentPostInput[] {
   try {
-    const saved: unknown = JSON.parse(sessionStorage.getItem(journalKey) ?? "[]");
+    const saved: unknown = JSON.parse(
+      sessionStorage.getItem(`localswimPendingComments:${actor}`) ?? "[]",
+    );
     if (!Array.isArray(saved)) return [];
     return saved.filter(
       (item: unknown): item is CommentPostInput =>
@@ -40,6 +73,7 @@ export function readPendingComments(actor: Uuid): CommentPostInput[] {
         isUuid(item.requestId) &&
         isUuid(item.boardId) &&
         isUuid(item.cardId) &&
+        isUuid(item.draftId) &&
         isBoundedText(item.text, 1, maxCommentLength) &&
         typeof item.boardEtag === "string" &&
         typeof item.cardEtag === "string",
@@ -55,7 +89,9 @@ export function writePendingComment(input: CommentPostInput, remove = false): vo
   );
   if (!remove) saved.push(input);
   try {
-    sessionStorage.setItem(journalKey, JSON.stringify(saved));
+    const key = `localswimPendingComments:${input.authorId}`;
+    if (saved.length > 0) sessionStorage.setItem(key, JSON.stringify(saved));
+    else sessionStorage.removeItem(key);
   } catch (error) {
     if (!remove) throw error;
   }

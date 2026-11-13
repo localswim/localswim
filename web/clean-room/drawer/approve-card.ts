@@ -58,8 +58,12 @@ interface ApprovalWork {
   status: CardApprovalState["status"];
 }
 
-const workByCard = new Map<Uuid, ApprovalWork>();
+const workByActorAndCard = new Map<string, ApprovalWork>();
 const listeners = new Set<ApprovalCallbacks["onStateChange"]>();
+
+function approvalKey(actorId: Uuid, cardId: Uuid): string {
+  return `${actorId}/${cardId}`;
+}
 
 function eligibleDestination(board: BoardData, session: SessionDto | null, card: CardDto) {
   const { board: summary, lanes } = board.view;
@@ -115,7 +119,11 @@ export function cardApprovalAvailability(
   const visible = eligibleDestination(board, session, drawer.card) !== undefined;
   return {
     visible,
-    enabled: visible && matchesDrawer(board, drawer) && !workByCard.has(drawer.card.id),
+    enabled:
+      visible &&
+      session !== null &&
+      matchesDrawer(board, drawer) &&
+      !workByActorAndCard.has(approvalKey(session.principal_id, drawer.card.id)),
   };
 }
 
@@ -215,8 +223,10 @@ function setState(
   receipt?: ConfirmedApproval,
 ): void {
   const { source } = work.intent;
+  const key = approvalKey(work.intent.actorId, source.id);
+  if (workByActorAndCard.get(key) !== work) return;
   work.status = status;
-  if (status === "failed" || status === "committed") workByCard.delete(source.id);
+  if (status === "failed" || status === "committed") workByActorAndCard.delete(key);
   for (const listener of listeners) {
     listener(source.board_id, {
       status,
@@ -334,13 +344,15 @@ export function createCardApproval(callbacks: ApprovalCallbacks) {
       const intent = approvalIntent(current);
       if (intent === null) return;
       const work: ApprovalWork = { intent, status: "pending" };
-      workByCard.set(intent.source.id, work);
+      workByActorAndCard.set(approvalKey(intent.actorId, intent.source.id), work);
       callbacks.onStart();
       setState(work, "pending", "Approving card…");
       void submit(work, () => (disposed ? null : callbacks.currentBoard()));
     },
     checkStatus(boardId: Uuid, cardId: Uuid): void {
-      const work = workByCard.get(cardId);
+      const actor = callbacks.currentActor();
+      if (actor === null) return;
+      const work = workByActorAndCard.get(approvalKey(actor, cardId));
       if (
         disposed ||
         work?.status !== "unknown" ||
@@ -352,7 +364,7 @@ export function createCardApproval(callbacks: ApprovalCallbacks) {
       void recover(work);
     },
     awaitsConfirmation(boardId: Uuid): boolean {
-      for (const { intent, status } of workByCard.values()) {
+      for (const { intent, status } of workByActorAndCard.values()) {
         if (
           intent.source.board_id === boardId &&
           intent.actorId === callbacks.currentActor() &&
@@ -364,7 +376,9 @@ export function createCardApproval(callbacks: ApprovalCallbacks) {
       return false;
     },
     recoverable(boardId: Uuid, cardId: Uuid): boolean {
-      const work = workByCard.get(cardId);
+      const actor = callbacks.currentActor();
+      if (actor === null) return false;
+      const work = workByActorAndCard.get(approvalKey(actor, cardId));
       return work?.intent.source.board_id === boardId && work.status === "unknown";
     },
     dispose(): void {

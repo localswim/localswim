@@ -3756,7 +3756,7 @@
             "R06"
           ],
           "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
-          "missing_input": "Final-build motion, focus and stale refusal"
+          "missing_input": "Stale refusal on the final build"
         },
         {
           "ticket": 598,
@@ -3786,7 +3786,7 @@
             "R06"
           ],
           "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
-          "missing_input": "Download, detach audit and lost-response evidence"
+          "missing_input": "V1 detach interaction and lost-response evidence"
         },
         {
           "ticket": 599,
@@ -3818,7 +3818,7 @@
             "R06"
           ],
           "readiness": "In Progress. T3 prerequisites accepted in e17790b and Architect released T4.",
-          "missing_input": "Browser refresh failure and cache preference behavior"
+          "missing_input": "Retained read-only content on transport failure and cache preference behavior"
         }
       ],
       "visual_reviewer": {

@@ -18,7 +18,14 @@ const hook = registerHooks({
 });
 const [
   { createEntryFixture },
-  { inspectComment, postComment, readPendingComments, writePendingComment },
+  {
+    inspectComment,
+    postComment,
+    readCommentDraft,
+    readPendingComments,
+    writeCommentDraft,
+    writePendingComment,
+  },
 ] = await Promise.all([import("../fixtures.ts"), import("./post-comment.ts")]);
 hook.deregister();
 
@@ -31,6 +38,7 @@ void test("a lost comment response retains its identity and recovers without ano
   const input = {
     commentId: "58700000-0000-4000-8000-000000000001",
     requestId: "58700000-0000-4000-8000-000000000002",
+    draftId: "58700000-0000-4000-8000-000000000004",
     boardId: view.board.id,
     cardId: card.id,
     authorId: session.principal_id,
@@ -80,7 +88,10 @@ void test("a lost comment response retains its identity and recovers without ano
     },
   );
 
+  writeCommentDraft(input.authorId, input.cardId, { id: input.draftId, text: input.text });
   const result = await postComment(input, undefined, () => writePendingComment(input));
+  const newer = { id: "58700000-0000-4000-8000-000000000005", text: "" };
+  writeCommentDraft(input.authorId, input.cardId, newer);
   assert.deepEqual(result, { outcome: "unknown", requestId: input.requestId, problem: null });
   assert.deepEqual(readPendingComments(input.authorId), [input]);
   assert.deepEqual(readPendingComments("58700000-0000-4000-8000-000000000003"), []);
@@ -94,5 +105,7 @@ void test("a lost comment response retains its identity and recovers without ano
   });
   writePendingComment(restored, true);
   assert.deepEqual(readPendingComments(input.authorId), []);
+  assert.deepEqual(readCommentDraft(input.authorId, input.cardId), newer);
+  assert.equal(readCommentDraft("58700000-0000-4000-8000-000000000003", input.cardId), undefined);
   assert.equal(posts, 1);
 });

@@ -1,6 +1,15 @@
-# #0514 staffing plan r3
+# #0514 staffing plan r4
 
-Independent review passed. Revision 0514-staff-r3 supersedes r2. The 33 stories, T1-T9 order, four two-author splits and named independent technical reviewers are retained. Reviewer names are planned assignments; their processes begin only when review work is ready.
+Independent review passed. Revision 0514-staff-r4 supersedes r3. The 33 stories, T1-T9 order, four two-author splits and named independent technical reviewers are retained. Reviewer names are planned assignments; their processes begin only when review work is ready.
+
+**Turn entry authority**
+
+The Architect chat owns all T1-T9 entry gates. The UI Lead owns author dispatch, integration and verification. T1 is open under Terry's execution kickoff.
+
+1. The UI Lead finishes the current turn and submits its exact candidate commits, scoped changes, check results, technical reviews, Terra evidence, unresolved findings and card states.
+2. The Architect independently reviews all work from that turn and obtains any required corrections.
+3. The Architect explicitly authorizes every card in that turn to move to RFR.
+4. The Architect opens the next turn with an explicit release. Terry retains control of Completed, and owner demos follow technical handoff.
 
 **Dispatch on ready work**
 
@@ -90,7 +99,7 @@ All counts exclude the primary. Reviewers replace finished authors, so the total
 - One Go build/vet/test job runs at a time. Independent Node checks may use two slots. One operator controls the browser.
 - Before story work starts, verify that its prerequisites meet the owner execution gate and move the story to In Progress.
 - Independent source review, required combined checks, browser verification and primary verification precede RFR. Technical reviewers assess the combined result. Sol / High remains assigned to authentication, concurrency and recovery review. The Terra author on #0549 is separate from its final visual reviewer.
-- Cards enter RFR when technical work and review finish. Owner demos run at the turn boundary.
+- The Architect authorizes all turn cards into RFR after whole-turn independent review. Owner demos run at the turn boundary.
 - An early reviewer may start for a stable completed packet when that bounded review unblocks current work. The reviewer exits after that task; no slot is reserved ahead of time.
 
 **Author packet boundaries**

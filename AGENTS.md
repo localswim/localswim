@@ -1,5 +1,16 @@
 # V2 development rules
 
+## Epic #0514 turn gates
+
+- The Architect chat owns entry gates for T1-T9. The UI Lead owns execution and integration.
+- Before opening turn N+1, the Architect independently reviews all work from turn N
+  and explicitly authorizes every turn-N card to move to Ready for Review.
+- The UI Lead sends the exact candidate commits, scoped changes, checks, technical
+  review and Terra evidence for that review. Corrections remain in the current turn.
+- Terry retains control of Completed. Owner demos follow technical handoff.
+
+## Implementation conventions
+
 - Terry and Bot are the entire user base. During the reboot, breaking API, CLI,
   configuration, and storage-format changes have zero external compatibility impact.
 - Keep the implementation ruthlessly lean. Replace superseded contracts directly.

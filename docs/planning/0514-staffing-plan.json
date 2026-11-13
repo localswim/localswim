@@ -1,10 +1,10 @@
 {
-  "revision": "0514-staff-r3",
+  "revision": "0514-staff-r4",
   "epic": 514,
   "board_id": "39b278e7-d1ac-4e5a-88fb-8eabf141dd4d",
   "goal": "Fresh TypeScript UI with V1 look and workflows and current V2 browser capabilities.",
   "primary": {
-    "role": "Integration and execution lead",
+    "role": "UI Lead - execution, integration and compiler coordination",
     "model": "gpt-6.1-sol",
     "reasoning_effort": "high"
   },
@@ -2036,6 +2036,7 @@
     "rule": "Feature authors use isolated worktrees. Primary integrates shared-file edits serially and validates the combined candidate."
   },
   "execution_rules": [
+    "Start turn N only after the Architect explicitly opens its entry gate.",
     "Before any story work, verify prerequisite acceptance and move the story into In Progress.",
     "Independent source review, required combined checks, browser verification and primary verification precede RFR.",
     "Use Standard speed, at most 16 direct active subagents and depth one.",
@@ -2045,9 +2046,9 @@
     "Start the named Terra visual reviewer when a rendered turn candidate is ready. Keep all nine planned Terra passes because all current leads are Sol.",
     "Primary runs prescribed checks by default and can dispatch a Luna worker only to a ready packet that enables useful parallel work.",
     "One Go build/vet/test lease and one browser operator remain in force; at most two independent Node/TypeScript checks run concurrently.",
-    "Completed technical work reaches RFR after required verification. Owner demos run at turn end; Terry controls Completed.",
     "Reviewers with findings exit; correction authors and re-reviewers start when actual work is ready.",
-    "Refresh remaining first-three-turn staffing and readiness at each handoff."
+    "Refresh remaining first-three-turn staffing and readiness at each handoff.",
+    "The Architect independently reviews the whole completed turn and authorizes all its cards into RFR before opening the next turn."
   ],
   "estimated_hours": 69.5,
   "largest_story_hours": 2.5,
@@ -2058,7 +2059,7 @@
     "reasoning_effort": "high",
     "scope": "On-demand dispatch, sub-turn lifespan, preserved verification gates, Terra coverage and capacity math."
   },
-  "supersedes": "0514-staff-r2",
+  "supersedes": "0514-staff-r3",
   "objective": "Reduce cumulative T1-T9 elapsed time through substantive parallel authoring with explicit net coordination costs.",
   "parallel_authoring": {
     "stories": [
@@ -2148,5 +2149,27 @@
     "optional_condition": "A ready, prescribed verification packet can run while the primary performs other useful work.",
     "compiler_lease": "Primary retains the one-at-a-time Go build/vet/test lease."
   },
-  "planned_total_agents": 79
+  "planned_total_agents": 79,
+  "architect": {
+    "thread_id": "01a1c3a6-8477-7c33-88f6-e11ea8c6030a",
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "high",
+    "role": "Independent whole-turn review and entry-gate authority"
+  },
+  "ui_lead_thread_id": "01a1d28b-bb44-7652-9c19-8307cce9b336",
+  "turn_entry_policy": {
+    "authority": "Architect",
+    "next_turn_condition": "Architect independently reviews all prior-turn work and explicitly authorizes every prior-turn card to move to RFR.",
+    "review_packet": [
+      "exact candidate commits",
+      "scoped diff",
+      "verification results",
+      "independent technical review",
+      "Terra visual evidence",
+      "unresolved findings",
+      "all turn-card states"
+    ],
+    "completed_owner": "Terry",
+    "initial_turn": "T1 is open under the owner kickoff; later turns require explicit Architect release."
+  }
 }

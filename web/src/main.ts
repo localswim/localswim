@@ -117,7 +117,7 @@ export function mount(root: HTMLElement): () => void {
       doc.title = `${name} · localswim`;
       content.replaceChildren();
       const message = availability === "closed" ? "This board is closed."
-        : availability === "unhealthy" ? "This board is unavailable." : "";
+        : availability === "unhealthy" ? "This board is unavailable." : "Board loaded.";
       setPhase("ready", message);
     } catch (error) {
       if (context.signal.aborted) return;

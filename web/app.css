@@ -5,6 +5,7 @@ header { display: flex; justify-content: space-between; align-items: baseline; p
 header a { color: inherit; font-size: 1.3rem; font-weight: 700; }
 #app-bar { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 0.25rem 1rem; min-height: 2.5rem; padding: 0.5rem 1rem; }
 #app-bar a, #app-bar h1 { margin: 0; font-size: 0.9375rem; line-height: 1.4; }
+#app-bar a { color: #85b8ff; }
 #app-bar h1 { overflow-wrap: anywhere; }
 #app-bar a:focus-visible { outline-color: white; }
 [data-app] #main { padding: 1rem; }

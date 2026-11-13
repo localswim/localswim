@@ -48,6 +48,7 @@ type CommentOptions = Readonly<{
   context: () => CommentContext | null;
   authorName: AuthorName;
   authorKind?: AuthorKind;
+  canInspectSaved?: () => boolean;
   ticketLink: TicketLink;
   readWithSession: <T>(read: () => Promise<T>, signal?: AbortSignal) => Promise<T>;
   beginWrite: (cardId: string) => (() => void) | null;
@@ -146,6 +147,7 @@ export function mountCardComments(
     context,
     authorName,
     authorKind,
+    canInspectSaved = () => true,
     ticketLink,
     readWithSession,
     beginWrite,
@@ -338,6 +340,7 @@ export function mountCardComments(
     const base = entry?.draft.base;
     return Boolean(
       current &&
+      canInspectSaved() &&
       base &&
       entry?.draft.id &&
       inspection?.kind === "retry" &&
@@ -374,11 +377,14 @@ export function mountCardComments(
     post.hidden = Boolean(pending);
     post.setAttribute("aria-disabled", String(!canWrite(current, entry) || Boolean(pending)));
     inspect.hidden = !pending;
-    inspect.setAttribute("aria-disabled", String(Boolean(active)));
+    inspect.setAttribute("aria-disabled", String(Boolean(active) || !canInspectSaved()));
     retry.hidden = !retryMatches(current, entry);
     retry.setAttribute("aria-disabled", String(!canWrite(current, entry)));
     dismiss.hidden = !pending || inspection?.kind !== "dismiss" || inspection.raw !== entry?.raw;
-    dismiss.setAttribute("aria-disabled", String(Boolean(active || entry?.error)));
+    dismiss.setAttribute(
+      "aria-disabled",
+      String(Boolean(active || entry?.error) || !canInspectSaved()),
+    );
     focusInputIfHidden();
     const message =
       active === "submitting"
@@ -558,26 +564,6 @@ export function mountCardComments(
     }
   }
 
-  async function findOriginal(id: string) {
-    try {
-      return await readWithSession(() => api.getComment(id, signal), signal);
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 404) return null;
-      throw error;
-    }
-  }
-
-  async function readBoardVersion() {
-    const { data, etag } = await readWithSession(
-      () => api.getBoardAvailability(boardId, signal),
-      signal,
-    );
-    if (data.id !== boardId || !versionMatches(etag, boardId, data.revision)) {
-      throw new TypeError("Invalid board version for comment inspection.");
-    }
-    return { etag, revision: data.revision };
-  }
-
   async function inspectOriginal() {
     update();
     const entry = journal;
@@ -586,6 +572,7 @@ export function mountCardComments(
     const raw = entry?.raw;
     if (
       signal.aborted ||
+      !canInspectSaved() ||
       !entry ||
       !actor ||
       entry.key !== journalKey(actor, scope) ||
@@ -602,17 +589,41 @@ export function mountCardComments(
       async () => {
         inspection = undefined;
         publish(entry);
-        const currentActor = () =>
-          !signal.aborted && generation === savedGeneration && context()?.actorId === actor;
+        const currentInspection = () =>
+          !signal.aborted &&
+          canInspectSaved() &&
+          generation === savedGeneration &&
+          context()?.actorId === actor;
+        function read<T>(probe: () => Promise<T>) {
+          return readWithSession(() => {
+            if (!currentInspection()) throw new Error("Comment inspection was superseded.");
+            return probe();
+          }, signal);
+        }
+        async function findOriginal() {
+          try {
+            return await read(() => api.getComment(id, signal));
+          } catch (error) {
+            if (error instanceof ApiError && error.status === 404) return null;
+            throw error;
+          }
+        }
+        async function readBoardVersion() {
+          const { data, etag } = await read(() => api.getBoardAvailability(boardId, signal));
+          if (data.id !== boardId || !versionMatches(etag, boardId, data.revision)) {
+            throw new TypeError("Invalid board version for comment inspection.");
+          }
+          return { etag, revision: data.revision };
+        }
         try {
-          let reply = await findOriginal(id);
-          if (!currentActor()) return;
+          let reply = await findOriginal();
+          if (!currentInspection()) return;
           if (!reply && draft.base) {
             const board = await readBoardVersion();
-            if (!currentActor()) return;
+            if (!currentInspection()) return;
             if (board.etag === draft.base.boardEtag) {
-              const card = await readWithSession(() => api.getCard(cardId, signal), signal);
-              if (!currentActor()) return;
+              const card = await read(() => api.getCard(cardId, signal));
+              if (!currentInspection()) return;
               if (
                 card.etag === draft.base.cardEtag &&
                 "id" in card.data &&
@@ -625,13 +636,13 @@ export function mountCardComments(
             } else if (board.revision > draft.base.boardRevision) {
               // The writer checks this board validator atomically with comment creation.
               // Read the original ID again after its original validator is fenced.
-              reply = await findOriginal(id);
-              if (!currentActor()) return;
+              reply = await findOriginal();
+              if (!currentInspection()) return;
               if (!reply) {
                 // A membership change can also hide the original ID. Verify the
                 // board remained readable at the same version around the 404.
                 const after = await readBoardVersion();
-                if (!currentActor()) return;
+                if (!currentInspection()) return;
                 if (after.etag === board.etag) inspection = { raw, kind: "dismiss" };
               }
             }
@@ -648,7 +659,7 @@ export function mountCardComments(
                   : "The original comment has not been found. Its outcome is still unknown. Inspect again to check.";
           }
         } catch {
-          if (!currentActor()) return;
+          if (!currentInspection()) return;
           notice =
             "The original comment could not be verified. Inspect it again to check the outcome.";
         }
@@ -695,6 +706,7 @@ export function mountCardComments(
       const entry = journal;
       const actor = context()?.actorId;
       if (
+        !canInspectSaved() ||
         !actor ||
         !entry?.draft.id ||
         entry.key !== journalKey(actor, scope) ||

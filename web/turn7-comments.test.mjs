@@ -72,6 +72,8 @@ function harness() {
   let afterBoardRead;
   let beforeRetry;
   let readOriginalComment;
+  let restorePending = false;
+  let readWithSession = (read) => read();
   let readSavedComments = async () => ({ data: { comments: [], next_cursor: null } });
   let readSavedActivity = async () => ({ data: { activities: [], next_cursor: null } });
   const response = Promise.withResolvers();
@@ -147,8 +149,9 @@ function harness() {
         writable: true,
       }),
       authorName: () => "Test",
+      canInspectSaved: () => !restorePending,
       ticketLink: () => doc.createElement("a"),
-      readWithSession: (read) => read(),
+      readWithSession: (read) => readWithSession(read),
       beginWrite: () => () => {},
       onConfirmed() {},
       onStale() {},
@@ -187,6 +190,12 @@ function harness() {
     },
     onReadOriginal: (read) => {
       readOriginalComment = read;
+    },
+    setRestorePending: (pending) => {
+      restorePending = pending;
+    },
+    onReadWithSession: (read) => {
+      readWithSession = read;
     },
     commitOriginal: () => commit(writes[0]),
     commitRetry: () => commit(writes[1]),
@@ -508,6 +517,40 @@ test("a pre-restore original comment read cannot clear an unresolved draft", asy
   fixture.committed.clear();
   current.refreshSaved();
   preRestore.resolve(oldReply);
+  await setImmediate();
+  assert.deepEqual([...fixture.journal], journal);
+  assert.equal(current.input.value, text);
+  assert.equal(fixture.writes.length, 1);
+  current.close();
+});
+
+test("pending restore fences original comment inspection before dispatch and settlement", async () => {
+  const fixture = harness();
+  const current = await fixture.restore();
+  const original = fixture.writes[0].id;
+  const response = Promise.withResolvers();
+  fixture.onReadOriginal(() => response.promise);
+  const journal = [...fixture.journal];
+
+  fixture.setRestorePending(true);
+  current.inspect();
+  assert.deepEqual(fixture.reads, []);
+
+  const session = Promise.withResolvers();
+  fixture.setRestorePending(false);
+  fixture.onReadWithSession((read) => session.promise.then(read));
+  current.inspect();
+  fixture.setRestorePending(true);
+  session.resolve();
+  await setImmediate();
+  assert.deepEqual(fixture.reads, []);
+
+  fixture.setRestorePending(false);
+  current.inspect();
+  await setImmediate();
+  assert.deepEqual(fixture.reads, [original]);
+  fixture.setRestorePending(true);
+  response.resolve(fixture.commitOriginal());
   await setImmediate();
   assert.deepEqual([...fixture.journal], journal);
   assert.equal(current.input.value, text);

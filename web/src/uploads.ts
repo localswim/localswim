@@ -476,11 +476,12 @@ export function mountUploads(
 
   return {
     show(context: UploadContext | null) {
-      if (current?.cardId !== context?.cardId || (current?.readable && !context?.readable)) {
+      // A refresh can suspend readability while admission is being reconfirmed.
+      // The selected card still owns its files until the drawer leaves that card.
+      if (current?.cardId !== context?.cardId) {
         selection.abort();
         selection = new AbortController();
-        pickerFiles = [];
-        picker.value = "";
+        takeFiles();
       }
       current = context;
       render();

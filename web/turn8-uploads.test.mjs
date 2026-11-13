@@ -119,12 +119,12 @@ function harness(api, values = new Map(), awaitUploadAdmission) {
     discard,
     upload,
     changes: () => changes,
-    select(cardId, revision = 3) {
+    select(cardId, revision = 3, readable = true) {
       controller.show({
         cardId,
         etag: revisionTag(cardId, revision),
-        readable: true,
-        editable: true,
+        readable,
+        editable: readable,
       });
     },
     pick(...files) {
@@ -134,6 +134,9 @@ function harness(api, values = new Map(), awaitUploadAdmission) {
     reselect(...files) {
       selectFiles(files);
       resume.click();
+    },
+    selectFiles(...files) {
+      selectFiles(files);
     },
     paste(...files) {
       const event = new Event("paste", { cancelable: true });
@@ -594,4 +597,65 @@ test("an oversized batch stops before hashing or dispatch", () => {
   assert.equal(ui.leased.size, 0);
   assert.equal(stored.size, 0);
   assert.match(ui.status.textContent, /at most 64 files/);
+});
+
+test("same-card admission refresh preserves the picker and resumed upload", async () => {
+  const original = {
+    id: second,
+    name: "same.txt",
+    size: 3,
+    digest: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+  };
+  const key = `localswim:v2:uploads:${board}:${first}`;
+  const raw = JSON.stringify({ remaining: [original], expected: null });
+  const stored = new Map([[key, raw]]);
+  const admissions = [];
+  const sent = [];
+  const ui = harness(
+    {
+      getCard() {
+        return Promise.resolve({
+          data: { id: first, board_id: board, revision: 3 },
+          etag: revisionTag(first, 3),
+        });
+      },
+      uploadAttachment(cardId, expected, _file, id) {
+        sent.push({ cardId, expected, id });
+        return Promise.resolve(attachment(cardId, original));
+      },
+    },
+    stored,
+    (signal) => {
+      const permission = Promise.withResolvers();
+      ui.select(first, 3, false);
+      admissions.push({ signal, permission });
+      return permission.promise;
+    },
+  );
+  const file = new File(["abc"], original.name);
+  ui.select(first);
+  ui.selectFiles(file);
+  ui.select(first, 3, false);
+  assert.equal(ui.resume.disabled, true);
+  ui.select(first);
+  assert.equal(ui.resume.disabled, false);
+  ui.resume.click();
+  await until(() => admissions.length === 1);
+  assert.equal(admissions[0].signal.aborted, false);
+  ui.select(second);
+  assert.equal(admissions[0].signal.aborted, true);
+  admissions[0].permission.resolve(true);
+  await until(() => !ui.leased.size);
+  assert.deepEqual(sent, []);
+  assert.equal(stored.get(key), raw);
+
+  ui.select(first);
+  ui.reselect(file);
+  await until(() => admissions.length === 2);
+  assert.equal(admissions[1].signal.aborted, false);
+  ui.select(first);
+  admissions[1].permission.resolve(true);
+  await until(() => !ui.leased.size);
+  assert.deepEqual(sent, [{ cardId: first, expected: revisionTag(first, 3), id: original.id }]);
+  assert.equal(stored.size, 0);
 });

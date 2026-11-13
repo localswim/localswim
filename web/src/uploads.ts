@@ -419,13 +419,13 @@ export function mountUploads(
     let transferred = false;
     try {
       const revision = revisionOf(cardId, etag);
+      await readCardTag(cardId, revision, batchSignal, true);
       if (
         !(await awaitUploadAdmission(batchSignal, revision)) ||
         batchSignal.aborted ||
         !canUpload()
       )
         return false;
-      await readCardTag(cardId, revision, batchSignal, true);
       if (recovery.read(cardId) !== null) return false;
       await submit(
         { cardId, etag, readable: true, editable: true },

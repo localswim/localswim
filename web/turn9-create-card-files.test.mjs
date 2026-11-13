@@ -134,6 +134,7 @@ function fixture() {
       };
     },
     async getCard(cardId) {
+      state.beforeCardRead?.();
       const card = cards.get(cardId);
       if (!card) throw new ApiError("http_error", { status: 404 });
       return { data: card, etag: tag(card.id, card.revision) };
@@ -191,11 +192,11 @@ function fixture() {
       storage,
       readWithSession,
       pasteTarget: doc.createElement("div"),
-      canUpload: () => true,
+      canUpload: () => !state.readFence,
       async awaitUploadAdmission(requestSignal, revision) {
         if (admission.length === 0) assert.equal(leased, false);
         admission.push(revision);
-        await state.admissionGate;
+        state.readFence = false;
         return state.admitted && !requestSignal.aborted;
       },
       beginWrite: write,
@@ -461,16 +462,27 @@ test("a revision change before upload preserves files without dispatch", async (
   view.open();
   view.title("Exact card");
   view.pick(image);
-  const admission = Promise.withResolvers();
-  f.state.admissionGate = admission.promise;
+  f.state.beforeCardRead = () => f.changeSaved({ revision: 22 });
   view.button("Add card").click();
-  await until(() => f.admission.length === 1, "admission to start");
-  f.changeSaved({ revision: 22 });
-  admission.resolve();
   await until(() => f.handoffs() === 1, "the stale handoff to settle");
-  assert.deepEqual(f.admission, [21]);
+  assert.deepEqual(f.admission, []);
   assert.deepEqual(f.uploads, []);
   assert.equal(f.stagedFiles.get(board).files[0], image);
+});
+
+test("a focused card read can refresh policy before the new upload is admitted", async () => {
+  const f = fixture();
+  const view = f.mount();
+  view.open();
+  view.title("Exact card");
+  view.pick(image);
+  f.state.beforeCardRead = () => {
+    f.state.readFence = true;
+  };
+  view.button("Add card").click();
+  await until(() => f.handoffs() === 1, "the initial handoff to settle");
+  assert.deepEqual(f.admission, [21]);
+  assert.equal(f.uploads.length, 1);
 });
 
 test("manual handoff follows the original UUID after ticket reorder", async () => {

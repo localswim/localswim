@@ -5,6 +5,9 @@ import { submitOperation, type OperationStorage } from "./operations.js";
 type Scope = { kind: "workspace" } | { kind: "board"; boardId: string };
 type Reply = { data: Publishing; etag: string };
 type Draft = { enabled: boolean; inspect: boolean; etag?: string };
+const INSPECTION_JOURNAL =
+  /^inspect:(on|off):("[A-Za-z0-9_-]{16,128}")(?:\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})?$/u;
+
 type Options = AppContext & {
   scope: Scope;
   readWithSession: <T>(read: () => Promise<T>, signal: AbortSignal) => Promise<T>;
@@ -123,14 +126,15 @@ export function mountPublishingSettings(
         case "inspect:off":
           draft = { enabled: journal.endsWith(":on"), inspect: journal.startsWith("inspect:") };
           break;
-        default:
-          if (/^inspect:(on|off):"[A-Za-z0-9_-]{16,128}"$/u.test(journal)) {
-            const parts = journal.split(":");
-            draft = { enabled: parts[1] === "on", inspect: true, etag: parts[2] };
+        default: {
+          const inspection = INSPECTION_JOURNAL.exec(journal);
+          if (inspection) {
+            draft = { enabled: inspection[1] === "on", inspect: true, etag: inspection[2] };
           } else {
             journal = undefined;
             storageMessage = "The pending publishing settings in tab storage are unreadable.";
           }
+        }
       }
     } catch {
       journal = undefined;
@@ -138,18 +142,26 @@ export function mountPublishingSettings(
     }
   }
 
-  function remember(next: Draft | undefined): boolean {
+  function journalMatches(): boolean {
+    try {
+      const existing = tabStorage().getItem(key);
+      if (existing === journal || (existing === null && journal === undefined)) return true;
+      journalConflict = true;
+      retryEtag = undefined;
+      storageMessage =
+        "The tab’s pending publishing settings changed. Refresh status to reload them.";
+    } catch {
+      storageMessage = "Tab storage is unavailable. Keep this page open to retain your change.";
+    }
+    return false;
+  }
+
+  function remember(next: Draft | undefined, attempt?: string): boolean {
+    if (!journalMatches()) return false;
     try {
       const tab = tabStorage();
-      const existing = tab.getItem(key);
-      if (existing !== journal && (existing !== null || journal !== undefined)) {
-        journalConflict = true;
-        storageMessage =
-          "The tab’s pending publishing settings changed. Refresh status to reload them.";
-        return false;
-      }
       const value = next
-        ? `${next.inspect ? "inspect" : "draft"}:${next.enabled ? "on" : "off"}${next.etag ? `:${next.etag}` : ""}`
+        ? `${next.inspect ? "inspect" : "draft"}:${next.enabled ? "on" : "off"}${next.etag ? `:${next.etag}` : ""}${attempt ? `/${attempt}` : ""}`
         : null;
       if (value === null) tab.removeItem(key);
       else tab.setItem(key, value);
@@ -170,7 +182,7 @@ export function mountPublishingSettings(
     const unavailable = allowed ? writeUnavailable?.() : undefined;
     form.hidden = !allowed;
     checkbox.checked = draft?.enabled ?? saved?.data.enabled ?? false;
-    checkbox.disabled = !allowed || !saved || busy || needsInspection;
+    checkbox.disabled = !allowed || !saved || busy || journalConflict || needsInspection;
     save.textContent = retryEtag
       ? `Retry ${scope.kind} publishing save`
       : `Save ${scope.kind} publishing`;
@@ -178,12 +190,13 @@ export function mountPublishingSettings(
       !allowed ||
       !saved ||
       busy ||
+      journalConflict ||
       !draft ||
       readFailed ||
       !!unavailable ||
       (needsInspection && retryEtag === undefined);
     discard.hidden = !draft || needsInspection;
-    discard.disabled = busy;
+    discard.disabled = busy || journalConflict;
     inspect.hidden = !needsInspection;
     inspect.disabled = busy;
     refreshButton.disabled = busy;
@@ -271,6 +284,7 @@ export function mountPublishingSettings(
           message = "The saved settings changed. Inspect the current setting before retrying.";
         }
         if (inspecting && draft?.inspect) {
+          if (!journalMatches()) return false;
           if (draft.enabled === reply.data.enabled) {
             finish(undefined, "The saved settings confirm the publishing change.");
             return true;
@@ -299,7 +313,8 @@ export function mountPublishingSettings(
   }
 
   async function submit(operationSignal: AbortSignal): Promise<boolean> {
-    if (!saved || !draft || readFailed || !canPublish() || writeUnavailable?.()) return false;
+    if (!saved || !draft || readFailed || journalConflict || !canPublish() || writeUnavailable?.())
+      return false;
     const retrying = draft.inspect;
     const expected = retrying ? retryEtag : saved.etag;
     if (expected === undefined || expected !== saved.etag) return false;
@@ -314,7 +329,8 @@ export function mountPublishingSettings(
       retryEtag = undefined;
       const outcome = await submitOperation(
         () => {
-          if (!remember(pending)) return false;
+          // The token owns the tab record. Retries keep the original wire ETag.
+          if (!remember(pending, crypto.randomUUID())) return false;
           draft = pending;
           message = "Saving publishing settings…";
           updatePermission();
@@ -322,7 +338,8 @@ export function mountPublishingSettings(
         },
         () => write(enabled, expected),
       );
-      if (operationSignal.aborted) return false;
+      if (operationSignal.aborted || outcome.kind === "journal-failed" || !journalMatches())
+        return false;
       switch (outcome.kind) {
         case "confirmed":
           saved = outcome.result;
@@ -343,8 +360,6 @@ export function mountPublishingSettings(
           break;
         case "unknown":
           message = "The save outcome is unknown. Inspect the saved settings before retrying.";
-          break;
-        case "journal-failed":
           break;
       }
       return false;

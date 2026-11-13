@@ -57,6 +57,8 @@ const waiting = "Waiting.";
 const inspectNotice = "Inspect the saved upload before changing this card.";
 const resumeNotice =
   "Reselect the remaining files to resume this batch, or discard the remaining uploads.";
+const retainedNotice = "Resume with the staged files, or discard the remaining uploads.";
+const retainedByDocument = new WeakMap<Document, Map<string, File>>();
 
 export function pastedRasterFiles(event: ClipboardEvent) {
   const clipboard = event.clipboardData;
@@ -121,6 +123,8 @@ export function mountUploads(
   const lifetime = new AbortController();
   const signal = AbortSignal.any([appSignal, lifetime.signal]);
   const recovery = createUploadRecovery(boardId, storage);
+  const retained = retainedByDocument.get(doc) ?? new Map<string, File>();
+  retainedByDocument.set(doc, retained);
   const batches = new Map<string, Batch>();
   let current: UploadContext | null = null;
   let selection = new AbortController();
@@ -156,6 +160,26 @@ export function mountUploads(
     return !signal.aborted && context.readable && context.editable && canUpload();
   }
 
+  function retainedKey(cardId: string, id: string) {
+    return `${boardId}/${cardId}/${id}`;
+  }
+
+  function retainedFiles(cardId: string, remaining: readonly Original[]) {
+    const files: File[] = [];
+    for (const { id } of remaining) {
+      const file = retained.get(retainedKey(cardId, id));
+      if (!file) return [];
+      files.push(file);
+    }
+    return files;
+  }
+
+  function retain(cardId: string, files: readonly PendingFile[]) {
+    for (const { original, file } of files) {
+      retained.set(retainedKey(cardId, original.id), file);
+    }
+  }
+
   function render() {
     if (signal.aborted) return;
     const readable = current?.readable === true;
@@ -164,6 +188,10 @@ export function mountUploads(
     const saved = current && readable ? recovery.read(current.cardId) : null;
     const fenced = saved !== null && saved.journal?.expected !== null;
     const resumable = saved !== null && !fenced;
+    const cached =
+      current && saved?.journal && resumable
+        ? retainedFiles(current.cardId, saved.journal.remaining).length > 0
+        : false;
     const mayWrite = current !== null && writable(current);
     host.hidden = !readable || (!mayWrite && !saved && !batch);
     label.hidden = !mayWrite || fenced;
@@ -173,10 +201,12 @@ export function mountUploads(
     inspect.hidden = !fenced;
     inspect.disabled = busy;
     resume.hidden = !resumable;
-    resume.disabled = picker.disabled || pickerFiles.length === 0;
+    resume.disabled = picker.disabled || (pickerFiles.length === 0 && !cached);
     discard.hidden = !resumable;
     discard.disabled = busy;
-    status.textContent = batch?.notice || (fenced ? inspectNotice : resumable ? resumeNotice : "");
+    status.textContent =
+      batch?.notice ||
+      (fenced ? inspectNotice : cached ? retainedNotice : resumable ? resumeNotice : "");
     const results = batch?.results ?? [];
     const listed = new Set(results.map(({ id }) => id));
     const savedResults = (saved?.journal?.remaining ?? []).flatMap(({ id, name }, index) =>
@@ -286,7 +316,14 @@ export function mountUploads(
       let remaining = pending.map(({ original }) => original);
       batchSignal.throwIfAborted();
       if (!saved && remaining.length) {
+        // Keep clipboard-only bytes available until their journal entries settle.
+        // A new batch can wait in its creation draft when the cache is full.
+        if (onCreatedTransfer && retained.size + pending.length > MAX_UPLOAD_FILES) {
+          batch.notice = "Resume or discard another staged upload before attaching these files.";
+          return;
+        }
         raw = recovery.save(cardId, null, { remaining, expected: null });
+        if (onCreatedTransfer) retain(cardId, pending);
         onCreatedTransfer?.();
       }
       batch.notice = "";
@@ -322,16 +359,18 @@ export function mountUploads(
             break;
           }
           result.outcome = error.status === 412 ? "Refused. The card changed." : "Upload refused.";
-          if (onCreatedTransfer || ![400, 413, 415, 422].includes(error.status ?? 0)) {
+          if (saved || onCreatedTransfer || ![400, 413, 415, 422].includes(error.status ?? 0)) {
             raw = recovery.save(cardId, raw, { remaining, expected: null });
             keepAttempt = false;
             batch.notice = "Review the saved card before resuming the remaining uploads.";
+            if (retainedFiles(cardId, remaining).length) batch.notice += ` ${retainedNotice}`;
             refresh = true;
             break;
           }
         }
         remaining = remaining.slice(1);
         raw = recovery.save(cardId, raw, { remaining, expected: null });
+        retained.delete(retainedKey(cardId, original.id));
         keepAttempt = false;
         batch.notice = "";
       }
@@ -416,15 +455,16 @@ export function mountUploads(
       readSignal.throwIfAborted();
       const proof = proveAttachment(reply, original, boardId, cardId, expected, false);
       recovery.save(cardId, saved.raw, { remaining: rest, expected: null });
+      retained.delete(retainedKey(cardId, original.id));
       const outcome = proof.active
         ? "Uploaded. Confirmed by inspection."
         : "Uploaded, then detached.";
       const result = batch.results.find(({ id }) => id === original.id);
       if (result) result.outcome = outcome;
       else batch.results.push({ id: original.id, name: original.name, outcome });
-      batch.notice = rest.length
-        ? `Saved upload verified. ${resumeNotice}`
-        : "Saved upload verified.";
+      batch.notice = "Saved upload verified.";
+      if (rest.length)
+        batch.notice += ` ${retainedFiles(cardId, rest).length ? retainedNotice : resumeNotice}`;
       onChange();
     } catch (error) {
       // A missing original can race a write still in flight. Keep the fence.
@@ -477,16 +517,13 @@ export function mountUploads(
   resume.addEventListener(
     "click",
     () => {
-      if (
-        !current ||
-        !pickerFiles.length ||
-        !writable(current) ||
-        batches.get(current.cardId)?.busy
-      )
-        return;
+      if (!current || !writable(current) || batches.get(current.cardId)?.busy) return;
       const saved = recovery.read(current.cardId);
       if (saved?.journal?.expected === null) {
-        run(submit(current, takeFiles(), { raw: saved.raw, journal: saved.journal }));
+        const files = pickerFiles.length
+          ? takeFiles()
+          : retainedFiles(current.cardId, saved.journal.remaining);
+        if (files.length) run(submit(current, files, { raw: saved.raw, journal: saved.journal }));
       }
     },
     { signal },
@@ -506,6 +543,7 @@ export function mountUploads(
         recovery.save(cardId, saved.raw, null);
         takeFiles();
         const ids = new Set(saved.journal.remaining.map(({ id }) => id));
+        for (const id of ids) retained.delete(retainedKey(cardId, id));
         batch.results = batch.results.filter(({ id }) => id === undefined || !ids.has(id));
         batch.notice = "Remaining uploads discarded.";
       } catch {

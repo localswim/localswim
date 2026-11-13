@@ -839,7 +839,8 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
       stagedFiles.get(boardId) !== staged
     )
       return;
-    const { cardId, ticket } = target;
+    const { cardId } = target;
+    let { ticket } = target;
     staged.busy = true;
     fileNotice = `Preparing attachments for card #${ticket}…`;
     update();
@@ -853,10 +854,16 @@ export function mountCreateCard(host: HTMLElement, options: CreateCardOptions) {
           !record(data) ||
           data.id !== cardId ||
           data.board_id !== boardId ||
-          data.ticket !== ticket
+          typeof data.ticket !== "number" ||
+          !Number.isSafeInteger(data.ticket) ||
+          data.ticket < 1
         )
           throw new TypeError("The read did not identify the original card.");
         tag = uploadValidator(cardId, 1, data, etag) ?? undefined;
+        if (tag && pageActive()) {
+          ticket = data.ticket;
+          staged.target = { cardId, ticket };
+        }
       }
       if (!pageActive()) return;
       const transferred =

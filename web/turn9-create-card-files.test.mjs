@@ -154,7 +154,7 @@ function fixture() {
       assert.equal(journal.remaining[0].id, id);
       assert.equal(stagedFiles.has(board), false);
       uploads.push({ name: selected.name, id });
-      if (selected.name === "remaining.txt" && state.uploadStatus)
+      if (selected.name === (state.refusedName ?? "remaining.txt") && state.uploadStatus)
         throw new ApiError("http_error", { status: state.uploadStatus });
       const data = {
         id,
@@ -259,22 +259,37 @@ function fixture() {
     function rows() {
       return host.descendants().filter((node) => node.className === "create-card-attachment-row");
     }
-    function resume(...files) {
+    function openSavedUploads() {
       uploader.show({
         cardId: saved.id,
         etag: tag(saved.id, saved.revision),
         readable: true,
         editable: true,
       });
+    }
+    function uploadButton(label) {
+      return uploadHost.descendants().find((node) => node.textContent === label);
+    }
+    function resume(...files) {
+      openSavedUploads();
       const picker = uploadHost.descendants().find((node) => node.type === "file");
       picker.files = files;
       picker.dispatchEvent(new Event("change"));
-      uploadHost
-        .descendants()
-        .find((node) => node.textContent === "Resume remaining uploads")
-        .click();
+      uploadButton("Resume remaining uploads").click();
     }
-    return { button, life, open, paste, pick, resume, rows, seed, title };
+    return {
+      button,
+      life,
+      open,
+      openSavedUploads,
+      paste,
+      pick,
+      resume,
+      rows,
+      seed,
+      title,
+      uploadButton,
+    };
   }
   function remaining() {
     const raw = storage.getItem(`localswim:v2:uploads:${board}:${saved.id}`);
@@ -447,6 +462,97 @@ test("a revision change before upload preserves files without dispatch", async (
   assert.deepEqual(f.admission, [21]);
   assert.deepEqual(f.uploads, []);
   assert.equal(f.stagedFiles.get(board).files[0], image);
+});
+
+test("manual handoff follows the original UUID after ticket reorder", async () => {
+  const f = fixture();
+  const view = f.mount();
+  view.open();
+  view.title("Exact card");
+  view.pick(image);
+  f.state.admitted = false;
+  view.button("Add card").click();
+  await until(() => f.handoffs() === 1, "the denied handoff to settle");
+  f.changeSaved({ ticket: 8, revision: ++f.state.revision });
+  view.button("Review card #7").click();
+  view.button("Attach staged files").click();
+  await until(() => f.handoffs() === 2, "the updated ticket to be verified");
+  assert.equal(view.button("Review card #8").hidden, false);
+  f.state.admitted = true;
+  view.button("Attach staged files").click();
+  await until(() => f.handoffs() === 3, "the reordered card upload to settle");
+  assert.equal(f.posts.length, 1);
+  assert.equal(f.uploads.length, 1);
+  assert.deepEqual(f.admission, [21, 22, 22]);
+});
+
+test("clipboard files resume after remount and repeated 422 without replacing any original", async () => {
+  const f = fixture();
+  const first = f.mount();
+  first.open();
+  first.title("Exact card");
+  first.pick(file("confirmed.txt"));
+  first.paste(image);
+  first.pick(file("later.txt"));
+  f.state.refusedName = image.name;
+  f.state.uploadStatus = 422;
+  first.button("Add card").click();
+  await until(() => f.handoffs() === 1, "the initial batch to settle");
+  assert.deepEqual(
+    f.uploads.map(({ name }) => name),
+    ["confirmed.txt", "screen.png"],
+  );
+  const remaining = f.remaining();
+  assert.deepEqual(
+    remaining.remaining.map(({ name }) => name),
+    ["screen.png", "later.txt"],
+  );
+  first.life.abort();
+  const other = f.mount(otherBoard);
+  other.openSavedUploads();
+  assert.equal(other.uploadButton("Resume remaining uploads").hidden, true);
+
+  const view = f.mount();
+  view.openSavedUploads();
+  assert.equal(view.uploadButton("Resume remaining uploads").disabled, false);
+  view.resume(file("screen.png", "wrong", "image/png"), file("later.txt"));
+  await until(() => f.releasedWrites() === 3, "the changed selection to be rejected");
+  assert.equal(f.uploads.length, 2);
+  assert.deepEqual(f.remaining(), remaining);
+
+  for (const writes of [4, 5]) {
+    view.resume();
+    await until(() => f.releasedWrites() === writes, "the repeated 422 to settle");
+    assert.deepEqual(f.uploads.at(-1), f.uploads[1]);
+    assert.deepEqual(f.remaining(), remaining);
+  }
+  f.state.uploadStatus = null;
+  view.resume();
+  await until(() => f.releasedWrites() === 6, "the cached originals to settle");
+  assert.deepEqual(
+    f.uploads.slice(-2),
+    remaining.remaining.map(({ id, name }) => ({ id, name })),
+  );
+  assert.equal(f.remaining(), null);
+  assert.equal(view.uploadButton("Resume remaining uploads").hidden, true);
+});
+
+test("discard clears the clipboard-only remainder without sending it again", async () => {
+  const f = fixture();
+  const view = f.mount();
+  view.open();
+  view.title("Exact card");
+  view.paste(image);
+  f.state.refusedName = image.name;
+  f.state.uploadStatus = 422;
+  view.button("Add card").click();
+  await until(() => f.handoffs() === 1, "the refused batch to settle");
+  view.openSavedUploads();
+  assert.equal(view.uploadButton("Resume remaining uploads").disabled, false);
+  view.uploadButton("Discard remaining uploads").click();
+  assert.equal(f.remaining(), null);
+  assert.equal(view.uploadButton("Resume remaining uploads").hidden, true);
+  assert.equal(f.uploads.length, 1);
 });
 
 for (const issue of ["unexpected link", "unavailable relationship read"]) {

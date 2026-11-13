@@ -9,10 +9,46 @@ import type { WorkspaceView } from "./workspace-state.js";
 type Availability = "unknown" | "open" | "closed" | "unhealthy" | "unavailable" | "missing";
 type Readiness = "loading" | "ready" | "refreshing" | "error";
 
+function catalogDiagnostic(code: string | null) {
+  if (code === "durable_state_changed") {
+    return "The saved snapshot differs from the last accepted state.";
+  }
+  if (code === "durable_state_unavailable") return "The saved snapshot is unavailable.";
+  return "This board’s saved state is unhealthy.";
+}
+
+function verificationDiagnostic(value: unknown, boardId: string) {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("board_id" in value) ||
+    value.board_id !== boardId ||
+    !("valid" in value) ||
+    value.valid !== false ||
+    !("revision" in value) ||
+    value.revision !== null ||
+    !("issues" in value) ||
+    !Array.isArray(value.issues) ||
+    value.issues.length !== 1
+  ) {
+    return null;
+  }
+  const issue: unknown = value.issues[0];
+  if (typeof issue !== "object" || issue === null || !("code" in issue)) return null;
+  if (issue.code === "required" && "field" in issue && issue.field === "snapshot") {
+    return "The saved snapshot is missing.";
+  }
+  if (issue.code === "integrity_failure")
+    return "The saved snapshot failed integrity verification.";
+  return null;
+}
+
 export type BoardStateView = Readonly<{
   data: BoardViewData | null;
   name: string | null;
   availability: Availability;
+  startupQuarantined: boolean;
+  healthDiagnostic: string | null;
   connection: Connection;
   readiness: Readiness;
   confirmedRevision: number | null;
@@ -44,8 +80,8 @@ export function createBoardState({
   const lifetime = new AbortController();
   const signal = AbortSignal.any([ownerSignal, lifetime.signal]);
   let started = false;
-  let data: BoardViewData | null = retained ?? null;
-  let name: string | null = retained?.board.name ?? null;
+  let data: BoardViewData | null = retained?.board.id === boardId ? retained : null;
+  let name: string | null = data?.board.name ?? null;
   let focusedAvailability: Availability = "unknown";
   let connection: Connection = "connecting";
   let readiness: Readiness = "loading";
@@ -57,39 +93,60 @@ export function createBoardState({
   let catalogReady = false;
   let catalogName: string | null = null;
   let catalogRevision: number | null = null;
+  let catalogErrorCode: string | null = null;
+  let catalogHasBoard = true;
+  let needsFullRead = false;
+  let verification: AbortController | undefined;
+  let verificationMessage: string | null = null;
   let confirmationEpoch = 0;
   let confirmedEpoch = -1;
   let hadOutage = false;
   let watchRecovery: "idle" | "requested" | "deferred" = "idle";
   let explicitWriteFence = false;
 
+  function startupQuarantined() {
+    return catalogAvailability === "unhealthy" && catalogRevision === null;
+  }
+
   function publish() {
     if (!started || signal.aborted) return;
     let availability = focusedAvailability;
+    const quarantined = startupQuarantined();
+    const denied = availability === "missing" || availability === "unavailable";
     const currentCatalog = catalogRevision === null || catalogRevision >= (confirmedRevision ?? 0);
-    if (
-      catalogAvailability === "unhealthy" ||
-      (currentCatalog && catalogAvailability === "closed")
-    ) {
+    if (quarantined) {
+      availability = "unhealthy";
+    } else if (!catalogHasBoard && !denied) {
+      availability = confirmedRevision === null ? "missing" : "unavailable";
+    } else if (!denied && currentCatalog && catalogAvailability === "closed") {
       availability = catalogAvailability;
-    }
-    if (
-      availability === "closed" ||
-      availability === "unhealthy" ||
-      availability === "missing" ||
-      availability === "unavailable"
+    } else if (
+      !denied &&
+      availability !== "closed" &&
+      (catalogAvailability === "unhealthy" || (needsFullRead && data !== null))
     ) {
-      data = null;
+      availability = "unhealthy";
     }
+    const hideContent = quarantined || denied || !catalogHasBoard;
+    if (hideContent || availability === "closed") data = null;
+    const code = catalogAvailability === "unhealthy" ? catalogErrorCode : null;
+    const healthDiagnostic =
+      availability !== "unhealthy"
+        ? null
+        : quarantined
+          ? "The service could not load this board’s saved snapshot at startup."
+          : (verificationMessage ?? catalogDiagnostic(code));
     onChange({
       data,
-      name: name ?? catalogName,
+      name: hideContent ? null : (name ?? catalogName),
       availability,
+      startupQuarantined: quarantined,
+      healthDiagnostic,
       connection,
       readiness,
       confirmedRevision,
       confirmedEtag,
-      policyId,
+      policyId: hideContent ? null : policyId,
       lifecycleReady:
         catalogReady &&
         readiness === "ready" &&
@@ -117,6 +174,35 @@ export function createBoardState({
     });
   }
 
+  function clearVerification() {
+    verification?.abort();
+    verification = undefined;
+    verificationMessage = null;
+  }
+
+  async function inspectHealth(epoch: number) {
+    if (catalogErrorCode === "durable_state_changed" || verification !== undefined) return;
+    const inspection = new AbortController();
+    verification = inspection;
+    const readSignal = AbortSignal.any([signal, inspection.signal]);
+    try {
+      const { data: report } = await readWithSession(
+        () => api.getVerification(boardId, readSignal),
+        readSignal,
+      );
+      if (readSignal.aborted || epoch !== confirmationEpoch) return;
+      const message = verificationDiagnostic(report, boardId);
+      if (message !== verificationMessage) {
+        verificationMessage = message;
+        publish();
+      }
+    } catch {
+      // Catalog and focused availability already provide the safe fallback diagnostic.
+    } finally {
+      if (verification === inspection) verification = undefined;
+    }
+  }
+
   function confirm(revision: number, etag: string, epoch: number) {
     // A slow response can arrive after a newer revision was confirmed or announced.
     if (revision < Math.max(confirmedRevision ?? 0, hintedRevision)) {
@@ -130,10 +216,11 @@ export function createBoardState({
   async function read(): Promise<boolean> {
     const epoch = confirmationEpoch;
     const superseded = () => signal.aborted || epoch !== confirmationEpoch;
+    if (startupQuarantined()) return true;
     const readAvailability = () =>
       readWithSession(() => api.getBoardAvailability(boardId, signal), signal);
     try {
-      if (focusedAvailability === "open" && data !== null) {
+      if (focusedAvailability === "open" && data !== null && !needsFullRead) {
         const previous = data;
         const check = await readWithSession(
           () => api.getBoardIfChanged(boardId, previous.etag, signal),
@@ -148,15 +235,17 @@ export function createBoardState({
 
       let metadata = await readAvailability();
       if (superseded()) return false;
-      if (metadata.data.availability === "open") {
+      if (metadata.data.availability === "open" && catalogAvailability !== "unhealthy") {
         try {
           const next = await readWithSession(() => getBoardView({ api, signal }, boardId), signal);
           if (superseded()) return false;
           confirm(next.board.revision, next.etag, epoch);
-          if (next.etag !== data?.etag) data = next;
+          if (needsFullRead || next.etag !== data?.etag) data = next;
           name = next.board.name;
           policyId = next.board.policy_id;
           focusedAvailability = "open";
+          needsFullRead = false;
+          clearVerification();
           return true;
         } catch (error) {
           if (superseded()) return false;
@@ -171,16 +260,27 @@ export function createBoardState({
       name = metadata.data.name;
       policyId = metadata.data.policy_id;
       focusedAvailability = metadata.data.availability;
+      if (
+        focusedAvailability === "unhealthy" ||
+        (focusedAvailability === "open" && catalogAvailability === "unhealthy")
+      ) {
+        needsFullRead = true;
+        void inspectHealth(epoch);
+      } else {
+        clearVerification();
+      }
       return true;
     } catch (error) {
       if (superseded()) return false;
       if (error instanceof ApiError) {
         switch (error.status) {
           case 404:
+            clearVerification();
             focusedAvailability = confirmedRevision === null ? "missing" : "unavailable";
             return true;
           case 401:
           case 403:
+            clearVerification();
             focusedAvailability = "unavailable";
             break;
           case null:
@@ -197,7 +297,8 @@ export function createBoardState({
     revision: () => confirmedRevision ?? 0,
     canReadAutomatically: () => started,
     report(state) {
-      const initialReadPending = readiness === "loading" && focusedAvailability === "unknown";
+      const initialReadPending =
+        readiness === "loading" && focusedAvailability === "unknown" && !startupQuarantined();
       if (!initialReadPending || state === "error") readiness = state;
       publish();
       if (
@@ -258,18 +359,29 @@ export function createBoardState({
     if (signal.aborted || view.status === "loading") return;
     const row = view.boards.find(({ id }) => id === boardId);
     const revision = row?.revision ?? null;
-    if (view.status === "ready" && revision !== null && revision < (confirmedRevision ?? 0)) {
+    if (
+      view.status === "ready" &&
+      row?.availability !== "unhealthy" &&
+      revision !== null &&
+      revision < (confirmedRevision ?? 0)
+    ) {
       return;
     }
     const previousAvailability = catalogAvailability;
     const previouslyReady = catalogReady;
     const previousName = catalogName;
+    const previousCode = catalogErrorCode;
+    const previouslyHadBoard = catalogHasBoard;
+    const wasQuarantined = startupQuarantined();
     // An incomplete catalog refresh retains its last durable warning until rechecked.
     catalogReady = view.status === "ready";
     if (view.status === "ready") {
       catalogAvailability = row?.availability ?? "unknown";
       catalogRevision = revision;
       catalogName = row?.name ?? null;
+      catalogErrorCode = row?.errorCode ?? null;
+      catalogHasBoard = row !== undefined;
+      if (catalogAvailability === "unhealthy") needsFullRead = true;
     }
     const previousHint = hintedRevision;
     if (view.status === "ready" && revision !== null) {
@@ -277,14 +389,22 @@ export function createBoardState({
     }
     const availabilityChanged = previousAvailability !== catalogAvailability;
     const readinessChanged = previouslyReady !== catalogReady;
+    const diagnosticChanged = previousCode !== catalogErrorCode;
+    const admissionChanged =
+      previouslyHadBoard !== catalogHasBoard || wasQuarantined !== startupQuarantined();
     const firstOpenObservation =
       !previouslyReady &&
       previousAvailability === "unknown" &&
       catalogAvailability === "open" &&
       confirmedEpoch < 0;
     const needsConfirmation =
-      catalogReady && !firstOpenObservation && (availabilityChanged || readinessChanged);
-    if (needsConfirmation) confirmationEpoch++;
+      catalogReady &&
+      !firstOpenObservation &&
+      (availabilityChanged || readinessChanged || diagnosticChanged || admissionChanged);
+    if (needsConfirmation) {
+      confirmationEpoch++;
+      clearVerification();
+    }
 
     let retryConfirmation = false;
     if (periodic && catalogReady && catalogAvailability === "open") {
@@ -292,12 +412,15 @@ export function createBoardState({
       if (retryWatch) watchRecovery = "idle";
       retryConfirmation =
         retryWatch ||
+        focusedAvailability === "unhealthy" ||
         readiness === "error" ||
         (readiness === "ready" && confirmedEpoch !== confirmationEpoch);
     }
     if (
       availabilityChanged ||
       readinessChanged ||
+      diagnosticChanged ||
+      admissionChanged ||
       previousName !== catalogName ||
       previousHint !== hintedRevision
     ) {
@@ -307,9 +430,9 @@ export function createBoardState({
   }
 
   function retry() {
-    if (!started || signal.aborted) return;
+    if (!started || signal.aborted) return Promise.resolve();
     if (connection === "unavailable" && watchRecovery === "deferred") watchRecovery = "idle";
-    void updates.request().catch(() => {
+    return updates.request().catch(() => {
       // The refresh controller reports the failed read and preserves the last confirmed view.
     });
   }
@@ -320,13 +443,14 @@ export function createBoardState({
       if (signal.aborted || started) return;
       started = true;
       publish();
-      retry();
+      void retry();
     },
     retry,
     observeCatalog,
     requireFreshConfirmation() {
       catalogReady = false;
       confirmationEpoch++;
+      clearVerification();
       publish();
     },
     fenceWrites() {

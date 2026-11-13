@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { setImmediate as flush } from "node:timers/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -169,9 +169,10 @@ function attachment(cardId, item, revision = 4) {
 }
 
 async function until(predicate) {
-  for (let attempt = 0; attempt < 100; attempt++) {
+  const deadline = performance.now() + 2000;
+  while (performance.now() < deadline) {
     if (predicate()) return;
-    await flush();
+    await delay(5);
   }
   assert.fail("Upload did not reach the expected state.");
 }

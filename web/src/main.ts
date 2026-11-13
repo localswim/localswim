@@ -1923,15 +1923,25 @@ export function mount(root: HTMLElement): () => void {
       const key = `${change.boardId}:${change.cardId}`;
       runtime.pendingChanges.set(key, change);
       runtime.refreshPending?.(change.boardId);
-      function clear() {
+      return (settlement) => {
         if (runtime.pendingChanges.get(key) !== change) return;
-        runtime.pendingChanges.delete(key);
-        runtime.refreshPending?.(change.boardId);
-      }
-      return (settlement?: "confirmed") => {
-        if (runtime.pendingChanges.get(key) !== change) return;
-        const confirmation =
-          settlement === "confirmed" ? runtime.confirmPending?.(change.boardId) : undefined;
+        const confirmed =
+          settlement &&
+          typeof settlement === "object" &&
+          change.kind === "priority" &&
+          change.priorityId !== settlement.priorityId
+            ? { ...change, priorityId: settlement.priorityId }
+            : change;
+        if (confirmed !== change) {
+          runtime.pendingChanges.set(key, confirmed);
+          runtime.refreshPending?.(change.boardId);
+        }
+        function clear() {
+          if (runtime.pendingChanges.get(key) !== confirmed) return;
+          runtime.pendingChanges.delete(key);
+          runtime.refreshPending?.(change.boardId);
+        }
+        const confirmation = settlement ? runtime.confirmPending?.(change.boardId) : undefined;
         if (confirmation) void confirmation.finally(clear);
         else clear();
       };

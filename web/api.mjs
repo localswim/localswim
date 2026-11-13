@@ -235,20 +235,41 @@ function validBackup(value, boardId, id) {
   );
 }
 
-/** @param {object} value @param {string} id @param {string} boardId @param {string} backupId */
+/**
+ * @typedef {{ id: string, board_id: string, backup_id: string, workspace: false } & (
+ *   { state: "queued" | "running", finished_at: null, error_code: null } |
+ *   { state: "succeeded", finished_at: string, error_code: null } |
+ *   { state: "failed", finished_at: string, error_code: string }
+ * )} BackupPublication
+ */
+
+/** @param {object} value @param {string} id @param {string} boardId @param {string} backupId
+ * @returns {value is BackupPublication} */
 function validPublication(value, id, boardId, backupId) {
   const item = /** @type {Record<string, unknown>} */ (value);
-  return (
-    Object.keys(item).length === 7 &&
-    item.id === id &&
-    item.board_id === boardId &&
-    item.backup_id === backupId &&
-    item.workspace === false &&
-    ["queued", "running", "succeeded", "failed"].includes(String(item.state)) &&
-    (item.finished_at === null || isTimestamp(item.finished_at)) &&
-    (item.error_code === null ||
-      (typeof item.error_code === "string" && /^[a-z0-9_]{1,80}$/.test(item.error_code)))
-  );
+  if (
+    Object.keys(item).length !== 7 ||
+    item.id !== id ||
+    item.board_id !== boardId ||
+    item.backup_id !== backupId ||
+    item.workspace !== false
+  )
+    return false;
+  switch (item.state) {
+    case "queued":
+    case "running":
+      return item.finished_at === null && item.error_code === null;
+    case "succeeded":
+      return isTimestamp(item.finished_at) && item.error_code === null;
+    case "failed":
+      return (
+        isTimestamp(item.finished_at) &&
+        typeof item.error_code === "string" &&
+        /^[a-z0-9_]{1,80}$/.test(item.error_code)
+      );
+    default:
+      return false;
+  }
 }
 
 /** @param {unknown} value @param {number} limit */
@@ -1288,9 +1309,9 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
           backup_id: backup,
         },
       });
+      await requireJSONResponse(response, 202, true);
       const data = await responseObject(response, true);
       if (
-        response.status !== 202 ||
         response.headers.get("Location") !== API_PREFIX + "/publications/" + publication ||
         !validPublication(data, publication, board, backup)
       ) {
@@ -1298,21 +1319,19 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       }
       return { data, etag: response.headers.get("ETag") };
     },
-    /** @param {string} id @param {string} boardId @param {string} backupId */
-    async getPublication(id, boardId, backupId) {
-      const reply = await request("/publications/" + operationId(id));
-      if (
-        !STRONG_ETAG.test(reply.etag ?? "") ||
-        !validPublication(
-          reply.data,
-          operationId(id),
-          resourceId(boardId).toLowerCase(),
-          operationId(backupId),
-        )
-      ) {
+    /** @param {string} id @param {string} boardId @param {string} backupId @param {AbortSignal} [signal] */
+    async getPublication(id, boardId, backupId, signal) {
+      const publication = operationId(id);
+      const board = resourceId(boardId).toLowerCase();
+      const backup = operationId(backupId);
+      const response = await send("/publications/" + publication, { signal });
+      await requireJSONResponse(response, 200, false);
+      const data = await responseObject(response, false);
+      const etag = response.headers.get("ETag");
+      if (!STRONG_ETAG.test(etag ?? "") || !validPublication(data, publication, board, backup)) {
         throw new ApiError("invalid_response", { status: 200 });
       }
-      return reply;
+      return { data, etag };
     },
     /** @param {string} id @param {string} boardId @param {string} boardEtag */
     async createBackup(id, boardId, boardEtag) {

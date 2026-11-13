@@ -799,9 +799,9 @@ async function* readEvents(body) {
     reader.releaseLock();
   }
 }
-/** @param {AbortSignal} [signal] */
-function boundedReadSignal(signal) {
-  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+/** @param {AbortSignal} [signal] @param {number} [timeoutMs] */
+function boundedReadSignal(signal, timeoutMs = REQUEST_TIMEOUT_MS) {
+  const timeout = AbortSignal.timeout(timeoutMs);
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
@@ -816,7 +816,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
 
   /**
    * @param {string} path
-   * @param {{ method?: string, data?: unknown, raw?: Blob, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal, knownUnavailable?: boolean }} [options]
+   * @param {{ method?: string, data?: unknown, raw?: Blob, etag?: string, ifNoneMatch?: string, boardEtag?: string, accept?: string, signal?: AbortSignal, knownUnavailable?: boolean, timeoutMs?: number }} [options]
    */
   async function send(
     path,
@@ -830,6 +830,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       accept = "application/json",
       signal,
       knownUnavailable = false,
+      timeoutMs,
     } = {},
   ) {
     const body = raw ?? (data === undefined ? undefined : JSON.stringify(data));
@@ -866,7 +867,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     try {
       response = await fetchImpl(API_PREFIX + path, {
         method,
-        signal: accept === "text/event-stream" ? signal : boundedReadSignal(signal),
+        signal: accept === "text/event-stream" ? signal : boundedReadSignal(signal, timeoutMs),
         headers,
         body,
         mode: "same-origin",
@@ -1282,11 +1283,17 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
     /** @param {string} boardId @param {string} snapshotEtag @param {Blob} file */
     async restoreSnapshot(boardId, snapshotEtag, file) {
       const board = resourceId(boardId).toLowerCase();
+      // Cover both ZIP transfer and validation windows defined by backuptransfer.ClientBudget.
+      const uploadSeconds = Math.min(30 + Math.floor(file.size / (8 * 1024 * 1024)), 2 * 3600);
+      const replySeconds = Math.min(60 + Math.floor(file.size / (1024 * 1024)), 6 * 3600);
       const response = await send("/snapshots/" + board, {
         method: "PUT",
         etag: strongTag(snapshotEtag),
         raw: file,
+        knownUnavailable: true,
+        timeoutMs: (uploadSeconds + replySeconds + 5) * 1000,
       });
+      await requireJSONResponse(response, 200, true);
       const data = /** @type {Record<string, unknown>} */ (await responseObject(response, true));
       if (
         response.status !== 200 ||
@@ -1297,7 +1304,7 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       ) {
         throw new ApiError("invalid_response", { status: response.status, outcomeUnknown: true });
       }
-      return { data, etag: null };
+      return { data: { ...data, id: board, revision: data.revision }, etag: null };
     },
     /** @param {string} id @param {string} boardId @param {string} backupId */
     async publishBackup(id, boardId, backupId) {
@@ -2210,10 +2217,11 @@ export function createBrowserApi({ getCapability, fetchImpl = globalThis.fetch.b
       list("/users", { board_id: resourceId(boardId) }, cursor, signal),
     /** @param {unknown} policyId @param {AbortSignal} [signal] */
     getPolicy: (policyId, signal) => request(`/policies/${resourceId(policyId)}`, { signal }),
-    /** @param {unknown} boardId */
-    getVerification: (boardId) => request(`/verifications/${resourceId(boardId)}`),
-    /** @param {unknown} boardId */
-    getSnapshot: (boardId) => request(`/snapshots/${resourceId(boardId)}`),
+    /** @param {unknown} boardId @param {AbortSignal} [signal] */
+    getVerification: (boardId, signal) =>
+      request(`/verifications/${resourceId(boardId)}`, { signal }),
+    /** @param {unknown} boardId @param {AbortSignal} [signal] */
+    getSnapshot: (boardId, signal) => request(`/snapshots/${resourceId(boardId)}`, { signal }),
     /** @param {unknown} boardId */
     async getOwnerNoticeRoute(boardId) {
       const id = resourceId(boardId).toLowerCase();

@@ -348,14 +348,18 @@ export function mountUploads(
         batchSignal.throwIfAborted();
         const firstResume = saved && index === 0;
         const readSignal = firstResume ? resumeSignal : batchSignal;
-        if (firstResume || index > 0) {
+        const mustReadCard = firstResume || index > 0;
+        if (mustReadCard)
           expected = await readCardTag(cardId, revision, readSignal, !!onCreatedTransfer);
-          if (awaitUploadAdmission && !(await awaitUploadAdmission(readSignal, revision))) {
-            batch.notice = "Upload stopped because write access could not be confirmed.";
-            break;
-          }
-        }
-        if (readSignal.aborted || !canUpload()) {
+        // Hashing the staged files can overlap a policy refresh after admission.
+        const mustWait = mustReadCard || (onCreatedTransfer !== undefined && !canUpload());
+        if (
+          (mustWait &&
+            awaitUploadAdmission &&
+            !(await awaitUploadAdmission(readSignal, revision))) ||
+          readSignal.aborted ||
+          !canUpload()
+        ) {
           batch.notice = "Upload stopped because write access could not be confirmed.";
           break;
         }

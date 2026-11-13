@@ -485,6 +485,36 @@ test("a focused card read can refresh policy before the new upload is admitted",
   assert.equal(f.uploads.length, 1);
 });
 
+for (const admitted of [true, false]) {
+  test(`staged upload reconfirms a write fence raised during hashing (admitted: ${admitted})`, async () => {
+    const f = fixture();
+    const view = f.mount();
+    view.open();
+    view.title("Exact card");
+    const selected = file("exact.txt");
+    const readBytes = selected.arrayBuffer.bind(selected);
+    selected.arrayBuffer = () => {
+      f.state.readFence = true;
+      f.state.admitted = admitted;
+      return readBytes();
+    };
+    view.pick(selected);
+    view.button("Add card").click();
+    await until(() => f.handoffs() === 1, "the post-hash admission to settle");
+    assert.deepEqual(f.admission, [21, 21]);
+    assert.equal(f.uploads.length, admitted ? 1 : 0);
+    if (admitted) {
+      assert.equal(f.remaining(), null);
+    } else {
+      assert.equal(f.remaining().expected, null);
+      assert.deepEqual(
+        f.remaining().remaining.map(({ name }) => name),
+        [selected.name],
+      );
+    }
+  });
+}
+
 test("manual handoff follows the original UUID after ticket reorder", async () => {
   const f = fixture();
   const view = f.mount();
